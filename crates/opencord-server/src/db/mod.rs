@@ -13,6 +13,7 @@ pub mod bans;
 pub mod channels;
 pub mod invites;
 pub mod members;
+pub mod messages;
 pub mod meta;
 pub mod roles;
 pub mod users;

@@ -356,3 +356,102 @@ impl ServerCertVerifier for PinnedFingerprint {
         self.algorithms.supported_schemes()
     }
 }
+
+impl TestClient {
+    /// The oldest event already read but not yet consumed.
+    pub fn queued_event(&mut self) -> Option<(u64, proto::event::Kind)> {
+        self.events
+            .pop_front()
+            .map(|(seq, event)| (seq, event.kind.expect("an event kind")))
+    }
+
+    /// Sends a request that must succeed.
+    pub async fn ok(&mut self, kind: proto::request::Kind) -> proto::response::Result {
+        match self.request(kind).await {
+            proto::response::Result::Error(error) => panic!("request failed: {error:?}"),
+            result => result,
+        }
+    }
+
+    /// Sends a request that must fail; returns the error.
+    pub async fn error(&mut self, kind: proto::request::Kind) -> proto::Error {
+        match self.request(kind).await {
+            proto::response::Result::Error(error) => error,
+            result => panic!("expected an error, got {result:?}"),
+        }
+    }
+
+    /// Skips events until `pick` returns something.
+    pub async fn wait_for<T>(
+        &mut self,
+        mut pick: impl FnMut(&proto::event::Kind) -> Option<T>,
+    ) -> T {
+        loop {
+            let event = self.next_event().await;
+            if let Some(found) = pick(&event) {
+                return found;
+            }
+        }
+    }
+
+    /// Reads events for `wait` and fails if any matches.
+    pub async fn assert_no_event(
+        &mut self,
+        wait: Duration,
+        matches: impl Fn(&proto::event::Kind) -> bool,
+    ) {
+        while let Some((_, event)) = self.events.pop_front() {
+            let kind = event.kind.expect("an event kind");
+            assert!(!matches(&kind), "unexpected event {kind:?}");
+        }
+        let deadline = tokio::time::Instant::now() + wait;
+        while let Ok(message) = tokio::time::timeout_at(deadline, self.ws.next()).await {
+            let Some(Ok(Message::Binary(bytes))) = message else {
+                continue;
+            };
+            let envelope = proto::Envelope::decode(bytes).unwrap();
+            if let Some(Payload::Event(event)) = envelope.payload {
+                self.last_seq = envelope.seq;
+                let kind = event.kind.expect("an event kind");
+                assert!(!matches(&kind), "unexpected event {kind:?}");
+            }
+        }
+    }
+}
+
+/// Creates an invite as `client` and returns its code.
+pub async fn invite(client: &mut TestClient, max_uses: Option<u32>) -> String {
+    match client
+        .ok(proto::request::Kind::CreateInvite(proto::CreateInvite {
+            max_uses,
+            expires_in_s: None,
+        }))
+        .await
+    {
+        proto::response::Result::Invite(invite) => invite.code,
+        other => panic!("expected an invite, got {other:?}"),
+    }
+}
+
+/// Joins with an invite as the key with `seed`.
+pub async fn join(server: &TestServer, seed: u8, invite_code: &str) -> (TestClient, proto::Ready) {
+    let mut client = TestClient::connect(server, key(seed)).await;
+    let ready = client
+        .identify(&format!("user{seed}"), Some(invite_code), None)
+        .await
+        .unwrap();
+    (client, ready)
+}
+
+pub fn channel_id(ready: &proto::Ready, name: &str) -> i64 {
+    ready
+        .channels
+        .iter()
+        .find(|channel| channel.name == name)
+        .unwrap_or_else(|| panic!("no channel named {name}"))
+        .id
+}
+
+pub fn self_id(ready: &proto::Ready) -> i64 {
+    ready.self_user.as_ref().unwrap().id
+}

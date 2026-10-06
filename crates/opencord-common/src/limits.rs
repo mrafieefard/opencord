@@ -12,6 +12,8 @@ pub const SERVER_NAME_MAX_CHARS: usize = 100;
 pub const SERVER_DESCRIPTION_MAX_CHARS: usize = 1_000;
 /// Kick and ban reasons.
 pub const REASON_MAX_CHARS: usize = 512;
+/// Client-chosen `SendMessage` nonce.
+pub const NONCE_MAX_CHARS: usize = 64;
 
 /// Roles per server, including @everyone.
 pub const MAX_ROLES: usize = 250;

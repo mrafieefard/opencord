@@ -11,8 +11,10 @@ use opencord_common::permissions::{
 use opencord_proto::v1 as proto;
 use sqlx::SqliteConnection;
 
+use crate::db::channels::{ChannelRow, OverwriteRow};
 use crate::db::meta::ServerMeta;
-use crate::db::{channels, members, permissions_from_db, roles};
+use crate::db::roles::RoleRow;
+use crate::db::{channels, members, permissions_from_db, permissions_to_db, roles};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct User {
@@ -275,7 +277,32 @@ impl Role {
     }
 }
 
+impl Role {
+    pub fn to_row(&self) -> RoleRow {
+        RoleRow {
+            id: self.id,
+            name: self.name.clone(),
+            color: i64::from(self.color),
+            position: i64::from(self.position),
+            permissions: permissions_to_db(self.permissions),
+            hoist: self.hoist,
+            mentionable: self.mentionable,
+        }
+    }
+}
+
 impl Channel {
+    pub fn to_row(&self) -> ChannelRow {
+        ChannelRow {
+            id: self.id,
+            kind: self.kind.as_str().to_owned(),
+            name: self.name.clone(),
+            topic: self.topic.clone(),
+            parent_id: self.parent_id,
+            position: i64::from(self.position),
+        }
+    }
+
     pub fn to_proto(&self) -> proto::Channel {
         proto::Channel {
             id: self.id,
@@ -307,6 +334,25 @@ pub fn overwrite_to_proto(overwrite: &Overwrite) -> proto::PermissionOverwrite {
         target_id,
         allow: overwrite.allow.bits(),
         deny: overwrite.deny.bits(),
+    }
+}
+
+/// The stored form of an overwrite on `channel_id`.
+pub fn overwrite_row(channel_id: i64, overwrite: &Overwrite) -> OverwriteRow {
+    let (target_kind, target_id) = overwrite_target_to_db(overwrite.target);
+    OverwriteRow {
+        channel_id,
+        target_kind: target_kind.to_owned(),
+        target_id,
+        allow: permissions_to_db(overwrite.allow),
+        deny: permissions_to_db(overwrite.deny),
+    }
+}
+
+pub fn overwrite_target_to_db(target: OverwriteTarget) -> (&'static str, i64) {
+    match target {
+        OverwriteTarget::Role(id) => ("role", id),
+        OverwriteTarget::Member(id) => ("member", id),
     }
 }
 
