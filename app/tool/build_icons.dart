@@ -40,6 +40,7 @@ const icons = <String, String>{
   'cloudOff': 'cloud_off',
   'code': 'code',
   'contentCopy': 'content_copy',
+  'contrast': 'contrast',
   'createNewFolder': 'create_new_folder',
   'darkMode': 'dark_mode',
   'dashboard': 'dashboard',

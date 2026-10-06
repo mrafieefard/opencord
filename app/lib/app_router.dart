@@ -3,12 +3,19 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import 'package:opencord/core/app_info.dart';
+import 'package:opencord/ui/gallery/widget_gallery.dart';
 import 'package:opencord/ui/theme/oc_colors.dart';
 import 'package:opencord/ui/theme/oc_text.dart';
 
 final routerProvider = Provider<GoRouter>((ref) {
   final router = GoRouter(
-    routes: [GoRoute(path: '/', builder: (context, state) => const _Startup())],
+    routes: [
+      GoRoute(path: '/', builder: (context, state) => const _Startup()),
+      GoRoute(
+        path: '/gallery',
+        builder: (context, state) => const WidgetGallery(),
+      ),
+    ],
   );
   ref.onDispose(router.dispose);
   return router;

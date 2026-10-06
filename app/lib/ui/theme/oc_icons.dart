@@ -47,6 +47,7 @@ abstract final class OcIcons {
   static const IconData cloudOff = IconData(0xe2c1, fontFamily: fontFamily);
   static const IconData code = IconData(0xe86f, fontFamily: fontFamily);
   static const IconData contentCopy = IconData(0xe14d, fontFamily: fontFamily);
+  static const IconData contrast = IconData(0xeb37, fontFamily: fontFamily);
   static const IconData createNewFolder = IconData(
     0xe2cc,
     fontFamily: fontFamily,
