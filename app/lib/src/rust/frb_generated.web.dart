@@ -6,7 +6,9 @@
 // Static analysis wrongly picks the IO variant, thus ignore this
 // ignore_for_file: argument_type_not_assignable
 
+import 'api/client.dart';
 import 'api/system.dart';
+import 'api/types.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'frb_generated.dart';
@@ -21,10 +23,220 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   });
 
   @protected
+  AnyhowException dco_decode_AnyhowException(dynamic raw);
+
+  @protected
+  RustStreamSink<CoreEvent> dco_decode_StreamSink_core_event_Sse(dynamic raw);
+
+  @protected
   String dco_decode_String(dynamic raw);
 
   @protected
+  AddServerOutcome dco_decode_add_server_outcome(dynamic raw);
+
+  @protected
+  Ban dco_decode_ban(dynamic raw);
+
+  @protected
+  bool dco_decode_bool(dynamic raw);
+
+  @protected
+  bool dco_decode_box_autoadd_bool(dynamic raw);
+
+  @protected
+  Channel dco_decode_box_autoadd_channel(dynamic raw);
+
+  @protected
+  ChannelChanges dco_decode_box_autoadd_channel_changes(dynamic raw);
+
+  @protected
+  ConnectionState dco_decode_box_autoadd_connection_state(dynamic raw);
+
+  @protected
+  PlatformInt64 dco_decode_box_autoadd_i_64(dynamic raw);
+
+  @protected
+  Member dco_decode_box_autoadd_member(dynamic raw);
+
+  @protected
+  Message dco_decode_box_autoadd_message(dynamic raw);
+
+  @protected
+  PermissionOverwrite dco_decode_box_autoadd_permission_overwrite(dynamic raw);
+
+  @protected
+  Presence dco_decode_box_autoadd_presence(dynamic raw);
+
+  @protected
+  ReadySnapshot dco_decode_box_autoadd_ready_snapshot(dynamic raw);
+
+  @protected
+  Role dco_decode_box_autoadd_role(dynamic raw);
+
+  @protected
+  RoleChanges dco_decode_box_autoadd_role_changes(dynamic raw);
+
+  @protected
+  Server dco_decode_box_autoadd_server(dynamic raw);
+
+  @protected
+  ServerChanges dco_decode_box_autoadd_server_changes(dynamic raw);
+
+  @protected
+  ServerInfo dco_decode_box_autoadd_server_info(dynamic raw);
+
+  @protected
+  int dco_decode_box_autoadd_u_32(dynamic raw);
+
+  @protected
+  Channel dco_decode_channel(dynamic raw);
+
+  @protected
+  ChannelChanges dco_decode_channel_changes(dynamic raw);
+
+  @protected
+  ChannelKind dco_decode_channel_kind(dynamic raw);
+
+  @protected
+  ChannelPermissions dco_decode_channel_permissions(dynamic raw);
+
+  @protected
+  ChannelPosition dco_decode_channel_position(dynamic raw);
+
+  @protected
+  ConnectionState dco_decode_connection_state(dynamic raw);
+
+  @protected
+  CoreError dco_decode_core_error(dynamic raw);
+
+  @protected
+  CoreEvent dco_decode_core_event(dynamic raw);
+
+  @protected
+  CoreEventPayload dco_decode_core_event_payload(dynamic raw);
+
+  @protected
+  ErrorCode dco_decode_error_code(dynamic raw);
+
+  @protected
+  FailureReason dco_decode_failure_reason(dynamic raw);
+
+  @protected
+  GeneratedIdentity dco_decode_generated_identity(dynamic raw);
+
+  @protected
+  int dco_decode_i_32(dynamic raw);
+
+  @protected
+  PlatformInt64 dco_decode_i_64(dynamic raw);
+
+  @protected
+  IdentityInfo dco_decode_identity_info(dynamic raw);
+
+  @protected
+  Invite dco_decode_invite(dynamic raw);
+
+  @protected
+  List<Ban> dco_decode_list_ban(dynamic raw);
+
+  @protected
+  List<Channel> dco_decode_list_channel(dynamic raw);
+
+  @protected
+  List<ChannelPermissions> dco_decode_list_channel_permissions(dynamic raw);
+
+  @protected
+  List<ChannelPosition> dco_decode_list_channel_position(dynamic raw);
+
+  @protected
+  List<Invite> dco_decode_list_invite(dynamic raw);
+
+  @protected
+  List<Member> dco_decode_list_member(dynamic raw);
+
+  @protected
+  List<Message> dco_decode_list_message(dynamic raw);
+
+  @protected
+  List<PermissionOverwrite> dco_decode_list_permission_overwrite(dynamic raw);
+
+  @protected
+  List<Presence> dco_decode_list_presence(dynamic raw);
+
+  @protected
+  Int64List dco_decode_list_prim_i_64_strict(dynamic raw);
+
+  @protected
+  List<int> dco_decode_list_prim_u_8_loose(dynamic raw);
+
+  @protected
   Uint8List dco_decode_list_prim_u_8_strict(dynamic raw);
+
+  @protected
+  List<Role> dco_decode_list_role(dynamic raw);
+
+  @protected
+  List<Server> dco_decode_list_server(dynamic raw);
+
+  @protected
+  List<TrustedFingerprint> dco_decode_list_trusted_fingerprint(dynamic raw);
+
+  @protected
+  Member dco_decode_member(dynamic raw);
+
+  @protected
+  Message dco_decode_message(dynamic raw);
+
+  @protected
+  String? dco_decode_opt_String(dynamic raw);
+
+  @protected
+  bool? dco_decode_opt_box_autoadd_bool(dynamic raw);
+
+  @protected
+  PlatformInt64? dco_decode_opt_box_autoadd_i_64(dynamic raw);
+
+  @protected
+  int? dco_decode_opt_box_autoadd_u_32(dynamic raw);
+
+  @protected
+  OverwriteTargetKind dco_decode_overwrite_target_kind(dynamic raw);
+
+  @protected
+  PermissionOverwrite dco_decode_permission_overwrite(dynamic raw);
+
+  @protected
+  Presence dco_decode_presence(dynamic raw);
+
+  @protected
+  PresenceStatus dco_decode_presence_status(dynamic raw);
+
+  @protected
+  ReadySnapshot dco_decode_ready_snapshot(dynamic raw);
+
+  @protected
+  Role dco_decode_role(dynamic raw);
+
+  @protected
+  RoleChanges dco_decode_role_changes(dynamic raw);
+
+  @protected
+  Server dco_decode_server(dynamic raw);
+
+  @protected
+  ServerChanges dco_decode_server_changes(dynamic raw);
+
+  @protected
+  ServerInfo dco_decode_server_info(dynamic raw);
+
+  @protected
+  TrustedFingerprint dco_decode_trusted_fingerprint(dynamic raw);
+
+  @protected
+  int dco_decode_u_16(dynamic raw);
+
+  @protected
+  int dco_decode_u_32(dynamic raw);
 
   @protected
   int dco_decode_u_8(dynamic raw);
@@ -33,10 +245,251 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void dco_decode_unit(dynamic raw);
 
   @protected
+  User dco_decode_user(dynamic raw);
+
+  @protected
+  AnyhowException sse_decode_AnyhowException(SseDeserializer deserializer);
+
+  @protected
+  RustStreamSink<CoreEvent> sse_decode_StreamSink_core_event_Sse(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   String sse_decode_String(SseDeserializer deserializer);
 
   @protected
+  AddServerOutcome sse_decode_add_server_outcome(SseDeserializer deserializer);
+
+  @protected
+  Ban sse_decode_ban(SseDeserializer deserializer);
+
+  @protected
+  bool sse_decode_bool(SseDeserializer deserializer);
+
+  @protected
+  bool sse_decode_box_autoadd_bool(SseDeserializer deserializer);
+
+  @protected
+  Channel sse_decode_box_autoadd_channel(SseDeserializer deserializer);
+
+  @protected
+  ChannelChanges sse_decode_box_autoadd_channel_changes(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  ConnectionState sse_decode_box_autoadd_connection_state(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  PlatformInt64 sse_decode_box_autoadd_i_64(SseDeserializer deserializer);
+
+  @protected
+  Member sse_decode_box_autoadd_member(SseDeserializer deserializer);
+
+  @protected
+  Message sse_decode_box_autoadd_message(SseDeserializer deserializer);
+
+  @protected
+  PermissionOverwrite sse_decode_box_autoadd_permission_overwrite(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  Presence sse_decode_box_autoadd_presence(SseDeserializer deserializer);
+
+  @protected
+  ReadySnapshot sse_decode_box_autoadd_ready_snapshot(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  Role sse_decode_box_autoadd_role(SseDeserializer deserializer);
+
+  @protected
+  RoleChanges sse_decode_box_autoadd_role_changes(SseDeserializer deserializer);
+
+  @protected
+  Server sse_decode_box_autoadd_server(SseDeserializer deserializer);
+
+  @protected
+  ServerChanges sse_decode_box_autoadd_server_changes(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  ServerInfo sse_decode_box_autoadd_server_info(SseDeserializer deserializer);
+
+  @protected
+  int sse_decode_box_autoadd_u_32(SseDeserializer deserializer);
+
+  @protected
+  Channel sse_decode_channel(SseDeserializer deserializer);
+
+  @protected
+  ChannelChanges sse_decode_channel_changes(SseDeserializer deserializer);
+
+  @protected
+  ChannelKind sse_decode_channel_kind(SseDeserializer deserializer);
+
+  @protected
+  ChannelPermissions sse_decode_channel_permissions(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  ChannelPosition sse_decode_channel_position(SseDeserializer deserializer);
+
+  @protected
+  ConnectionState sse_decode_connection_state(SseDeserializer deserializer);
+
+  @protected
+  CoreError sse_decode_core_error(SseDeserializer deserializer);
+
+  @protected
+  CoreEvent sse_decode_core_event(SseDeserializer deserializer);
+
+  @protected
+  CoreEventPayload sse_decode_core_event_payload(SseDeserializer deserializer);
+
+  @protected
+  ErrorCode sse_decode_error_code(SseDeserializer deserializer);
+
+  @protected
+  FailureReason sse_decode_failure_reason(SseDeserializer deserializer);
+
+  @protected
+  GeneratedIdentity sse_decode_generated_identity(SseDeserializer deserializer);
+
+  @protected
+  int sse_decode_i_32(SseDeserializer deserializer);
+
+  @protected
+  PlatformInt64 sse_decode_i_64(SseDeserializer deserializer);
+
+  @protected
+  IdentityInfo sse_decode_identity_info(SseDeserializer deserializer);
+
+  @protected
+  Invite sse_decode_invite(SseDeserializer deserializer);
+
+  @protected
+  List<Ban> sse_decode_list_ban(SseDeserializer deserializer);
+
+  @protected
+  List<Channel> sse_decode_list_channel(SseDeserializer deserializer);
+
+  @protected
+  List<ChannelPermissions> sse_decode_list_channel_permissions(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  List<ChannelPosition> sse_decode_list_channel_position(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  List<Invite> sse_decode_list_invite(SseDeserializer deserializer);
+
+  @protected
+  List<Member> sse_decode_list_member(SseDeserializer deserializer);
+
+  @protected
+  List<Message> sse_decode_list_message(SseDeserializer deserializer);
+
+  @protected
+  List<PermissionOverwrite> sse_decode_list_permission_overwrite(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  List<Presence> sse_decode_list_presence(SseDeserializer deserializer);
+
+  @protected
+  Int64List sse_decode_list_prim_i_64_strict(SseDeserializer deserializer);
+
+  @protected
+  List<int> sse_decode_list_prim_u_8_loose(SseDeserializer deserializer);
+
+  @protected
   Uint8List sse_decode_list_prim_u_8_strict(SseDeserializer deserializer);
+
+  @protected
+  List<Role> sse_decode_list_role(SseDeserializer deserializer);
+
+  @protected
+  List<Server> sse_decode_list_server(SseDeserializer deserializer);
+
+  @protected
+  List<TrustedFingerprint> sse_decode_list_trusted_fingerprint(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  Member sse_decode_member(SseDeserializer deserializer);
+
+  @protected
+  Message sse_decode_message(SseDeserializer deserializer);
+
+  @protected
+  String? sse_decode_opt_String(SseDeserializer deserializer);
+
+  @protected
+  bool? sse_decode_opt_box_autoadd_bool(SseDeserializer deserializer);
+
+  @protected
+  PlatformInt64? sse_decode_opt_box_autoadd_i_64(SseDeserializer deserializer);
+
+  @protected
+  int? sse_decode_opt_box_autoadd_u_32(SseDeserializer deserializer);
+
+  @protected
+  OverwriteTargetKind sse_decode_overwrite_target_kind(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  PermissionOverwrite sse_decode_permission_overwrite(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  Presence sse_decode_presence(SseDeserializer deserializer);
+
+  @protected
+  PresenceStatus sse_decode_presence_status(SseDeserializer deserializer);
+
+  @protected
+  ReadySnapshot sse_decode_ready_snapshot(SseDeserializer deserializer);
+
+  @protected
+  Role sse_decode_role(SseDeserializer deserializer);
+
+  @protected
+  RoleChanges sse_decode_role_changes(SseDeserializer deserializer);
+
+  @protected
+  Server sse_decode_server(SseDeserializer deserializer);
+
+  @protected
+  ServerChanges sse_decode_server_changes(SseDeserializer deserializer);
+
+  @protected
+  ServerInfo sse_decode_server_info(SseDeserializer deserializer);
+
+  @protected
+  TrustedFingerprint sse_decode_trusted_fingerprint(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  int sse_decode_u_16(SseDeserializer deserializer);
+
+  @protected
+  int sse_decode_u_32(SseDeserializer deserializer);
 
   @protected
   int sse_decode_u_8(SseDeserializer deserializer);
@@ -45,13 +498,217 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_decode_unit(SseDeserializer deserializer);
 
   @protected
-  int sse_decode_i_32(SseDeserializer deserializer);
+  User sse_decode_user(SseDeserializer deserializer);
 
   @protected
-  bool sse_decode_bool(SseDeserializer deserializer);
+  void sse_encode_AnyhowException(
+    AnyhowException self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_StreamSink_core_event_Sse(
+    RustStreamSink<CoreEvent> self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_String(String self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_add_server_outcome(
+    AddServerOutcome self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_ban(Ban self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_bool(bool self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_box_autoadd_bool(bool self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_box_autoadd_channel(Channel self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_box_autoadd_channel_changes(
+    ChannelChanges self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_box_autoadd_connection_state(
+    ConnectionState self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_box_autoadd_i_64(
+    PlatformInt64 self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_box_autoadd_member(Member self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_box_autoadd_message(Message self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_box_autoadd_permission_overwrite(
+    PermissionOverwrite self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_box_autoadd_presence(Presence self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_box_autoadd_ready_snapshot(
+    ReadySnapshot self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_box_autoadd_role(Role self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_box_autoadd_role_changes(
+    RoleChanges self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_box_autoadd_server(Server self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_box_autoadd_server_changes(
+    ServerChanges self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_box_autoadd_server_info(
+    ServerInfo self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_box_autoadd_u_32(int self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_channel(Channel self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_channel_changes(
+    ChannelChanges self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_channel_kind(ChannelKind self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_channel_permissions(
+    ChannelPermissions self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_channel_position(
+    ChannelPosition self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_connection_state(
+    ConnectionState self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_core_error(CoreError self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_core_event(CoreEvent self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_core_event_payload(
+    CoreEventPayload self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_error_code(ErrorCode self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_failure_reason(FailureReason self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_generated_identity(
+    GeneratedIdentity self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_i_32(int self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_i_64(PlatformInt64 self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_identity_info(IdentityInfo self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_invite(Invite self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_list_ban(List<Ban> self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_list_channel(List<Channel> self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_list_channel_permissions(
+    List<ChannelPermissions> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_channel_position(
+    List<ChannelPosition> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_invite(List<Invite> self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_list_member(List<Member> self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_list_message(List<Message> self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_list_permission_overwrite(
+    List<PermissionOverwrite> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_presence(List<Presence> self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_list_prim_i_64_strict(
+    Int64List self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_prim_u_8_loose(List<int> self, SseSerializer serializer);
 
   @protected
   void sse_encode_list_prim_u_8_strict(
@@ -60,16 +717,97 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_list_role(List<Role> self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_list_server(List<Server> self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_list_trusted_fingerprint(
+    List<TrustedFingerprint> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_member(Member self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_message(Message self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_opt_String(String? self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_opt_box_autoadd_bool(bool? self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_opt_box_autoadd_i_64(
+    PlatformInt64? self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_opt_box_autoadd_u_32(int? self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_overwrite_target_kind(
+    OverwriteTargetKind self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_permission_overwrite(
+    PermissionOverwrite self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_presence(Presence self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_presence_status(
+    PresenceStatus self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_ready_snapshot(ReadySnapshot self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_role(Role self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_role_changes(RoleChanges self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_server(Server self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_server_changes(ServerChanges self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_server_info(ServerInfo self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_trusted_fingerprint(
+    TrustedFingerprint self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_u_16(int self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_u_32(int self, SseSerializer serializer);
+
+  @protected
   void sse_encode_u_8(int self, SseSerializer serializer);
 
   @protected
   void sse_encode_unit(void self, SseSerializer serializer);
 
   @protected
-  void sse_encode_i_32(int self, SseSerializer serializer);
-
-  @protected
-  void sse_encode_bool(bool self, SseSerializer serializer);
+  void sse_encode_user(User self, SseSerializer serializer);
 }
 
 // Section: wire_class

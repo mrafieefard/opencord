@@ -113,6 +113,13 @@ impl ServerHandle {
             session.drop_connection(CloseCode::UNKNOWN, Instant::now());
         }
     }
+
+    /// Like [`Self::drop_connections`], for one user only.
+    pub fn drop_user_connections(&self, user_id: i64) {
+        for session in self.state.sessions.for_user(user_id) {
+            session.drop_connection(CloseCode::UNKNOWN, Instant::now());
+        }
+    }
 }
 
 fn hostnames(config: &Config) -> Vec<String> {
