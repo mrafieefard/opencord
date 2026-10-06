@@ -125,6 +125,8 @@ impl Client {
     /// Adds a server from an invite link or a `host:port` address, with an
     /// optional owner claim token. Unknown self-signed certificates need
     /// the user's trust first (see [`AddServerOutcome::NeedsTrust`]).
+    /// Adding a saved server again starts a fresh session, for example to
+    /// rejoin with a new invite after a kick, or to claim ownership.
     pub async fn add_server(
         &self,
         link_or_address: &str,
@@ -133,10 +135,6 @@ impl Client {
         let credentials = self.credentials().ok_or(CoreError::NoIdentity)?;
         let target = parse_target(link_or_address)?;
         let key = target.address.to_string();
-        if let Some(saved) = self.lock_store().server(&key) {
-            let pin = self.lock_store().pin(&key);
-            return Ok(AddServerOutcome::Added(server_view(saved, pin)));
-        }
         let pinned = self.lock_store().pin(&key).or(target.fingerprint);
         let mut opened = match connection::open(&target.address, pinned).await {
             Ok(opened) => opened,
@@ -163,7 +161,10 @@ impl Client {
                 .map(|server| server.name.clone())
                 .unwrap_or_default(),
             user_id: ready.self_user.as_ref().map(|user| user.id),
-            added_at_ms: unix_ms(),
+            added_at_ms: self
+                .lock_store()
+                .server(&key)
+                .map_or_else(unix_ms, |known| known.added_at_ms),
         };
         let pin = pinned.map(|_| opened.presented);
         {
@@ -173,14 +174,16 @@ impl Client {
             }
             store.upsert_server(saved.clone())?;
         }
+        let previous = self.lock_connections().remove(&key);
+        if let Some(previous) = previous {
+            stop(previous).await;
+        }
         let connection = connection::spawn(
             &self.inner.runtime,
             self.context(key.clone(), target.address, credentials),
             Some(Established::identified(opened, ready)),
         );
-        if let Some(previous) = self.lock_connections().insert(key, connection) {
-            previous.task.abort();
-        }
+        self.lock_connections().insert(key, connection);
         Ok(AddServerOutcome::Added(server_view(&saved, pin)))
     }
 

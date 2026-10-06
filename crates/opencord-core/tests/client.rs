@@ -435,3 +435,37 @@ async fn server_errors_keep_their_code() {
         "{result:?}"
     );
 }
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_kicked_member_can_rejoin_with_a_new_invite() {
+    let server = TestServer::start().await;
+    let (owner, _, mut member, member_ready) = owner_and_member(&server).await;
+    let key = server.address();
+    owner
+        .client
+        .kick_member(&key, member_ready.self_user.id, None)
+        .await
+        .unwrap();
+    member
+        .wait_for(|payload| match payload {
+            CoreEventPayload::ConnectionState(ConnectionState::Failed { .. }) => Some(()),
+            _ => None,
+        })
+        .await;
+    let invite = owner.client.create_invite(&key, None, None).await.unwrap();
+
+    let client = member.client.clone();
+    let outcome = tokio::time::timeout(
+        WAIT,
+        tokio::spawn(async move { client.add_server(&invite.link, None).await }),
+    )
+    .await
+    .expect("adding a saved server again must not hang")
+    .unwrap()
+    .unwrap();
+    let ready = member.ready().await;
+
+    assert!(matches!(outcome, AddServerOutcome::Added(_)), "{outcome:?}");
+    assert_eq!(ready.self_user.id, member_ready.self_user.id);
+    assert_eq!(member.client.servers().len(), 1);
+}
