@@ -113,6 +113,8 @@ Details:
 - **New roles** are placed directly above @everyone.
 - **`ReorderRoles`** rearranges the listed roles among the positions they already hold, so it can never move a role above the caller.
 - **Kicks and bans** end all of the target's sessions; those sessions cannot be resumed.
+- **Cleanup:** deleting a role removes it from every member and deletes its channel overwrites. Kicking or banning a member deletes their member overwrites.
+- **Deleted messages** disappear from history. They are kept in the database, marked as deleted.
 - **Rate limits** are per user: 50 requests per 10 s, plus 5 messages per 5 s per channel. Over the limit, the response is `RATE_LIMITED` with `retry_after_ms`.
 
 ## Events
