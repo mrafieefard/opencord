@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO channel_overwrites (channel_id, target_kind, target_id, allow, deny)\n         VALUES ($1, $2, $3, $4, $5)\n         ON CONFLICT (channel_id, target_kind, target_id)\n         DO UPDATE SET allow = excluded.allow, deny = excluded.deny",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 5
+    },
+    "nullable": []
+  },
+  "hash": "f5a1ca62edf003835ebde951d10c44d34db15634fcabbb381c3b71b57e6d3fd5"
+}

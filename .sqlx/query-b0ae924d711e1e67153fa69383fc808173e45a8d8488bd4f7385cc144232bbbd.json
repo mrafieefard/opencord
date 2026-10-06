@@ -1,0 +1,74 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT channel_id, target_kind, target_id, allow, deny FROM channel_overwrites",
+  "describe": {
+    "columns": [
+      {
+        "name": "channel_id",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "channel_overwrites",
+            "name": "channel_id"
+          }
+        }
+      },
+      {
+        "name": "target_kind",
+        "ordinal": 1,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "channel_overwrites",
+            "name": "target_kind"
+          }
+        }
+      },
+      {
+        "name": "target_id",
+        "ordinal": 2,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "channel_overwrites",
+            "name": "target_id"
+          }
+        }
+      },
+      {
+        "name": "allow",
+        "ordinal": 3,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "channel_overwrites",
+            "name": "allow"
+          }
+        }
+      },
+      {
+        "name": "deny",
+        "ordinal": 4,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "channel_overwrites",
+            "name": "deny"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "b0ae924d711e1e67153fa69383fc808173e45a8d8488bd4f7385cc144232bbbd"
+}
