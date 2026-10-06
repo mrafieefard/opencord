@@ -131,6 +131,21 @@ async fn bad_signatures_are_rejected() {
 }
 
 #[tokio::test]
+async fn signatures_for_another_certificate_are_rejected() {
+    let server = TestServer::start().await;
+    let mut client = TestClient::connect(&server, key(1)).await;
+    client.certificate = [0x5a; 32];
+
+    let error = client
+        .identify("Owner", None, Some(&server.claim_token()))
+        .await
+        .unwrap_err();
+
+    assert_eq!(error.code, proto::ErrorCode::Unauthorized as i32);
+    assert_eq!(client.expect_close().await, Some(4003));
+}
+
+#[tokio::test]
 async fn requests_before_identify_close_the_connection() {
     let server = TestServer::start().await;
     let mut client = TestClient::connect(&server, key(1)).await;

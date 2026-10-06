@@ -149,14 +149,9 @@ impl Client {
             Err(error) => return Err(error.into()),
         };
         let claim_token = claim_token.filter(|token| !token.trim().is_empty());
-        let ready = connection::identify(
-            &mut opened.socket,
-            &opened.hello,
-            &credentials,
-            target.invite_code,
-            claim_token,
-        )
-        .await?;
+        let ready =
+            connection::identify(&mut opened, &credentials, target.invite_code, claim_token)
+                .await?;
 
         let saved = SavedServer {
             key: key.clone(),

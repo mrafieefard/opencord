@@ -76,14 +76,17 @@ pub async fn identify(
         ))
         .into());
     }
-    let server_id = state.guild().meta.server_id;
+    let challenge = auth::Challenge {
+        server_id: state.guild().meta.server_id,
+        certificate: state.fingerprint,
+        nonce: *nonce,
+        timestamp_ms: identify.timestamp_ms,
+    };
     let now = now_ms();
     auth::verify(
         &identify.public_key,
         &identify.signature,
-        &server_id,
-        nonce,
-        identify.timestamp_ms,
+        &challenge,
         u64::try_from(now).unwrap_or_default(),
     )
     .map_err(|error| Rejection::unauthorized(error.to_string()))?;

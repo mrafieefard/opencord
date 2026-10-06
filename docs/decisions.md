@@ -92,3 +92,15 @@ The generated `Envelope` boxes its `Ready` payload, which is many times larger t
 - **Certificates from a public CA** are accepted without a pin, as the plan allows.
 - **Reconnects** use backoff from 1 s up to 30 s with ±25 % jitter, and try `Resume` first. Kicks, bans, rejected identities and changed certificates stop reconnecting, with a `Failed` state giving the reason.
 - **Licensing:** the MPL-2.0 core dev-depends on the AGPL server, to run its integration tests against a real server. Dev-dependencies are not part of anything built or shipped.
+
+## D12: Identify signatures cover the server's certificate (2026-10-07)
+
+The plan's §5.2 payload (`"opencord-auth-v1" || server_id || nonce || timestamp_ms`) lets one server log in as its users elsewhere. Anyone can run a server, so a malicious one can open a connection to a victim server, pass that server's `Hello` through to a connecting user, and replay the user's signed `Identify` there.
+
+The signed payload now also includes the SHA-256 fingerprint of the TLS certificate the client verified, and the server checks it against its own certificate. A relaying server presents its own certificate, so the user's signature never verifies on the victim.
+
+Costs:
+- TLS has to end at the Opencord server; a reverse proxy may pass TLS through but not terminate it.
+- Renewing the certificate takes effect on restart, as it already did.
+
+The protocol was not released before this change, so the version stays at 1.

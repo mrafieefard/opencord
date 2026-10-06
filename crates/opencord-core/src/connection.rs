@@ -8,7 +8,7 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use futures_util::{SinkExt, StreamExt};
 use opencord_common::address::{Fingerprint, ServerAddress, format_fingerprint};
-use opencord_common::auth::{Nonce, ServerId};
+use opencord_common::auth::{Challenge, Nonce, ServerId};
 use opencord_proto::v1 as proto;
 use prost::Message as _;
 use proto::envelope::Payload;
@@ -154,14 +154,15 @@ pub(crate) async fn open(
     }
 }
 
-/// Signs the `Hello` challenge and waits for `Ready`.
+/// Signs the `Hello` challenge, bound to the certificate this connection
+/// verified, and waits for `Ready`.
 pub(crate) async fn identify(
-    socket: &mut Socket,
-    hello: &proto::Hello,
+    opened: &mut Opened,
     credentials: &Credentials,
     invite_code: Option<String>,
     claim_token: Option<String>,
 ) -> Result<proto::Ready, HandshakeError> {
+    let hello = &opened.hello;
     if hello.protocol_version != opencord_common::PROTOCOL_VERSION {
         return Err(HandshakeError::Rejected {
             reason: FailureReason::Incompatible,
@@ -180,19 +181,22 @@ pub(crate) async fn identify(
         hello.nonce.as_slice().try_into().map_err(|_| {
             HandshakeError::Transient("the server sent a malformed hello".to_owned())
         })?;
-    let timestamp_ms = unix_ms();
+    let challenge = Challenge {
+        server_id,
+        certificate: opened.presented,
+        nonce,
+        timestamp_ms: unix_ms(),
+    };
     let identify = proto::Identify {
         public_key: credentials.identity.public_key().to_vec(),
-        signature: credentials
-            .identity
-            .sign_identify(&server_id, &nonce, timestamp_ms)
-            .to_vec(),
-        timestamp_ms,
+        signature: credentials.identity.sign_identify(&challenge).to_vec(),
+        timestamp_ms: challenge.timestamp_ms,
         display_name: credentials.display_name.clone(),
         invite_code,
         claim_token,
         protocol_version: opencord_common::PROTOCOL_VERSION,
     };
+    let socket = &mut opened.socket;
     send_payload(socket, 0, Payload::Identify(identify)).await?;
     loop {
         match next_payload(socket).await? {
@@ -417,14 +421,7 @@ impl Task {
                 ResumeOutcome::Invalid => self.session = None,
             }
         }
-        let ready = identify(
-            &mut opened.socket,
-            &opened.hello,
-            &self.context.credentials,
-            None,
-            None,
-        )
-        .await?;
+        let ready = identify(&mut opened, &self.context.credentials, None, None).await?;
         Ok(Established::identified(opened, ready))
     }
 

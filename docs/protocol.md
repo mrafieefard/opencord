@@ -37,8 +37,10 @@ Client                                         Server
 3. The `Identify` signature is an Ed25519 signature over:
 
    ```
-   "opencord-auth-v1" (16 bytes) || server_id (16 bytes) || nonce (32 bytes) || timestamp_ms (u64 big-endian)
+   "opencord-auth-v1" (16 bytes) || server_id (16 bytes) || certificate (32 bytes) || nonce (32 bytes) || timestamp_ms (u64 big-endian)
    ```
+
+   `certificate` is the SHA-256 fingerprint of the TLS certificate the client verified on this connection, and the server checks it against its own certificate. This binds the signature to the TLS endpoint: a malicious server that passes another server's `Hello` through to its users cannot use their answers there, because they cover its own certificate, not the other server's. One consequence: TLS must end at the Opencord server itself (a proxy can pass TLS through, but must not terminate it).
 
 4. The server rejects the `Identify` with an `Error` and closes the connection (4003) when:
    - the protocol version differs from the server's;
@@ -47,7 +49,7 @@ Client                                         Server
    - the user is banned;
    - the user is not a member, and there is no valid invite, no valid claim token, and open joining is off.
 
-   Because the nonce is fresh for every connection and only one `Identify` is accepted per connection, a captured signature cannot be replayed.
+   Because the nonce is fresh for every connection, only one `Identify` is accepted per connection, and the signature covers the server's certificate, a captured signature cannot be replayed on another connection or server.
 5. The user's identity is the public key:
    - **Unknown key with a valid invite**, or with open joining on: the server creates the user (with `display_name`) and the membership, and uses up one invite use.
    - **Valid claim token:** the user becomes the server **owner**, and the token is invalidated.

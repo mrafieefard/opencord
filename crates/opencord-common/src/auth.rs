@@ -1,10 +1,16 @@
 //! The signed challenge a client answers in `Identify`.
 //!
 //! The signed payload is `"opencord-auth-v1" || server_id (16 bytes) ||
-//! nonce (32 bytes) || timestamp_ms (u64 big-endian)`.
+//! certificate fingerprint (32 bytes) || nonce (32 bytes) || timestamp_ms
+//! (u64 big-endian)`. The certificate fingerprint is the SHA-256 of the TLS
+//! certificate the client verified. It binds the signature to that TLS
+//! endpoint, so a server cannot pass another server's challenge to its
+//! users and replay their answers there.
 
 use ed25519_dalek::{Signature, Signer};
 pub use ed25519_dalek::{SigningKey, VerifyingKey};
+
+use crate::address::Fingerprint;
 
 /// Domain separator, so these signatures can never be replayed elsewhere.
 pub const AUTH_CONTEXT: &[u8; 16] = b"opencord-auth-v1";
@@ -15,10 +21,20 @@ pub const SIGNATURE_LEN: usize = 64;
 /// How far the signed timestamp may be from the server's clock.
 pub const MAX_CLOCK_SKEW_MS: u64 = 60_000;
 
-const PAYLOAD_LEN: usize = AUTH_CONTEXT.len() + SERVER_ID_LEN + NONCE_LEN + 8;
+const PAYLOAD_LEN: usize = AUTH_CONTEXT.len() + SERVER_ID_LEN + 32 + NONCE_LEN + 8;
 
 pub type ServerId = [u8; SERVER_ID_LEN];
 pub type Nonce = [u8; NONCE_LEN];
+
+/// Everything an `Identify` signature covers.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Challenge {
+    pub server_id: ServerId,
+    /// SHA-256 of the server's TLS certificate, as the client saw it.
+    pub certificate: Fingerprint,
+    pub nonce: Nonce,
+    pub timestamp_ms: u64,
+}
 
 #[derive(Debug, thiserror::Error, PartialEq, Eq)]
 pub enum AuthError {
@@ -30,35 +46,29 @@ pub enum AuthError {
     StaleTimestamp,
 }
 
-pub fn auth_payload(server_id: &ServerId, nonce: &Nonce, timestamp_ms: u64) -> [u8; PAYLOAD_LEN] {
+pub fn auth_payload(challenge: &Challenge) -> [u8; PAYLOAD_LEN] {
     let mut payload = [0; PAYLOAD_LEN];
     let (context_part, rest) = payload.split_at_mut(AUTH_CONTEXT.len());
     let (server_part, rest) = rest.split_at_mut(SERVER_ID_LEN);
+    let (certificate_part, rest) = rest.split_at_mut(challenge.certificate.len());
     let (nonce_part, timestamp_part) = rest.split_at_mut(NONCE_LEN);
     context_part.copy_from_slice(AUTH_CONTEXT);
-    server_part.copy_from_slice(server_id);
-    nonce_part.copy_from_slice(nonce);
-    timestamp_part.copy_from_slice(&timestamp_ms.to_be_bytes());
+    server_part.copy_from_slice(&challenge.server_id);
+    certificate_part.copy_from_slice(&challenge.certificate);
+    nonce_part.copy_from_slice(&challenge.nonce);
+    timestamp_part.copy_from_slice(&challenge.timestamp_ms.to_be_bytes());
     payload
 }
 
-pub fn sign(
-    key: &SigningKey,
-    server_id: &ServerId,
-    nonce: &Nonce,
-    timestamp_ms: u64,
-) -> [u8; SIGNATURE_LEN] {
-    key.sign(&auth_payload(server_id, nonce, timestamp_ms))
-        .to_bytes()
+pub fn sign(key: &SigningKey, challenge: &Challenge) -> [u8; SIGNATURE_LEN] {
+    key.sign(&auth_payload(challenge)).to_bytes()
 }
 
 /// Checks an `Identify` signature and returns the verified key.
 pub fn verify(
     public_key: &[u8],
     signature: &[u8],
-    server_id: &ServerId,
-    nonce: &Nonce,
-    timestamp_ms: u64,
+    challenge: &Challenge,
     now_ms: u64,
 ) -> Result<VerifyingKey, AuthError> {
     let key_bytes: &[u8; PUBLIC_KEY_LEN] = public_key
@@ -66,10 +76,10 @@ pub fn verify(
         .map_err(|_| AuthError::InvalidPublicKey)?;
     let key = VerifyingKey::from_bytes(key_bytes).map_err(|_| AuthError::InvalidPublicKey)?;
     let signature = Signature::from_slice(signature).map_err(|_| AuthError::InvalidSignature)?;
-    if now_ms.abs_diff(timestamp_ms) > MAX_CLOCK_SKEW_MS {
+    if now_ms.abs_diff(challenge.timestamp_ms) > MAX_CLOCK_SKEW_MS {
         return Err(AuthError::StaleTimestamp);
     }
-    key.verify_strict(&auth_payload(server_id, nonce, timestamp_ms), &signature)
+    key.verify_strict(&auth_payload(challenge), &signature)
         .map_err(|_| AuthError::InvalidSignature)?;
     Ok(key)
 }
@@ -78,9 +88,16 @@ pub fn verify(
 mod tests {
     use super::*;
 
-    const SERVER_ID: ServerId = [1; SERVER_ID_LEN];
-    const NONCE: Nonce = [2; NONCE_LEN];
     const NOW: u64 = 1_800_000_000_000;
+
+    fn challenge(timestamp_ms: u64) -> Challenge {
+        Challenge {
+            server_id: [1; SERVER_ID_LEN],
+            certificate: [3; 32],
+            nonce: [2; NONCE_LEN],
+            timestamp_ms,
+        }
+    }
 
     fn key(seed: u8) -> SigningKey {
         SigningKey::from_bytes(&[seed; 32])
@@ -91,21 +108,23 @@ mod tests {
     }
 
     #[test]
-    fn payload_is_context_server_nonce_and_big_endian_timestamp() {
-        let payload = auth_payload(&SERVER_ID, &NONCE, 0x0102_0304_0506_0708);
+    fn payload_is_context_server_certificate_nonce_and_big_endian_timestamp() {
+        let payload = auth_payload(&challenge(0x0102_0304_0506_0708));
 
+        assert_eq!(payload.len(), 104);
         assert_eq!(&payload[..16], b"opencord-auth-v1");
-        assert_eq!(&payload[16..32], &SERVER_ID);
-        assert_eq!(&payload[32..64], &NONCE);
-        assert_eq!(&payload[64..], &[1, 2, 3, 4, 5, 6, 7, 8]);
+        assert_eq!(&payload[16..32], &[1; 16]);
+        assert_eq!(&payload[32..64], &[3; 32]);
+        assert_eq!(&payload[64..96], &[2; 32]);
+        assert_eq!(&payload[96..], &[1, 2, 3, 4, 5, 6, 7, 8]);
     }
 
     #[test]
     fn accepts_a_valid_signature() {
         let signer = key(7);
-        let signature = sign(&signer, &SERVER_ID, &NONCE, NOW);
+        let signature = sign(&signer, &challenge(NOW));
 
-        let verified = verify(&public(&signer), &signature, &SERVER_ID, &NONCE, NOW, NOW);
+        let verified = verify(&public(&signer), &signature, &challenge(NOW), NOW);
 
         assert_eq!(verified, Ok(signer.verifying_key()));
     }
@@ -114,27 +133,17 @@ mod tests {
     fn accepts_timestamps_within_the_allowed_skew() {
         let signer = key(7);
         for timestamp in [NOW - MAX_CLOCK_SKEW_MS, NOW + MAX_CLOCK_SKEW_MS] {
-            let signature = sign(&signer, &SERVER_ID, &NONCE, timestamp);
+            let signature = sign(&signer, &challenge(timestamp));
 
-            assert!(
-                verify(
-                    &public(&signer),
-                    &signature,
-                    &SERVER_ID,
-                    &NONCE,
-                    timestamp,
-                    NOW
-                )
-                .is_ok()
-            );
+            assert!(verify(&public(&signer), &signature, &challenge(timestamp), NOW).is_ok());
         }
     }
 
     #[test]
     fn rejects_a_signature_from_another_key() {
-        let signature = sign(&key(7), &SERVER_ID, &NONCE, NOW);
+        let signature = sign(&key(7), &challenge(NOW));
 
-        let result = verify(&public(&key(8)), &signature, &SERVER_ID, &NONCE, NOW, NOW);
+        let result = verify(&public(&key(8)), &signature, &challenge(NOW), NOW);
 
         assert_eq!(result, Err(AuthError::InvalidSignature));
     }
@@ -142,43 +151,47 @@ mod tests {
     #[test]
     fn rejects_a_signature_for_another_nonce_or_server() {
         let signer = key(7);
-        let signature = sign(&signer, &SERVER_ID, &NONCE, NOW);
+        let signature = sign(&signer, &challenge(NOW));
+        let other_nonce = Challenge {
+            nonce: [9; NONCE_LEN],
+            ..challenge(NOW)
+        };
+        let other_server = Challenge {
+            server_id: [9; SERVER_ID_LEN],
+            ..challenge(NOW)
+        };
 
-        let other_nonce = verify(
-            &public(&signer),
-            &signature,
-            &SERVER_ID,
-            &[9; NONCE_LEN],
-            NOW,
-            NOW,
+        assert_eq!(
+            verify(&public(&signer), &signature, &other_nonce, NOW),
+            Err(AuthError::InvalidSignature)
         );
-        let other_server = verify(
-            &public(&signer),
-            &signature,
-            &[9; SERVER_ID_LEN],
-            &NONCE,
-            NOW,
-            NOW,
+        assert_eq!(
+            verify(&public(&signer), &signature, &other_server, NOW),
+            Err(AuthError::InvalidSignature)
         );
+    }
 
-        assert_eq!(other_nonce, Err(AuthError::InvalidSignature));
-        assert_eq!(other_server, Err(AuthError::InvalidSignature));
+    #[test]
+    fn rejects_a_signature_made_for_another_certificate() {
+        let signer = key(7);
+        let relayed = Challenge {
+            certificate: [4; 32],
+            ..challenge(NOW)
+        };
+        let signature = sign(&signer, &relayed);
+
+        let result = verify(&public(&signer), &signature, &challenge(NOW), NOW);
+
+        assert_eq!(result, Err(AuthError::InvalidSignature));
     }
 
     #[test]
     fn rejects_expired_and_future_timestamps() {
         let signer = key(7);
         for timestamp in [NOW - MAX_CLOCK_SKEW_MS - 1, NOW + MAX_CLOCK_SKEW_MS + 1] {
-            let signature = sign(&signer, &SERVER_ID, &NONCE, timestamp);
+            let signature = sign(&signer, &challenge(timestamp));
 
-            let result = verify(
-                &public(&signer),
-                &signature,
-                &SERVER_ID,
-                &NONCE,
-                timestamp,
-                NOW,
-            );
+            let result = verify(&public(&signer), &signature, &challenge(timestamp), NOW);
 
             assert_eq!(result, Err(AuthError::StaleTimestamp));
         }
@@ -187,17 +200,10 @@ mod tests {
     #[test]
     fn rejects_malformed_keys_and_signatures() {
         let signer = key(7);
-        let signature = sign(&signer, &SERVER_ID, &NONCE, NOW);
+        let signature = sign(&signer, &challenge(NOW));
 
-        let short_key = verify(&[0; 31], &signature, &SERVER_ID, &NONCE, NOW, NOW);
-        let short_signature = verify(
-            &public(&signer),
-            &signature[..63],
-            &SERVER_ID,
-            &NONCE,
-            NOW,
-            NOW,
-        );
+        let short_key = verify(&[0; 31], &signature, &challenge(NOW), NOW);
+        let short_signature = verify(&public(&signer), &signature[..63], &challenge(NOW), NOW);
 
         assert_eq!(short_key, Err(AuthError::InvalidPublicKey));
         assert_eq!(short_signature, Err(AuthError::InvalidSignature));

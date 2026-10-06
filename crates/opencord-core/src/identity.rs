@@ -1,6 +1,6 @@
 //! The user's identity: an Ed25519 key pair that never leaves the device.
 
-use opencord_common::auth::{self, Nonce, ServerId, SigningKey};
+use opencord_common::auth::{self, Challenge, SigningKey};
 use sha2::{Digest, Sha256};
 
 pub const SECRET_LEN: usize = 32;
@@ -63,13 +63,8 @@ impl Identity {
         public_key_fingerprint(&self.public_key())
     }
 
-    pub fn sign_identify(
-        &self,
-        server_id: &ServerId,
-        nonce: &Nonce,
-        timestamp_ms: u64,
-    ) -> [u8; 64] {
-        auth::sign(&self.key, server_id, nonce, timestamp_ms)
+    pub fn sign_identify(&self, challenge: &Challenge) -> [u8; 64] {
+        auth::sign(&self.key, challenge)
     }
 }
 

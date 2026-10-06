@@ -97,6 +97,9 @@ pub struct TestClient {
     ws: WebSocketStream<TlsStream<TcpStream>>,
     pub hello: proto::Hello,
     pub key: SigningKey,
+    /// Fingerprint of the certificate this connection verified; the
+    /// `Identify` signature covers it.
+    pub certificate: Fingerprint,
     next_request_id: u64,
     events: VecDeque<(u64, proto::Event)>,
     pub last_seq: u64,
@@ -115,6 +118,7 @@ impl TestClient {
             ws,
             hello: proto::Hello::default(),
             key,
+            certificate: server.handle.fingerprint,
             next_request_id: 1,
             events: VecDeque::new(),
             last_seq: 0,
@@ -132,13 +136,16 @@ impl TestClient {
         invite: Option<&str>,
         claim: Option<&str>,
     ) -> proto::Identify {
-        let server_id: auth::ServerId = self.hello.server_id.as_slice().try_into().unwrap();
-        let nonce: auth::Nonce = self.hello.nonce.as_slice().try_into().unwrap();
-        let timestamp_ms = now_ms();
+        let challenge = auth::Challenge {
+            server_id: self.hello.server_id.as_slice().try_into().unwrap(),
+            certificate: self.certificate,
+            nonce: self.hello.nonce.as_slice().try_into().unwrap(),
+            timestamp_ms: now_ms(),
+        };
         proto::Identify {
             public_key: self.key.verifying_key().to_bytes().to_vec(),
-            signature: auth::sign(&self.key, &server_id, &nonce, timestamp_ms).to_vec(),
-            timestamp_ms,
+            signature: auth::sign(&self.key, &challenge).to_vec(),
+            timestamp_ms: challenge.timestamp_ms,
             display_name: display_name.to_owned(),
             invite_code: invite.map(str::to_owned),
             claim_token: claim.map(str::to_owned),
