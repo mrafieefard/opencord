@@ -6,6 +6,7 @@ use std::time::Duration;
 use common::{TestClient, TestServer, key, owner};
 use opencord_common::permissions::Permissions;
 use opencord_proto::v1 as proto;
+use opencord_server::config::Config;
 use proto::envelope::Payload;
 
 #[tokio::test]
@@ -100,6 +101,26 @@ async fn the_claim_token_works_only_once() {
 
     assert_eq!(error.code, proto::ErrorCode::Unauthorized as i32);
     assert_eq!(second.expect_close().await, Some(4003));
+}
+
+#[tokio::test]
+async fn a_claim_token_reset_while_running_works_without_a_restart() {
+    let server = TestServer::start().await;
+    owner(&server).await;
+    let mut config = Config::default();
+    config.server.data_dir = server.dir.path().join("data");
+    let token = opencord_server::cli::reset_claim_token(&config)
+        .await
+        .unwrap();
+
+    let mut recovered = TestClient::connect(&server, key(2)).await;
+    let ready = recovered
+        .identify("Recovered", None, Some(&token))
+        .await
+        .unwrap();
+
+    let me = ready.self_user.unwrap();
+    assert_eq!(ready.server.unwrap().owner_id, Some(me.id));
 }
 
 #[tokio::test]

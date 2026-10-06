@@ -153,13 +153,18 @@ async fn admit(
     {
         return Err(Rejection::unauthorized("you are banned from this server"));
     }
-    let (meta, is_member) = {
+    let is_member = {
         let guild = state.guild();
-        let is_member = existing
+        existing
             .as_ref()
-            .is_some_and(|user| guild.members.contains_key(&user.id));
-        (guild.meta.clone(), is_member)
+            .is_some_and(|user| guild.members.contains_key(&user.id))
     };
+    // Loaded from the database rather than the cache: `reset-claim-token`
+    // changes the claim token from another process while the server runs.
+    let meta = ServerMeta::load(&mut tx)
+        .await
+        .map_err(ApiError::from)?
+        .ok_or_else(ApiError::internal)?;
 
     let claimed = match &identify.claim_token {
         Some(token) if meta.claim_token_hash == Some(hash_claim_token(token)) => true,
