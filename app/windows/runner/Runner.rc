@@ -90,12 +90,12 @@ BEGIN
         BLOCK "040904e4"
         BEGIN
             VALUE "CompanyName", "dev.opencord" "\0"
-            VALUE "FileDescription", "opencord" "\0"
+            VALUE "FileDescription", "Opencord" "\0"
             VALUE "FileVersion", VERSION_AS_STRING "\0"
             VALUE "InternalName", "opencord" "\0"
             VALUE "LegalCopyright", "Copyright (C) 2026 dev.opencord. All rights reserved." "\0"
             VALUE "OriginalFilename", "opencord.exe" "\0"
-            VALUE "ProductName", "opencord" "\0"
+            VALUE "ProductName", "Opencord" "\0"
             VALUE "ProductVersion", VERSION_AS_STRING "\0"
         END
     END
