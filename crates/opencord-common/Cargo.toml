@@ -6,3 +6,9 @@ edition.workspace = true
 repository.workspace = true
 license = "MPL-2.0"
 publish = false
+
+[dependencies]
+bitflags.workspace = true
+ed25519-dalek.workspace = true
+hex.workspace = true
+thiserror.workspace = true
