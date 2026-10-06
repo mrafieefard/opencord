@@ -2,3 +2,258 @@
 syntax = "proto3";
 
 package opencord.v1;
+
+import "opencord/v1/models.proto";
+
+message Request {
+  oneof kind {
+    SendMessage send_message = 1;
+    EditMessage edit_message = 2;
+    DeleteMessage delete_message = 3;
+    FetchMessages fetch_messages = 4;
+    StartTyping start_typing = 5;
+
+    CreateChannel create_channel = 10;
+    UpdateChannel update_channel = 11;
+    DeleteChannel delete_channel = 12;
+    ReorderChannels reorder_channels = 13;
+    SetChannelOverwrite set_channel_overwrite = 14;
+    DeleteChannelOverwrite delete_channel_overwrite = 15;
+
+    CreateRole create_role = 20;
+    UpdateRole update_role = 21;
+    DeleteRole delete_role = 22;
+    ReorderRoles reorder_roles = 23;
+    AddMemberRole add_member_role = 24;
+    RemoveMemberRole remove_member_role = 25;
+
+    KickMember kick_member = 30;
+    BanMember ban_member = 31;
+    UnbanMember unban_member = 32;
+    FetchBans fetch_bans = 33;
+    UpdateNickname update_nickname = 34;
+
+    UpdateProfile update_profile = 40;
+    UpdatePresence update_presence = 41;
+
+    CreateInvite create_invite = 50;
+    FetchInvites fetch_invites = 51;
+    RevokeInvite revoke_invite = 52;
+
+    UpdateServer update_server = 60;
+  }
+}
+
+// Exactly one result per request: an error, or the payload listed next to
+// each request below.
+message Response {
+  oneof result {
+    Error error = 1;
+    Ack ack = 2;
+    Message message = 3;
+    MessageList messages = 4;
+    Channel channel = 5;
+    Role role = 6;
+    Member member = 7;
+    User user = 8;
+    BanList bans = 9;
+    Invite invite = 10;
+    InviteList invites = 11;
+    ServerInfo server = 12;
+  }
+}
+
+message Ack {}
+
+message MessageList {
+  // Newest first.
+  repeated Message messages = 1;
+}
+
+message BanList {
+  repeated Ban bans = 1;
+}
+
+message InviteList {
+  repeated Invite invites = 1;
+}
+
+// -> message
+message SendMessage {
+  int64 channel_id = 1;
+  string content = 2;
+  // Client-chosen, echoed on the created message.
+  string nonce = 3;
+}
+
+// -> message. Authors can only edit their own messages.
+message EditMessage {
+  int64 message_id = 1;
+  string content = 2;
+}
+
+// -> ack
+message DeleteMessage {
+  int64 message_id = 1;
+}
+
+// -> messages
+message FetchMessages {
+  int64 channel_id = 1;
+  // Only messages with an id below this one.
+  optional int64 before = 2;
+  // 1 to 100. 0 means the default of 50.
+  uint32 limit = 3;
+}
+
+// -> ack
+message StartTyping {
+  int64 channel_id = 1;
+}
+
+// -> channel
+message CreateChannel {
+  ChannelKind kind = 1;
+  string name = 2;
+  optional string topic = 3;
+  optional int64 parent_id = 4;
+}
+
+// -> channel. Absent fields are left unchanged. An empty topic clears it,
+// and parent_id 0 moves the channel out of its category.
+message UpdateChannel {
+  int64 channel_id = 1;
+  optional string name = 2;
+  optional string topic = 3;
+  optional int64 parent_id = 4;
+}
+
+// -> ack
+message DeleteChannel {
+  int64 channel_id = 1;
+}
+
+// -> ack
+message ReorderChannels {
+  repeated ChannelPosition positions = 1;
+}
+
+message ChannelPosition {
+  int64 channel_id = 1;
+  int32 position = 2;
+}
+
+// -> channel. Creates or replaces the overwrite for that target.
+message SetChannelOverwrite {
+  int64 channel_id = 1;
+  PermissionOverwrite overwrite = 2;
+}
+
+// -> channel
+message DeleteChannelOverwrite {
+  int64 channel_id = 1;
+  OverwriteTarget target_kind = 2;
+  int64 target_id = 3;
+}
+
+// -> role. New roles are placed directly above @everyone.
+message CreateRole {
+  string name = 1;
+  uint32 color = 2;
+  uint64 permissions = 3;
+  bool hoist = 4;
+  bool mentionable = 5;
+}
+
+// -> role. Absent fields are left unchanged.
+message UpdateRole {
+  int64 role_id = 1;
+  optional string name = 2;
+  optional uint32 color = 3;
+  optional uint64 permissions = 4;
+  optional bool hoist = 5;
+  optional bool mentionable = 6;
+}
+
+// -> ack
+message DeleteRole {
+  int64 role_id = 1;
+}
+
+// -> ack. The listed roles, lowest first, are rearranged among the positions
+// they already occupy. Every listed role must rank below the caller's
+// highest role.
+message ReorderRoles {
+  repeated int64 role_ids = 1;
+}
+
+// -> member
+message AddMemberRole {
+  int64 user_id = 1;
+  int64 role_id = 2;
+}
+
+// -> member
+message RemoveMemberRole {
+  int64 user_id = 1;
+  int64 role_id = 2;
+}
+
+// -> ack
+message KickMember {
+  int64 user_id = 1;
+  optional string reason = 2;
+}
+
+// -> ack
+message BanMember {
+  int64 user_id = 1;
+  optional string reason = 2;
+}
+
+// -> ack
+message UnbanMember {
+  int64 user_id = 1;
+}
+
+// -> bans
+message FetchBans {}
+
+// -> member. Absent or empty nickname clears it.
+message UpdateNickname {
+  int64 user_id = 1;
+  optional string nickname = 2;
+}
+
+// -> user
+message UpdateProfile {
+  string display_name = 1;
+}
+
+// -> ack. PRESENCE_STATUS_OFFLINE makes the user appear offline.
+message UpdatePresence {
+  PresenceStatus status = 1;
+}
+
+// -> invite
+message CreateInvite {
+  // Absent or 0 means unlimited.
+  optional uint32 max_uses = 1;
+  // Absent or 0 means it never expires.
+  optional uint32 expires_in_s = 2;
+}
+
+// -> invites
+message FetchInvites {}
+
+// -> ack
+message RevokeInvite {
+  string code = 1;
+}
+
+// -> server. Absent fields are left unchanged.
+message UpdateServer {
+  optional string name = 1;
+  optional string description = 2;
+  optional bool open_join = 3;
+}

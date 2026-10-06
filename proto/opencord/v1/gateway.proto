@@ -3,6 +3,88 @@ syntax = "proto3";
 
 package opencord.v1;
 
-message Heartbeat {}
+import "opencord/v1/events.proto";
+import "opencord/v1/models.proto";
+import "opencord/v1/requests.proto";
+
+// Every WebSocket binary frame carries exactly one Envelope.
+message Envelope {
+  // Server to client: set on Event envelopes only, increasing by one per
+  // event within a session. Used to resume.
+  uint64 seq = 1;
+  // Client to server: set on Request, echoed on the matching Response.
+  uint64 request_id = 2;
+  oneof payload {
+    Hello hello = 10;
+    Identify identify = 11;
+    Resume resume = 12;
+    Ready ready = 13;
+    Resumed resumed = 14;
+    Heartbeat heartbeat = 15;
+    HeartbeatAck heartbeat_ack = 16;
+    Request request = 20;
+    Response response = 21;
+    Event event = 22;
+    // Connection-level failure. The server closes the socket after sending it.
+    Error error = 30;
+  }
+}
+
+// First frame on every connection, sent by the server.
+message Hello {
+  bytes server_id = 1;
+  string server_name = 2;
+  // 32 random bytes, fresh for every connection.
+  bytes nonce = 3;
+  uint32 heartbeat_interval_ms = 4;
+  uint32 protocol_version = 5;
+}
+
+// Authenticates a new session. The signature covers
+// "opencord-auth-v1" || server_id || nonce || timestamp_ms (u64 big-endian).
+message Identify {
+  bytes public_key = 1;
+  bytes signature = 2;
+  uint64 timestamp_ms = 3;
+  // Used when the server creates the user on first join.
+  string display_name = 4;
+  optional string invite_code = 5;
+  optional string claim_token = 6;
+  uint32 protocol_version = 7;
+}
+
+// Re-attaches to an existing session after a dropped connection.
+message Resume {
+  string session_id = 1;
+  bytes resume_token = 2;
+  // Last event seq the client processed.
+  uint64 last_seq = 3;
+}
+
+message Ready {
+  string session_id = 1;
+  bytes resume_token = 2;
+  User self_user = 3;
+  ServerInfo server = 4;
+  // Only channels the user can view.
+  repeated Channel channels = 5;
+  repeated Role roles = 6;
+  repeated Member members = 7;
+  // Every member who is not offline.
+  repeated Presence presences = 8;
+  // The user's permissions before channel overwrites.
+  uint64 server_permissions = 9;
+  // channel id -> the user's resolved permissions in that channel.
+  map<int64, uint64> channel_permissions = 10;
+}
+
+// Sent after the missed events have been replayed.
+message Resumed {
+  uint64 replayed_events = 1;
+}
+
+message Heartbeat {
+  uint64 last_seq = 1;
+}
 
 message HeartbeatAck {}

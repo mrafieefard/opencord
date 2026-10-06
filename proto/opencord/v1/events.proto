@@ -2,3 +2,97 @@
 syntax = "proto3";
 
 package opencord.v1;
+
+import "opencord/v1/models.proto";
+
+// Events about a channel are only sent to sessions that can view it.
+message Event {
+  oneof kind {
+    MessageCreate message_create = 1;
+    MessageUpdate message_update = 2;
+    MessageDelete message_delete = 3;
+
+    // Also sent when a permission change makes a channel visible.
+    ChannelCreate channel_create = 10;
+    ChannelUpdate channel_update = 11;
+    // Also sent when a permission change hides a channel.
+    ChannelDelete channel_delete = 12;
+
+    RoleCreate role_create = 20;
+    RoleUpdate role_update = 21;
+    RoleDelete role_delete = 22;
+
+    MemberJoin member_join = 30;
+    MemberLeave member_leave = 31;
+    MemberUpdate member_update = 32;
+
+    PresenceUpdate presence_update = 40;
+    TypingStart typing_start = 41;
+
+    ServerUpdate server_update = 50;
+  }
+}
+
+message MessageCreate {
+  Message message = 1;
+}
+
+message MessageUpdate {
+  Message message = 1;
+}
+
+message MessageDelete {
+  int64 channel_id = 1;
+  int64 message_id = 2;
+}
+
+message ChannelCreate {
+  Channel channel = 1;
+}
+
+message ChannelUpdate {
+  Channel channel = 1;
+}
+
+message ChannelDelete {
+  int64 channel_id = 1;
+}
+
+message RoleCreate {
+  Role role = 1;
+}
+
+message RoleUpdate {
+  Role role = 1;
+}
+
+message RoleDelete {
+  int64 role_id = 1;
+}
+
+message MemberJoin {
+  Member member = 1;
+}
+
+// Sent when a member leaves, is kicked, or is banned.
+message MemberLeave {
+  int64 user_id = 1;
+}
+
+// Sent when a member's roles, nickname, or profile change.
+message MemberUpdate {
+  Member member = 1;
+}
+
+message PresenceUpdate {
+  Presence presence = 1;
+}
+
+message TypingStart {
+  int64 channel_id = 1;
+  int64 user_id = 2;
+}
+
+message ServerUpdate {
+  ServerInfo server = 1;
+}

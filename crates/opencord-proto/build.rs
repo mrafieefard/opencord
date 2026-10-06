@@ -6,8 +6,12 @@ const PROTO_FILES: [&str; 4] = [
     "opencord/v1/events.proto",
 ];
 
-fn main() -> std::io::Result<()> {
+fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("cargo:rerun-if-changed={PROTO_ROOT}");
-    let files = PROTO_FILES.map(|file| format!("{PROTO_ROOT}/{file}"));
-    prost_build::compile_protos(&files, &[PROTO_ROOT])
+    let descriptors = protox::compile(PROTO_FILES, [PROTO_ROOT])?;
+    prost_build::Config::new()
+        // Ready is far larger than every other envelope payload.
+        .boxed(".opencord.v1.Envelope.payload.ready")
+        .compile_fds(descriptors)?;
+    Ok(())
 }
