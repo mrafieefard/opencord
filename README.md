@@ -93,7 +93,7 @@ cargo sqlx prepare --workspace -- --all-targets
 
 ## Changing the Rust API used by the app
 
-Public functions in `crates/opencord-core/src/api/` are exposed to Dart. After changing them, regenerate the bindings and commit the result (`app/lib/src/rust/` and `crates/opencord-core/src/frb_generated.rs`):
+Public functions in `crates/opencord-core/src/api/` are exposed to Dart. After changing them, regenerate the bindings and commit the result (`app/lib/src/rust/`, including the `*.freezed.dart` files, and `crates/opencord-core/src/frb_generated.rs`). The generator runs `build_runner` itself:
 
 ```bash
 cd app
