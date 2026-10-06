@@ -469,3 +469,25 @@ async fn a_kicked_member_can_rejoin_with_a_new_invite() {
     assert_eq!(ready.self_user.id, member_ready.self_user.id);
     assert_eq!(member.client.servers().len(), 1);
 }
+
+#[tokio::test(flavor = "multi_thread")]
+async fn adding_a_connected_server_again_reconnects_it() {
+    let server = TestServer::start().await;
+    let (mut owner, owner_ready, _member, _) = owner_and_member(&server).await;
+
+    let client = owner.client.clone();
+    let address = server.address();
+    let outcome = tokio::time::timeout(
+        WAIT,
+        tokio::spawn(async move { client.add_server(&address, None).await }),
+    )
+    .await
+    .expect("adding a connected server again must not hang")
+    .unwrap()
+    .unwrap();
+    let ready = owner.ready().await;
+
+    assert!(matches!(outcome, AddServerOutcome::Added(_)), "{outcome:?}");
+    assert_eq!(ready.self_user.id, owner_ready.self_user.id);
+    assert_eq!(owner.client.servers().len(), 1);
+}
