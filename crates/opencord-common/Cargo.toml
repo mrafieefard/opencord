@@ -1,0 +1,8 @@
+[package]
+name = "opencord-common"
+description = "Building blocks shared by the Opencord server and client core."
+version.workspace = true
+edition.workspace = true
+repository.workspace = true
+license = "MPL-2.0"
+publish = false

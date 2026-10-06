@@ -1,0 +1,11 @@
+[package]
+name = "opencord-server"
+description = "Self-hostable Opencord community server."
+version.workspace = true
+edition.workspace = true
+repository.workspace = true
+license = "AGPL-3.0-or-later"
+publish = false
+
+[dependencies]
+opencord-common.workspace = true

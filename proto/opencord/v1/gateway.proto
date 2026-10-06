@@ -1,0 +1,8 @@
+// SPDX-License-Identifier: MPL-2.0
+syntax = "proto3";
+
+package opencord.v1;
+
+message Heartbeat {}
+
+message HeartbeatAck {}

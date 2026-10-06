@@ -1,0 +1,16 @@
+[workspace]
+resolver = "3"
+members = ["crates/*"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+repository = "https://github.com/mrafieefard/opencord"
+
+[workspace.dependencies]
+opencord-common = { path = "crates/opencord-common" }
+opencord-proto = { path = "crates/opencord-proto" }
+
+flutter_rust_bridge = "=2.13.0"
+prost = "0.14.4"
+prost-build = "0.14.4"
