@@ -97,6 +97,10 @@ fn create_role(name: &str, permissions: Permissions) -> Request {
     })
 }
 
+fn add_member_role(user_id: i64, role_id: i64) -> Request {
+    Request::AddMemberRole(proto::AddMemberRole { user_id, role_id })
+}
+
 fn overwrite(
     channel_id: i64,
     target: proto::OverwriteTarget,
@@ -681,6 +685,46 @@ async fn members_cannot_act_above_their_rank_or_grant_what_they_lack() {
     assert_eq!(helper.position, 1);
     assert_eq!(code(&edit_own_rank), proto::ErrorCode::Forbidden);
     assert_eq!(code(&delete_everyone), proto::ErrorCode::InvalidArgument);
+}
+
+#[tokio::test]
+async fn members_cannot_assign_roles_carrying_permissions_they_lack() {
+    let Pair {
+        mut owner,
+        mut member,
+        member_ready,
+        server: _server,
+        ..
+    } = owner_and_member().await;
+    let member_id = self_id(&member_ready);
+    let moderator = role(
+        owner
+            .ok(create_role("moderator", Permissions::MANAGE_ROLES))
+            .await,
+    );
+    let admin = role(
+        owner
+            .ok(create_role("admin", Permissions::ADMINISTRATOR))
+            .await,
+    );
+    let banner = role(
+        owner
+            .ok(create_role("banner", Permissions::BAN_MEMBERS))
+            .await,
+    );
+    let plain = role(owner.ok(create_role("plain", Permissions::empty())).await);
+    owner.ok(add_member_role(member_id, moderator.id)).await;
+
+    let take_admin = member.error(add_member_role(member_id, admin.id)).await;
+    let take_ban = member.error(add_member_role(member_id, banner.id)).await;
+    let take_plain = member.ok(add_member_role(member_id, plain.id)).await;
+
+    assert_eq!(code(&take_admin), proto::ErrorCode::Forbidden);
+    assert_eq!(code(&take_ban), proto::ErrorCode::Forbidden);
+    match take_plain {
+        Response::Member(updated) => assert!(updated.role_ids.contains(&plain.id)),
+        other => panic!("expected a member, got {other:?}"),
+    }
 }
 
 #[tokio::test]

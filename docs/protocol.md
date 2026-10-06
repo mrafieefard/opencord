@@ -93,7 +93,7 @@ Each `Request` gets exactly one `Response`, which is either an `error` or the pa
 | `UpdateRole { role_id, … }` | `role` | Base `MANAGE_ROLES`; the role ranks below the caller; can only grant permissions the caller has |
 | `DeleteRole { role_id }` | `ack` | Base `MANAGE_ROLES`; the role ranks below the caller; not @everyone |
 | `ReorderRoles { role_ids }` | `ack` | Base `MANAGE_ROLES`; every listed role ranks below the caller |
-| `AddMemberRole` / `RemoveMemberRole { user_id, role_id }` | `member` | Base `MANAGE_ROLES`; the role ranks below the caller; not @everyone |
+| `AddMemberRole` / `RemoveMemberRole { user_id, role_id }` | `member` | Base `MANAGE_ROLES`; the role ranks below the caller; not @everyone; adding needs every permission the role carries (assigning a role grants them) |
 | `KickMember { user_id, reason? }` | `ack` | Base `KICK_MEMBERS`; outranks the target |
 | `BanMember { user_id, reason? }` | `ack` | Base `BAN_MEMBERS`; outranks the target if they are a member |
 | `UnbanMember { user_id }` | `ack` | Base `BAN_MEMBERS` |

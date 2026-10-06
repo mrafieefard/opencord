@@ -256,7 +256,7 @@ async fn change_member_role(
     let _writes = ctx.state.write_lock().await;
     let (member, changed) = {
         let guild = ctx.state.guild();
-        require_base(&guild, ctx.user_id, Permissions::MANAGE_ROLES)?;
+        let held = require_base(&guild, ctx.user_id, Permissions::MANAGE_ROLES)?;
         let role = existing_role(&guild, role_id)?;
         if role.id == guild.meta.everyone_role_id {
             return Err(ApiError::invalid_argument(
@@ -264,6 +264,9 @@ async fn change_member_role(
             ));
         }
         require_outranks_role(&guild, ctx.user_id, role.position)?;
+        if add {
+            require_grantable(held, role.permissions)?;
+        }
         let member = guild
             .members
             .get(&user_id)
