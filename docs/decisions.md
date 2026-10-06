@@ -65,3 +65,17 @@ The generated `Envelope` boxes its `Ready` payload, which is many times larger t
 - Role color 0 means "no color".
 - Per-request permission requirements, event audiences, and WebSocket close codes are defined in protocol.md.
 - Limits the plan doesn't give: topic 1 024 characters, server description 1 000, kick/ban reason 512. `FetchMessages` limit 0 means 50, and larger values are capped at 100.
+
+## D9: Owner claim tokens and the startup invite (2026-10-07)
+
+- Only the SHA-256 of the claim token is stored, so it can't be printed again. Instead, every start of a server that has no owner issues a new token, invalidating the previous one.
+- Using the token makes that user the owner and clears the token.
+- `reset-claim-token` issues a token even when the server already has an owner. Whoever uses it takes over ownership. This lets an operator with shell access recover a server whose owner lost their identity.
+- Once the server has an owner, it keeps one permanent, unlimited invite and logs its link at startup. It is created the first time it is needed and reused for as long as it remains valid.
+
+## D10: Server internals (2026-10-07)
+
+- **Guild cache:** roles, channels with overwrites, and members are cached in memory. Permission checks and event fan-out never touch the database. Changes go to the database first, then to the cache, then out as events, all under one write lock so the three stay in step.
+- **Messages** do not take that lock; they never change the cache.
+- **Ready first:** a new session is registered only after its `Ready` is queued, under the write lock, so no event can arrive before `Ready`.
+- **Snowflake worker id** is always 0, since a server runs as a single process.

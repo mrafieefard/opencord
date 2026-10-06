@@ -62,6 +62,35 @@ flutter test
 flutter test integration_test -d linux
 ```
 
+## Running a server
+
+```bash
+cargo run -p opencord-server
+```
+
+On first start the server writes `opencord.toml` with commented defaults, creates `data/` (database and a self-signed TLS certificate), and logs the certificate fingerprint and a one-time **owner claim token**. Add the server in the app with that token to become its owner. Every setting can also be set with an `OPENCORD_*` environment variable (see the comments in `opencord.toml`).
+
+Other commands:
+
+```bash
+cargo run -p opencord-server -- fingerprint
+cargo run -p opencord-server -- invite create --max-uses 10 --expires-in 86400
+cargo run -p opencord-server -- reset-claim-token
+```
+
+`reset-claim-token` is for recovery: whoever uses the new token becomes the owner, even if the server already has one.
+
+## Changing database queries
+
+SQL queries are checked at compile time. Builds use the query data committed in `.sqlx/`, so no database is needed unless you change a query or a migration. Then create a development database and regenerate the data:
+
+```bash
+export DATABASE_URL="sqlite://$PWD/target/sqlx-dev.db"
+sqlx database create
+sqlx migrate run --source crates/opencord-server/migrations
+cargo sqlx prepare --workspace -- --all-targets
+```
+
 ## Changing the Rust API used by the app
 
 Public functions in `crates/opencord-core/src/api/` are exposed to Dart. After changing them, regenerate the bindings and commit the result (`app/lib/src/rust/` and `crates/opencord-core/src/frb_generated.rs`):
