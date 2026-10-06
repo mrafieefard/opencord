@@ -50,7 +50,7 @@ The first `flutter run` also compiles the Rust core, so it takes a while.
 
 ## Checks
 
-These run in CI on every push and pull request.
+CI runs these on pushes to `main` and `pre` and on pull requests.
 
 ```bash
 cargo fmt --all

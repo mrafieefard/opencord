@@ -37,4 +37,11 @@ The Dart package is `opencord` and the org is `dev.opencord`, which makes the ap
 
 ## D6: Generated bindings are committed (2026-10-06)
 
-`app/lib/src/rust/` and `crates/opencord-core/src/frb_generated.rs` are committed, so the app builds without the codegen installed. If they go stale, `RustLib.init()` fails a content-hash check at startup, which the integration test (`app/integration_test/`) catches.
+`app/lib/src/rust/` and `crates/opencord-core/src/frb_generated.rs` are committed, so the app builds without the codegen installed.
+
+Nothing catches stale bindings automatically. frb's startup content-hash check only compares the Dart and Rust halves of the generated code with each other, and both are written in the same codegen run. After changing `crates/opencord-core/src/api/`, run `flutter_rust_bridge_codegen generate`:
+
+- A changed signature that wasn't regenerated usually breaks the Rust build.
+- A new function that wasn't regenerated stays missing on the Dart side until Dart code calls it.
+
+A CI check (regenerate, then `git diff --exit-code`) can be added later.
