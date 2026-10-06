@@ -1,6 +1,6 @@
 # Decision log
 
-Decisions not covered by [the Phase 1 plan](plans/phase-1.md), and the reasons for them. Newest last.
+Decisions not covered by [the Phase 1 plan](plans/phase-1.md) or [the desktop UI plan](plans/desktop-ui.md), and the reasons for them. Newest last.
 
 ## D1: Licensing (2026-10-06)
 
@@ -104,3 +104,35 @@ Costs:
 - Renewing the certificate takes effect on restart, as it already did.
 
 The protocol was not released before this change, so the version stays at 1.
+
+## D13: Desktop UI scope (2026-10-07)
+
+- The [desktop UI plan](plans/desktop-ui.md) is the spec for M5 and M6 on desktop. It replaces Phase 1 plan §9.1–9.3 wherever the two differ. For example, voice channels open a voice view on mock data instead of showing "Coming soon".
+- The plan was pasted cut off inside §17.1. Everything up to that point is built; the rest of §17 waits for the user.
+- Screens are built against a mock repository first (plan §11) and then switched to the Rust core (plan §12, step 15).
+- Some UI features have no protocol support in Phase 1: reactions, pins, read state, system messages, announcement channels and voice. They work on mock data. With the real core they are hidden until the protocol supports them, and step 15 records each case.
+
+## D14: Bundled fonts and the icon subset (2026-10-07)
+
+- Inter 4.1 ships as static TTFs for 400, 500, 600 and 700, plus italic at 400 and 600. Flutter does not map `fontWeight` onto a variable font's `wght` axis, so static files keep every `TextStyle` simple.
+- JetBrains Mono 2.304 ships at Regular only, because the plan uses mono at a single weight.
+- Material Symbols Rounded comes from a pinned upstream commit and is cut down to the icons the app uses by `app/tool/build_icons.dart`. The script uses the `font-subset` tool from the Flutter SDK and keeps all four variation axes. The result is about 260 KiB instead of 15 MB. To add an icon, add it to the list in the script and run it again.
+- `uses-material-design` is off, so no widget can fall back to the Material Icons family.
+- The fonts' licenses are bundled and appear on the app's license page.
+
+## D15: What "no hue" means (2026-10-07)
+
+The §2.1 greys have a slight cool tint: the red, green and blue channels differ by up to 8 out of 255 (for example `#6E6E76`). §13 asks that every painted color have saturation 0, which the tokens themselves don't meet. The checks therefore treat a color as monochrome when its channels differ by at most 8. That admits the tokens and rejects anything with real color.
+
+## D16: Muted text contrast is below the plan's own minimum (2026-10-07)
+
+§2.1 asks for muted text at 4.5:1 or more. The `textMuted` tokens give 2.7–3.9:1 on the surfaces they sit on: dark `#6E6E76` gets 3.8:1 on `chat`, and light `#8A8A92` gets 3.4:1 on white. §0 asks for the tokens exactly, so they are kept and the contrast test is skipped with a pointer here. Raising muted text to 4.5:1 would bring it within about 1:1 of `textSecondary` and flatten the hierarchy. Changing it means editing two values in `oc_colors.dart`.
+
+## D17: Theme and settings defaults (2026-10-07)
+
+- The theme defaults to System. The Phase 1 plan said dark, but the UI plan lists System first and has a light theme.
+- Switching themes takes effect on the next frame with no cross-fade, because §13 asks for an instant switch.
+- The font-size slider sets the body size from 12 to 18 px. Every style scales by `size / 14` through `MediaQuery.textScaler`, multiplied by the platform's own scale.
+- UI settings are stored as one JSON value, `ui.settings`, in the Rust core's settings file, so the app has a single local data store. A damaged value falls back to the defaults instead of failing.
+- `path_provider` locates the app data directory. It is a platform utility, not a UI kit.
+
