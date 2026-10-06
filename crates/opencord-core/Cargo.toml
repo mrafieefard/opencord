@@ -1,0 +1,19 @@
+[package]
+# Underscore on purpose: cargokit derives the native library filename from the package name.
+name = "opencord_core"
+description = "Opencord client core, exposed to the Flutter app through flutter_rust_bridge."
+version.workspace = true
+edition.workspace = true
+repository.workspace = true
+license = "MPL-2.0"
+publish = false
+
+[lib]
+crate-type = ["cdylib", "staticlib"]
+
+[dependencies]
+flutter_rust_bridge.workspace = true
+opencord-common.workspace = true
+
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(frb_expand)'] }
