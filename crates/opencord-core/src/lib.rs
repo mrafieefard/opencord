@@ -3,3 +3,7 @@
 pub mod api;
 #[rustfmt::skip]
 mod frb_generated;
+pub mod identity;
+pub mod mirror;
+pub mod store;
+pub mod tofu;
