@@ -19,7 +19,7 @@ Open-source, self-hostable voice, video and text chat. It pairs Discord-style UX
 ## Development setup (Arch Linux)
 
 ```bash
-sudo pacman -S --needed rustup protobuf clang cmake ninja gtk3 pkgconf sqlite git openssl
+sudo pacman -S --needed rustup clang cmake ninja gtk3 pkgconf sqlite git openssl
 rustup default stable
 rustup component add clippy rustfmt
 echo 'export PATH="$HOME/.cargo/bin:$PATH"' >> ~/.bashrc

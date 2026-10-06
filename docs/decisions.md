@@ -45,3 +45,23 @@ Nothing catches stale bindings automatically. frb's startup content-hash check o
 - A new function that wasn't regenerated stays missing on the Dart side until Dart code calls it.
 
 A CI check (regenerate, then `git diff --exit-code`) can be added later.
+
+## D7: `.proto` files are compiled with protox, not protoc (2026-10-06)
+
+`crates/opencord-proto/build.rs` uses [protox](https://crates.io/crates/protox), a protobuf compiler written in Rust, so building no longer needs a system `protoc`. Once the client core depends on the proto crate, it gets built inside Xcode (iOS/macOS) and on Windows, where `protoc` is rarely on PATH.
+
+The generated `Envelope` boxes its `Ready` payload, which is many times larger than every other variant.
+
+## D8: Protocol details beyond the plan (2026-10-06)
+
+[protocol.md](protocol.md) is the full specification. These details were not in the plan:
+
+- `Identify` carries the client's `protocol_version`; a mismatch is rejected.
+- `Heartbeat` carries `last_seq`.
+- After a failed `Resume`, the server keeps the connection open so the client can `Identify` right away, without reconnecting.
+- `SendMessage` carries a client `nonce`. It is echoed on the response and on `MessageCreate`, so optimistic sends can be matched whichever arrives first.
+- Added an `UpdatePresence` request, since the plan's presence statuses (idle, dnd) need a way to be set. `OFFLINE` makes a user appear offline.
+- `ReorderRoles` takes the listed roles in their new order and rearranges them among the positions they already hold, so a member can never move a role above their own.
+- Role color 0 means "no color".
+- Per-request permission requirements, event audiences, and WebSocket close codes are defined in protocol.md.
+- Limits the plan doesn't give: topic 1 024 characters, server description 1 000, kick/ban reason 512. `FetchMessages` limit 0 means 50, and larger values are capped at 100.
