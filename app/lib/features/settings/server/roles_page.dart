@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:opencord/core/format.dart';
@@ -20,6 +21,7 @@ import 'package:opencord/ui/widgets/oc_button.dart';
 import 'package:opencord/ui/widgets/oc_text_field.dart';
 import 'package:opencord/ui/widgets/settings.dart';
 import 'package:opencord/ui/widgets/toast.dart';
+import 'package:opencord/ui/widgets/oc_menu.dart';
 
 /// What the current user may do with roles: whom they outrank and which
 /// permissions they hold to give (Phase 1 plan §6.3).
@@ -213,6 +215,20 @@ class _RoleTile extends StatelessWidget {
     final colors = context.oc;
     final tile = Hoverable(
       onTap: onTap,
+      onSecondaryTap: (position) => showOcMenu(
+        context: context,
+        position: position,
+        entries: [
+          OcMenuItem(
+            label: 'Copy role ID',
+            icon: OcIcons.badge,
+            onSelected: () {
+              Clipboard.setData(ClipboardData(text: '${role.id}'));
+              showOcToast(context, 'Role ID copied');
+            },
+          ),
+        ],
+      ),
       semanticLabel: '${role.name}, ${countLabel(members)} members',
       selected: selected,
       builder: (context, state) => AnimatedContainer(

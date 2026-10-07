@@ -12,6 +12,7 @@ import 'package:opencord/ui/theme/oc_text.dart';
 import 'package:opencord/ui/widgets/hoverable.dart';
 import 'package:opencord/ui/widgets/key_hint.dart';
 import 'package:opencord/ui/widgets/oc_icon_button.dart';
+import 'package:opencord/ui/widgets/toast.dart';
 
 /// Stops sharing, or asks what to share first (§4.10).
 Future<void> toggleScreenshare(BuildContext context, WidgetRef ref) async {
@@ -25,6 +26,24 @@ Future<void> toggleScreenshare(BuildContext context, WidgetRef ref) async {
   final voice = ref.read(voiceSessionProvider);
   if (!voice.connected || voice.screensharing) return;
   await session.toggleScreenshare();
+}
+
+/// Leaves voice; the toast's Undo joins the same channel again (§16).
+Future<void> leaveVoice(BuildContext context, WidgetRef ref) async {
+  final voice = ref.read(voiceSessionProvider);
+  final server = voice.serverKey;
+  final channel = voice.channelId;
+  final session = ref.read(voiceSessionProvider.notifier);
+  if (server == null || channel == null) return;
+  final name = ref.read(serverProvider(server)).data?.channels[channel]?.name;
+  // The toast first: leaving may take the button that asked away.
+  showOcToast(
+    context,
+    name == null ? 'Left voice' : 'Left $name',
+    actionLabel: 'Undo',
+    onAction: () => session.join(server, channel),
+  );
+  await session.leave();
 }
 
 /// The voice view's control bar (§4.10): Mute · Camera · Screenshare ·
@@ -74,7 +93,7 @@ class VoiceControlBar extends ConsumerWidget {
           onPressed: session.toggleDeafen,
         ),
         const SizedBox(width: OcSpace.s24),
-        _DisconnectPill(onPressed: session.leave),
+        _DisconnectPill(onPressed: () => leaveVoice(context, ref)),
       ],
     );
   }

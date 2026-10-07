@@ -8,6 +8,7 @@ import 'package:opencord/core/model/permissions.dart';
 import 'package:opencord/core/providers/providers.dart';
 import 'package:opencord/features/channels/channel_row.dart';
 import 'package:opencord/features/shell/navigation.dart';
+import 'package:opencord/features/settings/server_settings.dart';
 import 'package:opencord/ui/theme/oc_colors.dart';
 import 'package:opencord/ui/theme/oc_icons.dart';
 import 'package:opencord/ui/theme/oc_metrics.dart';
@@ -136,6 +137,17 @@ class VoiceChannelRow extends ConsumerWidget {
         ),
         if (manage) ...[
           const OcMenuDivider(),
+          OcMenuItem(
+            label: 'Edit channel',
+            icon: OcIcons.edit,
+            onSelected: () => showServerSettings(
+              context,
+              ref,
+              serverKey: serverKey,
+              page: 'channels',
+              channel: channel.id,
+            ),
+          ),
           OcMenuItem(
             label: 'Delete channel',
             icon: OcIcons.delete,

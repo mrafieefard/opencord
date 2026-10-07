@@ -121,8 +121,21 @@ class MessageActions {
     if (emoji != null) await toggleReaction(message, emoji);
   }
 
+  /// Adding a reaction is immediate; taking your own away offers Undo
+  /// (§16).
   Future<void> toggleReaction(Message message, String emoji) =>
-      _guard(() => _messages.toggleReaction(message.id, emoji));
+      _guard(() async {
+        final messages = _messages;
+        final mine = message.reactions.any((r) => r.emoji == emoji && r.me);
+        await messages.toggleReaction(message.id, emoji);
+        if (!mine || !context.mounted) return;
+        showOcToast(
+          context,
+          'Reaction removed',
+          actionLabel: 'Undo',
+          onAction: () => messages.toggleReaction(message.id, emoji),
+        );
+      });
 
   void copyText(Message message, {String? selection}) {
     final data = _data;

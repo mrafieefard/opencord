@@ -99,7 +99,7 @@ class VoiceConnectedPanel extends ConsumerWidget {
                 icon: OcIcons.callEnd,
                 tooltip: 'Disconnect',
                 size: OcIconButtonSize.compact,
-                onPressed: session.leave,
+                onPressed: () => leaveVoice(context, ref),
               ),
             ],
           ),

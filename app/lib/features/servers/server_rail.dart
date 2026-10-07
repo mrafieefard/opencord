@@ -14,6 +14,7 @@ import 'package:opencord/features/shell/navigation.dart';
 import 'package:opencord/features/window/drag_area.dart';
 import 'package:opencord/features/window/window_mode.dart';
 import 'package:opencord/features/window/window_providers.dart';
+import 'package:opencord/features/settings/server_settings.dart';
 import 'package:opencord/ui/theme/oc_colors.dart';
 import 'package:opencord/ui/theme/oc_icons.dart';
 import 'package:opencord/ui/theme/oc_metrics.dart';
@@ -159,55 +160,63 @@ class _RailEntry extends ConsumerWidget {
     );
   }
 
+  /// §4.1: Mark as read · Mute / Unmute notifications · Invite people ·
+  /// Server settings (if permitted) · Copy address · — · Leave server.
   Future<void> _showMenu(
     BuildContext context,
     WidgetRef ref,
     Offset position,
     String name,
     bool muted,
-  ) => showOcMenu(
-    context: context,
-    position: position,
-    entries: [
-      OcMenuItem(
-        label: 'Mark as read',
-        icon: OcIcons.markChatRead,
-        onSelected: () =>
-            ref.read(activityProvider(server.key).notifier).markAllRead(),
-      ),
-      OcMenuItem(
-        label: muted ? 'Unmute notifications' : 'Mute notifications',
-        icon: muted ? OcIcons.notifications : OcIcons.notificationsOff,
-        onSelected: () => ref
-            .read(notificationPrefsProvider.notifier)
-            .toggleServer(server.key),
-      ),
-      OcMenuItem(
-        label: 'Copy address',
-        icon: OcIcons.link,
-        onSelected: () {
-          Clipboard.setData(ClipboardData(text: server.key));
-          showOcToast(context, 'Address copied');
-        },
-      ),
-      if (ref
-              .read(serverProvider(server.key))
-              .data
-              ?.can(Permissions.createInvite) ??
-          false)
+  ) {
+    final data = ref.read(serverProvider(server.key)).data;
+    return showOcMenu(
+      context: context,
+      position: position,
+      entries: [
         OcMenuItem(
-          label: 'Invite people',
-          icon: OcIcons.personAdd,
-          onSelected: () => showInvitePeople(context, serverKey: server.key),
+          label: 'Mark as read',
+          icon: OcIcons.markChatRead,
+          onSelected: () =>
+              ref.read(activityProvider(server.key).notifier).markAllRead(),
         ),
-      const OcMenuDivider(),
-      OcMenuItem(
-        label: 'Leave server',
-        icon: OcIcons.logout,
-        onSelected: () => confirmLeaveServer(context, ref, server.key, name),
-      ),
-    ],
-  );
+        OcMenuItem(
+          label: muted ? 'Unmute notifications' : 'Mute notifications',
+          icon: muted ? OcIcons.notifications : OcIcons.notificationsOff,
+          onSelected: () => ref
+              .read(notificationPrefsProvider.notifier)
+              .toggleServer(server.key),
+        ),
+        if (data?.can(Permissions.createInvite) ?? false)
+          OcMenuItem(
+            label: 'Invite people',
+            icon: OcIcons.personAdd,
+            onSelected: () => showInvitePeople(context, serverKey: server.key),
+          ),
+        if (canOpenServerSettings(data))
+          OcMenuItem(
+            label: 'Server settings',
+            icon: OcIcons.settings,
+            onSelected: () =>
+                showServerSettings(context, ref, serverKey: server.key),
+          ),
+        OcMenuItem(
+          label: 'Copy address',
+          icon: OcIcons.link,
+          onSelected: () {
+            Clipboard.setData(ClipboardData(text: server.key));
+            showOcToast(context, 'Address copied');
+          },
+        ),
+        const OcMenuDivider(),
+        OcMenuItem(
+          label: 'Leave server',
+          icon: OcIcons.logout,
+          onSelected: () => confirmLeaveServer(context, ref, server.key, name),
+        ),
+      ],
+    );
+  }
 }
 
 /// Asks before forgetting a server (§4.1). Phase 1 has no "leave" request,

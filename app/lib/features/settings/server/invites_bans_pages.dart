@@ -19,6 +19,8 @@ import 'package:opencord/ui/widgets/oc_icon_button.dart';
 import 'package:opencord/ui/widgets/oc_spinner.dart';
 import 'package:opencord/ui/widgets/section_label.dart';
 import 'package:opencord/ui/widgets/toast.dart';
+import 'package:opencord/ui/widgets/oc_menu.dart';
+import 'package:opencord/ui/widgets/hoverable.dart';
 
 /// Loads a list from the repository, shows it, and loads it again after a
 /// change.
@@ -162,78 +164,119 @@ class _ServerInvitesPageState
         box(
           context,
           empty: 'No invites yet. Create one to bring people in.',
-          row: (invite) => Padding(
-            padding: const EdgeInsets.symmetric(
-              horizontal: OcSpace.s12,
-              vertical: OcSpace.s6,
-            ),
-            child: Row(
-              children: [
-                Expanded(
-                  flex: 3,
-                  child: Text(
-                    invite.code,
-                    style: OcText.mono.copyWith(color: colors.text),
+          row: (invite) {
+            void copyLink() {
+              Clipboard.setData(ClipboardData(text: invite.link));
+              showOcToast(context, 'Invite link copied');
+            }
+
+            Future<void> revoke() async {
+              final revoke = await confirmAction(
+                context,
+                title: 'Revoke this invite?',
+                message:
+                    'The link ${invite.code} stops working for everyone '
+                    'who has it.',
+                action: 'Revoke invite',
+              );
+              if (!revoke) return;
+              await guard(
+                () => ref
+                    .read(repositoryProvider)
+                    .revokeInvite(widget.serverKey, invite.code),
+              );
+            }
+
+            // Copy and revoke from the right-click menu too (§16).
+            return Hoverable(
+              onSecondaryTap: (position) => showOcMenu(
+                context: context,
+                position: position,
+                entries: [
+                  OcMenuItem(
+                    label: 'Copy link',
+                    icon: OcIcons.link,
+                    onSelected: copyLink,
                   ),
-                ),
-                Expanded(
-                  flex: 4,
-                  child: Text(
-                    members?[invite.createdBy]?.displayName ?? 'Someone',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: OcText.body.copyWith(color: colors.text),
+                  OcMenuItem(
+                    label: 'Copy code',
+                    icon: OcIcons.contentCopy,
+                    onSelected: () {
+                      Clipboard.setData(ClipboardData(text: invite.code));
+                      showOcToast(context, 'Invite code copied');
+                    },
                   ),
-                ),
-                Expanded(
-                  flex: 2,
-                  child: Text(
-                    invite.maxUses == null
-                        ? '${invite.uses}'
-                        : '${invite.uses} / ${invite.maxUses}',
-                    style: OcText.small.copyWith(color: colors.textSecondary),
+                  const OcMenuDivider(),
+                  OcMenuItem(
+                    label: 'Revoke invite',
+                    icon: OcIcons.delete,
+                    onSelected: revoke,
                   ),
+                ],
+              ),
+              button: false,
+              cursor: SystemMouseCursors.basic,
+              semanticLabel: 'Invite ${invite.code}',
+              builder: (context, state) => Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: OcSpace.s12,
+                  vertical: OcSpace.s6,
                 ),
-                Expanded(
-                  flex: 3,
-                  child: Text(
-                    expiryLabel(invite.expiresAt, now),
-                    style: OcText.small.copyWith(color: colors.textSecondary),
-                  ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      flex: 3,
+                      child: Text(
+                        invite.code,
+                        style: OcText.mono.copyWith(color: colors.text),
+                      ),
+                    ),
+                    Expanded(
+                      flex: 4,
+                      child: Text(
+                        members?[invite.createdBy]?.displayName ?? 'Someone',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: OcText.body.copyWith(color: colors.text),
+                      ),
+                    ),
+                    Expanded(
+                      flex: 2,
+                      child: Text(
+                        invite.maxUses == null
+                            ? '${invite.uses}'
+                            : '${invite.uses} / ${invite.maxUses}',
+                        style: OcText.small.copyWith(
+                          color: colors.textSecondary,
+                        ),
+                      ),
+                    ),
+                    Expanded(
+                      flex: 3,
+                      child: Text(
+                        expiryLabel(invite.expiresAt, now),
+                        style: OcText.small.copyWith(
+                          color: colors.textSecondary,
+                        ),
+                      ),
+                    ),
+                    OcIconButton(
+                      icon: OcIcons.contentCopy,
+                      tooltip: 'Copy link',
+                      size: OcIconButtonSize.compact,
+                      onPressed: copyLink,
+                    ),
+                    OcIconButton(
+                      icon: OcIcons.delete,
+                      tooltip: 'Revoke ${invite.code}',
+                      size: OcIconButtonSize.compact,
+                      onPressed: revoke,
+                    ),
+                  ],
                 ),
-                OcIconButton(
-                  icon: OcIcons.contentCopy,
-                  tooltip: 'Copy link',
-                  size: OcIconButtonSize.compact,
-                  onPressed: () {
-                    Clipboard.setData(ClipboardData(text: invite.link));
-                    showOcToast(context, 'Invite link copied');
-                  },
-                ),
-                OcIconButton(
-                  icon: OcIcons.delete,
-                  tooltip: 'Revoke ${invite.code}',
-                  size: OcIconButtonSize.compact,
-                  onPressed: () async {
-                    final revoke = await confirmAction(
-                      context,
-                      title: 'Revoke this invite?',
-                      message:
-                          'The link ${invite.code} stops working for everyone '
-                          'who has it.',
-                      action: 'Revoke invite',
-                    );
-                    if (!revoke) return;
-                    await guard(
-                      () => ref
-                          .read(repositoryProvider)
-                          .revokeInvite(widget.serverKey, invite.code),
-                    );
-                  },
-                ),
-              ],
-            ),
-          ),
+              ),
+            );
+          },
         ),
       ],
     );
