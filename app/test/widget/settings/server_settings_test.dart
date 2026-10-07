@@ -106,6 +106,26 @@ void main() {
     await app.dispose(tester);
   });
 
+  testWidgets('screen readers reach each invite\'s Copy and Revoke (§9)', (
+    tester,
+  ) async {
+    final semantics = tester.ensureSemantics();
+    final app = await MockApp.pump(tester);
+    await _openServerSettings(tester);
+    await _page(tester, 'Invites');
+    await tester.tap(
+      _inSettings(find.widgetWithText(OcButton, 'Create invite')),
+    );
+    await _pumpFor(tester, const Duration(milliseconds: 600));
+    await tester.tap(find.widgetWithText(OcButton, 'Done'));
+    await _pumpFor(tester, const Duration(milliseconds: 600));
+
+    expect(find.bySemanticsLabel(RegExp('^Revoke ')), findsWidgets);
+    expect(find.bySemanticsLabel('Copy link'), findsWidgets);
+    await app.dispose(tester);
+    semantics.dispose();
+  });
+
   testWidgets('invites are made, listed and revoked', (tester) async {
     final app = await MockApp.pump(tester);
     await _openServerSettings(tester);

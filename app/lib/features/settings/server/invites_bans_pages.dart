@@ -216,7 +216,8 @@ class _ServerInvitesPageState
               ),
               button: false,
               cursor: SystemMouseCursors.basic,
-              semanticLabel: 'Invite ${invite.code}',
+              // No label of its own: its texts and buttons are read as
+              // they are, Copy and Revoke included.
               builder: (context, state) => Padding(
                 padding: const EdgeInsets.symmetric(
                   horizontal: OcSpace.s12,

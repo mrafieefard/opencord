@@ -62,9 +62,7 @@ void main() {
     final everyone = data.roles[everyoneRoleId]!;
     final ranked = RoleRules(data);
     final unranked = RoleRules(
-      data.copyWith(
-        members: {...data.members, selfId: member(selfId, 'Alex')},
-      ),
+      data.copyWith(members: {...data.members, selfId: member(selfId, 'Alex')}),
     );
 
     expect(ranked.canManage(everyone), isTrue);

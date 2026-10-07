@@ -78,6 +78,7 @@ class SettingsRow extends StatelessWidget {
     this.trailing,
     this.onTap,
     this.mono = false,
+    this.toggled,
   });
 
   final String title;
@@ -86,16 +87,23 @@ class SettingsRow extends StatelessWidget {
   final Widget? trailing;
   final VoidCallback? onTap;
 
+  /// For a switch row: whether it is on.
+  final bool? toggled;
+
   /// Shows the subtitle in the mono face, for fingerprints and addresses.
   final bool mono;
 
   @override
   Widget build(BuildContext context) {
     final colors = context.oc;
+    // A row that is itself the control speaks for its content, subtitle
+    // included; otherwise what is in it (buttons too) is read as it is.
+    final control = onTap != null || toggled != null;
     return Hoverable(
       onTap: onTap,
       focusRadius: BorderRadius.zero,
-      semanticLabel: title,
+      semanticLabel: control ? [title, ?subtitle].join('\n') : null,
+      toggled: toggled,
       cursor: SystemMouseCursors.basic,
       builder: (context, state) => AnimatedContainer(
         duration: OcMotion.of(context).hover,
@@ -131,7 +139,11 @@ class SettingsRow extends StatelessWidget {
             ),
             if (trailing != null) ...[
               const SizedBox(width: OcSpace.s12),
-              trailing!,
+              // Its own node, so a button there is not lost in the row.
+              if (control)
+                trailing!
+              else
+                Semantics(container: true, child: trailing),
             ] else if (onTap != null)
               Icon(
                 OcIcons.chevronRight,
@@ -168,6 +180,7 @@ class SettingsSwitchRow extends StatelessWidget {
       subtitle: subtitle,
       icon: icon,
       onTap: onChanged == null ? null : () => onChanged!(!value),
+      toggled: value,
       trailing: ExcludeSemantics(
         child: OcSwitch(value: value, onChanged: onChanged),
       ),

@@ -39,6 +39,7 @@ class Hoverable extends StatefulWidget {
     this.focusRadius = const BorderRadius.all(Radius.circular(OcRadius.row)),
     this.semanticLabel,
     this.selected,
+    this.toggled,
     this.button = true,
     this.showFocusRing = true,
   });
@@ -58,6 +59,9 @@ class Hoverable extends StatefulWidget {
   final BorderRadius focusRadius;
   final String? semanticLabel;
   final bool? selected;
+
+  /// On or off, for a switch: read out instead of "button".
+  final bool? toggled;
 
   /// Whether screen readers announce it as a button.
   final bool button;
@@ -111,9 +115,10 @@ class _HoverableState extends State<Hoverable> {
     );
     final onSecondaryTap = widget.onSecondaryTap;
     return Semantics(
-      button: widget.button && widget.onTap != null,
+      button: widget.button && widget.onTap != null && widget.toggled == null,
       label: widget.semanticLabel,
       selected: widget.selected,
+      toggled: widget.toggled,
       child: MouseRegion(
         cursor: _interactive ? widget.cursor : MouseCursor.defer,
         onEnter: (_) => _set(() => _hovered = true),
