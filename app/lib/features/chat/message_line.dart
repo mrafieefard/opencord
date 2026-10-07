@@ -28,24 +28,36 @@ class MessageLine extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final top = first ? OcSpace.s8 : OcSpace.s2;
+    if (own) {
+      return Padding(
+        padding: EdgeInsets.only(top: top, left: gutter),
+        child: Align(alignment: Alignment.centerRight, child: bubble),
+      );
+    }
+    // The avatar hangs beside the bubble without adding to the row's
+    // height, so moving it to a newer bubble never shifts the rows above.
     return Padding(
-      padding: EdgeInsets.only(top: first ? OcSpace.s8 : OcSpace.s2),
-      child: own
-          ? Padding(
-              padding: const EdgeInsets.only(left: gutter),
-              child: Align(alignment: Alignment.centerRight, child: bubble),
-            )
-          : Padding(
-              padding: const EdgeInsets.only(right: gutter),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  SizedBox(width: OcSize.messageAvatar, child: avatar),
-                  const SizedBox(width: _avatarGap),
-                  Flexible(child: bubble),
-                ],
-              ),
+      padding: EdgeInsets.only(top: top, right: gutter),
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(
+              left: OcSize.messageAvatar + _avatarGap,
             ),
+            child: Align(alignment: Alignment.centerLeft, child: bubble),
+          ),
+          if (avatar case final avatar?)
+            Positioned(
+              left: 0,
+              bottom: 0,
+              width: OcSize.messageAvatar,
+              height: OcSize.messageAvatar,
+              child: avatar,
+            ),
+        ],
+      ),
     );
   }
 }

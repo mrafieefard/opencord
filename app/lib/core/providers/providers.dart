@@ -180,6 +180,13 @@ class ActivityNotifier extends Notifier<ActivityState> {
     if (channelId != null) markRead(channelId);
   }
 
+  /// Stops reading [channelId], if it is the one being read. Safe to call
+  /// while the app shuts down.
+  void unfocus(int channelId) {
+    if (!ref.mounted || state.focused != channelId) return;
+    state = focusChannel(state, null);
+  }
+
   void markAllRead() {
     var next = state;
     for (final id in state.channels.keys) {

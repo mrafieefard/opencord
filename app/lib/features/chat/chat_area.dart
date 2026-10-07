@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:opencord/core/providers/providers.dart';
+import 'package:opencord/features/chat/chat_controller.dart';
+import 'package:opencord/features/chat/message_list.dart';
 import 'package:opencord/features/shell/navigation.dart';
 import 'package:opencord/features/window/header_bar.dart';
 import 'package:opencord/ui/theme/oc_colors.dart';
@@ -11,7 +13,7 @@ import 'package:opencord/ui/theme/oc_text.dart';
 import 'package:opencord/ui/widgets/oc_icon_button.dart';
 
 /// The main column: the open channel's header and content.
-class ChatArea extends ConsumerWidget {
+class ChatArea extends ConsumerStatefulWidget {
   const ChatArea({
     super.key,
     required this.membersShown,
@@ -32,7 +34,14 @@ class ChatArea extends ConsumerWidget {
   final VoidCallback? onOpenSidebar;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<ChatArea> createState() => _ChatAreaState();
+}
+
+class _ChatAreaState extends ConsumerState<ChatArea> {
+  final _controller = ChatController();
+
+  @override
+  Widget build(BuildContext context) {
     final colors = context.oc;
     final server = ref.watch(currentServerProvider);
     final channelId = ref.watch(currentChannelProvider);
@@ -49,15 +58,15 @@ class ChatArea extends ConsumerWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           HeaderBar(
-            leadingControls: leadingControls,
-            trailingControls: trailingControls,
+            leadingControls: widget.leadingControls,
+            trailingControls: widget.trailingControls,
             child: Row(
               children: [
-                if (onOpenSidebar != null)
+                if (widget.onOpenSidebar != null)
                   OcIconButton(
                     icon: OcIcons.menu,
                     tooltip: 'Channels',
-                    onPressed: onOpenSidebar,
+                    onPressed: widget.onOpenSidebar,
                   ),
                 const SizedBox(width: OcSpace.s4),
                 Expanded(
@@ -77,13 +86,23 @@ class ChatArea extends ConsumerWidget {
                 OcIconButton(
                   icon: OcIcons.group,
                   tooltip: 'Member list',
-                  active: membersShown,
-                  onPressed: onToggleMembers,
+                  active: widget.membersShown,
+                  onPressed: widget.onToggleMembers,
                 ),
               ],
             ),
           ),
-          const Expanded(child: SizedBox()),
+          Expanded(
+            child: server == null || channel == null
+                ? const SizedBox()
+                : channel.kind.isTextLike
+                ? MessageList(
+                    key: ValueKey((server: server, channel: channel.id)),
+                    channel: (server: server, channel: channel.id),
+                    controller: _controller,
+                  )
+                : const SizedBox(),
+          ),
         ],
       ),
     );

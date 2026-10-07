@@ -25,6 +25,30 @@ void main() {
     expect(await huedPixels(tester, boundary), isNotEmpty);
   });
 
+  testWidgets('emoji are left out of the scan, and nothing else', (
+    tester,
+  ) async {
+    Future<List<String>> scan(List<InlineSpan> spans) async {
+      final boundary = GlobalKey();
+      await pumpThemed(
+        tester,
+        RepaintBoundary(
+          key: boundary,
+          child: Text.rich(
+            TextSpan(
+              style: const TextStyle(fontSize: 20, color: Color(0xFFE11D48)),
+              children: spans,
+            ),
+          ),
+        ),
+      );
+      return huedPixels(tester, boundary);
+    }
+
+    expect(await scan([const TextSpan(text: '🎉👍')]), isEmpty);
+    expect(await scan([const TextSpan(text: '🎉 red')]), isNotEmpty);
+  });
+
   for (final (name, colors) in themes) {
     testWidgets('the widget gallery is monochrome in $name', (tester) async {
       final boundary = GlobalKey();

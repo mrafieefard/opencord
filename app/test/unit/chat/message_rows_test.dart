@@ -116,6 +116,8 @@ void main() {
     expect(messages.last.mentionsMe, isFalse);
   });
 
+  group('split', splitTests);
+
   test('row keys are stable and unique', () {
     final built = buildRows(
       [
@@ -129,5 +131,52 @@ void main() {
     );
 
     expect(built.map((row) => row.key).toSet(), hasLength(built.length));
+  });
+}
+
+void splitTests() {
+  List<ChatRow> built(List<Message> messages, {int? readUpTo}) => buildRows(
+    messages,
+    selfId: me,
+    lastReadId: readUpTo,
+    reachedStart: false,
+  );
+
+  test('the newer half starts at the first new message', () {
+    final rows = built([
+      msg(1, kai),
+      msg(2, kai, minute: 1),
+      msg(3, mira, minute: 9),
+    ]);
+
+    expect(rows.sublist(splitIndex(rows, 3)).map(describe), ['3FLA']);
+    expect(splitIndex(rows, 4), rows.length);
+  });
+
+  test('the day and unread rows before it come along', () {
+    final rows = built([
+      msg(1, kai),
+      msg(2, mira, minute: 1, dayOffset: 1),
+    ], readUpTo: 1);
+
+    expect(rows.sublist(splitIndex(rows, 2)).map(describe), [
+      'day 8',
+      'unread',
+      '2FLA',
+    ]);
+  });
+
+  test('messages still being sent are always new', () {
+    final pending = Message(
+      id: -5,
+      channelId: 10,
+      authorId: me,
+      content: 'sending',
+      createdAt: day,
+      sendState: SendState.pending,
+    );
+    final rows = built([msg(1, kai), pending]);
+
+    expect(rows.sublist(splitIndex(rows, 100)).map(describe), ['-5FL']);
   });
 }

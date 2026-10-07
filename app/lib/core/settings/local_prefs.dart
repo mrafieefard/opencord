@@ -142,6 +142,42 @@ final collapsedCategoriesProvider =
       CollapsedCategoriesNotifier.new,
     );
 
+const trustedLinkDomainsKey = 'ui.trustedLinkDomains';
+
+/// Web domains whose links open without asking (§4.5).
+class TrustedLinkDomainsNotifier extends Notifier<Set<String>> {
+  @override
+  Set<String> build() {
+    final json = _readJson(
+      ref.watch(keyValueStoreProvider),
+      trustedLinkDomainsKey,
+    );
+    return json is List ? json.whereType<String>().toSet() : const {};
+  }
+
+  void trust(String domain) {
+    final lower = domain.toLowerCase();
+    if (state.contains(lower)) return;
+    state = {...state, lower};
+    ref
+        .read(keyValueStoreProvider)
+        .write(trustedLinkDomainsKey, jsonEncode(state.toList()));
+  }
+
+  void forget(String domain) {
+    if (!state.contains(domain)) return;
+    state = {...state}..remove(domain);
+    ref
+        .read(keyValueStoreProvider)
+        .write(trustedLinkDomainsKey, jsonEncode(state.toList()));
+  }
+}
+
+final trustedLinkDomainsProvider =
+    NotifierProvider<TrustedLinkDomainsNotifier, Set<String>>(
+      TrustedLinkDomainsNotifier.new,
+    );
+
 const selfPresenceKey = 'ui.presence';
 
 /// The presence the user chose for themselves (§4.2 user panel). The

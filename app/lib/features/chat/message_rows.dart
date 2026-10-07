@@ -147,3 +147,38 @@ List<ChatRow> buildRows(
   endGroup();
   return rows;
 }
+
+/// Where the list's newer half starts (§4.5): at the first message whose
+/// id is at least [splitId], or that is still being sent, together with
+/// the day and unread rows right before it. Rows before that grow upward
+/// from the anchor, rows after it downward, so neither loading history nor
+/// receiving messages moves what is on screen.
+int splitIndex(List<ChatRow> rows, int splitId) {
+  var index = rows.indexWhere(
+    (row) => switch (row) {
+      MessageRow(:final message) || SystemRow(:final message) =>
+        message.id >= splitId || message.sendState != SendState.sent,
+      _ => false,
+    },
+  );
+  if (index == -1) return rows.length;
+  while (index > 0 &&
+      (rows[index - 1] is DayRow || rows[index - 1] is UnreadRow)) {
+    index--;
+  }
+  return index;
+}
+
+/// The message a row shows, if it shows one.
+Message? messageOf(ChatRow row) => switch (row) {
+  MessageRow(:final message) || SystemRow(:final message) => message,
+  _ => null,
+};
+
+/// The day a row belongs to, for the floating date while scrolling.
+DateTime? dayOf(ChatRow row) => switch (row) {
+  DayRow(:final day) => day,
+  MessageRow(:final message) ||
+  SystemRow(:final message) => _day(message.createdAt),
+  _ => null,
+};
