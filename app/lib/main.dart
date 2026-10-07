@@ -46,6 +46,7 @@ Future<void> main() async {
       repositoryProvider.overrideWithValue(repository),
       nativeWindowProvider.overrideWithValue(window),
       windowInfoProvider.overrideWithValue(windowInfo),
+      frameChoiceSaverProvider.overrideWithValue(frameChoiceSaver(dataDir)),
       defaultMutedServersProvider.overrideWithValue(mockMutedServers),
     ],
   );

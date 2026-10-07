@@ -121,6 +121,17 @@ ThemeData buildTheme(OcColors colors) {
       selectionColor: colors.text.withValues(alpha: 0.22),
       selectionHandleColor: colors.text,
     ),
+    sliderTheme: SliderThemeData(
+      activeTrackColor: colors.text,
+      inactiveTrackColor: colors.selected,
+      thumbColor: colors.text,
+      overlayColor: colors.text.withValues(alpha: 0.08),
+      activeTickMarkColor: colors.onAccent,
+      inactiveTickMarkColor: colors.textMuted,
+      valueIndicatorColor: colors.elevated,
+      valueIndicatorTextStyle: OcText.small.copyWith(color: colors.text),
+      trackHeight: 4,
+    ),
     tooltipTheme: TooltipThemeData(
       waitDuration: const Duration(milliseconds: 450),
       padding: const EdgeInsets.symmetric(

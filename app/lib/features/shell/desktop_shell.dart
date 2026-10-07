@@ -13,6 +13,7 @@ import 'package:opencord/features/shell/navigation.dart';
 import 'package:opencord/features/shell/shell_layout.dart';
 import 'package:opencord/features/shell/shortcuts.dart';
 import 'package:opencord/features/shell/window_title.dart';
+import 'package:opencord/features/settings/user_settings.dart';
 import 'package:opencord/features/switcher/quick_switcher.dart';
 import 'package:opencord/features/window/window_providers.dart';
 import 'package:opencord/ui/theme/oc_colors.dart';
@@ -135,6 +136,9 @@ class _DesktopShellState extends ConsumerState<DesktopShell> {
     ),
     MarkReadIntent: CallbackAction<MarkReadIntent>(
       onInvoke: (_) => _markRead(),
+    ),
+    UserSettingsIntent: CallbackAction<UserSettingsIntent>(
+      onInvoke: (_) => showUserSettings(context),
     ),
     QuickSwitcherIntent: CallbackAction<QuickSwitcherIntent>(
       onInvoke: (_) => showQuickSwitcher(context, ref),

@@ -45,12 +45,19 @@ class RepoCapabilities {
 /// The current user as far as the UI is concerned.
 @immutable
 class LocalIdentity {
-  const LocalIdentity({required this.displayName, required this.fingerprint});
+  const LocalIdentity({
+    required this.displayName,
+    required this.fingerprint,
+    this.publicKeyHex = '',
+  });
 
   final String displayName;
 
   /// Like `ABCD-EFGH-IJKL-MNOP`.
   final String fingerprint;
+
+  /// The Ed25519 public key, lowercase hex.
+  final String publicKeyHex;
 }
 
 sealed class AddServerResult {
@@ -264,6 +271,12 @@ abstract interface class OpencordRepository {
   Future<void> updateNickname(String serverKey, int userId, String? nickname);
 
   Future<void> updateDisplayName(String displayName);
+
+  /// The identity's secret key as a backup text to keep safe (§8.1).
+  Future<String> exportIdentityBackup();
+
+  /// Replaces this device's identity with one from a backup.
+  Future<void> importIdentityBackup(String backup);
 
   Future<void> updatePresence(SelfPresence presence);
 

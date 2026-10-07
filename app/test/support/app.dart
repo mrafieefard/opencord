@@ -36,6 +36,7 @@ class MockApp {
     WindowInfo windowInfo = WindowInfo.none,
     TargetPlatform? platform,
     Set<String> mutedServers = const {},
+    List<Override> overrides = const [],
   }) async {
     debugDefaultTargetPlatformOverride = platform;
     tester.view.physicalSize = size;
@@ -54,6 +55,7 @@ class MockApp {
         ),
         windowInfoProvider.overrideWithValue(windowInfo),
         defaultMutedServersProvider.overrideWithValue(mutedServers),
+        ...overrides,
       ],
     );
     if (settings != null) {

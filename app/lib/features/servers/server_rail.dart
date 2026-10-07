@@ -9,6 +9,7 @@ import 'package:opencord/core/repository/repository.dart';
 import 'package:opencord/core/settings/local_prefs.dart';
 import 'package:opencord/features/dialogs/add_server_dialog.dart';
 import 'package:opencord/features/dialogs/invite_dialog.dart';
+import 'package:opencord/features/settings/user_settings.dart';
 import 'package:opencord/features/shell/navigation.dart';
 import 'package:opencord/features/window/drag_area.dart';
 import 'package:opencord/features/window/window_mode.dart';
@@ -52,7 +53,11 @@ class ServerRail extends ConsumerWidget {
               alignment: Alignment.center,
               children: [
                 const Positioned.fill(child: WindowDragArea()),
-                const OcIconButton(icon: OcIcons.menu, tooltip: 'Settings'),
+                OcIconButton(
+                  icon: OcIcons.menu,
+                  tooltip: 'Settings',
+                  onPressed: () => showUserSettings(context),
+                ),
               ],
             ),
           ),

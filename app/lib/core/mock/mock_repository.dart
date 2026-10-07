@@ -55,9 +55,10 @@ class MockRepository implements OpencordRepository {
   Timer? _speaking;
   ({String server, int channel})? _voice;
   var _selfVoice = const VoiceParticipant(userId: 0);
-  var _identity = const LocalIdentity(
+  var _identity = LocalIdentity(
     displayName: selfName,
     fingerprint: selfFingerprint,
+    publicKeyHex: fakeFingerprint('public key of $selfName'),
   );
   var _disposed = false;
 
@@ -1133,12 +1134,45 @@ class MockRepository implements OpencordRepository {
     _emit(MemberUpserted(serverKey, updated));
   }
 
+  static const _backupPrefix = 'opencord-identity-v1:';
+
+  @override
+  Future<String> exportIdentityBackup() async {
+    await _latency();
+    return '$_backupPrefix${fakeFingerprint('secret of ${_identity.fingerprint}')}';
+  }
+
+  @override
+  Future<void> importIdentityBackup(String backup) async {
+    await _latency();
+    final text = backup.trim();
+    if (!text.startsWith(_backupPrefix) ||
+        !RegExp(
+          r'^[0-9a-f]{64}$',
+        ).hasMatch(text.substring(_backupPrefix.length))) {
+      throw const RepoException(
+        RepoErrorKind.invalidArgument,
+        'That is not an Opencord identity backup.',
+      );
+    }
+    final secret = text.substring(_backupPrefix.length);
+    final code = secret.substring(0, 16).toUpperCase();
+    _identity = LocalIdentity(
+      displayName: _identity.displayName,
+      fingerprint: [
+        for (var i = 0; i < 16; i += 4) code.substring(i, i + 4),
+      ].join('-'),
+      publicKeyHex: fakeFingerprint('public key of $secret'),
+    );
+  }
+
   @override
   Future<void> updateDisplayName(String displayName) async {
     await _latency();
     _identity = LocalIdentity(
       displayName: displayName.trim(),
       fingerprint: _identity.fingerprint,
+      publicKeyHex: _identity.publicKeyHex,
     );
     for (final server in _world.servers) {
       final updated = server.self.copyWith(

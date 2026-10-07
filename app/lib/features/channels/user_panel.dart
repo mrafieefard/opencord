@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:opencord/core/providers/providers.dart';
 import 'package:opencord/core/repository/repository.dart';
 import 'package:opencord/core/settings/local_prefs.dart';
+import 'package:opencord/features/settings/user_settings.dart';
 import 'package:opencord/features/shell/navigation.dart';
 import 'package:opencord/ui/theme/oc_colors.dart';
 import 'package:opencord/ui/theme/oc_icons.dart';
@@ -119,10 +120,11 @@ class UserPanel extends ConsumerWidget {
               onPressed: session.toggleDeafen,
             ),
           ),
-          const OcIconButton(
+          OcIconButton(
             icon: OcIcons.settings,
             tooltip: 'User settings',
             size: OcIconButtonSize.compact,
+            onPressed: () => showUserSettings(context),
           ),
         ],
       ),
@@ -189,13 +191,6 @@ class _SplitButton extends StatelessWidget {
   }
 }
 
-const _inputDevices = [
-  'Default',
-  'Built-in microphone',
-  'USB headset microphone',
-];
-const _outputDevices = ['Default', 'Built-in speakers', 'USB headset'];
-
 /// The quick audio menu (§4.2, §17.1): devices, input mode and volumes,
 /// without opening settings. Voice is mock-only in Phase 1; the choices
 /// are saved.
@@ -219,7 +214,7 @@ class _QuickAudioMenu extends ConsumerWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         const SectionLabel('Input device'),
-        for (final device in _inputDevices)
+        for (final device in ref.watch(audioDevicesProvider).inputs)
           _Choice(
             label: device,
             chosen: audio.inputDevice == device,
@@ -254,7 +249,7 @@ class _QuickAudioMenu extends ConsumerWidget {
         _LevelMeter(gain: audio.inputVolume / 100),
         const SizedBox(height: OcSpace.s10),
         const SectionLabel('Output device'),
-        for (final device in _outputDevices)
+        for (final device in ref.watch(audioDevicesProvider).outputs)
           _Choice(
             label: device,
             chosen: audio.outputDevice == device,

@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:opencord/core/settings/app_settings.dart';
 import 'package:opencord/core/settings/key_value_store.dart';
@@ -48,6 +49,28 @@ Future<WindowInfo> startWindow({
   WindowGeometryKeeper(window: window, store: store, initial: restore);
   return info;
 }
+
+/// Saves a new frame choice for the next start (§8.1 Window frame). The
+/// window is configured once, when it is created, so the choice applies
+/// after a restart on every platform. Overridden in `main` with the app's
+/// data directory; tests keep this one, which does nothing.
+final frameChoiceSaverProvider =
+    Provider<Future<void> Function(WindowFramePreference preference)>(
+      (ref) => (_) async {},
+    );
+
+/// The saver `main` installs.
+Future<void> Function(WindowFramePreference) frameChoiceSaver(
+  Directory dataDir,
+) =>
+    (preference) => saveWindowChrome(
+      dataDir,
+      resolveWindowChrome(
+        platform: defaultTargetPlatform,
+        environment: Platform.environment,
+        preference: preference,
+      ),
+    );
 
 /// The runner reads this file when it creates the window at the next start:
 /// GTK has to know about decorations before the app runs.

@@ -263,6 +263,23 @@ enum InputMode {
   final String label;
 }
 
+/// Microphones and speakers to choose from. Phase 1 has no audio engine,
+/// so the list is a stand-in until Phase 2 asks the system (§17).
+@immutable
+class AudioDevices {
+  const AudioDevices({required this.inputs, required this.outputs});
+
+  final List<String> inputs;
+  final List<String> outputs;
+}
+
+final audioDevicesProvider = Provider<AudioDevices>(
+  (ref) => const AudioDevices(
+    inputs: ['Default', 'Built-in microphone', 'USB headset microphone'],
+    outputs: ['Default', 'Built-in speakers', 'USB headset'],
+  ),
+);
+
 /// Audio choices reachable from the quick audio menu (§4.2, §17.1). Voice
 /// is mock-only in Phase 1; these are saved so Phase 2 starts from them.
 @immutable
