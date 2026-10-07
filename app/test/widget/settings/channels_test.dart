@@ -264,6 +264,34 @@ void main() {
       await app.dispose(tester);
     });
 
+    testWidgets('making a private channel public asks first', (tester) async {
+      final app = await MockApp.pump(tester);
+      await _openChannels(tester);
+      await _select(tester, 'maintainers');
+      await _permissions(tester);
+
+      final reset = _in(find.text('Reset to inherit'));
+      await tester.ensureVisible(reset);
+      await tester.tap(reset);
+      await _pumpFor(tester, const Duration(milliseconds: 300));
+      expect(
+        find.text('Make #maintainers visible to everyone?'),
+        findsOneWidget,
+      );
+
+      await tester.tap(find.widgetWithText(OcButton, 'Cancel'));
+      await _pumpFor(tester, const Duration(milliseconds: 600));
+      final everyone = app.read(serverProvider(_dev)).data!.info.everyoneRoleId;
+      expect(
+        _named(
+          app,
+          'maintainers',
+        ).overwrites.any((o) => o.targets(OverwriteTargetKind.role, everyone)),
+        isTrue,
+      );
+      await app.dispose(tester);
+    });
+
     testWidgets('Remove drops a role overwrite', (tester) async {
       final app = await MockApp.pump(tester);
       await _openChannels(tester);

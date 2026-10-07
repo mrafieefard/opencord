@@ -17,6 +17,7 @@ import 'package:opencord/ui/theme/oc_metrics.dart';
 import 'package:opencord/ui/theme/oc_motion.dart';
 import 'package:opencord/ui/theme/oc_text.dart';
 import 'package:opencord/ui/widgets/choice_chips.dart';
+import 'package:opencord/ui/widgets/confirm_dialog.dart';
 import 'package:opencord/ui/widgets/hoverable.dart';
 import 'package:opencord/ui/widgets/inline_error.dart';
 import 'package:opencord/ui/widgets/oc_button.dart';
@@ -484,14 +485,36 @@ class _PermissionsState extends ConsumerState<_Permissions> {
                   : 'Remove ${nameOf(target)}',
               icon: OcIcons.delete,
               dense: true,
-              onPressed: () => _guard(
-                () => _repository.deleteOverwrite(
-                  widget.serverKey,
-                  channel.id,
-                  target.kind,
-                  target.id,
-                ),
-              ),
+              onPressed: () async {
+                // Lifting a View channel denial shows the channel, and its
+                // history, to everyone it covers: not on one stray click.
+                if (overwrite.deny.has(Permissions.viewChannel)) {
+                  final name = channel.isCategory
+                      ? channel.name
+                      : '#${channel.name}';
+                  final everyoneTarget = target == everyone;
+                  final show = await confirmAction(
+                    context,
+                    title: everyoneTarget
+                        ? 'Make $name visible to everyone?'
+                        : 'Let ${nameOf(target)} see $name?',
+                    message: everyoneTarget
+                        ? 'Everyone on the server will see it and can read '
+                              'its history.'
+                        : 'They will see it and can read its history.',
+                    action: everyoneTarget ? 'Make visible' : 'Remove',
+                  );
+                  if (!show || !mounted) return;
+                }
+                await _guard(
+                  () => _repository.deleteOverwrite(
+                    widget.serverKey,
+                    channel.id,
+                    target.kind,
+                    target.id,
+                  ),
+                );
+              },
             ),
           ),
         ],
