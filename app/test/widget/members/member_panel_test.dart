@@ -192,6 +192,20 @@ void main() {
     await app.dispose(tester);
   });
 
+  testWidgets('Mention is only offered with a text channel open', (
+    tester,
+  ) async {
+    final app = await MockApp.pump(tester);
+    await _open(tester, app, 'general');
+    await _open(tester, app, 'Pairing');
+
+    await _rightClick(tester, _row('Kai Nakamura'));
+
+    expect(_menuLabels(tester), isNot(contains('Mention')));
+    expect(tester.takeException(), isNull);
+    await app.dispose(tester);
+  });
+
   testWidgets('Mention types @name into the composer', (tester) async {
     final app = await MockApp.pump(tester);
     await _open(tester, app, 'general');

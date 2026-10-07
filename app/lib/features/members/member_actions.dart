@@ -18,6 +18,18 @@ import 'package:opencord/ui/widgets/oc_menu.dart';
 import 'package:opencord/ui/widgets/oc_text_field.dart';
 import 'package:opencord/ui/widgets/toast.dart';
 
+/// Whether Mention has a composer to type into: a text channel of the
+/// server is open (voice channels have none).
+final canMentionProvider = Provider.family<bool, String>((ref, serverKey) {
+  if (ref.watch(currentServerProvider) != serverKey) return false;
+  final open = ref.watch(currentChannelProvider);
+  if (open == null) return false;
+  final kind = ref.watch(
+    serverProvider(serverKey).select((s) => s.data?.channels[open]?.kind),
+  );
+  return kind?.isTextLike ?? false;
+});
+
 /// What can be done to a member and doing it (§4.7): the member panel's
 /// menu, the profile dialog's buttons.
 class MemberActions {
@@ -169,9 +181,7 @@ class MemberActions {
   /// · Roles ▸ · Kick · Ban, each only when allowed.
   List<OcMenuEntry> menu(Member member) {
     final roles = manageableRoles();
-    final canMention =
-        ref.read(currentServerProvider) == serverKey &&
-        ref.read(currentChannelProvider) != null;
+    final canMention = ref.read(canMentionProvider(serverKey));
     return [
       OcMenuItem(
         label: 'Profile',

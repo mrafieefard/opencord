@@ -229,9 +229,14 @@ void main() {
     await _press(tester, LogicalKeyboardKey.enter);
     await _pumpFor(tester, const Duration(milliseconds: 600));
 
-    expect(find.textContaining(RegExp(r'^\d+ s$')), findsOneWidget);
-    await _pumpFor(tester, const Duration(seconds: 5));
-    expect(find.textContaining(RegExp(r'^\d+ s$')), findsNothing);
+    final countdown = find.textContaining(RegExp(r'^\d+ s$'));
+    expect(countdown, findsOneWidget);
+    final first = tester.widget<Text>(countdown).data;
+    await _pumpFor(tester, const Duration(seconds: 2));
+    // It counts down.
+    expect(tester.widget<Text>(countdown).data, isNot(first));
+    await _pumpFor(tester, const Duration(seconds: 3));
+    expect(countdown, findsNothing);
     await app.dispose(tester);
   });
 

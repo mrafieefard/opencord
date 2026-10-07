@@ -598,10 +598,17 @@ class _Countdown extends StatefulWidget {
 }
 
 class _CountdownState extends State<_Countdown> {
-  late final Timer _tick = Timer.periodic(
-    const Duration(milliseconds: 250),
-    (_) => setState(() {}),
-  );
+  late final Timer _tick;
+
+  @override
+  void initState() {
+    super.initState();
+    // Started here: a lazy field first read in dispose never ran.
+    _tick = Timer.periodic(
+      const Duration(milliseconds: 250),
+      (_) => setState(() {}),
+    );
+  }
 
   @override
   void dispose() {

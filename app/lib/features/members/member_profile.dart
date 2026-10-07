@@ -6,7 +6,6 @@ import 'package:opencord/core/format.dart';
 import 'package:opencord/core/model/user.dart';
 import 'package:opencord/core/providers/providers.dart';
 import 'package:opencord/features/members/member_actions.dart';
-import 'package:opencord/features/shell/navigation.dart';
 import 'package:opencord/ui/theme/oc_colors.dart';
 import 'package:opencord/ui/theme/oc_icons.dart';
 import 'package:opencord/ui/theme/oc_metrics.dart';
@@ -85,9 +84,7 @@ class MemberProfileDialog extends ConsumerWidget {
       ref: ref,
       serverKey: serverKey,
     );
-    final canMention =
-        ref.watch(currentServerProvider) == serverKey &&
-        ref.watch(currentChannelProvider) != null;
+    final canMention = ref.watch(canMentionProvider(serverKey));
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(OcSpace.s24),

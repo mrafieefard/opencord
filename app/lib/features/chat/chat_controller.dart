@@ -25,8 +25,9 @@ class ChatController implements MessageListHandle {
 
   void attachComposer(VoidCallback focus) => _focusComposer = focus;
 
+  /// Equality, not identity: two tear-offs of one method are equal only.
   void detachComposer(VoidCallback focus) {
-    if (identical(_focusComposer, focus)) _focusComposer = null;
+    if (_focusComposer == focus) _focusComposer = null;
   }
 
   /// After choosing Reply or Edit, typing goes straight to the composer.
