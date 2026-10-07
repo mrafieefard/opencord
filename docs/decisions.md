@@ -136,3 +136,13 @@ The §2.1 greys have a slight cool tint: the red, green and blue channels differ
 - UI settings are stored as one JSON value, `ui.settings`, in the Rust core's settings file, so the app has a single local data store. A damaged value falls back to the defaults instead of failing.
 - `path_provider` locates the app data directory. It is a platform utility, not a UI kit.
 
+## D18: The UI's data layer (2026-10-07)
+
+- Screens see plain Dart view models (`app/lib/core/model/`), never Rust types. Both the mock and the Rust core implement one `OpencordRepository` interface and emit the same `RepoEvent`s (plan §10).
+- State is built only from events, by pure reducer functions that can be unit-tested. Riverpod notifiers hold the results at a fine grain: per server, presence, unread activity, typing, voice, speaking, and per channel for messages. A presence or speaking update therefore rebuilds only what shows it.
+- An event pump routes each event to the notifiers it concerns. Message events go only to channels whose history is loaded; other channels update their unread counts and previews.
+- A fresh session (Ready) increments the server's `epoch`, and loaded histories reload, because messages may have been missed while disconnected.
+- Mentions and channel links are written `<@id>` and `<#id>` in message content, a client convention recorded in the protocol doc. Matching by id keeps mentions correct when names collide or change.
+- Messages sent by the user appear at once as pending. They are confirmed by the response or by the `MessageCreate` event, whichever arrives first (matched by nonce). A failed send keeps its text and offers Retry (plan §6).
+- The mock's channel ids are fixed per server, so remembered channels survive a restart. The reconnecting server shows its last state, then keeps retrying with backoff (plan §11, §4.13).
+

@@ -108,6 +108,7 @@ Each `Request` gets exactly one `Response`, which is either an `error` or the pa
 
 Details:
 - **Messages:** the content is trimmed and must be 1–4 000 characters. Only text channels accept messages.
+- **Mentions and channel links** are written inside the content as `<@user_id>` and `<#channel_id>`. The server stores the content as plain text; clients render these tokens as names.
 - **Message nonce:** echoed on the `message` response and on the `MessageCreate` event, so the sender can match its pending message whichever arrives first.
 - **Partial updates:** absent optional fields are left unchanged. An empty topic clears it. `parent_id: 0` moves a channel out of its category.
 - **Channel names:** text channel names are normalized to lowercase-kebab (`My Chat!` becomes `my-chat`).
