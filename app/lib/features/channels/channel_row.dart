@@ -10,6 +10,7 @@ import 'package:opencord/core/providers/providers.dart';
 import 'package:opencord/core/repository/repository.dart';
 import 'package:opencord/core/settings/local_prefs.dart';
 import 'package:opencord/features/shell/navigation.dart';
+import 'package:opencord/features/settings/server_settings.dart';
 import 'package:opencord/ui/theme/oc_colors.dart';
 import 'package:opencord/ui/theme/oc_icons.dart';
 import 'package:opencord/ui/theme/oc_metrics.dart';
@@ -143,6 +144,17 @@ class ChannelRow extends ConsumerWidget {
         if (manage) ...[
           const OcMenuDivider(),
           OcMenuItem(
+            label: 'Edit channel',
+            icon: OcIcons.edit,
+            onSelected: () => showServerSettings(
+              context,
+              ref,
+              serverKey: serverKey,
+              page: 'channels',
+              channel: channel.id,
+            ),
+          ),
+          OcMenuItem(
             label: 'Delete channel',
             icon: OcIcons.delete,
             onSelected: () =>
@@ -155,24 +167,35 @@ class ChannelRow extends ConsumerWidget {
 }
 
 /// Asks before deleting a channel for everyone (§4.11, §16).
-Future<void> confirmDeleteChannel(
+/// True once it is deleted. A category's channels stay, outside any
+/// category.
+Future<bool> confirmDeleteChannel(
   BuildContext context,
   WidgetRef ref,
   String serverKey,
   Channel channel,
 ) async {
   final name = channel.kind.isTextLike ? '#${channel.name}' : channel.name;
-  final delete = await confirmAction(
-    context,
-    title: 'Delete $name?',
-    message: 'This deletes $name and its messages for everyone.',
-    action: 'Delete channel',
-  );
-  if (!delete) return;
+  final delete = channel.isCategory
+      ? await confirmAction(
+          context,
+          title: 'Delete the ${channel.name} category?',
+          message: 'Its channels stay, outside any category.',
+          action: 'Delete category',
+        )
+      : await confirmAction(
+          context,
+          title: 'Delete $name?',
+          message: 'This deletes $name and its messages for everyone.',
+          action: 'Delete channel',
+        );
+  if (!delete) return false;
   try {
     await ref.read(repositoryProvider).deleteChannel(serverKey, channel.id);
+    return true;
   } on RepoException catch (error) {
     if (context.mounted) showOcToast(context, error.message);
+    return false;
   }
 }
 

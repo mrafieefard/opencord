@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:opencord/core/model/permissions.dart';
 import 'package:opencord/core/providers/providers.dart';
+import 'package:opencord/features/settings/server/channels_page.dart';
 import 'package:opencord/features/settings/server/invites_bans_pages.dart';
 import 'package:opencord/features/settings/server/members_page.dart';
 import 'package:opencord/features/settings/server/overview_page.dart';
@@ -11,8 +12,12 @@ import 'package:opencord/features/settings/settings_dialog.dart';
 import 'package:opencord/ui/theme/oc_icons.dart';
 
 /// The server settings pages the current user may open (§8.2): each only
-/// with the permission it needs.
-List<SettingsPage> serverSettingsPages(ServerData data, String serverKey) => [
+/// with the permission it needs. [channel] is the one Channels starts on.
+List<SettingsPage> serverSettingsPages(
+  ServerData data,
+  String serverKey, {
+  int? channel,
+}) => [
   if (data.can(Permissions.manageServer))
     SettingsPage(
       id: 'overview',
@@ -20,6 +25,15 @@ List<SettingsPage> serverSettingsPages(ServerData data, String serverKey) => [
       icon: OcIcons.info,
       group: 'Server',
       builder: (_) => ServerOverviewPage(serverKey: serverKey),
+    ),
+  if (data.can(Permissions.manageChannels))
+    SettingsPage(
+      id: 'channels',
+      label: 'Channels',
+      icon: OcIcons.tag,
+      group: 'Server',
+      builder: (_) =>
+          ServerChannelsPage(serverKey: serverKey, initialChannel: channel),
     ),
   if (data.can(Permissions.manageRoles))
     SettingsPage(
@@ -66,10 +80,11 @@ Future<void> showServerSettings(
   WidgetRef ref, {
   required String serverKey,
   String? page,
+  int? channel,
 }) async {
   final data = ref.read(serverProvider(serverKey)).data;
   if (data == null) return;
-  final pages = serverSettingsPages(data, serverKey);
+  final pages = serverSettingsPages(data, serverKey, channel: channel);
   if (pages.isEmpty) return;
   await showSettingsDialog(
     context,

@@ -85,6 +85,7 @@ abstract final class OcIcons {
   static const IconData expandLess = IconData(0xe5ce, fontFamily: fontFamily);
   static const IconData expandMore = IconData(0xe5cf, fontFamily: fontFamily);
   static const IconData fingerprint = IconData(0xe90d, fontFamily: fontFamily);
+  static const IconData folder = IconData(0xe2c7, fontFamily: fontFamily);
   static const IconData forum = IconData(0xe8af, fontFamily: fontFamily);
   static const IconData gavel = IconData(0xe90e, fontFamily: fontFamily);
   static const IconData graphicEq = IconData(0xe1b8, fontFamily: fontFamily);
@@ -132,6 +133,7 @@ abstract final class OcIcons {
   static const IconData personRemove = IconData(0xef66, fontFamily: fontFamily);
   static const IconData pushPin = IconData(0xf10d, fontFamily: fontFamily);
   static const IconData refresh = IconData(0xe5d5, fontFamily: fontFamily);
+  static const IconData remove = IconData(0xe15b, fontFamily: fontFamily);
   static const IconData reply = IconData(0xe15e, fontFamily: fontFamily);
   static const IconData schedule = IconData(0xefd6, fontFamily: fontFamily);
   static const IconData screenShare = IconData(0xe0e2, fontFamily: fontFamily);

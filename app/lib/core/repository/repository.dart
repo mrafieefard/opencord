@@ -207,6 +207,8 @@ abstract interface class OpencordRepository {
     bool private = false,
   });
 
+  /// Changes what is given; a [parentId] of 0 moves the channel out of
+  /// its category, an empty [topic] clears it.
   Future<Channel> updateChannel(
     String serverKey,
     int channelId, {

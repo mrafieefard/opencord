@@ -14,11 +14,15 @@ class ChoiceChips<T> extends StatelessWidget {
     required this.options,
     required this.value,
     required this.onChanged,
+    this.iconOf,
   });
 
   final List<(T, String)> options;
   final T value;
   final ValueChanged<T> onChanged;
+
+  /// An icon before an option's label, when it has one.
+  final IconData? Function(T option)? iconOf;
 
   @override
   Widget build(BuildContext context) {
@@ -52,12 +56,31 @@ class ChoiceChips<T> extends StatelessWidget {
                     color: selected ? colors.accent : colors.border,
                   ),
                 ),
-                child: Text(
-                  label,
-                  style: OcText.small.copyWith(
-                    fontWeight: FontWeight.w600,
-                    color: selected ? colors.onAccent : colors.text,
-                  ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (iconOf?.call(option) case final icon?) ...[
+                      Icon(
+                        icon,
+                        size: 14,
+                        color: selected
+                            ? colors.onAccent
+                            : colors.textSecondary,
+                      ),
+                      const SizedBox(width: OcSpace.s4),
+                    ],
+                    Flexible(
+                      child: Text(
+                        label,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: OcText.small.copyWith(
+                          fontWeight: FontWeight.w600,
+                          color: selected ? colors.onAccent : colors.text,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               );
             },
