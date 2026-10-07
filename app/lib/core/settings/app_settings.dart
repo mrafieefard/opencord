@@ -179,22 +179,28 @@ class AppSettings {
 
 const appSettingsKey = 'ui.settings';
 
+/// The saved settings, or the defaults when there are none or they are
+/// damaged.
+AppSettings loadAppSettings(KeyValueStore store, TargetPlatform platform) {
+  final saved = store.read(appSettingsKey);
+  if (saved == null) return AppSettings.defaults(platform);
+  try {
+    final json = jsonDecode(saved);
+    if (json is Map<String, Object?>) {
+      return AppSettings.fromJson(json, platform);
+    }
+  } on FormatException {
+    // A damaged file starts over from the defaults.
+  }
+  return AppSettings.defaults(platform);
+}
+
 class AppSettingsNotifier extends Notifier<AppSettings> {
   @override
-  AppSettings build() {
-    final platform = ref.watch(platformProvider);
-    final saved = ref.watch(keyValueStoreProvider).read(appSettingsKey);
-    if (saved == null) return AppSettings.defaults(platform);
-    try {
-      final json = jsonDecode(saved);
-      if (json is Map<String, Object?>) {
-        return AppSettings.fromJson(json, platform);
-      }
-    } on FormatException {
-      // A damaged file starts over from the defaults.
-    }
-    return AppSettings.defaults(platform);
-  }
+  AppSettings build() => loadAppSettings(
+    ref.watch(keyValueStoreProvider),
+    ref.watch(platformProvider),
+  );
 
   void update(AppSettings Function(AppSettings settings) change) {
     state = change(state);

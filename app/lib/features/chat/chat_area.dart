@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:opencord/core/providers/providers.dart';
 import 'package:opencord/features/shell/navigation.dart';
+import 'package:opencord/features/window/header_bar.dart';
 import 'package:opencord/ui/theme/oc_colors.dart';
 import 'package:opencord/ui/theme/oc_icons.dart';
 import 'package:opencord/ui/theme/oc_metrics.dart';
@@ -16,7 +17,13 @@ class ChatArea extends ConsumerWidget {
     required this.membersShown,
     required this.onToggleMembers,
     this.onOpenSidebar,
+    this.leadingControls = false,
+    this.trailingControls = false,
   });
+
+  /// Window controls (§3.1), when this is the first or the rightmost header.
+  final bool leadingControls;
+  final bool trailingControls;
 
   final bool membersShown;
   final VoidCallback onToggleMembers;
@@ -41,13 +48,9 @@ class ChatArea extends ConsumerWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Container(
-            height: OcSize.header,
-            padding: const EdgeInsets.symmetric(horizontal: OcSpace.s12),
-            decoration: BoxDecoration(
-              color: colors.sidebar,
-              border: Border(bottom: BorderSide(color: colors.border)),
-            ),
+          HeaderBar(
+            leadingControls: leadingControls,
+            trailingControls: trailingControls,
             child: Row(
               children: [
                 if (onOpenSidebar != null)
@@ -58,15 +61,17 @@ class ChatArea extends ConsumerWidget {
                   ),
                 const SizedBox(width: OcSpace.s4),
                 Expanded(
-                  child: Text(
-                    channel == null
-                        ? ''
-                        : channel.kind.isTextLike
-                        ? '#${channel.name}'
-                        : channel.name,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: OcText.header.copyWith(color: colors.text),
+                  child: IgnorePointer(
+                    child: Text(
+                      channel == null
+                          ? ''
+                          : channel.kind.isTextLike
+                          ? '#${channel.name}'
+                          : channel.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: OcText.header.copyWith(color: colors.text),
+                    ),
                   ),
                 ),
                 OcIconButton(

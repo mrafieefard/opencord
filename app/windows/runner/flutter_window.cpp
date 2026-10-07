@@ -26,9 +26,15 @@ bool FlutterWindow::OnCreate() {
   }
   RegisterPlugins(flutter_controller_->engine());
   SetChildContent(flutter_controller_->view()->GetNativeWindow());
+  window_channel_ = std::make_unique<WindowChannel>(
+      GetHandle(), flutter_controller_->view()->GetNativeWindow(),
+      flutter_controller_->engine()->messenger());
 
   flutter_controller_->engine()->SetNextFrameCallback([&]() {
     this->Show();
+    if (window_channel_ && window_channel_->TakeMaximizeOnShow()) {
+      ShowWindow(GetHandle(), SW_MAXIMIZE);
+    }
   });
 
   // Flutter can complete the first frame before the "show window" callback is
@@ -40,6 +46,7 @@ bool FlutterWindow::OnCreate() {
 }
 
 void FlutterWindow::OnDestroy() {
+  window_channel_ = nullptr;
   if (flutter_controller_) {
     flutter_controller_ = nullptr;
   }
@@ -51,6 +58,15 @@ LRESULT
 FlutterWindow::MessageHandler(HWND hwnd, UINT const message,
                               WPARAM const wparam,
                               LPARAM const lparam) noexcept {
+  // The custom frame first: it decides what is title bar and what is not.
+  if (window_channel_) {
+    std::optional<LRESULT> frame =
+        window_channel_->HandleMessage(hwnd, message, wparam, lparam);
+    if (frame) {
+      return *frame;
+    }
+  }
+
   // Give Flutter, including plugins, an opportunity to handle window messages.
   if (flutter_controller_) {
     std::optional<LRESULT> result =

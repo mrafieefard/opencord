@@ -1,5 +1,6 @@
 import 'dart:math';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart';
@@ -10,6 +11,8 @@ import 'package:opencord/core/providers/providers.dart';
 import 'package:opencord/core/repository/repository.dart';
 import 'package:opencord/core/settings/app_settings.dart';
 import 'package:opencord/core/settings/key_value_store.dart';
+import 'package:opencord/features/window/native_window.dart';
+import 'package:opencord/features/window/window_providers.dart';
 
 /// The whole app on the mock repository, in a widget test.
 class MockApp {
@@ -25,7 +28,11 @@ class MockApp {
     double textScale = 1,
     MemoryKeyValueStore? store,
     AppSettings Function(AppSettings settings)? settings,
+    NativeWindow? window,
+    WindowInfo windowInfo = WindowInfo.none,
+    TargetPlatform? platform,
   }) async {
+    debugDefaultTargetPlatformOverride = platform;
     tester.view.physicalSize = size;
     tester.view.devicePixelRatio = 1;
     tester.platformDispatcher.textScaleFactorTestValue = textScale;
@@ -37,6 +44,10 @@ class MockApp {
       overrides: [
         keyValueStoreProvider.overrideWithValue(keyValues),
         repositoryProvider.overrideWithValue(repository),
+        nativeWindowProvider.overrideWithValue(
+          window ?? const NullNativeWindow(),
+        ),
+        windowInfoProvider.overrideWithValue(windowInfo),
       ],
     );
     if (settings != null) {
@@ -62,5 +73,6 @@ class MockApp {
     await tester.pumpWidget(const SizedBox());
     repository.dispose();
     container.dispose();
+    debugDefaultTargetPlatformOverride = null;
   }
 }

@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:opencord/core/model/user.dart';
 import 'package:opencord/core/providers/providers.dart';
 import 'package:opencord/features/shell/navigation.dart';
+import 'package:opencord/features/window/header_bar.dart';
 import 'package:opencord/ui/theme/oc_colors.dart';
 import 'package:opencord/ui/theme/oc_icons.dart';
 import 'package:opencord/ui/theme/oc_metrics.dart';
@@ -12,9 +13,16 @@ import 'package:opencord/ui/widgets/oc_icon_button.dart';
 
 /// The member panel (§4.7).
 class MemberPanel extends ConsumerWidget {
-  const MemberPanel({super.key, required this.onClose});
+  const MemberPanel({
+    super.key,
+    required this.onClose,
+    this.trailingControls = false,
+  });
 
   final VoidCallback onClose;
+
+  /// Carries the right-hand window controls (§3.1).
+  final bool trailingControls;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -30,29 +38,32 @@ class MemberPanel extends ConsumerWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Container(
-            height: OcSize.header,
+          HeaderBar(
+            trailingControls: trailingControls,
             padding: const EdgeInsets.only(
               left: OcSpace.s16,
               right: OcSpace.s8,
             ),
-            decoration: BoxDecoration(
-              border: Border(bottom: BorderSide(color: colors.border)),
-            ),
             child: Row(
               children: [
                 Expanded(
-                  child: Text(
-                    'Members',
-                    style: OcText.header.copyWith(color: colors.text),
+                  child: IgnorePointer(
+                    child: Text(
+                      'Members',
+                      style: OcText.header.copyWith(color: colors.text),
+                    ),
                   ),
                 ),
-                OcIconButton(
-                  icon: OcIcons.close,
-                  tooltip: 'Close member list',
-                  size: OcIconButtonSize.compact,
-                  onPressed: onClose,
-                ),
+                // Window buttons beside it would make two × in a row; the
+                // list still toggles from the chat header.
+                if (!trailingControls ||
+                    !showsTrailingWindowControls(context, ref))
+                  OcIconButton(
+                    icon: OcIcons.close,
+                    tooltip: 'Close member list',
+                    size: OcIconButtonSize.compact,
+                    onPressed: onClose,
+                  ),
               ],
             ),
           ),

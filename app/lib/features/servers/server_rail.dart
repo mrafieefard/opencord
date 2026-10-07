@@ -3,6 +3,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:opencord/core/providers/providers.dart';
 import 'package:opencord/features/shell/navigation.dart';
+import 'package:opencord/features/window/drag_area.dart';
+import 'package:opencord/features/window/window_mode.dart';
+import 'package:opencord/features/window/window_providers.dart';
 import 'package:opencord/ui/theme/oc_colors.dart';
 import 'package:opencord/ui/theme/oc_icons.dart';
 import 'package:opencord/ui/theme/oc_metrics.dart';
@@ -20,14 +23,29 @@ class ServerRail extends ConsumerWidget {
     final colors = context.oc;
     final servers = ref.watch(serverListProvider);
     final current = ref.watch(currentServerProvider);
+    // macOS keeps its traffic lights above the rail (§3.1).
+    final trafficLights =
+        Theme.of(context).platform == TargetPlatform.macOS &&
+        ref.watch(windowChromeProvider) == WindowChrome.custom &&
+        !ref.watch(windowStatusProvider.select((status) => status.fullscreen));
     return ColoredBox(
       color: colors.rail,
       child: Column(
         children: [
-          const SizedBox(height: OcSpace.s12),
-          const OcIconButton(icon: OcIcons.menu, tooltip: 'Settings'),
+          if (trafficLights)
+            const SizedBox(height: 52, child: WindowDragArea()),
+          SizedBox(
+            height: OcSize.header,
+            child: Stack(
+              alignment: Alignment.center,
+              children: const [
+                Positioned.fill(child: WindowDragArea()),
+                OcIconButton(icon: OcIcons.menu, tooltip: 'Settings'),
+              ],
+            ),
+          ),
           Padding(
-            padding: const EdgeInsets.symmetric(vertical: OcSpace.s8),
+            padding: const EdgeInsets.only(bottom: OcSpace.s8),
             child: SizedBox(
               width: 32,
               child: Divider(height: 1, color: colors.border),

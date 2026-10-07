@@ -3,13 +3,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:opencord/app_router.dart';
 import 'package:opencord/core/settings/app_settings.dart';
+import 'package:opencord/features/window/window_frame.dart';
 import 'package:opencord/ui/theme/oc_colors.dart';
 import 'package:opencord/ui/theme/oc_theme.dart';
 
 export 'package:opencord/app_router.dart' show routerProvider;
-
-final _darkTheme = buildTheme(OcColors.dark);
-final _lightTheme = buildTheme(OcColors.light);
 
 /// Root widget of the Opencord client.
 class OpencordApp extends ConsumerWidget {
@@ -22,15 +20,15 @@ class OpencordApp extends ConsumerWidget {
       title: 'Opencord',
       debugShowCheckedModeBanner: false,
       routerConfig: ref.watch(routerProvider),
-      theme: _lightTheme,
-      darkTheme: _darkTheme,
+      theme: buildTheme(OcColors.light),
+      darkTheme: buildTheme(OcColors.dark),
       themeMode: switch (theme) {
         ThemePreference.system => ThemeMode.system,
         ThemePreference.dark => ThemeMode.dark,
         ThemePreference.light => ThemeMode.light,
       },
       themeAnimationDuration: Duration.zero,
-      builder: (context, child) => _AppMedia(child: child!),
+      builder: (context, child) => _AppMedia(child: WindowFrame(child: child!)),
     );
   }
 }

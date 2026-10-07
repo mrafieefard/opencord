@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:opencord/core/providers/providers.dart';
 import 'package:opencord/features/shell/navigation.dart';
+import 'package:opencord/features/window/header_bar.dart';
 import 'package:opencord/ui/theme/oc_colors.dart';
 import 'package:opencord/ui/theme/oc_metrics.dart';
 import 'package:opencord/ui/theme/oc_text.dart';
@@ -11,7 +12,10 @@ import 'package:opencord/ui/widgets/section_label.dart';
 
 /// The channel sidebar (§4.2).
 class ChannelSidebar extends ConsumerWidget {
-  const ChannelSidebar({super.key});
+  const ChannelSidebar({super.key, this.leadingControls = false});
+
+  /// Carries left-hand window controls (§3.1).
+  final bool leadingControls;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -26,18 +30,16 @@ class ChannelSidebar extends ConsumerWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Container(
-            height: OcSize.header,
+          HeaderBar(
+            leadingControls: leadingControls,
             padding: const EdgeInsets.symmetric(horizontal: OcSpace.s16),
-            alignment: Alignment.centerLeft,
-            decoration: BoxDecoration(
-              border: Border(bottom: BorderSide(color: colors.border)),
-            ),
-            child: Text(
-              data?.info.name ?? '',
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: OcText.header.copyWith(color: colors.text),
+            child: IgnorePointer(
+              child: Text(
+                data?.info.name ?? '',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: OcText.header.copyWith(color: colors.text),
+              ),
             ),
           ),
           Expanded(

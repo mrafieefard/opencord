@@ -11,6 +11,8 @@ import 'package:opencord/features/shell/debug_menu.dart';
 import 'package:opencord/features/shell/navigation.dart';
 import 'package:opencord/features/shell/shell_layout.dart';
 import 'package:opencord/features/shell/shortcuts.dart';
+import 'package:opencord/features/shell/window_title.dart';
+import 'package:opencord/features/window/window_providers.dart';
 import 'package:opencord/ui/theme/oc_colors.dart';
 import 'package:opencord/ui/theme/oc_metrics.dart';
 import 'package:opencord/ui/theme/oc_motion.dart';
@@ -33,6 +35,21 @@ class _DesktopShellState extends ConsumerState<DesktopShell> {
   bool _sidebarDrawer = false;
   bool _membersDrawer = false;
   ShellLayout _layout = ShellLayout.wide;
+
+  @override
+  void initState() {
+    super.initState();
+    ref.listenManual(
+      windowTitleProvider,
+      (previous, title) => ref.read(nativeWindowProvider).setTitle(title),
+      fireImmediately: true,
+    );
+  }
+
+  void _toggleFullscreen() {
+    final fullscreen = ref.read(windowStatusProvider).fullscreen;
+    ref.read(nativeWindowProvider).setFullscreen(!fullscreen);
+  }
 
   void _toggleMembers() {
     if (_layout.membersInline) {
@@ -101,6 +118,9 @@ class _DesktopShellState extends ConsumerState<DesktopShell> {
     DebugMenuIntent: CallbackAction<DebugMenuIntent>(
       onInvoke: (_) => showDebugMenu(context, ref),
     ),
+    FullscreenIntent: CallbackAction<FullscreenIntent>(
+      onInvoke: (_) => _toggleFullscreen(),
+    ),
   };
 
   @override
@@ -138,7 +158,7 @@ class _DesktopShellState extends ConsumerState<DesktopShell> {
                         SizedBox(
                           key: DesktopShell.sidebarKey,
                           width: layout.sidebarWidth,
-                          child: const ChannelSidebar(),
+                          child: const ChannelSidebar(leadingControls: true),
                         ),
                         border,
                       ],
@@ -152,6 +172,8 @@ class _DesktopShellState extends ConsumerState<DesktopShell> {
                           onOpenSidebar: layout.sidebarInline
                               ? null
                               : () => setState(() => _sidebarDrawer = true),
+                          leadingControls: !layout.sidebarInline,
+                          trailingControls: !membersInline,
                         ),
                       ),
                       if (membersInline) ...[
@@ -159,7 +181,10 @@ class _DesktopShellState extends ConsumerState<DesktopShell> {
                         SizedBox(
                           key: DesktopShell.membersKey,
                           width: OcSize.memberPanelWidth,
-                          child: MemberPanel(onClose: _toggleMembers),
+                          child: MemberPanel(
+                            onClose: _toggleMembers,
+                            trailingControls: true,
+                          ),
                         ),
                       ],
                     ],
