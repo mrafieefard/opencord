@@ -79,15 +79,20 @@ flutter test
 flutter test integration_test -d linux
 ```
 
-The Phase 1 acceptance checks run the app against a real server. Each
-starts its own server on a free port, with its own data folders and
-profile, so it leaves your server and data alone (on Linux the keychain
-item is shared; see D23 in `docs/decisions.md`). They open the app window,
-so they need a desktop session:
+The acceptance checks run the app against a real server. Each starts its
+own server on a free port, with its own data folders and profile, so it
+leaves your server and data alone (on Linux the keychain item is shared;
+see D23 in `docs/decisions.md`). They open the app window, so they need a
+desktop session:
+
+- `check_m5.sh`: a fresh install joins as owner, restarts, and is still connected.
+- `check_m6.sh`: two identities chat; a new role and restriction arrive live.
+- `check_v0.sh`: voice states without media. The owner joins voice and it shows live; the member joins, is moved, then disconnected.
 
 ```bash
-app/tool/check_m5.sh  # a fresh install joins as owner, restarts, is still connected
-app/tool/check_m6.sh  # two identities chat; a new role and restriction arrive live
+app/tool/check_m5.sh
+app/tool/check_m6.sh
+app/tool/check_v0.sh
 ```
 
 ## Running a server
@@ -96,7 +101,7 @@ app/tool/check_m6.sh  # two identities chat; a new role and restriction arrive l
 cargo run -p opencord-server
 ```
 
-On first start the server writes `opencord.toml` with commented defaults, creates `data/` (database and a self-signed TLS certificate), and logs the certificate fingerprint and a one-time **owner claim token**. Add the server in the app with that token to become its owner. Every setting can also be set with an `OPENCORD_*` environment variable (see the comments in `opencord.toml`).
+On first start the server writes `opencord.toml` with commented defaults, creates `data/` (database, a self-signed TLS certificate and `voice-signing.key`, which signs voice tokens; keep both keys private), and logs the certificate fingerprint and a one-time **owner claim token**. Add the server in the app with that token to become its owner. Every setting can also be set with an `OPENCORD_*` environment variable (see the comments in `opencord.toml`).
 
 Other commands:
 
