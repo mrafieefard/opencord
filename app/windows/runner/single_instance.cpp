@@ -36,6 +36,16 @@ bool SetKeyStrings(
   return true;
 }
 
+// The mutex's name; a profile (OPENCORD_PROFILE, for testing two users on
+// one machine) gets its own, so it runs beside the normal app.
+std::wstring MutexName() {
+  wchar_t profile[64] = {};
+  const DWORD length =
+      ::GetEnvironmentVariableW(L"OPENCORD_PROFILE", profile, 64);
+  if (length == 0 || length >= 64) return kMutexName;
+  return std::wstring(kMutexName) + L".profile_" + profile;
+}
+
 }  // namespace
 
 std::wstring LinkArgument() {
@@ -67,7 +77,7 @@ void RegisterLinkScheme() {
 
 bool HandOverToRunning(const std::wstring& link) {
   // Kept for the life of the process; Windows releases it on exit.
-  HANDLE mutex = ::CreateMutexW(nullptr, FALSE, kMutexName);
+  HANDLE mutex = ::CreateMutexW(nullptr, FALSE, MutexName().c_str());
   if (mutex == nullptr || ::GetLastError() != ERROR_ALREADY_EXISTS) {
     return false;
   }

@@ -163,6 +163,19 @@ static void my_application_class_init(MyApplicationClass* klass) {
 
 static void my_application_init(MyApplication* self) {}
 
+// The application id, which is also the single-instance name. A profile
+// (OPENCORD_PROFILE, for testing two users on one machine) gets its own, so
+// it runs beside the normal app instead of handing over to it.
+static gchar* application_id() {
+  const gchar* profile = g_getenv("OPENCORD_PROFILE");
+  if (profile == nullptr || *profile == '\0') return g_strdup(APPLICATION_ID);
+  g_autoptr(GString) id = g_string_new(APPLICATION_ID ".profile_");
+  for (const gchar* c = profile; *c != '\0'; c++) {
+    g_string_append_c(id, g_ascii_isalnum(*c) ? *c : '_');
+  }
+  return g_strdup(id->str);
+}
+
 MyApplication* my_application_new() {
   // Set the program name to the application ID, which helps various systems
   // like GTK and desktop environments map this running application to its
@@ -171,7 +184,8 @@ MyApplication* my_application_new() {
   g_set_prgname(APPLICATION_ID);
 
   // Unique: a second launch hands over to the first (desktop UI plan §15).
+  g_autofree gchar* id = application_id();
   return MY_APPLICATION(g_object_new(my_application_get_type(),
-                                     "application-id", APPLICATION_ID, "flags",
+                                     "application-id", id, "flags",
                                      G_APPLICATION_HANDLES_OPEN, nullptr));
 }
