@@ -97,6 +97,32 @@ void main() {
     await app.dispose(tester);
   });
 
+  testWidgets('an unsaved name is not dropped by picking another role', (
+    tester,
+  ) async {
+    final app = await MockApp.pump(tester);
+    await _openRoles(tester);
+    await tester.tap(_in(find.text('Contributor')).first);
+    await _pumpFor(tester, const Duration(milliseconds: 200));
+    await tester.enterText(find.bySemanticsLabel('Role name'), 'Helpers');
+    await tester.pump();
+
+    await tester.tap(_in(find.text('Maintainer')).first);
+    await _pumpFor(tester, const Duration(milliseconds: 300));
+    expect(find.text('Discard your changes?'), findsOneWidget);
+
+    // Keeping them stays on the role, name still typed.
+    await tester.tap(find.widgetWithText(OcButton, 'Cancel'));
+    await _pumpFor(tester, const Duration(milliseconds: 300));
+    expect(find.text('Helpers'), findsOneWidget);
+
+    // Moving to another page asks too.
+    await tester.tap(_in(find.text('Members')).first);
+    await _pumpFor(tester, const Duration(milliseconds: 300));
+    expect(find.text('Discard your changes?'), findsOneWidget);
+    await app.dispose(tester);
+  });
+
   testWidgets('a renamed role is saved with Save', (tester) async {
     final app = await MockApp.pump(tester);
     await _openRoles(tester);

@@ -68,6 +68,13 @@ class _ServerRolesPageState extends ConsumerState<ServerRolesPage> {
 
   OpencordRepository get _repository => ref.read(repositoryProvider);
 
+  /// Another role's editor, once unsaved changes may go.
+  Future<void> _pick(int role) async {
+    if (role == _selected) return;
+    if (!await confirmLeavingUnsaved(context) || !mounted) return;
+    setState(() => _selected = role);
+  }
+
   Future<void> _create() async {
     setState(() => _creating = true);
     try {
@@ -156,7 +163,7 @@ class _ServerRolesPageState extends ConsumerState<ServerRolesPage> {
                       members: count(role),
                       selected: role.id == selected?.id,
                       draggable: movable.contains(role),
-                      onTap: () => setState(() => _selected = role.id),
+                      onTap: () => _pick(role.id),
                     ),
                 ],
               ),
@@ -167,7 +174,7 @@ class _ServerRolesPageState extends ConsumerState<ServerRolesPage> {
                   members: count(everyone),
                   selected: everyone.id == selected?.id,
                   draggable: false,
-                  onTap: () => setState(() => _selected = everyone.id),
+                  onTap: () => _pick(everyone.id),
                 ),
               ],
             ],

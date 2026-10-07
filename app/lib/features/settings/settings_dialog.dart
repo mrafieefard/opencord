@@ -50,6 +50,26 @@ class SettingsScope extends InheritedWidget {
   bool updateShouldNotify(SettingsScope oldWidget) => false;
 }
 
+/// Asks before changes not saved yet in [unsaved] are dropped (§16 "never
+/// lose input"): true when there are none, or the person lets them go.
+Future<bool> _mayDiscard(
+  BuildContext context,
+  Map<Object, bool Function()>? unsaved,
+) async {
+  if (unsaved == null || !unsaved.values.any((check) => check())) return true;
+  return confirmAction(
+    context,
+    title: 'Discard your changes?',
+    message: 'Some changes on this page are not saved yet.',
+    action: 'Discard',
+  );
+}
+
+/// For pages that swap what they edit (a role, a channel): asks first when
+/// the settings around [context] hold unsaved changes.
+Future<bool> confirmLeavingUnsaved(BuildContext context) =>
+    _mayDiscard(context, SettingsScope.of(context));
+
 /// Opens a settings dialog on [initialPage] (the first page when null).
 Future<void> showSettingsDialog(
   BuildContext context, {
@@ -88,16 +108,14 @@ class _SettingsDialogState extends State<SettingsDialog> {
   final _unsaved = <Object, bool Function()>{};
 
   Future<void> _close() async {
-    if (_unsaved.values.any((check) => check())) {
-      final discard = await confirmAction(
-        context,
-        title: 'Discard your changes?',
-        message: 'Some changes on this page are not saved yet.',
-        action: 'Discard',
-      );
-      if (!discard || !mounted) return;
-    }
-    if (mounted) Navigator.pop(context);
+    if (!await _mayDiscard(context, _unsaved) || !mounted) return;
+    Navigator.pop(context);
+  }
+
+  Future<void> _open(String page) async {
+    if (page == _page) return;
+    if (!await _mayDiscard(context, _unsaved) || !mounted) return;
+    setState(() => _page = page);
   }
 
   late String _page =
@@ -182,7 +200,7 @@ class _SettingsDialogState extends State<SettingsDialog> {
                               _NavItem(
                                 page: item,
                                 selected: item.id == page.id,
-                                onTap: () => setState(() => _page = item.id),
+                                onTap: () => _open(item.id),
                               ),
                           ],
                         ],

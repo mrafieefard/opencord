@@ -5,6 +5,7 @@ import 'package:opencord/core/model/channel.dart';
 import 'package:opencord/core/providers/providers.dart';
 import 'package:opencord/core/repository/repository.dart';
 import 'package:opencord/features/dialogs/create_channel_dialog.dart';
+import 'package:opencord/features/settings/settings_dialog.dart';
 import 'package:opencord/features/settings/server/channel_editor.dart';
 import 'package:opencord/features/shell/navigation.dart';
 import 'package:opencord/ui/theme/oc_colors.dart';
@@ -36,6 +37,13 @@ class ServerChannelsPage extends ConsumerStatefulWidget {
 
 class _ServerChannelsPageState extends ConsumerState<ServerChannelsPage> {
   late int? _selected = widget.initialChannel;
+
+  /// Another channel's editor, once unsaved changes may go.
+  Future<void> _pick(int channel) async {
+    if (channel == _selected) return;
+    if (!await confirmLeavingUnsaved(context) || !mounted) return;
+    setState(() => _selected = channel);
+  }
 
   /// Saves [order] as the positions of one group of channels.
   Future<void> _reorder(List<Channel> order) async {
@@ -70,7 +78,7 @@ class _ServerChannelsPageState extends ConsumerState<ServerChannelsPage> {
             child: _ChannelTile(
               channel: channel,
               selected: channel.id == selected?.id,
-              onTap: () => setState(() => _selected = channel.id),
+              onTap: () => _pick(channel.id),
             ),
           ),
       ],
@@ -157,8 +165,7 @@ class _ServerChannelsPageState extends ConsumerState<ServerChannelsPage> {
                             child: _ChannelTile(
                               channel: category,
                               selected: category.id == selected?.id,
-                              onTap: () =>
-                                  setState(() => _selected = category.id),
+                              onTap: () => _pick(category.id),
                             ),
                           ),
                         ),
