@@ -1,8 +1,9 @@
 //! State shared by every connection, and event fan-out.
 
-use std::sync::{PoisonError, RwLock, RwLockReadGuard, RwLockWriteGuard};
+use std::sync::{Mutex as StdMutex, PoisonError, RwLock, RwLockReadGuard, RwLockWriteGuard};
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
 
+use ed25519_dalek::SigningKey;
 use opencord_common::address::Fingerprint;
 use opencord_common::snowflake::SnowflakeGenerator;
 use opencord_proto::v1 as proto;
@@ -15,6 +16,7 @@ use crate::gateway::session::SessionRegistry;
 use crate::guild::Guild;
 use crate::presence::Presence;
 use crate::rate_limit::RateLimits;
+use crate::voice::states::VoiceStates;
 
 /// Who receives an event.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -36,7 +38,11 @@ pub struct AppState {
     pub rate_limits: RateLimits,
     /// Cancelled when the server shuts down.
     pub shutdown: CancellationToken,
+    /// Signs voice and media tokens.
+    pub voice_key: SigningKey,
     guild: RwLock<Guild>,
+    /// Lock after the guild, never before it.
+    voice: StdMutex<VoiceStates>,
     writes: Mutex<()>,
 }
 
@@ -47,6 +53,7 @@ impl AppState {
         ids: SnowflakeGenerator,
         fingerprint: Fingerprint,
         guild: Guild,
+        voice_key: SigningKey,
     ) -> Self {
         Self {
             config,
@@ -57,7 +64,9 @@ impl AppState {
             presence: Presence::default(),
             rate_limits: RateLimits::default(),
             shutdown: CancellationToken::new(),
+            voice_key,
             guild: RwLock::new(guild),
+            voice: StdMutex::new(VoiceStates::default()),
             writes: Mutex::new(()),
         }
     }
@@ -70,7 +79,12 @@ impl AppState {
         self.guild.write().unwrap_or_else(PoisonError::into_inner)
     }
 
-    /// Serializes changes to roles, channels, members and server settings,
+    /// Voice states. Never lock the guild while holding this.
+    pub fn voice(&self) -> std::sync::MutexGuard<'_, VoiceStates> {
+        self.voice.lock().unwrap_or_else(PoisonError::into_inner)
+    }
+
+    /// Serializes changes to roles, channels, members, voice and settings,
     /// so the database, the cache and the events sent stay in step.
     pub async fn write_lock(&self) -> MutexGuard<'_, ()> {
         self.writes.lock().await

@@ -47,7 +47,15 @@ class Channel {
     this.parentId,
     this.position = 0,
     this.overwrites = const [],
+    this.bitrate = defaultBitrate,
+    this.userLimit = 0,
+    this.textInVoice = true,
   });
+
+  /// A voice channel's bitrate in bits per second (Phase 2 plan §5.3).
+  static const defaultBitrate = 64000;
+  static const minBitrate = 8000;
+  static const maxUserLimit = 99;
 
   final int id;
   final ChannelKind kind;
@@ -59,6 +67,15 @@ class Channel {
   final int position;
   final List<PermissionOverwrite> overwrites;
 
+  /// Voice channels only: bits per second, before the server's cap.
+  final int bitrate;
+
+  /// Voice channels only: at most this many people; 0 means no limit.
+  final int userLimit;
+
+  /// Voice channels only: whether it holds messages too.
+  final bool textInVoice;
+
   bool get isCategory => kind == ChannelKind.category;
 
   Channel copyWith({
@@ -68,6 +85,9 @@ class Channel {
     int? Function()? parentId,
     int? position,
     List<PermissionOverwrite>? overwrites,
+    int? bitrate,
+    int? userLimit,
+    bool? textInVoice,
   }) {
     return Channel(
       id: id,
@@ -77,6 +97,9 @@ class Channel {
       parentId: parentId == null ? this.parentId : parentId(),
       position: position ?? this.position,
       overwrites: overwrites ?? this.overwrites,
+      bitrate: bitrate ?? this.bitrate,
+      userLimit: userLimit ?? this.userLimit,
+      textInVoice: textInVoice ?? this.textInVoice,
     );
   }
 }

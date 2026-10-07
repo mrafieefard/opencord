@@ -305,3 +305,66 @@ class SettingsChoiceCards<T> extends StatelessWidget {
     );
   }
 }
+
+/// A whole-number slider with its value shown beside the title.
+class SettingsSliderRow extends StatelessWidget {
+  const SettingsSliderRow({
+    super.key,
+    required this.title,
+    required this.value,
+    required this.min,
+    required this.max,
+    required this.shown,
+    required this.onChanged,
+    this.step = 1,
+  });
+
+  final String title;
+  final int value;
+  final int min;
+  final int max;
+  final int step;
+  final String shown;
+  final ValueChanged<int> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.oc;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(
+        OcSpace.s16,
+        OcSpace.s12,
+        OcSpace.s16,
+        OcSpace.s4,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  title,
+                  style: OcText.body.copyWith(color: colors.text),
+                ),
+              ),
+              Text(
+                shown,
+                style: OcText.small.copyWith(color: colors.textSecondary),
+              ),
+            ],
+          ),
+          Slider(
+            value: value.clamp(min, max).toDouble(),
+            min: min.toDouble(),
+            max: max.toDouble(),
+            divisions: (max - min) ~/ step,
+            label: shown,
+            semanticFormatterCallback: (_) => shown,
+            onChanged: (raw) => onChanged(raw.round()),
+          ),
+        ],
+      ),
+    );
+  }
+}

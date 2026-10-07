@@ -8,7 +8,7 @@ import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 import 'package:freezed_annotation/freezed_annotation.dart' hide protected;
 part 'types.freezed.dart';
 
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`
 
 @freezed
 sealed class AddServerOutcome with _$AddServerOutcome {
@@ -64,6 +64,15 @@ class Channel {
   final int position;
   final List<PermissionOverwrite> overwrites;
 
+  /// Voice channels only: bits per second, before the server's cap.
+  final int bitrate;
+
+  /// Voice channels only; 0 means no limit.
+  final int userLimit;
+
+  /// Voice channels only: whether it holds messages too.
+  final bool textInVoice;
+
   const Channel({
     required this.id,
     required this.kind,
@@ -72,6 +81,9 @@ class Channel {
     this.parentId,
     required this.position,
     required this.overwrites,
+    required this.bitrate,
+    required this.userLimit,
+    required this.textInVoice,
   });
 
   @override
@@ -82,7 +94,10 @@ class Channel {
       topic.hashCode ^
       parentId.hashCode ^
       position.hashCode ^
-      overwrites.hashCode;
+      overwrites.hashCode ^
+      bitrate.hashCode ^
+      userLimit.hashCode ^
+      textInVoice.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -95,23 +110,43 @@ class Channel {
           topic == other.topic &&
           parentId == other.parentId &&
           position == other.position &&
-          overwrites == other.overwrites;
+          overwrites == other.overwrites &&
+          bitrate == other.bitrate &&
+          userLimit == other.userLimit &&
+          textInVoice == other.textInVoice;
 }
 
 /// Absent fields stay unchanged. An empty topic clears it; `parent_id` 0
-/// moves the channel out of its category.
+/// moves the channel out of its category. The voice fields are for voice
+/// channels only.
 class ChannelChanges {
   final String? name;
   final String? topic;
   final PlatformInt64? parentId;
+  final int? bitrate;
+  final int? userLimit;
+  final bool? textInVoice;
 
-  const ChannelChanges({this.name, this.topic, this.parentId});
+  const ChannelChanges({
+    this.name,
+    this.topic,
+    this.parentId,
+    this.bitrate,
+    this.userLimit,
+    this.textInVoice,
+  });
 
   static Future<ChannelChanges> default_() =>
       RustLib.instance.api.crateApiTypesChannelChangesDefault();
 
   @override
-  int get hashCode => name.hashCode ^ topic.hashCode ^ parentId.hashCode;
+  int get hashCode =>
+      name.hashCode ^
+      topic.hashCode ^
+      parentId.hashCode ^
+      bitrate.hashCode ^
+      userLimit.hashCode ^
+      textInVoice.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -120,7 +155,10 @@ class ChannelChanges {
           runtimeType == other.runtimeType &&
           name == other.name &&
           topic == other.topic &&
-          parentId == other.parentId;
+          parentId == other.parentId &&
+          bitrate == other.bitrate &&
+          userLimit == other.userLimit &&
+          textInVoice == other.textInVoice;
 }
 
 enum ChannelKind { text, voice, category }
@@ -286,6 +324,13 @@ sealed class CoreEventPayload with _$CoreEventPayload {
     required PlatformInt64 serverPermissions,
     required List<ChannelPermissions> channelPermissions,
   }) = CoreEventPayload_PermissionsUpdate;
+
+  /// Someone joined, left, moved or changed their voice flags. A voice
+  /// channel that becomes visible is followed by its participants.
+  const factory CoreEventPayload.voiceStateUpdate(VoiceState field0) =
+      CoreEventPayload_VoiceStateUpdate;
+  const factory CoreEventPayload.voiceSettingsUpdate(VoiceSettings field0) =
+      CoreEventPayload_VoiceSettingsUpdate;
 }
 
 enum ErrorCode {
@@ -297,6 +342,15 @@ enum ErrorCode {
   invalidSession,
   conflict,
   internal,
+  voiceChannelFull,
+  voiceNotConnected,
+  qualityLimit,
+  cameraLimit,
+  streamViewerLimit,
+  soundCooldown,
+  soundTooLong,
+  soundInvalid,
+  soundboardFull,
   unknown,
 }
 
@@ -540,6 +594,13 @@ class ReadySnapshot {
   final PlatformInt64 serverPermissions;
   final List<ChannelPermissions> channelPermissions;
 
+  /// Whether the server has voice at all.
+  final bool voiceEnabled;
+
+  /// Everyone in the voice channels this user can view.
+  final List<VoiceState> voiceStates;
+  final VoiceSettings voiceSettings;
+
   const ReadySnapshot({
     required this.selfUser,
     required this.server,
@@ -549,6 +610,9 @@ class ReadySnapshot {
     required this.presences,
     required this.serverPermissions,
     required this.channelPermissions,
+    required this.voiceEnabled,
+    required this.voiceStates,
+    required this.voiceSettings,
   });
 
   @override
@@ -560,7 +624,10 @@ class ReadySnapshot {
       members.hashCode ^
       presences.hashCode ^
       serverPermissions.hashCode ^
-      channelPermissions.hashCode;
+      channelPermissions.hashCode ^
+      voiceEnabled.hashCode ^
+      voiceStates.hashCode ^
+      voiceSettings.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -574,7 +641,10 @@ class ReadySnapshot {
           members == other.members &&
           presences == other.presences &&
           serverPermissions == other.serverPermissions &&
-          channelPermissions == other.channelPermissions;
+          channelPermissions == other.channelPermissions &&
+          voiceEnabled == other.voiceEnabled &&
+          voiceStates == other.voiceStates &&
+          voiceSettings == other.voiceSettings;
 }
 
 class Role {
@@ -659,6 +729,9 @@ class RoleChanges {
           hoist == other.hoist &&
           mentionable == other.mentionable;
 }
+
+/// A screen share preset, as a maximum pixel count.
+enum ScreenShareResolution { p480, p720, p1080, p1440, source }
 
 /// A server in the local list.
 class Server {
@@ -816,4 +889,208 @@ class User {
           publicKeyHex == other.publicKeyHex &&
           fingerprint == other.fingerprint &&
           displayName == other.displayName;
+}
+
+/// Server-wide voice, video and soundboard settings.
+class VoiceSettings {
+  final ScreenShareResolution screenShareMaxResolution;
+  final int screenShareMaxFps;
+  final int maxStreamViewers;
+  final bool cameraAllowed;
+  final int maxCameraParticipants;
+
+  /// Bits per second.
+  final int maxVoiceBitrate;
+  final PlatformInt64? afkChannelId;
+  final int afkTimeoutS;
+  final bool soundboardEnabled;
+  final bool allowDefaultSounds;
+  final bool allowExternalSounds;
+  final int soundCooldownS;
+  final int maxSounds;
+
+  const VoiceSettings({
+    required this.screenShareMaxResolution,
+    required this.screenShareMaxFps,
+    required this.maxStreamViewers,
+    required this.cameraAllowed,
+    required this.maxCameraParticipants,
+    required this.maxVoiceBitrate,
+    this.afkChannelId,
+    required this.afkTimeoutS,
+    required this.soundboardEnabled,
+    required this.allowDefaultSounds,
+    required this.allowExternalSounds,
+    required this.soundCooldownS,
+    required this.maxSounds,
+  });
+
+  @override
+  int get hashCode =>
+      screenShareMaxResolution.hashCode ^
+      screenShareMaxFps.hashCode ^
+      maxStreamViewers.hashCode ^
+      cameraAllowed.hashCode ^
+      maxCameraParticipants.hashCode ^
+      maxVoiceBitrate.hashCode ^
+      afkChannelId.hashCode ^
+      afkTimeoutS.hashCode ^
+      soundboardEnabled.hashCode ^
+      allowDefaultSounds.hashCode ^
+      allowExternalSounds.hashCode ^
+      soundCooldownS.hashCode ^
+      maxSounds.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is VoiceSettings &&
+          runtimeType == other.runtimeType &&
+          screenShareMaxResolution == other.screenShareMaxResolution &&
+          screenShareMaxFps == other.screenShareMaxFps &&
+          maxStreamViewers == other.maxStreamViewers &&
+          cameraAllowed == other.cameraAllowed &&
+          maxCameraParticipants == other.maxCameraParticipants &&
+          maxVoiceBitrate == other.maxVoiceBitrate &&
+          afkChannelId == other.afkChannelId &&
+          afkTimeoutS == other.afkTimeoutS &&
+          soundboardEnabled == other.soundboardEnabled &&
+          allowDefaultSounds == other.allowDefaultSounds &&
+          allowExternalSounds == other.allowExternalSounds &&
+          soundCooldownS == other.soundCooldownS &&
+          maxSounds == other.maxSounds;
+}
+
+/// Absent fields stay unchanged; `afk_channel_id` 0 clears the AFK channel.
+class VoiceSettingsChanges {
+  final ScreenShareResolution? screenShareMaxResolution;
+  final int? screenShareMaxFps;
+  final int? maxStreamViewers;
+  final bool? cameraAllowed;
+  final int? maxCameraParticipants;
+  final int? maxVoiceBitrate;
+  final PlatformInt64? afkChannelId;
+  final int? afkTimeoutS;
+  final bool? soundboardEnabled;
+  final bool? allowDefaultSounds;
+  final bool? allowExternalSounds;
+  final int? soundCooldownS;
+  final int? maxSounds;
+
+  const VoiceSettingsChanges({
+    this.screenShareMaxResolution,
+    this.screenShareMaxFps,
+    this.maxStreamViewers,
+    this.cameraAllowed,
+    this.maxCameraParticipants,
+    this.maxVoiceBitrate,
+    this.afkChannelId,
+    this.afkTimeoutS,
+    this.soundboardEnabled,
+    this.allowDefaultSounds,
+    this.allowExternalSounds,
+    this.soundCooldownS,
+    this.maxSounds,
+  });
+
+  static Future<VoiceSettingsChanges> default_() =>
+      RustLib.instance.api.crateApiTypesVoiceSettingsChangesDefault();
+
+  @override
+  int get hashCode =>
+      screenShareMaxResolution.hashCode ^
+      screenShareMaxFps.hashCode ^
+      maxStreamViewers.hashCode ^
+      cameraAllowed.hashCode ^
+      maxCameraParticipants.hashCode ^
+      maxVoiceBitrate.hashCode ^
+      afkChannelId.hashCode ^
+      afkTimeoutS.hashCode ^
+      soundboardEnabled.hashCode ^
+      allowDefaultSounds.hashCode ^
+      allowExternalSounds.hashCode ^
+      soundCooldownS.hashCode ^
+      maxSounds.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is VoiceSettingsChanges &&
+          runtimeType == other.runtimeType &&
+          screenShareMaxResolution == other.screenShareMaxResolution &&
+          screenShareMaxFps == other.screenShareMaxFps &&
+          maxStreamViewers == other.maxStreamViewers &&
+          cameraAllowed == other.cameraAllowed &&
+          maxCameraParticipants == other.maxCameraParticipants &&
+          maxVoiceBitrate == other.maxVoiceBitrate &&
+          afkChannelId == other.afkChannelId &&
+          afkTimeoutS == other.afkTimeoutS &&
+          soundboardEnabled == other.soundboardEnabled &&
+          allowDefaultSounds == other.allowDefaultSounds &&
+          allowExternalSounds == other.allowExternalSounds &&
+          soundCooldownS == other.soundCooldownS &&
+          maxSounds == other.maxSounds;
+}
+
+/// Someone in a voice channel.
+class VoiceState {
+  final PlatformInt64 userId;
+
+  /// `None` once they have left.
+  final PlatformInt64? channelId;
+
+  /// Whether this device's session holds it. The same user on another
+  /// device is `false`.
+  final bool thisDevice;
+  final bool selfMute;
+  final bool selfDeaf;
+  final bool serverMute;
+  final bool serverDeaf;
+
+  /// Cannot speak: no Speak permission, or in the AFK channel.
+  final bool suppress;
+  final bool selfVideo;
+  final bool selfStream;
+
+  const VoiceState({
+    required this.userId,
+    this.channelId,
+    required this.thisDevice,
+    required this.selfMute,
+    required this.selfDeaf,
+    required this.serverMute,
+    required this.serverDeaf,
+    required this.suppress,
+    required this.selfVideo,
+    required this.selfStream,
+  });
+
+  @override
+  int get hashCode =>
+      userId.hashCode ^
+      channelId.hashCode ^
+      thisDevice.hashCode ^
+      selfMute.hashCode ^
+      selfDeaf.hashCode ^
+      serverMute.hashCode ^
+      serverDeaf.hashCode ^
+      suppress.hashCode ^
+      selfVideo.hashCode ^
+      selfStream.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is VoiceState &&
+          runtimeType == other.runtimeType &&
+          userId == other.userId &&
+          channelId == other.channelId &&
+          thisDevice == other.thisDevice &&
+          selfMute == other.selfMute &&
+          selfDeaf == other.selfDeaf &&
+          serverMute == other.serverMute &&
+          serverDeaf == other.serverDeaf &&
+          suppress == other.suppress &&
+          selfVideo == other.selfVideo &&
+          selfStream == other.selfStream;
 }

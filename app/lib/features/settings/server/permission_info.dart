@@ -3,7 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:opencord/core/model/permissions.dart';
 
 /// A permission as people read it (§8.2), matching the bits in the Phase 1
-/// plan §6.1.
+/// plan §6.1 and the Phase 2 plan §5.1.
 @immutable
 class PermissionInfo {
   const PermissionInfo(
@@ -25,8 +25,8 @@ class PermissionInfo {
   final bool later;
 }
 
-/// The groups the roles editor shows (§8.2): General · Text · Members ·
-/// Voice & video · Advanced.
+/// The groups the roles editor shows (§8.2, Phase 2 plan §5.1): General ·
+/// Text · Members · Voice & video · Soundboard · Advanced.
 const permissionGroups = <(String, List<PermissionInfo>)>[
   (
     'General',
@@ -123,12 +123,7 @@ const permissionGroups = <(String, List<PermissionInfo>)>[
   (
     'Voice & video',
     [
-      PermissionInfo(
-        Permissions.connect,
-        'Connect',
-        'Join voice channels',
-        later: true,
-      ),
+      PermissionInfo(Permissions.connect, 'Connect', 'Join voice channels'),
       PermissionInfo(
         Permissions.speak,
         'Speak',
@@ -148,6 +143,18 @@ const permissionGroups = <(String, List<PermissionInfo>)>[
         later: true,
       ),
       PermissionInfo(
+        Permissions.useVoiceActivity,
+        'Use voice activity',
+        'Talk without holding push-to-talk',
+        later: true,
+      ),
+      PermissionInfo(
+        Permissions.prioritySpeaker,
+        'Priority speaker',
+        'Be heard over others',
+        later: true,
+      ),
+      PermissionInfo(
         Permissions.muteMembers,
         'Mute members',
         'Mute others for everyone',
@@ -162,13 +169,31 @@ const permissionGroups = <(String, List<PermissionInfo>)>[
       PermissionInfo(
         Permissions.moveMembers,
         'Move members',
-        'Move others between voice channels',
+        'Move or disconnect others, and join full channels',
+        later: true,
+      ),
+    ],
+  ),
+  (
+    'Soundboard',
+    [
+      PermissionInfo(
+        Permissions.useSoundboard,
+        'Use soundboard',
+        'Play sounds in voice channels',
         later: true,
       ),
       PermissionInfo(
-        Permissions.prioritySpeaker,
-        'Priority speaker',
-        'Be heard over others',
+        Permissions.useExternalSounds,
+        'Use sounds from other servers',
+        "Play sounds this server doesn't have",
+        later: true,
+      ),
+      PermissionInfo(
+        Permissions.manageSoundboard,
+        'Manage soundboard',
+        "Add, edit and remove this server's sounds",
+        perChannel: false,
         later: true,
       ),
     ],

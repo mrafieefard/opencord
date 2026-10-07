@@ -1725,12 +1725,15 @@ dependencies = [
  "axum-server",
  "bytes",
  "clap",
+ "data-encoding",
+ "ed25519-dalek",
  "futures-util",
  "getrandom 0.4.3",
  "governor",
  "hex",
  "opencord-common",
  "opencord-proto",
+ "opencord-voice",
  "prost",
  "rcgen",
  "rustls",
@@ -1746,6 +1749,17 @@ dependencies = [
  "toml",
  "tracing",
  "tracing-subscriber",
+]
+
+[[package]]
+name = "opencord-voice"
+version = "0.1.0"
+dependencies = [
+ "ed25519-dalek",
+ "opencord-common",
+ "opencord-proto",
+ "prost",
+ "thiserror",
 ]
 
 [[package]]

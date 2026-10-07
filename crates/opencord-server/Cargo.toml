@@ -13,6 +13,8 @@ axum.workspace = true
 axum-server.workspace = true
 bytes.workspace = true
 clap.workspace = true
+data-encoding.workspace = true
+ed25519-dalek.workspace = true
 futures-util.workspace = true
 getrandom.workspace = true
 governor.workspace = true
@@ -30,6 +32,7 @@ tracing-subscriber.workspace = true
 toml.workspace = true
 opencord-common.workspace = true
 opencord-proto.workspace = true
+opencord-voice.workspace = true
 prost.workspace = true
 
 [dev-dependencies]

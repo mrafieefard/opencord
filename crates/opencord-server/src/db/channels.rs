@@ -8,6 +8,10 @@ pub struct ChannelRow {
     pub topic: Option<String>,
     pub parent_id: Option<i64>,
     pub position: i64,
+    /// Voice channels only; stored for every kind.
+    pub bitrate: i64,
+    pub user_limit: i64,
+    pub text_in_voice: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -22,7 +26,8 @@ pub struct OverwriteRow {
 pub async fn list(conn: &mut SqliteConnection) -> Result<Vec<ChannelRow>, sqlx::Error> {
     sqlx::query_as!(
         ChannelRow,
-        "SELECT id, kind, name, topic, parent_id, position FROM channels"
+        "SELECT id, kind, name, topic, parent_id, position, bitrate, user_limit, text_in_voice
+         FROM channels"
     )
     .fetch_all(conn)
     .await
@@ -45,15 +50,19 @@ pub async fn insert(
     created_at: i64,
 ) -> Result<(), sqlx::Error> {
     sqlx::query!(
-        "INSERT INTO channels (id, kind, name, topic, parent_id, position, created_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7)",
+        "INSERT INTO channels (id, kind, name, topic, parent_id, position, created_at,
+                               bitrate, user_limit, text_in_voice)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)",
         channel.id,
         channel.kind,
         channel.name,
         channel.topic,
         channel.parent_id,
         channel.position,
-        created_at
+        created_at,
+        channel.bitrate,
+        channel.user_limit,
+        channel.text_in_voice
     )
     .execute(conn)
     .await?;
@@ -62,11 +71,16 @@ pub async fn insert(
 
 pub async fn update(conn: &mut SqliteConnection, channel: &ChannelRow) -> Result<(), sqlx::Error> {
     sqlx::query!(
-        "UPDATE channels SET name = $1, topic = $2, parent_id = $3, position = $4 WHERE id = $5",
+        "UPDATE channels SET name = $1, topic = $2, parent_id = $3, position = $4,
+                             bitrate = $5, user_limit = $6, text_in_voice = $7
+         WHERE id = $8",
         channel.name,
         channel.topic,
         channel.parent_id,
         channel.position,
+        channel.bitrate,
+        channel.user_limit,
+        channel.text_in_voice,
         channel.id
     )
     .execute(conn)

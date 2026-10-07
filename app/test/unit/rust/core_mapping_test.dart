@@ -8,6 +8,9 @@ import 'package:opencord/core/model/server.dart';
 import 'package:opencord/core/repository/repository.dart';
 import 'package:opencord/core/rust/core_mapping.dart';
 import 'package:opencord/src/rust/api/types.dart' as core;
+import 'package:opencord/core/model/voice.dart';
+
+import '../../support/fake_core.dart';
 
 const _user = core.User(
   id: 7,
@@ -61,6 +64,9 @@ void main() {
   test('channels keep their kind, place and overwrites', () {
     final channel = channelFrom(
       const core.Channel(
+        bitrate: 0,
+        userLimit: 0,
+        textInVoice: false,
         id: 3,
         kind: core.ChannelKind.voice,
         name: 'Lounge',
@@ -155,6 +161,9 @@ void main() {
   test('a Ready snapshot lists presences by user', () {
     final snapshot = snapshotFrom(
       core.ReadySnapshot(
+        voiceEnabled: true,
+        voiceStates: const [],
+        voiceSettings: coreVoiceSettings,
         selfUser: _user,
         server: const core.ServerInfo(
           serverIdHex: 'ff',
@@ -226,5 +235,58 @@ void main() {
 
     expect(needs, isA<ServerNeedsTrust>());
     expect((needs as ServerNeedsTrust).fingerprint, 'cc');
+  });
+
+  test('voice channels keep their bitrate, user limit and voice chat', () {
+    final channel = channelFrom(
+      const core.Channel(
+        id: 3,
+        kind: core.ChannelKind.voice,
+        name: 'Lounge',
+        position: 0,
+        overwrites: [],
+        bitrate: 96000,
+        userLimit: 5,
+        textInVoice: false,
+      ),
+    );
+
+    expect(
+      (channel.bitrate, channel.userLimit, channel.textInVoice),
+      (96000, 5, false),
+    );
+  });
+
+  test('voice states group by channel with every flag', () {
+    final voice = voiceFrom([
+      voiceState(1, 20, selfMute: true),
+      voiceState(2, 20, serverMute: true, suppress: true),
+      voiceState(3, 21),
+      voiceState(4, null),
+    ]);
+
+    expect(voice.keys, unorderedEquals([20, 21]));
+    expect(voice[20]!.map((p) => p.userId), [1, 2]);
+    expect(voice[20]![0].muted, isTrue);
+    expect(voice[20]![1].serverMuted, isTrue);
+    expect(voice[20]![1].suppressed, isTrue);
+    expect(voice[20]![1].silenced, isTrue);
+  });
+
+  test('voice settings come in and go out whole', () {
+    final settings = voiceSettingsFrom(coreVoiceSettings);
+    final changed = settings.copyWith(
+      screenShareMaxResolution: ScreenShareResolution.source,
+      afkChannelId: () => 20,
+      afkTimeout: const Duration(minutes: 15),
+    );
+
+    final sent = voiceSettingsTo(changed);
+
+    expect(settings, const VoiceSettings());
+    expect(sent.screenShareMaxResolution, core.ScreenShareResolution.source);
+    expect(sent.afkChannelId, 20);
+    expect(sent.afkTimeoutS, 900);
+    expect(voiceSettingsTo(settings).afkChannelId, 0);
   });
 }

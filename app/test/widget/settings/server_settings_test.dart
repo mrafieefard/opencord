@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:opencord/core/model/voice.dart';
 import 'package:opencord/core/providers/providers.dart';
 import 'package:opencord/features/settings/server_settings.dart';
 import 'package:opencord/features/settings/settings_dialog.dart';
@@ -186,7 +187,43 @@ void main() {
     expect(pages, isNot(contains('bans')));
     // Listing invites needs Manage server; making one is Invite people.
     expect(pages, isNot(contains('invites')));
+    expect(pages, isNot(contains('voice')));
     expect(canOpenServerSettings(data), isFalse);
+    await app.dispose(tester);
+  });
+
+  testWidgets('Voice & video saves the screen share cap and the AFK channel', (
+    tester,
+  ) async {
+    final app = await MockApp.pump(tester);
+    await _openServerSettings(tester);
+    await _page(tester, 'Voice & video');
+
+    Future<void> tapVisible(Finder finder) async {
+      await tester.ensureVisible(finder);
+      await tester.pump();
+      await tester.tap(finder);
+      await tester.pump();
+    }
+
+    await tapVisible(_inSettings(find.text('1080p')));
+    await tapVisible(_inSettings(find.text('60 fps')));
+    await tapVisible(_inSettings(find.text('AFK channel')));
+    await _pumpFor(tester, const Duration(milliseconds: 300));
+    await tester.tap(find.text('Pairing').last);
+    await _pumpFor(tester, const Duration(milliseconds: 300));
+    await tapVisible(
+      _inSettings(find.widgetWithText(OcButton, 'Save changes')),
+    );
+    await _pumpFor(tester, const Duration(milliseconds: 600));
+
+    final data = app.read(serverProvider(_dev)).data!;
+    final settings = data.voiceSettings;
+    expect(settings.screenShareMaxResolution, ScreenShareResolution.p1080);
+    expect(settings.screenShareMaxFps, 60);
+    expect(data.channels[settings.afkChannelId]?.name, 'Pairing');
+    expect(settings.maxVoiceBitrate, 96000, reason: 'untouched');
+    await _pumpFor(tester, const Duration(seconds: 2));
     await app.dispose(tester);
   });
 }

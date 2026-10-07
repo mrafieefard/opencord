@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:opencord/core/providers/providers.dart';
+import 'package:opencord/core/repository/repository.dart';
 import 'package:opencord/features/shell/navigation.dart';
 import 'package:opencord/features/voice/voice_controls.dart';
 import 'package:opencord/ui/theme/oc_colors.dart';
@@ -30,6 +31,7 @@ class VoiceConnectedPanel extends ConsumerWidget {
       serverProvider(server).select((s) => s.data?.info.name),
     );
     final session = ref.read(voiceSessionProvider.notifier);
+    final capabilities = ref.read(repositoryProvider).capabilities;
     return Container(
       padding: const EdgeInsets.fromLTRB(
         OcSpace.s8,
@@ -103,30 +105,37 @@ class VoiceConnectedPanel extends ConsumerWidget {
               ),
             ],
           ),
-          const SizedBox(height: OcSpace.s8),
-          Row(
-            children: [
-              Expanded(
-                child: _Toggle(
-                  icon: voice.camera ? OcIcons.videocam : OcIcons.videocamOff,
-                  label: 'Camera',
-                  active: voice.camera,
-                  onTap: session.toggleCamera,
-                ),
-              ),
-              const SizedBox(width: OcSpace.s8),
-              Expanded(
-                child: _Toggle(
-                  icon: voice.screensharing
-                      ? OcIcons.stopScreenShare
-                      : OcIcons.screenShare,
-                  label: 'Screen',
-                  active: voice.screensharing,
-                  onTap: () => toggleScreenshare(context, ref),
-                ),
-              ),
-            ],
-          ),
+          if (capabilities.camera || capabilities.screenShare) ...[
+            const SizedBox(height: OcSpace.s8),
+            Row(
+              children: [
+                if (capabilities.camera)
+                  Expanded(
+                    child: _Toggle(
+                      icon: voice.camera
+                          ? OcIcons.videocam
+                          : OcIcons.videocamOff,
+                      label: 'Camera',
+                      active: voice.camera,
+                      onTap: session.toggleCamera,
+                    ),
+                  ),
+                if (capabilities.camera && capabilities.screenShare)
+                  const SizedBox(width: OcSpace.s8),
+                if (capabilities.screenShare)
+                  Expanded(
+                    child: _Toggle(
+                      icon: voice.screensharing
+                          ? OcIcons.stopScreenShare
+                          : OcIcons.screenShare,
+                      label: 'Screen',
+                      active: voice.screensharing,
+                      onTap: () => toggleScreenshare(context, ref),
+                    ),
+                  ),
+              ],
+            ),
+          ],
         ],
       ),
     );

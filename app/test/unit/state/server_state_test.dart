@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:opencord/core/model/voice.dart';
 import 'package:opencord/core/model/channel.dart';
 import 'package:opencord/core/model/permissions.dart';
 import 'package:opencord/core/model/presence.dart';
@@ -144,5 +145,18 @@ void main() {
     final stranger = Member(user: user(5, 'X'), joinedAt: t0);
 
     expect(data.highestRole(stranger), isNull);
+  });
+
+  test('voice settings are replaced', () {
+    final state = reduceServer(
+      ready(),
+      const VoiceSettingsChanged(
+        serverKey,
+        VoiceSettings(cameraAllowed: false, maxVoiceBitrate: 64000),
+      ),
+    );
+
+    expect(state.data!.voiceSettings.cameraAllowed, isFalse);
+    expect(state.data!.voiceSettings.maxVoiceBitrate, 64000);
   });
 }

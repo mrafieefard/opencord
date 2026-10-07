@@ -9,6 +9,7 @@ import 'package:opencord/core/providers/providers.dart';
 import 'package:opencord/core/repository/repository.dart';
 import 'package:opencord/features/channels/channel_row.dart';
 import 'package:opencord/features/shell/navigation.dart';
+import 'package:opencord/features/voice/voice_controls.dart';
 import 'package:opencord/features/settings/server_settings.dart';
 import 'package:opencord/ui/theme/oc_colors.dart';
 import 'package:opencord/ui/theme/oc_icons.dart';
@@ -33,9 +34,9 @@ class VoiceChannelRow extends ConsumerWidget {
   final String serverKey;
   final Channel channel;
 
-  Future<void> _join(WidgetRef ref) async {
+  Future<void> _join(BuildContext context, WidgetRef ref) async {
     ref.read(navigationProvider.notifier).openChannel(serverKey, channel.id);
-    await ref.read(voiceSessionProvider.notifier).join(serverKey, channel.id);
+    await joinVoice(context, ref, serverKey, channel.id);
   }
 
   @override
@@ -55,7 +56,7 @@ class VoiceChannelRow extends ConsumerWidget {
       children: [
         Hoverable(
           onTap: voice
-              ? () => _join(ref)
+              ? () => _join(context, ref)
               : () => ref
                     .read(navigationProvider.notifier)
                     .openChannel(serverKey, channel.id),
@@ -130,7 +131,7 @@ class VoiceChannelRow extends ConsumerWidget {
           OcMenuItem(
             label: 'Join',
             icon: OcIcons.volumeUp,
-            onSelected: () => _join(ref),
+            onSelected: () => _join(context, ref),
           ),
         OcMenuItem(
           label: 'Open in view',

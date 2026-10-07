@@ -588,7 +588,11 @@ impl Task {
             let name = update.server.as_ref().map(|server| server.name.clone());
             self.update_saved_server(name, None);
         }
-        if let Some(payload) = convert::event(kind) {
+        let session_id = self
+            .session
+            .as_ref()
+            .map_or("", |session| session.session_id.as_str());
+        if let Some(payload) = convert::event(kind, session_id) {
             self.emit(payload);
         }
         if affects_permissions {

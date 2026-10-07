@@ -77,6 +77,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   RoleChanges dco_decode_box_autoadd_role_changes(dynamic raw);
 
   @protected
+  ScreenShareResolution dco_decode_box_autoadd_screen_share_resolution(
+    dynamic raw,
+  );
+
+  @protected
   Server dco_decode_box_autoadd_server(dynamic raw);
 
   @protected
@@ -87,6 +92,17 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   int dco_decode_box_autoadd_u_32(dynamic raw);
+
+  @protected
+  VoiceSettings dco_decode_box_autoadd_voice_settings(dynamic raw);
+
+  @protected
+  VoiceSettingsChanges dco_decode_box_autoadd_voice_settings_changes(
+    dynamic raw,
+  );
+
+  @protected
+  VoiceState dco_decode_box_autoadd_voice_state(dynamic raw);
 
   @protected
   Channel dco_decode_channel(dynamic raw);
@@ -182,6 +198,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   List<TrustedFingerprint> dco_decode_list_trusted_fingerprint(dynamic raw);
 
   @protected
+  List<VoiceState> dco_decode_list_voice_state(dynamic raw);
+
+  @protected
   Member dco_decode_member(dynamic raw);
 
   @protected
@@ -195,6 +214,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   PlatformInt64? dco_decode_opt_box_autoadd_i_64(dynamic raw);
+
+  @protected
+  ScreenShareResolution? dco_decode_opt_box_autoadd_screen_share_resolution(
+    dynamic raw,
+  );
 
   @protected
   int? dco_decode_opt_box_autoadd_u_32(dynamic raw);
@@ -219,6 +243,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   RoleChanges dco_decode_role_changes(dynamic raw);
+
+  @protected
+  ScreenShareResolution dco_decode_screen_share_resolution(dynamic raw);
 
   @protected
   Server dco_decode_server(dynamic raw);
@@ -246,6 +273,15 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   User dco_decode_user(dynamic raw);
+
+  @protected
+  VoiceSettings dco_decode_voice_settings(dynamic raw);
+
+  @protected
+  VoiceSettingsChanges dco_decode_voice_settings_changes(dynamic raw);
+
+  @protected
+  VoiceState dco_decode_voice_state(dynamic raw);
 
   @protected
   AnyhowException sse_decode_AnyhowException(SseDeserializer deserializer);
@@ -312,6 +348,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   RoleChanges sse_decode_box_autoadd_role_changes(SseDeserializer deserializer);
 
   @protected
+  ScreenShareResolution sse_decode_box_autoadd_screen_share_resolution(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   Server sse_decode_box_autoadd_server(SseDeserializer deserializer);
 
   @protected
@@ -324,6 +365,19 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   int sse_decode_box_autoadd_u_32(SseDeserializer deserializer);
+
+  @protected
+  VoiceSettings sse_decode_box_autoadd_voice_settings(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  VoiceSettingsChanges sse_decode_box_autoadd_voice_settings_changes(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  VoiceState sse_decode_box_autoadd_voice_state(SseDeserializer deserializer);
 
   @protected
   Channel sse_decode_channel(SseDeserializer deserializer);
@@ -429,6 +483,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  List<VoiceState> sse_decode_list_voice_state(SseDeserializer deserializer);
+
+  @protected
   Member sse_decode_member(SseDeserializer deserializer);
 
   @protected
@@ -442,6 +499,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   PlatformInt64? sse_decode_opt_box_autoadd_i_64(SseDeserializer deserializer);
+
+  @protected
+  ScreenShareResolution? sse_decode_opt_box_autoadd_screen_share_resolution(
+    SseDeserializer deserializer,
+  );
 
   @protected
   int? sse_decode_opt_box_autoadd_u_32(SseDeserializer deserializer);
@@ -472,6 +534,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   RoleChanges sse_decode_role_changes(SseDeserializer deserializer);
 
   @protected
+  ScreenShareResolution sse_decode_screen_share_resolution(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   Server sse_decode_server(SseDeserializer deserializer);
 
   @protected
@@ -499,6 +566,17 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   User sse_decode_user(SseDeserializer deserializer);
+
+  @protected
+  VoiceSettings sse_decode_voice_settings(SseDeserializer deserializer);
+
+  @protected
+  VoiceSettingsChanges sse_decode_voice_settings_changes(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  VoiceState sse_decode_voice_state(SseDeserializer deserializer);
 
   @protected
   void sse_encode_AnyhowException(
@@ -582,6 +660,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_box_autoadd_screen_share_resolution(
+    ScreenShareResolution self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_box_autoadd_server(Server self, SseSerializer serializer);
 
   @protected
@@ -598,6 +682,24 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_box_autoadd_u_32(int self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_box_autoadd_voice_settings(
+    VoiceSettings self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_box_autoadd_voice_settings_changes(
+    VoiceSettingsChanges self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_box_autoadd_voice_state(
+    VoiceState self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_channel(Channel self, SseSerializer serializer);
@@ -729,6 +831,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_list_voice_state(
+    List<VoiceState> self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_member(Member self, SseSerializer serializer);
 
   @protected
@@ -743,6 +851,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_opt_box_autoadd_i_64(
     PlatformInt64? self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_opt_box_autoadd_screen_share_resolution(
+    ScreenShareResolution? self,
     SseSerializer serializer,
   );
 
@@ -780,6 +894,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_role_changes(RoleChanges self, SseSerializer serializer);
 
   @protected
+  void sse_encode_screen_share_resolution(
+    ScreenShareResolution self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_server(Server self, SseSerializer serializer);
 
   @protected
@@ -808,6 +928,18 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_user(User self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_voice_settings(VoiceSettings self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_voice_settings_changes(
+    VoiceSettingsChanges self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_voice_state(VoiceState self, SseSerializer serializer);
 }
 
 // Section: wire_class

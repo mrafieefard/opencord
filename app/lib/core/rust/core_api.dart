@@ -155,6 +155,21 @@ abstract interface class CoreApi {
     String serverKey,
     core.ServerChanges changes,
   );
+
+  Future<core.VoiceSettings> updateVoiceSettings(
+    String serverKey,
+    core.VoiceSettingsChanges changes,
+  );
+
+  /// Leaves any other voice channel first, on any server.
+  Future<core.VoiceState> voiceJoin(String serverKey, int channelId);
+
+  Future<void> voiceLeave();
+
+  /// Holds outside voice too, for the next join.
+  void voiceSetSelfMute(bool muted);
+
+  void voiceSetSelfDeaf(bool deafened);
 }
 
 /// [CoreApi] over the generated bindings; needs `RustLib.init` first.
@@ -419,4 +434,24 @@ class FrbCoreApi implements CoreApi {
     String serverKey,
     core.ServerChanges changes,
   ) => frb.updateServer(serverKey: serverKey, changes: changes);
+
+  @override
+  Future<core.VoiceSettings> updateVoiceSettings(
+    String serverKey,
+    core.VoiceSettingsChanges changes,
+  ) => frb.updateVoiceSettings(serverKey: serverKey, changes: changes);
+
+  @override
+  Future<core.VoiceState> voiceJoin(String serverKey, int channelId) =>
+      frb.voiceJoin(serverKey: serverKey, channelId: channelId);
+
+  @override
+  Future<void> voiceLeave() => frb.voiceLeave();
+
+  @override
+  void voiceSetSelfMute(bool muted) => frb.voiceSetSelfMute(muted: muted);
+
+  @override
+  void voiceSetSelfDeaf(bool deafened) =>
+      frb.voiceSetSelfDeaf(deafened: deafened);
 }

@@ -15,6 +15,7 @@ use crate::db::channels::{ChannelRow, OverwriteRow};
 use crate::db::meta::ServerMeta;
 use crate::db::roles::RoleRow;
 use crate::db::{channels, members, permissions_from_db, permissions_to_db, roles};
+use crate::voice::settings::VoiceSettings;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct User {
@@ -52,11 +53,18 @@ pub struct Channel {
     pub parent_id: Option<i64>,
     pub position: i32,
     pub overwrites: Vec<Overwrite>,
+    /// Voice channels only: bits per second, before the server's cap.
+    pub bitrate: u32,
+    /// Voice channels only; 0 means no limit.
+    pub user_limit: u32,
+    /// Voice channels only.
+    pub text_in_voice: bool,
 }
 
 #[derive(Debug, Clone)]
 pub struct Guild {
     pub meta: ServerMeta,
+    pub voice_settings: VoiceSettings,
     pub roles: HashMap<i64, Role>,
     pub channels: HashMap<i64, Channel>,
     pub members: HashMap<i64, Member>,
@@ -68,6 +76,8 @@ pub enum GuildError {
     Database(#[from] sqlx::Error),
     #[error("stored {what} {id} is invalid")]
     Corrupt { what: &'static str, id: i64 },
+    #[error(transparent)]
+    Meta(#[from] crate::db::meta::MetaError),
 }
 
 impl Guild {
@@ -119,6 +129,10 @@ impl Guild {
                     position: i32::try_from(row.position)
                         .map_err(|_| corrupt("channel", row.id))?,
                     overwrites: overwrites.remove(&row.id).unwrap_or_default(),
+                    bitrate: u32::try_from(row.bitrate).map_err(|_| corrupt("channel", row.id))?,
+                    user_limit: u32::try_from(row.user_limit)
+                        .map_err(|_| corrupt("channel", row.id))?,
+                    text_in_voice: row.text_in_voice,
                 };
                 Ok((channel.id, channel))
             })
@@ -151,6 +165,7 @@ impl Guild {
 
         Ok(Self {
             meta,
+            voice_settings: VoiceSettings::load(conn).await?,
             roles,
             channels,
             members,
@@ -300,6 +315,9 @@ impl Channel {
             topic: self.topic.clone(),
             parent_id: self.parent_id,
             position: i64::from(self.position),
+            bitrate: i64::from(self.bitrate),
+            user_limit: i64::from(self.user_limit),
+            text_in_voice: self.text_in_voice,
         }
     }
 
@@ -312,6 +330,18 @@ impl Channel {
             parent_id: self.parent_id,
             position: self.position,
             overwrites: self.overwrites.iter().map(overwrite_to_proto).collect(),
+            bitrate: self.voice(self.bitrate),
+            user_limit: self.voice(self.user_limit),
+            text_in_voice: self.kind == ChannelKind::Voice && self.text_in_voice,
+        }
+    }
+
+    /// `value` for voice channels, 0 for others.
+    fn voice(&self, value: u32) -> u32 {
+        if self.kind == ChannelKind::Voice {
+            value
+        } else {
+            0
         }
     }
 }

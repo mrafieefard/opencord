@@ -3,7 +3,7 @@
 
 use std::collections::HashMap;
 use std::path::Path;
-use std::sync::{Arc, Mutex, MutexGuard, PoisonError, RwLock};
+use std::sync::{Arc, Mutex, MutexGuard, PoisonError, RwLock, Weak};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use opencord_common::address::{
@@ -17,8 +17,9 @@ use tokio::sync::{mpsc, oneshot};
 
 use crate::api::types::{
     AddServerOutcome, Ban, Channel, ChannelChanges, ChannelKind, ChannelPosition, CoreError,
-    CoreEvent, IdentityInfo, Invite, Member, Message, OverwriteTargetKind, PermissionOverwrite,
-    PresenceStatus, Role, RoleChanges, Server, ServerChanges, ServerInfo, User,
+    CoreEvent, CoreEventPayload, ErrorCode, IdentityInfo, Invite, Member, Message,
+    OverwriteTargetKind, PermissionOverwrite, PresenceStatus, Role, RoleChanges, Server,
+    ServerChanges, ServerInfo, User, VoiceSettings, VoiceSettingsChanges, VoiceState,
 };
 use crate::connection::{
     self, Command, Connection, Context, Credentials, Established, HandshakeError,
@@ -36,10 +37,27 @@ pub struct Client {
 
 struct Inner {
     runtime: Handle,
+    /// Where connection tasks send events; the client looks at each before
+    /// passing it on.
     events: mpsc::UnboundedSender<CoreEvent>,
+    /// Events for the app.
+    outward: mpsc::UnboundedSender<CoreEvent>,
     store: Arc<Mutex<Store>>,
     credentials: RwLock<Option<Credentials>>,
     connections: Mutex<HashMap<String, Connection>>,
+    voice: Mutex<Voice>,
+}
+
+/// This device's voice: at most one channel across all servers (Phase 2
+/// plan §3.5), and the self flags it joins with.
+#[derive(Debug, Default)]
+struct Voice {
+    /// The server and channel this device is in, or is getting back into.
+    target: Option<(String, i64)>,
+    mute: bool,
+    deaf: bool,
+    /// The user's id on each server, from its last `Ready`.
+    self_ids: HashMap<String, i64>,
 }
 
 impl From<StoreError> for CoreError {
@@ -58,16 +76,30 @@ impl Client {
         runtime: Handle,
     ) -> Result<(Self, mpsc::UnboundedReceiver<CoreEvent>), CoreError> {
         let store = Store::open(data_dir)?;
-        let (events, receiver) = mpsc::unbounded_channel();
+        let (events, mut incoming) = mpsc::unbounded_channel();
+        let (outward, receiver) = mpsc::unbounded_channel();
         let client = Self {
             inner: Arc::new(Inner {
-                runtime,
+                runtime: runtime.clone(),
                 events,
+                outward: outward.clone(),
                 store: Arc::new(Mutex::new(store)),
                 credentials: RwLock::new(None),
                 connections: Mutex::new(HashMap::new()),
+                voice: Mutex::new(Voice::default()),
             }),
         };
+        let watcher: Weak<Inner> = Arc::downgrade(&client.inner);
+        runtime.spawn(async move {
+            while let Some(event) = incoming.recv().await {
+                if let Some(inner) = watcher.upgrade() {
+                    Self { inner }.observe(&event);
+                }
+                if outward.send(event).is_err() {
+                    return;
+                }
+            }
+        });
         Ok((client, receiver))
     }
 
@@ -323,6 +355,9 @@ impl Client {
             name: changes.name,
             topic: changes.topic,
             parent_id: changes.parent_id,
+            bitrate: changes.bitrate,
+            user_limit: changes.user_limit,
+            text_in_voice: changes.text_in_voice,
         });
         expect_channel(self.request(key, request).await?)
     }
@@ -585,6 +620,215 @@ impl Client {
             .map_err(|_| CoreError::NotConnected)
     }
 
+    /// Joins a voice channel, leaving any other one first, on any server.
+    pub async fn voice_join(&self, key: &str, channel_id: i64) -> Result<VoiceState, CoreError> {
+        let elsewhere = {
+            let voice = self.lock_voice();
+            voice
+                .target
+                .as_ref()
+                .filter(|(target_key, _)| target_key != key)
+                .map(|(target_key, _)| target_key.clone())
+        };
+        if let Some(other) = elsewhere {
+            let _ = self.request(&other, leave_voice()).await;
+            let mut voice = self.lock_voice();
+            if voice
+                .target
+                .as_ref()
+                .is_some_and(|(target, _)| *target == other)
+            {
+                voice.target = None;
+            }
+        }
+        let request = self.voice_update(channel_id);
+        let state = expect_voice_state(self.request(key, request).await?)?;
+        self.lock_voice().target = Some((key.to_owned(), channel_id));
+        Ok(convert::voice_state(state.clone(), &state.session_id))
+    }
+
+    /// Leaves voice, wherever this device is.
+    pub async fn voice_leave(&self) -> Result<(), CoreError> {
+        let target = self.lock_voice().target.take();
+        match target {
+            Some((key, _)) => self.request(&key, leave_voice()).await.map(|_| ()),
+            None => Ok(()),
+        }
+    }
+
+    /// Self mute and deafen. They hold outside voice too, for the next
+    /// join; in voice, the server hears about them in the background.
+    pub fn set_voice_self(&self, mute: Option<bool>, deaf: Option<bool>) {
+        let target = {
+            let mut voice = self.lock_voice();
+            voice.mute = mute.unwrap_or(voice.mute);
+            voice.deaf = deaf.unwrap_or(voice.deaf);
+            voice.target.clone()
+        };
+        if let Some((key, channel_id)) = target {
+            let client = self.clone();
+            self.inner.runtime.spawn(async move {
+                let request = client.voice_update(channel_id);
+                let _ = client.request(&key, request).await;
+            });
+        }
+    }
+
+    pub async fn server_mute(&self, key: &str, user_id: i64, value: bool) -> Result<(), CoreError> {
+        let request = Request::ServerMuteMember(proto::ServerMuteMember { user_id, value });
+        expect_voice_state(self.request(key, request).await?).map(|_| ())
+    }
+
+    pub async fn server_deafen(
+        &self,
+        key: &str,
+        user_id: i64,
+        value: bool,
+    ) -> Result<(), CoreError> {
+        let request = Request::ServerDeafenMember(proto::ServerDeafenMember { user_id, value });
+        expect_voice_state(self.request(key, request).await?).map(|_| ())
+    }
+
+    pub async fn move_member(
+        &self,
+        key: &str,
+        user_id: i64,
+        channel_id: i64,
+    ) -> Result<(), CoreError> {
+        let request = Request::MoveMember(proto::MoveMember {
+            user_id,
+            channel_id,
+        });
+        expect_voice_state(self.request(key, request).await?).map(|_| ())
+    }
+
+    pub async fn disconnect_member(&self, key: &str, user_id: i64) -> Result<(), CoreError> {
+        let request = Request::DisconnectMember(proto::DisconnectMember { user_id });
+        expect_ack(self.request(key, request).await?)
+    }
+
+    pub async fn update_voice_settings(
+        &self,
+        key: &str,
+        changes: VoiceSettingsChanges,
+    ) -> Result<VoiceSettings, CoreError> {
+        let request = Request::UpdateVoiceSettings(convert::voice_settings_changes(changes));
+        match self.request(key, request).await? {
+            Response::VoiceSettings(settings) => Ok(convert::voice_settings(settings)),
+            other => Err(unexpected(&other)),
+        }
+    }
+
+    /// Follows this device's voice state through the events: moves and
+    /// disconnects by moderators, losing the channel, another device taking
+    /// over, and getting back in after a fresh session.
+    fn observe(&self, event: &CoreEvent) {
+        let key = &event.server_key;
+        match &event.payload {
+            CoreEventPayload::Ready(snapshot) => {
+                let self_id = snapshot.self_user.id;
+                let rejoin = {
+                    let mut voice = self.lock_voice();
+                    voice.self_ids.insert(key.clone(), self_id);
+                    voice
+                        .target
+                        .as_ref()
+                        .filter(|(target_key, _)| target_key == key)
+                        .map(|(_, channel_id)| *channel_id)
+                        .filter(|channel_id| {
+                            !snapshot.voice_states.iter().any(|state| {
+                                state.user_id == self_id
+                                    && state.this_device
+                                    && state.channel_id == Some(*channel_id)
+                            })
+                        })
+                };
+                if let Some(channel_id) = rejoin {
+                    let client = self.clone();
+                    let key = key.clone();
+                    self.inner
+                        .runtime
+                        .spawn(async move { client.rejoin(&key, channel_id).await });
+                }
+            }
+            CoreEventPayload::VoiceStateUpdate(state) => {
+                let mut voice = self.lock_voice();
+                if voice.self_ids.get(key) != Some(&state.user_id) {
+                    return;
+                }
+                let here = voice
+                    .target
+                    .as_ref()
+                    .is_some_and(|(target_key, _)| target_key == key);
+                if state.this_device {
+                    match state.channel_id {
+                        Some(channel_id) => voice.target = Some((key.clone(), channel_id)),
+                        None if here => voice.target = None,
+                        None => {}
+                    }
+                } else if here {
+                    voice.target = None;
+                }
+            }
+            _ => {}
+        }
+    }
+
+    /// Gets back into `channel_id` after a fresh session. If the server says
+    /// no, this device has left, and the app hears so.
+    async fn rejoin(&self, key: &str, channel_id: i64) {
+        let request = self.voice_update(channel_id);
+        let Err(CoreError::Server { code, .. }) = self.request(key, request).await else {
+            return;
+        };
+        if matches!(code, ErrorCode::RateLimited | ErrorCode::Internal) {
+            return;
+        }
+        let self_id = {
+            let mut voice = self.lock_voice();
+            if voice.target != Some((key.to_owned(), channel_id)) {
+                return;
+            }
+            voice.target = None;
+            voice.self_ids.get(key).copied()
+        };
+        if let Some(user_id) = self_id {
+            let _ = self.inner.outward.send(CoreEvent {
+                server_key: key.to_owned(),
+                payload: CoreEventPayload::VoiceStateUpdate(VoiceState {
+                    user_id,
+                    channel_id: None,
+                    this_device: true,
+                    self_mute: false,
+                    self_deaf: false,
+                    server_mute: false,
+                    server_deaf: false,
+                    suppress: false,
+                    self_video: false,
+                    self_stream: false,
+                }),
+            });
+        }
+    }
+
+    fn voice_update(&self, channel_id: i64) -> Request {
+        let voice = self.lock_voice();
+        Request::UpdateVoiceState(proto::UpdateVoiceState {
+            channel_id: Some(channel_id),
+            self_mute: voice.mute,
+            self_deaf: voice.deaf,
+            self_video: false,
+            self_stream: false,
+        })
+    }
+
+    fn lock_voice(&self) -> MutexGuard<'_, Voice> {
+        self.inner
+            .voice
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+    }
+
     async fn request(&self, key: &str, kind: Request) -> Result<Response, CoreError> {
         let commands = self
             .lock_connections()
@@ -703,6 +947,17 @@ fn server_view(saved: &SavedServer, pin: Option<Fingerprint>) -> Server {
 async fn stop(connection: Connection) {
     let _ = connection.commands.send(Command::Shutdown).await;
     let _ = connection.task.await;
+}
+
+fn leave_voice() -> Request {
+    Request::UpdateVoiceState(proto::UpdateVoiceState::default())
+}
+
+fn expect_voice_state(response: Response) -> Result<proto::VoiceState, CoreError> {
+    match response {
+        Response::VoiceState(state) => Ok(state),
+        other => Err(unexpected(&other)),
+    }
 }
 
 fn expect_ack(response: Response) -> Result<(), CoreError> {

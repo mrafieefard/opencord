@@ -76,6 +76,15 @@ message Ready {
   uint64 server_permissions = 9;
   // channel id -> the user's resolved permissions in that channel.
   map<int64, uint64> channel_permissions = 10;
+  // Whether this server has voice at all.
+  bool voice_enabled = 11;
+  // Everyone in the voice channels the user can view.
+  repeated VoiceState voice_states = 12;
+  // Screen shares in those channels.
+  repeated Stream streams = 13;
+  repeated SoundboardSound soundboard_sounds = 14;
+  VoiceSettings voice_settings = 15;
+  MediaToken media_token = 16;
 }
 
 // Sent after the missed events have been replayed.

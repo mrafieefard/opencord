@@ -349,3 +349,71 @@ Future<ServerInfo> updateServer({
   serverKey: serverKey,
   changes: changes,
 );
+
+Future<VoiceSettings> updateVoiceSettings({
+  required String serverKey,
+  required VoiceSettingsChanges changes,
+}) => RustLib.instance.api.crateApiClientUpdateVoiceSettings(
+  serverKey: serverKey,
+  changes: changes,
+);
+
+/// Joins a voice channel. This device is in at most one voice channel
+/// across all servers, so any other one is left first.
+Future<VoiceState> voiceJoin({
+  required String serverKey,
+  required PlatformInt64 channelId,
+}) => RustLib.instance.api.crateApiClientVoiceJoin(
+  serverKey: serverKey,
+  channelId: channelId,
+);
+
+Future<void> voiceLeave() => RustLib.instance.api.crateApiClientVoiceLeave();
+
+/// Holds outside voice too, for the next join.
+void voiceSetSelfMute({required bool muted}) =>
+    RustLib.instance.api.crateApiClientVoiceSetSelfMute(muted: muted);
+
+/// Holds outside voice too, for the next join.
+void voiceSetSelfDeaf({required bool deafened}) =>
+    RustLib.instance.api.crateApiClientVoiceSetSelfDeaf(deafened: deafened);
+
+/// Server mute: nobody hears them until it is lifted.
+Future<void> voiceServerMute({
+  required String serverKey,
+  required PlatformInt64 userId,
+  required bool muted,
+}) => RustLib.instance.api.crateApiClientVoiceServerMute(
+  serverKey: serverKey,
+  userId: userId,
+  muted: muted,
+);
+
+/// Server deafen: they hear nobody until it is lifted.
+Future<void> voiceServerDeafen({
+  required String serverKey,
+  required PlatformInt64 userId,
+  required bool deafened,
+}) => RustLib.instance.api.crateApiClientVoiceServerDeafen(
+  serverKey: serverKey,
+  userId: userId,
+  deafened: deafened,
+);
+
+Future<void> voiceMoveMember({
+  required String serverKey,
+  required PlatformInt64 userId,
+  required PlatformInt64 channelId,
+}) => RustLib.instance.api.crateApiClientVoiceMoveMember(
+  serverKey: serverKey,
+  userId: userId,
+  channelId: channelId,
+);
+
+Future<void> voiceDisconnectMember({
+  required String serverKey,
+  required PlatformInt64 userId,
+}) => RustLib.instance.api.crateApiClientVoiceDisconnectMember(
+  serverKey: serverKey,
+  userId: userId,
+);

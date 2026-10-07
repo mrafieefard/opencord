@@ -5,6 +5,7 @@ import 'package:opencord/core/model/permissions.dart';
 import 'package:opencord/core/model/server.dart';
 import 'package:opencord/core/model/snapshot.dart';
 import 'package:opencord/core/model/user.dart';
+import 'package:opencord/core/model/voice.dart';
 import 'package:opencord/core/repository/events.dart';
 
 /// What the current user knows about one server since its last Ready.
@@ -18,6 +19,8 @@ class ServerData {
     required this.members,
     required this.serverPermissions,
     required this.channelPermissions,
+    this.voiceEnabled = true,
+    this.voiceSettings = const VoiceSettings(),
   });
 
   factory ServerData.fromSnapshot(ReadySnapshot snapshot) => ServerData(
@@ -28,6 +31,8 @@ class ServerData {
     members: {for (final member in snapshot.members) member.id: member},
     serverPermissions: snapshot.serverPermissions,
     channelPermissions: snapshot.channelPermissions,
+    voiceEnabled: snapshot.voiceEnabled,
+    voiceSettings: snapshot.voiceSettings,
   );
 
   final User self;
@@ -37,6 +42,10 @@ class ServerData {
   final Map<int, Member> members;
   final Permissions serverPermissions;
   final Map<int, Permissions> channelPermissions;
+
+  /// Whether the server has voice at all.
+  final bool voiceEnabled;
+  final VoiceSettings voiceSettings;
 
   bool get isOwner => info.ownerId == self.id;
 
@@ -91,6 +100,7 @@ class ServerData {
     Map<int, Member>? members,
     Permissions? serverPermissions,
     Map<int, Permissions>? channelPermissions,
+    VoiceSettings? voiceSettings,
   }) => ServerData(
     self: self,
     info: info ?? this.info,
@@ -99,6 +109,8 @@ class ServerData {
     members: members ?? this.members,
     serverPermissions: serverPermissions ?? this.serverPermissions,
     channelPermissions: channelPermissions ?? this.channelPermissions,
+    voiceEnabled: voiceEnabled,
+    voiceSettings: voiceSettings ?? this.voiceSettings,
   );
 }
 
@@ -181,6 +193,9 @@ ServerState reduceServer(ServerState state, RepoEvent event) {
       members: _drop(data.members, userId),
     ),
     ServerInfoChanged(:final info) => data.copyWith(info: info),
+    VoiceSettingsChanged(:final settings) => data.copyWith(
+      voiceSettings: settings,
+    ),
     PermissionsChanged(:final server, :final channels) => data.copyWith(
       serverPermissions: server,
       channelPermissions: channels,

@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:opencord/core/providers/providers.dart';
+import 'package:opencord/core/repository/repository.dart';
 import 'package:opencord/features/voice/screenshare_picker.dart';
 import 'package:opencord/ui/theme/oc_colors.dart';
 import 'package:opencord/ui/theme/oc_icons.dart';
@@ -13,6 +14,27 @@ import 'package:opencord/ui/widgets/hoverable.dart';
 import 'package:opencord/ui/widgets/key_hint.dart';
 import 'package:opencord/ui/widgets/oc_icon_button.dart';
 import 'package:opencord/ui/widgets/toast.dart';
+
+/// Joins a voice channel; why not, when the server refuses, shows as a
+/// toast.
+Future<void> joinVoice(
+  BuildContext context,
+  WidgetRef ref,
+  String serverKey,
+  int channelId,
+) async {
+  try {
+    await ref.read(voiceSessionProvider.notifier).join(serverKey, channelId);
+  } on RepoException catch (error) {
+    if (!context.mounted) return;
+    showOcToast(context, switch (error.kind) {
+      RepoErrorKind.voiceChannelFull => 'This voice channel is full.',
+      RepoErrorKind.forbidden =>
+        "You don't have permission to join this channel.",
+      _ => error.message,
+    });
+  }
+}
 
 /// Stops sharing, or asks what to share first (§4.10).
 Future<void> toggleScreenshare(BuildContext context, WidgetRef ref) async {
@@ -41,7 +63,7 @@ Future<void> leaveVoice(BuildContext context, WidgetRef ref) async {
     context,
     name == null ? 'Left voice' : 'Left $name',
     actionLabel: 'Undo',
-    onAction: () => session.join(server, channel),
+    onAction: () => joinVoice(context, ref, server, channel),
   );
   await session.leave();
 }
@@ -55,6 +77,7 @@ class VoiceControlBar extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final voice = ref.watch(voiceSessionProvider);
     final session = ref.read(voiceSessionProvider.notifier);
+    final capabilities = ref.read(repositoryProvider).capabilities;
     final platform = Theme.of(context).platform;
     return Row(
       mainAxisSize: MainAxisSize.min,
@@ -67,22 +90,26 @@ class VoiceControlBar extends ConsumerWidget {
           active: voice.muted,
           onPressed: session.toggleMute,
         ),
-        const SizedBox(width: OcSpace.s12),
-        _RoundToggle(
-          icon: OcIcons.videocamOff,
-          activeIcon: OcIcons.videocam,
-          tooltip: voice.camera ? 'Turn off camera' : 'Turn on camera',
-          active: voice.camera,
-          onPressed: session.toggleCamera,
-        ),
-        const SizedBox(width: OcSpace.s12),
-        _RoundToggle(
-          icon: OcIcons.screenShare,
-          activeIcon: OcIcons.stopScreenShare,
-          tooltip: voice.screensharing ? 'Stop sharing' : 'Share your screen',
-          active: voice.screensharing,
-          onPressed: () => toggleScreenshare(context, ref),
-        ),
+        if (capabilities.camera) ...[
+          const SizedBox(width: OcSpace.s12),
+          _RoundToggle(
+            icon: OcIcons.videocamOff,
+            activeIcon: OcIcons.videocam,
+            tooltip: voice.camera ? 'Turn off camera' : 'Turn on camera',
+            active: voice.camera,
+            onPressed: session.toggleCamera,
+          ),
+        ],
+        if (capabilities.screenShare) ...[
+          const SizedBox(width: OcSpace.s12),
+          _RoundToggle(
+            icon: OcIcons.screenShare,
+            activeIcon: OcIcons.stopScreenShare,
+            tooltip: voice.screensharing ? 'Stop sharing' : 'Share your screen',
+            active: voice.screensharing,
+            onPressed: () => toggleScreenshare(context, ref),
+          ),
+        ],
         const SizedBox(width: OcSpace.s12),
         _RoundToggle(
           icon: OcIcons.headphones,

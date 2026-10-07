@@ -20,6 +20,7 @@ use crate::error::ApiError;
 use crate::guild::{Member, User};
 use crate::random;
 use crate::state::{AppState, Audience, now_ms};
+use crate::voice::media_token;
 
 /// Why an `Identify` was refused, and how to close the connection.
 #[derive(Debug)]
@@ -289,6 +290,7 @@ fn ready(
     }
     let guild = state.guild();
     let visible = guild.visible_channel_ids(user_id);
+    let voice_states = state.voice().visible_to(&guild, user_id);
     proto::Ready {
         session_id,
         resume_token,
@@ -316,5 +318,16 @@ fn ready(
                 )
             })
             .collect(),
+        voice_enabled: state.config.voice.enabled,
+        voice_states,
+        streams: Vec::new(),
+        soundboard_sounds: Vec::new(),
+        voice_settings: Some(guild.voice_settings.to_proto()),
+        media_token: Some(media_token::issue(
+            &state.voice_key,
+            user_id,
+            &guild.meta.server_id,
+            now_ms(),
+        )),
     }
 }

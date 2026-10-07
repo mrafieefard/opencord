@@ -6,6 +6,7 @@ import 'package:opencord/core/model/presence.dart';
 import 'package:opencord/core/model/server.dart';
 import 'package:opencord/core/model/snapshot.dart';
 import 'package:opencord/core/model/user.dart';
+import 'package:opencord/core/model/voice.dart';
 
 /// Something that happened on one server. Both repositories (mock and Rust
 /// core) emit these, so the UI cannot tell them apart.
@@ -131,7 +132,7 @@ final class PermissionsChanged extends RepoEvent {
   final Map<int, Permissions> channels;
 }
 
-/// Voice participants of one channel (mock only in Phase 1).
+/// Voice participants of one channel.
 final class VoiceChanged extends RepoEvent {
   const VoiceChanged(super.serverKey, this.channelId, this.participants);
 
@@ -139,7 +140,23 @@ final class VoiceChanged extends RepoEvent {
   final List<VoiceParticipant> participants;
 }
 
-/// Who is speaking right now (mock only in Phase 1).
+/// This device's voice channel on a server changed without being asked:
+/// a moderator moved or disconnected it, it lost the channel, another
+/// device took the call over, or getting back in after a reconnect failed.
+/// [channelId] is null when this device is no longer in voice there.
+final class OwnVoiceChanged extends RepoEvent {
+  const OwnVoiceChanged(super.serverKey, this.channelId);
+
+  final int? channelId;
+}
+
+final class VoiceSettingsChanged extends RepoEvent {
+  const VoiceSettingsChanged(super.serverKey, this.settings);
+
+  final VoiceSettings settings;
+}
+
+/// Who is speaking right now (mock only until voice carries audio).
 final class SpeakingChanged extends RepoEvent {
   const SpeakingChanged(super.serverKey, this.speaking);
 

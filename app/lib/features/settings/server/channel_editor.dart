@@ -112,17 +112,50 @@ class _OverviewState extends ConsumerState<_Overview> {
     ..addListener(_changedText);
   late final _topic = TextEditingController(text: widget.channel.topic ?? '')
     ..addListener(_changedText);
+  late var _bitrate = widget.channel.bitrate;
+  late var _userLimit = widget.channel.userLimit;
+  late var _textInVoice = widget.channel.textInVoice;
+  late var _pushToTalk = _pushToTalkSaved;
   Map<Object, bool Function()>? _unsaved;
   var _saving = false;
   String? _error;
 
   OpencordRepository get _repository => ref.read(repositoryProvider);
 
-  bool get _changed =>
-      _name.text.trim().isNotEmpty &&
-      (_name.text.trim() != widget.channel.name ||
-          (widget.channel.kind.isTextLike &&
-              _topic.text.trim() != (widget.channel.topic ?? '')));
+  bool get _isVoice => widget.channel.kind == ChannelKind.voice;
+
+  int? get _everyoneRoleId =>
+      ref.read(serverProvider(widget.serverKey)).data?.info.everyoneRoleId;
+
+  /// The @everyone overwrite here, if there is one.
+  PermissionOverwrite? get _everyoneOverwrite {
+    final everyone = _everyoneRoleId;
+    if (everyone == null) return null;
+    return widget.channel.overwrites
+        .where((o) => o.targets(OverwriteTargetKind.role, everyone))
+        .firstOrNull;
+  }
+
+  /// "Push-to-talk required" is @everyone denied Use voice activity here
+  /// (Phase 2 plan §5.3).
+  bool get _pushToTalkSaved =>
+      _everyoneOverwrite?.deny.has(Permissions.useVoiceActivity) ?? false;
+
+  bool get _voiceChanged =>
+      _bitrate != widget.channel.bitrate ||
+      _userLimit != widget.channel.userLimit ||
+      _textInVoice != widget.channel.textInVoice ||
+      _pushToTalk != _pushToTalkSaved;
+
+  bool get _changed {
+    final name = _name.text.trim();
+    if (name.isEmpty) return false;
+    final channel = widget.channel;
+    return name != channel.name ||
+        (channel.kind.isTextLike &&
+            _topic.text.trim() != (channel.topic ?? '')) ||
+        (_isVoice && _voiceChanged);
+  }
 
   void _changedText() => setState(() {});
 
@@ -145,17 +178,62 @@ class _OverviewState extends ConsumerState<_Overview> {
       _saving = true;
       _error = null;
     });
+    final channel = widget.channel;
     try {
       await _repository.updateChannel(
         widget.serverKey,
-        widget.channel.id,
+        channel.id,
         name: _name.text.trim(),
-        topic: widget.channel.kind.isTextLike ? _topic.text.trim() : null,
+        topic: channel.kind.isTextLike ? _topic.text.trim() : null,
+        // Only what changed: a bitrate above a since-lowered server cap
+        // stays until someone moves it.
+        bitrate: _isVoice && _bitrate != channel.bitrate ? _bitrate : null,
+        userLimit: _isVoice && _userLimit != channel.userLimit
+            ? _userLimit
+            : null,
+        textInVoice: _isVoice && _textInVoice != channel.textInVoice
+            ? _textInVoice
+            : null,
       );
+      if (_isVoice && _pushToTalk != _pushToTalkSaved) {
+        await _savePushToTalk(_pushToTalk);
+      }
     } on RepoException catch (error) {
       if (mounted) setState(() => _error = error.message);
     }
     if (mounted) setState(() => _saving = false);
+  }
+
+  Future<void> _savePushToTalk(bool required) async {
+    final everyone = _everyoneRoleId;
+    if (everyone == null) return;
+    final current = _everyoneOverwrite;
+    final allow =
+        (current?.allow ?? Permissions.none) - Permissions.useVoiceActivity;
+    final deny = required
+        ? (current?.deny ?? Permissions.none) | Permissions.useVoiceActivity
+        : (current?.deny ?? Permissions.none) - Permissions.useVoiceActivity;
+    if (allow.isEmpty && deny.isEmpty) {
+      if (current != null) {
+        await _repository.deleteOverwrite(
+          widget.serverKey,
+          widget.channel.id,
+          OverwriteTargetKind.role,
+          everyone,
+        );
+      }
+      return;
+    }
+    await _repository.setOverwrite(
+      widget.serverKey,
+      widget.channel.id,
+      PermissionOverwrite(
+        targetKind: OverwriteTargetKind.role,
+        targetId: everyone,
+        allow: allow,
+        deny: deny,
+      ),
+    );
   }
 
   Future<void> _moveTo(int? categoryId) async {
@@ -202,6 +280,76 @@ class _OverviewState extends ConsumerState<_Overview> {
     );
   }
 
+  /// A voice channel's bitrate, user limit, voice chat and push-to-talk
+  /// (Phase 2 plan §5.3).
+  List<Widget> _voiceFields() {
+    final colors = context.oc;
+    final data = ref.watch(serverProvider(widget.serverKey)).data;
+    final maxKbps =
+        (data?.voiceSettings.maxVoiceBitrate ?? Channel.defaultBitrate) ~/ 1000;
+    final kbps = (_bitrate ~/ 1000).clamp(Channel.minBitrate ~/ 1000, maxKbps);
+    final held = data?.permissionsIn(widget.channel.id) ?? Permissions.none;
+    final canRequirePushToTalk =
+        held.has(Permissions.manageRoles) &&
+        canGrant(held, Permissions.useVoiceActivity);
+    return [
+      const SizedBox(height: OcSpace.s16),
+      SettingsSection(
+        footer:
+            'Higher bitrates sound clearer and use more bandwidth. This server '
+            'allows up to $maxKbps kbps.',
+        children: [
+          SettingsSliderRow(
+            title: 'Bitrate',
+            value: kbps,
+            min: Channel.minBitrate ~/ 1000,
+            max: maxKbps,
+            step: 8,
+            shown: '$kbps kbps',
+            onChanged: (value) => setState(() => _bitrate = value * 1000),
+          ),
+          SettingsSliderRow(
+            title: 'User limit',
+            value: _userLimit,
+            min: 0,
+            max: Channel.maxUserLimit,
+            shown: _userLimit == 0
+                ? 'No limit'
+                : '$_userLimit ${_userLimit == 1 ? 'person' : 'people'}',
+            onChanged: (value) => setState(() => _userLimit = value),
+          ),
+        ],
+      ),
+      const SizedBox(height: OcSpace.s16),
+      SettingsSection(
+        children: [
+          SettingsSwitchRow(
+            title: 'Text chat in this channel',
+            subtitle: 'People in voice can write messages here',
+            value: _textInVoice,
+            onChanged: (value) => setState(() => _textInVoice = value),
+          ),
+          SettingsSwitchRow(
+            title: 'Push-to-talk required',
+            subtitle: canRequirePushToTalk
+                ? 'Everyone holds their push-to-talk key to speak here'
+                : 'Needs Manage roles and Use voice activity here',
+            value: _pushToTalk,
+            onChanged: canRequirePushToTalk
+                ? (value) => setState(() => _pushToTalk = value)
+                : null,
+          ),
+        ],
+      ),
+      const SizedBox(height: OcSpace.s8),
+      Text(
+        'Voice chat and push-to-talk take effect with later versions of '
+        'voice.',
+        style: OcText.small.copyWith(color: colors.textMuted),
+      ),
+    ];
+  }
+
   @override
   Widget build(BuildContext context) {
     final colors = context.oc;
@@ -244,6 +392,7 @@ class _OverviewState extends ConsumerState<_Overview> {
             maxLength: 1024,
           ),
         ],
+        if (_isVoice) ..._voiceFields(),
         if (_error case final error?) ...[
           const SizedBox(height: OcSpace.s12),
           InlineError(error),

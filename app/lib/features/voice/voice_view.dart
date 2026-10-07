@@ -269,9 +269,8 @@ class _JoinPrompt extends ConsumerWidget {
             OcButton.primary(
               label: 'Join voice',
               onPressed: canJoin
-                  ? () => ref
-                        .read(voiceSessionProvider.notifier)
-                        .join(channel.server, channel.channel)
+                  ? () =>
+                        joinVoice(context, ref, channel.server, channel.channel)
                   : null,
             ),
             if (!canJoin) ...[

@@ -232,4 +232,35 @@ void main() {
       expect(container.read(voiceSessionProvider).channelId, voice.id);
     }, simulateLife: true);
   });
+
+  test('a moderator moving or disconnecting you moves the call', () {
+    withApp((async, container, repo) {
+      final server = repo.servers.first.key;
+      final voiceChannels = container
+          .read(serverProvider(server))
+          .data!
+          .channels
+          .values
+          .where((channel) => channel.kind == ChannelKind.voice)
+          .map((channel) => channel.id)
+          .toList();
+      container
+          .read(voiceSessionProvider.notifier)
+          .join(server, voiceChannels.first);
+      async.elapse(const Duration(seconds: 1));
+
+      repo.debugMoveSelf(voiceChannels.last);
+      async.flushMicrotasks();
+      final moved = container.read(voiceSessionProvider);
+      repo.debugMoveSelf(null);
+      async.flushMicrotasks();
+
+      expect((moved.serverKey, moved.channelId), (server, voiceChannels.last));
+      expect(container.read(voiceSessionProvider).connected, isFalse);
+      expect(
+        container.read(voiceProvider(server))[voiceChannels.last],
+        isEmpty,
+      );
+    });
+  });
 }

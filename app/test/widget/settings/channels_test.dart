@@ -10,6 +10,7 @@ import 'package:opencord/features/settings/settings_dialog.dart';
 import 'package:opencord/features/shell/desktop_shell.dart';
 import 'package:opencord/ui/theme/oc_metrics.dart';
 import 'package:opencord/ui/widgets/oc_button.dart';
+import 'package:opencord/ui/widgets/settings.dart';
 
 import '../../support/app.dart';
 
@@ -351,6 +352,41 @@ void main() {
 
     final field = tester.widget<TextField>(_in(find.byType(TextField)).first);
     expect(field.controller!.text, 'dev-core');
+    await app.dispose(tester);
+  });
+
+  testWidgets('a voice channel saves its limit, voice chat and push-to-talk', (
+    tester,
+  ) async {
+    final app = await MockApp.pump(tester);
+    await _openChannels(tester);
+    await _select(tester, 'Pairing');
+
+    final limit = find.byWidgetPredicate(
+      (widget) => widget is SettingsSliderRow && widget.title == 'User limit',
+    );
+    tester
+        .widget<Slider>(
+          find.descendant(of: limit, matching: find.byType(Slider)),
+        )
+        .onChanged!(5);
+    await tester.pump();
+    await tester.tap(_in(find.text('Text chat in this channel')));
+    await tester.tap(_in(find.text('Push-to-talk required')));
+    await tester.pump();
+    expect(_in(find.text('5 people')), findsOneWidget);
+    await tester.tap(_in(find.widgetWithText(OcButton, 'Save changes')));
+    await _pumpFor(tester, const Duration(milliseconds: 600));
+
+    final pairing = _named(app, 'Pairing');
+    expect(pairing.userLimit, 5);
+    expect(pairing.textInVoice, isFalse);
+    final everyone = app.read(serverProvider(_dev)).data!.info.everyoneRoleId;
+    final overwrite = pairing.overwrites.singleWhere(
+      (o) => o.targets(OverwriteTargetKind.role, everyone),
+    );
+    expect(overwrite.deny.has(Permissions.useVoiceActivity), isTrue);
+    expect(_in(find.widgetWithText(OcButton, 'Save changes')), findsOneWidget);
     await app.dispose(tester);
   });
 }

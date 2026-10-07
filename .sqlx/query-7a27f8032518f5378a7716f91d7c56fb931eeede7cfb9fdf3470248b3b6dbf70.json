@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT id, kind, name, topic, parent_id, position FROM channels",
+  "query": "SELECT id, kind, name, topic, parent_id, position, bitrate, user_limit, text_in_voice\n         FROM channels",
   "describe": {
     "columns": [
       {
@@ -68,6 +68,39 @@
             "name": "position"
           }
         }
+      },
+      {
+        "name": "bitrate",
+        "ordinal": 6,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "channels",
+            "name": "bitrate"
+          }
+        }
+      },
+      {
+        "name": "user_limit",
+        "ordinal": 7,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "channels",
+            "name": "user_limit"
+          }
+        }
+      },
+      {
+        "name": "text_in_voice",
+        "ordinal": 8,
+        "type_info": "Bool",
+        "origin": {
+          "Table": {
+            "table": "channels",
+            "name": "text_in_voice"
+          }
+        }
       }
     ],
     "parameters": {
@@ -79,8 +112,11 @@
       false,
       true,
       true,
+      false,
+      false,
+      false,
       false
     ]
   },
-  "hash": "3ebccaee0d2280df04bab3d03e56d11c3b2ac181fb8f8c3c3a071db9053aa524"
+  "hash": "7a27f8032518f5378a7716f91d7c56fb931eeede7cfb9fdf3470248b3b6dbf70"
 }

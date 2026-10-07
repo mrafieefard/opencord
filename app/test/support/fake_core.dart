@@ -137,6 +137,9 @@ class FakeCoreApi extends Fake implements CoreApi {
   ) async {
     calls.add('createChannel:$name');
     return core.Channel(
+      bitrate: 0,
+      userLimit: 0,
+      textInVoice: false,
       id: 77,
       kind: kind,
       name: name,
@@ -165,12 +168,47 @@ class FakeCoreApi extends Fake implements CoreApi {
     );
     if (overwriteError case final error?) throw error;
     return core.Channel(
+      bitrate: 0,
+      userLimit: 0,
+      textInVoice: false,
       id: channelId,
       kind: core.ChannelKind.text,
       name: 'private',
       position: 0,
       overwrites: [overwrite],
     );
+  }
+
+  /// Thrown by voiceJoin, when set.
+  core.CoreError? joinError;
+
+  /// What updateVoiceSettings was last sent.
+  core.VoiceSettingsChanges? voiceChanges;
+
+  @override
+  Future<core.VoiceState> voiceJoin(String serverKey, int channelId) async {
+    calls.add('voiceJoin:$serverKey:$channelId');
+    if (joinError case final error?) throw error;
+    return voiceState(1, channelId);
+  }
+
+  @override
+  Future<void> voiceLeave() async => calls.add('voiceLeave');
+
+  @override
+  void voiceSetSelfMute(bool muted) => calls.add('selfMute:$muted');
+
+  @override
+  void voiceSetSelfDeaf(bool deafened) => calls.add('selfDeaf:$deafened');
+
+  @override
+  Future<core.VoiceSettings> updateVoiceSettings(
+    String serverKey,
+    core.VoiceSettingsChanges changes,
+  ) async {
+    calls.add('voiceSettings:$serverKey');
+    voiceChanges = changes;
+    return coreVoiceSettings;
   }
 
   /// Thrown by deleteChannel, when set.
@@ -200,3 +238,40 @@ class FakeCoreApi extends Fake implements CoreApi {
     core.PresenceStatus status,
   ) async => calls.add('presence:$serverKey:${status.name}');
 }
+
+/// The server's default voice settings, as the core reports them.
+const coreVoiceSettings = core.VoiceSettings(
+  screenShareMaxResolution: core.ScreenShareResolution.p720,
+  screenShareMaxFps: 30,
+  maxStreamViewers: 50,
+  cameraAllowed: true,
+  maxCameraParticipants: 25,
+  maxVoiceBitrate: 96000,
+  afkTimeoutS: 300,
+  soundboardEnabled: true,
+  allowDefaultSounds: true,
+  allowExternalSounds: true,
+  soundCooldownS: 3,
+  maxSounds: 48,
+);
+
+/// Someone in voice, as the core reports them; [channelId] null has left.
+core.VoiceState voiceState(
+  int userId,
+  int? channelId, {
+  bool thisDevice = true,
+  bool selfMute = false,
+  bool serverMute = false,
+  bool suppress = false,
+}) => core.VoiceState(
+  userId: userId,
+  channelId: channelId,
+  thisDevice: thisDevice,
+  selfMute: selfMute,
+  selfDeaf: false,
+  serverMute: serverMute,
+  serverDeaf: false,
+  suppress: suppress,
+  selfVideo: false,
+  selfStream: false,
+);

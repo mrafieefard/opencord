@@ -6,6 +6,7 @@ import 'package:opencord/core/model/presence.dart';
 import 'package:opencord/core/model/server.dart';
 import 'package:opencord/core/model/snapshot.dart';
 import 'package:opencord/core/model/user.dart';
+import 'package:opencord/core/model/voice.dart';
 import 'package:opencord/core/repository/repository.dart';
 import 'package:opencord/src/rust/api/types.dart' as core;
 
@@ -83,7 +84,89 @@ Channel channelFrom(core.Channel channel) => Channel(
   parentId: channel.parentId,
   position: channel.position,
   overwrites: [for (final o in channel.overwrites) overwriteFrom(o)],
+  bitrate: channel.kind == core.ChannelKind.voice
+      ? channel.bitrate
+      : Channel.defaultBitrate,
+  userLimit: channel.userLimit,
+  textInVoice: channel.kind != core.ChannelKind.voice || channel.textInVoice,
 );
+
+VoiceParticipant participantFrom(core.VoiceState state) => VoiceParticipant(
+  userId: state.userId,
+  muted: state.selfMute,
+  deafened: state.selfDeaf,
+  camera: state.selfVideo,
+  screensharing: state.selfStream,
+  serverMuted: state.serverMute,
+  serverDeafened: state.serverDeaf,
+  suppressed: state.suppress,
+);
+
+/// Who is in each voice channel, in the order the server listed them.
+Map<int, List<VoiceParticipant>> voiceFrom(Iterable<core.VoiceState> states) {
+  final voice = <int, List<VoiceParticipant>>{};
+  for (final state in states) {
+    if (state.channelId case final channelId?) {
+      (voice[channelId] ??= []).add(participantFrom(state));
+    }
+  }
+  return voice;
+}
+
+ScreenShareResolution _resolutionFrom(core.ScreenShareResolution value) =>
+    switch (value) {
+      core.ScreenShareResolution.p480 => ScreenShareResolution.p480,
+      core.ScreenShareResolution.p720 => ScreenShareResolution.p720,
+      core.ScreenShareResolution.p1080 => ScreenShareResolution.p1080,
+      core.ScreenShareResolution.p1440 => ScreenShareResolution.p1440,
+      core.ScreenShareResolution.source => ScreenShareResolution.source,
+    };
+
+core.ScreenShareResolution _resolutionTo(ScreenShareResolution value) =>
+    switch (value) {
+      ScreenShareResolution.p480 => core.ScreenShareResolution.p480,
+      ScreenShareResolution.p720 => core.ScreenShareResolution.p720,
+      ScreenShareResolution.p1080 => core.ScreenShareResolution.p1080,
+      ScreenShareResolution.p1440 => core.ScreenShareResolution.p1440,
+      ScreenShareResolution.source => core.ScreenShareResolution.source,
+    };
+
+VoiceSettings voiceSettingsFrom(core.VoiceSettings settings) => VoiceSettings(
+  screenShareMaxResolution: _resolutionFrom(settings.screenShareMaxResolution),
+  screenShareMaxFps: settings.screenShareMaxFps,
+  maxStreamViewers: settings.maxStreamViewers,
+  cameraAllowed: settings.cameraAllowed,
+  maxCameraParticipants: settings.maxCameraParticipants,
+  maxVoiceBitrate: settings.maxVoiceBitrate,
+  afkChannelId: settings.afkChannelId,
+  afkTimeout: Duration(seconds: settings.afkTimeoutS),
+  soundboardEnabled: settings.soundboardEnabled,
+  allowDefaultSounds: settings.allowDefaultSounds,
+  allowExternalSounds: settings.allowExternalSounds,
+  soundCooldown: Duration(seconds: settings.soundCooldownS),
+  maxSounds: settings.maxSounds,
+);
+
+/// Every setting, so the server ends up with exactly [settings]; no AFK
+/// channel goes as 0.
+core.VoiceSettingsChanges voiceSettingsTo(VoiceSettings settings) =>
+    core.VoiceSettingsChanges(
+      screenShareMaxResolution: _resolutionTo(
+        settings.screenShareMaxResolution,
+      ),
+      screenShareMaxFps: settings.screenShareMaxFps,
+      maxStreamViewers: settings.maxStreamViewers,
+      cameraAllowed: settings.cameraAllowed,
+      maxCameraParticipants: settings.maxCameraParticipants,
+      maxVoiceBitrate: settings.maxVoiceBitrate,
+      afkChannelId: settings.afkChannelId ?? 0,
+      afkTimeoutS: settings.afkTimeout.inSeconds,
+      soundboardEnabled: settings.soundboardEnabled,
+      allowDefaultSounds: settings.allowDefaultSounds,
+      allowExternalSounds: settings.allowExternalSounds,
+      soundCooldownS: settings.soundCooldown.inSeconds,
+      maxSounds: settings.maxSounds,
+    );
 
 User userFrom(core.User user) => User(
   id: user.id,
@@ -215,6 +298,9 @@ ReadySnapshot snapshotFrom(
     for (final entry in ready.channelPermissions)
       entry.channelId: Permissions(entry.permissions),
   },
+  voice: voiceFrom(ready.voiceStates),
+  voiceEnabled: ready.voiceEnabled,
+  voiceSettings: voiceSettingsFrom(ready.voiceSettings),
   lastMessages: lastMessages,
   readStates: readStates,
 );
@@ -226,7 +312,16 @@ RepoErrorKind _kindFrom(core.ErrorCode code) => switch (code) {
   core.ErrorCode.notFound => RepoErrorKind.notFound,
   core.ErrorCode.invalidArgument => RepoErrorKind.invalidArgument,
   core.ErrorCode.rateLimited => RepoErrorKind.rateLimited,
-  core.ErrorCode.conflict => RepoErrorKind.conflict,
+  core.ErrorCode.conflict ||
+  core.ErrorCode.voiceNotConnected ||
+  core.ErrorCode.qualityLimit ||
+  core.ErrorCode.cameraLimit ||
+  core.ErrorCode.streamViewerLimit ||
+  core.ErrorCode.soundboardFull => RepoErrorKind.conflict,
+  core.ErrorCode.voiceChannelFull => RepoErrorKind.voiceChannelFull,
+  core.ErrorCode.soundCooldown => RepoErrorKind.rateLimited,
+  core.ErrorCode.soundTooLong ||
+  core.ErrorCode.soundInvalid => RepoErrorKind.invalidArgument,
   core.ErrorCode.internal || core.ErrorCode.unknown => RepoErrorKind.other,
 };
 

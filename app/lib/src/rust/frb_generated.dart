@@ -68,7 +68,7 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
   String get codegenVersion => '2.13.0';
 
   @override
-  int get rustContentHash => 1663843838;
+  int get rustContentHash => -93284930;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -288,6 +288,47 @@ abstract class RustLibApi extends BaseApi {
     required String serverKey,
     required ServerChanges changes,
   });
+
+  Future<VoiceSettings> crateApiClientUpdateVoiceSettings({
+    required String serverKey,
+    required VoiceSettingsChanges changes,
+  });
+
+  Future<void> crateApiClientVoiceDisconnectMember({
+    required String serverKey,
+    required PlatformInt64 userId,
+  });
+
+  Future<VoiceState> crateApiClientVoiceJoin({
+    required String serverKey,
+    required PlatformInt64 channelId,
+  });
+
+  Future<void> crateApiClientVoiceLeave();
+
+  Future<void> crateApiClientVoiceMoveMember({
+    required String serverKey,
+    required PlatformInt64 userId,
+    required PlatformInt64 channelId,
+  });
+
+  Future<void> crateApiClientVoiceServerDeafen({
+    required String serverKey,
+    required PlatformInt64 userId,
+    required bool deafened,
+  });
+
+  Future<void> crateApiClientVoiceServerMute({
+    required String serverKey,
+    required PlatformInt64 userId,
+    required bool muted,
+  });
+
+  void crateApiClientVoiceSetSelfDeaf({required bool deafened});
+
+  void crateApiClientVoiceSetSelfMute({required bool muted});
+
+  Future<VoiceSettingsChanges> crateApiTypesVoiceSettingsChangesDefault();
 }
 
 class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
@@ -1838,6 +1879,330 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     argNames: ["serverKey", "changes"],
   );
 
+  @override
+  Future<VoiceSettings> crateApiClientUpdateVoiceSettings({
+    required String serverKey,
+    required VoiceSettingsChanges changes,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(serverKey, serializer);
+          sse_encode_box_autoadd_voice_settings_changes(changes, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 49,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_voice_settings,
+          decodeErrorData: sse_decode_core_error,
+        ),
+        constMeta: kCrateApiClientUpdateVoiceSettingsConstMeta,
+        argValues: [serverKey, changes],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiClientUpdateVoiceSettingsConstMeta =>
+      const TaskConstMeta(
+        debugName: "update_voice_settings",
+        argNames: ["serverKey", "changes"],
+      );
+
+  @override
+  Future<void> crateApiClientVoiceDisconnectMember({
+    required String serverKey,
+    required PlatformInt64 userId,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(serverKey, serializer);
+          sse_encode_i_64(userId, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 50,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: sse_decode_core_error,
+        ),
+        constMeta: kCrateApiClientVoiceDisconnectMemberConstMeta,
+        argValues: [serverKey, userId],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiClientVoiceDisconnectMemberConstMeta =>
+      const TaskConstMeta(
+        debugName: "voice_disconnect_member",
+        argNames: ["serverKey", "userId"],
+      );
+
+  @override
+  Future<VoiceState> crateApiClientVoiceJoin({
+    required String serverKey,
+    required PlatformInt64 channelId,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(serverKey, serializer);
+          sse_encode_i_64(channelId, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 51,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_voice_state,
+          decodeErrorData: sse_decode_core_error,
+        ),
+        constMeta: kCrateApiClientVoiceJoinConstMeta,
+        argValues: [serverKey, channelId],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiClientVoiceJoinConstMeta => const TaskConstMeta(
+    debugName: "voice_join",
+    argNames: ["serverKey", "channelId"],
+  );
+
+  @override
+  Future<void> crateApiClientVoiceLeave() {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 52,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: sse_decode_core_error,
+        ),
+        constMeta: kCrateApiClientVoiceLeaveConstMeta,
+        argValues: [],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiClientVoiceLeaveConstMeta =>
+      const TaskConstMeta(debugName: "voice_leave", argNames: []);
+
+  @override
+  Future<void> crateApiClientVoiceMoveMember({
+    required String serverKey,
+    required PlatformInt64 userId,
+    required PlatformInt64 channelId,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(serverKey, serializer);
+          sse_encode_i_64(userId, serializer);
+          sse_encode_i_64(channelId, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 53,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: sse_decode_core_error,
+        ),
+        constMeta: kCrateApiClientVoiceMoveMemberConstMeta,
+        argValues: [serverKey, userId, channelId],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiClientVoiceMoveMemberConstMeta =>
+      const TaskConstMeta(
+        debugName: "voice_move_member",
+        argNames: ["serverKey", "userId", "channelId"],
+      );
+
+  @override
+  Future<void> crateApiClientVoiceServerDeafen({
+    required String serverKey,
+    required PlatformInt64 userId,
+    required bool deafened,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(serverKey, serializer);
+          sse_encode_i_64(userId, serializer);
+          sse_encode_bool(deafened, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 54,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: sse_decode_core_error,
+        ),
+        constMeta: kCrateApiClientVoiceServerDeafenConstMeta,
+        argValues: [serverKey, userId, deafened],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiClientVoiceServerDeafenConstMeta =>
+      const TaskConstMeta(
+        debugName: "voice_server_deafen",
+        argNames: ["serverKey", "userId", "deafened"],
+      );
+
+  @override
+  Future<void> crateApiClientVoiceServerMute({
+    required String serverKey,
+    required PlatformInt64 userId,
+    required bool muted,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(serverKey, serializer);
+          sse_encode_i_64(userId, serializer);
+          sse_encode_bool(muted, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 55,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: sse_decode_core_error,
+        ),
+        constMeta: kCrateApiClientVoiceServerMuteConstMeta,
+        argValues: [serverKey, userId, muted],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiClientVoiceServerMuteConstMeta =>
+      const TaskConstMeta(
+        debugName: "voice_server_mute",
+        argNames: ["serverKey", "userId", "muted"],
+      );
+
+  @override
+  void crateApiClientVoiceSetSelfDeaf({required bool deafened}) {
+    return handler.executeSync(
+      SyncTask(
+        callFfi: () {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_bool(deafened, serializer);
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 56)!;
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: sse_decode_core_error,
+        ),
+        constMeta: kCrateApiClientVoiceSetSelfDeafConstMeta,
+        argValues: [deafened],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiClientVoiceSetSelfDeafConstMeta =>
+      const TaskConstMeta(
+        debugName: "voice_set_self_deaf",
+        argNames: ["deafened"],
+      );
+
+  @override
+  void crateApiClientVoiceSetSelfMute({required bool muted}) {
+    return handler.executeSync(
+      SyncTask(
+        callFfi: () {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_bool(muted, serializer);
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 57)!;
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: sse_decode_core_error,
+        ),
+        constMeta: kCrateApiClientVoiceSetSelfMuteConstMeta,
+        argValues: [muted],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiClientVoiceSetSelfMuteConstMeta =>
+      const TaskConstMeta(
+        debugName: "voice_set_self_mute",
+        argNames: ["muted"],
+      );
+
+  @override
+  Future<VoiceSettingsChanges> crateApiTypesVoiceSettingsChangesDefault() {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 58,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_voice_settings_changes,
+          decodeErrorData: null,
+        ),
+        constMeta: kCrateApiTypesVoiceSettingsChangesDefaultConstMeta,
+        argValues: [],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiTypesVoiceSettingsChangesDefaultConstMeta =>
+      const TaskConstMeta(
+        debugName: "voice_settings_changes_default",
+        argNames: [],
+      );
+
   @protected
   AnyhowException dco_decode_AnyhowException(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
@@ -1965,6 +2330,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  ScreenShareResolution dco_decode_box_autoadd_screen_share_resolution(
+    dynamic raw,
+  ) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return dco_decode_screen_share_resolution(raw);
+  }
+
+  @protected
   Server dco_decode_box_autoadd_server(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return dco_decode_server(raw);
@@ -1989,11 +2362,31 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  VoiceSettings dco_decode_box_autoadd_voice_settings(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return dco_decode_voice_settings(raw);
+  }
+
+  @protected
+  VoiceSettingsChanges dco_decode_box_autoadd_voice_settings_changes(
+    dynamic raw,
+  ) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return dco_decode_voice_settings_changes(raw);
+  }
+
+  @protected
+  VoiceState dco_decode_box_autoadd_voice_state(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return dco_decode_voice_state(raw);
+  }
+
+  @protected
   Channel dco_decode_channel(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 7)
-      throw Exception('unexpected arr length: expect 7 but see ${arr.length}');
+    if (arr.length != 10)
+      throw Exception('unexpected arr length: expect 10 but see ${arr.length}');
     return Channel(
       id: dco_decode_i_64(arr[0]),
       kind: dco_decode_channel_kind(arr[1]),
@@ -2002,6 +2395,9 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       parentId: dco_decode_opt_box_autoadd_i_64(arr[4]),
       position: dco_decode_i_32(arr[5]),
       overwrites: dco_decode_list_permission_overwrite(arr[6]),
+      bitrate: dco_decode_u_32(arr[7]),
+      userLimit: dco_decode_u_32(arr[8]),
+      textInVoice: dco_decode_bool(arr[9]),
     );
   }
 
@@ -2009,12 +2405,15 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   ChannelChanges dco_decode_channel_changes(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 3)
-      throw Exception('unexpected arr length: expect 3 but see ${arr.length}');
+    if (arr.length != 6)
+      throw Exception('unexpected arr length: expect 6 but see ${arr.length}');
     return ChannelChanges(
       name: dco_decode_opt_String(arr[0]),
       topic: dco_decode_opt_String(arr[1]),
       parentId: dco_decode_opt_box_autoadd_i_64(arr[2]),
+      bitrate: dco_decode_opt_box_autoadd_u_32(arr[3]),
+      userLimit: dco_decode_opt_box_autoadd_u_32(arr[4]),
+      textInVoice: dco_decode_opt_box_autoadd_bool(arr[5]),
     );
   }
 
@@ -2197,6 +2596,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           serverPermissions: dco_decode_i_64(raw[1]),
           channelPermissions: dco_decode_list_channel_permissions(raw[2]),
         );
+      case 18:
+        return CoreEventPayload_VoiceStateUpdate(
+          dco_decode_box_autoadd_voice_state(raw[1]),
+        );
+      case 19:
+        return CoreEventPayload_VoiceSettingsUpdate(
+          dco_decode_box_autoadd_voice_settings(raw[1]),
+        );
       default:
         throw Exception("unreachable");
     }
@@ -2358,6 +2765,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  List<VoiceState> dco_decode_list_voice_state(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return (raw as List<dynamic>).map(dco_decode_voice_state).toList();
+  }
+
+  @protected
   Member dco_decode_member(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
@@ -2404,6 +2817,16 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   PlatformInt64? dco_decode_opt_box_autoadd_i_64(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return raw == null ? null : dco_decode_box_autoadd_i_64(raw);
+  }
+
+  @protected
+  ScreenShareResolution? dco_decode_opt_box_autoadd_screen_share_resolution(
+    dynamic raw,
+  ) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return raw == null
+        ? null
+        : dco_decode_box_autoadd_screen_share_resolution(raw);
   }
 
   @protected
@@ -2454,8 +2877,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   ReadySnapshot dco_decode_ready_snapshot(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 8)
-      throw Exception('unexpected arr length: expect 8 but see ${arr.length}');
+    if (arr.length != 11)
+      throw Exception('unexpected arr length: expect 11 but see ${arr.length}');
     return ReadySnapshot(
       selfUser: dco_decode_user(arr[0]),
       server: dco_decode_server_info(arr[1]),
@@ -2465,6 +2888,9 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       presences: dco_decode_list_presence(arr[5]),
       serverPermissions: dco_decode_i_64(arr[6]),
       channelPermissions: dco_decode_list_channel_permissions(arr[7]),
+      voiceEnabled: dco_decode_bool(arr[8]),
+      voiceStates: dco_decode_list_voice_state(arr[9]),
+      voiceSettings: dco_decode_voice_settings(arr[10]),
     );
   }
 
@@ -2498,6 +2924,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       hoist: dco_decode_opt_box_autoadd_bool(arr[3]),
       mentionable: dco_decode_opt_box_autoadd_bool(arr[4]),
     );
+  }
+
+  @protected
+  ScreenShareResolution dco_decode_screen_share_resolution(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return ScreenShareResolution.values[raw as int];
   }
 
   @protected
@@ -2592,6 +3024,73 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       publicKeyHex: dco_decode_String(arr[1]),
       fingerprint: dco_decode_String(arr[2]),
       displayName: dco_decode_String(arr[3]),
+    );
+  }
+
+  @protected
+  VoiceSettings dco_decode_voice_settings(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 13)
+      throw Exception('unexpected arr length: expect 13 but see ${arr.length}');
+    return VoiceSettings(
+      screenShareMaxResolution: dco_decode_screen_share_resolution(arr[0]),
+      screenShareMaxFps: dco_decode_u_32(arr[1]),
+      maxStreamViewers: dco_decode_u_32(arr[2]),
+      cameraAllowed: dco_decode_bool(arr[3]),
+      maxCameraParticipants: dco_decode_u_32(arr[4]),
+      maxVoiceBitrate: dco_decode_u_32(arr[5]),
+      afkChannelId: dco_decode_opt_box_autoadd_i_64(arr[6]),
+      afkTimeoutS: dco_decode_u_32(arr[7]),
+      soundboardEnabled: dco_decode_bool(arr[8]),
+      allowDefaultSounds: dco_decode_bool(arr[9]),
+      allowExternalSounds: dco_decode_bool(arr[10]),
+      soundCooldownS: dco_decode_u_32(arr[11]),
+      maxSounds: dco_decode_u_32(arr[12]),
+    );
+  }
+
+  @protected
+  VoiceSettingsChanges dco_decode_voice_settings_changes(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 13)
+      throw Exception('unexpected arr length: expect 13 but see ${arr.length}');
+    return VoiceSettingsChanges(
+      screenShareMaxResolution:
+          dco_decode_opt_box_autoadd_screen_share_resolution(arr[0]),
+      screenShareMaxFps: dco_decode_opt_box_autoadd_u_32(arr[1]),
+      maxStreamViewers: dco_decode_opt_box_autoadd_u_32(arr[2]),
+      cameraAllowed: dco_decode_opt_box_autoadd_bool(arr[3]),
+      maxCameraParticipants: dco_decode_opt_box_autoadd_u_32(arr[4]),
+      maxVoiceBitrate: dco_decode_opt_box_autoadd_u_32(arr[5]),
+      afkChannelId: dco_decode_opt_box_autoadd_i_64(arr[6]),
+      afkTimeoutS: dco_decode_opt_box_autoadd_u_32(arr[7]),
+      soundboardEnabled: dco_decode_opt_box_autoadd_bool(arr[8]),
+      allowDefaultSounds: dco_decode_opt_box_autoadd_bool(arr[9]),
+      allowExternalSounds: dco_decode_opt_box_autoadd_bool(arr[10]),
+      soundCooldownS: dco_decode_opt_box_autoadd_u_32(arr[11]),
+      maxSounds: dco_decode_opt_box_autoadd_u_32(arr[12]),
+    );
+  }
+
+  @protected
+  VoiceState dco_decode_voice_state(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 10)
+      throw Exception('unexpected arr length: expect 10 but see ${arr.length}');
+    return VoiceState(
+      userId: dco_decode_i_64(arr[0]),
+      channelId: dco_decode_opt_box_autoadd_i_64(arr[1]),
+      thisDevice: dco_decode_bool(arr[2]),
+      selfMute: dco_decode_bool(arr[3]),
+      selfDeaf: dco_decode_bool(arr[4]),
+      serverMute: dco_decode_bool(arr[5]),
+      serverDeaf: dco_decode_bool(arr[6]),
+      suppress: dco_decode_bool(arr[7]),
+      selfVideo: dco_decode_bool(arr[8]),
+      selfStream: dco_decode_bool(arr[9]),
     );
   }
 
@@ -2742,6 +3241,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  ScreenShareResolution sse_decode_box_autoadd_screen_share_resolution(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return (sse_decode_screen_share_resolution(deserializer));
+  }
+
+  @protected
   Server sse_decode_box_autoadd_server(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     return (sse_decode_server(deserializer));
@@ -2768,6 +3275,28 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  VoiceSettings sse_decode_box_autoadd_voice_settings(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return (sse_decode_voice_settings(deserializer));
+  }
+
+  @protected
+  VoiceSettingsChanges sse_decode_box_autoadd_voice_settings_changes(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return (sse_decode_voice_settings_changes(deserializer));
+  }
+
+  @protected
+  VoiceState sse_decode_box_autoadd_voice_state(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return (sse_decode_voice_state(deserializer));
+  }
+
+  @protected
   Channel sse_decode_channel(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     var var_id = sse_decode_i_64(deserializer);
@@ -2777,6 +3306,9 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     var var_parentId = sse_decode_opt_box_autoadd_i_64(deserializer);
     var var_position = sse_decode_i_32(deserializer);
     var var_overwrites = sse_decode_list_permission_overwrite(deserializer);
+    var var_bitrate = sse_decode_u_32(deserializer);
+    var var_userLimit = sse_decode_u_32(deserializer);
+    var var_textInVoice = sse_decode_bool(deserializer);
     return Channel(
       id: var_id,
       kind: var_kind,
@@ -2785,6 +3317,9 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       parentId: var_parentId,
       position: var_position,
       overwrites: var_overwrites,
+      bitrate: var_bitrate,
+      userLimit: var_userLimit,
+      textInVoice: var_textInVoice,
     );
   }
 
@@ -2794,10 +3329,16 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     var var_name = sse_decode_opt_String(deserializer);
     var var_topic = sse_decode_opt_String(deserializer);
     var var_parentId = sse_decode_opt_box_autoadd_i_64(deserializer);
+    var var_bitrate = sse_decode_opt_box_autoadd_u_32(deserializer);
+    var var_userLimit = sse_decode_opt_box_autoadd_u_32(deserializer);
+    var var_textInVoice = sse_decode_opt_box_autoadd_bool(deserializer);
     return ChannelChanges(
       name: var_name,
       topic: var_topic,
       parentId: var_parentId,
+      bitrate: var_bitrate,
+      userLimit: var_userLimit,
+      textInVoice: var_textInVoice,
     );
   }
 
@@ -2994,6 +3535,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           serverPermissions: var_serverPermissions,
           channelPermissions: var_channelPermissions,
         );
+      case 18:
+        var var_field0 = sse_decode_box_autoadd_voice_state(deserializer);
+        return CoreEventPayload_VoiceStateUpdate(var_field0);
+      case 19:
+        var var_field0 = sse_decode_box_autoadd_voice_settings(deserializer);
+        return CoreEventPayload_VoiceSettingsUpdate(var_field0);
       default:
         throw UnimplementedError('');
     }
@@ -3241,6 +3788,18 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  List<VoiceState> sse_decode_list_voice_state(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    var len_ = sse_decode_i_32(deserializer);
+    var ans_ = <VoiceState>[];
+    for (var idx_ = 0; idx_ < len_; ++idx_) {
+      ans_.add(sse_decode_voice_state(deserializer));
+    }
+    return ans_;
+  }
+
+  @protected
   Member sse_decode_member(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     var var_user = sse_decode_user(deserializer);
@@ -3304,6 +3863,19 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
     if (sse_decode_bool(deserializer)) {
       return (sse_decode_box_autoadd_i_64(deserializer));
+    } else {
+      return null;
+    }
+  }
+
+  @protected
+  ScreenShareResolution? sse_decode_opt_box_autoadd_screen_share_resolution(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    if (sse_decode_bool(deserializer)) {
+      return (sse_decode_box_autoadd_screen_share_resolution(deserializer));
     } else {
       return null;
     }
@@ -3374,6 +3946,9 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     var var_channelPermissions = sse_decode_list_channel_permissions(
       deserializer,
     );
+    var var_voiceEnabled = sse_decode_bool(deserializer);
+    var var_voiceStates = sse_decode_list_voice_state(deserializer);
+    var var_voiceSettings = sse_decode_voice_settings(deserializer);
     return ReadySnapshot(
       selfUser: var_selfUser,
       server: var_server,
@@ -3383,6 +3958,9 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       presences: var_presences,
       serverPermissions: var_serverPermissions,
       channelPermissions: var_channelPermissions,
+      voiceEnabled: var_voiceEnabled,
+      voiceStates: var_voiceStates,
+      voiceSettings: var_voiceSettings,
     );
   }
 
@@ -3422,6 +4000,15 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       hoist: var_hoist,
       mentionable: var_mentionable,
     );
+  }
+
+  @protected
+  ScreenShareResolution sse_decode_screen_share_resolution(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var inner = sse_decode_i_32(deserializer);
+    return ScreenShareResolution.values[inner];
   }
 
   @protected
@@ -3523,6 +4110,106 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       publicKeyHex: var_publicKeyHex,
       fingerprint: var_fingerprint,
       displayName: var_displayName,
+    );
+  }
+
+  @protected
+  VoiceSettings sse_decode_voice_settings(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_screenShareMaxResolution = sse_decode_screen_share_resolution(
+      deserializer,
+    );
+    var var_screenShareMaxFps = sse_decode_u_32(deserializer);
+    var var_maxStreamViewers = sse_decode_u_32(deserializer);
+    var var_cameraAllowed = sse_decode_bool(deserializer);
+    var var_maxCameraParticipants = sse_decode_u_32(deserializer);
+    var var_maxVoiceBitrate = sse_decode_u_32(deserializer);
+    var var_afkChannelId = sse_decode_opt_box_autoadd_i_64(deserializer);
+    var var_afkTimeoutS = sse_decode_u_32(deserializer);
+    var var_soundboardEnabled = sse_decode_bool(deserializer);
+    var var_allowDefaultSounds = sse_decode_bool(deserializer);
+    var var_allowExternalSounds = sse_decode_bool(deserializer);
+    var var_soundCooldownS = sse_decode_u_32(deserializer);
+    var var_maxSounds = sse_decode_u_32(deserializer);
+    return VoiceSettings(
+      screenShareMaxResolution: var_screenShareMaxResolution,
+      screenShareMaxFps: var_screenShareMaxFps,
+      maxStreamViewers: var_maxStreamViewers,
+      cameraAllowed: var_cameraAllowed,
+      maxCameraParticipants: var_maxCameraParticipants,
+      maxVoiceBitrate: var_maxVoiceBitrate,
+      afkChannelId: var_afkChannelId,
+      afkTimeoutS: var_afkTimeoutS,
+      soundboardEnabled: var_soundboardEnabled,
+      allowDefaultSounds: var_allowDefaultSounds,
+      allowExternalSounds: var_allowExternalSounds,
+      soundCooldownS: var_soundCooldownS,
+      maxSounds: var_maxSounds,
+    );
+  }
+
+  @protected
+  VoiceSettingsChanges sse_decode_voice_settings_changes(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_screenShareMaxResolution =
+        sse_decode_opt_box_autoadd_screen_share_resolution(deserializer);
+    var var_screenShareMaxFps = sse_decode_opt_box_autoadd_u_32(deserializer);
+    var var_maxStreamViewers = sse_decode_opt_box_autoadd_u_32(deserializer);
+    var var_cameraAllowed = sse_decode_opt_box_autoadd_bool(deserializer);
+    var var_maxCameraParticipants = sse_decode_opt_box_autoadd_u_32(
+      deserializer,
+    );
+    var var_maxVoiceBitrate = sse_decode_opt_box_autoadd_u_32(deserializer);
+    var var_afkChannelId = sse_decode_opt_box_autoadd_i_64(deserializer);
+    var var_afkTimeoutS = sse_decode_opt_box_autoadd_u_32(deserializer);
+    var var_soundboardEnabled = sse_decode_opt_box_autoadd_bool(deserializer);
+    var var_allowDefaultSounds = sse_decode_opt_box_autoadd_bool(deserializer);
+    var var_allowExternalSounds = sse_decode_opt_box_autoadd_bool(deserializer);
+    var var_soundCooldownS = sse_decode_opt_box_autoadd_u_32(deserializer);
+    var var_maxSounds = sse_decode_opt_box_autoadd_u_32(deserializer);
+    return VoiceSettingsChanges(
+      screenShareMaxResolution: var_screenShareMaxResolution,
+      screenShareMaxFps: var_screenShareMaxFps,
+      maxStreamViewers: var_maxStreamViewers,
+      cameraAllowed: var_cameraAllowed,
+      maxCameraParticipants: var_maxCameraParticipants,
+      maxVoiceBitrate: var_maxVoiceBitrate,
+      afkChannelId: var_afkChannelId,
+      afkTimeoutS: var_afkTimeoutS,
+      soundboardEnabled: var_soundboardEnabled,
+      allowDefaultSounds: var_allowDefaultSounds,
+      allowExternalSounds: var_allowExternalSounds,
+      soundCooldownS: var_soundCooldownS,
+      maxSounds: var_maxSounds,
+    );
+  }
+
+  @protected
+  VoiceState sse_decode_voice_state(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_userId = sse_decode_i_64(deserializer);
+    var var_channelId = sse_decode_opt_box_autoadd_i_64(deserializer);
+    var var_thisDevice = sse_decode_bool(deserializer);
+    var var_selfMute = sse_decode_bool(deserializer);
+    var var_selfDeaf = sse_decode_bool(deserializer);
+    var var_serverMute = sse_decode_bool(deserializer);
+    var var_serverDeaf = sse_decode_bool(deserializer);
+    var var_suppress = sse_decode_bool(deserializer);
+    var var_selfVideo = sse_decode_bool(deserializer);
+    var var_selfStream = sse_decode_bool(deserializer);
+    return VoiceState(
+      userId: var_userId,
+      channelId: var_channelId,
+      thisDevice: var_thisDevice,
+      selfMute: var_selfMute,
+      selfDeaf: var_selfDeaf,
+      serverMute: var_serverMute,
+      serverDeaf: var_serverDeaf,
+      suppress: var_suppress,
+      selfVideo: var_selfVideo,
+      selfStream: var_selfStream,
     );
   }
 
@@ -3687,6 +4374,15 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_box_autoadd_screen_share_resolution(
+    ScreenShareResolution self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_screen_share_resolution(self, serializer);
+  }
+
+  @protected
   void sse_encode_box_autoadd_server(Server self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_server(self, serializer);
@@ -3717,6 +4413,33 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_box_autoadd_voice_settings(
+    VoiceSettings self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_voice_settings(self, serializer);
+  }
+
+  @protected
+  void sse_encode_box_autoadd_voice_settings_changes(
+    VoiceSettingsChanges self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_voice_settings_changes(self, serializer);
+  }
+
+  @protected
+  void sse_encode_box_autoadd_voice_state(
+    VoiceState self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_voice_state(self, serializer);
+  }
+
+  @protected
   void sse_encode_channel(Channel self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_i_64(self.id, serializer);
@@ -3726,6 +4449,9 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_opt_box_autoadd_i_64(self.parentId, serializer);
     sse_encode_i_32(self.position, serializer);
     sse_encode_list_permission_overwrite(self.overwrites, serializer);
+    sse_encode_u_32(self.bitrate, serializer);
+    sse_encode_u_32(self.userLimit, serializer);
+    sse_encode_bool(self.textInVoice, serializer);
   }
 
   @protected
@@ -3737,6 +4463,9 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_opt_String(self.name, serializer);
     sse_encode_opt_String(self.topic, serializer);
     sse_encode_opt_box_autoadd_i_64(self.parentId, serializer);
+    sse_encode_opt_box_autoadd_u_32(self.bitrate, serializer);
+    sse_encode_opt_box_autoadd_u_32(self.userLimit, serializer);
+    sse_encode_opt_box_autoadd_bool(self.textInVoice, serializer);
   }
 
   @protected
@@ -3923,6 +4652,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         sse_encode_i_32(17, serializer);
         sse_encode_i_64(serverPermissions, serializer);
         sse_encode_list_channel_permissions(channelPermissions, serializer);
+      case CoreEventPayload_VoiceStateUpdate(field0: final field0):
+        sse_encode_i_32(18, serializer);
+        sse_encode_box_autoadd_voice_state(field0, serializer);
+      case CoreEventPayload_VoiceSettingsUpdate(field0: final field0):
+        sse_encode_i_32(19, serializer);
+        sse_encode_box_autoadd_voice_settings(field0, serializer);
     }
   }
 
@@ -4132,6 +4867,18 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_list_voice_state(
+    List<VoiceState> self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.length, serializer);
+    for (final item in self) {
+      sse_encode_voice_state(item, serializer);
+    }
+  }
+
+  @protected
   void sse_encode_member(Member self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_user(self.user, serializer);
@@ -4182,6 +4929,19 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_bool(self != null, serializer);
     if (self != null) {
       sse_encode_box_autoadd_i_64(self, serializer);
+    }
+  }
+
+  @protected
+  void sse_encode_opt_box_autoadd_screen_share_resolution(
+    ScreenShareResolution? self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    sse_encode_bool(self != null, serializer);
+    if (self != null) {
+      sse_encode_box_autoadd_screen_share_resolution(self, serializer);
     }
   }
 
@@ -4243,6 +5003,9 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_list_presence(self.presences, serializer);
     sse_encode_i_64(self.serverPermissions, serializer);
     sse_encode_list_channel_permissions(self.channelPermissions, serializer);
+    sse_encode_bool(self.voiceEnabled, serializer);
+    sse_encode_list_voice_state(self.voiceStates, serializer);
+    sse_encode_voice_settings(self.voiceSettings, serializer);
   }
 
   @protected
@@ -4265,6 +5028,15 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_opt_box_autoadd_i_64(self.permissions, serializer);
     sse_encode_opt_box_autoadd_bool(self.hoist, serializer);
     sse_encode_opt_box_autoadd_bool(self.mentionable, serializer);
+  }
+
+  @protected
+  void sse_encode_screen_share_resolution(
+    ScreenShareResolution self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.index, serializer);
   }
 
   @protected
@@ -4337,5 +5109,65 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_String(self.publicKeyHex, serializer);
     sse_encode_String(self.fingerprint, serializer);
     sse_encode_String(self.displayName, serializer);
+  }
+
+  @protected
+  void sse_encode_voice_settings(VoiceSettings self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_screen_share_resolution(
+      self.screenShareMaxResolution,
+      serializer,
+    );
+    sse_encode_u_32(self.screenShareMaxFps, serializer);
+    sse_encode_u_32(self.maxStreamViewers, serializer);
+    sse_encode_bool(self.cameraAllowed, serializer);
+    sse_encode_u_32(self.maxCameraParticipants, serializer);
+    sse_encode_u_32(self.maxVoiceBitrate, serializer);
+    sse_encode_opt_box_autoadd_i_64(self.afkChannelId, serializer);
+    sse_encode_u_32(self.afkTimeoutS, serializer);
+    sse_encode_bool(self.soundboardEnabled, serializer);
+    sse_encode_bool(self.allowDefaultSounds, serializer);
+    sse_encode_bool(self.allowExternalSounds, serializer);
+    sse_encode_u_32(self.soundCooldownS, serializer);
+    sse_encode_u_32(self.maxSounds, serializer);
+  }
+
+  @protected
+  void sse_encode_voice_settings_changes(
+    VoiceSettingsChanges self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_opt_box_autoadd_screen_share_resolution(
+      self.screenShareMaxResolution,
+      serializer,
+    );
+    sse_encode_opt_box_autoadd_u_32(self.screenShareMaxFps, serializer);
+    sse_encode_opt_box_autoadd_u_32(self.maxStreamViewers, serializer);
+    sse_encode_opt_box_autoadd_bool(self.cameraAllowed, serializer);
+    sse_encode_opt_box_autoadd_u_32(self.maxCameraParticipants, serializer);
+    sse_encode_opt_box_autoadd_u_32(self.maxVoiceBitrate, serializer);
+    sse_encode_opt_box_autoadd_i_64(self.afkChannelId, serializer);
+    sse_encode_opt_box_autoadd_u_32(self.afkTimeoutS, serializer);
+    sse_encode_opt_box_autoadd_bool(self.soundboardEnabled, serializer);
+    sse_encode_opt_box_autoadd_bool(self.allowDefaultSounds, serializer);
+    sse_encode_opt_box_autoadd_bool(self.allowExternalSounds, serializer);
+    sse_encode_opt_box_autoadd_u_32(self.soundCooldownS, serializer);
+    sse_encode_opt_box_autoadd_u_32(self.maxSounds, serializer);
+  }
+
+  @protected
+  void sse_encode_voice_state(VoiceState self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_64(self.userId, serializer);
+    sse_encode_opt_box_autoadd_i_64(self.channelId, serializer);
+    sse_encode_bool(self.thisDevice, serializer);
+    sse_encode_bool(self.selfMute, serializer);
+    sse_encode_bool(self.selfDeaf, serializer);
+    sse_encode_bool(self.serverMute, serializer);
+    sse_encode_bool(self.serverDeaf, serializer);
+    sse_encode_bool(self.suppress, serializer);
+    sse_encode_bool(self.selfVideo, serializer);
+    sse_encode_bool(self.selfStream, serializer);
   }
 }

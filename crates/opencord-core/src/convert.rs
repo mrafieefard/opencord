@@ -5,7 +5,8 @@ use opencord_proto::v1 as proto;
 use crate::api::types::{
     Ban, Channel, ChannelKind, ChannelPermissions, CoreError, CoreEventPayload, ErrorCode, Invite,
     Member, Message, OverwriteTargetKind, PermissionOverwrite, Presence, PresenceStatus,
-    ReadySnapshot, Role, ServerInfo, User,
+    ReadySnapshot, Role, ScreenShareResolution, ServerInfo, User, VoiceSettings,
+    VoiceSettingsChanges, VoiceState,
 };
 use crate::identity::public_key_fingerprint;
 
@@ -92,6 +93,89 @@ pub fn channel(channel: proto::Channel) -> Channel {
         parent_id: channel.parent_id,
         position: channel.position,
         overwrites: channel.overwrites.into_iter().map(overwrite).collect(),
+        bitrate: channel.bitrate,
+        user_limit: channel.user_limit,
+        text_in_voice: channel.text_in_voice,
+    }
+}
+
+/// `session_id` is this device's session on that server.
+pub fn voice_state(state: proto::VoiceState, session_id: &str) -> VoiceState {
+    VoiceState {
+        user_id: state.user_id,
+        channel_id: state.channel_id,
+        this_device: !session_id.is_empty() && state.session_id == session_id,
+        self_mute: state.self_mute,
+        self_deaf: state.self_deaf,
+        server_mute: state.server_mute,
+        server_deaf: state.server_deaf,
+        suppress: state.suppress,
+        self_video: state.self_video,
+        self_stream: state.self_stream,
+    }
+}
+
+pub fn screen_share_resolution(value: i32) -> ScreenShareResolution {
+    match proto::ScreenShareResolution::try_from(value) {
+        Ok(proto::ScreenShareResolution::ScreenShareResolution480p) => ScreenShareResolution::P480,
+        Ok(proto::ScreenShareResolution::ScreenShareResolution1080p) => {
+            ScreenShareResolution::P1080
+        }
+        Ok(proto::ScreenShareResolution::ScreenShareResolution1440p) => {
+            ScreenShareResolution::P1440
+        }
+        Ok(proto::ScreenShareResolution::Source) => ScreenShareResolution::Source,
+        _ => ScreenShareResolution::P720,
+    }
+}
+
+pub fn screen_share_resolution_to_proto(
+    resolution: ScreenShareResolution,
+) -> proto::ScreenShareResolution {
+    match resolution {
+        ScreenShareResolution::P480 => proto::ScreenShareResolution::ScreenShareResolution480p,
+        ScreenShareResolution::P720 => proto::ScreenShareResolution::ScreenShareResolution720p,
+        ScreenShareResolution::P1080 => proto::ScreenShareResolution::ScreenShareResolution1080p,
+        ScreenShareResolution::P1440 => proto::ScreenShareResolution::ScreenShareResolution1440p,
+        ScreenShareResolution::Source => proto::ScreenShareResolution::Source,
+    }
+}
+
+pub fn voice_settings(settings: proto::VoiceSettings) -> VoiceSettings {
+    VoiceSettings {
+        screen_share_max_resolution: screen_share_resolution(settings.screen_share_max_resolution),
+        screen_share_max_fps: settings.screen_share_max_fps,
+        max_stream_viewers: settings.max_stream_viewers,
+        camera_allowed: settings.camera_allowed,
+        max_camera_participants: settings.max_camera_participants,
+        max_voice_bitrate: settings.max_voice_bitrate,
+        afk_channel_id: settings.afk_channel_id,
+        afk_timeout_s: settings.afk_timeout_s,
+        soundboard_enabled: settings.soundboard_enabled,
+        allow_default_sounds: settings.allow_default_sounds,
+        allow_external_sounds: settings.allow_external_sounds,
+        sound_cooldown_s: settings.sound_cooldown_s,
+        max_sounds: settings.max_sounds,
+    }
+}
+
+pub fn voice_settings_changes(changes: VoiceSettingsChanges) -> proto::UpdateVoiceSettings {
+    proto::UpdateVoiceSettings {
+        screen_share_max_resolution: changes
+            .screen_share_max_resolution
+            .map(|resolution| screen_share_resolution_to_proto(resolution) as i32),
+        screen_share_max_fps: changes.screen_share_max_fps,
+        max_stream_viewers: changes.max_stream_viewers,
+        camera_allowed: changes.camera_allowed,
+        max_camera_participants: changes.max_camera_participants,
+        max_voice_bitrate: changes.max_voice_bitrate,
+        afk_channel_id: changes.afk_channel_id,
+        afk_timeout_s: changes.afk_timeout_s,
+        soundboard_enabled: changes.soundboard_enabled,
+        allow_default_sounds: changes.allow_default_sounds,
+        allow_external_sounds: changes.allow_external_sounds,
+        sound_cooldown_s: changes.sound_cooldown_s,
+        max_sounds: changes.max_sounds,
     }
 }
 
@@ -179,6 +263,7 @@ pub fn channel_permissions(
 }
 
 pub fn ready(ready: proto::Ready) -> ReadySnapshot {
+    let session_id = ready.session_id;
     ReadySnapshot {
         self_user: user(ready.self_user.unwrap_or_default()),
         server: server_info(ready.server.unwrap_or_default()),
@@ -188,11 +273,19 @@ pub fn ready(ready: proto::Ready) -> ReadySnapshot {
         presences: ready.presences.into_iter().map(presence).collect(),
         server_permissions: bits_to_api(ready.server_permissions),
         channel_permissions: channel_permissions(ready.channel_permissions),
+        voice_enabled: ready.voice_enabled,
+        voice_states: ready
+            .voice_states
+            .into_iter()
+            .map(|state| voice_state(state, &session_id))
+            .collect(),
+        voice_settings: voice_settings(ready.voice_settings.unwrap_or_default()),
     }
 }
 
-/// `None` for events with a missing body.
-pub fn event(kind: proto::event::Kind) -> Option<CoreEventPayload> {
+/// `None` for events with a missing body, and for events the core keeps to
+/// itself. `session_id` is this device's session on that server.
+pub fn event(kind: proto::event::Kind, session_id: &str) -> Option<CoreEventPayload> {
     use proto::event::Kind;
     Some(match kind {
         Kind::MessageCreate(event) => CoreEventPayload::MessageCreate(message(event.message?)),
@@ -222,6 +315,23 @@ pub fn event(kind: proto::event::Kind) -> Option<CoreEventPayload> {
             user_id: event.user_id,
         },
         Kind::ServerUpdate(event) => CoreEventPayload::ServerUpdate(server_info(event.server?)),
+        Kind::VoiceStateUpdate(event) => {
+            CoreEventPayload::VoiceStateUpdate(voice_state(event.voice_state?, session_id))
+        }
+        Kind::VoiceSettingsUpdate(event) => {
+            CoreEventPayload::VoiceSettingsUpdate(voice_settings(event.settings?))
+        }
+        // The media engine's business (V1 onward), not the app's.
+        Kind::VoiceServerUpdate(_) => return None,
+        // Screen share and soundboard events arrive with their milestones.
+        Kind::StreamCreate(_)
+        | Kind::StreamUpdate(_)
+        | Kind::StreamDelete(_)
+        | Kind::StreamViewersUpdate(_)
+        | Kind::VoiceChannelEffect(_)
+        | Kind::SoundboardSoundCreate(_)
+        | Kind::SoundboardSoundUpdate(_)
+        | Kind::SoundboardSoundDelete(_) => return None,
     })
 }
 
@@ -235,6 +345,15 @@ pub fn error_code(code: i32) -> ErrorCode {
         Ok(proto::ErrorCode::InvalidSession) => ErrorCode::InvalidSession,
         Ok(proto::ErrorCode::Conflict) => ErrorCode::Conflict,
         Ok(proto::ErrorCode::Internal) => ErrorCode::Internal,
+        Ok(proto::ErrorCode::VoiceChannelFull) => ErrorCode::VoiceChannelFull,
+        Ok(proto::ErrorCode::VoiceNotConnected) => ErrorCode::VoiceNotConnected,
+        Ok(proto::ErrorCode::QualityLimit) => ErrorCode::QualityLimit,
+        Ok(proto::ErrorCode::CameraLimit) => ErrorCode::CameraLimit,
+        Ok(proto::ErrorCode::StreamViewerLimit) => ErrorCode::StreamViewerLimit,
+        Ok(proto::ErrorCode::SoundCooldown) => ErrorCode::SoundCooldown,
+        Ok(proto::ErrorCode::SoundTooLong) => ErrorCode::SoundTooLong,
+        Ok(proto::ErrorCode::SoundInvalid) => ErrorCode::SoundInvalid,
+        Ok(proto::ErrorCode::SoundboardFull) => ErrorCode::SoundboardFull,
         _ => ErrorCode::Unknown,
     }
 }
@@ -246,5 +365,129 @@ pub fn error(error: proto::Error) -> CoreError {
         retry_after_ms: error
             .retry_after_ms
             .map(|ms| u32::try_from(ms).unwrap_or(u32::MAX)),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::api::types::{ScreenShareResolution, VoiceState};
+
+    const ME: i64 = 7;
+
+    fn voice(user_id: i64, session_id: &str, channel_id: Option<i64>) -> proto::VoiceState {
+        proto::VoiceState {
+            user_id,
+            channel_id,
+            session_id: session_id.to_owned(),
+            self_mute: true,
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn voice_states_say_whether_this_session_holds_them() {
+        let here = voice_state(voice(ME, "mine", Some(5)), "mine");
+        let elsewhere = voice_state(voice(ME, "other", Some(5)), "mine");
+
+        assert_eq!(
+            here,
+            VoiceState {
+                user_id: ME,
+                channel_id: Some(5),
+                this_device: true,
+                self_mute: true,
+                self_deaf: false,
+                server_mute: false,
+                server_deaf: false,
+                suppress: false,
+                self_video: false,
+                self_stream: false,
+            }
+        );
+        assert!(!elsewhere.this_device);
+    }
+
+    #[test]
+    fn ready_marks_voice_states_against_its_own_session() {
+        let ready = proto::Ready {
+            session_id: "mine".to_owned(),
+            voice_enabled: true,
+            voice_states: vec![voice(ME, "mine", Some(5)), voice(8, "theirs", Some(5))],
+            voice_settings: Some(proto::VoiceSettings {
+                screen_share_max_resolution:
+                    proto::ScreenShareResolution::ScreenShareResolution1080p as i32,
+                max_voice_bitrate: 96_000,
+                ..Default::default()
+            }),
+            ..Default::default()
+        };
+
+        let snapshot = super::ready(ready);
+
+        assert!(snapshot.voice_enabled);
+        let held: Vec<bool> = snapshot
+            .voice_states
+            .iter()
+            .map(|s| s.this_device)
+            .collect();
+        assert_eq!(held, [true, false]);
+        assert_eq!(
+            snapshot.voice_settings.screen_share_max_resolution,
+            ScreenShareResolution::P1080
+        );
+        assert_eq!(snapshot.voice_settings.max_voice_bitrate, 96_000);
+    }
+
+    #[test]
+    fn voice_events_convert_and_server_updates_stay_in_the_core() {
+        let update = event(
+            proto::event::Kind::VoiceStateUpdate(proto::VoiceStateUpdate {
+                voice_state: Some(voice(ME, "mine", None)),
+            }),
+            "mine",
+        );
+        let server = event(
+            proto::event::Kind::VoiceServerUpdate(proto::VoiceServerUpdate::default()),
+            "mine",
+        );
+
+        assert!(matches!(
+            update,
+            Some(CoreEventPayload::VoiceStateUpdate(VoiceState {
+                channel_id: None,
+                this_device: true,
+                ..
+            }))
+        ));
+        assert_eq!(server, None);
+    }
+
+    #[test]
+    fn voice_error_codes_have_names() {
+        assert_eq!(
+            error_code(proto::ErrorCode::VoiceChannelFull as i32),
+            ErrorCode::VoiceChannelFull
+        );
+        assert_eq!(
+            error_code(proto::ErrorCode::SoundboardFull as i32),
+            ErrorCode::SoundboardFull
+        );
+    }
+
+    #[test]
+    fn resolutions_round_trip() {
+        for resolution in [
+            ScreenShareResolution::P480,
+            ScreenShareResolution::P720,
+            ScreenShareResolution::P1080,
+            ScreenShareResolution::P1440,
+            ScreenShareResolution::Source,
+        ] {
+            assert_eq!(
+                screen_share_resolution(screen_share_resolution_to_proto(resolution) as i32),
+                resolution
+            );
+        }
     }
 }

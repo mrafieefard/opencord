@@ -121,15 +121,25 @@ pub struct Channel {
     pub parent_id: Option<i64>,
     pub position: i32,
     pub overwrites: Vec<PermissionOverwrite>,
+    /// Voice channels only: bits per second, before the server's cap.
+    pub bitrate: u32,
+    /// Voice channels only; 0 means no limit.
+    pub user_limit: u32,
+    /// Voice channels only: whether it holds messages too.
+    pub text_in_voice: bool,
 }
 
 /// Absent fields stay unchanged. An empty topic clears it; `parent_id` 0
-/// moves the channel out of its category.
+/// moves the channel out of its category. The voice fields are for voice
+/// channels only.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct ChannelChanges {
     pub name: Option<String>,
     pub topic: Option<String>,
     pub parent_id: Option<i64>,
+    pub bitrate: Option<u32>,
+    pub user_limit: Option<u32>,
+    pub text_in_voice: Option<bool>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -201,6 +211,72 @@ pub struct Presence {
     pub status: PresenceStatus,
 }
 
+/// Someone in a voice channel.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct VoiceState {
+    pub user_id: i64,
+    /// `None` once they have left.
+    pub channel_id: Option<i64>,
+    /// Whether this device's session holds it. The same user on another
+    /// device is `false`.
+    pub this_device: bool,
+    pub self_mute: bool,
+    pub self_deaf: bool,
+    pub server_mute: bool,
+    pub server_deaf: bool,
+    /// Cannot speak: no Speak permission, or in the AFK channel.
+    pub suppress: bool,
+    pub self_video: bool,
+    pub self_stream: bool,
+}
+
+/// A screen share preset, as a maximum pixel count.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ScreenShareResolution {
+    P480,
+    P720,
+    P1080,
+    P1440,
+    Source,
+}
+
+/// Server-wide voice, video and soundboard settings.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct VoiceSettings {
+    pub screen_share_max_resolution: ScreenShareResolution,
+    pub screen_share_max_fps: u32,
+    pub max_stream_viewers: u32,
+    pub camera_allowed: bool,
+    pub max_camera_participants: u32,
+    /// Bits per second.
+    pub max_voice_bitrate: u32,
+    pub afk_channel_id: Option<i64>,
+    pub afk_timeout_s: u32,
+    pub soundboard_enabled: bool,
+    pub allow_default_sounds: bool,
+    pub allow_external_sounds: bool,
+    pub sound_cooldown_s: u32,
+    pub max_sounds: u32,
+}
+
+/// Absent fields stay unchanged; `afk_channel_id` 0 clears the AFK channel.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct VoiceSettingsChanges {
+    pub screen_share_max_resolution: Option<ScreenShareResolution>,
+    pub screen_share_max_fps: Option<u32>,
+    pub max_stream_viewers: Option<u32>,
+    pub camera_allowed: Option<bool>,
+    pub max_camera_participants: Option<u32>,
+    pub max_voice_bitrate: Option<u32>,
+    pub afk_channel_id: Option<i64>,
+    pub afk_timeout_s: Option<u32>,
+    pub soundboard_enabled: Option<bool>,
+    pub allow_default_sounds: Option<bool>,
+    pub allow_external_sounds: Option<bool>,
+    pub sound_cooldown_s: Option<u32>,
+    pub max_sounds: Option<u32>,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ChannelPermissions {
     pub channel_id: i64,
@@ -219,6 +295,11 @@ pub struct ReadySnapshot {
     pub presences: Vec<Presence>,
     pub server_permissions: i64,
     pub channel_permissions: Vec<ChannelPermissions>,
+    /// Whether the server has voice at all.
+    pub voice_enabled: bool,
+    /// Everyone in the voice channels this user can view.
+    pub voice_states: Vec<VoiceState>,
+    pub voice_settings: VoiceSettings,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -259,6 +340,9 @@ pub struct CoreEvent {
     pub payload: CoreEventPayload,
 }
 
+// Ready dwarfs the other events, but comes once per connection and is copied
+// to Dart either way, so boxing it would save nothing.
+#[allow(clippy::large_enum_variant)]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CoreEventPayload {
     ConnectionState(ConnectionState),
@@ -296,6 +380,10 @@ pub enum CoreEventPayload {
         server_permissions: i64,
         channel_permissions: Vec<ChannelPermissions>,
     },
+    /// Someone joined, left, moved or changed their voice flags. A voice
+    /// channel that becomes visible is followed by its participants.
+    VoiceStateUpdate(VoiceState),
+    VoiceSettingsUpdate(VoiceSettings),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -308,6 +396,15 @@ pub enum ErrorCode {
     InvalidSession,
     Conflict,
     Internal,
+    VoiceChannelFull,
+    VoiceNotConnected,
+    QualityLimit,
+    CameraLimit,
+    StreamViewerLimit,
+    SoundCooldown,
+    SoundTooLong,
+    SoundInvalid,
+    SoundboardFull,
     Unknown,
 }
 

@@ -2,6 +2,7 @@
 
 use opencord_common::auth::SERVER_ID_LEN;
 use opencord_common::channel::ChannelKind;
+use opencord_common::limits::CHANNEL_BITRATE_DEFAULT;
 use opencord_common::permissions::Permissions;
 use opencord_common::snowflake::SnowflakeGenerator;
 use opencord_common::validation;
@@ -151,6 +152,9 @@ async fn create_server(
             topic: None,
             parent_id: None,
             position,
+            bitrate: i64::from(CHANNEL_BITRATE_DEFAULT),
+            user_limit: 0,
+            text_in_voice: true,
         };
         channels::insert(conn, &channel, now_ms).await?;
     }

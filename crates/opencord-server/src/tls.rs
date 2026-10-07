@@ -127,7 +127,7 @@ fn generate(
 }
 
 /// Creates the file readable only by its owner.
-fn write_private(path: &Path, contents: &[u8]) -> std::io::Result<()> {
+pub(crate) fn write_private(path: &Path, contents: &[u8]) -> std::io::Result<()> {
     let mut options = fs::OpenOptions::new();
     options.write(true).create(true).truncate(true);
     #[cfg(unix)]

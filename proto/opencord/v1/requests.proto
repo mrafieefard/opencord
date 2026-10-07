@@ -41,6 +41,24 @@ message Request {
     RevokeInvite revoke_invite = 52;
 
     UpdateServer update_server = 60;
+    UpdateVoiceSettings update_voice_settings = 61;
+    RefreshMediaToken refresh_media_token = 62;
+
+    UpdateVoiceState update_voice_state = 70;
+    ServerMuteMember server_mute_member = 71;
+    ServerDeafenMember server_deafen_member = 72;
+    MoveMember move_member = 73;
+    DisconnectMember disconnect_member = 74;
+
+    CreateStream create_stream = 80;
+    UpdateStream update_stream = 81;
+    DeleteStream delete_stream = 82;
+    WatchStream watch_stream = 83;
+    UnwatchStream unwatch_stream = 84;
+
+    PlaySoundboardSound play_soundboard_sound = 90;
+    UpdateSoundboardSound update_soundboard_sound = 91;
+    DeleteSoundboardSound delete_soundboard_sound = 92;
   }
 }
 
@@ -60,6 +78,11 @@ message Response {
     Invite invite = 10;
     InviteList invites = 11;
     ServerInfo server = 12;
+    VoiceState voice_state = 13;
+    VoiceSettings voice_settings = 14;
+    MediaToken media_token = 15;
+    Stream stream = 16;
+    SoundboardSound soundboard_sound = 17;
   }
 }
 
@@ -126,6 +149,10 @@ message UpdateChannel {
   optional string name = 2;
   optional string topic = 3;
   optional int64 parent_id = 4;
+  // Voice channels only.
+  optional uint32 bitrate = 5;
+  optional uint32 user_limit = 6;
+  optional bool text_in_voice = 7;
 }
 
 // -> ack
@@ -256,4 +283,112 @@ message UpdateServer {
   optional string name = 1;
   optional string description = 2;
   optional bool open_join = 3;
+}
+
+// -> voice_settings. Absent fields are left unchanged; afk_channel_id 0
+// clears the AFK channel.
+message UpdateVoiceSettings {
+  optional ScreenShareResolution screen_share_max_resolution = 1;
+  optional uint32 screen_share_max_fps = 2;
+  optional uint32 max_stream_viewers = 3;
+  optional bool camera_allowed = 4;
+  optional uint32 max_camera_participants = 5;
+  optional uint32 max_voice_bitrate = 6;
+  optional int64 afk_channel_id = 7;
+  optional uint32 afk_timeout_s = 8;
+  optional bool soundboard_enabled = 9;
+  optional bool allow_default_sounds = 10;
+  optional bool allow_external_sounds = 11;
+  optional uint32 sound_cooldown_s = 12;
+  optional uint32 max_sounds = 13;
+}
+
+// -> media_token
+message RefreshMediaToken {}
+
+// -> voice_state. Joins, moves within the server, changes the self flags,
+// or leaves (channel_id absent). Joining from another session takes the
+// voice state over from it.
+message UpdateVoiceState {
+  optional int64 channel_id = 1;
+  bool self_mute = 2;
+  bool self_deaf = 3;
+  bool self_video = 4;
+  bool self_stream = 5;
+}
+
+// -> voice_state
+message ServerMuteMember {
+  int64 user_id = 1;
+  bool value = 2;
+}
+
+// -> voice_state
+message ServerDeafenMember {
+  int64 user_id = 1;
+  bool value = 2;
+}
+
+// -> voice_state
+message MoveMember {
+  int64 user_id = 1;
+  int64 channel_id = 2;
+}
+
+// -> ack
+message DisconnectMember {
+  int64 user_id = 1;
+}
+
+// -> stream
+message CreateStream {
+  int64 channel_id = 1;
+  StreamSourceKind source_kind = 2;
+  ScreenShareResolution resolution = 3;
+  uint32 fps = 4;
+  bool has_audio = 5;
+}
+
+// -> stream. Absent fields are left unchanged.
+message UpdateStream {
+  string stream_key = 1;
+  optional ScreenShareResolution resolution = 2;
+  optional uint32 fps = 3;
+  optional bool has_audio = 4;
+}
+
+// -> ack
+message DeleteStream {
+  string stream_key = 1;
+}
+
+// -> ack
+message WatchStream {
+  string stream_key = 1;
+}
+
+// -> ack
+message UnwatchStream {
+  string stream_key = 1;
+}
+
+// -> ack. sound_ref is "server:<sha256 hex>", "external:<sha256 hex>" or
+// "default:<id>".
+message PlaySoundboardSound {
+  int64 channel_id = 1;
+  string sound_ref = 2;
+}
+
+// -> soundboard_sound. Absent fields are left unchanged; an empty emoji
+// clears it. New sounds are uploaded over HTTP.
+message UpdateSoundboardSound {
+  int64 sound_id = 1;
+  optional string name = 2;
+  optional string emoji = 3;
+  optional uint32 volume = 4;
+}
+
+// -> ack
+message DeleteSoundboardSound {
+  int64 sound_id = 1;
 }

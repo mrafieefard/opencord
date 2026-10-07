@@ -14,7 +14,7 @@ use super::types::{
     AddServerOutcome, Ban, Channel, ChannelChanges, ChannelKind, ChannelPosition, CoreError,
     CoreEvent, GeneratedIdentity, IdentityInfo, Invite, Member, Message, OverwriteTargetKind,
     PermissionOverwrite, PresenceStatus, Role, RoleChanges, Server, ServerChanges, ServerInfo,
-    TrustedFingerprint, User,
+    TrustedFingerprint, User, VoiceSettings, VoiceSettingsChanges, VoiceState,
 };
 use crate::client::Client;
 use crate::frb_generated::StreamSink;
@@ -425,6 +425,78 @@ pub async fn update_server(
     changes: ServerChanges,
 ) -> Result<ServerInfo, CoreError> {
     on_runtime(move |client| async move { client.update_server(&server_key, changes).await }).await
+}
+
+pub async fn update_voice_settings(
+    server_key: String,
+    changes: VoiceSettingsChanges,
+) -> Result<VoiceSettings, CoreError> {
+    on_runtime(
+        move |client| async move { client.update_voice_settings(&server_key, changes).await },
+    )
+    .await
+}
+
+/// Joins a voice channel. This device is in at most one voice channel
+/// across all servers, so any other one is left first.
+pub async fn voice_join(server_key: String, channel_id: i64) -> Result<VoiceState, CoreError> {
+    on_runtime(move |client| async move { client.voice_join(&server_key, channel_id).await }).await
+}
+
+pub async fn voice_leave() -> Result<(), CoreError> {
+    on_runtime(move |client| async move { client.voice_leave().await }).await
+}
+
+/// Holds outside voice too, for the next join.
+#[frb(sync)]
+pub fn voice_set_self_mute(muted: bool) -> Result<(), CoreError> {
+    client()?.set_voice_self(Some(muted), None);
+    Ok(())
+}
+
+/// Holds outside voice too, for the next join.
+#[frb(sync)]
+pub fn voice_set_self_deaf(deafened: bool) -> Result<(), CoreError> {
+    client()?.set_voice_self(None, Some(deafened));
+    Ok(())
+}
+
+/// Server mute: nobody hears them until it is lifted.
+pub async fn voice_server_mute(
+    server_key: String,
+    user_id: i64,
+    muted: bool,
+) -> Result<(), CoreError> {
+    on_runtime(move |client| async move { client.server_mute(&server_key, user_id, muted).await })
+        .await
+}
+
+/// Server deafen: they hear nobody until it is lifted.
+pub async fn voice_server_deafen(
+    server_key: String,
+    user_id: i64,
+    deafened: bool,
+) -> Result<(), CoreError> {
+    on_runtime(
+        move |client| async move { client.server_deafen(&server_key, user_id, deafened).await },
+    )
+    .await
+}
+
+pub async fn voice_move_member(
+    server_key: String,
+    user_id: i64,
+    channel_id: i64,
+) -> Result<(), CoreError> {
+    on_runtime(
+        move |client| async move { client.move_member(&server_key, user_id, channel_id).await },
+    )
+    .await
+}
+
+pub async fn voice_disconnect_member(server_key: String, user_id: i64) -> Result<(), CoreError> {
+    on_runtime(move |client| async move { client.disconnect_member(&server_key, user_id).await })
+        .await
 }
 
 fn client() -> Result<Client, CoreError> {

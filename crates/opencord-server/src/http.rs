@@ -7,14 +7,15 @@ use axum::routing::get;
 use axum::{Json, Router};
 use serde::Serialize;
 
-use crate::gateway;
 use crate::state::AppState;
+use crate::{gateway, media};
 
 pub fn router(state: Arc<AppState>) -> Router {
     Router::new()
         .route("/health", get(health))
         .route("/info", get(info))
         .route("/gateway", get(gateway::upgrade))
+        .merge(media::routes())
         .with_state(state)
 }
 
@@ -29,6 +30,9 @@ struct Info {
     version: &'static str,
     protocol_version: u32,
     member_count: usize,
+    voice_enabled: bool,
+    /// Where media goes, when voice is on.
+    voice_udp_port: Option<u16>,
 }
 
 async fn health() -> Json<Health> {
@@ -42,5 +46,11 @@ async fn info(State(state): State<Arc<AppState>>) -> Json<Info> {
         version: env!("CARGO_PKG_VERSION"),
         protocol_version: opencord_common::PROTOCOL_VERSION,
         member_count: guild.members.len(),
+        voice_enabled: state.config.voice.enabled,
+        voice_udp_port: state
+            .config
+            .voice
+            .enabled
+            .then_some(state.config.voice.udp_port),
     })
 }

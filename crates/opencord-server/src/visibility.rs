@@ -34,13 +34,16 @@ impl Visibility {
     }
 
     /// Compares with the current state and tells each user about channels
-    /// that appeared (`ChannelCreate`) or disappeared (`ChannelDelete`) for
-    /// them, plus `ChannelUpdate` for `updated` channels they still see.
+    /// that appeared (`ChannelCreate`, then who is in them if they are voice
+    /// channels) or disappeared (`ChannelDelete`) for them, plus
+    /// `ChannelUpdate` for `updated` channels they still see. Then ends or
+    /// updates voice states the change affects.
     pub fn announce(self, state: &AppState, updated: &[i64]) {
         let after = Self::capture(state);
         let mut deliveries = Vec::new();
         {
             let guild = state.guild();
+            let voice = state.voice();
             for (user_id, visible_now) in &after.by_user {
                 let empty = HashSet::new();
                 let visible_before = self.by_user.get(user_id).unwrap_or(&empty);
@@ -62,6 +65,14 @@ impl Visibility {
                                 channel: Some(channel.to_proto()),
                             }),
                         ));
+                        for voice_state in voice.in_channel(channel_id) {
+                            deliveries.push((
+                                *user_id,
+                                Kind::VoiceStateUpdate(proto::VoiceStateUpdate {
+                                    voice_state: Some(voice.to_proto(voice_state)),
+                                }),
+                            ));
+                        }
                     }
                 }
                 for channel_id in updated {
@@ -86,5 +97,6 @@ impl Visibility {
                 session.push_event(&event, now);
             }
         }
+        crate::voice::reconcile(state);
     }
 }

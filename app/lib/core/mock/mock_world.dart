@@ -6,6 +6,7 @@ import 'package:opencord/core/model/presence.dart';
 import 'package:opencord/core/model/server.dart';
 import 'package:opencord/core/model/snapshot.dart';
 import 'package:opencord/core/model/user.dart';
+import 'package:opencord/core/model/voice.dart';
 
 /// Snowflake-like ids: newer is larger, and two ids made in the same
 /// millisecond still differ.
@@ -49,6 +50,7 @@ class MockServer {
   final Map<int, ReadState> readStates = {};
   final List<Invite> invites = [];
   final List<Ban> bans = [];
+  VoiceSettings voiceSettings = const VoiceSettings();
 
   ServerSummary get summary => ServerSummary(
     key: key,
@@ -110,6 +112,7 @@ class MockServer {
         for (final MapEntry(:key, :value) in voice.entries)
           if (visible.containsKey(key)) key: List.of(value),
       },
+      voiceSettings: voiceSettings,
       lastMessages: {
         for (final MapEntry(:key, :value) in messages.entries)
           if (visible.containsKey(key) && value.isNotEmpty) key: value.last,
@@ -252,6 +255,7 @@ class _Builder {
     int? parent,
     String? topic,
     List<PermissionOverwrite> overwrites = const [],
+    int userLimit = 0,
   }) {
     final id = channelBase + ++_channelId;
     final position = server.channels.values
@@ -269,6 +273,7 @@ class _Builder {
       parentId: parent,
       position: position,
       overwrites: overwrites,
+      userLimit: userLimit,
     );
     if (kind.isTextLike) server.messages[id] = [];
     if (kind == ChannelKind.voice) server.voice[id] = [];
@@ -819,7 +824,13 @@ MockServer _rustBerlin(DateTime now, MockIds ids) {
     ChannelKind.text,
     parent: meetups,
   );
-  final lounge = b.channel('Lounge', ChannelKind.voice, parent: meetups);
+  // Full: a user limit of two, and two people in it.
+  final lounge = b.channel(
+    'Lounge',
+    ChannelKind.voice,
+    parent: meetups,
+    userLimit: 2,
+  );
   b.inVoice(lounge, const [
     VoiceParticipant(userId: elif),
     VoiceParticipant(userId: felix, muted: true),

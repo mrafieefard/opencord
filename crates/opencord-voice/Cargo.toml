@@ -1,0 +1,15 @@
+[package]
+name = "opencord-voice"
+description = "Opencord voice node: voice gateway and SFU, embedded in the server or run on its own."
+version.workspace = true
+edition.workspace = true
+repository.workspace = true
+license = "AGPL-3.0-or-later"
+publish = false
+
+[dependencies]
+ed25519-dalek.workspace = true
+opencord-common.workspace = true
+opencord-proto.workspace = true
+prost.workspace = true
+thiserror.workspace = true

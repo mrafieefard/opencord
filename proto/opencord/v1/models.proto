@@ -62,6 +62,13 @@ message Channel {
   optional int64 parent_id = 5;
   int32 position = 6;
   repeated PermissionOverwrite overwrites = 7;
+  // Voice channels only; zero or false on other kinds.
+  // Audio bitrate in bits per second, capped by the server's maximum.
+  uint32 bitrate = 8;
+  // At most this many people at once; 0 means no limit.
+  uint32 user_limit = 9;
+  // Whether the voice channel also holds messages.
+  bool text_in_voice = 10;
 }
 
 message Message {
@@ -129,6 +136,18 @@ enum ErrorCode {
   ERROR_CODE_INVALID_SESSION = 6;
   ERROR_CODE_CONFLICT = 7;
   ERROR_CODE_INTERNAL = 8;
+  ERROR_CODE_VOICE_CHANNEL_FULL = 9;
+  // The target, or the caller, is not in a voice channel.
+  ERROR_CODE_VOICE_NOT_CONNECTED = 10;
+  // A stream or track asks for more than the server allows.
+  ERROR_CODE_QUALITY_LIMIT = 11;
+  ERROR_CODE_CAMERA_LIMIT = 12;
+  ERROR_CODE_STREAM_VIEWER_LIMIT = 13;
+  // Wait before playing another sound, or too many are playing.
+  ERROR_CODE_SOUND_COOLDOWN = 14;
+  ERROR_CODE_SOUND_TOO_LONG = 15;
+  ERROR_CODE_SOUND_INVALID = 16;
+  ERROR_CODE_SOUNDBOARD_FULL = 17;
 }
 
 message Error {
@@ -137,4 +156,101 @@ message Error {
   string message = 2;
   // Set with ERROR_CODE_RATE_LIMITED.
   optional uint64 retry_after_ms = 3;
+}
+
+// Someone's presence in a voice channel. Lives in server memory only.
+message VoiceState {
+  int64 user_id = 1;
+  // Absent once the user has left.
+  optional int64 channel_id = 2;
+  // The gateway session that holds this voice state.
+  string session_id = 3;
+  bool self_mute = 4;
+  bool self_deaf = 5;
+  bool server_mute = 6;
+  bool server_deaf = 7;
+  // Set without SPEAK in the channel, or in the AFK channel.
+  bool suppress = 8;
+  bool self_video = 9;
+  bool self_stream = 10;
+}
+
+// A screen share preset is a maximum pixel count, not a fixed size.
+enum ScreenShareResolution {
+  SCREEN_SHARE_RESOLUTION_UNSPECIFIED = 0;
+  // 854 x 480
+  SCREEN_SHARE_RESOLUTION_480P = 1;
+  // 1280 x 720
+  SCREEN_SHARE_RESOLUTION_720P = 2;
+  // 1920 x 1080
+  SCREEN_SHARE_RESOLUTION_1080P = 3;
+  // 2560 x 1440
+  SCREEN_SHARE_RESOLUTION_1440P = 4;
+  // The source's own size.
+  SCREEN_SHARE_RESOLUTION_SOURCE = 5;
+}
+
+// Server-wide voice, video and soundboard settings.
+message VoiceSettings {
+  ScreenShareResolution screen_share_max_resolution = 1;
+  // 15, 30 or 60.
+  uint32 screen_share_max_fps = 2;
+  // 1 to 200.
+  uint32 max_stream_viewers = 3;
+  bool camera_allowed = 4;
+  // People with their camera on in one channel, 1 to 50.
+  uint32 max_camera_participants = 5;
+  // Bits per second, 32 000 to 256 000. Caps every channel's bitrate.
+  uint32 max_voice_bitrate = 6;
+  // A voice channel where idle people are moved; absent for none.
+  optional int64 afk_channel_id = 7;
+  // 60, 300, 900, 1 800 or 3 600.
+  uint32 afk_timeout_s = 8;
+  bool soundboard_enabled = 9;
+  bool allow_default_sounds = 10;
+  bool allow_external_sounds = 11;
+  // Per user, 0 to 30.
+  uint32 sound_cooldown_s = 12;
+  // Sounds this server can hold, 0 to 200.
+  uint32 max_sounds = 13;
+}
+
+enum StreamSourceKind {
+  STREAM_SOURCE_KIND_UNSPECIFIED = 0;
+  STREAM_SOURCE_KIND_SCREEN = 1;
+  STREAM_SOURCE_KIND_WINDOW = 2;
+}
+
+// A screen share in progress.
+message Stream {
+  // "stream:<channel_id>:<user_id>".
+  string stream_key = 1;
+  int64 channel_id = 2;
+  int64 user_id = 3;
+  StreamSourceKind source_kind = 4;
+  ScreenShareResolution resolution = 5;
+  uint32 fps = 6;
+  bool has_audio = 7;
+  uint32 viewer_count = 8;
+}
+
+// A server's soundboard sound. The file is at /media/sounds/<sha256 hex>.
+message SoundboardSound {
+  int64 id = 1;
+  string name = 2;
+  optional string emoji = 3;
+  // 0 to 100 percent.
+  uint32 volume = 4;
+  // SHA-256 of the Ogg Opus file.
+  bytes sha256 = 5;
+  uint32 size_bytes = 6;
+  uint32 duration_ms = 7;
+  optional int64 uploader_id = 8;
+  int64 created_at_ms = 9;
+}
+
+// Bearer token for the media HTTP endpoints.
+message MediaToken {
+  string token = 1;
+  int64 expires_at_ms = 2;
 }

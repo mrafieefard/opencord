@@ -16,12 +16,15 @@ mod members;
 mod messages;
 mod profile;
 mod roles;
-mod settings;
+pub(crate) mod settings;
+mod voice;
 
 /// The caller of a request.
 pub struct Ctx<'a> {
     pub state: &'a Arc<AppState>,
     pub user_id: i64,
+    /// The gateway session the request came on.
+    pub session_id: &'a str,
 }
 
 pub async fn handle(
@@ -32,6 +35,7 @@ pub async fn handle(
     let ctx = Ctx {
         state,
         user_id: session.user_id,
+        session_id: &session.id,
     };
     let result = match state.rate_limits.check_request(ctx.user_id) {
         Ok(()) => dispatch(&ctx, request).await,
@@ -73,6 +77,25 @@ async fn dispatch(ctx: &Ctx<'_>, request: proto::Request) -> Result<Response, Ap
         Kind::FetchInvites(_) => invites::fetch(ctx).await,
         Kind::RevokeInvite(request) => invites::revoke(ctx, request).await,
         Kind::UpdateServer(request) => settings::update_server(ctx, request).await,
+        Kind::UpdateVoiceSettings(request) => settings::update_voice_settings(ctx, request).await,
+        Kind::RefreshMediaToken(_) => Ok(settings::refresh_media_token(ctx)),
+        Kind::UpdateVoiceState(request) => voice::update_voice_state(ctx, request).await,
+        Kind::ServerMuteMember(request) => voice::server_mute(ctx, request).await,
+        Kind::ServerDeafenMember(request) => voice::server_deafen(ctx, request).await,
+        Kind::MoveMember(request) => voice::move_member(ctx, request).await,
+        Kind::DisconnectMember(request) => voice::disconnect_member(ctx, request).await,
+        Kind::CreateStream(_)
+        | Kind::UpdateStream(_)
+        | Kind::DeleteStream(_)
+        | Kind::WatchStream(_)
+        | Kind::UnwatchStream(_) => Err(ApiError::invalid_argument(
+            "this server does not support screen sharing yet",
+        )),
+        Kind::PlaySoundboardSound(_)
+        | Kind::UpdateSoundboardSound(_)
+        | Kind::DeleteSoundboardSound(_) => Err(ApiError::invalid_argument(
+            "this server does not support the soundboard yet",
+        )),
     }
 }
 

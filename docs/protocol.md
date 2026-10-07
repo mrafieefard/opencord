@@ -105,6 +105,12 @@ Each `Request` gets exactly one `Response`, which is either an `error` or the pa
 | `FetchInvites {}` | `invites` | Base `MANAGE_SERVER` |
 | `RevokeInvite { code }` | `ack` | Base `MANAGE_SERVER`, or the invite's creator |
 | `UpdateServer { name?, description?, open_join? }` | `server` | Base `MANAGE_SERVER` |
+| `UpdateVoiceSettings { … }` | `voice_settings` | Base `MANAGE_SERVER`; see [Voice](#voice) |
+| `RefreshMediaToken {}` | `media_token` | Anyone |
+| `UpdateVoiceState { channel_id?, self_mute, self_deaf, self_video, self_stream }` | `voice_state` | `CONNECT` to join; see [Voice](#voice) |
+| `ServerMuteMember` / `ServerDeafenMember { user_id, value }` | `voice_state` | `MUTE_MEMBERS` / `DEAFEN_MEMBERS` in the target's channel; outranks the target unless it is the caller |
+| `MoveMember { user_id, channel_id }` | `voice_state` | `MOVE_MEMBERS` in both channels; outranks the target unless it is the caller; the target can view and connect to the destination |
+| `DisconnectMember { user_id }` | `ack` | `MOVE_MEMBERS` in the target's channel; outranks the target unless it is the caller |
 
 Details:
 - **Messages:** the content is trimmed and must be 1–4 000 characters. Only text channels accept messages.
@@ -118,7 +124,8 @@ Details:
 - **Kicks and bans** end all of the target's sessions; those sessions cannot be resumed.
 - **Cleanup:** deleting a role removes it from every member and deletes its channel overwrites. Kicking or banning a member deletes their member overwrites.
 - **Deleted messages** disappear from history. They are kept in the database, marked as deleted.
-- **Rate limits** are per user: 50 requests per 10 s, plus 5 messages per 5 s per channel. Over the limit, the response is `RATE_LIMITED` with `retry_after_ms`.
+- **Rate limits** are per user: 50 requests per 10 s, plus 5 messages per 5 s per channel and 10 `UpdateVoiceState` per 10 s. Over the limit, the response is `RATE_LIMITED` with `retry_after_ms`.
+- **Not yet supported:** the screen share requests (`CreateStream`, `UpdateStream`, `DeleteStream`, `WatchStream`, `UnwatchStream`) and the soundboard requests answer `INVALID_ARGUMENT` until those features arrive.
 
 ## Events
 
@@ -129,6 +136,8 @@ Every event goes to every session of the server, with these exceptions:
 | `MessageCreate`, `MessageUpdate`, `MessageDelete`, `TypingStart`, `ChannelUpdate` | Sessions that can view the channel |
 | `ChannelCreate` | Sessions that can view the new channel, and sessions for whom a permission change made a channel visible |
 | `ChannelDelete` | Sessions that could view the deleted channel, and sessions for whom a permission change hid a channel |
+| `VoiceStateUpdate` | Sessions that can view the channel joined or left (both, for a move), and the user's own sessions |
+| `VoiceServerUpdate` | The one session that joined or was moved |
 
 Other events:
 - `RoleCreate`, `RoleUpdate`, `RoleDelete`, `ServerUpdate` and `PresenceUpdate` behave as their names say.
@@ -150,6 +159,14 @@ When roles, member roles or overwrites change, the server recomputes visibility 
 | `INVALID_SESSION` | A resume failed; send `Identify` |
 | `CONFLICT` | The request conflicts with the current state (for example, a limit was reached) |
 | `INTERNAL` | A server bug or storage failure |
+| `VOICE_CHANNEL_FULL` | The voice channel is at its user limit, or at the server's per-channel cap |
+| `VOICE_NOT_CONNECTED` | The target (or the caller) is not in a voice channel |
+| `QUALITY_LIMIT` | A stream or track asks for more than the server allows |
+| `CAMERA_LIMIT` | The channel's camera limit has been reached |
+| `STREAM_VIEWER_LIMIT` | The stream already has as many viewers as the server allows |
+| `SOUND_COOLDOWN` | Wait before playing another sound, or too many are playing |
+| `SOUND_TOO_LONG`, `SOUND_INVALID` | An uploaded sound is over 5 seconds, or not a valid Ogg Opus file |
+| `SOUNDBOARD_FULL` | The server holds as many sounds as it allows |
 
 ## Close codes
 
@@ -170,22 +187,24 @@ When roles, member roles or overwrites change, the server recomputes visibility 
 
 ## Permissions
 
-The bits are listed below. Voice bits and `ATTACH_FILES` are reserved for later phases.
+The bits are listed below. `ATTACH_FILES` is reserved for a later phase.
 
 | Bit | Name | Bit | Name |
 |---|---|---|---|
-| 0 | `VIEW_CHANNEL` | 12 | `CHANGE_NICKNAME` |
-| 1 | `SEND_MESSAGES` | 13 | `MANAGE_NICKNAMES` |
-| 2 | `READ_HISTORY` | 16 | `CONNECT` |
-| 3 | `MANAGE_MESSAGES` | 17 | `SPEAK` |
-| 4 | `MANAGE_CHANNELS` | 18 | `VIDEO` |
-| 5 | `MANAGE_ROLES` | 19 | `SCREENSHARE` |
-| 6 | `KICK_MEMBERS` | 20 | `MUTE_MEMBERS` |
-| 7 | `BAN_MEMBERS` | 21 | `DEAFEN_MEMBERS` |
-| 8 | `CREATE_INVITE` | 22 | `MOVE_MEMBERS` |
-| 9 | `MANAGE_SERVER` | 23 | `PRIORITY_SPEAKER` |
-| 10 | `ATTACH_FILES` | 63 | `ADMINISTRATOR` |
-| 11 | `MENTION_EVERYONE` | | |
+| 0 | `VIEW_CHANNEL` | 16 | `CONNECT` |
+| 1 | `SEND_MESSAGES` | 17 | `SPEAK` |
+| 2 | `READ_HISTORY` | 18 | `VIDEO` (camera) |
+| 3 | `MANAGE_MESSAGES` | 19 | `SCREENSHARE` |
+| 4 | `MANAGE_CHANNELS` | 20 | `MUTE_MEMBERS` |
+| 5 | `MANAGE_ROLES` | 21 | `DEAFEN_MEMBERS` |
+| 6 | `KICK_MEMBERS` | 22 | `MOVE_MEMBERS` (also joins full channels) |
+| 7 | `BAN_MEMBERS` | 23 | `PRIORITY_SPEAKER` |
+| 8 | `CREATE_INVITE` | 24 | `USE_VOICE_ACTIVITY` (without it, push-to-talk is forced; only clients can enforce it) |
+| 9 | `MANAGE_SERVER` | 25 | `USE_SOUNDBOARD` |
+| 10 | `ATTACH_FILES` | 26 | `USE_EXTERNAL_SOUNDS` |
+| 11 | `MENTION_EVERYONE` | 27 | `MANAGE_SOUNDBOARD` |
+| 12 | `CHANGE_NICKNAME` | 63 | `ADMINISTRATOR` |
+| 13 | `MANAGE_NICKNAMES` | | |
 
 Resolution:
 1. The owner has every permission.
@@ -202,7 +221,7 @@ Hierarchy:
 - Members can only manage roles below their rank, and only kick, ban or rename members of lower rank. The owner outranks everyone; nobody outranks the owner.
 - Nobody can grant or deny a permission they do not have, unless they are an administrator or the owner.
 
-A new server's @everyone has `VIEW_CHANNEL | SEND_MESSAGES | READ_HISTORY | CREATE_INVITE | CHANGE_NICKNAME | CONNECT | SPEAK | VIDEO | SCREENSHARE`. The server starts with a `#general` text channel and a `General` voice channel.
+A new server's @everyone has `VIEW_CHANNEL | SEND_MESSAGES | READ_HISTORY | CREATE_INVITE | CHANGE_NICKNAME | CONNECT | SPEAK | VIDEO | SCREENSHARE | USE_VOICE_ACTIVITY | USE_SOUNDBOARD | USE_EXTERNAL_SOUNDS`. Servers created before voice existed get the last three added to @everyone when they upgrade. The server starts with a `#general` text channel and a `General` voice channel.
 
 ## Limits
 
@@ -217,3 +236,67 @@ A new server's @everyone has `VIEW_CHANNEL | SEND_MESSAGES | READ_HISTORY | CREA
 | Roles per server, including @everyone | 250 |
 | Channels per server | 500 |
 | `FetchMessages` limit | 1–100; 0 means 50, larger values are capped |
+
+## Voice
+
+Voice follows Discord's design (Phase 2 plan §3). Joining is a request on this gateway; audio and video go to a **voice node** with its own gateway (`proto/opencord/v1/voice.proto`, package `opencord.voice.v1`) and media over ICE + DTLS-SRTP on one UDP port (7711 by default). The voice node arrives in milestone V1; until then joining changes only the voice state.
+
+### Voice states
+
+- A voice state says who is in which voice channel, with their self mute, deafen, camera and stream flags, their server mute and deafen, and `suppress` (no `SPEAK` in the channel, or in the AFK channel). States live in server memory only.
+- A user has at most one voice state per server, held by one gateway session. Joining from another session takes it over; the old session sees the new `session_id`.
+- `UpdateVoiceState` with a `channel_id` joins, moves within the server, or changes the self flags. Without one, it leaves, from whichever session holds the state.
+- Joining needs `CONNECT` in a voice channel the user can view, and room: the channel's user limit (skipped with `MOVE_MEMBERS`) and the server's per-channel cap from `opencord.toml` (never skipped). A camera needs `VIDEO`, cameras allowed on the server, and room under the per-channel camera limit; a stream needs `SCREENSHARE`.
+- Losing `VIEW_CHANNEL` ends a voice state; losing `CONNECT` does not. Server mute and deafen are remembered per user while the server runs, across leaving and rejoining.
+- **Grace period:** a voice state outlives its session's dropped connection by 30 seconds (checked every 5), so a resume keeps the call. A session that ends or expires ends its voice state.
+- A voice channel that becomes visible to someone (`ChannelCreate`) is followed by a `VoiceStateUpdate` for each person in it.
+
+### Joining a voice node
+
+After a join or a move, the session gets `VoiceServerUpdate { channel_id, endpoint, certificate_fingerprint, token }`:
+
+- `endpoint` is the voice gateway's `wss://` URL; empty means the server's own voice node, on the same host and port as this gateway, at `/voice`.
+- `certificate_fingerprint` is the voice node's certificate, to pin for that connection. It arrives over the already pinned gateway.
+- `token` is single use and valid for 60 seconds: the encoded `VoiceTokenClaims` (`proto/opencord/v1/internal.proto`) followed by the server's Ed25519 signature over `"opencord-voice-token-v1" || claims`. It names the user, channel and session, the resolved channel permissions, the channel's limits and the flags. Voice nodes hold the public key and check tokens without a database. Clients treat it as opaque bytes.
+
+The server makes the signing key (`voice-signing.key`) in its data folder on first start.
+
+### Settings
+
+`VoiceSettings` (in `Ready` and `VoiceSettingsUpdate`, changed with `UpdateVoiceSettings`):
+
+| Setting | Default | Range |
+|---|---|---|
+| `screen_share_max_resolution` | 720p | 480p, 720p, 1080p, 1440p, Source |
+| `screen_share_max_fps` | 30 | 15, 30, 60 |
+| `max_stream_viewers` | 50 | 1–200 |
+| `camera_allowed` | on | |
+| `max_camera_participants` | 25 | 1–50 |
+| `max_voice_bitrate` | 96 000 | 32 000–256 000 bits per second |
+| `afk_channel_id` | none | a voice channel; 0 clears it |
+| `afk_timeout_s` | 300 | 60, 300, 900, 1 800, 3 600 |
+| `soundboard_enabled`, `allow_default_sounds`, `allow_external_sounds` | on | |
+| `sound_cooldown_s` | 3 | 0–30 |
+| `max_sounds` | 48 | 0–200 |
+
+Deleting the AFK channel clears the setting. Voice channels carry `bitrate` (default 64 000, from 8 000 to `max_voice_bitrate`), `user_limit` (0 is none, at most 99) and `text_in_voice` (default on), changed with `UpdateChannel` on voice channels only.
+
+### Ready
+
+`Ready` also carries `voice_enabled` (whether the server has voice at all), the voice states of every voice channel the user can view, active streams, the soundboard sounds (metadata), the voice settings and a `media_token`.
+
+### Media endpoints
+
+`GET /media/sounds/{sha256}` returns a soundboard sound (`data/sounds/<sha256>.opus`, lowercase hex). Requests need `Authorization: Bearer <media_token>`: the encoded `MediaTokenClaims` plus the signature over `"opencord-media-token-v1" || claims`, base64url without padding, valid for 24 hours. `RefreshMediaToken` gives a new one. Answers: 401 without a valid token, 403 for someone no longer a member, 400 for a malformed hash, 404 for an unknown sound. The upload endpoints (`POST /media/sounds`, `POST /media/external-sounds`) answer 501 until the soundboard arrives.
+
+`GET /info` adds `voice_enabled` and `voice_udp_port`.
+
+### Voice limits
+
+| Item | Limit |
+|---|---|
+| `UpdateVoiceState` | 10 per 10 s per user |
+| Voice token | 60 seconds, single use |
+| Media token | 24 hours |
+| Voice grace period | 30 seconds (up to 35) |
+

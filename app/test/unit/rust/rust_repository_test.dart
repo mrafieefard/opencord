@@ -31,6 +31,9 @@ core.Message _message(
 );
 
 core.Channel _text(int id, String name, {int position = 0}) => core.Channel(
+  bitrate: 0,
+  userLimit: 0,
+  textInVoice: false,
   id: id,
   kind: core.ChannelKind.text,
   name: name,
@@ -38,33 +41,38 @@ core.Channel _text(int id, String name, {int position = 0}) => core.Channel(
   overwrites: const [],
 );
 
-core.ReadySnapshot _ready({List<core.Channel> more = const []}) =>
-    core.ReadySnapshot(
-      selfUser: const core.User(
-        id: _self,
-        publicKeyHex: 'abcd',
-        fingerprint: 'ABCD-EFGH-IJKL-MNOP',
-        displayName: 'Alex',
-      ),
-      server: const core.ServerInfo(
-        serverIdHex: 'ff',
-        name: 'Home',
-        description: '',
-        ownerId: _self,
-        openJoin: false,
-        everyoneRoleId: 5,
-      ),
-      channels: [_text(_general, 'general'), ...more],
-      roles: const [],
-      members: const [],
-      presences: const [],
-      serverPermissions: 0x7,
-      // View and read history.
-      channelPermissions: [
-        for (final channel in [_general, ...more.map((c) => c.id)])
-          core.ChannelPermissions(channelId: channel, permissions: 0x5),
-      ],
-    );
+core.ReadySnapshot _ready({
+  List<core.Channel> more = const [],
+  List<core.VoiceState> voice = const [],
+}) => core.ReadySnapshot(
+  voiceEnabled: true,
+  voiceStates: voice,
+  voiceSettings: coreVoiceSettings,
+  selfUser: const core.User(
+    id: _self,
+    publicKeyHex: 'abcd',
+    fingerprint: 'ABCD-EFGH-IJKL-MNOP',
+    displayName: 'Alex',
+  ),
+  server: const core.ServerInfo(
+    serverIdHex: 'ff',
+    name: 'Home',
+    description: '',
+    ownerId: _self,
+    openJoin: false,
+    everyoneRoleId: 5,
+  ),
+  channels: [_text(_general, 'general'), ...more],
+  roles: const [],
+  members: const [],
+  presences: const [],
+  serverPermissions: 0x7,
+  // View and read history.
+  channelPermissions: [
+    for (final channel in [_general, ...more.map((c) => c.id)])
+      core.ChannelPermissions(channelId: channel, permissions: 0x5),
+  ],
+);
 
 /// A keychain that can be locked, refusing to save, or out of reach.
 class _Keyring extends MemoryIdentityStore {
@@ -603,5 +611,143 @@ void main() {
     harness.repository.markRead(_server, _general, 120);
 
     expect(ReadPositions(harness.store).of(_server, _general), 120);
+  });
+
+  group('voice (Phase 2 V0)', () {
+    const lounge = 20, studio = 21;
+
+    Future<_Harness> ready({List<core.VoiceState> voice = const []}) async {
+      final harness = await _Harness.start();
+      harness.core.emit(
+        _server,
+        core.CoreEventPayload.ready(_ready(voice: voice)),
+      );
+      await harness.settle();
+      await harness.settle();
+      return harness;
+    }
+
+    void update(_Harness harness, core.VoiceState state) => harness.core.emit(
+      _server,
+      core.CoreEventPayload.voiceStateUpdate(state),
+    );
+
+    test('Ready lists who is in each voice channel', () async {
+      final harness = await ready(
+        voice: [voiceState(_kai, lounge, thisDevice: false, selfMute: true)],
+      );
+
+      final snapshot = harness.events.whereType<Ready>().single.snapshot;
+      expect(snapshot.voiceEnabled, isTrue);
+      expect(snapshot.voice[lounge]?.single.userId, _kai);
+      expect(snapshot.voice[lounge]?.single.muted, isTrue);
+      expect(snapshot.voiceSettings.maxVoiceBitrate, 96000);
+    });
+
+    test('a move announces both channels', () async {
+      final harness = await ready(
+        voice: [voiceState(_kai, lounge, thisDevice: false)],
+      );
+
+      update(
+        harness,
+        voiceState(_kai, studio, thisDevice: false, serverMute: true),
+      );
+      await harness.settle();
+
+      final changes = {
+        for (final change in harness.events.whereType<VoiceChanged>())
+          change.channelId: change.participants,
+      };
+      expect(changes[lounge], isEmpty);
+      expect(changes[studio]?.single.serverMuted, isTrue);
+      expect(harness.events.whereType<OwnVoiceChanged>(), isEmpty);
+    });
+
+    test('a moderator moving or disconnecting this device is told', () async {
+      final harness = await ready();
+      await harness.repository.joinVoice(_server, lounge);
+
+      update(harness, voiceState(_self, lounge));
+      update(harness, voiceState(_self, studio));
+      update(harness, voiceState(_self, null));
+      await harness.settle();
+
+      expect(
+        harness.events.whereType<OwnVoiceChanged>().map((e) => e.channelId),
+        [studio, null],
+      );
+    });
+
+    test('another device taking the call over ends it here', () async {
+      final harness = await ready();
+      await harness.repository.joinVoice(_server, lounge);
+
+      update(harness, voiceState(_self, lounge, thisDevice: false));
+      await harness.settle();
+
+      expect(
+        harness.events.whereType<OwnVoiceChanged>().single.channelId,
+        isNull,
+      );
+    });
+
+    test('joining, leaving, mute and deafen go to the core', () async {
+      final harness = await ready();
+      harness.core.calls.clear();
+
+      await harness.repository.joinVoice(_server, lounge);
+      await harness.repository.setVoiceSelf(muted: true, deafened: false);
+      await harness.repository.leaveVoice();
+
+      expect(harness.core.calls, [
+        'voiceJoin:$_server:$lounge',
+        'selfMute:true',
+        'selfDeaf:false',
+        'voiceLeave',
+      ]);
+      expect(harness.repository.capabilities.voice, isTrue);
+      expect(harness.repository.capabilities.camera, isFalse);
+      expect(harness.repository.capabilities.screenShare, isFalse);
+    });
+
+    test('a full channel is its own kind of refusal', () async {
+      final harness = await ready();
+      harness.core.joinError = const core.CoreError.server(
+        code: core.ErrorCode.voiceChannelFull,
+        message: 'that voice channel is full',
+      );
+
+      await expectLater(
+        harness.repository.joinVoice(_server, lounge),
+        throwsA(
+          isA<RepoException>().having(
+            (e) => e.kind,
+            'kind',
+            RepoErrorKind.voiceChannelFull,
+          ),
+        ),
+      );
+    });
+
+    test('voice settings arrive, and saving sends every one', () async {
+      final harness = await ready();
+
+      harness.core.emit(
+        _server,
+        const core.CoreEventPayload.voiceSettingsUpdate(coreVoiceSettings),
+      );
+      await harness.settle();
+      await harness.repository.updateVoiceSettings(
+        _server,
+        harness.events.whereType<VoiceSettingsChanged>().single.settings,
+      );
+
+      final sent = harness.core.voiceChanges!;
+      expect(sent.afkChannelId, 0, reason: 'no AFK channel goes as 0');
+      expect(sent.maxVoiceBitrate, 96000);
+      expect(sent.afkTimeoutS, 300);
+      expect(sent.screenShareMaxResolution, core.ScreenShareResolution.p720);
+    });
   });
 }

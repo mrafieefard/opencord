@@ -5,6 +5,7 @@ pub mod auth;
 pub mod channel;
 pub mod limits;
 pub mod permissions;
+pub mod signed;
 pub mod snowflake;
 pub mod validation;
 

@@ -18,22 +18,22 @@ bitflags::bitflags! {
         const MENTION_EVERYONE = 1 << 11;
         const CHANGE_NICKNAME = 1 << 12;
         const MANAGE_NICKNAMES = 1 << 13;
-        /// Reserved for voice.
         const CONNECT = 1 << 16;
-        /// Reserved for voice.
         const SPEAK = 1 << 17;
-        /// Reserved for voice.
+        /// Camera.
         const VIDEO = 1 << 18;
-        /// Reserved for voice.
         const SCREENSHARE = 1 << 19;
-        /// Reserved for voice.
         const MUTE_MEMBERS = 1 << 20;
-        /// Reserved for voice.
         const DEAFEN_MEMBERS = 1 << 21;
-        /// Reserved for voice.
+        /// Also lets the holder join channels that are full.
         const MOVE_MEMBERS = 1 << 22;
-        /// Reserved for voice.
         const PRIORITY_SPEAKER = 1 << 23;
+        /// Without it, push-to-talk is forced. Only clients can enforce it.
+        const USE_VOICE_ACTIVITY = 1 << 24;
+        const USE_SOUNDBOARD = 1 << 25;
+        /// Play sounds from other servers.
+        const USE_EXTERNAL_SOUNDS = 1 << 26;
+        const MANAGE_SOUNDBOARD = 1 << 27;
         const ADMINISTRATOR = 1 << 63;
     }
 }
@@ -48,7 +48,10 @@ impl Permissions {
         .union(Self::CONNECT)
         .union(Self::SPEAK)
         .union(Self::VIDEO)
-        .union(Self::SCREENSHARE);
+        .union(Self::SCREENSHARE)
+        .union(Self::USE_VOICE_ACTIVITY)
+        .union(Self::USE_SOUNDBOARD)
+        .union(Self::USE_EXTERNAL_SOUNDS);
 }
 
 /// A role as far as permission checks are concerned.
@@ -221,7 +224,33 @@ mod tests {
         assert_eq!(Permissions::MANAGE_NICKNAMES.bits(), 1 << 13);
         assert_eq!(Permissions::CONNECT.bits(), 1 << 16);
         assert_eq!(Permissions::PRIORITY_SPEAKER.bits(), 1 << 23);
+        assert_eq!(Permissions::USE_VOICE_ACTIVITY.bits(), 1 << 24);
+        assert_eq!(Permissions::USE_SOUNDBOARD.bits(), 1 << 25);
+        assert_eq!(Permissions::USE_EXTERNAL_SOUNDS.bits(), 1 << 26);
+        assert_eq!(Permissions::MANAGE_SOUNDBOARD.bits(), 1 << 27);
         assert_eq!(Permissions::ADMINISTRATOR.bits(), 1 << 63);
+    }
+
+    #[test]
+    fn everyone_may_use_voice_activity_and_sounds_but_not_manage_them() {
+        let everyone = Permissions::DEFAULT_EVERYONE;
+
+        assert!(everyone.contains(
+            Permissions::CONNECT
+                | Permissions::SPEAK
+                | Permissions::VIDEO
+                | Permissions::SCREENSHARE
+                | Permissions::USE_VOICE_ACTIVITY
+                | Permissions::USE_SOUNDBOARD
+                | Permissions::USE_EXTERNAL_SOUNDS
+        ));
+        assert!(!everyone.intersects(
+            Permissions::MUTE_MEMBERS
+                | Permissions::DEAFEN_MEMBERS
+                | Permissions::MOVE_MEMBERS
+                | Permissions::PRIORITY_SPEAKER
+                | Permissions::MANAGE_SOUNDBOARD
+        ));
     }
 
     #[test]

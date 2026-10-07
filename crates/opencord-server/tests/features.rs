@@ -845,6 +845,7 @@ async fn channels_can_be_organized() {
                 name: Some("Rust Lang".to_owned()),
                 topic: Some(String::new()),
                 parent_id: None,
+                ..Default::default()
             }))
             .await,
     );

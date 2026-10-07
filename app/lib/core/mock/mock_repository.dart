@@ -11,6 +11,7 @@ import 'package:opencord/core/model/permissions.dart';
 import 'package:opencord/core/model/presence.dart';
 import 'package:opencord/core/model/server.dart';
 import 'package:opencord/core/model/user.dart';
+import 'package:opencord/core/model/voice.dart';
 import 'package:opencord/core/repository/repository.dart';
 
 export 'package:opencord/core/mock/mock_world.dart' show mockMutedServers;
@@ -816,6 +817,9 @@ class MockRepository implements OpencordRepository {
     String? name,
     String? topic,
     int? parentId,
+    int? bitrate,
+    int? userLimit,
+    bool? textInVoice,
   }) async {
     final server = _server(serverKey);
     _require(server, Permissions.manageChannels);
@@ -825,6 +829,15 @@ class MockRepository implements OpencordRepository {
           RepoErrorKind.notFound,
           'That channel does not exist.',
         ));
+    final maxBitrate = server.voiceSettings.maxVoiceBitrate;
+    if (bitrate != null &&
+        (bitrate < Channel.minBitrate || bitrate > maxBitrate)) {
+      throw RepoException(
+        RepoErrorKind.invalidArgument,
+        'The bitrate must be from ${Channel.minBitrate ~/ 1000} to '
+        '${maxBitrate ~/ 1000} kbps.',
+      );
+    }
     await _latency();
     final updated = channel.copyWith(
       name: name == null
@@ -832,6 +845,9 @@ class MockRepository implements OpencordRepository {
           : (channel.kind.isTextLike ? _kebab(name) : name.trim()),
       topic: topic == null ? null : () => topic.isEmpty ? null : topic,
       parentId: parentId == null ? null : () => parentId == 0 ? null : parentId,
+      bitrate: bitrate,
+      userLimit: userLimit,
+      textInVoice: textInVoice,
     );
     server.channels[channelId] = updated;
     _emit(ChannelUpserted(serverKey, updated));
@@ -1351,6 +1367,18 @@ class MockRepository implements OpencordRepository {
     _emit(const ServersChanged());
   }
 
+  @override
+  Future<void> updateVoiceSettings(
+    String serverKey,
+    VoiceSettings settings,
+  ) async {
+    final server = _server(serverKey);
+    _require(server, Permissions.manageServer);
+    await _latency();
+    server.voiceSettings = settings;
+    _emit(VoiceSettingsChanged(serverKey, settings));
+  }
+
   // Voice -------------------------------------------------------------------------
 
   @override
@@ -1362,6 +1390,23 @@ class MockRepository implements OpencordRepository {
           RepoErrorKind.invalidArgument,
           'That is not a voice channel.',
         ));
+    final held = server.selfChannelPermissions[channelId] ?? Permissions.none;
+    if (!held.has(Permissions.connect)) {
+      throw const RepoException(
+        RepoErrorKind.forbidden,
+        'missing permission: CONNECT',
+      );
+    }
+    final limit = server.channels[channelId]?.userLimit ?? 0;
+    final others = participants.where((p) => p.userId != server.selfId);
+    if (limit > 0 &&
+        others.length >= limit &&
+        !held.has(Permissions.moveMembers)) {
+      throw const RepoException(
+        RepoErrorKind.voiceChannelFull,
+        'that voice channel is full',
+      );
+    }
     _leaveVoiceNow();
     _selfVoice = VoiceParticipant(
       userId: server.selfId,
@@ -1409,6 +1454,26 @@ class MockRepository implements OpencordRepository {
 
   @override
   Future<void> leaveVoice() async => _leaveVoiceNow();
+
+  /// As a moderator would: moves the current user to [channelId] on the
+  /// server they are in voice on, or disconnects them (null).
+  void debugMoveSelf(int? channelId) {
+    final session = _voice;
+    if (session == null) return;
+    if (channelId == null) {
+      _leaveVoiceNow();
+      _emit(OwnVoiceChanged(session.server, null));
+      return;
+    }
+    final server = _server(session.server);
+    final from = server.voice[session.channel]!
+      ..removeWhere((participant) => participant.userId == server.selfId);
+    final to = server.voice[channelId]!..add(_selfVoice);
+    _voice = (server: session.server, channel: channelId);
+    _emit(VoiceChanged(session.server, session.channel, List.of(from)));
+    _emit(VoiceChanged(session.server, channelId, List.of(to)));
+    _emit(OwnVoiceChanged(session.server, channelId));
+  }
 
   @override
   Future<void> setVoiceSelf({

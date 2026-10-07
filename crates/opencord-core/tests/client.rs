@@ -6,7 +6,7 @@ use opencord_common::address::format_fingerprint;
 use opencord_common::permissions::Permissions;
 use opencord_core::api::types::{
     AddServerOutcome, ConnectionState, CoreError, CoreEvent, CoreEventPayload, FailureReason,
-    Message, ReadySnapshot, RoleChanges,
+    Message, ReadySnapshot, RoleChanges, VoiceState,
 };
 use opencord_core::client::Client;
 use opencord_core::identity::Identity;
@@ -24,13 +24,28 @@ struct TestServer {
 impl TestServer {
     async fn start() -> Self {
         let dir = tempfile::tempdir().unwrap();
+        let handle = server::start(Self::config(&dir, 0)).await.unwrap();
+        Self { handle, _dir: dir }
+    }
+
+    /// Stops the server and starts it again on the same port and data.
+    async fn restart(self) -> Self {
+        let port = self.handle.local_addr.port();
+        self.handle.shutdown().await;
+        let handle = server::start(Self::config(&self._dir, port)).await.unwrap();
+        Self {
+            handle,
+            _dir: self._dir,
+        }
+    }
+
+    fn config(dir: &tempfile::TempDir, port: u16) -> Config {
         let mut config = Config::default();
-        config.server.bind = "127.0.0.1:0".parse().unwrap();
+        config.server.bind = format!("127.0.0.1:{port}").parse().unwrap();
         config.server.public_host = "127.0.0.1".to_owned();
         config.server.data_dir = dir.path().join("data");
         config.server.name = "Test Server".to_owned();
-        let handle = server::start(config).await.unwrap();
-        Self { handle, _dir: dir }
+        config
     }
 
     fn address(&self) -> String {
@@ -633,4 +648,164 @@ async fn a_certificate_change_on_reconnect_reports_both_fingerprints() {
             presented_fingerprint: Some(server.fingerprint()),
         }
     );
+}
+
+fn voice_channel(ready: &ReadySnapshot) -> i64 {
+    ready
+        .channels
+        .iter()
+        .find(|channel| channel.kind == opencord_core::api::types::ChannelKind::Voice)
+        .unwrap()
+        .id
+}
+
+/// The next voice state for `user_id`.
+fn voice_of(user_id: i64) -> impl FnMut(&CoreEventPayload) -> Option<VoiceState> {
+    move |payload| match payload {
+        CoreEventPayload::VoiceStateUpdate(state) if state.user_id == user_id => Some(*state),
+        _ => None,
+    }
+}
+
+#[tokio::test]
+async fn voice_states_reach_members_and_say_whose_device_holds_them() {
+    let server = TestServer::start().await;
+    let (mut owner, owner_ready, mut member, member_ready) = owner_and_member(&server).await;
+    let voice = voice_channel(&owner_ready);
+    let member_id = member_ready.self_user.id;
+
+    let joined = member
+        .client
+        .voice_join(&server.address(), voice)
+        .await
+        .unwrap();
+
+    assert!(joined.this_device);
+    let seen = owner.wait_for(voice_of(member_id)).await;
+    assert_eq!((seen.channel_id, seen.this_device), (Some(voice), false));
+    let own = member.wait_for(voice_of(member_id)).await;
+    assert_eq!((own.channel_id, own.this_device), (Some(voice), true));
+
+    member.client.voice_leave().await.unwrap();
+
+    assert_eq!(owner.wait_for(voice_of(member_id)).await.channel_id, None);
+}
+
+#[tokio::test]
+async fn self_mute_waits_for_the_next_join_and_follows_into_voice() {
+    let server = TestServer::start().await;
+    let (mut owner, owner_ready, member, member_ready) = owner_and_member(&server).await;
+    let voice = voice_channel(&owner_ready);
+    let member_id = member_ready.self_user.id;
+    member.client.set_voice_self(Some(true), None);
+
+    let joined = member
+        .client
+        .voice_join(&server.address(), voice)
+        .await
+        .unwrap();
+    member.client.set_voice_self(Some(false), Some(true));
+
+    assert!(joined.self_mute);
+    assert!(owner.wait_for(voice_of(member_id)).await.self_mute);
+    let changed = owner.wait_for(voice_of(member_id)).await;
+    assert_eq!((changed.self_mute, changed.self_deaf), (false, true));
+}
+
+#[tokio::test]
+async fn joining_voice_on_another_server_leaves_the_first() {
+    let first = TestServer::start().await;
+    let second = TestServer::start().await;
+    let (mut owner, first_ready, mut member, member_ready) = owner_and_member(&first).await;
+    owner
+        .client
+        .trust_fingerprint(&second.address(), &second.fingerprint())
+        .unwrap();
+    owner
+        .client
+        .add_server(&second.address(), second.handle.claim_token.clone())
+        .await
+        .unwrap();
+    let second_ready = owner.ready().await;
+    let owner_id = first_ready.self_user.id;
+    owner
+        .client
+        .voice_join(&first.address(), voice_channel(&first_ready))
+        .await
+        .unwrap();
+    assert!(
+        member
+            .wait_for(voice_of(owner_id))
+            .await
+            .channel_id
+            .is_some()
+    );
+
+    owner
+        .client
+        .voice_join(&second.address(), voice_channel(&second_ready))
+        .await
+        .unwrap();
+
+    assert_eq!(member.wait_for(voice_of(owner_id)).await.channel_id, None);
+    assert_ne!(member_ready.self_user.id, owner_id);
+}
+
+#[tokio::test]
+async fn voice_comes_back_after_the_server_restarts() {
+    let server = TestServer::start().await;
+    let (mut owner, owner_ready, _member, _) = owner_and_member(&server).await;
+    let voice = voice_channel(&owner_ready);
+    let owner_id = owner_ready.self_user.id;
+    owner
+        .client
+        .voice_join(&server.address(), voice)
+        .await
+        .unwrap();
+    owner.wait_for(voice_of(owner_id)).await;
+
+    let server = server.restart().await;
+    owner.client.retry_now(&server.address()).await.ok();
+    let ready = owner.ready().await;
+
+    assert!(ready.voice_states.is_empty(), "the restart forgot voice");
+    let back = owner.wait_for(voice_of(owner_id)).await;
+    assert_eq!((back.channel_id, back.this_device), (Some(voice), true));
+}
+
+#[tokio::test]
+async fn a_refused_rejoin_tells_the_app_this_device_left() {
+    let server = TestServer::start().await;
+    let (owner, owner_ready, mut member, member_ready) = owner_and_member(&server).await;
+    let voice = voice_channel(&owner_ready);
+    let member_id = member_ready.self_user.id;
+    member
+        .client
+        .voice_join(&server.address(), voice)
+        .await
+        .unwrap();
+    member.wait_for(voice_of(member_id)).await;
+    // Losing Connect keeps people in the channel until they leave.
+    owner
+        .client
+        .set_channel_overwrite(
+            &server.address(),
+            voice,
+            opencord_core::api::types::PermissionOverwrite {
+                target_kind: opencord_core::api::types::OverwriteTargetKind::Member,
+                target_id: member_id,
+                allow: 0,
+                deny: bits(Permissions::CONNECT),
+            },
+        )
+        .await
+        .unwrap();
+
+    let server = server.restart().await;
+    member.client.retry_now(&server.address()).await.ok();
+    member.ready().await;
+
+    let left = member.wait_for(voice_of(member_id)).await;
+    assert_eq!((left.channel_id, left.this_device), (None, true));
+    drop(owner);
 }

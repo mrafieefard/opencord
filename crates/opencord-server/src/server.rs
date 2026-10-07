@@ -7,6 +7,7 @@ use std::time::{Duration, Instant};
 use anyhow::Context as _;
 use axum_server::Handle;
 use axum_server::tls_rustls::RustlsConfig;
+use ed25519_dalek::VerifyingKey;
 use opencord_common::address::{Fingerprint, InviteLink, ServerAddress};
 use opencord_common::snowflake::SnowflakeGenerator;
 use tokio::task::JoinHandle;
@@ -15,7 +16,7 @@ use crate::config::Config;
 use crate::gateway::session::CloseCode;
 use crate::guild::Guild;
 use crate::state::{AppState, now_ms};
-use crate::{bootstrap, db, http, tls};
+use crate::{bootstrap, db, http, tls, voice};
 
 const REAP_INTERVAL: Duration = Duration::from_secs(5);
 const SHUTDOWN_GRACE: Duration = Duration::from_secs(5);
@@ -29,6 +30,8 @@ pub struct ServerHandle {
     pub claim_token: Option<String>,
     /// Permanent invite to share, once the server has an owner.
     pub invite_link: Option<InviteLink>,
+    /// Checks voice tokens; voice nodes get it.
+    pub voice_key: VerifyingKey,
     state: Arc<AppState>,
     handle: Handle<SocketAddr>,
     serve: JoinHandle<std::io::Result<()>>,
@@ -47,6 +50,7 @@ pub async fn start(config: Config) -> anyhow::Result<ServerHandle> {
     let ids = SnowflakeGenerator::new(0)?;
     let bootstrap = bootstrap::initialize(&pool, &config.server.name, &ids, now_ms()).await?;
     let tls = tls::load_or_generate(&config.tls, &data_dir.join("tls"), &hostnames(&config))?;
+    let voice_key = voice::keys::load_or_generate(&data_dir)?;
     let guild = Guild::load(&mut *pool.acquire().await?, bootstrap.meta).await?;
     let invite_code = bootstrap::startup_invite(&pool, now_ms()).await?;
     let rustls = RustlsConfig::from_config(Arc::new(tls::server_config(&tls)?));
@@ -56,6 +60,7 @@ pub async fn start(config: Config) -> anyhow::Result<ServerHandle> {
         ids,
         tls.fingerprint,
         guild,
+        voice_key,
     ));
 
     let handle = Handle::new();
@@ -88,6 +93,7 @@ pub async fn start(config: Config) -> anyhow::Result<ServerHandle> {
         fingerprint: tls.fingerprint,
         claim_token: bootstrap.claim_token,
         invite_link,
+        voice_key: state.voice_key.verifying_key(),
         state,
         handle,
         serve,
@@ -143,6 +149,10 @@ async fn reap_sessions(state: Arc<AppState>) {
                 state.presence.clear(session.user_id);
                 state.broadcast_presence(session.user_id);
             }
+        }
+        {
+            let _writes = state.write_lock().await;
+            voice::expire_detached(&state, Instant::now());
         }
         state.rate_limits.prune();
     }

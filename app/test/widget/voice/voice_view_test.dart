@@ -1,6 +1,7 @@
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:opencord/core/providers/providers.dart';
+import 'package:opencord/core/repository/repository.dart';
 import 'package:opencord/core/settings/local_prefs.dart';
 import 'package:opencord/features/channels/voice_panel.dart';
 import 'package:opencord/features/chat/chat_header.dart';
@@ -15,6 +16,7 @@ import 'package:opencord/ui/widgets/oc_button.dart';
 import '../../support/app.dart';
 
 const _dev = 'opencord.example:7710';
+const _berlin = 'rust-berlin.example:7710';
 const _mira = 1002, _priya = 1005;
 
 Future<void> _pumpFor(WidgetTester tester, Duration total) async {
@@ -257,6 +259,49 @@ void main() {
     await tester.pump();
 
     expect(tester.takeException(), isNull);
+    await app.dispose(tester);
+  });
+
+  testWidgets('a full channel says so instead of joining', (tester) async {
+    final app = await MockApp.pump(tester);
+    app.read(navigationProvider.notifier).openServer(_berlin);
+    await _pumpFor(tester, const Duration(milliseconds: 300));
+
+    await tester.tap(
+      find.descendant(
+        of: find.byKey(DesktopShell.sidebarKey),
+        matching: find.text('Lounge'),
+      ),
+    );
+    await _pumpFor(tester, const Duration(milliseconds: 600));
+
+    expect(find.text('This voice channel is full.'), findsOneWidget);
+    expect(app.read(voiceSessionProvider).connected, isFalse);
+    await _pumpFor(tester, const Duration(seconds: 3));
+    await app.dispose(tester);
+  });
+
+  testWidgets('without camera or screen share, the controls leave them out', (
+    tester,
+  ) async {
+    final app = await MockApp.pump(
+      tester,
+      capabilities: const RepoCapabilities(voice: true),
+    );
+    await _joinGeneral(tester);
+
+    expect(_control('Mute'), findsOneWidget);
+    expect(_control('Turn on camera'), findsNothing);
+    expect(_control('Share your screen'), findsNothing);
+    final panel = find.byType(VoiceConnectedPanel);
+    expect(
+      find.descendant(of: panel, matching: find.text('Camera')),
+      findsNothing,
+    );
+    expect(
+      find.descendant(of: panel, matching: find.text('Screen')),
+      findsNothing,
+    );
     await app.dispose(tester);
   });
 }

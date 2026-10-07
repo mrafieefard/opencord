@@ -30,6 +30,23 @@ message Event {
     TypingStart typing_start = 41;
 
     ServerUpdate server_update = 50;
+    VoiceSettingsUpdate voice_settings_update = 51;
+
+    // To sessions that can view the channel joined or left.
+    VoiceStateUpdate voice_state_update = 60;
+    // To the one session that joined or was moved.
+    VoiceServerUpdate voice_server_update = 61;
+    StreamCreate stream_create = 62;
+    StreamUpdate stream_update = 63;
+    StreamDelete stream_delete = 64;
+    // To the streamer only.
+    StreamViewersUpdate stream_viewers_update = 65;
+
+    // To everyone connected to the voice channel, the player included.
+    VoiceChannelEffect voice_channel_effect = 70;
+    SoundboardSoundCreate soundboard_sound_create = 71;
+    SoundboardSoundUpdate soundboard_sound_update = 72;
+    SoundboardSoundDelete soundboard_sound_delete = 73;
   }
 }
 
@@ -95,4 +112,66 @@ message TypingStart {
 
 message ServerUpdate {
   ServerInfo server = 1;
+}
+
+message VoiceSettingsUpdate {
+  VoiceSettings settings = 1;
+}
+
+// A channel_id-less state means the user left.
+message VoiceStateUpdate {
+  VoiceState voice_state = 1;
+}
+
+// Where to connect for voice, and the token to identify with there.
+message VoiceServerUpdate {
+  int64 channel_id = 1;
+  // wss:// URL of the voice gateway. Empty for the server's own voice node:
+  // the same host and port as this gateway, at /voice.
+  string endpoint = 2;
+  // SHA-256 of the voice node's TLS certificate, to pin for that
+  // connection. It arrives over the already pinned gateway.
+  bytes certificate_fingerprint = 3;
+  // Single use, valid for 60 seconds.
+  bytes token = 4;
+}
+
+message StreamCreate {
+  Stream stream = 1;
+}
+
+message StreamUpdate {
+  Stream stream = 1;
+}
+
+message StreamDelete {
+  string stream_key = 1;
+  int64 channel_id = 2;
+}
+
+message StreamViewersUpdate {
+  string stream_key = 1;
+  repeated int64 viewer_ids = 2;
+}
+
+message VoiceChannelEffect {
+  int64 channel_id = 1;
+  int64 user_id = 2;
+  string sound_ref = 3;
+  string name = 4;
+  optional string emoji = 5;
+  uint32 volume = 6;
+  int64 started_at_ms = 7;
+}
+
+message SoundboardSoundCreate {
+  SoundboardSound sound = 1;
+}
+
+message SoundboardSoundUpdate {
+  SoundboardSound sound = 1;
+}
+
+message SoundboardSoundDelete {
+  int64 sound_id = 1;
 }

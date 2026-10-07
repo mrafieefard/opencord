@@ -59,9 +59,18 @@ impl TestServer {
 
     /// Plain HTTPS GET; returns the status code and body.
     pub async fn get(&self, path: &str) -> (u16, String) {
+        self.get_with(path, &[]).await
+    }
+
+    /// HTTPS GET with extra headers; returns the status code and body.
+    pub async fn get_with(&self, path: &str, headers: &[(&str, &str)]) -> (u16, String) {
         let mut stream = tls_connect(self).await;
+        let extra: String = headers
+            .iter()
+            .map(|(name, value)| format!("{name}: {value}\r\n"))
+            .collect();
         let request =
-            format!("GET {path} HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n");
+            format!("GET {path} HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n{extra}\r\n");
         stream.write_all(request.as_bytes()).await.unwrap();
         let mut response = String::new();
         stream.read_to_string(&mut response).await.unwrap();

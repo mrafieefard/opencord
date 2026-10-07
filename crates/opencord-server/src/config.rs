@@ -41,6 +41,28 @@ heartbeat_interval_ms = 30000
 [log]
 # tracing filter, for example "info" or "opencord_server=debug". OPENCORD_LOG
 filter = "info"
+
+[voice]
+# Voice, video and screen share. OPENCORD_VOICE_ENABLED
+enabled = true
+# "embedded" runs the voice node inside this server. "external" uses only
+# the voice nodes listed below.
+mode = "embedded"
+# UDP port for media; forward it on your router too. OPENCORD_VOICE_UDP_PORT
+udp_port = 7711
+# Host or IP that clients send media to. "auto" uses the host they reached
+# this server with. OPENCORD_VOICE_PUBLIC_ADDRESS
+public_address = "auto"
+max_participants_per_channel = 99
+# Total upload cap in megabits per second, for home connections; 0 is no
+# cap. When it is reached, video quality drops first.
+max_egress_mbps = 0
+
+# Voice nodes on other machines (opencord-voice-node), each with its shared
+# secret in a file next to this one.
+# [[voice.external_nodes]]
+# endpoint = "wss://voice1.example.com:7712"
+# secret_file = "voice1.secret"
 "#;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Deserialize)]
@@ -50,6 +72,7 @@ pub struct Config {
     pub tls: TlsSection,
     pub gateway: GatewaySection,
     pub log: LogSection,
+    pub voice: VoiceSection,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
@@ -81,6 +104,35 @@ pub struct LogSection {
     pub filter: String,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct VoiceSection {
+    pub enabled: bool,
+    pub mode: VoiceMode,
+    pub udp_port: u16,
+    /// A host or IP, or "auto": the host clients reached this server with.
+    pub public_address: String,
+    pub max_participants_per_channel: u32,
+    /// 0 means no cap.
+    pub max_egress_mbps: u32,
+    pub external_nodes: Vec<ExternalNode>,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum VoiceMode {
+    #[default]
+    Embedded,
+    External,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ExternalNode {
+    pub endpoint: String,
+    pub secret_file: PathBuf,
+}
+
 impl Default for ServerSection {
     fn default() -> Self {
         Self {
@@ -97,6 +149,20 @@ impl Default for GatewaySection {
     fn default() -> Self {
         Self {
             heartbeat_interval_ms: 30_000,
+        }
+    }
+}
+
+impl Default for VoiceSection {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            mode: VoiceMode::Embedded,
+            udp_port: 7711,
+            public_address: "auto".to_owned(),
+            max_participants_per_channel: 99,
+            max_egress_mbps: 0,
+            external_nodes: Vec::new(),
         }
     }
 }
@@ -198,6 +264,15 @@ impl Config {
         if let Some(value) = env("OPENCORD_LOG") {
             config.log.filter = value;
         }
+        if let Some(value) = env("OPENCORD_VOICE_ENABLED") {
+            config.voice.enabled = parse_env("OPENCORD_VOICE_ENABLED", value)?;
+        }
+        if let Some(value) = env("OPENCORD_VOICE_UDP_PORT") {
+            config.voice.udp_port = parse_env("OPENCORD_VOICE_UDP_PORT", value)?;
+        }
+        if let Some(value) = env("OPENCORD_VOICE_PUBLIC_ADDRESS") {
+            config.voice.public_address = value;
+        }
         Ok(config)
     }
 
@@ -210,6 +285,18 @@ impl Config {
             tls: TlsSection {
                 cert: self.tls.cert.map(|cert| base_dir.join(cert)),
                 key: self.tls.key.map(|key| base_dir.join(key)),
+            },
+            voice: VoiceSection {
+                external_nodes: self
+                    .voice
+                    .external_nodes
+                    .into_iter()
+                    .map(|node| ExternalNode {
+                        secret_file: base_dir.join(node.secret_file),
+                        ..node
+                    })
+                    .collect(),
+                ..self.voice
             },
             ..self
         }
@@ -287,6 +374,9 @@ mod tests {
             ("OPENCORD_TLS_KEY", "/certs/key.pem"),
             ("OPENCORD_HEARTBEAT_INTERVAL_MS", "5000"),
             ("OPENCORD_LOG", "debug"),
+            ("OPENCORD_VOICE_ENABLED", "false"),
+            ("OPENCORD_VOICE_UDP_PORT", "17711"),
+            ("OPENCORD_VOICE_PUBLIC_ADDRESS", "203.0.113.7"),
         ]);
 
         let config = Config::load_or_create(&path, |name| env.get(name).map(|v| (*v).to_owned()))
@@ -302,6 +392,45 @@ mod tests {
         assert_eq!(config.tls.key, Some(PathBuf::from("/certs/key.pem")));
         assert_eq!(config.gateway.heartbeat_interval_ms, 5000);
         assert_eq!(config.log.filter, "debug");
+        assert!(!config.voice.enabled);
+        assert_eq!(config.voice.udp_port, 17711);
+        assert_eq!(config.voice.public_address, "203.0.113.7");
+    }
+
+    #[test]
+    fn voice_is_embedded_on_udp_7711_by_default() {
+        let voice = Config::default().voice;
+
+        assert!(voice.enabled);
+        assert_eq!(voice.mode, VoiceMode::Embedded);
+        assert_eq!(voice.udp_port, 7711);
+        assert_eq!(voice.public_address, "auto");
+        assert_eq!(voice.max_participants_per_channel, 99);
+        assert_eq!(voice.max_egress_mbps, 0);
+        assert!(voice.external_nodes.is_empty());
+    }
+
+    #[test]
+    fn reads_external_voice_nodes_with_secrets_beside_the_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("opencord.toml");
+        fs::write(
+            &path,
+            "[voice]\nmode = \"external\"\n\n[[voice.external_nodes]]\n\
+             endpoint = \"wss://voice1.example.com:7712\"\nsecret_file = \"voice1.secret\"\n",
+        )
+        .unwrap();
+
+        let voice = Config::load_or_create(&path, no_env).unwrap().config.voice;
+
+        assert_eq!(voice.mode, VoiceMode::External);
+        assert_eq!(
+            voice.external_nodes,
+            [ExternalNode {
+                endpoint: "wss://voice1.example.com:7712".to_owned(),
+                secret_file: dir.path().join("voice1.secret"),
+            }]
+        );
     }
 
     #[test]

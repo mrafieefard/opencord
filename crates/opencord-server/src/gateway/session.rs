@@ -281,6 +281,13 @@ impl Session {
         self.lock().ended
     }
 
+    /// How long the session has been without a connection, if it is.
+    pub fn detached_for(&self, now: Instant) -> Option<Duration> {
+        self.lock()
+            .detached_at
+            .map(|at| now.saturating_duration_since(at))
+    }
+
     fn lock(&self) -> MutexGuard<'_, Inner> {
         self.inner.lock().unwrap_or_else(PoisonError::into_inner)
     }

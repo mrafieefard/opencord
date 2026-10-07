@@ -8,6 +8,7 @@ import 'package:opencord/features/settings/server/invites_bans_pages.dart';
 import 'package:opencord/features/settings/server/members_page.dart';
 import 'package:opencord/features/settings/server/overview_page.dart';
 import 'package:opencord/features/settings/server/roles_page.dart';
+import 'package:opencord/features/settings/server/voice_page.dart';
 import 'package:opencord/features/settings/settings_dialog.dart';
 import 'package:opencord/ui/theme/oc_icons.dart';
 
@@ -25,6 +26,14 @@ List<SettingsPage> serverSettingsPages(
       icon: OcIcons.info,
       group: 'Server',
       builder: (_) => ServerOverviewPage(serverKey: serverKey),
+    ),
+  if (data.voiceEnabled && data.can(Permissions.manageServer))
+    SettingsPage(
+      id: 'voice',
+      label: 'Voice & video',
+      icon: OcIcons.graphicEq,
+      group: 'Server',
+      builder: (_) => ServerVoicePage(serverKey: serverKey),
     ),
   if (data.can(Permissions.manageChannels))
     SettingsPage(

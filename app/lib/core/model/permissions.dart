@@ -26,6 +26,14 @@ extension type const Permissions(int bits) {
   static const deafenMembers = Permissions(1 << 21);
   static const moveMembers = Permissions(1 << 22);
   static const prioritySpeaker = Permissions(1 << 23);
+
+  /// Without it, push-to-talk is forced; only clients can enforce it.
+  static const useVoiceActivity = Permissions(1 << 24);
+  static const useSoundboard = Permissions(1 << 25);
+
+  /// Play sounds from other servers.
+  static const useExternalSounds = Permissions(1 << 26);
+  static const manageSoundboard = Permissions(1 << 27);
   static const administrator = Permissions(1 << 63);
 
   /// Every defined bit.
@@ -52,6 +60,10 @@ extension type const Permissions(int bits) {
         (1 << 21) |
         (1 << 22) |
         (1 << 23) |
+        (1 << 24) |
+        (1 << 25) |
+        (1 << 26) |
+        (1 << 27) |
         (1 << 63),
   );
 
@@ -65,7 +77,10 @@ extension type const Permissions(int bits) {
         (1 << 16) |
         (1 << 17) |
         (1 << 18) |
-        (1 << 19),
+        (1 << 19) |
+        (1 << 24) |
+        (1 << 25) |
+        (1 << 26),
   );
 
   bool has(Permissions other) => bits & other.bits == other.bits;

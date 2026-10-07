@@ -56,6 +56,27 @@ impl ApiError {
         }
     }
 
+    pub fn voice_channel_full() -> Self {
+        Self::new(
+            proto::ErrorCode::VoiceChannelFull,
+            "that voice channel is full",
+        )
+    }
+
+    pub fn voice_not_connected(who: &str) -> Self {
+        Self::new(
+            proto::ErrorCode::VoiceNotConnected,
+            format!("{who} not in a voice channel"),
+        )
+    }
+
+    pub fn camera_limit() -> Self {
+        Self::new(
+            proto::ErrorCode::CameraLimit,
+            "the camera limit for this channel has been reached",
+        )
+    }
+
     pub fn internal() -> Self {
         Self::new(proto::ErrorCode::Internal, "internal server error")
     }

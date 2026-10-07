@@ -1,0 +1,140 @@
+// SPDX-License-Identifier: MPL-2.0
+syntax = "proto3";
+
+package opencord.internal.v1;
+
+import "opencord/v1/models.proto";
+import "opencord/v1/voice.proto";
+
+// What a voice token vouches for. A token is these claims, encoded, followed
+// by the main server's Ed25519 signature over
+// "opencord-voice-token-v1" || claims. Clients treat it as opaque bytes.
+message VoiceTokenClaims {
+  // 16 random bytes; a node accepts each token once.
+  bytes token_id = 1;
+  int64 user_id = 2;
+  int64 channel_id = 3;
+  // The main gateway session that joined.
+  string session_id = 4;
+  // The user's resolved permissions in the channel.
+  uint64 permissions = 5;
+  opencord.voice.v1.Limits limits = 6;
+  bool self_mute = 7;
+  bool self_deaf = 8;
+  bool server_mute = 9;
+  bool server_deaf = 10;
+  bool suppress = 11;
+  int64 expires_at_ms = 12;
+}
+
+// What a media token vouches for, signed the same way over
+// "opencord-media-token-v1" || claims. Only the main server reads it.
+message MediaTokenClaims {
+  int64 user_id = 1;
+  bytes server_id = 2;
+  int64 expires_at_ms = 3;
+}
+
+// The control channel between the main server and an external voice node.
+// The node connects to the main server, proves it knows the shared secret,
+// then registers. Every WebSocket binary frame carries one ControlEnvelope.
+message ControlEnvelope {
+  oneof payload {
+    // Main server to node.
+    Challenge challenge = 10;
+    Registered registered = 11;
+    ParticipantUpdate participant_update = 12;
+    DisconnectParticipant disconnect_participant = 13;
+    ChannelUpdate channel_update = 14;
+    SettingsUpdate settings_update = 15;
+
+    // Node to main server.
+    Register register = 30;
+    LoadReport load_report = 31;
+    ParticipantConnected participant_connected = 32;
+    ParticipantDisconnected participant_disconnected = 33;
+    SpeakingActivity speaking_activity = 34;
+
+    opencord.v1.Error error = 50;
+  }
+}
+
+message Challenge {
+  // 32 random bytes.
+  bytes nonce = 1;
+}
+
+message Register {
+  // HMAC-SHA256 of the challenge nonce, keyed with the shared secret.
+  bytes proof = 1;
+  // wss:// URL clients use to reach this node's voice gateway.
+  string endpoint = 2;
+  // SHA-256 of the node's TLS certificate.
+  bytes certificate_fingerprint = 3;
+  // Where clients send media: host or IP, and UDP port.
+  string public_address = 4;
+  uint32 udp_port = 5;
+}
+
+message Registered {
+  string node_id = 1;
+  // The key voice tokens are signed with.
+  bytes voice_signing_public_key = 2;
+  opencord.v1.VoiceSettings settings = 3;
+}
+
+// Sent every 5 seconds.
+message LoadReport {
+  float cpu_percent = 1;
+  uint32 channels = 2;
+  uint32 participants = 3;
+  uint64 packets_per_second = 4;
+  uint64 bitrate_in = 5;
+  uint64 bitrate_out = 6;
+}
+
+// A participant's state changed: permissions, moderation, or self flags.
+message ParticipantUpdate {
+  int64 user_id = 1;
+  int64 channel_id = 2;
+  uint64 permissions = 3;
+  bool self_mute = 4;
+  bool self_deaf = 5;
+  bool server_mute = 6;
+  bool server_deaf = 7;
+  bool suppress = 8;
+}
+
+message DisconnectParticipant {
+  int64 user_id = 1;
+  int64 channel_id = 2;
+}
+
+message ChannelUpdate {
+  int64 channel_id = 1;
+  opencord.voice.v1.Limits limits = 2;
+}
+
+message SettingsUpdate {
+  opencord.v1.VoiceSettings settings = 1;
+}
+
+message ParticipantConnected {
+  int64 user_id = 1;
+  int64 channel_id = 2;
+  string session_id = 3;
+}
+
+message ParticipantDisconnected {
+  int64 user_id = 1;
+  int64 channel_id = 2;
+}
+
+// When each participant last spoke, for AFK moves.
+message SpeakingActivity {
+  message Entry {
+    int64 user_id = 1;
+    int64 last_spoke_at_ms = 2;
+  }
+  repeated Entry entries = 1;
+}

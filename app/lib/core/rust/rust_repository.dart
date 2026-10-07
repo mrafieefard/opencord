@@ -9,6 +9,7 @@ import 'package:opencord/core/model/permissions.dart';
 import 'package:opencord/core/model/server.dart';
 import 'package:opencord/core/model/snapshot.dart';
 import 'package:opencord/core/model/user.dart';
+import 'package:opencord/core/model/voice.dart';
 import 'package:opencord/core/providers/activity_state.dart';
 import 'package:opencord/core/repository/repository.dart';
 import 'package:opencord/core/rust/core_api.dart';
@@ -19,9 +20,10 @@ import 'package:opencord/core/settings/key_value_store.dart';
 import 'package:opencord/src/rust/api/types.dart' as core;
 
 /// The app's repository over the Rust core (desktop UI plan §12 step 15,
-/// Phase 1 M5/M6). Phase 1 servers keep no read states, pins, reactions,
-/// replies or voice; read positions live on this device, and after each
-/// Ready the unread counts are rebuilt from recent history.
+/// Phase 1 M5/M6, Phase 2). Servers keep no read states, pins, reactions or
+/// replies; read positions live on this device, and after each Ready the
+/// unread counts are rebuilt from recent history. Voice has its states but
+/// no media yet, so no camera or screen share.
 class RustRepository implements OpencordRepository {
   RustRepository._(
     this._core,
@@ -87,8 +89,14 @@ class RustRepository implements OpencordRepository {
   final _held = <String, List<core.CoreEventPayload>>{};
   final _readyCount = <String, int>{};
 
+  /// Everyone in voice per server, by user id.
+  final _voice = <String, Map<int, core.VoiceState>>{};
+
+  /// The voice channel this device is in, as far as the app knows.
+  ({String server, int channel})? _ownVoice;
+
   @override
-  RepoCapabilities get capabilities => const RepoCapabilities();
+  RepoCapabilities get capabilities => const RepoCapabilities(voice: true);
 
   @override
   Stream<RepoEvent> get events => _events.stream;
@@ -314,6 +322,10 @@ class RustRepository implements OpencordRepository {
       readStates: activity.read,
     );
     _snapshots[server] = snapshot;
+    _voice[server] = {
+      for (final state in ready.voiceStates)
+        if (state.channelId != null) state.userId: state,
+    };
     _emit(Ready(server, snapshot));
     for (final payload in _held.remove(server) ?? const []) {
       _forward(server, payload);
@@ -464,8 +476,46 @@ class RustRepository implements OpencordRepository {
           for (final entry in channelPermissions)
             entry.channelId: Permissions(entry.permissions),
         }),
+      core.CoreEventPayload_VoiceStateUpdate(:final field0) => _voiceState(
+        server,
+        field0,
+      ),
+      core.CoreEventPayload_VoiceSettingsUpdate(:final field0) =>
+        VoiceSettingsChanged(server, voiceSettingsFrom(field0)),
     };
     if (event != null) _emit(event);
+  }
+
+  /// Updates who is in voice, announces the channels that changed, and
+  /// tells the app when this device's own channel changed by itself.
+  RepoEvent? _voiceState(String server, core.VoiceState state) {
+    final voice = _voice[server] ??= {};
+    final before = voice[state.userId]?.channelId;
+    if (state.channelId == null) {
+      voice.remove(state.userId);
+    } else {
+      voice[state.userId] = state;
+    }
+    for (final channel in {before, state.channelId}.nonNulls) {
+      _emit(
+        VoiceChanged(server, channel, [
+          for (final other in voice.values)
+            if (other.channelId == channel) participantFrom(other),
+        ]),
+      );
+    }
+    if (state.userId != _snapshots[server]?.self.id) return null;
+    final own = _ownVoice;
+    if (state.thisDevice) {
+      final channel = state.channelId;
+      if (channel == null && own?.server != server) return null;
+      if (own?.server == server && own?.channel == channel) return null;
+      _ownVoice = channel == null ? null : (server: server, channel: channel);
+      return OwnVoiceChanged(server, channel);
+    }
+    if (own?.server != server) return null;
+    _ownVoice = null;
+    return OwnVoiceChanged(server, null);
   }
 
   // Servers -----------------------------------------------------------------
@@ -667,12 +717,22 @@ class RustRepository implements OpencordRepository {
     String? name,
     String? topic,
     int? parentId,
+    int? bitrate,
+    int? userLimit,
+    bool? textInVoice,
   }) async => channelFrom(
     await _call(
       () => _core.updateChannel(
         serverKey,
         channelId,
-        core.ChannelChanges(name: name, topic: topic, parentId: parentId),
+        core.ChannelChanges(
+          name: name,
+          topic: topic,
+          parentId: parentId,
+          bitrate: bitrate,
+          userLimit: userLimit,
+          textInVoice: textInVoice,
+        ),
       ),
     ),
   );
@@ -844,21 +904,35 @@ class RustRepository implements OpencordRepository {
   Future<void> revokeInvite(String serverKey, String code) =>
       _call(() => _core.revokeInvite(serverKey, code));
 
-  // Voice (Phase 2) ---------------------------------------------------------
+  @override
+  Future<void> updateVoiceSettings(String serverKey, VoiceSettings settings) =>
+      _call(
+        () => _core.updateVoiceSettings(serverKey, voiceSettingsTo(settings)),
+      );
+
+  // Voice ---------------------------------------------------------------------
 
   @override
-  Future<void> joinVoice(String serverKey, int channelId) =>
-      Future.error(_later);
+  Future<void> joinVoice(String serverKey, int channelId) async {
+    await _call(() => _core.voiceJoin(serverKey, channelId));
+    _ownVoice = (server: serverKey, channel: channelId);
+  }
 
   @override
-  Future<void> leaveVoice() async {}
+  Future<void> leaveVoice() async {
+    _ownVoice = null;
+    await _call(_core.voiceLeave);
+  }
 
-  /// Mute and deafen are kept locally until voice exists.
+  /// Camera and screen share wait for media (Phase 2 V5, V6).
   @override
   Future<void> setVoiceSelf({
     bool? muted,
     bool? deafened,
     bool? camera,
     bool? screensharing,
-  }) async {}
+  }) async {
+    if (muted != null) _now(() => _core.voiceSetSelfMute(muted));
+    if (deafened != null) _now(() => _core.voiceSetSelfDeaf(deafened));
+  }
 }

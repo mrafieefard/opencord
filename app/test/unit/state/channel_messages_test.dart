@@ -34,6 +34,9 @@ List<core.Message> _ids(Iterable<int> ids, {int channel = _general}) => [
 ];
 
 core.Channel _text(int id, String name) => core.Channel(
+  bitrate: 0,
+  userLimit: 0,
+  textInVoice: false,
   id: id,
   kind: core.ChannelKind.text,
   name: name,
@@ -43,6 +46,9 @@ core.Channel _text(int id, String name) => core.Channel(
 
 final _readyPayload = core.CoreEventPayload.ready(
   core.ReadySnapshot(
+    voiceEnabled: true,
+    voiceStates: const [],
+    voiceSettings: coreVoiceSettings,
     selfUser: const core.User(
       id: 1,
       publicKeyHex: 'abcd',

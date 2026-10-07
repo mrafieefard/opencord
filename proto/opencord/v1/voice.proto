@@ -1,0 +1,261 @@
+// SPDX-License-Identifier: MPL-2.0
+syntax = "proto3";
+
+package opencord.voice.v1;
+
+import "opencord/v1/models.proto";
+
+// The voice gateway at the endpoint from VoiceServerUpdate. Every WebSocket
+// binary frame carries exactly one Envelope, as on the main gateway. Media
+// itself flows over ICE + DTLS-SRTP on the node's UDP port.
+message Envelope {
+  // Node to client: set on sequenced messages (ClientConnect,
+  // ClientDisconnect, Speaking, TrackUpdate, SenderLayerWants), increasing
+  // by one per message within a voice session. Used to resume.
+  uint64 seq = 1;
+  oneof payload {
+    Hello hello = 10;
+    Identify identify = 11;
+    Ready ready = 12;
+    TransportInfo transport_info = 13;
+    Heartbeat heartbeat = 14;
+    HeartbeatAck heartbeat_ack = 15;
+    Speaking speaking = 16;
+    ClientConnect client_connect = 17;
+    ClientDisconnect client_disconnect = 18;
+    PublishTrack publish_track = 19;
+    TrackPublished track_published = 20;
+    TrackRejected track_rejected = 21;
+    UnpublishTrack unpublish_track = 22;
+    TrackUpdate track_update = 23;
+    MediaSinkWants media_sink_wants = 24;
+    SenderLayerWants sender_layer_wants = 25;
+    Resume resume = 26;
+    Resumed resumed = 27;
+    // Connection-level failure. The node closes the socket after it.
+    opencord.v1.Error error = 30;
+  }
+  // End-to-end encryption (MLS key packages, proposals, commits, welcomes,
+  // epoch transitions) will live here.
+  reserved 100 to 149;
+}
+
+// First frame, sent by the node.
+message Hello {
+  uint32 heartbeat_interval_ms = 1;
+}
+
+enum Codec {
+  CODEC_UNSPECIFIED = 0;
+  CODEC_OPUS = 1;
+  CODEC_H264 = 2;
+  CODEC_AV1 = 3;
+}
+
+message CodecSupport {
+  Codec codec = 1;
+  bool hardware_encode = 2;
+  bool hardware_decode = 3;
+}
+
+message ClientCaps {
+  repeated CodecSupport codecs = 1;
+  // The largest video this client decodes, in pixels of height.
+  uint32 max_decode_height = 2;
+  bool simulcast = 3;
+}
+
+message Identify {
+  // From VoiceServerUpdate. Single use.
+  bytes token = 1;
+  int64 user_id = 2;
+  // The main gateway session.
+  string session_id = 3;
+  int64 channel_id = 4;
+  ClientCaps client_caps = 5;
+  // 0: no end-to-end encryption.
+  uint32 max_e2ee_version = 6;
+}
+
+// A UDP host candidate of the node.
+message IceCandidate {
+  string ip = 1;
+  uint32 port = 2;
+}
+
+message CodecParams {
+  Codec codec = 1;
+  uint32 payload_type = 2;
+  uint32 clock_rate = 3;
+  // 0 when the codec has no retransmission stream.
+  uint32 rtx_payload_type = 4;
+  string fmtp = 5;
+}
+
+message Limits {
+  opencord.v1.ScreenShareResolution screen_share_max_resolution = 1;
+  uint32 screen_share_max_fps = 2;
+  // This channel's voice bitrate in bits per second, already capped by the
+  // server's maximum.
+  uint32 voice_bitrate = 3;
+  bool camera_allowed = 4;
+  uint32 max_camera_participants = 5;
+  uint32 max_stream_viewers = 6;
+}
+
+enum TrackKind {
+  TRACK_KIND_UNSPECIFIED = 0;
+  TRACK_KIND_CAMERA = 1;
+  TRACK_KIND_SCREEN = 2;
+  TRACK_KIND_SCREEN_AUDIO = 3;
+}
+
+enum TrackState {
+  TRACK_STATE_UNSPECIFIED = 0;
+  TRACK_STATE_ACTIVE = 1;
+  TRACK_STATE_PAUSED = 2;
+  TRACK_STATE_REMOVED = 3;
+}
+
+// One simulcast layer of a video track.
+message Layer {
+  // "h", "m" or "l".
+  string rid = 1;
+  uint32 width = 2;
+  uint32 height = 3;
+  uint32 fps = 4;
+  // Bits per second.
+  uint32 max_bitrate = 5;
+}
+
+message Track {
+  string track_id = 1;
+  TrackKind kind = 2;
+  Codec codec = 3;
+  repeated Layer layers = 4;
+  TrackState state = 5;
+}
+
+message Participant {
+  int64 user_id = 1;
+  uint32 audio_ssrc = 2;
+  repeated Track tracks = 3;
+}
+
+message Ready {
+  string voice_session_id = 1;
+  bytes resume_token = 2;
+  uint32 audio_ssrc = 3;
+  string ice_ufrag = 4;
+  string ice_pwd = 5;
+  repeated IceCandidate candidates = 6;
+  // SHA-256 of the node's DTLS certificate.
+  bytes dtls_fingerprint = 7;
+  repeated CodecParams codecs = 8;
+  Limits limits = 9;
+  // Everyone else already in the channel.
+  repeated Participant participants = 10;
+}
+
+// The client's half of the transport, for str0m's direct API (no SDP).
+message TransportInfo {
+  string ice_ufrag = 1;
+  string ice_pwd = 2;
+  bytes dtls_fingerprint = 3;
+}
+
+message Heartbeat {
+  uint64 nonce = 1;
+  // Client clock, to measure the round trip.
+  int64 client_ts_ms = 2;
+}
+
+message HeartbeatAck {
+  uint64 nonce = 1;
+}
+
+// flags: MICROPHONE = 1, SOUNDSHARE = 2, PRIORITY = 4. The node checks
+// PRIORITY against PRIORITY_SPEAKER and relays to everyone else.
+message Speaking {
+  uint32 flags = 1;
+  // Set by the node when relaying.
+  int64 user_id = 2;
+}
+
+message ClientConnect {
+  int64 user_id = 1;
+  uint32 audio_ssrc = 2;
+  repeated Track tracks = 3;
+}
+
+message ClientDisconnect {
+  int64 user_id = 1;
+}
+
+message PublishTrack {
+  string track_id = 1;
+  TrackKind kind = 2;
+  Codec codec = 3;
+  repeated Layer layers = 4;
+}
+
+message LayerSsrc {
+  string rid = 1;
+  uint32 ssrc = 2;
+  // 0 without retransmission.
+  uint32 rtx_ssrc = 3;
+}
+
+message TrackPublished {
+  string track_id = 1;
+  repeated LayerSsrc layers = 2;
+}
+
+message TrackRejected {
+  string track_id = 1;
+  opencord.v1.ErrorCode reason = 2;
+  string message = 3;
+}
+
+message UnpublishTrack {
+  string track_id = 1;
+}
+
+message TrackUpdate {
+  int64 user_id = 1;
+  Track track = 2;
+  // The layers the sender currently produces.
+  repeated string available_layers = 3;
+}
+
+message SinkWant {
+  string track_id = 1;
+  uint32 max_height = 2;
+  uint32 max_fps = 3;
+  bool paused = 4;
+}
+
+// Which remote video this client wants, and at what size. Tracks not
+// listed are not sent.
+message MediaSinkWants {
+  repeated SinkWant wants = 1;
+}
+
+// The layers of a track that anyone needs; the sender stops encoding the
+// rest.
+message SenderLayerWants {
+  string track_id = 1;
+  repeated string active_layers = 2;
+}
+
+// The voice token is single use, so resuming uses the resume token from
+// Ready.
+message Resume {
+  string voice_session_id = 1;
+  bytes resume_token = 2;
+  uint64 last_seq = 3;
+}
+
+message Resumed {
+  uint64 replayed = 1;
+}

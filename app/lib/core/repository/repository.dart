@@ -8,6 +8,7 @@ import 'package:opencord/core/model/permissions.dart';
 import 'package:opencord/core/model/presence.dart';
 import 'package:opencord/core/model/server.dart';
 import 'package:opencord/core/model/user.dart';
+import 'package:opencord/core/model/voice.dart';
 import 'package:opencord/core/repository/events.dart';
 
 export 'package:opencord/core/repository/events.dart';
@@ -21,6 +22,8 @@ class RepoCapabilities {
     this.reactions = false,
     this.pins = false,
     this.voice = false,
+    this.camera = false,
+    this.screenShare = false,
     this.announcementChannels = false,
     this.readStates = false,
     this.replies = false,
@@ -30,6 +33,8 @@ class RepoCapabilities {
     reactions: true,
     pins: true,
     voice: true,
+    camera: true,
+    screenShare: true,
     announcementChannels: true,
     readStates: true,
     replies: true,
@@ -38,6 +43,8 @@ class RepoCapabilities {
   final bool reactions;
   final bool pins;
   final bool voice;
+  final bool camera;
+  final bool screenShare;
   final bool announcementChannels;
 
   /// Unread counts that survive restarts.
@@ -108,6 +115,7 @@ enum RepoErrorKind {
   invalidArgument,
   rateLimited,
   conflict,
+  voiceChannelFull,
   notConnected,
   timeout,
   connection,
@@ -235,13 +243,17 @@ abstract interface class OpencordRepository {
   });
 
   /// Changes what is given; a [parentId] of 0 moves the channel out of
-  /// its category, an empty [topic] clears it.
+  /// its category, an empty [topic] clears it. [bitrate] (bits per
+  /// second), [userLimit] and [textInVoice] are for voice channels.
   Future<Channel> updateChannel(
     String serverKey,
     int channelId, {
     String? name,
     String? topic,
     int? parentId,
+    int? bitrate,
+    int? userLimit,
+    bool? textInVoice,
   });
 
   Future<void> deleteChannel(String serverKey, int channelId);
@@ -337,6 +349,10 @@ abstract interface class OpencordRepository {
     String? description,
     bool? openJoin,
   });
+
+  /// Saves the server's voice, video and soundboard settings (Phase 2
+  /// plan §5.2); needs Manage server.
+  Future<void> updateVoiceSettings(String serverKey, VoiceSettings settings);
 
   Future<void> joinVoice(String serverKey, int channelId);
 

@@ -62,6 +62,8 @@ void _route(Ref ref, RepoEvent event) {
       _toChannel(ref, key, message.channelId, event);
     case MessageDeleted(:final channelId):
       _toChannel(ref, key, channelId, event);
+    case OwnVoiceChanged():
+      ref.read(voiceSessionProvider.notifier).apply(event);
     default:
       break;
   }
@@ -418,12 +420,29 @@ class VoiceSessionNotifier extends Notifier<VoiceSession> {
 
   Future<void> leave() async {
     await _repository.leaveVoice();
-    state = state.copyWith(
-      serverKey: () => null,
-      channelId: () => null,
-      camera: false,
-      screensharing: false,
-    );
+    _left();
+  }
+
+  void _left() => state = state.copyWith(
+    serverKey: () => null,
+    channelId: () => null,
+    camera: false,
+    screensharing: false,
+  );
+
+  /// The server moved this device, or it is no longer in voice there.
+  void apply(OwnVoiceChanged event) {
+    switch (event.channelId) {
+      case null when state.serverKey == event.serverKey:
+        _left();
+      case null:
+        break;
+      case final channelId:
+        state = state.copyWith(
+          serverKey: () => event.serverKey,
+          channelId: () => channelId,
+        );
+    }
   }
 
   Future<void> toggleMute() async {

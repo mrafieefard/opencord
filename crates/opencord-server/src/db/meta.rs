@@ -93,24 +93,49 @@ impl ServerMeta {
             (DEFAULT_INVITE, self.default_invite.clone()),
         ];
         for (key, value) in entries {
-            match value {
-                Some(value) => {
-                    sqlx::query!(
-                        "INSERT INTO server_meta (key, value) VALUES ($1, $2)
-                         ON CONFLICT (key) DO UPDATE SET value = excluded.value",
-                        key,
-                        value
-                    )
-                    .execute(&mut *conn)
-                    .await?;
-                }
-                None => {
-                    sqlx::query!("DELETE FROM server_meta WHERE key = $1", key)
-                        .execute(&mut *conn)
-                        .await?;
-                }
-            }
+            put(conn, key, value.as_deref()).await?;
         }
         Ok(())
     }
+}
+
+/// Stores `value` under `key`, or removes the key for `None`.
+pub async fn put(
+    conn: &mut SqliteConnection,
+    key: &str,
+    value: Option<&str>,
+) -> Result<(), sqlx::Error> {
+    match value {
+        Some(value) => {
+            sqlx::query!(
+                "INSERT INTO server_meta (key, value) VALUES ($1, $2)
+                 ON CONFLICT (key) DO UPDATE SET value = excluded.value",
+                key,
+                value
+            )
+            .execute(&mut *conn)
+            .await?;
+        }
+        None => {
+            sqlx::query!("DELETE FROM server_meta WHERE key = $1", key)
+                .execute(&mut *conn)
+                .await?;
+        }
+    }
+    Ok(())
+}
+
+/// Every key starting with `prefix`, with its value.
+pub async fn load_prefixed(
+    conn: &mut SqliteConnection,
+    prefix: &str,
+) -> Result<HashMap<String, String>, sqlx::Error> {
+    let pattern = format!("{prefix}%");
+    let rows = sqlx::query!(
+        "SELECT key, value FROM server_meta WHERE key LIKE $1",
+        pattern
+    )
+    .fetch_all(conn)
+    .await?;
+    Ok(rows.into_iter().map(|row| (row.key, row.value)).collect())
 }
