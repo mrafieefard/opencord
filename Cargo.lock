@@ -1937,6 +1937,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "opencord-media"
+version = "0.1.0"
+dependencies = [
+ "bytes",
+ "futures-util",
+ "getrandom 0.4.3",
+ "opencord-common",
+ "opencord-proto",
+ "prost",
+ "rustls",
+ "sha2 0.11.0",
+ "str0m",
+ "thiserror",
+ "tokio",
+ "tokio-rustls",
+ "tokio-tungstenite 0.30.0",
+ "tracing",
+]
+
+[[package]]
 name = "opencord-proto"
 version = "0.1.0"
 dependencies = [
@@ -1984,12 +2004,20 @@ dependencies = [
 name = "opencord-voice"
 version = "0.1.0"
 dependencies = [
+ "axum",
+ "bytes",
  "ed25519-dalek",
+ "futures-util",
+ "getrandom 0.4.3",
+ "hex",
  "opencord-common",
+ "opencord-media",
  "opencord-proto",
  "prost",
+ "sha2 0.11.0",
  "str0m",
  "thiserror",
+ "tokio",
  "tracing",
 ]
 

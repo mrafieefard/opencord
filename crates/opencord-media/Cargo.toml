@@ -1,27 +1,24 @@
 [package]
-name = "opencord-voice"
-description = "Opencord voice node: voice gateway and SFU, embedded in the server or run on its own."
+name = "opencord-media"
+description = "Opencord client media engine: voice transport now, audio and video later."
 version.workspace = true
 edition.workspace = true
 repository.workspace = true
-license = "AGPL-3.0-or-later"
+license = "MPL-2.0"
 publish = false
 
 [dependencies]
-axum.workspace = true
 bytes.workspace = true
-ed25519-dalek.workspace = true
 futures-util.workspace = true
 getrandom.workspace = true
-hex.workspace = true
 opencord-common.workspace = true
 opencord-proto.workspace = true
 prost.workspace = true
+rustls.workspace = true
 sha2.workspace = true
 str0m.workspace = true
 thiserror.workspace = true
 tokio.workspace = true
+tokio-rustls.workspace = true
+tokio-tungstenite.workspace = true
 tracing.workspace = true
-
-[dev-dependencies]
-opencord-media.workspace = true

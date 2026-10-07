@@ -19,6 +19,40 @@ pub mod speaking {
     pub const PRIORITY: u32 = 4;
 }
 
+/// Voice gateway close codes.
+pub mod close {
+    pub const INVALID_FRAME: u16 = 4001;
+    /// The voice token was refused: get a new one by joining again.
+    pub const AUTHENTICATION_FAILED: u16 = 4003;
+    pub const HANDSHAKE_TIMEOUT: u16 = 4004;
+    /// Resumable.
+    pub const HEARTBEAT_TIMEOUT: u16 = 4005;
+    /// The voice session is gone: join again for a new token.
+    pub const SESSION_INVALID: u16 = 4006;
+    /// The same user connected again; this connection is over.
+    /// Too many messages; resumable after a pause.
+    pub const RATE_LIMITED: u16 = 4008;
+    pub const SESSION_REPLACED: u16 = 4009;
+    /// Left, moved or disconnected by the main server: do not reconnect.
+    pub const DISCONNECTED: u16 = 4014;
+    /// The node is going away: wait for the main server to say where next.
+    pub const NODE_SHUTDOWN: u16 = 4015;
+
+    /// Whether the client may resume its voice session after this close.
+    pub fn is_resumable(code: Option<u16>) -> bool {
+        !matches!(
+            code,
+            Some(
+                AUTHENTICATION_FAILED
+                    | SESSION_INVALID
+                    | SESSION_REPLACED
+                    | DISCONNECTED
+                    | NODE_SHUTDOWN
+            )
+        )
+    }
+}
+
 /// Above this many people in a channel, only the loudest few are heard.
 pub const LOUDEST_ONLY_ABOVE: usize = 50;
 /// How many are heard then.

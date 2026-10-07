@@ -1,0 +1,341 @@
+//! A voice node on localhost with real clients (opencord-media's
+//! transport): the voice gateway over WebSocket, media over UDP.
+
+use std::sync::atomic::{AtomicU8, Ordering};
+use std::time::{Duration, Instant};
+
+use axum::Router;
+use axum::extract::{State, WebSocketUpgrade};
+use axum::response::Response;
+use axum::routing::get;
+use ed25519_dalek::SigningKey;
+use opencord_common::voice::close;
+use opencord_media::transport::{
+    AudioFrame, TransportError, VoiceConnection, VoiceEvent, VoiceTarget,
+};
+use opencord_proto::internal::v1::VoiceTokenClaims;
+use opencord_voice::node::{NodeCommand, NodeConfig, NodeEvent, VoiceNode};
+use opencord_voice::sfu::PeerState;
+use opencord_voice::token;
+use tokio::sync::mpsc::UnboundedReceiver;
+
+const CHANNEL: i64 = 5;
+const WAIT: Duration = Duration::from_secs(10);
+
+struct Node {
+    node: VoiceNode,
+    events: UnboundedReceiver<NodeEvent>,
+    key: SigningKey,
+    gateway: String,
+}
+
+async fn node() -> Node {
+    let key = SigningKey::from_bytes(&[9; 32]);
+    let (node, events) = VoiceNode::start(NodeConfig {
+        udp_port: 0,
+        public_address: Some("127.0.0.1".to_owned()),
+        verifying_key: key.verifying_key(),
+        heartbeat_interval: Duration::from_secs(1),
+    })
+    .await
+    .unwrap();
+    let app = Router::new()
+        .route("/voice", get(upgrade))
+        .with_state(node.clone());
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let gateway = format!("ws://{}/voice", listener.local_addr().unwrap());
+    tokio::spawn(async move { axum::serve(listener, app).await });
+    Node {
+        node,
+        events,
+        key,
+        gateway,
+    }
+}
+
+async fn upgrade(State(node): State<VoiceNode>, upgrade: WebSocketUpgrade) -> Response {
+    upgrade.on_upgrade(move |socket| async move { node.serve(socket).await })
+}
+
+static TOKEN_IDS: AtomicU8 = AtomicU8::new(1);
+
+fn token_for(node: &Node, user_id: i64) -> Vec<u8> {
+    token::issue(
+        &node.key,
+        &VoiceTokenClaims {
+            token_id: vec![TOKEN_IDS.fetch_add(1, Ordering::Relaxed); 16],
+            user_id,
+            channel_id: CHANNEL,
+            session_id: format!("session-{user_id}"),
+            permissions: 1 << 16,
+            expires_at_ms: now_ms() + 60_000,
+            ..Default::default()
+        },
+    )
+}
+
+fn target(node: &Node, user_id: i64, token: Vec<u8>) -> VoiceTarget {
+    VoiceTarget {
+        gateway_url: node.gateway.clone(),
+        certificate_fingerprint: None,
+        media_host: "127.0.0.1".to_owned(),
+        token,
+        user_id,
+        session_id: format!("session-{user_id}"),
+        channel_id: CHANNEL,
+    }
+}
+
+async fn join(node: &Node, user_id: i64) -> (VoiceConnection, UnboundedReceiver<VoiceEvent>) {
+    let (connection, mut events) =
+        VoiceConnection::connect(target(node, user_id, token_for(node, user_id)))
+            .await
+            .unwrap();
+    wait_for(&mut events, |event| {
+        matches!(event, VoiceEvent::MediaConnected)
+    })
+    .await;
+    (connection, events)
+}
+
+async fn wait_for(
+    events: &mut UnboundedReceiver<VoiceEvent>,
+    mut pick: impl FnMut(&VoiceEvent) -> bool,
+) -> VoiceEvent {
+    tokio::time::timeout(WAIT, async {
+        loop {
+            let event = events.recv().await.expect("the connection ended");
+            if pick(&event) {
+                return event;
+            }
+        }
+    })
+    .await
+    .expect("timed out waiting for a voice event")
+}
+
+fn frame(index: u8) -> AudioFrame {
+    AudioFrame {
+        payload: vec![0xf8, index, 0xff, 0xfe],
+        samples: 960,
+        audio_level: -30,
+        voice_activity: true,
+    }
+}
+
+/// Sends a frame every 20 ms for `frames` frames.
+async fn talk(connection: &VoiceConnection, frames: u8) {
+    let mut every = tokio::time::interval(Duration::from_millis(20));
+    for index in 0..frames {
+        every.tick().await;
+        connection.send_audio(frame(index));
+    }
+}
+
+/// Every audio event that arrives within `within`: who, and when.
+async fn heard(
+    events: &mut UnboundedReceiver<VoiceEvent>,
+    within: Duration,
+) -> Vec<(i64, Instant)> {
+    let mut heard = Vec::new();
+    let end = tokio::time::Instant::now() + within;
+    while let Ok(Some(event)) = tokio::time::timeout_at(end, events.recv()).await {
+        if let VoiceEvent::Audio(audio) = event {
+            heard.push((audio.user_id, audio.arrived));
+        }
+    }
+    heard
+}
+
+fn now_ms() -> i64 {
+    i64::try_from(
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_millis(),
+    )
+    .unwrap()
+}
+
+fn update(user_id: i64, state: PeerState) -> NodeCommand {
+    NodeCommand::Update {
+        user_id,
+        channel_id: CHANNEL,
+        state,
+        permissions: 1 << 16,
+    }
+}
+
+#[tokio::test]
+async fn two_people_hear_each_other() {
+    let node = node().await;
+    let (alice, mut alice_events) = join(&node, 1).await;
+    let (bob, mut bob_events) = join(&node, 2).await;
+    wait_for(&mut alice_events, |event| {
+        matches!(event, VoiceEvent::ClientConnected { user_id: 2, .. })
+    })
+    .await;
+
+    talk(&alice, 10).await;
+    let bob_heard = heard(&mut bob_events, Duration::from_millis(300)).await;
+    talk(&bob, 10).await;
+    let alice_heard = heard(&mut alice_events, Duration::from_millis(300)).await;
+
+    assert!(bob_heard.len() >= 9, "Bob heard {} frames", bob_heard.len());
+    assert!(bob_heard.iter().all(|(from, _)| *from == 1));
+    assert!(
+        alice_heard.len() >= 9,
+        "Alice heard {} frames",
+        alice_heard.len()
+    );
+    assert!(alice_heard.iter().all(|(from, _)| *from == 2));
+}
+
+#[tokio::test]
+async fn a_server_mute_stops_forwarding_within_100_ms() {
+    let node = node().await;
+    let (alice, _alice_events) = join(&node, 1).await;
+    let (_bob, mut bob_events) = join(&node, 2).await;
+    let speaker = tokio::spawn(async move {
+        talk(&alice, 50).await;
+        alice
+    });
+    tokio::time::sleep(Duration::from_millis(300)).await;
+
+    let muted_at = Instant::now();
+    node.node.send(update(
+        1,
+        PeerState {
+            server_mute: true,
+            ..PeerState::default()
+        },
+    ));
+    let heard = heard(&mut bob_events, Duration::from_millis(500)).await;
+    let _alice = speaker.await.unwrap();
+
+    let last = heard.iter().map(|(_, at)| *at).max().unwrap();
+    assert!(
+        last <= muted_at + Duration::from_millis(100),
+        "audio kept coming {:?} after the mute",
+        last.saturating_duration_since(muted_at)
+    );
+}
+
+#[tokio::test]
+async fn deafened_people_receive_no_audio() {
+    let node = node().await;
+    let (alice, _alice_events) = join(&node, 1).await;
+    let (_bob, mut bob_events) = join(&node, 2).await;
+    node.node.send(update(
+        2,
+        PeerState {
+            self_deaf: true,
+            ..PeerState::default()
+        },
+    ));
+    tokio::time::sleep(Duration::from_millis(50)).await;
+
+    talk(&alice, 10).await;
+
+    assert!(
+        heard(&mut bob_events, Duration::from_millis(300))
+            .await
+            .is_empty()
+    );
+}
+
+#[tokio::test]
+async fn a_dropped_gateway_resumes_without_interrupting_media() {
+    let node = node().await;
+    let (alice, mut alice_events) = join(&node, 1).await;
+    let (_bob, mut bob_events) = join(&node, 2).await;
+
+    let start = Instant::now();
+    alice.drop_gateway();
+    let talking = tokio::spawn(async move {
+        talk(&alice, 40).await;
+        alice
+    });
+    let heard = heard(&mut bob_events, Duration::from_millis(1_100)).await;
+    let _alice = talking.await.unwrap();
+    wait_for(&mut alice_events, |event| {
+        matches!(event, VoiceEvent::Resumed)
+    })
+    .await;
+
+    assert!(heard.len() >= 36, "Bob heard {} of 40 frames", heard.len());
+    let mut arrivals: Vec<Instant> = heard.iter().map(|(_, at)| *at).collect();
+    arrivals.sort();
+    arrivals.insert(0, start);
+    let longest_gap = arrivals
+        .windows(2)
+        .map(|pair| pair[1] - pair[0])
+        .max()
+        .unwrap();
+    assert!(
+        longest_gap < Duration::from_millis(200),
+        "a gap of {longest_gap:?}"
+    );
+}
+
+#[tokio::test]
+async fn a_forged_token_is_refused() {
+    let node = node().await;
+    let mut forged = target(&node, 1, token_for(&node, 1));
+    forged.token[0] ^= 1;
+
+    let refused = VoiceConnection::connect(forged).await.err();
+
+    assert!(matches!(
+        refused,
+        Some(TransportError::Refused(Some(close::AUTHENTICATION_FAILED)))
+    ));
+}
+
+#[tokio::test]
+async fn a_token_works_once() {
+    let node = node().await;
+    let token = token_for(&node, 1);
+    let first = VoiceConnection::connect(target(&node, 1, token.clone())).await;
+
+    let second = VoiceConnection::connect(target(&node, 1, token))
+        .await
+        .err();
+
+    assert!(first.is_ok());
+    assert!(matches!(
+        second,
+        Some(TransportError::Refused(Some(close::AUTHENTICATION_FAILED)))
+    ));
+}
+
+#[tokio::test]
+async fn the_main_server_can_disconnect_someone() {
+    let mut node = node().await;
+    let (_alice, mut alice_events) = join(&node, 1).await;
+    let (_bob, mut bob_events) = join(&node, 2).await;
+    let connected = tokio::time::timeout(WAIT, node.events.recv())
+        .await
+        .unwrap();
+    assert!(matches!(connected, Some(NodeEvent::Connected { .. })));
+
+    node.node.send(NodeCommand::Disconnect {
+        user_id: 1,
+        channel_id: CHANNEL,
+    });
+
+    let closed = wait_for(&mut alice_events, |event| {
+        matches!(event, VoiceEvent::Closed { .. })
+    })
+    .await;
+    assert!(matches!(
+        closed,
+        VoiceEvent::Closed {
+            code: Some(close::DISCONNECTED)
+        }
+    ));
+    wait_for(&mut bob_events, |event| {
+        matches!(event, VoiceEvent::ClientDisconnected { user_id: 1 })
+    })
+    .await;
+}

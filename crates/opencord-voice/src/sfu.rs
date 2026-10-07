@@ -429,11 +429,7 @@ impl Sfu {
         if packet.header.ssrc != Ssrc::from(from.setup.audio_ssrc) {
             return;
         }
-        let level = packet
-            .header
-            .ext_vals
-            .audio_level
-            .map_or(SILENT, f32::from);
+        let level = packet.header.ext_vals.audio_level.map_or(SILENT, f32::from);
         from.level += (level - from.level) * LEVEL_WEIGHT;
         let setup = from.setup;
         let receivers: Vec<PeerId> = match self.channels.get(&setup.channel_id) {
