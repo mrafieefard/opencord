@@ -246,6 +246,10 @@ pub enum ConnectionState {
     Failed {
         reason: FailureReason,
         message: String,
+        /// With `FingerprintChanged`: the pinned fingerprint (when there is
+        /// one) and the one the server showed instead, as lowercase hex.
+        expected_fingerprint: Option<String>,
+        presented_fingerprint: Option<String>,
     },
 }
 

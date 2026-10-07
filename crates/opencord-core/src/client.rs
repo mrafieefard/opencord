@@ -565,6 +565,26 @@ impl Client {
         }
     }
 
+    /// Tries a server again now: skips the wait before the next attempt,
+    /// or starts over after a failure.
+    pub async fn retry_now(&self, key: &str) -> Result<(), CoreError> {
+        let commands = self
+            .lock_connections()
+            .get(key)
+            .map(|connection| connection.commands.clone());
+        let Some(commands) = commands else {
+            return Err(if self.lock_store().server(key).is_some() {
+                CoreError::NotConnected
+            } else {
+                CoreError::UnknownServer
+            });
+        };
+        commands
+            .send(Command::RetryNow)
+            .await
+            .map_err(|_| CoreError::NotConnected)
+    }
+
     async fn request(&self, key: &str, kind: Request) -> Result<Response, CoreError> {
         let commands = self
             .lock_connections()

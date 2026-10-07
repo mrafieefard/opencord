@@ -419,13 +419,13 @@ return failed(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>({TResult Function()?  connecting,TResult Function()?  connected,TResult Function( int attempt,  int retryInMs)?  reconnecting,TResult Function( FailureReason reason,  String message)?  failed,required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>({TResult Function()?  connecting,TResult Function()?  connected,TResult Function( int attempt,  int retryInMs)?  reconnecting,TResult Function( FailureReason reason,  String message,  String? expectedFingerprint,  String? presentedFingerprint)?  failed,required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case ConnectionState_Connecting() when connecting != null:
 return connecting();case ConnectionState_Connected() when connected != null:
 return connected();case ConnectionState_Reconnecting() when reconnecting != null:
 return reconnecting(_that.attempt,_that.retryInMs);case ConnectionState_Failed() when failed != null:
-return failed(_that.reason,_that.message);case _:
+return failed(_that.reason,_that.message,_that.expectedFingerprint,_that.presentedFingerprint);case _:
   return orElse();
 
 }
@@ -443,13 +443,13 @@ return failed(_that.reason,_that.message);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>({required TResult Function()  connecting,required TResult Function()  connected,required TResult Function( int attempt,  int retryInMs)  reconnecting,required TResult Function( FailureReason reason,  String message)  failed,}) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>({required TResult Function()  connecting,required TResult Function()  connected,required TResult Function( int attempt,  int retryInMs)  reconnecting,required TResult Function( FailureReason reason,  String message,  String? expectedFingerprint,  String? presentedFingerprint)  failed,}) {final _that = this;
 switch (_that) {
 case ConnectionState_Connecting():
 return connecting();case ConnectionState_Connected():
 return connected();case ConnectionState_Reconnecting():
 return reconnecting(_that.attempt,_that.retryInMs);case ConnectionState_Failed():
-return failed(_that.reason,_that.message);}
+return failed(_that.reason,_that.message,_that.expectedFingerprint,_that.presentedFingerprint);}
 }
 /// A variant of `when` that fallback to returning `null`
 ///
@@ -463,13 +463,13 @@ return failed(_that.reason,_that.message);}
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>({TResult? Function()?  connecting,TResult? Function()?  connected,TResult? Function( int attempt,  int retryInMs)?  reconnecting,TResult? Function( FailureReason reason,  String message)?  failed,}) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>({TResult? Function()?  connecting,TResult? Function()?  connected,TResult? Function( int attempt,  int retryInMs)?  reconnecting,TResult? Function( FailureReason reason,  String message,  String? expectedFingerprint,  String? presentedFingerprint)?  failed,}) {final _that = this;
 switch (_that) {
 case ConnectionState_Connecting() when connecting != null:
 return connecting();case ConnectionState_Connected() when connected != null:
 return connected();case ConnectionState_Reconnecting() when reconnecting != null:
 return reconnecting(_that.attempt,_that.retryInMs);case ConnectionState_Failed() when failed != null:
-return failed(_that.reason,_that.message);case _:
+return failed(_that.reason,_that.message,_that.expectedFingerprint,_that.presentedFingerprint);case _:
   return null;
 
 }
@@ -613,11 +613,15 @@ as int,
 
 
 class ConnectionState_Failed extends ConnectionState {
-  const ConnectionState_Failed({required this.reason, required this.message}): super._();
+  const ConnectionState_Failed({required this.reason, required this.message, this.expectedFingerprint, this.presentedFingerprint}): super._();
   
 
  final  FailureReason reason;
  final  String message;
+/// With `FingerprintChanged`: the pinned fingerprint (when there is
+/// one) and the one the server showed instead, as lowercase hex.
+ final  String? expectedFingerprint;
+ final  String? presentedFingerprint;
 
 /// Create a copy of ConnectionState
 /// with the given fields replaced by the non-null parameter values.
@@ -629,16 +633,16 @@ $ConnectionState_FailedCopyWith<ConnectionState_Failed> get copyWith => _$Connec
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is ConnectionState_Failed&&(identical(other.reason, reason) || other.reason == reason)&&(identical(other.message, message) || other.message == message));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is ConnectionState_Failed&&(identical(other.reason, reason) || other.reason == reason)&&(identical(other.message, message) || other.message == message)&&(identical(other.expectedFingerprint, expectedFingerprint) || other.expectedFingerprint == expectedFingerprint)&&(identical(other.presentedFingerprint, presentedFingerprint) || other.presentedFingerprint == presentedFingerprint));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,reason,message);
+int get hashCode => Object.hash(runtimeType,reason,message,expectedFingerprint,presentedFingerprint);
 
 @override
 String toString() {
-  return 'ConnectionState.failed(reason: $reason, message: $message)';
+  return 'ConnectionState.failed(reason: $reason, message: $message, expectedFingerprint: $expectedFingerprint, presentedFingerprint: $presentedFingerprint)';
 }
 
 
@@ -649,7 +653,7 @@ abstract mixin class $ConnectionState_FailedCopyWith<$Res> implements $Connectio
   factory $ConnectionState_FailedCopyWith(ConnectionState_Failed value, $Res Function(ConnectionState_Failed) _then) = _$ConnectionState_FailedCopyWithImpl;
 @useResult
 $Res call({
- FailureReason reason, String message
+ FailureReason reason, String message, String? expectedFingerprint, String? presentedFingerprint
 });
 
 
@@ -666,11 +670,13 @@ class _$ConnectionState_FailedCopyWithImpl<$Res>
 
 /// Create a copy of ConnectionState
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') $Res call({Object? reason = null,Object? message = null,}) {
+@pragma('vm:prefer-inline') $Res call({Object? reason = null,Object? message = null,Object? expectedFingerprint = freezed,Object? presentedFingerprint = freezed,}) {
   return _then(ConnectionState_Failed(
 reason: null == reason ? _self.reason : reason // ignore: cast_nullable_to_non_nullable
 as FailureReason,message: null == message ? _self.message : message // ignore: cast_nullable_to_non_nullable
-as String,
+as String,expectedFingerprint: freezed == expectedFingerprint ? _self.expectedFingerprint : expectedFingerprint // ignore: cast_nullable_to_non_nullable
+as String?,presentedFingerprint: freezed == presentedFingerprint ? _self.presentedFingerprint : presentedFingerprint // ignore: cast_nullable_to_non_nullable
+as String?,
   ));
 }
 

@@ -279,6 +279,9 @@ pub(crate) enum Command {
         kind: proto::request::Kind,
         reply: oneshot::Sender<Result<proto::response::Result, CoreError>>,
     },
+    /// Skip the wait before the next attempt, or start over after a
+    /// failure.
+    RetryNow,
     Shutdown,
 }
 
@@ -334,7 +337,30 @@ enum Ended {
     Fatal {
         reason: FailureReason,
         message: String,
+        /// Fingerprints, as lowercase hex, when the certificate changed.
+        expected: Option<String>,
+        presented: Option<String>,
     },
+}
+
+impl Ended {
+    fn fatal(reason: FailureReason, message: &str) -> Self {
+        Self::Fatal {
+            reason,
+            message: message.to_owned(),
+            expected: None,
+            presented: None,
+        }
+    }
+
+    fn changed_certificate(expected: Option<Fingerprint>, presented: Fingerprint) -> Self {
+        Self::Fatal {
+            reason: FailureReason::FingerprintChanged,
+            message: "the server's certificate no longer matches the trusted one".to_owned(),
+            expected: expected.as_ref().map(format_fingerprint),
+            presented: Some(format_fingerprint(&presented)),
+        }
+    }
 }
 
 struct Pending {
@@ -371,24 +397,36 @@ impl Task {
                     self.serve(established).await
                 }
                 Err(HandshakeError::Transient(_)) => Ended::Lost,
-                Err(HandshakeError::Rejected { reason, message }) => {
-                    Ended::Fatal { reason, message }
+                Err(HandshakeError::Rejected { reason, message }) => Ended::fatal(reason, &message),
+                Err(HandshakeError::Untrusted(presented)) => {
+                    Ended::changed_certificate(None, presented)
                 }
-                Err(HandshakeError::Untrusted(_) | HandshakeError::Mismatch { .. }) => {
-                    Ended::Fatal {
-                        reason: FailureReason::FingerprintChanged,
-                        message: "the server's certificate no longer matches the trusted one"
-                            .to_owned(),
-                    }
-                }
+                Err(HandshakeError::Mismatch {
+                    expected,
+                    presented,
+                }) => Ended::changed_certificate(Some(expected), presented),
             };
             match ended {
                 Ended::Shutdown => return,
-                Ended::Fatal { reason, message } => {
+                Ended::Fatal {
+                    reason,
+                    message,
+                    expected,
+                    presented,
+                } => {
                     self.session = None;
-                    self.emit_state(ConnectionState::Failed { reason, message });
-                    self.park().await;
-                    return;
+                    self.emit_state(ConnectionState::Failed {
+                        reason,
+                        message,
+                        expected_fingerprint: expected,
+                        presented_fingerprint: presented,
+                    });
+                    if !self.park().await {
+                        return;
+                    }
+                    // Retry now: start over.
+                    attempt = 0;
+                    continue;
                 }
                 Ended::LostSession => self.session = None,
                 Ended::Lost => {}
@@ -511,6 +549,7 @@ impl Task {
                             deadline: Instant::now() + REQUEST_TIMEOUT,
                         });
                     }
+                    Some(Command::RetryNow) => {}
                     Some(Command::Shutdown) | None => {
                         let _ = socket.close(None).await;
                         break Ended::Shutdown;
@@ -602,22 +641,26 @@ impl Task {
                     Some(Command::Request { reply, .. }) => {
                         let _ = reply.send(Err(CoreError::NotConnected));
                     }
+                    Some(Command::RetryNow) => return true,
                     Some(Command::Shutdown) | None => return false,
                 },
             }
         }
     }
 
-    /// After a fatal failure: refuse requests until shut down.
-    async fn park(&mut self) {
+    /// After a fatal failure: refuse requests until asked to retry
+    /// (`true`) or to shut down (`false`).
+    async fn park(&mut self) -> bool {
         while let Some(command) = self.commands.recv().await {
             match command {
                 Command::Request { reply, .. } => {
                     let _ = reply.send(Err(CoreError::NotConnected));
                 }
-                Command::Shutdown => return,
+                Command::RetryNow => return true,
+                Command::Shutdown => return false,
             }
         }
+        false
     }
 
     fn emit_state(&self, state: ConnectionState) {
@@ -642,18 +685,9 @@ impl Task {
 /// How a close code from the server ends the connection.
 fn closed(code: Option<u16>) -> Ended {
     match code {
-        Some(4010) => Ended::Fatal {
-            reason: FailureReason::Kicked,
-            message: "you were kicked from this server".to_owned(),
-        },
-        Some(4011) => Ended::Fatal {
-            reason: FailureReason::Banned,
-            message: "you were banned from this server".to_owned(),
-        },
-        Some(4003) => Ended::Fatal {
-            reason: FailureReason::Rejected,
-            message: "the server refused this identity".to_owned(),
-        },
+        Some(4010) => Ended::fatal(FailureReason::Kicked, "you were kicked from this server"),
+        Some(4011) => Ended::fatal(FailureReason::Banned, "you were banned from this server"),
+        Some(4003) => Ended::fatal(FailureReason::Rejected, "the server refused this identity"),
         Some(4002 | 4004 | 4009) => Ended::LostSession,
         _ => Ended::Lost,
     }
@@ -706,9 +740,9 @@ async fn next_payload(socket: &mut Socket) -> Result<(u64, u64, Payload), Handsh
             Some(Ok(Frame::Close(frame))) => {
                 let code = frame.map(|frame| u16::from(frame.code));
                 return Err(match closed(code) {
-                    Ended::Fatal { reason, message } => {
-                        HandshakeError::Rejected { reason, message }
-                    }
+                    Ended::Fatal {
+                        reason, message, ..
+                    } => HandshakeError::Rejected { reason, message },
                     _ => HandshakeError::Transient("the server closed the connection".to_owned()),
                 });
             }

@@ -62,6 +62,10 @@ void serverTrustFingerprint({
   fingerprint: fingerprint,
 );
 
+/// Tries a server again now instead of waiting (or after a failure).
+Future<void> serverRetryNow({required String serverKey}) =>
+    RustLib.instance.api.crateApiClientServerRetryNow(serverKey: serverKey);
+
 Future<void> serverRemove({required String serverKey}) =>
     RustLib.instance.api.crateApiClientServerRemove(serverKey: serverKey);
 

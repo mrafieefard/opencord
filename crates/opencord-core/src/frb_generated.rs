@@ -39,7 +39,7 @@ flutter_rust_bridge::frb_generated_boilerplate!(
     default_rust_auto_opaque = RustAutoOpaqueMoi,
 );
 pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_VERSION: &str = "2.13.0";
-pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = 433867470;
+pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = 1238309359;
 
 // Section: executor
 
@@ -1258,6 +1258,43 @@ fn wire__crate__api__client__server_remove_impl(
         },
     )
 }
+fn wire__crate__api__client__server_retry_now_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::SseCodec, _, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "server_retry_now",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_server_key = <String>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| async move {
+                transform_result_sse::<_, crate::api::types::CoreError>(
+                    (move || async move {
+                        let output_ok =
+                            crate::api::client::server_retry_now(api_server_key).await?;
+                        std::result::Result::Ok(output_ok)
+                    })()
+                    .await,
+                )
+            }
+        },
+    )
+}
 fn wire__crate__api__client__server_trust_fingerprint_impl(
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -1946,9 +1983,13 @@ impl SseDecode for crate::api::types::ConnectionState {
             3 => {
                 let mut var_reason = <crate::api::types::FailureReason>::sse_decode(deserializer);
                 let mut var_message = <String>::sse_decode(deserializer);
+                let mut var_expectedFingerprint = <Option<String>>::sse_decode(deserializer);
+                let mut var_presentedFingerprint = <Option<String>>::sse_decode(deserializer);
                 return crate::api::types::ConnectionState::Failed {
                     reason: var_reason,
                     message: var_message,
+                    expected_fingerprint: var_expectedFingerprint,
+                    presented_fingerprint: var_presentedFingerprint,
                 };
             }
             _ => {
@@ -2767,17 +2808,18 @@ fn pde_ffi_dispatcher_primary_impl(
             wire__crate__api__types__server_changes_default_impl(port, ptr, rust_vec_len, data_len)
         }
         32 => wire__crate__api__client__server_remove_impl(port, ptr, rust_vec_len, data_len),
-        35 => {
+        33 => wire__crate__api__client__server_retry_now_impl(port, ptr, rust_vec_len, data_len),
+        36 => {
             wire__crate__api__client__set_channel_overwrite_impl(port, ptr, rust_vec_len, data_len)
         }
-        38 => wire__crate__api__client__start_typing_impl(port, ptr, rust_vec_len, data_len),
-        40 => wire__crate__api__client__unban_member_impl(port, ptr, rust_vec_len, data_len),
-        41 => wire__crate__api__client__update_channel_impl(port, ptr, rust_vec_len, data_len),
-        42 => wire__crate__api__client__update_nickname_impl(port, ptr, rust_vec_len, data_len),
-        43 => wire__crate__api__client__update_presence_impl(port, ptr, rust_vec_len, data_len),
-        44 => wire__crate__api__client__update_profile_impl(port, ptr, rust_vec_len, data_len),
-        45 => wire__crate__api__client__update_role_impl(port, ptr, rust_vec_len, data_len),
-        46 => wire__crate__api__client__update_server_impl(port, ptr, rust_vec_len, data_len),
+        39 => wire__crate__api__client__start_typing_impl(port, ptr, rust_vec_len, data_len),
+        41 => wire__crate__api__client__unban_member_impl(port, ptr, rust_vec_len, data_len),
+        42 => wire__crate__api__client__update_channel_impl(port, ptr, rust_vec_len, data_len),
+        43 => wire__crate__api__client__update_nickname_impl(port, ptr, rust_vec_len, data_len),
+        44 => wire__crate__api__client__update_presence_impl(port, ptr, rust_vec_len, data_len),
+        45 => wire__crate__api__client__update_profile_impl(port, ptr, rust_vec_len, data_len),
+        46 => wire__crate__api__client__update_role_impl(port, ptr, rust_vec_len, data_len),
+        47 => wire__crate__api__client__update_server_impl(port, ptr, rust_vec_len, data_len),
         _ => unreachable!(),
     }
 }
@@ -2796,11 +2838,11 @@ fn pde_ffi_dispatcher_sync_impl(
         19 => wire__crate__api__client__identity_generate_impl(ptr, rust_vec_len, data_len),
         20 => wire__crate__api__client__identity_load_impl(ptr, rust_vec_len, data_len),
         21 => wire__crate__api__client__init_impl(ptr, rust_vec_len, data_len),
-        33 => wire__crate__api__client__server_trust_fingerprint_impl(ptr, rust_vec_len, data_len),
-        34 => wire__crate__api__client__servers_list_impl(ptr, rust_vec_len, data_len),
-        36 => wire__crate__api__client__settings_get_impl(ptr, rust_vec_len, data_len),
-        37 => wire__crate__api__client__settings_set_impl(ptr, rust_vec_len, data_len),
-        39 => wire__crate__api__client__trusted_fingerprints_impl(ptr, rust_vec_len, data_len),
+        34 => wire__crate__api__client__server_trust_fingerprint_impl(ptr, rust_vec_len, data_len),
+        35 => wire__crate__api__client__servers_list_impl(ptr, rust_vec_len, data_len),
+        37 => wire__crate__api__client__settings_get_impl(ptr, rust_vec_len, data_len),
+        38 => wire__crate__api__client__settings_set_impl(ptr, rust_vec_len, data_len),
+        40 => wire__crate__api__client__trusted_fingerprints_impl(ptr, rust_vec_len, data_len),
         _ => unreachable!(),
     }
 }
@@ -2980,10 +3022,17 @@ impl flutter_rust_bridge::IntoDart for crate::api::types::ConnectionState {
                 retry_in_ms.into_into_dart().into_dart(),
             ]
             .into_dart(),
-            crate::api::types::ConnectionState::Failed { reason, message } => [
+            crate::api::types::ConnectionState::Failed {
+                reason,
+                message,
+                expected_fingerprint,
+                presented_fingerprint,
+            } => [
                 3.into_dart(),
                 reason.into_into_dart().into_dart(),
                 message.into_into_dart().into_dart(),
+                expected_fingerprint.into_into_dart().into_dart(),
+                presented_fingerprint.into_into_dart().into_dart(),
             ]
             .into_dart(),
             _ => {
@@ -3720,10 +3769,17 @@ impl SseEncode for crate::api::types::ConnectionState {
                 <u32>::sse_encode(attempt, serializer);
                 <u32>::sse_encode(retry_in_ms, serializer);
             }
-            crate::api::types::ConnectionState::Failed { reason, message } => {
+            crate::api::types::ConnectionState::Failed {
+                reason,
+                message,
+                expected_fingerprint,
+                presented_fingerprint,
+            } => {
                 <i32>::sse_encode(3, serializer);
                 <crate::api::types::FailureReason>::sse_encode(reason, serializer);
                 <String>::sse_encode(message, serializer);
+                <Option<String>>::sse_encode(expected_fingerprint, serializer);
+                <Option<String>>::sse_encode(presented_fingerprint, serializer);
             }
             _ => {
                 unimplemented!("");

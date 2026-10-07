@@ -137,6 +137,11 @@ pub fn server_trust_fingerprint(address: String, fingerprint: String) -> Result<
     client()?.trust_fingerprint(&address, &fingerprint)
 }
 
+/// Tries a server again now instead of waiting (or after a failure).
+pub async fn server_retry_now(server_key: String) -> Result<(), CoreError> {
+    on_runtime(move |client| async move { client.retry_now(&server_key).await }).await
+}
+
 pub async fn server_remove(server_key: String) -> Result<(), CoreError> {
     on_runtime(move |client| async move { client.remove_server(&server_key).await }).await
 }

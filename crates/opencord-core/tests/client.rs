@@ -491,3 +491,112 @@ async fn adding_a_connected_server_again_reconnects_it() {
     assert_eq!(ready.self_user.id, owner_ready.self_user.id);
     assert_eq!(owner.client.servers().len(), 1);
 }
+
+#[tokio::test(flavor = "multi_thread")]
+async fn retry_now_skips_the_wait_before_reconnecting() {
+    let server = TestServer::start().await;
+    let (_owner, _, mut member, member_ready) = owner_and_member(&server).await;
+    let key = server.address();
+    member.drain(Duration::from_millis(200)).await;
+
+    server
+        .handle
+        .drop_user_connections(member_ready.self_user.id);
+    let wait = member
+        .wait_for(|payload| match payload {
+            CoreEventPayload::ConnectionState(ConnectionState::Reconnecting {
+                retry_in_ms,
+                ..
+            }) => Some(Duration::from_millis(u64::from(*retry_in_ms))),
+            _ => None,
+        })
+        .await;
+    let asked = tokio::time::Instant::now();
+    member.client.retry_now(&key).await.unwrap();
+    member
+        .wait_for(|payload| match payload {
+            CoreEventPayload::ConnectionState(ConnectionState::Connected) => Some(()),
+            _ => None,
+        })
+        .await;
+
+    assert!(
+        asked.elapsed() < wait / 2,
+        "reconnected after {:?}; the wait was {wait:?}",
+        asked.elapsed()
+    );
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn retry_now_tries_again_after_a_failure() {
+    let server = TestServer::start().await;
+    let (owner, _, mut member, member_ready) = owner_and_member(&server).await;
+    let key = server.address();
+    owner
+        .client
+        .kick_member(&key, member_ready.self_user.id, None)
+        .await
+        .unwrap();
+    member
+        .wait_for(|payload| match payload {
+            CoreEventPayload::ConnectionState(ConnectionState::Failed { .. }) => Some(()),
+            _ => None,
+        })
+        .await;
+
+    member.client.retry_now(&key).await.unwrap();
+    let states = member
+        .wait_for({
+            let mut seen = Vec::new();
+            move |payload| {
+                if let CoreEventPayload::ConnectionState(state) = payload {
+                    seen.push(state.clone());
+                    if matches!(state, ConnectionState::Failed { .. }) {
+                        return Some(seen.clone());
+                    }
+                }
+                None
+            }
+        })
+        .await;
+
+    assert_eq!(states.first(), Some(&ConnectionState::Connecting));
+    assert!(matches!(
+        states.last(),
+        Some(ConnectionState::Failed {
+            reason: FailureReason::Rejected,
+            ..
+        })
+    ));
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_certificate_change_on_reconnect_reports_both_fingerprints() {
+    let server = TestServer::start().await;
+    let (_owner, _, mut member, member_ready) = owner_and_member(&server).await;
+    let key = server.address();
+    let pinned = "00".repeat(32);
+    member.client.trust_fingerprint(&key, &pinned).unwrap();
+
+    server
+        .handle
+        .drop_user_connections(member_ready.self_user.id);
+    let failed = member
+        .wait_for(|payload| match payload {
+            CoreEventPayload::ConnectionState(state @ ConnectionState::Failed { .. }) => {
+                Some(state.clone())
+            }
+            _ => None,
+        })
+        .await;
+
+    assert_eq!(
+        failed,
+        ConnectionState::Failed {
+            reason: FailureReason::FingerprintChanged,
+            message: "the server's certificate no longer matches the trusted one".to_owned(),
+            expected_fingerprint: Some(pinned),
+            presented_fingerprint: Some(server.fingerprint()),
+        }
+    );
+}

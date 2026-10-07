@@ -179,6 +179,11 @@ sealed class ConnectionState with _$ConnectionState {
   const factory ConnectionState.failed({
     required FailureReason reason,
     required String message,
+
+    /// With `FingerprintChanged`: the pinned fingerprint (when there is
+    /// one) and the one the server showed instead, as lowercase hex.
+    String? expectedFingerprint,
+    String? presentedFingerprint,
   }) = ConnectionState_Failed;
 }
 
