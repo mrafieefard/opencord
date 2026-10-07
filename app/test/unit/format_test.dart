@@ -104,4 +104,24 @@ void main() {
   test('long dates spell out the month', () {
     expect(longDate(DateTime(2026, 10, 5)), '5 October 2026');
   });
+
+  test('expiry reads as a distance in time', () {
+    final now = DateTime(2026, 10, 7, 12);
+    expect(expiryLabel(null, now), 'Never');
+    expect(
+      expiryLabel(now.subtract(const Duration(minutes: 1)), now),
+      'Expired',
+    );
+    expect(
+      expiryLabel(now.add(const Duration(minutes: 30)), now),
+      'in 30 minutes',
+    );
+    expect(expiryLabel(now.add(const Duration(hours: 1)), now), 'in 1 hour');
+    expect(expiryLabel(now.add(const Duration(hours: 5)), now), 'in 5 hours');
+    expect(
+      expiryLabel(now.add(const Duration(days: 6, hours: 2)), now),
+      'in 6 days',
+    );
+    expect(expiryLabel(now.add(const Duration(days: 1)), now), 'in 1 day');
+  });
 }

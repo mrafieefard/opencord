@@ -15,6 +15,7 @@ import 'package:opencord/features/channels/voice_channel_row.dart';
 import 'package:opencord/features/channels/voice_panel.dart';
 import 'package:opencord/features/dialogs/create_channel_dialog.dart';
 import 'package:opencord/features/dialogs/invite_dialog.dart';
+import 'package:opencord/features/settings/server_settings.dart';
 import 'package:opencord/features/servers/server_rail.dart';
 import 'package:opencord/features/shell/navigation.dart';
 import 'package:opencord/features/switcher/quick_switcher.dart';
@@ -185,7 +186,15 @@ class _ServerHeader extends ConsumerWidget {
             onSelected: () => showCreateCategory(context, serverKey: serverKey),
           ),
         ],
-        if (invite || manage) const OcMenuDivider(),
+        if (canOpenServerSettings(data))
+          OcMenuItem(
+            label: 'Server settings',
+            icon: OcIcons.settings,
+            onSelected: () =>
+                showServerSettings(context, ref, serverKey: serverKey),
+          ),
+        if (invite || manage || canOpenServerSettings(data))
+          const OcMenuDivider(),
         OcMenuItem(
           label: muted ? 'Unmute notifications' : 'Mute notifications',
           icon: muted ? OcIcons.notifications : OcIcons.notificationsOff,

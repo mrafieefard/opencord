@@ -66,6 +66,19 @@ String fullTimestamp(DateTime time) =>
     '${_weekdays[time.weekday - 1]}, ${time.day} ${_months[time.month - 1]} '
     '${time.year} at ${clockTime(time)}';
 
+/// When an invite stops working, from [now] (§8.2): "in 6 days",
+/// "in 5 hours", "Never" or "Expired".
+String expiryLabel(DateTime? expires, DateTime now) {
+  if (expires == null) return 'Never';
+  final left = expires.difference(now);
+  if (left.isNegative || left == Duration.zero) return 'Expired';
+  String plural(int count, String unit) =>
+      'in $count $unit${count == 1 ? '' : 's'}';
+  if (left.inDays >= 1) return plural(left.inDays, 'day');
+  if (left.inHours >= 1) return plural(left.inHours, 'hour');
+  return plural(left.inMinutes < 1 ? 1 : left.inMinutes, 'minute');
+}
+
 /// `1,204`.
 String countLabel(int count) {
   final digits = count.abs().toString();
