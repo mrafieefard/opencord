@@ -51,6 +51,13 @@ class SecureIdentityStore implements IdentityStore {
     await _storage.write(key: _secretKey, value: base64Encode(identity.secret));
     await _storage.write(key: _nameKey, value: identity.displayName);
   }
+
+  /// Forgets this profile's identity, and only it: on Linux every key of
+  /// the app shares one keychain item.
+  Future<void> clear() async {
+    await _storage.delete(key: _secretKey);
+    await _storage.delete(key: _nameKey);
+  }
 }
 
 /// For tests.
