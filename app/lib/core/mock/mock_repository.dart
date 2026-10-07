@@ -307,6 +307,18 @@ class MockRepository implements OpencordRepository {
 
   DateTime? _rateLimitedUntil;
 
+  /// Like the server, which limits every request, edits included.
+  void _refuseWhileRateLimited() {
+    final limit = _rateLimitedUntil;
+    if (limit != null && _clock().isBefore(limit)) {
+      throw RepoException(
+        RepoErrorKind.rateLimited,
+        'You are sending messages too quickly.',
+        retryAfter: limit.difference(_clock()),
+      );
+    }
+  }
+
   /// Sends fail as rate limited for [duration], to see the countdown
   /// (§4.6).
   void debugRateLimit(Duration duration) =>
@@ -519,14 +531,7 @@ class MockRepository implements OpencordRepository {
       );
     }
     await _latency();
-    final limit = _rateLimitedUntil;
-    if (limit != null && _clock().isBefore(limit)) {
-      throw RepoException(
-        RepoErrorKind.rateLimited,
-        'You are sending messages too quickly.',
-        retryAfter: limit.difference(_clock()),
-      );
-    }
+    _refuseWhileRateLimited();
     final now = _clock();
     final message = Message(
       id: _world.ids.at(now),
@@ -606,6 +611,7 @@ class MockRepository implements OpencordRepository {
       );
     }
     await _latency();
+    _refuseWhileRateLimited();
     final updated = message.copyWith(content: content.trim(), editedAt: _clock);
     _replace(server, updated);
     return updated;

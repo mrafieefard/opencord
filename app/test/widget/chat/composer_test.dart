@@ -147,6 +147,26 @@ void main() {
     await app.dispose(tester);
   });
 
+  testWidgets('an edit that fails keeps what was written, still editing', (
+    tester,
+  ) async {
+    final app = await MockApp.pump(tester);
+    await _open(tester, app, 'general');
+    await tester.tap(_input);
+    await tester.pump();
+    await _press(tester, LogicalKeyboardKey.arrowUp);
+    app.repository.debugRateLimit(const Duration(seconds: 5));
+
+    await _type(tester, 'Edited by hand');
+    await _press(tester, LogicalKeyboardKey.enter);
+    await _pumpFor(tester, const Duration(milliseconds: 600));
+
+    expect(find.text('Edit message'), findsOneWidget);
+    expect(_text(tester), 'Edited by hand');
+    await _pumpFor(tester, const Duration(seconds: 5));
+    await app.dispose(tester);
+  });
+
   testWidgets('@ suggests members and sends the pick as a mention', (
     tester,
   ) async {

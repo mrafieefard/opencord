@@ -341,7 +341,12 @@ class _ComposerState extends ConsumerState<Composer> {
       try {
         await _messages.edit(editing.id, encoded);
       } on RepoException catch (error) {
-        if (mounted) showOcToast(context, error.message);
+        if (!mounted) return;
+        // Nothing written is lost: back to editing, with the new text.
+        _composer
+          ..edit(editing)
+          ..setDraft(text);
+        showOcToast(context, error.message);
       }
       return;
     }
