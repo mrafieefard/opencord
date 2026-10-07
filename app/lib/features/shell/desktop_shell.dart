@@ -18,6 +18,7 @@ import 'package:opencord/features/switcher/quick_switcher.dart';
 import 'package:opencord/features/window/window_providers.dart';
 import 'package:opencord/features/voice/voice_focus.dart';
 import 'package:opencord/features/links/app_links.dart';
+import 'package:opencord/features/shell/mac_menu_bar.dart';
 import 'package:opencord/ui/theme/oc_colors.dart';
 import 'package:opencord/ui/theme/oc_metrics.dart';
 import 'package:opencord/ui/theme/oc_motion.dart';
@@ -189,91 +190,95 @@ class _DesktopShellState extends ConsumerState<DesktopShell> {
         shortcuts: shellShortcuts(Theme.of(context).platform),
         child: Actions(
           actions: _actions(),
-          child: Focus(
-            autofocus: true,
-            child: LayoutBuilder(
-              builder: (context, constraints) {
-                final layout = ShellLayout.forWidth(constraints.maxWidth);
-                _layout = layout;
-                final border = VerticalDivider(
-                  width: 1,
-                  thickness: 1,
-                  color: colors.border,
-                );
-                final membersInline = layout.membersInline && membersShown;
-                return Stack(
-                  children: [
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        const SizedBox(
-                          key: DesktopShell.railKey,
-                          width: OcSize.railWidth,
-                          child: ServerRail(),
-                        ),
-                        border,
-                        if (layout.sidebarInline) ...[
-                          SizedBox(
+          child: MacMenuBar(
+            child: Focus(
+              autofocus: true,
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  final layout = ShellLayout.forWidth(constraints.maxWidth);
+                  _layout = layout;
+                  final border = VerticalDivider(
+                    width: 1,
+                    thickness: 1,
+                    color: colors.border,
+                  );
+                  final membersInline = layout.membersInline && membersShown;
+                  return Stack(
+                    children: [
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          const SizedBox(
+                            key: DesktopShell.railKey,
+                            width: OcSize.railWidth,
+                            child: ServerRail(),
+                          ),
+                          border,
+                          if (layout.sidebarInline) ...[
+                            SizedBox(
+                              key: DesktopShell.sidebarKey,
+                              width: layout.sidebarWidth,
+                              child: const ChannelSidebar(
+                                leadingControls: true,
+                              ),
+                            ),
+                            border,
+                          ],
+                          Expanded(
+                            key: DesktopShell.mainKey,
+                            child: ChatArea(
+                              membersShown: layout.membersInline
+                                  ? membersShown
+                                  : _membersDrawer,
+                              onToggleMembers: _toggleMembers,
+                              onOpenSidebar: layout.sidebarInline
+                                  ? null
+                                  : () => setState(() => _sidebarDrawer = true),
+                              leadingControls: !layout.sidebarInline,
+                              trailingControls: !membersInline,
+                            ),
+                          ),
+                          if (membersInline) ...[
+                            border,
+                            SizedBox(
+                              key: DesktopShell.membersKey,
+                              width: OcSize.memberPanelWidth,
+                              child: MemberPanel(
+                                onClose: _toggleMembers,
+                                trailingControls: true,
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                      if (!layout.sidebarInline && _sidebarDrawer)
+                        _Drawer(
+                          fromRight: false,
+                          inset: OcSize.railWidth + 1,
+                          onClose: () => setState(() => _sidebarDrawer = false),
+                          child: SizedBox(
                             key: DesktopShell.sidebarKey,
                             width: layout.sidebarWidth,
-                            child: const ChannelSidebar(leadingControls: true),
-                          ),
-                          border,
-                        ],
-                        Expanded(
-                          key: DesktopShell.mainKey,
-                          child: ChatArea(
-                            membersShown: layout.membersInline
-                                ? membersShown
-                                : _membersDrawer,
-                            onToggleMembers: _toggleMembers,
-                            onOpenSidebar: layout.sidebarInline
-                                ? null
-                                : () => setState(() => _sidebarDrawer = true),
-                            leadingControls: !layout.sidebarInline,
-                            trailingControls: !membersInline,
+                            child: const ChannelSidebar(),
                           ),
                         ),
-                        if (membersInline) ...[
-                          border,
-                          SizedBox(
+                      if (!layout.membersInline && _membersDrawer)
+                        _Drawer(
+                          fromRight: true,
+                          onClose: () => setState(() => _membersDrawer = false),
+                          child: SizedBox(
                             key: DesktopShell.membersKey,
                             width: OcSize.memberPanelWidth,
                             child: MemberPanel(
-                              onClose: _toggleMembers,
-                              trailingControls: true,
+                              onClose: () =>
+                                  setState(() => _membersDrawer = false),
                             ),
                           ),
-                        ],
-                      ],
-                    ),
-                    if (!layout.sidebarInline && _sidebarDrawer)
-                      _Drawer(
-                        fromRight: false,
-                        inset: OcSize.railWidth + 1,
-                        onClose: () => setState(() => _sidebarDrawer = false),
-                        child: SizedBox(
-                          key: DesktopShell.sidebarKey,
-                          width: layout.sidebarWidth,
-                          child: const ChannelSidebar(),
                         ),
-                      ),
-                    if (!layout.membersInline && _membersDrawer)
-                      _Drawer(
-                        fromRight: true,
-                        onClose: () => setState(() => _membersDrawer = false),
-                        child: SizedBox(
-                          key: DesktopShell.membersKey,
-                          width: OcSize.memberPanelWidth,
-                          child: MemberPanel(
-                            onClose: () =>
-                                setState(() => _membersDrawer = false),
-                          ),
-                        ),
-                      ),
-                  ],
-                );
-              },
+                    ],
+                  );
+                },
+              ),
             ),
           ),
         ),
