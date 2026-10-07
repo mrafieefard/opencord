@@ -23,6 +23,7 @@ class RepoCapabilities {
     this.voice = false,
     this.announcementChannels = false,
     this.readStates = false,
+    this.replies = false,
   });
 
   static const everything = RepoCapabilities(
@@ -31,6 +32,7 @@ class RepoCapabilities {
     voice: true,
     announcementChannels: true,
     readStates: true,
+    replies: true,
   );
 
   final bool reactions;
@@ -40,6 +42,9 @@ class RepoCapabilities {
 
   /// Unread counts that survive restarts.
   final bool readStates;
+
+  /// Messages can answer an earlier one.
+  final bool replies;
 }
 
 /// The current user as far as the UI is concerned.
@@ -58,6 +63,21 @@ class LocalIdentity {
 
   /// The Ed25519 public key, lowercase hex.
   final String publicKeyHex;
+}
+
+/// A freshly made identity, shown before it is used (Phase 1 §9.1): its
+/// fingerprint and the backup text that holds its secret.
+@immutable
+class NewIdentity {
+  const NewIdentity({
+    required this.fingerprint,
+    required this.publicKeyHex,
+    required this.backup,
+  });
+
+  final String fingerprint;
+  final String publicKeyHex;
+  final String backup;
 }
 
 sealed class AddServerResult {
@@ -279,6 +299,18 @@ abstract interface class OpencordRepository {
 
   /// Replaces this device's identity with one from a backup.
   Future<void> importIdentityBackup(String backup);
+
+  /// A new identity for onboarding; nothing is saved until
+  /// [adoptIdentity].
+  Future<NewIdentity> generateIdentity();
+
+  /// Makes the identity in [backup] this device's, under [displayName],
+  /// and connects to the saved servers (Phase 1 §9.1).
+  Future<void> adoptIdentity(String backup, {required String displayName});
+
+  /// The newest message read in a channel, for servers that do not keep
+  /// read states themselves (§6).
+  void markRead(String serverKey, int channelId, int messageId);
 
   Future<void> updatePresence(SelfPresence presence);
 

@@ -34,7 +34,7 @@ class UserPanel extends ConsumerWidget {
     final self = server == null
         ? null
         : ref.watch(serverProvider(server).select((s) => s.data?.selfMember));
-    final identity = ref.watch(repositoryProvider).identity;
+    final identity = ref.watch(localIdentityProvider);
     final name = self?.user.displayName ?? identity?.displayName ?? 'You';
     final presence = ref.watch(selfPresenceProvider);
     final voice = ref.watch(voiceSessionProvider);

@@ -1,0 +1,287 @@
+import 'package:opencord/core/model/channel.dart';
+import 'package:opencord/core/model/message.dart';
+import 'package:opencord/core/model/misc.dart';
+import 'package:opencord/core/model/permissions.dart';
+import 'package:opencord/core/model/presence.dart';
+import 'package:opencord/core/model/server.dart';
+import 'package:opencord/core/model/snapshot.dart';
+import 'package:opencord/core/model/user.dart';
+import 'package:opencord/core/repository/repository.dart';
+import 'package:opencord/src/rust/api/types.dart' as core;
+
+// The Rust core's shapes (generated bindings) to the app's, and back.
+// Permission sets cross as `i64`: the same 64 bits, so ADMINISTRATOR (bit
+// 63) arrives negative and stays set.
+
+DateTime _time(int milliseconds) =>
+    DateTime.fromMillisecondsSinceEpoch(milliseconds);
+
+Message messageFrom(core.Message message) => Message(
+  id: message.id,
+  channelId: message.channelId,
+  authorId: message.authorId,
+  content: message.content,
+  createdAt: _time(message.createdAtMs),
+  editedAt: switch (message.editedAtMs) {
+    final at? => _time(at),
+    null => null,
+  },
+  nonce: message.nonce,
+);
+
+ChannelKind channelKindFrom(core.ChannelKind kind) => switch (kind) {
+  core.ChannelKind.text => ChannelKind.text,
+  core.ChannelKind.voice => ChannelKind.voice,
+  core.ChannelKind.category => ChannelKind.category,
+};
+
+/// Announcement channels are not in Phase 1's protocol; they go as text.
+core.ChannelKind channelKindTo(ChannelKind kind) => switch (kind) {
+  ChannelKind.text || ChannelKind.announcement => core.ChannelKind.text,
+  ChannelKind.voice => core.ChannelKind.voice,
+  ChannelKind.category => core.ChannelKind.category,
+};
+
+OverwriteTargetKind _targetFrom(core.OverwriteTargetKind kind) =>
+    switch (kind) {
+      core.OverwriteTargetKind.role => OverwriteTargetKind.role,
+      core.OverwriteTargetKind.member => OverwriteTargetKind.member,
+    };
+
+core.OverwriteTargetKind targetTo(OverwriteTargetKind kind) => switch (kind) {
+  OverwriteTargetKind.role => core.OverwriteTargetKind.role,
+  OverwriteTargetKind.member => core.OverwriteTargetKind.member,
+};
+
+PermissionOverwrite overwriteFrom(core.PermissionOverwrite overwrite) =>
+    PermissionOverwrite(
+      targetKind: _targetFrom(overwrite.targetKind),
+      targetId: overwrite.targetId,
+      allow: Permissions(overwrite.allow),
+      deny: Permissions(overwrite.deny),
+    );
+
+core.PermissionOverwrite overwriteTo(PermissionOverwrite overwrite) =>
+    core.PermissionOverwrite(
+      targetKind: targetTo(overwrite.targetKind),
+      targetId: overwrite.targetId,
+      allow: overwrite.allow.bits,
+      deny: overwrite.deny.bits,
+    );
+
+Channel channelFrom(core.Channel channel) => Channel(
+  id: channel.id,
+  kind: channelKindFrom(channel.kind),
+  name: channel.name,
+  topic: channel.topic,
+  parentId: channel.parentId,
+  position: channel.position,
+  overwrites: [for (final o in channel.overwrites) overwriteFrom(o)],
+);
+
+User userFrom(core.User user) => User(
+  id: user.id,
+  displayName: user.displayName,
+  publicKeyHex: user.publicKeyHex,
+  fingerprint: user.fingerprint,
+);
+
+Member memberFrom(core.Member member) => Member(
+  user: userFrom(member.user),
+  nickname: member.nickname,
+  roleIds: [for (final id in member.roleIds) id.toInt()],
+  joinedAt: _time(member.joinedAtMs),
+);
+
+Role roleFrom(core.Role role) => Role(
+  id: role.id,
+  name: role.name,
+  color: role.color,
+  position: role.position,
+  permissions: Permissions(role.permissions),
+  hoist: role.hoist,
+  mentionable: role.mentionable,
+);
+
+ServerInfo serverInfoFrom(core.ServerInfo info) => ServerInfo(
+  serverIdHex: info.serverIdHex,
+  name: info.name,
+  description: info.description,
+  ownerId: info.ownerId,
+  openJoin: info.openJoin,
+  everyoneRoleId: info.everyoneRoleId,
+);
+
+ServerSummary serverFrom(core.Server server) => ServerSummary(
+  key: server.key,
+  name: server.name,
+  fingerprint: server.fingerprint,
+  userId: server.userId,
+);
+
+Invite inviteFrom(core.Invite invite) => Invite(
+  code: invite.code,
+  link: invite.link,
+  createdBy: invite.createdBy,
+  createdAt: _time(invite.createdAtMs),
+  maxUses: invite.maxUses,
+  uses: invite.uses,
+  expiresAt: switch (invite.expiresAtMs) {
+    final at? => _time(at),
+    null => null,
+  },
+);
+
+Ban banFrom(core.Ban ban) => Ban(
+  user: userFrom(ban.user),
+  reason: ban.reason,
+  bannedBy: ban.bannedBy,
+  createdAt: _time(ban.createdAtMs),
+);
+
+Presence presenceFrom(core.PresenceStatus status) => switch (status) {
+  core.PresenceStatus.online => Presence.online,
+  core.PresenceStatus.idle => Presence.idle,
+  core.PresenceStatus.dnd => Presence.doNotDisturb,
+  core.PresenceStatus.offline => Presence.offline,
+};
+
+/// Invisible goes out as offline: others see exactly that.
+core.PresenceStatus presenceTo(SelfPresence presence) => switch (presence) {
+  SelfPresence.online => core.PresenceStatus.online,
+  SelfPresence.idle => core.PresenceStatus.idle,
+  SelfPresence.doNotDisturb => core.PresenceStatus.dnd,
+  SelfPresence.invisible => core.PresenceStatus.offline,
+};
+
+FailureReason failureFrom(core.FailureReason reason) => switch (reason) {
+  core.FailureReason.rejected => FailureReason.rejected,
+  core.FailureReason.kicked => FailureReason.kicked,
+  core.FailureReason.banned => FailureReason.banned,
+  core.FailureReason.fingerprintChanged => FailureReason.fingerprintChanged,
+  core.FailureReason.incompatible => FailureReason.incompatible,
+};
+
+/// [now] turns the core's "retry in" into the time it happens.
+ConnectionStatus connectionFrom(
+  core.ConnectionState state, {
+  required DateTime now,
+}) => switch (state) {
+  core.ConnectionState_Connecting() => const ConnectionStatus.connecting(),
+  core.ConnectionState_Connected() => const ConnectionStatus.connected(),
+  core.ConnectionState_Reconnecting(:final attempt, :final retryInMs) =>
+    ConnectionStatus.reconnecting(
+      attempt: attempt,
+      retryAt: now.add(Duration(milliseconds: retryInMs)),
+    ),
+  core.ConnectionState_Failed(
+    :final reason,
+    :final message,
+    :final expectedFingerprint,
+    :final presentedFingerprint,
+  ) =>
+    ConnectionStatus.failed(
+      failureFrom(reason),
+      message,
+      expectedFingerprint: expectedFingerprint,
+      presentedFingerprint: presentedFingerprint,
+    ),
+};
+
+/// Phase 1's Ready has no last messages or read states; the repository adds
+/// them from recent history and what this device remembers.
+ReadySnapshot snapshotFrom(
+  core.ReadySnapshot ready, {
+  Map<int, Message> lastMessages = const {},
+  Map<int, ReadState> readStates = const {},
+}) => ReadySnapshot(
+  self: userFrom(ready.selfUser),
+  info: serverInfoFrom(ready.server),
+  channels: [for (final channel in ready.channels) channelFrom(channel)],
+  roles: [for (final role in ready.roles) roleFrom(role)],
+  members: [for (final member in ready.members) memberFrom(member)],
+  presences: {
+    for (final presence in ready.presences)
+      presence.userId: presenceFrom(presence.status),
+  },
+  serverPermissions: Permissions(ready.serverPermissions),
+  channelPermissions: {
+    for (final entry in ready.channelPermissions)
+      entry.channelId: Permissions(entry.permissions),
+  },
+  lastMessages: lastMessages,
+  readStates: readStates,
+);
+
+RepoErrorKind _kindFrom(core.ErrorCode code) => switch (code) {
+  core.ErrorCode.unauthorized ||
+  core.ErrorCode.invalidSession => RepoErrorKind.unauthorized,
+  core.ErrorCode.forbidden => RepoErrorKind.forbidden,
+  core.ErrorCode.notFound => RepoErrorKind.notFound,
+  core.ErrorCode.invalidArgument => RepoErrorKind.invalidArgument,
+  core.ErrorCode.rateLimited => RepoErrorKind.rateLimited,
+  core.ErrorCode.conflict => RepoErrorKind.conflict,
+  core.ErrorCode.internal || core.ErrorCode.unknown => RepoErrorKind.other,
+};
+
+/// The core's errors as the app's, with messages people can read.
+RepoException errorFrom(core.CoreError error) => switch (error) {
+  core.CoreError_NotInitialized() => const RepoException(
+    RepoErrorKind.other,
+    'Opencord is still starting.',
+  ),
+  core.CoreError_NoIdentity() => const RepoException(
+    RepoErrorKind.other,
+    'Create or import an identity first.',
+  ),
+  core.CoreError_UnknownServer() => const RepoException(
+    RepoErrorKind.notFound,
+    'That server is not in your list.',
+  ),
+  core.CoreError_NotConnected() => const RepoException(
+    RepoErrorKind.notConnected,
+    'Not connected to that server right now.',
+  ),
+  core.CoreError_Timeout() => const RepoException(
+    RepoErrorKind.timeout,
+    'The server did not answer in time.',
+  ),
+  core.CoreError_InvalidInput(:final message) => RepoException(
+    RepoErrorKind.invalidArgument,
+    message,
+  ),
+  core.CoreError_Server(:final code, :final message, :final retryAfterMs) =>
+    RepoException(
+      _kindFrom(code),
+      message,
+      retryAfter: switch (retryAfterMs) {
+        final ms? => Duration(milliseconds: ms),
+        null => null,
+      },
+    ),
+  core.CoreError_FingerprintMismatch() => const RepoException(
+    RepoErrorKind.fingerprintMismatch,
+    "The server's identity changed since you trusted it.",
+  ),
+  core.CoreError_Rejected(:final message) => RepoException(
+    RepoErrorKind.rejected,
+    message,
+  ),
+  core.CoreError_Connection(:final message) => RepoException(
+    RepoErrorKind.connection,
+    message,
+  ),
+  core.CoreError_Storage(:final message) => RepoException(
+    RepoErrorKind.other,
+    message,
+  ),
+};
+
+AddServerResult addServerFrom(core.AddServerOutcome outcome) =>
+    switch (outcome) {
+      core.AddServerOutcome_Added(:final field0) => ServerAdded(
+        serverFrom(field0),
+      ),
+      core.AddServerOutcome_NeedsTrust(:final address, :final fingerprint) =>
+        ServerNeedsTrust(address: address, fingerprint: fingerprint),
+    };

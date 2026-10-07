@@ -16,6 +16,12 @@ sealed class RepoEvent {
 }
 
 /// The saved server list changed (added, removed, renamed or reordered).
+/// The current user's identity was set or changed (onboarding, a new
+/// display name, an imported backup).
+final class IdentityChanged extends RepoEvent {
+  const IdentityChanged() : super('');
+}
+
 final class ServersChanged extends RepoEvent {
   const ServersChanged() : super('');
 }

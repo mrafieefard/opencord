@@ -36,10 +36,18 @@ class MockRepository implements OpencordRepository {
     DateTime Function()? clock,
     Random? random,
     this.simulateLife = true,
+    bool withIdentity = true,
   }) : _clock = clock ?? _systemClock,
-       _random = random ?? Random() {
+       _random = random ?? Random(),
+       _identity = withIdentity ? _seededIdentity : null {
     _world = buildMockWorld(_clock());
   }
+
+  static final _seededIdentity = LocalIdentity(
+    displayName: selfName,
+    fingerprint: selfFingerprint,
+    publicKeyHex: fakeFingerprint('public key of $selfName'),
+  );
 
   final DateTime Function() _clock;
   final Random _random;
@@ -55,11 +63,7 @@ class MockRepository implements OpencordRepository {
   Timer? _speaking;
   ({String server, int channel})? _voice;
   var _selfVoice = const VoiceParticipant(userId: 0);
-  var _identity = LocalIdentity(
-    displayName: selfName,
-    fingerprint: selfFingerprint,
-    publicKeyHex: fakeFingerprint('public key of $selfName'),
-  );
+  LocalIdentity? _identity;
   var _disposed = false;
 
   @override
@@ -383,8 +387,8 @@ class MockRepository implements OpencordRepository {
     server.members[selfId] = Member(
       user: User(
         id: selfId,
-        displayName: _identity.displayName,
-        fingerprint: _identity.fingerprint,
+        displayName: _identity?.displayName ?? selfName,
+        fingerprint: _identity?.fingerprint ?? selfFingerprint,
       ),
       joinedAt: _clock(),
     );
@@ -1139,12 +1143,11 @@ class MockRepository implements OpencordRepository {
   @override
   Future<String> exportIdentityBackup() async {
     await _latency();
-    return '$_backupPrefix${fakeFingerprint('secret of ${_identity.fingerprint}')}';
+    return '$_backupPrefix${fakeFingerprint('secret of ${_identity?.fingerprint}')}';
   }
 
-  @override
-  Future<void> importIdentityBackup(String backup) async {
-    await _latency();
+  /// The identity in a backup, or an error when it is not one.
+  LocalIdentity _fromBackup(String backup, String displayName) {
     final text = backup.trim();
     if (!text.startsWith(_backupPrefix) ||
         !RegExp(
@@ -1157,8 +1160,8 @@ class MockRepository implements OpencordRepository {
     }
     final secret = text.substring(_backupPrefix.length);
     final code = secret.substring(0, 16).toUpperCase();
-    _identity = LocalIdentity(
-      displayName: _identity.displayName,
+    return LocalIdentity(
+      displayName: displayName,
       fingerprint: [
         for (var i = 0; i < 16; i += 4) code.substring(i, i + 4),
       ].join('-'),
@@ -1167,13 +1170,62 @@ class MockRepository implements OpencordRepository {
   }
 
   @override
+  Future<void> importIdentityBackup(String backup) async {
+    await _latency();
+    _identity = _fromBackup(backup, _identity?.displayName ?? selfName);
+    _emit(const IdentityChanged());
+  }
+
+  @override
+  Future<NewIdentity> generateIdentity() async {
+    final secret = fakeFingerprint('new identity ${_random.nextInt(1 << 30)}');
+    final backup = '$_backupPrefix$secret';
+    final identity = _fromBackup(backup, '');
+    return NewIdentity(
+      fingerprint: identity.fingerprint,
+      publicKeyHex: identity.publicKeyHex,
+      backup: backup,
+    );
+  }
+
+  @override
+  Future<void> adoptIdentity(
+    String backup, {
+    required String displayName,
+  }) async {
+    final name = displayName.trim();
+    if (name.isEmpty) {
+      throw const RepoException(
+        RepoErrorKind.invalidArgument,
+        'Choose a display name.',
+      );
+    }
+    await _latency();
+    _identity = _fromBackup(backup, name);
+    _emit(const IdentityChanged());
+  }
+
+  @override
+  void markRead(String serverKey, int channelId, int messageId) {
+    final server = _world.servers
+        .where((server) => server.key == serverKey)
+        .firstOrNull;
+    if (server == null) return;
+    final known = server.readStates[channelId]?.lastReadId ?? 0;
+    if (messageId > known) {
+      server.readStates[channelId] = ReadState(lastReadId: messageId);
+    }
+  }
+
+  @override
   Future<void> updateDisplayName(String displayName) async {
     await _latency();
     _identity = LocalIdentity(
       displayName: displayName.trim(),
-      fingerprint: _identity.fingerprint,
-      publicKeyHex: _identity.publicKeyHex,
+      fingerprint: _identity?.fingerprint ?? selfFingerprint,
+      publicKeyHex: _identity?.publicKeyHex ?? '',
     );
+    _emit(const IdentityChanged());
     for (final server in _world.servers) {
       final updated = server.self.copyWith(
         user: server.self.user.copyWith(displayName: displayName.trim()),

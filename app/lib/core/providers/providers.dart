@@ -172,7 +172,22 @@ class ActivityNotifier extends Notifier<ActivityState> {
   final String serverKey;
 
   @override
-  ActivityState build() => ActivityState.empty;
+  ActivityState build() {
+    // Servers without read states of their own remember them through the
+    // repository (§6).
+    listenSelf((previous, next) {
+      if (previous == null || identical(previous, next)) return;
+      if (!ref.exists(repositoryProvider)) return;
+      final repository = ref.read(repositoryProvider);
+      for (final MapEntry(key: id, value: channel) in next.channels.entries) {
+        final read = channel.read.lastReadId;
+        if (read > (previous.channels[id]?.read.lastReadId ?? 0)) {
+          repository.markRead(serverKey, id, read);
+        }
+      }
+    });
+    return ActivityState.empty;
+  }
 
   void apply(RepoEvent event) {
     final next = reduceActivity(state, event);
@@ -248,6 +263,26 @@ class TypingNotifier extends Notifier<TypingState> {
 final typingProvider =
     NotifierProvider.family<TypingNotifier, TypingState, String>(
       TypingNotifier.new,
+    );
+
+// Identity ------------------------------------------------------------------
+
+/// The current user's identity, null until onboarding (Phase 1 §9.1).
+class LocalIdentityNotifier extends Notifier<LocalIdentity?> {
+  @override
+  LocalIdentity? build() {
+    final repository = ref.watch(repositoryProvider);
+    final changes = repository.events
+        .where((event) => event is IdentityChanged)
+        .listen((_) => state = repository.identity);
+    ref.onDispose(changes.cancel);
+    return repository.identity;
+  }
+}
+
+final localIdentityProvider =
+    NotifierProvider<LocalIdentityNotifier, LocalIdentity?>(
+      LocalIdentityNotifier.new,
     );
 
 // Voice (mock only in Phase 1) ---------------------------------------------

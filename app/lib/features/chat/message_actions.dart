@@ -67,6 +67,7 @@ class MessageActions {
   bool _sent(Message message) => message.sendState == SendState.sent;
 
   bool canReply(Message message) =>
+      _capabilities.replies &&
       _sent(message) &&
       !message.isSystem &&
       _held.has(Permissions.sendMessages);
