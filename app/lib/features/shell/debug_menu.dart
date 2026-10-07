@@ -48,6 +48,14 @@ Future<void> showDebugMenu(BuildContext context, WidgetRef ref) {
       ],
       if (mock != null) ...[
         OcMenuItem(
+          label: 'Rate-limit sending for 10 s',
+          icon: OcIcons.hourglassEmpty,
+          onSelected: () {
+            mock.debugRateLimit(const Duration(seconds: 10));
+            done('Sending is rate limited for 10 s');
+          },
+        ),
+        OcMenuItem(
           label: 'Long channel names',
           icon: OcIcons.tag,
           onSelected: mock.debugLongNames,

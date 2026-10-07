@@ -38,6 +38,7 @@ class OcIconButton extends StatelessWidget {
     this.shortcut,
     this.color,
     this.focusNode,
+    this.showTooltip = true,
   });
 
   final IconData icon;
@@ -58,6 +59,10 @@ class OcIconButton extends StatelessWidget {
   final Color? color;
   final FocusNode? focusNode;
 
+  /// Off where the surroundings label the button themselves (the hover
+  /// bar); the tooltip text still names it for screen readers.
+  final bool showTooltip;
+
   @override
   Widget build(BuildContext context) {
     final colors = context.oc;
@@ -66,55 +71,50 @@ class OcIconButton extends StatelessWidget {
     final message = shortcut == null
         ? tooltip
         : '$tooltip (${shortcutLabel(shortcut!, Theme.of(context).platform)})';
-    return Tooltip(
-      message: message,
-      excludeFromSemantics: true,
-      child: Hoverable(
-        onTap: onPressed,
-        onSecondaryTap: onSecondaryTap,
-        focusNode: focusNode,
-        semanticLabel: tooltip,
-        selected: active ? true : null,
-        focusRadius: BorderRadius.circular(size.extent / 2),
-        builder: (context, state) {
-          final (Color background, Color foreground) = switch ((
-            enabled,
-            active,
-            activeStyle,
-          )) {
-            (false, _, _) => (Colors.transparent, colors.textMuted),
-            (true, true, OcActiveStyle.inverted) => (
-              state.active
-                  ? Color.lerp(colors.accent, colors.onAccent, 0.12)!
-                  : colors.accent,
-              colors.onAccent,
-            ),
-            (true, true, OcActiveStyle.selected) => (
-              colors.selected,
-              colors.text,
-            ),
-            (true, false, _) => (
-              state.active ? colors.selected : Colors.transparent,
-              state.active ? colors.text : (color ?? colors.textSecondary),
-            ),
-          };
-          return AnimatedContainer(
-            duration: motion.hover,
-            curve: OcMotion.curve,
-            width: size.extent,
-            height: size.extent,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: background,
-            ),
-            child: Icon(
-              active ? (activeIcon ?? icon) : icon,
-              size: size.iconSize,
-              color: foreground,
-            ),
-          );
-        },
-      ),
+    final button = Hoverable(
+      onTap: onPressed,
+      onSecondaryTap: onSecondaryTap,
+      focusNode: focusNode,
+      semanticLabel: tooltip,
+      selected: active ? true : null,
+      focusRadius: BorderRadius.circular(size.extent / 2),
+      builder: (context, state) {
+        final (Color background, Color foreground) = switch ((
+          enabled,
+          active,
+          activeStyle,
+        )) {
+          (false, _, _) => (Colors.transparent, colors.textMuted),
+          (true, true, OcActiveStyle.inverted) => (
+            state.active
+                ? Color.lerp(colors.accent, colors.onAccent, 0.12)!
+                : colors.accent,
+            colors.onAccent,
+          ),
+          (true, true, OcActiveStyle.selected) => (
+            colors.selected,
+            colors.text,
+          ),
+          (true, false, _) => (
+            state.active ? colors.selected : Colors.transparent,
+            state.active ? colors.text : (color ?? colors.textSecondary),
+          ),
+        };
+        return AnimatedContainer(
+          duration: motion.hover,
+          curve: OcMotion.curve,
+          width: size.extent,
+          height: size.extent,
+          decoration: BoxDecoration(shape: BoxShape.circle, color: background),
+          child: Icon(
+            active ? (activeIcon ?? icon) : icon,
+            size: size.iconSize,
+            color: foreground,
+          ),
+        );
+      },
     );
+    if (!showTooltip) return button;
+    return Tooltip(message: message, excludeFromSemantics: true, child: button);
   }
 }

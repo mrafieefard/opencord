@@ -282,6 +282,13 @@ class MockRepository implements OpencordRepository {
     _emit(MessageCreated(serverKey, message));
   }
 
+  DateTime? _rateLimitedUntil;
+
+  /// Sends fail as rate limited for [duration], to see the countdown
+  /// (§4.6).
+  void debugRateLimit(Duration duration) =>
+      _rateLimitedUntil = _clock().add(duration);
+
   void debugTyping(String serverKey, int channelId, int userId) {
     _emit(TypingStarted(serverKey, channelId, userId));
   }
@@ -473,6 +480,14 @@ class MockRepository implements OpencordRepository {
       );
     }
     await _latency();
+    final limit = _rateLimitedUntil;
+    if (limit != null && _clock().isBefore(limit)) {
+      throw RepoException(
+        RepoErrorKind.rateLimited,
+        'You are sending messages too quickly.',
+        retryAfter: limit.difference(_clock()),
+      );
+    }
     final now = _clock();
     final message = Message(
       id: _world.ids.at(now),
@@ -575,7 +590,12 @@ class MockRepository implements OpencordRepository {
   }
 
   @override
-  Future<void> startTyping(String serverKey, int channelId) async {}
+  Future<void> startTyping(String serverKey, int channelId) async {
+    typingSignals++;
+  }
+
+  /// How many typing signals the UI sent, for tests (§6 throttling).
+  int typingSignals = 0;
 
   @override
   Future<void> toggleReaction(

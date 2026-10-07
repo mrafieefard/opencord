@@ -186,6 +186,34 @@ void main() {
     expect(reordered.first, 'homelab.local:7710');
   });
 
+  test('a rate-limited send fails and pauses sending until told', () {
+    withApp((async, container, repo) {
+      final server = repo.servers.first.key;
+      final general = channelNamed(container, server, 'general');
+      final channel = (server: server, channel: general);
+      container.read(channelMessagesProvider(channel));
+      async.elapse(const Duration(milliseconds: 10));
+      repo.debugRateLimit(const Duration(seconds: 5));
+
+      container.read(channelMessagesProvider(channel).notifier).send('hi');
+      async.elapse(const Duration(seconds: 1));
+
+      expect(
+        container
+            .read(channelMessagesProvider(channel))
+            .pending
+            .single
+            .sendState,
+        SendState.failed,
+      );
+      final until = container.read(sendCooldownProvider(channel));
+      expect(until, isNotNull);
+
+      async.elapse(const Duration(seconds: 5));
+      expect(container.read(sendCooldownProvider(channel)), isNull);
+    });
+  });
+
   test('voice participants and speakers update', () {
     withApp((async, container, repo) {
       final server = repo.servers.first.key;

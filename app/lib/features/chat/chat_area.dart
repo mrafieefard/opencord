@@ -5,6 +5,7 @@ import 'package:opencord/core/providers/providers.dart';
 import 'package:opencord/core/repository/repository.dart';
 import 'package:opencord/features/chat/chat_controller.dart';
 import 'package:opencord/features/chat/chat_header.dart';
+import 'package:opencord/features/chat/composer.dart';
 import 'package:opencord/features/chat/message_list.dart';
 import 'package:opencord/features/chat/pinned_bar.dart';
 import 'package:opencord/features/shell/navigation.dart';
@@ -71,7 +72,7 @@ class _ChatAreaState extends ConsumerState<ChatArea> {
           if (open != null && channel!.kind.isTextLike) ...[
             if (pins)
               PinnedBar(
-                key: ValueKey(open),
+                key: ValueKey(('pins', open)),
                 channel: open,
                 onJumpTo: _controller.jumpToMessage,
               ),
@@ -81,6 +82,11 @@ class _ChatAreaState extends ConsumerState<ChatArea> {
                 channel: open,
                 controller: _controller,
               ),
+            ),
+            Composer(
+              key: ValueKey(('composer', open)),
+              channel: open,
+              controller: _controller,
             ),
           ] else
             const Expanded(child: SizedBox()),

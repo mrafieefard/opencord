@@ -515,8 +515,14 @@ class ChannelMessagesNotifier extends Notifier<ChannelMessages> {
         replyToId: pending.replyToId,
       );
       if (ref.mounted) state = resolvePending(state, sent);
-    } on RepoException {
-      if (ref.mounted) state = failPending(state, pending.nonce!);
+    } on RepoException catch (error) {
+      if (!ref.mounted) return;
+      state = failPending(state, pending.nonce!);
+      if (error.kind == RepoErrorKind.rateLimited) {
+        ref
+            .read(sendCooldownProvider(channel).notifier)
+            .start(error.retryAfter ?? const Duration(seconds: 5));
+      }
     }
   }
 
@@ -547,6 +553,35 @@ class ChannelMessagesNotifier extends Notifier<ChannelMessages> {
   Future<void> setPinned(int messageId, {required bool pinned}) => _repository
       .setPinned(channel.server, channel.channel, messageId, pinned: pinned);
 }
+
+/// When sending works again in a channel after the server said to slow
+/// down (§4.6 countdown); null while it works.
+class SendCooldownNotifier extends Notifier<DateTime?> {
+  SendCooldownNotifier(this.channel);
+
+  final ChannelRef channel;
+  Timer? _clear;
+
+  @override
+  DateTime? build() {
+    ref.onDispose(() => _clear?.cancel());
+    return null;
+  }
+
+  void start(Duration wait) {
+    final safeWait = wait.isNegative ? Duration.zero : wait;
+    state = ref.read(clockProvider)().add(safeWait);
+    _clear?.cancel();
+    _clear = Timer(safeWait, () {
+      if (ref.mounted) state = null;
+    });
+  }
+}
+
+final sendCooldownProvider =
+    NotifierProvider.family<SendCooldownNotifier, DateTime?, ChannelRef>(
+      SendCooldownNotifier.new,
+    );
 
 final channelMessagesProvider =
     NotifierProvider.family<

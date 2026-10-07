@@ -12,6 +12,7 @@ import 'package:opencord/features/chat/message_list.dart';
 import 'package:opencord/features/chat/reaction_pill.dart';
 import 'package:opencord/features/shell/navigation.dart';
 import 'package:opencord/ui/widgets/oc_button.dart';
+import 'package:opencord/ui/widgets/oc_icon_button.dart';
 import 'package:opencord/ui/widgets/oc_menu.dart';
 
 import '../../support/app.dart';
@@ -231,7 +232,11 @@ void main() {
     await mouse.moveTo(_textOf(tester, _ping));
     await tester.pump();
 
-    await tester.tap(find.byTooltip('Add reaction'));
+    await tester.tap(
+      find.byWidgetPredicate(
+        (widget) => widget is OcIconButton && widget.tooltip == 'Add reaction',
+      ),
+    );
     await _pumpFor(tester, const Duration(milliseconds: 200));
     expect(find.byType(QuickReactions), findsOneWidget);
     await tester.tap(
