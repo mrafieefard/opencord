@@ -81,8 +81,9 @@ flutter test integration_test -d linux
 
 The Phase 1 acceptance checks run the app against a real server. Each
 starts its own server on a free port, with its own data folders and
-profile, so it leaves yours alone; they open the app window, so they need
-a desktop session:
+profile, so it leaves your server and data alone (on Linux the keychain
+item is shared; see D23 in `docs/decisions.md`). They open the app window,
+so they need a desktop session:
 
 ```bash
 app/tool/check_m5.sh  # a fresh install joins as owner, restarts, is still connected
