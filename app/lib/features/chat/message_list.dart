@@ -3,6 +3,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
+import 'package:flutter/semantics.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:opencord/core/format.dart';
@@ -188,6 +189,7 @@ class _MessageListState extends ConsumerState<MessageList>
 
   /// Keeps deleted messages for their fade-out (§6).
   void _onMessagesChanged(ChannelMessages? previous, ChannelMessages next) {
+    _announce(previous, next);
     if (previous == null || OcMotion.of(context).message == Duration.zero) {
       return;
     }
@@ -198,6 +200,42 @@ class _MessageListState extends ConsumerState<MessageList>
       Timer(OcMotion.of(context).message, () {
         if (mounted) setState(() => _vanishing.remove(message.id));
       });
+    }
+  }
+
+  /// Messages from others arriving here are read out politely (§9);
+  /// history loading in is not.
+  void _announce(ChannelMessages? previous, ChannelMessages next) {
+    if (previous == null || !previous.loaded) return;
+    final data = ref.read(serverProvider(_channel.server)).data;
+    if (data == null) return;
+    final newest = previous.messages.lastOrNull?.id;
+    final arrived = [
+      for (final message in next.messages)
+        if ((newest == null || message.id > newest) &&
+            message.authorId != data.self.id &&
+            !message.isSystem)
+          message,
+    ];
+    if (arrived.isEmpty) return;
+    final view = View.of(context);
+    final direction = Directionality.of(context);
+    const spoken = 3;
+    for (final message in arrived.take(spoken)) {
+      final author = data.members[message.authorId]?.displayName ?? 'Someone';
+      final text = copyableText(
+        message.content,
+        user: (id) => data.members[id]?.displayName,
+        channel: (id) => data.channels[id]?.name,
+      );
+      SemanticsService.sendAnnouncement(view, '$author: $text', direction);
+    }
+    if (arrived.length > spoken) {
+      SemanticsService.sendAnnouncement(
+        view,
+        '${arrived.length - spoken} more new messages',
+        direction,
+      );
     }
   }
 

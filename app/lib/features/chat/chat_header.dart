@@ -28,6 +28,7 @@ class ChatHeader extends ConsumerWidget {
   const ChatHeader({
     super.key,
     required this.channel,
+    this.memberToggle = true,
     required this.membersShown,
     required this.onToggleMembers,
     required this.onJumpTo,
@@ -38,6 +39,9 @@ class ChatHeader extends ConsumerWidget {
 
   /// Null while no channel is open.
   final ChannelRef? channel;
+
+  /// Off when there is no server, and so no members.
+  final bool memberToggle;
   final bool membersShown;
   final VoidCallback onToggleMembers;
   final ValueChanged<int> onJumpTo;
@@ -103,12 +107,13 @@ class ChatHeader extends ConsumerWidget {
                 ),
               ),
           ],
-          OcIconButton(
-            icon: OcIcons.group,
-            tooltip: 'Member list',
-            active: membersShown,
-            onPressed: onToggleMembers,
-          ),
+          if (memberToggle)
+            OcIconButton(
+              icon: OcIcons.group,
+              tooltip: 'Member list',
+              active: membersShown,
+              onPressed: onToggleMembers,
+            ),
           if (open != null && target != null)
             Builder(
               builder: (context) => OcIconButton(

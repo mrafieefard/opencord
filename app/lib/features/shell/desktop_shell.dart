@@ -182,7 +182,10 @@ class _DesktopShellState extends ConsumerState<DesktopShell> {
   @override
   Widget build(BuildContext context) {
     final colors = context.oc;
-    final membersShown = ref.watch(memberPanelProvider);
+    // No servers, no members to list (§4.13).
+    final membersShown =
+        ref.watch(memberPanelProvider) &&
+        ref.watch(serverListProvider.select((servers) => servers.isNotEmpty));
     // Text fields (the composer, searches) need Material underneath.
     return Material(
       type: MaterialType.transparency,

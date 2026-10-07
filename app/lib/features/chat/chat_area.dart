@@ -6,11 +6,13 @@ import 'package:opencord/core/providers/providers.dart';
 import 'package:opencord/core/repository/repository.dart';
 import 'package:opencord/features/chat/attachment_drop.dart';
 import 'package:opencord/features/chat/chat_controller.dart';
+import 'package:opencord/features/chat/connection_banner.dart';
 import 'package:opencord/features/chat/chat_header.dart';
 import 'package:opencord/features/chat/composer.dart';
 import 'package:opencord/features/chat/message_list.dart';
 import 'package:opencord/features/chat/pinned_bar.dart';
 import 'package:opencord/features/shell/navigation.dart';
+import 'package:opencord/features/shell/no_servers.dart';
 import 'package:opencord/features/voice/voice_view.dart';
 import 'package:opencord/ui/theme/oc_colors.dart';
 
@@ -58,6 +60,16 @@ class _ChatAreaState extends ConsumerState<ChatArea> {
     final open = server == null || channel == null
         ? null
         : (server: server, channel: channel.id);
+    final noServers = ref.watch(
+      serverListProvider.select((servers) => servers.isEmpty),
+    );
+    final unreachable =
+        server != null &&
+        ref.watch(
+          serverProvider(
+            server,
+          ).select((state) => serverUnreachable(state.connection)),
+        );
     return ColoredBox(
       color: colors.chat,
       child: Column(
@@ -65,6 +77,7 @@ class _ChatAreaState extends ConsumerState<ChatArea> {
         children: [
           ChatHeader(
             channel: open,
+            memberToggle: !noServers,
             membersShown: widget.membersShown,
             onToggleMembers: widget.onToggleMembers,
             onOpenSidebar: widget.onOpenSidebar,
@@ -72,7 +85,10 @@ class _ChatAreaState extends ConsumerState<ChatArea> {
             leadingControls: widget.leadingControls,
             trailingControls: widget.trailingControls,
           ),
-          if (open != null && channel!.kind.isTextLike)
+          if (server != null && !noServers) ConnectionBanner(serverKey: server),
+          if (noServers)
+            const Expanded(child: NoServersView())
+          else if (open != null && channel!.kind.isTextLike)
             Expanded(
               child: AttachmentDropZone(
                 child: Column(
@@ -85,10 +101,15 @@ class _ChatAreaState extends ConsumerState<ChatArea> {
                         onJumpTo: _controller.jumpToMessage,
                       ),
                     Expanded(
-                      child: MessageList(
-                        key: ValueKey(open),
-                        channel: open,
-                        controller: _controller,
+                      // The last cached state, greyed out while the
+                      // server cannot be reached (§4.13).
+                      child: Opacity(
+                        opacity: unreachable ? 0.55 : 1,
+                        child: MessageList(
+                          key: ValueKey(open),
+                          channel: open,
+                          controller: _controller,
+                        ),
                       ),
                     ),
                     Composer(
