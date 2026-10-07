@@ -640,6 +640,12 @@ class MockRepository implements OpencordRepository {
     }
   }
 
+  @override
+  Future<List<Message>> fetchPins(String serverKey, int channelId) async => [
+    for (final message in _history(_server(serverKey), channelId))
+      if (message.pinned) message,
+  ];
+
   // Channels ----------------------------------------------------------------
 
   /// Re-sends what the current user can see after a permission change, the

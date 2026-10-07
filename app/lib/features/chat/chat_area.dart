@@ -2,15 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:opencord/core/providers/providers.dart';
+import 'package:opencord/core/repository/repository.dart';
 import 'package:opencord/features/chat/chat_controller.dart';
+import 'package:opencord/features/chat/chat_header.dart';
 import 'package:opencord/features/chat/message_list.dart';
+import 'package:opencord/features/chat/pinned_bar.dart';
 import 'package:opencord/features/shell/navigation.dart';
-import 'package:opencord/features/window/header_bar.dart';
 import 'package:opencord/ui/theme/oc_colors.dart';
-import 'package:opencord/ui/theme/oc_icons.dart';
-import 'package:opencord/ui/theme/oc_metrics.dart';
-import 'package:opencord/ui/theme/oc_text.dart';
-import 'package:opencord/ui/widgets/oc_icon_button.dart';
 
 /// The main column: the open channel's header and content.
 class ChatArea extends ConsumerStatefulWidget {
@@ -43,6 +41,7 @@ class _ChatAreaState extends ConsumerState<ChatArea> {
   @override
   Widget build(BuildContext context) {
     final colors = context.oc;
+    final pins = ref.read(repositoryProvider).capabilities.pins;
     final server = ref.watch(currentServerProvider);
     final channelId = ref.watch(currentChannelProvider);
     final channel = server == null
@@ -52,57 +51,39 @@ class _ChatAreaState extends ConsumerState<ChatArea> {
               server,
             ).select((state) => state.data?.channels[channelId]),
           );
+    final open = server == null || channel == null
+        ? null
+        : (server: server, channel: channel.id);
     return ColoredBox(
       color: colors.chat,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          HeaderBar(
+          ChatHeader(
+            channel: open,
+            membersShown: widget.membersShown,
+            onToggleMembers: widget.onToggleMembers,
+            onOpenSidebar: widget.onOpenSidebar,
+            onJumpTo: _controller.jumpToMessage,
             leadingControls: widget.leadingControls,
             trailingControls: widget.trailingControls,
-            child: Row(
-              children: [
-                if (widget.onOpenSidebar != null)
-                  OcIconButton(
-                    icon: OcIcons.menu,
-                    tooltip: 'Channels',
-                    onPressed: widget.onOpenSidebar,
-                  ),
-                const SizedBox(width: OcSpace.s4),
-                Expanded(
-                  child: IgnorePointer(
-                    child: Text(
-                      channel == null
-                          ? ''
-                          : channel.kind.isTextLike
-                          ? '#${channel.name}'
-                          : channel.name,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: OcText.header.copyWith(color: colors.text),
-                    ),
-                  ),
-                ),
-                OcIconButton(
-                  icon: OcIcons.group,
-                  tooltip: 'Member list',
-                  active: widget.membersShown,
-                  onPressed: widget.onToggleMembers,
-                ),
-              ],
+          ),
+          if (open != null && channel!.kind.isTextLike) ...[
+            if (pins)
+              PinnedBar(
+                key: ValueKey(open),
+                channel: open,
+                onJumpTo: _controller.jumpToMessage,
+              ),
+            Expanded(
+              child: MessageList(
+                key: ValueKey(open),
+                channel: open,
+                controller: _controller,
+              ),
             ),
-          ),
-          Expanded(
-            child: server == null || channel == null
-                ? const SizedBox()
-                : channel.kind.isTextLike
-                ? MessageList(
-                    key: ValueKey((server: server, channel: channel.id)),
-                    channel: (server: server, channel: channel.id),
-                    controller: _controller,
-                  )
-                : const SizedBox(),
-          ),
+          ] else
+            const Expanded(child: SizedBox()),
         ],
       ),
     );

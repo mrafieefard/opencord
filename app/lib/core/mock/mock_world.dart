@@ -611,6 +611,7 @@ MockServer _opencordDev(DateTime now, MockIds ids) {
     ethan,
     b.daysAgo(1, 18, 40),
     '_Quick reminder:_ the Berlin meetup is on Thursday.',
+    pinned: true,
   );
   b.say(
     general,

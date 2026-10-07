@@ -206,9 +206,14 @@ void main() {
     final header = tester.getRect(
       find.descendant(of: main, matching: find.byType(HeaderBar)),
     );
-    final title = tester.getRect(
+    // The channel name and the subtitle under it, as one block.
+    final name = tester.getRect(
       find.descendant(of: main, matching: find.text('#announcements')),
     );
+    final subtitle = tester.getRect(
+      find.descendant(of: main, matching: find.textContaining(' online')),
+    );
+    final title = name.expandToInclude(subtitle);
 
     expect(title.center.dy, closeTo(header.center.dy, 1));
     await app.dispose(tester);

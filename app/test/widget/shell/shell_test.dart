@@ -172,6 +172,20 @@ void main() {
         'no overflow at ${size.width.toInt()}×${size.height.toInt()}, text ×$scale',
         (tester) async {
           final app = await MockApp.pump(tester, size: size, textScale: scale);
+          expect(tester.takeException(), isNull);
+
+          // #general has the pinned bar, replies, reactions and code.
+          final server = app.read(currentServerProvider)!;
+          final general = app
+              .read(serverProvider(server))
+              .data!
+              .channels
+              .values
+              .firstWhere((channel) => channel.name == 'general');
+          app.read(navigationProvider.notifier).openChannel(server, general.id);
+          for (var i = 0; i < 4; i++) {
+            await tester.pump(const Duration(milliseconds: 100));
+          }
 
           expect(tester.takeException(), isNull);
           await app.dispose(tester);

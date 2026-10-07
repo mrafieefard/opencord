@@ -188,6 +188,9 @@ abstract interface class OpencordRepository {
     required bool pinned,
   });
 
+  /// A channel's pinned messages; empty without [RepoCapabilities.pins].
+  Future<List<Message>> fetchPins(String serverKey, int channelId);
+
   Future<Channel> createChannel(
     String serverKey, {
     required ChannelKind kind,

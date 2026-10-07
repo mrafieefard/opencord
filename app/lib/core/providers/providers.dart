@@ -10,7 +10,9 @@ import 'package:opencord/core/model/message.dart';
 import 'package:opencord/core/model/misc.dart';
 import 'package:opencord/core/model/server.dart';
 import 'package:opencord/core/providers/activity_state.dart';
+import 'package:opencord/core/providers/channel_audience.dart';
 import 'package:opencord/core/providers/messages_state.dart';
+import 'package:opencord/core/providers/pins_state.dart';
 import 'package:opencord/core/providers/presence_state.dart';
 import 'package:opencord/core/providers/server_state.dart';
 import 'package:opencord/core/providers/typing_state.dart';
@@ -19,7 +21,9 @@ import 'package:opencord/core/settings/local_prefs.dart';
 import 'package:opencord/core/settings/key_value_store.dart';
 
 export 'package:opencord/core/providers/activity_state.dart';
+export 'package:opencord/core/providers/channel_audience.dart';
 export 'package:opencord/core/providers/messages_state.dart';
+export 'package:opencord/core/providers/pins_state.dart';
 export 'package:opencord/core/providers/presence_state.dart';
 export 'package:opencord/core/providers/server_state.dart';
 export 'package:opencord/core/providers/typing_state.dart';
@@ -64,8 +68,11 @@ void _route(Ref ref, RepoEvent event) {
 }
 
 void _toChannel(Ref ref, String key, int channelId, RepoEvent event) {
-  final provider = channelMessagesProvider((server: key, channel: channelId));
-  if (ref.exists(provider)) ref.read(provider.notifier).apply(event);
+  final channel = (server: key, channel: channelId);
+  final messages = channelMessagesProvider(channel);
+  if (ref.exists(messages)) ref.read(messages.notifier).apply(event);
+  final pins = pinsProvider(channel);
+  if (ref.exists(pins)) ref.read(pins.notifier).apply(event);
 }
 
 // Servers -------------------------------------------------------------------
@@ -547,6 +554,63 @@ final channelMessagesProvider =
       ChannelMessages,
       ChannelRef
     >(ChannelMessagesNotifier.new);
+
+/// How many members can see a channel and how many of them are online,
+/// for the chat header (§4.3).
+final channelAudienceProvider =
+    Provider.family<({int members, int online}), ChannelRef>((ref, channel) {
+      final data = ref.watch(
+        serverProvider(channel.server).select((state) => state.data),
+      );
+      final target = data?.channels[channel.channel];
+      if (data == null || target == null) return (members: 0, online: 0);
+      final viewers = channelViewers(data, target);
+      final presences = ref.watch(
+        presenceProvider(channel.server).select((state) => state.presences),
+      );
+      return (members: viewers.length, online: onlineCount(viewers, presences));
+    });
+
+/// A channel's pinned messages, newest first (§4.4), kept current by
+/// message events and reloaded after a fresh Ready.
+class PinsNotifier extends Notifier<List<Message>> {
+  PinsNotifier(this.channel);
+
+  final ChannelRef channel;
+
+  @override
+  List<Message> build() {
+    ref.listen(serverProvider(channel.server).select((s) => s.epoch), (
+      previous,
+      next,
+    ) {
+      if (previous != null && previous != next) _load();
+    });
+    Future.microtask(_load);
+    return const [];
+  }
+
+  Future<void> _load() async {
+    final repository = ref.read(repositoryProvider);
+    if (!repository.capabilities.pins) return;
+    try {
+      final pins = await repository.fetchPins(channel.server, channel.channel);
+      if (ref.mounted) state = sortPins(pins);
+    } on RepoException {
+      // Pins are extra; the channel works without them.
+    }
+  }
+
+  void apply(RepoEvent event) {
+    final next = reducePins(state, event, channelId: channel.channel);
+    if (!identical(next, state)) state = next;
+  }
+}
+
+final pinsProvider =
+    NotifierProvider.family<PinsNotifier, List<Message>, ChannelRef>(
+      PinsNotifier.new,
+    );
 
 /// Unread messages in channels that are not muted, across all servers: the
 /// count in the window title, the tray and the badges (§6, §15).
