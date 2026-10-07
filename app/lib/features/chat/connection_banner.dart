@@ -54,15 +54,19 @@ class _ConnectionBannerState extends ConsumerState<ConnectionBanner> {
     }
   }
 
-  String _text(ConnectionStatus status) {
-    if (status.phase == ConnectionPhase.failed) {
-      return "Can't connect · ${status.message ?? 'The server refused.'}";
-    }
+  String _headline(ConnectionStatus status) =>
+      status.phase == ConnectionPhase.failed
+      ? "Can't connect · ${status.message ?? 'The server refused.'}"
+      : "Can't reach server";
+
+  /// The countdown, kept out of the live region: screen readers would
+  /// announce it every second.
+  String? _countdown(ConnectionStatus status) {
     final retryAt = status.retryAt;
-    if (retryAt == null) return "Can't reach server";
+    if (status.phase == ConnectionPhase.failed || retryAt == null) return null;
     final left = retryAt.difference(clock.now()).inMilliseconds;
-    if (left <= 0) return "Can't reach server · Retrying…";
-    return "Can't reach server · Retrying in ${(left / 1000).ceil()} s";
+    if (left <= 0) return ' · Retrying…';
+    return ' · Retrying in ${(left / 1000).ceil()} s';
   }
 
   @override
@@ -86,29 +90,43 @@ class _ConnectionBannerState extends ConsumerState<ConnectionBanner> {
         color: colors.hover,
         border: Border(bottom: BorderSide(color: colors.border)),
       ),
-      child: Semantics(
-        liveRegion: true,
-        child: Row(
-          children: [
-            Icon(OcIcons.cloudOff, size: OcSize.iconRow, color: colors.text),
-            const SizedBox(width: OcSpace.s10),
-            Expanded(
-              child: Text(
-                _text(status),
-                style: OcText.body.copyWith(color: colors.text),
-              ),
+      child: Row(
+        children: [
+          Icon(OcIcons.cloudOff, size: OcSize.iconRow, color: colors.text),
+          const SizedBox(width: OcSpace.s10),
+          Expanded(
+            child: Row(
+              children: [
+                Flexible(
+                  child: Semantics(
+                    // Its own node: merged up, it would carry everything
+                    // around it, countdown included.
+                    container: true,
+                    liveRegion: true,
+                    child: Text(
+                      _headline(status),
+                      style: OcText.body.copyWith(color: colors.text),
+                    ),
+                  ),
+                ),
+                if (_countdown(status) case final countdown?)
+                  Text(
+                    countdown,
+                    style: OcText.body.copyWith(color: colors.text),
+                  ),
+              ],
             ),
-            if (retry) ...[
-              const SizedBox(width: OcSpace.s12),
-              OcButton(
-                label: 'Retry now',
-                dense: true,
-                onPressed: () =>
-                    ref.read(repositoryProvider).retryNow(widget.serverKey),
-              ),
-            ],
+          ),
+          if (retry) ...[
+            const SizedBox(width: OcSpace.s12),
+            OcButton(
+              label: 'Retry now',
+              dense: true,
+              onPressed: () =>
+                  ref.read(repositoryProvider).retryNow(widget.serverKey),
+            ),
           ],
-        ),
+        ],
       ),
     );
   }

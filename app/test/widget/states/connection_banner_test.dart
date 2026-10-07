@@ -1,3 +1,4 @@
+import 'package:flutter/rendering.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:opencord/core/model/server.dart';
@@ -17,9 +18,26 @@ Future<void> _pumpFor(WidgetTester tester, Duration total) async {
   }
 }
 
-Finder _countdown(String seconds) => find.textContaining(
-  RegExp("Can't reach server · Retrying in [$seconds] s"),
-);
+Finder _countdown(String seconds) =>
+    find.textContaining(RegExp('Retrying in [$seconds] s'));
+
+/// What live regions say: screen readers announce each change.
+List<String> _liveLabels(WidgetTester tester) {
+  final labels = <String>[];
+  void visit(SemanticsNode node) {
+    final data = node.getSemanticsData();
+    if (data.flagsCollection.isLiveRegion) labels.add(data.label);
+    node.visitChildren((child) {
+      visit(child);
+      return true;
+    });
+  }
+
+  for (final view in tester.binding.renderViews) {
+    visit(view.owner!.semanticsOwner!.rootSemanticsNode!);
+  }
+  return labels;
+}
 
 Future<MockApp> _openHomelab(WidgetTester tester) async {
   final app = await MockApp.pump(tester);
@@ -43,6 +61,21 @@ void main() {
 
     expect(_countdown('2-5'), findsOneWidget);
     await app.dispose(tester);
+  });
+
+  testWidgets('screen readers hear the change, not every second of it', (
+    tester,
+  ) async {
+    final semantics = tester.ensureSemantics();
+    final app = await _openHomelab(tester);
+    final said = _liveLabels(tester);
+
+    await _pumpFor(tester, const Duration(seconds: 3));
+
+    expect(said, isNotEmpty);
+    expect(_liveLabels(tester), said);
+    await app.dispose(tester);
+    semantics.dispose();
   });
 
   testWidgets('Retry now tries again at once', (tester) async {

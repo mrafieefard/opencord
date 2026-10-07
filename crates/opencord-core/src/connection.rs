@@ -641,7 +641,14 @@ impl Task {
                     Some(Command::Request { reply, .. }) => {
                         let _ = reply.send(Err(CoreError::NotConnected));
                     }
-                    Some(Command::RetryNow) => return true,
+                    Some(Command::RetryNow) => {
+                        // No more waiting: says so, so a countdown stops.
+                        self.emit_state(ConnectionState::Reconnecting {
+                            attempt,
+                            retry_in_ms: 0,
+                        });
+                        return true;
+                    }
                     Some(Command::Shutdown) | None => return false,
                 },
             }

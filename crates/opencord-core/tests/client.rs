@@ -528,6 +528,40 @@ async fn retry_now_skips_the_wait_before_reconnecting() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
+async fn retry_now_says_at_once_that_it_is_retrying() {
+    let server = TestServer::start().await;
+    let (_owner, _, mut member, member_ready) = owner_and_member(&server).await;
+    let key = server.address();
+    member.drain(Duration::from_millis(200)).await;
+    server
+        .handle
+        .drop_user_connections(member_ready.self_user.id);
+    member
+        .wait_for(|payload| {
+            matches!(
+                payload,
+                CoreEventPayload::ConnectionState(ConnectionState::Reconnecting { .. })
+            )
+            .then_some(())
+        })
+        .await;
+
+    member.client.retry_now(&key).await.unwrap();
+    let next = member
+        .wait_for(|payload| match payload {
+            CoreEventPayload::ConnectionState(state) => Some(state.clone()),
+            _ => None,
+        })
+        .await;
+
+    // The app shows "Retrying…" instead of the old countdown.
+    assert!(
+        matches!(next, ConnectionState::Reconnecting { retry_in_ms: 0, .. }),
+        "got {next:?}"
+    );
+}
+
+#[tokio::test(flavor = "multi_thread")]
 async fn retry_now_tries_again_after_a_failure() {
     let server = TestServer::start().await;
     let (owner, _, mut member, member_ready) = owner_and_member(&server).await;
