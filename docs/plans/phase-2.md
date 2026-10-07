@@ -651,6 +651,245 @@ On each platform: user A shares the entire screen with audio while in a call wit
 |---|---|
 | Duration | ≤ 5.0 s (the server allows a 20 ms tolerance) |
 | Stored file | Ogg Opus, 48 kHz, ≤ 2 channels, ≤ 256 KB |
-| Input files the
+| Input files the client accepts for trimming | ≤ 10 MB: MP3, WAV, FLAC, OGG (Vorbis or Opus), M4A/AAC |
+| Name | 2–32 characters, optional emoji |
+| Sound volume | 0–100 %, default 100 % |
+| Sounds per server | 48 by default (server setting, 0–200) |
+| Cooldown | 3 s per user by default (server setting, 0–30 s) |
+| Sounds playing at once in a channel | 3; more are rejected with `SOUND_COOLDOWN` |
+| External sound cache on a server | 50 MB, least recently used evicted; 10 uploads per minute per user |
+| Client cache | 200 MB across all servers, deduplicated by SHA-256 |
 
-> **Not yet received:** the plan was cut off here when it was pasted (message length limit). The rest of §11.2, §11.3 onward (including §12–§17 and the V0–V10 milestones in §16) is still to come from the user.
+### 11.3 Upload (client prepares, server validates)
+1. The admin picks a file. The Rust core decodes it (`symphonia`, plus libopus for Opus input) and returns a waveform.
+2. **Trim editor** (like Discord's): waveform with a draggable 5-second window, preview, volume slider, name and emoji fields, and "Normalize loudness" (on by default; EBU R128 target −18 LUFS with `ebur128`).
+3. The client encodes the selection to Ogg Opus at 96 kbps and uploads it with `POST /media/sounds`.
+4. The server **parses the Ogg Opus file itself** (headers, sample rate, channel count, final granule position for the duration) and rejects anything over the limits, even from a modified client. It stores `data/sounds/<sha256>.opus`, inserts the row and broadcasts `SoundboardSoundCreate`.
+
+### 11.4 Background sync
+- On `Ready` and on every `SoundboardSoundCreate`, the client downloads missing sounds in the background (`GET /media/sounds/{sha256}`, at most 2 at a time per server, low priority), verifies the SHA-256 and stores them in the shared cache.
+- A sound used on several servers is stored once.
+- Sounds are decoded when played (a 5-second Opus file decodes in a few milliseconds).
+
+### 11.5 Playing
+
+```
+Player's client checks:
+  connected to voice channel C, not deafened, not server-muted, not suppressed
+  USE_SOUNDBOARD in C
+  sound from another server → USE_EXTERNAL_SOUNDS in C, and the server allows external sounds
+  cooldown has passed
+  → external sound this server doesn't have yet → POST /media/external-sounds (addressed by SHA-256)
+  → PlaySoundboardSound { channel C, sound_ref }
+Server re-checks all of the above, applies rate limits, confirms the sound exists
+  → VoiceChannelEffect { channel C, user, sound_ref, name, emoji, volume, started_at }
+    to everyone connected to C, including the player
+Each client in C:
+  skip if deafened, if it locally muted the player or their soundboard, or if soundboard volume is 0
+  → fetch the file if missing → decode → mix into the output at sound volume × local soundboard volume
+  → show the soundboard indicator on the player for the sound's duration
+```
+- `sound_ref` is `server:<sha256>`, `external:<sha256>` or `default:<id>`.
+- Previews in the picker play locally only and are never sent.
+- Sounds play through Opencord's mixer, so every listener's echo canceller removes them from their microphone.
+
+### 11.6 Indicator (monochrome)
+
+| State | Avatar (sidebar, member list) | Video tile |
+|---|---|---|
+| Speaking | Solid 2 px ring | Solid 2 px border |
+| Soundboard playing | **Dashed** 2 px ring that slowly rotates, plus the sound's emoji next to the name | Dashed 2 px border, plus the sound's emoji in the top-left corner |
+| Both | Solid ring inside a dashed outer ring | Solid border with a dashed outer border |
+
+- The difference is shape, not colour, because the app is monochrome. The ring uses its own token, `soundboardRing` (equal to `text` by default), so it can be given a colour later with a one-line change.
+- "Reduce motion" stops the rotation.
+- The emoji is the only colour, since emoji are user content (UI plan §2.1).
+
+### 11.7 UI
+- **Soundboard button** in the voice view's control bar and in the "Voice connected" panel, plus a keybind to open it.
+- **Picker** (360 px popover): search, **Favorites**, **This server**, **Other servers** (one group per server), **Default**. Each sound is a tile with its emoji and name; hovering shows a preview button. Sounds the user can't play are dimmed with a tooltip giving the reason ("You need Use External Sounds here"). A thin bar shows the cooldown.
+- **Server settings → Soundboard:** list (emoji, name, duration, volume, uploader, preview, edit, delete), "Upload sound" (trim editor), a "12 / 48" counter, and settings: soundboard enabled, allow default sounds, allow sounds from other servers, cooldown, max sounds.
+- **User settings → Sounds:** soundboard volume (0–100 %) and "Mute all soundboards".
+- The per-user menu's "Mute their soundboard" (UI plan §17.3) is now active.
+
+### 11.8 Default sounds
+Ship 6–8 short CC0-licensed sounds inside the client, so every client has them without downloading. Servers can turn them off ("Allow default sounds").
+
+---
+
+## 12. Basic Discord voice features added
+
+| Feature | Spec |
+|---|---|
+| **Opt-in stream watching + viewer list** | §9.5. Nobody downloads a stream they aren't watching |
+| **AFK channel and timeout** | A user who hasn't spoken and whose computer reports no keyboard/mouse input for the timeout is moved to the AFK channel and suppressed. Never move someone who is streaming |
+| **User limit and bitrate per channel** | §5.3; `MOVE_MEMBERS` bypasses the user limit |
+| **Text chat in voice channels** | Voice channels can hold messages (same message system and permissions). Chat panel toggle in the voice view, unread badge on the voice channel row |
+| **Priority speaker** | Hold-to-talk hotkey; everyone else is lowered to 25 % while the priority speaker talks |
+| **Server mute / deafen / move / disconnect** | §4.1, enforced at the voice node |
+| **Join, leave, mute, deafen, stream start/stop sounds** | Bundled sounds with per-event switches (UI plan §17.5 Sounds) |
+| **Hide non-video participants** | Toggle in the voice view |
+| **Connection quality and diagnostics** | Ping, jitter, packet loss, bitrates, codec, hardware or software encoder, voice node; signal-bars indicator in the voice panel (UI plan §17.5) |
+| **Auto-reconnect** | §7.14, including after sleep and network changes |
+| **"You're muted" reminder** | Speaking while muted shows a toast with Unmute (UI plan §17.1) |
+| **Lower other apps' volume (attenuation)** | Windows: lower other audio sessions (`IAudioSessionManager2`). Linux: lower other PipeWire playback streams. macOS: hide the setting unless a public API allows it |
+| **Mic test** | Hear yourself through the full processing chain (UI plan §17.5) |
+
+---
+
+## 13. End-to-end encryption readiness (structure only)
+
+- Media is always encrypted in transit (DTLS-SRTP), but the voice node could access it, as with Discord before its DAVE protocol. The UI shows **no** lock for voice in this phase. When E2EE arrives, the client-side indicator rule from the encryption notes (§2) applies.
+- **FrameTransform** trait in both pipelines: between encoder and packetizer when sending, between depacketizer and decoder when receiving. The implementation is the identity for now.
+- The transform must keep codec framing intact so str0m's packetizers still work. Follow Discord's DAVE approach: leave codec headers (for example H.264 NAL unit headers) in the clear and transform the rest; Opus frames can be transformed whole.
+- **Proof test:** a test-only XOR transform enabled on two voicebots. Audio and video, including simulcast layer switching, must still flow through the voice node. This proves the SFU never needs payloads.
+- The SFU takes layer and keyframe information only from RTP header extensions (§6).
+- `VoiceIdentify.max_e2ee_version = 0`. Voice gateway field numbers 100–149 are reserved for MLS messages (key packages, proposals, commits, welcomes, epoch transitions).
+- `ClientConnect` / `ClientDisconnect` are the points where MLS will re-key later; keep them explicit and ordered.
+- Soundboard sounds are server files and stay outside end-to-end encryption.
+
+---
+
+## 14. Security and abuse limits
+- Voice tokens: 60 s expiry, single use, bound to session and channel.
+- Rate limits: `UpdateVoiceState` 10 / 10 s, `StreamCreate` 5 / min, voice gateway messages 50 / 10 s, `MediaSinkWants` 20 / s, soundboard as in §11.2.
+- The voice node ignores media from unauthenticated transports and caps each participant's inbound bitrate (sum of their tracks' ceilings + 20 %).
+- Media HTTP: enforce size limits while receiving uploads (never buffer without a limit) and trust parsing, not the declared content type.
+- Validate every protobuf count and length (participants, layers, wants).
+- No server-side recording or decoding of voice or video.
+
+---
+
+## 15. Testing
+- **Unit:** jitter buffer (reordering, loss, bursts), mixer and limiter, preset-to-size math, bitrate ceilings, permission checks including external sounds, Ogg Opus validation (truncated, too long, wrong sample rate), token signing/expiry, SFU layer selection.
+- **Voicebot** (`crates/opencord-voicebot`): a headless client that joins a channel, sends a WAV file or a tone, publishes a synthetic test-pattern video with simulcast, watches streams and plays soundboard sounds. It reports received audio levels, latency (click detection), layers and bitrates. Used by integration tests, the load test and self-hosters testing their setup.
+- **Network impairment:** a feature-gated packet shim in `opencord-media` (loss %, jitter, reordering, bandwidth cap), so tests don't need root or `tc`.
+- **Integration:** two users talk; server mute stops audio within 100 ms; deafened users receive no audio packets; layer switching under a 500 kbps cap; hidden tiles receive zero video bytes; quality limit rejection; soundboard permission, cooldown and duration enforced against a modified client; AFK move; voice node failover.
+- **Manual platform checklist** for each capture milestone: Windows 11 (NVIDIA, AMD or Intel GPU), macOS 14 and 15 (Apple Silicon) plus macOS 13 if available, Arch + Hyprland, GNOME (Wayland), KDE (Wayland), one X11 session. Include multiple monitors, an HDR monitor, mixed DPI, headset hot-plugging and sleep/wake.
+- **Performance measurements** recorded in `docs/performance.md` against §16.1.
+
+---
+
+## 16. Milestones
+
+### 16.1 Performance targets
+Measured on a mid-range laptop (4–8 cores, integrated or mid-range GPU) unless stated.
+
+| Area | Target |
+|---|---|
+| Voice end-to-end latency on a LAN, including devices | ≤ 150 ms |
+| 5 % random packet loss + 40 ms jitter | Speech stays intelligible without gaps |
+| Silent participant upload | < 3 kbps |
+| Audio processing, Standard / High noise suppression | ≤ 2 % / ≤ 10 % of one core |
+| Camera on (720p30 + layers, hardware encoding) | ≤ 6 % CPU |
+| Screen share 720p30 / 1080p60, hardware encoding | ≤ 8 % / ≤ 15 % CPU |
+| Screen share capture-to-display latency on a LAN | ≤ 250 ms |
+| Watching a 1080p60 stream, hardware decoding | ≤ 8 % CPU |
+| Client memory in a 10-person call with 4 cameras and 1 stream | ≤ 350 MB |
+| Voice node on 4 vCPUs: 10 channels × 10 people, 2 cameras + 1 stream each | < 50 % CPU |
+
+### V0 — Protocol, permissions and data
+- `voice.proto`, `internal.proto`, additions to `requests.proto`, `events.proto` and `models.proto` (§4).
+- Permission bits 24–27 and defaults (§5.1); new groups in the roles editor.
+- Migrations and settings (§5.2–5.4); server settings "Voice & video" page and voice channel settings in the UI.
+- Voice-signing key, voice tokens, media tokens, media HTTP endpoint skeleton.
+- Main-gateway voice states without media: join, leave, user limit, server mute/deafen/move/disconnect state changes, grace period, `Ready` additions. The sidebar shows participants live.
+- **Accept:** unit tests for permissions, tokens (valid, expired, wrong channel) and settings validation. Integration test: two clients join and leave a voice channel, and every member who can see it receives the changes; a user without `CONNECT` is rejected; the user limit holds, and `MOVE_MEMBERS` bypasses it.
+
+### V1 — Voice node and audio forwarding
+- `crates/opencord-voice` (library, embedded in `opencord-server`), the `opencord-voice-node` binary and the internal control channel.
+- Voice gateway handshake, heartbeat and resume; str0m SFU in RTP mode on UDP 7711; audio forwarding rules (§6); public address handling; node selection and failover.
+- `opencord-voicebot` with audio send and receive.
+- **Accept:** two voicebots exchange audio through the embedded node and through an external node; server mute stops forwarding within 100 ms; a deafened bot receives no audio packets; a voice gateway resume doesn't interrupt media; killing an external node moves its channels to another node and the bots reconnect within 5 s.
+
+### V2 — Client audio engine
+- `crates/opencord-media`: devices (§7.6), resampling, Opus (§7.7), jitter buffer, loss handling, mixer, per-user volume and local mute, master volume, limiter, deafen (§7.5), a basic voice-activity gate and in-app push-to-talk, str0m client transport, connection states and recovery (§7.14), Rust ↔ Dart API (§7.12).
+- UI on real data: voice panel, user panel, quick audio menu, per-user menus, voice view participants (UI plan §4.2, §4.10, §17.1–17.3).
+- **Accept:** two app instances on different machines talk within the §16.1 latency target; 5 % loss + 40 ms jitter stays intelligible; a silent participant uploads < 3 kbps; unplugging the headset falls back to the default device; switching Wi-Fi recovers in under 3 s.
+
+### V3 — Voice processing and hotkeys
+- Echo cancellation, gain control and high-pass filter (§7.4); Standard and High noise suppression with the first-run benchmark and automatic fallback (§7.3); automatic and manual sensitivity; push-to-talk release delay; global hotkeys (§7.13); mic test; level meters; priority speaker; speaking indicators; "You're muted" toast.
+- **Accept:** with laptop speakers and built-in mic, the other side hears no echo; recorded noise samples (keyboard, fan, street, dog) are clearly reduced in both modes; CPU within §16.1; the fallback from High to Standard triggers under artificial load; global push-to-talk works on Windows 11, macOS, Hyprland and GNOME on Wayland.
+
+### V4 — Video transport
+- Track publish/unpublish, `MediaSinkWants`, `SenderLayerWants`, simulcast forwarding with layer switching and rewriting, keyframe requests, NACK/RTX, bandwidth estimation in both directions, sender priorities (§7.10), the frame-marking header extension, quality enforcement (§6), the camera participant cap.
+- The voicebot publishes a synthetic three-layer test pattern.
+- **Accept:** with a 500 kbps receiver cap, the SFU switches to a lower layer within 2 s and back up when the cap is lifted; a receiver that hides a tile gets zero video bytes for it; unused layers stop being encoded; a modified client exceeding its bitrate ceiling has its track stopped; the XOR-transform test (§13) passes.
+
+### V5 — Camera
+- Capture backends (§8), hardware encoding with fallbacks (§7.9), decoding, pixel-buffer Flutter textures (§7.11), preview and mirroring, device hot-plug, permission prompts, camera tiles in the voice view.
+- **Accept:** a 9-person call with every camera on stays smooth on the reference laptop; camera on/off takes under 1 s; CPU within §16.1; Windows, macOS and Linux (Wayland and X11) all work.
+
+### V6 — Screen share video
+- Share dialog with quality options and the server cap (§9.1–9.2), system pickers on Linux and macOS 14+, Opencord's picker on Windows and macOS 13, capture backends (§9.3), GPU scaling and conversion, screen-content encoding and the low layer, stream events, opt-in watching and the viewer list (§9.5), edge cases (§9.4).
+- **Accept:** the platform checklist (§15) passes for screens and windows; 720p30 and 1080p60 meet §16.1; options above the server cap can't be selected and are rejected by the server; window resize, minimize, close and monitor unplug behave as specified.
+
+### V7 — Screen share audio
+- Platform implementations and fallbacks (§10.1–10.4), echo-canceller reference (§10.6), audio/video sync (§10.5), stream volume for viewers.
+- **Accept:** the "no double audio" test (§10.7) passes on Windows 11, macOS 14.2+, macOS 13 (if available), Hyprland, GNOME and X11; window audio contains only that app's sound (browser test); unsupported systems show the disabled switch with the reason.
+
+### V8 — Soundboard
+- Server storage, validation, endpoints and events; trim editor and upload; background sync and cache; picker; play flow with client and server checks; external sounds; default sounds; indicators; settings pages (§11).
+- **Accept:** a 6-second file is rejected by the server even when uploaded by a modified client; playing without `USE_SOUNDBOARD`, during the cooldown, while server-muted, or from another server without `USE_EXTERNAL_SOUNDS` is rejected by the server; all listeners hear a sound within 150 ms of each other on a LAN; talking during a sound is heard together with it; the indicators show a dashed ring for a sound, a solid ring for speaking, and both when both happen.
+
+### V9 — Basic Discord features
+- Everything in §12.
+- **Accept:** AFK move after the timeout (shortened in tests); text chat in voice channels; hide non-video participants; diagnostics match voicebot measurements; after sleep/wake the client rejoins its channel.
+
+### V10 — Hardening, performance and packaging
+- Zero-copy texture paths (§7.11); load test and `docs/performance.md`; packaging: macOS Info.plist keys (`NSMicrophoneUsageDescription`, `NSCameraUsageDescription`, `NSAudioCaptureUsageDescription`) and hardened-runtime entitlements for audio input and camera, Windows notes, Linux dependencies and Flatpak PipeWire access notes; `docs/voice.md` (architecture, ports, self-hosting behind NAT); deploy files with UDP 7711.
+- **Accept:** every §16.1 target is met and recorded; `docker compose up` gives working voice from another machine; a fresh macOS install asks for exactly the needed permissions with clear explanations.
+
+**After Phase 2 (optional):** AV1 when every participant can decode it, stream preview thumbnails, pop-out stream windows, camera background blur, TCP/TURN fallback.
+
+---
+
+## 17. Official documentation to read first
+
+**Windows (Microsoft Learn)**
+- Screen capture with `Windows.Graphics.Capture`; Desktop Duplication API.
+- `AUDIOCLIENT_PROCESS_LOOPBACK_PARAMS`, `PROCESS_LOOPBACK_MODE`, `ActivateAudioInterfaceAsync`, and the *ApplicationLoopback* sample in Windows-classic-samples.
+- WASAPI: loopback recording, event-driven shared-mode streams, `IMMNotificationClient`.
+- Media Foundation: Source Reader, hardware MFTs.
+- Multimedia Class Scheduler Service; `SetWindowDisplayAffinity`.
+- NVIDIA Video Codec SDK, AMD AMF and Intel oneVPL notes (used through FFmpeg).
+
+**macOS (Apple Developer)**
+- ScreenCaptureKit documentation; WWDC22 "Meet ScreenCaptureKit" and "Take ScreenCaptureKit to the next level"; WWDC23 "What's new in ScreenCaptureKit" (sharing picker).
+- Core Audio taps: `CATapDescription`, `AudioHardwareCreateProcessTap`, and Apple's sample on capturing system audio with Core Audio taps.
+- AVFoundation capture sessions and media-capture authorization.
+- VideoToolbox `VTCompressionSession`; hardened-runtime entitlements.
+
+**Linux**
+- XDG Desktop Portal: ScreenCast, Camera and GlobalShortcuts interfaces.
+- PipeWire documentation: streams, DMA-BUF sharing, ports and links; WirePlumber's linking policy (to understand how our links coexist with it).
+- VA-API and FFmpeg VA-API encoding.
+- X11 MIT-SHM and Composite extensions.
+
+**Standards and references**
+- RFC 3550 (RTP), RFC 8445 (ICE), RFC 5764 (DTLS-SRTP), RFC 7587 (Opus RTP), RFC 6184 (H.264 RTP), RFC 6464 (audio level), RFC 4588 (RTX), the transport-wide congestion control draft.
+- str0m documentation and its SFU example.
+- Discord developer documentation on voice connections (gateway voice flow), and Discord's DAVE protocol whitepaper (for §13, later).
+- RNNoise / `nnnoiseless`, DeepFilterNet papers and repository.
+- venmic source (Linux application audio linking).
+
+---
+
+## 18. Development environment additions
+
+**Arch Linux (Hyprland)**
+```bash
+sudo pacman -S --needed pipewire wireplumber xdg-desktop-portal xdg-desktop-portal-hyprland ffmpeg opus libva libva-utils meson ninja clang pkgconf libx11 libxext libxfixes libxcomposite libxrandr
+vainfo
+```
+`vainfo` should list an H.264 encode entry point for your GPU. NVIDIA users need the proprietary driver for NVENC.
+
+**Windows:** Visual Studio 2022 Build Tools with the C++ workload and the Windows 11 SDK; Python with meson and ninja (for the bundled AudioProcessing build); an LGPL FFmpeg shared build whose DLLs ship next to the app.
+
+**macOS:** Xcode, and Homebrew for development tools:
+```bash
+brew install meson ninja pkg-config opus ffmpeg
+```
+The app bundles its own LGPL FFmpeg libraries. Deployment target: macOS 13.
+
+**CI:** build and unit tests on all three platforms. Capture and hardware tests are manual (§15).
