@@ -35,16 +35,16 @@ class RoleRules {
   PermissionContext? get _context =>
       _self == null ? null : data.contextFor(_self);
 
+  /// @everyone included: the server wants a role above it.
   bool canManage(Role role) {
     final context = _context;
     if (context == null || !data.can(Permissions.manageRoles)) return false;
-    if (role.id == data.info.everyoneRoleId) return true;
     return context.outranksRole(role.position);
   }
 
-  /// Turning [bit] on needs holding it; turning it off only managing the
-  /// role.
-  bool canTurnOn(Permissions bit) {
+  /// Turning [bit] on or off both need holding it: the server checks every
+  /// bit that changes.
+  bool canChange(Permissions bit) {
     final context = _context;
     return context != null && canGrant(context.base, bit);
   }
@@ -453,7 +453,7 @@ class _RoleEditorState extends ConsumerState<_RoleEditor> {
                   info: info,
                   value: role.permissions.has(info.bit),
                   editable: editable,
-                  canTurnOn: rules.canTurnOn(info.bit),
+                  canChange: rules.canChange(info.bit),
                   onChanged: (on) => _update(
                     permissions: on
                         ? role.permissions | info.bit
@@ -484,20 +484,20 @@ class _PermissionRow extends StatelessWidget {
     required this.info,
     required this.value,
     required this.editable,
-    required this.canTurnOn,
+    required this.canChange,
     required this.onChanged,
   });
 
   final PermissionInfo info;
   final bool value;
   final bool editable;
-  final bool canTurnOn;
+  final bool canChange;
   final ValueChanged<bool> onChanged;
 
   @override
   Widget build(BuildContext context) {
-    // Turning on needs holding the permission; turning off does not.
-    final enabled = editable && (value || canTurnOn);
+    // On or off, changing it needs holding the permission.
+    final enabled = editable && canChange;
     final row = SettingsSwitchRow(
       title: info.later ? '${info.label} (later)' : info.label,
       subtitle: info.description,
@@ -506,7 +506,7 @@ class _PermissionRow extends StatelessWidget {
     );
     if (enabled || !editable) return row;
     return Tooltip(
-      message: "You don't have this permission, so you can't give it",
+      message: "You don't have this permission, so you can't change it",
       child: row,
     );
   }

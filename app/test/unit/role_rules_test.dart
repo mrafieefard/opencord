@@ -52,9 +52,23 @@ void main() {
     expect(rules.canManage(admin), isFalse);
   });
 
-  test('only permissions you hold can be turned on', () {
-    expect(rules.canTurnOn(Permissions.kickMembers), isTrue);
-    expect(rules.canTurnOn(Permissions.banMembers), isFalse);
+  test('only permissions you hold can be changed, on or off', () {
+    // The server checks every bit that changes, both ways.
+    expect(rules.canChange(Permissions.kickMembers), isTrue);
+    expect(rules.canChange(Permissions.banMembers), isFalse);
+  });
+
+  test('@everyone needs outranking like any role', () {
+    final everyone = data.roles[everyoneRoleId]!;
+    final ranked = RoleRules(data);
+    final unranked = RoleRules(
+      data.copyWith(
+        members: {...data.members, selfId: member(selfId, 'Alex')},
+      ),
+    );
+
+    expect(ranked.canManage(everyone), isTrue);
+    expect(unranked.canManage(everyone), isFalse);
   });
 
   test('without Manage roles nothing can be managed', () {
