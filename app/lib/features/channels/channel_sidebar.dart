@@ -14,6 +14,7 @@ import 'package:opencord/features/channels/voice_channel_row.dart';
 import 'package:opencord/features/channels/voice_panel.dart';
 import 'package:opencord/features/servers/server_rail.dart';
 import 'package:opencord/features/shell/navigation.dart';
+import 'package:opencord/features/switcher/quick_switcher.dart';
 import 'package:opencord/features/window/header_bar.dart';
 import 'package:opencord/ui/theme/oc_colors.dart';
 import 'package:opencord/ui/theme/oc_icons.dart';
@@ -185,12 +186,12 @@ class _ServerHeader extends ConsumerWidget {
   }
 }
 
-/// Opens the quick switcher (§4.2).
-class _SearchLauncher extends StatelessWidget {
+/// Opens the quick switcher (§4.2, §4.9).
+class _SearchLauncher extends ConsumerWidget {
   const _SearchLauncher();
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final colors = context.oc;
     return Padding(
       padding: const EdgeInsets.fromLTRB(
@@ -199,27 +200,40 @@ class _SearchLauncher extends StatelessWidget {
         OcSpace.s12,
         OcSpace.s4,
       ),
-      child: Container(
-        height: 36,
-        padding: const EdgeInsets.symmetric(horizontal: OcSpace.s12),
-        decoration: BoxDecoration(
-          color: colors.hover,
-          borderRadius: BorderRadius.circular(OcRadius.searchPill),
-        ),
-        child: Row(
-          children: [
-            Icon(OcIcons.search, size: OcSize.iconRow, color: colors.textMuted),
-            const SizedBox(width: OcSpace.s8),
-            Expanded(
-              child: Text(
-                'Search',
-                style: OcText.body.copyWith(color: colors.textMuted),
+      child: Hoverable(
+        onTap: () => showQuickSwitcher(context, ref),
+        semanticLabel: 'Search, jump to a channel, server or member',
+        focusRadius: BorderRadius.circular(OcRadius.searchPill),
+        builder: (context, state) => AnimatedContainer(
+          duration: OcMotion.of(context).hover,
+          height: 36,
+          padding: const EdgeInsets.symmetric(horizontal: OcSpace.s12),
+          decoration: BoxDecoration(
+            color: state.active ? colors.selected : colors.hover,
+            borderRadius: BorderRadius.circular(OcRadius.searchPill),
+          ),
+          child: Row(
+            children: [
+              Icon(
+                OcIcons.search,
+                size: OcSize.iconRow,
+                color: colors.textMuted,
               ),
-            ),
-            KeyHint(
-              appShortcut(LogicalKeyboardKey.keyK, Theme.of(context).platform),
-            ),
-          ],
+              const SizedBox(width: OcSpace.s8),
+              Expanded(
+                child: Text(
+                  'Search',
+                  style: OcText.body.copyWith(color: colors.textMuted),
+                ),
+              ),
+              KeyHint(
+                appShortcut(
+                  LogicalKeyboardKey.keyK,
+                  Theme.of(context).platform,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

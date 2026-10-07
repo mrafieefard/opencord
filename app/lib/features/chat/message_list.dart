@@ -94,6 +94,10 @@ class _MessageListState extends ConsumerState<MessageList>
     _activity = ref.read(activityProvider(_channel.server).notifier);
     _memory = ref.read(scrollMemoryProvider);
     widget.controller.attach(this);
+    // Not during the build that created this list.
+    final recent = ref.read(recentChannelsProvider.notifier);
+    final channel = _channel;
+    scheduleMicrotask(() => recent.visit(channel));
     ref.listenManual(
       windowStatusProvider.select((status) => status.focused),
       (_, _) => _scheduleChecks(),

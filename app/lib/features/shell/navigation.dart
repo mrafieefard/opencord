@@ -165,6 +165,59 @@ final currentChannelProvider = Provider<int?>((ref) {
   return navigableChannels(channels.values).firstOrNull?.id;
 });
 
+const recentChannelsKey = 'ui.recentChannels';
+
+/// How many recent channels are remembered.
+const recentChannelsLimit = 20;
+
+/// Channels opened most recently first, across servers: what the quick
+/// switcher shows before anything is typed (§4.9).
+class RecentChannelsNotifier extends Notifier<List<ChannelRef>> {
+  @override
+  List<ChannelRef> build() {
+    final saved = ref.watch(keyValueStoreProvider).read(recentChannelsKey);
+    if (saved == null) return const [];
+    try {
+      final json = jsonDecode(saved);
+      return [
+        if (json is List)
+          for (final entry in json)
+            if (entry is Map &&
+                entry['server'] is String &&
+                entry['channel'] is int)
+              (
+                server: entry['server'] as String,
+                channel: entry['channel'] as int,
+              ),
+      ];
+    } on FormatException {
+      return const [];
+    }
+  }
+
+  void visit(ChannelRef channel) {
+    if (state.firstOrNull == channel) return;
+    state = [
+      channel,
+      ...state.where((visit) => visit != channel),
+    ].take(recentChannelsLimit).toList();
+    ref
+        .read(keyValueStoreProvider)
+        .write(
+          recentChannelsKey,
+          jsonEncode([
+            for (final visit in state)
+              {'server': visit.server, 'channel': visit.channel},
+          ]),
+        );
+  }
+}
+
+final recentChannelsProvider =
+    NotifierProvider<RecentChannelsNotifier, List<ChannelRef>>(
+      RecentChannelsNotifier.new,
+    );
+
 const memberPanelKey = 'ui.memberPanel';
 
 /// Whether the member list is shown (§4.3 toggle, remembered per §16).
