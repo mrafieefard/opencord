@@ -104,6 +104,27 @@ void main() {
       await app.dispose(tester);
     });
 
+    testWidgets('Enter does not trust a fingerprint no one looked at', (
+      tester,
+    ) async {
+      final app = await MockApp.pump(tester);
+      await _openAddServer(tester);
+      await tester.enterText(_fields, 'lab.example:7710');
+      await tester.tap(_button('Join'));
+      await _pumpFor(tester, const Duration(milliseconds: 1500));
+      expect(find.text('Verify server'), findsOneWidget);
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      await _pumpFor(tester, const Duration(milliseconds: 1500));
+
+      expect(find.text('Connecting to lab.example…'), findsNothing);
+      expect(
+        app.read(serverListProvider).map((server) => server.key),
+        isNot(contains('lab.example:7710')),
+      );
+      await app.dispose(tester);
+    });
+
     testWidgets('what is wrong shows inline', (tester) async {
       final app = await MockApp.pump(tester);
       await _openAddServer(tester);

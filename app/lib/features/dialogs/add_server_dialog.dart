@@ -235,11 +235,16 @@ class _AddServerDialogState extends ConsumerState<AddServerDialog> {
     return OcDialog(
       title: 'Verify server',
       width: AddServerDialog.width,
+      // Focus on Cancel: Enter (or one held from the step before) must not
+      // trust a fingerprint no one compared.
       actions: [
-        OcButton(label: 'Cancel', onPressed: () => Navigator.pop(context)),
+        OcButton(
+          label: 'Cancel',
+          autofocus: true,
+          onPressed: () => Navigator.pop(context),
+        ),
         OcButton.primary(
           label: 'Trust and connect',
-          autofocus: true,
           onPressed: _trustAndConnect,
         ),
       ],
