@@ -60,6 +60,12 @@ void main() {
     ]);
   });
 
+  test('ids too big for 64 bits are not mentions', () {
+    expect(parseInline('hi <@99999999999999999999> <#9223372036854775808>'), [
+      const MdText('hi <@99999999999999999999> <#9223372036854775808>'),
+    ]);
+  });
+
   test('a backslash escapes a marker', () {
     expect(inlines(r'not \*italic\*'), [const MdText('not *italic*')]);
   });

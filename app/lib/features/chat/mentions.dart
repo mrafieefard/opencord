@@ -3,6 +3,8 @@
 /// `<#10>`, which every client renders by name.
 library;
 
+import 'package:opencord/core/mention_tokens.dart';
+
 final _code = RegExp(r'```[\s\S]*?```|`[^`\n]*`');
 
 /// Applies [convert] to the parts of [text] outside code, which stays as
@@ -81,15 +83,17 @@ String decodeMentions(
   required Map<int, String> channels,
 }) => _outsideCode(
   content,
-  (part) => part
-      .replaceAllMapped(RegExp(r'<@(\d+)>'), (match) {
-        final name = members[int.parse(match[1]!)];
-        return name == null ? match[0]! : '@$name';
-      })
-      .replaceAllMapped(RegExp(r'<#(\d+)>'), (match) {
-        final name = channels[int.parse(match[1]!)];
-        return name == null ? match[0]! : '#$name';
-      }),
+  (part) => replaceMentionTokens(
+    part,
+    user: (id, token) => switch (members[id]) {
+      final name? => '@$name',
+      null => token,
+    },
+    channel: (id, token) => switch (channels[id]) {
+      final name? => '#$name',
+      null => token,
+    },
+  ),
 );
 
 typedef ActiveToken = ({String trigger, String query, int start});

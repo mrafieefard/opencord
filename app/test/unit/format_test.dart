@@ -99,6 +99,11 @@ void main() {
         'hi @unknown',
       );
     });
+
+    test('ids too big for 64 bits are not mentions and stay as typed', () {
+      const typed = 'hi <@99999999999999999999> in <#99999999999999999999>';
+      expect(previewText(typed, user: user, channel: channel), typed);
+    });
   });
 
   test('long dates spell out the month', () {

@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:opencord/features/chat/mentions.dart';
+import 'package:opencord/features/chat/message_actions.dart';
 
 const members = {1001: 'Kai Nakamura', 1002: 'Kai', 1003: 'Mira'};
 const channels = {10: 'general', 11: 'dev-core'};
@@ -30,6 +31,15 @@ void main() {
     test('unknown names stay as typed', () {
       expect(encode('@Nobody in #nowhere'), '@Nobody in #nowhere');
     });
+  });
+
+  test('ids too big for 64 bits stay as typed', () {
+    const typed = '<@99999999999999999999> <#99999999999999999999>';
+    expect(decode(typed), typed);
+    expect(
+      copyableText(typed, user: (_) => 'Kai', channel: (_) => 'general'),
+      typed,
+    );
   });
 
   test('decode writes tokens back as names, for editing', () {

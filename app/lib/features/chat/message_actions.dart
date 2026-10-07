@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:opencord/core/format.dart';
+import 'package:opencord/core/mention_tokens.dart';
 import 'package:opencord/core/model/message.dart';
 import 'package:opencord/core/model/permissions.dart';
 import 'package:opencord/core/providers/providers.dart';
@@ -29,15 +30,11 @@ String copyableText(
   String content, {
   required String? Function(int id) user,
   required String? Function(int id) channel,
-}) => content
-    .replaceAllMapped(
-      RegExp(r'<@(\d+)>'),
-      (m) => '@${user(int.parse(m[1]!)) ?? 'unknown'}',
-    )
-    .replaceAllMapped(
-      RegExp(r'<#(\d+)>'),
-      (m) => '#${channel(int.parse(m[1]!)) ?? 'unknown'}',
-    );
+}) => replaceMentionTokens(
+  content,
+  user: (id, _) => '@${user(id) ?? 'unknown'}',
+  channel: (id, _) => '#${channel(id) ?? 'unknown'}',
+);
 
 /// What can be done to a message and doing it: the context menu, the hover
 /// bar and double-click all go through here (§4.5).

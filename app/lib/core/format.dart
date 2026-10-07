@@ -2,6 +2,8 @@
 /// fingerprints, typing and message previews. English for now.
 library;
 
+import 'package:opencord/core/mention_tokens.dart';
+
 const _weekdays = [
   'Monday',
   'Tuesday',
@@ -111,8 +113,6 @@ String typingLabel(List<String> names) => switch (names.length) {
 final _codeBlock = RegExp(r'```[^\n]*\n?([\s\S]*?)```');
 final _inlineCode = RegExp('`([^`]*)`');
 final _emphasis = RegExp(r'(\*\*|__|~~|\*|_)(\S(?:[\s\S]*?\S)?)\1');
-final _userMention = RegExp(r'<@(\d+)>');
-final _channelMention = RegExp(r'<#(\d+)>');
 final _quote = RegExp(r'^>\s?', multiLine: true);
 final _space = RegExp(r'\s+');
 
@@ -129,15 +129,10 @@ String previewText(
     previous = text;
     text = text.replaceAllMapped(_emphasis, (m) => m[2]!);
   }
-  text = text
-      .replaceAllMapped(
-        _userMention,
-        (m) => '@${user(int.parse(m[1]!)) ?? 'unknown'}',
-      )
-      .replaceAllMapped(
-        _channelMention,
-        (m) => '#${channel(int.parse(m[1]!)) ?? 'unknown'}',
-      )
-      .replaceAll(_quote, '');
+  text = replaceMentionTokens(
+    text,
+    user: (id, _) => '@${user(id) ?? 'unknown'}',
+    channel: (id, _) => '#${channel(id) ?? 'unknown'}',
+  ).replaceAll(_quote, '');
   return text.replaceAll(_space, ' ').trim();
 }

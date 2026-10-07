@@ -30,6 +30,7 @@ import 'package:opencord/src/rust/api/client.dart' as core;
 import 'package:opencord/src/rust/api/system.dart';
 import 'package:opencord/src/rust/frb_generated.dart';
 import 'package:opencord/ui/theme/font_licenses.dart';
+import 'package:opencord/ui/widgets/error_box.dart';
 
 /// The app's data folder; a profile gets its own inside it.
 Future<Directory> _dataDir(String profile) async {
@@ -54,6 +55,7 @@ Future<ProviderContainer> startApp({
   final dataDir = await _dataDir(profile);
   core.init(appDataDir: dataDir.path);
   registerFontLicenses();
+  limitErrorBoxes();
 
   const store = CoreKeyValueStore();
   final settings = loadAppSettings(store, defaultTargetPlatform);

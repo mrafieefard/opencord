@@ -1,5 +1,7 @@
 import 'package:flutter/foundation.dart';
 
+import 'package:opencord/core/mention_tokens.dart';
+
 /// The markdown subset of §4.5, parsed by our own small parser: paragraphs,
 /// `> quotes` and fenced code blocks, with **bold**, *italic* / _italic_,
 /// ~~strike~~, `inline code`, links, `<@user>` mentions and `<#channel>`
@@ -211,8 +213,6 @@ int _closingFence(List<String> lines, int from) {
   return -1;
 }
 
-final _userMention = RegExp(r'<@(\d+)>');
-final _channelMention = RegExp(r'<#(\d+)>');
 final _url = RegExp(r'''https?://[^\s<>"]+''');
 const _escapable = r'\*_~`<>#@';
 const _trailing = ".,!?;:'\")";
@@ -257,17 +257,16 @@ List<MdInline> parseInline(
       }
     }
     if (char == '<') {
-      final user = _userMention.matchAsPrefix(text, i);
-      final channel = _channelMention.matchAsPrefix(text, i);
-      if (user != null || channel != null) {
-        flush();
-        result.add(
-          user != null
-              ? MdUserMention(int.parse(user[1]!))
-              : MdChannelMention(int.parse(channel![1]!)),
-        );
-        i = (user ?? channel)!.end;
-        continue;
+      final user = userMentionToken.matchAsPrefix(text, i);
+      final channel = channelMentionToken.matchAsPrefix(text, i);
+      final token = user ?? channel;
+      if (token != null) {
+        if (mentionId(token[1]!) case final id?) {
+          flush();
+          result.add(user != null ? MdUserMention(id) : MdChannelMention(id));
+          i = token.end;
+          continue;
+        }
       }
     }
     if (char == 'h' && (i == 0 || !_isWord(text[i - 1]))) {
