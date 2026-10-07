@@ -160,7 +160,10 @@ class _MessageListState extends ConsumerState<MessageList>
     if (saved != null && confirmed.any((m) => m.id == saved.messageId)) {
       _splitId = saved.messageId;
       _restoring = saved;
-      return ChatScrollController(start: StartAtAnchor(saved.fromTop));
+      return ChatScrollController(
+        start: StartAtAnchor(saved.fromTop),
+        wheel: OcMotion.of(context).wheel,
+      );
     }
     final rows = buildRows(
       state.all,
@@ -174,10 +177,11 @@ class _MessageListState extends ConsumerState<MessageList>
       _splitId = firstUnread.id;
       return ChatScrollController(
         start: const StartAtAnchor(0, fraction: 0.15),
+        wheel: OcMotion.of(context).wheel,
       );
     }
     _splitId = newest + 1;
-    return ChatScrollController();
+    return ChatScrollController(wheel: OcMotion.of(context).wheel);
   }
 
   // Building ---------------------------------------------------------------

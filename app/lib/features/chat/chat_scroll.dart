@@ -120,9 +120,15 @@ class ScrollMemory {
 /// screen, and while the reader is at the newest message the view follows
 /// new ones (§6).
 class ChatScrollController extends ScrollController {
-  ChatScrollController({this.start = const StartAtEnd()});
+  ChatScrollController({
+    this.start = const StartAtEnd(),
+    this.wheel = Duration.zero,
+  });
 
   final ChatStart start;
+
+  /// How long a mouse wheel notch glides; zero jumps.
+  final Duration wheel;
 
   @override
   ChatScrollPosition get position => super.position as ChatScrollPosition;
@@ -137,6 +143,7 @@ class ChatScrollController extends ScrollController {
     context: context,
     oldPosition: oldPosition,
     start: start,
+    wheel: wheel,
   );
 
   /// Whether the newest message is in view.
@@ -168,15 +175,46 @@ class ChatScrollPosition extends ScrollPositionWithSingleContext {
     required super.context,
     super.oldPosition,
     required this.start,
+    this.wheel = Duration.zero,
   });
 
   final ChatStart start;
+  final Duration wheel;
+
+  /// Steps this small come from touchpads and follow the fingers at once;
+  /// mouse wheel notches are larger.
+  static const double _notch = 20;
+
+  /// Where the notches so far are heading, while they glide.
+  double? _wheelTarget;
 
   /// Within this distance of the newest message counts as being there.
   static const double endSlop = 2;
 
   bool get atEnd =>
       hasContentDimensions && hasPixels && pixels >= maxScrollExtent - endSlop;
+
+  /// Wheel notches glide there instead of jumping (§15 smooth wheel
+  /// scrolling), and quick ones add up.
+  @override
+  void pointerScroll(double delta) {
+    if (wheel == Duration.zero || delta.abs() < _notch) {
+      _wheelTarget = null;
+      super.pointerScroll(delta);
+      return;
+    }
+    final target = ((_wheelTarget ?? pixels) + delta).clamp(
+      minScrollExtent,
+      maxScrollExtent,
+    );
+    if (target == pixels) return;
+    _wheelTarget = target;
+    animateTo(target, duration: wheel, curve: Curves.easeOutCubic).whenComplete(
+      () {
+        if (_wheelTarget == target) _wheelTarget = null;
+      },
+    );
+  }
 
   @override
   bool applyContentDimensions(double minScrollExtent, double maxScrollExtent) {

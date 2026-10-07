@@ -30,4 +30,7 @@ class OcMotion {
 
   /// Message arrival and removal fade.
   Duration get message => _maybe(100);
+
+  /// A mouse wheel notch gliding through the chat (§15).
+  Duration get wheel => _maybe(140);
 }
