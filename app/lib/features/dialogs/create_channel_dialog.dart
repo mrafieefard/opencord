@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:opencord/core/model/channel.dart';
 import 'package:opencord/core/providers/providers.dart';
 import 'package:opencord/core/repository/repository.dart';
+import 'package:opencord/core/model/permissions.dart';
 import 'package:opencord/features/shell/navigation.dart';
 import 'package:opencord/ui/theme/oc_colors.dart';
 import 'package:opencord/ui/theme/oc_icons.dart';
@@ -213,31 +214,39 @@ class _CreateChannelDialogState extends ConsumerState<CreateChannelDialog> {
                 : const [],
             onSubmitted: (_) => _create(),
           ),
-          const SizedBox(height: OcSpace.s16),
-          Row(
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Private channel',
-                      style: OcText.body.copyWith(color: colors.text),
-                    ),
-                    Text(
-                      'Only the roles and members you choose can see it.',
-                      style: OcText.small.copyWith(color: colors.textMuted),
-                    ),
-                  ],
+          // Private means overwrites, which need Manage roles.
+          if (ref.watch(
+                serverProvider(
+                  widget.serverKey,
+                ).select((s) => s.data?.can(Permissions.manageRoles)),
+              ) ??
+              false) ...[
+            const SizedBox(height: OcSpace.s16),
+            Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Private channel',
+                        style: OcText.body.copyWith(color: colors.text),
+                      ),
+                      Text(
+                        'Only the roles and members you choose can see it.',
+                        style: OcText.small.copyWith(color: colors.textMuted),
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-              OcSwitch(
-                value: _private,
-                semanticLabel: 'Private channel',
-                onChanged: (value) => setState(() => _private = value),
-              ),
-            ],
-          ),
+                OcSwitch(
+                  value: _private,
+                  semanticLabel: 'Private channel',
+                  onChanged: (value) => setState(() => _private = value),
+                ),
+              ],
+            ),
+          ],
           if (_error case final error?) ...[
             const SizedBox(height: OcSpace.s12),
             InlineError(error),

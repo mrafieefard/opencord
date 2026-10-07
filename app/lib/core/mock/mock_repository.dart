@@ -37,6 +37,7 @@ class MockRepository implements OpencordRepository {
     Random? random,
     this.simulateLife = true,
     bool withIdentity = true,
+    this.capabilities = RepoCapabilities.everything,
   }) : _clock = clock ?? _systemClock,
        _random = random ?? Random(),
        _identity = withIdentity ? _seededIdentity : null {
@@ -66,8 +67,10 @@ class MockRepository implements OpencordRepository {
   LocalIdentity? _identity;
   var _disposed = false;
 
+  /// Everything by default; Phase 1's set to see the app as it will be
+  /// on the Rust core.
   @override
-  RepoCapabilities get capabilities => RepoCapabilities.everything;
+  final RepoCapabilities capabilities;
 
   @override
   Stream<RepoEvent> get events => _events.stream;

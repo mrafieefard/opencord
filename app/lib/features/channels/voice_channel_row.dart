@@ -6,6 +6,7 @@ import 'package:opencord/core/model/channel.dart';
 import 'package:opencord/core/model/misc.dart';
 import 'package:opencord/core/model/permissions.dart';
 import 'package:opencord/core/providers/providers.dart';
+import 'package:opencord/core/repository/repository.dart';
 import 'package:opencord/features/channels/channel_row.dart';
 import 'package:opencord/features/shell/navigation.dart';
 import 'package:opencord/features/settings/server_settings.dart';
@@ -46,14 +47,22 @@ class VoiceChannelRow extends ConsumerWidget {
       ).select((voice) => voice[channel.id] ?? const <VoiceParticipant>[]),
     );
     final selected = ref.watch(currentChannelProvider) == channel.id;
+    // Phase 1 servers have no voice: the channel shows, but only opens a
+    // note that it is coming (Phase 1 §9.3).
+    final voice = ref.read(repositoryProvider).capabilities.voice;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Hoverable(
-          onTap: () => _join(ref),
+          onTap: voice
+              ? () => _join(ref)
+              : () => ref
+                    .read(navigationProvider.notifier)
+                    .openChannel(serverKey, channel.id),
           onSecondaryTap: (position) => _showMenu(context, ref, position),
-          semanticLabel:
-              '${channel.name}, voice, ${participants.length} connected',
+          semanticLabel: voice
+              ? '${channel.name}, voice, ${participants.length} connected'
+              : '${channel.name}, voice, coming soon',
           selected: selected,
           cursor: SystemMouseCursors.basic,
           builder: (context, state) => AnimatedContainer(
@@ -86,7 +95,12 @@ class VoiceChannelRow extends ConsumerWidget {
                     ),
                   ),
                 ),
-                if (participants.isNotEmpty)
+                if (!voice)
+                  Text(
+                    'Soon',
+                    style: OcText.small.copyWith(color: colors.textMuted),
+                  )
+                else if (participants.isNotEmpty)
                   Text(
                     '${participants.length}',
                     style: OcText.small.copyWith(color: colors.textMuted),
@@ -112,11 +126,12 @@ class VoiceChannelRow extends ConsumerWidget {
       context: context,
       position: position,
       entries: [
-        OcMenuItem(
-          label: 'Join',
-          icon: OcIcons.volumeUp,
-          onSelected: () => _join(ref),
-        ),
+        if (ref.read(repositoryProvider).capabilities.voice)
+          OcMenuItem(
+            label: 'Join',
+            icon: OcIcons.volumeUp,
+            onSelected: () => _join(ref),
+          ),
         OcMenuItem(
           label: 'Open in view',
           icon: OcIcons.openInFull,

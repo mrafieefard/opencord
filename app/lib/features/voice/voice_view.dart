@@ -16,6 +16,8 @@ import 'package:opencord/ui/theme/oc_metrics.dart';
 import 'package:opencord/ui/theme/oc_text.dart';
 import 'package:opencord/ui/widgets/avatar.dart';
 import 'package:opencord/ui/widgets/oc_button.dart';
+import 'package:opencord/core/repository/repository.dart';
+import 'package:opencord/ui/theme/oc_icons.dart';
 
 /// The main area for a voice channel (§4.10): its tiles and controls once
 /// connected, a prompt to join before. Runs on mock data in Phase 1.
@@ -26,6 +28,9 @@ class VoiceView extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    if (!ref.read(repositoryProvider).capabilities.voice) {
+      return _ComingSoon(channel: channel);
+    }
     final connected = ref.watch(
       voiceSessionProvider.select(
         (voice) =>
@@ -276,6 +281,46 @@ class _JoinPrompt extends ConsumerWidget {
                 style: OcText.small.copyWith(color: colors.textMuted),
               ),
             ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Voice on a server that does not have it yet (Phase 1 §9.3).
+class _ComingSoon extends ConsumerWidget {
+  const _ComingSoon({required this.channel});
+
+  final ChannelRef channel;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final colors = context.oc;
+    final name = ref.watch(
+      serverProvider(
+        channel.server,
+      ).select((state) => state.data?.channels[channel.channel]?.name),
+    );
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(OcSpace.s24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(OcIcons.volumeUp, size: 40, color: colors.textMuted),
+            const SizedBox(height: OcSpace.s12),
+            Text(
+              name ?? '',
+              textAlign: TextAlign.center,
+              style: OcText.title.copyWith(color: colors.text),
+            ),
+            const SizedBox(height: OcSpace.s6),
+            Text(
+              'Voice chat comes in a later version of Opencord.',
+              textAlign: TextAlign.center,
+              style: OcText.body.copyWith(color: colors.textSecondary),
+            ),
           ],
         ),
       ),

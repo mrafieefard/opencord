@@ -42,6 +42,8 @@ class MockApp {
     Set<String> mutedServers = const {},
     List<Override> overrides = const [],
     List<String> links = const [],
+    bool withIdentity = true,
+    RepoCapabilities capabilities = RepoCapabilities.everything,
   }) async {
     debugDefaultTargetPlatformOverride = platform;
     tester.view.physicalSize = size;
@@ -49,7 +51,12 @@ class MockApp {
     tester.platformDispatcher.textScaleFactorTestValue = textScale;
     addTearDown(tester.view.reset);
     addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
-    final repository = MockRepository(random: Random(1), simulateLife: false);
+    final repository = MockRepository(
+      random: Random(1),
+      simulateLife: false,
+      withIdentity: withIdentity,
+      capabilities: capabilities,
+    );
     final keyValues = store ?? MemoryKeyValueStore();
     final container = ProviderContainer(
       overrides: [
