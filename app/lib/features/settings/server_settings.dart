@@ -53,7 +53,9 @@ List<SettingsPage> serverSettingsPages(
       group: 'People',
       builder: (_) => ServerMembersPage(serverKey: serverKey),
     ),
-  if (data.can(Permissions.createInvite))
+  // Listing (and revoking) invites needs Manage server; anyone allowed to
+  // can still make one from Invite people.
+  if (data.can(Permissions.manageServer))
     SettingsPage(
       id: 'invites',
       label: 'Invites',

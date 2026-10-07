@@ -160,12 +160,13 @@ void main() {
     app.read(navigationProvider.notifier).openServer(_berlin);
     await _pumpFor(tester, const Duration(milliseconds: 300));
 
-    final pages = serverSettingsPages(
-      app.read(serverProvider(_berlin)).data!,
-      _berlin,
-    ).map((page) => page.id);
+    final data = app.read(serverProvider(_berlin)).data!;
+    final pages = serverSettingsPages(data, _berlin).map((page) => page.id);
     expect(pages, isNot(contains('overview')));
     expect(pages, isNot(contains('bans')));
+    // Listing invites needs Manage server; making one is Invite people.
+    expect(pages, isNot(contains('invites')));
+    expect(canOpenServerSettings(data), isFalse);
     await app.dispose(tester);
   });
 }
