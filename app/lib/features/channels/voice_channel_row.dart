@@ -19,6 +19,7 @@ import 'package:opencord/ui/widgets/badges.dart';
 import 'package:opencord/ui/widgets/hoverable.dart';
 import 'package:opencord/ui/widgets/oc_menu.dart';
 import 'package:opencord/ui/widgets/toast.dart';
+import 'package:opencord/ui/widgets/ellipsis_text.dart';
 
 /// A voice channel (§4.2): one line, then who is in it.
 class VoiceChannelRow extends ConsumerWidget {
@@ -77,10 +78,8 @@ class VoiceChannelRow extends ConsumerWidget {
                 ),
                 const SizedBox(width: OcSpace.s8),
                 Expanded(
-                  child: Text(
+                  child: EllipsisText(
                     channel.name,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
                     style: OcText.body.copyWith(
                       fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
                       color: selected ? colors.text : colors.textSecondary,
@@ -201,10 +200,8 @@ class _Participant extends ConsumerWidget {
               ),
               const SizedBox(width: OcSpace.s8),
               Expanded(
-                child: Text(
+                child: EllipsisText(
                   name,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
                   style: OcText.small.copyWith(
                     color: speaking ? colors.text : colors.textSecondary,
                   ),

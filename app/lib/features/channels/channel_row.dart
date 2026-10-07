@@ -22,6 +22,7 @@ import 'package:opencord/ui/widgets/confirm_dialog.dart';
 import 'package:opencord/ui/widgets/hoverable.dart';
 import 'package:opencord/ui/widgets/oc_menu.dart';
 import 'package:opencord/ui/widgets/toast.dart';
+import 'package:opencord/ui/widgets/ellipsis_text.dart';
 
 /// `opencord://host:port/c/123`: what "Copy link" puts on the clipboard.
 String channelLink(String serverKey, int channelId) =>
@@ -261,10 +262,8 @@ class ChannelRowView extends StatelessWidget {
                 Row(
                   children: [
                     Expanded(
-                      child: Text(
+                      child: EllipsisText(
                         name,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
                         style: OcText.body.copyWith(
                           fontWeight: strong
                               ? FontWeight.w600

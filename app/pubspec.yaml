@@ -40,7 +40,8 @@ dependencies:
   path_provider: ^2.1.6
   clock: ^1.1.2
   url_launcher: ^6.3.3
-  dbus: ^0.8.0
+  dbus: ^0.7.15
+  desktop_drop: ^0.8.4
 
 dev_dependencies:
   flutter_test:

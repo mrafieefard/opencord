@@ -20,6 +20,7 @@ import 'package:opencord/ui/widgets/oc_icon_button.dart';
 import 'package:opencord/ui/widgets/oc_menu.dart';
 import 'package:opencord/ui/widgets/popover.dart';
 import 'package:opencord/ui/widgets/section_label.dart';
+import 'package:opencord/ui/widgets/ellipsis_text.dart';
 
 /// The user panel (§4.2): who you are, how you appear, and mute, deafen and
 /// settings one click away.
@@ -74,10 +75,8 @@ class UserPanel extends ConsumerWidget {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Text(
+                            EllipsisText(
                               name,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
                               style: OcText.bodyStrong.copyWith(
                                 color: colors.text,
                                 fontSize: 13,

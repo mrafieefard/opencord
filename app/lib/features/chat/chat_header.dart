@@ -19,6 +19,7 @@ import 'package:opencord/ui/widgets/oc_icon_button.dart';
 import 'package:opencord/ui/widgets/oc_menu.dart';
 import 'package:opencord/ui/widgets/popover.dart';
 import 'package:opencord/ui/widgets/toast.dart';
+import 'package:opencord/ui/widgets/ellipsis_text.dart';
 
 /// The open channel's header (§4.3): its name, a subtitle with the member
 /// counts and topic that turns into "Kai is typing" while someone types,
@@ -194,10 +195,8 @@ class _Title extends ConsumerWidget {
       mainAxisAlignment: MainAxisAlignment.center,
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
+        EllipsisText(
           target.kind.isTextLike ? '#${target.name}' : target.name,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
           style: OcText.header.copyWith(color: colors.text),
         ),
         if (names.isNotEmpty)

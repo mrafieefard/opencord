@@ -34,6 +34,7 @@ import 'package:opencord/ui/widgets/popover.dart';
 import 'package:opencord/ui/widgets/section_label.dart';
 import 'package:opencord/ui/widgets/toast.dart';
 import 'package:opencord/core/repository/repository.dart';
+import 'package:opencord/ui/widgets/ellipsis_text.dart';
 
 /// The channel sidebar (§4.2).
 class ChannelSidebar extends ConsumerWidget {
@@ -122,10 +123,8 @@ class _ServerHeader extends ConsumerWidget {
                 mainAxisAlignment: MainAxisAlignment.center,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
+                  EllipsisText(
                     name,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
                     style: OcText.header.copyWith(color: colors.text),
                   ),
                   Row(

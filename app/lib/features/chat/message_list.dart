@@ -10,6 +10,7 @@ import 'package:opencord/core/model/message.dart';
 import 'package:opencord/core/providers/providers.dart';
 import 'package:opencord/core/repository/repository.dart';
 import 'package:opencord/core/settings/app_settings.dart';
+import 'package:opencord/core/settings/key_value_store.dart';
 import 'package:opencord/features/chat/chat_controller.dart';
 import 'package:opencord/features/chat/chat_row_view.dart';
 import 'package:opencord/features/chat/chat_scroll.dart';
@@ -27,7 +28,11 @@ import 'package:opencord/ui/theme/oc_motion.dart';
 import 'package:opencord/ui/widgets/toast.dart';
 
 /// Where the reader left each channel during this run (§16).
-final scrollMemoryProvider = Provider<ScrollMemory>((ref) => ScrollMemory());
+final scrollMemoryProvider = Provider<ScrollMemory>((ref) {
+  final memory = ScrollMemory(ref.watch(keyValueStoreProvider));
+  ref.onDispose(memory.flush);
+  return memory;
+});
 
 /// One channel's history (§4.5, §6): newest at the bottom, older pages
 /// loading near the top, the unread line, a floating date while
@@ -423,6 +428,7 @@ class _MessageListState extends ConsumerState<MessageList>
       });
     }
     _saved = atEnd ? null : _topPosition();
+    _memory.save(_channel, _saved);
     if (_scrolling) {
       final label = _topDayLabel();
       if (label != _pill) setState(() => _pill = label);

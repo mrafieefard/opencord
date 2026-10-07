@@ -15,6 +15,7 @@ import 'package:opencord/ui/theme/oc_text.dart';
 import 'package:opencord/ui/widgets/hoverable.dart';
 import 'package:opencord/ui/widgets/oc_button.dart';
 import 'package:opencord/ui/widgets/toast.dart';
+import 'package:opencord/ui/widgets/ellipsis_text.dart';
 
 /// Channels (§8.2): every category and channel, reordered by dragging
 /// (channels within their group, categories as blocks); the chosen one's
@@ -238,10 +239,8 @@ class _ChannelTile extends StatelessWidget {
             ),
             const SizedBox(width: OcSpace.s8),
             Expanded(
-              child: Text(
+              child: EllipsisText(
                 category ? channel.name.toUpperCase() : channel.name,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
                 style: (category ? OcText.label : OcText.body).copyWith(
                   fontWeight: selected ? FontWeight.w600 : null,
                   color: category ? colors.textMuted : colors.text,

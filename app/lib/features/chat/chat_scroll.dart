@@ -1,7 +1,11 @@
+import 'dart:convert';
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/physics.dart';
 import 'package:flutter/widgets.dart';
+import 'package:opencord/core/providers/providers.dart';
+import 'package:opencord/core/settings/key_value_store.dart';
 
 /// Where a chat opens (§6).
 sealed class ChatStart {
@@ -32,20 +36,82 @@ class SavedScroll {
   /// The topmost message in view, and how far below the top it started.
   final int messageId;
   final double fromTop;
+
+  @override
+  bool operator ==(Object other) =>
+      other is SavedScroll &&
+      other.messageId == messageId &&
+      other.fromTop == fromTop;
+
+  @override
+  int get hashCode => Object.hash(messageId, fromTop);
 }
 
+/// Where each channel was left (§16 "remember everything"): in memory while
+/// the app runs, and in [KeyValueStore] shortly after the reader stops
+/// scrolling, so it survives a restart. Keeps the [limit] most recent.
 class ScrollMemory {
-  final _saved = <Object, SavedScroll>{};
-
-  void save(Object channel, SavedScroll? position) {
-    if (position == null) {
-      _saved.remove(channel);
-    } else {
-      _saved[channel] = position;
-    }
+  ScrollMemory([this._store]) {
+    _load();
   }
 
-  SavedScroll? read(Object channel) => _saved[channel];
+  static const storeKey = 'ui.scroll';
+  static const limit = 200;
+  static const _settle = Duration(milliseconds: 1500);
+
+  final KeyValueStore? _store;
+
+  /// By `server|channel`, oldest first.
+  final _saved = <String, SavedScroll>{};
+  Timer? _flush;
+
+  static String _key(ChannelRef channel) =>
+      '${channel.server}|${channel.channel}';
+
+  /// [position] null: the reader is at the newest message.
+  void save(ChannelRef channel, SavedScroll? position) {
+    final key = _key(channel);
+    final previous = _saved.remove(key);
+    if (position != null) _saved[key] = position;
+    while (_saved.length > limit) {
+      _saved.remove(_saved.keys.first);
+    }
+    if (_store == null || previous == position) return;
+    _flush?.cancel();
+    _flush = Timer(_settle, flush);
+  }
+
+  SavedScroll? read(ChannelRef channel) => _saved[_key(channel)];
+
+  /// Writes what is remembered now.
+  void flush() {
+    _flush?.cancel();
+    _flush = null;
+    _store?.write(
+      storeKey,
+      jsonEncode({
+        for (final MapEntry(:key, :value) in _saved.entries)
+          key: [value.messageId, value.fromTop],
+      }),
+    );
+  }
+
+  void _load() {
+    final text = _store?.read(storeKey);
+    if (text == null) return;
+    final Object? json;
+    try {
+      json = jsonDecode(text);
+    } on FormatException {
+      return;
+    }
+    if (json is! Map) return;
+    for (final MapEntry(:key, :value) in json.entries) {
+      if (value case [final int id, final num fromTop] when key is String) {
+        _saved[key] = SavedScroll(messageId: id, fromTop: fromTop.toDouble());
+      }
+    }
+  }
 }
 
 /// Scrolls a chat built as two slivers around an anchor (older history

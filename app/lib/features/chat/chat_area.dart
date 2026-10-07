@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:opencord/core/model/channel.dart';
 import 'package:opencord/core/providers/providers.dart';
 import 'package:opencord/core/repository/repository.dart';
+import 'package:opencord/features/chat/attachment_drop.dart';
 import 'package:opencord/features/chat/chat_controller.dart';
 import 'package:opencord/features/chat/chat_header.dart';
 import 'package:opencord/features/chat/composer.dart';
@@ -71,26 +72,35 @@ class _ChatAreaState extends ConsumerState<ChatArea> {
             leadingControls: widget.leadingControls,
             trailingControls: widget.trailingControls,
           ),
-          if (open != null && channel!.kind.isTextLike) ...[
-            if (pins)
-              PinnedBar(
-                key: ValueKey(('pins', open)),
-                channel: open,
-                onJumpTo: _controller.jumpToMessage,
-              ),
+          if (open != null && channel!.kind.isTextLike)
             Expanded(
-              child: MessageList(
-                key: ValueKey(open),
-                channel: open,
-                controller: _controller,
+              child: AttachmentDropZone(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    if (pins)
+                      PinnedBar(
+                        key: ValueKey(('pins', open)),
+                        channel: open,
+                        onJumpTo: _controller.jumpToMessage,
+                      ),
+                    Expanded(
+                      child: MessageList(
+                        key: ValueKey(open),
+                        channel: open,
+                        controller: _controller,
+                      ),
+                    ),
+                    Composer(
+                      key: ValueKey(('composer', open)),
+                      channel: open,
+                      controller: _controller,
+                    ),
+                  ],
+                ),
               ),
-            ),
-            Composer(
-              key: ValueKey(('composer', open)),
-              channel: open,
-              controller: _controller,
-            ),
-          ] else if (open != null && channel!.kind == ChannelKind.voice)
+            )
+          else if (open != null && channel!.kind == ChannelKind.voice)
             Expanded(
               child: VoiceView(key: ValueKey(('voice', open)), channel: open),
             )

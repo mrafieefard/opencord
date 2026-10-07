@@ -20,6 +20,7 @@ import 'package:opencord/ui/widgets/hoverable.dart';
 import 'package:opencord/ui/widgets/oc_icon_button.dart';
 import 'package:opencord/ui/widgets/oc_text_field.dart';
 import 'package:opencord/ui/widgets/section_label.dart';
+import 'package:opencord/ui/widgets/ellipsis_text.dart';
 
 /// The member panel (§4.7, Telegram's "group info"): who can see the open
 /// channel, in sections by hoisted role, online and offline.
@@ -290,10 +291,8 @@ class MemberRow extends StatelessWidget {
                   Row(
                     children: [
                       Flexible(
-                        child: Text(
+                        child: EllipsisText(
                           member.displayName,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
                           style: OcText.body.copyWith(
                             fontWeight: FontWeight.w500,
                             color: offline ? colors.textMuted : colors.text,

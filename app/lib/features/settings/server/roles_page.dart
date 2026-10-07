@@ -22,6 +22,7 @@ import 'package:opencord/ui/widgets/oc_text_field.dart';
 import 'package:opencord/ui/widgets/settings.dart';
 import 'package:opencord/ui/widgets/toast.dart';
 import 'package:opencord/ui/widgets/oc_menu.dart';
+import 'package:opencord/ui/widgets/ellipsis_text.dart';
 
 /// What the current user may do with roles: whom they outrank and which
 /// permissions they hold to give (Phase 1 plan §6.3).
@@ -257,10 +258,8 @@ class _RoleTile extends StatelessWidget {
                   : null,
             ),
             Expanded(
-              child: Text(
+              child: EllipsisText(
                 role.name,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
                 style: OcText.body.copyWith(
                   fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
                   color: colors.text,
