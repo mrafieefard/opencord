@@ -16,11 +16,15 @@ import 'package:opencord/ui/theme/oc_metrics.dart';
 /// Sets the window up before the first frame (§3.1): the frame the user
 /// chose, the saved size and place, the minimum size and a background in
 /// the theme's color. Keeps the geometry saved from then on.
+///
+/// The app always asks before the window closes, and decides then whether
+/// it hides to the tray. [hidden] starts it minimized to the tray.
 Future<WindowInfo> startWindow({
   required NativeWindow window,
   required KeyValueStore store,
   required AppSettings settings,
   required Directory dataDir,
+  bool hidden = false,
 }) async {
   final chrome = resolveWindowChrome(
     platform: defaultTargetPlatform,
@@ -45,6 +49,8 @@ Future<WindowInfo> startWindow({
     frameMargin: windowFrameMargin,
     resizeBand: windowResizeBand,
     restore: restore,
+    interceptClose: true,
+    hidden: hidden,
   );
   WindowGeometryKeeper(window: window, store: store, initial: restore);
   return info;

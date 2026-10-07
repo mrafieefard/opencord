@@ -143,6 +143,10 @@ final class WindowChannel: NSObject, NSWindowDelegate {
     if args["maximized"] as? Bool ?? false, !window.isZoomed {
       window.zoom(nil)
     }
+    // Started minimized; the Dock icon brings the window back.
+    if args["hidden"] as? Bool ?? false {
+      window.orderOut(nil)
+    }
     return [
       "chrome": custom ? "custom" : "system",
       "transparent": false,

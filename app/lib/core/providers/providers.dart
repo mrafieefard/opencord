@@ -662,6 +662,16 @@ final unreadTotalProvider = Provider<int>((ref) {
   return total;
 });
 
+/// Mentions of the user that are still unread, across all servers: the
+/// tray's tooltip and the badges (§15).
+final mentionTotalProvider = Provider<int>((ref) {
+  var total = 0;
+  for (final server in ref.watch(serverListProvider)) {
+    total += ref.watch(activityProvider(server.key)).mentions;
+  }
+  return total;
+});
+
 /// Convenience for widgets that only need to know one channel's state.
 ChannelActivity channelActivity(WidgetRef ref, ChannelRef channel) => ref.watch(
   activityProvider(channel.server).select((state) => state.of(channel.channel)),

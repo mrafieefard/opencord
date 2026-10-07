@@ -173,7 +173,8 @@ abstract interface class NativeWindow {
 
   /// [chrome] is what the app wants. Windows applies it at once; on Linux
   /// it takes effect at the next start, and the returned info says what the
-  /// window has now.
+  /// window has now. [hidden] keeps the window from showing with the first
+  /// frame (start minimized to the tray).
   Future<WindowInfo> configure({
     required WindowChrome chrome,
     required int background,
@@ -183,6 +184,7 @@ abstract interface class NativeWindow {
     required double resizeBand,
     WindowGeometry? restore,
     bool interceptClose = false,
+    bool hidden = false,
   });
 
   Future<void> setTitle(String title);
@@ -303,8 +305,10 @@ class ChannelNativeWindow implements NativeWindow {
     required double resizeBand,
     WindowGeometry? restore,
     bool interceptClose = false,
+    bool hidden = false,
   }) async {
     final info = await _invoke<Map<Object?, Object?>>('configure', {
+      'hidden': hidden,
       'chrome': chrome.name,
       'background': background,
       'minWidth': minWidth.round(),
@@ -397,6 +401,7 @@ class NullNativeWindow implements NativeWindow {
     required double resizeBand,
     WindowGeometry? restore,
     bool interceptClose = false,
+    bool hidden = false,
   }) async => WindowInfo.none;
 
   @override

@@ -41,8 +41,9 @@ class FakeNativeWindow implements NativeWindow {
     required double resizeBand,
     WindowGeometry? restore,
     bool interceptClose = false,
+    bool hidden = false,
   }) async {
-    calls.add('configure:${chrome.name}');
+    calls.add('configure:${chrome.name}${hidden ? ':hidden' : ''}');
     return WindowInfo.none;
   }
 

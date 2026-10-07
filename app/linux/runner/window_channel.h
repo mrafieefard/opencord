@@ -26,4 +26,8 @@ void window_channel_register(GtkWindow* window, FlView* view,
 // the app lands here (desktop UI plan §15).
 void window_channel_present(const gchar* link);
 
+// Whether the app asked to start minimized to the tray, so the first frame
+// should not show the window.
+bool window_channel_starts_hidden();
+
 #endif  // RUNNER_WINDOW_CHANNEL_H_

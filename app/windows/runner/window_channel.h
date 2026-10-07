@@ -29,6 +29,10 @@ class WindowChannel {
   // Whether the window should open maximized (from the saved geometry).
   bool TakeMaximizeOnShow();
 
+  // Whether the app asked to start minimized to the tray, so the first
+  // frame should not show the window.
+  bool StartsHidden() const { return start_hidden_; }
+
   // Brings the window back, from the tray or from behind other windows, and
   // passes `link` (an opencord:// link, or "") to the app. A later launch
   // of the app lands here (desktop UI plan §15).
@@ -64,6 +68,7 @@ class WindowChannel {
   bool intercept_close_ = false;
   bool fullscreen_ = false;
   bool maximize_on_show_ = false;
+  bool start_hidden_ = false;
   bool tracking_caption_ = false;
   LONG saved_style_ = 0;
   WINDOWPLACEMENT saved_placement_ = {sizeof(WINDOWPLACEMENT)};

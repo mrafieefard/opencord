@@ -12,6 +12,9 @@ import 'package:opencord/core/rust/core_key_value_store.dart';
 import 'package:opencord/core/settings/app_settings.dart';
 import 'package:opencord/core/settings/key_value_store.dart';
 import 'package:opencord/core/settings/local_prefs.dart';
+import 'package:opencord/features/desktop/linux_tray.dart';
+import 'package:opencord/features/desktop/tray.dart';
+import 'package:opencord/features/desktop/tray_binding.dart';
 import 'package:opencord/features/links/app_links.dart';
 import 'package:opencord/features/window/native_window.dart';
 import 'package:opencord/features/window/window_providers.dart';
@@ -29,12 +32,18 @@ Future<void> main(List<String> args) async {
   registerFontLicenses();
 
   const store = CoreKeyValueStore();
+  final settings = loadAppSettings(store, defaultTargetPlatform);
+  // The tray before the window: starting minimized needs one (§15).
+  final tray = defaultTargetPlatform == TargetPlatform.linux
+      ? await LinuxTray.start()
+      : null;
   final window = ChannelNativeWindow();
   final windowInfo = await startWindow(
     window: window,
     store: store,
-    settings: loadAppSettings(store, defaultTargetPlatform),
+    settings: settings,
     dataDir: dataDir,
+    hidden: settings.startMinimized && (tray?.available ?? false),
   );
 
   // The desktop UI runs on the mock repository until it is switched to the
@@ -49,9 +58,11 @@ Future<void> main(List<String> args) async {
       windowInfoProvider.overrideWithValue(windowInfo),
       frameChoiceSaverProvider.overrideWithValue(frameChoiceSaver(dataDir)),
       defaultMutedServersProvider.overrideWithValue(mockMutedServers),
+      if (tray != null) trayServiceProvider.overrideWithValue(tray),
     ],
   );
   container.read(eventPumpProvider);
+  container.read(trayBindingProvider);
   // Links the app was started with (§15); later launches pass theirs on
   // through the window, which the inbox listens to from now.
   final inbox = container.read(appLinkInboxProvider.notifier);

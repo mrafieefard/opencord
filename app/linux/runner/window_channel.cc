@@ -21,6 +21,8 @@ struct WindowChannel {
   // (on Wayland the compositor checks it belongs to a real click).
   GdkEvent* last_press = nullptr;
   bool intercept_close = false;
+  // Start minimized to the tray: the first frame does not show the window.
+  bool start_hidden = false;
   // Transparent space around the visible window for the custom frame's
   // shadow, and the part of it next to the window that resizes it.
   int frame_margin = 0;
@@ -193,6 +195,7 @@ const char* chrome_name(WindowChrome chrome) {
 // the custom frame the transparent margin is added around them.
 FlValue* configure(WindowChannel* self, FlValue* args) {
   self->intercept_close = bool_arg(args, "interceptClose", false);
+  self->start_hidden = bool_arg(args, "hidden", false);
 
   GdkScreen* screen = gtk_window_get_screen(self->window);
   const bool transparent = gtk_widget_get_visual(GTK_WIDGET(self->window)) ==
@@ -416,4 +419,8 @@ void window_channel_present(const gchar* link) {
   if (link == nullptr) return;
   g_autoptr(FlValue) value = fl_value_new_string(link);
   send(self, "openLink", value);
+}
+
+bool window_channel_starts_hidden() {
+  return channel_state != nullptr && channel_state->start_hidden;
 }

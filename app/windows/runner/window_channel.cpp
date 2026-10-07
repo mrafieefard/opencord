@@ -357,6 +357,7 @@ flutter::EncodableValue WindowChannel::Configure(
                rect.bottom - rect.top,
                SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED);
   maximize_on_show_ = BoolArg(args, "maximized", false);
+  start_hidden_ = BoolArg(args, "hidden", false);
 
   flutter::EncodableMap info;
   info[flutter::EncodableValue("chrome")] =

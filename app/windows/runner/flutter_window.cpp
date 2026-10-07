@@ -34,6 +34,10 @@ bool FlutterWindow::OnCreate() {
       flutter_controller_->engine()->messenger());
 
   flutter_controller_->engine()->SetNextFrameCallback([&]() {
+    // Started minimized to the tray (desktop UI plan §15).
+    if (window_channel_ && window_channel_->StartsHidden()) {
+      return;
+    }
     this->Show();
     if (window_channel_ && window_channel_->TakeMaximizeOnShow()) {
       ShowWindow(GetHandle(), SW_MAXIMIZE);
