@@ -15,7 +15,7 @@ use proto::envelope::Payload;
 use rustls::pki_types::ServerName;
 use tokio::net::TcpStream;
 use tokio::runtime::Handle;
-use tokio::sync::{mpsc, oneshot};
+use tokio::sync::{broadcast, mpsc, oneshot};
 use tokio::task::JoinHandle;
 use tokio::time::{Instant, MissedTickBehavior, interval, interval_at, sleep_until, timeout};
 use tokio_rustls::TlsConnector;
@@ -29,6 +29,7 @@ use crate::identity::Identity;
 use crate::mirror::{GuildMirror, PermissionSnapshot};
 use crate::store::Store;
 use crate::tofu::{TlsTrust, Verdict};
+use crate::voice::VoiceServer;
 
 pub(crate) type Socket = WebSocketStream<TlsStream<TcpStream>>;
 
@@ -297,6 +298,7 @@ pub(crate) struct Context {
     pub credentials: Credentials,
     pub store: Arc<Mutex<Store>>,
     pub events: mpsc::UnboundedSender<CoreEvent>,
+    pub voice_servers: broadcast::Sender<VoiceServer>,
 }
 
 pub(crate) fn spawn(
@@ -309,6 +311,7 @@ pub(crate) fn spawn(
         context,
         commands: receiver,
         session: None,
+        self_id: None,
         mirror: None,
         permissions: None,
         next_request_id: 1,
@@ -372,6 +375,8 @@ struct Task {
     context: Context,
     commands: mpsc::Receiver<Command>,
     session: Option<Session>,
+    /// This user's id on the server, from the last Ready.
+    self_id: Option<i64>,
     mirror: Option<GuildMirror>,
     permissions: Option<PermissionSnapshot>,
     next_request_id: u64,
@@ -569,6 +574,7 @@ impl Task {
         self.mirror = Some(mirror);
         let name = ready.server.as_ref().map(|server| server.name.clone());
         let user_id = ready.self_user.as_ref().map(|user| user.id);
+        self.self_id = user_id;
         self.update_saved_server(name, user_id);
         self.emit(CoreEventPayload::Ready(convert::ready(ready)));
     }
@@ -588,6 +594,9 @@ impl Task {
             let name = update.server.as_ref().map(|server| server.name.clone());
             self.update_saved_server(name, None);
         }
+        if let proto::event::Kind::VoiceServerUpdate(update) = &kind {
+            self.on_voice_server(update);
+        }
         let session_id = self
             .session
             .as_ref()
@@ -598,6 +607,22 @@ impl Task {
         if affects_permissions {
             self.emit_permissions_if_changed();
         }
+    }
+
+    /// For the media engine; nobody listening is fine.
+    fn on_voice_server(&self, update: &proto::VoiceServerUpdate) {
+        let (Some(session), Some(user_id)) = (&self.session, self.self_id) else {
+            return;
+        };
+        let _ = self.context.voice_servers.send(VoiceServer {
+            server_key: self.context.key.clone(),
+            user_id,
+            session_id: session.session_id.clone(),
+            channel_id: update.channel_id,
+            endpoint: update.endpoint.clone(),
+            certificate_fingerprint: update.certificate_fingerprint.clone(),
+            token: update.token.clone(),
+        });
     }
 
     fn emit_permissions_if_changed(&mut self) {

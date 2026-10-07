@@ -809,3 +809,36 @@ async fn a_refused_rejoin_tells_the_app_this_device_left() {
     assert_eq!((left.channel_id, left.this_device), (None, true));
     drop(owner);
 }
+
+#[tokio::test]
+async fn joining_voice_tells_the_media_engine_where_to_connect() {
+    let server = TestServer::start().await;
+    let (_owner, owner_ready, member, member_ready) = owner_and_member(&server).await;
+    let mut voice_servers = member.client.voice_servers();
+    let voice = voice_channel(&owner_ready);
+
+    let joined = member
+        .client
+        .voice_join(&server.address(), voice)
+        .await
+        .unwrap();
+    let update = tokio::time::timeout(WAIT, voice_servers.recv())
+        .await
+        .unwrap()
+        .unwrap();
+
+    assert!(joined.this_device);
+    assert_eq!(update.server_key, server.address());
+    assert_eq!(update.channel_id, voice);
+    assert_eq!(update.user_id, member_ready.self_user.id);
+    assert!(!update.session_id.is_empty());
+    assert_eq!(
+        update.gateway_url(),
+        format!("wss://{}/voice", server.address())
+    );
+    assert_eq!(
+        update.certificate_fingerprint,
+        server.handle.fingerprint.to_vec()
+    );
+    assert!(!update.token.is_empty());
+}

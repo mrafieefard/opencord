@@ -13,7 +13,7 @@ use opencord_proto::v1 as proto;
 use proto::request::Kind as Request;
 use proto::response::Result as Response;
 use tokio::runtime::Handle;
-use tokio::sync::{mpsc, oneshot};
+use tokio::sync::{broadcast, mpsc, oneshot};
 
 use crate::api::types::{
     AddServerOutcome, Ban, Channel, ChannelChanges, ChannelKind, ChannelPosition, CoreError,
@@ -27,8 +27,11 @@ use crate::connection::{
 use crate::convert;
 use crate::identity::Identity;
 use crate::store::{SavedServer, Store, StoreError};
+use crate::voice::VoiceServer;
 
 const INVITE_SCHEME: &str = "opencord://";
+/// Voice server updates kept for a slow listener.
+const VOICE_SERVER_BACKLOG: usize = 16;
 
 #[derive(Clone)]
 pub struct Client {
@@ -42,6 +45,7 @@ struct Inner {
     events: mpsc::UnboundedSender<CoreEvent>,
     /// Events for the app.
     outward: mpsc::UnboundedSender<CoreEvent>,
+    voice_servers: broadcast::Sender<VoiceServer>,
     store: Arc<Mutex<Store>>,
     credentials: RwLock<Option<Credentials>>,
     connections: Mutex<HashMap<String, Connection>>,
@@ -83,6 +87,7 @@ impl Client {
                 runtime: runtime.clone(),
                 events,
                 outward: outward.clone(),
+                voice_servers: broadcast::channel(VOICE_SERVER_BACKLOG).0,
                 store: Arc::new(Mutex::new(store)),
                 credentials: RwLock::new(None),
                 connections: Mutex::new(HashMap::new()),
@@ -620,6 +625,12 @@ impl Client {
             .map_err(|_| CoreError::NotConnected)
     }
 
+    /// Where to connect for voice, each time a server says so: after a
+    /// join, a move or a voice node failing over.
+    pub fn voice_servers(&self) -> broadcast::Receiver<VoiceServer> {
+        self.inner.voice_servers.subscribe()
+    }
+
     /// Joins a voice channel, leaving any other one first, on any server.
     pub async fn voice_join(&self, key: &str, channel_id: i64) -> Result<VoiceState, CoreError> {
         let elsewhere = {
@@ -873,6 +884,7 @@ impl Client {
             credentials,
             store: Arc::clone(&self.inner.store),
             events: self.inner.events.clone(),
+            voice_servers: self.inner.voice_servers.clone(),
         }
     }
 

@@ -10,3 +10,4 @@ pub mod identity;
 pub mod mirror;
 pub mod store;
 pub mod tofu;
+pub mod voice;
