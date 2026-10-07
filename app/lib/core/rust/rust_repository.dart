@@ -272,10 +272,33 @@ class RustRepository implements OpencordRepository {
     core.ReadySnapshot ready,
     int count,
   ) async {
-    final (:last, :read) = await _recentActivity(server, ready);
-    // A newer Ready replaced this one meanwhile.
-    if (_readyCount[server] != count) return;
-    final snapshot = snapshotFrom(ready, lastMessages: last, readStates: read);
+    var activity = (last: <int, Message>{}, read: <int, ReadState>{});
+    try {
+      activity = await _recentActivity(server, ready);
+    } on Exception catch (error, stack) {
+      // The counts are a nicety: without them the server still goes on.
+      developer.log(
+        'Unread counts were not rebuilt',
+        name: 'core',
+        error: error,
+        stackTrace: stack,
+      );
+    } finally {
+      // Unless a newer Ready replaced this one meanwhile.
+      if (_readyCount[server] == count) _finishReady(server, ready, activity);
+    }
+  }
+
+  void _finishReady(
+    String server,
+    core.ReadySnapshot ready,
+    ({Map<int, Message> last, Map<int, ReadState> read}) activity,
+  ) {
+    final snapshot = snapshotFrom(
+      ready,
+      lastMessages: activity.last,
+      readStates: activity.read,
+    );
     _snapshots[server] = snapshot;
     _emit(Ready(server, snapshot));
     for (final payload in _held.remove(server) ?? const []) {
@@ -322,7 +345,10 @@ class RustRepository implements OpencordRepository {
         developer.log('History for $channel timed out', name: 'core');
         return;
       }
-      if (recent.isEmpty) return;
+      if (recent.isEmpty) {
+        _positions.start(server, channel);
+        return;
+      }
       final messages = [for (final message in recent) messageFrom(message)];
       final newest = messages.first;
       last[channel] = newest;
@@ -354,6 +380,11 @@ class RustRepository implements OpencordRepository {
   }
 
   void _forward(String server, core.CoreEventPayload payload) {
+    if (payload case core.CoreEventPayload_ChannelCreate(
+      :final field0,
+    ) when field0.kind == core.ChannelKind.text) {
+      _positions.start(server, field0.id);
+    }
     final RepoEvent? event = switch (payload) {
       core.CoreEventPayload_ConnectionState(:final field0) => ConnectionChanged(
         server,

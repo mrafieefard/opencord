@@ -17,48 +17,54 @@ const _self = 1, _kai = 2;
 const _general = 10;
 final _now = DateTime(2026, 10, 7, 12);
 
-core.Message _message(int id, {int author = _kai, String content = 'hi'}) =>
-    core.Message(
-      id: id,
-      channelId: _general,
-      authorId: author,
-      content: content,
-      createdAtMs: 1760000000000 + id,
-    );
-
-core.ReadySnapshot _ready() => core.ReadySnapshot(
-  selfUser: const core.User(
-    id: _self,
-    publicKeyHex: 'abcd',
-    fingerprint: 'ABCD-EFGH-IJKL-MNOP',
-    displayName: 'Alex',
-  ),
-  server: const core.ServerInfo(
-    serverIdHex: 'ff',
-    name: 'Home',
-    description: '',
-    ownerId: _self,
-    openJoin: false,
-    everyoneRoleId: 5,
-  ),
-  channels: const [
-    core.Channel(
-      id: _general,
-      kind: core.ChannelKind.text,
-      name: 'general',
-      position: 0,
-      overwrites: [],
-    ),
-  ],
-  roles: const [],
-  members: const [],
-  presences: const [],
-  serverPermissions: 0x7,
-  // View and read history.
-  channelPermissions: const [
-    core.ChannelPermissions(channelId: _general, permissions: 0x5),
-  ],
+core.Message _message(
+  int id, {
+  int author = _kai,
+  String content = 'hi',
+  int channel = _general,
+}) => core.Message(
+  id: id,
+  channelId: channel,
+  authorId: author,
+  content: content,
+  createdAtMs: 1760000000000 + id,
 );
+
+core.Channel _text(int id, String name, {int position = 0}) => core.Channel(
+  id: id,
+  kind: core.ChannelKind.text,
+  name: name,
+  position: position,
+  overwrites: const [],
+);
+
+core.ReadySnapshot _ready({List<core.Channel> more = const []}) =>
+    core.ReadySnapshot(
+      selfUser: const core.User(
+        id: _self,
+        publicKeyHex: 'abcd',
+        fingerprint: 'ABCD-EFGH-IJKL-MNOP',
+        displayName: 'Alex',
+      ),
+      server: const core.ServerInfo(
+        serverIdHex: 'ff',
+        name: 'Home',
+        description: '',
+        ownerId: _self,
+        openJoin: false,
+        everyoneRoleId: 5,
+      ),
+      channels: [_text(_general, 'general'), ...more],
+      roles: const [],
+      members: const [],
+      presences: const [],
+      serverPermissions: 0x7,
+      // View and read history.
+      channelPermissions: [
+        for (final channel in [_general, ...more.map((c) => c.id)])
+          core.ChannelPermissions(channelId: channel, permissions: 0x5),
+      ],
+    );
 
 /// A keychain that can be locked, refusing to save, or out of reach.
 class _Keyring extends MemoryIdentityStore {
@@ -296,6 +302,60 @@ void main() {
       final ready = harness.events.whereType<Ready>().single.snapshot;
       expect(ready.readStates[_general]?.unread, 0);
       expect(ReadPositions(harness.store).of(_server, _general), 102);
+    });
+
+    test('a channel empty when first seen counts what arrives later', () async {
+      final harness = await _Harness.start();
+      harness.core.emit(_server, core.CoreEventPayload.ready(_ready()));
+      await harness.settle();
+      await harness.settle();
+
+      // Next session: two messages came while away.
+      harness.core.history[_general] = [_message(102), _message(101)];
+      harness.core.emit(_server, core.CoreEventPayload.ready(_ready()));
+      await harness.settle();
+      await harness.settle();
+
+      final ready = harness.events.whereType<Ready>().last.snapshot;
+      expect(ready.readStates[_general]?.unread, 2);
+    });
+
+    test('a channel made during a session counts what arrives later', () async {
+      final harness = await _Harness.start();
+      harness.core.emit(_server, core.CoreEventPayload.ready(_ready()));
+      await harness.settle();
+      await harness.settle();
+      const release = 11;
+      final channel = _text(release, 'release', position: 1);
+      harness.core.emit(_server, core.CoreEventPayload.channelCreate(channel));
+      await harness.settle();
+
+      harness.core.history[release] = [_message(201, channel: release)];
+      harness.core.emit(
+        _server,
+        core.CoreEventPayload.ready(_ready(more: [channel])),
+      );
+      await harness.settle();
+      await harness.settle();
+
+      final ready = harness.events.whereType<Ready>().last.snapshot;
+      expect(ready.readStates[release]?.unread, 1);
+    });
+
+    test('a rebuild that fails still lets the server go on', () async {
+      final harness = await _Harness.start();
+      harness.core.fetchFailure = const FormatException('unexpected');
+
+      harness.core.emit(_server, core.CoreEventPayload.ready(_ready()));
+      harness.core.emit(
+        _server,
+        core.CoreEventPayload.messageCreate(_message(104)),
+      );
+      await harness.settle();
+      await harness.settle();
+
+      expect(harness.events.whereType<Ready>(), hasLength(1));
+      expect(harness.events.whereType<MessageCreated>(), hasLength(1));
     });
 
     test('events meanwhile wait until Ready is out', () async {

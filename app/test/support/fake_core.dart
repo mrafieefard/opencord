@@ -20,6 +20,9 @@ class FakeCoreApi extends Fake implements CoreApi {
 
   /// Holds fetchMessages until completed, when set.
   Completer<void>? fetchGate;
+
+  /// Thrown by fetchMessages, when set: something the core never says.
+  Exception? fetchFailure;
   core.CoreError? sendError;
   core.AddServerOutcome? addOutcome;
 
@@ -91,6 +94,7 @@ class FakeCoreApi extends Fake implements CoreApi {
   ) async {
     calls.add('fetch:$channelId');
     await fetchGate?.future;
+    if (fetchFailure case final failure?) throw failure;
     return (history[channelId] ?? const []).take(limit).toList();
   }
 

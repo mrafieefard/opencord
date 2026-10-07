@@ -13,8 +13,14 @@ import 'package:opencord/src/rust/api/types.dart' as core;
 // Permission sets cross as `i64`: the same 64 bits, so ADMINISTRATOR (bit
 // 63) arrives negative and stays set.
 
-DateTime _time(int milliseconds) =>
-    DateTime.fromMillisecondsSinceEpoch(milliseconds);
+/// The furthest DateTime can go either side of the epoch, in ms.
+const _furthest = 8640000000000000;
+
+/// Servers can send any number; one no date can hold is kept to the
+/// furthest one, so a bad value cannot stop that server's events.
+DateTime _time(int milliseconds) => DateTime.fromMillisecondsSinceEpoch(
+  milliseconds.clamp(-_furthest, _furthest),
+);
 
 Message messageFrom(core.Message message) => Message(
   id: message.id,

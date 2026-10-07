@@ -26,6 +26,19 @@ void main() {
     expect(positions.of('a:1', 3), 100);
   });
 
+  test('a channel started at its beginning keeps what is already known', () {
+    final store = MemoryKeyValueStore();
+    ReadPositions(store)
+      ..save('a:1', 3, 100)
+      ..start('a:1', 3)
+      ..start('a:1', 4);
+
+    final again = ReadPositions(store);
+
+    expect(again.of('a:1', 3), 100);
+    expect(again.of('a:1', 4), 0);
+  });
+
   test('forgetting a server drops its positions', () {
     final store = MemoryKeyValueStore();
     ReadPositions(store)

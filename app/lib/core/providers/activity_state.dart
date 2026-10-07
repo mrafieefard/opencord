@@ -71,8 +71,10 @@ ActivityState reduceActivity(ActivityState state, RepoEvent event) {
       );
     case MessageCreated(:final message):
       final current = state.of(message.channelId);
-      final last = current.last;
-      final newest = last == null || message.id > last.id ? message : last;
+      // Already counted: a Ready's counts come from history that has it.
+      if (current.last case final last? when message.id <= last.id) {
+        return state;
+      }
       final read = current.read;
       final caughtUp =
           message.authorId == state.selfId ||
@@ -80,9 +82,9 @@ ActivityState reduceActivity(ActivityState state, RepoEvent event) {
       return state._with(
         message.channelId,
         ChannelActivity(
-          last: newest,
+          last: message,
           read: caughtUp
-              ? ReadState(lastReadId: newest.id)
+              ? ReadState(lastReadId: message.id)
               : message.id <= read.lastReadId
               ? read
               : ReadState(

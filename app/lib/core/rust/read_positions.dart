@@ -36,13 +36,24 @@ class ReadPositions {
     final positions = _server(server);
     if ((positions[channel] ?? 0) >= messageId) return;
     positions[channel] = messageId;
-    _store.write(
-      _key(server),
-      jsonEncode({
-        for (final MapEntry(:key, :value) in positions.entries) '$key': value,
-      }),
-    );
+    _write(server, positions);
   }
+
+  /// Starts [channel] at its beginning when nothing is known of it (empty
+  /// or new): everything that arrives in it from now on counts as unread.
+  void start(String server, int channel) {
+    final positions = _server(server);
+    if (positions.containsKey(channel)) return;
+    positions[channel] = 0;
+    _write(server, positions);
+  }
+
+  void _write(String server, Map<int, int> positions) => _store.write(
+    _key(server),
+    jsonEncode({
+      for (final MapEntry(:key, :value) in positions.entries) '$key': value,
+    }),
+  );
 
   void forget(String server) {
     _cache.remove(server);

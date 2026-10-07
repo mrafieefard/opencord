@@ -53,6 +53,18 @@ void main() {
       expect(state.of(randomId).read.mentions, 1);
     });
 
+    test('a message the counts already have is not counted again', () {
+      // Ready was built from history that has it; the event comes after.
+      var state = readyActivity();
+
+      state = reduceActivity(state, MessageCreated(serverKey, message(5)));
+      state = reduceActivity(state, MessageCreated(serverKey, message(4)));
+
+      expect(state.of(generalId).read.unread, 2);
+      expect(state.of(generalId).read.mentions, 1);
+      expect(state.of(generalId).last?.id, 5);
+    });
+
     test('own messages mark the channel read up to them', () {
       final state = reduceActivity(
         readyActivity(),

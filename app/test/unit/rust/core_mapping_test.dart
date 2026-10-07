@@ -43,6 +43,21 @@ void main() {
     expect(message.nonce, 'n1');
   });
 
+  test('a time no date can hold is kept to the furthest one', () {
+    // A server can send anything; one bad value must not stop its events.
+    final message = messageFrom(
+      const core.Message(
+        id: 10,
+        channelId: 2,
+        authorId: 7,
+        content: 'hi',
+        createdAtMs: 9223372036854775807,
+      ),
+    );
+
+    expect(message.createdAt.year, greaterThan(200000));
+  });
+
   test('channels keep their kind, place and overwrites', () {
     final channel = channelFrom(
       const core.Channel(
