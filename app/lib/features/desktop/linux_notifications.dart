@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:developer' as developer;
 
 import 'package:dbus/dbus.dart';
+import 'package:flutter/foundation.dart';
 
 import 'package:opencord/features/desktop/notifications.dart';
 
@@ -28,6 +29,9 @@ class LinuxNotifications implements NotificationService {
   bool get usable => _usable;
   var _usable = true;
 
+  /// Whether the daemon reads bodies as markup, asked once per daemon.
+  Future<bool>? _markup;
+
   /// Notifications on the session bus, or null when there is none.
   static Future<LinuxNotifications?> start() async {
     final DBusClient client;
@@ -37,6 +41,12 @@ class LinuxNotifications implements NotificationService {
       developer.log('No session bus for notifications: $error', name: 'notify');
       return null;
     }
+    return startOn(client);
+  }
+
+  /// Notifications on [client]'s bus.
+  @visibleForTesting
+  static LinuxNotifications startOn(DBusClient client) {
     final notifications = LinuxNotifications._(client);
     notifications._subscriptions.addAll([
       DBusSignalStream(
@@ -55,7 +65,11 @@ class LinuxNotifications implements NotificationService {
       ),
       client.nameOwnerChanged
           .where((event) => event.name == _service && event.newOwner != null)
-          .listen((_) => notifications._usable = true),
+          .listen((_) {
+            notifications
+              .._usable = true
+              .._markup = null;
+          }),
     ]);
     return notifications;
   }
@@ -70,8 +84,39 @@ class LinuxNotifications implements NotificationService {
   @override
   Stream<String> get opened => _opened.stream;
 
+  /// Daemons that advertise `body-markup` read the body as markup, so
+  /// what people wrote is escaped for them; unknown counts as markup.
+  Future<bool> _bodyMarkup() => _markup ??= () async {
+    try {
+      final reply = await _client
+          .callMethod(
+            destination: _service,
+            path: DBusObjectPath('/org/freedesktop/Notifications'),
+            interface: _service,
+            name: 'GetCapabilities',
+            replySignature: DBusSignature('as'),
+          )
+          .timeout(_answerWithin);
+      return reply.values.single.asStringArray().contains('body-markup');
+    } on TimeoutException {
+      _usable = false;
+      _markup = null;
+      developer.log('No notification daemon answered', name: 'notify');
+      return true;
+    } on DBusMethodResponseException {
+      return true;
+    }
+  }();
+
+  static String _escaped(String text) => text
+      .replaceAll('&', '&amp;')
+      .replaceAll('<', '&lt;')
+      .replaceAll('>', '&gt;');
+
   @override
   Future<void> show(DesktopNotification notification) async {
+    if (!_usable) return;
+    final markup = await _bodyMarkup();
     if (!_usable) return;
     try {
       final reply = await _client
@@ -85,7 +130,9 @@ class LinuxNotifications implements NotificationService {
               const DBusUint32(0),
               const DBusString('dev.opencord.opencord'),
               DBusString(notification.title),
-              DBusString(notification.body),
+              DBusString(
+                markup ? _escaped(notification.body) : notification.body,
+              ),
               DBusArray.string(['default', 'Open']),
               DBusDict.stringVariant({
                 'desktop-entry': const DBusString('dev.opencord.opencord'),

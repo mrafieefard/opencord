@@ -1,9 +1,9 @@
 import 'dart:async';
 import 'dart:developer' as developer;
 import 'dart:io';
-import 'dart:typed_data';
 
 import 'package:dbus/dbus.dart';
+import 'package:flutter/foundation.dart';
 
 import 'package:opencord/features/desktop/dbus_menu.dart';
 import 'package:opencord/features/desktop/status_notifier_item.dart';
@@ -18,9 +18,10 @@ const _watcher = 'org.kde.StatusNotifierWatcher';
 /// Hyprland, KDE, GNOME with the AppIndicator extension). It announces
 /// itself again when the watcher restarts.
 class LinuxTray implements TrayService {
-  LinuxTray._(this._client);
+  LinuxTray._(this._client, this._answerWithin);
 
   final DBusClient _client;
+  final Duration _answerWithin;
   final _actions = StreamController<TrayAction>.broadcast();
   late final _menu = DBusMenu(onAction: _actions.add);
   late final _item = StatusNotifierItem(
@@ -40,7 +41,17 @@ class LinuxTray implements TrayService {
       developer.log('No session bus for the tray: $error', name: 'tray');
       return null;
     }
-    final tray = LinuxTray._(client);
+    return startOn(client);
+  }
+
+  /// The tray on [client]'s bus. The window waits for it, so a watcher
+  /// that does not answer within [answerWithin] counts as none for now.
+  @visibleForTesting
+  static Future<LinuxTray?> startOn(
+    DBusClient client, {
+    Duration answerWithin = const Duration(seconds: 2),
+  }) async {
+    final tray = LinuxTray._(client, answerWithin);
     try {
       await tray._start();
       return tray;
@@ -71,16 +82,22 @@ class LinuxTray implements TrayService {
   }
 
   Future<void> _announce() async {
+    final call = _client.callMethod(
+      destination: _watcher,
+      path: DBusObjectPath('/StatusNotifierWatcher'),
+      interface: _watcher,
+      name: 'RegisterStatusNotifierItem',
+      values: [DBusString(_name)],
+      replySignature: DBusSignature(''),
+    );
     try {
-      await _client.callMethod(
-        destination: _watcher,
-        path: DBusObjectPath('/StatusNotifierWatcher'),
-        interface: _watcher,
-        name: 'RegisterStatusNotifierItem',
-        values: [DBusString(_name)],
-        replySignature: DBusSignature(''),
-      );
+      await call.timeout(_answerWithin);
       _available = true;
+    } on TimeoutException {
+      // A hung panel: no tray to hide into for now. A late answer counts.
+      developer.log('The tray watcher did not answer', name: 'tray');
+      _available = false;
+      unawaited(call.then((_) => _available = true, onError: (Object _) {}));
     } on DBusMethodResponseException catch (error) {
       developer.log('The tray watcher refused the icon: $error', name: 'tray');
       _available = false;
