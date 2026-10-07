@@ -7,6 +7,8 @@ import 'package:opencord/core/providers/server_state.dart';
 import 'package:opencord/features/chat/bubble.dart';
 import 'package:opencord/features/chat/chat_rows.dart';
 import 'package:opencord/features/chat/markdown_view.dart';
+import 'package:opencord/features/chat/message_actions.dart';
+import 'package:opencord/features/chat/message_item.dart';
 import 'package:opencord/features/chat/message_line.dart';
 import 'package:opencord/features/chat/message_rows.dart';
 import 'package:opencord/ui/theme/oc_colors.dart';
@@ -80,12 +82,16 @@ class ChatLookups {
 class ChatRowActions {
   const ChatRowActions({
     required this.links,
+    required this.message,
     required this.onRetry,
     required this.onReaction,
     required this.onJumpTo,
   });
 
   final MarkdownContext links;
+
+  /// Reply, react, edit, the context menu (§4.5).
+  final MessageActions message;
   final void Function(Message message) onRetry;
   final void Function(Message message, String emoji) onReaction;
   final void Function(int messageId) onJumpTo;
@@ -145,13 +151,15 @@ class ChatRowView extends StatelessWidget {
   Widget _message(MessageRow row) {
     final message = row.message;
     final author = lookups.name(message.authorId);
-    return MessageLine(
+    return MessageItem(
+      message: message,
       own: row.own,
       first: row.first,
+      actions: actions.message,
       avatar: row.showAvatar
           ? OcAvatar(id: '${message.authorId}', name: author)
           : null,
-      bubble: MessageBubble(
+      bubbleBuilder: (onSelectionChanged) => MessageBubble(
         message: message,
         own: row.own,
         first: row.first,
@@ -170,6 +178,7 @@ class ChatRowView extends StatelessWidget {
             ? null
             : () => actions.onJumpTo(message.replyToId!),
         onRetry: () => actions.onRetry(message),
+        onSelectionChanged: onSelectionChanged,
       ),
     );
   }

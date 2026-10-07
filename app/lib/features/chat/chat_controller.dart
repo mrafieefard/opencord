@@ -1,3 +1,5 @@
+import 'dart:ui' show VoidCallback;
+
 /// What the message list offers the rest of the chat area.
 abstract interface class MessageListHandle {
   /// Scrolls to a message, loading older history if it is not loaded yet,
@@ -15,6 +17,16 @@ abstract interface class MessageListHandle {
 /// newest message after sending.
 class ChatController implements MessageListHandle {
   MessageListHandle? _list;
+  VoidCallback? _focusComposer;
+
+  void attachComposer(VoidCallback focus) => _focusComposer = focus;
+
+  void detachComposer(VoidCallback focus) {
+    if (identical(_focusComposer, focus)) _focusComposer = null;
+  }
+
+  /// After choosing Reply or Edit, typing goes straight to the composer.
+  void focusComposer() => _focusComposer?.call();
 
   void attach(MessageListHandle list) => _list = list;
 

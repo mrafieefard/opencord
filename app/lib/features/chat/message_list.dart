@@ -16,6 +16,7 @@ import 'package:opencord/features/chat/links.dart';
 import 'package:opencord/features/chat/list_overlays.dart';
 import 'package:opencord/features/chat/list_rows.dart';
 import 'package:opencord/features/chat/markdown_view.dart';
+import 'package:opencord/features/chat/message_actions.dart';
 import 'package:opencord/features/chat/message_rows.dart';
 import 'package:opencord/features/shell/navigation.dart';
 import 'package:opencord/features/window/window_providers.dart';
@@ -251,91 +252,103 @@ class _MessageListState extends ConsumerState<MessageList>
       for (var i = split; i < rows.length; i++) rows[i].key: i - split,
     };
     final unseen = _unseen(state.messages, data.self.id);
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final side = math.max(
-          OcSpace.s16,
-          (constraints.maxWidth - OcSize.messageColumn) / 2,
-        );
-        return Stack(
-          children: [
-            NotificationListener<ScrollNotification>(
-              onNotification: _onScrollNotification,
-              child: CustomScrollView(
-                controller: scroll,
-                center: _newerKey,
-                anchor: 1,
-                slivers: [
-                  SliverPadding(
-                    padding: EdgeInsets.fromLTRB(side, OcSpace.s8, side, 0),
-                    sliver: SliverList.builder(
-                      itemCount: split + (state.hasOlder ? 1 : 0),
-                      findChildIndexCallback: (key) =>
-                          olderIndex[(key as ValueKey<Object>).value],
-                      itemBuilder: (context, index) => index == split
-                          ? const OlderHistorySkeleton()
-                          : rowAt(split - 1 - index),
+    // Hover bars float in this overlay, clipped to the list (§4.5).
+    return Overlay.wrap(
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final side = math.max(
+            OcSpace.s16,
+            (constraints.maxWidth - OcSize.messageColumn) / 2,
+          );
+          return Stack(
+            children: [
+              NotificationListener<ScrollNotification>(
+                onNotification: _onScrollNotification,
+                child: CustomScrollView(
+                  controller: scroll,
+                  center: _newerKey,
+                  anchor: 1,
+                  slivers: [
+                    SliverPadding(
+                      padding: EdgeInsets.fromLTRB(side, OcSpace.s8, side, 0),
+                      sliver: SliverList.builder(
+                        itemCount: split + (state.hasOlder ? 1 : 0),
+                        findChildIndexCallback: (key) =>
+                            olderIndex[(key as ValueKey<Object>).value],
+                        itemBuilder: (context, index) => index == split
+                            ? const OlderHistorySkeleton()
+                            : rowAt(split - 1 - index),
+                      ),
                     ),
-                  ),
-                  SliverPadding(
-                    key: _newerKey,
-                    padding: EdgeInsets.fromLTRB(side, 0, side, OcSpace.s12),
-                    sliver: SliverList.builder(
-                      itemCount: rows.length - split,
-                      findChildIndexCallback: (key) =>
-                          newerIndex[(key as ValueKey<Object>).value],
-                      itemBuilder: (context, index) => rowAt(split + index),
+                    SliverPadding(
+                      key: _newerKey,
+                      padding: EdgeInsets.fromLTRB(side, 0, side, OcSpace.s12),
+                      sliver: SliverList.builder(
+                        itemCount: rows.length - split,
+                        findChildIndexCallback: (key) =>
+                            newerIndex[(key as ValueKey<Object>).value],
+                        itemBuilder: (context, index) => rowAt(split + index),
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
-            ),
-            Positioned(
-              top: OcSpace.s8,
-              left: 0,
-              right: 0,
-              child: FloatingDayPill(label: _pill),
-            ),
-            Positioned(
-              right: OcSpace.s16,
-              bottom: OcSpace.s16,
-              child: JumpToBottomButton(
-                visible:
-                    _jumpVisible ||
-                    (unseen > 0 && _laidOut(scroll) && !scroll.atEnd),
-                count: unseen,
-                onPressed: scrollToEnd,
+              Positioned(
+                top: OcSpace.s8,
+                left: 0,
+                right: 0,
+                child: FloatingDayPill(label: _pill),
               ),
-            ),
-          ],
-        );
-      },
+              Positioned(
+                right: OcSpace.s16,
+                bottom: OcSpace.s16,
+                child: JumpToBottomButton(
+                  visible:
+                      _jumpVisible ||
+                      (unseen > 0 && _laidOut(scroll) && !scroll.atEnd),
+                  count: unseen,
+                  onPressed: scrollToEnd,
+                ),
+              ),
+            ],
+          );
+        },
+      ),
     );
   }
 
-  ChatRowActions _actions(ServerData data) => ChatRowActions(
-    links: MarkdownContext(
-      userName: (id) => data.members[id]?.displayName,
-      channelName: (id) => data.channels[id]?.name,
-      onLink: (url) => openMessageLink(context, ref, url),
-      onChannel: (id) {
-        if (data.channels[id] != null) {
-          ref
-              .read(navigationProvider.notifier)
-              .openChannel(_channel.server, id);
+  ChatRowActions _actions(ServerData data) {
+    final message = MessageActions(
+      context: context,
+      ref: ref,
+      channel: _channel,
+      controller: widget.controller,
+    );
+    return ChatRowActions(
+      message: message,
+      links: MarkdownContext(
+        userName: (id) => data.members[id]?.displayName,
+        channelName: (id) => data.channels[id]?.name,
+        onLink: (url) => openMessageLink(context, ref, url),
+        onChannel: (id) {
+          if (data.channels[id] != null) {
+            ref
+                .read(navigationProvider.notifier)
+                .openChannel(_channel.server, id);
+          }
+        },
+      ),
+      onRetry: (message) {
+        if (message.nonce case final nonce?) _messages.retry(nonce);
+      },
+      onReaction: (reacted, emoji) {
+        if (reacted.sendState == SendState.sent) {
+          message.toggleReaction(reacted, emoji);
         }
       },
-    ),
-    onRetry: (message) {
-      if (message.nonce case final nonce?) _messages.retry(nonce);
-    },
-    onReaction: (message, emoji) {
-      if (message.sendState == SendState.sent) {
-        _messages.toggleReaction(message.id, emoji);
-      }
-    },
-    onJumpTo: jumpToMessage,
-  );
+      onJumpTo: jumpToMessage,
+    );
+  }
 
   /// Messages from others that arrived after the reader was last at the
   /// newest one.

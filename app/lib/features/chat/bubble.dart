@@ -52,6 +52,7 @@ class MessageBubble extends StatelessWidget {
     this.onReaction,
     this.onReplyTap,
     this.onRetry,
+    this.onSelectionChanged,
   });
 
   final Message message;
@@ -72,6 +73,9 @@ class MessageBubble extends StatelessWidget {
   final ValueChanged<String>? onReaction;
   final VoidCallback? onReplyTap;
   final VoidCallback? onRetry;
+
+  /// Makes the text selectable (§4.5) and reports what is selected.
+  final ValueChanged<String?>? onSelectionChanged;
 
   static const double _big = OcRadius.bubble;
   static const double _small = OcRadius.bubbleGrouped;
@@ -122,13 +126,15 @@ class MessageBubble extends StatelessWidget {
           if (reply != null) _ReplyQuote(reply: reply!, onTap: onReplyTap),
           Stack(
             children: [
-              MarkdownView(
-                blocks: blocks,
-                links: links,
-                color: colors.text,
-                trailing: separateMeta
-                    ? Size.zero
-                    : _Meta.size(context, message, own: own),
+              _selectable(
+                MarkdownView(
+                  blocks: blocks,
+                  links: links,
+                  color: colors.text,
+                  trailing: separateMeta
+                      ? Size.zero
+                      : _Meta.size(context, message, own: own),
+                ),
               ),
               if (!separateMeta) Positioned(right: 0, bottom: -1, child: meta),
             ],
@@ -189,6 +195,60 @@ class MessageBubble extends StatelessWidget {
       ),
     );
   }
+}
+
+extension on MessageBubble {
+  Widget _selectable(Widget text) => switch (onSelectionChanged) {
+    final onChanged? => SelectableMessageText(
+      onSelectionChanged: onChanged,
+      child: text,
+    ),
+    null => text,
+  };
+}
+
+/// Lets the text of one message be selected with the mouse (§4.5) without
+/// adding a Tab stop or a menu of its own: the message's context menu
+/// offers to copy the selection.
+class SelectableMessageText extends StatefulWidget {
+  const SelectableMessageText({
+    super.key,
+    required this.onSelectionChanged,
+    required this.child,
+  });
+
+  final ValueChanged<String?> onSelectionChanged;
+  final Widget child;
+
+  @override
+  State<SelectableMessageText> createState() => _SelectableMessageTextState();
+}
+
+class _SelectableMessageTextState extends State<SelectableMessageText> {
+  final _focus = FocusNode(skipTraversal: true, debugLabel: 'message text');
+
+  @override
+  void dispose() {
+    _focus.dispose();
+    super.dispose();
+  }
+
+  /// The row's own context menu shows instead (see `MessageItem`). A null
+  /// builder is not an option: SelectableRegion still calls it.
+  static Widget _noMenu(BuildContext context, SelectableRegionState state) =>
+      const SizedBox.shrink();
+
+  @override
+  Widget build(BuildContext context) => SelectionArea(
+    focusNode: _focus,
+    contextMenuBuilder: _noMenu,
+    onSelectionChanged: (content) {
+      // The space kept for the time is a placeholder character.
+      final text = content?.plainText.replaceAll('\uFFFC', '').trim();
+      widget.onSelectionChanged(text == null || text.isEmpty ? null : text);
+    },
+    child: widget.child,
+  );
 }
 
 class _AuthorLine extends StatelessWidget {

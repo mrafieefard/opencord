@@ -67,6 +67,20 @@ abstract final class OcIcons {
     fontFamily: fontFamily,
   );
   static const IconData edit = IconData(0xf097, fontFamily: fontFamily);
+  static const IconData emojiEvents = IconData(0xea23, fontFamily: fontFamily);
+  static const IconData emojiFlags = IconData(0xf0c6, fontFamily: fontFamily);
+  static const IconData emojiFoodBeverage = IconData(
+    0xea1b,
+    fontFamily: fontFamily,
+  );
+  static const IconData emojiNature = IconData(0xea1c, fontFamily: fontFamily);
+  static const IconData emojiObjects = IconData(0xea24, fontFamily: fontFamily);
+  static const IconData emojiPeople = IconData(0xea1d, fontFamily: fontFamily);
+  static const IconData emojiSymbols = IconData(0xea1e, fontFamily: fontFamily);
+  static const IconData emojiTransportation = IconData(
+    0xea1f,
+    fontFamily: fontFamily,
+  );
   static const IconData error = IconData(0xf8b6, fontFamily: fontFamily);
   static const IconData expandLess = IconData(0xe5ce, fontFamily: fontFamily);
   static const IconData expandMore = IconData(0xe5cf, fontFamily: fontFamily);
@@ -77,6 +91,7 @@ abstract final class OcIcons {
   static const IconData group = IconData(0xea21, fontFamily: fontFamily);
   static const IconData headphones = IconData(0xf01f, fontFamily: fontFamily);
   static const IconData headsetOff = IconData(0xe33a, fontFamily: fontFamily);
+  static const IconData history = IconData(0xe8b3, fontFamily: fontFamily);
   static const IconData hourglassEmpty = IconData(
     0xe88b,
     fontFamily: fontFamily,

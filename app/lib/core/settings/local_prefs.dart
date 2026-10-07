@@ -178,6 +178,56 @@ final trustedLinkDomainsProvider =
       TrustedLinkDomainsNotifier.new,
     );
 
+/// The quick reactions before the user has a history (§4.5).
+const defaultReactions = ['👍', '❤️', '😂', '😮', '😢', '🙏', '🎉', '🔥'];
+
+/// The [count] emoji used most, topped up with [defaultReactions]. Ties go
+/// to the default order, so the pill does not reshuffle at random.
+List<String> frequentEmoji(Map<String, int> usage, {int count = 8}) {
+  int place(String emoji) {
+    final index = defaultReactions.indexOf(emoji);
+    return index == -1 ? defaultReactions.length : index;
+  }
+
+  final used = usage.keys.toList()
+    ..sort((a, b) {
+      final byUse = usage[b]!.compareTo(usage[a]!);
+      if (byUse != 0) return byUse;
+      final byDefault = place(a).compareTo(place(b));
+      return byDefault != 0 ? byDefault : a.compareTo(b);
+    });
+  return [
+    ...used,
+    ...defaultReactions.where((emoji) => !usage.containsKey(emoji)),
+  ].take(count).toList();
+}
+
+const emojiUsageKey = 'ui.emojiUsage';
+
+/// How often each emoji was picked, for "frequently used" in the picker
+/// and the quick reaction pill.
+class EmojiUsageNotifier extends Notifier<Map<String, int>> {
+  @override
+  Map<String, int> build() {
+    final json = _readJson(ref.watch(keyValueStoreProvider), emojiUsageKey);
+    return {
+      if (json is Map)
+        for (final MapEntry(:key, :value) in json.entries)
+          if (key is String && value is int && value > 0) key: value,
+    };
+  }
+
+  void use(String emoji) {
+    state = {...state, emoji: (state[emoji] ?? 0) + 1};
+    ref.read(keyValueStoreProvider).write(emojiUsageKey, jsonEncode(state));
+  }
+}
+
+final emojiUsageProvider =
+    NotifierProvider<EmojiUsageNotifier, Map<String, int>>(
+      EmojiUsageNotifier.new,
+    );
+
 const selfPresenceKey = 'ui.presence';
 
 /// The presence the user chose for themselves (§4.2 user panel). The
