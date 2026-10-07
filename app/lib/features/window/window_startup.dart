@@ -31,7 +31,7 @@ Future<WindowInfo> startWindow({
     environment: Platform.environment,
     preference: settings.windowFrame,
   );
-  await saveWindowChrome(dataDir, chrome);
+  await saveWindowFrame(dataDir, settings.windowFrame);
   final restore = settings.restoreWindowPosition
       ? savedWindowGeometry(store)
       : null;
@@ -69,24 +69,23 @@ final frameChoiceSaverProvider =
 Future<void> Function(WindowFramePreference) frameChoiceSaver(
   Directory dataDir,
 ) =>
-    (preference) => saveWindowChrome(
-      dataDir,
-      resolveWindowChrome(
-        platform: defaultTargetPlatform,
-        environment: Platform.environment,
-        preference: preference,
-      ),
-    );
+    (preference) => saveWindowFrame(dataDir, preference);
 
 /// The runner reads this file when it creates the window at the next start:
-/// GTK has to know about decorations before the app runs.
-Future<void> saveWindowChrome(Directory dataDir, WindowChrome chrome) async {
+/// GTK has to know about decorations before the app runs. It holds the
+/// choice (auto, custom or system), and the runner settles Auto for the
+/// desktop it starts on, which can differ from this one.
+Future<void> saveWindowFrame(
+  Directory dataDir,
+  WindowFramePreference preference,
+) async {
   final file = File('${dataDir.path}/window-chrome');
   try {
-    if (file.existsSync() && file.readAsStringSync().trim() == chrome.name) {
+    if (file.existsSync() &&
+        file.readAsStringSync().trim() == preference.name) {
       return;
     }
-    await file.writeAsString(chrome.name);
+    await file.writeAsString(preference.name);
   } on FileSystemException catch (error) {
     debugPrint('could not save the window frame choice: $error');
   }

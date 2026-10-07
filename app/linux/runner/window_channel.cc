@@ -358,11 +358,12 @@ WindowChrome window_chrome_at_startup() {
   g_autofree gchar* path = g_build_filename(g_get_user_data_dir(),
                                             APPLICATION_ID, "window-chrome",
                                             nullptr);
+  // The user's choice; Auto (or anything else) is settled here, for the
+  // desktop this start finds.
   g_autofree gchar* saved = nullptr;
   if (g_file_get_contents(path, &saved, nullptr, nullptr)) {
     g_strstrip(saved);
     if (strcmp(saved, "system") == 0) return WindowChrome::kSystem;
-    if (strcmp(saved, "bare") == 0) return WindowChrome::kBare;
     if (strcmp(saved, "custom") == 0) return WindowChrome::kCustom;
   }
   static const char* const tiling[] = {"hyprland", "sway", "i3",  "river",
