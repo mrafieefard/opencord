@@ -42,6 +42,7 @@ dependencies:
   url_launcher: ^6.3.3
   dbus: ^0.7.15
   desktop_drop: ^0.8.4
+  flutter_secure_storage: ^11.2.0
 
 dev_dependencies:
   flutter_test:
