@@ -420,6 +420,122 @@ void main() {
     },
   );
 
+  group('a new display name (Phase 1 §9.1)', () {
+    const home = core.Server(
+      key: _server,
+      name: 'Home',
+      host: 'home.example',
+      port: 7710,
+    );
+    final saved = SavedIdentity(
+      secret: Uint8List.fromList([9]),
+      displayName: 'Alex',
+    );
+
+    test(
+      'reaches a server that was not connected, at its next session',
+      () async {
+        final harness = await _Harness.start(saved: saved);
+        harness.core
+          ..servers = const [home]
+          ..profileErrors[_server] = const core.CoreError.notConnected();
+
+        await harness.repository.updateDisplayName('Sam');
+        harness.core.profileErrors.clear();
+        // The server still knows the old name (Alex, in Ready's self).
+        harness.core.emit(_server, core.CoreEventPayload.ready(_ready()));
+        await harness.settle();
+        await harness.settle();
+
+        expect(
+          harness.core.calls.where((call) => call == 'profile:$_server:Sam'),
+          hasLength(2),
+        );
+      },
+    );
+
+    test('still reaches the other servers when one refuses it', () async {
+      final harness = await _Harness.start(saved: saved);
+      harness.core
+        ..servers = const [
+          core.Server(key: 'a:1', name: 'A', host: 'a', port: 1),
+          core.Server(key: 'b:1', name: 'B', host: 'b', port: 1),
+        ]
+        ..profileErrors['a:1'] = const core.CoreError.server(
+          code: core.ErrorCode.forbidden,
+          message: 'Not here.',
+        );
+
+      await expectLater(
+        harness.repository.updateDisplayName('Sam'),
+        throwsA(isA<RepoException>()),
+      );
+      expect(harness.core.calls, contains('profile:b:1:Sam'));
+    });
+  });
+
+  group('a private channel', () {
+    test('that cannot be made private is not left public', () async {
+      final harness = await _Harness.start();
+      harness.core.emit(_server, core.CoreEventPayload.ready(_ready()));
+      await harness.settle();
+      await harness.settle();
+      harness.core.overwriteError = const core.CoreError.notConnected();
+
+      await expectLater(
+        harness.repository.createChannel(
+          _server,
+          kind: ChannelKind.text,
+          name: 'secret',
+          private: true,
+        ),
+        throwsA(isA<RepoException>()),
+      );
+      expect(harness.core.calls, contains('deleteChannel:77'));
+    });
+
+    test('left public after all says so', () async {
+      final harness = await _Harness.start();
+      harness.core.emit(_server, core.CoreEventPayload.ready(_ready()));
+      await harness.settle();
+      await harness.settle();
+      harness.core
+        ..overwriteError = const core.CoreError.notConnected()
+        ..deleteError = const core.CoreError.notConnected();
+
+      await expectLater(
+        harness.repository.createChannel(
+          _server,
+          kind: ChannelKind.text,
+          name: 'secret',
+          private: true,
+        ),
+        throwsA(
+          isA<RepoException>().having(
+            (e) => e.message,
+            'message',
+            contains('could not be made private'),
+          ),
+        ),
+      );
+    });
+
+    test('is not made before the server is known', () async {
+      final harness = await _Harness.start();
+
+      await expectLater(
+        harness.repository.createChannel(
+          _server,
+          kind: ChannelKind.text,
+          name: 'secret',
+          private: true,
+        ),
+        throwsA(isA<RepoException>()),
+      );
+      expect(harness.core.calls, isNot(contains(startsWith('createChannel'))));
+    });
+  });
+
   test('presence goes to every server, invisible as offline', () async {
     final harness = await _Harness.start();
     harness.core.servers = const [

@@ -239,13 +239,27 @@ class RustRepository implements OpencordRepository {
   Future<void> updateDisplayName(String displayName) async {
     final name = displayName.trim();
     await _saveAndUse(_currentSecret, name);
+    RepoException? refused;
     for (final server in _listServers()) {
       try {
         await _core.updateProfile(server.key, name);
       } on core.CoreError catch (error) {
-        // Servers not connected now learn the name at the next handshake.
-        if (error is! core.CoreError_NotConnected) throw errorFrom(error);
+        // Servers not connected now get it after their next Ready.
+        if (error is! core.CoreError_NotConnected) refused ??= errorFrom(error);
       }
+    }
+    if (refused != null) throw refused;
+  }
+
+  /// A server that missed a new name (it changed while that server was
+  /// not connected) gets it now.
+  Future<void> _catchUpName(String server, core.ReadySnapshot ready) async {
+    final name = _identity?.displayName;
+    if (name == null || ready.selfUser.displayName == name) return;
+    try {
+      await _core.updateProfile(server, name);
+    } on core.CoreError catch (error) {
+      developer.log('$server kept the old name: $error', name: 'core');
     }
   }
 
@@ -306,6 +320,7 @@ class RustRepository implements OpencordRepository {
     }
     _refreshServers();
     if (_presence != SelfPresence.online) unawaited(_sendPresence(server));
+    unawaited(_catchUpName(server, ready));
   }
 
   /// The newest message and unread counts per readable text channel, from
@@ -587,6 +602,13 @@ class RustRepository implements OpencordRepository {
     String? topic,
     bool private = false,
   }) async {
+    final snapshot = _snapshots[serverKey];
+    if (private && snapshot == null) {
+      throw const RepoException(
+        RepoErrorKind.notConnected,
+        'Not connected to that server right now.',
+      );
+    }
     final created = await _call(
       () => _core.createChannel(
         serverKey,
@@ -596,33 +618,46 @@ class RustRepository implements OpencordRepository {
         parentId,
       ),
     );
-    final snapshot = _snapshots[serverKey];
     if (!private || snapshot == null) return channelFrom(created);
-    await setOverwrite(
-      serverKey,
-      created.id,
-      PermissionOverwrite(
-        targetKind: OverwriteTargetKind.member,
-        targetId: snapshot.self.id,
-        allow: Permissions.viewChannel,
-        deny: Permissions.none,
-      ),
-    );
-    final hidden = await _call(
-      () => _core.setChannelOverwrite(
+    try {
+      await setOverwrite(
         serverKey,
         created.id,
-        overwriteTo(
-          PermissionOverwrite(
-            targetKind: OverwriteTargetKind.role,
-            targetId: snapshot.info.everyoneRoleId,
-            allow: Permissions.none,
-            deny: Permissions.viewChannel,
+        PermissionOverwrite(
+          targetKind: OverwriteTargetKind.member,
+          targetId: snapshot.self.id,
+          allow: Permissions.viewChannel,
+          deny: Permissions.none,
+        ),
+      );
+      final hidden = await _call(
+        () => _core.setChannelOverwrite(
+          serverKey,
+          created.id,
+          overwriteTo(
+            PermissionOverwrite(
+              targetKind: OverwriteTargetKind.role,
+              targetId: snapshot.info.everyoneRoleId,
+              allow: Permissions.none,
+              deny: Permissions.viewChannel,
+            ),
           ),
         ),
-      ),
-    );
-    return channelFrom(hidden);
+      );
+      return channelFrom(hidden);
+    } on RepoException {
+      // Never left public: it goes again, or the person is told to.
+      try {
+        await _call(() => _core.deleteChannel(serverKey, created.id));
+      } on RepoException {
+        throw RepoException(
+          RepoErrorKind.other,
+          '#$name was made but could not be made private, or removed. '
+          'Delete it, or make it private in its settings.',
+        );
+      }
+      rethrow;
+    }
   }
 
   @override

@@ -147,6 +147,12 @@ class FakeCoreApi extends Fake implements CoreApi {
     );
   }
 
+  /// Thrown by setChannelOverwrite, when set.
+  core.CoreError? overwriteError;
+
+  /// Thrown by updateProfile for these servers.
+  final profileErrors = <String, core.CoreError>{};
+
   @override
   Future<core.Channel> setChannelOverwrite(
     String serverKey,
@@ -157,12 +163,34 @@ class FakeCoreApi extends Fake implements CoreApi {
       'overwrite:$channelId:${overwrite.targetKind.name}:${overwrite.targetId}'
       ':allow=${overwrite.allow}:deny=${overwrite.deny}',
     );
+    if (overwriteError case final error?) throw error;
     return core.Channel(
       id: channelId,
       kind: core.ChannelKind.text,
       name: 'private',
       position: 0,
       overwrites: [overwrite],
+    );
+  }
+
+  /// Thrown by deleteChannel, when set.
+  core.CoreError? deleteError;
+
+  @override
+  Future<void> deleteChannel(String serverKey, int channelId) async {
+    calls.add('deleteChannel:$channelId');
+    if (deleteError case final error?) throw error;
+  }
+
+  @override
+  Future<core.User> updateProfile(String serverKey, String displayName) async {
+    calls.add('profile:$serverKey:$displayName');
+    if (profileErrors[serverKey] case final error?) throw error;
+    return core.User(
+      id: 1,
+      publicKeyHex: identityInfo.publicKeyHex,
+      fingerprint: identityInfo.fingerprint,
+      displayName: displayName,
     );
   }
 
