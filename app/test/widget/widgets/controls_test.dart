@@ -231,4 +231,34 @@ void main() {
       expect(formatCount(1200000), '1.2M');
     });
   });
+
+  testWidgets('buttons are as wide as their label unless asked to expand', (
+    tester,
+  ) async {
+    await pumpThemed(
+      tester,
+      surface: const Size(600, 200),
+      const Align(
+        alignment: Alignment.topLeft,
+        child: SizedBox(
+          width: 500,
+          child: Wrap(
+            children: [
+              OcButton(label: 'Cancel', key: Key('cancel')),
+              SizedBox(
+                width: 500,
+                child: OcButton(label: 'Wide', expand: true, key: Key('wide')),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    expect(
+      tester.getSize(find.byKey(const Key('cancel'))).width,
+      lessThan(120),
+    );
+    expect(tester.getSize(find.byKey(const Key('wide'))).width, 500);
+  });
 }

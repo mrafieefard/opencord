@@ -129,7 +129,9 @@ class OcButton extends StatelessWidget {
             width: expand ? double.infinity : null,
             padding: EdgeInsets.symmetric(horizontal: dense ? 12 : 16),
             decoration: BoxDecoration(color: background, borderRadius: radius),
-            alignment: Alignment.center,
+            // An aligned container fills the width it is offered, so only
+            // an expanding button centres its label that way.
+            alignment: expand ? Alignment.center : null,
             child: busy
                 ? Stack(
                     alignment: Alignment.center,

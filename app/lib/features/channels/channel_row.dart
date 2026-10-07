@@ -17,9 +17,8 @@ import 'package:opencord/ui/theme/oc_motion.dart';
 import 'package:opencord/ui/theme/oc_text.dart';
 import 'package:opencord/ui/widgets/badges.dart';
 import 'package:opencord/ui/widgets/channel_glyph.dart';
+import 'package:opencord/ui/widgets/confirm_dialog.dart';
 import 'package:opencord/ui/widgets/hoverable.dart';
-import 'package:opencord/ui/widgets/oc_button.dart';
-import 'package:opencord/ui/widgets/oc_dialog.dart';
 import 'package:opencord/ui/widgets/oc_menu.dart';
 import 'package:opencord/ui/widgets/toast.dart';
 
@@ -163,24 +162,13 @@ Future<void> confirmDeleteChannel(
   Channel channel,
 ) async {
   final name = channel.kind.isTextLike ? '#${channel.name}' : channel.name;
-  final delete = await showOcDialog<bool>(
-    context: context,
-    builder: (context) => OcDialog(
-      title: 'Delete $name?',
-      actions: [
-        OcButton(
-          label: 'Cancel',
-          onPressed: () => Navigator.pop(context, false),
-        ),
-        OcButton.primary(
-          label: 'Delete channel',
-          onPressed: () => Navigator.pop(context, true),
-        ),
-      ],
-      child: Text('This deletes $name and its messages for everyone.'),
-    ),
+  final delete = await confirmAction(
+    context,
+    title: 'Delete $name?',
+    message: 'This deletes $name and its messages for everyone.',
+    action: 'Delete channel',
   );
-  if (delete != true) return;
+  if (!delete) return;
   try {
     await ref.read(repositoryProvider).deleteChannel(serverKey, channel.id);
   } on RepoException catch (error) {

@@ -75,6 +75,8 @@ class ConnectionStatus {
     this.retryAt,
     this.failure,
     this.message,
+    this.expectedFingerprint,
+    this.presentedFingerprint,
   });
 
   const ConnectionStatus.connecting() : this._(ConnectionPhase.connecting);
@@ -86,8 +88,18 @@ class ConnectionStatus {
     required DateTime retryAt,
   }) : this._(ConnectionPhase.reconnecting, attempt: attempt, retryAt: retryAt);
 
-  const ConnectionStatus.failed(FailureReason reason, String message)
-    : this._(ConnectionPhase.failed, failure: reason, message: message);
+  const ConnectionStatus.failed(
+    FailureReason reason,
+    String message, {
+    String? expectedFingerprint,
+    String? presentedFingerprint,
+  }) : this._(
+         ConnectionPhase.failed,
+         failure: reason,
+         message: message,
+         expectedFingerprint: expectedFingerprint,
+         presentedFingerprint: presentedFingerprint,
+       );
 
   final ConnectionPhase phase;
   final int attempt;
@@ -96,6 +108,11 @@ class ConnectionStatus {
   final DateTime? retryAt;
   final FailureReason? failure;
   final String? message;
+
+  /// With [FailureReason.fingerprintChanged]: the pinned fingerprint and
+  /// the one the server showed instead (lowercase hex).
+  final String? expectedFingerprint;
+  final String? presentedFingerprint;
 
   bool get isConnected => phase == ConnectionPhase.connected;
 
@@ -106,8 +123,18 @@ class ConnectionStatus {
       other.attempt == attempt &&
       other.retryAt == retryAt &&
       other.failure == failure &&
-      other.message == message;
+      other.message == message &&
+      other.expectedFingerprint == expectedFingerprint &&
+      other.presentedFingerprint == presentedFingerprint;
 
   @override
-  int get hashCode => Object.hash(phase, attempt, retryAt, failure, message);
+  int get hashCode => Object.hash(
+    phase,
+    attempt,
+    retryAt,
+    failure,
+    message,
+    expectedFingerprint,
+    presentedFingerprint,
+  );
 }

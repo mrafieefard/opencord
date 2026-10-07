@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:opencord/core/format.dart';
 import 'package:opencord/core/model/channel.dart';
+import 'package:opencord/core/model/permissions.dart';
 import 'package:opencord/core/model/presence.dart';
 import 'package:opencord/core/model/server.dart';
 import 'package:opencord/core/providers/providers.dart';
@@ -12,6 +13,8 @@ import 'package:opencord/features/channels/channel_row.dart';
 import 'package:opencord/features/channels/user_panel.dart';
 import 'package:opencord/features/channels/voice_channel_row.dart';
 import 'package:opencord/features/channels/voice_panel.dart';
+import 'package:opencord/features/dialogs/create_channel_dialog.dart';
+import 'package:opencord/features/dialogs/invite_dialog.dart';
 import 'package:opencord/features/servers/server_rail.dart';
 import 'package:opencord/features/shell/navigation.dart';
 import 'package:opencord/features/switcher/quick_switcher.dart';
@@ -24,6 +27,7 @@ import 'package:opencord/ui/theme/oc_text.dart';
 import 'package:opencord/ui/widgets/badges.dart';
 import 'package:opencord/ui/widgets/hoverable.dart';
 import 'package:opencord/ui/widgets/key_hint.dart';
+import 'package:opencord/ui/widgets/oc_icon_button.dart';
 import 'package:opencord/ui/widgets/oc_menu.dart';
 import 'package:opencord/ui/widgets/popover.dart';
 import 'package:opencord/ui/widgets/section_label.dart';
@@ -155,11 +159,33 @@ class _ServerHeader extends ConsumerWidget {
 
   Future<void> _showMenu(BuildContext context, WidgetRef ref, String name) {
     final muted = ref.read(notificationPrefsProvider).serverMuted(serverKey);
+    final data = ref.read(serverProvider(serverKey)).data;
+    final invite = data?.can(Permissions.createInvite) ?? false;
+    final manage = data?.can(Permissions.manageChannels) ?? false;
     final rect = globalRectOf(context);
     return showOcMenu(
       context: context,
       position: rect.bottomLeft.translate(0, 6),
       entries: [
+        if (invite)
+          OcMenuItem(
+            label: 'Invite people',
+            icon: OcIcons.personAdd,
+            onSelected: () => showInvitePeople(context, serverKey: serverKey),
+          ),
+        if (manage) ...[
+          OcMenuItem(
+            label: 'Create channel',
+            icon: OcIcons.add,
+            onSelected: () => showCreateChannel(context, serverKey: serverKey),
+          ),
+          OcMenuItem(
+            label: 'Create category',
+            icon: OcIcons.createNewFolder,
+            onSelected: () => showCreateCategory(context, serverKey: serverKey),
+          ),
+        ],
+        if (invite || manage) const OcMenuDivider(),
         OcMenuItem(
           label: muted ? 'Unmute notifications' : 'Mute notifications',
           icon: muted ? OcIcons.notifications : OcIcons.notificationsOff,
@@ -312,6 +338,36 @@ class _CategoryRow extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final manage =
+        ref.watch(
+          serverProvider(
+            serverKey,
+          ).select((s) => s.data?.can(Permissions.manageChannels)),
+        ) ??
+        false;
+    final toggle = _toggle(context, ref);
+    if (!manage) return toggle;
+    return Row(
+      children: [
+        Expanded(child: toggle),
+        Padding(
+          padding: const EdgeInsets.only(top: OcSpace.s8, right: OcSpace.s8),
+          child: OcIconButton(
+            icon: OcIcons.add,
+            tooltip: 'Create channel in ${category.name}',
+            size: OcIconButtonSize.compact,
+            onPressed: () => showCreateChannel(
+              context,
+              serverKey: serverKey,
+              parentId: category.id,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _toggle(BuildContext context, WidgetRef ref) {
     final colors = context.oc;
     return Hoverable(
       onTap: () => ref

@@ -146,12 +146,14 @@ MockWorld buildMockWorld(DateTime now) {
 }
 
 String fakeFingerprint(String seed) {
+  // FNV-1a over the whole seed, then stretched to 64 hex digits.
   var hash = 0x811c9dc5;
+  for (final unit in seed.codeUnits) {
+    hash = ((hash ^ unit) * 0x01000193) & 0xffffffff;
+  }
   final buffer = StringBuffer();
   for (var i = 0; buffer.length < 64; i++) {
-    hash =
-        ((hash ^ seed.codeUnitAt(i % seed.length) ^ i) * 0x01000193) &
-        0xffffffff;
+    hash = ((hash ^ i) * 0x01000193) & 0xffffffff;
     buffer.write(hash.toRadixString(16).padLeft(8, '0'));
   }
   return buffer.toString().substring(0, 64);

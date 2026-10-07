@@ -3,9 +3,12 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:opencord/core/model/server.dart';
+import 'package:opencord/core/model/permissions.dart';
 import 'package:opencord/core/providers/providers.dart';
 import 'package:opencord/core/repository/repository.dart';
 import 'package:opencord/core/settings/local_prefs.dart';
+import 'package:opencord/features/dialogs/add_server_dialog.dart';
+import 'package:opencord/features/dialogs/invite_dialog.dart';
 import 'package:opencord/features/shell/navigation.dart';
 import 'package:opencord/features/window/drag_area.dart';
 import 'package:opencord/features/window/window_mode.dart';
@@ -17,9 +20,8 @@ import 'package:opencord/ui/theme/oc_motion.dart';
 import 'package:opencord/ui/theme/oc_text.dart';
 import 'package:opencord/ui/widgets/avatar.dart';
 import 'package:opencord/ui/widgets/badges.dart';
+import 'package:opencord/ui/widgets/confirm_dialog.dart';
 import 'package:opencord/ui/widgets/hoverable.dart';
-import 'package:opencord/ui/widgets/oc_button.dart';
-import 'package:opencord/ui/widgets/oc_dialog.dart';
 import 'package:opencord/ui/widgets/oc_icon_button.dart';
 import 'package:opencord/ui/widgets/oc_menu.dart';
 import 'package:opencord/ui/widgets/toast.dart';
@@ -79,7 +81,11 @@ class ServerRail extends ConsumerWidget {
             ),
           ),
           const SizedBox(height: OcSpace.s4),
-          const OcIconButton(icon: OcIcons.add, tooltip: 'Add server'),
+          OcIconButton(
+            icon: OcIcons.add,
+            tooltip: 'Add server',
+            onPressed: () => showAddServer(context),
+          ),
           const SizedBox(height: OcSpace.s12),
         ],
       ),
@@ -179,6 +185,16 @@ class _RailEntry extends ConsumerWidget {
           showOcToast(context, 'Address copied');
         },
       ),
+      if (ref
+              .read(serverProvider(server.key))
+              .data
+              ?.can(Permissions.createInvite) ??
+          false)
+        OcMenuItem(
+          label: 'Invite people',
+          icon: OcIcons.personAdd,
+          onSelected: () => showInvitePeople(context, serverKey: server.key),
+        ),
       const OcMenuDivider(),
       OcMenuItem(
         label: 'Leave server',
@@ -197,26 +213,15 @@ Future<void> confirmLeaveServer(
   String serverKey,
   String name,
 ) async {
-  final leave = await showOcDialog<bool>(
-    context: context,
-    builder: (context) => OcDialog(
-      title: 'Leave $name?',
-      actions: [
-        OcButton(
-          label: 'Cancel',
-          onPressed: () => Navigator.pop(context, false),
-        ),
-        OcButton.primary(
-          label: 'Leave server',
-          onPressed: () => Navigator.pop(context, true),
-        ),
-      ],
-      child: Text(
-        '$name will be removed from this device. You stay a member, so you can add it again later.',
-      ),
-    ),
+  final leave = await confirmAction(
+    context,
+    title: 'Leave $name?',
+    message:
+        '$name will be removed from this device. You stay a member, so you '
+        'can add it again later.',
+    action: 'Leave server',
   );
-  if (leave == true) await ref.read(repositoryProvider).removeServer(serverKey);
+  if (leave) await ref.read(repositoryProvider).removeServer(serverKey);
 }
 
 /// One rail item (§4.1), separate from its data so every state can be

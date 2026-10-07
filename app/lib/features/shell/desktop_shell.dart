@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:opencord/core/providers/providers.dart';
 import 'package:opencord/features/channels/channel_sidebar.dart';
 import 'package:opencord/features/chat/chat_area.dart';
+import 'package:opencord/features/dialogs/identity_changed_dialog.dart';
 import 'package:opencord/features/members/member_panel.dart';
 import 'package:opencord/features/servers/server_rail.dart';
 import 'package:opencord/features/shell/debug_menu.dart';
@@ -45,6 +46,25 @@ class _DesktopShellState extends ConsumerState<DesktopShell> {
       (previous, title) => ref.read(nativeWindowProvider).setTitle(title),
       fireImmediately: true,
     );
+    ref.listenManual(identityChangesProvider, (previous, next) {
+      for (final MapEntry(key: server, value: status) in next.entries) {
+        if (previous?.containsKey(server) ?? false) continue;
+        final name =
+            ref.read(serverProvider(server)).data?.info.name ??
+            ref
+                .read(serverListProvider)
+                .where((summary) => summary.key == server)
+                .firstOrNull
+                ?.name ??
+            server;
+        showIdentityChanged(
+          context,
+          serverKey: server,
+          name: name,
+          status: status,
+        );
+      }
+    });
   }
 
   void _toggleFullscreen() {

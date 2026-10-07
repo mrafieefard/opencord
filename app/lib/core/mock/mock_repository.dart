@@ -188,6 +188,8 @@ class MockRepository implements OpencordRepository {
         ConnectionStatus.failed(
           FailureReason.fingerprintChanged,
           "The server's certificate changed: expected ${server.fingerprint}, got $presented",
+          expectedFingerprint: server.fingerprint,
+          presentedFingerprint: presented,
         ),
       ),
     );
