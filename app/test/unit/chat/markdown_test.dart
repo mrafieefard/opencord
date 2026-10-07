@@ -60,6 +60,14 @@ void main() {
     ]);
   });
 
+  test('opencord links are links too', () {
+    expect(inlines('open opencord://home.example:7710/c/10/5, now'), [
+      const MdText('open '),
+      const MdLink('opencord://home.example:7710/c/10/5'),
+      const MdText(', now'),
+    ]);
+  });
+
   test('ids too big for 64 bits are not mentions', () {
     expect(parseInline('hi <@99999999999999999999> <#9223372036854775808>'), [
       const MdText('hi <@99999999999999999999> <#9223372036854775808>'),

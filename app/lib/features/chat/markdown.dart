@@ -213,7 +213,8 @@ int _closingFence(List<String> lines, int from) {
   return -1;
 }
 
-final _url = RegExp(r'''https?://[^\s<>"]+''');
+/// Web links, and the app's own (§15: channel, message and invite links).
+final _url = RegExp(r'''(?:https?|opencord)://[^\s<>"]+''');
 const _escapable = r'\*_~`<>#@';
 const _trailing = ".,!?;:'\")";
 
@@ -269,7 +270,7 @@ List<MdInline> parseInline(
         }
       }
     }
-    if (char == 'h' && (i == 0 || !_isWord(text[i - 1]))) {
+    if ((char == 'h' || char == 'o') && (i == 0 || !_isWord(text[i - 1]))) {
       final link = _url.matchAsPrefix(text, i);
       if (link != null) {
         var url = link[0]!;
