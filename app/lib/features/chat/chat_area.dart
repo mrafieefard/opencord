@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:opencord/core/model/channel.dart';
 import 'package:opencord/core/providers/providers.dart';
 import 'package:opencord/core/repository/repository.dart';
 import 'package:opencord/features/chat/chat_controller.dart';
@@ -9,6 +10,7 @@ import 'package:opencord/features/chat/composer.dart';
 import 'package:opencord/features/chat/message_list.dart';
 import 'package:opencord/features/chat/pinned_bar.dart';
 import 'package:opencord/features/shell/navigation.dart';
+import 'package:opencord/features/voice/voice_view.dart';
 import 'package:opencord/ui/theme/oc_colors.dart';
 
 /// The main column: the open channel's header and content.
@@ -88,7 +90,11 @@ class _ChatAreaState extends ConsumerState<ChatArea> {
               channel: open,
               controller: _controller,
             ),
-          ] else
+          ] else if (open != null && channel!.kind == ChannelKind.voice)
+            Expanded(
+              child: VoiceView(key: ValueKey(('voice', open)), channel: open),
+            )
+          else
             const Expanded(child: SizedBox()),
         ],
       ),

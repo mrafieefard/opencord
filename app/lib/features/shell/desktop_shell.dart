@@ -16,6 +16,7 @@ import 'package:opencord/features/shell/window_title.dart';
 import 'package:opencord/features/settings/user_settings.dart';
 import 'package:opencord/features/switcher/quick_switcher.dart';
 import 'package:opencord/features/window/window_providers.dart';
+import 'package:opencord/features/voice/voice_focus.dart';
 import 'package:opencord/ui/theme/oc_colors.dart';
 import 'package:opencord/ui/theme/oc_metrics.dart';
 import 'package:opencord/ui/theme/oc_motion.dart';
@@ -107,12 +108,18 @@ class _DesktopShellState extends ConsumerState<DesktopShell> {
     if (next != null) ref.read(navigationProvider.notifier).openServer(next);
   }
 
-  void _markRead() {
+  /// Escape with nothing else to close: leaves voice focus mode, or marks
+  /// the open channel read (§7).
+  void _escape() {
     final server = ref.read(currentServerProvider);
     final channel = ref.read(currentChannelProvider);
-    if (server != null && channel != null) {
-      ref.read(activityProvider(server).notifier).markRead(channel);
+    if (server == null || channel == null) return;
+    final focus = voiceFocusProvider((server: server, channel: channel));
+    if (ref.read(focus) != null) {
+      ref.read(focus.notifier).clear();
+      return;
     }
+    ref.read(activityProvider(server).notifier).markRead(channel);
   }
 
   Map<Type, Action<Intent>> _actions() => {
@@ -134,9 +141,7 @@ class _DesktopShellState extends ConsumerState<DesktopShell> {
     ToggleMembersIntent: CallbackAction<ToggleMembersIntent>(
       onInvoke: (_) => _toggleMembers(),
     ),
-    MarkReadIntent: CallbackAction<MarkReadIntent>(
-      onInvoke: (_) => _markRead(),
-    ),
+    MarkReadIntent: CallbackAction<MarkReadIntent>(onInvoke: (_) => _escape()),
     UserSettingsIntent: CallbackAction<UserSettingsIntent>(
       onInvoke: (_) => showUserSettings(context),
     ),

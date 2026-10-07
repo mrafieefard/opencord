@@ -37,7 +37,8 @@ class ToggleMembersIntent extends Intent {
   const ToggleMembersIntent();
 }
 
-/// Escape with nothing else to close: marks the open channel read.
+/// Escape with nothing else to close: leaves voice focus mode, or marks
+/// the open channel read.
 class MarkReadIntent extends Intent {
   const MarkReadIntent();
 }

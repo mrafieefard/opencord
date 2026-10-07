@@ -180,6 +180,14 @@ class _Title extends ConsumerWidget {
       for (final id in typing) members?[id]?.displayName ?? 'Someone',
     ];
     final audience = ref.watch(channelAudienceProvider(channel));
+    // Voice channels count who is in them instead (§4.10).
+    final connected = target.kind == ChannelKind.voice
+        ? ref.watch(
+            voiceProvider(
+              channel.server,
+            ).select((voice) => voice[channel.channel]?.length ?? 0),
+          )
+        : null;
     final topic = target.topic;
     final style = OcText.small.copyWith(color: colors.textSecondary);
     return Column(
@@ -208,12 +216,16 @@ class _Title extends ConsumerWidget {
           )
         else
           Text(
-            [
-              '${countLabel(audience.members)} member'
-                  '${audience.members == 1 ? '' : 's'}, '
-                  '${countLabel(audience.online)} online',
-              if (topic != null && topic.isNotEmpty) topic,
-            ].join(' · '),
+            switch (connected) {
+              0 => 'No one connected',
+              final count? => '${countLabel(count)} connected',
+              null => [
+                '${countLabel(audience.members)} member'
+                    '${audience.members == 1 ? '' : 's'}, '
+                    '${countLabel(audience.online)} online',
+                if (topic != null && topic.isNotEmpty) topic,
+              ].join(' · '),
+            },
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: style,

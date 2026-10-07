@@ -9,6 +9,7 @@ import 'package:opencord/features/channels/channel_row.dart';
 import 'package:opencord/features/servers/server_rail.dart';
 import 'package:opencord/features/shell/navigation.dart';
 import 'package:opencord/ui/widgets/badges.dart';
+import 'package:opencord/features/channels/voice_panel.dart';
 
 import '../../support/app.dart';
 
@@ -191,7 +192,12 @@ void main() {
         await tester.tap(find.bySemanticsLabel('Camera'));
         await tester.pump();
         final camera = app.read(voiceSessionProvider).camera;
-        await tester.tap(find.bySemanticsLabel('Disconnect'));
+        await tester.tap(
+          find.descendant(
+            of: find.byType(VoiceConnectedPanel),
+            matching: find.bySemanticsLabel('Disconnect'),
+          ),
+        );
         await tester.pump();
 
         expect(live, 1);

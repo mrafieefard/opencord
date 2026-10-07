@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:opencord/core/providers/providers.dart';
 import 'package:opencord/features/shell/navigation.dart';
+import 'package:opencord/features/voice/voice_controls.dart';
 import 'package:opencord/ui/theme/oc_colors.dart';
 import 'package:opencord/ui/theme/oc_icons.dart';
 import 'package:opencord/ui/theme/oc_metrics.dart';
@@ -121,7 +122,7 @@ class VoiceConnectedPanel extends ConsumerWidget {
                       : OcIcons.screenShare,
                   label: 'Screen',
                   active: voice.screensharing,
-                  onTap: session.toggleScreenshare,
+                  onTap: () => toggleScreenshare(context, ref),
                 ),
               ),
             ],

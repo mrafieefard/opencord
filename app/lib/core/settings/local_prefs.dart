@@ -369,3 +369,37 @@ final audioSettingsProvider =
     NotifierProvider<AudioSettingsNotifier, AudioSettings>(
       AudioSettingsNotifier.new,
     );
+
+/// Screenshare quality (§4.10).
+enum ScreenQuality {
+  hd720p30('720p30'),
+  hd1080p30('1080p30'),
+  hd1080p60('1080p60'),
+  source('Source');
+
+  const ScreenQuality(this.label);
+
+  final String label;
+}
+
+const screenQualityKey = 'ui.screenQuality';
+
+/// The quality last picked for screensharing; the picker starts there.
+class ScreenQualityNotifier extends Notifier<ScreenQuality> {
+  @override
+  ScreenQuality build() {
+    final saved = ref.watch(keyValueStoreProvider).read(screenQualityKey);
+    return ScreenQuality.values.where((q) => q.name == saved).firstOrNull ??
+        ScreenQuality.hd1080p30;
+  }
+
+  void set(ScreenQuality quality) {
+    state = quality;
+    ref.read(keyValueStoreProvider).write(screenQualityKey, quality.name);
+  }
+}
+
+final screenQualityProvider =
+    NotifierProvider<ScreenQualityNotifier, ScreenQuality>(
+      ScreenQualityNotifier.new,
+    );
