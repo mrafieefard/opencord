@@ -57,6 +57,10 @@ String dayLabel(DateTime day, DateTime now) {
   return day.year == now.year ? date : '$date ${day.year}';
 }
 
+/// `7 October 2026`, for "member since" (§4.8).
+String longDate(DateTime time) =>
+    '${time.day} ${_months[time.month - 1]} ${time.year}';
+
 /// `Wednesday, 7 October 2026 at 09:05`, for timestamp tooltips (§16).
 String fullTimestamp(DateTime time) =>
     '${_weekdays[time.weekday - 1]}, ${time.day} ${_months[time.month - 1]} '

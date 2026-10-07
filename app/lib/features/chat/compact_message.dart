@@ -30,6 +30,7 @@ class CompactMessage extends StatelessWidget {
     this.onReplyTap,
     this.onRetry,
     this.onSelectionChanged,
+    this.onAuthorTap,
   });
 
   final Message message;
@@ -46,6 +47,9 @@ class CompactMessage extends StatelessWidget {
   final VoidCallback? onRetry;
   final ValueChanged<String?>? onSelectionChanged;
 
+  /// Opens the author's profile from their name (§16).
+  final VoidCallback? onAuthorTap;
+
   /// Room for "23:59" in the time column.
   static const double timeWidth = 44;
 
@@ -61,10 +65,29 @@ class CompactMessage extends StatelessWidget {
       color: colors.text,
       lead: [
         if (first) ...[
-          TextSpan(
-            text: author,
-            style: OcText.bodyStrong.copyWith(color: colors.text),
-          ),
+          if (onAuthorTap case final onTap?)
+            WidgetSpan(
+              alignment: PlaceholderAlignment.baseline,
+              baseline: TextBaseline.alphabetic,
+              child: Hoverable(
+                onTap: onTap,
+                semanticLabel: author,
+                focusRadius: BorderRadius.circular(4),
+                builder: (context, state) => Text(
+                  author,
+                  style: OcText.bodyStrong.copyWith(
+                    color: colors.text,
+                    decoration: state.hovered ? TextDecoration.underline : null,
+                    decorationColor: colors.text,
+                  ),
+                ),
+              ),
+            )
+          else
+            TextSpan(
+              text: author,
+              style: OcText.bodyStrong.copyWith(color: colors.text),
+            ),
           if (role != null)
             TextSpan(
               text: ' · $role',

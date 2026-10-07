@@ -15,6 +15,7 @@ import 'package:opencord/features/chat/message_rows.dart';
 import 'package:opencord/ui/theme/oc_colors.dart';
 import 'package:opencord/ui/theme/oc_metrics.dart';
 import 'package:opencord/ui/widgets/avatar.dart';
+import 'package:opencord/ui/widgets/hoverable.dart';
 
 /// What rows look up while they draw: names, roles and replied-to
 /// messages, from the server's state and the loaded history.
@@ -87,6 +88,7 @@ class ChatRowActions {
     required this.onRetry,
     required this.onReaction,
     required this.onJumpTo,
+    required this.onProfile,
   });
 
   final MarkdownContext links;
@@ -96,6 +98,9 @@ class ChatRowActions {
   final void Function(Message message) onRetry;
   final void Function(Message message, String emoji) onReaction;
   final void Function(int messageId) onJumpTo;
+
+  /// Opens someone's profile from their avatar or name (§16).
+  final void Function(int userId) onProfile;
 }
 
 /// Draws one row of the message list.
@@ -183,6 +188,7 @@ class ChatRowView extends StatelessWidget {
           onReplyTap: onReplyTap,
           onRetry: () => actions.onRetry(message),
           onSelectionChanged: onSelectionChanged,
+          onAuthorTap: () => actions.onProfile(message.authorId),
         ),
       );
     }
@@ -192,7 +198,13 @@ class ChatRowView extends StatelessWidget {
       first: row.first,
       actions: actions.message,
       avatar: row.showAvatar
-          ? OcAvatar(id: '${message.authorId}', name: author)
+          ? Hoverable(
+              onTap: () => actions.onProfile(message.authorId),
+              semanticLabel: '$author, profile',
+              focusRadius: BorderRadius.circular(OcSize.messageAvatar / 2),
+              builder: (context, state) =>
+                  OcAvatar(id: '${message.authorId}', name: author),
+            )
           : null,
       builder: (onSelectionChanged) => MessageBubble(
         message: message,
@@ -210,6 +222,7 @@ class ChatRowView extends StatelessWidget {
         onReplyTap: onReplyTap,
         onRetry: () => actions.onRetry(message),
         onSelectionChanged: onSelectionChanged,
+        onAuthorTap: () => actions.onProfile(message.authorId),
       ),
     );
   }

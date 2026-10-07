@@ -37,7 +37,7 @@ class ChatArea extends ConsumerStatefulWidget {
 }
 
 class _ChatAreaState extends ConsumerState<ChatArea> {
-  final _controller = ChatController();
+  ChatController get _controller => ref.read(chatControllerProvider);
 
   @override
   Widget build(BuildContext context) {

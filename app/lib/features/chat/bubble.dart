@@ -53,6 +53,7 @@ class MessageBubble extends StatelessWidget {
     this.onReplyTap,
     this.onRetry,
     this.onSelectionChanged,
+    this.onAuthorTap,
   });
 
   final Message message;
@@ -76,6 +77,9 @@ class MessageBubble extends StatelessWidget {
 
   /// Makes the text selectable (§4.5) and reports what is selected.
   final ValueChanged<String?>? onSelectionChanged;
+
+  /// Opens the author's profile from their name (§16).
+  final VoidCallback? onAuthorTap;
 
   static const double _big = OcRadius.bubble;
   static const double _small = OcRadius.bubbleGrouped;
@@ -121,7 +125,11 @@ class MessageBubble extends StatelessWidget {
           if (first && !own)
             Padding(
               padding: const EdgeInsets.only(bottom: 2),
-              child: _AuthorLine(author: author, role: role),
+              child: _AuthorLine(
+                author: author,
+                role: role,
+                onTap: onAuthorTap,
+              ),
             ),
           if (reply != null) _ReplyQuote(reply: reply!, onTap: onReplyTap),
           Stack(
@@ -252,20 +260,28 @@ class _SelectableMessageTextState extends State<SelectableMessageText> {
 }
 
 class _AuthorLine extends StatelessWidget {
-  const _AuthorLine({required this.author, this.role});
+  const _AuthorLine({required this.author, this.role, this.onTap});
 
   final String author;
   final String? role;
+
+  /// Opens the author's profile (§16).
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
     final colors = context.oc;
     final style = OcText.bodyStrong.copyWith(fontSize: 13, color: colors.text);
-    return Text.rich(
+    Text line({required bool underline}) => Text.rich(
       TextSpan(
         style: style,
         children: [
-          TextSpan(text: author),
+          TextSpan(
+            text: author,
+            style: underline
+                ? const TextStyle(decoration: TextDecoration.underline)
+                : null,
+          ),
           if (role != null)
             TextSpan(
               text: ' · $role',
@@ -278,6 +294,17 @@ class _AuthorLine extends StatelessWidget {
       ),
       maxLines: 1,
       overflow: TextOverflow.ellipsis,
+    );
+    if (onTap == null) return line(underline: false);
+    return Align(
+      alignment: Alignment.centerLeft,
+      widthFactor: 1,
+      child: Hoverable(
+        onTap: onTap,
+        semanticLabel: author,
+        focusRadius: BorderRadius.circular(4),
+        builder: (context, state) => line(underline: state.hovered),
+      ),
     );
   }
 }

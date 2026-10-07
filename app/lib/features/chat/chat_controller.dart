@@ -1,5 +1,7 @@
 import 'dart:ui' show VoidCallback;
 
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
 /// What the message list offers the rest of the chat area.
 abstract interface class MessageListHandle {
   /// Scrolls to a message, loading older history if it is not loaded yet,
@@ -44,3 +46,9 @@ class ChatController implements MessageListHandle {
   @override
   void scrollPage(int direction) => _list?.scrollPage(direction);
 }
+
+/// The one controller of the open channel's chat area: the list and the
+/// composer attach to it, and the member panel uses it to mention someone.
+final chatControllerProvider = Provider<ChatController>(
+  (ref) => ChatController(),
+);

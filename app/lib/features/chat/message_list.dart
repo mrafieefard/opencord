@@ -19,6 +19,7 @@ import 'package:opencord/features/chat/list_rows.dart';
 import 'package:opencord/features/chat/markdown_view.dart';
 import 'package:opencord/features/chat/message_actions.dart';
 import 'package:opencord/features/chat/message_rows.dart';
+import 'package:opencord/features/members/member_profile.dart';
 import 'package:opencord/features/shell/navigation.dart';
 import 'package:opencord/features/window/window_providers.dart';
 import 'package:opencord/ui/theme/oc_metrics.dart';
@@ -335,6 +336,8 @@ class _MessageListState extends ConsumerState<MessageList>
         userName: (id) => data.members[id]?.displayName,
         channelName: (id) => data.channels[id]?.name,
         onLink: (url) => openMessageLink(context, ref, url),
+        onUser: (id) =>
+            showMemberProfile(context, serverKey: _channel.server, userId: id),
         onChannel: (id) {
           if (data.channels[id] != null) {
             ref
@@ -352,6 +355,8 @@ class _MessageListState extends ConsumerState<MessageList>
         }
       },
       onJumpTo: jumpToMessage,
+      onProfile: (id) =>
+          showMemberProfile(context, serverKey: _channel.server, userId: id),
     );
   }
 

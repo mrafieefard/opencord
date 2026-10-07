@@ -100,4 +100,8 @@ void main() {
       );
     });
   });
+
+  test('long dates spell out the month', () {
+    expect(longDate(DateTime(2026, 10, 5)), '5 October 2026');
+  });
 }
