@@ -48,6 +48,15 @@ flutter run -d linux
 
 The first `flutter run` also compiles the Rust core, so it takes a while.
 
+Two environment variables help while developing:
+
+- `OPENCORD_MOCK=1` (or `--mock`) runs the app on built-in sample data
+  instead of the Rust core, to work on the UI without a server.
+- `OPENCORD_PROFILE=<name>` runs a separate copy with its own data,
+  keychain entries and window, so two users can be tried on one machine:
+  run a server, then `flutter run -d linux` in one terminal and
+  `OPENCORD_PROFILE=friend flutter run -d linux` in another.
+
 Only one Opencord runs at a time: launching it again brings the running
 window forward and hands over any `opencord://` link it was given. To let
 the browser open invite links in a local build on Linux, install
@@ -68,6 +77,16 @@ cd app
 flutter analyze
 flutter test
 flutter test integration_test -d linux
+```
+
+The Phase 1 acceptance checks run the app against a real server. Each
+starts its own server on a free port, with its own data folders and
+profile, so it leaves yours alone; they open the app window, so they need
+a desktop session:
+
+```bash
+app/tool/check_m5.sh  # a fresh install joins as owner, restarts, is still connected
+app/tool/check_m6.sh  # two identities chat; a new role and restriction arrive live
 ```
 
 ## Running a server
