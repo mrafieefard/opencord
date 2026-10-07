@@ -484,40 +484,90 @@ class ChannelMessagesNotifier extends Notifier<ChannelMessages> {
 
   OpencordRepository get _repository => ref.read(repositoryProvider);
 
+  /// Bumped by each reload: pages asked for before it are dropped.
+  var _generation = 0;
+
+  /// The session (server epoch) the newest page was asked for in.
+  int? _epoch;
+  Timer? _retry;
+
+  /// How many message lists show the channel. One out of sight catches up
+  /// when shown again, rather than every channel visited reloading at once
+  /// after each new session (the server limits requests).
+  var _shown = 0;
+
   @override
   ChannelMessages build() {
-    ref.listen(serverProvider(channel.server).select((s) => s.epoch), (
-      previous,
-      next,
-    ) {
-      if (previous != null && previous != next) _reload();
-    });
+    final server = serverProvider(channel.server);
+    _epoch = ref.read(server).epoch;
+    ref
+      ..listen(server.select((s) => s.epoch), (previous, next) {
+        if (previous != null && previous != next && _shown > 0) _reload();
+      })
+      ..listen(server.select((s) => s.connection.isConnected), (
+        previous,
+        next,
+      ) {
+        final failed = state.loadError != null;
+        if (next && previous == false && failed && _shown > 0) _reload();
+      })
+      ..onDispose(() => _retry?.cancel());
     Future.microtask(_loadLatest);
     return ChannelMessages.initial;
   }
 
+  /// A message list shows the channel from now on: catches up on a new
+  /// session, or a page that failed, while it was out of sight.
+  void show() {
+    _shown++;
+    final epoch = ref.read(serverProvider(channel.server)).epoch;
+    if (state.loadError != null || epoch != _epoch) _reload();
+  }
+
+  void hide() {
+    if (_shown > 0) _shown--;
+  }
+
+  /// The newest page: the first, or again after a new session while the
+  /// reader keeps what they have. A failure is kept to show, and tried
+  /// again when the server is back or says when to.
   Future<void> _loadLatest() async {
+    final generation = _generation;
+    _epoch = ref.read(serverProvider(channel.server)).epoch;
     try {
       final page = await _repository.fetchMessages(
         channel.server,
         channel.channel,
         limit: pageSize,
       );
-      if (ref.mounted) state = withPage(state, page, limit: pageSize);
-    } on RepoException {
-      if (ref.mounted) state = state.copyWith(loaded: true, hasOlder: false);
+      if (!ref.mounted || generation != _generation) return;
+      state = state.loaded
+          ? withNewestPage(state, page, limit: pageSize)
+          : withPage(state, page, limit: pageSize);
+    } on RepoException catch (error) {
+      if (!ref.mounted || generation != _generation) return;
+      state = state.copyWith(loadError: error);
+      if (error.retryAfter case final wait?) {
+        _retry?.cancel();
+        _retry = Timer(wait, _reload);
+      }
     }
   }
 
   void _reload() {
-    state = ChannelMessages(pending: state.pending);
+    _retry?.cancel();
+    _generation++;
     _loadLatest();
   }
+
+  /// Tries the newest page again, after it failed.
+  void reloadLatest() => _reload();
 
   Future<void> loadOlder() async {
     if (!state.loaded || !state.hasOlder || state.loadingOlder) return;
     final oldest = state.messages.firstOrNull;
     if (oldest == null) return;
+    final generation = _generation;
     state = state.copyWith(loadingOlder: true);
     try {
       final page = await _repository.fetchMessages(
@@ -526,9 +576,12 @@ class ChannelMessagesNotifier extends Notifier<ChannelMessages> {
         before: oldest.id,
         limit: pageSize,
       );
-      if (ref.mounted) state = withPage(state, page, limit: pageSize);
+      if (!ref.mounted || generation != _generation) return;
+      state = withPage(state, page, limit: pageSize);
     } on RepoException {
-      if (ref.mounted) state = state.copyWith(loadingOlder: false);
+      if (ref.mounted && generation == _generation) {
+        state = state.copyWith(loadingOlder: false);
+      }
     }
   }
 

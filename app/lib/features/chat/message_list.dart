@@ -24,11 +24,15 @@ import 'package:opencord/features/chat/message_rows.dart';
 import 'package:opencord/features/members/member_profile.dart';
 import 'package:opencord/features/shell/navigation.dart';
 import 'package:opencord/features/window/window_providers.dart';
+import 'package:opencord/ui/theme/oc_colors.dart';
+import 'package:opencord/ui/theme/oc_icons.dart';
 import 'package:opencord/ui/theme/oc_metrics.dart';
 import 'package:opencord/ui/theme/oc_motion.dart';
+import 'package:opencord/ui/theme/oc_text.dart';
+import 'package:opencord/ui/widgets/oc_button.dart';
 import 'package:opencord/ui/widgets/toast.dart';
 
-/// Where the reader left each channel during this run (§16).
+/// Where the reader left each channel, across restarts too (§16).
 final scrollMemoryProvider = Provider<ScrollMemory>((ref) {
   final memory = ScrollMemory(ref.watch(keyValueStoreProvider));
   ref.onDispose(memory.flush);
@@ -94,16 +98,24 @@ class _MessageListState extends ConsumerState<MessageList>
   ChannelMessagesNotifier get _messages =>
       ref.read(channelMessagesProvider(_channel).notifier);
 
+  /// The history this list shows, told when it is shown and hidden.
+  late final ChannelMessagesNotifier _history;
+
   @override
   void initState() {
     super.initState();
     _activity = ref.read(activityProvider(_channel.server).notifier);
     _memory = ref.read(scrollMemoryProvider);
+    _history = _messages;
     widget.controller.attach(this);
     // Not during the build that created this list.
     final recent = ref.read(recentChannelsProvider.notifier);
     final channel = _channel;
-    scheduleMicrotask(() => recent.visit(channel));
+    final history = _history;
+    scheduleMicrotask(() {
+      recent.visit(channel);
+      history.show();
+    });
     ref.listenManual(
       windowStatusProvider.select((status) => status.focused),
       (_, _) => _scheduleChecks(),
@@ -125,8 +137,12 @@ class _MessageListState extends ConsumerState<MessageList>
     _memory.save(_channel, _saved);
     final activity = _activity;
     final channel = _channel.channel;
+    final history = _history;
     // Not while the tree is being torn down: listeners would rebuild.
-    scheduleMicrotask(() => activity.unfocus(channel));
+    scheduleMicrotask(() {
+      activity.unfocus(channel);
+      history.hide();
+    });
     _scroll?.dispose();
     _highlightTimer?.cancel();
     _pillTimer?.cancel();
@@ -194,6 +210,8 @@ class _MessageListState extends ConsumerState<MessageList>
       return;
     }
     final kept = {for (final message in next.messages) message.id};
+    // Back again (a newer page put it there): no longer going.
+    _vanishing.removeWhere((id, _) => kept.contains(id));
     for (final message in previous.messages) {
       if (kept.contains(message.id)) continue;
       _vanishing[message.id] = message;
@@ -241,8 +259,12 @@ class _MessageListState extends ConsumerState<MessageList>
 
   List<Message> _withVanishing(ChannelMessages state) {
     if (_vanishing.isEmpty) return state.all;
-    final merged = [...state.messages, ..._vanishing.values]
-      ..sort((a, b) => a.id.compareTo(b.id));
+    final shown = {for (final message in state.messages) message.id};
+    final merged = [
+      ...state.messages,
+      for (final message in _vanishing.values)
+        if (!shown.contains(message.id)) message,
+    ]..sort((a, b) => a.id.compareTo(b.id));
     return [...merged, ...state.pending];
   }
 
@@ -255,6 +277,12 @@ class _MessageListState extends ConsumerState<MessageList>
     );
     final channel = data?.channels[_channel.channel];
     if (data == null || channel == null || !state.loaded) {
+      if (state.loadError case final error? when data != null) {
+        return _LoadFailed(
+          reason: error.message,
+          onRetry: () => _messages.reloadLatest(),
+        );
+      }
       return const Align(
         alignment: Alignment.bottomCenter,
         child: ChatSkeleton(),
@@ -678,5 +706,47 @@ class _MessageListState extends ConsumerState<MessageList>
     _highlightTimer = Timer(_highlightFor, () {
       if (mounted) setState(() => _highlight = null);
     });
+  }
+}
+
+/// A channel whose newest page could not load (§4.13): why, and Try
+/// again. It also loads by itself once the server is back.
+class _LoadFailed extends StatelessWidget {
+  const _LoadFailed({required this.reason, required this.onRetry});
+
+  final String reason;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.oc;
+    return Center(
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(OcSpace.s24),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 360),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(OcIcons.cloudOff, size: 40, color: colors.textMuted),
+              const SizedBox(height: OcSpace.s12),
+              Text(
+                "Couldn't load messages",
+                textAlign: TextAlign.center,
+                style: OcText.header.copyWith(color: colors.text),
+              ),
+              const SizedBox(height: OcSpace.s6),
+              Text(
+                reason,
+                textAlign: TextAlign.center,
+                style: OcText.body.copyWith(color: colors.textSecondary),
+              ),
+              const SizedBox(height: OcSpace.s16),
+              OcButton(label: 'Try again', onPressed: onRetry),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }

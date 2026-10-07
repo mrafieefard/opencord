@@ -28,7 +28,7 @@ final class StartAtAnchor extends ChatStart {
 }
 
 /// Where the reader left a channel, so coming back puts them there again
-/// (§16). Kept for this run of the app only.
+/// (§16), across restarts too.
 @immutable
 class SavedScroll {
   const SavedScroll({required this.messageId, required this.fromTop});

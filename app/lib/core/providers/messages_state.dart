@@ -1,7 +1,7 @@
 import 'package:flutter/foundation.dart';
 
 import 'package:opencord/core/model/message.dart';
-import 'package:opencord/core/repository/events.dart';
+import 'package:opencord/core/repository/repository.dart';
 
 /// The loaded part of one channel's history plus messages still being sent.
 @immutable
@@ -12,6 +12,7 @@ class ChannelMessages {
     this.hasOlder = true,
     this.loaded = false,
     this.loadingOlder = false,
+    this.loadError,
   });
 
   static const initial = ChannelMessages();
@@ -27,21 +28,32 @@ class ChannelMessages {
   final bool loaded;
   final bool loadingOlder;
 
+  /// Why the newest page did not load; it is tried again when the server
+  /// is back or says when to.
+  final RepoException? loadError;
+
   List<Message> get all =>
       pending.isEmpty ? messages : [...messages, ...pending];
 
+  static const _keep = Object();
+
+  /// [loadError] is kept unless given, null included.
   ChannelMessages copyWith({
     List<Message>? messages,
     List<Message>? pending,
     bool? hasOlder,
     bool? loaded,
     bool? loadingOlder,
+    Object? loadError = _keep,
   }) => ChannelMessages(
     messages: messages ?? this.messages,
     pending: pending ?? this.pending,
     hasOlder: hasOlder ?? this.hasOlder,
     loaded: loaded ?? this.loaded,
     loadingOlder: loadingOlder ?? this.loadingOlder,
+    loadError: identical(loadError, _keep)
+        ? this.loadError
+        : loadError as RepoException?,
   );
 }
 
@@ -76,6 +88,42 @@ ChannelMessages withPage(
     hasOlder: page.length >= limit,
     loaded: true,
     loadingOlder: false,
+    loadError: null,
+  );
+}
+
+/// The newest page, fetched again after a new session, merged into what
+/// the reader already has: kept below the page where the two meet,
+/// replaced where messages may be missing between them. Messages deleted
+/// meanwhile go, edits come in.
+ChannelMessages withNewestPage(
+  ChannelMessages state,
+  List<Message> page, {
+  required int limit,
+}) {
+  if (page.length < limit) {
+    // The whole channel.
+    return state.copyWith(
+      messages: page,
+      hasOlder: false,
+      loaded: true,
+      loadingOlder: false,
+      loadError: null,
+    );
+  }
+  final first = page.first.id;
+  final meets = state.messages.isNotEmpty && state.messages.last.id >= first;
+  final kept = [
+    if (meets)
+      for (final message in state.messages)
+        if (message.id < first) message,
+  ];
+  return state.copyWith(
+    messages: [...kept, ...page],
+    hasOlder: kept.isEmpty || state.hasOlder,
+    loaded: true,
+    loadingOlder: false,
+    loadError: null,
   );
 }
 

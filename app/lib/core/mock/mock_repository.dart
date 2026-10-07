@@ -468,6 +468,13 @@ class MockRepository implements OpencordRepository {
     }
   }
 
+  /// History fails to load while set, to see a channel that could not
+  /// load (§4.13).
+  bool debugFailHistory = false;
+
+  /// How long history takes to arrive, to see it loading.
+  Duration debugHistoryDelay = Duration.zero;
+
   @override
   Future<List<Message>> fetchMessages(
     String serverKey,
@@ -475,6 +482,15 @@ class MockRepository implements OpencordRepository {
     int? before,
     int limit = 50,
   }) async {
+    if (debugHistoryDelay > Duration.zero) {
+      await Future<void>.delayed(debugHistoryDelay);
+    }
+    if (debugFailHistory) {
+      throw const RepoException(
+        RepoErrorKind.notConnected,
+        'Not connected to that server right now.',
+      );
+    }
     final history = _history(_server(serverKey), channelId);
     var end = history.length;
     if (before != null) {
