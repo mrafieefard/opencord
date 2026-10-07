@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:opencord/core/settings/app_settings.dart';
 import 'package:opencord/ui/gallery/widget_gallery.dart';
 
+import '../support/app.dart';
 import '../support/colors.dart';
 import '../support/pump.dart';
 
@@ -39,6 +41,21 @@ void main() {
       );
 
       expect(await huedPixels(tester, boundary), isEmpty);
+    });
+  }
+
+  for (final (name, theme) in const [
+    ('dark', ThemePreference.dark),
+    ('light', ThemePreference.light),
+  ]) {
+    testWidgets('the main screen is monochrome in $name', (tester) async {
+      final app = await MockApp.pump(
+        tester,
+        settings: (settings) => settings.copyWith(theme: theme),
+      );
+
+      expect(await huedPixels(tester, MockApp.boundaryKey), isEmpty);
+      await app.dispose(tester);
     });
   }
 }

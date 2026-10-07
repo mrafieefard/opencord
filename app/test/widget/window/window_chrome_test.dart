@@ -201,13 +201,13 @@ void main() {
       windowInfo: custom,
       platform: TargetPlatform.linux,
     );
+    final main = find.byKey(DesktopShell.mainKey);
 
-    final header = tester.getRect(find.byType(HeaderBar).first);
+    final header = tester.getRect(
+      find.descendant(of: main, matching: find.byType(HeaderBar)),
+    );
     final title = tester.getRect(
-      find.descendant(
-        of: find.byType(HeaderBar).first,
-        matching: find.text('Opencord Dev'),
-      ),
+      find.descendant(of: main, matching: find.text('#announcements')),
     );
 
     expect(title.center.dy, closeTo(header.center.dy, 1));

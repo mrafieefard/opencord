@@ -11,6 +11,7 @@ import 'package:opencord/core/providers/providers.dart';
 import 'package:opencord/core/repository/repository.dart';
 import 'package:opencord/core/settings/app_settings.dart';
 import 'package:opencord/core/settings/key_value_store.dart';
+import 'package:opencord/core/settings/local_prefs.dart';
 import 'package:opencord/features/window/native_window.dart';
 import 'package:opencord/features/window/window_providers.dart';
 
@@ -22,6 +23,9 @@ class MockApp {
   final MockRepository repository;
   final MemoryKeyValueStore store;
 
+  /// Wraps the whole app, for pixel checks.
+  static final boundaryKey = GlobalKey();
+
   static Future<MockApp> pump(
     WidgetTester tester, {
     Size size = const Size(1440, 900),
@@ -31,6 +35,7 @@ class MockApp {
     NativeWindow? window,
     WindowInfo windowInfo = WindowInfo.none,
     TargetPlatform? platform,
+    Set<String> mutedServers = const {},
   }) async {
     debugDefaultTargetPlatformOverride = platform;
     tester.view.physicalSize = size;
@@ -48,6 +53,7 @@ class MockApp {
           window ?? const NullNativeWindow(),
         ),
         windowInfoProvider.overrideWithValue(windowInfo),
+        defaultMutedServersProvider.overrideWithValue(mutedServers),
       ],
     );
     if (settings != null) {
@@ -56,9 +62,12 @@ class MockApp {
     container.read(eventPumpProvider);
     repository.start();
     await tester.pumpWidget(
-      UncontrolledProviderScope(
-        container: container,
-        child: const OpencordApp(),
+      RepaintBoundary(
+        key: boundaryKey,
+        child: UncontrolledProviderScope(
+          container: container,
+          child: const OpencordApp(),
+        ),
       ),
     );
     await tester.pump(const Duration(seconds: 1));

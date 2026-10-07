@@ -11,6 +11,7 @@ import 'package:opencord/core/repository/repository.dart';
 import 'package:opencord/core/rust/core_key_value_store.dart';
 import 'package:opencord/core/settings/app_settings.dart';
 import 'package:opencord/core/settings/key_value_store.dart';
+import 'package:opencord/core/settings/local_prefs.dart';
 import 'package:opencord/features/window/native_window.dart';
 import 'package:opencord/features/window/window_providers.dart';
 import 'package:opencord/features/window/window_startup.dart';
@@ -45,10 +46,12 @@ Future<void> main() async {
       repositoryProvider.overrideWithValue(repository),
       nativeWindowProvider.overrideWithValue(window),
       windowInfoProvider.overrideWithValue(windowInfo),
+      defaultMutedServersProvider.overrideWithValue(mockMutedServers),
     ],
   );
   container.read(eventPumpProvider);
   repository.start();
+  repository.updatePresence(container.read(selfPresenceProvider));
   runApp(
     UncontrolledProviderScope(container: container, child: const OpencordApp()),
   );

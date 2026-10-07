@@ -93,6 +93,15 @@ class _HoverableState extends State<Hoverable> {
     return box.localToGlobal(box.size.center(Offset.zero));
   }
 
+  /// With a [Hoverable.semanticLabel], the label speaks for the content, so
+  /// the visible text is not read twice.
+  Widget _content(BuildContext context, HoverState state) {
+    final content = widget.builder(context, state);
+    return widget.semanticLabel == null
+        ? content
+        : ExcludeSemantics(child: content);
+  }
+
   @override
   Widget build(BuildContext context) {
     final state = HoverState(
@@ -153,7 +162,7 @@ class _HoverableState extends State<Hoverable> {
             child: _showFocusRing
                 ? Stack(
                     children: [
-                      widget.builder(context, state),
+                      _content(context, state),
                       Positioned.fill(
                         child: IgnorePointer(
                           child: DecoratedBox(
@@ -170,7 +179,7 @@ class _HoverableState extends State<Hoverable> {
                       ),
                     ],
                   )
-                : widget.builder(context, state),
+                : _content(context, state),
           ),
         ),
       ),

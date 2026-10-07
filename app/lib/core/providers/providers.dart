@@ -15,6 +15,7 @@ import 'package:opencord/core/providers/presence_state.dart';
 import 'package:opencord/core/providers/server_state.dart';
 import 'package:opencord/core/providers/typing_state.dart';
 import 'package:opencord/core/repository/repository.dart';
+import 'package:opencord/core/settings/local_prefs.dart';
 import 'package:opencord/core/settings/key_value_store.dart';
 
 export 'package:opencord/core/providers/activity_state.dart';
@@ -540,14 +541,16 @@ final channelMessagesProvider =
       ChannelRef
     >(ChannelMessagesNotifier.new);
 
-/// The current user's connection status of every server, for the window
-/// title and the tray.
+/// Unread messages in channels that are not muted, across all servers: the
+/// count in the window title, the tray and the badges (§6, §15).
 final unreadTotalProvider = Provider<int>((ref) {
+  final prefs = ref.watch(notificationPrefsProvider);
   var total = 0;
   for (final server in ref.watch(serverListProvider)) {
     final activity = ref.watch(activityProvider(server.key));
-    for (final channel in activity.channels.values) {
-      total += channel.read.unread;
+    for (final MapEntry(key: channel, value: state)
+        in activity.channels.entries) {
+      if (!prefs.muted(server.key, channel)) total += state.read.unread;
     }
   }
   return total;

@@ -130,6 +130,9 @@ class MockWorld {
 }
 
 const selfName = 'Alex Rivera';
+
+/// Servers that start muted (plan §11: the reconnecting one).
+const mockMutedServers = {'homelab.local:7710'};
 const selfFingerprint = 'KQ7M-3XPA-ZR2D-W9TB';
 
 /// Builds the three servers of plan §11 around [now].

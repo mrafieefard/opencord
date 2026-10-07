@@ -13,6 +13,8 @@ import 'package:opencord/core/model/server.dart';
 import 'package:opencord/core/model/user.dart';
 import 'package:opencord/core/repository/repository.dart';
 
+export 'package:opencord/core/mock/mock_world.dart' show mockMutedServers;
+
 DateTime _systemClock() => clock.now();
 
 const _replies = [
