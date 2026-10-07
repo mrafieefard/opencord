@@ -16,6 +16,7 @@ use crate::gateway::session::SessionRegistry;
 use crate::guild::Guild;
 use crate::presence::Presence;
 use crate::rate_limit::RateLimits;
+use crate::voice::nodes::VoiceNodes;
 use crate::voice::states::VoiceStates;
 
 /// Who receives an event.
@@ -40,6 +41,7 @@ pub struct AppState {
     pub shutdown: CancellationToken,
     /// Signs voice and media tokens.
     pub voice_key: SigningKey,
+    pub voice_nodes: VoiceNodes,
     guild: RwLock<Guild>,
     /// Lock after the guild, never before it.
     voice: StdMutex<VoiceStates>,
@@ -54,6 +56,7 @@ impl AppState {
         fingerprint: Fingerprint,
         guild: Guild,
         voice_key: SigningKey,
+        voice_nodes: VoiceNodes,
     ) -> Self {
         Self {
             config,
@@ -65,6 +68,7 @@ impl AppState {
             rate_limits: RateLimits::default(),
             shutdown: CancellationToken::new(),
             voice_key,
+            voice_nodes,
             guild: RwLock::new(guild),
             voice: StdMutex::new(VoiceStates::default()),
             writes: Mutex::new(()),

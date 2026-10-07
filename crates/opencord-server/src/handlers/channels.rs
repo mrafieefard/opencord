@@ -15,6 +15,7 @@ use crate::guild::{Channel, Guild, overwrite_row, overwrite_target_to_db};
 use crate::permissions::{require_base, require_channel, require_grantable};
 use crate::state::now_ms;
 use crate::visibility::Visibility;
+use crate::voice;
 use crate::voice::settings::VoiceSettings;
 
 pub async fn create(ctx: &Ctx<'_>, request: proto::CreateChannel) -> Result<Response, ApiError> {
@@ -131,6 +132,9 @@ pub async fn update(ctx: &Ctx<'_>, request: proto::UpdateChannel) -> Result<Resp
     };
     channels::update(&mut *ctx.state.db.acquire().await?, &updated.to_row()).await?;
     replace_and_announce(ctx, vec![updated.clone()]);
+    if request.bitrate.is_some() || request.user_limit.is_some() {
+        voice::limits_changed(ctx.state, &[updated.id]);
+    }
     Ok(Response::Channel(updated.to_proto()))
 }
 

@@ -12,13 +12,18 @@ use opencord_common::address::{Fingerprint, InviteLink, ServerAddress};
 use opencord_common::snowflake::SnowflakeGenerator;
 use tokio::task::JoinHandle;
 
-use crate::config::Config;
+use crate::config::{Config, VoiceMode};
 use crate::gateway::session::CloseCode;
 use crate::guild::Guild;
 use crate::state::{AppState, now_ms};
+use crate::voice::nodes::VoiceNodes;
 use crate::{bootstrap, db, http, tls, voice};
+use opencord_voice::node::{NodeConfig, NodeEvent, VoiceNode};
+use tokio::sync::mpsc::UnboundedReceiver;
 
 const REAP_INTERVAL: Duration = Duration::from_secs(5);
+/// How often voice clients send a heartbeat.
+const VOICE_HEARTBEAT: Duration = Duration::from_secs(5);
 const SHUTDOWN_GRACE: Duration = Duration::from_secs(5);
 
 /// A running server.
@@ -51,6 +56,7 @@ pub async fn start(config: Config) -> anyhow::Result<ServerHandle> {
     let bootstrap = bootstrap::initialize(&pool, &config.server.name, &ids, now_ms()).await?;
     let tls = tls::load_or_generate(&config.tls, &data_dir.join("tls"), &hostnames(&config))?;
     let voice_key = voice::keys::load_or_generate(&data_dir)?;
+    let (embedded, node_events) = embedded_node(&config, &voice_key).await?;
     let guild = Guild::load(&mut *pool.acquire().await?, bootstrap.meta).await?;
     let invite_code = bootstrap::startup_invite(&pool, now_ms()).await?;
     let rustls = RustlsConfig::from_config(Arc::new(tls::server_config(&tls)?));
@@ -61,7 +67,16 @@ pub async fn start(config: Config) -> anyhow::Result<ServerHandle> {
         tls.fingerprint,
         guild,
         voice_key,
+        VoiceNodes::new(embedded, tls.fingerprint),
     ));
+    if let Some(mut events) = node_events {
+        let state = Arc::clone(&state);
+        tokio::spawn(async move {
+            while let Some(event) = events.recv().await {
+                voice::on_node_event(&state, event).await;
+            }
+        });
+    }
 
     let handle = Handle::new();
     let app = http::router(Arc::clone(&state)).into_make_service_with_connect_info::<SocketAddr>();
@@ -105,6 +120,9 @@ impl ServerHandle {
     /// Closes every connection (1001), stops listening and closes the
     /// database.
     pub async fn shutdown(self) {
+        if let Some(node) = self.state.voice_nodes.embedded() {
+            node.shutdown();
+        }
         self.state.shutdown.cancel();
         self.handle.graceful_shutdown(Some(SHUTDOWN_GRACE));
         let _ = self.serve.await;
@@ -126,6 +144,35 @@ impl ServerHandle {
             session.drop_connection(CloseCode::UNKNOWN, Instant::now());
         }
     }
+}
+
+/// The voice node inside this server, unless voice is off or on external
+/// nodes only.
+async fn embedded_node(
+    config: &Config,
+    voice_key: &ed25519_dalek::SigningKey,
+) -> anyhow::Result<(Option<VoiceNode>, Option<UnboundedReceiver<NodeEvent>>)> {
+    if !config.voice.enabled || config.voice.mode != VoiceMode::Embedded {
+        return Ok((None, None));
+    }
+    let public_address = match config.voice.public_address.as_str() {
+        "auto" | "" => None,
+        address => Some(address.to_owned()),
+    };
+    let (node, events) = VoiceNode::start(NodeConfig {
+        udp_port: config.voice.udp_port,
+        public_address,
+        verifying_key: voice_key.verifying_key(),
+        heartbeat_interval: VOICE_HEARTBEAT,
+    })
+    .await
+    .with_context(|| {
+        format!(
+            "could not start voice on UDP port {}",
+            config.voice.udp_port
+        )
+    })?;
+    Ok((Some(node), Some(events)))
 }
 
 fn hostnames(config: &Config) -> Vec<String> {

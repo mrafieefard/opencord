@@ -45,6 +45,7 @@ impl TestServer {
         config.server.public_host = "127.0.0.1".to_owned();
         config.server.data_dir = dir.path().join("data");
         config.server.name = "Test Server".to_owned();
+        config.voice.udp_port = 0;
         config
     }
 

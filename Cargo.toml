@@ -9,6 +9,7 @@ repository = "https://github.com/mrafieefard/opencord"
 
 [workspace.dependencies]
 opencord-common = { path = "crates/opencord-common" }
+opencord-core = { package = "opencord_core", path = "crates/opencord-core" }
 opencord-media = { path = "crates/opencord-media" }
 opencord-proto = { path = "crates/opencord-proto" }
 opencord-server = { path = "crates/opencord-server" }
@@ -27,6 +28,7 @@ futures-util = "0.3.34"
 getrandom = "0.4.3"
 governor = "0.10.4"
 hex = "0.4.3"
+opus = "0.4.0"
 prost = "0.14.4"
 prost-build = "0.14.4"
 protox = "0.9.1"

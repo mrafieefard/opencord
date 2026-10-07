@@ -26,6 +26,7 @@ mkdir -p "$work/server"
 (
   cd "$work/server"
   OPENCORD_BIND="127.0.0.1:$port" OPENCORD_PUBLIC_HOST=127.0.0.1 \
+    OPENCORD_VOICE_UDP_PORT=0 \
     exec "$repo/target/debug/opencord-server"
 ) >"$work/server.log" 2>&1 &
 background+=("$!")

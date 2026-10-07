@@ -54,7 +54,13 @@ pub async fn update_voice_state(
         let connecting = previous.as_ref().is_none_or(|previous| {
             previous.channel_id != channel_id || previous.session_id != joined.session_id
         });
-        let update = connecting.then(|| server_update(ctx.state, &guild, &voice_states, &joined));
+        let update = match connecting {
+            true => Some(
+                server_update(ctx.state, &guild, &voice_states, &joined)
+                    .ok_or_else(no_voice_node)?,
+            ),
+            false => None,
+        };
         let shown = voice_states.to_proto(&joined);
         voice_states.put(joined);
         (shown, previous.map(|previous| previous.channel_id), update)
@@ -173,7 +179,8 @@ pub async fn move_member(ctx: &Ctx<'_>, request: proto::MoveMember) -> Result<Re
             suppress: suppressed(&guild, request.user_id, destination.id),
             ..current.clone()
         };
-        let update = server_update(ctx.state, &guild, &voice_states, &moved);
+        let update =
+            server_update(ctx.state, &guild, &voice_states, &moved).ok_or_else(no_voice_node)?;
         voice_states.put(moved.clone());
         (moved, current.channel_id, update)
     };
@@ -210,6 +217,10 @@ pub async fn disconnect_member(
         &[removed.channel_id],
     );
     Ok(ack())
+}
+
+fn no_voice_node() -> ApiError {
+    ApiError::conflict("no voice server is available right now")
 }
 
 fn connected(voice_states: &states::VoiceStates, user_id: i64) -> Result<VoiceState, ApiError> {

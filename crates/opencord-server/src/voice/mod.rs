@@ -6,6 +6,8 @@ use std::time::Instant;
 use opencord_common::limits::{VOICE_GRACE_PERIOD, VOICE_TOKEN_LIFETIME};
 use opencord_proto::internal::v1::VoiceTokenClaims;
 use opencord_proto::v1 as proto;
+use opencord_voice::node::{NodeCommand, NodeEvent};
+use opencord_voice::sfu::PeerState;
 use proto::event::Kind;
 
 use crate::guild::Guild;
@@ -15,6 +17,7 @@ use states::{VoiceConfig, VoiceState, VoiceStates};
 
 pub mod keys;
 pub mod media_token;
+pub mod nodes;
 pub mod settings;
 pub mod states;
 
@@ -27,34 +30,132 @@ pub fn config(state: &AppState) -> VoiceConfig {
 }
 
 /// Sends a voice state to every session that can view one of `channels`,
-/// and to the user's own sessions.
+/// and to the user's own sessions, and tells the voice nodes: a leave or a
+/// move disconnects the old channel's connection, anything else updates it.
 pub fn announce(state: &AppState, voice_state: proto::VoiceState, channels: &[i64]) {
     let user_id = voice_state.user_id;
+    let current = voice_state.channel_id;
+    let peer = PeerState {
+        self_mute: voice_state.self_mute,
+        self_deaf: voice_state.self_deaf,
+        server_mute: voice_state.server_mute,
+        server_deaf: voice_state.server_deaf,
+        suppress: voice_state.suppress,
+    };
     let event = proto::Event {
         kind: Some(Kind::VoiceStateUpdate(proto::VoiceStateUpdate {
             voice_state: Some(voice_state),
         })),
     };
     let now = Instant::now();
-    let guild = state.guild();
-    for session in state.sessions.all() {
-        let sees = session.user_id == user_id
-            || channels
-                .iter()
-                .any(|channel_id| guild.can_view(session.user_id, *channel_id));
-        if sees {
-            session.push_event(&event, now);
+    let permissions = {
+        let guild = state.guild();
+        for session in state.sessions.all() {
+            let sees = session.user_id == user_id
+                || channels
+                    .iter()
+                    .any(|channel_id| guild.can_view(session.user_id, *channel_id));
+            if sees {
+                session.push_event(&event, now);
+            }
         }
+        current.map(|channel_id| guild.channel_permissions(user_id, channel_id).bits())
+    };
+    for left in channels.iter().copied().filter(|c| Some(*c) != current) {
+        disconnect_from_node(state, user_id, left);
+    }
+    if let (Some(channel_id), Some(permissions)) = (current, permissions) {
+        state.voice_nodes.send(
+            channel_id,
+            NodeCommand::Update {
+                user_id,
+                channel_id,
+                state: peer,
+                permissions,
+            },
+        );
     }
 }
 
-/// Where `voice_state`'s session connects for voice, with a fresh token.
+/// Ends the user's media connection in `channel_id`; an empty channel may
+/// go to another node next time.
+fn disconnect_from_node(state: &AppState, user_id: i64, channel_id: i64) {
+    state.voice_nodes.send(
+        channel_id,
+        NodeCommand::Disconnect {
+            user_id,
+            channel_id,
+        },
+    );
+    let empty = state.voice().in_channel(channel_id).next().is_none();
+    if empty {
+        state.voice_nodes.release(channel_id);
+    }
+}
+
+/// Tells the voice nodes about changed channel limits: a channel's bitrate
+/// or user limit, or the server's voice settings.
+pub fn limits_changed(state: &AppState, channel_ids: &[i64]) {
+    let assigned = state.voice_nodes.assigned();
+    let commands: Vec<(i64, NodeCommand)> = {
+        let guild = state.guild();
+        channel_ids
+            .iter()
+            .filter(|channel_id| assigned.contains(channel_id))
+            .filter_map(|channel_id| {
+                let channel = guild.channels.get(channel_id)?;
+                Some((
+                    *channel_id,
+                    NodeCommand::Limits {
+                        channel_id: *channel_id,
+                        limits: states::limits(&guild, channel),
+                    },
+                ))
+            })
+            .collect()
+    };
+    for (channel_id, command) in commands {
+        state.voice_nodes.send(channel_id, command);
+    }
+}
+
+/// What a voice node reports: a voice connection that ended for good ends
+/// its voice state, if the state is still that connection's.
+pub async fn on_node_event(state: &AppState, event: NodeEvent) {
+    let NodeEvent::Disconnected {
+        user_id,
+        channel_id,
+        session_id,
+    } = event
+    else {
+        return;
+    };
+    let _writes = state.write_lock().await;
+    let removed = {
+        let mut voice = state.voice();
+        let current = voice
+            .get(user_id)
+            .is_some_and(|vs| vs.channel_id == channel_id && vs.session_id == session_id);
+        if current { voice.remove(user_id) } else { None }
+    };
+    if let Some(removed) = removed {
+        announce(
+            state,
+            states::left(removed.user_id, &removed.session_id),
+            &[channel_id],
+        );
+    }
+}
+
+/// Where `voice_state`'s session connects for voice, with a fresh token;
+/// `None` when no voice node is available.
 pub fn server_update(
     state: &AppState,
     guild: &Guild,
     voice: &VoiceStates,
     voice_state: &VoiceState,
-) -> proto::VoiceServerUpdate {
+) -> Option<proto::VoiceServerUpdate> {
+    let link = state.voice_nodes.link_for(voice_state.channel_id)?;
     let moderation = voice.moderation(voice_state.user_id);
     let lifetime = i64::try_from(VOICE_TOKEN_LIFETIME.as_millis()).unwrap_or(i64::MAX);
     let claims = VoiceTokenClaims {
@@ -76,12 +177,12 @@ pub fn server_update(
         suppress: voice_state.suppress,
         expires_at_ms: now_ms().saturating_add(lifetime),
     };
-    proto::VoiceServerUpdate {
+    Some(proto::VoiceServerUpdate {
         channel_id: voice_state.channel_id,
-        endpoint: String::new(),
-        certificate_fingerprint: state.fingerprint.to_vec(),
+        endpoint: link.endpoint,
+        certificate_fingerprint: link.fingerprint.to_vec(),
         token: opencord_voice::token::issue(&state.voice_key, &claims),
-    }
+    })
 }
 
 /// Sends `update` to one session only.
@@ -125,6 +226,36 @@ pub fn reconcile(state: &AppState) {
     }
     for (voice_state, channel_id) in announcements {
         announce(state, voice_state, &[channel_id]);
+    }
+    // Permissions may have changed without anyone becoming suppressed:
+    // the nodes need them (priority speaker).
+    let updates: Vec<(i64, NodeCommand)> = {
+        let guild = state.guild();
+        let voice = state.voice();
+        voice
+            .all()
+            .map(|vs| {
+                let moderation = voice.moderation(vs.user_id);
+                (
+                    vs.channel_id,
+                    NodeCommand::Update {
+                        user_id: vs.user_id,
+                        channel_id: vs.channel_id,
+                        state: PeerState {
+                            self_mute: vs.self_mute,
+                            self_deaf: vs.self_deaf,
+                            server_mute: moderation.mute,
+                            server_deaf: moderation.deaf,
+                            suppress: vs.suppress,
+                        },
+                        permissions: guild.channel_permissions(vs.user_id, vs.channel_id).bits(),
+                    },
+                )
+            })
+            .collect()
+    };
+    for (channel_id, command) in updates {
+        state.voice_nodes.send(channel_id, command);
     }
 }
 
@@ -191,6 +322,7 @@ mod tests {
             [0; 32],
             sample_guild().await,
             SigningKey::from_bytes(&[1; 32]),
+            nodes::VoiceNodes::new(None, [0; 32]),
         );
         (state, dir)
     }

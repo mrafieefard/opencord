@@ -555,6 +555,10 @@ async fn info_says_whether_voice_is_on() {
     let (_, off_body) = off.get("/info").await;
 
     assert!(on_body.contains("\"voice_enabled\":true"), "{on_body}");
-    assert!(on_body.contains("\"voice_udp_port\":7711"), "{on_body}");
+    assert!(
+        !on_body.contains("\"voice_udp_port\":null"),
+        "the port it bound: {on_body}"
+    );
     assert!(off_body.contains("\"voice_enabled\":false"), "{off_body}");
+    assert!(off_body.contains("\"voice_udp_port\":null"), "{off_body}");
 }

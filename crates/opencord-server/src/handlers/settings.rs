@@ -88,6 +88,7 @@ pub async fn save_voice_settings(
         Audience::Everyone,
     );
     voice::reconcile(state);
+    voice::limits_changed(state, &state.voice_nodes.assigned());
     Ok(())
 }
 

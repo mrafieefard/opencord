@@ -1,0 +1,21 @@
+[package]
+name = "opencord-voicebot"
+description = "Headless Opencord voice client for tests, load tests and checking a server's voice setup."
+version.workspace = true
+edition.workspace = true
+repository.workspace = true
+license = "MPL-2.0"
+publish = false
+
+[dependencies]
+anyhow.workspace = true
+clap.workspace = true
+opencord-common.workspace = true
+opencord-core.workspace = true
+opencord-media.workspace = true
+opus.workspace = true
+tempfile.workspace = true
+tokio.workspace = true
+
+[dev-dependencies]
+opencord-server.workspace = true
