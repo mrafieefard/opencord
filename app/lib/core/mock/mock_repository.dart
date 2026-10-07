@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'dart:math';
 
+import 'package:clock/clock.dart';
+
 import 'package:opencord/core/mock/mock_world.dart';
 import 'package:opencord/core/model/channel.dart';
 import 'package:opencord/core/model/message.dart';
@@ -10,6 +12,8 @@ import 'package:opencord/core/model/presence.dart';
 import 'package:opencord/core/model/server.dart';
 import 'package:opencord/core/model/user.dart';
 import 'package:opencord/core/repository/repository.dart';
+
+DateTime _systemClock() => clock.now();
 
 const _replies = [
   'Makes sense to me.',
@@ -30,7 +34,7 @@ class MockRepository implements OpencordRepository {
     DateTime Function()? clock,
     Random? random,
     this.simulateLife = true,
-  }) : _clock = clock ?? DateTime.now,
+  }) : _clock = clock ?? _systemClock,
        _random = random ?? Random() {
     _world = buildMockWorld(_clock());
   }

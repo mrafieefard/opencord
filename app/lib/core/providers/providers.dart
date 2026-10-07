@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:math';
 
+import 'package:clock/clock.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -26,7 +27,7 @@ export 'package:opencord/core/providers/typing_state.dart';
 typedef ChannelRef = ({String server, int channel});
 
 /// The current time; overridden in tests.
-final clockProvider = Provider<DateTime Function()>((ref) => DateTime.now);
+final clockProvider = Provider<DateTime Function()>((ref) => clock.now);
 
 /// Routes every repository event to the providers it concerns. Read once
 /// at startup.
