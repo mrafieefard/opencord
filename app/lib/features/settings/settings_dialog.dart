@@ -7,6 +7,7 @@ import 'package:opencord/ui/theme/oc_icons.dart';
 import 'package:opencord/ui/theme/oc_metrics.dart';
 import 'package:opencord/ui/theme/oc_motion.dart';
 import 'package:opencord/ui/theme/oc_text.dart';
+import 'package:opencord/ui/widgets/confirm_dialog.dart';
 import 'package:opencord/ui/widgets/hoverable.dart';
 import 'package:opencord/ui/widgets/oc_dialog.dart';
 import 'package:opencord/ui/widgets/oc_icon_button.dart';
@@ -30,6 +31,23 @@ class SettingsPage {
   /// The heading it sits under in the navigation.
   final String group;
   final WidgetBuilder builder;
+}
+
+/// Lets settings pages say they hold changes not saved yet, so closing the
+/// dialog asks first (§16 "never lose input").
+class SettingsScope extends InheritedWidget {
+  const SettingsScope({super.key, required this.unsaved, required super.child});
+
+  final Map<Object, bool Function()> unsaved;
+
+  /// The checks of the dialog around [context], if any. Pages add
+  /// themselves in `didChangeDependencies` and remove themselves from the
+  /// same map in `dispose`, when the dialog can no longer be looked up.
+  static Map<Object, bool Function()>? of(BuildContext context) =>
+      context.getInheritedWidgetOfExactType<SettingsScope>()?.unsaved;
+
+  @override
+  bool updateShouldNotify(SettingsScope oldWidget) => false;
 }
 
 /// Opens a settings dialog on [initialPage] (the first page when null).
@@ -67,6 +85,21 @@ class SettingsDialog extends StatefulWidget {
 }
 
 class _SettingsDialogState extends State<SettingsDialog> {
+  final _unsaved = <Object, bool Function()>{};
+
+  Future<void> _close() async {
+    if (_unsaved.values.any((check) => check())) {
+      final discard = await confirmAction(
+        context,
+        title: 'Discard your changes?',
+        message: 'Some changes on this page are not saved yet.',
+        action: 'Discard',
+      );
+      if (!discard || !mounted) return;
+    }
+    if (mounted) Navigator.pop(context);
+  }
+
   late String _page =
       widget.pages
           .where((page) => page.id == widget.initialPage)
@@ -86,119 +119,130 @@ class _SettingsDialogState extends State<SettingsDialog> {
     for (final candidate in widget.pages) {
       groups.putIfAbsent(candidate.group, () => []).add(candidate);
     }
-    return Center(
-      child: SizedBox(
-        width: math.min(SettingsDialog.maxSize.width, screen.width - 48),
-        height: math.min(SettingsDialog.maxSize.height, screen.height - 48),
-        child: Material(
-          type: MaterialType.transparency,
-          child: Container(
-            clipBehavior: Clip.antiAlias,
-            decoration: BoxDecoration(
-              color: colors.elevated,
-              borderRadius: BorderRadius.circular(OcRadius.dialog),
-              border: Border.all(color: colors.border),
-            ),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Container(
-                  width: SettingsDialog.navWidth,
-                  color: colors.sidebar,
-                  child: ListView(
-                    padding: const EdgeInsets.all(OcSpace.s12),
-                    children: [
-                      Padding(
-                        padding: const EdgeInsets.fromLTRB(
-                          OcSpace.s8,
-                          OcSpace.s8,
-                          OcSpace.s8,
-                          OcSpace.s4,
-                        ),
-                        child: Semantics(
-                          header: true,
-                          child: Text(
-                            widget.title,
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                            style: OcText.title.copyWith(color: colors.text),
-                          ),
-                        ),
-                      ),
-                      for (final MapEntry(key: group, value: items)
-                          in groups.entries) ...[
-                        SectionLabel(
-                          group,
-                          padding: const EdgeInsets.fromLTRB(
-                            OcSpace.s8,
-                            OcSpace.s16,
-                            OcSpace.s8,
-                            OcSpace.s6,
-                          ),
-                        ),
-                        for (final item in items)
-                          _NavItem(
-                            page: item,
-                            selected: item.id == page.id,
-                            onTap: () => setState(() => _page = item.id),
-                          ),
-                      ],
-                    ],
-                  ),
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) _close();
+      },
+      child: SettingsScope(
+        unsaved: _unsaved,
+        child: Center(
+          child: SizedBox(
+            width: math.min(SettingsDialog.maxSize.width, screen.width - 48),
+            height: math.min(SettingsDialog.maxSize.height, screen.height - 48),
+            child: Material(
+              type: MaterialType.transparency,
+              child: Container(
+                clipBehavior: Clip.antiAlias,
+                decoration: BoxDecoration(
+                  color: colors.elevated,
+                  borderRadius: BorderRadius.circular(OcRadius.dialog),
+                  border: Border.all(color: colors.border),
                 ),
-                VerticalDivider(width: 1, color: colors.border),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Container(
-                        height: OcSize.header,
-                        padding: const EdgeInsets.only(
-                          left: OcSpace.s24,
-                          right: OcSpace.s12,
-                        ),
-                        decoration: BoxDecoration(
-                          border: Border(
-                            bottom: BorderSide(color: colors.border),
-                          ),
-                        ),
-                        child: Row(
-                          children: [
-                            Expanded(
-                              child: Semantics(
-                                header: true,
-                                child: Text(
-                                  page.label,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: OcText.title.copyWith(
-                                    color: colors.text,
-                                  ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Container(
+                      width: SettingsDialog.navWidth,
+                      color: colors.sidebar,
+                      child: ListView(
+                        padding: const EdgeInsets.all(OcSpace.s12),
+                        children: [
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(
+                              OcSpace.s8,
+                              OcSpace.s8,
+                              OcSpace.s8,
+                              OcSpace.s4,
+                            ),
+                            child: Semantics(
+                              header: true,
+                              child: Text(
+                                widget.title,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: OcText.title.copyWith(
+                                  color: colors.text,
                                 ),
                               ),
                             ),
-                            OcIconButton(
-                              icon: OcIcons.close,
-                              tooltip: 'Close settings',
-                              onPressed: () => Navigator.pop(context),
-                            ),
-                          ],
-                        ),
-                      ),
-                      Expanded(
-                        child: SingleChildScrollView(
-                          key: PageStorageKey(page.id),
-                          padding: const EdgeInsets.all(OcSpace.s24),
-                          child: KeyedSubtree(
-                            key: ValueKey(page.id),
-                            child: page.builder(context),
                           ),
-                        ),
+                          for (final MapEntry(key: group, value: items)
+                              in groups.entries) ...[
+                            SectionLabel(
+                              group,
+                              padding: const EdgeInsets.fromLTRB(
+                                OcSpace.s8,
+                                OcSpace.s16,
+                                OcSpace.s8,
+                                OcSpace.s6,
+                              ),
+                            ),
+                            for (final item in items)
+                              _NavItem(
+                                page: item,
+                                selected: item.id == page.id,
+                                onTap: () => setState(() => _page = item.id),
+                              ),
+                          ],
+                        ],
                       ),
-                    ],
-                  ),
+                    ),
+                    VerticalDivider(width: 1, color: colors.border),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Container(
+                            height: OcSize.header,
+                            padding: const EdgeInsets.only(
+                              left: OcSpace.s24,
+                              right: OcSpace.s12,
+                            ),
+                            decoration: BoxDecoration(
+                              border: Border(
+                                bottom: BorderSide(color: colors.border),
+                              ),
+                            ),
+                            child: Row(
+                              children: [
+                                Expanded(
+                                  child: Semantics(
+                                    header: true,
+                                    child: Text(
+                                      page.label,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: OcText.title.copyWith(
+                                        color: colors.text,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                                OcIconButton(
+                                  icon: OcIcons.close,
+                                  tooltip: 'Close settings',
+                                  onPressed: _close,
+                                ),
+                              ],
+                            ),
+                          ),
+                          Expanded(
+                            child: SingleChildScrollView(
+                              key: PageStorageKey(page.id),
+                              padding: const EdgeInsets.all(OcSpace.s24),
+                              child: KeyedSubtree(
+                                key: ValueKey(page.id),
+                                child: page.builder(context),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
-              ],
+              ),
             ),
           ),
         ),

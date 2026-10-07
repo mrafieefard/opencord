@@ -5,6 +5,7 @@ import 'package:opencord/core/format.dart';
 import 'package:opencord/core/model/server.dart';
 import 'package:opencord/core/providers/providers.dart';
 import 'package:opencord/core/repository/repository.dart';
+import 'package:opencord/features/settings/settings_dialog.dart';
 import 'package:opencord/ui/theme/oc_colors.dart';
 import 'package:opencord/ui/theme/oc_metrics.dart';
 import 'package:opencord/ui/theme/oc_text.dart';
@@ -26,6 +27,14 @@ class ServerOverviewPage extends ConsumerStatefulWidget {
 }
 
 class _ServerOverviewPageState extends ConsumerState<ServerOverviewPage> {
+  Map<Object, bool Function()>? _unsaved;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _unsaved = SettingsScope.of(context)?..[this] = () => _changed;
+  }
+
   late final TextEditingController _name;
   late final TextEditingController _description;
   late bool _openJoin;
@@ -48,6 +57,7 @@ class _ServerOverviewPageState extends ConsumerState<ServerOverviewPage> {
 
   @override
   void dispose() {
+    _unsaved?.remove(this);
     _name.dispose();
     _description.dispose();
     super.dispose();

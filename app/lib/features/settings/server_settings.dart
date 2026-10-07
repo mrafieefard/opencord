@@ -6,6 +6,7 @@ import 'package:opencord/core/providers/providers.dart';
 import 'package:opencord/features/settings/server/invites_bans_pages.dart';
 import 'package:opencord/features/settings/server/members_page.dart';
 import 'package:opencord/features/settings/server/overview_page.dart';
+import 'package:opencord/features/settings/server/roles_page.dart';
 import 'package:opencord/features/settings/settings_dialog.dart';
 import 'package:opencord/ui/theme/oc_icons.dart';
 
@@ -19,6 +20,14 @@ List<SettingsPage> serverSettingsPages(ServerData data, String serverKey) => [
       icon: OcIcons.info,
       group: 'Server',
       builder: (_) => ServerOverviewPage(serverKey: serverKey),
+    ),
+  if (data.can(Permissions.manageRoles))
+    SettingsPage(
+      id: 'roles',
+      label: 'Roles',
+      icon: OcIcons.shieldPerson,
+      group: 'Server',
+      builder: (_) => ServerRolesPage(serverKey: serverKey),
     ),
   if (data.can(Permissions.kickMembers) ||
       data.can(Permissions.banMembers) ||

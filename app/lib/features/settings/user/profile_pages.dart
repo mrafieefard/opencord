@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:opencord/core/repository/repository.dart';
 import 'package:opencord/core/settings/local_prefs.dart';
+import 'package:opencord/features/settings/settings_dialog.dart';
 import 'package:opencord/ui/theme/oc_colors.dart';
 import 'package:opencord/ui/theme/oc_icons.dart';
 import 'package:opencord/ui/theme/oc_metrics.dart';
@@ -26,6 +27,16 @@ class ProfilePage extends ConsumerStatefulWidget {
 }
 
 class _ProfilePageState extends ConsumerState<ProfilePage> {
+  Map<Object, bool Function()>? _unsaved;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _unsaved = SettingsScope.of(context)
+      ?..[this] = () =>
+          _name.text.trim().isNotEmpty && _name.text.trim() != _saved;
+  }
+
   late final TextEditingController _name;
   var _saving = false;
   String? _error;
@@ -41,6 +52,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
 
   @override
   void dispose() {
+    _unsaved?.remove(this);
     _name.dispose();
     super.dispose();
   }
