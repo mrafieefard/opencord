@@ -1,5 +1,6 @@
 import Cocoa
 import FlutterMacOS
+import ServiceManagement
 
 class MainFlutterWindow: NSWindow {
   private var windowChannel: WindowChannel?
@@ -219,6 +220,20 @@ final class WindowChannel: NSObject, NSWindowDelegate {
     case "setUrgent":
       if call.arguments as? Bool ?? false {
         NSApp.requestUserAttention(.informationalRequest)
+      }
+    case "setLaunchAtLogin":
+      // A login item (desktop UI plan §15); macOS 13 and later.
+      if #available(macOS 13.0, *) {
+        let enabled = call.arguments as? Bool ?? false
+        do {
+          if enabled {
+            try SMAppService.mainApp.register()
+          } else {
+            try SMAppService.mainApp.unregister()
+          }
+        } catch {
+          NSLog("Opencord could not change its login item: \(error)")
+        }
       }
     case "status":
       result(status())

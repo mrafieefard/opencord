@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -13,6 +15,7 @@ import 'package:opencord/core/settings/app_settings.dart';
 import 'package:opencord/core/settings/key_value_store.dart';
 import 'package:opencord/core/settings/local_prefs.dart';
 import 'package:opencord/features/desktop/linux_notifications.dart';
+import 'package:opencord/features/desktop/login_item.dart';
 import 'package:opencord/features/desktop/linux_tray.dart';
 import 'package:opencord/features/desktop/notification_binding.dart';
 import 'package:opencord/features/desktop/notifications.dart';
@@ -64,11 +67,21 @@ Future<void> main(List<String> args) async {
       if (tray != null) trayServiceProvider.overrideWithValue(tray),
       if (notifications != null)
         notificationServiceProvider.overrideWithValue(notifications),
+      loginItemProvider.overrideWithValue(switch (defaultTargetPlatform) {
+        TargetPlatform.linux => XdgAutostart(
+          configHome: xdgConfigHome(Platform.environment),
+          executable: Platform.resolvedExecutable,
+        ),
+        TargetPlatform.windows ||
+        TargetPlatform.macOS => RunnerLoginItem(window),
+        _ => const NoLoginItem(),
+      }),
     ],
   );
   container.read(eventPumpProvider);
   container.read(trayBindingProvider);
   container.read(notificationBindingProvider);
+  container.read(loginItemBindingProvider);
   // Links the app was started with (§15); later launches pass theirs on
   // through the window, which the inbox listens to from now.
   final inbox = container.read(appLinkInboxProvider.notifier);

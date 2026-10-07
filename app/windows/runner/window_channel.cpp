@@ -11,6 +11,30 @@
 
 namespace {
 
+// Starts Opencord at login through the current user's Run key (desktop UI
+// plan §15).
+void SetLaunchAtLogin(bool enabled) {
+  HKEY key = nullptr;
+  if (RegOpenKeyExW(HKEY_CURRENT_USER,
+                    L"Software\\Microsoft\\Windows\\CurrentVersion\\Run", 0,
+                    KEY_SET_VALUE, &key) != ERROR_SUCCESS) {
+    return;
+  }
+  if (enabled) {
+    wchar_t path[MAX_PATH];
+    const DWORD length = GetModuleFileNameW(nullptr, path, MAX_PATH);
+    if (length > 0 && length < MAX_PATH) {
+      const std::wstring command = L"\"" + std::wstring(path, length) + L"\"";
+      RegSetValueExW(key, L"Opencord", 0, REG_SZ,
+                     reinterpret_cast<const BYTE*>(command.c_str()),
+                     static_cast<DWORD>((command.size() + 1) * sizeof(wchar_t)));
+    }
+  } else {
+    RegDeleteValueW(key, L"Opencord");
+  }
+  RegCloseKey(key);
+}
+
 // Caption buttons are 46 x 32 logical pixels at the top right (§3.1).
 constexpr int kCaptionWidth = 46;
 constexpr int kCaptionHeight = 32;
@@ -419,6 +443,9 @@ void WindowChannel::HandleMethodCall(
     flash.dwFlags = flag != nullptr && *flag ? FLASHW_TRAY | FLASHW_TIMERNOFG
                                              : FLASHW_STOP;
     FlashWindowEx(&flash);
+  } else if (method == "setLaunchAtLogin") {
+    const auto* flag = args == nullptr ? nullptr : std::get_if<bool>(args);
+    SetLaunchAtLogin(flag != nullptr && *flag);
   } else if (method == "status") {
     result->Success(Status());
     return;

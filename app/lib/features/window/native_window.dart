@@ -212,6 +212,10 @@ abstract interface class NativeWindow {
   Future<void> show();
 
   Future<void> setUrgent(bool urgent);
+
+  /// Starts the app at login, on Windows (the Run key) and macOS (a login
+  /// item). Linux writes an autostart entry instead.
+  Future<void> setLaunchAtLogin(bool enabled);
 }
 
 /// [NativeWindow] over the `dev.opencord/window` method channel of the
@@ -366,6 +370,10 @@ class ChannelNativeWindow implements NativeWindow {
 
   @override
   Future<void> setUrgent(bool urgent) => _invoke<void>('setUrgent', urgent);
+
+  @override
+  Future<void> setLaunchAtLogin(bool enabled) =>
+      _invoke<void>('setLaunchAtLogin', enabled);
 }
 
 /// A window nobody draws for: where there is no native side, as in widget
@@ -439,4 +447,7 @@ class NullNativeWindow implements NativeWindow {
 
   @override
   Future<void> setUrgent(bool urgent) async {}
+
+  @override
+  Future<void> setLaunchAtLogin(bool enabled) async {}
 }

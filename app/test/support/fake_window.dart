@@ -84,4 +84,8 @@ class FakeNativeWindow implements NativeWindow {
 
   @override
   Future<void> setUrgent(bool urgent) async => calls.add('setUrgent:$urgent');
+
+  @override
+  Future<void> setLaunchAtLogin(bool enabled) async =>
+      calls.add('setLaunchAtLogin:$enabled');
 }

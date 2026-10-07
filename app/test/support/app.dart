@@ -17,6 +17,7 @@ import 'package:opencord/features/window/window_providers.dart';
 import 'package:opencord/features/links/app_links.dart';
 import 'package:opencord/features/desktop/tray_binding.dart';
 import 'package:opencord/features/desktop/notification_binding.dart';
+import 'package:opencord/features/desktop/login_item.dart';
 
 /// The whole app on the mock repository, in a widget test.
 class MockApp {
@@ -68,6 +69,7 @@ class MockApp {
     container.read(eventPumpProvider);
     container.read(trayBindingProvider);
     container.read(notificationBindingProvider);
+    container.read(loginItemBindingProvider);
     for (final link in links) {
       container.read(appLinkInboxProvider.notifier).add(link);
     }
