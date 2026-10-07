@@ -6,6 +6,7 @@ import 'package:opencord/core/model/message.dart';
 import 'package:opencord/core/providers/server_state.dart';
 import 'package:opencord/features/chat/bubble.dart';
 import 'package:opencord/features/chat/chat_rows.dart';
+import 'package:opencord/features/chat/compact_message.dart';
 import 'package:opencord/features/chat/markdown_view.dart';
 import 'package:opencord/features/chat/message_actions.dart';
 import 'package:opencord/features/chat/message_item.dart';
@@ -108,6 +109,7 @@ class ChatRowView extends StatelessWidget {
     required this.now,
     this.highlighted = false,
     this.reactions = true,
+    this.compact = false,
   });
 
   final ChatRow row;
@@ -120,6 +122,9 @@ class ChatRowView extends StatelessWidget {
   /// Whether reactions can be toggled (the repository may not support
   /// them).
   final bool reactions;
+
+  /// Compact density (§8.1): lines instead of bubbles.
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
@@ -151,6 +156,36 @@ class ChatRowView extends StatelessWidget {
   Widget _message(MessageRow row) {
     final message = row.message;
     final author = lookups.name(message.authorId);
+    final onReaction = reactions
+        ? (String emoji) => actions.onReaction(message, emoji)
+        : null;
+    final onReplyTap = message.replyToId == null
+        ? null
+        : () => actions.onJumpTo(message.replyToId!);
+    if (compact) {
+      return MessageItem(
+        message: message,
+        own: row.own,
+        first: row.first,
+        actions: actions.message,
+        compact: true,
+        builder: (onSelectionChanged) => CompactMessage(
+          message: message,
+          first: row.first,
+          author: author,
+          role: row.first ? lookups.role(message.authorId) : null,
+          reply: lookups.reply(message),
+          mentionsMe: row.mentionsMe,
+          highlighted: highlighted,
+          links: actions.links,
+          reactionNames: lookups.reactors,
+          onReaction: onReaction,
+          onReplyTap: onReplyTap,
+          onRetry: () => actions.onRetry(message),
+          onSelectionChanged: onSelectionChanged,
+        ),
+      );
+    }
     return MessageItem(
       message: message,
       own: row.own,
@@ -159,7 +194,7 @@ class ChatRowView extends StatelessWidget {
       avatar: row.showAvatar
           ? OcAvatar(id: '${message.authorId}', name: author)
           : null,
-      bubbleBuilder: (onSelectionChanged) => MessageBubble(
+      builder: (onSelectionChanged) => MessageBubble(
         message: message,
         own: row.own,
         first: row.first,
@@ -171,12 +206,8 @@ class ChatRowView extends StatelessWidget {
         highlighted: highlighted,
         links: actions.links,
         reactionNames: lookups.reactors,
-        onReaction: reactions
-            ? (emoji) => actions.onReaction(message, emoji)
-            : null,
-        onReplyTap: message.replyToId == null
-            ? null
-            : () => actions.onJumpTo(message.replyToId!),
+        onReaction: onReaction,
+        onReplyTap: onReplyTap,
         onRetry: () => actions.onRetry(message),
         onSelectionChanged: onSelectionChanged,
       ),

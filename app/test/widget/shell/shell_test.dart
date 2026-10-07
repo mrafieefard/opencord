@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:opencord/core/providers/providers.dart';
+import 'package:opencord/core/settings/app_settings.dart';
 import 'package:opencord/features/shell/desktop_shell.dart';
 import 'package:opencord/features/shell/navigation.dart';
 import 'package:opencord/features/shell/window_title.dart';
@@ -168,29 +169,39 @@ void main() {
 
   for (final size in const [Size(1440, 900), Size(1180, 800), Size(900, 700)]) {
     for (final scale in const [1.0, 1.5]) {
-      testWidgets(
-        'no overflow at ${size.width.toInt()}×${size.height.toInt()}, text ×$scale',
-        (tester) async {
-          final app = await MockApp.pump(tester, size: size, textScale: scale);
-          expect(tester.takeException(), isNull);
+      for (final density in MessageDensity.values) {
+        testWidgets(
+          'no overflow at ${size.width.toInt()}×${size.height.toInt()}, '
+          'text ×$scale, ${density.name}',
+          (tester) async {
+            final app = await MockApp.pump(
+              tester,
+              size: size,
+              textScale: scale,
+              settings: (settings) => settings.copyWith(density: density),
+            );
+            expect(tester.takeException(), isNull);
 
-          // #general has the pinned bar, replies, reactions and code.
-          final server = app.read(currentServerProvider)!;
-          final general = app
-              .read(serverProvider(server))
-              .data!
-              .channels
-              .values
-              .firstWhere((channel) => channel.name == 'general');
-          app.read(navigationProvider.notifier).openChannel(server, general.id);
-          for (var i = 0; i < 4; i++) {
-            await tester.pump(const Duration(milliseconds: 100));
-          }
+            // #general has the pinned bar, replies, reactions and code.
+            final server = app.read(currentServerProvider)!;
+            final general = app
+                .read(serverProvider(server))
+                .data!
+                .channels
+                .values
+                .firstWhere((channel) => channel.name == 'general');
+            app
+                .read(navigationProvider.notifier)
+                .openChannel(server, general.id);
+            for (var i = 0; i < 4; i++) {
+              await tester.pump(const Duration(milliseconds: 100));
+            }
 
-          expect(tester.takeException(), isNull);
-          await app.dispose(tester);
-        },
-      );
+            expect(tester.takeException(), isNull);
+            await app.dispose(tester);
+          },
+        );
+      }
     }
   }
 }

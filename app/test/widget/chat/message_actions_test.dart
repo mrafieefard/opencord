@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:opencord/core/providers/providers.dart';
+import 'package:opencord/core/settings/app_settings.dart';
 import 'package:opencord/features/chat/bubble.dart';
 import 'package:opencord/features/chat/composer_state.dart';
 import 'package:opencord/features/chat/hover_bar.dart';
@@ -192,35 +193,48 @@ void main() {
     await app.dispose(tester);
   });
 
-  testWidgets('the hover bar always stays inside the list', (tester) async {
-    final app = await MockApp.pump(tester, size: const Size(900, 700));
-    await _openGeneral(tester, app);
-    final list = tester.getRect(find.byType(MessageList));
-    final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
-    // Over the server rail, away from any message.
-    await mouse.addPointer(location: const Offset(30, 650));
-    addTearDown(mouse.removePointer);
-    final texts = [
-      for (final element in find.byType(MarkdownView).evaluate())
-        tester.getCenter(find.byWidget(element.widget)),
-    ].where((point) => list.deflate(4).contains(point)).toList();
-    expect(texts.length, greaterThan(4));
+  for (final density in MessageDensity.values) {
+    testWidgets(
+      'the hover bar always stays inside the list (${density.name})',
+      (tester) async {
+        final app = await MockApp.pump(
+          tester,
+          size: const Size(900, 700),
+          settings: (settings) => settings.copyWith(density: density),
+        );
+        await _openGeneral(tester, app);
+        final list = tester.getRect(find.byType(MessageList));
+        final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+        // Over the server rail, away from any message.
+        await mouse.addPointer(location: const Offset(30, 650));
+        addTearDown(mouse.removePointer);
+        final texts = [
+          for (final element in find.byType(MarkdownView).evaluate())
+            tester.getCenter(find.byWidget(element.widget)),
+        ].where((point) => list.deflate(4).contains(point)).toList();
+        expect(texts.length, greaterThan(4));
 
-    for (final point in texts) {
-      await mouse.moveTo(point);
-      await tester.pump();
-      final bar = tester.getRect(find.byType(HoverActionBar));
-      expect(list.inflate(1).contains(bar.topLeft), isTrue, reason: '$point');
-      expect(
-        list.inflate(1).contains(bar.bottomRight),
-        isTrue,
-        reason: '$point',
-      );
-      await mouse.moveTo(const Offset(30, 650));
-      await tester.pump(const Duration(milliseconds: 200));
-    }
-    await app.dispose(tester);
-  });
+        for (final point in texts) {
+          await mouse.moveTo(point);
+          await tester.pump();
+          final bar = tester.getRect(find.byType(HoverActionBar));
+          expect(
+            list.inflate(1).contains(bar.topLeft),
+            isTrue,
+            reason: '$point',
+          );
+          expect(
+            list.inflate(1).contains(bar.bottomRight),
+            isTrue,
+            reason: '$point',
+          );
+          await mouse.moveTo(const Offset(30, 650));
+          await tester.pump(const Duration(milliseconds: 200));
+        }
+        await app.dispose(tester);
+      },
+    );
+  }
 
   testWidgets('a reaction picked from the hover bar is added', (tester) async {
     final app = await MockApp.pump(tester);

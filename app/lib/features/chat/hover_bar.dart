@@ -30,6 +30,11 @@ class HoverActionBar extends StatefulWidget {
   static double widthFor(int buttons) =>
       buttons * OcSize.hitCompact + 2 * OcSpace.s2 + 2;
 
+  static const double height = OcSize.hitCompact + 2 * OcSpace.s2 + 2;
+
+  /// How far the bar overlaps what it sits on when placed on an edge.
+  static const double overlap = 14;
+
   @override
   State<HoverActionBar> createState() => _HoverActionBarState();
 }

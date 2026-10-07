@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:opencord/core/providers/providers.dart';
+import 'package:opencord/core/settings/app_settings.dart';
 import 'package:opencord/features/chat/bubble.dart';
+import 'package:opencord/features/chat/compact_message.dart';
 import 'package:opencord/features/chat/list_overlays.dart';
 import 'package:opencord/features/chat/message_list.dart';
 import 'package:opencord/features/shell/navigation.dart';
@@ -82,6 +84,19 @@ void main() {
     await _open(tester, app, 'general');
 
     expect(_inView(tester, 'Unread messages'), isTrue);
+    await app.dispose(tester);
+  });
+
+  testWidgets('compact density draws lines instead of bubbles', (tester) async {
+    final app = await MockApp.pump(
+      tester,
+      settings: (settings) =>
+          settings.copyWith(density: MessageDensity.compact),
+    );
+    await _open(tester, app, 'general');
+
+    expect(find.byType(CompactMessage), findsWidgets);
+    expect(find.byType(MessageBubble), findsNothing);
     await app.dispose(tester);
   });
 

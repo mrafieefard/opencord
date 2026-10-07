@@ -38,12 +38,22 @@ class MarkdownView extends StatefulWidget {
     required this.links,
     required this.color,
     this.trailing = Size.zero,
+    this.lead = const [],
+    this.tail = const [],
   });
 
   final List<MdBlock> blocks;
   final MarkdownContext links;
   final Color color;
   final Size trailing;
+
+  /// Put before the first paragraph, like the author in compact mode;
+  /// on a line of its own when the message starts with a quote or code.
+  final List<InlineSpan> lead;
+
+  /// Put after the last paragraph, like "(edited)"; on a line of its own
+  /// after code.
+  final List<InlineSpan> tail;
 
   @override
   State<MarkdownView> createState() => _MarkdownViewState();
@@ -140,9 +150,18 @@ class _MarkdownViewState extends State<MarkdownView> {
     final base = OcText.body.copyWith(color: widget.color);
     final blocks = widget.blocks;
     final children = <Widget>[];
+    final lead = widget.lead;
+    final tail = widget.tail;
+    final leadInline = blocks.firstOrNull is MdParagraph;
+    final tailInline = blocks.lastOrNull is! MdCode;
+    if (lead.isNotEmpty && !leadInline) {
+      children.add(Text.rich(TextSpan(style: base, children: lead)));
+    }
     for (var i = 0; i < blocks.length; i++) {
       final block = blocks[i];
       final last = i == blocks.length - 1;
+      final before = i == 0 && leadInline ? lead : const <InlineSpan>[];
+      final after = last && tailInline ? tail : const <InlineSpan>[];
       final reserve = last && widget.trailing != Size.zero
           ? [
               WidgetSpan(
@@ -151,12 +170,19 @@ class _MarkdownViewState extends State<MarkdownView> {
               ),
             ]
           : const <InlineSpan>[];
-      if (i > 0) children.add(const SizedBox(height: OcSpace.s4));
+      if (children.isNotEmpty) {
+        children.add(const SizedBox(height: OcSpace.s4));
+      }
       children.add(switch (block) {
         MdParagraph(:final inlines) => Text.rich(
           TextSpan(
             style: base,
-            children: [..._spans(inlines, base), ...reserve],
+            children: [
+              ...before,
+              ..._spans(inlines, base),
+              ...after,
+              ...reserve,
+            ],
           ),
         ),
         MdQuote(:final inlines) => Container(
@@ -169,6 +195,7 @@ class _MarkdownViewState extends State<MarkdownView> {
               style: base,
               children: [
                 ..._spans(inlines, base.copyWith(color: colors.textSecondary)),
+                ...after,
                 ...reserve,
               ],
             ),
@@ -179,6 +206,9 @@ class _MarkdownViewState extends State<MarkdownView> {
           language: language,
         ),
       });
+    }
+    if (tail.isNotEmpty && !tailInline) {
+      children.add(Text.rich(TextSpan(style: base, children: tail)));
     }
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,

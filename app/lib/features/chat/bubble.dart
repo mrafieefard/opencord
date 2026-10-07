@@ -152,7 +152,7 @@ class MessageBubble extends StatelessWidget {
                 runSpacing: 4,
                 children: [
                   for (final reaction in message.reactions)
-                    _ReactionChip(
+                    ReactionChip(
                       reaction: reaction,
                       names: reactionNames?.call(reaction.userIds),
                       onTap: onReaction == null
@@ -439,8 +439,13 @@ class _ReplyQuote extends StatelessWidget {
 }
 
 /// "👍 3": inverted when you reacted; a click toggles yours (§4.5).
-class _ReactionChip extends StatelessWidget {
-  const _ReactionChip({required this.reaction, this.names, this.onTap});
+class ReactionChip extends StatelessWidget {
+  const ReactionChip({
+    super.key,
+    required this.reaction,
+    this.names,
+    this.onTap,
+  });
 
   final Reaction reaction;
   final String? names;

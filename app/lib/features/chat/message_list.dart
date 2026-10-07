@@ -9,6 +9,7 @@ import 'package:opencord/core/format.dart';
 import 'package:opencord/core/model/message.dart';
 import 'package:opencord/core/providers/providers.dart';
 import 'package:opencord/core/repository/repository.dart';
+import 'package:opencord/core/settings/app_settings.dart';
 import 'package:opencord/features/chat/chat_controller.dart';
 import 'package:opencord/features/chat/chat_row_view.dart';
 import 'package:opencord/features/chat/chat_scroll.dart';
@@ -222,6 +223,9 @@ class _MessageListState extends ConsumerState<MessageList>
     final actions = _actions(data);
     final now = ref.read(clockProvider)();
     final reactions = ref.read(repositoryProvider).capabilities.reactions;
+    final compact =
+        ref.watch(appSettingsProvider.select((settings) => settings.density)) ==
+        MessageDensity.compact;
     Widget rowAt(int index) {
       final row = rows[index];
       final message = messageOf(row);
@@ -239,6 +243,7 @@ class _MessageListState extends ConsumerState<MessageList>
             channel: channel,
             now: now,
             reactions: reactions,
+            compact: compact,
             highlighted: message != null && message.id == _highlight,
           ),
         ),

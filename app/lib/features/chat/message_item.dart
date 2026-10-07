@@ -34,8 +34,9 @@ class MessageItem extends StatefulWidget {
     required this.own,
     required this.first,
     required this.actions,
-    required this.bubbleBuilder,
+    required this.builder,
     this.avatar,
+    this.compact = false,
   });
 
   final Message message;
@@ -44,8 +45,13 @@ class MessageItem extends StatefulWidget {
   final MessageActions actions;
   final Widget? avatar;
 
-  /// Builds the bubble, reporting text selected inside it.
-  final Widget Function(SelectionChanged onSelectionChanged) bubbleBuilder;
+  /// Builds the bubble, or the whole line in compact density, reporting
+  /// text selected inside it.
+  final Widget Function(SelectionChanged onSelectionChanged) builder;
+
+  /// Compact density (§8.1): a line without a bubble; the bar sits on its
+  /// top edge at the right, like Discord's.
+  final bool compact;
 
   static const hideDelay = Duration(milliseconds: 150);
 
@@ -101,6 +107,7 @@ class _MessageItemState extends State<MessageItem> {
   /// Beside the bubble on its outer side when there is room, otherwise on
   /// its top corner; against its bottom when its top has scrolled away.
   _Placement _place() {
+    if (widget.compact) return _placeOnLine();
     final own = widget.own;
     final overlay = Overlay.of(context).context.findRenderObject();
     final bubble = _bubbleKey.currentContext?.findRenderObject();
@@ -112,7 +119,12 @@ class _MessageItemState extends State<MessageItem> {
       final room = own ? rect.left : overlay.size.width - rect.right;
       outside =
           room >= HoverActionBar.widthFor(_buttons) + OcSpace.s6 + OcSpace.s4;
-      bottom = rect.top < OcSpace.s4;
+      // Beside the bubble the bar starts at its top; on the edge it rises
+      // above it.
+      final above = outside
+          ? 0.0
+          : HoverActionBar.height - HoverActionBar.overlap;
+      bottom = rect.top < above + OcSpace.s4;
     }
     final side = own ? -1.0 : 1.0;
     if (outside) {
@@ -126,7 +138,10 @@ class _MessageItemState extends State<MessageItem> {
     return (
       target: Alignment(side, bottom ? 1 : -1),
       follower: Alignment(side, bottom ? -1 : 1),
-      offset: Offset(-side * OcSpace.s8, bottom ? -14 : 14),
+      offset: Offset(
+        -side * OcSpace.s8,
+        bottom ? -HoverActionBar.overlap : HoverActionBar.overlap,
+      ),
     );
   }
 
@@ -196,11 +211,39 @@ class _MessageItemState extends State<MessageItem> {
     );
   }
 
+  /// On the line's top edge at the right; against its bottom when the top
+  /// has scrolled away.
+  _Placement _placeOnLine() {
+    final overlay = Overlay.of(context).context.findRenderObject();
+    final line = _bubbleKey.currentContext?.findRenderObject();
+    var bottom = false;
+    if (overlay is RenderBox && line is RenderBox && line.hasSize) {
+      final top = line.localToGlobal(Offset.zero, ancestor: overlay).dy;
+      bottom =
+          top < HoverActionBar.height - HoverActionBar.overlap + OcSpace.s4;
+    }
+    return (
+      target: Alignment(1, bottom ? 1 : -1),
+      follower: Alignment(1, bottom ? -1 : 1),
+      offset: Offset(
+        -OcSpace.s16,
+        bottom ? -HoverActionBar.overlap : HoverActionBar.overlap,
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final actions = widget.actions;
     final message = _message;
     final colors = context.oc;
+    final anchored = CompositedTransformTarget(
+      link: _link,
+      child: KeyedSubtree(
+        key: _bubbleKey,
+        child: widget.builder((selected) => _selection = selected),
+      ),
+    );
     return OverlayPortal(
       controller: _bar,
       overlayChildBuilder: (context) => Positioned(
@@ -268,20 +311,14 @@ class _MessageItemState extends State<MessageItem> {
                     ? Border.all(color: colors.text, width: 1.5)
                     : null,
               ),
-              child: MessageLine(
-                own: widget.own,
-                first: widget.first,
-                avatar: widget.avatar,
-                bubble: CompositedTransformTarget(
-                  link: _link,
-                  child: KeyedSubtree(
-                    key: _bubbleKey,
-                    child: widget.bubbleBuilder(
-                      (selected) => _selection = selected,
+              child: widget.compact
+                  ? anchored
+                  : MessageLine(
+                      own: widget.own,
+                      first: widget.first,
+                      avatar: widget.avatar,
+                      bubble: anchored,
                     ),
-                  ),
-                ),
-              ),
             ),
           ),
         ),
