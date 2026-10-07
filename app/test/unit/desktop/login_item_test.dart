@@ -24,7 +24,8 @@ void main() {
     expect(text, startsWith('[Desktop Entry]\n'));
     expect(text, contains('\nType=Application\n'));
     expect(text, contains('\nName=Opencord\n'));
-    expect(text, contains('\nExec="/opt/opencord/opencord"\n'));
+    // Marked as a start at login: only then does Start minimized apply.
+    expect(text, contains('\nExec="/opt/opencord/opencord" --autostart\n'));
   });
 
   test(
@@ -53,7 +54,7 @@ void main() {
 
     expect(
       entry().readAsStringSync(),
-      contains(r'Exec="/home/a b/my \"app\"/\$bin"'),
+      contains(r'Exec="/home/a b/my \"app\"/\$bin" --autostart'),
     );
   });
 

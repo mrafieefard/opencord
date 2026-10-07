@@ -57,6 +57,33 @@ void main() {
     await app.dispose(tester);
   });
 
+  for (final (platform, tray) in [
+    (TargetPlatform.linux, true),
+    (TargetPlatform.windows, false),
+    (TargetPlatform.macOS, false),
+  ]) {
+    testWidgets(
+      'tray switches show only where there is a tray (${platform.name})',
+      (tester) async {
+        final app = await MockApp.pump(tester, platform: platform);
+        await _openSettings(tester);
+        await _page(tester, 'Windows & behavior');
+
+        final rows = [
+          _inPage(find.textContaining('minimizes to the tray')),
+          _inPage(find.textContaining('menu bar')),
+          _inPage(find.text('Start minimized')),
+        ];
+        expect(
+          rows.where((row) => row.evaluate().isNotEmpty),
+          hasLength(tray ? 2 : 0),
+        );
+        expect(_inPage(find.text('Launch at login')), findsOneWidget);
+        await app.dispose(tester);
+      },
+    );
+  }
+
   testWidgets('the theme and density apply at once', (tester) async {
     final app = await MockApp.pump(tester, platform: TargetPlatform.linux);
     await _openSettings(tester);

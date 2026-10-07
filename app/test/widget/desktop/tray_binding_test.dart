@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:opencord/core/providers/providers.dart';
 import 'package:opencord/core/repository/repository.dart';
@@ -14,9 +15,11 @@ Future<MockApp> _pump(
   required FakeTray tray,
   FakeNativeWindow? window,
   bool closeToTray = true,
+  TargetPlatform? platform,
 }) => MockApp.pump(
   tester,
   window: window,
+  platform: platform,
   settings: (s) => s.copyWith(closeToTray: closeToTray),
   overrides: [trayServiceProvider.overrideWithValue(tray)],
 );
@@ -86,6 +89,26 @@ void main() {
 
       expect(window.calls, contains('quit'));
       expect(window.calls, isNot(contains('hide')));
+      await app.dispose(tester);
+    });
+
+    testWidgets('on macOS hides it: the Dock icon brings it back', (
+      tester,
+    ) async {
+      final window = FakeNativeWindow();
+      final app = await _pump(
+        tester,
+        tray: FakeTray(available: false),
+        window: window,
+        closeToTray: false,
+        platform: TargetPlatform.macOS,
+      );
+
+      window.closeEvents.add(null);
+      await tester.pump();
+
+      expect(window.calls, contains('hide'));
+      expect(window.calls, isNot(contains('quit')));
       await app.dispose(tester);
     });
 

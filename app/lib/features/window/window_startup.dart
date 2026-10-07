@@ -56,6 +56,15 @@ Future<WindowInfo> startWindow({
   return info;
 }
 
+/// Whether the window starts hidden in the tray (§8.1 Start minimized):
+/// at login only, as Telegram does, and only with a tray to come back from.
+/// Launched by hand, the person wants the window.
+bool startsHidden({
+  required bool atLogin,
+  required AppSettings settings,
+  required bool tray,
+}) => atLogin && settings.startMinimized && tray;
+
 /// Saves a new frame choice for the next start (§8.1 Window frame). The
 /// window is configured once, when it is created, so the choice applies
 /// after a restart on every platform. Overridden in `main` with the app's

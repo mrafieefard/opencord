@@ -56,6 +56,7 @@ Future<ProviderContainer> startApp({
   required bool mock,
   List<String> links = const [],
   bool desktop = true,
+  bool atLogin = false,
 }) async {
   await RustLib.init();
   final environment = Platform.environment;
@@ -76,7 +77,11 @@ Future<ProviderContainer> startApp({
     store: store,
     settings: settings,
     dataDir: dataDir,
-    hidden: settings.startMinimized && (tray?.available ?? false),
+    hidden: startsHidden(
+      atLogin: atLogin,
+      settings: settings,
+      tray: tray?.available ?? false,
+    ),
   );
 
   // The Rust core, or the mock for working on the UI without a server.

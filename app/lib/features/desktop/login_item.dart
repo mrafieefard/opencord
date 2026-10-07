@@ -43,7 +43,7 @@ class XdgAutostart implements LoginItem {
         '[Desktop Entry]',
         'Type=Application',
         'Name=Opencord',
-        'Exec=${_quote(executable)}',
+        'Exec=${_quote(executable)} $autostartArg',
         'Icon=dev.opencord.opencord',
         'Terminal=false',
         'X-GNOME-Autostart-enabled=true',
@@ -56,6 +56,9 @@ class XdgAutostart implements LoginItem {
   static String _quote(String value) =>
       '"${value.replaceAllMapped(RegExp(r'["`$\\]'), (m) => '\\${m[0]}')}"';
 }
+
+/// What a start at login is given, so Start minimized applies only then.
+const autostartArg = '--autostart';
 
 /// `$XDG_CONFIG_HOME`, or `~/.config` when it is not set.
 Directory xdgConfigHome(Map<String, String> environment) {

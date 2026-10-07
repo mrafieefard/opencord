@@ -4,6 +4,7 @@ import 'package:flutter/widgets.dart';
 
 import 'package:opencord/app_start.dart';
 import 'package:opencord/core/profile.dart';
+import 'package:opencord/features/desktop/login_item.dart';
 import 'package:opencord/features/window/native_window.dart';
 
 Future<void> main(List<String> args) async {
@@ -18,6 +19,7 @@ Future<void> main(List<String> args) async {
           for (final arg in args)
             if (arg.startsWith('opencord:')) arg,
         ],
+        atLogin: args.contains(autostartArg),
       ),
       window: ChannelNativeWindow.new,
     ),

@@ -1,6 +1,6 @@
 import 'dart:async';
 
-import 'package:flutter/widgets.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:opencord/core/providers/providers.dart';
@@ -56,7 +56,10 @@ final trayBindingProvider = Provider<void>((ref) {
     }
   });
   final closes = window.closeRequests.listen((_) {
-    if (ref.read(appSettingsProvider).closeToTray && tray.available) {
+    // A Mac app stays in the Dock when its window closes, and comes back
+    // from there; ⌘Q quits (§7).
+    final mac = defaultTargetPlatform == TargetPlatform.macOS;
+    if (mac || (ref.read(appSettingsProvider).closeToTray && tray.available)) {
       window.hide();
     } else {
       window.quit();

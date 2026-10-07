@@ -28,24 +28,27 @@ class BehaviorPage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final settings = ref.watch(appSettingsProvider);
     final update = ref.read(appSettingsProvider.notifier).update;
-    final mac = Theme.of(context).platform == TargetPlatform.macOS;
+    // Only Linux has a tray yet (D21); on a Mac, closing the window keeps
+    // Opencord in the Dock anyway.
+    final tray = Theme.of(context).platform == TargetPlatform.linux;
     return SettingsSection(
       title: 'Window',
       children: [
-        SettingsSwitchRow(
-          title: mac
-              ? 'Closing the window keeps Opencord in the menu bar'
-              : 'Close button minimizes to the tray',
-          subtitle: 'Messages keep arriving in the background',
-          value: settings.closeToTray,
-          onChanged: (value) => update((s) => s.copyWith(closeToTray: value)),
-        ),
-        SettingsSwitchRow(
-          title: 'Start minimized',
-          value: settings.startMinimized,
-          onChanged: (value) =>
-              update((s) => s.copyWith(startMinimized: value)),
-        ),
+        if (tray) ...[
+          SettingsSwitchRow(
+            title: 'Close button minimizes to the tray',
+            subtitle: 'Messages keep arriving in the background',
+            value: settings.closeToTray,
+            onChanged: (value) => update((s) => s.copyWith(closeToTray: value)),
+          ),
+          SettingsSwitchRow(
+            title: 'Start minimized',
+            subtitle: 'When Opencord starts at login',
+            value: settings.startMinimized,
+            onChanged: (value) =>
+                update((s) => s.copyWith(startMinimized: value)),
+          ),
+        ],
         SettingsSwitchRow(
           title: 'Launch at login',
           value: settings.launchAtLogin,
