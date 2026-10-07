@@ -129,8 +129,16 @@ class _MessageListState extends ConsumerState<MessageList>
 
   // Opening ----------------------------------------------------------------
 
-  ChatScrollController _open(ChannelMessages state, int selfId) =>
-      _start(state, selfId)..addListener(_scheduleChecks);
+  ChatScrollController _open(ChannelMessages state, int selfId) {
+    final scroll = _start(state, selfId)..addListener(_scheduleChecks);
+    if (widget.controller.takeJump(_channel) case final message?) {
+      // A link to a message here (§15), once the list has its first layout.
+      SchedulerBinding.instance.addPostFrameCallback((_) {
+        if (mounted) jumpToMessage(message);
+      });
+    }
+    return scroll;
+  }
 
   /// Decides where the channel opens (§6): where the reader left it, else
   /// at the unread line, else at the newest message.

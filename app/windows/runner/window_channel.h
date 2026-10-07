@@ -8,6 +8,7 @@
 
 #include <memory>
 #include <optional>
+#include <string>
 
 // The "dev.opencord/window" method channel (desktop UI plan §3.1): a
 // frameless window that keeps Aero Snap, Windows 11 snap layouts, native
@@ -27,6 +28,11 @@ class WindowChannel {
 
   // Whether the window should open maximized (from the saved geometry).
   bool TakeMaximizeOnShow();
+
+  // Brings the window back, from the tray or from behind other windows, and
+  // passes `link` (an opencord:// link, or "") to the app. A later launch
+  // of the app lands here (desktop UI plan §15).
+  void Present(const std::wstring& link);
 
  private:
   enum class CaptionState { kNone, kHover, kPressed };

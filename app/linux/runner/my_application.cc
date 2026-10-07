@@ -8,6 +8,8 @@
 struct _MyApplication {
   GtkApplication parent_instance;
   char** dart_entrypoint_arguments;
+  // The one window; null until the first activation.
+  GtkWindow* window;
 };
 
 G_DEFINE_TYPE(MyApplication, my_application, GTK_TYPE_APPLICATION)
@@ -20,8 +22,15 @@ static void first_frame_cb(MyApplication* self, FlView* view) {
 // Implements GApplication::activate.
 static void my_application_activate(GApplication* application) {
   MyApplication* self = MY_APPLICATION(application);
+  // A later launch (desktop UI plan §15): bring the window back instead of
+  // opening a second one.
+  if (self->window != nullptr) {
+    window_channel_present(nullptr);
+    return;
+  }
   GtkWindow* window =
       GTK_WINDOW(gtk_application_window_new(GTK_APPLICATION(application)));
+  self->window = window;
   gtk_window_set_title(window, "Opencord");
 
   // Decorations and the RGBA visual (for the custom frame's rounded corners
@@ -62,6 +71,19 @@ static void my_application_activate(GApplication* application) {
   gtk_widget_grab_focus(GTK_WIDGET(view));
 }
 
+// Implements GApplication::open: opencord:// links handed over by a later
+// launch. The window exists by then, since the first launch activates
+// before it runs the main loop.
+static void my_application_open(GApplication* application, GFile** files,
+                                gint n_files, const gchar* hint) {
+  MyApplication* self = MY_APPLICATION(application);
+  if (self->window == nullptr) my_application_activate(application);
+  for (gint i = 0; i < n_files; i++) {
+    g_autofree gchar* uri = g_file_get_uri(files[i]);
+    window_channel_present(uri);
+  }
+}
+
 // Implements GApplication::local_command_line.
 static gboolean my_application_local_command_line(GApplication* application,
                                                   gchar*** arguments,
@@ -74,6 +96,26 @@ static gboolean my_application_local_command_line(GApplication* application,
   if (!g_application_register(application, nullptr, &error)) {
     g_warning("Failed to register: %s", error->message);
     *exit_status = 1;
+    return TRUE;
+  }
+
+  // Opencord is already running (desktop UI plan §15): hand it our links,
+  // or just bring it forward, and quit. The first launch passes its own
+  // links to the app as arguments.
+  if (g_application_get_is_remote(application)) {
+    g_autoptr(GPtrArray) links = g_ptr_array_new_with_free_func(g_object_unref);
+    for (gchar** arg = *arguments + 1; *arg != nullptr; arg++) {
+      if (g_str_has_prefix(*arg, "opencord:")) {
+        g_ptr_array_add(links, g_file_new_for_uri(*arg));
+      }
+    }
+    if (links->len > 0) {
+      g_application_open(application, reinterpret_cast<GFile**>(links->pdata),
+                         static_cast<gint>(links->len), "");
+    } else {
+      g_application_activate(application);
+    }
+    *exit_status = 0;
     return TRUE;
   }
 
@@ -110,6 +152,7 @@ static void my_application_dispose(GObject* object) {
 
 static void my_application_class_init(MyApplicationClass* klass) {
   G_APPLICATION_CLASS(klass)->activate = my_application_activate;
+  G_APPLICATION_CLASS(klass)->open = my_application_open;
   G_APPLICATION_CLASS(klass)->local_command_line =
       my_application_local_command_line;
   G_APPLICATION_CLASS(klass)->startup = my_application_startup;
@@ -126,7 +169,8 @@ MyApplication* my_application_new() {
   // the application to be recognized beyond its binary name.
   g_set_prgname(APPLICATION_ID);
 
+  // Unique: a second launch hands over to the first (desktop UI plan §15).
   return MY_APPLICATION(g_object_new(my_application_get_type(),
                                      "application-id", APPLICATION_ID, "flags",
-                                     G_APPLICATION_NON_UNIQUE, nullptr));
+                                     G_APPLICATION_HANDLES_OPEN, nullptr));
 }

@@ -16,6 +16,10 @@ class MainFlutterWindow: NSWindow {
 
     super.awakeFromNib()
   }
+
+  func openLink(_ link: String) {
+    windowChannel?.openLink(link)
+  }
 }
 
 /// The "dev.opencord/window" method channel (desktop UI plan §3.1): a
@@ -33,6 +37,10 @@ final class WindowChannel: NSObject, NSWindowDelegate {
   private let channel: FlutterMethodChannel
   private var custom = true
   private var interceptClose = false
+  /// Links that arrived before the app configured the window, which is
+  /// when it starts listening.
+  private var configured = false
+  private var pendingLinks: [String] = []
 
   init(window: NSWindow, messenger: FlutterBinaryMessenger) {
     self.window = window
@@ -144,6 +152,17 @@ final class WindowChannel: NSObject, NSWindowDelegate {
     ]
   }
 
+  /// Brings the window forward and passes the link to the app (§15).
+  func openLink(_ link: String) {
+    window?.makeKeyAndOrderFront(nil)
+    NSApp.activate(ignoringOtherApps: true)
+    if configured {
+      channel.invokeMethod("openLink", arguments: link)
+    } else {
+      pendingLinks.append(link)
+    }
+  }
+
   /// A double click on the title bar does what System Settings says:
   /// zoom, minimize or nothing.
   private func titleBarDoubleClick() {
@@ -164,6 +183,11 @@ final class WindowChannel: NSObject, NSWindowDelegate {
     switch call.method {
     case "configure":
       result(configure(call.arguments as? [String: Any] ?? [:]))
+      configured = true
+      for link in pendingLinks {
+        channel.invokeMethod("openLink", arguments: link)
+      }
+      pendingLinks.removeAll()
       return
     case "setTitle":
       if let title = call.arguments as? String { window.title = title }

@@ -407,3 +407,13 @@ void window_channel_register(GtkWindow* window, FlView* view,
   g_signal_connect(gtk_settings_get_default(), "notify::gtk-decoration-layout",
                    G_CALLBACK(on_layout_changed), self);
 }
+
+void window_channel_present(const gchar* link) {
+  WindowChannel* self = channel_state;
+  if (self == nullptr) return;
+  gtk_widget_show(GTK_WIDGET(self->window));
+  gtk_window_present(self->window);
+  if (link == nullptr) return;
+  g_autoptr(FlValue) value = fl_value_new_string(link);
+  send(self, "openLink", value);
+}

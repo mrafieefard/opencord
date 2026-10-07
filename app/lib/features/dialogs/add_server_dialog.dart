@@ -16,10 +16,12 @@ import 'package:opencord/ui/widgets/oc_spinner.dart';
 import 'package:opencord/ui/widgets/oc_text_field.dart';
 
 /// Opens the add server dialog (§4.11).
-Future<void> showAddServer(BuildContext context) => showOcDialog<void>(
-  context: context,
-  builder: (context) => const AddServerDialog(),
-);
+/// [link] fills in the address, for invite links opened from outside.
+Future<void> showAddServer(BuildContext context, {String? link}) =>
+    showOcDialog<void>(
+      context: context,
+      builder: (context) => AddServerDialog(link: link),
+    );
 
 enum _Step { input, verify, connecting }
 
@@ -27,16 +29,19 @@ enum _Step { input, verify, connecting }
 /// claim token tucked under "I'm the owner"), verifying the fingerprint
 /// when the link has none, and connecting. It closes on the new server.
 class AddServerDialog extends ConsumerStatefulWidget {
-  const AddServerDialog({super.key});
+  const AddServerDialog({super.key, this.link});
 
   static const double width = 480;
+
+  /// Filled in at the start.
+  final String? link;
 
   @override
   ConsumerState<AddServerDialog> createState() => _AddServerDialogState();
 }
 
 class _AddServerDialogState extends ConsumerState<AddServerDialog> {
-  final _link = TextEditingController();
+  late final _link = TextEditingController(text: widget.link);
   final _claim = TextEditingController();
   var _step = _Step.input;
   var _owner = false;

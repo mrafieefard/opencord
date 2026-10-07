@@ -14,6 +14,7 @@ import 'package:opencord/core/settings/key_value_store.dart';
 import 'package:opencord/core/settings/local_prefs.dart';
 import 'package:opencord/features/window/native_window.dart';
 import 'package:opencord/features/window/window_providers.dart';
+import 'package:opencord/features/links/app_links.dart';
 
 /// The whole app on the mock repository, in a widget test.
 class MockApp {
@@ -37,6 +38,7 @@ class MockApp {
     TargetPlatform? platform,
     Set<String> mutedServers = const {},
     List<Override> overrides = const [],
+    List<String> links = const [],
   }) async {
     debugDefaultTargetPlatformOverride = platform;
     tester.view.physicalSize = size;
@@ -62,6 +64,9 @@ class MockApp {
       container.read(appSettingsProvider.notifier).update(settings);
     }
     container.read(eventPumpProvider);
+    for (final link in links) {
+      container.read(appLinkInboxProvider.notifier).add(link);
+    }
     repository.start();
     await tester.pumpWidget(
       RepaintBoundary(

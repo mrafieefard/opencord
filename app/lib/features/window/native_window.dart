@@ -167,6 +167,10 @@ abstract interface class NativeWindow {
 
   Stream<CaptionHover> get maximizeHover;
 
+  /// `opencord://` links from later launches of the app (§15), which hand
+  /// them over and quit.
+  Stream<String> get links;
+
   /// [chrome] is what the app wants. Windows applies it at once; on Linux
   /// it takes effect at the next start, and the returned info says what the
   /// window has now.
@@ -224,6 +228,20 @@ class ChannelNativeWindow implements NativeWindow {
   final _layout = StreamController<ButtonLayout>.broadcast();
   final _close = StreamController<void>.broadcast();
   final _caption = StreamController<CaptionHover>.broadcast();
+  late final _links = StreamController<String>.broadcast(
+    onListen: () => scheduleMicrotask(_flushLinks),
+  );
+
+  /// Links that came before anyone listened (macOS hands over the launch
+  /// link as soon as the window is configured).
+  final _unheardLinks = <String>[];
+
+  void _flushLinks() {
+    for (final link in _unheardLinks) {
+      _links.add(link);
+    }
+    _unheardLinks.clear();
+  }
 
   Future<void> _handle(MethodCall call) async {
     switch (call.method) {
@@ -234,6 +252,9 @@ class ChannelNativeWindow implements NativeWindow {
         if (geometry != null) _geometry.add(geometry);
       case 'buttonLayout':
         _layout.add(ButtonLayout.parse('${call.arguments}'));
+      case 'openLink':
+        final link = '${call.arguments}';
+        _links.hasListener ? _links.add(link) : _unheardLinks.add(link);
       case 'closeRequested':
         _close.add(null);
       case 'caption':
@@ -268,6 +289,9 @@ class ChannelNativeWindow implements NativeWindow {
 
   @override
   Stream<CaptionHover> get maximizeHover => _caption.stream;
+
+  @override
+  Stream<String> get links => _links.stream;
 
   @override
   Future<WindowInfo> configure({
@@ -359,6 +383,9 @@ class NullNativeWindow implements NativeWindow {
 
   @override
   Stream<CaptionHover> get maximizeHover => const Stream.empty();
+
+  @override
+  Stream<String> get links => const Stream.empty();
 
   @override
   Future<WindowInfo> configure({

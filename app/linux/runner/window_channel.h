@@ -21,4 +21,9 @@ WindowChrome window_chrome_at_startup();
 void window_channel_register(GtkWindow* window, FlView* view,
                              WindowChrome chrome);
 
+// Brings the window back, from the tray or from behind other windows, and
+// passes `link` (an opencord:// link, or null) to the app. A later launch of
+// the app lands here (desktop UI plan §15).
+void window_channel_present(const gchar* link);
+
 #endif  // RUNNER_WINDOW_CHANNEL_H_

@@ -17,9 +17,11 @@ import 'package:opencord/features/settings/user_settings.dart';
 import 'package:opencord/features/switcher/quick_switcher.dart';
 import 'package:opencord/features/window/window_providers.dart';
 import 'package:opencord/features/voice/voice_focus.dart';
+import 'package:opencord/features/links/app_links.dart';
 import 'package:opencord/ui/theme/oc_colors.dart';
 import 'package:opencord/ui/theme/oc_metrics.dart';
 import 'package:opencord/ui/theme/oc_motion.dart';
+import 'package:opencord/ui/widgets/toast.dart';
 
 /// The desktop window: rail, channel sidebar, main column and member panel
 /// (§3), with the responsive rules and the app-wide shortcuts (§7).
@@ -65,6 +67,26 @@ class _DesktopShellState extends ConsumerState<DesktopShell> {
           name: name,
           status: status,
         );
+      }
+    });
+    ref.listenManual(appLinkInboxProvider, (_, links) {
+      if (links.isNotEmpty) _openLinks();
+    }, fireImmediately: true);
+  }
+
+  /// Opens the `opencord://` links waiting in the inbox (§15), after the
+  /// frame, since they may open dialogs.
+  void _openLinks() {
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!mounted) return;
+      for (final text in ref.read(appLinkInboxProvider.notifier).takeAll()) {
+        final link = parseAppLink(text);
+        if (link == null) {
+          showOcToast(context, 'Opencord cannot open that link.');
+          continue;
+        }
+        await openAppLink(context, ref, link);
+        if (!mounted) return;
       }
     });
   }

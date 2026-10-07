@@ -7,6 +7,8 @@
 
 #include <string>
 
+#include "utils.h"
+
 namespace {
 
 // Caption buttons are 46 x 32 logical pixels at the top right (§3.1).
@@ -426,4 +428,12 @@ void WindowChannel::HandleMethodCall(
     return;
   }
   result->Success();
+}
+
+void WindowChannel::Present(const std::wstring& link) {
+  ::ShowWindow(window_, ::IsIconic(window_) ? SW_RESTORE : SW_SHOW);
+  ::SetForegroundWindow(window_);
+  if (link.empty()) return;
+  channel_->InvokeMethod("openLink", std::make_unique<flutter::EncodableValue>(
+                                         Utf8FromUtf16(link.c_str())));
 }

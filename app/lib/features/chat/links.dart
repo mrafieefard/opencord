@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import 'package:opencord/core/settings/local_prefs.dart';
+import 'package:opencord/features/links/app_links.dart';
 import 'package:opencord/ui/theme/oc_colors.dart';
 import 'package:opencord/ui/theme/oc_metrics.dart';
 import 'package:opencord/ui/theme/oc_text.dart';
@@ -17,13 +18,17 @@ final linkLauncherProvider = Provider<Future<bool> Function(Uri uri)>(
       (uri) => launchUrl(uri, mode: LaunchMode.externalApplication),
 );
 
-/// Opens a link from a message (§4.5): straight away for trusted domains,
-/// otherwise after showing where it goes.
+/// Opens a link from a message (§4.5): `opencord://` links in the app,
+/// web links straight away for trusted domains, otherwise after showing
+/// where they go.
 Future<void> openMessageLink(
   BuildContext context,
   WidgetRef ref,
   String url,
 ) async {
+  if (parseAppLink(url) case final link?) {
+    return openAppLink(context, ref, link);
+  }
   final uri = Uri.tryParse(url);
   if (uri == null || !(uri.isScheme('http') || uri.isScheme('https'))) {
     showOcToast(context, 'That link cannot be opened.');

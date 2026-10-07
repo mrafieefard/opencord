@@ -2,6 +2,8 @@ import 'dart:ui' show VoidCallback;
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:opencord/core/providers/providers.dart';
+
 /// What the message list offers the rest of the chat area.
 abstract interface class MessageListHandle {
   /// Scrolls to a message, loading older history if it is not loaded yet,
@@ -29,6 +31,21 @@ class ChatController implements MessageListHandle {
 
   /// After choosing Reply or Edit, typing goes straight to the composer.
   void focusComposer() => _focusComposer?.call();
+
+  ({ChannelRef channel, int message})? _pendingJump;
+
+  /// Jumps to [messageId] once [channel]'s list has opened, for links to
+  /// messages in other channels.
+  void jumpWhenOpened(ChannelRef channel, int messageId) =>
+      _pendingJump = (channel: channel, message: messageId);
+
+  /// The jump waiting for [channel], handed over once.
+  int? takeJump(ChannelRef channel) {
+    final pending = _pendingJump;
+    if (pending == null || pending.channel != channel) return null;
+    _pendingJump = null;
+    return pending.message;
+  }
 
   void attach(MessageListHandle list) => _list = list;
 

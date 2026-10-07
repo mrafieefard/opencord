@@ -4,6 +4,7 @@
 #include <flutter_windows.h>
 
 #include "resource.h"
+#include "single_instance.h"
 
 namespace {
 
@@ -16,7 +17,8 @@ namespace {
 #define DWMWA_USE_IMMERSIVE_DARK_MODE 20
 #endif
 
-constexpr const wchar_t kWindowClassName[] = L"FLUTTER_RUNNER_WIN32_WINDOW";
+// Unique to Opencord, so a later launch can find the running window.
+constexpr const wchar_t* kWindowClassName = single_instance::kWindowClass;
 
 /// Registry key for app theme preference.
 ///

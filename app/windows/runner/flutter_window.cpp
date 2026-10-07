@@ -1,8 +1,11 @@
 #include "flutter_window.h"
 
+#include <cwchar>
 #include <optional>
+#include <string>
 
 #include "flutter/generated_plugin_registrant.h"
+#include "single_instance.h"
 
 FlutterWindow::FlutterWindow(const flutter::DartProject& project)
     : project_(project) {}
@@ -58,6 +61,18 @@ LRESULT
 FlutterWindow::MessageHandler(HWND hwnd, UINT const message,
                               WPARAM const wparam,
                               LPARAM const lparam) noexcept {
+  // A link handed over by a later launch (desktop UI plan §15).
+  if (message == WM_COPYDATA && window_channel_) {
+    const auto* data = reinterpret_cast<const COPYDATASTRUCT*>(lparam);
+    if (data != nullptr && data->dwData == single_instance::kLinkMessage &&
+        data->cbData >= sizeof(wchar_t)) {
+      const auto* text = static_cast<const wchar_t*>(data->lpData);
+      const size_t length = data->cbData / sizeof(wchar_t);
+      window_channel_->Present(std::wstring(text, ::wcsnlen(text, length)));
+      return TRUE;
+    }
+  }
+
   // The custom frame first: it decides what is title bar and what is not.
   if (window_channel_) {
     std::optional<LRESULT> frame =

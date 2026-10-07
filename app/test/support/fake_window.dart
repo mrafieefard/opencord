@@ -11,6 +11,7 @@ class FakeNativeWindow implements NativeWindow {
   final layoutEvents = StreamController<ButtonLayout>.broadcast();
   final closeEvents = StreamController<void>.broadcast();
   final captionEvents = StreamController<CaptionHover>.broadcast();
+  final linkEvents = StreamController<String>.broadcast();
 
   @override
   Stream<WindowStatus> get status => statusEvents.stream;
@@ -23,6 +24,9 @@ class FakeNativeWindow implements NativeWindow {
 
   @override
   Stream<void> get closeRequests => closeEvents.stream;
+
+  @override
+  Stream<String> get links => linkEvents.stream;
 
   @override
   Stream<CaptionHover> get maximizeHover => captionEvents.stream;

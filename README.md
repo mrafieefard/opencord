@@ -48,6 +48,14 @@ flutter run -d linux
 
 The first `flutter run` also compiles the Rust core, so it takes a while.
 
+Only one Opencord runs at a time: launching it again brings the running
+window forward and hands over any `opencord://` link it was given. To let
+the browser open invite links in a local build on Linux, install
+`app/linux/packaging/dev.opencord.opencord.desktop` into
+`~/.local/share/applications/` with `Exec=` pointing at
+`app/build/linux/x64/debug/bundle/opencord`, then run
+`xdg-mime default dev.opencord.opencord.desktop x-scheme-handler/opencord`.
+
 ## Checks
 
 CI runs these on pushes to `main` and `pre` and on pull requests.

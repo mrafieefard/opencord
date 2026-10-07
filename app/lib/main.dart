@@ -12,6 +12,7 @@ import 'package:opencord/core/rust/core_key_value_store.dart';
 import 'package:opencord/core/settings/app_settings.dart';
 import 'package:opencord/core/settings/key_value_store.dart';
 import 'package:opencord/core/settings/local_prefs.dart';
+import 'package:opencord/features/links/app_links.dart';
 import 'package:opencord/features/window/native_window.dart';
 import 'package:opencord/features/window/window_providers.dart';
 import 'package:opencord/features/window/window_startup.dart';
@@ -20,7 +21,7 @@ import 'package:opencord/src/rust/api/system.dart';
 import 'package:opencord/src/rust/frb_generated.dart';
 import 'package:opencord/ui/theme/font_licenses.dart';
 
-Future<void> main() async {
+Future<void> main(List<String> args) async {
   WidgetsFlutterBinding.ensureInitialized();
   await RustLib.init();
   final dataDir = await getApplicationSupportDirectory();
@@ -51,6 +52,12 @@ Future<void> main() async {
     ],
   );
   container.read(eventPumpProvider);
+  // Links the app was started with (§15); later launches pass theirs on
+  // through the window, which the inbox listens to from now.
+  final inbox = container.read(appLinkInboxProvider.notifier);
+  for (final arg in args.where((arg) => arg.startsWith('opencord:'))) {
+    inbox.add(arg);
+  }
   repository.start();
   repository.updatePresence(container.read(selfPresenceProvider));
   runApp(
