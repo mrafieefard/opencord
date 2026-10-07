@@ -282,6 +282,9 @@ void WindowChannel::SendStatus() {
                          std::make_unique<flutter::EncodableValue>(Status()));
 }
 
+// The size is in logical pixels; the place is in physical ones, which mean
+// the same on every monitor. Divided by one monitor's scale, a place on
+// another monitor with a different scale came back somewhere else.
 void WindowChannel::SendGeometry() {
   if (IsZoomed(window_) || IsIconic(window_) || fullscreen_) return;
   RECT rect;
@@ -292,10 +295,10 @@ void WindowChannel::SendGeometry() {
       static_cast<int>((rect.right - rect.left) / scale));
   map[flutter::EncodableValue("height")] = flutter::EncodableValue(
       static_cast<int>((rect.bottom - rect.top) / scale));
-  map[flutter::EncodableValue("x")] = flutter::EncodableValue(
-      static_cast<int>(rect.left / scale));
-  map[flutter::EncodableValue("y")] = flutter::EncodableValue(
-      static_cast<int>(rect.top / scale));
+  map[flutter::EncodableValue("x")] =
+      flutter::EncodableValue(static_cast<int>(rect.left));
+  map[flutter::EncodableValue("y")] =
+      flutter::EncodableValue(static_cast<int>(rect.top));
   channel_->InvokeMethod("geometry",
                          std::make_unique<flutter::EncodableValue>(map));
 }
@@ -360,8 +363,9 @@ flutter::EncodableValue WindowChannel::Configure(
   const std::optional<int> y = IntArg(args, "y");
   bool placed = false;
   if (x.has_value() && y.has_value()) {
-    OffsetRect(&rect, static_cast<LONG>(*x * scale),
-               static_cast<LONG>(*y * scale));
+    // Physical pixels (see SendGeometry). On a monitor with another scale,
+    // WM_DPICHANGED then resizes the window to keep its logical size.
+    OffsetRect(&rect, static_cast<LONG>(*x), static_cast<LONG>(*y));
     // A position on a monitor that is gone falls back to the primary one.
     placed = MonitorFromRect(&rect, MONITOR_DEFAULTTONULL) != nullptr;
   }
