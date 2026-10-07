@@ -33,6 +33,7 @@ import 'package:opencord/ui/widgets/oc_menu.dart';
 import 'package:opencord/ui/widgets/popover.dart';
 import 'package:opencord/ui/widgets/section_label.dart';
 import 'package:opencord/ui/widgets/toast.dart';
+import 'package:opencord/core/repository/repository.dart';
 
 /// The channel sidebar (§4.2).
 class ChannelSidebar extends ConsumerWidget {
@@ -280,56 +281,148 @@ class _ChannelList extends ConsumerWidget {
 
   final String serverKey;
 
+  /// Saves [order] as the positions of one group (§16 drag and drop).
+  Future<void> _reorder(
+    BuildContext context,
+    WidgetRef ref,
+    List<Channel> order,
+  ) async {
+    try {
+      await ref.read(repositoryProvider).reorderChannels(serverKey, {
+        for (final (index, channel) in order.indexed) channel.id: index,
+      });
+    } on RepoException catch (error) {
+      if (context.mounted) showOcToast(context, error.message);
+    }
+  }
+
+  static Widget _lift(Widget child, int index, Animation<double> animation) =>
+      Material(type: MaterialType.transparency, child: child);
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final channels = ref.watch(
       serverProvider(serverKey).select((s) => s.data?.channels),
     );
     if (channels == null) return const SizedBox();
+    final manage =
+        ref.watch(
+          serverProvider(
+            serverKey,
+          ).select((s) => s.data?.can(Permissions.manageChannels)),
+        ) ??
+        false;
     final collapsed = ref.watch(collapsedCategoriesProvider);
     final current = ref.watch(currentChannelProvider);
     final voice = ref.watch(voiceSessionProvider);
     final inVoiceHere = voice.serverKey == serverKey ? voice.channelId : null;
-    final items = <Widget>[];
-    for (final group in channelTree(channels.values)) {
-      final category = group.category;
-      final folded =
-          category != null &&
-          collapsed.contains(categoryKey(serverKey, category.id));
-      if (category != null) {
-        items.add(
-          _CategoryRow(
-            serverKey: serverKey,
-            category: category,
-            collapsed: folded,
-          ),
+
+    Widget row(Channel channel) => channel.kind == ChannelKind.voice
+        ? VoiceChannelRow(serverKey: serverKey, channel: channel)
+        : Padding(
+            padding: const EdgeInsets.only(bottom: 2),
+            child: ChannelRow(serverKey: serverKey, channel: channel),
+          );
+
+    /// Text or voice channels of one group, which drag among themselves.
+    Widget segment(List<Channel> group, {required bool draggable}) {
+      if (group.isEmpty) return const SizedBox.shrink();
+      if (!draggable) {
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            for (final channel in group)
+              KeyedSubtree(key: ValueKey(channel.id), child: row(channel)),
+          ],
         );
       }
-      for (final channel in group.channels) {
-        // Collapsed categories still show the open channel and the voice
-        // channel the user is in (§4.2).
-        if (folded && channel.id != current && channel.id != inVoiceHere) {
-          continue;
-        }
-        items.add(
-          channel.kind == ChannelKind.voice
-              ? VoiceChannelRow(
-                  key: ValueKey(channel.id),
-                  serverKey: serverKey,
-                  channel: channel,
-                )
-              : Padding(
-                  key: ValueKey(channel.id),
-                  padding: const EdgeInsets.only(bottom: 2),
-                  child: ChannelRow(serverKey: serverKey, channel: channel),
-                ),
-        );
-      }
+      return ReorderableListView(
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
+        buildDefaultDragHandles: false,
+        proxyDecorator: _lift,
+        onReorderItem: (from, to) {
+          final order = [...group];
+          final moved = order.removeAt(from);
+          order.insert(to.clamp(0, order.length), moved);
+          _reorder(context, ref, order);
+        },
+        children: [
+          for (final (index, channel) in group.indexed)
+            ReorderableDragStartListener(
+              key: ValueKey(channel.id),
+              index: index,
+              child: row(channel),
+            ),
+        ],
+      );
     }
-    return ListView.builder(
+
+    List<Widget> rows(ChannelGroup group, {required bool folded}) {
+      // Collapsed categories still show the open channel and the voice
+      // channel the user is in (§4.2); they do not reorder.
+      final shown = [
+        for (final channel in group.channels)
+          if (!folded || channel.id == current || channel.id == inVoiceHere)
+            channel,
+      ];
+      final draggable = manage && !folded;
+      return [
+        segment([
+          for (final channel in shown)
+            if (channel.kind.isTextLike) channel,
+        ], draggable: draggable),
+        segment([
+          for (final channel in shown)
+            if (channel.kind == ChannelKind.voice) channel,
+        ], draggable: draggable),
+      ];
+    }
+
+    final groups = channelTree(channels.values);
+    final loose = groups.where((group) => group.category == null).firstOrNull;
+    final categories = [
+      for (final group in groups)
+        if (group.category case final category?) (category, group),
+    ];
+    // Categories drag as blocks, their channels with them (§16).
+    return ReorderableListView(
       padding: const EdgeInsets.only(top: OcSpace.s4, bottom: OcSpace.s12),
-      itemCount: items.length,
-      itemBuilder: (context, index) => items[index],
+      buildDefaultDragHandles: false,
+      proxyDecorator: _lift,
+      header: loose == null
+          ? null
+          : Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: rows(loose, folded: false),
+            ),
+      onReorderItem: (from, to) {
+        final order = [for (final (category, _) in categories) category];
+        final moved = order.removeAt(from);
+        order.insert(to.clamp(0, order.length), moved);
+        _reorder(context, ref, order);
+      },
+      children: [
+        for (final (index, (category, group)) in categories.indexed)
+          Column(
+            key: ValueKey(category.id),
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              _CategoryRow(
+                serverKey: serverKey,
+                category: category,
+                collapsed: collapsed.contains(
+                  categoryKey(serverKey, category.id),
+                ),
+                dragIndex: manage ? index : null,
+              ),
+              ...rows(
+                group,
+                folded: collapsed.contains(categoryKey(serverKey, category.id)),
+              ),
+            ],
+          ),
+      ],
     );
   }
 }
@@ -339,11 +432,16 @@ class _CategoryRow extends ConsumerWidget {
     required this.serverKey,
     required this.category,
     required this.collapsed,
+    this.dragIndex,
   });
 
   final String serverKey;
   final Channel category;
   final bool collapsed;
+
+  /// The category's place among the draggable blocks, for people who may
+  /// reorder them. Only the label drags, so the "+" stays a button.
+  final int? dragIndex;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -354,7 +452,10 @@ class _CategoryRow extends ConsumerWidget {
           ).select((s) => s.data?.can(Permissions.manageChannels)),
         ) ??
         false;
-    final toggle = _toggle(context, ref);
+    final label = _toggle(context, ref);
+    final toggle = dragIndex == null
+        ? label
+        : ReorderableDragStartListener(index: dragIndex!, child: label);
     if (!manage) return toggle;
     return Row(
       children: [
