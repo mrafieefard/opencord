@@ -1,15 +1,20 @@
+import 'dart:async';
+import 'dart:developer' as developer;
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path_provider/path_provider.dart';
 
+import 'package:opencord/app.dart';
 import 'package:opencord/core/app_info.dart';
 import 'package:opencord/core/mock/mock_repository.dart';
 import 'package:opencord/core/providers/providers.dart';
 import 'package:opencord/core/repository/repository.dart';
 import 'package:opencord/core/rust/core_api.dart';
 import 'package:opencord/core/rust/core_key_value_store.dart';
+import 'package:opencord/core/rust/core_mapping.dart';
 import 'package:opencord/core/rust/identity_store.dart';
 import 'package:opencord/core/rust/rust_repository.dart';
 import 'package:opencord/core/settings/app_settings.dart';
@@ -23,11 +28,13 @@ import 'package:opencord/features/desktop/notifications.dart';
 import 'package:opencord/features/desktop/tray.dart';
 import 'package:opencord/features/desktop/tray_binding.dart';
 import 'package:opencord/features/links/app_links.dart';
+import 'package:opencord/features/onboarding/startup_failed_app.dart';
 import 'package:opencord/features/window/native_window.dart';
 import 'package:opencord/features/window/window_providers.dart';
 import 'package:opencord/features/window/window_startup.dart';
 import 'package:opencord/src/rust/api/client.dart' as core;
 import 'package:opencord/src/rust/api/system.dart';
+import 'package:opencord/src/rust/api/types.dart' show CoreError;
 import 'package:opencord/src/rust/frb_generated.dart';
 import 'package:opencord/ui/theme/font_licenses.dart';
 import 'package:opencord/ui/widgets/error_box.dart';
@@ -116,4 +123,36 @@ Future<ProviderContainer> startApp({
   repository.start();
   repository.updatePresence(container.read(selfPresenceProvider));
   return container;
+}
+
+/// The app once started, or a screen saying why it could not start, in
+/// the [window] shown even if it was to start hidden.
+Future<Widget> startupWidget(
+  Future<ProviderContainer> Function() start, {
+  required NativeWindow Function() window,
+}) async {
+  try {
+    final container = await start();
+    return UncontrolledProviderScope(
+      container: container,
+      child: const OpencordApp(),
+    );
+  } on Exception catch (error, stack) {
+    developer.log(
+      'Opencord could not start',
+      name: 'start',
+      error: error,
+      stackTrace: stack,
+    );
+    final shown = window();
+    unawaited(shown.show());
+    return StartupFailedApp(
+      reason: switch (error) {
+        RepoException(:final message) => message,
+        CoreError() => errorFrom(error).message,
+        _ => '$error',
+      },
+      onQuit: shown.quit,
+    );
+  }
 }

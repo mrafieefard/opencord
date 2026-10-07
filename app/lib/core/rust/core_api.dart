@@ -13,6 +13,9 @@ abstract interface class CoreApi {
 
   core.GeneratedIdentity identityGenerate();
 
+  /// Checks what [identityLoad] would use, without using it.
+  core.IdentityInfo identityCheck(List<int> secret, String displayName);
+
   core.IdentityInfo identityLoad(List<int> secret, String displayName);
 
   String identityBackupEncode(List<int> secret);
@@ -163,6 +166,10 @@ class FrbCoreApi implements CoreApi {
 
   @override
   core.GeneratedIdentity identityGenerate() => frb.identityGenerate();
+
+  @override
+  core.IdentityInfo identityCheck(List<int> secret, String displayName) =>
+      frb.identityCheck(secret: secret, displayName: displayName);
 
   @override
   core.IdentityInfo identityLoad(List<int> secret, String displayName) =>

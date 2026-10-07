@@ -44,6 +44,7 @@ class MockApp {
     List<String> links = const [],
     bool withIdentity = true,
     RepoCapabilities capabilities = RepoCapabilities.everything,
+    RepoException? identityUnavailable,
   }) async {
     debugDefaultTargetPlatformOverride = platform;
     tester.view.physicalSize = size;
@@ -56,6 +57,7 @@ class MockApp {
       simulateLife: false,
       withIdentity: withIdentity,
       capabilities: capabilities,
+      identityUnavailable: identityUnavailable,
     );
     final keyValues = store ?? MemoryKeyValueStore();
     final container = ProviderContainer(

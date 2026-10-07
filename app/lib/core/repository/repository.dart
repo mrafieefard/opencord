@@ -164,6 +164,13 @@ abstract interface class OpencordRepository {
 
   LocalIdentity? get identity;
 
+  /// Why the saved identity could not be read (the system keyring is
+  /// missing or locked), or null. Nothing can go on until it can.
+  RepoException? get identityUnavailable;
+
+  /// Reads the saved identity again, after [identityUnavailable].
+  Future<void> reloadIdentity();
+
   List<ServerSummary> get servers;
 
   Future<AddServerResult> addServer(String linkOrAddress, {String? claimToken});

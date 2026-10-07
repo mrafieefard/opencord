@@ -89,12 +89,19 @@ pub fn identity_generate() -> GeneratedIdentity {
     }
 }
 
+/// Checks an identity and display name as `identity_load` does, without
+/// using them: the app saves an identity before it is put to use.
+#[frb(sync)]
+pub fn identity_check(secret: Vec<u8>, display_name: String) -> Result<IdentityInfo, CoreError> {
+    let (identity, _) = checked_identity(&secret, &display_name)?;
+    Ok(identity_info(&identity))
+}
+
 /// Uses this identity and display name for every server, and connects to
 /// the saved servers.
 #[frb(sync)]
 pub fn identity_load(secret: Vec<u8>, display_name: String) -> Result<IdentityInfo, CoreError> {
-    let identity = Identity::from_secret(&secret).map_err(invalid_input)?;
-    let display_name = validation::display_name(&display_name).map_err(invalid_input)?;
+    let (identity, display_name) = checked_identity(&secret, &display_name)?;
     let info = identity_info(&identity);
     let client = client()?;
     client.set_identity(identity, display_name);
@@ -462,6 +469,12 @@ fn lock_events() -> MutexGuard<'static, Events> {
     EVENTS.lock().unwrap_or_else(PoisonError::into_inner)
 }
 
+fn checked_identity(secret: &[u8], display_name: &str) -> Result<(Identity, String), CoreError> {
+    let identity = Identity::from_secret(secret).map_err(invalid_input)?;
+    let display_name = validation::display_name(display_name).map_err(invalid_input)?;
+    Ok((identity, display_name))
+}
+
 fn identity_info(identity: &Identity) -> IdentityInfo {
     IdentityInfo {
         public_key_hex: hex::encode(identity.public_key()),
@@ -472,5 +485,28 @@ fn identity_info(identity: &Identity) -> IdentityInfo {
 fn invalid_input(error: impl std::fmt::Display) -> CoreError {
     CoreError::InvalidInput {
         message: error.to_string(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn identity_check_validates_without_needing_the_client() {
+        let identity = Identity::generate();
+        let secret = identity.secret().to_vec();
+
+        let info = identity_check(secret.clone(), " Alex ".to_owned()).unwrap();
+
+        assert_eq!(info.fingerprint, identity.fingerprint());
+        assert!(matches!(
+            identity_check(secret, "   ".to_owned()),
+            Err(CoreError::InvalidInput { .. })
+        ));
+        assert!(matches!(
+            identity_check(vec![1, 2, 3], "Alex".to_owned()),
+            Err(CoreError::InvalidInput { .. })
+        ));
     }
 }

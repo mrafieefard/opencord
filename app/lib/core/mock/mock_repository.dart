@@ -38,9 +38,11 @@ class MockRepository implements OpencordRepository {
     this.simulateLife = true,
     bool withIdentity = true,
     this.capabilities = RepoCapabilities.everything,
+    RepoException? identityUnavailable,
   }) : _clock = clock ?? _systemClock,
        _random = random ?? Random(),
        _identity = withIdentity ? _seededIdentity : null {
+    _identityUnavailable = identityUnavailable;
     _world = buildMockWorld(_clock());
   }
 
@@ -65,6 +67,7 @@ class MockRepository implements OpencordRepository {
   ({String server, int channel})? _voice;
   var _selfVoice = const VoiceParticipant(userId: 0);
   LocalIdentity? _identity;
+  RepoException? _identityUnavailable;
   var _disposed = false;
 
   /// Everything by default; Phase 1's set to see the app as it will be
@@ -77,6 +80,16 @@ class MockRepository implements OpencordRepository {
 
   @override
   LocalIdentity? get identity => _identity;
+
+  @override
+  RepoException? get identityUnavailable => _identityUnavailable;
+
+  /// The keyring is always back when asked again.
+  @override
+  Future<void> reloadIdentity() async {
+    _identityUnavailable = null;
+    _emit(const IdentityChanged());
+  }
 
   @override
   List<ServerSummary> get servers => [

@@ -29,22 +29,37 @@ class RustRepository implements OpencordRepository {
     this._positions,
     this._clock,
     this._saved,
-  );
+    this._identityUnavailable,
+  ) {
+    // Listed now: the tray and the server rail read them before start, and
+    // they show while offline too.
+    _servers = _listServers();
+  }
 
   /// Reads the saved identity first, so the app knows straight away
-  /// whether it needs onboarding.
+  /// whether it needs onboarding, or a keyring it cannot reach.
   static Future<RustRepository> open({
     required CoreApi core,
     required IdentityStore identities,
     required KeyValueStore store,
     DateTime Function()? clock,
-  }) async => RustRepository._(
-    core,
-    identities,
-    ReadPositions(store),
-    clock ?? DateTime.now,
-    await identities.read(),
-  );
+  }) async {
+    SavedIdentity? saved;
+    RepoException? unavailable;
+    try {
+      saved = await identities.read();
+    } on RepoException catch (error) {
+      unavailable = error;
+    }
+    return RustRepository._(
+      core,
+      identities,
+      ReadPositions(store),
+      clock ?? DateTime.now,
+      saved,
+      unavailable,
+    );
+  }
 
   /// Messages read per channel after a Ready to count what is unread.
   static const _recent = 50;
@@ -61,6 +76,7 @@ class RustRepository implements OpencordRepository {
 
   LocalIdentity? _identity;
   Uint8List? _secret;
+  RepoException? _identityUnavailable;
   var _servers = const <ServerSummary>[];
   var _presence = SelfPresence.online;
 
@@ -81,18 +97,37 @@ class RustRepository implements OpencordRepository {
   LocalIdentity? get identity => _identity;
 
   @override
+  RepoException? get identityUnavailable => _identityUnavailable;
+
+  @override
+  Future<void> reloadIdentity() async {
+    final SavedIdentity? saved;
+    try {
+      saved = await _identities.read();
+    } on RepoException catch (error) {
+      _identityUnavailable = error;
+      _emit(const IdentityChanged());
+      return;
+    }
+    _identityUnavailable = null;
+    if (saved != null) _useSaved(saved);
+    _emit(const IdentityChanged());
+  }
+
+  @override
   List<ServerSummary> get servers => _servers;
 
   @override
   void start() {
     _coreEvents = _core.eventStream().listen(_onCoreEvent);
-    _servers = _listServers();
-    if (_saved case final saved?) {
-      try {
-        _use(saved.secret, saved.displayName);
-      } on RepoException catch (error) {
-        developer.log('The saved identity did not load: $error', name: 'core');
-      }
+    if (_saved case final saved?) _useSaved(saved);
+  }
+
+  void _useSaved(SavedIdentity saved) {
+    try {
+      _use(saved.secret, saved.displayName);
+    } on RepoException catch (error) {
+      developer.log('The saved identity did not load: $error', name: 'core');
     }
   }
 
@@ -177,9 +212,17 @@ class RustRepository implements OpencordRepository {
     required String displayName,
   }) async {
     final secret = _now(() => _core.identityBackupDecode(backup.trim()));
-    final name = displayName.trim();
-    _use(secret, name);
-    await _identities.write(SavedIdentity(secret: secret, displayName: name));
+    await _saveAndUse(secret, displayName.trim());
+  }
+
+  /// Checks [secret] and [displayName], saves them in the keychain, and
+  /// only then uses them: in use means the next start finds them too.
+  Future<void> _saveAndUse(Uint8List secret, String displayName) async {
+    _now(() => _core.identityCheck(secret, displayName));
+    await _identities.write(
+      SavedIdentity(secret: secret, displayName: displayName),
+    );
+    _use(secret, displayName);
   }
 
   @override
@@ -195,9 +238,7 @@ class RustRepository implements OpencordRepository {
   @override
   Future<void> updateDisplayName(String displayName) async {
     final name = displayName.trim();
-    final secret = _currentSecret;
-    _use(secret, name);
-    await _identities.write(SavedIdentity(secret: secret, displayName: name));
+    await _saveAndUse(_currentSecret, name);
     for (final server in _listServers()) {
       try {
         await _core.updateProfile(server.key, name);

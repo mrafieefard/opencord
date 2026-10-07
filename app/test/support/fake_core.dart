@@ -36,12 +36,17 @@ class FakeCoreApi extends Fake implements CoreApi {
   );
 
   @override
-  core.IdentityInfo identityLoad(List<int> secret, String displayName) {
-    calls.add('identityLoad:$displayName');
+  core.IdentityInfo identityCheck(List<int> secret, String displayName) {
     if (displayName.isEmpty) {
       throw const core.CoreError.invalidInput(message: 'Choose a name.');
     }
     return identityInfo;
+  }
+
+  @override
+  core.IdentityInfo identityLoad(List<int> secret, String displayName) {
+    calls.add('identityLoad:$displayName');
+    return identityCheck(secret, displayName);
   }
 
   @override

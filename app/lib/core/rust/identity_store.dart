@@ -1,7 +1,10 @@
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+
+import 'package:opencord/core/repository/repository.dart';
 
 /// The identity this device uses: its secret key and display name (Phase 1
 /// §9.1).
@@ -29,15 +32,35 @@ class SecureIdentityStore implements IdentityStore {
     : _prefix = profile.isEmpty ? 'opencord.' : 'opencord.$profile.';
 
   final String _prefix;
-  final _storage = const FlutterSecureStorage();
+
+  // macOS: the login keychain. The data protection keychain the plugin
+  // defaults to needs a keychain-access-groups entitlement and a
+  // provisioning profile, and without them nothing is saved.
+  final _storage = const FlutterSecureStorage(
+    mOptions: MacOsOptions(usesDataProtectionKeychain: false),
+  );
 
   String get _secretKey => '${_prefix}identity.secret';
   String get _nameKey => '${_prefix}identity.name';
 
+  /// Runs a keychain call, its failures as the app's errors: no Secret
+  /// Service on the bus, a locked keyring whose prompt was dismissed.
+  Future<T> _keychain<T>(Future<T> Function() call) async {
+    try {
+      return await call();
+    } on PlatformException catch (error) {
+      throw RepoException(
+        RepoErrorKind.other,
+        'Opencord keeps your identity in the system keyring, which could '
+        'not be used (${error.message ?? error.code}).',
+      );
+    }
+  }
+
   @override
   Future<SavedIdentity?> read() async {
-    final secret = await _storage.read(key: _secretKey);
-    final name = await _storage.read(key: _nameKey);
+    final secret = await _keychain(() => _storage.read(key: _secretKey));
+    final name = await _keychain(() => _storage.read(key: _nameKey));
     if (secret == null || name == null) return null;
     try {
       return SavedIdentity(secret: base64Decode(secret), displayName: name);
@@ -48,15 +71,20 @@ class SecureIdentityStore implements IdentityStore {
 
   @override
   Future<void> write(SavedIdentity identity) async {
-    await _storage.write(key: _secretKey, value: base64Encode(identity.secret));
-    await _storage.write(key: _nameKey, value: identity.displayName);
+    await _keychain(
+      () =>
+          _storage.write(key: _secretKey, value: base64Encode(identity.secret)),
+    );
+    await _keychain(
+      () => _storage.write(key: _nameKey, value: identity.displayName),
+    );
   }
 
   /// Forgets this profile's identity, and only it: on Linux every key of
   /// the app shares one keychain item.
   Future<void> clear() async {
-    await _storage.delete(key: _secretKey);
-    await _storage.delete(key: _nameKey);
+    await _keychain(() => _storage.delete(key: _secretKey));
+    await _keychain(() => _storage.delete(key: _nameKey));
   }
 }
 

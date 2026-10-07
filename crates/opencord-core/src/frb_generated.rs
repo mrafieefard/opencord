@@ -39,7 +39,7 @@ flutter_rust_bridge::frb_generated_boilerplate!(
     default_rust_auto_opaque = RustAutoOpaqueMoi,
 );
 pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_VERSION: &str = "2.13.0";
-pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = 1238309359;
+pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = 1663843838;
 
 // Section: executor
 
@@ -743,6 +743,37 @@ fn wire__crate__api__client__identity_backup_encode_impl(
             deserializer.end();
             transform_result_sse::<_, crate::api::types::CoreError>((move || {
                 let output_ok = crate::api::client::identity_backup_encode(api_secret)?;
+                std::result::Result::Ok(output_ok)
+            })())
+        },
+    )
+}
+fn wire__crate__api__client__identity_check_impl(
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) -> flutter_rust_bridge::for_generated::WireSyncRust2DartSse {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_sync::<flutter_rust_bridge::for_generated::SseCodec, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "identity_check",
+            port: None,
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Sync,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_secret = <Vec<u8>>::sse_decode(&mut deserializer);
+            let api_display_name = <String>::sse_decode(&mut deserializer);
+            deserializer.end();
+            transform_result_sse::<_, crate::api::types::CoreError>((move || {
+                let output_ok = crate::api::client::identity_check(api_secret, api_display_name)?;
                 std::result::Result::Ok(output_ok)
             })())
         },
@@ -2795,31 +2826,31 @@ fn pde_ffi_dispatcher_primary_impl(
         14 => wire__crate__api__client__fetch_bans_impl(port, ptr, rust_vec_len, data_len),
         15 => wire__crate__api__client__fetch_invites_impl(port, ptr, rust_vec_len, data_len),
         16 => wire__crate__api__client__fetch_messages_impl(port, ptr, rust_vec_len, data_len),
-        22 => wire__crate__api__system__init_app_impl(port, ptr, rust_vec_len, data_len),
-        23 => wire__crate__api__client__kick_member_impl(port, ptr, rust_vec_len, data_len),
-        24 => wire__crate__api__client__remove_member_role_impl(port, ptr, rust_vec_len, data_len),
-        25 => wire__crate__api__client__reorder_channels_impl(port, ptr, rust_vec_len, data_len),
-        26 => wire__crate__api__client__reorder_roles_impl(port, ptr, rust_vec_len, data_len),
-        27 => wire__crate__api__client__revoke_invite_impl(port, ptr, rust_vec_len, data_len),
-        28 => wire__crate__api__types__role_changes_default_impl(port, ptr, rust_vec_len, data_len),
-        29 => wire__crate__api__client__send_message_impl(port, ptr, rust_vec_len, data_len),
-        30 => wire__crate__api__client__server_add_impl(port, ptr, rust_vec_len, data_len),
-        31 => {
+        23 => wire__crate__api__system__init_app_impl(port, ptr, rust_vec_len, data_len),
+        24 => wire__crate__api__client__kick_member_impl(port, ptr, rust_vec_len, data_len),
+        25 => wire__crate__api__client__remove_member_role_impl(port, ptr, rust_vec_len, data_len),
+        26 => wire__crate__api__client__reorder_channels_impl(port, ptr, rust_vec_len, data_len),
+        27 => wire__crate__api__client__reorder_roles_impl(port, ptr, rust_vec_len, data_len),
+        28 => wire__crate__api__client__revoke_invite_impl(port, ptr, rust_vec_len, data_len),
+        29 => wire__crate__api__types__role_changes_default_impl(port, ptr, rust_vec_len, data_len),
+        30 => wire__crate__api__client__send_message_impl(port, ptr, rust_vec_len, data_len),
+        31 => wire__crate__api__client__server_add_impl(port, ptr, rust_vec_len, data_len),
+        32 => {
             wire__crate__api__types__server_changes_default_impl(port, ptr, rust_vec_len, data_len)
         }
-        32 => wire__crate__api__client__server_remove_impl(port, ptr, rust_vec_len, data_len),
-        33 => wire__crate__api__client__server_retry_now_impl(port, ptr, rust_vec_len, data_len),
-        36 => {
+        33 => wire__crate__api__client__server_remove_impl(port, ptr, rust_vec_len, data_len),
+        34 => wire__crate__api__client__server_retry_now_impl(port, ptr, rust_vec_len, data_len),
+        37 => {
             wire__crate__api__client__set_channel_overwrite_impl(port, ptr, rust_vec_len, data_len)
         }
-        39 => wire__crate__api__client__start_typing_impl(port, ptr, rust_vec_len, data_len),
-        41 => wire__crate__api__client__unban_member_impl(port, ptr, rust_vec_len, data_len),
-        42 => wire__crate__api__client__update_channel_impl(port, ptr, rust_vec_len, data_len),
-        43 => wire__crate__api__client__update_nickname_impl(port, ptr, rust_vec_len, data_len),
-        44 => wire__crate__api__client__update_presence_impl(port, ptr, rust_vec_len, data_len),
-        45 => wire__crate__api__client__update_profile_impl(port, ptr, rust_vec_len, data_len),
-        46 => wire__crate__api__client__update_role_impl(port, ptr, rust_vec_len, data_len),
-        47 => wire__crate__api__client__update_server_impl(port, ptr, rust_vec_len, data_len),
+        40 => wire__crate__api__client__start_typing_impl(port, ptr, rust_vec_len, data_len),
+        42 => wire__crate__api__client__unban_member_impl(port, ptr, rust_vec_len, data_len),
+        43 => wire__crate__api__client__update_channel_impl(port, ptr, rust_vec_len, data_len),
+        44 => wire__crate__api__client__update_nickname_impl(port, ptr, rust_vec_len, data_len),
+        45 => wire__crate__api__client__update_presence_impl(port, ptr, rust_vec_len, data_len),
+        46 => wire__crate__api__client__update_profile_impl(port, ptr, rust_vec_len, data_len),
+        47 => wire__crate__api__client__update_role_impl(port, ptr, rust_vec_len, data_len),
+        48 => wire__crate__api__client__update_server_impl(port, ptr, rust_vec_len, data_len),
         _ => unreachable!(),
     }
 }
@@ -2835,14 +2866,15 @@ fn pde_ffi_dispatcher_sync_impl(
         4 => wire__crate__api__system__core_version_impl(ptr, rust_vec_len, data_len),
         17 => wire__crate__api__client__identity_backup_decode_impl(ptr, rust_vec_len, data_len),
         18 => wire__crate__api__client__identity_backup_encode_impl(ptr, rust_vec_len, data_len),
-        19 => wire__crate__api__client__identity_generate_impl(ptr, rust_vec_len, data_len),
-        20 => wire__crate__api__client__identity_load_impl(ptr, rust_vec_len, data_len),
-        21 => wire__crate__api__client__init_impl(ptr, rust_vec_len, data_len),
-        34 => wire__crate__api__client__server_trust_fingerprint_impl(ptr, rust_vec_len, data_len),
-        35 => wire__crate__api__client__servers_list_impl(ptr, rust_vec_len, data_len),
-        37 => wire__crate__api__client__settings_get_impl(ptr, rust_vec_len, data_len),
-        38 => wire__crate__api__client__settings_set_impl(ptr, rust_vec_len, data_len),
-        40 => wire__crate__api__client__trusted_fingerprints_impl(ptr, rust_vec_len, data_len),
+        19 => wire__crate__api__client__identity_check_impl(ptr, rust_vec_len, data_len),
+        20 => wire__crate__api__client__identity_generate_impl(ptr, rust_vec_len, data_len),
+        21 => wire__crate__api__client__identity_load_impl(ptr, rust_vec_len, data_len),
+        22 => wire__crate__api__client__init_impl(ptr, rust_vec_len, data_len),
+        35 => wire__crate__api__client__server_trust_fingerprint_impl(ptr, rust_vec_len, data_len),
+        36 => wire__crate__api__client__servers_list_impl(ptr, rust_vec_len, data_len),
+        38 => wire__crate__api__client__settings_get_impl(ptr, rust_vec_len, data_len),
+        39 => wire__crate__api__client__settings_set_impl(ptr, rust_vec_len, data_len),
+        41 => wire__crate__api__client__trusted_fingerprints_impl(ptr, rust_vec_len, data_len),
         _ => unreachable!(),
     }
 }

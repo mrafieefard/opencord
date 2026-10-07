@@ -60,13 +60,38 @@ core.ReadySnapshot _ready() => core.ReadySnapshot(
   ],
 );
 
+/// A keychain that can be locked, refusing to save, or out of reach.
+class _Keyring extends MemoryIdentityStore {
+  var locked = false;
+  var unreadable = false;
+
+  @override
+  Future<SavedIdentity?> read() async {
+    if (unreadable) {
+      throw const RepoException(RepoErrorKind.other, 'No Secret Service.');
+    }
+    return super.read();
+  }
+
+  @override
+  Future<void> write(SavedIdentity identity) async {
+    if (locked) {
+      throw const RepoException(RepoErrorKind.other, 'The keyring is locked.');
+    }
+    await super.write(identity);
+  }
+}
+
 class _Harness {
   _Harness._(this.core, this.store, this.identities, this.repository);
 
-  static Future<_Harness> start({SavedIdentity? saved}) async {
+  static Future<_Harness> start({
+    SavedIdentity? saved,
+    MemoryIdentityStore? keyring,
+  }) async {
     final fake = FakeCoreApi();
     final store = MemoryKeyValueStore();
-    final identities = MemoryIdentityStore(saved);
+    final identities = keyring ?? MemoryIdentityStore(saved);
     final repository = await RustRepository.open(
       core: fake,
       identities: identities,
@@ -126,6 +151,58 @@ void main() {
       expect(harness.events.whereType<IdentityChanged>(), isNotEmpty);
     });
 
+    test('an identity the keyring could not save is not used', () async {
+      final harness = await _Harness.start(keyring: _Keyring()..locked = true);
+      final draft = await harness.repository.generateIdentity();
+
+      await expectLater(
+        harness.repository.adoptIdentity(draft.backup, displayName: 'Alex'),
+        throwsA(isA<RepoException>()),
+      );
+      await harness.settle();
+
+      expect(harness.repository.identity, isNull);
+      expect(harness.events.whereType<IdentityChanged>(), isEmpty);
+      expect(harness.core.calls, isNot(contains(startsWith('identityLoad'))));
+    });
+
+    test('a new name the keyring could not save is not used', () async {
+      final keyring = _Keyring();
+      final harness = await _Harness.start(keyring: keyring);
+      final draft = await harness.repository.generateIdentity();
+      await harness.repository.adoptIdentity(draft.backup, displayName: 'Alex');
+      keyring.locked = true;
+
+      await expectLater(
+        harness.repository.updateDisplayName('Sam'),
+        throwsA(isA<RepoException>()),
+      );
+
+      expect(harness.repository.identity?.displayName, 'Alex');
+      expect(harness.core.calls, isNot(contains('identityLoad:Sam')));
+    });
+
+    test('a keyring that cannot be read is reported until it can', () async {
+      final keyring = _Keyring()
+        ..saved = SavedIdentity(
+          secret: Uint8List.fromList([9]),
+          displayName: 'Alex',
+        )
+        ..unreadable = true;
+      final harness = await _Harness.start(keyring: keyring);
+
+      expect(harness.repository.identityUnavailable?.message, contains('No'));
+      expect(harness.repository.identity, isNull);
+
+      keyring.unreadable = false;
+      await harness.repository.reloadIdentity();
+      await harness.settle();
+
+      expect(harness.repository.identityUnavailable, isNull);
+      expect(harness.repository.identity?.displayName, 'Alex');
+      expect(harness.events.whereType<IdentityChanged>(), isNotEmpty);
+    });
+
     test('a bad backup or name is refused and nothing is saved', () async {
       final harness = await _Harness.start();
 
@@ -146,6 +223,30 @@ void main() {
       expect(harness.identities.saved, isNull);
     });
   });
+
+  test(
+    'saved servers are listed as soon as it opens, before any connects',
+    () async {
+      final fake = FakeCoreApi()
+        ..servers = const [
+          core.Server(
+            key: _server,
+            name: 'Home',
+            host: 'home.example',
+            port: 7710,
+          ),
+        ];
+
+      final repository = await RustRepository.open(
+        core: fake,
+        identities: MemoryIdentityStore(),
+        store: MemoryKeyValueStore(),
+      );
+
+      // The tray and the server list read it before start (offline too).
+      expect(repository.servers.map((s) => s.key), [_server]);
+    },
+  );
 
   test('connection states come through with the retry time', () async {
     final harness = await _Harness.start();

@@ -7,7 +7,7 @@ import '../frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 import 'types.dart';
 
-// These functions are ignored because they are not marked as `pub`: `client`, `deliver`, `identity_info`, `invalid_input`, `lock_events`, `on_runtime`
+// These functions are ignored because they are not marked as `pub`: `checked_identity`, `client`, `deliver`, `identity_info`, `invalid_input`, `lock_events`, `on_runtime`
 // These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `Events`
 
 /// Opens local data in `app_data_dir`. Safe to call again (for example
@@ -22,6 +22,16 @@ Stream<CoreEvent> eventStream() =>
 
 GeneratedIdentity identityGenerate() =>
     RustLib.instance.api.crateApiClientIdentityGenerate();
+
+/// Checks an identity and display name as `identity_load` does, without
+/// using them: the app saves an identity before it is put to use.
+IdentityInfo identityCheck({
+  required List<int> secret,
+  required String displayName,
+}) => RustLib.instance.api.crateApiClientIdentityCheck(
+  secret: secret,
+  displayName: displayName,
+);
 
 /// Uses this identity and display name for every server, and connects to
 /// the saved servers.

@@ -285,6 +285,24 @@ final localIdentityProvider =
       LocalIdentityNotifier.new,
     );
 
+/// Why the saved identity could not be read (the system keyring), or null.
+class IdentityUnavailableNotifier extends Notifier<RepoException?> {
+  @override
+  RepoException? build() {
+    final repository = ref.watch(repositoryProvider);
+    final changes = repository.events
+        .where((event) => event is IdentityChanged)
+        .listen((_) => state = repository.identityUnavailable);
+    ref.onDispose(changes.cancel);
+    return repository.identityUnavailable;
+  }
+}
+
+final identityUnavailableProvider =
+    NotifierProvider<IdentityUnavailableNotifier, RepoException?>(
+      IdentityUnavailableNotifier.new,
+    );
+
 // Voice (mock only in Phase 1) ---------------------------------------------
 
 class VoiceNotifier extends Notifier<Map<int, List<VoiceParticipant>>> {
