@@ -136,6 +136,11 @@ message Track {
   Codec codec = 3;
   repeated Layer layers = 4;
   TrackState state = 5;
+  // What receivers get this track on, whichever layer the node forwards:
+  // the node rewrites every layer into one continuous stream.
+  uint32 ssrc = 6;
+  // 0 without retransmission.
+  uint32 rtx_ssrc = 7;
 }
 
 message Participant {
