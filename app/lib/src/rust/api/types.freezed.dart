@@ -3070,4 +3070,905 @@ as VoiceSettings,
 
 }
 
+/// @nodoc
+mixin _$MediaEvent {
+
+
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is MediaEvent);
+}
+
+
+@override
+int get hashCode => runtimeType.hashCode;
+
+@override
+String toString() {
+  return 'MediaEvent()';
+}
+
+
+}
+
+/// @nodoc
+class $MediaEventCopyWith<$Res>  {
+$MediaEventCopyWith(MediaEvent _, $Res Function(MediaEvent) __);
+}
+
+
+/// Adds pattern-matching-related methods to [MediaEvent].
+extension MediaEventPatterns on MediaEvent {
+/// A variant of `map` that fallback to returning `orElse`.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case _:
+///     return orElse();
+/// }
+/// ```
+
+@optionalTypeArgs TResult maybeMap<TResult extends Object?>({TResult Function( MediaEvent_ConnectionState value)?  connectionState,TResult Function( MediaEvent_DeviceFellBack value)?  deviceFellBack,TResult Function( MediaEvent_DeviceFailed value)?  deviceFailed,TResult Function( MediaEvent_DevicesChanged value)?  devicesChanged,required TResult orElse(),}){
+final _that = this;
+switch (_that) {
+case MediaEvent_ConnectionState() when connectionState != null:
+return connectionState(_that);case MediaEvent_DeviceFellBack() when deviceFellBack != null:
+return deviceFellBack(_that);case MediaEvent_DeviceFailed() when deviceFailed != null:
+return deviceFailed(_that);case MediaEvent_DevicesChanged() when devicesChanged != null:
+return devicesChanged(_that);case _:
+  return orElse();
+
+}
+}
+/// A `switch`-like method, using callbacks.
+///
+/// Callbacks receives the raw object, upcasted.
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case final Subclass2 value:
+///     return ...;
+/// }
+/// ```
+
+@optionalTypeArgs TResult map<TResult extends Object?>({required TResult Function( MediaEvent_ConnectionState value)  connectionState,required TResult Function( MediaEvent_DeviceFellBack value)  deviceFellBack,required TResult Function( MediaEvent_DeviceFailed value)  deviceFailed,required TResult Function( MediaEvent_DevicesChanged value)  devicesChanged,}){
+final _that = this;
+switch (_that) {
+case MediaEvent_ConnectionState():
+return connectionState(_that);case MediaEvent_DeviceFellBack():
+return deviceFellBack(_that);case MediaEvent_DeviceFailed():
+return deviceFailed(_that);case MediaEvent_DevicesChanged():
+return devicesChanged(_that);}
+}
+/// A variant of `map` that fallback to returning `null`.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case _:
+///     return null;
+/// }
+/// ```
+
+@optionalTypeArgs TResult? mapOrNull<TResult extends Object?>({TResult? Function( MediaEvent_ConnectionState value)?  connectionState,TResult? Function( MediaEvent_DeviceFellBack value)?  deviceFellBack,TResult? Function( MediaEvent_DeviceFailed value)?  deviceFailed,TResult? Function( MediaEvent_DevicesChanged value)?  devicesChanged,}){
+final _that = this;
+switch (_that) {
+case MediaEvent_ConnectionState() when connectionState != null:
+return connectionState(_that);case MediaEvent_DeviceFellBack() when deviceFellBack != null:
+return deviceFellBack(_that);case MediaEvent_DeviceFailed() when deviceFailed != null:
+return deviceFailed(_that);case MediaEvent_DevicesChanged() when devicesChanged != null:
+return devicesChanged(_that);case _:
+  return null;
+
+}
+}
+/// A variant of `when` that fallback to an `orElse` callback.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case _:
+///     return orElse();
+/// }
+/// ```
+
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>({TResult Function( String serverKey,  PlatformInt64 channelId,  VoiceConnectionState state)?  connectionState,TResult Function( bool output,  String device)?  deviceFellBack,TResult Function( bool output,  String message)?  deviceFailed,TResult Function( AudioDevices field0)?  devicesChanged,required TResult orElse(),}) {final _that = this;
+switch (_that) {
+case MediaEvent_ConnectionState() when connectionState != null:
+return connectionState(_that.serverKey,_that.channelId,_that.state);case MediaEvent_DeviceFellBack() when deviceFellBack != null:
+return deviceFellBack(_that.output,_that.device);case MediaEvent_DeviceFailed() when deviceFailed != null:
+return deviceFailed(_that.output,_that.message);case MediaEvent_DevicesChanged() when devicesChanged != null:
+return devicesChanged(_that.field0);case _:
+  return orElse();
+
+}
+}
+/// A `switch`-like method, using callbacks.
+///
+/// As opposed to `map`, this offers destructuring.
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case Subclass2(:final field2):
+///     return ...;
+/// }
+/// ```
+
+@optionalTypeArgs TResult when<TResult extends Object?>({required TResult Function( String serverKey,  PlatformInt64 channelId,  VoiceConnectionState state)  connectionState,required TResult Function( bool output,  String device)  deviceFellBack,required TResult Function( bool output,  String message)  deviceFailed,required TResult Function( AudioDevices field0)  devicesChanged,}) {final _that = this;
+switch (_that) {
+case MediaEvent_ConnectionState():
+return connectionState(_that.serverKey,_that.channelId,_that.state);case MediaEvent_DeviceFellBack():
+return deviceFellBack(_that.output,_that.device);case MediaEvent_DeviceFailed():
+return deviceFailed(_that.output,_that.message);case MediaEvent_DevicesChanged():
+return devicesChanged(_that.field0);}
+}
+/// A variant of `when` that fallback to returning `null`
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case _:
+///     return null;
+/// }
+/// ```
+
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>({TResult? Function( String serverKey,  PlatformInt64 channelId,  VoiceConnectionState state)?  connectionState,TResult? Function( bool output,  String device)?  deviceFellBack,TResult? Function( bool output,  String message)?  deviceFailed,TResult? Function( AudioDevices field0)?  devicesChanged,}) {final _that = this;
+switch (_that) {
+case MediaEvent_ConnectionState() when connectionState != null:
+return connectionState(_that.serverKey,_that.channelId,_that.state);case MediaEvent_DeviceFellBack() when deviceFellBack != null:
+return deviceFellBack(_that.output,_that.device);case MediaEvent_DeviceFailed() when deviceFailed != null:
+return deviceFailed(_that.output,_that.message);case MediaEvent_DevicesChanged() when devicesChanged != null:
+return devicesChanged(_that.field0);case _:
+  return null;
+
+}
+}
+
+}
+
+/// @nodoc
+
+
+class MediaEvent_ConnectionState extends MediaEvent {
+  const MediaEvent_ConnectionState({required this.serverKey, required this.channelId, required this.state}): super._();
+  
+
+ final  String serverKey;
+ final  PlatformInt64 channelId;
+ final  VoiceConnectionState state;
+
+/// Create a copy of MediaEvent
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$MediaEvent_ConnectionStateCopyWith<MediaEvent_ConnectionState> get copyWith => _$MediaEvent_ConnectionStateCopyWithImpl<MediaEvent_ConnectionState>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is MediaEvent_ConnectionState&&(identical(other.serverKey, serverKey) || other.serverKey == serverKey)&&(identical(other.channelId, channelId) || other.channelId == channelId)&&(identical(other.state, state) || other.state == state));
+}
+
+
+@override
+int get hashCode => Object.hash(runtimeType,serverKey,channelId,state);
+
+@override
+String toString() {
+  return 'MediaEvent.connectionState(serverKey: $serverKey, channelId: $channelId, state: $state)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $MediaEvent_ConnectionStateCopyWith<$Res> implements $MediaEventCopyWith<$Res> {
+  factory $MediaEvent_ConnectionStateCopyWith(MediaEvent_ConnectionState value, $Res Function(MediaEvent_ConnectionState) _then) = _$MediaEvent_ConnectionStateCopyWithImpl;
+@useResult
+$Res call({
+ String serverKey, PlatformInt64 channelId, VoiceConnectionState state
+});
+
+
+$VoiceConnectionStateCopyWith<$Res> get state;
+
+}
+/// @nodoc
+class _$MediaEvent_ConnectionStateCopyWithImpl<$Res>
+    implements $MediaEvent_ConnectionStateCopyWith<$Res> {
+  _$MediaEvent_ConnectionStateCopyWithImpl(this._self, this._then);
+
+  final MediaEvent_ConnectionState _self;
+  final $Res Function(MediaEvent_ConnectionState) _then;
+
+/// Create a copy of MediaEvent
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? serverKey = null,Object? channelId = null,Object? state = null,}) {
+  return _then(MediaEvent_ConnectionState(
+serverKey: null == serverKey ? _self.serverKey : serverKey // ignore: cast_nullable_to_non_nullable
+as String,channelId: null == channelId ? _self.channelId : channelId // ignore: cast_nullable_to_non_nullable
+as PlatformInt64,state: null == state ? _self.state : state // ignore: cast_nullable_to_non_nullable
+as VoiceConnectionState,
+  ));
+}
+
+/// Create a copy of MediaEvent
+/// with the given fields replaced by the non-null parameter values.
+@override
+@pragma('vm:prefer-inline')
+$VoiceConnectionStateCopyWith<$Res> get state {
+  
+  return $VoiceConnectionStateCopyWith<$Res>(_self.state, (value) {
+    return _then(_self.copyWith(state: value));
+  });
+}
+}
+
+/// @nodoc
+
+
+class MediaEvent_DeviceFellBack extends MediaEvent {
+  const MediaEvent_DeviceFellBack({required this.output, required this.device}): super._();
+  
+
+ final  bool output;
+ final  String device;
+
+/// Create a copy of MediaEvent
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$MediaEvent_DeviceFellBackCopyWith<MediaEvent_DeviceFellBack> get copyWith => _$MediaEvent_DeviceFellBackCopyWithImpl<MediaEvent_DeviceFellBack>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is MediaEvent_DeviceFellBack&&(identical(other.output, output) || other.output == output)&&(identical(other.device, device) || other.device == device));
+}
+
+
+@override
+int get hashCode => Object.hash(runtimeType,output,device);
+
+@override
+String toString() {
+  return 'MediaEvent.deviceFellBack(output: $output, device: $device)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $MediaEvent_DeviceFellBackCopyWith<$Res> implements $MediaEventCopyWith<$Res> {
+  factory $MediaEvent_DeviceFellBackCopyWith(MediaEvent_DeviceFellBack value, $Res Function(MediaEvent_DeviceFellBack) _then) = _$MediaEvent_DeviceFellBackCopyWithImpl;
+@useResult
+$Res call({
+ bool output, String device
+});
+
+
+
+
+}
+/// @nodoc
+class _$MediaEvent_DeviceFellBackCopyWithImpl<$Res>
+    implements $MediaEvent_DeviceFellBackCopyWith<$Res> {
+  _$MediaEvent_DeviceFellBackCopyWithImpl(this._self, this._then);
+
+  final MediaEvent_DeviceFellBack _self;
+  final $Res Function(MediaEvent_DeviceFellBack) _then;
+
+/// Create a copy of MediaEvent
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? output = null,Object? device = null,}) {
+  return _then(MediaEvent_DeviceFellBack(
+output: null == output ? _self.output : output // ignore: cast_nullable_to_non_nullable
+as bool,device: null == device ? _self.device : device // ignore: cast_nullable_to_non_nullable
+as String,
+  ));
+}
+
+
+}
+
+/// @nodoc
+
+
+class MediaEvent_DeviceFailed extends MediaEvent {
+  const MediaEvent_DeviceFailed({required this.output, required this.message}): super._();
+  
+
+ final  bool output;
+ final  String message;
+
+/// Create a copy of MediaEvent
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$MediaEvent_DeviceFailedCopyWith<MediaEvent_DeviceFailed> get copyWith => _$MediaEvent_DeviceFailedCopyWithImpl<MediaEvent_DeviceFailed>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is MediaEvent_DeviceFailed&&(identical(other.output, output) || other.output == output)&&(identical(other.message, message) || other.message == message));
+}
+
+
+@override
+int get hashCode => Object.hash(runtimeType,output,message);
+
+@override
+String toString() {
+  return 'MediaEvent.deviceFailed(output: $output, message: $message)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $MediaEvent_DeviceFailedCopyWith<$Res> implements $MediaEventCopyWith<$Res> {
+  factory $MediaEvent_DeviceFailedCopyWith(MediaEvent_DeviceFailed value, $Res Function(MediaEvent_DeviceFailed) _then) = _$MediaEvent_DeviceFailedCopyWithImpl;
+@useResult
+$Res call({
+ bool output, String message
+});
+
+
+
+
+}
+/// @nodoc
+class _$MediaEvent_DeviceFailedCopyWithImpl<$Res>
+    implements $MediaEvent_DeviceFailedCopyWith<$Res> {
+  _$MediaEvent_DeviceFailedCopyWithImpl(this._self, this._then);
+
+  final MediaEvent_DeviceFailed _self;
+  final $Res Function(MediaEvent_DeviceFailed) _then;
+
+/// Create a copy of MediaEvent
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? output = null,Object? message = null,}) {
+  return _then(MediaEvent_DeviceFailed(
+output: null == output ? _self.output : output // ignore: cast_nullable_to_non_nullable
+as bool,message: null == message ? _self.message : message // ignore: cast_nullable_to_non_nullable
+as String,
+  ));
+}
+
+
+}
+
+/// @nodoc
+
+
+class MediaEvent_DevicesChanged extends MediaEvent {
+  const MediaEvent_DevicesChanged(this.field0): super._();
+  
+
+ final  AudioDevices field0;
+
+/// Create a copy of MediaEvent
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$MediaEvent_DevicesChangedCopyWith<MediaEvent_DevicesChanged> get copyWith => _$MediaEvent_DevicesChangedCopyWithImpl<MediaEvent_DevicesChanged>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is MediaEvent_DevicesChanged&&(identical(other.field0, field0) || other.field0 == field0));
+}
+
+
+@override
+int get hashCode => Object.hash(runtimeType,field0);
+
+@override
+String toString() {
+  return 'MediaEvent.devicesChanged(field0: $field0)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $MediaEvent_DevicesChangedCopyWith<$Res> implements $MediaEventCopyWith<$Res> {
+  factory $MediaEvent_DevicesChangedCopyWith(MediaEvent_DevicesChanged value, $Res Function(MediaEvent_DevicesChanged) _then) = _$MediaEvent_DevicesChangedCopyWithImpl;
+@useResult
+$Res call({
+ AudioDevices field0
+});
+
+
+
+
+}
+/// @nodoc
+class _$MediaEvent_DevicesChangedCopyWithImpl<$Res>
+    implements $MediaEvent_DevicesChangedCopyWith<$Res> {
+  _$MediaEvent_DevicesChangedCopyWithImpl(this._self, this._then);
+
+  final MediaEvent_DevicesChanged _self;
+  final $Res Function(MediaEvent_DevicesChanged) _then;
+
+/// Create a copy of MediaEvent
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? field0 = null,}) {
+  return _then(MediaEvent_DevicesChanged(
+null == field0 ? _self.field0 : field0 // ignore: cast_nullable_to_non_nullable
+as AudioDevices,
+  ));
+}
+
+
+}
+
+/// @nodoc
+mixin _$VoiceConnectionState {
+
+
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is VoiceConnectionState);
+}
+
+
+@override
+int get hashCode => runtimeType.hashCode;
+
+@override
+String toString() {
+  return 'VoiceConnectionState()';
+}
+
+
+}
+
+/// @nodoc
+class $VoiceConnectionStateCopyWith<$Res>  {
+$VoiceConnectionStateCopyWith(VoiceConnectionState _, $Res Function(VoiceConnectionState) __);
+}
+
+
+/// Adds pattern-matching-related methods to [VoiceConnectionState].
+extension VoiceConnectionStatePatterns on VoiceConnectionState {
+/// A variant of `map` that fallback to returning `orElse`.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case _:
+///     return orElse();
+/// }
+/// ```
+
+@optionalTypeArgs TResult maybeMap<TResult extends Object?>({TResult Function( VoiceConnectionState_AwaitingEndpoint value)?  awaitingEndpoint,TResult Function( VoiceConnectionState_Authenticating value)?  authenticating,TResult Function( VoiceConnectionState_RtcConnecting value)?  rtcConnecting,TResult Function( VoiceConnectionState_Connected value)?  connected,TResult Function( VoiceConnectionState_Reconnecting value)?  reconnecting,TResult Function( VoiceConnectionState_NoRoute value)?  noRoute,TResult Function( VoiceConnectionState_Disconnected value)?  disconnected,required TResult orElse(),}){
+final _that = this;
+switch (_that) {
+case VoiceConnectionState_AwaitingEndpoint() when awaitingEndpoint != null:
+return awaitingEndpoint(_that);case VoiceConnectionState_Authenticating() when authenticating != null:
+return authenticating(_that);case VoiceConnectionState_RtcConnecting() when rtcConnecting != null:
+return rtcConnecting(_that);case VoiceConnectionState_Connected() when connected != null:
+return connected(_that);case VoiceConnectionState_Reconnecting() when reconnecting != null:
+return reconnecting(_that);case VoiceConnectionState_NoRoute() when noRoute != null:
+return noRoute(_that);case VoiceConnectionState_Disconnected() when disconnected != null:
+return disconnected(_that);case _:
+  return orElse();
+
+}
+}
+/// A `switch`-like method, using callbacks.
+///
+/// Callbacks receives the raw object, upcasted.
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case final Subclass2 value:
+///     return ...;
+/// }
+/// ```
+
+@optionalTypeArgs TResult map<TResult extends Object?>({required TResult Function( VoiceConnectionState_AwaitingEndpoint value)  awaitingEndpoint,required TResult Function( VoiceConnectionState_Authenticating value)  authenticating,required TResult Function( VoiceConnectionState_RtcConnecting value)  rtcConnecting,required TResult Function( VoiceConnectionState_Connected value)  connected,required TResult Function( VoiceConnectionState_Reconnecting value)  reconnecting,required TResult Function( VoiceConnectionState_NoRoute value)  noRoute,required TResult Function( VoiceConnectionState_Disconnected value)  disconnected,}){
+final _that = this;
+switch (_that) {
+case VoiceConnectionState_AwaitingEndpoint():
+return awaitingEndpoint(_that);case VoiceConnectionState_Authenticating():
+return authenticating(_that);case VoiceConnectionState_RtcConnecting():
+return rtcConnecting(_that);case VoiceConnectionState_Connected():
+return connected(_that);case VoiceConnectionState_Reconnecting():
+return reconnecting(_that);case VoiceConnectionState_NoRoute():
+return noRoute(_that);case VoiceConnectionState_Disconnected():
+return disconnected(_that);}
+}
+/// A variant of `map` that fallback to returning `null`.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case _:
+///     return null;
+/// }
+/// ```
+
+@optionalTypeArgs TResult? mapOrNull<TResult extends Object?>({TResult? Function( VoiceConnectionState_AwaitingEndpoint value)?  awaitingEndpoint,TResult? Function( VoiceConnectionState_Authenticating value)?  authenticating,TResult? Function( VoiceConnectionState_RtcConnecting value)?  rtcConnecting,TResult? Function( VoiceConnectionState_Connected value)?  connected,TResult? Function( VoiceConnectionState_Reconnecting value)?  reconnecting,TResult? Function( VoiceConnectionState_NoRoute value)?  noRoute,TResult? Function( VoiceConnectionState_Disconnected value)?  disconnected,}){
+final _that = this;
+switch (_that) {
+case VoiceConnectionState_AwaitingEndpoint() when awaitingEndpoint != null:
+return awaitingEndpoint(_that);case VoiceConnectionState_Authenticating() when authenticating != null:
+return authenticating(_that);case VoiceConnectionState_RtcConnecting() when rtcConnecting != null:
+return rtcConnecting(_that);case VoiceConnectionState_Connected() when connected != null:
+return connected(_that);case VoiceConnectionState_Reconnecting() when reconnecting != null:
+return reconnecting(_that);case VoiceConnectionState_NoRoute() when noRoute != null:
+return noRoute(_that);case VoiceConnectionState_Disconnected() when disconnected != null:
+return disconnected(_that);case _:
+  return null;
+
+}
+}
+/// A variant of `when` that fallback to an `orElse` callback.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case _:
+///     return orElse();
+/// }
+/// ```
+
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>({TResult Function()?  awaitingEndpoint,TResult Function()?  authenticating,TResult Function()?  rtcConnecting,TResult Function()?  connected,TResult Function()?  reconnecting,TResult Function()?  noRoute,TResult Function( String reason)?  disconnected,required TResult orElse(),}) {final _that = this;
+switch (_that) {
+case VoiceConnectionState_AwaitingEndpoint() when awaitingEndpoint != null:
+return awaitingEndpoint();case VoiceConnectionState_Authenticating() when authenticating != null:
+return authenticating();case VoiceConnectionState_RtcConnecting() when rtcConnecting != null:
+return rtcConnecting();case VoiceConnectionState_Connected() when connected != null:
+return connected();case VoiceConnectionState_Reconnecting() when reconnecting != null:
+return reconnecting();case VoiceConnectionState_NoRoute() when noRoute != null:
+return noRoute();case VoiceConnectionState_Disconnected() when disconnected != null:
+return disconnected(_that.reason);case _:
+  return orElse();
+
+}
+}
+/// A `switch`-like method, using callbacks.
+///
+/// As opposed to `map`, this offers destructuring.
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case Subclass2(:final field2):
+///     return ...;
+/// }
+/// ```
+
+@optionalTypeArgs TResult when<TResult extends Object?>({required TResult Function()  awaitingEndpoint,required TResult Function()  authenticating,required TResult Function()  rtcConnecting,required TResult Function()  connected,required TResult Function()  reconnecting,required TResult Function()  noRoute,required TResult Function( String reason)  disconnected,}) {final _that = this;
+switch (_that) {
+case VoiceConnectionState_AwaitingEndpoint():
+return awaitingEndpoint();case VoiceConnectionState_Authenticating():
+return authenticating();case VoiceConnectionState_RtcConnecting():
+return rtcConnecting();case VoiceConnectionState_Connected():
+return connected();case VoiceConnectionState_Reconnecting():
+return reconnecting();case VoiceConnectionState_NoRoute():
+return noRoute();case VoiceConnectionState_Disconnected():
+return disconnected(_that.reason);}
+}
+/// A variant of `when` that fallback to returning `null`
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case _:
+///     return null;
+/// }
+/// ```
+
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>({TResult? Function()?  awaitingEndpoint,TResult? Function()?  authenticating,TResult? Function()?  rtcConnecting,TResult? Function()?  connected,TResult? Function()?  reconnecting,TResult? Function()?  noRoute,TResult? Function( String reason)?  disconnected,}) {final _that = this;
+switch (_that) {
+case VoiceConnectionState_AwaitingEndpoint() when awaitingEndpoint != null:
+return awaitingEndpoint();case VoiceConnectionState_Authenticating() when authenticating != null:
+return authenticating();case VoiceConnectionState_RtcConnecting() when rtcConnecting != null:
+return rtcConnecting();case VoiceConnectionState_Connected() when connected != null:
+return connected();case VoiceConnectionState_Reconnecting() when reconnecting != null:
+return reconnecting();case VoiceConnectionState_NoRoute() when noRoute != null:
+return noRoute();case VoiceConnectionState_Disconnected() when disconnected != null:
+return disconnected(_that.reason);case _:
+  return null;
+
+}
+}
+
+}
+
+/// @nodoc
+
+
+class VoiceConnectionState_AwaitingEndpoint extends VoiceConnectionState {
+  const VoiceConnectionState_AwaitingEndpoint(): super._();
+  
+
+
+
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is VoiceConnectionState_AwaitingEndpoint);
+}
+
+
+@override
+int get hashCode => runtimeType.hashCode;
+
+@override
+String toString() {
+  return 'VoiceConnectionState.awaitingEndpoint()';
+}
+
+
+}
+
+
+
+
+/// @nodoc
+
+
+class VoiceConnectionState_Authenticating extends VoiceConnectionState {
+  const VoiceConnectionState_Authenticating(): super._();
+  
+
+
+
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is VoiceConnectionState_Authenticating);
+}
+
+
+@override
+int get hashCode => runtimeType.hashCode;
+
+@override
+String toString() {
+  return 'VoiceConnectionState.authenticating()';
+}
+
+
+}
+
+
+
+
+/// @nodoc
+
+
+class VoiceConnectionState_RtcConnecting extends VoiceConnectionState {
+  const VoiceConnectionState_RtcConnecting(): super._();
+  
+
+
+
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is VoiceConnectionState_RtcConnecting);
+}
+
+
+@override
+int get hashCode => runtimeType.hashCode;
+
+@override
+String toString() {
+  return 'VoiceConnectionState.rtcConnecting()';
+}
+
+
+}
+
+
+
+
+/// @nodoc
+
+
+class VoiceConnectionState_Connected extends VoiceConnectionState {
+  const VoiceConnectionState_Connected(): super._();
+  
+
+
+
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is VoiceConnectionState_Connected);
+}
+
+
+@override
+int get hashCode => runtimeType.hashCode;
+
+@override
+String toString() {
+  return 'VoiceConnectionState.connected()';
+}
+
+
+}
+
+
+
+
+/// @nodoc
+
+
+class VoiceConnectionState_Reconnecting extends VoiceConnectionState {
+  const VoiceConnectionState_Reconnecting(): super._();
+  
+
+
+
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is VoiceConnectionState_Reconnecting);
+}
+
+
+@override
+int get hashCode => runtimeType.hashCode;
+
+@override
+String toString() {
+  return 'VoiceConnectionState.reconnecting()';
+}
+
+
+}
+
+
+
+
+/// @nodoc
+
+
+class VoiceConnectionState_NoRoute extends VoiceConnectionState {
+  const VoiceConnectionState_NoRoute(): super._();
+  
+
+
+
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is VoiceConnectionState_NoRoute);
+}
+
+
+@override
+int get hashCode => runtimeType.hashCode;
+
+@override
+String toString() {
+  return 'VoiceConnectionState.noRoute()';
+}
+
+
+}
+
+
+
+
+/// @nodoc
+
+
+class VoiceConnectionState_Disconnected extends VoiceConnectionState {
+  const VoiceConnectionState_Disconnected({required this.reason}): super._();
+  
+
+ final  String reason;
+
+/// Create a copy of VoiceConnectionState
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$VoiceConnectionState_DisconnectedCopyWith<VoiceConnectionState_Disconnected> get copyWith => _$VoiceConnectionState_DisconnectedCopyWithImpl<VoiceConnectionState_Disconnected>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is VoiceConnectionState_Disconnected&&(identical(other.reason, reason) || other.reason == reason));
+}
+
+
+@override
+int get hashCode => Object.hash(runtimeType,reason);
+
+@override
+String toString() {
+  return 'VoiceConnectionState.disconnected(reason: $reason)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $VoiceConnectionState_DisconnectedCopyWith<$Res> implements $VoiceConnectionStateCopyWith<$Res> {
+  factory $VoiceConnectionState_DisconnectedCopyWith(VoiceConnectionState_Disconnected value, $Res Function(VoiceConnectionState_Disconnected) _then) = _$VoiceConnectionState_DisconnectedCopyWithImpl;
+@useResult
+$Res call({
+ String reason
+});
+
+
+
+
+}
+/// @nodoc
+class _$VoiceConnectionState_DisconnectedCopyWithImpl<$Res>
+    implements $VoiceConnectionState_DisconnectedCopyWith<$Res> {
+  _$VoiceConnectionState_DisconnectedCopyWithImpl(this._self, this._then);
+
+  final VoiceConnectionState_Disconnected _self;
+  final $Res Function(VoiceConnectionState_Disconnected) _then;
+
+/// Create a copy of VoiceConnectionState
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? reason = null,}) {
+  return _then(VoiceConnectionState_Disconnected(
+reason: null == reason ? _self.reason : reason // ignore: cast_nullable_to_non_nullable
+as String,
+  ));
+}
+
+
+}
+
 // dart format on

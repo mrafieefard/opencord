@@ -111,6 +111,7 @@ Each `Request` gets exactly one `Response`, which is either an `error` or the pa
 | `ServerMuteMember` / `ServerDeafenMember { user_id, value }` | `voice_state` | `MUTE_MEMBERS` / `DEAFEN_MEMBERS` in the target's channel; outranks the target unless it is the caller |
 | `MoveMember { user_id, channel_id }` | `voice_state` | `MOVE_MEMBERS` in both channels; outranks the target unless it is the caller; the target can view and connect to the destination |
 | `DisconnectMember { user_id }` | `ack` | `MOVE_MEMBERS` in the target's channel; outranks the target unless it is the caller |
+| `RefreshVoiceServer {}` | `ack`, then a fresh `VoiceServerUpdate` | The session holding the caller's voice state; otherwise `VOICE_NOT_CONNECTED` |
 
 Details:
 - **Messages:** the content is trimmed and must be 1–4 000 characters. Only text channels accept messages.
@@ -124,7 +125,7 @@ Details:
 - **Kicks and bans** end all of the target's sessions; those sessions cannot be resumed.
 - **Cleanup:** deleting a role removes it from every member and deletes its channel overwrites. Kicking or banning a member deletes their member overwrites.
 - **Deleted messages** disappear from history. They are kept in the database, marked as deleted.
-- **Rate limits** are per user: 50 requests per 10 s, plus 5 messages per 5 s per channel and 10 `UpdateVoiceState` per 10 s. Over the limit, the response is `RATE_LIMITED` with `retry_after_ms`.
+- **Rate limits** are per user: 50 requests per 10 s, plus 5 messages per 5 s per channel and 10 `UpdateVoiceState` or `RefreshVoiceServer` per 10 s. Over the limit, the response is `RATE_LIMITED` with `retry_after_ms`.
 - **Not yet supported:** the screen share requests (`CreateStream`, `UpdateStream`, `DeleteStream`, `WatchStream`, `UnwatchStream`) and the soundboard requests answer `INVALID_ARGUMENT` until those features arrive.
 
 ## Events
@@ -246,6 +247,7 @@ Voice follows Discord's design (Phase 2 plan §3). Joining is a request on this 
 - A voice state says who is in which voice channel, with their self mute, deafen, camera and stream flags, their server mute and deafen, and `suppress` (no `SPEAK` in the channel, or in the AFK channel). States live in server memory only.
 - A user has at most one voice state per server, held by one gateway session. Joining from another session takes it over; the old session sees the new `session_id`.
 - `UpdateVoiceState` with a `channel_id` joins, moves within the server, or changes the self flags. Without one, it leaves, from whichever session holds the state.
+- A client whose voice connection failed for good (a refused or expired token, a resume that did not work) sends `RefreshVoiceServer` for a fresh `VoiceServerUpdate`; changing only the self flags never sends one.
 - Joining needs `CONNECT` in a voice channel the user can view, and room: the channel's user limit (skipped with `MOVE_MEMBERS`) and the server's per-channel cap from `opencord.toml` (never skipped). A camera needs `VIDEO`, cameras allowed on the server, and room under the per-channel camera limit; a stream needs `SCREENSHARE`.
 - Losing `VIEW_CHANNEL` ends a voice state; losing `CONNECT` does not. Server mute and deafen are remembered per user while the server runs, across leaving and rejoining.
 - **Grace period:** a voice state outlives its session's dropped connection by 30 seconds (checked every 5), so a resume keeps the call. A session that ends or expires ends its voice state.
@@ -338,7 +340,7 @@ When the channel closes, the server moves the node's channels elsewhere (see [Jo
 
 | Item | Limit |
 |---|---|
-| `UpdateVoiceState` | 10 per 10 s per user |
+| `UpdateVoiceState` and `RefreshVoiceServer` | 10 per 10 s per user |
 | Voice token | 60 seconds, single use |
 | Media token | 24 hours |
 | Voice grace period | 30 seconds (up to 35) |

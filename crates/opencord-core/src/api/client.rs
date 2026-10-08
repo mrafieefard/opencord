@@ -11,14 +11,16 @@ use opencord_common::validation;
 use tokio::runtime::Runtime;
 
 use super::types::{
-    AddServerOutcome, Ban, Channel, ChannelChanges, ChannelKind, ChannelPosition, CoreError,
-    CoreEvent, GeneratedIdentity, IdentityInfo, Invite, Member, Message, OverwriteTargetKind,
-    PermissionOverwrite, PresenceStatus, Role, RoleChanges, Server, ServerChanges, ServerInfo,
-    TrustedFingerprint, User, VoiceSettings, VoiceSettingsChanges, VoiceState,
+    AddServerOutcome, AudioDevices, AudioSettings, Ban, Channel, ChannelChanges, ChannelKind,
+    ChannelPosition, CoreError, CoreEvent, GeneratedIdentity, IdentityInfo, Invite, MediaEvent,
+    Member, Message, OverwriteTargetKind, PermissionOverwrite, PresenceStatus, Role, RoleChanges,
+    Server, ServerChanges, ServerInfo, TrustedFingerprint, User, VoiceSettings,
+    VoiceSettingsChanges, VoiceState,
 };
 use crate::client::Client;
 use crate::frb_generated::StreamSink;
 use crate::identity::{self, Identity};
+use crate::media::{self, MediaOptions};
 
 /// Events kept for a stream that has not been opened yet.
 const BACKLOG_LIMIT: usize = 10_000;
@@ -29,6 +31,8 @@ static EVENTS: Mutex<Events> = Mutex::new(Events {
     sink: None,
     backlog: VecDeque::new(),
 });
+/// Voice media's news; nothing is kept while no stream is open.
+static MEDIA_EVENTS: Mutex<Option<StreamSink<MediaEvent>>> = Mutex::new(None);
 
 struct Events {
     sink: Option<StreamSink<CoreEvent>>,
@@ -56,6 +60,7 @@ pub fn init(app_data_dir: String) -> Result<(), CoreError> {
         }
     };
     let (client, mut events) = Client::new(Path::new(&app_data_dir), runtime.handle().clone())?;
+    let media_events = client.enable_media(MediaOptions { open_devices: true });
     if CLIENT.set(client).is_err() {
         return Ok(());
     }
@@ -64,6 +69,23 @@ pub fn init(app_data_dir: String) -> Result<(), CoreError> {
             deliver(event);
         }
     });
+    if let Some(mut media_events) = media_events {
+        runtime.spawn(async move {
+            while let Some(event) = media_events.recv().await {
+                let mut sink = MEDIA_EVENTS.lock().unwrap_or_else(PoisonError::into_inner);
+                if sink.as_ref().is_some_and(|sink| sink.add(event).is_err()) {
+                    *sink = None;
+                }
+            }
+        });
+    }
+    Ok(())
+}
+
+/// Voice media's news: how this device's voice connection is doing, and
+/// audio devices. Opening it again replaces the previous stream.
+pub fn media_event_stream(sink: StreamSink<MediaEvent>) -> Result<(), CoreError> {
+    *MEDIA_EVENTS.lock().unwrap_or_else(PoisonError::into_inner) = Some(sink);
     Ok(())
 }
 
@@ -458,6 +480,54 @@ pub fn voice_set_self_mute(muted: bool) -> Result<(), CoreError> {
 #[frb(sync)]
 pub fn voice_set_self_deaf(deafened: bool) -> Result<(), CoreError> {
     client()?.set_voice_self(None, Some(deafened));
+    Ok(())
+}
+
+/// Microphones and speakers the system offers now.
+pub async fn audio_devices() -> Result<AudioDevices, CoreError> {
+    let runtime = RUNTIME.get().ok_or(CoreError::NotInitialized)?;
+    runtime
+        .spawn_blocking(media::audio_devices)
+        .await
+        .map_err(|error| CoreError::Connection {
+            message: error.to_string(),
+        })
+}
+
+/// Devices, input mode and volumes for voice; call it at start and on every
+/// change.
+#[frb(sync)]
+pub fn audio_apply_settings(settings: AudioSettings) -> Result<(), CoreError> {
+    client()?.apply_audio_settings(settings);
+    Ok(())
+}
+
+/// The push-to-talk key went down or up.
+#[frb(sync)]
+pub fn voice_set_push_to_talk(held: bool) -> Result<(), CoreError> {
+    client()?.set_push_to_talk(held);
+    Ok(())
+}
+
+/// How loud someone sounds on this device, 0–2 (200 %).
+#[frb(sync)]
+pub fn voice_set_user_volume(
+    server_key: String,
+    user_id: i64,
+    volume: f32,
+) -> Result<(), CoreError> {
+    client()?.set_user_volume(&server_key, user_id, volume);
+    Ok(())
+}
+
+/// Silences someone on this device only.
+#[frb(sync)]
+pub fn voice_set_user_local_mute(
+    server_key: String,
+    user_id: i64,
+    muted: bool,
+) -> Result<(), CoreError> {
+    client()?.set_user_local_mute(&server_key, user_id, muted);
     Ok(())
 }
 

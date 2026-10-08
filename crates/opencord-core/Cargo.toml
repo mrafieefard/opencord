@@ -18,6 +18,7 @@ futures-util.workspace = true
 getrandom.workspace = true
 hex.workspace = true
 opencord-common.workspace = true
+opencord-media.workspace = true
 opencord-proto.workspace = true
 prost.workspace = true
 rustls.workspace = true

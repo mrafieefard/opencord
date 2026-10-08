@@ -2564,6 +2564,7 @@ dependencies = [
  "getrandom 0.4.3",
  "hex",
  "opencord-common",
+ "opencord-media",
  "opencord-proto",
  "opencord-server",
  "prost",

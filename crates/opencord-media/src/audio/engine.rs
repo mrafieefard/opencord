@@ -18,13 +18,24 @@ const WAKE_EVERY: Duration = Duration::from_millis(5);
 /// Audio kept queued for the speaker: enough to ride out a late wake.
 const SPEAKER_QUEUE: Duration = Duration::from_millis(30);
 
+/// Which device to use.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub enum DeviceChoice {
+    /// The system's default, following it when it changes.
+    #[default]
+    Default,
+    /// A device id from [`super::device::devices`]; the default stands in
+    /// while it is missing.
+    Id(String),
+    /// None at all: nothing is captured, and playback runs on the clock.
+    Off,
+}
+
 /// Where audio goes in and out, and how.
 #[derive(Debug, Clone, PartialEq)]
 pub struct EngineSettings {
-    /// A device id from [`super::device::devices`]; `None` follows the
-    /// system's default.
-    pub input_device: Option<String>,
-    pub output_device: Option<String>,
+    pub input_device: DeviceChoice,
+    pub output_device: DeviceChoice,
     pub processor: ProcessorSettings,
 }
 
@@ -58,8 +69,8 @@ enum Command {
     LocalMute(i64, bool),
     Bitrate(u32),
     ExpectedLoss(u8),
-    InputDevice(Option<String>),
-    OutputDevice(Option<String>),
+    InputDevice(DeviceChoice),
+    OutputDevice(DeviceChoice),
     Stop,
 }
 
@@ -171,13 +182,12 @@ impl AudioEngine {
         self.command(Command::ExpectedLoss(percent));
     }
 
-    /// `None` follows the system's default microphone.
-    pub fn set_input_device(&self, id: Option<String>) {
-        self.command(Command::InputDevice(id));
+    pub fn set_input_device(&self, choice: DeviceChoice) {
+        self.command(Command::InputDevice(choice));
     }
 
-    pub fn set_output_device(&self, id: Option<String>) {
-        self.command(Command::OutputDevice(id));
+    pub fn set_output_device(&self, choice: DeviceChoice) {
+        self.command(Command::OutputDevice(choice));
     }
 
     fn command(&self, command: Command) {
@@ -198,9 +208,8 @@ struct Engine {
     processor: Processor,
     microphone: Option<Microphone>,
     speaker: Option<Speaker>,
-    /// What the user chose; `None` is the system's default.
-    input_device: Option<String>,
-    output_device: Option<String>,
+    input_device: DeviceChoice,
+    output_device: DeviceChoice,
     send: Box<dyn FnMut(EncodedFrame) + Send>,
     events: Box<dyn FnMut(EngineEvent) + Send>,
     talking: bool,
@@ -275,14 +284,15 @@ impl Engine {
             Command::ExpectedLoss(percent) => {
                 let _ = processor.set_expected_loss(percent);
             }
-            Command::InputDevice(id) => {
-                self.input_device = id;
+            Command::InputDevice(choice) => {
+                self.input_device = choice;
                 self.microphone = None;
                 self.open_microphone();
             }
-            Command::OutputDevice(id) => {
-                self.output_device = id;
+            Command::OutputDevice(choice) => {
+                self.output_device = choice;
                 self.speaker = None;
+                self.unplayed_since = Instant::now();
                 self.open_speaker();
             }
             Command::Stop => {}
@@ -310,7 +320,9 @@ impl Engine {
 
     /// The chosen microphone, or the default one when it is missing.
     fn open_microphone(&mut self) {
-        let opened = open_or_default(self.input_device.as_deref(), Microphone::open);
+        let Some(opened) = open_or_default(&self.input_device, Microphone::open) else {
+            return;
+        };
         match opened {
             Ok((microphone, fell_back)) => {
                 if let Err(error) = self
@@ -336,7 +348,9 @@ impl Engine {
     }
 
     fn open_speaker(&mut self) {
-        let opened = open_or_default(self.output_device.as_deref(), Speaker::open);
+        let Some(opened) = open_or_default(&self.output_device, Speaker::open) else {
+            return;
+        };
         match opened {
             Ok((speaker, fell_back)) => {
                 if let Err(error) = self
@@ -411,22 +425,23 @@ impl Engine {
     }
 }
 
-/// Opens the device with `id`, or the default one when that fails; says
-/// whether it fell back.
+/// Opens the chosen device, or the default one when that fails, and says
+/// whether it fell back; `None` when the choice is no device.
 fn open_or_default<T>(
-    id: Option<&str>,
+    choice: &DeviceChoice,
     open: impl Fn(Option<&str>) -> Result<T, DeviceError>,
-) -> Result<(T, bool), DeviceError> {
-    match id {
-        None => open(None).map(|device| (device, false)),
-        Some(id) => match open(Some(id)) {
+) -> Option<Result<(T, bool), DeviceError>> {
+    Some(match choice {
+        DeviceChoice::Off => return None,
+        DeviceChoice::Default => open(None).map(|device| (device, false)),
+        DeviceChoice::Id(id) => match open(Some(id)) {
             Ok(device) => Ok((device, false)),
             Err(error) => {
                 tracing::info!(%error, "using the default device instead");
                 open(None).map(|device| (device, true))
             }
         },
-    }
+    })
 }
 
 #[cfg(test)]
@@ -446,8 +461,8 @@ mod tests {
         let heard = Arc::clone(&events);
         let engine = AudioEngine::start(
             EngineSettings {
-                input_device: Some("pipewire:no-such-microphone".to_owned()),
-                output_device: None,
+                input_device: DeviceChoice::Id("pipewire:no-such-microphone".to_owned()),
+                output_device: DeviceChoice::Default,
                 processor: ProcessorSettings {
                     // Everything passes, so the room's noise is sent.
                     mode: InputMode::VoiceActivity {

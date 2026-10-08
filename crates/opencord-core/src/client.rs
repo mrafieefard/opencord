@@ -3,7 +3,7 @@
 
 use std::collections::HashMap;
 use std::path::Path;
-use std::sync::{Arc, Mutex, MutexGuard, PoisonError, RwLock, Weak};
+use std::sync::{Arc, Mutex, MutexGuard, OnceLock, PoisonError, RwLock, Weak};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use opencord_common::address::{
@@ -16,9 +16,9 @@ use tokio::runtime::Handle;
 use tokio::sync::{broadcast, mpsc, oneshot};
 
 use crate::api::types::{
-    AddServerOutcome, Ban, Channel, ChannelChanges, ChannelKind, ChannelPosition, CoreError,
-    CoreEvent, CoreEventPayload, ErrorCode, IdentityInfo, Invite, Member, Message,
-    OverwriteTargetKind, PermissionOverwrite, PresenceStatus, Role, RoleChanges, Server,
+    AddServerOutcome, AudioSettings, Ban, Channel, ChannelChanges, ChannelKind, ChannelPosition,
+    CoreError, CoreEvent, CoreEventPayload, ErrorCode, IdentityInfo, Invite, MediaEvent, Member,
+    Message, OverwriteTargetKind, PermissionOverwrite, PresenceStatus, Role, RoleChanges, Server,
     ServerChanges, ServerInfo, User, VoiceSettings, VoiceSettingsChanges, VoiceState,
 };
 use crate::connection::{
@@ -26,6 +26,7 @@ use crate::connection::{
 };
 use crate::convert;
 use crate::identity::Identity;
+use crate::media::{Media, MediaOptions, MediaTarget};
 use crate::store::{SavedServer, Store, StoreError};
 use crate::voice::VoiceServer;
 
@@ -50,6 +51,8 @@ struct Inner {
     credentials: RwLock<Option<Credentials>>,
     connections: Mutex<HashMap<String, Connection>>,
     voice: Mutex<Voice>,
+    /// Voice media, once the app turned it on.
+    media: OnceLock<Media>,
 }
 
 /// This device's voice: at most one channel across all servers (Phase 2
@@ -60,8 +63,24 @@ struct Voice {
     target: Option<(String, i64)>,
     mute: bool,
     deaf: bool,
+    /// The server's side of this device's voice state.
+    server_mute: bool,
+    server_deaf: bool,
+    suppress: bool,
     /// The user's id on each server, from its last `Ready`.
     self_ids: HashMap<String, i64>,
+}
+
+impl Voice {
+    /// What voice media needs to know.
+    fn media_target(&self) -> Option<MediaTarget> {
+        self.target.as_ref().map(|(key, channel_id)| MediaTarget {
+            server_key: key.clone(),
+            channel_id: *channel_id,
+            muted: self.mute || self.server_mute || self.suppress,
+            deafened: self.deaf || self.server_deaf,
+        })
+    }
 }
 
 impl From<StoreError> for CoreError {
@@ -92,6 +111,7 @@ impl Client {
                 credentials: RwLock::new(None),
                 connections: Mutex::new(HashMap::new()),
                 voice: Mutex::new(Voice::default()),
+                media: OnceLock::new(),
             }),
         };
         let watcher: Weak<Inner> = Arc::downgrade(&client.inner);
@@ -631,6 +651,86 @@ impl Client {
         self.inner.voice_servers.subscribe()
     }
 
+    /// Runs voice media for this device: connects to voice nodes and plays
+    /// and captures audio. Without it, joining voice changes only the
+    /// voice state, as for the voicebot, which brings its own media. The
+    /// first call decides; later calls return `None`.
+    pub fn enable_media(
+        &self,
+        options: MediaOptions,
+    ) -> Option<mpsc::UnboundedReceiver<MediaEvent>> {
+        let (events, receiver) = mpsc::unbounded_channel();
+        let media = Media::new(self.inner.runtime.clone(), options, events);
+        self.inner.media.set(media).ok()?;
+        let mut servers = self.inner.voice_servers.subscribe();
+        let watcher = Arc::downgrade(&self.inner);
+        self.inner.runtime.spawn(async move {
+            loop {
+                match servers.recv().await {
+                    Ok(server) => {
+                        let Some(inner) = watcher.upgrade() else {
+                            return;
+                        };
+                        let client = Self { inner };
+                        if let Some(media) = client.inner.media.get() {
+                            media.on_voice_server(&client, server);
+                        }
+                    }
+                    Err(broadcast::error::RecvError::Lagged(_)) => {}
+                    Err(broadcast::error::RecvError::Closed) => return,
+                }
+            }
+        });
+        self.sync_media();
+        Some(receiver)
+    }
+
+    /// Audio devices, volumes and input mode, for voice media.
+    pub fn apply_audio_settings(&self, settings: AudioSettings) {
+        if let Some(media) = self.inner.media.get() {
+            media.apply_settings(settings);
+        }
+    }
+
+    /// Push-to-talk's key went down or up.
+    pub fn set_push_to_talk(&self, held: bool) {
+        if let Some(media) = self.inner.media.get() {
+            media.set_push_to_talk(held);
+        }
+    }
+
+    /// How loud `user_id` on `key` sounds to this device, 0–2.
+    pub fn set_user_volume(&self, key: &str, user_id: i64, volume: f32) {
+        if let Some(media) = self.inner.media.get() {
+            media.set_user_volume(key, user_id, volume);
+        }
+    }
+
+    /// Silences `user_id` on `key` for this device only.
+    pub fn set_user_local_mute(&self, key: &str, user_id: i64, muted: bool) {
+        if let Some(media) = self.inner.media.get() {
+            media.set_user_local_mute(key, user_id, muted);
+        }
+    }
+
+    /// Asks for a fresh voice server update, after a voice connection
+    /// failed for good.
+    pub async fn refresh_voice_server(&self, key: &str) {
+        let request = Request::RefreshVoiceServer(proto::RefreshVoiceServer {});
+        // Not in voice there any more, or not connected: news of that
+        // reaches voice media through the voice state.
+        let _ = self.request(key, request).await;
+    }
+
+    /// Tells voice media where this device's voice is now.
+    fn sync_media(&self) {
+        let Some(media) = self.inner.media.get() else {
+            return;
+        };
+        let target = self.lock_voice().media_target();
+        media.on_target(self, target);
+    }
+
     /// Joins a voice channel, leaving any other one first, on any server.
     pub async fn voice_join(&self, key: &str, channel_id: i64) -> Result<VoiceState, CoreError> {
         let elsewhere = {
@@ -643,24 +743,29 @@ impl Client {
         };
         if let Some(other) = elsewhere {
             let _ = self.request(&other, leave_voice()).await;
-            let mut voice = self.lock_voice();
-            if voice
-                .target
-                .as_ref()
-                .is_some_and(|(target, _)| *target == other)
             {
-                voice.target = None;
+                let mut voice = self.lock_voice();
+                if voice
+                    .target
+                    .as_ref()
+                    .is_some_and(|(target, _)| *target == other)
+                {
+                    voice.target = None;
+                }
             }
+            self.sync_media();
         }
         let request = self.voice_update(channel_id);
         let state = expect_voice_state(self.request(key, request).await?)?;
         self.lock_voice().target = Some((key.to_owned(), channel_id));
+        self.sync_media();
         Ok(convert::voice_state(state.clone(), &state.session_id))
     }
 
     /// Leaves voice, wherever this device is.
     pub async fn voice_leave(&self) -> Result<(), CoreError> {
         let target = self.lock_voice().target.take();
+        self.sync_media();
         match target {
             Some((key, _)) => self.request(&key, leave_voice()).await.map(|_| ()),
             None => Ok(()),
@@ -676,6 +781,7 @@ impl Client {
             voice.deaf = deaf.unwrap_or(voice.deaf);
             voice.target.clone()
         };
+        self.sync_media();
         if let Some((key, channel_id)) = target {
             let client = self.clone();
             self.inner.runtime.spawn(async move {
@@ -763,23 +869,31 @@ impl Client {
                 }
             }
             CoreEventPayload::VoiceStateUpdate(state) => {
-                let mut voice = self.lock_voice();
-                if voice.self_ids.get(key) != Some(&state.user_id) {
-                    return;
-                }
-                let here = voice
-                    .target
-                    .as_ref()
-                    .is_some_and(|(target_key, _)| target_key == key);
-                if state.this_device {
-                    match state.channel_id {
-                        Some(channel_id) => voice.target = Some((key.clone(), channel_id)),
-                        None if here => voice.target = None,
-                        None => {}
+                {
+                    let mut voice = self.lock_voice();
+                    if voice.self_ids.get(key) != Some(&state.user_id) {
+                        return;
                     }
-                } else if here {
-                    voice.target = None;
+                    let here = voice
+                        .target
+                        .as_ref()
+                        .is_some_and(|(target_key, _)| target_key == key);
+                    if state.this_device {
+                        match state.channel_id {
+                            Some(channel_id) => {
+                                voice.target = Some((key.clone(), channel_id));
+                                voice.server_mute = state.server_mute;
+                                voice.server_deaf = state.server_deaf;
+                                voice.suppress = state.suppress;
+                            }
+                            None if here => voice.target = None,
+                            None => {}
+                        }
+                    } else if here {
+                        voice.target = None;
+                    }
                 }
+                self.sync_media();
             }
             _ => {}
         }
@@ -803,6 +917,7 @@ impl Client {
             voice.target = None;
             voice.self_ids.get(key).copied()
         };
+        self.sync_media();
         if let Some(user_id) = self_id {
             let _ = self.inner.outward.send(CoreEvent {
                 server_key: key.to_owned(),

@@ -29,16 +29,34 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   RustStreamSink<CoreEvent> dco_decode_StreamSink_core_event_Sse(dynamic raw);
 
   @protected
+  RustStreamSink<MediaEvent> dco_decode_StreamSink_media_event_Sse(dynamic raw);
+
+  @protected
   String dco_decode_String(dynamic raw);
 
   @protected
   AddServerOutcome dco_decode_add_server_outcome(dynamic raw);
 
   @protected
+  AudioDevice dco_decode_audio_device(dynamic raw);
+
+  @protected
+  AudioDevices dco_decode_audio_devices(dynamic raw);
+
+  @protected
+  AudioSettings dco_decode_audio_settings(dynamic raw);
+
+  @protected
   Ban dco_decode_ban(dynamic raw);
 
   @protected
   bool dco_decode_bool(dynamic raw);
+
+  @protected
+  AudioDevices dco_decode_box_autoadd_audio_devices(dynamic raw);
+
+  @protected
+  AudioSettings dco_decode_box_autoadd_audio_settings(dynamic raw);
 
   @protected
   bool dco_decode_box_autoadd_bool(dynamic raw);
@@ -94,6 +112,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   int dco_decode_box_autoadd_u_32(dynamic raw);
 
   @protected
+  VoiceConnectionState dco_decode_box_autoadd_voice_connection_state(
+    dynamic raw,
+  );
+
+  @protected
   VoiceSettings dco_decode_box_autoadd_voice_settings(dynamic raw);
 
   @protected
@@ -135,6 +158,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   ErrorCode dco_decode_error_code(dynamic raw);
 
   @protected
+  double dco_decode_f_32(dynamic raw);
+
+  @protected
   FailureReason dco_decode_failure_reason(dynamic raw);
 
   @protected
@@ -151,6 +177,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   Invite dco_decode_invite(dynamic raw);
+
+  @protected
+  List<AudioDevice> dco_decode_list_audio_device(dynamic raw);
 
   @protected
   List<Ban> dco_decode_list_ban(dynamic raw);
@@ -199,6 +228,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   List<VoiceState> dco_decode_list_voice_state(dynamic raw);
+
+  @protected
+  MediaEvent dco_decode_media_event(dynamic raw);
 
   @protected
   Member dco_decode_member(dynamic raw);
@@ -275,6 +307,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   User dco_decode_user(dynamic raw);
 
   @protected
+  VoiceConnectionState dco_decode_voice_connection_state(dynamic raw);
+
+  @protected
   VoiceSettings dco_decode_voice_settings(dynamic raw);
 
   @protected
@@ -292,16 +327,40 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  RustStreamSink<MediaEvent> sse_decode_StreamSink_media_event_Sse(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   String sse_decode_String(SseDeserializer deserializer);
 
   @protected
   AddServerOutcome sse_decode_add_server_outcome(SseDeserializer deserializer);
 
   @protected
+  AudioDevice sse_decode_audio_device(SseDeserializer deserializer);
+
+  @protected
+  AudioDevices sse_decode_audio_devices(SseDeserializer deserializer);
+
+  @protected
+  AudioSettings sse_decode_audio_settings(SseDeserializer deserializer);
+
+  @protected
   Ban sse_decode_ban(SseDeserializer deserializer);
 
   @protected
   bool sse_decode_bool(SseDeserializer deserializer);
+
+  @protected
+  AudioDevices sse_decode_box_autoadd_audio_devices(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  AudioSettings sse_decode_box_autoadd_audio_settings(
+    SseDeserializer deserializer,
+  );
 
   @protected
   bool sse_decode_box_autoadd_bool(SseDeserializer deserializer);
@@ -367,6 +426,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   int sse_decode_box_autoadd_u_32(SseDeserializer deserializer);
 
   @protected
+  VoiceConnectionState sse_decode_box_autoadd_voice_connection_state(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   VoiceSettings sse_decode_box_autoadd_voice_settings(
     SseDeserializer deserializer,
   );
@@ -412,6 +476,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   ErrorCode sse_decode_error_code(SseDeserializer deserializer);
 
   @protected
+  double sse_decode_f_32(SseDeserializer deserializer);
+
+  @protected
   FailureReason sse_decode_failure_reason(SseDeserializer deserializer);
 
   @protected
@@ -428,6 +495,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   Invite sse_decode_invite(SseDeserializer deserializer);
+
+  @protected
+  List<AudioDevice> sse_decode_list_audio_device(SseDeserializer deserializer);
 
   @protected
   List<Ban> sse_decode_list_ban(SseDeserializer deserializer);
@@ -484,6 +554,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   List<VoiceState> sse_decode_list_voice_state(SseDeserializer deserializer);
+
+  @protected
+  MediaEvent sse_decode_media_event(SseDeserializer deserializer);
 
   @protected
   Member sse_decode_member(SseDeserializer deserializer);
@@ -568,6 +641,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   User sse_decode_user(SseDeserializer deserializer);
 
   @protected
+  VoiceConnectionState sse_decode_voice_connection_state(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   VoiceSettings sse_decode_voice_settings(SseDeserializer deserializer);
 
   @protected
@@ -591,6 +669,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_StreamSink_media_event_Sse(
+    RustStreamSink<MediaEvent> self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_String(String self, SseSerializer serializer);
 
   @protected
@@ -600,10 +684,31 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_audio_device(AudioDevice self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_audio_devices(AudioDevices self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_audio_settings(AudioSettings self, SseSerializer serializer);
+
+  @protected
   void sse_encode_ban(Ban self, SseSerializer serializer);
 
   @protected
   void sse_encode_bool(bool self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_box_autoadd_audio_devices(
+    AudioDevices self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_box_autoadd_audio_settings(
+    AudioSettings self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_box_autoadd_bool(bool self, SseSerializer serializer);
@@ -684,6 +789,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_box_autoadd_u_32(int self, SseSerializer serializer);
 
   @protected
+  void sse_encode_box_autoadd_voice_connection_state(
+    VoiceConnectionState self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_box_autoadd_voice_settings(
     VoiceSettings self,
     SseSerializer serializer,
@@ -747,6 +858,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_error_code(ErrorCode self, SseSerializer serializer);
 
   @protected
+  void sse_encode_f_32(double self, SseSerializer serializer);
+
+  @protected
   void sse_encode_failure_reason(FailureReason self, SseSerializer serializer);
 
   @protected
@@ -766,6 +880,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_invite(Invite self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_list_audio_device(
+    List<AudioDevice> self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_list_ban(List<Ban> self, SseSerializer serializer);
@@ -835,6 +955,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
     List<VoiceState> self,
     SseSerializer serializer,
   );
+
+  @protected
+  void sse_encode_media_event(MediaEvent self, SseSerializer serializer);
 
   @protected
   void sse_encode_member(Member self, SseSerializer serializer);
@@ -928,6 +1051,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_user(User self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_voice_connection_state(
+    VoiceConnectionState self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_voice_settings(VoiceSettings self, SseSerializer serializer);

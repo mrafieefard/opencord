@@ -5,11 +5,13 @@ use std::time::Duration;
 use opencord_common::address::format_fingerprint;
 use opencord_common::permissions::Permissions;
 use opencord_core::api::types::{
-    AddServerOutcome, ConnectionState, CoreError, CoreEvent, CoreEventPayload, FailureReason,
-    Message, ReadySnapshot, RoleChanges, VoiceState,
+    AddServerOutcome, ChannelKind, ConnectionState, CoreError, CoreEvent, CoreEventPayload,
+    FailureReason, MediaEvent, Message, ReadySnapshot, RoleChanges, VoiceConnectionState,
+    VoiceState,
 };
 use opencord_core::client::Client;
 use opencord_core::identity::Identity;
+use opencord_core::media::MediaOptions;
 use opencord_server::config::Config;
 use opencord_server::server::{self, ServerHandle};
 use tokio::sync::mpsc::UnboundedReceiver;
@@ -842,4 +844,112 @@ async fn joining_voice_tells_the_media_engine_where_to_connect() {
         server.handle.fingerprint.to_vec()
     );
     assert!(!update.token.is_empty());
+}
+
+/// Voice connection states from voice media, through the next `Connected`.
+async fn states_until_connected(
+    media: &mut UnboundedReceiver<MediaEvent>,
+) -> Vec<(i64, VoiceConnectionState)> {
+    tokio::time::timeout(WAIT, async {
+        let mut states = Vec::new();
+        loop {
+            let event = media.recv().await.expect("voice media stopped");
+            if let MediaEvent::ConnectionState {
+                channel_id, state, ..
+            } = event
+            {
+                let connected = state == VoiceConnectionState::Connected;
+                states.push((channel_id, state));
+                if connected {
+                    return states;
+                }
+            }
+        }
+    })
+    .await
+    .expect("timed out waiting for voice to connect")
+}
+
+fn connecting_to(channel_id: i64) -> Vec<(i64, VoiceConnectionState)> {
+    vec![
+        (channel_id, VoiceConnectionState::Authenticating),
+        (channel_id, VoiceConnectionState::RtcConnecting),
+        (channel_id, VoiceConnectionState::Connected),
+    ]
+}
+
+#[tokio::test]
+async fn joining_voice_connects_voice_media_to_the_node() {
+    let server = TestServer::start().await;
+    let (_owner, owner_ready, member, _) = owner_and_member(&server).await;
+    let mut media = member
+        .client
+        .enable_media(MediaOptions {
+            open_devices: false,
+        })
+        .unwrap();
+    let voice = voice_channel(&owner_ready);
+
+    member
+        .client
+        .voice_join(&server.address(), voice)
+        .await
+        .unwrap();
+    let states = states_until_connected(&mut media).await;
+
+    assert_eq!(states, connecting_to(voice));
+}
+
+#[tokio::test]
+async fn voice_media_follows_a_move_to_another_channel() {
+    let server = TestServer::start().await;
+    let (owner, owner_ready, member, member_ready) = owner_and_member(&server).await;
+    let mut media = member
+        .client
+        .enable_media(MediaOptions {
+            open_devices: false,
+        })
+        .unwrap();
+    let voice = voice_channel(&owner_ready);
+    let lounge = owner
+        .client
+        .create_channel(
+            &server.address(),
+            ChannelKind::Voice,
+            "Lounge".to_owned(),
+            None,
+            None,
+        )
+        .await
+        .unwrap()
+        .id;
+    member
+        .client
+        .voice_join(&server.address(), voice)
+        .await
+        .unwrap();
+    states_until_connected(&mut media).await;
+
+    owner
+        .client
+        .move_member(&server.address(), member_ready.self_user.id, lounge)
+        .await
+        .unwrap();
+    let states = states_until_connected(&mut media).await;
+
+    assert_eq!(states, connecting_to(lounge));
+}
+
+#[tokio::test]
+async fn media_can_be_turned_on_only_once() {
+    let client = TestClient::new("Someone");
+    let options = MediaOptions {
+        open_devices: false,
+    };
+
+    let first = client.client.enable_media(options);
+    let second = client.client.enable_media(options);
+
+    assert!(first.is_some());
+    assert!(second.is_none());
 }

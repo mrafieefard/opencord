@@ -15,6 +15,11 @@ import 'types.dart';
 void init({required String appDataDir}) =>
     RustLib.instance.api.crateApiClientInit(appDataDir: appDataDir);
 
+/// Voice media's news: how this device's voice connection is doing, and
+/// audio devices. Opening it again replaces the previous stream.
+Stream<MediaEvent> mediaEventStream() =>
+    RustLib.instance.api.crateApiClientMediaEventStream();
+
 /// Every event from every server, in order. Opening it again replaces the
 /// previous stream.
 Stream<CoreEvent> eventStream() =>
@@ -377,6 +382,41 @@ void voiceSetSelfMute({required bool muted}) =>
 /// Holds outside voice too, for the next join.
 void voiceSetSelfDeaf({required bool deafened}) =>
     RustLib.instance.api.crateApiClientVoiceSetSelfDeaf(deafened: deafened);
+
+/// Microphones and speakers the system offers now.
+Future<AudioDevices> audioDevices() =>
+    RustLib.instance.api.crateApiClientAudioDevices();
+
+/// Devices, input mode and volumes for voice; call it at start and on every
+/// change.
+void audioApplySettings({required AudioSettings settings}) =>
+    RustLib.instance.api.crateApiClientAudioApplySettings(settings: settings);
+
+/// The push-to-talk key went down or up.
+void voiceSetPushToTalk({required bool held}) =>
+    RustLib.instance.api.crateApiClientVoiceSetPushToTalk(held: held);
+
+/// How loud someone sounds on this device, 0–2 (200 %).
+void voiceSetUserVolume({
+  required String serverKey,
+  required PlatformInt64 userId,
+  required double volume,
+}) => RustLib.instance.api.crateApiClientVoiceSetUserVolume(
+  serverKey: serverKey,
+  userId: userId,
+  volume: volume,
+);
+
+/// Silences someone on this device only.
+void voiceSetUserLocalMute({
+  required String serverKey,
+  required PlatformInt64 userId,
+  required bool muted,
+}) => RustLib.instance.api.crateApiClientVoiceSetUserLocalMute(
+  serverKey: serverKey,
+  userId: userId,
+  muted: muted,
+);
 
 /// Server mute: nobody hears them until it is lifted.
 Future<void> voiceServerMute({

@@ -84,6 +84,7 @@ async fn dispatch(ctx: &Ctx<'_>, request: proto::Request) -> Result<Response, Ap
         Kind::ServerDeafenMember(request) => voice::server_deafen(ctx, request).await,
         Kind::MoveMember(request) => voice::move_member(ctx, request).await,
         Kind::DisconnectMember(request) => voice::disconnect_member(ctx, request).await,
+        Kind::RefreshVoiceServer(_) => voice::refresh_voice_server(ctx).await,
         Kind::CreateStream(_)
         | Kind::UpdateStream(_)
         | Kind::DeleteStream(_)

@@ -219,6 +219,28 @@ pub async fn disconnect_member(
     Ok(ack())
 }
 
+/// A fresh token for the session holding the caller's voice state, whose
+/// voice connection failed.
+pub async fn refresh_voice_server(ctx: &Ctx<'_>) -> Result<Response, ApiError> {
+    ctx.state
+        .rate_limits
+        .check_voice_state(ctx.user_id)
+        .map_err(ApiError::rate_limited)?;
+    let _writes = ctx.state.write_lock().await;
+    let update = {
+        let guild = ctx.state.guild();
+        let voice_states = ctx.state.voice();
+        let current = voice_states
+            .get(ctx.user_id)
+            .filter(|current| current.session_id == ctx.session_id)
+            .cloned()
+            .ok_or_else(|| ApiError::voice_not_connected("this session is"))?;
+        server_update(ctx.state, &guild, &voice_states, &current).ok_or_else(no_voice_node)?
+    };
+    send_server_update(ctx.state, ctx.session_id, update);
+    Ok(ack())
+}
+
 fn no_voice_node() -> ApiError {
     ApiError::conflict("no voice server is available right now")
 }

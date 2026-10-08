@@ -408,6 +408,84 @@ pub enum ErrorCode {
     Unknown,
 }
 
+/// What the app chose for audio (Phase 2 plan §7.12).
+#[derive(Debug, Clone, PartialEq)]
+pub struct AudioSettings {
+    /// A device id from `audio_devices`; `None` follows the system's
+    /// default.
+    pub input_device: Option<String>,
+    pub output_device: Option<String>,
+    /// Push-to-talk instead of voice activity.
+    pub push_to_talk: bool,
+    /// Microphone gain, 0–2 (200 %).
+    pub input_volume: f32,
+    /// Everything heard, 0–2 (200 %).
+    pub output_volume: f32,
+}
+
+impl Default for AudioSettings {
+    fn default() -> Self {
+        Self {
+            input_device: None,
+            output_device: None,
+            push_to_talk: false,
+            input_volume: 1.0,
+            output_volume: 1.0,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AudioDevice {
+    /// Stable across runs where the system allows; what settings keep.
+    pub id: String,
+    pub name: String,
+}
+
+/// Microphones and speakers the system offers now.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct AudioDevices {
+    pub inputs: Vec<AudioDevice>,
+    pub outputs: Vec<AudioDevice>,
+    pub default_input: Option<String>,
+    pub default_output: Option<String>,
+}
+
+/// Where this device's voice connection is (Phase 2 plan §7.14).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum VoiceConnectionState {
+    /// In a voice channel, waiting to be told which voice node to use.
+    AwaitingEndpoint,
+    /// Reaching the voice node and identifying.
+    Authenticating,
+    /// Setting up media.
+    RtcConnecting,
+    Connected,
+    /// The connection broke; getting it back.
+    Reconnecting,
+    /// Media does not get through; UDP may be blocked.
+    NoRoute,
+    Disconnected {
+        reason: String,
+    },
+}
+
+/// News from voice media, on its own stream.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum MediaEvent {
+    ConnectionState {
+        server_key: String,
+        channel_id: i64,
+        state: VoiceConnectionState,
+    },
+    /// The chosen device is missing; the system's default stands in.
+    DeviceFellBack { output: bool, device: String },
+    /// No device could be opened.
+    DeviceFailed { output: bool, message: String },
+    /// The devices plugged in changed.
+    DevicesChanged(AudioDevices),
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum CoreError {
     #[error("the core has not been initialized")]

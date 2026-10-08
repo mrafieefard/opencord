@@ -128,6 +128,7 @@ enum Command {
 pub struct VoiceConnection {
     commands: mpsc::UnboundedSender<Command>,
     audio_ssrc: u32,
+    limits: Option<voice::Limits>,
 }
 
 impl VoiceConnection {
@@ -179,6 +180,7 @@ impl VoiceConnection {
         }
         let (commands, command_receiver) = mpsc::unbounded_channel();
         let audio_ssrc = ready.audio_ssrc;
+        let limits = ready.limits;
         let driver = Driver {
             url,
             fingerprint: target.certificate_fingerprint,
@@ -195,6 +197,7 @@ impl VoiceConnection {
             Self {
                 commands,
                 audio_ssrc,
+                limits,
             },
             receiver,
         ))
@@ -203,6 +206,13 @@ impl VoiceConnection {
     /// The SSRC this connection's audio goes out with.
     pub fn audio_ssrc(&self) -> u32 {
         self.audio_ssrc
+    }
+
+    /// The channel's voice bitrate in bits per second, as the node said.
+    pub fn voice_bitrate(&self) -> Option<u32> {
+        self.limits
+            .map(|limits| limits.voice_bitrate)
+            .filter(|bitrate| *bitrate > 0)
     }
 
     pub fn send_audio(&self, frame: AudioFrame) {

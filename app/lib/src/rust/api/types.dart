@@ -8,7 +8,7 @@ import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 import 'package:freezed_annotation/freezed_annotation.dart' hide protected;
 part 'types.freezed.dart';
 
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`
 
 @freezed
 sealed class AddServerOutcome with _$AddServerOutcome {
@@ -22,6 +22,107 @@ sealed class AddServerOutcome with _$AddServerOutcome {
     required String address,
     required String fingerprint,
   }) = AddServerOutcome_NeedsTrust;
+}
+
+class AudioDevice {
+  /// Stable across runs where the system allows; what settings keep.
+  final String id;
+  final String name;
+
+  const AudioDevice({required this.id, required this.name});
+
+  @override
+  int get hashCode => id.hashCode ^ name.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is AudioDevice &&
+          runtimeType == other.runtimeType &&
+          id == other.id &&
+          name == other.name;
+}
+
+/// Microphones and speakers the system offers now.
+class AudioDevices {
+  final List<AudioDevice> inputs;
+  final List<AudioDevice> outputs;
+  final String? defaultInput;
+  final String? defaultOutput;
+
+  const AudioDevices({
+    required this.inputs,
+    required this.outputs,
+    this.defaultInput,
+    this.defaultOutput,
+  });
+
+  static Future<AudioDevices> default_() =>
+      RustLib.instance.api.crateApiTypesAudioDevicesDefault();
+
+  @override
+  int get hashCode =>
+      inputs.hashCode ^
+      outputs.hashCode ^
+      defaultInput.hashCode ^
+      defaultOutput.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is AudioDevices &&
+          runtimeType == other.runtimeType &&
+          inputs == other.inputs &&
+          outputs == other.outputs &&
+          defaultInput == other.defaultInput &&
+          defaultOutput == other.defaultOutput;
+}
+
+/// What the app chose for audio (Phase 2 plan §7.12).
+class AudioSettings {
+  /// A device id from `audio_devices`; `None` follows the system's
+  /// default.
+  final String? inputDevice;
+  final String? outputDevice;
+
+  /// Push-to-talk instead of voice activity.
+  final bool pushToTalk;
+
+  /// Microphone gain, 0–2 (200 %).
+  final double inputVolume;
+
+  /// Everything heard, 0–2 (200 %).
+  final double outputVolume;
+
+  const AudioSettings({
+    this.inputDevice,
+    this.outputDevice,
+    required this.pushToTalk,
+    required this.inputVolume,
+    required this.outputVolume,
+  });
+
+  static Future<AudioSettings> default_() =>
+      RustLib.instance.api.crateApiTypesAudioSettingsDefault();
+
+  @override
+  int get hashCode =>
+      inputDevice.hashCode ^
+      outputDevice.hashCode ^
+      pushToTalk.hashCode ^
+      inputVolume.hashCode ^
+      outputVolume.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is AudioSettings &&
+          runtimeType == other.runtimeType &&
+          inputDevice == other.inputDevice &&
+          outputDevice == other.outputDevice &&
+          pushToTalk == other.pushToTalk &&
+          inputVolume == other.inputVolume &&
+          outputVolume == other.outputVolume;
 }
 
 class Ban {
@@ -451,6 +552,33 @@ class Invite {
           maxUses == other.maxUses &&
           uses == other.uses &&
           expiresAtMs == other.expiresAtMs;
+}
+
+@freezed
+sealed class MediaEvent with _$MediaEvent {
+  const MediaEvent._();
+
+  const factory MediaEvent.connectionState({
+    required String serverKey,
+    required PlatformInt64 channelId,
+    required VoiceConnectionState state,
+  }) = MediaEvent_ConnectionState;
+
+  /// The chosen device is missing; the system's default stands in.
+  const factory MediaEvent.deviceFellBack({
+    required bool output,
+    required String device,
+  }) = MediaEvent_DeviceFellBack;
+
+  /// No device could be opened.
+  const factory MediaEvent.deviceFailed({
+    required bool output,
+    required String message,
+  }) = MediaEvent_DeviceFailed;
+
+  /// The devices plugged in changed.
+  const factory MediaEvent.devicesChanged(AudioDevices field0) =
+      MediaEvent_DevicesChanged;
 }
 
 class Member {
@@ -889,6 +1017,34 @@ class User {
           publicKeyHex == other.publicKeyHex &&
           fingerprint == other.fingerprint &&
           displayName == other.displayName;
+}
+
+@freezed
+sealed class VoiceConnectionState with _$VoiceConnectionState {
+  const VoiceConnectionState._();
+
+  /// In a voice channel, waiting to be told which voice node to use.
+  const factory VoiceConnectionState.awaitingEndpoint() =
+      VoiceConnectionState_AwaitingEndpoint;
+
+  /// Reaching the voice node and identifying.
+  const factory VoiceConnectionState.authenticating() =
+      VoiceConnectionState_Authenticating;
+
+  /// Setting up media.
+  const factory VoiceConnectionState.rtcConnecting() =
+      VoiceConnectionState_RtcConnecting;
+  const factory VoiceConnectionState.connected() =
+      VoiceConnectionState_Connected;
+
+  /// The connection broke; getting it back.
+  const factory VoiceConnectionState.reconnecting() =
+      VoiceConnectionState_Reconnecting;
+
+  /// Media does not get through; UDP may be blocked.
+  const factory VoiceConnectionState.noRoute() = VoiceConnectionState_NoRoute;
+  const factory VoiceConnectionState.disconnected({required String reason}) =
+      VoiceConnectionState_Disconnected;
 }
 
 /// Server-wide voice, video and soundboard settings.

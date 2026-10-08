@@ -49,6 +49,7 @@ message Request {
     ServerDeafenMember server_deafen_member = 72;
     MoveMember move_member = 73;
     DisconnectMember disconnect_member = 74;
+    RefreshVoiceServer refresh_voice_server = 75;
 
     CreateStream create_stream = 80;
     UpdateStream update_stream = 81;
@@ -339,6 +340,11 @@ message MoveMember {
 message DisconnectMember {
   int64 user_id = 1;
 }
+
+// -> ack, then a fresh VoiceServerUpdate on this session, for a client whose
+// voice connection failed and needs a new token. Only the session holding
+// the voice state may ask.
+message RefreshVoiceServer {}
 
 // -> stream
 message CreateStream {

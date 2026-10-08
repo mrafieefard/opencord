@@ -562,3 +562,30 @@ async fn info_says_whether_voice_is_on() {
     assert!(off_body.contains("\"voice_enabled\":false"), "{off_body}");
     assert!(off_body.contains("\"voice_udp_port\":null"), "{off_body}");
 }
+
+#[tokio::test]
+async fn the_session_in_voice_can_ask_for_a_fresh_voice_token() {
+    let mut room = room().await;
+    room.member.ok(join_voice(room.voice)).await;
+    let first = server_update(&mut room.member).await;
+
+    room.member
+        .ok(Request::RefreshVoiceServer(proto::RefreshVoiceServer {}))
+        .await;
+    let fresh = server_update(&mut room.member).await;
+
+    assert_eq!(fresh.channel_id, room.voice);
+    assert_ne!(fresh.token, first.token);
+}
+
+#[tokio::test]
+async fn only_the_session_in_voice_gets_a_voice_token() {
+    let mut room = room().await;
+
+    let outside = room
+        .member
+        .error(Request::RefreshVoiceServer(proto::RefreshVoiceServer {}))
+        .await;
+
+    assert_eq!(code(&outside), proto::ErrorCode::VoiceNotConnected);
+}
