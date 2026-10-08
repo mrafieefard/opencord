@@ -8,12 +8,16 @@ license = "MPL-2.0"
 publish = false
 
 [dependencies]
+audioadapter-buffers.workspace = true
 bytes.workspace = true
 futures-util.workspace = true
 getrandom.workspace = true
 opencord-common.workspace = true
 opencord-proto.workspace = true
+opus.workspace = true
 prost.workspace = true
+rubato.workspace = true
+rtrb.workspace = true
 rustls.workspace = true
 sha2.workspace = true
 str0m.workspace = true

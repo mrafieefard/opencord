@@ -46,12 +46,15 @@ pub struct VoiceTarget {
     pub channel_id: i64,
 }
 
-/// One 20 ms Opus frame to send.
+/// One Opus frame to send.
 #[derive(Debug, Clone)]
 pub struct AudioFrame {
     pub payload: Vec<u8>,
-    /// Samples at 48 kHz this frame covers; 960 for 20 ms.
-    pub samples: u32,
+    /// The frame's first sample on the sender's 48 kHz capture clock. It
+    /// keeps counting through silence, so the RTP timestamps show pauses.
+    pub position: u64,
+    /// The first frame of a talk spurt.
+    pub marker: bool,
     /// -dBov: 0 is loudest, -127 silent.
     pub audio_level: i8,
     pub voice_activity: bool,
@@ -64,6 +67,8 @@ pub struct ReceivedAudio {
     pub ssrc: u32,
     pub seq: u64,
     pub timestamp: u32,
+    /// The first packet of a talk spurt.
+    pub marker: bool,
     pub payload: Arc<[u8]>,
     pub audio_level: Option<i8>,
     pub arrived: Instant,
@@ -260,7 +265,8 @@ struct Media {
     fingerprint: Vec<u8>,
     audio_ssrc: u32,
     next_seq: u64,
-    next_timestamp: u32,
+    /// The RTP timestamp of capture position 0.
+    timestamp_base: u32,
     users_by_ssrc: HashMap<u32, i64>,
     timeout: Instant,
 }
@@ -350,7 +356,7 @@ impl Media {
             fingerprint,
             audio_ssrc: ready.audio_ssrc,
             next_seq: u64::from(u16::from_ne_bytes(random::<2>())),
-            next_timestamp: u32::from_ne_bytes(random::<4>()),
+            timestamp_base: u32::from_ne_bytes(random::<4>()),
             users_by_ssrc: ready
                 .participants
                 .iter()
@@ -383,8 +389,8 @@ impl Media {
     fn send_audio(&mut self, frame: &AudioFrame) {
         let seq = self.next_seq;
         self.next_seq += 1;
-        let timestamp = self.next_timestamp;
-        self.next_timestamp = self.next_timestamp.wrapping_add(frame.samples);
+        // RTP timestamps are the capture clock, wrapped to 32 bits.
+        let timestamp = self.timestamp_base.wrapping_add(frame.position as u32);
         let mut api = self.rtc.direct_api();
         let Some(stream) = api.stream_tx(&Ssrc::from(self.audio_ssrc)) else {
             return;
@@ -397,6 +403,7 @@ impl Media {
                 Instant::now(),
                 frame.payload.clone(),
             )
+            .marker(frame.marker)
             .ext_vals(ExtensionValues {
                 audio_level: Some(frame.audio_level),
                 voice_activity: Some(frame.voice_activity),
@@ -456,6 +463,7 @@ impl Media {
                             ssrc,
                             seq: *packet.seq_no,
                             timestamp: packet.header.timestamp,
+                            marker: packet.header.marker,
                             payload: packet.payload,
                             audio_level: packet.header.ext_vals.audio_level,
                             arrived: packet.timestamp,

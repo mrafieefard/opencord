@@ -161,11 +161,15 @@ struct Shared {
     closed: Option<Option<u16>>,
     /// The voice gateway of the current connection.
     gateway_url: String,
+    /// The capture clock: where the next frame would start, in samples.
+    position: u64,
 }
 
 /// A bot in a voice channel.
 pub struct VoiceSession {
     shared: Arc<Mutex<Shared>>,
+    /// Where the capture clock starts.
+    started: Instant,
 }
 
 impl VoiceSession {
@@ -176,14 +180,19 @@ impl VoiceSession {
         let shared = Arc::new(Mutex::new(Shared::default()));
         let events = connect(&shared, &server).await?;
         tokio::spawn(follow(Arc::clone(&shared), server, events, voice_servers));
-        let session = Self { shared };
+        let session = Self {
+            shared,
+            started: Instant::now(),
+        };
         session.wait_until(|shared| shared.media_connected).await?;
         Ok(session)
     }
 
-    /// Sends a sine tone for `duration`, a 20 ms frame at a time.
+    /// Sends a sine tone for `duration`, a 20 ms frame at a time, as one
+    /// talk spurt.
     pub fn play_tone(&self, frequency: f32, duration: Duration) -> tokio::task::JoinHandle<()> {
         let shared = Arc::clone(&self.shared);
+        let started = self.started;
         tokio::spawn(async move {
             let Ok(mut encoder) =
                 opus::Encoder::new(SAMPLE_RATE, opus::Channels::Mono, opus::Application::Voip)
@@ -195,6 +204,15 @@ impl VoiceSession {
             let mut phase = 0.0f32;
             let step = TAU * frequency / SAMPLE_RATE as f32;
             let mut pcm = vec![0i16; FRAME_SAMPLES];
+            // The capture clock runs while the bot is silent too.
+            let mut position = {
+                let mut shared = lock(&shared);
+                let now = started.elapsed().as_micros() as u64 * u64::from(SAMPLE_RATE) / 1_000_000;
+                let position = now.max(shared.position);
+                shared.position = position + frames as u64 * FRAME_SAMPLES as u64;
+                position
+            };
+            let mut marker = true;
             for _ in 0..frames {
                 ticker.tick().await;
                 for sample in &mut pcm {
@@ -208,11 +226,13 @@ impl VoiceSession {
                 if let Some(connection) = connection {
                     connection.send_audio(AudioFrame {
                         payload,
-                        samples: FRAME_SAMPLES as u32,
+                        position,
+                        marker: std::mem::take(&mut marker),
                         audio_level: level_dbov(&pcm),
                         voice_activity: true,
                     });
                 }
+                position += FRAME_SAMPLES as u64;
             }
         })
     }

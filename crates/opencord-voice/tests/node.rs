@@ -121,7 +121,8 @@ async fn wait_for(
 fn frame(index: u8) -> AudioFrame {
     AudioFrame {
         payload: vec![0xf8, index, 0xff, 0xfe],
-        samples: 960,
+        position: u64::from(index) * 960,
+        marker: index == 0,
         audio_level: -30,
         voice_activity: true,
     }
@@ -470,4 +471,41 @@ async fn the_node_counts_its_participants_and_traffic() {
     assert!(after.packets_out >= 10, "{after:?}");
     assert!(after.bytes_in > both.bytes_in, "{after:?}");
     assert!(after.bytes_out > both.bytes_out, "{after:?}");
+}
+
+#[tokio::test]
+async fn pauses_and_talk_spurt_marks_reach_the_listener() {
+    let node = node().await;
+    let (alice, _alice_events) = join(&node, 1).await;
+    let (_bob, mut bob_events) = join(&node, 2).await;
+    let spurt = |position: u64, marker: bool| AudioFrame {
+        payload: vec![0xf8, 1, 0xff, 0xfe],
+        position,
+        marker,
+        audio_level: -30,
+        voice_activity: true,
+    };
+
+    alice.send_audio(spurt(0, true));
+    alice.send_audio(spurt(960, false));
+    tokio::time::sleep(Duration::from_millis(40)).await;
+    // A second of silence later.
+    alice.send_audio(spurt(48_960, true));
+    let mut received = Vec::new();
+    while received.len() < 3 {
+        if let VoiceEvent::Audio(audio) = wait_for(&mut bob_events, |event| {
+            matches!(event, VoiceEvent::Audio(_))
+        })
+        .await
+        {
+            received.push((audio.timestamp, audio.marker));
+        }
+    }
+
+    let first = received[0].0;
+    let relative: Vec<(u32, bool)> = received
+        .iter()
+        .map(|(timestamp, marker)| (timestamp.wrapping_sub(first), *marker))
+        .collect();
+    assert_eq!(relative, [(0, true), (960, false), (48_960, true)]);
 }

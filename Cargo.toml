@@ -16,6 +16,7 @@ opencord-server = { path = "crates/opencord-server" }
 opencord-voice = { path = "crates/opencord-voice" }
 
 anyhow = "1.0.104"
+audioadapter-buffers = "5.2.0"
 axum = { version = "0.8.9", features = ["ws"] }
 axum-server = { version = "0.8.0", features = ["tls-rustls-no-provider"] }
 bitflags = "2.13.2"
@@ -33,6 +34,8 @@ opus = "0.4.0"
 prost = "0.14.4"
 prost-build = "0.14.4"
 protox = "0.9.1"
+rubato = "5.0.1"
+rtrb = "0.4.0"
 rcgen = "0.14.10"
 rustls = { version = "0.23.45", default-features = false, features = ["ring", "std", "tls12", "logging"] }
 serde = { version = "1.0.229", features = ["derive"] }
