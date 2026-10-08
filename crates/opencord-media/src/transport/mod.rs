@@ -32,6 +32,9 @@ pub mod gateway;
 /// the voice session.
 const RESUME_FOR: Duration = Duration::from_secs(30);
 const RESUME_PAUSE: Duration = Duration::from_millis(500);
+/// How often the network is checked for a change (plan §7.14: back in
+/// under 3 s after switching Wi-Fi).
+const NETWORK_CHECK: Duration = Duration::from_secs(1);
 
 /// Where to connect, from the main server's `VoiceServerUpdate`.
 #[derive(Debug, Clone)]
@@ -121,6 +124,7 @@ enum Command {
     Audio(AudioFrame),
     Speaking(u32),
     DropGateway,
+    Rebind,
     Close,
 }
 
@@ -230,6 +234,13 @@ impl VoiceConnection {
         let _ = self.commands.send(Command::DropGateway);
     }
 
+    /// Moves media to a new socket as a network change would, to exercise
+    /// recovering from one.
+    #[doc(hidden)]
+    pub fn simulate_network_change(&self) {
+        let _ = self.commands.send(Command::Rebind);
+    }
+
     pub fn close(&self) {
         let _ = self.commands.send(Command::Close);
     }
@@ -279,6 +290,36 @@ struct Media {
     timestamp_base: u32,
     users_by_ssrc: HashMap<u32, i64>,
     timeout: Instant,
+    /// Sending failed in a way that means the network went away.
+    network_lost: bool,
+}
+
+/// A UDP socket connected to the node, and the local address the system
+/// picked for it.
+async fn connected_socket(remote: SocketAddr) -> Result<(UdpSocket, SocketAddr), TransportError> {
+    let error = |error: std::io::Error| TransportError::Connect(error.to_string());
+    let any: SocketAddr = if remote.is_ipv4() {
+        (std::net::Ipv4Addr::UNSPECIFIED, 0).into()
+    } else {
+        (std::net::Ipv6Addr::UNSPECIFIED, 0).into()
+    };
+    let socket = UdpSocket::bind(any).await.map_err(error)?;
+    socket.connect(remote).await.map_err(error)?;
+    let local = socket.local_addr().map_err(error)?;
+    Ok((socket, local))
+}
+
+/// The local address the system would send to `remote` from now. Asking
+/// sends nothing.
+fn route_to(remote: SocketAddr) -> Option<std::net::IpAddr> {
+    let any: SocketAddr = if remote.is_ipv4() {
+        (std::net::Ipv4Addr::UNSPECIFIED, 0).into()
+    } else {
+        (std::net::Ipv6Addr::UNSPECIFIED, 0).into()
+    };
+    let probe = std::net::UdpSocket::bind(any).ok()?;
+    probe.connect(remote).ok()?;
+    probe.local_addr().ok().map(|address| address.ip())
 }
 
 impl Media {
@@ -311,21 +352,7 @@ impl Media {
             .map_err(|error| TransportError::Connect(error.to_string()))?
             .next()
             .ok_or_else(|| TransportError::Connect(format!("{host} has no address")))?;
-        let bind: SocketAddr = if remote_address.is_ipv4() {
-            "0.0.0.0:0".parse().expect("a valid address")
-        } else {
-            "[::]:0".parse().expect("a valid address")
-        };
-        let socket = UdpSocket::bind(bind)
-            .await
-            .map_err(|error| TransportError::Connect(error.to_string()))?;
-        socket
-            .connect(remote_address)
-            .await
-            .map_err(|error| TransportError::Connect(error.to_string()))?;
-        let local_address = socket
-            .local_addr()
-            .map_err(|error| TransportError::Connect(error.to_string()))?;
+        let (socket, local_address) = connected_socket(remote_address).await?;
 
         let now = Instant::now();
         let local = IceCreds::new();
@@ -373,6 +400,7 @@ impl Media {
                 .map(|p| (p.audio_ssrc, p.user_id))
                 .collect(),
             timeout: now,
+            network_lost: false,
         })
     }
 
@@ -394,6 +422,28 @@ impl Media {
                 .direct_api()
                 .remove_media(receive_mid(ssrc).as_str().into());
         }
+    }
+
+    /// Whether the network this connection was on is gone: sending failed,
+    /// or the system now reaches the node from another address.
+    fn network_changed(&mut self) -> bool {
+        std::mem::take(&mut self.network_lost)
+            || route_to(self.remote_address).is_some_and(|ip| ip != self.local_address.ip())
+    }
+
+    /// Moves media to a new socket after a network change: its address
+    /// becomes a new local candidate and the old one is dropped, so ICE
+    /// checks the new path and moves over (the node learns the new address
+    /// from the checks). DTLS and the voice session carry on.
+    async fn rebind(&mut self) -> Result<(), TransportError> {
+        let (socket, local_address) = connected_socket(self.remote_address).await?;
+        let new = Candidate::host(local_address, "udp").map_err(candidate_error)?;
+        let old = Candidate::host(self.local_address, "udp").map_err(candidate_error)?;
+        self.rtc.add_local_candidate(new);
+        self.rtc.direct_api().invalidate_candidate(&old);
+        self.socket = socket;
+        self.local_address = local_address;
+        Ok(())
     }
 
     fn send_audio(&mut self, frame: &AudioFrame) {
@@ -455,7 +505,13 @@ impl Media {
                     return;
                 }
                 Ok(Output::Transmit(transmit)) => {
-                    let _ = self.socket.try_send(&transmit.contents);
+                    if let Err(error) = self.socket.try_send(&transmit.contents) {
+                        // A full buffer drops the packet, as the network
+                        // would; anything else means the network is gone.
+                        if error.kind() != std::io::ErrorKind::WouldBlock {
+                            self.network_lost = true;
+                        }
+                    }
                 }
                 Ok(Output::Event(Event::Connected)) => {
                     let _ = events.send(VoiceEvent::MediaConnected);
@@ -525,6 +581,8 @@ impl Driver {
         let mut buffer = vec![0u8; 2048];
         let mut beat = tokio::time::interval(self.heartbeat);
         beat.tick().await;
+        let mut network = tokio::time::interval(NETWORK_CHECK);
+        network.tick().await;
         let mut nonce = 0u64;
         self.media.drain(&self.events);
         loop {
@@ -564,6 +622,11 @@ impl Driver {
                         }
                     }
                 }
+                _ = network.tick() => {
+                    if self.media.network_changed() {
+                        self.rebind().await;
+                    }
+                }
                 _ = beat.tick() => {
                     if let Some(open) = socket.as_mut() {
                         if self.awaiting_ack {
@@ -596,6 +659,7 @@ impl Driver {
                         socket = None;
                         reconnect = Some(self.resume_later());
                     }
+                    Some(Command::Rebind) => self.rebind().await,
                     Some(Command::Close) | None => {
                         self.media.rtc.disconnect();
                         self.media.drain(&self.events);
@@ -611,6 +675,12 @@ impl Driver {
                 },
             }
             self.media.drain(&self.events);
+        }
+    }
+
+    async fn rebind(&mut self) {
+        if let Err(error) = self.media.rebind().await {
+            tracing::debug!(%error, "could not move media to the new network yet");
         }
     }
 

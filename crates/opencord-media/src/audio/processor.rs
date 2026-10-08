@@ -312,4 +312,113 @@ mod tests {
             "{written} frames for a second"
         );
     }
+
+    /// A small deterministic generator, so impaired runs repeat exactly.
+    struct XorShift(u64);
+
+    impl XorShift {
+        fn next(&mut self) -> f64 {
+            self.0 ^= self.0 << 13;
+            self.0 ^= self.0 >> 7;
+            self.0 ^= self.0 << 17;
+            (self.0 >> 11) as f64 / (1u64 << 53) as f64
+        }
+    }
+
+    /// Sends ticks of microphone audio through `sender`; returns each frame
+    /// with the tick it was ready at.
+    fn capture(sender: &mut Processor, ticks: &[Vec<f32>]) -> Vec<(usize, EncodedFrame)> {
+        let mut frames = Vec::new();
+        for (index, tick) in ticks.iter().enumerate() {
+            sender.capture(tick, |frame| frames.push((index, frame)));
+        }
+        frames
+    }
+
+    /// Plays `ticks` ticks on a stereo speaker, delivering each frame when
+    /// it arrives (in ms after start); returns each tick's level.
+    fn play(
+        listener: &mut Processor,
+        mut arrivals: Vec<(u64, EncodedFrame)>,
+        ticks: usize,
+    ) -> Vec<f32> {
+        let start = Instant::now();
+        arrivals.sort_by_key(|(at, _)| *at);
+        let mut arrivals = arrivals.into_iter().peekable();
+        let mut levels = Vec::new();
+        for index in 0..ticks {
+            let now_ms = index as u64 * 10;
+            while let Some((at, frame)) = arrivals.next_if(|(at, _)| *at <= now_ms) {
+                listener.receive(
+                    1,
+                    frame.position as u32,
+                    frame.marker,
+                    Arc::from(&frame.payload[..]),
+                    start + Duration::from_millis(at),
+                );
+            }
+            let mut out = vec![0.0; 2 * TICK];
+            let written = listener.play(start + Duration::from_millis(now_ms), &mut out);
+            levels.push(dbfs(&out[..2 * written]));
+        }
+        levels
+    }
+
+    #[test]
+    fn speech_survives_5_percent_loss_and_40_ms_of_jitter() {
+        let mut alice = Processor::new(settings(), (SAMPLE_RATE, 2), (SAMPLE_RATE, 2)).unwrap();
+        let ticks: Vec<Vec<f32>> = (0..300).map(|index| microphone_tick(index, 0.2)).collect();
+        let frames = capture(&mut alice, &ticks);
+        let mut random = XorShift(0x5eed);
+        let mut lost = 0;
+        let mut arrivals: Vec<(u64, EncodedFrame)> = Vec::new();
+        for (tick, frame) in frames {
+            if random.next() < 0.05 {
+                lost += 1;
+                continue;
+            }
+            let ready_ms = (tick as u64 + 1) * 10;
+            arrivals.push((ready_ms + (random.next() * 40.0) as u64, frame));
+        }
+        let mut bob = Processor::new(settings(), (SAMPLE_RATE, 2), (SAMPLE_RATE, 2)).unwrap();
+
+        let levels = play(&mut bob, arrivals, 340);
+
+        // From when playing settles until the speech ends, nothing drops
+        // out: every lost or late frame was recovered or concealed. Opus
+        // fades back in over a frame after concealing, so a dip is not a
+        // dropout; near silence is.
+        let speech = &levels[40..300];
+        let gaps = speech.iter().filter(|db| **db < -60.0).count();
+        assert!(lost >= 5, "the network lost only {lost} frames");
+        assert_eq!(gaps, 0, "{gaps} silent ticks");
+        let loud = speech.iter().filter(|db| **db > -22.0).count();
+        assert!(
+            loud * 10 >= speech.len() * 9,
+            "{loud} of {} ticks at speech level",
+            speech.len()
+        );
+    }
+
+    #[test]
+    fn the_software_path_adds_little_latency() {
+        let mut alice = Processor::new(settings(), (SAMPLE_RATE, 2), (SAMPLE_RATE, 2)).unwrap();
+        // Quiet, then a click at tick 50.
+        let mut ticks: Vec<Vec<f32>> = (0..50).map(|_| vec![0.0; 2 * TICK]).collect();
+        ticks.extend((50..60).map(|index| microphone_tick(index, 0.5)));
+        let frames = capture(&mut alice, &ticks);
+        let arrivals = frames
+            .into_iter()
+            .map(|(tick, frame)| ((tick as u64 + 1) * 10, frame))
+            .collect();
+        let mut bob = Processor::new(settings(), (SAMPLE_RATE, 2), (SAMPLE_RATE, 2)).unwrap();
+
+        let levels = play(&mut bob, arrivals, 100);
+
+        let heard_at = levels.iter().position(|db| *db > -30.0).unwrap();
+        let latency_ms = (heard_at - 50) * 10;
+        // Framing, the shortest jitter delay and decoding; devices add
+        // their buffers on top (plan §16.1: 150 ms with them).
+        assert!(latency_ms <= 60, "{latency_ms} ms");
+    }
 }

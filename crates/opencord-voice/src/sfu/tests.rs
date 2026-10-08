@@ -7,7 +7,7 @@ use std::time::{Duration, Instant};
 use opencord_common::voice::{AUDIO_MID, OPUS_PAYLOAD_TYPE, receive_mid};
 use str0m::config::Fingerprint;
 use str0m::format::Codec;
-use str0m::ice::IceCreds;
+use str0m::ice::{IceCreds, StunMessageBuilder, TransId};
 use str0m::media::{MediaKind, Pt};
 use str0m::net::{Protocol, Receive};
 use str0m::rtp::{ExtensionValues, RtpWrite, Ssrc};
@@ -26,6 +26,8 @@ const STEP: Duration = Duration::from_millis(1);
 struct Client {
     rtc: Rtc,
     address: SocketAddr,
+    /// The username its connectivity checks carry: node's, then its own.
+    username: String,
     ssrc: u32,
     peer: PeerId,
     next_seq: u64,
@@ -118,6 +120,7 @@ impl Net {
         };
         let (peer, node) = self.sfu.add_peer(self.now, setup).unwrap();
         let credentials = IceCreds::new();
+        let username = format!("{}:{}", node.ice_ufrag, credentials.ufrag);
         let mut rtc = RtcConfig::new()
             .set_rtp_mode(true)
             .clear_codecs()
@@ -156,6 +159,7 @@ impl Net {
         let mut client = Client {
             rtc,
             address,
+            username,
             ssrc,
             peer,
             next_seq: 1000,
@@ -415,4 +419,116 @@ fn small_channels_forward_everyone() {
     let (quiet, _) = sfu.add_peer(now, setup).unwrap();
 
     assert!(sfu.among_loudest(now, CHANNEL, quiet));
+}
+
+#[test]
+fn a_client_that_changes_network_keeps_hearing_the_others() {
+    let mut net = Net::new();
+    let alice = net.join(1001, PeerState::default());
+    let bob = net.join(1002, PeerState::default());
+
+    // Alice's machine moves to another network, as the transport does.
+    let moved = SocketAddr::from((Ipv4Addr::new(10, 0, 2, 7), 6000));
+    let old = net.clients[alice].address;
+    let client = &mut net.clients[alice];
+    client
+        .rtc
+        .add_local_candidate(Candidate::host(moved, "udp").unwrap());
+    client
+        .rtc
+        .direct_api()
+        .invalidate_candidate(&Candidate::host(old, "udp").unwrap());
+    client.address = moved;
+    net.run(Duration::from_millis(500));
+    let said = net.talk(bob, 20);
+
+    assert_eq!(net.clients[alice].payloads_from(1002), said);
+}
+
+#[test]
+fn a_forged_move_takes_nobodys_audio_elsewhere() {
+    let mut net = Net::new();
+    let alice = net.join(1001, PeerState::default());
+    let bob = net.join(1002, PeerState::default());
+
+    // Someone who knows Alice's username, but not her password, claims a
+    // new address for her.
+    let elsewhere = SocketAddr::from((Ipv4Addr::new(10, 0, 9, 9), 6666));
+    let forged = StunMessageBuilder::new()
+        .binding()
+        .request()
+        .username(&net.clients[alice].username)
+        .prio(0x7fff_ffff)
+        .ice_controlling(7)
+        .use_candidate()
+        .build(TransId::new());
+    let mut packet = vec![0u8; 512];
+    let size = forged
+        .to_bytes(Some(b"not the password"), &mut packet, hmac_sha1)
+        .unwrap();
+    net.sfu.handle_receive(net.now, elsewhere, &packet[..size]);
+
+    // Bob's next frame, before Alice's client has a chance to check in:
+    // Bob's clock and the node's run, Alice's does not.
+    let bob_address = net.clients[bob].address;
+    net.clients[bob].send_audio(net.now, &[2, 0, 0xab]);
+    let mut destinations = Vec::new();
+    for step in 1..=20 {
+        let now = net.now + STEP * step;
+        net.clients[bob]
+            .rtc
+            .handle_input(Input::Timeout(now))
+            .unwrap();
+        for datagram in net.clients[bob].drain() {
+            net.sfu.handle_receive(now, bob_address, &datagram);
+        }
+        net.sfu.handle_timeout(now);
+        while let Some(transmit) = net.sfu.poll_transmit() {
+            destinations.push(transmit.destination);
+        }
+    }
+
+    assert!(
+        destinations.contains(&net.clients[alice].address),
+        "{destinations:?}"
+    );
+    assert!(!destinations.contains(&elsewhere), "{destinations:?}");
+}
+
+#[test]
+fn only_a_nomination_signed_with_the_peers_password_counts() {
+    let nomination = |password: &[u8], nominate: bool| {
+        let builder = StunMessageBuilder::new()
+            .binding()
+            .request()
+            .username("node:client")
+            .prio(1)
+            .ice_controlling(7);
+        let message = if nominate {
+            builder.use_candidate()
+        } else {
+            builder
+        }
+        .build(TransId::new());
+        let mut packet = vec![0u8; 512];
+        let size = message
+            .to_bytes(Some(password), &mut packet, hmac_sha1)
+            .unwrap();
+        packet.truncate(size);
+        packet
+    };
+
+    assert!(signed_nomination(
+        &nomination(b"the password", true),
+        "the password"
+    ));
+    assert!(!signed_nomination(
+        &nomination(b"a guess", true),
+        "the password"
+    ));
+    assert!(!signed_nomination(
+        &nomination(b"the password", false),
+        "the password"
+    ));
+    assert!(!signed_nomination(&[0x80, 0x6f, 0, 1], "the password"));
 }

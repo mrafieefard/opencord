@@ -509,3 +509,63 @@ async fn pauses_and_talk_spurt_marks_reach_the_listener() {
         .collect();
     assert_eq!(relative, [(0, true), (960, false), (48_960, true)]);
 }
+
+#[tokio::test]
+async fn a_new_network_keeps_the_call_going() {
+    let node = node().await;
+    let (alice, mut alice_events) = join(&node, 1).await;
+    let (bob, mut bob_events) = join(&node, 2).await;
+    wait_for(&mut alice_events, |event| {
+        matches!(event, VoiceEvent::ClientConnected { user_id: 2, .. })
+    })
+    .await;
+
+    let changed_at = Instant::now();
+    alice.simulate_network_change();
+    let talking = tokio::spawn(async move {
+        let mut every = tokio::time::interval(Duration::from_millis(20));
+        for index in 0..150u8 {
+            every.tick().await;
+            alice.send_audio(frame(index));
+            bob.send_audio(frame(index));
+        }
+        (alice, bob)
+    });
+    let bob_heard = heard(&mut bob_events, Duration::from_millis(3_200)).await;
+    let _ = talking.await.unwrap();
+    let alice_heard = heard(&mut alice_events, Duration::from_millis(200)).await;
+
+    // Within 3 s of the change, both hear the other again.
+    let back = |heard: &[(i64, Instant)]| {
+        heard
+            .iter()
+            .map(|(_, at)| *at)
+            .find(|at| *at > changed_at + Duration::from_millis(100))
+            .map(|at| at - changed_at)
+    };
+    let bob_back = back(&bob_heard).expect("Bob never heard Alice again");
+    let alice_back = back(&alice_heard).expect("Alice never heard Bob again");
+    assert!(bob_back < Duration::from_secs(3), "{bob_back:?}");
+    assert!(alice_back < Duration::from_secs(3), "{alice_back:?}");
+    assert!(
+        bob_heard.len() >= 100,
+        "Bob heard {} of 150",
+        bob_heard.len()
+    );
+}
+
+#[tokio::test]
+async fn a_silent_participant_sends_almost_nothing() {
+    let node = node().await;
+    let (_alice, _alice_events) = join(&node, 1).await;
+    let (_bob, _bob_events) = join(&node, 2).await;
+    tokio::time::sleep(Duration::from_millis(500)).await;
+
+    let before = node.node.load();
+    tokio::time::sleep(Duration::from_secs(3)).await;
+    let after = node.node.load();
+
+    // Keep-alives only: connectivity checks and RTCP, from both people.
+    let bits_per_second = (after.bytes_in - before.bytes_in) * 8 / 3 / 2;
+    assert!(bits_per_second < 3_000, "{bits_per_second} bit/s each");
+}

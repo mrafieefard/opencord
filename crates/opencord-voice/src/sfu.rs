@@ -13,10 +13,12 @@ use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
+use hmac::{Hmac, KeyInit, Mac};
 use opencord_common::voice::{AUDIO_MID, LOUDEST_HEARD, LOUDEST_ONLY_ABOVE, receive_mid};
+use sha1::Sha1;
 use str0m::config::{DtlsCert, Fingerprint};
 use str0m::crypto::CryptoProvider;
-use str0m::ice::IceCreds;
+use str0m::ice::{IceCreds, StunMessage};
 use str0m::media::MediaKind;
 use str0m::net::{Protocol, Receive};
 use str0m::rtp::{ExtensionValues, RtpPacket, RtpWrite, Ssrc};
@@ -120,6 +122,10 @@ pub struct Sfu {
 struct Peer {
     rtc: Rtc,
     setup: PeerSetup,
+    /// Signs this peer's connectivity checks.
+    ice_password: String,
+    /// Where the client last nominated a path from; media goes there.
+    address: Option<SocketAddr>,
     timeout: Instant,
     /// Running loudness in -dBov, 0 loudest.
     level: f32,
@@ -211,6 +217,8 @@ impl Sfu {
             Peer {
                 rtc,
                 setup,
+                ice_password: credentials.pass.clone(),
+                address: None,
                 timeout: now,
                 level: SILENT,
                 forwards: HashMap::new(),
@@ -259,6 +267,27 @@ impl Sfu {
     }
 
     /// Removes a participant; the others stop receiving its media.
+    /// The client nominated a path from a new address (a network change,
+    /// or the first path): media goes there from now. str0m keeps sending
+    /// on the first nominated path while it lives, so the old address is
+    /// dropped; to make that possible, each followed address becomes a
+    /// host candidate in place of the peer-reflexive one ICE made for it.
+    fn follow(&mut self, id: PeerId, source: SocketAddr) {
+        let Some(peer) = self.peers.get_mut(&id) else {
+            return;
+        };
+        let Ok(followed) = Candidate::host(source, "udp") else {
+            return;
+        };
+        peer.rtc.add_remote_candidate(followed);
+        if let Some(old) = peer.address.replace(source) {
+            if let Ok(candidate) = Candidate::host(old, "udp") {
+                peer.rtc.direct_api().invalidate_candidate(&candidate);
+            }
+            self.by_source.remove(&old);
+        }
+    }
+
     pub fn remove_peer(&mut self, id: PeerId) {
         let Some(mut peer) = self.peers.remove(&id) else {
             return;
@@ -336,12 +365,18 @@ impl Sfu {
                 id
             }
         };
+        let moved = self.peers.get(&id).is_some_and(|peer| {
+            peer.address != Some(source) && signed_nomination(data, &peer.ice_password)
+        });
         let handled = self
             .peers
             .get_mut(&id)
             .map(|peer| peer.rtc.handle_input(input));
         if let Some(Err(error)) = handled {
             tracing::debug!(%error, peer = id, "a packet was refused");
+        }
+        if moved {
+            self.follow(id, source);
         }
         let packets = self.drain(id);
         for packet in packets {
@@ -521,6 +556,30 @@ fn declare_receive(api: &mut str0m::change::DirectApi<'_>, ssrc: u32) {
 /// A broken connection waits for removal instead of spinning.
 fn far_future(now: Instant) -> Instant {
     now + Duration::from_secs(3600)
+}
+
+/// Whether `data` is a binding request nominating a path, signed with the
+/// peer's ICE password: proof the client itself chose that path. Anyone
+/// can send a packet from any address; only the client can sign it.
+fn signed_nomination(data: &[u8], password: &str) -> bool {
+    // STUN messages start with two zero bits; media and DTLS never do.
+    if data.first().is_none_or(|first| *first > 1) {
+        return false;
+    }
+    let Ok(message) = StunMessage::parse(data) else {
+        return false;
+    };
+    message.is_binding_request()
+        && message.use_candidate()
+        && message.verify(password.as_bytes(), hmac_sha1)
+}
+
+fn hmac_sha1(key: &[u8], parts: &[&[u8]]) -> [u8; 20] {
+    let mut mac = Hmac::<Sha1>::new_from_slice(key).expect("HMAC takes keys of any length");
+    for part in parts {
+        mac.update(part);
+    }
+    mac.finalize().into_bytes().into()
 }
 
 #[cfg(test)]
