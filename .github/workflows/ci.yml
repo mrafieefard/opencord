@@ -3,7 +3,11 @@ name: CI
 on:
   push:
     branches: [main, pre]
+    # A version tag (v0.2.0, or v0.2.0-beta.1 for a pre-release) also
+    # publishes a GitHub Release with the desktop builds attached.
+    tags: ['v*']
   pull_request:
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -15,6 +19,10 @@ concurrency:
 env:
   CARGO_TERM_COLOR: always
   SQLX_OFFLINE: "true"
+  # Native libraries the Rust crates build against on Linux: cpal's PipeWire
+  # and ALSA backends (libspa-sys runs bindgen, hence libclang) and the D-Bus
+  # client audio_thread_priority uses for RtKit.
+  RUST_LINUX_DEPS: clang libclang-dev pkg-config libasound2-dev libpipewire-0.3-dev libspa-0.2-dev libdbus-1-dev
 
 jobs:
   rust:
@@ -22,6 +30,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+
+      - name: Install Linux build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y $RUST_LINUX_DEPS
 
       - uses: dtolnay/rust-toolchain@stable
         with:
@@ -47,10 +60,11 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
+      # libsecret is for flutter_secure_storage's Linux plugin.
       - name: Install Linux build dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y clang cmake ninja-build pkg-config libgtk-3-dev liblzma-dev libstdc++-12-dev xvfb
+          sudo apt-get install -y $RUST_LINUX_DEPS cmake ninja-build libgtk-3-dev liblzma-dev libstdc++-12-dev libsecret-1-dev xvfb
 
       - uses: dtolnay/rust-toolchain@stable
 
@@ -69,8 +83,24 @@ jobs:
       - name: Test
         run: flutter test
 
+      # On a version tag the app reports the tag's version, not pubspec's.
       - name: Build Linux
-        run: flutter build linux
+        run: |
+          [[ "$GITHUB_REF" == refs/tags/v* ]] && build_name="${GITHUB_REF_NAME#v}"
+          flutter build linux --release ${build_name:+--build-name="$build_name"}
+
+      - name: Package Linux
+        run: |
+          mkdir -p "$RUNNER_TEMP/dist"
+          tar -C build/linux/x64/release --transform 's,^bundle,opencord,' \
+            -czf "$RUNNER_TEMP/dist/opencord-linux-x64.tar.gz" bundle
+
+      - uses: actions/upload-artifact@v7
+        with:
+          path: ${{ runner.temp }}/dist/opencord-linux-x64.tar.gz
+          archive: false
+          if-no-files-found: error
+          retention-days: 30
 
       - name: Integration test
         run: xvfb-run flutter test integration_test -d linux
@@ -83,8 +113,10 @@ jobs:
         include:
           - os: windows-latest
             target: windows
+            artifact: opencord-windows-x64.zip
           - os: macos-latest
             target: macos
+            artifact: opencord-macos.zip
     runs-on: ${{ matrix.os }}
     defaults:
       run:
@@ -103,6 +135,87 @@ jobs:
       - name: Get packages
         run: flutter pub get
 
+      # On a version tag the app reports the tag's version, not pubspec's.
       - name: Build
-        run: flutter build ${{ matrix.target }} --debug
+        shell: bash
+        run: |
+          [[ "$GITHUB_REF" == refs/tags/v* ]] && build_name="${GITHUB_REF_NAME#v}"
+          flutter build ${{ matrix.target }} --release ${build_name:+--build-name="$build_name"}
 
+      # The Visual C++ runtime goes next to the exe so the zip also runs on
+      # machines without the redistributable installed.
+      - name: Package Windows
+        if: matrix.target == 'windows'
+        shell: pwsh
+        run: |
+          $stage = Join-Path $env:RUNNER_TEMP 'opencord'
+          Copy-Item build/windows/x64/runner/Release $stage -Recurse
+          foreach ($dll in 'msvcp140.dll', 'vcruntime140.dll', 'vcruntime140_1.dll') {
+            Copy-Item (Join-Path $env:WINDIR "System32/$dll") $stage
+          }
+          New-Item -ItemType Directory -Force (Join-Path $env:RUNNER_TEMP 'dist') | Out-Null
+          Compress-Archive -Path $stage -DestinationPath (Join-Path $env:RUNNER_TEMP 'dist/${{ matrix.artifact }}')
+
+      - name: Package macOS
+        if: matrix.target == 'macos'
+        run: |
+          mkdir -p "$RUNNER_TEMP/dist"
+          ditto -c -k --sequesterRsrc --keepParent build/macos/Build/Products/Release/Opencord.app \
+            "$RUNNER_TEMP/dist/${{ matrix.artifact }}"
+
+      - uses: actions/upload-artifact@v7
+        with:
+          path: ${{ runner.temp }}/dist/${{ matrix.artifact }}
+          archive: false
+          if-no-files-found: error
+          retention-days: 30
+
+  release:
+    name: Release
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [rust, flutter, desktop]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: opencord-*
+          path: dist
+          merge-multiple: true
+
+      # Asset names carry no version, so
+      # https://github.com/<repo>/releases/latest/download/<file> always points
+      # at the newest release.
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          base="https://github.com/$GH_REPO/releases/download/$TAG"
+          cat > notes.md <<EOF
+          ## Download
+
+          | Platform | File |
+          | --- | --- |
+          | Linux (x64) | [opencord-linux-x64.tar.gz]($base/opencord-linux-x64.tar.gz) |
+          | Windows (x64) | [opencord-windows-x64.zip]($base/opencord-windows-x64.zip) |
+          | macOS (Apple silicon and Intel) | [opencord-macos.zip]($base/opencord-macos.zip) |
+
+          - **Linux:** extract and run \`opencord/opencord\`. Needs GTK 3, libsecret, PipeWire and ALSA, which most desktops already have.
+          - **Windows:** extract and run \`opencord\\opencord.exe\`.
+          - **macOS:** the app isn't notarized yet. After unzipping, run \`xattr -dr com.apple.quarantine Opencord.app\` or allow it under System Settings > Privacy & Security.
+          EOF
+
+          mapfile -t files < <(find dist -type f)
+          if gh release view "$TAG" > /dev/null 2>&1; then
+            # A re-run replaces the assets of the release it made before.
+            gh release upload "$TAG" "${files[@]}" --clobber
+          else
+            prerelease=()
+            [[ "$TAG" == *-* ]] && prerelease=(--prerelease)
+            gh release create "$TAG" "${files[@]}" --verify-tag --title "Opencord $TAG" \
+              --notes-file notes.md --generate-notes "${prerelease[@]}"
+          fi
+          cat notes.md >> "$GITHUB_STEP_SUMMARY"
