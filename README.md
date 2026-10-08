@@ -91,11 +91,13 @@ desktop session:
 - `check_m5.sh`: a fresh install joins as owner, restarts, and is still connected.
 - `check_m6.sh`: two identities chat; a new role and restriction arrive live.
 - `check_v0.sh`: voice states without media. The owner joins voice and it shows live; the member joins, is moved, then disconnected.
+- `check_v2.sh`: voice media with this machine's audio devices. The app joins voice and its connection comes up through the server's voice node; nothing is played.
 
 ```bash
 app/tool/check_m5.sh
 app/tool/check_m6.sh
 app/tool/check_v0.sh
+app/tool/check_v2.sh
 ```
 
 ## Running a server
