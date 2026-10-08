@@ -7,9 +7,12 @@ pub mod codec;
 pub mod convert;
 pub mod device;
 pub mod engine;
+#[cfg(test)]
+mod fixtures;
 pub mod jitter;
 pub mod mixer;
 pub mod playback;
+pub mod processing;
 pub mod processor;
 
 /// The processing sample rate.

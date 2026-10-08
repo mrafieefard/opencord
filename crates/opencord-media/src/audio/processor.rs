@@ -10,11 +10,13 @@ use super::capture::{Capture, EncodedFrame, InputMode};
 use super::codec::CodecError;
 use super::convert::{ConvertError, FromDevice, ToDevice};
 use super::playback::{MAX_VOLUME, Playback};
+use super::processing::{ProcessingError, ProcessingSettings, VoiceProcessing};
 
 /// What the listener and speaker chose.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct ProcessorSettings {
     pub mode: InputMode,
+    pub processing: ProcessingSettings,
     /// Bits per second, from the channel.
     pub bitrate: u32,
     /// 0–2 (200 %).
@@ -29,10 +31,15 @@ pub enum ProcessorError {
     Codec(#[from] CodecError),
     #[error(transparent)]
     Convert(#[from] ConvertError),
+    #[error(transparent)]
+    Processing(#[from] ProcessingError),
+    #[error("the audio thread stopped")]
+    Stopped,
 }
 
 pub struct Processor {
     capture: Capture,
+    processing: VoiceProcessing,
     playback: Playback,
     from_device: FromDevice,
     to_device: ToDevice,
@@ -52,8 +59,11 @@ impl Processor {
     ) -> Result<Self, ProcessorError> {
         let mut playback = Playback::new();
         playback.set_master(settings.output_volume);
+        let mut processing = VoiceProcessing::new(settings.processing)?;
+        processing.set_voice_analysis(settings.mode.wants_voice_probability());
         Ok(Self {
             capture: Capture::new(settings.mode, settings.bitrate)?,
+            processing,
             playback,
             from_device: FromDevice::new(input.0, input.1)?,
             to_device: ToDevice::new(output.0, output.1)?,
@@ -79,15 +89,17 @@ impl Processor {
     }
 
     /// Interleaved microphone samples; `send` gets each frame to send.
+    /// Each tick is cleaned up, then the input volume applies (plan §7.2).
     pub fn capture(&mut self, interleaved: &[f32], mut send: impl FnMut(EncodedFrame)) {
         self.from_device.push(interleaved);
         while self.from_device.pop_tick(&mut self.tick) {
+            let voice_probability = self.processing.capture(&mut self.tick);
             if self.input_volume != 1.0 {
                 for sample in &mut self.tick {
                     *sample *= self.input_volume;
                 }
             }
-            if let Some(frame) = self.capture.push(&self.tick) {
+            if let Some(frame) = self.capture.push(&self.tick, voice_probability) {
                 send(frame);
             }
         }
@@ -112,6 +124,8 @@ impl Processor {
         let wanted = interleaved.len() / self.output_channels;
         while self.to_device.buffered() < wanted {
             self.playback.tick(now, &mut self.tick);
+            // Everything played is what the echo canceller listens for.
+            self.processing.render(&self.tick);
             self.to_device.push_tick(&self.tick);
         }
         self.to_device.pop(interleaved)
@@ -135,6 +149,12 @@ impl Processor {
 
     pub fn set_mode(&mut self, mode: InputMode) {
         self.capture.set_mode(mode);
+        self.processing
+            .set_voice_analysis(mode.wants_voice_probability());
+    }
+
+    pub fn set_processing(&mut self, settings: ProcessingSettings) -> Result<(), ProcessorError> {
+        Ok(self.processing.set_settings(settings)?)
     }
 
     pub fn set_push_to_talk(&mut self, held: bool) {
@@ -173,16 +193,25 @@ impl Processor {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::VecDeque;
     use std::time::{Duration, Instant};
 
     use super::*;
-    use crate::audio::capture::InputMode;
+    use crate::audio::capture::{InputMode, Sensitivity};
+    use crate::audio::fixtures::{at_level, speech};
+    use crate::audio::processing::NoiseSuppression;
     use crate::audio::{SAMPLE_RATE, TICK, dbfs};
 
+    /// Manual sensitivity and no cleanup, so levels pass as they are.
     fn settings() -> ProcessorSettings {
         ProcessorSettings {
-            mode: InputMode::VoiceActivity {
+            mode: InputMode::VoiceActivity(Sensitivity::Manual {
                 threshold_dbfs: -50.0,
+            }),
+            processing: ProcessingSettings {
+                echo_cancellation: false,
+                noise_suppression: NoiseSuppression::Off,
+                automatic_gain: false,
             },
             bitrate: 64_000,
             input_volume: 1.0,
@@ -420,5 +449,63 @@ mod tests {
         // Framing, the shortest jitter delay and decoding; devices add
         // their buffers on top (plan §16.1: 150 ms with them).
         assert!(latency_ms <= 60, "{latency_ms} ms");
+    }
+
+    /// Alice talks; Bob's microphone hears Bob's speaker 40 ms later, 10 dB
+    /// down. Returns how many frames Bob sent after the first second.
+    fn echo_sent_back(echo_cancellation: bool) -> usize {
+        let mut alice = Processor::new(settings(), (SAMPLE_RATE, 1), (SAMPLE_RATE, 1)).unwrap();
+        let mut bob_settings = settings();
+        bob_settings.processing.echo_cancellation = echo_cancellation;
+        let mut bob = Processor::new(bob_settings, (SAMPLE_RATE, 1), (SAMPLE_RATE, 1)).unwrap();
+        let voice = at_level(&speech(), -20.0);
+        let ticks: Vec<Vec<f32>> = voice
+            .as_chunks::<TICK>()
+            .0
+            .iter()
+            .map(|tick| tick.to_vec())
+            .collect();
+        let arrivals: Vec<(u64, EncodedFrame)> = capture(&mut alice, &ticks)
+            .into_iter()
+            .map(|(tick, frame)| ((tick as u64 + 1) * 10, frame))
+            .collect();
+        let start = Instant::now();
+        let mut arrivals = arrivals.into_iter().peekable();
+        let mut room: VecDeque<Vec<f32>> = std::iter::repeat_n(vec![0.0; TICK], 4).collect();
+        let mut sent_back = 0;
+        for index in 0..ticks.len() + 40 {
+            let now_ms = index as u64 * 10;
+            while let Some((at, frame)) = arrivals.next_if(|(at, _)| *at <= now_ms) {
+                bob.receive(
+                    1,
+                    frame.position as u32,
+                    frame.marker,
+                    Arc::from(&frame.payload[..]),
+                    start + Duration::from_millis(at),
+                );
+            }
+            let mut played = vec![0.0; TICK];
+            bob.play(start + Duration::from_millis(now_ms), &mut played);
+            room.push_back(played.iter().map(|s| s * 0.316).collect());
+            let heard = room.pop_front().unwrap();
+            bob.capture(&heard, |_| {
+                if index >= 100 {
+                    sent_back += 1;
+                }
+            });
+        }
+        sent_back
+    }
+
+    #[test]
+    fn what_bob_plays_does_not_go_back_to_alice() {
+        let without = echo_sent_back(false);
+        let with = echo_sent_back(true);
+
+        assert!(
+            without > 100,
+            "the test has no echo to remove: {without} frames"
+        );
+        assert_eq!(with, 0, "{with} frames of echo went back");
     }
 }

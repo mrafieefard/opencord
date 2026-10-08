@@ -15,6 +15,7 @@ opencord-proto = { path = "crates/opencord-proto" }
 opencord-server = { path = "crates/opencord-server" }
 opencord-voice = { path = "crates/opencord-voice" }
 
+aec3 = "0.4.0"
 anyhow = "1.0.104"
 audio_thread_priority = "0.38.0"
 audioadapter-buffers = "5.2.0"
@@ -32,6 +33,7 @@ getrandom = "0.4.3"
 governor = "0.10.4"
 hex = "0.4.3"
 hmac = "0.13.0"
+nnnoiseless = { version = "0.5.2", default-features = false }
 opus = "0.4.0"
 prost = "0.14.4"
 prost-build = "0.14.4"

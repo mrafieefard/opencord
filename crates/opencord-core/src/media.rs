@@ -8,9 +8,10 @@ use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 use std::time::Duration;
 
 use opencord_common::voice::{close, speaking};
-use opencord_media::audio::capture::{EncodedFrame, InputMode};
+use opencord_media::audio::capture::{EncodedFrame, InputMode, Sensitivity};
 use opencord_media::audio::device;
 use opencord_media::audio::engine::{AudioEngine, DeviceChoice, EngineEvent, EngineSettings};
+use opencord_media::audio::processing::ProcessingSettings;
 use opencord_media::audio::processor::ProcessorSettings;
 use opencord_media::transport::{
     AudioFrame, TransportError, VoiceConnection, VoiceEvent, VoiceTarget,
@@ -39,8 +40,6 @@ const RETRY_MIN: Duration = Duration::from_secs(1);
 const RETRY_MAX: Duration = Duration::from_secs(30);
 /// How often the device list is checked while in voice.
 const DEVICE_POLL: Duration = Duration::from_secs(2);
-/// The voice activity gate's level until sensitivity settings arrive (V3).
-const VOICE_ACTIVITY_THRESHOLD_DBFS: f32 = -45.0;
 /// Push-to-talk keeps sending this long after the key is released (plan §7.4).
 const RELEASE_DELAY: Duration = Duration::from_millis(200);
 /// The bitrate until the node says the channel's.
@@ -266,6 +265,7 @@ impl Media {
                 output_device: self.device_choice(settings.output_device.as_deref()),
                 processor: ProcessorSettings {
                     mode: input_mode(settings.push_to_talk),
+                    processing: ProcessingSettings::default(),
                     bitrate: DEFAULT_BITRATE,
                     input_volume: settings.input_volume,
                     output_volume: settings.output_volume,
@@ -340,9 +340,7 @@ fn input_mode(push_to_talk: bool) -> InputMode {
             release_delay: RELEASE_DELAY,
         }
     } else {
-        InputMode::VoiceActivity {
-            threshold_dbfs: VOICE_ACTIVITY_THRESHOLD_DBFS,
-        }
+        InputMode::VoiceActivity(Sensitivity::Automatic)
     }
 }
 

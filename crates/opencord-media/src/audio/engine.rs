@@ -89,13 +89,25 @@ impl AudioEngine {
         send: impl FnMut(EncodedFrame) + Send + 'static,
         events: impl FnMut(EngineEvent) + Send + 'static,
     ) -> Result<Self, ProcessorError> {
-        // Device rates are known once they are open, on the engine thread;
-        // until then the processor assumes 48 kHz stereo.
-        let processor = Processor::new(settings.processor, (SAMPLE_RATE, 2), (SAMPLE_RATE, 2))?;
         let (commands, receiver) = mpsc::channel();
+        let (started, start_result) = mpsc::sync_channel(1);
         let thread = std::thread::Builder::new()
             .name("opencord-audio".to_owned())
             .spawn(move || {
+                // The processor stays on this thread (its processing graph
+                // cannot move between threads). Device rates are known once
+                // they are open; until then it assumes 48 kHz stereo.
+                let processor =
+                    match Processor::new(settings.processor, (SAMPLE_RATE, 2), (SAMPLE_RATE, 2)) {
+                        Ok(processor) => {
+                            let _ = started.send(Ok(()));
+                            processor
+                        }
+                        Err(error) => {
+                            let _ = started.send(Err(error));
+                            return;
+                        }
+                    };
                 let mut engine = Engine {
                     processor,
                     microphone: None,
@@ -113,10 +125,20 @@ impl AudioEngine {
                 engine.run(receiver);
             })
             .expect("the system can start a thread");
-        Ok(Self {
-            commands,
-            thread: Some(thread),
-        })
+        match start_result.recv() {
+            Ok(Ok(())) => Ok(Self {
+                commands,
+                thread: Some(thread),
+            }),
+            Ok(Err(error)) => {
+                let _ = thread.join();
+                Err(error)
+            }
+            Err(_) => {
+                let _ = thread.join();
+                Err(ProcessorError::Stopped)
+            }
+        }
     }
 
     /// A packet from `user_id`.
@@ -449,6 +471,8 @@ mod tests {
     use std::sync::Mutex;
 
     use super::*;
+    use crate::audio::capture::Sensitivity;
+    use crate::audio::processing::ProcessingSettings;
 
     /// Needs a microphone and a speaker; run with `--ignored` on a machine
     /// that has them.
@@ -465,9 +489,10 @@ mod tests {
                 output_device: DeviceChoice::Default,
                 processor: ProcessorSettings {
                     // Everything passes, so the room's noise is sent.
-                    mode: InputMode::VoiceActivity {
+                    mode: InputMode::VoiceActivity(Sensitivity::Manual {
                         threshold_dbfs: -130.0,
-                    },
+                    }),
+                    processing: ProcessingSettings::default(),
                     bitrate: 64_000,
                     input_volume: 1.0,
                     output_volume: 1.0,

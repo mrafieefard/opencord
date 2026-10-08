@@ -1,6 +1,6 @@
-//! The send side (plan §7.2, §7.4): the microphone gate, then Opus. A basic
-//! voice activity gate opens above a level and stays open for 250 ms after
-//! it (automatic sensitivity arrives with noise suppression in V3);
+//! The send side (plan §7.2, §7.4): the microphone gate, then Opus. Voice
+//! activity opens on a voice (automatic sensitivity: RNNoise's voice
+//! probability) or above a level (manual), and stays open for 250 ms after;
 //! push-to-talk opens while the key is held and for a release delay. A talk
 //! spurt starts with 20 ms of audio from before the gate opened, so the
 //! start of a word is not cut, and its first frame is marked.
@@ -16,13 +16,35 @@ pub const HANGOVER: Duration = Duration::from_millis(250);
 pub const PRE_ROLL_TICKS: usize = 2;
 const TICK_DURATION: Duration = Duration::from_millis(10);
 
+/// The level manual sensitivity starts at, and what automatic falls back
+/// to while there is no voice probability.
+pub const DEFAULT_THRESHOLD_DBFS: f32 = -45.0;
+/// A voice probability at or above this is a voice.
+const VOICE_PROBABILITY: f32 = 0.5;
+
+/// How voice activity decides someone is speaking.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum Sensitivity {
+    /// RNNoise's voice probability, whatever the level.
+    Automatic,
+    /// The level reaches the threshold.
+    Manual { threshold_dbfs: f32 },
+}
+
 /// How the microphone opens.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum InputMode {
-    /// While the level is at or above the threshold, and for the hangover.
-    VoiceActivity { threshold_dbfs: f32 },
+    /// While there is a voice, and for the hangover.
+    VoiceActivity(Sensitivity),
     /// While the key is held, and for the release delay.
     PushToTalk { release_delay: Duration },
+}
+
+impl InputMode {
+    /// Whether this mode needs each tick's voice probability.
+    pub fn wants_voice_probability(self) -> bool {
+        self == Self::VoiceActivity(Sensitivity::Automatic)
+    }
 }
 
 /// Decides, tick by tick, whether the microphone is open.
@@ -52,10 +74,20 @@ impl Gate {
         self.held = held;
     }
 
-    /// Whether the gate is open for a tick at `level_dbfs`.
-    pub fn tick(&mut self, level_dbfs: f32) -> bool {
+    /// Whether the gate is open for a tick at `level_dbfs`, which RNNoise
+    /// found a voice in with `voice_probability` when it looked.
+    pub fn tick(&mut self, level_dbfs: f32, voice_probability: Option<f32>) -> bool {
         let (reason, then) = match self.mode {
-            InputMode::VoiceActivity { threshold_dbfs } => (level_dbfs >= threshold_dbfs, HANGOVER),
+            InputMode::VoiceActivity(Sensitivity::Automatic) => {
+                let voice = match voice_probability {
+                    Some(probability) => probability >= VOICE_PROBABILITY,
+                    None => level_dbfs >= DEFAULT_THRESHOLD_DBFS,
+                };
+                (voice, HANGOVER)
+            }
+            InputMode::VoiceActivity(Sensitivity::Manual { threshold_dbfs }) => {
+                (level_dbfs >= threshold_dbfs, HANGOVER)
+            }
             InputMode::PushToTalk { release_delay } => (self.held, release_delay),
         };
         if reason {
@@ -149,13 +181,14 @@ impl Capture {
         self.talking
     }
 
-    /// The next 10 ms of microphone audio, 48 kHz mono; returns a frame to
-    /// send when one is complete.
-    pub fn push(&mut self, tick: &[f32]) -> Option<EncodedFrame> {
+    /// The next 10 ms of microphone audio, 48 kHz mono, and how likely it
+    /// is to be a voice when that is known; returns a frame to send when one
+    /// is complete.
+    pub fn push(&mut self, tick: &[f32], voice_probability: Option<f32>) -> Option<EncodedFrame> {
         debug_assert_eq!(tick.len(), TICK);
         let position = self.position;
         self.position += TICK as u64;
-        let open = !self.muted && self.gate.tick(dbfs(tick));
+        let open = !self.muted && self.gate.tick(dbfs(tick), voice_probability);
         let sent = match (self.talking, open) {
             (false, true) => self.start_talking(position, tick),
             (true, true) => self.append(tick),
@@ -246,9 +279,9 @@ mod tests {
 
     fn voice_activity() -> Capture {
         Capture::new(
-            InputMode::VoiceActivity {
+            InputMode::VoiceActivity(Sensitivity::Manual {
                 threshold_dbfs: -40.0,
-            },
+            }),
             64_000,
         )
         .unwrap()
@@ -261,7 +294,7 @@ mod tests {
             .enumerate()
             .filter_map(|(index, amplitude)| {
                 capture
-                    .push(&tick(*amplitude, index))
+                    .push(&tick(*amplitude, index), None)
                     .map(|frame| (index, frame))
             })
             .collect()
@@ -299,13 +332,15 @@ mod tests {
 
     #[test]
     fn voice_activity_stays_open_for_the_hangover() {
-        let mut gate = Gate::new(InputMode::VoiceActivity {
+        let mut gate = Gate::new(InputMode::VoiceActivity(Sensitivity::Manual {
             threshold_dbfs: -40.0,
-        });
+        }));
         let hangover_ticks = (HANGOVER.as_millis() / 10) as usize;
 
-        let loud = gate.tick(-20.0);
-        let after: Vec<bool> = (0..hangover_ticks + 5).map(|_| gate.tick(-60.0)).collect();
+        let loud = gate.tick(-20.0, None);
+        let after: Vec<bool> = (0..hangover_ticks + 5)
+            .map(|_| gate.tick(-60.0, None))
+            .collect();
 
         assert!(loud);
         assert!(after[..hangover_ticks].iter().all(|open| *open));
@@ -369,5 +404,33 @@ mod tests {
 
         let level = sent.last().unwrap().1.audio_level;
         assert!((-16..=-8).contains(&level), "{level}");
+    }
+
+    #[test]
+    fn automatic_sensitivity_follows_the_voice_probability() {
+        let mut gate = Gate::new(InputMode::VoiceActivity(Sensitivity::Automatic));
+        let hangover_ticks = (HANGOVER.as_millis() / 10) as usize;
+
+        let loud_noise = gate.tick(-10.0, Some(0.1));
+        let quiet_voice = gate.tick(-50.0, Some(0.9));
+        let after: Vec<bool> = (0..hangover_ticks + 1)
+            .map(|_| gate.tick(-50.0, Some(0.1)))
+            .collect();
+
+        assert!(!loud_noise);
+        assert!(quiet_voice);
+        assert!(after[..hangover_ticks].iter().all(|open| *open));
+        assert!(!after[hangover_ticks]);
+    }
+
+    #[test]
+    fn automatic_sensitivity_without_a_probability_goes_by_the_default_level() {
+        let mut gate = Gate::new(InputMode::VoiceActivity(Sensitivity::Automatic));
+
+        let quiet = gate.tick(DEFAULT_THRESHOLD_DBFS - 1.0, None);
+        let loud = gate.tick(DEFAULT_THRESHOLD_DBFS, None);
+
+        assert!(!quiet);
+        assert!(loud);
     }
 }
