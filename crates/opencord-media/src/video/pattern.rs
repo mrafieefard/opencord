@@ -9,6 +9,7 @@
 use std::time::{Duration, Instant};
 
 use crate::transport::{Layer, TrackKind, TrackRequest, VideoFrame};
+use crate::video::picture::{Picture, PixelFormat};
 
 const MAGIC: &[u8; 4] = b"OCTP";
 /// After a slice's NAL header: magic, layer, flags and number.
@@ -17,6 +18,39 @@ const HEADER: usize = 4 + 1 + 1 + 8;
 const CHECKSUM: usize = 4;
 const SPS: [u8; 9] = [0x67, 0x42, 0xe0, 0x1f, 0xda, 0x01, 0x40, 0x16, 0xe8];
 const PPS: [u8; 4] = [0x68, 0xce, 0x3c, 0x80];
+
+/// A moving scene for real encoders (NV12): a luma ramp that drifts, a
+/// bright square crossing the picture, and colour bands. Like a camera, it
+/// changes a little from one frame to the next.
+pub fn scene(width: u32, height: u32, number: u64, captured: Instant) -> Picture {
+    let (w, h) = (width as usize, height as usize);
+    let mut picture = Picture::black(PixelFormat::Nv12, width, height, captured);
+    let side = (h / 4).max(2);
+    let travel = (w - side.min(w)).max(1);
+    let square_x = (number as usize * 6) % travel;
+    let square_y = h / 2 - side / 2;
+    let drift = number as usize * 2;
+    let (luma, chroma) = picture.data.split_at_mut(w * h);
+    for y in 0..h {
+        for x in 0..w {
+            let inside = (square_x..square_x + side).contains(&x)
+                && (square_y..square_y + side).contains(&y);
+            luma[y * w + x] = if inside {
+                235
+            } else {
+                16 + ((x + y / 2 + drift) % 200) as u8
+            };
+        }
+    }
+    for y in 0..h / 2 {
+        for x in 0..w / 2 {
+            let band = (x * 8 / (w / 2).max(1)) as u8;
+            chroma[y * w + 2 * x] = 96 + band * 8;
+            chroma[y * w + 2 * x + 1] = 160 - band * 8;
+        }
+    }
+    picture
+}
 
 /// What a received picture says about itself.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -240,6 +274,18 @@ mod tests {
             layer("m", 640, 360, 30, 500_000),
             layer("h", 1280, 720, 30, 1_500_000),
         ]
+    }
+
+    #[test]
+    fn the_scene_moves_and_stays_in_video_range() {
+        let start = Instant::now();
+        let first = scene(320, 180, 0, start);
+        let second = scene(320, 180, 1, start);
+
+        assert_eq!(first.format, PixelFormat::Nv12);
+        assert_eq!(first.data.len(), Picture::bytes(320, 180));
+        assert_ne!(first.data, second.data);
+        assert!(first.y().iter().all(|&y| (16..=235).contains(&y)));
     }
 
     #[test]

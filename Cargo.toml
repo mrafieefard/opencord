@@ -28,6 +28,7 @@ clap = { version = "4.6.7", features = ["derive", "env"] }
 cpal = { version = "0.18.2", features = ["pipewire"] }
 data-encoding = "2.11.1"
 ed25519-dalek = "3.0.0"
+ffmpeg-next = { version = "9.0.0", default-features = false, features = ["codec", "format", "software-scaling"] }
 flutter_rust_bridge = "=2.13.0"
 futures-util = "0.3.34"
 getrandom = "0.4.3"
@@ -35,6 +36,8 @@ governor = "0.10.4"
 hex = "0.4.3"
 hmac = "0.13.0"
 nnnoiseless = { version = "0.5.2", default-features = false }
+openh264 = { version = "0.9.8", default-features = false, features = ["libloading"] }
+openh264-sys2 = { version = "0.9.8", default-features = false, features = ["libloading"] }
 opus = "0.4.0"
 prost = "0.14.4"
 prost-build = "0.14.4"

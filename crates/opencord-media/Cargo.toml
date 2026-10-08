@@ -45,4 +45,7 @@ testing = ["dep:str0m-netem"]
 
 [target.'cfg(target_os = "linux")'.dependencies]
 ashpd.workspace = true
+ffmpeg-next.workspace = true
+openh264.workspace = true
+openh264-sys2.workspace = true
 x11rb.workspace = true

@@ -6,9 +6,10 @@ pub const H264_PAYLOAD_TYPE: u8 = 102;
 /// Its retransmissions (RFC 4588).
 pub const H264_RTX_PAYLOAD_TYPE: u8 = 103;
 /// What the node advertises for H.264. The node never reads payloads, so
-/// this only tells clients how to packetize.
+/// this only tells clients how to packetize and what to expect: Constrained
+/// High (High without B-frames), level 3.1.
 pub const H264_FMTP: &str =
-    "level-asymmetry-allowed=1;packetization-mode=1;profile-level-id=42e01f";
+    "level-asymmetry-allowed=1;packetization-mode=1;profile-level-id=640c1f";
 pub const VIDEO_CLOCK_RATE: u32 = 90_000;
 
 /// Simulcast layer names, lowest first; a layer's index is its position.

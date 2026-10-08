@@ -22,8 +22,8 @@ pub fn rtc_config() -> str0m::RtcConfig {
         FRAME_MARKING_ID, H264_PAYLOAD_TYPE, H264_RTX_PAYLOAD_TYPE, frame_marking_extension,
     };
 
-    /// Constrained Baseline, level 3.1: what the payload type advertises.
-    const H264_PROFILE_LEVEL: u32 = 0x42e01f;
+    /// Constrained High, level 3.1: what the payload type advertises.
+    const H264_PROFILE_LEVEL: u32 = 0x640c1f;
 
     let mut config = str0m::RtcConfig::new()
         .set_rtp_mode(true)
