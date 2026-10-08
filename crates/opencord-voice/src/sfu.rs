@@ -155,6 +155,8 @@ struct Peer {
     /// Where the client last nominated a path from; media goes there.
     address: Option<SocketAddr>,
     timeout: Instant,
+    /// The time its `Rtc` last saw.
+    clock: Instant,
     /// Running loudness in -dBov, 0 loudest.
     level: f32,
     /// Per sender: packets not sent to this peer since the last one was,
@@ -166,11 +168,43 @@ struct Peer {
     sending: Vec<video::Sending>,
     /// Its downlink, from the bandwidth estimator, in bits per second.
     estimate: u64,
+    /// When its downlink last showed congestion (the estimate falling fast,
+    /// or heavy loss reported), and when a probe was last asked for.
+    congested: Option<Instant>,
+    probed: Option<Instant>,
+    /// The worst video loss it reported since layers were last chosen, and
+    /// its reports smoothed (half the last report, half before).
+    reported_loss: Option<f32>,
+    smoothed_loss: f32,
+    /// What got through when it last reported heavy loss: its budget
+    /// while the loss lasts (see [`video`]).
+    loss_cap: Option<u64>,
     /// Audio sent to it.
     audio_out: RateMeter,
     /// Media it may send (plan §14).
     inbound: TokenBucket,
 }
+
+impl Peer {
+    /// Brings its `Rtc` to `now`. str0m stamps what it sends with the time
+    /// it last saw, and the bandwidth estimator needs true send times, so a
+    /// packet written for it goes in at the right time (to within
+    /// [`CLOCK_SLACK`]).
+    fn advance(&mut self, now: Instant) {
+        if now.saturating_duration_since(self.clock) < CLOCK_SLACK && self.timeout > now {
+            return;
+        }
+        self.clock = now;
+        if let Err(error) = self.rtc.handle_input(Input::Timeout(now)) {
+            tracing::debug!(%error, "a timeout failed");
+        }
+    }
+}
+
+/// How stale a participant's clock may be when a packet is written for it.
+const CLOCK_SLACK: Duration = Duration::from_millis(1);
+/// An estimate below this share of the last one is acted on at once.
+const ESTIMATE_DROP: f64 = 0.9;
 
 #[derive(Debug, Default, Clone, Copy)]
 struct Forward {
@@ -222,6 +256,7 @@ impl Sfu {
             .set_crypto_provider(Arc::clone(&self.crypto))
             .set_dtls_cert(self.dtls_cert.clone())
             .enable_bwe(Some(Bitrate::bps(video::INITIAL_ESTIMATE)))
+            .set_stats_interval(Some(video::STATS_EVERY))
             .build(now);
         for address in [self.candidate_v4, self.candidate_v6] {
             let candidate = Candidate::host(address, "udp")
@@ -255,11 +290,17 @@ impl Sfu {
                 ice_password: credentials.pass.clone(),
                 address: None,
                 timeout: now,
+                clock: now,
                 level: audio::SILENT,
                 forwards: HashMap::new(),
                 tracks: Vec::new(),
                 sending: Vec::new(),
                 estimate: video::INITIAL_ESTIMATE,
+                congested: None,
+                probed: None,
+                reported_loss: None,
+                smoothed_loss: 0.0,
+                loss_cap: None,
                 audio_out: RateMeter::default(),
                 inbound: TokenBucket::new(now, video::inbound_cap(&[])),
             },
@@ -443,10 +484,10 @@ impl Sfu {
         let moved = self.peers.get(&id).is_some_and(|peer| {
             peer.address != Some(source) && signed_nomination(data, &peer.ice_password)
         });
-        let handled = self
-            .peers
-            .get_mut(&id)
-            .map(|peer| peer.rtc.handle_input(input));
+        let handled = self.peers.get_mut(&id).map(|peer| {
+            peer.clock = now;
+            peer.rtc.handle_input(input)
+        });
         if let Some(Err(error)) = handled {
             tracing::debug!(%error, peer = id, "a packet was refused");
         }
@@ -469,10 +510,8 @@ impl Sfu {
             .map(|(id, _)| *id)
             .collect();
         for id in due {
-            if let Some(peer) = self.peers.get_mut(&id)
-                && let Err(error) = peer.rtc.handle_input(Input::Timeout(now))
-            {
-                tracing::debug!(%error, peer = id, "a timeout failed");
+            if let Some(peer) = self.peers.get_mut(&id) {
+                peer.advance(now);
             }
             self.drain(id);
         }
@@ -507,6 +546,7 @@ impl Sfu {
             transmits,
             events,
             keyframe_requests,
+            allocate_at,
             ..
         } = self;
         let Some(peer) = peers.get_mut(&id) else {
@@ -533,7 +573,39 @@ impl Sfu {
                 }
                 Ok(Output::Event(Event::EgressBitrateEstimate(BweKind::Twcc {
                     estimate, ..
-                }))) => peer.estimate = estimate.as_u64(),
+                }))) => {
+                    let estimate = estimate.as_u64();
+                    // A falling downlink gets its layers chosen again at once.
+                    if (estimate as f64) < peer.estimate as f64 * ESTIMATE_DROP {
+                        *allocate_at = (*allocate_at).min(peer.clock);
+                        peer.congested = Some(peer.clock);
+                    }
+                    peer.estimate = estimate;
+                }
+                Ok(Output::Event(Event::MediaEgressStats(stats))) => {
+                    let loss = peer
+                        .sending
+                        .iter_mut()
+                        .find(|sending| sending.receives_on(&stats.mid))
+                        .zip(stats.remote.as_ref())
+                        .and_then(|(sending, remote)| {
+                            sending.loss_since_last_report(
+                                *remote.maximum_sequence_number,
+                                remote.packets_lost,
+                            )
+                        });
+                    if let Some(loss) = loss {
+                        // One report covers a second of packets at most;
+                        // alone it is noisy.
+                        peer.smoothed_loss = (peer.smoothed_loss + loss) / 2.0;
+                        if peer.smoothed_loss >= video::LOSSY {
+                            let worst = peer.reported_loss.map_or(loss, |seen| seen.max(loss));
+                            peer.reported_loss = Some(worst);
+                            *allocate_at = (*allocate_at).min(peer.clock);
+                            peer.congested = Some(peer.clock);
+                        }
+                    }
+                }
                 Ok(Output::Event(_)) => {}
                 Err(error) => {
                     tracing::debug!(%error, peer = id, "the connection failed");

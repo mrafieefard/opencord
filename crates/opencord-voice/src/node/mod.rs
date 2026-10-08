@@ -22,6 +22,7 @@ use runtime::{Command, Runtime};
 mod gateway;
 mod runtime;
 mod session;
+mod tracks;
 
 pub use runtime::RESUME_WINDOW;
 

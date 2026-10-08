@@ -26,5 +26,5 @@ tokio.workspace = true
 tracing.workspace = true
 
 [dev-dependencies]
-opencord-media.workspace = true
+opencord-media = { workspace = true, features = ["testing"] }
 str0m-netem.workspace = true

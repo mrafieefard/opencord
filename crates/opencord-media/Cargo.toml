@@ -16,7 +16,7 @@ cpal.workspace = true
 futures-util.workspace = true
 getrandom.workspace = true
 nnnoiseless.workspace = true
-opencord-common.workspace = true
+opencord-common = { workspace = true, features = ["str0m"] }
 opencord-proto.workspace = true
 opus.workspace = true
 prost.workspace = true
@@ -26,6 +26,7 @@ rtrb.workspace = true
 rustls.workspace = true
 sha2.workspace = true
 str0m.workspace = true
+str0m-netem = { workspace = true, optional = true }
 thiserror.workspace = true
 tokio.workspace = true
 tokio-rustls.workspace = true
@@ -33,6 +34,14 @@ tokio-tungstenite.workspace = true
 tracing.workspace = true
 tract-onnx.workspace = true
 tract-pulse.workspace = true
+
+[dev-dependencies]
+str0m-netem.workspace = true
+
+[features]
+# Test support: the network impairment shim and the XOR frame transform
+# (plan §13, §15). Never in release builds.
+testing = ["dep:str0m-netem"]
 
 [target.'cfg(target_os = "linux")'.dependencies]
 ashpd.workspace = true

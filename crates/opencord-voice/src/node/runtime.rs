@@ -9,6 +9,9 @@ use std::time::{Duration, Instant};
 
 use ed25519_dalek::VerifyingKey;
 use opencord_common::permissions::Permissions;
+use opencord_common::video::{
+    H264_FMTP, H264_PAYLOAD_TYPE, H264_RTX_PAYLOAD_TYPE, VIDEO_CLOCK_RATE,
+};
 use opencord_common::voice::{OPUS_PAYLOAD_TYPE, close, speaking};
 use opencord_proto::voice::v1 as voice;
 use tokio::net::UdpSocket;
@@ -16,14 +19,22 @@ use tokio::sync::{mpsc, oneshot};
 use voice::envelope::Payload;
 
 use super::session::{Connection, NewSession, VoiceSession};
+use super::tracks::Refusal;
 use super::{Counters, NodeCommand, NodeEvent};
 use crate::sfu::{PeerId, PeerSetup, PeerState, Sfu, SfuEvent, Transport};
+use video::track_message;
+
+mod video;
 use crate::token::{self, Presenter, UsedTokens};
 
 /// How long a voice session waits for its WebSocket to come back.
 pub const RESUME_WINDOW: Duration = Duration::from_secs(30);
 /// Housekeeping when nothing else wakes the task.
 const TICK: Duration = Duration::from_secs(1);
+/// Datagrams read in one go, each stamped as it is read, before any is
+/// handled: bandwidth estimation needs arrival times as they were.
+const READ_BATCH: usize = 32;
+const DATAGRAM: usize = 2048;
 /// Updates for people not connected yet are kept this long, as long as a
 /// voice token lives.
 const PENDING_FOR: Duration = token::VOICE_TOKEN_LIFETIME;
@@ -73,6 +84,18 @@ pub enum Command {
         session: String,
         flags: u32,
     },
+    Publish {
+        session: String,
+        publish: voice::PublishTrack,
+    },
+    Unpublish {
+        session: String,
+        track_id: String,
+    },
+    SinkWants {
+        session: String,
+        wants: voice::MediaSinkWants,
+    },
     Detached {
         session: String,
         connection_id: u64,
@@ -118,8 +141,8 @@ pub struct Runtime {
 
 impl Runtime {
     pub async fn run(mut self, mut commands: mpsc::UnboundedReceiver<Command>) {
-        let mut v4_buffer = vec![0u8; 2048];
-        let mut v6_buffer = vec![0u8; 2048];
+        let mut v4_batch = Batch::new();
+        let mut v6_batch = Batch::new();
         loop {
             let now = Instant::now();
             let wake = self
@@ -127,16 +150,16 @@ impl Runtime {
                 .next_timeout()
                 .map_or(now + TICK, |at| at.min(now + TICK));
             tokio::select! {
-                received = self.v4.recv_from(&mut v4_buffer) => {
-                    if let Ok((size, source)) = received {
-                        self.counters.received(size);
-                        self.sfu.handle_receive(Instant::now(), source, &v4_buffer[..size]);
+                received = self.v4.recv_from(&mut v4_batch.buffers[0]) => {
+                    if let Ok(first) = received {
+                        let count = v4_batch.fill(&self.v4, first);
+                        self.handle_batch(&v4_batch, count);
                     }
                 }
-                received = recv_maybe(self.v6.as_ref(), &mut v6_buffer) => {
-                    if let Ok((size, source)) = received {
-                        self.counters.received(size);
-                        self.sfu.handle_receive(Instant::now(), source, &v6_buffer[..size]);
+                received = recv_maybe(self.v6.as_ref(), &mut v6_batch.buffers[0]) => {
+                    if let (Ok(first), Some(v6)) = (received, self.v6.as_ref()) {
+                        let count = v6_batch.fill(v6, first);
+                        self.handle_batch(&v6_batch, count);
                     }
                 }
                 command = commands.recv() => match command {
@@ -153,6 +176,13 @@ impl Runtime {
                 }
             }
             self.flush();
+        }
+    }
+
+    fn handle_batch(&mut self, batch: &Batch, count: usize) {
+        for (datagram, (size, source, at)) in batch.buffers.iter().zip(&batch.read).take(count) {
+            self.counters.received(*size);
+            self.sfu.handle_receive(*at, *source, &datagram[..*size]);
         }
     }
 
@@ -200,6 +230,9 @@ impl Runtime {
                 }
             }
             Command::Speaking { session, flags } => self.speaking(now, &session, flags),
+            Command::Publish { session, publish } => self.publish(now, &session, publish),
+            Command::Unpublish { session, track_id } => self.unpublish(now, &session, &track_id),
+            Command::SinkWants { session, wants } => self.sink_wants(now, &session, &wants),
             Command::Detached {
                 session,
                 connection_id,
@@ -260,7 +293,7 @@ impl Runtime {
             state = pending_state;
             permissions = pending_permissions;
         }
-        let audio_ssrc = self.free_ssrc(claims.channel_id);
+        let audio_ssrc = self.free_ssrc(claims.channel_id, &mut Vec::new());
         let setup = PeerSetup {
             user_id: claims.user_id,
             channel_id: claims.channel_id,
@@ -278,14 +311,18 @@ impl Runtime {
             .map(|session| voice::Participant {
                 user_id: session.user_id,
                 audio_ssrc: session.audio_ssrc,
-                tracks: Vec::new(),
+                tracks: self
+                    .sfu
+                    .tracks(session.peer)
+                    .iter()
+                    .map(|track| track_message(track, voice::TrackState::Active))
+                    .collect(),
             })
             .collect();
-        let limits = self
-            .limits
-            .get(&claims.channel_id)
-            .cloned()
-            .or(claims.limits);
+        if let Some(limits) = claims.limits {
+            self.limits.entry(claims.channel_id).or_insert(limits);
+        }
+        let limits = Some(self.channel_limits(claims.channel_id));
         let session_id = hex::encode(random_bytes::<16>());
         let resume_token = random_bytes::<32>().to_vec();
         let mut session = VoiceSession::new(NewSession {
@@ -311,13 +348,22 @@ impl Runtime {
                     port: u32::from(self.udp_port),
                 }],
                 dtls_fingerprint: transport.dtls_fingerprint,
-                codecs: vec![voice::CodecParams {
-                    codec: voice::Codec::Opus as i32,
-                    payload_type: u32::from(OPUS_PAYLOAD_TYPE),
-                    clock_rate: 48_000,
-                    rtx_payload_type: 0,
-                    fmtp: "minptime=10;useinbandfec=1".to_owned(),
-                }],
+                codecs: vec![
+                    voice::CodecParams {
+                        codec: voice::Codec::Opus as i32,
+                        payload_type: u32::from(OPUS_PAYLOAD_TYPE),
+                        clock_rate: 48_000,
+                        rtx_payload_type: 0,
+                        fmtp: "minptime=10;useinbandfec=1".to_owned(),
+                    },
+                    voice::CodecParams {
+                        codec: voice::Codec::H264 as i32,
+                        payload_type: u32::from(H264_PAYLOAD_TYPE),
+                        clock_rate: VIDEO_CLOCK_RATE,
+                        rtx_payload_type: u32::from(H264_RTX_PAYLOAD_TYPE),
+                        fmtp: H264_FMTP.to_owned(),
+                    },
+                ],
                 limits,
                 participants: others,
             }),
@@ -380,8 +426,9 @@ impl Runtime {
                 match session {
                     Some(session) => {
                         session.permissions = permissions;
-                        let peer = session.peer;
+                        let (peer, id) = (session.peer, session.id.clone());
                         self.sfu.set_state(peer, state);
+                        self.recheck_tracks(now, &id);
                     }
                     None => {
                         self.pending
@@ -406,6 +453,15 @@ impl Runtime {
             }
             NodeCommand::Limits { channel_id, limits } => {
                 self.limits.insert(channel_id, limits);
+                let ids: Vec<String> = self
+                    .sessions
+                    .values()
+                    .filter(|session| session.channel_id == channel_id)
+                    .map(|session| session.id.clone())
+                    .collect();
+                for id in ids {
+                    self.recheck_tracks(now, &id);
+                }
             }
         }
     }
@@ -486,9 +542,31 @@ impl Runtime {
                 // The client restarts ICE or resumes; the session ends only
                 // when its gateway connection does not come back.
                 SfuEvent::Disconnected(_) => {}
-                SfuEvent::LayerWants { .. }
-                | SfuEvent::LayersAvailable { .. }
-                | SfuEvent::TrackStopped { .. } => {}
+                SfuEvent::LayerWants {
+                    peer,
+                    track_id,
+                    rids,
+                } => {
+                    if let Some(session) = self.session_by_peer(peer) {
+                        let wants = voice::SenderLayerWants {
+                            track_id,
+                            active_layers: rids,
+                        };
+                        session.send_sequenced(Payload::SenderLayerWants(wants), Instant::now());
+                    }
+                }
+                SfuEvent::LayersAvailable {
+                    peer,
+                    track_id,
+                    rids,
+                } => self.layers_available(peer, &track_id, rids),
+                SfuEvent::TrackStopped { peer, track_id } => {
+                    let refusal = Refusal {
+                        code: opencord_proto::v1::ErrorCode::QualityLimit,
+                        message: "the track stayed over its bitrate ceiling".to_owned(),
+                    };
+                    self.track_ended(Instant::now(), peer, &track_id, Some(refusal));
+                }
             }
         }
     }
@@ -497,15 +575,19 @@ impl Runtime {
         self.sessions.values_mut().find(|s| s.peer == peer)
     }
 
-    /// An SSRC nobody else in the channel uses.
-    fn free_ssrc(&self, channel_id: i64) -> u32 {
+    /// An SSRC nobody in the channel uses, and not in `taken`, which it
+    /// joins.
+    fn free_ssrc(&self, channel_id: i64, taken: &mut Vec<u32>) -> u32 {
         loop {
             let candidate = u32::from_ne_bytes(random_bytes::<4>());
-            let taken = self
-                .sessions
-                .values()
-                .any(|s| s.channel_id == channel_id && s.audio_ssrc == candidate);
-            if candidate != 0 && !taken {
+            let used = taken.contains(&candidate)
+                || self.sfu.ssrc_in_use(channel_id, candidate)
+                || self
+                    .sessions
+                    .values()
+                    .any(|s| s.channel_id == channel_id && s.audio_ssrc == candidate);
+            if candidate != 0 && !used {
+                taken.push(candidate);
                 return candidate;
             }
         }
@@ -530,6 +612,37 @@ impl Runtime {
     fn shut_down(&mut self) {
         self.end_all(Instant::now());
         self.flush();
+    }
+}
+
+/// Datagrams read together: each one's length, sender and arrival.
+struct Batch {
+    buffers: Vec<[u8; DATAGRAM]>,
+    read: Vec<(usize, SocketAddr, Instant)>,
+}
+
+impl Batch {
+    fn new() -> Self {
+        let nowhere = SocketAddr::from((std::net::Ipv4Addr::UNSPECIFIED, 0));
+        Self {
+            buffers: vec![[0; DATAGRAM]; READ_BATCH],
+            read: vec![(0, nowhere, Instant::now()); READ_BATCH],
+        }
+    }
+
+    /// After the first datagram (already in the first buffer), reads what
+    /// else is waiting; returns how many there are.
+    fn fill(&mut self, socket: &UdpSocket, first: (usize, SocketAddr)) -> usize {
+        self.read[0] = (first.0, first.1, Instant::now());
+        let mut count = 1;
+        while count < READ_BATCH {
+            let Ok((size, source)) = socket.try_recv_from(&mut self.buffers[count]) else {
+                break;
+            };
+            self.read[count] = (size, source, Instant::now());
+            count += 1;
+        }
+        count
     }
 }
 

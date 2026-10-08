@@ -393,3 +393,59 @@ fn audio_flows_alongside_video() {
 
     assert_eq!(net.clients[bob].payloads_from(1001), said);
 }
+
+#[test]
+fn heavy_loss_on_a_downlink_moves_it_down_without_waiting_for_the_estimate() {
+    // A 500 kbps link that only drops: no queue to show the overload as
+    // delay. The node reads the loss its receiver reports.
+    let mut net = Net::new();
+    let (alice, bob, _) = three(&mut net);
+    let track = camera("cam-a", 5000);
+    net.publish(alice, track.clone());
+    net.want(bob, &[("cam-a", 720)]);
+    net.run(Duration::from_secs(10));
+    assert_eq!(net.clients[bob].last_layer(track.ssrc), Some(2));
+
+    let capped_at = net.now;
+    net.limit_downlink(
+        bob,
+        Some(NetemConfig::new().link(Bitrate::kbps(500), DataSize::bytes(1_500))),
+    );
+    net.run(Duration::from_secs(3));
+
+    let lower = net.clients[bob]
+        .video_on(track.ssrc, capped_at)
+        .into_iter()
+        .find(|packet| packet.marking.is_some_and(|m| m.layer < 2))
+        .map(|packet| packet.at.duration_since(capped_at))
+        .expect("switched to a lower layer");
+    assert!(lower <= Duration::from_millis(1500), "after {lower:?}");
+}
+
+#[test]
+fn a_downlink_with_a_shallow_queue_gets_a_lower_layer_within_2_s() {
+    // Most links queue tens of milliseconds, so congestion shows as loss
+    // more than as delay.
+    let mut net = Net::new();
+    let (alice, bob, _) = three(&mut net);
+    let track = camera("cam-a", 5000);
+    net.publish(alice, track.clone());
+    net.want(bob, &[("cam-a", 720)]);
+    net.run(Duration::from_secs(10));
+    assert_eq!(net.clients[bob].last_layer(track.ssrc), Some(2));
+
+    let capped_at = net.now;
+    net.limit_downlink(
+        bob,
+        Some(NetemConfig::new().link(Bitrate::kbps(500), DataSize::bytes(3_000))),
+    );
+    net.run(Duration::from_secs(3));
+
+    let lower = net.clients[bob]
+        .video_on(track.ssrc, capped_at)
+        .into_iter()
+        .find(|packet| packet.marking.is_some_and(|m| m.layer < 2))
+        .map(|packet| packet.at.duration_since(capped_at))
+        .expect("switched to a lower layer");
+    assert!(lower <= Duration::from_secs(2), "after {lower:?}");
+}

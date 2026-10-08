@@ -24,11 +24,6 @@ use super::{PeerId, Sfu, SfuError, SfuEvent, far_future};
 const ALLOCATE_EVERY: Duration = Duration::from_millis(200);
 /// A layer with no packet for this long is not being produced.
 const LAYER_IDLE: Duration = Duration::from_secs(1);
-/// A layer's measured bitrate counts once it has sent this long...
-const MEASURE_AFTER: Duration = Duration::from_secs(1);
-/// ...and only while its packets keep coming (the slowest layer sends a
-/// frame every 67 ms).
-const STILL_SENDING: Duration = Duration::from_millis(250);
 /// At most one keyframe request a second for each layer (plan §6).
 const KEYFRAME_EVERY: Duration = Duration::from_secs(1);
 /// A layer nobody has needed for this long is no longer asked for.
@@ -47,6 +42,24 @@ const VOICE_ALLOWANCE: u64 = 300_000;
 const VIDEO_SHARE: f64 = 0.9;
 /// A receiver's downlink before the first estimate, in bits per second.
 pub(super) const INITIAL_ESTIMATE: u64 = 1_000_000;
+/// A receiver that wants more than its estimate allows gets its downlink
+/// probed this often, once it has shown no congestion for [`CALM`]. The
+/// estimator alone only probes when the sender is application-limited, or
+/// after 15 s of no change: after congestion clears, its estimate stays at
+/// 1.5 times what is being sent.
+const PROBE_EVERY: Duration = Duration::from_secs(5);
+const CALM: Duration = Duration::from_secs(2);
+/// How often str0m reports each stream, receivers' loss included
+/// (receivers report video once a second).
+pub(super) const STATS_EVERY: Duration = Duration::from_millis(250);
+/// Reported video loss at or above this means the downlink is overloaded
+/// (random loss on a poor link stays well under it; a link carrying three
+/// times its capacity loses two thirds): the budget drops to what got
+/// through at once, without waiting for the estimator, which lowers its
+/// estimate a few percent at a time under loss.
+pub(super) const LOSSY: f32 = 0.2;
+/// Of what got through, the share the budget keeps.
+const LOSS_MARGIN: f64 = 0.9;
 
 /// A track as the node accepted it.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -97,10 +110,7 @@ pub(super) struct Track {
 
 #[derive(Default)]
 struct LayerState {
-    meter: RateMeter,
     last_packet: Option<Instant>,
-    /// When its current run of packets began.
-    producing_since: Option<Instant>,
     /// From the latest keyframe.
     size: Option<(u16, u16)>,
     keyframe_asked: Option<Instant>,
@@ -145,9 +155,9 @@ impl Track {
             .sum()
     }
 
-    /// The layers as receivers could get them. A layer the sender was told
-    /// to stop is gone at once; a taller layer never costs less than the
-    /// one below it.
+    /// The layers as receivers could get them. A layer costs its declared
+    /// maximum, and never less than the layer below it; a layer the sender
+    /// was told to stop is gone at once.
     fn options(&self, now: Instant) -> Vec<LayerOption> {
         let mut floor = 0;
         self.setup
@@ -156,7 +166,7 @@ impl Track {
             .zip(&self.layers)
             .enumerate()
             .map(|(index, (setup, state))| {
-                floor = cost(now, setup, state).max(floor);
+                floor = u64::from(setup.max_bitrate).max(floor);
                 LayerOption {
                     index: index as u8,
                     height: state
@@ -178,24 +188,6 @@ impl Track {
             .map(|(layer, _)| layer.rid.clone())
             .collect()
     }
-}
-
-/// What a layer takes: what it sent over the last second once it has sent
-/// steadily for that long, its maximum otherwise (starting, or stopping).
-/// Never less than a quarter of the maximum, so a still picture does not
-/// look free.
-fn cost(now: Instant, setup: &LayerSetup, state: &LayerState) -> u64 {
-    let declared = u64::from(setup.max_bitrate);
-    let steady = state
-        .producing_since
-        .is_some_and(|since| now.saturating_duration_since(since) >= MEASURE_AFTER)
-        && state
-            .last_packet
-            .is_some_and(|at| now.saturating_duration_since(at) < STILL_SENDING);
-    if !steady {
-        return declared;
-    }
-    state.meter.bits_per_second(now).max(declared / 4)
 }
 
 /// One receiver's copy of someone's track: what it wants, which layer it
@@ -222,9 +214,17 @@ pub(super) struct Sending {
     last_seq: Option<u64>,
     last_ts: u32,
     last_at: Option<Instant>,
+    /// The receiver's last report: highest sequence number and packets
+    /// lost so far.
+    last_report: Option<(u64, u64)>,
 }
 
 impl Sending {
+    /// Whether its stream is the media `mid`.
+    pub(super) fn receives_on(&self, mid: &Mid) -> bool {
+        Mid::from(receive_mid(self.ssrc).as_str()) == *mid
+    }
+
     fn new(publisher: PeerId, setup: &TrackSetup) -> Self {
         Self {
             publisher,
@@ -241,7 +241,22 @@ impl Sending {
             last_seq: None,
             last_ts: 0,
             last_at: None,
+            last_report: None,
         }
+    }
+
+    /// The share of packets lost between the receiver's last two reports,
+    /// from their running totals. A resent packet that arrives late lowers
+    /// the total, which counts as no loss (RFC 3550 §6.4.1); str0m's own
+    /// fraction wraps such an interval to nearly all lost.
+    pub(super) fn loss_since_last_report(&mut self, highest: u64, lost: u64) -> Option<f32> {
+        let previous = self.last_report.replace((highest, lost));
+        let (highest_before, lost_before) = previous?;
+        let expected = highest
+            .checked_sub(highest_before)
+            .filter(|count| *count > 0)?;
+        let lost = lost.saturating_sub(lost_before).min(expected);
+        Some(lost as f32 / expected as f32)
     }
 
     /// Starts forwarding `layer` at the packet `seq`, a keyframe's first:
@@ -432,12 +447,16 @@ impl Sfu {
         let mid = receive_mid(setup.ssrc);
         let mut api = peer.rtc.direct_api();
         api.declare_media(mid.as_str().into(), MediaKind::Video);
+        // Forwarded as it arrives: layer choice holds the rate, and a pacer
+        // queue would make the next layer's keyframe wait behind the last
+        // layer's backlog.
         api.declare_stream_tx(
             Ssrc::from(setup.ssrc),
             Some(Ssrc::from(setup.rtx_ssrc)),
             mid.as_str().into(),
             None,
-        );
+        )
+        .set_unpaced(true);
         peer.sending.push(Sending::new(publisher, setup));
     }
 
@@ -480,11 +499,7 @@ impl Sfu {
         track.meter.add(now, bytes);
         let started = !track.producing(now, layer_index);
         let state = &mut track.layers[layer_index];
-        state.meter.add(now, bytes);
         state.last_packet = Some(now);
-        if started {
-            state.producing_since = Some(now);
-        }
         if let Some(size) = marking.and_then(|marking| marking.size) {
             state.size = Some(size);
         }
@@ -524,6 +539,7 @@ impl Sfu {
             }
             let (out_seq, out_ts) = sending.rewrite(now, seq, packet.header.timestamp);
             let out_ssrc = sending.ssrc;
+            peer.advance(now);
             let mut api = peer.rtc.direct_api();
             let Some(stream) = api.stream_tx(&Ssrc::from(out_ssrc)) else {
                 continue;
@@ -586,7 +602,8 @@ impl Sfu {
                 continue;
             };
             let audio = peer.audio_out.bits_per_second(now);
-            let budget = ((peer.estimate as f64 * VIDEO_SHARE) as u64).saturating_sub(audio);
+            let estimated = ((peer.estimate as f64 * VIDEO_SHARE) as u64).saturating_sub(audio);
+            let budget = within_loss_cap(peer, estimated, &offers);
             let offered: Vec<Option<&Offer>> = peer
                 .sending
                 .iter()
@@ -636,7 +653,7 @@ impl Sfu {
                 })
                 .collect();
             let ideals = allocation::allocate(budget, &unrestricted);
-            let mut desired_bitrate = audio;
+            let mut desired_video = 0;
             for (position, sending) in peer.sending.iter_mut().enumerate() {
                 let slot = wanted.iter().position(|&i| i == position);
                 let (target, ideal, desired) = match (slot, offered[position]) {
@@ -648,7 +665,7 @@ impl Sfu {
                     _ => (None, None, None),
                 };
                 if let (Some(desired), Some(offer)) = (desired, offered[position]) {
-                    desired_bitrate += offer
+                    desired_video += offer
                         .layers
                         .iter()
                         .find(|layer| layer.index == desired)
@@ -665,9 +682,26 @@ impl Sfu {
                     Some(_) => {}
                 }
             }
+            // The estimator probes up to what the allocation needs to give
+            // everyone what they asked for: headroom and audio included.
+            let desired = desired_video as f64 * (1.0 + allocation::UPGRADE_HEADROOM) / VIDEO_SHARE;
+            let desired_bitrate = (desired as u64 + audio) * u64::from(desired_video > 0);
             peer.rtc
                 .bwe()
                 .set_desired_bitrate(Bitrate::bps(desired_bitrate));
+            let limited = desired_bitrate > peer.estimate;
+            let calm = peer
+                .congested
+                .is_none_or(|at| now.saturating_duration_since(at) >= CALM);
+            let due = peer
+                .probed
+                .is_none_or(|at| now.saturating_duration_since(at) >= PROBE_EVERY);
+            if limited && calm && due {
+                // A fresh estimator from the current estimate probes at 3x
+                // and 6x of it at once.
+                peer.probed = Some(now);
+                peer.rtc.bwe().reset(Bitrate::bps(peer.estimate));
+            }
         }
         for (publisher, track_id, layer) in keyframes {
             self.request_keyframe(now, publisher, &track_id, layer);
@@ -830,6 +864,45 @@ impl Sfu {
                 .push_back(SfuEvent::TrackStopped { peer, track_id });
         }
     }
+}
+
+/// The budget, capped at what got through when the receiver last reported
+/// heavy loss. The cap holds while the loss lasts and goes once the
+/// receiver's reports are clean again; it never takes anyone below the
+/// lowest layer of what they want (only the estimate stops video).
+fn within_loss_cap(peer: &mut super::Peer, estimated: u64, offers: &[Offer]) -> u64 {
+    let offer_of = |sending: &Sending| {
+        offers.iter().find(|offer| {
+            offer.publisher == sending.publisher && offer.track_id == sending.track_id
+        })
+    };
+    if peer.smoothed_loss < LOSSY / 2.0 {
+        peer.loss_cap = None;
+    }
+    if let Some(loss) = peer.reported_loss.take() {
+        let sent: u64 = peer
+            .sending
+            .iter()
+            .filter_map(|sending| {
+                let layer = sending.current?;
+                offer_of(sending)?
+                    .layers
+                    .iter()
+                    .find(|option| option.index == layer)
+                    .map(|option| option.cost)
+            })
+            .sum();
+        let floor: u64 = peer
+            .sending
+            .iter()
+            .filter(|sending| sending.want.is_some())
+            .filter_map(|sending| offer_of(sending)?.layers.first().map(|option| option.cost))
+            .sum();
+        let through = (sent as f64 * f64::from(1.0 - loss) * LOSS_MARGIN) as u64;
+        let cap = peer.loss_cap.map_or(through, |cap| cap.min(through));
+        peer.loss_cap = Some(cap.max(floor));
+    }
+    peer.loss_cap.map_or(estimated, |cap| cap.min(estimated))
 }
 
 /// A track as receivers could get it.

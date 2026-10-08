@@ -16,12 +16,18 @@ use voice::envelope::Payload;
 use super::VoiceNode;
 use super::runtime::Command;
 use super::session::{Connection, Outbound, encode};
+use super::tracks::MAX_TRACK_ID;
 
 /// Time a client has to answer Hello.
 const HANDSHAKE_TIMEOUT: Duration = Duration::from_secs(10);
 /// Messages a client may send per [`RATE_PERIOD`] (plan §14).
 const RATE_BURST: u32 = 50;
 const RATE_PERIOD: Duration = Duration::from_secs(10);
+/// `MediaSinkWants` has its own allowance (plan §14): tiles move often.
+const WANTS_BURST: u32 = 20;
+const WANTS_PERIOD: Duration = Duration::from_secs(1);
+/// More wanted tracks than a full channel could publish are refused.
+const MAX_WANTS: usize = 256;
 const OUTBOUND_CAPACITY: usize = 256;
 /// Larger fields are refused.
 const MAX_TOKEN_BYTES: usize = 4096;
@@ -150,8 +156,8 @@ async fn serve_session(
 ) -> Option<u16> {
     let allowed_silence = heartbeat * 2;
     let mut deadline = Instant::now() + allowed_silence;
-    let mut window_start = Instant::now();
-    let mut in_window = 0u32;
+    let mut general = Allowance::new(RATE_BURST, RATE_PERIOD);
+    let mut wants = Allowance::new(WANTS_BURST, WANTS_PERIOD);
     loop {
         let next = tokio::select! {
             () = connection.outbound.closed() => return None,
@@ -164,12 +170,11 @@ async fn serve_session(
             Next::Envelope(envelope) => envelope,
         };
         let now = Instant::now();
-        if now.duration_since(window_start) >= RATE_PERIOD {
-            window_start = now;
-            in_window = 0;
-        }
-        in_window += 1;
-        if in_window > RATE_BURST {
+        let allowance = match envelope.payload {
+            Some(Payload::MediaSinkWants(_)) => &mut wants,
+            _ => &mut general,
+        };
+        if !allowance.take(now) {
             return Some(close::RATE_LIMITED);
         }
         match envelope.payload {
@@ -193,12 +198,72 @@ async fn serve_session(
                 session: session.to_owned(),
                 flags: speaking.flags,
             }),
-            // Video and end-to-end encryption arrive later; ignored until then.
-            Some(
-                Payload::PublishTrack(_) | Payload::UnpublishTrack(_) | Payload::MediaSinkWants(_),
-            ) => {}
+            Some(Payload::PublishTrack(publish)) => {
+                // The node checks the rest and answers TrackRejected.
+                if publish.track_id.len() > MAX_TRACK_ID || publish.layers.len() > MAX_LAYERS {
+                    return Some(close::INVALID_FRAME);
+                }
+                node.command(Command::Publish {
+                    session: session.to_owned(),
+                    publish,
+                });
+            }
+            Some(Payload::UnpublishTrack(unpublish)) => {
+                if unpublish.track_id.len() > MAX_TRACK_ID {
+                    return Some(close::INVALID_FRAME);
+                }
+                node.command(Command::Unpublish {
+                    session: session.to_owned(),
+                    track_id: unpublish.track_id,
+                });
+            }
+            Some(Payload::MediaSinkWants(sink_wants)) => {
+                let oversized = sink_wants.wants.len() > MAX_WANTS
+                    || sink_wants
+                        .wants
+                        .iter()
+                        .any(|want| want.track_id.len() > MAX_TRACK_ID);
+                if oversized {
+                    return Some(close::INVALID_FRAME);
+                }
+                node.command(Command::SinkWants {
+                    session: session.to_owned(),
+                    wants: sink_wants,
+                });
+            }
             _ => return Some(close::INVALID_FRAME),
         }
+    }
+}
+
+/// Layers a track may name; more is not a track.
+const MAX_LAYERS: usize = 3;
+
+/// At most `burst` messages per `period`, counted in fixed windows.
+struct Allowance {
+    burst: u32,
+    period: Duration,
+    window_start: Instant,
+    used: u32,
+}
+
+impl Allowance {
+    fn new(burst: u32, period: Duration) -> Self {
+        Self {
+            burst,
+            period,
+            window_start: Instant::now(),
+            used: 0,
+        }
+    }
+
+    fn take(&mut self, now: Instant) -> bool {
+        if now.duration_since(self.window_start) >= self.period {
+            self.window_start = now;
+            self.used = 0;
+        }
+        self.used += 1;
+        self.used <= self.burst
     }
 }
 

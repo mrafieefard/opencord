@@ -6,8 +6,10 @@
 use std::cmp::Reverse;
 
 /// Going above the layer being sent needs this much room beyond the new
-/// layer's cost, so a downlink near a layer's cost does not flap.
-const UPGRADE_HEADROOM: f64 = 0.15;
+/// layer's cost, and the layer being sent stays until the room falls this
+/// far under its cost, so a downlink near a layer's cost does not flap.
+pub(crate) const UPGRADE_HEADROOM: f64 = 0.15;
+const DOWNGRADE_TOLERANCE: f64 = 0.15;
 
 /// One layer of a video, as a receiver could get it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -58,9 +60,9 @@ pub(crate) fn allocate(budget: u64, candidates: &[Candidate<'_>]) -> Vec<Option<
         let Some(lowest) = usable[i].first() else {
             continue;
         };
-        let needed = lowest.cost + headroom(&candidates[i], lowest);
-        if needed <= remaining {
-            remaining -= lowest.cost;
+        let needed = lowest.cost as i64 + adjustment(&candidates[i], lowest);
+        if needed <= remaining as i64 {
+            remaining = remaining.saturating_sub(lowest.cost);
             chosen[i] = Some(0);
         }
     }
@@ -70,10 +72,10 @@ pub(crate) fn allocate(budget: u64, candidates: &[Candidate<'_>]) -> Vec<Option<
         };
         while let (Some(from), Some(to)) = (usable[i].get(at), usable[i].get(at + 1)) {
             let extra = to.cost.saturating_sub(from.cost);
-            if extra + headroom(&candidates[i], to) > remaining {
+            if extra as i64 + adjustment(&candidates[i], to) > remaining as i64 {
                 break;
             }
-            remaining -= extra;
+            remaining = remaining.saturating_sub(extra);
             at += 1;
         }
         chosen[i] = Some(at);
@@ -101,9 +103,12 @@ fn usable_layers(candidate: &Candidate<'_>) -> Vec<LayerOption> {
     layers
 }
 
-fn headroom(candidate: &Candidate<'_>, layer: &LayerOption) -> u64 {
+/// How much more (or less) than its cost taking `layer` needs.
+fn adjustment(candidate: &Candidate<'_>, layer: &LayerOption) -> i64 {
+    let cost = layer.cost as f64;
     match candidate.current {
-        Some(current) if layer.index > current => (layer.cost as f64 * UPGRADE_HEADROOM) as u64,
+        Some(current) if layer.index > current => (cost * UPGRADE_HEADROOM) as i64,
+        Some(current) if layer.index == current => -((cost * DOWNGRADE_TOLERANCE) as i64),
         _ => 0,
     }
 }
@@ -245,6 +250,21 @@ mod tests {
         let candidates = [wanting(180, &layers), wanting(720, &layers)];
 
         assert_eq!(allocate(200_000, &candidates), vec![None, Some(0)]);
+    }
+
+    #[test]
+    fn the_layer_being_sent_rides_out_a_dip_of_15_percent() {
+        let layers = camera();
+        let staying = Candidate {
+            current: Some(1),
+            ..wanting(720, &layers)
+        };
+
+        // 88 % of what the middle layer and the low one below it cost.
+        assert_eq!(allocate(440_000, &[staying]), vec![Some(1)]);
+        assert_eq!(allocate(400_000, &[staying]), vec![Some(0)]);
+        // Without it being sent, the same downlink gets the low layer.
+        assert_eq!(allocate(440_000, &[wanting(720, &layers)]), vec![Some(0)]);
     }
 
     #[test]

@@ -1,32 +1,32 @@
 //! The voice transport (Phase 2 plan §7.1, §7.14): the voice gateway
 //! WebSocket for signalling, and one str0m connection over UDP for media,
-//! in RTP mode. It moves Opus packets; encoding, decoding and mixing are the
-//! audio engine's.
+//! in RTP mode. It moves Opus packets and H.264 frames; encoding, decoding
+//! and mixing are the engines'.
 //!
 //! A dropped gateway is resumed while media keeps flowing; only a refused
 //! resume or a close the node means ends the connection.
 
-use std::collections::HashMap;
-use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use opencord_common::voice::{AUDIO_MID, OPUS_PAYLOAD_TYPE, close, receive_mid};
+use opencord_common::voice::OPUS_PAYLOAD_TYPE;
 use opencord_proto::voice::v1 as voice;
-use str0m::config::Fingerprint;
-use str0m::ice::IceCreds;
-use str0m::media::{MediaKind, Pt};
-use str0m::net::{Protocol, Receive};
-use str0m::rtp::{ExtensionValues, RtpWrite, Ssrc};
-use str0m::{Candidate, Event, IceConnectionState, Input, Output, Rtc, RtcConfig};
-use tokio::net::UdpSocket;
-use tokio::sync::mpsc;
-use tokio::task::JoinHandle;
+use tokio::sync::{mpsc, oneshot};
 use voice::envelope::Payload;
 
+use driver::Driver;
 use gateway::{GatewayUrl, Next, Socket};
+use media::Media;
+use transform::{FrameTransform, Identity};
 
+mod assembler;
+mod driver;
 pub mod gateway;
+mod h264;
+#[cfg(any(test, feature = "testing"))]
+pub mod impairment;
+mod media;
+pub mod transform;
 
 /// How long a dropped gateway is tried again, as long as the node keeps
 /// the voice session.
@@ -47,6 +47,14 @@ pub struct VoiceTarget {
     pub user_id: i64,
     pub session_id: String,
     pub channel_id: i64,
+}
+
+/// How a connection treats frames; the defaults suit the app.
+#[derive(Default)]
+pub struct ConnectOptions {
+    /// Every encoded frame passes through it both ways (plan §13); the
+    /// identity when `None`.
+    pub transform: Option<Box<dyn FrameTransform>>,
 }
 
 /// One Opus frame to send.
@@ -77,6 +85,92 @@ pub struct ReceivedAudio {
     pub arrived: Instant,
 }
 
+/// What a video track shows.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TrackKind {
+    Camera,
+    Screen,
+}
+
+/// One simulcast layer of a video track.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Layer {
+    /// "l", "m" or "h".
+    pub rid: String,
+    pub width: u32,
+    pub height: u32,
+    pub fps: u32,
+    /// Bits per second.
+    pub max_bitrate: u32,
+}
+
+/// A video track to publish.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TrackRequest {
+    /// Unique in the channel; pick it at random.
+    pub track_id: String,
+    pub kind: TrackKind,
+    pub layers: Vec<Layer>,
+}
+
+/// Why the node refused a track.
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
+pub enum TrackError {
+    #[error("the voice gateway is not connected")]
+    NotConnected,
+    #[error("the node did not answer")]
+    NoAnswer,
+    /// `reason` is an `opencord.v1.ErrorCode`.
+    #[error("the node refused the track: {message}")]
+    Refused { reason: i32, message: String },
+}
+
+/// One encoded picture of one layer, as NAL units without start codes.
+#[derive(Debug, Clone)]
+pub struct VideoFrame {
+    pub track_id: String,
+    /// 0 for the lowest layer.
+    pub layer: u8,
+    pub keyframe: bool,
+    pub width: u16,
+    pub height: u16,
+    /// When the picture was captured; every layer of it shares this.
+    pub captured: Instant,
+    pub nal_units: Vec<Vec<u8>>,
+}
+
+/// Someone's picture, put back together.
+#[derive(Debug, Clone)]
+pub struct ReceivedVideo {
+    pub user_id: i64,
+    pub track_id: String,
+    pub layer: u8,
+    pub keyframe: bool,
+    /// Width and height, from a keyframe.
+    pub size: Option<(u16, u16)>,
+    /// 90 kHz.
+    pub timestamp: u32,
+    pub nal_units: Vec<Vec<u8>>,
+    pub arrived: Instant,
+}
+
+/// Someone else's video track.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RemoteTrack {
+    pub track_id: String,
+    pub kind: TrackKind,
+    pub layers: Vec<Layer>,
+    /// The layers its sender produces now, once the node has said.
+    pub available: Option<Vec<String>>,
+}
+
+/// A video this client wants, at the height of its tile (plan §6).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SinkWant {
+    pub track_id: String,
+    pub max_height: u32,
+}
+
 #[derive(Debug, Clone)]
 pub enum VoiceEvent {
     /// ICE and DTLS are up: audio can flow.
@@ -96,6 +190,38 @@ pub enum VoiceEvent {
         user_id: i64,
         flags: u32,
     },
+    /// Someone's track as it is now: just published, or its layers
+    /// changed. On joining, one for each track already there.
+    Track {
+        user_id: i64,
+        track: RemoteTrack,
+    },
+    TrackRemoved {
+        user_id: i64,
+        track_id: String,
+    },
+    Video(ReceivedVideo),
+    /// The node stopped one of this client's tracks; `reason` is an
+    /// `opencord.v1.ErrorCode`.
+    TrackStopped {
+        track_id: String,
+        reason: i32,
+        message: String,
+    },
+    /// The layers of one of this client's tracks anyone needs; the rest
+    /// need not be encoded.
+    LayerWants {
+        track_id: String,
+        rids: Vec<String>,
+    },
+    /// Someone lost a picture: make the next frame of that layer a
+    /// keyframe.
+    KeyframeRequested {
+        track_id: String,
+        layer: u8,
+    },
+    /// What the uplink can carry, in bits per second.
+    UplinkEstimate(u64),
     /// The gateway dropped and came back without losing anything.
     Resumed,
     /// Over for good. Join again through the main server for another one.
@@ -122,7 +248,19 @@ pub enum TransportError {
 
 enum Command {
     Audio(AudioFrame),
+    Video(VideoFrame),
     Speaking(u32),
+    Publish {
+        request: TrackRequest,
+        reply: oneshot::Sender<Result<(), TrackError>>,
+    },
+    Unpublish(String),
+    SinkWants(Vec<SinkWant>),
+    #[cfg(any(test, feature = "testing"))]
+    Impair {
+        inbound: impairment::Impairment,
+        outbound: impairment::Impairment,
+    },
     DropGateway,
     Rebind,
     Close,
@@ -141,9 +279,21 @@ impl VoiceConnection {
     pub async fn connect(
         target: VoiceTarget,
     ) -> Result<(Self, mpsc::UnboundedReceiver<VoiceEvent>), TransportError> {
+        Self::connect_with(target, ConnectOptions::default()).await
+    }
+
+    pub async fn connect_with(
+        target: VoiceTarget,
+        options: ConnectOptions,
+    ) -> Result<(Self, mpsc::UnboundedReceiver<VoiceEvent>), TransportError> {
         let url = GatewayUrl::parse(&target.gateway_url)?;
         let mut socket = gateway::open(&url, target.certificate_fingerprint).await?;
         let heartbeat = hello(&mut socket).await?;
+        let support = |codec: voice::Codec| voice::CodecSupport {
+            codec: codec as i32,
+            hardware_encode: false,
+            hardware_decode: false,
+        };
         gateway::send(
             &mut socket,
             Payload::Identify(voice::Identify {
@@ -152,20 +302,22 @@ impl VoiceConnection {
                 session_id: target.session_id.clone(),
                 channel_id: target.channel_id,
                 client_caps: Some(voice::ClientCaps {
-                    codecs: vec![voice::CodecSupport {
-                        codec: voice::Codec::Opus as i32,
-                        hardware_encode: false,
-                        hardware_decode: false,
-                    }],
+                    codecs: vec![support(voice::Codec::Opus), support(voice::Codec::H264)],
                     max_decode_height: 0,
-                    simulcast: false,
+                    simulcast: true,
                 }),
                 max_e2ee_version: 0,
             }),
         )
         .await?;
         let ready = ready(&mut socket).await?;
-        let media = Media::start(&url.address.host, &ready).await?;
+        if !opus_offered(&ready) {
+            return Err(TransportError::Protocol(
+                "the node offers no Opus this client understands".to_owned(),
+            ));
+        }
+        let transform = options.transform.unwrap_or_else(|| Box::new(Identity));
+        let media = Media::start(&url.address.host, &ready, transform).await?;
         gateway::send(
             &mut socket,
             Payload::TransportInfo(voice::TransportInfo {
@@ -181,21 +333,26 @@ impl VoiceConnection {
                 user_id: participant.user_id,
                 audio_ssrc: participant.audio_ssrc,
             });
+            for track in &participant.tracks {
+                if let Some(track) = media::remote_track(track, None) {
+                    let _ = events.send(VoiceEvent::Track {
+                        user_id: participant.user_id,
+                        track,
+                    });
+                }
+            }
         }
         let (commands, command_receiver) = mpsc::unbounded_channel();
         let audio_ssrc = ready.audio_ssrc;
         let limits = ready.limits;
-        let driver = Driver {
+        let driver = Driver::new(
             url,
-            fingerprint: target.certificate_fingerprint,
-            voice_session_id: ready.voice_session_id,
-            resume_token: ready.resume_token,
+            target.certificate_fingerprint,
+            &ready,
             heartbeat,
-            awaiting_ack: false,
-            last_seq: 0,
             media,
             events,
-        };
+        );
         tokio::spawn(driver.run(socket, command_receiver));
         Ok((
             Self {
@@ -219,6 +376,11 @@ impl VoiceConnection {
             .filter(|bitrate| *bitrate > 0)
     }
 
+    /// The limits the node gave: camera cap, screen share maximum.
+    pub fn limits(&self) -> Option<voice::Limits> {
+        self.limits
+    }
+
     pub fn send_audio(&self, frame: AudioFrame) {
         let _ = self.commands.send(Command::Audio(frame));
     }
@@ -226,6 +388,40 @@ impl VoiceConnection {
     /// `flags` from [`opencord_common::voice::speaking`].
     pub fn set_speaking(&self, flags: u32) {
         let _ = self.commands.send(Command::Speaking(flags));
+    }
+
+    /// Publishes a video track; resolves once the node accepts or refuses
+    /// it. Frames go out with [`Self::send_video`] after that.
+    pub async fn publish_track(&self, request: TrackRequest) -> Result<(), TrackError> {
+        let (reply, answer) = oneshot::channel();
+        self.commands
+            .send(Command::Publish { request, reply })
+            .map_err(|_| TrackError::NotConnected)?;
+        answer.await.map_err(|_| TrackError::NoAnswer)?
+    }
+
+    pub fn unpublish_track(&self, track_id: &str) {
+        let _ = self.commands.send(Command::Unpublish(track_id.to_owned()));
+    }
+
+    pub fn send_video(&self, frame: VideoFrame) {
+        let _ = self.commands.send(Command::Video(frame));
+    }
+
+    /// The videos this client wants and at what size; the rest are not
+    /// sent to it (plan §6).
+    pub fn set_sink_wants(&self, wants: Vec<SinkWant>) {
+        let _ = self.commands.send(Command::SinkWants(wants));
+    }
+
+    /// Impairs this connection's packets, for tests (plan §15).
+    #[cfg(any(test, feature = "testing"))]
+    pub fn set_impairment(
+        &self,
+        inbound: impairment::Impairment,
+        outbound: impairment::Impairment,
+    ) {
+        let _ = self.commands.send(Command::Impair { inbound, outbound });
     }
 
     /// Drops the gateway as a network failure would, to exercise resuming.
@@ -276,504 +472,12 @@ async fn ready(socket: &mut Socket) -> Result<voice::Ready, TransportError> {
     }
 }
 
-/// The client's str0m connection and its UDP socket.
-struct Media {
-    rtc: Rtc,
-    socket: UdpSocket,
-    local_address: SocketAddr,
-    remote_address: SocketAddr,
-    local: IceCreds,
-    fingerprint: Vec<u8>,
-    audio_ssrc: u32,
-    next_seq: u64,
-    /// The RTP timestamp of capture position 0.
-    timestamp_base: u32,
-    users_by_ssrc: HashMap<u32, i64>,
-    timeout: Instant,
-    /// Sending failed in a way that means the network went away.
-    network_lost: bool,
-}
-
-/// A UDP socket connected to the node, and the local address the system
-/// picked for it.
-async fn connected_socket(remote: SocketAddr) -> Result<(UdpSocket, SocketAddr), TransportError> {
-    let error = |error: std::io::Error| TransportError::Connect(error.to_string());
-    let any: SocketAddr = if remote.is_ipv4() {
-        (std::net::Ipv4Addr::UNSPECIFIED, 0).into()
-    } else {
-        (std::net::Ipv6Addr::UNSPECIFIED, 0).into()
-    };
-    let socket = UdpSocket::bind(any).await.map_err(error)?;
-    socket.connect(remote).await.map_err(error)?;
-    let local = socket.local_addr().map_err(error)?;
-    Ok((socket, local))
-}
-
-/// The local address the system would send to `remote` from now. Asking
-/// sends nothing.
-fn route_to(remote: SocketAddr) -> Option<std::net::IpAddr> {
-    let any: SocketAddr = if remote.is_ipv4() {
-        (std::net::Ipv4Addr::UNSPECIFIED, 0).into()
-    } else {
-        (std::net::Ipv6Addr::UNSPECIFIED, 0).into()
-    };
-    let probe = std::net::UdpSocket::bind(any).ok()?;
-    probe.connect(remote).ok()?;
-    probe.local_addr().ok().map(|address| address.ip())
-}
-
-impl Media {
-    /// Media goes to the node's candidate, or to `gateway_host` when the
-    /// candidate leaves its address empty ("the host you reached the voice
-    /// gateway with").
-    async fn start(gateway_host: &str, ready: &voice::Ready) -> Result<Self, TransportError> {
-        let codec_ok = ready.codecs.iter().any(|codec| {
-            codec.codec == voice::Codec::Opus as i32
-                && codec.payload_type == u32::from(OPUS_PAYLOAD_TYPE)
-        });
-        if !codec_ok {
-            return Err(TransportError::Protocol(
-                "the node offers no Opus this client understands".to_owned(),
-            ));
-        }
-        let candidate = ready
-            .candidates
-            .first()
-            .ok_or_else(|| TransportError::Protocol("no media address".to_owned()))?;
-        let host = if candidate.ip.is_empty() {
-            gateway_host
-        } else {
-            candidate.ip.as_str()
-        };
-        let port = u16::try_from(candidate.port)
-            .map_err(|_| TransportError::Protocol("a media port out of range".to_owned()))?;
-        let remote_address = tokio::net::lookup_host((host, port))
-            .await
-            .map_err(|error| TransportError::Connect(error.to_string()))?
-            .next()
-            .ok_or_else(|| TransportError::Connect(format!("{host} has no address")))?;
-        let (socket, local_address) = connected_socket(remote_address).await?;
-
-        let now = Instant::now();
-        let local = IceCreds::new();
-        let mut rtc = RtcConfig::new()
-            .set_rtp_mode(true)
-            .clear_codecs()
-            .enable_opus(true, false)
-            .set_local_ice_credentials(local.clone())
-            .build(now);
-        rtc.add_local_candidate(Candidate::host(local_address, "udp").map_err(candidate_error)?);
-        rtc.add_remote_candidate(Candidate::host(remote_address, "udp").map_err(candidate_error)?);
-        let fingerprint = {
-            let mut api = rtc.direct_api();
-            api.set_remote_ice_credentials(IceCreds {
-                ufrag: ready.ice_ufrag.clone(),
-                pass: ready.ice_pwd.clone(),
-            });
-            api.set_remote_fingerprint(Fingerprint {
-                hash_func: "sha-256".to_owned(),
-                bytes: ready.dtls_fingerprint.clone(),
-            });
-            api.set_ice_controlling(true);
-            api.declare_media(AUDIO_MID.into(), MediaKind::Audio);
-            api.declare_stream_tx(Ssrc::from(ready.audio_ssrc), None, AUDIO_MID.into(), None);
-            for participant in &ready.participants {
-                hear(&mut api, participant.audio_ssrc);
-            }
-            api.start_dtls(true)
-                .map_err(|error| TransportError::Connect(error.to_string()))?;
-            api.local_dtls_fingerprint().bytes.clone()
-        };
-        Ok(Self {
-            rtc,
-            socket,
-            local_address,
-            remote_address,
-            local,
-            fingerprint,
-            audio_ssrc: ready.audio_ssrc,
-            next_seq: u64::from(u16::from_ne_bytes(random::<2>())),
-            timestamp_base: u32::from_ne_bytes(random::<4>()),
-            users_by_ssrc: ready
-                .participants
-                .iter()
-                .map(|p| (p.audio_ssrc, p.user_id))
-                .collect(),
-            timeout: now,
-            network_lost: false,
-        })
-    }
-
-    fn hear(&mut self, user_id: i64, ssrc: u32) {
-        self.users_by_ssrc.insert(ssrc, user_id);
-        hear(&mut self.rtc.direct_api(), ssrc);
-    }
-
-    fn forget(&mut self, user_id: i64) {
-        let gone: Vec<u32> = self
-            .users_by_ssrc
-            .iter()
-            .filter(|(_, user)| **user == user_id)
-            .map(|(ssrc, _)| *ssrc)
-            .collect();
-        for ssrc in gone {
-            self.users_by_ssrc.remove(&ssrc);
-            self.rtc
-                .direct_api()
-                .remove_media(receive_mid(ssrc).as_str().into());
-        }
-    }
-
-    /// Whether the network this connection was on is gone: sending failed,
-    /// or the system now reaches the node from another address.
-    fn network_changed(&mut self) -> bool {
-        std::mem::take(&mut self.network_lost)
-            || route_to(self.remote_address).is_some_and(|ip| ip != self.local_address.ip())
-    }
-
-    /// Moves media to a new socket after a network change: its address
-    /// becomes a new local candidate and the old one is dropped, so ICE
-    /// checks the new path and moves over (the node learns the new address
-    /// from the checks). DTLS and the voice session carry on.
-    async fn rebind(&mut self) -> Result<(), TransportError> {
-        let (socket, local_address) = connected_socket(self.remote_address).await?;
-        let new = Candidate::host(local_address, "udp").map_err(candidate_error)?;
-        let old = Candidate::host(self.local_address, "udp").map_err(candidate_error)?;
-        self.rtc.add_local_candidate(new);
-        self.rtc.direct_api().invalidate_candidate(&old);
-        self.socket = socket;
-        self.local_address = local_address;
-        Ok(())
-    }
-
-    fn send_audio(&mut self, frame: &AudioFrame) {
-        let seq = self.next_seq;
-        self.next_seq += 1;
-        // RTP timestamps are the capture clock, wrapped to 32 bits.
-        let timestamp = self.timestamp_base.wrapping_add(frame.position as u32);
-        let mut api = self.rtc.direct_api();
-        let Some(stream) = api.stream_tx(&Ssrc::from(self.audio_ssrc)) else {
-            return;
-        };
-        stream.write_rtp(
-            RtpWrite::new(
-                Pt::from(OPUS_PAYLOAD_TYPE),
-                seq.into(),
-                timestamp,
-                Instant::now(),
-                frame.payload.clone(),
-            )
-            .marker(frame.marker)
-            .ext_vals(ExtensionValues {
-                audio_level: Some(frame.audio_level),
-                voice_activity: Some(frame.voice_activity),
-                ..ExtensionValues::default()
-            }),
-        );
-    }
-
-    fn receive(&mut self, data: &[u8]) {
-        let Ok(contents) = data.try_into() else {
-            return;
-        };
-        let input = Input::Receive(
-            Instant::now(),
-            Receive {
-                proto: Protocol::Udp,
-                source: self.remote_address,
-                destination: self.local_address,
-                contents,
-            },
-        );
-        if let Err(error) = self.rtc.handle_input(input) {
-            tracing::debug!(%error, "a media packet was refused");
-        }
-    }
-
-    fn timeout(&mut self) {
-        if let Err(error) = self.rtc.handle_input(Input::Timeout(Instant::now())) {
-            tracing::debug!(%error, "a media timeout failed");
-        }
-    }
-
-    /// Sends what str0m wants sent and reports what happened.
-    fn drain(&mut self, events: &mpsc::UnboundedSender<VoiceEvent>) {
-        loop {
-            match self.rtc.poll_output() {
-                Ok(Output::Timeout(at)) => {
-                    self.timeout = at;
-                    return;
-                }
-                Ok(Output::Transmit(transmit)) => {
-                    if let Err(error) = self.socket.try_send(&transmit.contents) {
-                        // A full buffer drops the packet, as the network
-                        // would; anything else means the network is gone.
-                        if error.kind() != std::io::ErrorKind::WouldBlock {
-                            self.network_lost = true;
-                        }
-                    }
-                }
-                Ok(Output::Event(Event::Connected)) => {
-                    let _ = events.send(VoiceEvent::MediaConnected);
-                }
-                Ok(Output::Event(Event::IceConnectionStateChange(
-                    IceConnectionState::Disconnected,
-                ))) => {
-                    let _ = events.send(VoiceEvent::MediaDisconnected);
-                }
-                Ok(Output::Event(Event::RtpPacket(packet))) => {
-                    let ssrc = *packet.header.ssrc;
-                    if let Some(user_id) = self.users_by_ssrc.get(&ssrc) {
-                        let _ = events.send(VoiceEvent::Audio(ReceivedAudio {
-                            user_id: *user_id,
-                            ssrc,
-                            seq: *packet.seq_no,
-                            timestamp: packet.header.timestamp,
-                            marker: packet.header.marker,
-                            payload: packet.payload,
-                            audio_level: packet.header.ext_vals.audio_level,
-                            arrived: packet.timestamp,
-                        }));
-                    }
-                }
-                Ok(Output::Event(_)) => {}
-                Err(error) => {
-                    tracing::debug!(%error, "the media connection failed");
-                    let _ = events.send(VoiceEvent::MediaDisconnected);
-                    self.timeout = Instant::now() + Duration::from_secs(3600);
-                    return;
-                }
-            }
-        }
-    }
-}
-
-fn candidate_error(error: impl std::fmt::Display) -> TransportError {
-    TransportError::Connect(error.to_string())
-}
-
-fn hear(api: &mut str0m::change::DirectApi<'_>, ssrc: u32) {
-    let mid = receive_mid(ssrc);
-    api.declare_media(mid.as_str().into(), MediaKind::Audio);
-    api.expect_stream_rx(Ssrc::from(ssrc), None, mid.as_str().into(), None);
-}
-
-/// The task behind a [`VoiceConnection`].
-struct Driver {
-    url: GatewayUrl,
-    fingerprint: Option<[u8; 32]>,
-    voice_session_id: String,
-    resume_token: Vec<u8>,
-    heartbeat: Duration,
-    /// A heartbeat went out and its ack has not come back.
-    awaiting_ack: bool,
-    last_seq: u64,
-    media: Media,
-    events: mpsc::UnboundedSender<VoiceEvent>,
-}
-
-type Reconnect = JoinHandle<Result<Socket, Option<u16>>>;
-
-impl Driver {
-    async fn run(mut self, socket: Socket, mut commands: mpsc::UnboundedReceiver<Command>) {
-        let mut socket = Some(socket);
-        let mut reconnect: Option<Reconnect> = None;
-        let mut buffer = vec![0u8; 2048];
-        let mut beat = tokio::time::interval(self.heartbeat);
-        beat.tick().await;
-        let mut network = tokio::time::interval(NETWORK_CHECK);
-        network.tick().await;
-        let mut nonce = 0u64;
-        self.media.drain(&self.events);
-        loop {
-            let wake = self.media.timeout.max(Instant::now());
-            tokio::select! {
-                received = self.media.socket.recv(&mut buffer) => {
-                    if let Ok(size) = received {
-                        self.media.receive(&buffer[..size]);
-                    }
-                }
-                () = tokio::time::sleep_until(wake.into()) => self.media.timeout(),
-                next = next_or_pending(socket.as_mut()) => match next {
-                    Next::Envelope(envelope) => self.on_envelope(envelope),
-                    Next::Closed(code) => {
-                        socket = None;
-                        if !close::is_resumable(code) {
-                            self.finish(code);
-                            return;
-                        }
-                        reconnect = Some(self.resume_later());
-                    }
-                },
-                done = join_or_pending(reconnect.as_mut()) => {
-                    reconnect = None;
-                    match done {
-                        Ok(Ok(resumed)) => {
-                            socket = Some(resumed);
-                            self.awaiting_ack = false;
-                        }
-                        Ok(Err(code)) => {
-                            self.finish(code.or(Some(close::SESSION_INVALID)));
-                            return;
-                        }
-                        Err(_) => {
-                            self.finish(None);
-                            return;
-                        }
-                    }
-                }
-                _ = network.tick() => {
-                    if self.media.network_changed() {
-                        self.rebind().await;
-                    }
-                }
-                _ = beat.tick() => {
-                    if let Some(open) = socket.as_mut() {
-                        if self.awaiting_ack {
-                            // The gateway went quiet: treat it as dropped.
-                            socket = None;
-                            reconnect = Some(self.resume_later());
-                        } else {
-                            nonce += 1;
-                            self.awaiting_ack = true;
-                            let beat = Payload::Heartbeat(voice::Heartbeat {
-                                nonce,
-                                client_ts_ms: unix_ms(),
-                            });
-                            if gateway::send(open, beat).await.is_err() {
-                                socket = None;
-                                reconnect = Some(self.resume_later());
-                            }
-                        }
-                    }
-                }
-                command = commands.recv() => match command {
-                    Some(Command::Audio(frame)) => self.media.send_audio(&frame),
-                    Some(Command::Speaking(flags)) => {
-                        if let Some(open) = socket.as_mut() {
-                            let speaking = Payload::Speaking(voice::Speaking { flags, user_id: 0 });
-                            let _ = gateway::send(open, speaking).await;
-                        }
-                    }
-                    Some(Command::DropGateway) => {
-                        socket = None;
-                        reconnect = Some(self.resume_later());
-                    }
-                    Some(Command::Rebind) => self.rebind().await,
-                    Some(Command::Close) | None => {
-                        self.media.rtc.disconnect();
-                        self.media.drain(&self.events);
-                        if let Some(mut open) = socket.take() {
-                            let _ = open.close(None).await;
-                        }
-                        if let Some(pending) = reconnect.take() {
-                            pending.abort();
-                        }
-                        self.finish(None);
-                        return;
-                    }
-                },
-            }
-            self.media.drain(&self.events);
-        }
-    }
-
-    async fn rebind(&mut self) {
-        if let Err(error) = self.media.rebind().await {
-            tracing::debug!(%error, "could not move media to the new network yet");
-        }
-    }
-
-    fn on_envelope(&mut self, envelope: Box<voice::Envelope>) {
-        if envelope.seq > 0 {
-            self.last_seq = self.last_seq.max(envelope.seq);
-        }
-        match envelope.payload {
-            Some(Payload::HeartbeatAck(_)) => self.awaiting_ack = false,
-            Some(Payload::ClientConnect(connect)) => {
-                self.media.hear(connect.user_id, connect.audio_ssrc);
-                let _ = self.events.send(VoiceEvent::ClientConnected {
-                    user_id: connect.user_id,
-                    audio_ssrc: connect.audio_ssrc,
-                });
-            }
-            Some(Payload::ClientDisconnect(gone)) => {
-                self.media.forget(gone.user_id);
-                let _ = self.events.send(VoiceEvent::ClientDisconnected {
-                    user_id: gone.user_id,
-                });
-            }
-            Some(Payload::Speaking(speaking)) => {
-                let _ = self.events.send(VoiceEvent::Speaking {
-                    user_id: speaking.user_id,
-                    flags: speaking.flags,
-                });
-            }
-            Some(Payload::Resumed(_)) => {
-                let _ = self.events.send(VoiceEvent::Resumed);
-            }
-            _ => {}
-        }
-    }
-
-    /// Opens the gateway again and resumes, in the background so media
-    /// keeps flowing meanwhile.
-    fn resume_later(&self) -> Reconnect {
-        let url = self.url.clone();
-        let fingerprint = self.fingerprint;
-        let resume = voice::Resume {
-            voice_session_id: self.voice_session_id.clone(),
-            resume_token: self.resume_token.clone(),
-            last_seq: self.last_seq,
-        };
-        tokio::spawn(async move {
-            let give_up = Instant::now() + RESUME_FOR;
-            loop {
-                match resume_once(&url, fingerprint, resume.clone()).await {
-                    Ok(socket) => return Ok(socket),
-                    Err(Some(code)) if !close::is_resumable(Some(code)) => return Err(Some(code)),
-                    Err(_) if Instant::now() >= give_up => return Err(None),
-                    Err(_) => tokio::time::sleep(RESUME_PAUSE).await,
-                }
-            }
-        })
-    }
-
-    fn finish(&self, code: Option<u16>) {
-        let _ = self.events.send(VoiceEvent::Closed { code });
-    }
-}
-
-async fn resume_once(
-    url: &GatewayUrl,
-    fingerprint: Option<[u8; 32]>,
-    resume: voice::Resume,
-) -> Result<Socket, Option<u16>> {
-    let mut socket = gateway::open(url, fingerprint).await.map_err(|_| None)?;
-    hello(&mut socket).await.map_err(|error| match error {
-        TransportError::Refused(code) => code,
-        _ => None,
-    })?;
-    gateway::send(&mut socket, Payload::Resume(resume))
-        .await
-        .map_err(|_| None)?;
-    Ok(socket)
-}
-
-async fn next_or_pending(socket: Option<&mut Socket>) -> Next {
-    match socket {
-        Some(socket) => gateway::next(socket).await,
-        None => std::future::pending().await,
-    }
-}
-
-async fn join_or_pending(
-    handle: Option<&mut Reconnect>,
-) -> Result<Result<Socket, Option<u16>>, tokio::task::JoinError> {
-    match handle {
-        Some(handle) => handle.await,
-        None => std::future::pending().await,
-    }
+/// Whether the node's Opus is the one this client speaks.
+fn opus_offered(ready: &voice::Ready) -> bool {
+    ready.codecs.iter().any(|codec| {
+        codec.codec == voice::Codec::Opus as i32
+            && codec.payload_type == u32::from(OPUS_PAYLOAD_TYPE)
+    })
 }
 
 fn random<const N: usize>() -> [u8; N] {

@@ -55,6 +55,7 @@ impl Sfu {
             forward.skipped = 0;
             let seq_no = (*packet.seq_no).saturating_sub(forward.lag).into();
             peer.audio_out.add(now, packet.payload.len());
+            peer.advance(now);
             let mut api = peer.rtc.direct_api();
             let Some(stream) = api.stream_tx(&Ssrc::from(setup.audio_ssrc)) else {
                 continue;

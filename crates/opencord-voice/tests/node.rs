@@ -1,122 +1,16 @@
 //! A voice node on localhost with real clients (opencord-media's
 //! transport): the voice gateway over WebSocket, media over UDP.
 
-use std::sync::atomic::{AtomicU8, Ordering};
 use std::time::{Duration, Instant};
 
-use axum::Router;
-use axum::extract::{State, WebSocketUpgrade};
-use axum::response::Response;
-use axum::routing::get;
-use ed25519_dalek::SigningKey;
 use opencord_common::voice::close;
-use opencord_media::transport::{
-    AudioFrame, TransportError, VoiceConnection, VoiceEvent, VoiceTarget,
-};
-use opencord_proto::internal::v1::VoiceTokenClaims;
-use opencord_voice::node::{NodeCommand, NodeConfig, NodeEvent, VoiceNode};
+use opencord_media::transport::{AudioFrame, TransportError, VoiceConnection, VoiceEvent};
+use opencord_voice::node::{NodeCommand, NodeEvent};
 use opencord_voice::sfu::PeerState;
-use opencord_voice::token;
 use tokio::sync::mpsc::UnboundedReceiver;
 
-const CHANNEL: i64 = 5;
-const WAIT: Duration = Duration::from_secs(10);
-
-struct Node {
-    node: VoiceNode,
-    events: UnboundedReceiver<NodeEvent>,
-    key: SigningKey,
-    gateway: String,
-}
-
-async fn node() -> Node {
-    start_node(true).await
-}
-
-/// A node, told the main server's key or not.
-async fn start_node(knows_key: bool) -> Node {
-    let key = SigningKey::from_bytes(&[9; 32]);
-    let (node, events) = VoiceNode::start(NodeConfig {
-        udp_port: 0,
-        public_address: Some("127.0.0.1".to_owned()),
-        verifying_key: knows_key.then(|| key.verifying_key()),
-        heartbeat_interval: Duration::from_secs(1),
-    })
-    .await
-    .unwrap();
-    let app = Router::new()
-        .route("/voice", get(upgrade))
-        .with_state(node.clone());
-    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
-    let gateway = format!("ws://{}/voice", listener.local_addr().unwrap());
-    tokio::spawn(async move { axum::serve(listener, app).await });
-    Node {
-        node,
-        events,
-        key,
-        gateway,
-    }
-}
-
-async fn upgrade(State(node): State<VoiceNode>, upgrade: WebSocketUpgrade) -> Response {
-    upgrade.on_upgrade(move |socket| async move { node.serve(socket).await })
-}
-
-static TOKEN_IDS: AtomicU8 = AtomicU8::new(1);
-
-fn token_for(node: &Node, user_id: i64) -> Vec<u8> {
-    token::issue(
-        &node.key,
-        &VoiceTokenClaims {
-            token_id: vec![TOKEN_IDS.fetch_add(1, Ordering::Relaxed); 16],
-            user_id,
-            channel_id: CHANNEL,
-            session_id: format!("session-{user_id}"),
-            permissions: 1 << 16,
-            expires_at_ms: now_ms() + 60_000,
-            ..Default::default()
-        },
-    )
-}
-
-fn target(node: &Node, user_id: i64, token: Vec<u8>) -> VoiceTarget {
-    VoiceTarget {
-        gateway_url: node.gateway.clone(),
-        certificate_fingerprint: None,
-        token,
-        user_id,
-        session_id: format!("session-{user_id}"),
-        channel_id: CHANNEL,
-    }
-}
-
-async fn join(node: &Node, user_id: i64) -> (VoiceConnection, UnboundedReceiver<VoiceEvent>) {
-    let (connection, mut events) =
-        VoiceConnection::connect(target(node, user_id, token_for(node, user_id)))
-            .await
-            .unwrap();
-    wait_for(&mut events, |event| {
-        matches!(event, VoiceEvent::MediaConnected)
-    })
-    .await;
-    (connection, events)
-}
-
-async fn wait_for(
-    events: &mut UnboundedReceiver<VoiceEvent>,
-    mut pick: impl FnMut(&VoiceEvent) -> bool,
-) -> VoiceEvent {
-    tokio::time::timeout(WAIT, async {
-        loop {
-            let event = events.recv().await.expect("the connection ended");
-            if pick(&event) {
-                return event;
-            }
-        }
-    })
-    .await
-    .expect("timed out waiting for a voice event")
-}
+mod common;
+use common::*;
 
 fn frame(index: u8) -> AudioFrame {
     AudioFrame {
@@ -152,16 +46,6 @@ async fn heard(
     heard
 }
 
-fn now_ms() -> i64 {
-    i64::try_from(
-        std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
-            .as_millis(),
-    )
-    .unwrap()
-}
-
 /// What the node reported until it went quiet for `quiet`.
 async fn node_events(node: &mut Node, quiet: Duration) -> Vec<NodeEvent> {
     let mut events = Vec::new();
@@ -182,7 +66,7 @@ fn update(user_id: i64, state: PeerState) -> NodeCommand {
         user_id,
         channel_id: CHANNEL,
         state,
-        permissions: 1 << 16,
+        permissions: CONNECT,
     }
 }
 

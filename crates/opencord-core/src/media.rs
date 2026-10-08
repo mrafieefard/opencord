@@ -704,6 +704,14 @@ impl SessionTask {
                             self.engine.set_priority(user_id, flags & speaking::PRIORITY != 0);
                         }
                         VoiceEvent::ClientConnected { .. } | VoiceEvent::Resumed => {}
+                        // The app shows and sends video from V5 on (plan §7.11).
+                        VoiceEvent::Track { .. }
+                        | VoiceEvent::TrackRemoved { .. }
+                        | VoiceEvent::Video(_)
+                        | VoiceEvent::TrackStopped { .. }
+                        | VoiceEvent::LayerWants { .. }
+                        | VoiceEvent::KeyframeRequested { .. }
+                        | VoiceEvent::UplinkEstimate(_) => {}
                     }
                 }
                 Some(event) = engine_events.recv() => match event {
