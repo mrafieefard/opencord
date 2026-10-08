@@ -11,17 +11,17 @@
 //! ([`super::deep_filter`]), which falls back to Standard when the computer
 //! cannot keep up.
 
-use aec3::audio_processing::gain_controller2::{
-    GainController2Config, InputVolumeControllerRuntimeConfig,
-};
-use aec3::graph::{
-    GraphBuilder, GraphError, InPort, OutPort, Packet, PacketMeta, QueueConfig, Runtime, Sink,
-    Source,
-};
-use aec3::nodes::agc2;
-use aec3::nodes::audio::{AudioChunk, AudioFormat};
-use aec3::pipelines::linear::{self, LinearPipeline};
 use std::time::{Duration, Instant};
+
+use aec3::api::config::EchoCanceller3Config;
+use aec3::api::control::EchoControl;
+use aec3::audio_processing::aec3::echo_canceller3::EchoCanceller3;
+use aec3::audio_processing::agc2::input_volume_controller::Config as InputVolumeControllerConfig;
+use aec3::audio_processing::audio_buffer::AudioBuffer;
+use aec3::audio_processing::gain_controller2::{
+    GainController2, GainController2Config, InputVolumeControllerRuntimeConfig,
+};
+use aec3::audio_processing::stream_config::StreamConfig;
 
 use nnnoiseless::DenoiseState;
 
@@ -79,12 +79,6 @@ impl Default for ProcessingSettings {
 #[error("audio processing could not start: {0}")]
 pub struct ProcessingError(String);
 
-impl From<GraphError> for ProcessingError {
-    fn from(error: GraphError) -> Self {
-        Self(error.to_string())
-    }
-}
-
 impl From<DeepFilterError> for ProcessingError {
     fn from(error: DeepFilterError) -> Self {
         Self(error.to_string())
@@ -98,7 +92,7 @@ pub struct VoiceProcessing {
     voice_analysis: bool,
     high_pass: HighPass,
     /// While echo cancellation is on.
-    echo: Option<Box<LinearPipeline>>,
+    echo: Option<Box<EchoCancellation>>,
     /// The levels of the last ticks played, oldest overwritten first.
     played: [f32; PLAYED_TICKS],
     played_next: usize,
@@ -107,7 +101,7 @@ pub struct VoiceProcessing {
     load: LoadWatch,
     /// High gave way to Standard since the last look.
     fell_back: bool,
-    gain: Option<Stage>,
+    gain: Option<Box<GainControl>>,
     denoise: Box<DenoiseState<'static>>,
     scaled: [f32; TICK],
     cleaned: [f32; TICK],
@@ -120,13 +114,17 @@ impl VoiceProcessing {
     pub fn new(settings: ProcessingSettings) -> Result<Self, ProcessingError> {
         Ok(Self {
             high_pass: HighPass::default(),
-            echo: echo_canceller(settings.echo_cancellation)?,
+            echo: settings
+                .echo_cancellation
+                .then(|| Box::new(EchoCancellation::new())),
             played: [f32::MIN; PLAYED_TICKS],
             played_next: 0,
             high: high(settings.noise_suppression)?,
             load: LoadWatch::default(),
             fell_back: false,
-            gain: settings.automatic_gain.then(Stage::gain).transpose()?,
+            gain: settings
+                .automatic_gain
+                .then(|| Box::new(GainControl::new())),
             settings,
             voice_analysis: false,
             denoise: DenoiseState::new(),
@@ -144,14 +142,18 @@ impl VoiceProcessing {
     /// Takes new settings; the parts that changed start over.
     pub fn set_settings(&mut self, settings: ProcessingSettings) -> Result<(), ProcessingError> {
         if settings.echo_cancellation != self.settings.echo_cancellation {
-            self.echo = echo_canceller(settings.echo_cancellation)?;
+            self.echo = settings
+                .echo_cancellation
+                .then(|| Box::new(EchoCancellation::new()));
         }
         if settings.noise_suppression != self.settings.noise_suppression {
             self.high = high(settings.noise_suppression)?;
             self.load = LoadWatch::default();
         }
         if settings.automatic_gain != self.settings.automatic_gain {
-            self.gain = settings.automatic_gain.then(Stage::gain).transpose()?;
+            self.gain = settings
+                .automatic_gain
+                .then(|| Box::new(GainControl::new()));
         }
         self.settings = settings;
         Ok(())
@@ -171,7 +173,7 @@ impl VoiceProcessing {
     /// A tick of everything played, for the echo canceller.
     pub fn render(&mut self, tick: &[f32]) {
         if let Some(echo) = &mut self.echo {
-            let _ = echo.handle_render_frame(tick);
+            echo.render(tick);
         }
         self.played[self.played_next] = dbfs(tick);
         self.played_next = (self.played_next + 1) % PLAYED_TICKS;
@@ -185,9 +187,7 @@ impl VoiceProcessing {
         self.high_pass.process(tick);
         let mut echo_only = false;
         if let Some(echo) = &mut self.echo {
-            if let Ok(true) = echo.process_capture_frame(tick, &mut self.cleaned) {
-                tick.copy_from_slice(&self.cleaned);
-            }
+            echo.capture(tick);
             let played = self.played.iter().copied().fold(f32::MIN, f32::max);
             echo_only = played > FAR_END_DBFS && played - dbfs(tick) >= ECHO_MARGIN_DB;
         }
@@ -204,7 +204,7 @@ impl VoiceProcessing {
         if let Some(gain) = &mut self.gain
             && !echo_only
         {
-            let _ = gain.process(tick);
+            gain.process(tick);
         }
         Heard {
             voice_probability,
@@ -302,21 +302,90 @@ impl LoadWatch {
     }
 }
 
-fn format() -> AudioFormat {
-    AudioFormat::ten_ms(SAMPLE_RATE, 1)
+/// A 10 ms buffer at 48 kHz, mono, as aec3's processing modules take it.
+fn audio_buffer() -> AudioBuffer {
+    let rate = SAMPLE_RATE as usize;
+    AudioBuffer::from_sample_rates(rate, 1, rate, 1, rate)
 }
 
-fn echo_canceller(on: bool) -> Result<Option<Box<LinearPipeline>>, ProcessingError> {
-    if !on {
-        return Ok(None);
+fn stream() -> StreamConfig {
+    StreamConfig::new(SAMPLE_RATE as usize, 1, false)
+}
+
+/// AEC3, driven as aec3's own node drives it but without its graph
+/// runtime, which cost a third of the time: a buffer per direction, split
+/// into frequency bands.
+struct EchoCancellation {
+    canceller: EchoCanceller3,
+    render: AudioBuffer,
+    capture: AudioBuffer,
+    stream: StreamConfig,
+}
+
+impl EchoCancellation {
+    fn new() -> Self {
+        Self {
+            canceller: EchoCanceller3::with_multichannel_config(
+                EchoCanceller3Config::default(),
+                Some(EchoCanceller3Config::create_default_multichannel_config()),
+                SAMPLE_RATE as i32,
+                1,
+                1,
+            ),
+            render: audio_buffer(),
+            capture: audio_buffer(),
+            stream: stream(),
+        }
     }
-    let pipeline = linear::builder(format(), format())
-        .enable_high_pass_filter(false)
-        .enable_noise_suppression(false)
-        .enable_gain_controller2(false)
-        .enable_post_filter(false)
-        .build()?;
-    Ok(Some(Box::new(pipeline)))
+
+    fn render(&mut self, tick: &[f32]) {
+        self.render.copy_from(&[tick], &self.stream);
+        self.render.split_into_frequency_bands();
+        self.canceller.analyze_render(&mut self.render);
+    }
+
+    fn capture(&mut self, tick: &mut [f32]) {
+        self.capture.copy_from(&[tick], &self.stream);
+        self.canceller.analyze_capture(&mut self.capture);
+        self.capture.split_into_frequency_bands();
+        self.canceller.process_capture(&mut self.capture, false);
+        self.capture.merge_frequency_bands();
+        self.capture.copy_to_stream(&self.stream, &mut [tick]);
+    }
+}
+
+/// AGC2, without the graph runtime either.
+struct GainControl {
+    controller: GainController2,
+    buffer: AudioBuffer,
+    stream: StreamConfig,
+}
+
+impl GainControl {
+    fn new() -> Self {
+        // The operating system's microphone volume is not ours to steer.
+        let config = GainController2Config {
+            input_volume_controller: InputVolumeControllerRuntimeConfig { enabled: false },
+            ..GainController2Config::default()
+        };
+        Self {
+            controller: GainController2::new(
+                config,
+                InputVolumeControllerConfig::default(),
+                SAMPLE_RATE as usize,
+                1,
+                true,
+            ),
+            buffer: audio_buffer(),
+            stream: stream(),
+        }
+    }
+
+    fn process(&mut self, tick: &mut [f32]) {
+        self.buffer.copy_from(&[tick], &self.stream);
+        self.controller.process(false, &mut self.buffer);
+        self.buffer.copy_to_stream(&self.stream, &mut [tick]);
+    }
 }
 
 /// A second-order Butterworth high-pass at 100 Hz, which is what WebRTC's
@@ -362,71 +431,6 @@ impl HighPass {
             self.state[1] = b2 * x - a2 * y;
             *sample = y as f32;
         }
-    }
-}
-
-/// A graph of one capture-side node: a tick in, a tick out.
-struct Stage {
-    runtime: Runtime,
-    input: Source<AudioChunk>,
-    output: Sink<AudioChunk>,
-    sequence: u64,
-}
-
-impl Stage {
-    fn gain() -> Result<Self, GraphError> {
-        // The operating system's microphone volume is not ours to steer.
-        let config = GainController2Config {
-            input_volume_controller: InputVolumeControllerRuntimeConfig { enabled: false },
-            ..GainController2Config::default()
-        };
-        Self::build(|graph| {
-            let node = agc2::builder(format())
-                .config(config)
-                .with_applied_input_volume(false)
-                .with_capture_output_used(false)
-                .with_recommended_input_volume(false)
-                .add_to(graph)?;
-            Ok((node.audio_in, node.audio_out))
-        })
-    }
-
-    fn build(
-        node: impl FnOnce(
-            &mut GraphBuilder,
-        ) -> Result<(InPort<AudioChunk>, OutPort<AudioChunk>), GraphError>,
-    ) -> Result<Self, GraphError> {
-        let mut graph = GraphBuilder::new();
-        let input = graph.source::<AudioChunk>("in");
-        let output = graph.sink::<AudioChunk>("out", QueueConfig::audio_default());
-        let (node_in, node_out) = node(&mut graph)?;
-        graph.connect(input, node_in)?;
-        graph.connect(node_out, output)?;
-        Ok(Self {
-            runtime: Runtime::new(graph.build()?)?,
-            input,
-            output,
-            sequence: 0,
-        })
-    }
-
-    fn process(&mut self, tick: &mut [f32]) -> Result<(), GraphError> {
-        self.sequence += 1;
-        self.runtime.push(
-            self.input,
-            Packet {
-                meta: PacketMeta {
-                    sequence: Some(self.sequence),
-                    ..PacketMeta::default()
-                },
-                payload: AudioChunk::from_interleaved(format(), tick),
-            },
-        )?;
-        self.runtime.run_until_stalled()?;
-        if let Some(packet) = self.runtime.try_pull(self.output)? {
-            tick.copy_from_slice(packet.payload().samples());
-        }
-        Ok(())
     }
 }
 

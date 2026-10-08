@@ -782,4 +782,80 @@ mod tests {
             "stopped at tick {stopped_at}"
         );
     }
+
+    /// Plan §16.1's audio processing budget, measured: run with
+    /// `--release --ignored --nocapture`.
+    #[test]
+    #[ignore = "a measurement; run in a release build"]
+    fn processing_time_per_tick() {
+        const TICKS: usize = 3_000;
+        let far = at_level(&speech(), -20.0);
+        let near: Vec<f32> = at_level(&speech(), -25.0).into_iter().rev().collect();
+        let noise = at_level(&crate::audio::fixtures::noise("fan", far.len()), -40.0);
+        let tick_at = |index: usize| {
+            let start = (index * TICK) % (far.len() - TICK);
+            start..start + TICK
+        };
+        for mode in [NoiseSuppression::Standard, NoiseSuppression::High] {
+            // The voice processing alone: high-pass filter, echo
+            // cancellation, noise suppression, gain control.
+            let mut processing = VoiceProcessing::new(ProcessingSettings {
+                noise_suppression: mode,
+                ..ProcessingSettings::default()
+            })
+            .unwrap();
+            processing.set_voice_analysis(true);
+            let started = Instant::now();
+            for index in 0..TICKS {
+                let range = tick_at(index);
+                processing.render(&far[range.clone()]);
+                let mut tick: Vec<f32> = (0..TICK)
+                    .map(|i| {
+                        far[range.start + i] * 0.316
+                            + near[range.start + i]
+                            + noise[range.start + i]
+                    })
+                    .collect();
+                processing.capture(&mut tick);
+            }
+            let processing_us = started.elapsed().as_secs_f64() * 1e6 / TICKS as f64;
+
+            // The whole audio tick: that, Opus both ways, one voice heard.
+            let mut alice = Processor::new(settings(), (SAMPLE_RATE, 1), (SAMPLE_RATE, 1)).unwrap();
+            let mut bob =
+                Processor::new(defaults(mode), (SAMPLE_RATE, 1), (SAMPLE_RATE, 1)).unwrap();
+            let mut frames = Vec::new();
+            for index in 0..TICKS {
+                alice.capture(&far[tick_at(index)], |frame| frames.push((index, frame)));
+            }
+            let start = Instant::now();
+            let mut arrivals = frames.into_iter().peekable();
+            let mut out = vec![0.0; TICK];
+            let started = Instant::now();
+            for index in 0..TICKS {
+                let now = start + Duration::from_millis(index as u64 * 10);
+                while let Some((_, frame)) = arrivals.next_if(|(at, _)| *at <= index) {
+                    bob.receive(
+                        1,
+                        frame.position as u32,
+                        frame.marker,
+                        Arc::from(&frame.payload[..]),
+                        now,
+                    );
+                }
+                bob.play(now, &mut out);
+                let range = tick_at(index);
+                let heard: Vec<f32> = (0..TICK)
+                    .map(|i| out[i] * 0.316 + near[range.start + i] + noise[range.start + i])
+                    .collect();
+                bob.capture(&heard, |_| {});
+            }
+            let whole_us = started.elapsed().as_secs_f64() * 1e6 / TICKS as f64;
+            println!(
+                "{mode:?}: processing {processing_us:.0} us per 10 ms tick ({:.1} % of a core), whole audio tick {whole_us:.0} us ({:.1} %)",
+                processing_us / 100.0,
+                whole_us / 100.0
+            );
+        }
+    }
 }
