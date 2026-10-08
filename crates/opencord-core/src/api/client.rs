@@ -13,10 +13,10 @@ use tokio::runtime::Runtime;
 
 use super::types::{
     AddServerOutcome, AudioDevices, AudioSettings, Ban, Channel, ChannelChanges, ChannelKind,
-    ChannelPosition, CoreError, CoreEvent, GeneratedIdentity, IdentityInfo, Invite, MediaEvent,
-    Member, Message, NoiseSuppressionMode, OverwriteTargetKind, PermissionOverwrite,
-    PresenceStatus, Role, RoleChanges, Server, ServerChanges, ServerInfo, TrustedFingerprint, User,
-    VoiceSettings, VoiceSettingsChanges, VoiceState,
+    ChannelPosition, CoreError, CoreEvent, GeneratedIdentity, HotkeyBinding, HotkeySupport,
+    IdentityInfo, Invite, MediaEvent, Member, Message, NoiseSuppressionMode, OverwriteTargetKind,
+    PermissionOverwrite, PresenceStatus, Role, RoleChanges, Server, ServerChanges, ServerInfo,
+    TrustedFingerprint, User, VoiceSettings, VoiceSettingsChanges, VoiceState,
 };
 use crate::client::Client;
 use crate::frb_generated::StreamSink;
@@ -516,6 +516,13 @@ pub fn voice_set_push_to_talk(held: bool) -> Result<(), CoreError> {
 pub fn voice_set_priority_speaker(held: bool) -> Result<(), CoreError> {
     client()?.set_priority_speaker(held);
     Ok(())
+}
+
+/// Binds global hotkeys (plan §7.13), replacing the ones bound before; an
+/// empty list unbinds them. Says whether they work while Opencord is in the
+/// background; when not, the app handles them while focused.
+pub async fn hotkeys_set(bindings: Vec<HotkeyBinding>) -> Result<HotkeySupport, CoreError> {
+    on_runtime(move |client| async move { client.set_hotkeys(&bindings).await }).await
 }
 
 /// Report the microphone's level (`MediaEvent::InputLevel`) while a meter

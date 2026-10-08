@@ -979,6 +979,9 @@ class RustRepository implements OpencordRepository {
     core.MediaEvent_SpeakingWhileMuted() => const SpokeWhileMuted(),
     core.MediaEvent_NoiseSuppressionFellBack() =>
       const NoiseSuppressionFellBack(),
+    core.MediaEvent_HotkeyPressed(:final action) => HotkeyPressed(
+      hotkeyActionFrom(action),
+    ),
   });
 
   @override
@@ -1005,6 +1008,20 @@ class RustRepository implements OpencordRepository {
   @override
   Future<NoiseSuppression> recommendedNoiseSuppression() async =>
       noiseSuppressionFrom(await _call(_core.audioRecommendedNoiseSuppression));
+
+  @override
+  Future<HotkeySupport> setHotkeys(Map<HotkeyAction, String> bindings) async =>
+      hotkeySupportFrom(
+        await _call(
+          () => _core.hotkeysSet([
+            for (final MapEntry(:key, :value) in bindings.entries)
+              core.HotkeyBinding(
+                action: hotkeyActionTo(key),
+                accelerator: value,
+              ),
+          ]),
+        ),
+      );
 
   @override
   void setUserVolume(String serverKey, int userId, int volume) =>

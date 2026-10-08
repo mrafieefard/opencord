@@ -450,3 +450,24 @@ NoiseSuppression noiseSuppressionFrom(core.NoiseSuppressionMode mode) =>
       core.NoiseSuppressionMode.standard => NoiseSuppression.standard,
       core.NoiseSuppressionMode.high => NoiseSuppression.high,
     };
+
+core.HotkeyAction hotkeyActionTo(HotkeyAction action) => switch (action) {
+  HotkeyAction.pushToTalk => core.HotkeyAction.pushToTalk,
+  HotkeyAction.prioritySpeaker => core.HotkeyAction.prioritySpeaker,
+  HotkeyAction.toggleMute => core.HotkeyAction.toggleMute,
+  HotkeyAction.toggleDeafen => core.HotkeyAction.toggleDeafen,
+};
+
+HotkeyAction hotkeyActionFrom(core.HotkeyAction action) => switch (action) {
+  core.HotkeyAction.pushToTalk => HotkeyAction.pushToTalk,
+  core.HotkeyAction.prioritySpeaker => HotkeyAction.prioritySpeaker,
+  core.HotkeyAction.toggleMute => HotkeyAction.toggleMute,
+  core.HotkeyAction.toggleDeafen => HotkeyAction.toggleDeafen,
+};
+
+HotkeySupport hotkeySupportFrom(core.HotkeySupport support) =>
+    switch (support) {
+      core.HotkeySupport_Global(:final method) => HotkeySupport.global(method),
+      core.HotkeySupport_FocusedOnly(:final reason) =>
+        HotkeySupport.focusedOnly(reason),
+    };

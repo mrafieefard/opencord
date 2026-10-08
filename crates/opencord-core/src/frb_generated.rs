@@ -39,7 +39,7 @@ flutter_rust_bridge::frb_generated_boilerplate!(
     default_rust_auto_opaque = RustAutoOpaqueMoi,
 );
 pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_VERSION: &str = "2.13.0";
-pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -544480472;
+pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = 902250625;
 
 // Section: executor
 
@@ -911,6 +911,43 @@ fn wire__crate__api__client__fetch_messages_impl(
                             api_limit,
                         )
                         .await?;
+                        std::result::Result::Ok(output_ok)
+                    })()
+                    .await,
+                )
+            }
+        },
+    )
+}
+fn wire__crate__api__client__hotkeys_set_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::SseCodec, _, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "hotkeys_set",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_bindings =
+                <Vec<crate::api::types::HotkeyBinding>>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| async move {
+                transform_result_sse::<_, crate::api::types::CoreError>(
+                    (move || async move {
+                        let output_ok = crate::api::client::hotkeys_set(api_bindings).await?;
                         std::result::Result::Ok(output_ok)
                     })()
                     .await,
@@ -3142,6 +3179,52 @@ impl SseDecode for crate::api::types::GeneratedIdentity {
     }
 }
 
+impl SseDecode for crate::api::types::HotkeyAction {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut inner = <i32>::sse_decode(deserializer);
+        return match inner {
+            0 => crate::api::types::HotkeyAction::PushToTalk,
+            1 => crate::api::types::HotkeyAction::PrioritySpeaker,
+            2 => crate::api::types::HotkeyAction::ToggleMute,
+            3 => crate::api::types::HotkeyAction::ToggleDeafen,
+            _ => unreachable!("Invalid variant for HotkeyAction: {}", inner),
+        };
+    }
+}
+
+impl SseDecode for crate::api::types::HotkeyBinding {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_action = <crate::api::types::HotkeyAction>::sse_decode(deserializer);
+        let mut var_accelerator = <String>::sse_decode(deserializer);
+        return crate::api::types::HotkeyBinding {
+            action: var_action,
+            accelerator: var_accelerator,
+        };
+    }
+}
+
+impl SseDecode for crate::api::types::HotkeySupport {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut tag_ = <i32>::sse_decode(deserializer);
+        match tag_ {
+            0 => {
+                let mut var_method = <String>::sse_decode(deserializer);
+                return crate::api::types::HotkeySupport::Global { method: var_method };
+            }
+            1 => {
+                let mut var_reason = <String>::sse_decode(deserializer);
+                return crate::api::types::HotkeySupport::FocusedOnly { reason: var_reason };
+            }
+            _ => {
+                unimplemented!("");
+            }
+        }
+    }
+}
+
 impl SseDecode for i32 {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -3249,6 +3332,18 @@ impl SseDecode for Vec<crate::api::types::ChannelPosition> {
             ans_.push(<crate::api::types::ChannelPosition>::sse_decode(
                 deserializer,
             ));
+        }
+        return ans_;
+    }
+}
+
+impl SseDecode for Vec<crate::api::types::HotkeyBinding> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut len_ = <i32>::sse_decode(deserializer);
+        let mut ans_ = Vec::with_capacity(len_ as usize);
+        for idx_ in 0..len_ {
+            ans_.push(<crate::api::types::HotkeyBinding>::sse_decode(deserializer));
         }
         return ans_;
     }
@@ -3460,6 +3555,10 @@ impl SseDecode for crate::api::types::MediaEvent {
             }
             7 => {
                 return crate::api::types::MediaEvent::NoiseSuppressionFellBack;
+            }
+            8 => {
+                let mut var_action = <crate::api::types::HotkeyAction>::sse_decode(deserializer);
+                return crate::api::types::MediaEvent::HotkeyPressed { action: var_action };
             }
             _ => {
                 unimplemented!("");
@@ -4013,47 +4112,48 @@ fn pde_ffi_dispatcher_primary_impl(
         21 => wire__crate__api__client__fetch_bans_impl(port, ptr, rust_vec_len, data_len),
         22 => wire__crate__api__client__fetch_invites_impl(port, ptr, rust_vec_len, data_len),
         23 => wire__crate__api__client__fetch_messages_impl(port, ptr, rust_vec_len, data_len),
-        30 => wire__crate__api__system__init_app_impl(port, ptr, rust_vec_len, data_len),
-        31 => wire__crate__api__client__kick_member_impl(port, ptr, rust_vec_len, data_len),
-        32 => wire__crate__api__client__media_event_stream_impl(port, ptr, rust_vec_len, data_len),
-        33 => wire__crate__api__client__remove_member_role_impl(port, ptr, rust_vec_len, data_len),
-        34 => wire__crate__api__client__reorder_channels_impl(port, ptr, rust_vec_len, data_len),
-        35 => wire__crate__api__client__reorder_roles_impl(port, ptr, rust_vec_len, data_len),
-        36 => wire__crate__api__client__revoke_invite_impl(port, ptr, rust_vec_len, data_len),
-        37 => wire__crate__api__types__role_changes_default_impl(port, ptr, rust_vec_len, data_len),
-        38 => wire__crate__api__client__send_message_impl(port, ptr, rust_vec_len, data_len),
-        39 => wire__crate__api__client__server_add_impl(port, ptr, rust_vec_len, data_len),
-        40 => {
+        24 => wire__crate__api__client__hotkeys_set_impl(port, ptr, rust_vec_len, data_len),
+        31 => wire__crate__api__system__init_app_impl(port, ptr, rust_vec_len, data_len),
+        32 => wire__crate__api__client__kick_member_impl(port, ptr, rust_vec_len, data_len),
+        33 => wire__crate__api__client__media_event_stream_impl(port, ptr, rust_vec_len, data_len),
+        34 => wire__crate__api__client__remove_member_role_impl(port, ptr, rust_vec_len, data_len),
+        35 => wire__crate__api__client__reorder_channels_impl(port, ptr, rust_vec_len, data_len),
+        36 => wire__crate__api__client__reorder_roles_impl(port, ptr, rust_vec_len, data_len),
+        37 => wire__crate__api__client__revoke_invite_impl(port, ptr, rust_vec_len, data_len),
+        38 => wire__crate__api__types__role_changes_default_impl(port, ptr, rust_vec_len, data_len),
+        39 => wire__crate__api__client__send_message_impl(port, ptr, rust_vec_len, data_len),
+        40 => wire__crate__api__client__server_add_impl(port, ptr, rust_vec_len, data_len),
+        41 => {
             wire__crate__api__types__server_changes_default_impl(port, ptr, rust_vec_len, data_len)
         }
-        41 => wire__crate__api__client__server_remove_impl(port, ptr, rust_vec_len, data_len),
-        42 => wire__crate__api__client__server_retry_now_impl(port, ptr, rust_vec_len, data_len),
-        45 => {
+        42 => wire__crate__api__client__server_remove_impl(port, ptr, rust_vec_len, data_len),
+        43 => wire__crate__api__client__server_retry_now_impl(port, ptr, rust_vec_len, data_len),
+        46 => {
             wire__crate__api__client__set_channel_overwrite_impl(port, ptr, rust_vec_len, data_len)
         }
-        48 => wire__crate__api__client__start_typing_impl(port, ptr, rust_vec_len, data_len),
-        50 => wire__crate__api__client__unban_member_impl(port, ptr, rust_vec_len, data_len),
-        51 => wire__crate__api__client__update_channel_impl(port, ptr, rust_vec_len, data_len),
-        52 => wire__crate__api__client__update_nickname_impl(port, ptr, rust_vec_len, data_len),
-        53 => wire__crate__api__client__update_presence_impl(port, ptr, rust_vec_len, data_len),
-        54 => wire__crate__api__client__update_profile_impl(port, ptr, rust_vec_len, data_len),
-        55 => wire__crate__api__client__update_role_impl(port, ptr, rust_vec_len, data_len),
-        56 => wire__crate__api__client__update_server_impl(port, ptr, rust_vec_len, data_len),
-        57 => {
+        49 => wire__crate__api__client__start_typing_impl(port, ptr, rust_vec_len, data_len),
+        51 => wire__crate__api__client__unban_member_impl(port, ptr, rust_vec_len, data_len),
+        52 => wire__crate__api__client__update_channel_impl(port, ptr, rust_vec_len, data_len),
+        53 => wire__crate__api__client__update_nickname_impl(port, ptr, rust_vec_len, data_len),
+        54 => wire__crate__api__client__update_presence_impl(port, ptr, rust_vec_len, data_len),
+        55 => wire__crate__api__client__update_profile_impl(port, ptr, rust_vec_len, data_len),
+        56 => wire__crate__api__client__update_role_impl(port, ptr, rust_vec_len, data_len),
+        57 => wire__crate__api__client__update_server_impl(port, ptr, rust_vec_len, data_len),
+        58 => {
             wire__crate__api__client__update_voice_settings_impl(port, ptr, rust_vec_len, data_len)
         }
-        58 => wire__crate__api__client__voice_disconnect_member_impl(
+        59 => wire__crate__api__client__voice_disconnect_member_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        59 => wire__crate__api__client__voice_join_impl(port, ptr, rust_vec_len, data_len),
-        60 => wire__crate__api__client__voice_leave_impl(port, ptr, rust_vec_len, data_len),
-        61 => wire__crate__api__client__voice_move_member_impl(port, ptr, rust_vec_len, data_len),
-        62 => wire__crate__api__client__voice_server_deafen_impl(port, ptr, rust_vec_len, data_len),
-        63 => wire__crate__api__client__voice_server_mute_impl(port, ptr, rust_vec_len, data_len),
-        70 => wire__crate__api__types__voice_settings_changes_default_impl(
+        60 => wire__crate__api__client__voice_join_impl(port, ptr, rust_vec_len, data_len),
+        61 => wire__crate__api__client__voice_leave_impl(port, ptr, rust_vec_len, data_len),
+        62 => wire__crate__api__client__voice_move_member_impl(port, ptr, rust_vec_len, data_len),
+        63 => wire__crate__api__client__voice_server_deafen_impl(port, ptr, rust_vec_len, data_len),
+        64 => wire__crate__api__client__voice_server_mute_impl(port, ptr, rust_vec_len, data_len),
+        71 => wire__crate__api__types__voice_settings_changes_default_impl(
             port,
             ptr,
             rust_vec_len,
@@ -4074,25 +4174,25 @@ fn pde_ffi_dispatcher_sync_impl(
         2 => wire__crate__api__client__audio_apply_settings_impl(ptr, rust_vec_len, data_len),
         7 => wire__crate__api__client__audio_set_level_meter_impl(ptr, rust_vec_len, data_len),
         11 => wire__crate__api__system__core_version_impl(ptr, rust_vec_len, data_len),
-        24 => wire__crate__api__client__identity_backup_decode_impl(ptr, rust_vec_len, data_len),
-        25 => wire__crate__api__client__identity_backup_encode_impl(ptr, rust_vec_len, data_len),
-        26 => wire__crate__api__client__identity_check_impl(ptr, rust_vec_len, data_len),
-        27 => wire__crate__api__client__identity_generate_impl(ptr, rust_vec_len, data_len),
-        28 => wire__crate__api__client__identity_load_impl(ptr, rust_vec_len, data_len),
-        29 => wire__crate__api__client__init_impl(ptr, rust_vec_len, data_len),
-        43 => wire__crate__api__client__server_trust_fingerprint_impl(ptr, rust_vec_len, data_len),
-        44 => wire__crate__api__client__servers_list_impl(ptr, rust_vec_len, data_len),
-        46 => wire__crate__api__client__settings_get_impl(ptr, rust_vec_len, data_len),
-        47 => wire__crate__api__client__settings_set_impl(ptr, rust_vec_len, data_len),
-        49 => wire__crate__api__client__trusted_fingerprints_impl(ptr, rust_vec_len, data_len),
-        64 => {
+        25 => wire__crate__api__client__identity_backup_decode_impl(ptr, rust_vec_len, data_len),
+        26 => wire__crate__api__client__identity_backup_encode_impl(ptr, rust_vec_len, data_len),
+        27 => wire__crate__api__client__identity_check_impl(ptr, rust_vec_len, data_len),
+        28 => wire__crate__api__client__identity_generate_impl(ptr, rust_vec_len, data_len),
+        29 => wire__crate__api__client__identity_load_impl(ptr, rust_vec_len, data_len),
+        30 => wire__crate__api__client__init_impl(ptr, rust_vec_len, data_len),
+        44 => wire__crate__api__client__server_trust_fingerprint_impl(ptr, rust_vec_len, data_len),
+        45 => wire__crate__api__client__servers_list_impl(ptr, rust_vec_len, data_len),
+        47 => wire__crate__api__client__settings_get_impl(ptr, rust_vec_len, data_len),
+        48 => wire__crate__api__client__settings_set_impl(ptr, rust_vec_len, data_len),
+        50 => wire__crate__api__client__trusted_fingerprints_impl(ptr, rust_vec_len, data_len),
+        65 => {
             wire__crate__api__client__voice_set_priority_speaker_impl(ptr, rust_vec_len, data_len)
         }
-        65 => wire__crate__api__client__voice_set_push_to_talk_impl(ptr, rust_vec_len, data_len),
-        66 => wire__crate__api__client__voice_set_self_deaf_impl(ptr, rust_vec_len, data_len),
-        67 => wire__crate__api__client__voice_set_self_mute_impl(ptr, rust_vec_len, data_len),
-        68 => wire__crate__api__client__voice_set_user_local_mute_impl(ptr, rust_vec_len, data_len),
-        69 => wire__crate__api__client__voice_set_user_volume_impl(ptr, rust_vec_len, data_len),
+        66 => wire__crate__api__client__voice_set_push_to_talk_impl(ptr, rust_vec_len, data_len),
+        67 => wire__crate__api__client__voice_set_self_deaf_impl(ptr, rust_vec_len, data_len),
+        68 => wire__crate__api__client__voice_set_self_mute_impl(ptr, rust_vec_len, data_len),
+        69 => wire__crate__api__client__voice_set_user_local_mute_impl(ptr, rust_vec_len, data_len),
+        70 => wire__crate__api__client__voice_set_user_volume_impl(ptr, rust_vec_len, data_len),
         _ => unreachable!(),
     }
 }
@@ -4637,6 +4737,77 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::types::GeneratedIdentity>
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::types::HotkeyAction {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        match self {
+            Self::PushToTalk => 0.into_dart(),
+            Self::PrioritySpeaker => 1.into_dart(),
+            Self::ToggleMute => 2.into_dart(),
+            Self::ToggleDeafen => 3.into_dart(),
+            _ => unreachable!(),
+        }
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::api::types::HotkeyAction
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::types::HotkeyAction>
+    for crate::api::types::HotkeyAction
+{
+    fn into_into_dart(self) -> crate::api::types::HotkeyAction {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::types::HotkeyBinding {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.action.into_into_dart().into_dart(),
+            self.accelerator.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::api::types::HotkeyBinding
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::types::HotkeyBinding>
+    for crate::api::types::HotkeyBinding
+{
+    fn into_into_dart(self) -> crate::api::types::HotkeyBinding {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::types::HotkeySupport {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        match self {
+            crate::api::types::HotkeySupport::Global { method } => {
+                [0.into_dart(), method.into_into_dart().into_dart()].into_dart()
+            }
+            crate::api::types::HotkeySupport::FocusedOnly { reason } => {
+                [1.into_dart(), reason.into_into_dart().into_dart()].into_dart()
+            }
+            _ => {
+                unimplemented!("");
+            }
+        }
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::api::types::HotkeySupport
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::types::HotkeySupport>
+    for crate::api::types::HotkeySupport
+{
+    fn into_into_dart(self) -> crate::api::types::HotkeySupport {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
 impl flutter_rust_bridge::IntoDart for crate::api::types::IdentityInfo {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
@@ -4724,6 +4895,9 @@ impl flutter_rust_bridge::IntoDart for crate::api::types::MediaEvent {
             }
             crate::api::types::MediaEvent::SpeakingWhileMuted => [6.into_dart()].into_dart(),
             crate::api::types::MediaEvent::NoiseSuppressionFellBack => [7.into_dart()].into_dart(),
+            crate::api::types::MediaEvent::HotkeyPressed { action } => {
+                [8.into_dart(), action.into_into_dart().into_dart()].into_dart()
+            }
             _ => {
                 unimplemented!("");
             }
@@ -5680,6 +5854,51 @@ impl SseEncode for crate::api::types::GeneratedIdentity {
     }
 }
 
+impl SseEncode for crate::api::types::HotkeyAction {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i32>::sse_encode(
+            match self {
+                crate::api::types::HotkeyAction::PushToTalk => 0,
+                crate::api::types::HotkeyAction::PrioritySpeaker => 1,
+                crate::api::types::HotkeyAction::ToggleMute => 2,
+                crate::api::types::HotkeyAction::ToggleDeafen => 3,
+                _ => {
+                    unimplemented!("");
+                }
+            },
+            serializer,
+        );
+    }
+}
+
+impl SseEncode for crate::api::types::HotkeyBinding {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <crate::api::types::HotkeyAction>::sse_encode(self.action, serializer);
+        <String>::sse_encode(self.accelerator, serializer);
+    }
+}
+
+impl SseEncode for crate::api::types::HotkeySupport {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        match self {
+            crate::api::types::HotkeySupport::Global { method } => {
+                <i32>::sse_encode(0, serializer);
+                <String>::sse_encode(method, serializer);
+            }
+            crate::api::types::HotkeySupport::FocusedOnly { reason } => {
+                <i32>::sse_encode(1, serializer);
+                <String>::sse_encode(reason, serializer);
+            }
+            _ => {
+                unimplemented!("");
+            }
+        }
+    }
+}
+
 impl SseEncode for i32 {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -5761,6 +5980,16 @@ impl SseEncode for Vec<crate::api::types::ChannelPosition> {
         <i32>::sse_encode(self.len() as _, serializer);
         for item in self {
             <crate::api::types::ChannelPosition>::sse_encode(item, serializer);
+        }
+    }
+}
+
+impl SseEncode for Vec<crate::api::types::HotkeyBinding> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i32>::sse_encode(self.len() as _, serializer);
+        for item in self {
+            <crate::api::types::HotkeyBinding>::sse_encode(item, serializer);
         }
     }
 }
@@ -5932,6 +6161,10 @@ impl SseEncode for crate::api::types::MediaEvent {
             }
             crate::api::types::MediaEvent::NoiseSuppressionFellBack => {
                 <i32>::sse_encode(7, serializer);
+            }
+            crate::api::types::MediaEvent::HotkeyPressed { action } => {
+                <i32>::sse_encode(8, serializer);
+                <crate::api::types::HotkeyAction>::sse_encode(action, serializer);
             }
             _ => {
                 unimplemented!("");

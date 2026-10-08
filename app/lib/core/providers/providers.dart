@@ -4,7 +4,10 @@ import 'dart:math';
 
 import 'package:clock/clock.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import 'package:opencord/core/hotkeys.dart';
 
 import 'package:opencord/core/model/message.dart';
 import 'package:opencord/core/model/misc.dart';
@@ -47,7 +50,89 @@ final eventPumpProvider = Provider<void>((ref) {
     fireImmediately: true,
   );
   _chooseNoiseSuppression(ref, repository);
+  ref.listen(
+    hotkeyBindingsProvider,
+    (_, hotkeys) => _applyHotkeys(ref, repository, hotkeys),
+    fireImmediately: true,
+  );
+  final inApp = _InAppHotkeys(ref);
+  HardwareKeyboard.instance.addHandler(inApp.handle);
+  ref.onDispose(() => HardwareKeyboard.instance.removeHandler(inApp.handle));
 });
+
+/// Binds the hotkeys system-wide where the system allows (Phase 2 plan
+/// §7.13); otherwise they act only while Opencord is focused.
+void _applyHotkeys(
+  Ref ref,
+  OpencordRepository repository,
+  HotkeyBindings hotkeys,
+) {
+  void answered(HotkeySupport support) {
+    if (ref.mounted) ref.read(hotkeySupportProvider.notifier).set(support);
+  }
+
+  unawaited(
+    repository
+        .setHotkeys(hotkeys.bindings)
+        .then(
+          answered,
+          onError: (Object error) =>
+              answered(HotkeySupport.focusedOnly(error.toString())),
+        ),
+  );
+}
+
+/// The hotkeys, while Opencord is focused and the system does not bind
+/// them itself. Keys still reach everything else.
+class _InAppHotkeys {
+  _InAppHotkeys(this.ref);
+
+  final Ref ref;
+  final _held = <HotkeyAction>{};
+
+  bool handle(KeyEvent event) {
+    if (ref.read(hotkeySupportProvider) is! HotkeysFocusedOnly) return false;
+    final bindings = ref.read(hotkeyBindingsProvider).bindings;
+    for (final MapEntry(key: action, value: text) in bindings.entries) {
+      final accelerator = Accelerator.parse(text);
+      if (accelerator == null || event.logicalKey != accelerator.key) continue;
+      switch (event) {
+        case KeyDownEvent()
+            when accelerator.modifiersHeld(HardwareKeyboard.instance) &&
+                _held.add(action):
+          _act(action, pressed: true);
+        case KeyUpEvent() when _held.remove(action):
+          _act(action, pressed: false);
+        default:
+          break;
+      }
+    }
+    return false;
+  }
+
+  void _act(HotkeyAction action, {required bool pressed}) {
+    final repository = ref.read(repositoryProvider);
+    switch (action) {
+      case HotkeyAction.pushToTalk:
+        repository.setPushToTalk(pressed);
+      case HotkeyAction.prioritySpeaker:
+        repository.setPrioritySpeaker(pressed);
+      case HotkeyAction.toggleMute || HotkeyAction.toggleDeafen when pressed:
+        _toggle(ref, action);
+      case HotkeyAction.toggleMute || HotkeyAction.toggleDeafen:
+        break;
+    }
+  }
+}
+
+void _toggle(Ref ref, HotkeyAction action) {
+  final session = ref.read(voiceSessionProvider.notifier);
+  unawaited(
+    action == HotkeyAction.toggleDeafen
+        ? session.toggleDeafen()
+        : session.toggleMute(),
+  );
+}
 
 /// On the first run, High noise suppression when this computer runs it
 /// easily, Standard otherwise (Phase 2 plan §7.3). A choice made meanwhile
@@ -118,6 +203,9 @@ void _route(Ref ref, RepoEvent event) {
       return;
     case SpokeWhileMuted():
       _remindMuted(ref);
+      return;
+    case HotkeyPressed(:final action):
+      _toggle(ref, action);
       return;
     case NoiseSuppressionFellBack():
       ref
@@ -656,6 +744,20 @@ class AudioNoticeNotifier extends Notifier<AudioNotice?> {
         onAction: onAction,
       );
 }
+
+/// Whether hotkeys work while Opencord is in the background; null until
+/// the system answered.
+class HotkeySupportNotifier extends Notifier<HotkeySupport?> {
+  @override
+  HotkeySupport? build() => null;
+
+  void set(HotkeySupport support) => state = support;
+}
+
+final hotkeySupportProvider =
+    NotifierProvider<HotkeySupportNotifier, HotkeySupport?>(
+      HotkeySupportNotifier.new,
+    );
 
 /// The microphone's latest level in dBFS, while a meter shows it.
 class InputLevelNotifier extends Notifier<double?> {

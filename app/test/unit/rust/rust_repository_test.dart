@@ -978,4 +978,43 @@ void main() {
       },
     );
   });
+
+  group('hotkeys (Phase 2 V3)', () {
+    test('hotkeys go to the core, and its answer comes back', () async {
+      final harness = await _Harness.start();
+      harness.core.hotkeySupport = const core.HotkeySupport.focusedOnly(
+        reason: 'no portal',
+      );
+
+      final support = await harness.repository.setHotkeys({
+        HotkeyAction.pushToTalk: 'grave',
+        HotkeyAction.toggleDeafen: 'CTRL+SHIFT+F12',
+      });
+
+      expect(support, const HotkeySupport.focusedOnly('no portal'));
+      expect(
+        harness.core.hotkeys!.map((b) => (b.action, b.accelerator)),
+        unorderedEquals([
+          (core.HotkeyAction.pushToTalk, 'grave'),
+          (core.HotkeyAction.toggleDeafen, 'CTRL+SHIFT+F12'),
+        ]),
+      );
+    });
+
+    test('a toggle pressed anywhere reaches the app', () async {
+      final harness = await _Harness.start();
+
+      harness.core.media.add(
+        const core.MediaEvent.hotkeyPressed(
+          action: core.HotkeyAction.toggleMute,
+        ),
+      );
+      await harness.settle();
+
+      expect(
+        harness.events.whereType<HotkeyPressed>().single.action,
+        HotkeyAction.toggleMute,
+      );
+    });
+  });
 }

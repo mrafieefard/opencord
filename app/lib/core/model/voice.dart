@@ -226,6 +226,47 @@ class AudioDeviceList {
   );
 }
 
+/// What a hotkey does (Phase 2 plan §7.13).
+enum HotkeyAction { pushToTalk, prioritySpeaker, toggleMute, toggleDeafen }
+
+/// Whether hotkeys work while Opencord is in the background.
+@immutable
+sealed class HotkeySupport {
+  const HotkeySupport();
+
+  /// System-wide, through [HotkeysGlobal.method].
+  const factory HotkeySupport.global(String method) = HotkeysGlobal;
+
+  /// Only while Opencord is focused, because of [HotkeysFocusedOnly.reason].
+  const factory HotkeySupport.focusedOnly(String reason) = HotkeysFocusedOnly;
+}
+
+final class HotkeysGlobal extends HotkeySupport {
+  const HotkeysGlobal(this.method);
+
+  final String method;
+
+  @override
+  bool operator ==(Object other) =>
+      other is HotkeysGlobal && other.method == method;
+
+  @override
+  int get hashCode => method.hashCode;
+}
+
+final class HotkeysFocusedOnly extends HotkeySupport {
+  const HotkeysFocusedOnly(this.reason);
+
+  final String reason;
+
+  @override
+  bool operator ==(Object other) =>
+      other is HotkeysFocusedOnly && other.reason == reason;
+
+  @override
+  int get hashCode => reason.hashCode;
+}
+
 /// Noise suppression on the microphone (Phase 2 plan §7.3).
 enum NoiseSuppression {
   off,

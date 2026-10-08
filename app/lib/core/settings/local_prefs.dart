@@ -469,6 +469,62 @@ class AudioSettings {
   }
 }
 
+/// The hotkeys chosen on this device (Phase 2 plan §7.13): per action, a
+/// key and its modifiers as the XDG shortcuts specification writes them,
+/// such as `CTRL+SHIFT+m` or `grave`. None until chosen.
+@immutable
+class HotkeyBindings {
+  const HotkeyBindings([this.bindings = const {}]);
+
+  final Map<HotkeyAction, String> bindings;
+
+  Map<String, Object?> toJson() => {
+    for (final MapEntry(:key, :value) in bindings.entries) key.name: value,
+  };
+
+  static HotkeyBindings fromJson(Object? json) {
+    if (json is! Map) return const HotkeyBindings();
+    return HotkeyBindings({
+      for (final action in HotkeyAction.values)
+        if (json[action.name] case final String accelerator)
+          action: accelerator,
+    });
+  }
+
+  @override
+  bool operator ==(Object other) =>
+      other is HotkeyBindings && mapEquals(other.bindings, bindings);
+
+  @override
+  int get hashCode => Object.hashAllUnordered(
+    bindings.entries.map((entry) => Object.hash(entry.key, entry.value)),
+  );
+}
+
+const hotkeyBindingsKey = 'ui.hotkeys';
+
+class HotkeyBindingsNotifier extends Notifier<HotkeyBindings> {
+  @override
+  HotkeyBindings build() => HotkeyBindings.fromJson(
+    _readJson(ref.watch(keyValueStoreProvider), hotkeyBindingsKey),
+  );
+
+  /// Binds [action] to [accelerator], or unbinds it with null.
+  void bind(HotkeyAction action, String? accelerator) {
+    final bindings = {...state.bindings}..remove(action);
+    if (accelerator != null) bindings[action] = accelerator;
+    state = HotkeyBindings(bindings);
+    ref
+        .read(keyValueStoreProvider)
+        .write(hotkeyBindingsKey, jsonEncode(state.toJson()));
+  }
+}
+
+final hotkeyBindingsProvider =
+    NotifierProvider<HotkeyBindingsNotifier, HotkeyBindings>(
+      HotkeyBindingsNotifier.new,
+    );
+
 /// What a device picker offers: the system's default first, then each
 /// device.
 List<(AudioDevice?, String)> deviceChoices(List<AudioDevice> devices) => [

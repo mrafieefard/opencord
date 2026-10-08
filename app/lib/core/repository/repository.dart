@@ -389,6 +389,12 @@ abstract interface class OpencordRepository {
   /// computer runs it easily, Standard otherwise (Phase 2 plan §7.3).
   Future<NoiseSuppression> recommendedNoiseSuppression();
 
+  /// Binds the hotkeys system-wide where the system allows (Phase 2 plan
+  /// §7.13), replacing the ones bound before; says whether they work while
+  /// Opencord is in the background. Toggles pressed there arrive as
+  /// [HotkeyPressed].
+  Future<HotkeySupport> setHotkeys(Map<HotkeyAction, String> bindings);
+
   /// How loud someone sounds on this device, 0–200 %.
   void setUserVolume(String serverKey, int userId, int volume);
 

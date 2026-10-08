@@ -463,6 +463,32 @@ pub enum NoiseSuppressionMode {
     High,
 }
 
+/// What a global hotkey does (Phase 2 plan §7.13).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum HotkeyAction {
+    PushToTalk,
+    PrioritySpeaker,
+    ToggleMute,
+    ToggleDeafen,
+}
+
+/// A hotkey: a key and the modifiers held with it, as the XDG shortcuts
+/// specification writes them, such as `CTRL+SHIFT+m` or `F12`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct HotkeyBinding {
+    pub action: HotkeyAction,
+    pub accelerator: String,
+}
+
+/// Whether hotkeys work while Opencord is in the background.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum HotkeySupport {
+    /// System-wide, through `method`.
+    Global { method: String },
+    /// Only while Opencord is focused, because of `reason`.
+    FocusedOnly { reason: String },
+}
+
 /// Someone started or stopped speaking.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct SpeakingChange {
@@ -535,6 +561,9 @@ pub enum MediaEvent {
     /// High noise suppression could not keep up on this computer, so
     /// Standard took over (plan §7.3).
     NoiseSuppressionFellBack,
+    /// A global hotkey for one of the toggles was pressed (push-to-talk
+    /// and the priority key act by themselves).
+    HotkeyPressed { action: HotkeyAction },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]

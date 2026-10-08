@@ -6,8 +6,8 @@ use opencord_common::address::format_fingerprint;
 use opencord_common::permissions::Permissions;
 use opencord_core::api::types::{
     AddServerOutcome, ChannelKind, ConnectionState, CoreError, CoreEvent, CoreEventPayload,
-    FailureReason, MediaEvent, Message, ReadySnapshot, RoleChanges, VoiceConnectionState,
-    VoiceState,
+    FailureReason, HotkeyAction, HotkeyBinding, MediaEvent, Message, ReadySnapshot, RoleChanges,
+    VoiceConnectionState, VoiceState,
 };
 use opencord_core::client::Client;
 use opencord_core::identity::Identity;
@@ -952,4 +952,24 @@ async fn media_can_be_turned_on_only_once() {
 
     assert!(first.is_some());
     assert!(second.is_none());
+}
+
+#[tokio::test]
+async fn hotkeys_refuse_keys_they_cannot_use_and_say_where_they_work() {
+    let client = TestClient::new("Someone");
+
+    let refused = client
+        .client
+        .set_hotkeys(&[HotkeyBinding {
+            action: HotkeyAction::PushToTalk,
+            accelerator: "CTRL+Return".to_owned(),
+        }])
+        .await;
+    let none = client.client.set_hotkeys(&[]).await;
+
+    assert!(
+        matches!(refused, Err(CoreError::InvalidInput { .. })),
+        "{refused:?}"
+    );
+    assert!(none.is_ok(), "{none:?}");
 }

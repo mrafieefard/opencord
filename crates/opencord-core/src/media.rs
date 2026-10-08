@@ -23,9 +23,11 @@ use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
 use tokio::time::Instant;
 
+use opencord_media::hotkeys::{self, HotkeyEvent};
+
 use crate::api::types::{
-    AudioDevice, AudioDevices, AudioSettings, MediaEvent, NoiseSuppressionMode, SpeakingChange,
-    VoiceConnectionState,
+    AudioDevice, AudioDevices, AudioSettings, CoreError, HotkeyAction, HotkeyBinding,
+    HotkeySupport, MediaEvent, NoiseSuppressionMode, SpeakingChange, VoiceConnectionState,
 };
 use crate::client::Client;
 use crate::voice::VoiceServer;
@@ -221,6 +223,29 @@ impl Media {
         }
         engine.set_input_volume(new.input_volume);
         engine.set_output_volume(new.output_volume);
+    }
+
+    /// A global hotkey went down or up: push-to-talk and the priority key
+    /// act here; the toggles go to the app.
+    pub fn on_hotkey(&self, event: HotkeyEvent) {
+        match event {
+            HotkeyEvent::Pressed(hotkeys::HotkeyAction::PushToTalk) => self.set_push_to_talk(true),
+            HotkeyEvent::Released(hotkeys::HotkeyAction::PushToTalk) => {
+                self.set_push_to_talk(false)
+            }
+            HotkeyEvent::Pressed(hotkeys::HotkeyAction::PrioritySpeaker) => {
+                self.set_priority_speaker(true)
+            }
+            HotkeyEvent::Released(hotkeys::HotkeyAction::PrioritySpeaker) => {
+                self.set_priority_speaker(false)
+            }
+            HotkeyEvent::Pressed(action) => {
+                let _ = self.events.send(MediaEvent::HotkeyPressed {
+                    action: hotkey_action_from(action),
+                });
+            }
+            HotkeyEvent::Released(_) => {}
+        }
     }
 
     /// The priority speaker key went down or up.
@@ -474,6 +499,50 @@ fn processing(settings: &AudioSettings) -> ProcessingSettings {
             NoiseSuppressionMode::High => NoiseSuppression::High,
         },
         automatic_gain: settings.automatic_gain,
+    }
+}
+
+/// The app's hotkeys, checked, as the hotkeys module takes them.
+pub(crate) fn hotkey_bindings(
+    bindings: &[HotkeyBinding],
+) -> Result<Vec<hotkeys::HotkeyBinding>, CoreError> {
+    bindings
+        .iter()
+        .map(|binding| {
+            Ok(hotkeys::HotkeyBinding {
+                action: hotkey_action_to(binding.action),
+                accelerator: binding.accelerator.parse().map_err(
+                    |error: hotkeys::AcceleratorError| CoreError::InvalidInput {
+                        message: error.to_string(),
+                    },
+                )?,
+            })
+        })
+        .collect()
+}
+
+fn hotkey_action_to(action: HotkeyAction) -> hotkeys::HotkeyAction {
+    match action {
+        HotkeyAction::PushToTalk => hotkeys::HotkeyAction::PushToTalk,
+        HotkeyAction::PrioritySpeaker => hotkeys::HotkeyAction::PrioritySpeaker,
+        HotkeyAction::ToggleMute => hotkeys::HotkeyAction::ToggleMute,
+        HotkeyAction::ToggleDeafen => hotkeys::HotkeyAction::ToggleDeafen,
+    }
+}
+
+fn hotkey_action_from(action: hotkeys::HotkeyAction) -> HotkeyAction {
+    match action {
+        hotkeys::HotkeyAction::PushToTalk => HotkeyAction::PushToTalk,
+        hotkeys::HotkeyAction::PrioritySpeaker => HotkeyAction::PrioritySpeaker,
+        hotkeys::HotkeyAction::ToggleMute => HotkeyAction::ToggleMute,
+        hotkeys::HotkeyAction::ToggleDeafen => HotkeyAction::ToggleDeafen,
+    }
+}
+
+pub(crate) fn hotkey_support_from(support: hotkeys::HotkeySupport) -> HotkeySupport {
+    match support {
+        hotkeys::HotkeySupport::Global { method } => HotkeySupport::Global { method },
+        hotkeys::HotkeySupport::FocusedOnly { reason } => HotkeySupport::FocusedOnly { reason },
     }
 }
 
@@ -946,6 +1015,80 @@ mod tests {
         assert_eq!(
             speaking_flags(true, true),
             speaking::MICROPHONE | speaking::PRIORITY
+        );
+    }
+
+    fn quiet_media() -> (Media, mpsc::UnboundedReceiver<MediaEvent>) {
+        let (events, received) = mpsc::unbounded_channel();
+        let media = Media::new(
+            Handle::current(),
+            MediaOptions {
+                open_devices: false,
+            },
+            events,
+        );
+        (media, received)
+    }
+
+    #[tokio::test]
+    async fn hotkeys_hold_push_to_talk_and_the_priority_key_and_tell_the_app_of_toggles() {
+        use opencord_media::hotkeys::{HotkeyAction as Action, HotkeyEvent};
+        let (media, mut events) = quiet_media();
+
+        media.on_hotkey(HotkeyEvent::Pressed(Action::PushToTalk));
+        media.on_hotkey(HotkeyEvent::Pressed(Action::PrioritySpeaker));
+        let held = {
+            let state = media.lock();
+            (state.push_to_talk_held, state.priority_held)
+        };
+        media.on_hotkey(HotkeyEvent::Released(Action::PushToTalk));
+        media.on_hotkey(HotkeyEvent::Pressed(Action::ToggleMute));
+        media.on_hotkey(HotkeyEvent::Released(Action::ToggleMute));
+        media.on_hotkey(HotkeyEvent::Pressed(Action::ToggleDeafen));
+
+        assert_eq!(held, (true, true));
+        assert!(!media.lock().push_to_talk_held);
+        assert_eq!(
+            events.try_recv().unwrap(),
+            MediaEvent::HotkeyPressed {
+                action: HotkeyAction::ToggleMute
+            }
+        );
+        assert_eq!(
+            events.try_recv().unwrap(),
+            MediaEvent::HotkeyPressed {
+                action: HotkeyAction::ToggleDeafen
+            }
+        );
+        assert!(
+            events.try_recv().is_err(),
+            "releases of toggles say nothing"
+        );
+    }
+
+    #[test]
+    fn a_hotkey_with_a_key_it_cannot_use_is_refused() {
+        let bindings = vec![HotkeyBinding {
+            action: HotkeyAction::PushToTalk,
+            accelerator: "CTRL+Return".to_owned(),
+        }];
+
+        let refused = hotkey_bindings(&bindings);
+
+        assert_eq!(
+            refused,
+            Err(CoreError::InvalidInput {
+                message: "\"Return\" is not a key a hotkey can use".to_owned()
+            })
+        );
+        assert_eq!(
+            hotkey_bindings(&[HotkeyBinding {
+                action: HotkeyAction::ToggleDeafen,
+                accelerator: "CTRL+SHIFT+d".to_owned(),
+            }])
+            .unwrap()
+            .len(),
+            1
         );
     }
 }

@@ -219,3 +219,10 @@ final class SpokeWhileMuted extends RepoEvent {
 final class NoiseSuppressionFellBack extends RepoEvent {
   const NoiseSuppressionFellBack() : super('');
 }
+
+/// A hotkey for a toggle was pressed outside Opencord (Phase 2 plan §7.13).
+final class HotkeyPressed extends RepoEvent {
+  const HotkeyPressed(this.action) : super('');
+
+  final HotkeyAction action;
+}

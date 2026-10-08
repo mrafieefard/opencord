@@ -28,6 +28,8 @@ abstract interface class CoreApi {
 
   Future<core.NoiseSuppressionMode> audioRecommendedNoiseSuppression();
 
+  Future<core.HotkeySupport> hotkeysSet(List<core.HotkeyBinding> bindings);
+
   /// 0–2 (200 %).
   void voiceSetUserVolume(String serverKey, int userId, double volume);
 
@@ -228,6 +230,10 @@ class FrbCoreApi implements CoreApi {
   @override
   Future<core.NoiseSuppressionMode> audioRecommendedNoiseSuppression() =>
       frb.audioRecommendedNoiseSuppression();
+
+  @override
+  Future<core.HotkeySupport> hotkeysSet(List<core.HotkeyBinding> bindings) =>
+      frb.hotkeysSet(bindings: bindings);
 
   @override
   void voiceSetUserVolume(String serverKey, int userId, double volume) => frb

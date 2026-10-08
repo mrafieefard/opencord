@@ -165,6 +165,15 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   GeneratedIdentity dco_decode_generated_identity(dynamic raw);
 
   @protected
+  HotkeyAction dco_decode_hotkey_action(dynamic raw);
+
+  @protected
+  HotkeyBinding dco_decode_hotkey_binding(dynamic raw);
+
+  @protected
+  HotkeySupport dco_decode_hotkey_support(dynamic raw);
+
+  @protected
   int dco_decode_i_32(dynamic raw);
 
   @protected
@@ -190,6 +199,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   List<ChannelPosition> dco_decode_list_channel_position(dynamic raw);
+
+  @protected
+  List<HotkeyBinding> dco_decode_list_hotkey_binding(dynamic raw);
 
   @protected
   List<Invite> dco_decode_list_invite(dynamic raw);
@@ -492,6 +504,15 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   GeneratedIdentity sse_decode_generated_identity(SseDeserializer deserializer);
 
   @protected
+  HotkeyAction sse_decode_hotkey_action(SseDeserializer deserializer);
+
+  @protected
+  HotkeyBinding sse_decode_hotkey_binding(SseDeserializer deserializer);
+
+  @protected
+  HotkeySupport sse_decode_hotkey_support(SseDeserializer deserializer);
+
+  @protected
   int sse_decode_i_32(SseDeserializer deserializer);
 
   @protected
@@ -519,6 +540,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   List<ChannelPosition> sse_decode_list_channel_position(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  List<HotkeyBinding> sse_decode_list_hotkey_binding(
     SseDeserializer deserializer,
   );
 
@@ -890,6 +916,15 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_hotkey_action(HotkeyAction self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_hotkey_binding(HotkeyBinding self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_hotkey_support(HotkeySupport self, SseSerializer serializer);
+
+  @protected
   void sse_encode_i_32(int self, SseSerializer serializer);
 
   @protected
@@ -922,6 +957,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_list_channel_position(
     List<ChannelPosition> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_hotkey_binding(
+    List<HotkeyBinding> self,
     SseSerializer serializer,
   );
 

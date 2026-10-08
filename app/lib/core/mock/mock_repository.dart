@@ -1565,6 +1565,23 @@ class MockRepository implements OpencordRepository {
   Future<NoiseSuppression> recommendedNoiseSuppression() async =>
       NoiseSuppression.high;
 
+  /// What [setHotkeys] answers: the mock binds nothing system-wide.
+  HotkeySupport hotkeySupport = const HotkeySupport.focusedOnly(
+    'the mock has no system hotkeys',
+  );
+
+  /// What [setHotkeys] was last given.
+  Map<HotkeyAction, String> hotkeys = const {};
+
+  @override
+  Future<HotkeySupport> setHotkeys(Map<HotkeyAction, String> bindings) async {
+    hotkeys = bindings;
+    return hotkeySupport;
+  }
+
+  /// As the system would report: a toggle's hotkey, pressed elsewhere.
+  void debugHotkeyPressed(HotkeyAction action) => _emit(HotkeyPressed(action));
+
   @override
   void setUserVolume(String serverKey, int userId, int volume) {
     final (_, muted) = listening[(serverKey, userId)] ?? (100, false);

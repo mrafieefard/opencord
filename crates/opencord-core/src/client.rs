@@ -17,18 +17,20 @@ use tokio::sync::{broadcast, mpsc, oneshot};
 
 use crate::api::types::{
     AddServerOutcome, AudioSettings, Ban, Channel, ChannelChanges, ChannelKind, ChannelPosition,
-    CoreError, CoreEvent, CoreEventPayload, ErrorCode, IdentityInfo, Invite, MediaEvent, Member,
-    Message, OverwriteTargetKind, PermissionOverwrite, PresenceStatus, Role, RoleChanges, Server,
-    ServerChanges, ServerInfo, User, VoiceSettings, VoiceSettingsChanges, VoiceState,
+    CoreError, CoreEvent, CoreEventPayload, ErrorCode, HotkeyBinding, HotkeySupport, IdentityInfo,
+    Invite, MediaEvent, Member, Message, OverwriteTargetKind, PermissionOverwrite, PresenceStatus,
+    Role, RoleChanges, Server, ServerChanges, ServerInfo, User, VoiceSettings,
+    VoiceSettingsChanges, VoiceState,
 };
 use crate::connection::{
     self, Command, Connection, Context, Credentials, Established, HandshakeError,
 };
 use crate::convert;
 use crate::identity::Identity;
-use crate::media::{Media, MediaOptions, MediaTarget};
+use crate::media::{self, Media, MediaOptions, MediaTarget};
 use crate::store::{SavedServer, Store, StoreError};
 use crate::voice::VoiceServer;
+use opencord_media::hotkeys::Hotkeys;
 
 const INVITE_SCHEME: &str = "opencord://";
 /// Voice server updates kept for a slow listener.
@@ -53,7 +55,13 @@ struct Inner {
     voice: Mutex<Voice>,
     /// Voice media, once the app turned it on.
     media: OnceLock<Media>,
+    /// The system's global hotkeys, once the app asked for some.
+    hotkeys: tokio::sync::Mutex<Option<Hotkeys>>,
 }
+
+/// The app's id, as its desktop file names it; the system's portals ask for
+/// it.
+const APP_ID: &str = "dev.opencord.opencord";
 
 /// This device's voice: at most one channel across all servers (Phase 2
 /// plan §3.5), and the self flags it joins with.
@@ -112,6 +120,7 @@ impl Client {
                 connections: Mutex::new(HashMap::new()),
                 voice: Mutex::new(Voice::default()),
                 media: OnceLock::new(),
+                hotkeys: tokio::sync::Mutex::new(None),
             }),
         };
         let watcher: Weak<Inner> = Arc::downgrade(&client.inner);
@@ -697,6 +706,35 @@ impl Client {
         if let Some(media) = self.inner.media.get() {
             media.set_push_to_talk(held);
         }
+    }
+
+    /// Binds global hotkeys (plan §7.13), replacing the ones bound before;
+    /// none unbinds them. Push-to-talk and the priority key act on voice
+    /// media directly; the toggles come back as
+    /// `MediaEvent::HotkeyPressed`. Says whether they work while Opencord
+    /// is in the background.
+    pub async fn set_hotkeys(
+        &self,
+        bindings: &[HotkeyBinding],
+    ) -> Result<HotkeySupport, CoreError> {
+        let bindings = media::hotkey_bindings(bindings)?;
+        let mut hotkeys = self.inner.hotkeys.lock().await;
+        let hotkeys = hotkeys.get_or_insert_with(|| {
+            let (events, mut received) = mpsc::unbounded_channel();
+            let watcher = Arc::downgrade(&self.inner);
+            self.inner.runtime.spawn(async move {
+                while let Some(event) = received.recv().await {
+                    let Some(inner) = watcher.upgrade() else {
+                        return;
+                    };
+                    if let Some(media) = inner.media.get() {
+                        media.on_hotkey(event);
+                    }
+                }
+            });
+            Hotkeys::new(APP_ID, events)
+        });
+        Ok(media::hotkey_support_from(hotkeys.set(&bindings).await))
     }
 
     /// The priority speaker key went down or up.

@@ -401,6 +401,12 @@ void voiceSetPushToTalk({required bool held}) =>
 void voiceSetPrioritySpeaker({required bool held}) =>
     RustLib.instance.api.crateApiClientVoiceSetPrioritySpeaker(held: held);
 
+/// Binds global hotkeys (plan §7.13), replacing the ones bound before; an
+/// empty list unbinds them. Says whether they work while Opencord is in the
+/// background; when not, the app handles them while focused.
+Future<HotkeySupport> hotkeysSet({required List<HotkeyBinding> bindings}) =>
+    RustLib.instance.api.crateApiClientHotkeysSet(bindings: bindings);
+
 /// Report the microphone's level (`MediaEvent::InputLevel`) while a meter
 /// shows it.
 void audioSetLevelMeter({required bool enabled}) =>

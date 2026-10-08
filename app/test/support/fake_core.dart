@@ -18,6 +18,12 @@ class FakeCoreApi extends Fake implements CoreApi {
 
   /// What audioRecommendedNoiseSuppression answers.
   var recommended = core.NoiseSuppressionMode.standard;
+
+  /// What hotkeysSet was last sent, and what it answers.
+  List<core.HotkeyBinding>? hotkeys;
+  core.HotkeySupport hotkeySupport = const core.HotkeySupport.global(
+    method: 'test',
+  );
   final calls = <String>[];
   var servers = <core.Server>[];
   var identityInfo = const core.IdentityInfo(
@@ -74,6 +80,14 @@ class FakeCoreApi extends Fake implements CoreApi {
   @override
   Future<core.NoiseSuppressionMode> audioRecommendedNoiseSuppression() async =>
       recommended;
+
+  @override
+  Future<core.HotkeySupport> hotkeysSet(
+    List<core.HotkeyBinding> bindings,
+  ) async {
+    hotkeys = bindings;
+    return hotkeySupport;
+  }
 
   @override
   void voiceSetUserVolume(String serverKey, int userId, double volume) =>

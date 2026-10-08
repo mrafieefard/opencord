@@ -207,4 +207,23 @@ void main() {
       ),
     );
   });
+
+  test('hotkeys start unbound and are remembered', () {
+    final container = app(MemoryKeyValueStore());
+
+    final before = container.read(hotkeyBindingsProvider);
+    container
+        .read(hotkeyBindingsProvider.notifier)
+        .bind(HotkeyAction.pushToTalk, 'grave');
+    final restored = HotkeyBindings.fromJson(
+      container.read(hotkeyBindingsProvider).toJson(),
+    );
+
+    expect(before.bindings, isEmpty);
+    expect(restored.bindings, {HotkeyAction.pushToTalk: 'grave'});
+    expect(
+      HotkeyBindings.fromJson({'pushToTalk': 5, 'nonsense': 'F1'}).bindings,
+      isEmpty,
+    );
+  });
 }
