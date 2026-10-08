@@ -5,6 +5,7 @@
 pub mod capture;
 pub mod codec;
 pub mod convert;
+pub mod deep_filter;
 pub mod device;
 pub mod engine;
 #[cfg(test)]

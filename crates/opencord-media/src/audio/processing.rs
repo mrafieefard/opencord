@@ -6,7 +6,9 @@
 //! Echo cancellation, the high-pass filter and gain control are the `aec3`
 //! crate's Rust port of WebRTC's AudioProcessing (D27); Standard noise
 //! suppression is RNNoise through `nnnoiseless`, which also says how
-//! likely each tick is to be speech.
+//! likely each tick is to be speech; High is DeepFilterNet
+//! ([`super::deep_filter`]), which falls back to Standard when the computer
+//! cannot keep up.
 
 use aec3::audio_processing::gain_controller2::{
     GainController2Config, InputVolumeControllerRuntimeConfig,
@@ -18,12 +20,20 @@ use aec3::graph::{
 use aec3::nodes::audio::{AudioChunk, AudioFormat};
 use aec3::nodes::{agc2, hpf};
 use aec3::pipelines::linear::{self, LinearPipeline};
+use std::time::{Duration, Instant};
+
 use nnnoiseless::DenoiseState;
 
+use super::deep_filter::{DeepFilter, DeepFilterError};
 use super::{SAMPLE_RATE, TICK};
 
 /// RNNoise works on samples in the 16-bit range.
 const RNNOISE_SCALE: f32 = 32_768.0;
+/// High gives way to Standard when it takes more than 60 % of each tick
+/// over two seconds (plan §7.3).
+const FALLBACK_TICKS: usize = 200;
+const FALLBACK_SHARE: f64 = 0.6;
+const TICK_DURATION: Duration = Duration::from_millis(10);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum NoiseSuppression {
@@ -62,6 +72,12 @@ impl From<GraphError> for ProcessingError {
     }
 }
 
+impl From<DeepFilterError> for ProcessingError {
+    fn from(error: DeepFilterError) -> Self {
+        Self(error.to_string())
+    }
+}
+
 /// Before noise suppression: the high-pass filter, with or without echo
 /// cancellation.
 enum Front {
@@ -75,22 +91,35 @@ pub struct VoiceProcessing {
     /// sensitivity.
     voice_analysis: bool,
     front: Front,
+    /// While noise suppression is High.
+    high: Option<Box<DeepFilter>>,
+    load: LoadWatch,
+    /// High gave way to Standard since the last look.
+    fell_back: bool,
     gain: Option<Stage>,
     denoise: Box<DenoiseState<'static>>,
     scaled: [f32; TICK],
     cleaned: [f32; TICK],
+    /// Added to High's time per tick, to test the fallback.
+    #[cfg(test)]
+    artificial_load: Duration,
 }
 
 impl VoiceProcessing {
     pub fn new(settings: ProcessingSettings) -> Result<Self, ProcessingError> {
         Ok(Self {
             front: front(settings.echo_cancellation)?,
+            high: high(settings.noise_suppression)?,
+            load: LoadWatch::default(),
+            fell_back: false,
             gain: settings.automatic_gain.then(Stage::gain).transpose()?,
             settings,
             voice_analysis: false,
             denoise: DenoiseState::new(),
             scaled: [0.0; TICK],
             cleaned: [0.0; TICK],
+            #[cfg(test)]
+            artificial_load: Duration::ZERO,
         })
     }
 
@@ -103,11 +132,20 @@ impl VoiceProcessing {
         if settings.echo_cancellation != self.settings.echo_cancellation {
             self.front = front(settings.echo_cancellation)?;
         }
+        if settings.noise_suppression != self.settings.noise_suppression {
+            self.high = high(settings.noise_suppression)?;
+            self.load = LoadWatch::default();
+        }
         if settings.automatic_gain != self.settings.automatic_gain {
             self.gain = settings.automatic_gain.then(Stage::gain).transpose()?;
         }
         self.settings = settings;
         Ok(())
+    }
+
+    /// Whether High gave way to Standard since the last call.
+    pub fn take_fallback(&mut self) -> bool {
+        std::mem::take(&mut self.fell_back)
     }
 
     /// Whether to find each tick's voice probability while noise
@@ -138,14 +176,36 @@ impl VoiceProcessing {
             }
         }
         let probability = match self.settings.noise_suppression {
-            NoiseSuppression::Off if self.voice_analysis => Some(self.analyze(tick)),
-            NoiseSuppression::Off => None,
-            NoiseSuppression::Standard | NoiseSuppression::High => Some(self.rnnoise(tick)),
+            NoiseSuppression::Off => self.voice_analysis.then(|| self.analyze(tick)),
+            NoiseSuppression::Standard => Some(self.rnnoise(tick)),
+            NoiseSuppression::High => {
+                self.deep_filter(tick);
+                // RNNoise looks at what DeepFilterNet left, so the voice
+                // probability lines up with what is sent.
+                self.voice_analysis.then(|| self.analyze(tick))
+            }
         };
         if let Some(gain) = &mut self.gain {
             let _ = gain.process(tick);
         }
         probability
+    }
+
+    /// High, timed; falls back to Standard when it is too slow or fails.
+    fn deep_filter(&mut self, tick: &mut [f32]) {
+        let Some(filter) = &mut self.high else {
+            return;
+        };
+        let start = Instant::now();
+        let failed = filter.process(tick).is_err();
+        #[cfg(test)]
+        std::thread::sleep(self.artificial_load);
+        if self.load.record(start.elapsed()) || failed {
+            self.settings.noise_suppression = NoiseSuppression::Standard;
+            self.high = None;
+            self.load = LoadWatch::default();
+            self.fell_back = true;
+        }
     }
 
     /// RNNoise's voice probability, leaving the audio as it is.
@@ -165,6 +225,45 @@ impl VoiceProcessing {
             *sample = cleaned / RNNOISE_SCALE;
         }
         probability
+    }
+}
+
+fn high(mode: NoiseSuppression) -> Result<Option<Box<DeepFilter>>, ProcessingError> {
+    Ok(match mode {
+        NoiseSuppression::High => Some(Box::new(DeepFilter::new()?)),
+        NoiseSuppression::Off | NoiseSuppression::Standard => None,
+    })
+}
+
+/// How long High took over the last two seconds of ticks.
+struct LoadWatch {
+    took: [Duration; FALLBACK_TICKS],
+    next: usize,
+    recorded: usize,
+    total: Duration,
+}
+
+impl Default for LoadWatch {
+    fn default() -> Self {
+        Self {
+            took: [Duration::ZERO; FALLBACK_TICKS],
+            next: 0,
+            recorded: 0,
+            total: Duration::ZERO,
+        }
+    }
+}
+
+impl LoadWatch {
+    /// Adds a tick's time; whether the last two seconds took too long.
+    fn record(&mut self, took: Duration) -> bool {
+        self.total = self.total - self.took[self.next] + took;
+        self.took[self.next] = took;
+        self.next = (self.next + 1) % FALLBACK_TICKS;
+        self.recorded = (self.recorded + 1).min(FALLBACK_TICKS);
+        self.recorded == FALLBACK_TICKS
+            && self.total.as_secs_f64()
+                > FALLBACK_SHARE * (TICK_DURATION * FALLBACK_TICKS as u32).as_secs_f64()
     }
 }
 
@@ -261,53 +360,8 @@ impl Stage {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::audio::fixtures::{at_level, speech};
+    use crate::audio::fixtures::{at_level, noise, speech, voice_over};
     use crate::audio::{SAMPLE_RATE, TICK, dbfs};
-
-    struct Noise(u64);
-
-    impl Noise {
-        fn white(&mut self) -> f32 {
-            self.0 ^= self.0 << 13;
-            self.0 ^= self.0 >> 7;
-            self.0 ^= self.0 << 17;
-            ((self.0 >> 11) as f64 / (1u64 << 53) as f64) as f32 * 2.0 - 1.0
-        }
-    }
-
-    /// The noises the plan names, made up: a fan's hum and hiss, keyboard
-    /// clicks, street rumble, and barking.
-    fn noise(kind: &str, samples: usize) -> Vec<f32> {
-        let mut rng = Noise(0x0dd5);
-        let mut low = 0.0f32;
-        (0..samples)
-            .map(|i| {
-                let t = i as f32 / SAMPLE_RATE as f32;
-                let white = rng.white();
-                low = 0.97 * low + 0.03 * white;
-                match kind {
-                    "fan" => {
-                        0.6 * low + 0.05 * white + 0.05 * (std::f32::consts::TAU * 120.0 * t).sin()
-                    }
-                    "keyboard" => {
-                        let in_click = (t * 7.0).fract() < 0.004;
-                        if in_click { 0.4 * white } else { 0.002 * white }
-                    }
-                    "street" => 0.9 * low + 0.02 * white,
-                    "dog" => {
-                        let bark = (t * 1.5).fract();
-                        let envelope = if bark < 0.15 {
-                            (std::f32::consts::PI * bark / 0.15).sin()
-                        } else {
-                            0.0
-                        };
-                        envelope * (0.3 * (std::f32::consts::TAU * 550.0 * t).sin() + 0.1 * white)
-                    }
-                    _ => unreachable!(),
-                }
-            })
-            .collect()
-    }
 
     /// Runs `capture` through processing, with `render` played meanwhile;
     /// returns the output and each tick's voice probability.
@@ -370,13 +424,7 @@ mod tests {
     /// The voice over `kind` of noise, after a second of the noise alone;
     /// returns how much quieter the noise got and how the voice changed.
     fn suppress(kind: &str, mode: NoiseSuppression) -> (f32, f32) {
-        let voice = at_level(&speech(), -22.0);
-        let lead = SAMPLE_RATE as usize;
-        let background = at_level(&noise(kind, lead + voice.len()), -35.0);
-        let mut capture = background.clone();
-        for (i, sample) in voice.iter().enumerate() {
-            capture[lead + i] += sample;
-        }
+        let (capture, lead) = voice_over(kind);
         let settings = ProcessingSettings {
             noise_suppression: mode,
             ..ONLY_EQUALIZING
@@ -459,5 +507,101 @@ mod tests {
         let second = quiet.len()..capture.len();
         let lift = dbfs(&out[second.clone()]) - dbfs(&capture[second]);
         assert!(lift >= 6.0, "only {lift:.1} dB louder");
+    }
+
+    #[test]
+    fn high_suppression_silences_every_kind_of_noise_and_keeps_the_voice() {
+        for kind in ["fan", "street", "keyboard", "dog"] {
+            let (reduction, voice_change) = suppress(kind, NoiseSuppression::High);
+
+            assert!(
+                reduction >= 30.0,
+                "{kind}: the noise is only {reduction:.1} dB quieter"
+            );
+            assert!(
+                voice_change > -3.0,
+                "{kind}: the voice lost {voice_change:.1} dB"
+            );
+        }
+    }
+
+    #[test]
+    fn with_high_the_voice_probability_is_there_only_for_voice_analysis() {
+        let settings = ProcessingSettings {
+            noise_suppression: NoiseSuppression::High,
+            ..ONLY_EQUALIZING
+        };
+        let mut processing = VoiceProcessing::new(settings).unwrap();
+        let mut tick = [0.0; TICK];
+
+        let without = processing.capture(&mut tick);
+        processing.set_voice_analysis(true);
+        let with = processing.capture(&mut tick);
+
+        assert_eq!(without, None);
+        assert!(with.is_some());
+    }
+
+    fn high_under_load(load: Duration, ticks: usize) -> VoiceProcessing {
+        let settings = ProcessingSettings {
+            noise_suppression: NoiseSuppression::High,
+            ..ONLY_EQUALIZING
+        };
+        let mut processing = VoiceProcessing::new(settings).unwrap();
+        processing.artificial_load = load;
+        let (capture, _) = voice_over("fan");
+        for tick in capture.as_chunks::<TICK>().0.iter().cycle().take(ticks) {
+            processing.capture(&mut tick.clone());
+        }
+        processing
+    }
+
+    #[test]
+    fn high_falls_back_to_standard_when_it_takes_too_long() {
+        // 7 ms of every 10 ms tick, over the 60 % limit.
+        let mut processing = high_under_load(Duration::from_millis(7), FALLBACK_TICKS);
+
+        assert_eq!(
+            processing.settings().noise_suppression,
+            NoiseSuppression::Standard
+        );
+        assert!(processing.take_fallback());
+        assert!(!processing.take_fallback());
+    }
+
+    #[test]
+    fn high_stays_when_it_keeps_up() {
+        let mut processing = high_under_load(Duration::ZERO, FALLBACK_TICKS + 50);
+
+        assert_eq!(
+            processing.settings().noise_suppression,
+            NoiseSuppression::High
+        );
+        assert!(!processing.take_fallback());
+    }
+
+    #[test]
+    fn the_load_watch_needs_two_slow_seconds() {
+        let slow = Duration::from_millis(7);
+        let mut watch = LoadWatch::default();
+
+        let early = (0..FALLBACK_TICKS - 1).any(|_| watch.record(slow));
+        let at_two_seconds = watch.record(slow);
+
+        assert!(!early);
+        assert!(at_two_seconds);
+    }
+
+    #[test]
+    fn the_load_watch_forgives_a_few_slow_ticks() {
+        let mut watch = LoadWatch::default();
+
+        let gave_up = (0..3 * FALLBACK_TICKS).any(|index| {
+            let took = if index % 4 == 0 { 9 } else { 4 };
+            watch.record(Duration::from_millis(took))
+        });
+
+        // 5.25 ms on average: busy, but under 6 ms.
+        assert!(!gave_up);
     }
 }

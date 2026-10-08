@@ -41,6 +41,7 @@ protox = "0.9.1"
 rubato = "5.0.1"
 rtrb = "0.4.0"
 rcgen = "0.14.10"
+realfft = "3.5.0"
 rustls = { version = "0.23.45", default-features = false, features = ["ring", "std", "tls12", "logging"] }
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = "1.0.151"
@@ -55,6 +56,28 @@ tokio-rustls = { version = "0.26.6", default-features = false, features = ["ring
 tokio-tungstenite = "0.30.0"
 tokio-util = "0.7.19"
 toml = "1.1.6"
+tract-onnx = "0.23.8"
+tract-pulse = "0.23.8"
 tracing = "0.1.44"
 tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
 webpki-roots = "1.0.9"
+
+# DeepFilterNet (High noise suppression) runs a network every 10 ms. Even
+# debug builds optimize its inference and FFT crates, so it keeps up and
+# does not fall back to Standard while developing.
+[profile.dev.package.tract-core]
+opt-level = 3
+[profile.dev.package.tract-data]
+opt-level = 3
+[profile.dev.package.tract-linalg]
+opt-level = 3
+[profile.dev.package.tract-hir]
+opt-level = 3
+[profile.dev.package.tract-onnx]
+opt-level = 3
+[profile.dev.package.tract-pulse]
+opt-level = 3
+[profile.dev.package.rustfft]
+opt-level = 3
+[profile.dev.package.realfft]
+opt-level = 3
