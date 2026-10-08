@@ -20,6 +20,14 @@ abstract interface class CoreApi {
 
   void voiceSetPushToTalk(bool held);
 
+  void voiceSetPrioritySpeaker(bool held);
+
+  void audioSetLevelMeter(bool enabled);
+
+  Future<void> audioMicTest(bool enabled);
+
+  Future<core.NoiseSuppressionMode> audioRecommendedNoiseSuppression();
+
   /// 0–2 (200 %).
   void voiceSetUserVolume(String serverKey, int userId, double volume);
 
@@ -205,6 +213,21 @@ class FrbCoreApi implements CoreApi {
 
   @override
   void voiceSetPushToTalk(bool held) => frb.voiceSetPushToTalk(held: held);
+
+  @override
+  void voiceSetPrioritySpeaker(bool held) =>
+      frb.voiceSetPrioritySpeaker(held: held);
+
+  @override
+  void audioSetLevelMeter(bool enabled) =>
+      frb.audioSetLevelMeter(enabled: enabled);
+
+  @override
+  Future<void> audioMicTest(bool enabled) => frb.audioMicTest(enabled: enabled);
+
+  @override
+  Future<core.NoiseSuppressionMode> audioRecommendedNoiseSuppression() =>
+      frb.audioRecommendedNoiseSuppression();
 
   @override
   void voiceSetUserVolume(String serverKey, int userId, double volume) => frb

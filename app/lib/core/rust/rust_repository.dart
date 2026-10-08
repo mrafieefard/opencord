@@ -925,6 +925,34 @@ class RustRepository implements OpencordRepository {
   Future<void> leaveVoice() async {
     _ownVoice = null;
     await _call(_core.voiceLeave);
+    for (final server in _speaking.keys.toList()) {
+      _speaking.remove(server);
+      _emit(SpeakingChanged(server, const {}));
+    }
+  }
+
+  /// Who is speaking, per server, in the voice channel media reported.
+  final _speaking = <String, ({int channel, Set<int> users})>{};
+
+  /// The core sends who changed; the app keeps who is speaking.
+  SpeakingChanged _speakingChanged(
+    String server,
+    int channel,
+    List<core.SpeakingChange> changes,
+  ) {
+    final previous = _speaking[server];
+    final users = {
+      if (previous != null && previous.channel == channel) ...previous.users,
+    };
+    for (final change in changes) {
+      if (change.speaking) {
+        users.add(change.userId);
+      } else {
+        users.remove(change.userId);
+      }
+    }
+    _speaking[server] = (channel: channel, users: users);
+    return SpeakingChanged(server, users);
   }
 
   void _onMediaEvent(core.MediaEvent event) => _emit(switch (event) {
@@ -941,6 +969,16 @@ class RustRepository implements OpencordRepository {
       AudioDeviceFellBack(output: output, device: device),
     core.MediaEvent_DeviceFailed(:final output, :final message) =>
       AudioDeviceFailed(output: output, message: message),
+    core.MediaEvent_Speaking(
+      :final serverKey,
+      :final channelId,
+      :final changes,
+    ) =>
+      _speakingChanged(serverKey, channelId, changes),
+    core.MediaEvent_InputLevel(:final dbfs) => InputLevelChanged(dbfs),
+    core.MediaEvent_SpeakingWhileMuted() => const SpokeWhileMuted(),
+    core.MediaEvent_NoiseSuppressionFellBack() =>
+      const NoiseSuppressionFellBack(),
   });
 
   @override
@@ -953,6 +991,20 @@ class RustRepository implements OpencordRepository {
 
   @override
   void setPushToTalk(bool held) => _now(() => _core.voiceSetPushToTalk(held));
+
+  @override
+  void setPrioritySpeaker(bool held) =>
+      _now(() => _core.voiceSetPrioritySpeaker(held));
+
+  @override
+  void setLevelMeter(bool on) => _now(() => _core.audioSetLevelMeter(on));
+
+  @override
+  Future<void> setMicTest(bool on) => _call(() => _core.audioMicTest(on));
+
+  @override
+  Future<NoiseSuppression> recommendedNoiseSuppression() async =>
+      noiseSuppressionFrom(await _call(_core.audioRecommendedNoiseSuppression));
 
   @override
   void setUserVolume(String serverKey, int userId, int volume) =>

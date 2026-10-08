@@ -222,6 +222,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   List<Server> dco_decode_list_server(dynamic raw);
 
   @protected
+  List<SpeakingChange> dco_decode_list_speaking_change(dynamic raw);
+
+  @protected
   List<TrustedFingerprint> dco_decode_list_trusted_fingerprint(dynamic raw);
 
   @protected
@@ -235,6 +238,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   Message dco_decode_message(dynamic raw);
+
+  @protected
+  NoiseSuppressionMode dco_decode_noise_suppression_mode(dynamic raw);
 
   @protected
   String? dco_decode_opt_String(dynamic raw);
@@ -285,6 +291,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   ServerInfo dco_decode_server_info(dynamic raw);
+
+  @protected
+  SpeakingChange dco_decode_speaking_change(dynamic raw);
 
   @protected
   TrustedFingerprint dco_decode_trusted_fingerprint(dynamic raw);
@@ -546,6 +555,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   List<Server> sse_decode_list_server(SseDeserializer deserializer);
 
   @protected
+  List<SpeakingChange> sse_decode_list_speaking_change(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   List<TrustedFingerprint> sse_decode_list_trusted_fingerprint(
     SseDeserializer deserializer,
   );
@@ -561,6 +575,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   Message sse_decode_message(SseDeserializer deserializer);
+
+  @protected
+  NoiseSuppressionMode sse_decode_noise_suppression_mode(
+    SseDeserializer deserializer,
+  );
 
   @protected
   String? sse_decode_opt_String(SseDeserializer deserializer);
@@ -617,6 +636,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   ServerInfo sse_decode_server_info(SseDeserializer deserializer);
+
+  @protected
+  SpeakingChange sse_decode_speaking_change(SseDeserializer deserializer);
 
   @protected
   TrustedFingerprint sse_decode_trusted_fingerprint(
@@ -943,6 +965,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_list_server(List<Server> self, SseSerializer serializer);
 
   @protected
+  void sse_encode_list_speaking_change(
+    List<SpeakingChange> self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_list_trusted_fingerprint(
     List<TrustedFingerprint> self,
     SseSerializer serializer,
@@ -962,6 +990,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_message(Message self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_noise_suppression_mode(
+    NoiseSuppressionMode self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_opt_String(String? self, SseSerializer serializer);
@@ -1028,6 +1062,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_server_info(ServerInfo self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_speaking_change(
+    SpeakingChange self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_trusted_fingerprint(

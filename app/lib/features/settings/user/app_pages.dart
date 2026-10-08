@@ -9,6 +9,7 @@ import 'package:opencord/core/providers/providers.dart';
 import 'package:opencord/core/repository/repository.dart';
 import 'package:opencord/core/settings/app_settings.dart';
 import 'package:opencord/core/settings/local_prefs.dart';
+import 'package:opencord/features/voice/input_level_meter.dart';
 import 'package:opencord/ui/theme/oc_colors.dart';
 import 'package:opencord/ui/theme/oc_icons.dart';
 import 'package:opencord/ui/theme/oc_metrics.dart';
@@ -177,6 +178,7 @@ class _VoicePageState extends ConsumerState<VoicePage> {
               value: audio.inputVolume,
               onChanged: (value) =>
                   update((a) => a.copyWith(inputVolume: value)),
+              meter: true,
             ),
             _VolumeRow(
               label: 'Output volume',
@@ -196,11 +198,15 @@ class _VolumeRow extends StatelessWidget {
     required this.label,
     required this.value,
     required this.onChanged,
+    this.meter = false,
   });
 
   final String label;
   final int value;
   final ValueChanged<int> onChanged;
+
+  /// The microphone's live level under the slider (§17.1).
+  final bool meter;
 
   @override
   Widget build(BuildContext context) {
@@ -236,6 +242,10 @@ class _VolumeRow extends StatelessWidget {
             semanticFormatterCallback: (value) => '${value.round()}%',
             onChanged: (value) => onChanged(value.round()),
           ),
+          if (meter) ...[
+            const InputLevelMeter(),
+            const SizedBox(height: OcSpace.s8),
+          ],
         ],
       ),
     );

@@ -396,6 +396,27 @@ void audioApplySettings({required AudioSettings settings}) =>
 void voiceSetPushToTalk({required bool held}) =>
     RustLib.instance.api.crateApiClientVoiceSetPushToTalk(held: held);
 
+/// The priority speaker key went down or up: while held, everyone else in
+/// the channel hears the others at 25 % (needs Priority speaker).
+void voiceSetPrioritySpeaker({required bool held}) =>
+    RustLib.instance.api.crateApiClientVoiceSetPrioritySpeaker(held: held);
+
+/// Report the microphone's level (`MediaEvent::InputLevel`) while a meter
+/// shows it.
+void audioSetLevelMeter({required bool enabled}) =>
+    RustLib.instance.api.crateApiClientAudioSetLevelMeter(enabled: enabled);
+
+/// Hear yourself through the whole chain, Opus included (plan §12); in
+/// voice or not.
+Future<void> audioMicTest({required bool enabled}) =>
+    RustLib.instance.api.crateApiClientAudioMicTest(enabled: enabled);
+
+/// The noise suppression to start with on a first run (plan §7.3): High
+/// when it needs under 20 % of each 10 ms tick on this computer, Standard
+/// otherwise. Takes a moment.
+Future<NoiseSuppressionMode> audioRecommendedNoiseSuppression() =>
+    RustLib.instance.api.crateApiClientAudioRecommendedNoiseSuppression();
+
 /// How loud someone sounds on this device, 0–2 (200 %).
 void voiceSetUserVolume({
   required String serverKey,

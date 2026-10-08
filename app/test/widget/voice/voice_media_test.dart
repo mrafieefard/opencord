@@ -1,9 +1,13 @@
+import 'package:flutter/services.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:opencord/core/mock/mock_repository.dart';
 import 'package:opencord/core/model/voice.dart';
+import 'package:opencord/core/providers/providers.dart';
 import 'package:opencord/core/settings/local_prefs.dart';
 import 'package:opencord/features/channels/voice_panel.dart';
 import 'package:opencord/features/shell/desktop_shell.dart';
+import 'package:opencord/features/voice/input_level_meter.dart';
 
 import '../../support/app.dart';
 
@@ -105,15 +109,107 @@ void main() {
               .copyWith(inputVolume: 150, inputMode: InputMode.pushToTalk),
         );
 
-    expect(atStart, const AudioConfig());
+    // The first run's choice of noise suppression is in (the mock is fast).
+    expect(atStart, const AudioConfig(noiseSuppression: NoiseSuppression.high));
     expect(
       app.repository.audio,
       const AudioConfig(
         inputDevice: 'mock:usb-microphone',
         pushToTalk: true,
+        noiseSuppression: NoiseSuppression.high,
         inputVolume: 150,
       ),
     );
+    await app.dispose(tester);
+  });
+
+  testWidgets('the first run chooses noise suppression once', (tester) async {
+    final app = await MockApp.pump(tester);
+    await _settle(tester);
+
+    expect(
+      app.read(audioSettingsProvider).noiseSuppression,
+      NoiseSuppression.high,
+    );
+    expect(app.repository.audio?.noiseSuppression, NoiseSuppression.high);
+    await app.dispose(tester);
+  });
+
+  testWidgets("speaking while muted says you're muted, and Unmute unmutes", (
+    tester,
+  ) async {
+    final app = await MockApp.pump(tester);
+    await _joinGeneral(tester);
+    await app.read(voiceSessionProvider.notifier).toggleMute();
+    await _settle(tester);
+
+    app.repository.debugSpokeWhileMuted();
+    await _settle(tester);
+    expect(find.text("You're muted"), findsOneWidget);
+    await tester.tap(find.text('Unmute'));
+    await _settle(tester);
+
+    expect(app.read(voiceSessionProvider).muted, isFalse);
+    await _pumpFor(tester, const Duration(seconds: 6));
+    await app.dispose(tester);
+  });
+
+  testWidgets('deafened, speaking brings no reminder', (tester) async {
+    final app = await MockApp.pump(tester);
+    await _joinGeneral(tester);
+    await app.read(voiceSessionProvider.notifier).toggleDeafen();
+    await _settle(tester);
+
+    app.repository.debugSpokeWhileMuted();
+    await _settle(tester);
+
+    expect(find.text("You're muted"), findsNothing);
+    await app.dispose(tester);
+  });
+
+  testWidgets('High noise suppression giving way says so and keeps Standard', (
+    tester,
+  ) async {
+    final app = await MockApp.pump(tester);
+    await _settle(tester);
+
+    app.repository.debugNoiseSuppressionFellBack();
+    await _settle(tester);
+
+    expect(
+      find.text('High noise suppression was too slow here. Using Standard.'),
+      findsOneWidget,
+    );
+    expect(
+      app.read(audioSettingsProvider).noiseSuppression,
+      NoiseSuppression.standard,
+    );
+    await _pumpFor(tester, const Duration(seconds: 3));
+    await app.dispose(tester);
+  });
+
+  testWidgets('the quick audio menu shows the microphone while it is open', (
+    tester,
+  ) async {
+    final app = await MockApp.pump(tester);
+    await tester.tap(find.bySemanticsLabel('Audio options').first);
+    await tester.pumpAndSettle();
+    final opened = app.repository.levelMeterOn;
+
+    app.repository.debugInputLevel(-30);
+    await _settle(tester);
+    final fill = tester.widget<FractionallySizedBox>(
+      find.descendant(
+        of: find.byType(InputLevelMeter),
+        matching: find.byType(FractionallySizedBox),
+      ),
+    );
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await tester.pumpAndSettle();
+
+    expect(opened, isTrue);
+    expect(fill.widthFactor, closeTo(0.5, 0.01), reason: '-30 dBFS of 60');
+    expect(app.repository.levelMeterOn, isFalse);
     await app.dispose(tester);
   });
 }

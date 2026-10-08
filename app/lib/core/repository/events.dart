@@ -156,7 +156,8 @@ final class VoiceSettingsChanged extends RepoEvent {
   final VoiceSettings settings;
 }
 
-/// Who is speaking right now (mock only until voice carries audio).
+/// Who is speaking right now in this device's voice channel on the server,
+/// this device's user too (Phase 2 plan §7.5).
 final class SpeakingChanged extends RepoEvent {
   const SpeakingChanged(super.serverKey, this.speaking);
 
@@ -197,4 +198,24 @@ final class AudioDeviceFailed extends RepoEvent {
 
   final bool output;
   final String message;
+}
+
+/// The microphone's level after processing, in dBFS, about 20 times a
+/// second while a meter is open.
+final class InputLevelChanged extends RepoEvent {
+  const InputLevelChanged(this.dbfs) : super('');
+
+  final double dbfs;
+}
+
+/// The microphone heard someone speak while muted (at most every 30 s), for
+/// the "You're muted" reminder (Phase 2 plan §12).
+final class SpokeWhileMuted extends RepoEvent {
+  const SpokeWhileMuted() : super('');
+}
+
+/// High noise suppression could not keep up on this computer; Standard took
+/// over (Phase 2 plan §7.3).
+final class NoiseSuppressionFellBack extends RepoEvent {
+  const NoiseSuppressionFellBack() : super('');
 }

@@ -139,6 +139,25 @@ impl Processor {
     /// Fills interleaved speaker samples, playing as many ticks as that
     /// takes; returns the frames written.
     pub fn play(&mut self, now: Instant, interleaved: &mut [f32]) -> usize {
+        self.deliver_mic_test(now);
+        let wanted = interleaved.len() / self.output_channels;
+        while self.to_device.buffered() < wanted {
+            self.playback.tick(now, &mut self.tick);
+            // Everything played is what the echo canceller listens for.
+            self.processing.render(&self.tick);
+            self.to_device.push_tick(&self.tick);
+        }
+        self.to_device.pop(interleaved)
+    }
+
+    /// One tick of playback with no speaker to hear it: everyone's audio
+    /// moves on in time, and nothing is an echo to cancel.
+    pub fn play_unheard(&mut self, now: Instant) {
+        self.deliver_mic_test(now);
+        self.playback.tick(now, &mut self.tick);
+    }
+
+    fn deliver_mic_test(&mut self, now: Instant) {
         for frame in self.mic_test_frames.drain(..) {
             self.playback.receive(
                 MIC_TEST_USER,
@@ -148,14 +167,6 @@ impl Processor {
                 now,
             );
         }
-        let wanted = interleaved.len() / self.output_channels;
-        while self.to_device.buffered() < wanted {
-            self.playback.tick(now, &mut self.tick);
-            // Everything played is what the echo canceller listens for.
-            self.processing.render(&self.tick);
-            self.to_device.push_tick(&self.tick);
-        }
-        self.to_device.pop(interleaved)
     }
 
     pub fn remove_user(&mut self, user_id: i64) {
@@ -721,5 +732,54 @@ mod tests {
 
         assert!(processor.is_talking());
         assert!(processor.is_priority());
+    }
+
+    #[test]
+    fn without_a_speaker_playback_keeps_time_and_is_not_an_echo() {
+        let mut alice = Processor::new(settings(), (SAMPLE_RATE, 2), (SAMPLE_RATE, 2)).unwrap();
+        let mut bob = Processor::new(
+            defaults(NoiseSuppression::Standard),
+            (SAMPLE_RATE, 2),
+            (SAMPLE_RATE, 2),
+        )
+        .unwrap();
+        let frames = speak(&mut alice, 50, 0.3);
+        let start = Instant::now();
+        let mut changes = Vec::new();
+        let mut stopped_at = None;
+
+        for index in 0..100 {
+            let now = start + Duration::from_millis(index as u64 * 10);
+            for frame in frames
+                .iter()
+                .filter(|frame| frame.position / TICK as u64 == index as u64)
+            {
+                bob.receive(
+                    1,
+                    frame.position as u32,
+                    frame.marker,
+                    Arc::from(&frame.payload[..]),
+                    now,
+                );
+            }
+            bob.play_unheard(now);
+            changes.clear();
+            bob.speaking_changes(&mut changes);
+            if changes.contains(&(1, false)) {
+                stopped_at = Some(index);
+            }
+            // Bob's own voice must not be taken for an echo of Alice's.
+            let heard = bob
+                .processing
+                .capture(&mut microphone_tick(index, 0.3)[..TICK].to_vec());
+            assert!(!heard.echo_only, "tick {index}");
+        }
+
+        // Alice's half second, the jitter buffer's wait, then 250 ms.
+        let stopped_at = stopped_at.expect("speaking never stopped");
+        assert!(
+            (75..=90).contains(&stopped_at),
+            "stopped at tick {stopped_at}"
+        );
     }
 }

@@ -2,6 +2,8 @@
 //! system allows, that runs the processing tick between the devices and
 //! the network every 5 ms. It owns the microphone and the speaker; when a
 //! chosen device goes away it falls back to the default one and says so.
+//! Who is speaking, and the microphone's level while a meter is open, go
+//! out at most every 50 ms (plan §7.5, §7.12).
 
 use std::sync::Arc;
 use std::sync::mpsc::{self, Receiver, Sender, TryRecvError};
@@ -10,6 +12,7 @@ use std::time::{Duration, Instant};
 
 use super::capture::{EncodedFrame, InputMode};
 use super::device::{DeviceError, Microphone, Speaker};
+use super::processing::ProcessingSettings;
 use super::processor::{Processor, ProcessorError, ProcessorSettings};
 use super::{SAMPLE_RATE, TICK};
 
@@ -17,6 +20,8 @@ use super::{SAMPLE_RATE, TICK};
 const WAKE_EVERY: Duration = Duration::from_millis(5);
 /// Audio kept queued for the speaker: enough to ride out a late wake.
 const SPEAKER_QUEUE: Duration = Duration::from_millis(30);
+/// Speaking changes and the input level go out at most this often.
+const REPORT_EVERY: Duration = Duration::from_millis(50);
 
 /// Which device to use.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
@@ -40,14 +45,23 @@ pub struct EngineSettings {
 }
 
 /// What the engine reports, from its own thread.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum EngineEvent {
     /// The chosen device is missing; the default one plays or listens.
     DeviceFellBack { output: bool, device: String },
     /// No device could be opened.
     DeviceFailed { output: bool, message: String },
-    /// The microphone started or stopped sending.
-    Talking(bool),
+    /// The microphone started or stopped sending, and whether as the
+    /// priority speaker.
+    Talking { talking: bool, priority: bool },
+    /// Who started or stopped speaking (user, speaking), since the last.
+    Speaking(Vec<(i64, bool)>),
+    /// The microphone's loudest tick in dBFS, while a meter is open.
+    InputLevel(f32),
+    /// Someone spoke while muted (at most every 30 s).
+    SpeakingWhileMuted,
+    /// High noise suppression could not keep up; Standard took over.
+    NoiseSuppressionFellBack,
 }
 
 enum Command {
@@ -71,6 +85,11 @@ enum Command {
     ExpectedLoss(u8),
     InputDevice(DeviceChoice),
     OutputDevice(DeviceChoice),
+    Processing(ProcessingSettings),
+    PriorityHeld(bool),
+    Priority(i64, bool),
+    MicTest(bool),
+    LevelMeter(bool),
     Stop,
 }
 
@@ -109,6 +128,9 @@ impl AudioEngine {
                         }
                     };
                 let mut engine = Engine {
+                    level_meter: false,
+                    reported_at: Instant::now(),
+                    changes: Vec::new(),
                     processor,
                     microphone: None,
                     speaker: None,
@@ -116,7 +138,7 @@ impl AudioEngine {
                     output_device: settings.output_device,
                     send: Box::new(send),
                     events: Box::new(events),
-                    talking: false,
+                    talking: (false, false),
                     unplayed_since: Instant::now(),
                     scratch: Vec::new(),
                 };
@@ -212,6 +234,31 @@ impl AudioEngine {
         self.command(Command::OutputDevice(choice));
     }
 
+    /// Echo cancellation, noise suppression and gain control.
+    pub fn set_processing(&self, settings: ProcessingSettings) {
+        self.command(Command::Processing(settings));
+    }
+
+    /// The priority speaker key, held or let go.
+    pub fn set_priority_held(&self, held: bool) {
+        self.command(Command::PriorityHeld(held));
+    }
+
+    /// Whether `user_id` speaks as the priority speaker now.
+    pub fn set_priority(&self, user_id: i64, priority: bool) {
+        self.command(Command::Priority(user_id, priority));
+    }
+
+    /// Hear what would be sent.
+    pub fn set_mic_test(&self, on: bool) {
+        self.command(Command::MicTest(on));
+    }
+
+    /// Report the microphone's level 20 times a second while on.
+    pub fn set_level_meter(&self, on: bool) {
+        self.command(Command::LevelMeter(on));
+    }
+
     fn command(&self, command: Command) {
         let _ = self.commands.send(command);
     }
@@ -234,7 +281,11 @@ struct Engine {
     output_device: DeviceChoice,
     send: Box<dyn FnMut(EncodedFrame) + Send>,
     events: Box<dyn FnMut(EngineEvent) + Send>,
-    talking: bool,
+    /// Talking, and as the priority speaker.
+    talking: (bool, bool),
+    level_meter: bool,
+    reported_at: Instant,
+    changes: Vec<(i64, bool)>,
     /// Without a speaker, playing follows the clock from here.
     unplayed_since: Instant,
     scratch: Vec<f32>,
@@ -263,12 +314,9 @@ impl Engine {
             }
             self.replace_lost_devices();
             self.capture();
-            self.play(Instant::now());
-            let talking = self.processor.is_talking();
-            if talking != self.talking {
-                self.talking = talking;
-                (self.events)(EngineEvent::Talking(talking));
-            }
+            let now = Instant::now();
+            self.play(now);
+            self.report(now);
             wake += WAKE_EVERY;
             let now = Instant::now();
             if wake <= now {
@@ -317,7 +365,45 @@ impl Engine {
                 self.unplayed_since = Instant::now();
                 self.open_speaker();
             }
+            Command::Processing(settings) => {
+                if let Err(error) = processor.set_processing(settings) {
+                    tracing::warn!(%error, "could not change the voice processing");
+                }
+            }
+            Command::PriorityHeld(held) => processor.set_priority_held(held),
+            Command::Priority(user_id, priority) => processor.set_priority(user_id, priority),
+            Command::MicTest(on) => processor.set_mic_test(on),
+            Command::LevelMeter(on) => self.level_meter = on,
             Command::Stop => {}
+        }
+    }
+
+    fn report(&mut self, now: Instant) {
+        let talking = (self.processor.is_talking(), self.processor.is_priority());
+        if talking != self.talking {
+            self.talking = talking;
+            (self.events)(EngineEvent::Talking {
+                talking: talking.0,
+                priority: talking.1,
+            });
+        }
+        if self.processor.take_speaking_while_muted() {
+            (self.events)(EngineEvent::SpeakingWhileMuted);
+        }
+        if self.processor.take_noise_suppression_fallback() {
+            (self.events)(EngineEvent::NoiseSuppressionFellBack);
+        }
+        if now < self.reported_at + REPORT_EVERY {
+            return;
+        }
+        self.reported_at = now;
+        self.processor.speaking_changes(&mut self.changes);
+        if !self.changes.is_empty() {
+            (self.events)(EngineEvent::Speaking(std::mem::take(&mut self.changes)));
+        }
+        let level = self.processor.take_input_level();
+        if let Some(level) = level.filter(|_| self.level_meter) {
+            (self.events)(EngineEvent::InputLevel(level));
         }
     }
 
@@ -424,8 +510,7 @@ impl Engine {
                 .as_millis()
                 / 10;
             for _ in 0..ticks {
-                self.scratch.resize(TICK, 0.0);
-                self.processor.play(now, &mut self.scratch[..TICK]);
+                self.processor.play_unheard(now);
             }
             self.unplayed_since += Duration::from_millis(10 * ticks as u64);
             return;
@@ -513,6 +598,97 @@ mod tests {
             events
                 .iter()
                 .any(|event| matches!(event, EngineEvent::DeviceFellBack { output: false, .. })),
+            "{events:?}"
+        );
+    }
+
+    fn quiet_engine(events: Arc<Mutex<Vec<(Instant, EngineEvent)>>>) -> AudioEngine {
+        AudioEngine::start(
+            EngineSettings {
+                input_device: DeviceChoice::Off,
+                output_device: DeviceChoice::Off,
+                processor: ProcessorSettings {
+                    mode: InputMode::VoiceActivity(Sensitivity::Automatic),
+                    processing: ProcessingSettings::default(),
+                    bitrate: 64_000,
+                    input_volume: 1.0,
+                    output_volume: 1.0,
+                },
+            },
+            |_| {},
+            move |event| events.lock().unwrap().push((Instant::now(), event)),
+        )
+        .unwrap()
+    }
+
+    #[test]
+    fn who_starts_and_stops_speaking_is_reported_as_it_happens() {
+        let events = Arc::new(Mutex::new(Vec::new()));
+        let engine = quiet_engine(Arc::clone(&events));
+        let mut encoder = crate::audio::codec::VoiceEncoder::new(64_000).unwrap();
+        let mut packet = [0u8; crate::audio::codec::MAX_PACKET];
+
+        // Half a second of a tone from user 7, as it would arrive.
+        for frame in 0..25 {
+            let tone: Vec<f32> = (0..crate::audio::FRAME)
+                .map(|i| {
+                    let t = (frame * crate::audio::FRAME + i) as f32 / SAMPLE_RATE as f32;
+                    0.2 * (std::f32::consts::TAU * 300.0 * t).sin()
+                })
+                .collect();
+            let size = encoder.encode(&tone, &mut packet).unwrap();
+            engine.receive(
+                7,
+                (frame * crate::audio::FRAME) as u32,
+                frame == 0,
+                Arc::from(&packet[..size]),
+                Instant::now(),
+            );
+            std::thread::sleep(Duration::from_millis(20));
+        }
+        std::thread::sleep(Duration::from_millis(600));
+        drop(engine);
+
+        let events = events.lock().unwrap();
+        let speaking: Vec<&(Instant, EngineEvent)> = events
+            .iter()
+            .filter(|(_, event)| matches!(event, EngineEvent::Speaking(_)))
+            .collect();
+        let changes: Vec<&Vec<(i64, bool)>> = speaking
+            .iter()
+            .map(|(_, event)| match event {
+                EngineEvent::Speaking(changes) => changes,
+                _ => unreachable!(),
+            })
+            .collect();
+        assert_eq!(
+            changes,
+            vec![&vec![(7, true)], &vec![(7, false)]],
+            "{events:?}"
+        );
+        assert!(speaking[1].0 - speaking[0].0 >= Duration::from_millis(400));
+    }
+
+    #[test]
+    fn the_input_level_is_only_reported_while_a_meter_is_open() {
+        let events = Arc::new(Mutex::new(Vec::new()));
+        let engine = quiet_engine(Arc::clone(&events));
+
+        engine.set_level_meter(true);
+        engine.set_mic_test(true);
+        engine.set_priority_held(true);
+        engine.set_priority(7, true);
+        engine.set_processing(ProcessingSettings::default());
+        std::thread::sleep(Duration::from_millis(200));
+        drop(engine);
+
+        // Without a microphone there is no level to report, and nothing
+        // else goes wrong.
+        let events = events.lock().unwrap();
+        assert!(
+            !events
+                .iter()
+                .any(|(_, event)| matches!(event, EngineEvent::InputLevel(_))),
             "{events:?}"
         );
     }

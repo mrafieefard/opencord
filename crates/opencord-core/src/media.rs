@@ -1,7 +1,9 @@
 //! Voice media for this device (Phase 2 plan §7, §7.14): when a server sends
 //! this device to a voice node, connect to it and run the audio engine;
 //! follow moves and voice node failovers; report how the connection is
-//! doing; ask for a fresh token when a connection cannot be saved.
+//! doing, who is speaking and the microphone's level; ask for a fresh token
+//! when a connection cannot be saved. The mic test runs an engine of its
+//! own while not in voice.
 
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
@@ -9,10 +11,10 @@ use std::time::Duration;
 
 use opencord_common::voice::{close, speaking};
 use opencord_media::audio::capture::{EncodedFrame, InputMode, Sensitivity};
-use opencord_media::audio::device;
 use opencord_media::audio::engine::{AudioEngine, DeviceChoice, EngineEvent, EngineSettings};
-use opencord_media::audio::processing::ProcessingSettings;
+use opencord_media::audio::processing::{NoiseSuppression, ProcessingSettings};
 use opencord_media::audio::processor::ProcessorSettings;
+use opencord_media::audio::{deep_filter, device};
 use opencord_media::transport::{
     AudioFrame, TransportError, VoiceConnection, VoiceEvent, VoiceTarget,
 };
@@ -22,7 +24,8 @@ use tokio::task::JoinHandle;
 use tokio::time::Instant;
 
 use crate::api::types::{
-    AudioDevice, AudioDevices, AudioSettings, MediaEvent, VoiceConnectionState,
+    AudioDevice, AudioDevices, AudioSettings, MediaEvent, NoiseSuppressionMode, SpeakingChange,
+    VoiceConnectionState,
 };
 use crate::client::Client;
 use crate::voice::VoiceServer;
@@ -40,8 +43,10 @@ const RETRY_MIN: Duration = Duration::from_secs(1);
 const RETRY_MAX: Duration = Duration::from_secs(30);
 /// How often the device list is checked while in voice.
 const DEVICE_POLL: Duration = Duration::from_secs(2);
-/// Push-to-talk keeps sending this long after the key is released (plan §7.4).
-const RELEASE_DELAY: Duration = Duration::from_millis(200);
+/// Push-to-talk's release delay goes up to 2 s (plan §7.4).
+const MAX_RELEASE: Duration = Duration::from_secs(2);
+/// Manual sensitivity stays within this range of levels.
+const SENSITIVITY_DBFS: (f32, f32) = (-100.0, 0.0);
 /// The bitrate until the node says the channel's.
 const DEFAULT_BITRATE: u32 = 64_000;
 
@@ -101,6 +106,11 @@ struct State {
     pending: Option<(VoiceServer, Instant)>,
     session: Option<MediaSession>,
     push_to_talk_held: bool,
+    priority_held: bool,
+    level_meter: bool,
+    mic_test: bool,
+    /// The mic test's own engine, while not in voice.
+    mic_test_engine: Option<AudioEngine>,
     /// The listener's choices, per server and user: volume and local mute.
     listening: HashMap<(String, i64), (f32, bool)>,
 }
@@ -149,6 +159,9 @@ impl Media {
         let Some(target) = target else {
             state.session = None;
             state.pending = None;
+            if state.mic_test {
+                state.mic_test_engine = self.start_mic_test(&state);
+            }
             return;
         };
         if state
@@ -173,23 +186,130 @@ impl Media {
     }
 
     pub fn apply_settings(&self, settings: AudioSettings) {
+        if settings.noise_suppression == NoiseSuppressionMode::High {
+            // Loading DeepFilterNet takes a moment; not on the audio thread.
+            self.runtime.spawn_blocking(|| {
+                let _ = deep_filter::preload();
+            });
+        }
         let mut state = self.lock();
         if let Some(session) = &state.session {
-            let engine = &session.engine;
-            if settings.input_device != state.settings.input_device {
-                engine.set_input_device(self.device_choice(settings.input_device.as_deref()));
-            }
-            if settings.output_device != state.settings.output_device {
-                engine.set_output_device(self.device_choice(settings.output_device.as_deref()));
-            }
-            engine.set_mode(input_mode(settings.push_to_talk));
-            engine.set_input_volume(settings.input_volume);
-            engine.set_output_volume(settings.output_volume);
+            self.apply_to(&session.engine, &state.settings, &settings);
             let _ = session
                 .commands
                 .send(SessionCommand::Settings(settings.clone()));
         }
+        if let Some(engine) = &state.mic_test_engine {
+            self.apply_to(engine, &state.settings, &settings);
+        }
         state.settings = settings;
+    }
+
+    /// What changed from `old` to `new`, to a running engine.
+    fn apply_to(&self, engine: &AudioEngine, old: &AudioSettings, new: &AudioSettings) {
+        if new.input_device != old.input_device {
+            engine.set_input_device(self.device_choice(new.input_device.as_deref()));
+        }
+        if new.output_device != old.output_device {
+            engine.set_output_device(self.device_choice(new.output_device.as_deref()));
+        }
+        if input_mode(new) != input_mode(old) {
+            engine.set_mode(input_mode(new));
+        }
+        if processing(new) != processing(old) {
+            engine.set_processing(processing(new));
+        }
+        engine.set_input_volume(new.input_volume);
+        engine.set_output_volume(new.output_volume);
+    }
+
+    /// The priority speaker key went down or up.
+    pub fn set_priority_speaker(&self, held: bool) {
+        let mut state = self.lock();
+        state.priority_held = held;
+        if let Some(session) = &state.session {
+            session.engine.set_priority_held(held);
+        }
+    }
+
+    /// Report the microphone's level while a meter shows it.
+    pub fn set_level_meter(&self, on: bool) {
+        let mut state = self.lock();
+        state.level_meter = on;
+        if let Some(session) = &state.session {
+            session.engine.set_level_meter(on);
+        }
+        if let Some(engine) = &state.mic_test_engine {
+            engine.set_level_meter(on);
+        }
+    }
+
+    /// Hear what would be sent: in voice, through the call's engine;
+    /// otherwise through one of its own.
+    pub fn set_mic_test(&self, on: bool) {
+        let mut state = self.lock();
+        state.mic_test = on;
+        if let Some(session) = &state.session {
+            session.engine.set_mic_test(on);
+            return;
+        }
+        state.mic_test_engine = if on {
+            self.start_mic_test(&state)
+        } else {
+            None
+        };
+    }
+
+    fn start_mic_test(&self, state: &State) -> Option<AudioEngine> {
+        let events = self.events.clone();
+        let engine = AudioEngine::start(
+            self.engine_settings(&state.settings),
+            |_| {},
+            move |event| {
+                let event = match event {
+                    EngineEvent::InputLevel(dbfs) => MediaEvent::InputLevel { dbfs },
+                    EngineEvent::DeviceFellBack { output, device } => {
+                        MediaEvent::DeviceFellBack { output, device }
+                    }
+                    EngineEvent::DeviceFailed { output, message } => {
+                        MediaEvent::DeviceFailed { output, message }
+                    }
+                    EngineEvent::NoiseSuppressionFellBack => MediaEvent::NoiseSuppressionFellBack,
+                    EngineEvent::Talking { .. }
+                    | EngineEvent::Speaking(_)
+                    | EngineEvent::SpeakingWhileMuted => return,
+                };
+                let _ = events.send(event);
+            },
+        );
+        match engine {
+            Ok(engine) => {
+                engine.set_mic_test(true);
+                engine.set_level_meter(state.level_meter);
+                Some(engine)
+            }
+            Err(error) => {
+                let _ = self.events.send(MediaEvent::DeviceFailed {
+                    output: false,
+                    message: error.to_string(),
+                });
+                None
+            }
+        }
+    }
+
+    fn engine_settings(&self, settings: &AudioSettings) -> EngineSettings {
+        EngineSettings {
+            input_device: self.device_choice(settings.input_device.as_deref()),
+            output_device: self.device_choice(settings.output_device.as_deref()),
+            processor: ProcessorSettings {
+                mode: input_mode(settings),
+                processing: processing(settings),
+                bitrate: DEFAULT_BITRATE,
+                input_volume: settings.input_volume,
+                output_volume: settings.output_volume,
+            },
+        }
     }
 
     pub fn set_push_to_talk(&self, held: bool) {
@@ -252,25 +372,17 @@ impl Media {
 
     fn start_session(
         &self,
-        state: &State,
+        state: &mut State,
         client: &Client,
         server_key: &str,
     ) -> Option<MediaSession> {
         let settings = &state.settings;
+        // The mic test moves to the call's engine.
+        state.mic_test_engine = None;
         let (frames, frames_received) = mpsc::unbounded_channel();
         let (engine_events, engine_events_received) = mpsc::unbounded_channel();
         let engine = AudioEngine::start(
-            EngineSettings {
-                input_device: self.device_choice(settings.input_device.as_deref()),
-                output_device: self.device_choice(settings.output_device.as_deref()),
-                processor: ProcessorSettings {
-                    mode: input_mode(settings.push_to_talk),
-                    processing: ProcessingSettings::default(),
-                    bitrate: DEFAULT_BITRATE,
-                    input_volume: settings.input_volume,
-                    output_volume: settings.output_volume,
-                },
-            },
+            self.engine_settings(settings),
             move |frame| {
                 let _ = frames.send(frame);
             },
@@ -293,6 +405,9 @@ impl Media {
             engine.set_deafened(target.deafened);
         }
         engine.set_push_to_talk(state.push_to_talk_held);
+        engine.set_priority_held(state.priority_held);
+        engine.set_level_meter(state.level_meter);
+        engine.set_mic_test(state.mic_test);
         for ((key, user_id), (volume, muted)) in &state.listening {
             if key == server_key {
                 engine.set_user_volume(*user_id, *volume);
@@ -334,13 +449,40 @@ fn device_choice(open_devices: bool, id: Option<&str>) -> DeviceChoice {
     }
 }
 
-fn input_mode(push_to_talk: bool) -> InputMode {
-    if push_to_talk {
+fn input_mode(settings: &AudioSettings) -> InputMode {
+    if settings.push_to_talk {
+        let release_delay = Duration::from_millis(u64::from(settings.push_to_talk_release_ms));
         InputMode::PushToTalk {
-            release_delay: RELEASE_DELAY,
+            release_delay: release_delay.min(MAX_RELEASE),
         }
-    } else {
+    } else if settings.automatic_sensitivity {
         InputMode::VoiceActivity(Sensitivity::Automatic)
+    } else {
+        let (lowest, highest) = SENSITIVITY_DBFS;
+        InputMode::VoiceActivity(Sensitivity::Manual {
+            threshold_dbfs: settings.sensitivity_dbfs.clamp(lowest, highest),
+        })
+    }
+}
+
+fn processing(settings: &AudioSettings) -> ProcessingSettings {
+    ProcessingSettings {
+        echo_cancellation: settings.echo_cancellation,
+        noise_suppression: match settings.noise_suppression {
+            NoiseSuppressionMode::Off => NoiseSuppression::Off,
+            NoiseSuppressionMode::Standard => NoiseSuppression::Standard,
+            NoiseSuppressionMode::High => NoiseSuppression::High,
+        },
+        automatic_gain: settings.automatic_gain,
+    }
+}
+
+/// The voice gateway's speaking flags while this device talks, or not.
+fn speaking_flags(talking: bool, priority: bool) -> u32 {
+    match (talking, priority) {
+        (false, _) => 0,
+        (true, false) => speaking::MICROPHONE,
+        (true, true) => speaking::MICROPHONE | speaking::PRIORITY,
     }
 }
 
@@ -401,6 +543,8 @@ impl SessionTask {
         let mut devices_at = Instant::now() + DEVICE_POLL;
         let mut devices: Option<AudioDevices> = None;
         let mut fell_back = (false, false);
+        // This device talking, and as the priority speaker.
+        let mut talking = (false, false);
         loop {
             tokio::select! {
                 command = commands.recv() => match command {
@@ -455,6 +599,9 @@ impl SessionTask {
                         VoiceEvent::MediaConnected => {
                             no_route_at = None;
                             self.report(channel_id, VoiceConnectionState::Connected);
+                            if let Some(live) = &live {
+                                live.connection.set_speaking(speaking_flags(talking.0, talking.1));
+                            }
                         }
                         VoiceEvent::MediaDisconnected => {
                             self.report(channel_id, VoiceConnectionState::Reconnecting);
@@ -484,16 +631,40 @@ impl SessionTask {
                                 }
                             }
                         }
-                        VoiceEvent::ClientConnected { .. }
-                        | VoiceEvent::Speaking { .. }
-                        | VoiceEvent::Resumed => {}
+                        VoiceEvent::Speaking { user_id, flags } => {
+                            self.engine.set_priority(user_id, flags & speaking::PRIORITY != 0);
+                        }
+                        VoiceEvent::ClientConnected { .. } | VoiceEvent::Resumed => {}
                     }
                 }
                 Some(event) = engine_events.recv() => match event {
-                    EngineEvent::Talking(talking) => {
+                    EngineEvent::Talking { talking: now, priority } => {
+                        talking = (now, priority);
                         if let Some(live) = &live {
-                            live.connection.set_speaking(if talking { speaking::MICROPHONE } else { 0 });
+                            live.connection.set_speaking(speaking_flags(now, priority));
+                            self.speaking(&live.server, vec![SpeakingChange {
+                                user_id: live.server.user_id,
+                                speaking: now,
+                            }]);
                         }
+                    }
+                    EngineEvent::Speaking(changes) => {
+                        if let Some(live) = &live {
+                            let changes = changes
+                                .into_iter()
+                                .map(|(user_id, speaking)| SpeakingChange { user_id, speaking })
+                                .collect();
+                            self.speaking(&live.server, changes);
+                        }
+                    }
+                    EngineEvent::InputLevel(dbfs) => {
+                        let _ = self.events.send(MediaEvent::InputLevel { dbfs });
+                    }
+                    EngineEvent::SpeakingWhileMuted => {
+                        let _ = self.events.send(MediaEvent::SpeakingWhileMuted);
+                    }
+                    EngineEvent::NoiseSuppressionFellBack => {
+                        let _ = self.events.send(MediaEvent::NoiseSuppressionFellBack);
                     }
                     EngineEvent::DeviceFellBack { output, device } => {
                         if output { fell_back.1 = true } else { fell_back.0 = true }
@@ -550,6 +721,14 @@ impl SessionTask {
                 self.settings.output_device.as_deref(),
             ));
         }
+    }
+
+    fn speaking(&self, server: &VoiceServer, changes: Vec<SpeakingChange>) {
+        let _ = self.events.send(MediaEvent::Speaking {
+            server_key: server.server_key.clone(),
+            channel_id: server.channel_id,
+            changes,
+        });
     }
 
     fn report(&self, channel_id: i64, state: VoiceConnectionState) {
@@ -681,6 +860,92 @@ mod tests {
         assert_eq!(
             device_choice(true, Some("pipewire:x")),
             DeviceChoice::Id("pipewire:x".to_owned())
+        );
+    }
+
+    #[test]
+    fn push_to_talk_keeps_its_release_delay_within_two_seconds() {
+        let settings = |ms| AudioSettings {
+            push_to_talk: true,
+            push_to_talk_release_ms: ms,
+            ..AudioSettings::default()
+        };
+
+        assert_eq!(
+            input_mode(&settings(350)),
+            InputMode::PushToTalk {
+                release_delay: Duration::from_millis(350)
+            }
+        );
+        assert_eq!(
+            input_mode(&settings(10_000)),
+            InputMode::PushToTalk {
+                release_delay: Duration::from_secs(2)
+            }
+        );
+    }
+
+    #[test]
+    fn voice_activity_is_automatic_or_at_a_level() {
+        let manual = AudioSettings {
+            automatic_sensitivity: false,
+            sensitivity_dbfs: -52.0,
+            ..AudioSettings::default()
+        };
+        let out_of_range = AudioSettings {
+            sensitivity_dbfs: 12.0,
+            ..manual.clone()
+        };
+
+        assert_eq!(
+            input_mode(&AudioSettings::default()),
+            InputMode::VoiceActivity(Sensitivity::Automatic)
+        );
+        assert_eq!(
+            input_mode(&manual),
+            InputMode::VoiceActivity(Sensitivity::Manual {
+                threshold_dbfs: -52.0
+            })
+        );
+        assert_eq!(
+            input_mode(&out_of_range),
+            InputMode::VoiceActivity(Sensitivity::Manual {
+                threshold_dbfs: 0.0
+            })
+        );
+    }
+
+    #[test]
+    fn the_processing_follows_the_settings() {
+        let settings = AudioSettings {
+            echo_cancellation: false,
+            noise_suppression: NoiseSuppressionMode::High,
+            automatic_gain: false,
+            ..AudioSettings::default()
+        };
+
+        assert_eq!(
+            processing(&settings),
+            ProcessingSettings {
+                echo_cancellation: false,
+                noise_suppression: NoiseSuppression::High,
+                automatic_gain: false,
+            }
+        );
+        assert_eq!(
+            processing(&AudioSettings::default()),
+            ProcessingSettings::default()
+        );
+    }
+
+    #[test]
+    fn talking_with_the_priority_key_says_so() {
+        assert_eq!(speaking_flags(false, false), 0);
+        assert_eq!(speaking_flags(false, true), 0);
+        assert_eq!(speaking_flags(true, false), speaking::MICROPHONE);
+        assert_eq!(
+            speaking_flags(true, true),
+            speaking::MICROPHONE | speaking::PRIORITY
         );
     }
 }

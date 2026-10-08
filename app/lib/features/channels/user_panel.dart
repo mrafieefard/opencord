@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:math';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -9,6 +8,7 @@ import 'package:opencord/core/repository/repository.dart';
 import 'package:opencord/core/settings/local_prefs.dart';
 import 'package:opencord/features/settings/user_settings.dart';
 import 'package:opencord/features/shell/navigation.dart';
+import 'package:opencord/features/voice/input_level_meter.dart';
 import 'package:opencord/ui/theme/oc_colors.dart';
 import 'package:opencord/ui/theme/oc_icons.dart';
 import 'package:opencord/ui/theme/oc_metrics.dart';
@@ -252,7 +252,7 @@ class _QuickAudioMenu extends ConsumerWidget {
           value: audio.inputVolume,
           onChanged: (value) => update((a) => a.copyWith(inputVolume: value)),
         ),
-        _LevelMeter(gain: audio.inputVolume / 100),
+        const InputLevelMeter(),
         const SizedBox(height: OcSpace.s10),
         const SectionLabel('Output device'),
         for (final (device, label) in deviceChoices(devices.outputs))
@@ -403,66 +403,6 @@ class _Volume extends StatelessWidget {
           ),
         ),
       ],
-    );
-  }
-}
-
-/// A live microphone level (§17.1); simulated in Phase 1.
-class _LevelMeter extends StatefulWidget {
-  const _LevelMeter({required this.gain});
-
-  final double gain;
-
-  @override
-  State<_LevelMeter> createState() => _LevelMeterState();
-}
-
-class _LevelMeterState extends State<_LevelMeter> {
-  final _random = Random();
-  Timer? _timer;
-  double _level = 0.3;
-
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    _timer?.cancel();
-    if (!MediaQuery.disableAnimationsOf(context)) {
-      _timer = Timer.periodic(const Duration(milliseconds: 120), (_) {
-        if (mounted) setState(() => _level = 0.1 + _random.nextDouble() * 0.6);
-      });
-    }
-  }
-
-  @override
-  void dispose() {
-    _timer?.cancel();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.oc;
-    final filled = (_level * widget.gain).clamp(0.0, 1.0);
-    return Semantics(
-      label: 'Input level',
-      child: Container(
-        height: 4,
-        margin: const EdgeInsets.symmetric(horizontal: OcSpace.s8),
-        decoration: BoxDecoration(
-          color: colors.selected,
-          borderRadius: BorderRadius.circular(2),
-        ),
-        alignment: Alignment.centerLeft,
-        child: FractionallySizedBox(
-          widthFactor: filled,
-          child: Container(
-            decoration: BoxDecoration(
-              color: colors.text,
-              borderRadius: BorderRadius.circular(2),
-            ),
-          ),
-        ),
-      ),
     );
   }
 }

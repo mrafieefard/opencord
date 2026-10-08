@@ -274,11 +274,26 @@ class AudioSettings {
     this.outputDevice,
     this.outputDeviceName,
     this.inputMode = InputMode.voiceActivity,
+    this.pushToTalkRelease = defaultRelease,
+    this.automaticSensitivity = true,
+    this.sensitivityDbfs = defaultSensitivityDbfs,
+    this.echoCancellation = true,
+    this.noiseSuppression,
+    this.automaticGain = true,
     this.inputVolume = 100,
     this.outputVolume = 100,
   });
 
   static const maxVolume = 200;
+
+  /// Push-to-talk's release delay: 200 ms unless chosen, up to 2 s (plan
+  /// §7.4).
+  static const defaultRelease = Duration(milliseconds: 200);
+  static const maxRelease = Duration(seconds: 2);
+
+  /// Manual sensitivity's level, from -100 to 0 dBFS.
+  static const defaultSensitivityDbfs = -45.0;
+  static const minSensitivityDbfs = -100.0;
 
   /// A device id; null follows the system's default.
   final String? inputDevice;
@@ -288,6 +303,15 @@ class AudioSettings {
   final String? outputDevice;
   final String? outputDeviceName;
   final InputMode inputMode;
+  final Duration pushToTalkRelease;
+  final bool automaticSensitivity;
+  final double sensitivityDbfs;
+  final bool echoCancellation;
+
+  /// Null until the first run's benchmark chooses High or Standard (plan
+  /// §7.3).
+  final NoiseSuppression? noiseSuppression;
+  final bool automaticGain;
 
   /// Microphone gain, 0–200 %.
   final int inputVolume;
@@ -296,46 +320,89 @@ class AudioSettings {
   final int outputVolume;
 
   /// The microphone to use; null for the system's default.
-  AudioSettings withInput(AudioDevice? device) => AudioSettings(
-    inputDevice: device?.id,
-    inputDeviceName: device?.name,
-    outputDevice: outputDevice,
-    outputDeviceName: outputDeviceName,
-    inputMode: inputMode,
-    inputVolume: inputVolume,
-    outputVolume: outputVolume,
-  );
+  AudioSettings withInput(AudioDevice? device) =>
+      _copy(inputDevice: () => device?.id, inputDeviceName: () => device?.name);
 
   /// The speaker to use; null for the system's default.
-  AudioSettings withOutput(AudioDevice? device) => AudioSettings(
-    inputDevice: inputDevice,
-    inputDeviceName: inputDeviceName,
-    outputDevice: device?.id,
-    outputDeviceName: device?.name,
-    inputMode: inputMode,
-    inputVolume: inputVolume,
-    outputVolume: outputVolume,
+  AudioSettings withOutput(AudioDevice? device) => _copy(
+    outputDevice: () => device?.id,
+    outputDeviceName: () => device?.name,
   );
 
   AudioSettings copyWith({
     InputMode? inputMode,
+    Duration? pushToTalkRelease,
+    bool? automaticSensitivity,
+    double? sensitivityDbfs,
+    bool? echoCancellation,
+    NoiseSuppression? noiseSuppression,
+    bool? automaticGain,
     int? inputVolume,
     int? outputVolume,
-  }) => AudioSettings(
-    inputDevice: inputDevice,
-    inputDeviceName: inputDeviceName,
-    outputDevice: outputDevice,
-    outputDeviceName: outputDeviceName,
-    inputMode: inputMode ?? this.inputMode,
-    inputVolume: (inputVolume ?? this.inputVolume).clamp(0, maxVolume),
-    outputVolume: (outputVolume ?? this.outputVolume).clamp(0, maxVolume),
+  }) => _copy(
+    inputMode: inputMode,
+    pushToTalkRelease: pushToTalkRelease,
+    automaticSensitivity: automaticSensitivity,
+    sensitivityDbfs: sensitivityDbfs,
+    echoCancellation: echoCancellation,
+    noiseSuppression: noiseSuppression,
+    automaticGain: automaticGain,
+    inputVolume: inputVolume,
+    outputVolume: outputVolume,
   );
+
+  AudioSettings _copy({
+    String? Function()? inputDevice,
+    String? Function()? inputDeviceName,
+    String? Function()? outputDevice,
+    String? Function()? outputDeviceName,
+    InputMode? inputMode,
+    Duration? pushToTalkRelease,
+    bool? automaticSensitivity,
+    double? sensitivityDbfs,
+    bool? echoCancellation,
+    NoiseSuppression? noiseSuppression,
+    bool? automaticGain,
+    int? inputVolume,
+    int? outputVolume,
+  }) {
+    final release = pushToTalkRelease ?? this.pushToTalkRelease;
+    return AudioSettings(
+      inputDevice: inputDevice == null ? this.inputDevice : inputDevice(),
+      inputDeviceName: inputDeviceName == null
+          ? this.inputDeviceName
+          : inputDeviceName(),
+      outputDevice: outputDevice == null ? this.outputDevice : outputDevice(),
+      outputDeviceName: outputDeviceName == null
+          ? this.outputDeviceName
+          : outputDeviceName(),
+      inputMode: inputMode ?? this.inputMode,
+      pushToTalkRelease: release < Duration.zero
+          ? Duration.zero
+          : (release > maxRelease ? maxRelease : release),
+      automaticSensitivity: automaticSensitivity ?? this.automaticSensitivity,
+      sensitivityDbfs: (sensitivityDbfs ?? this.sensitivityDbfs)
+          .clamp(minSensitivityDbfs, 0)
+          .toDouble(),
+      echoCancellation: echoCancellation ?? this.echoCancellation,
+      noiseSuppression: noiseSuppression ?? this.noiseSuppression,
+      automaticGain: automaticGain ?? this.automaticGain,
+      inputVolume: (inputVolume ?? this.inputVolume).clamp(0, maxVolume),
+      outputVolume: (outputVolume ?? this.outputVolume).clamp(0, maxVolume),
+    );
+  }
 
   /// What voice media takes.
   AudioConfig get config => AudioConfig(
     inputDevice: inputDevice,
     outputDevice: outputDevice,
     pushToTalk: inputMode == InputMode.pushToTalk,
+    pushToTalkRelease: pushToTalkRelease,
+    automaticSensitivity: automaticSensitivity,
+    sensitivityDbfs: sensitivityDbfs,
+    echoCancellation: echoCancellation,
+    noiseSuppression: noiseSuppression ?? NoiseSuppression.standard,
+    automaticGain: automaticGain,
     inputVolume: inputVolume,
     outputVolume: outputVolume,
   );
@@ -346,6 +413,12 @@ class AudioSettings {
     'outputDevice': outputDevice,
     'outputDeviceName': outputDeviceName,
     'inputMode': inputMode.name,
+    'pushToTalkReleaseMs': pushToTalkRelease.inMilliseconds,
+    'automaticSensitivity': automaticSensitivity,
+    'sensitivityDbfs': sensitivityDbfs,
+    'echoCancellation': echoCancellation,
+    'noiseSuppression': noiseSuppression?.name,
+    'automaticGain': automaticGain,
     'inputVolume': inputVolume,
     'outputVolume': outputVolume,
   };
@@ -358,8 +431,11 @@ class AudioSettings {
     String? id(Object? value) =>
         value is String && value.contains(':') ? value : null;
     String? name(Object? value) => value is String ? value : null;
+    bool? flag(Object? value) => value is bool ? value : null;
     final inputDevice = id(json['inputDevice']);
     final outputDevice = id(json['outputDevice']);
+    final releaseMs = json['pushToTalkReleaseMs'];
+    final sensitivity = json['sensitivityDbfs'];
     return AudioSettings(
       inputDevice: inputDevice,
       inputDeviceName: inputDevice == null
@@ -373,6 +449,16 @@ class AudioSettings {
       inputMode: InputMode.values
           .where((m) => m.name == json['inputMode'])
           .firstOrNull,
+      pushToTalkRelease: releaseMs is int
+          ? Duration(milliseconds: releaseMs)
+          : null,
+      automaticSensitivity: flag(json['automaticSensitivity']),
+      sensitivityDbfs: sensitivity is num ? sensitivity.toDouble() : null,
+      echoCancellation: flag(json['echoCancellation']),
+      noiseSuppression: NoiseSuppression.values
+          .where((mode) => mode.name == json['noiseSuppression'])
+          .firstOrNull,
+      automaticGain: flag(json['automaticGain']),
       inputVolume: json['inputVolume'] is int
           ? json['inputVolume'] as int
           : null,

@@ -8,14 +8,15 @@ use std::sync::{Mutex, MutexGuard, OnceLock, PoisonError};
 
 use flutter_rust_bridge::frb;
 use opencord_common::validation;
+use opencord_media::audio::processing;
 use tokio::runtime::Runtime;
 
 use super::types::{
     AddServerOutcome, AudioDevices, AudioSettings, Ban, Channel, ChannelChanges, ChannelKind,
     ChannelPosition, CoreError, CoreEvent, GeneratedIdentity, IdentityInfo, Invite, MediaEvent,
-    Member, Message, OverwriteTargetKind, PermissionOverwrite, PresenceStatus, Role, RoleChanges,
-    Server, ServerChanges, ServerInfo, TrustedFingerprint, User, VoiceSettings,
-    VoiceSettingsChanges, VoiceState,
+    Member, Message, NoiseSuppressionMode, OverwriteTargetKind, PermissionOverwrite,
+    PresenceStatus, Role, RoleChanges, Server, ServerChanges, ServerInfo, TrustedFingerprint, User,
+    VoiceSettings, VoiceSettingsChanges, VoiceState,
 };
 use crate::client::Client;
 use crate::frb_generated::StreamSink;
@@ -507,6 +508,53 @@ pub fn audio_apply_settings(settings: AudioSettings) -> Result<(), CoreError> {
 pub fn voice_set_push_to_talk(held: bool) -> Result<(), CoreError> {
     client()?.set_push_to_talk(held);
     Ok(())
+}
+
+/// The priority speaker key went down or up: while held, everyone else in
+/// the channel hears the others at 25 % (needs Priority speaker).
+#[frb(sync)]
+pub fn voice_set_priority_speaker(held: bool) -> Result<(), CoreError> {
+    client()?.set_priority_speaker(held);
+    Ok(())
+}
+
+/// Report the microphone's level (`MediaEvent::InputLevel`) while a meter
+/// shows it.
+#[frb(sync)]
+pub fn audio_set_level_meter(enabled: bool) -> Result<(), CoreError> {
+    client()?.set_level_meter(enabled);
+    Ok(())
+}
+
+/// Hear yourself through the whole chain, Opus included (plan §12); in
+/// voice or not.
+pub async fn audio_mic_test(enabled: bool) -> Result<(), CoreError> {
+    let client = client()?;
+    let runtime = RUNTIME.get().ok_or(CoreError::NotInitialized)?;
+    runtime
+        .spawn_blocking(move || client.set_mic_test(enabled))
+        .await
+        .map_err(|error| CoreError::Connection {
+            message: error.to_string(),
+        })
+}
+
+/// The noise suppression to start with on a first run (plan §7.3): High
+/// when it needs under 20 % of each 10 ms tick on this computer, Standard
+/// otherwise. Takes a moment.
+pub async fn audio_recommended_noise_suppression() -> Result<NoiseSuppressionMode, CoreError> {
+    let runtime = RUNTIME.get().ok_or(CoreError::NotInitialized)?;
+    let mode = runtime
+        .spawn_blocking(processing::recommended_noise_suppression)
+        .await
+        .map_err(|error| CoreError::Connection {
+            message: error.to_string(),
+        })?;
+    Ok(match mode {
+        processing::NoiseSuppression::Off => NoiseSuppressionMode::Off,
+        processing::NoiseSuppression::Standard => NoiseSuppressionMode::Standard,
+        processing::NoiseSuppression::High => NoiseSuppressionMode::High,
+    })
 }
 
 /// How loud someone sounds on this device, 0–2 (200 %).

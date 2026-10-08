@@ -226,6 +226,17 @@ class AudioDeviceList {
   );
 }
 
+/// Noise suppression on the microphone (Phase 2 plan §7.3).
+enum NoiseSuppression {
+  off,
+
+  /// RNNoise: very light.
+  standard,
+
+  /// DeepFilterNet: much better on keyboards, dogs and fans, heavier.
+  high,
+}
+
 /// Audio choices, as voice media takes them.
 @immutable
 class AudioConfig {
@@ -233,6 +244,12 @@ class AudioConfig {
     this.inputDevice,
     this.outputDevice,
     this.pushToTalk = false,
+    this.pushToTalkRelease = const Duration(milliseconds: 200),
+    this.automaticSensitivity = true,
+    this.sensitivityDbfs = -45,
+    this.echoCancellation = true,
+    this.noiseSuppression = NoiseSuppression.standard,
+    this.automaticGain = true,
     this.inputVolume = 100,
     this.outputVolume = 100,
   });
@@ -241,6 +258,17 @@ class AudioConfig {
   final String? inputDevice;
   final String? outputDevice;
   final bool pushToTalk;
+
+  /// How long push-to-talk keeps sending after the key is let go.
+  final Duration pushToTalkRelease;
+
+  /// Voice activity opens on a voice, whatever its level; otherwise at
+  /// [sensitivityDbfs].
+  final bool automaticSensitivity;
+  final double sensitivityDbfs;
+  final bool echoCancellation;
+  final NoiseSuppression noiseSuppression;
+  final bool automaticGain;
 
   /// 0–200 %.
   final int inputVolume;
@@ -252,6 +280,12 @@ class AudioConfig {
       other.inputDevice == inputDevice &&
       other.outputDevice == outputDevice &&
       other.pushToTalk == pushToTalk &&
+      other.pushToTalkRelease == pushToTalkRelease &&
+      other.automaticSensitivity == automaticSensitivity &&
+      other.sensitivityDbfs == sensitivityDbfs &&
+      other.echoCancellation == echoCancellation &&
+      other.noiseSuppression == noiseSuppression &&
+      other.automaticGain == automaticGain &&
       other.inputVolume == inputVolume &&
       other.outputVolume == outputVolume;
 
@@ -260,12 +294,21 @@ class AudioConfig {
     inputDevice,
     outputDevice,
     pushToTalk,
+    pushToTalkRelease,
+    automaticSensitivity,
+    sensitivityDbfs,
+    echoCancellation,
+    noiseSuppression,
+    automaticGain,
     inputVolume,
     outputVolume,
   );
 
   @override
   String toString() =>
-      'AudioConfig($inputDevice, $outputDevice, push-to-talk: $pushToTalk, '
-      '$inputVolume %, $outputVolume %)';
+      'AudioConfig($inputDevice, $outputDevice, push-to-talk: $pushToTalk '
+      '(${pushToTalkRelease.inMilliseconds} ms), automatic sensitivity: '
+      '$automaticSensitivity ($sensitivityDbfs dBFS), echo cancellation: '
+      '$echoCancellation, noise suppression: ${noiseSuppression.name}, '
+      'automatic gain: $automaticGain, $inputVolume %, $outputVolume %)';
 }

@@ -4,6 +4,8 @@
 use std::time::{Duration, Instant};
 
 use opencord_common::address::format_fingerprint;
+use opencord_core::api::types::{MediaEvent, SpeakingChange, VoiceConnectionState};
+use opencord_core::media::MediaOptions;
 use opencord_server::config::{Config, ExternalNode, VoiceMode};
 use opencord_server::server::{self, ServerHandle};
 use opencord_server::voice_node::{self, VoiceNodeConfig, VoiceNodeHandle};
@@ -336,4 +338,91 @@ async fn a_voice_gateway_resume_does_not_interrupt_media() {
         "it resumed, not rejoined"
     );
     assert_eq!(call.owner_voice.closed(), None);
+}
+
+#[tokio::test]
+async fn the_app_learns_who_starts_and_stops_speaking() {
+    let server = TestServer::start().await;
+    let owner = Voicebot::connect(
+        &server.address(),
+        server.handle.claim_token.clone(),
+        "Owner",
+    )
+    .await
+    .unwrap();
+    let invite = owner
+        .client
+        .create_invite(&owner.server_key, None, None)
+        .await
+        .unwrap();
+    // The member runs the app's voice media, without devices.
+    let member = Voicebot::connect(&invite.link, None, "Member")
+        .await
+        .unwrap();
+    let mut media = member
+        .client
+        .enable_media(MediaOptions {
+            open_devices: false,
+        })
+        .unwrap();
+    let general = owner.voice_channel("General").unwrap();
+    let owner_voice = owner.join(general).await.unwrap();
+    member
+        .client
+        .voice_join(&member.server_key, general)
+        .await
+        .unwrap();
+    tokio::time::timeout(Duration::from_secs(15), async {
+        while let Some(event) = media.recv().await {
+            if let MediaEvent::ConnectionState {
+                state: VoiceConnectionState::Connected,
+                ..
+            } = event
+            {
+                return;
+            }
+        }
+    })
+    .await
+    .expect("the member's voice media did not connect");
+
+    owner_voice.play_tone(440.0, Duration::from_millis(600));
+    let changes = tokio::time::timeout(Duration::from_secs(5), async {
+        let mut changes = Vec::new();
+        while let Some(event) = media.recv().await {
+            if let MediaEvent::Speaking {
+                server_key,
+                channel_id,
+                changes: these,
+            } = event
+            {
+                assert_eq!(
+                    (server_key.as_str(), channel_id),
+                    (member.server_key.as_str(), general)
+                );
+                changes.extend(these);
+                if changes.len() >= 2 {
+                    return changes;
+                }
+            }
+        }
+        changes
+    })
+    .await
+    .expect("no speaking changes arrived");
+
+    let owner_id = owner.user_id();
+    assert_eq!(
+        changes,
+        vec![
+            SpeakingChange {
+                user_id: owner_id,
+                speaking: true
+            },
+            SpeakingChange {
+                user_id: owner_id,
+                speaking: false
+            },
+        ]
+    );
 }

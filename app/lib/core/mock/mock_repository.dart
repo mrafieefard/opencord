@@ -134,6 +134,7 @@ class MockRepository implements OpencordRepository {
       timer.cancel();
     }
     _speaking?.cancel();
+    _levels?.cancel();
     _events.close();
   }
 
@@ -1522,6 +1523,47 @@ class MockRepository implements OpencordRepository {
 
   @override
   void setPushToTalk(bool held) => pushToTalkHeld = held;
+
+  var prioritySpeakerHeld = false;
+  var micTest = false;
+
+  /// While a meter shows the microphone: a made-up level now and then.
+  Timer? _levels;
+
+  @override
+  void setPrioritySpeaker(bool held) => prioritySpeakerHeld = held;
+
+  /// Whether a meter is showing the microphone.
+  var levelMeterOn = false;
+
+  @override
+  void setLevelMeter(bool on) {
+    levelMeterOn = on;
+    _levels?.cancel();
+    _levels = on && simulateLife
+        ? Timer.periodic(const Duration(milliseconds: 120), (_) {
+            _emit(InputLevelChanged(-50 + _random.nextDouble() * 30));
+          })
+        : null;
+  }
+
+  /// As voice media would report: the microphone's level.
+  void debugInputLevel(double dbfs) => _emit(InputLevelChanged(dbfs));
+
+  /// As voice media would report: someone spoke while muted.
+  void debugSpokeWhileMuted() => _emit(const SpokeWhileMuted());
+
+  /// As voice media would report: High gave way to Standard.
+  void debugNoiseSuppressionFellBack() =>
+      _emit(const NoiseSuppressionFellBack());
+
+  @override
+  Future<void> setMicTest(bool on) async => micTest = on;
+
+  /// The mock is a fast computer.
+  @override
+  Future<NoiseSuppression> recommendedNoiseSuppression() async =>
+      NoiseSuppression.high;
 
   @override
   void setUserVolume(String serverKey, int userId, int volume) {

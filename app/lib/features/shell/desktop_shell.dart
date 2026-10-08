@@ -74,7 +74,14 @@ class _DesktopShellState extends ConsumerState<DesktopShell> {
       if (links.isNotEmpty) _openLinks();
     }, fireImmediately: true);
     ref.listenManual(audioNoticeProvider, (_, notice) {
-      if (notice != null && mounted) showOcToast(context, notice.message);
+      if (notice != null && mounted) {
+        showOcToast(
+          context,
+          notice.message,
+          actionLabel: notice.actionLabel,
+          onAction: notice.onAction,
+        );
+      }
     });
   }
 

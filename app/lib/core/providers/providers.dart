@@ -46,7 +46,54 @@ final eventPumpProvider = Provider<void>((ref) {
     (_, audio) => repository.applyAudio(audio.config),
     fireImmediately: true,
   );
+  _chooseNoiseSuppression(ref, repository);
 });
+
+/// On the first run, High noise suppression when this computer runs it
+/// easily, Standard otherwise (Phase 2 plan §7.3). A choice made meanwhile
+/// stands.
+void _chooseNoiseSuppression(Ref ref, OpencordRepository repository) {
+  if (ref.read(audioSettingsProvider).noiseSuppression != null) return;
+  unawaited(
+    repository.recommendedNoiseSuppression().then(
+      (mode) {
+        if (!ref.mounted) return;
+        ref
+            .read(audioSettingsProvider.notifier)
+            .update(
+              (audio) => audio.noiseSuppression == null
+                  ? audio.copyWith(noiseSuppression: mode)
+                  : audio,
+            );
+      },
+      // Standard meanwhile; the next start asks again.
+      onError: (Object _) {},
+    ),
+  );
+}
+
+/// "You're muted" (Phase 2 plan §12): only while this device muted itself,
+/// so Unmute can help; not while deafened, server-muted or unable to speak.
+void _remindMuted(Ref ref) {
+  final session = ref.read(voiceSessionProvider);
+  final server = session.serverKey;
+  final channel = session.channelId;
+  if (server == null || channel == null) return;
+  if (!session.muted || session.deafened) return;
+  final self = ref.read(serverProvider(server)).data?.self.id;
+  final me = ref
+      .read(voiceProvider(server))[channel]
+      ?.where((participant) => participant.userId == self)
+      .firstOrNull;
+  if (me != null && (me.serverMuted || me.suppressed)) return;
+  ref
+      .read(audioNoticeProvider.notifier)
+      .show(
+        "You're muted",
+        actionLabel: 'Unmute',
+        onAction: () => ref.read(voiceSessionProvider.notifier).toggleMute(),
+      );
+}
 
 void _route(Ref ref, RepoEvent event) {
   switch (event) {
@@ -65,6 +112,23 @@ void _route(Ref ref, RepoEvent event) {
     case AudioDeviceFailed(:final output):
       final which = output ? 'speaker' : 'microphone';
       ref.read(audioNoticeProvider.notifier).show('No $which could be opened.');
+      return;
+    case InputLevelChanged(:final dbfs):
+      ref.read(inputLevelProvider.notifier).set(dbfs);
+      return;
+    case SpokeWhileMuted():
+      _remindMuted(ref);
+      return;
+    case NoiseSuppressionFellBack():
+      ref
+          .read(audioSettingsProvider.notifier)
+          .update(
+            (audio) =>
+                audio.copyWith(noiseSuppression: NoiseSuppression.standard),
+          );
+      ref
+          .read(audioNoticeProvider.notifier)
+          .show('High noise suppression was too slow here. Using Standard.');
       return;
     default:
       break;
@@ -570,21 +634,40 @@ final audioDeviceListProvider =
       AudioDeviceListNotifier.new,
     );
 
-/// Something about the audio devices worth a toast. A new notice replaces
-/// the last, even with the same words.
+/// Something about voice audio worth a toast, perhaps with an action. A new
+/// notice replaces the last, even with the same words.
 @immutable
 class AudioNotice {
-  const AudioNotice(this.message);
+  const AudioNotice(this.message, {this.actionLabel, this.onAction});
 
   final String message;
+  final String? actionLabel;
+  final VoidCallback? onAction;
 }
 
 class AudioNoticeNotifier extends Notifier<AudioNotice?> {
   @override
   AudioNotice? build() => null;
 
-  void show(String message) => state = AudioNotice(message);
+  void show(String message, {String? actionLabel, VoidCallback? onAction}) =>
+      state = AudioNotice(
+        message,
+        actionLabel: actionLabel,
+        onAction: onAction,
+      );
 }
+
+/// The microphone's latest level in dBFS, while a meter shows it.
+class InputLevelNotifier extends Notifier<double?> {
+  @override
+  double? build() => null;
+
+  void set(double dbfs) => state = dbfs;
+}
+
+final inputLevelProvider = NotifierProvider<InputLevelNotifier, double?>(
+  InputLevelNotifier.new,
+);
 
 final audioNoticeProvider = NotifierProvider<AudioNoticeNotifier, AudioNotice?>(
   AudioNoticeNotifier.new,

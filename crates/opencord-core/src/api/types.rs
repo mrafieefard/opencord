@@ -417,6 +417,18 @@ pub struct AudioSettings {
     pub output_device: Option<String>,
     /// Push-to-talk instead of voice activity.
     pub push_to_talk: bool,
+    /// How long push-to-talk keeps sending after the key is let go, 0–2000
+    /// ms.
+    pub push_to_talk_release_ms: u32,
+    /// Voice activity opens on a detected voice, whatever its level;
+    /// otherwise at `sensitivity_dbfs`.
+    pub automatic_sensitivity: bool,
+    /// Manual sensitivity: the level that opens the microphone.
+    pub sensitivity_dbfs: f32,
+    pub echo_cancellation: bool,
+    pub noise_suppression: NoiseSuppressionMode,
+    /// Evens out the microphone's level.
+    pub automatic_gain: bool,
     /// Microphone gain, 0–2 (200 %).
     pub input_volume: f32,
     /// Everything heard, 0–2 (200 %).
@@ -429,10 +441,33 @@ impl Default for AudioSettings {
             input_device: None,
             output_device: None,
             push_to_talk: false,
+            push_to_talk_release_ms: 200,
+            automatic_sensitivity: true,
+            sensitivity_dbfs: -45.0,
+            echo_cancellation: true,
+            noise_suppression: NoiseSuppressionMode::Standard,
+            automatic_gain: true,
             input_volume: 1.0,
             output_volume: 1.0,
         }
     }
+}
+
+/// Noise suppression on the microphone (Phase 2 plan §7.3).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum NoiseSuppressionMode {
+    Off,
+    /// RNNoise: very light.
+    Standard,
+    /// DeepFilterNet: much better on keyboards, dogs and fans, heavier.
+    High,
+}
+
+/// Someone started or stopped speaking.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SpeakingChange {
+    pub user_id: i64,
+    pub speaking: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -471,7 +506,7 @@ pub enum VoiceConnectionState {
 }
 
 /// News from voice media, on its own stream.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum MediaEvent {
     ConnectionState {
         server_key: String,
@@ -484,6 +519,22 @@ pub enum MediaEvent {
     DeviceFailed { output: bool, message: String },
     /// The devices plugged in changed.
     DevicesChanged(AudioDevices),
+    /// Who in this device's voice channel started or stopped speaking,
+    /// this device's user too; at most every 50 ms (plan §7.5).
+    Speaking {
+        server_key: String,
+        channel_id: i64,
+        changes: Vec<SpeakingChange>,
+    },
+    /// The microphone's level after processing, in dBFS, about 20 times a
+    /// second while a meter is open (`audio_set_level_meter`).
+    InputLevel { dbfs: f32 },
+    /// The microphone heard someone speak while this device was muted (at
+    /// most every 30 s); for the "You're muted" reminder.
+    SpeakingWhileMuted,
+    /// High noise suppression could not keep up on this computer, so
+    /// Standard took over (plan §7.3).
+    NoiseSuppressionFellBack,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]

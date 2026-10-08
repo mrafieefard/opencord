@@ -131,4 +131,80 @@ void main() {
     expect(audio.copyWith(inputVolume: 300).inputVolume, 200);
     expect(audio.copyWith(outputVolume: -5).outputVolume, 0);
   });
+
+  test('voice processing choices are remembered', () {
+    final chosen = const AudioSettings().copyWith(
+      noiseSuppression: NoiseSuppression.high,
+      automaticSensitivity: false,
+      sensitivityDbfs: -55,
+      echoCancellation: false,
+      automaticGain: false,
+      pushToTalkRelease: const Duration(milliseconds: 500),
+    );
+
+    final restored = AudioSettings.fromJson(chosen.toJson());
+
+    expect(restored.noiseSuppression, NoiseSuppression.high);
+    expect(restored.automaticSensitivity, isFalse);
+    expect(restored.sensitivityDbfs, -55);
+    expect(restored.echoCancellation, isFalse);
+    expect(restored.automaticGain, isFalse);
+    expect(restored.pushToTalkRelease, const Duration(milliseconds: 500));
+  });
+
+  test('noise suppression waits for the first run to choose it', () {
+    final saved = AudioSettings.fromJson({'inputVolume': 120});
+
+    expect(const AudioSettings().noiseSuppression, isNull);
+    expect(saved.noiseSuppression, isNull);
+    expect(saved.config.noiseSuppression, NoiseSuppression.standard);
+    expect(
+      saved.copyWith(noiseSuppression: NoiseSuppression.off).noiseSuppression,
+      NoiseSuppression.off,
+    );
+  });
+
+  test('the release delay stays within 2 s and sensitivity within range', () {
+    const audio = AudioSettings();
+
+    expect(
+      audio
+          .copyWith(pushToTalkRelease: const Duration(seconds: 5))
+          .pushToTalkRelease,
+      const Duration(seconds: 2),
+    );
+    expect(
+      audio
+          .copyWith(pushToTalkRelease: const Duration(milliseconds: -10))
+          .pushToTalkRelease,
+      Duration.zero,
+    );
+    expect(audio.copyWith(sensitivityDbfs: 10).sensitivityDbfs, 0);
+    expect(audio.copyWith(sensitivityDbfs: -150).sensitivityDbfs, -100);
+  });
+
+  test('voice processing choices reach voice media', () {
+    final config = const AudioSettings()
+        .copyWith(
+          noiseSuppression: NoiseSuppression.high,
+          automaticSensitivity: false,
+          sensitivityDbfs: -50,
+          echoCancellation: false,
+          automaticGain: false,
+          pushToTalkRelease: const Duration(milliseconds: 750),
+        )
+        .config;
+
+    expect(
+      config,
+      const AudioConfig(
+        noiseSuppression: NoiseSuppression.high,
+        automaticSensitivity: false,
+        sensitivityDbfs: -50,
+        echoCancellation: false,
+        automaticGain: false,
+        pushToTalkRelease: Duration(milliseconds: 750),
+      ),
+    );
+  });
 }

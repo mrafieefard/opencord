@@ -843,6 +843,12 @@ void main() {
       expect(sent.pushToTalk, isTrue);
       expect(sent.inputVolume, 1.5);
       expect(sent.outputVolume, 0.5);
+      expect(sent.pushToTalkReleaseMs, 200);
+      expect(sent.automaticSensitivity, isTrue);
+      expect(sent.sensitivityDbfs, -45);
+      expect(sent.echoCancellation, isTrue);
+      expect(sent.noiseSuppression, core.NoiseSuppressionMode.standard);
+      expect(sent.automaticGain, isTrue);
       expect(
         harness.core.calls,
         containsAllInOrder([
@@ -868,5 +874,108 @@ void main() {
       expect(devices.defaultOutput, 'alsa:hw:1');
       expect(devices.defaultInput, isNull);
     });
+  });
+
+  group('voice processing (Phase 2 V3)', () {
+    const lounge = 20;
+
+    core.MediaEvent speaking(int channelId, List<(int, bool)> changes) =>
+        core.MediaEvent.speaking(
+          serverKey: _server,
+          channelId: channelId,
+          changes: [
+            for (final (userId, speaking) in changes)
+              core.SpeakingChange(userId: userId, speaking: speaking),
+          ],
+        );
+
+    test('who is speaking reaches the app as a set', () async {
+      final harness = await _Harness.start();
+
+      harness.core.media.add(speaking(lounge, [(7, true)]));
+      harness.core.media.add(speaking(lounge, [(8, true)]));
+      harness.core.media.add(speaking(lounge, [(7, false)]));
+      await harness.settle();
+
+      final sets = harness.events.whereType<SpeakingChanged>();
+      expect(sets.map((event) => event.serverKey).toSet(), {_server});
+      expect(sets.map((event) => event.speaking.toList()..sort()), [
+        [7],
+        [7, 8],
+        [8],
+      ]);
+    });
+
+    test('another channel starts with nobody speaking', () async {
+      final harness = await _Harness.start();
+
+      harness.core.media.add(speaking(lounge, [(7, true)]));
+      harness.core.media.add(speaking(lounge + 1, [(9, true)]));
+      await harness.settle();
+
+      expect(harness.events.whereType<SpeakingChanged>().last.speaking, {9});
+    });
+
+    test('leaving voice clears who is speaking', () async {
+      final harness = await _Harness.start();
+      harness.core.media.add(speaking(lounge, [(7, true)]));
+      await harness.settle();
+
+      await harness.repository.leaveVoice();
+      await harness.settle();
+
+      expect(
+        harness.events.whereType<SpeakingChanged>().last.speaking,
+        isEmpty,
+      );
+    });
+
+    test(
+      'the level, the muted reminder and the High fallback reach the app',
+      () async {
+        final harness = await _Harness.start();
+
+        harness.core.media.add(const core.MediaEvent.inputLevel(dbfs: -31.5));
+        harness.core.media.add(const core.MediaEvent.speakingWhileMuted());
+        harness.core.media.add(
+          const core.MediaEvent.noiseSuppressionFellBack(),
+        );
+        await harness.settle();
+
+        expect(
+          harness.events.whereType<InputLevelChanged>().single.dbfs,
+          -31.5,
+        );
+        expect(harness.events.whereType<SpokeWhileMuted>(), hasLength(1));
+        expect(
+          harness.events.whereType<NoiseSuppressionFellBack>(),
+          hasLength(1),
+        );
+      },
+    );
+
+    test(
+      'the meter, the mic test and the priority key go to the core',
+      () async {
+        final harness = await _Harness.start();
+        harness.core.recommended = core.NoiseSuppressionMode.high;
+
+        harness.repository.setLevelMeter(true);
+        await harness.repository.setMicTest(true);
+        harness.repository.setPrioritySpeaker(true);
+        final recommended = await harness.repository
+            .recommendedNoiseSuppression();
+
+        expect(
+          harness.core.calls,
+          containsAllInOrder([
+            'levelMeter:true',
+            'micTest:true',
+            'priority:true',
+          ]),
+        );
+        expect(recommended, NoiseSuppression.high);
+      },
+    );
   });
 }

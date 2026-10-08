@@ -42,6 +42,9 @@ const FAR_END_DBFS: f32 = -60.0;
 /// High gives way to Standard when it takes more than 60 % of each tick
 /// over two seconds (plan §7.3).
 const FALLBACK_TICKS: usize = 200;
+/// On the first run High is the default when it needs less than this
+/// share of each tick (plan §7.3).
+const HIGH_BY_DEFAULT_UNDER: f32 = 0.2;
 const FALLBACK_SHARE: f64 = 0.6;
 const TICK_DURATION: Duration = Duration::from_millis(10);
 
@@ -243,6 +246,20 @@ impl VoiceProcessing {
             *sample = cleaned / RNNOISE_SCALE;
         }
         probability
+    }
+}
+
+/// The first run's noise suppression (plan §7.3): High when it needs under
+/// 20 % of each tick on this computer, Standard otherwise. Takes a moment.
+pub fn recommended_noise_suppression() -> NoiseSuppression {
+    choose(super::deep_filter::benchmark().ok())
+}
+
+/// `share`: of each tick High needs, when it can run at all.
+fn choose(share: Option<f32>) -> NoiseSuppression {
+    match share {
+        Some(share) if share < HIGH_BY_DEFAULT_UNDER => NoiseSuppression::High,
+        _ => NoiseSuppression::Standard,
     }
 }
 
@@ -730,5 +747,12 @@ mod tests {
             "{marked} of {} marked",
             settled.len()
         );
+    }
+
+    #[test]
+    fn high_is_the_first_run_choice_only_when_it_is_light_enough() {
+        assert_eq!(choose(Some(0.05)), NoiseSuppression::High);
+        assert_eq!(choose(Some(0.25)), NoiseSuppression::Standard);
+        assert_eq!(choose(None), NoiseSuppression::Standard, "High cannot run");
     }
 }

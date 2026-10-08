@@ -5,6 +5,7 @@ import 'package:opencord/core/app_info.dart';
 import 'package:opencord/core/providers/providers.dart';
 import 'package:opencord/core/settings/app_settings.dart';
 import 'package:opencord/features/settings/settings_dialog.dart';
+import 'package:opencord/features/voice/input_level_meter.dart';
 import 'package:opencord/features/window/window_startup.dart';
 import 'package:opencord/ui/widgets/key_hint.dart';
 import 'package:opencord/ui/widgets/oc_button.dart';
@@ -266,6 +267,28 @@ void main() {
     expect(
       _inPage(find.text('App: MPL-2.0 · Server: AGPL-3.0')),
       findsOneWidget,
+    );
+    await app.dispose(tester);
+  });
+
+  testWidgets('voice settings show the microphone level under its volume', (
+    tester,
+  ) async {
+    final app = await MockApp.pump(tester);
+    await _openSettings(tester);
+
+    await _page(tester, 'Voice & audio');
+    final meters = _inPage(find.byType(InputLevelMeter)).evaluate().length;
+    final on = app.repository.levelMeterOn;
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await _pumpFor(tester, const Duration(milliseconds: 300));
+
+    expect(meters, 1);
+    expect(on, isTrue);
+    expect(
+      app.repository.levelMeterOn,
+      isFalse,
+      reason: 'closed with the page',
     );
     await app.dispose(tester);
   });

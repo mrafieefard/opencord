@@ -375,6 +375,20 @@ abstract interface class OpencordRepository {
   /// The push-to-talk key went down or up.
   void setPushToTalk(bool held);
 
+  /// The priority speaker key went down or up.
+  void setPrioritySpeaker(bool held);
+
+  /// Report the microphone's level ([InputLevelChanged]) while a meter
+  /// shows it.
+  void setLevelMeter(bool on);
+
+  /// Hear yourself through the whole voice chain, in voice or not.
+  Future<void> setMicTest(bool on);
+
+  /// The noise suppression to start with on a first run: High when this
+  /// computer runs it easily, Standard otherwise (Phase 2 plan §7.3).
+  Future<NoiseSuppression> recommendedNoiseSuppression();
+
   /// How loud someone sounds on this device, 0–200 %.
   void setUserVolume(String serverKey, int userId, int volume);
 

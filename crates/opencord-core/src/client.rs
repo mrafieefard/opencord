@@ -699,6 +699,27 @@ impl Client {
         }
     }
 
+    /// The priority speaker key went down or up.
+    pub fn set_priority_speaker(&self, held: bool) {
+        if let Some(media) = self.inner.media.get() {
+            media.set_priority_speaker(held);
+        }
+    }
+
+    /// Report the microphone's level while a meter shows it.
+    pub fn set_level_meter(&self, on: bool) {
+        if let Some(media) = self.inner.media.get() {
+            media.set_level_meter(on);
+        }
+    }
+
+    /// Hear what would be sent, Opus and all.
+    pub fn set_mic_test(&self, on: bool) {
+        if let Some(media) = self.inner.media.get() {
+            media.set_mic_test(on);
+        }
+    }
+
     /// How loud `user_id` on `key` sounds to this device, 0–2.
     pub fn set_user_volume(&self, key: &str, user_id: i64, volume: f32) {
         if let Some(media) = self.inner.media.get() {

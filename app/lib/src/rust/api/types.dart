@@ -8,7 +8,7 @@ import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 import 'package:freezed_annotation/freezed_annotation.dart' hide protected;
 part 'types.freezed.dart';
 
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`
 
 @freezed
 sealed class AddServerOutcome with _$AddServerOutcome {
@@ -88,6 +88,22 @@ class AudioSettings {
   /// Push-to-talk instead of voice activity.
   final bool pushToTalk;
 
+  /// How long push-to-talk keeps sending after the key is let go, 0–2000
+  /// ms.
+  final int pushToTalkReleaseMs;
+
+  /// Voice activity opens on a detected voice, whatever its level;
+  /// otherwise at `sensitivity_dbfs`.
+  final bool automaticSensitivity;
+
+  /// Manual sensitivity: the level that opens the microphone.
+  final double sensitivityDbfs;
+  final bool echoCancellation;
+  final NoiseSuppressionMode noiseSuppression;
+
+  /// Evens out the microphone's level.
+  final bool automaticGain;
+
   /// Microphone gain, 0–2 (200 %).
   final double inputVolume;
 
@@ -98,6 +114,12 @@ class AudioSettings {
     this.inputDevice,
     this.outputDevice,
     required this.pushToTalk,
+    required this.pushToTalkReleaseMs,
+    required this.automaticSensitivity,
+    required this.sensitivityDbfs,
+    required this.echoCancellation,
+    required this.noiseSuppression,
+    required this.automaticGain,
     required this.inputVolume,
     required this.outputVolume,
   });
@@ -110,6 +132,12 @@ class AudioSettings {
       inputDevice.hashCode ^
       outputDevice.hashCode ^
       pushToTalk.hashCode ^
+      pushToTalkReleaseMs.hashCode ^
+      automaticSensitivity.hashCode ^
+      sensitivityDbfs.hashCode ^
+      echoCancellation.hashCode ^
+      noiseSuppression.hashCode ^
+      automaticGain.hashCode ^
       inputVolume.hashCode ^
       outputVolume.hashCode;
 
@@ -121,6 +149,12 @@ class AudioSettings {
           inputDevice == other.inputDevice &&
           outputDevice == other.outputDevice &&
           pushToTalk == other.pushToTalk &&
+          pushToTalkReleaseMs == other.pushToTalkReleaseMs &&
+          automaticSensitivity == other.automaticSensitivity &&
+          sensitivityDbfs == other.sensitivityDbfs &&
+          echoCancellation == other.echoCancellation &&
+          noiseSuppression == other.noiseSuppression &&
+          automaticGain == other.automaticGain &&
           inputVolume == other.inputVolume &&
           outputVolume == other.outputVolume;
 }
@@ -579,6 +613,28 @@ sealed class MediaEvent with _$MediaEvent {
   /// The devices plugged in changed.
   const factory MediaEvent.devicesChanged(AudioDevices field0) =
       MediaEvent_DevicesChanged;
+
+  /// Who in this device's voice channel started or stopped speaking,
+  /// this device's user too; at most every 50 ms (plan §7.5).
+  const factory MediaEvent.speaking({
+    required String serverKey,
+    required PlatformInt64 channelId,
+    required List<SpeakingChange> changes,
+  }) = MediaEvent_Speaking;
+
+  /// The microphone's level after processing, in dBFS, about 20 times a
+  /// second while a meter is open (`audio_set_level_meter`).
+  const factory MediaEvent.inputLevel({required double dbfs}) =
+      MediaEvent_InputLevel;
+
+  /// The microphone heard someone speak while this device was muted (at
+  /// most every 30 s); for the "You're muted" reminder.
+  const factory MediaEvent.speakingWhileMuted() = MediaEvent_SpeakingWhileMuted;
+
+  /// High noise suppression could not keep up on this computer, so
+  /// Standard took over (plan §7.3).
+  const factory MediaEvent.noiseSuppressionFellBack() =
+      MediaEvent_NoiseSuppressionFellBack;
 }
 
 class Member {
@@ -657,6 +713,17 @@ class Message {
           createdAtMs == other.createdAtMs &&
           editedAtMs == other.editedAtMs &&
           nonce == other.nonce;
+}
+
+/// Noise suppression on the microphone (Phase 2 plan §7.3).
+enum NoiseSuppressionMode {
+  off,
+
+  /// RNNoise: very light.
+  standard,
+
+  /// DeepFilterNet: much better on keyboards, dogs and fans, heavier.
+  high,
 }
 
 enum OverwriteTargetKind { role, member }
@@ -964,6 +1031,25 @@ class ServerInfo {
           ownerId == other.ownerId &&
           openJoin == other.openJoin &&
           everyoneRoleId == other.everyoneRoleId;
+}
+
+/// Someone started or stopped speaking.
+class SpeakingChange {
+  final PlatformInt64 userId;
+  final bool speaking;
+
+  const SpeakingChange({required this.userId, required this.speaking});
+
+  @override
+  int get hashCode => userId.hashCode ^ speaking.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is SpeakingChange &&
+          runtimeType == other.runtimeType &&
+          userId == other.userId &&
+          speaking == other.speaking;
 }
 
 /// A pinned certificate.

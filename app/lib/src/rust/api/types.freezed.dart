@@ -3114,14 +3114,18 @@ extension MediaEventPatterns on MediaEvent {
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeMap<TResult extends Object?>({TResult Function( MediaEvent_ConnectionState value)?  connectionState,TResult Function( MediaEvent_DeviceFellBack value)?  deviceFellBack,TResult Function( MediaEvent_DeviceFailed value)?  deviceFailed,TResult Function( MediaEvent_DevicesChanged value)?  devicesChanged,required TResult orElse(),}){
+@optionalTypeArgs TResult maybeMap<TResult extends Object?>({TResult Function( MediaEvent_ConnectionState value)?  connectionState,TResult Function( MediaEvent_DeviceFellBack value)?  deviceFellBack,TResult Function( MediaEvent_DeviceFailed value)?  deviceFailed,TResult Function( MediaEvent_DevicesChanged value)?  devicesChanged,TResult Function( MediaEvent_Speaking value)?  speaking,TResult Function( MediaEvent_InputLevel value)?  inputLevel,TResult Function( MediaEvent_SpeakingWhileMuted value)?  speakingWhileMuted,TResult Function( MediaEvent_NoiseSuppressionFellBack value)?  noiseSuppressionFellBack,required TResult orElse(),}){
 final _that = this;
 switch (_that) {
 case MediaEvent_ConnectionState() when connectionState != null:
 return connectionState(_that);case MediaEvent_DeviceFellBack() when deviceFellBack != null:
 return deviceFellBack(_that);case MediaEvent_DeviceFailed() when deviceFailed != null:
 return deviceFailed(_that);case MediaEvent_DevicesChanged() when devicesChanged != null:
-return devicesChanged(_that);case _:
+return devicesChanged(_that);case MediaEvent_Speaking() when speaking != null:
+return speaking(_that);case MediaEvent_InputLevel() when inputLevel != null:
+return inputLevel(_that);case MediaEvent_SpeakingWhileMuted() when speakingWhileMuted != null:
+return speakingWhileMuted(_that);case MediaEvent_NoiseSuppressionFellBack() when noiseSuppressionFellBack != null:
+return noiseSuppressionFellBack(_that);case _:
   return orElse();
 
 }
@@ -3139,14 +3143,18 @@ return devicesChanged(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult map<TResult extends Object?>({required TResult Function( MediaEvent_ConnectionState value)  connectionState,required TResult Function( MediaEvent_DeviceFellBack value)  deviceFellBack,required TResult Function( MediaEvent_DeviceFailed value)  deviceFailed,required TResult Function( MediaEvent_DevicesChanged value)  devicesChanged,}){
+@optionalTypeArgs TResult map<TResult extends Object?>({required TResult Function( MediaEvent_ConnectionState value)  connectionState,required TResult Function( MediaEvent_DeviceFellBack value)  deviceFellBack,required TResult Function( MediaEvent_DeviceFailed value)  deviceFailed,required TResult Function( MediaEvent_DevicesChanged value)  devicesChanged,required TResult Function( MediaEvent_Speaking value)  speaking,required TResult Function( MediaEvent_InputLevel value)  inputLevel,required TResult Function( MediaEvent_SpeakingWhileMuted value)  speakingWhileMuted,required TResult Function( MediaEvent_NoiseSuppressionFellBack value)  noiseSuppressionFellBack,}){
 final _that = this;
 switch (_that) {
 case MediaEvent_ConnectionState():
 return connectionState(_that);case MediaEvent_DeviceFellBack():
 return deviceFellBack(_that);case MediaEvent_DeviceFailed():
 return deviceFailed(_that);case MediaEvent_DevicesChanged():
-return devicesChanged(_that);}
+return devicesChanged(_that);case MediaEvent_Speaking():
+return speaking(_that);case MediaEvent_InputLevel():
+return inputLevel(_that);case MediaEvent_SpeakingWhileMuted():
+return speakingWhileMuted(_that);case MediaEvent_NoiseSuppressionFellBack():
+return noiseSuppressionFellBack(_that);}
 }
 /// A variant of `map` that fallback to returning `null`.
 ///
@@ -3160,14 +3168,18 @@ return devicesChanged(_that);}
 /// }
 /// ```
 
-@optionalTypeArgs TResult? mapOrNull<TResult extends Object?>({TResult? Function( MediaEvent_ConnectionState value)?  connectionState,TResult? Function( MediaEvent_DeviceFellBack value)?  deviceFellBack,TResult? Function( MediaEvent_DeviceFailed value)?  deviceFailed,TResult? Function( MediaEvent_DevicesChanged value)?  devicesChanged,}){
+@optionalTypeArgs TResult? mapOrNull<TResult extends Object?>({TResult? Function( MediaEvent_ConnectionState value)?  connectionState,TResult? Function( MediaEvent_DeviceFellBack value)?  deviceFellBack,TResult? Function( MediaEvent_DeviceFailed value)?  deviceFailed,TResult? Function( MediaEvent_DevicesChanged value)?  devicesChanged,TResult? Function( MediaEvent_Speaking value)?  speaking,TResult? Function( MediaEvent_InputLevel value)?  inputLevel,TResult? Function( MediaEvent_SpeakingWhileMuted value)?  speakingWhileMuted,TResult? Function( MediaEvent_NoiseSuppressionFellBack value)?  noiseSuppressionFellBack,}){
 final _that = this;
 switch (_that) {
 case MediaEvent_ConnectionState() when connectionState != null:
 return connectionState(_that);case MediaEvent_DeviceFellBack() when deviceFellBack != null:
 return deviceFellBack(_that);case MediaEvent_DeviceFailed() when deviceFailed != null:
 return deviceFailed(_that);case MediaEvent_DevicesChanged() when devicesChanged != null:
-return devicesChanged(_that);case _:
+return devicesChanged(_that);case MediaEvent_Speaking() when speaking != null:
+return speaking(_that);case MediaEvent_InputLevel() when inputLevel != null:
+return inputLevel(_that);case MediaEvent_SpeakingWhileMuted() when speakingWhileMuted != null:
+return speakingWhileMuted(_that);case MediaEvent_NoiseSuppressionFellBack() when noiseSuppressionFellBack != null:
+return noiseSuppressionFellBack(_that);case _:
   return null;
 
 }
@@ -3184,13 +3196,17 @@ return devicesChanged(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>({TResult Function( String serverKey,  PlatformInt64 channelId,  VoiceConnectionState state)?  connectionState,TResult Function( bool output,  String device)?  deviceFellBack,TResult Function( bool output,  String message)?  deviceFailed,TResult Function( AudioDevices field0)?  devicesChanged,required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>({TResult Function( String serverKey,  PlatformInt64 channelId,  VoiceConnectionState state)?  connectionState,TResult Function( bool output,  String device)?  deviceFellBack,TResult Function( bool output,  String message)?  deviceFailed,TResult Function( AudioDevices field0)?  devicesChanged,TResult Function( String serverKey,  PlatformInt64 channelId,  List<SpeakingChange> changes)?  speaking,TResult Function( double dbfs)?  inputLevel,TResult Function()?  speakingWhileMuted,TResult Function()?  noiseSuppressionFellBack,required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case MediaEvent_ConnectionState() when connectionState != null:
 return connectionState(_that.serverKey,_that.channelId,_that.state);case MediaEvent_DeviceFellBack() when deviceFellBack != null:
 return deviceFellBack(_that.output,_that.device);case MediaEvent_DeviceFailed() when deviceFailed != null:
 return deviceFailed(_that.output,_that.message);case MediaEvent_DevicesChanged() when devicesChanged != null:
-return devicesChanged(_that.field0);case _:
+return devicesChanged(_that.field0);case MediaEvent_Speaking() when speaking != null:
+return speaking(_that.serverKey,_that.channelId,_that.changes);case MediaEvent_InputLevel() when inputLevel != null:
+return inputLevel(_that.dbfs);case MediaEvent_SpeakingWhileMuted() when speakingWhileMuted != null:
+return speakingWhileMuted();case MediaEvent_NoiseSuppressionFellBack() when noiseSuppressionFellBack != null:
+return noiseSuppressionFellBack();case _:
   return orElse();
 
 }
@@ -3208,13 +3224,17 @@ return devicesChanged(_that.field0);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>({required TResult Function( String serverKey,  PlatformInt64 channelId,  VoiceConnectionState state)  connectionState,required TResult Function( bool output,  String device)  deviceFellBack,required TResult Function( bool output,  String message)  deviceFailed,required TResult Function( AudioDevices field0)  devicesChanged,}) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>({required TResult Function( String serverKey,  PlatformInt64 channelId,  VoiceConnectionState state)  connectionState,required TResult Function( bool output,  String device)  deviceFellBack,required TResult Function( bool output,  String message)  deviceFailed,required TResult Function( AudioDevices field0)  devicesChanged,required TResult Function( String serverKey,  PlatformInt64 channelId,  List<SpeakingChange> changes)  speaking,required TResult Function( double dbfs)  inputLevel,required TResult Function()  speakingWhileMuted,required TResult Function()  noiseSuppressionFellBack,}) {final _that = this;
 switch (_that) {
 case MediaEvent_ConnectionState():
 return connectionState(_that.serverKey,_that.channelId,_that.state);case MediaEvent_DeviceFellBack():
 return deviceFellBack(_that.output,_that.device);case MediaEvent_DeviceFailed():
 return deviceFailed(_that.output,_that.message);case MediaEvent_DevicesChanged():
-return devicesChanged(_that.field0);}
+return devicesChanged(_that.field0);case MediaEvent_Speaking():
+return speaking(_that.serverKey,_that.channelId,_that.changes);case MediaEvent_InputLevel():
+return inputLevel(_that.dbfs);case MediaEvent_SpeakingWhileMuted():
+return speakingWhileMuted();case MediaEvent_NoiseSuppressionFellBack():
+return noiseSuppressionFellBack();}
 }
 /// A variant of `when` that fallback to returning `null`
 ///
@@ -3228,13 +3248,17 @@ return devicesChanged(_that.field0);}
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>({TResult? Function( String serverKey,  PlatformInt64 channelId,  VoiceConnectionState state)?  connectionState,TResult? Function( bool output,  String device)?  deviceFellBack,TResult? Function( bool output,  String message)?  deviceFailed,TResult? Function( AudioDevices field0)?  devicesChanged,}) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>({TResult? Function( String serverKey,  PlatformInt64 channelId,  VoiceConnectionState state)?  connectionState,TResult? Function( bool output,  String device)?  deviceFellBack,TResult? Function( bool output,  String message)?  deviceFailed,TResult? Function( AudioDevices field0)?  devicesChanged,TResult? Function( String serverKey,  PlatformInt64 channelId,  List<SpeakingChange> changes)?  speaking,TResult? Function( double dbfs)?  inputLevel,TResult? Function()?  speakingWhileMuted,TResult? Function()?  noiseSuppressionFellBack,}) {final _that = this;
 switch (_that) {
 case MediaEvent_ConnectionState() when connectionState != null:
 return connectionState(_that.serverKey,_that.channelId,_that.state);case MediaEvent_DeviceFellBack() when deviceFellBack != null:
 return deviceFellBack(_that.output,_that.device);case MediaEvent_DeviceFailed() when deviceFailed != null:
 return deviceFailed(_that.output,_that.message);case MediaEvent_DevicesChanged() when devicesChanged != null:
-return devicesChanged(_that.field0);case _:
+return devicesChanged(_that.field0);case MediaEvent_Speaking() when speaking != null:
+return speaking(_that.serverKey,_that.channelId,_that.changes);case MediaEvent_InputLevel() when inputLevel != null:
+return inputLevel(_that.dbfs);case MediaEvent_SpeakingWhileMuted() when speakingWhileMuted != null:
+return speakingWhileMuted();case MediaEvent_NoiseSuppressionFellBack() when noiseSuppressionFellBack != null:
+return noiseSuppressionFellBack();case _:
   return null;
 
 }
@@ -3522,6 +3546,212 @@ as AudioDevices,
 
 
 }
+
+/// @nodoc
+
+
+class MediaEvent_Speaking extends MediaEvent {
+  const MediaEvent_Speaking({required this.serverKey, required this.channelId, required final  List<SpeakingChange> changes}): _changes = changes,super._();
+  
+
+ final  String serverKey;
+ final  PlatformInt64 channelId;
+ final  List<SpeakingChange> _changes;
+ List<SpeakingChange> get changes {
+  if (_changes is EqualUnmodifiableListView) return _changes;
+  // ignore: implicit_dynamic_type
+  return EqualUnmodifiableListView(_changes);
+}
+
+
+/// Create a copy of MediaEvent
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$MediaEvent_SpeakingCopyWith<MediaEvent_Speaking> get copyWith => _$MediaEvent_SpeakingCopyWithImpl<MediaEvent_Speaking>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is MediaEvent_Speaking&&(identical(other.serverKey, serverKey) || other.serverKey == serverKey)&&(identical(other.channelId, channelId) || other.channelId == channelId)&&const DeepCollectionEquality().equals(other._changes, _changes));
+}
+
+
+@override
+int get hashCode => Object.hash(runtimeType,serverKey,channelId,const DeepCollectionEquality().hash(_changes));
+
+@override
+String toString() {
+  return 'MediaEvent.speaking(serverKey: $serverKey, channelId: $channelId, changes: $changes)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $MediaEvent_SpeakingCopyWith<$Res> implements $MediaEventCopyWith<$Res> {
+  factory $MediaEvent_SpeakingCopyWith(MediaEvent_Speaking value, $Res Function(MediaEvent_Speaking) _then) = _$MediaEvent_SpeakingCopyWithImpl;
+@useResult
+$Res call({
+ String serverKey, PlatformInt64 channelId, List<SpeakingChange> changes
+});
+
+
+
+
+}
+/// @nodoc
+class _$MediaEvent_SpeakingCopyWithImpl<$Res>
+    implements $MediaEvent_SpeakingCopyWith<$Res> {
+  _$MediaEvent_SpeakingCopyWithImpl(this._self, this._then);
+
+  final MediaEvent_Speaking _self;
+  final $Res Function(MediaEvent_Speaking) _then;
+
+/// Create a copy of MediaEvent
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? serverKey = null,Object? channelId = null,Object? changes = null,}) {
+  return _then(MediaEvent_Speaking(
+serverKey: null == serverKey ? _self.serverKey : serverKey // ignore: cast_nullable_to_non_nullable
+as String,channelId: null == channelId ? _self.channelId : channelId // ignore: cast_nullable_to_non_nullable
+as PlatformInt64,changes: null == changes ? _self._changes : changes // ignore: cast_nullable_to_non_nullable
+as List<SpeakingChange>,
+  ));
+}
+
+
+}
+
+/// @nodoc
+
+
+class MediaEvent_InputLevel extends MediaEvent {
+  const MediaEvent_InputLevel({required this.dbfs}): super._();
+  
+
+ final  double dbfs;
+
+/// Create a copy of MediaEvent
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$MediaEvent_InputLevelCopyWith<MediaEvent_InputLevel> get copyWith => _$MediaEvent_InputLevelCopyWithImpl<MediaEvent_InputLevel>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is MediaEvent_InputLevel&&(identical(other.dbfs, dbfs) || other.dbfs == dbfs));
+}
+
+
+@override
+int get hashCode => Object.hash(runtimeType,dbfs);
+
+@override
+String toString() {
+  return 'MediaEvent.inputLevel(dbfs: $dbfs)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $MediaEvent_InputLevelCopyWith<$Res> implements $MediaEventCopyWith<$Res> {
+  factory $MediaEvent_InputLevelCopyWith(MediaEvent_InputLevel value, $Res Function(MediaEvent_InputLevel) _then) = _$MediaEvent_InputLevelCopyWithImpl;
+@useResult
+$Res call({
+ double dbfs
+});
+
+
+
+
+}
+/// @nodoc
+class _$MediaEvent_InputLevelCopyWithImpl<$Res>
+    implements $MediaEvent_InputLevelCopyWith<$Res> {
+  _$MediaEvent_InputLevelCopyWithImpl(this._self, this._then);
+
+  final MediaEvent_InputLevel _self;
+  final $Res Function(MediaEvent_InputLevel) _then;
+
+/// Create a copy of MediaEvent
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? dbfs = null,}) {
+  return _then(MediaEvent_InputLevel(
+dbfs: null == dbfs ? _self.dbfs : dbfs // ignore: cast_nullable_to_non_nullable
+as double,
+  ));
+}
+
+
+}
+
+/// @nodoc
+
+
+class MediaEvent_SpeakingWhileMuted extends MediaEvent {
+  const MediaEvent_SpeakingWhileMuted(): super._();
+  
+
+
+
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is MediaEvent_SpeakingWhileMuted);
+}
+
+
+@override
+int get hashCode => runtimeType.hashCode;
+
+@override
+String toString() {
+  return 'MediaEvent.speakingWhileMuted()';
+}
+
+
+}
+
+
+
+
+/// @nodoc
+
+
+class MediaEvent_NoiseSuppressionFellBack extends MediaEvent {
+  const MediaEvent_NoiseSuppressionFellBack(): super._();
+  
+
+
+
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is MediaEvent_NoiseSuppressionFellBack);
+}
+
+
+@override
+int get hashCode => runtimeType.hashCode;
+
+@override
+String toString() {
+  return 'MediaEvent.noiseSuppressionFellBack()';
+}
+
+
+}
+
+
+
 
 /// @nodoc
 mixin _$VoiceConnectionState {

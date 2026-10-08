@@ -15,6 +15,9 @@ class FakeCoreApi extends Fake implements CoreApi {
 
   /// What audioApplySettings was last sent.
   core.AudioSettings? audioSettings;
+
+  /// What audioRecommendedNoiseSuppression answers.
+  var recommended = core.NoiseSuppressionMode.standard;
   final calls = <String>[];
   var servers = <core.Server>[];
   var identityInfo = const core.IdentityInfo(
@@ -57,6 +60,20 @@ class FakeCoreApi extends Fake implements CoreApi {
 
   @override
   void voiceSetPushToTalk(bool held) => calls.add('pushToTalk:$held');
+
+  @override
+  void voiceSetPrioritySpeaker(bool held) => calls.add('priority:$held');
+
+  @override
+  void audioSetLevelMeter(bool enabled) => calls.add('levelMeter:$enabled');
+
+  @override
+  Future<void> audioMicTest(bool enabled) async =>
+      calls.add('micTest:$enabled');
+
+  @override
+  Future<core.NoiseSuppressionMode> audioRecommendedNoiseSuppression() async =>
+      recommended;
 
   @override
   void voiceSetUserVolume(String serverKey, int userId, double volume) =>

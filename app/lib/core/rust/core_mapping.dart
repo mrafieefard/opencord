@@ -430,6 +430,23 @@ core.AudioSettings audioSettingsTo(AudioConfig config) => core.AudioSettings(
   inputDevice: config.inputDevice,
   outputDevice: config.outputDevice,
   pushToTalk: config.pushToTalk,
+  pushToTalkReleaseMs: config.pushToTalkRelease.inMilliseconds,
+  automaticSensitivity: config.automaticSensitivity,
+  sensitivityDbfs: config.sensitivityDbfs,
+  echoCancellation: config.echoCancellation,
+  noiseSuppression: switch (config.noiseSuppression) {
+    NoiseSuppression.off => core.NoiseSuppressionMode.off,
+    NoiseSuppression.standard => core.NoiseSuppressionMode.standard,
+    NoiseSuppression.high => core.NoiseSuppressionMode.high,
+  },
+  automaticGain: config.automaticGain,
   inputVolume: config.inputVolume / 100,
   outputVolume: config.outputVolume / 100,
 );
+
+NoiseSuppression noiseSuppressionFrom(core.NoiseSuppressionMode mode) =>
+    switch (mode) {
+      core.NoiseSuppressionMode.off => NoiseSuppression.off,
+      core.NoiseSuppressionMode.standard => NoiseSuppression.standard,
+      core.NoiseSuppressionMode.high => NoiseSuppression.high,
+    };
