@@ -79,6 +79,8 @@ message Identify {
 
 // A UDP host candidate of the node.
 message IceCandidate {
+  // An IP or a host name. Empty means the host the client reached the voice
+  // gateway with.
   string ip = 1;
   uint32 port = 2;
 }

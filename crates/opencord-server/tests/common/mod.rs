@@ -14,11 +14,7 @@ use opencord_server::config::Config;
 use opencord_server::server::{self, ServerHandle};
 use prost::Message as _;
 use proto::envelope::Payload;
-use rustls::DigitallySignedStruct;
-use rustls::client::danger::{HandshakeSignatureValid, ServerCertVerified, ServerCertVerifier};
-use rustls::crypto::{WebPkiSupportedAlgorithms, verify_tls12_signature, verify_tls13_signature};
-use rustls::pki_types::{CertificateDer, ServerName, UnixTime};
-use sha2::{Digest, Sha256};
+use rustls::pki_types::ServerName;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpStream;
 use tokio_rustls::TlsConnector;
@@ -309,69 +305,25 @@ pub fn close_code(code: u16) -> CloseCode {
     CloseCode::from(code)
 }
 
+/// A WebSocket to `path` on the server.
+pub async fn websocket(
+    server: &TestServer,
+    path: &str,
+) -> Result<WebSocketStream<TlsStream<TcpStream>>, tokio_tungstenite::tungstenite::Error> {
+    let tls = tls_connect(server).await;
+    let url = format!("wss://localhost:{}{path}", server.handle.local_addr.port());
+    tokio_tungstenite::client_async(url, tls)
+        .await
+        .map(|(ws, _)| ws)
+}
+
 async fn tls_connect(server: &TestServer) -> TlsStream<TcpStream> {
-    let provider = Arc::new(rustls::crypto::ring::default_provider());
-    let verifier = Arc::new(PinnedFingerprint {
-        fingerprint: server.handle.fingerprint,
-        algorithms: provider.signature_verification_algorithms,
-    });
-    let config = rustls::ClientConfig::builder_with_provider(provider)
-        .with_safe_default_protocol_versions()
-        .unwrap()
-        .dangerous()
-        .with_custom_certificate_verifier(verifier)
-        .with_no_client_auth();
+    let config = opencord_server::tls::client_config(Some(server.handle.fingerprint)).unwrap();
     let tcp = TcpStream::connect(server.handle.local_addr).await.unwrap();
     TlsConnector::from(Arc::new(config))
         .connect(ServerName::try_from("localhost").unwrap(), tcp)
         .await
         .unwrap()
-}
-
-#[derive(Debug)]
-struct PinnedFingerprint {
-    fingerprint: Fingerprint,
-    algorithms: WebPkiSupportedAlgorithms,
-}
-
-impl ServerCertVerifier for PinnedFingerprint {
-    fn verify_server_cert(
-        &self,
-        end_entity: &CertificateDer<'_>,
-        _intermediates: &[CertificateDer<'_>],
-        _server_name: &ServerName<'_>,
-        _ocsp_response: &[u8],
-        _now: UnixTime,
-    ) -> Result<ServerCertVerified, rustls::Error> {
-        let presented: Fingerprint = Sha256::digest(end_entity.as_ref()).into();
-        if presented == self.fingerprint {
-            Ok(ServerCertVerified::assertion())
-        } else {
-            Err(rustls::Error::General("fingerprint mismatch".to_owned()))
-        }
-    }
-
-    fn verify_tls12_signature(
-        &self,
-        message: &[u8],
-        cert: &CertificateDer<'_>,
-        dss: &DigitallySignedStruct,
-    ) -> Result<HandshakeSignatureValid, rustls::Error> {
-        verify_tls12_signature(message, cert, dss, &self.algorithms)
-    }
-
-    fn verify_tls13_signature(
-        &self,
-        message: &[u8],
-        cert: &CertificateDer<'_>,
-        dss: &DigitallySignedStruct,
-    ) -> Result<HandshakeSignatureValid, rustls::Error> {
-        verify_tls13_signature(message, cert, dss, &self.algorithms)
-    }
-
-    fn supported_verify_schemes(&self) -> Vec<rustls::SignatureScheme> {
-        self.algorithms.supported_schemes()
-    }
 }
 
 impl TestClient {

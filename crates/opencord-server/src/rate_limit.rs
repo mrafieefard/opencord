@@ -7,7 +7,7 @@ use std::time::Duration;
 use governor::clock::{Clock, DefaultClock};
 use governor::{DefaultKeyedRateLimiter, Quota};
 use opencord_common::limits::{
-    IDENTIFY_RATE, MESSAGE_RATE, REQUEST_RATE, RateLimit, VOICE_STATE_RATE,
+    IDENTIFY_RATE, MESSAGE_RATE, REQUEST_RATE, RateLimit, VOICE_NODE_RATE, VOICE_STATE_RATE,
 };
 
 #[derive(Debug)]
@@ -16,6 +16,7 @@ pub struct RateLimits {
     requests: DefaultKeyedRateLimiter<i64>,
     messages: DefaultKeyedRateLimiter<(i64, i64)>,
     voice_states: DefaultKeyedRateLimiter<i64>,
+    voice_nodes: DefaultKeyedRateLimiter<IpAddr>,
     clock: DefaultClock,
 }
 
@@ -26,6 +27,7 @@ impl Default for RateLimits {
             requests: DefaultKeyedRateLimiter::keyed(quota(REQUEST_RATE)),
             messages: DefaultKeyedRateLimiter::keyed(quota(MESSAGE_RATE)),
             voice_states: DefaultKeyedRateLimiter::keyed(quota(VOICE_STATE_RATE)),
+            voice_nodes: DefaultKeyedRateLimiter::keyed(quota(VOICE_NODE_RATE)),
             clock: DefaultClock::default(),
         }
     }
@@ -57,12 +59,19 @@ impl RateLimits {
             .map_err(|not_until| not_until.wait_time_from(self.clock.now()))
     }
 
+    pub fn check_voice_node(&self, ip: IpAddr) -> Result<(), Duration> {
+        self.voice_nodes
+            .check_key(&ip)
+            .map_err(|not_until| not_until.wait_time_from(self.clock.now()))
+    }
+
     /// Forgets keys whose limits have fully recovered.
     pub fn prune(&self) {
         self.identify.retain_recent();
         self.requests.retain_recent();
         self.messages.retain_recent();
         self.voice_states.retain_recent();
+        self.voice_nodes.retain_recent();
     }
 }
 

@@ -19,3 +19,4 @@ pub mod state;
 pub mod tls;
 pub mod visibility;
 pub mod voice;
+pub mod voice_node;

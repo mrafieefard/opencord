@@ -6,6 +6,7 @@ edition.workspace = true
 repository.workspace = true
 license = "AGPL-3.0-or-later"
 publish = false
+default-run = "opencord-server"
 
 [dependencies]
 anyhow.workspace = true
@@ -26,6 +27,8 @@ sha2.workspace = true
 sqlx.workspace = true
 thiserror.workspace = true
 tokio.workspace = true
+tokio-rustls.workspace = true
+tokio-tungstenite.workspace = true
 tokio-util.workspace = true
 tracing.workspace = true
 tracing-subscriber.workspace = true
@@ -34,8 +37,7 @@ opencord-common.workspace = true
 opencord-proto.workspace = true
 opencord-voice.workspace = true
 prost.workspace = true
+webpki-roots.workspace = true
 
 [dev-dependencies]
 tempfile.workspace = true
-tokio-rustls.workspace = true
-tokio-tungstenite.workspace = true

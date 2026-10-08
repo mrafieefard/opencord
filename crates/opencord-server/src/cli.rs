@@ -12,6 +12,7 @@ use crate::db::meta::ServerMeta;
 use crate::db::{self, invites};
 use crate::state::now_ms;
 use crate::tls;
+use tracing_subscriber::EnvFilter;
 
 #[derive(Debug, Parser)]
 #[command(
@@ -89,6 +90,34 @@ pub async fn create_invite(
 pub async fn reset_claim_token(config: &Config) -> anyhow::Result<String> {
     let pool = open_database(config).await?;
     Ok(bootstrap::reset_claim_token(&pool).await?)
+}
+
+/// Logs to stderr with a tracing filter such as "info".
+pub fn init_tracing(filter: &str) {
+    let filter = EnvFilter::try_new(filter).unwrap_or_else(|_| EnvFilter::new("info"));
+    tracing_subscriber::fmt().with_env_filter(filter).init();
+}
+
+/// Waits for Ctrl-C, or SIGTERM on Unix.
+pub async fn shutdown_signal() {
+    let ctrl_c = async {
+        let _ = tokio::signal::ctrl_c().await;
+    };
+    #[cfg(unix)]
+    let terminate = async {
+        match tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate()) {
+            Ok(mut signal) => {
+                signal.recv().await;
+            }
+            Err(_) => std::future::pending::<()>().await,
+        }
+    };
+    #[cfg(not(unix))]
+    let terminate = std::future::pending::<()>();
+    tokio::select! {
+        () = ctrl_c => {}
+        () = terminate => {}
+    }
 }
 
 async fn open_database(config: &Config) -> anyhow::Result<sqlx::SqlitePool> {

@@ -30,11 +30,16 @@ struct Node {
 }
 
 async fn node() -> Node {
+    start_node(true).await
+}
+
+/// A node, told the main server's key or not.
+async fn start_node(knows_key: bool) -> Node {
     let key = SigningKey::from_bytes(&[9; 32]);
     let (node, events) = VoiceNode::start(NodeConfig {
         udp_port: 0,
         public_address: Some("127.0.0.1".to_owned()),
-        verifying_key: key.verifying_key(),
+        verifying_key: knows_key.then(|| key.verifying_key()),
         heartbeat_interval: Duration::from_secs(1),
     })
     .await
@@ -78,7 +83,6 @@ fn target(node: &Node, user_id: i64, token: Vec<u8>) -> VoiceTarget {
     VoiceTarget {
         gateway_url: node.gateway.clone(),
         certificate_fingerprint: None,
-        media_host: "127.0.0.1".to_owned(),
         token,
         user_id,
         session_id: format!("session-{user_id}"),
@@ -155,6 +159,21 @@ fn now_ms() -> i64 {
             .as_millis(),
     )
     .unwrap()
+}
+
+/// What the node reported until it went quiet for `quiet`.
+async fn node_events(node: &mut Node, quiet: Duration) -> Vec<NodeEvent> {
+    let mut events = Vec::new();
+    while let Ok(Some(event)) = tokio::time::timeout(quiet, node.events.recv()).await {
+        events.push(event);
+    }
+    events
+}
+
+fn reports_someone_gone(events: &[NodeEvent]) -> bool {
+    events
+        .iter()
+        .any(|event| matches!(event, NodeEvent::Disconnected { .. }))
 }
 
 fn update(user_id: i64, state: PeerState) -> NodeCommand {
@@ -338,4 +357,117 @@ async fn the_main_server_can_disconnect_someone() {
         matches!(event, VoiceEvent::ClientDisconnected { user_id: 1 })
     })
     .await;
+    let events = node_events(&mut node, Duration::from_millis(200)).await;
+    assert!(
+        !reports_someone_gone(&events),
+        "the main server asked for it: {events:?}"
+    );
+}
+
+#[tokio::test]
+async fn a_replaced_connection_is_not_reported_as_gone() {
+    let mut node = node().await;
+    let (_first, mut first_events) = join(&node, 1).await;
+    let (_second, _second_events) = join(&node, 1).await;
+    wait_for(&mut first_events, |event| {
+        matches!(
+            event,
+            VoiceEvent::Closed {
+                code: Some(close::SESSION_REPLACED)
+            }
+        )
+    })
+    .await;
+
+    let events = node_events(&mut node, Duration::from_millis(200)).await;
+
+    assert!(!reports_someone_gone(&events), "{events:?}");
+}
+
+#[tokio::test]
+async fn a_shutdown_reports_nobody_as_gone() {
+    let mut node = node().await;
+    let (_alice, mut alice_events) = join(&node, 1).await;
+
+    node.node.shutdown();
+    wait_for(&mut alice_events, |event| {
+        matches!(
+            event,
+            VoiceEvent::Closed {
+                code: Some(close::NODE_SHUTDOWN)
+            }
+        )
+    })
+    .await;
+    let events = node_events(&mut node, Duration::from_millis(200)).await;
+
+    assert!(!reports_someone_gone(&events), "{events:?}");
+}
+
+#[tokio::test]
+async fn a_node_lets_nobody_in_until_it_knows_the_main_servers_key() {
+    let node = start_node(false).await;
+
+    let refused = VoiceConnection::connect(target(&node, 1, token_for(&node, 1)))
+        .await
+        .err();
+    node.node.set_verifying_key(node.key.verifying_key());
+    let (_alice, _alice_events) = join(&node, 1).await;
+
+    assert!(matches!(
+        refused,
+        Some(TransportError::Refused(Some(close::AUTHENTICATION_FAILED)))
+    ));
+}
+
+#[tokio::test]
+async fn a_suspended_node_ends_every_session_and_takes_none_until_it_has_the_key_again() {
+    let node = node().await;
+    let (_alice, mut alice_events) = join(&node, 1).await;
+
+    node.node.suspend();
+    let closed = wait_for(&mut alice_events, |event| {
+        matches!(event, VoiceEvent::Closed { .. })
+    })
+    .await;
+    let refused = VoiceConnection::connect(target(&node, 2, token_for(&node, 2)))
+        .await
+        .err();
+    node.node.set_verifying_key(node.key.verifying_key());
+    let (_bob, _bob_events) = join(&node, 2).await;
+
+    assert!(matches!(
+        closed,
+        VoiceEvent::Closed {
+            code: Some(close::NODE_SHUTDOWN)
+        }
+    ));
+    assert!(matches!(
+        refused,
+        Some(TransportError::Refused(Some(close::AUTHENTICATION_FAILED)))
+    ));
+}
+
+#[tokio::test]
+async fn the_node_counts_its_participants_and_traffic() {
+    let node = node().await;
+    let (alice, _alice_events) = join(&node, 1).await;
+    let (_bob, mut bob_events) = join(&node, 2).await;
+    let both = node.node.load();
+
+    talk(&alice, 10).await;
+    heard(&mut bob_events, Duration::from_millis(200)).await;
+    node.node.send(NodeCommand::Disconnect {
+        user_id: 2,
+        channel_id: CHANNEL,
+    });
+    tokio::time::sleep(Duration::from_millis(100)).await;
+    let after = node.node.load();
+
+    assert_eq!((both.channels, both.participants), (1, 2));
+    assert_eq!((after.channels, after.participants), (1, 1));
+    assert!(after.packets_in >= 10, "{after:?}");
+    assert!(after.packets_out >= 10, "{after:?}");
+    assert!(after.bytes_in > both.bytes_in, "{after:?}");
+    assert!(after.bytes_out > both.bytes_out, "{after:?}");
 }

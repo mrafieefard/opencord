@@ -6,7 +6,6 @@ use opencord_server::cli::{self, Cli, Command, InviteCommand};
 use opencord_server::config::Config;
 use opencord_server::server;
 use tracing::{info, warn};
-use tracing_subscriber::EnvFilter;
 
 #[tokio::main]
 async fn main() -> ExitCode {
@@ -25,7 +24,7 @@ async fn run() -> anyhow::Result<()> {
     let config = loaded.config;
     match cli.command.unwrap_or(Command::Run) {
         Command::Run => {
-            init_tracing(&config.log.filter);
+            cli::init_tracing(&config.log.filter);
             if loaded.created {
                 info!(path = %cli.config.display(), "wrote a default config file");
             }
@@ -70,34 +69,8 @@ async fn serve(config: Config) -> anyhow::Result<()> {
     if let Some(link) = &handle.invite_link {
         info!(invite = %link, "share this invite link");
     }
-    shutdown_signal().await;
+    cli::shutdown_signal().await;
     info!("shutting down");
     handle.shutdown().await;
     Ok(())
-}
-
-async fn shutdown_signal() {
-    let ctrl_c = async {
-        let _ = tokio::signal::ctrl_c().await;
-    };
-    #[cfg(unix)]
-    let terminate = async {
-        match tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate()) {
-            Ok(mut signal) => {
-                signal.recv().await;
-            }
-            Err(_) => std::future::pending::<()>().await,
-        }
-    };
-    #[cfg(not(unix))]
-    let terminate = std::future::pending::<()>();
-    tokio::select! {
-        () = ctrl_c => {}
-        () = terminate => {}
-    }
-}
-
-fn init_tracing(filter: &str) {
-    let filter = EnvFilter::try_new(filter).unwrap_or_else(|_| EnvFilter::new("info"));
-    tracing_subscriber::fmt().with_env_filter(filter).init();
 }

@@ -40,9 +40,6 @@ pub struct VoiceTarget {
     pub gateway_url: String,
     /// SHA-256 of the node's certificate. Needed for `wss://`.
     pub certificate_fingerprint: Option<[u8; 32]>,
-    /// Where to send media when the node says "the host you reached the
-    /// main server with".
-    pub media_host: String,
     pub token: Vec<u8>,
     pub user_id: i64,
     pub session_id: String,
@@ -158,7 +155,7 @@ impl VoiceConnection {
         )
         .await?;
         let ready = ready(&mut socket).await?;
-        let media = Media::start(&target, &ready).await?;
+        let media = Media::start(&url.address.host, &ready).await?;
         gateway::send(
             &mut socket,
             Payload::TransportInfo(voice::TransportInfo {
@@ -269,7 +266,10 @@ struct Media {
 }
 
 impl Media {
-    async fn start(target: &VoiceTarget, ready: &voice::Ready) -> Result<Self, TransportError> {
+    /// Media goes to the node's candidate, or to `gateway_host` when the
+    /// candidate leaves its address empty ("the host you reached the voice
+    /// gateway with").
+    async fn start(gateway_host: &str, ready: &voice::Ready) -> Result<Self, TransportError> {
         let codec_ok = ready.codecs.iter().any(|codec| {
             codec.codec == voice::Codec::Opus as i32
                 && codec.payload_type == u32::from(OPUS_PAYLOAD_TYPE)
@@ -284,7 +284,7 @@ impl Media {
             .first()
             .ok_or_else(|| TransportError::Protocol("no media address".to_owned()))?;
         let host = if candidate.ip.is_empty() {
-            target.media_host.as_str()
+            gateway_host
         } else {
             candidate.ip.as_str()
         };

@@ -1998,6 +1998,7 @@ dependencies = [
  "toml",
  "tracing",
  "tracing-subscriber",
+ "webpki-roots",
 ]
 
 [[package]]
@@ -2010,6 +2011,7 @@ dependencies = [
  "futures-util",
  "getrandom 0.4.3",
  "hex",
+ "hmac",
  "opencord-common",
  "opencord-media",
  "opencord-proto",

@@ -6,6 +6,7 @@ use std::path::{Path, PathBuf};
 use std::str::FromStr;
 
 use serde::Deserialize;
+use serde::de::DeserializeOwned;
 
 /// Written to disk when no config file exists. Must parse to [`Config::default`].
 pub const DEFAULT_CONFIG_TOML: &str = r#"# Opencord server configuration.
@@ -59,7 +60,9 @@ max_participants_per_channel = 99
 max_egress_mbps = 0
 
 # Voice nodes on other machines (opencord-voice-node), each with its shared
-# secret in a file next to this one.
+# secret in a file next to this one: make one with
+# `opencord-voice-node generate-secret voice1.secret` and give the node the
+# same file. The endpoint must match the node's own exactly.
 # [[voice.external_nodes]]
 # endpoint = "wss://voice1.example.com:7712"
 # secret_file = "voice1.secret"
@@ -145,6 +148,15 @@ impl Default for ServerSection {
     }
 }
 
+impl TlsSection {
+    pub fn resolve_paths(self, base_dir: &Path) -> Self {
+        Self {
+            cert: self.cert.map(|cert| base_dir.join(cert)),
+            key: self.key.map(|key| base_dir.join(key)),
+        }
+    }
+}
+
 impl Default for GatewaySection {
     fn default() -> Self {
         Self {
@@ -193,9 +205,34 @@ pub enum ConfigError {
 
 /// A loaded config, and whether the file had to be created.
 #[derive(Debug)]
-pub struct Loaded {
-    pub config: Config,
+pub struct Loaded<T = Config> {
+    pub config: T,
     pub created: bool,
+}
+
+/// Reads a TOML config file, first writing `default_toml` there if it does
+/// not exist.
+pub fn read_or_create<T: DeserializeOwned>(
+    path: &Path,
+    default_toml: &str,
+) -> Result<Loaded<T>, ConfigError> {
+    let io_error = |source| ConfigError::Io {
+        path: path.to_owned(),
+        source,
+    };
+    let created = !path.exists();
+    if created {
+        if let Some(parent) = path.parent().filter(|p| !p.as_os_str().is_empty()) {
+            fs::create_dir_all(parent).map_err(io_error)?;
+        }
+        fs::write(path, default_toml).map_err(io_error)?;
+    }
+    let text = fs::read_to_string(path).map_err(io_error)?;
+    let config = toml::from_str(&text).map_err(|source| ConfigError::Parse {
+        path: path.to_owned(),
+        source: Box::new(source),
+    })?;
+    Ok(Loaded { config, created })
 }
 
 impl Config {
@@ -206,26 +243,11 @@ impl Config {
         path: &Path,
         env: impl Fn(&str) -> Option<String>,
     ) -> Result<Loaded, ConfigError> {
-        let io_error = |source| ConfigError::Io {
-            path: path.to_owned(),
-            source,
-        };
-        let created = !path.exists();
-        if created {
-            if let Some(parent) = path.parent().filter(|p| !p.as_os_str().is_empty()) {
-                fs::create_dir_all(parent).map_err(io_error)?;
-            }
-            fs::write(path, DEFAULT_CONFIG_TOML).map_err(io_error)?;
-        }
-        let text = fs::read_to_string(path).map_err(io_error)?;
-        let parsed: Config = toml::from_str(&text).map_err(|source| ConfigError::Parse {
-            path: path.to_owned(),
-            source: Box::new(source),
-        })?;
+        let loaded: Loaded<Config> = read_or_create(path, DEFAULT_CONFIG_TOML)?;
         let base_dir = path.parent().unwrap_or(Path::new(""));
         Ok(Loaded {
-            config: parsed.with_env(&env)?.resolve_paths(base_dir),
-            created,
+            config: loaded.config.with_env(&env)?.resolve_paths(base_dir),
+            created: loaded.created,
         })
     }
 
@@ -282,10 +304,7 @@ impl Config {
                 data_dir: base_dir.join(&self.server.data_dir),
                 ..self.server
             },
-            tls: TlsSection {
-                cert: self.tls.cert.map(|cert| base_dir.join(cert)),
-                key: self.tls.key.map(|key| base_dir.join(key)),
-            },
+            tls: self.tls.resolve_paths(base_dir),
             voice: VoiceSection {
                 external_nodes: self
                     .voice

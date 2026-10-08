@@ -1,6 +1,7 @@
 //! Voice on the main server: settings, voice states and the tokens that
 //! send clients to a voice node (Phase 2 plan §3–§5).
 
+use std::collections::HashSet;
 use std::time::Instant;
 
 use opencord_common::limits::{VOICE_GRACE_PERIOD, VOICE_TOKEN_LIFETIME};
@@ -15,6 +16,7 @@ use crate::random;
 use crate::state::{AppState, now_ms};
 use states::{VoiceConfig, VoiceState, VoiceStates};
 
+pub mod control;
 pub mod keys;
 pub mod media_token;
 pub mod nodes;
@@ -183,6 +185,29 @@ pub fn server_update(
         certificate_fingerprint: link.fingerprint.to_vec(),
         token: opencord_voice::token::issue(&state.voice_key, &claims),
     })
+}
+
+/// Gives every voice state whose channel has no node one, with a fresh
+/// token: after a node went away, or when one registers. While no node is
+/// available, people keep their voice state and wait.
+pub async fn place_unassigned(state: &AppState) {
+    let _writes = state.write_lock().await;
+    let assigned: HashSet<i64> = state.voice_nodes.assigned().into_iter().collect();
+    let updates: Vec<(String, proto::VoiceServerUpdate)> = {
+        let guild = state.guild();
+        let voice = state.voice();
+        voice
+            .all()
+            .filter(|vs| !assigned.contains(&vs.channel_id))
+            .filter_map(|vs| {
+                let update = server_update(state, &guild, &voice, vs)?;
+                Some((vs.session_id.clone(), update))
+            })
+            .collect()
+    };
+    for (session_id, update) in updates {
+        send_server_update(state, &session_id, update);
+    }
 }
 
 /// Sends `update` to one session only.

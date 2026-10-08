@@ -23,7 +23,7 @@ use tokio::sync::mpsc::UnboundedReceiver;
 
 const REAP_INTERVAL: Duration = Duration::from_secs(5);
 /// How often voice clients send a heartbeat.
-const VOICE_HEARTBEAT: Duration = Duration::from_secs(5);
+pub(crate) const VOICE_HEARTBEAT: Duration = Duration::from_secs(5);
 const SHUTDOWN_GRACE: Duration = Duration::from_secs(5);
 
 /// A running server.
@@ -162,7 +162,7 @@ async fn embedded_node(
     let (node, events) = VoiceNode::start(NodeConfig {
         udp_port: config.voice.udp_port,
         public_address,
-        verifying_key: voice_key.verifying_key(),
+        verifying_key: Some(voice_key.verifying_key()),
         heartbeat_interval: VOICE_HEARTBEAT,
     })
     .await

@@ -1,5 +1,6 @@
 //! TLS certificate: a configured one, or a self-signed one generated on first
-//! start and kept in the data directory.
+//! start and kept in the data directory. Also the client side, for a voice
+//! node reaching its main server.
 
 use std::fs;
 use std::io::Write;
@@ -7,8 +8,11 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use opencord_common::address::Fingerprint;
+use rustls::client::danger::{HandshakeSignatureValid, ServerCertVerified, ServerCertVerifier};
+use rustls::crypto::{WebPkiSupportedAlgorithms, verify_tls12_signature, verify_tls13_signature};
 use rustls::pki_types::pem::PemObject;
-use rustls::pki_types::{CertificateDer, PrivateKeyDer};
+use rustls::pki_types::{CertificateDer, PrivateKeyDer, ServerName, UnixTime};
+use rustls::{DigitallySignedStruct, RootCertStore};
 use sha2::{Digest, Sha256};
 
 use crate::config::TlsSection;
@@ -80,6 +84,78 @@ pub fn server_config(material: &TlsMaterial) -> Result<rustls::ServerConfig, Tls
         .with_single_cert(material.cert_chain.clone(), material.key.clone_key())?;
     config.alpn_protocols = vec![b"http/1.1".to_vec()];
     Ok(config)
+}
+
+/// A client config that trusts exactly the certificate with `fingerprint`,
+/// or, without one, certificates from the public certificate authorities.
+pub fn client_config(fingerprint: Option<Fingerprint>) -> Result<rustls::ClientConfig, TlsError> {
+    let provider = Arc::new(rustls::crypto::ring::default_provider());
+    let algorithms = provider.signature_verification_algorithms;
+    let builder = rustls::ClientConfig::builder_with_provider(provider)
+        .with_safe_default_protocol_versions()?;
+    let config = match fingerprint {
+        Some(fingerprint) => builder
+            .dangerous()
+            .with_custom_certificate_verifier(Arc::new(Pinned {
+                fingerprint,
+                algorithms,
+            }))
+            .with_no_client_auth(),
+        None => builder
+            .with_root_certificates(RootCertStore::from_iter(
+                webpki_roots::TLS_SERVER_ROOTS.iter().cloned(),
+            ))
+            .with_no_client_auth(),
+    };
+    Ok(config)
+}
+
+/// Accepts exactly the certificate with this fingerprint.
+#[derive(Debug)]
+struct Pinned {
+    fingerprint: Fingerprint,
+    algorithms: WebPkiSupportedAlgorithms,
+}
+
+impl ServerCertVerifier for Pinned {
+    fn verify_server_cert(
+        &self,
+        end_entity: &CertificateDer<'_>,
+        _intermediates: &[CertificateDer<'_>],
+        _server_name: &ServerName<'_>,
+        _ocsp_response: &[u8],
+        _now: UnixTime,
+    ) -> Result<ServerCertVerified, rustls::Error> {
+        if fingerprint(end_entity) == self.fingerprint {
+            Ok(ServerCertVerified::assertion())
+        } else {
+            Err(rustls::Error::General(
+                "the certificate is not the one pinned".to_owned(),
+            ))
+        }
+    }
+
+    fn verify_tls12_signature(
+        &self,
+        message: &[u8],
+        cert: &CertificateDer<'_>,
+        dss: &DigitallySignedStruct,
+    ) -> Result<HandshakeSignatureValid, rustls::Error> {
+        verify_tls12_signature(message, cert, dss, &self.algorithms)
+    }
+
+    fn verify_tls13_signature(
+        &self,
+        message: &[u8],
+        cert: &CertificateDer<'_>,
+        dss: &DigitallySignedStruct,
+    ) -> Result<HandshakeSignatureValid, rustls::Error> {
+        verify_tls13_signature(message, cert, dss, &self.algorithms)
+    }
+
+    fn supported_verify_schemes(&self) -> Vec<rustls::SignatureScheme> {
+        self.algorithms.supported_schemes()
+    }
 }
 
 fn load(cert_path: &Path, key_path: &Path) -> Result<TlsMaterial, TlsError> {
@@ -203,6 +279,35 @@ mod tests {
             load_or_generate(&half, dir.path(), &hostnames()),
             Err(TlsError::IncompleteConfig)
         ));
+    }
+
+    #[test]
+    fn a_pinned_client_trusts_only_that_certificate() {
+        let pinned_dir = tempfile::tempdir().unwrap();
+        let other_dir = tempfile::tempdir().unwrap();
+        let pinned =
+            load_or_generate(&TlsSection::default(), pinned_dir.path(), &hostnames()).unwrap();
+        let other =
+            load_or_generate(&TlsSection::default(), other_dir.path(), &hostnames()).unwrap();
+        let provider = rustls::crypto::ring::default_provider();
+        let verifier = Pinned {
+            fingerprint: pinned.fingerprint,
+            algorithms: provider.signature_verification_algorithms,
+        };
+        let verify = |cert: &CertificateDer<'_>| {
+            verifier.verify_server_cert(
+                cert,
+                &[],
+                &ServerName::try_from("localhost").unwrap(),
+                &[],
+                UnixTime::now(),
+            )
+        };
+
+        assert!(verify(&pinned.cert_chain[0]).is_ok());
+        assert!(verify(&other.cert_chain[0]).is_err());
+        assert!(client_config(Some(pinned.fingerprint)).is_ok());
+        assert!(client_config(None).is_ok());
     }
 
     #[test]

@@ -2,8 +2,9 @@
 //! Voice gateway connections and the main server talk to it through
 //! commands; it answers through each session's connection and node events.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::net::SocketAddr;
+use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use ed25519_dalek::VerifyingKey;
@@ -15,7 +16,7 @@ use tokio::sync::{mpsc, oneshot};
 use voice::envelope::Payload;
 
 use super::session::{Connection, NewSession, VoiceSession};
-use super::{NodeCommand, NodeEvent};
+use super::{Counters, NodeCommand, NodeEvent};
 use crate::sfu::{PeerId, PeerSetup, PeerState, Sfu, SfuEvent, Transport};
 use crate::token::{self, Presenter, UsedTokens};
 
@@ -26,6 +27,32 @@ const TICK: Duration = Duration::from_secs(1);
 /// Updates for people not connected yet are kept this long, as long as a
 /// voice token lives.
 const PENDING_FOR: Duration = token::VOICE_TOKEN_LIFETIME;
+
+/// Why a voice session ended.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Ending {
+    /// Its connection did not come back within the resume window: the only
+    /// ending the main server does not know about already.
+    Expired,
+    /// The same user connected again.
+    Replaced,
+    /// The main server asked.
+    Disconnected,
+    /// The node is stopping, or lost the main server; the main server sends
+    /// everyone elsewhere.
+    NodeShutdown,
+}
+
+impl Ending {
+    fn close_code(self) -> u16 {
+        match self {
+            Self::Expired => close::SESSION_INVALID,
+            Self::Replaced => close::SESSION_REPLACED,
+            Self::Disconnected => close::DISCONNECTED,
+            Self::NodeShutdown => close::NODE_SHUTDOWN,
+        }
+    }
+}
 
 pub enum Command {
     Identify {
@@ -51,6 +78,8 @@ pub enum Command {
         connection_id: u64,
     },
     Node(NodeCommand),
+    VerifyingKey(VerifyingKey),
+    Suspend,
     Shutdown,
 }
 
@@ -61,6 +90,8 @@ pub struct Identified {
 
 #[derive(Debug, thiserror::Error)]
 pub enum IdentifyError {
+    #[error("this node does not know the main server's key yet")]
+    NoKey,
     #[error(transparent)]
     Token(#[from] token::TokenError),
     #[error("the media connection could not be prepared")]
@@ -71,9 +102,9 @@ pub struct Runtime {
     pub sfu: Sfu,
     pub v4: UdpSocket,
     pub v6: Option<UdpSocket>,
-    pub verifying_key: VerifyingKey,
+    pub verifying_key: Option<VerifyingKey>,
     /// Candidate ip clients send media to; empty for "the host you reached
-    /// the main server with".
+    /// the voice gateway with".
     pub public_ip: String,
     pub udp_port: u16,
     pub events: mpsc::UnboundedSender<NodeEvent>,
@@ -82,6 +113,7 @@ pub struct Runtime {
     /// What the main server last said about people not connected (yet).
     pub pending: HashMap<(i64, i64), (PeerState, u64, Instant)>,
     pub limits: HashMap<i64, voice::Limits>,
+    pub counters: Arc<Counters>,
 }
 
 impl Runtime {
@@ -97,11 +129,13 @@ impl Runtime {
             tokio::select! {
                 received = self.v4.recv_from(&mut v4_buffer) => {
                     if let Ok((size, source)) = received {
+                        self.counters.received(size);
                         self.sfu.handle_receive(Instant::now(), source, &v4_buffer[..size]);
                     }
                 }
                 received = recv_maybe(self.v6.as_ref(), &mut v6_buffer) => {
                     if let Ok((size, source)) = received {
+                        self.counters.received(size);
                         self.sfu.handle_receive(Instant::now(), source, &v6_buffer[..size]);
                     }
                 }
@@ -175,6 +209,11 @@ impl Runtime {
                 }
             }
             Command::Node(command) => self.node_command(now, command),
+            Command::VerifyingKey(key) => self.verifying_key = Some(key),
+            Command::Suspend => {
+                self.end_all(now);
+                self.verifying_key = None;
+            }
             Command::Shutdown => {}
         }
     }
@@ -190,7 +229,8 @@ impl Runtime {
             session_id: &identify.session_id,
             channel_id: identify.channel_id,
         };
-        let claims = token::verify(&self.verifying_key, &identify.token, presenter, unix_ms())?;
+        let key = self.verifying_key.as_ref().ok_or(IdentifyError::NoKey)?;
+        let claims = token::verify(key, &identify.token, presenter, unix_ms())?;
         self.used_tokens.redeem(&claims, unix_ms())?;
 
         // One voice connection per user on a node: a new one replaces it.
@@ -201,7 +241,7 @@ impl Runtime {
             .map(|session| session.id.clone())
             .collect();
         for id in previous {
-            self.end_session(now, &id, close::SESSION_REPLACED);
+            self.end_session(now, &id, Ending::Replaced);
         }
 
         let (mut state, mut permissions) = (
@@ -296,6 +336,7 @@ impl Runtime {
             other.send_sequenced(Payload::ClientConnect(connected.clone()), now);
         }
         self.sessions.insert(session_id.clone(), session);
+        self.count_sessions();
         Ok(Identified { session_id })
     }
 
@@ -360,7 +401,7 @@ impl Runtime {
                     .map(|s| s.id.clone())
                     .collect();
                 for id in ids {
-                    self.end_session(now, &id, close::DISCONNECTED);
+                    self.end_session(now, &id, Ending::Disconnected);
                 }
             }
             NodeCommand::Limits { channel_id, limits } => {
@@ -369,14 +410,15 @@ impl Runtime {
         }
     }
 
-    /// Removes a session and its participant, tells the others and the
-    /// main server.
-    fn end_session(&mut self, now: Instant, id: &str, code: u16) {
+    /// Removes a session and its participant, and tells the others; an
+    /// expired one is reported to the main server.
+    fn end_session(&mut self, now: Instant, id: &str, ending: Ending) {
         let Some(mut session) = self.sessions.remove(id) else {
             return;
         };
-        session.close(code);
+        session.close(ending.close_code());
         self.sfu.remove_peer(session.peer);
+        self.count_sessions();
         let gone = voice::ClientDisconnect {
             user_id: session.user_id,
         };
@@ -387,11 +429,13 @@ impl Runtime {
         {
             other.send_sequenced(Payload::ClientDisconnect(gone), now);
         }
-        let _ = self.events.send(NodeEvent::Disconnected {
-            user_id: session.user_id,
-            channel_id: session.channel_id,
-            session_id: session.main_session_id,
-        });
+        if ending == Ending::Expired {
+            let _ = self.events.send(NodeEvent::Disconnected {
+                user_id: session.user_id,
+                channel_id: session.channel_id,
+                session_id: session.main_session_id,
+            });
+        }
     }
 
     fn expire(&mut self, now: Instant) {
@@ -402,7 +446,7 @@ impl Runtime {
             .map(|session| session.id.clone())
             .collect();
         for id in expired {
-            self.end_session(now, &id, close::SESSION_INVALID);
+            self.end_session(now, &id, Ending::Expired);
         }
         self.pending
             .retain(|_, (_, _, at)| now.saturating_duration_since(*at) < PENDING_FOR);
@@ -418,7 +462,12 @@ impl Runtime {
             };
             if let Some(socket) = socket {
                 // A full send buffer drops the packet, as the network would.
-                let _ = socket.try_send_to(&transmit.contents, transmit.destination);
+                if socket
+                    .try_send_to(&transmit.contents, transmit.destination)
+                    .is_ok()
+                {
+                    self.counters.sent(transmit.contents.len());
+                }
             }
         }
         while let Some(event) = self.sfu.poll_event() {
@@ -459,12 +508,24 @@ impl Runtime {
         }
     }
 
-    fn shut_down(&mut self) {
-        let now = Instant::now();
+    fn count_sessions(&self) {
+        let channels: HashSet<i64> = self.sessions.values().map(|s| s.channel_id).collect();
+        self.counters.set_sessions(
+            u32::try_from(channels.len()).unwrap_or(u32::MAX),
+            u32::try_from(self.sessions.len()).unwrap_or(u32::MAX),
+        );
+    }
+
+    fn end_all(&mut self, now: Instant) {
         let ids: Vec<String> = self.sessions.keys().cloned().collect();
         for id in ids {
-            self.end_session(now, &id, close::NODE_SHUTDOWN);
+            self.end_session(now, &id, Ending::NodeShutdown);
         }
+        self.pending.clear();
+    }
+
+    fn shut_down(&mut self) {
+        self.end_all(Instant::now());
         self.flush();
     }
 }

@@ -159,6 +159,8 @@ struct Shared {
     media_connected: bool,
     connections: u32,
     closed: Option<Option<u16>>,
+    /// The voice gateway of the current connection.
+    gateway_url: String,
 }
 
 /// A bot in a voice channel.
@@ -231,6 +233,11 @@ impl VoiceSession {
         lock(&self.shared).connections
     }
 
+    /// The voice gateway this session is connected to now.
+    pub fn gateway_url(&self) -> String {
+        lock(&self.shared).gateway_url.clone()
+    }
+
     /// Drops the voice gateway as a network failure would.
     pub fn drop_gateway(&self) {
         if let Some(connection) = lock(&self.shared).connection.clone() {
@@ -280,16 +287,10 @@ async fn connect(
     server: &VoiceServer,
 ) -> anyhow::Result<mpsc::UnboundedReceiver<VoiceEvent>> {
     let fingerprint: Option<[u8; 32]> = server.certificate_fingerprint.as_slice().try_into().ok();
-    let media_host = server
-        .server_key
-        .rsplit_once(':')
-        .map_or(server.server_key.as_str(), |(host, _)| host)
-        .trim_matches(['[', ']'])
-        .to_owned();
+    let gateway_url = server.gateway_url();
     let (connection, events) = VoiceConnection::connect(VoiceTarget {
-        gateway_url: server.gateway_url(),
+        gateway_url: gateway_url.clone(),
         certificate_fingerprint: fingerprint,
-        media_host,
         token: server.token.clone(),
         user_id: server.user_id,
         session_id: server.session_id.clone(),
@@ -301,6 +302,7 @@ async fn connect(
     shared.media_connected = false;
     shared.connections += 1;
     shared.closed = None;
+    shared.gateway_url = gateway_url;
     Ok(events)
 }
 

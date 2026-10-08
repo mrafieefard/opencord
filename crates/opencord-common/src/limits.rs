@@ -49,6 +49,12 @@ pub const IDENTIFY_RATE: RateLimit = RateLimit {
 
 // Voice (Phase 2 plan §5, §11.2, §14).
 
+/// Voice node registrations per IP address.
+pub const VOICE_NODE_RATE: RateLimit = RateLimit {
+    burst: 10,
+    period: Duration::from_secs(60),
+};
+
 /// Voice state changes per user.
 pub const VOICE_STATE_RATE: RateLimit = RateLimit {
     burst: 10,

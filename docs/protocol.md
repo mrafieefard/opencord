@@ -239,7 +239,7 @@ A new server's @everyone has `VIEW_CHANNEL | SEND_MESSAGES | READ_HISTORY | CREA
 
 ## Voice
 
-Voice follows Discord's design (Phase 2 plan §3). Joining is a request on this gateway; audio and video go to a **voice node** with its own gateway (`proto/opencord/v1/voice.proto`, package `opencord.voice.v1`) and media over ICE + DTLS-SRTP on one UDP port (7711 by default). The voice node arrives in milestone V1; until then joining changes only the voice state.
+Voice follows Discord's design (Phase 2 plan §3). Joining is a request on this gateway; audio and video go to a **voice node** with its own gateway (`proto/opencord/v1/voice.proto`, package `opencord.voice.v1`) and media over ICE + DTLS-SRTP on one UDP port (7711 by default). The voice node runs inside the server (the embedded node, at `/voice`), or on other machines as `opencord-voice-node` (external nodes, see [Voice nodes](#voice-nodes)).
 
 ### Voice states
 
@@ -255,11 +255,42 @@ Voice follows Discord's design (Phase 2 plan §3). Joining is a request on this 
 
 After a join or a move, the session gets `VoiceServerUpdate { channel_id, endpoint, certificate_fingerprint, token }`:
 
-- `endpoint` is the voice gateway's `wss://` URL; empty means the server's own voice node, on the same host and port as this gateway, at `/voice`.
+- `endpoint` is the voice gateway's `wss://host:port` URL (the path defaults to `/voice`); empty means the server's own voice node, on the same host and port as this gateway, at `/voice`.
 - `certificate_fingerprint` is the voice node's certificate, to pin for that connection. It arrives over the already pinned gateway.
 - `token` is single use and valid for 60 seconds: the encoded `VoiceTokenClaims` (`proto/opencord/v1/internal.proto`) followed by the server's Ed25519 signature over `"opencord-voice-token-v1" || claims`. It names the user, channel and session, the resolved channel permissions, the channel's limits and the flags. Voice nodes hold the public key and check tokens without a database. Clients treat it as opaque bytes.
 
 The server makes the signing key (`voice-signing.key`) in its data folder on first start.
+
+Everyone in a channel is on the same node. A channel's first participant picks the node with the fewest people (then the fewest channels; ties go to the embedded node), and the channel keeps it until it is empty. When no node is available, joining fails with `CONFLICT`. When a channel's node goes away, everyone in it gets a new `VoiceServerUpdate` for another node; while there is none, they keep their voice state and get one as soon as a node registers. A move also sends a new `VoiceServerUpdate`: the old voice connection is closed and the client connects again.
+
+### Voice gateway
+
+Every WebSocket binary frame carries one `Envelope { seq, payload }`.
+
+1. The node sends `Hello { heartbeat_interval_ms }` (5 000).
+2. The client sends `Identify { token, user_id, session_id, channel_id }` within 10 seconds, with the token and ids from `VoiceServerUpdate`, or `Resume` (below).
+3. The node answers `Ready { voice_session_id, resume_token, audio_ssrc, ice_ufrag, ice_pwd, candidates, dtls_fingerprint, codecs, limits, participants }`. `participants` lists everyone already in the channel with their audio SSRC. A candidate with an empty `ip` means the host the client reached the voice gateway with.
+4. The client sends `TransportInfo { ice_ufrag, ice_pwd, dtls_fingerprint }`, its half of ICE and DTLS, and connects media to the candidate.
+
+After that the client sends `Heartbeat { nonce }` every interval and gets `HeartbeatAck { nonce }`; two intervals without one close the connection (4005). `Speaking { flags }` (microphone 1, soundshare 2, priority 4) is relayed to everyone else in the channel with the speaker's `user_id`; the priority flag is dropped without `PRIORITY_SPEAKER`. `ClientConnect { user_id, audio_ssrc }` and `ClientDisconnect { user_id }` say who joined and left.
+
+**Media** uses str0m's RTP mode without SDP. The node is ICE-lite and the DTLS server; the client controls ICE and is the DTLS client. Audio is Opus, payload type 111, at 48 kHz, with the RFC 6464 audio level header extension. A client sends on media id `a`, and receives each other person on media id `u` followed by their audio SSRC as eight hex digits. The node forwards packets without decoding them: nothing from the server-muted, suppressed or self-muted, nothing to the deafened, and in channels of more than 50 people only the 10 loudest.
+
+**Resume.** Messages with a `seq` (`ClientConnect`, `ClientDisconnect`, `Speaking`) are kept. A client whose connection dropped connects again within 30 seconds and sends `Resume { voice_session_id, resume_token, last_seq }` instead of `Identify`; the node replays what it missed and media goes on meanwhile. After 30 seconds the voice session ends, and the main server ends the voice state.
+
+The node allows 50 messages per 10 seconds per connection. Close codes:
+
+| Code | Meaning | Resumable |
+|---|---|---|
+| 4001 | Invalid frame or message | Yes |
+| 4003 | Authentication failed (bad, used or expired token) | No |
+| 4004 | Handshake timeout | No |
+| 4005 | Heartbeat timeout | Yes |
+| 4006 | Voice session unknown or expired | No |
+| 4008 | Rate limited | Yes |
+| 4009 | The same user connected again | No |
+| 4014 | Disconnected by the main server (left, moved or kicked from voice) | No |
+| 4015 | The node is shutting down, or lost the main server; wait for a new `VoiceServerUpdate` | No |
 
 ### Settings
 
@@ -289,7 +320,19 @@ Deleting the AFK channel clears the setting. Voice channels carry `bitrate` (def
 
 `GET /media/sounds/{sha256}` returns a soundboard sound (`data/sounds/<sha256>.opus`, lowercase hex). Requests need `Authorization: Bearer <media_token>`: the encoded `MediaTokenClaims` plus the signature over `"opencord-media-token-v1" || claims`, base64url without padding, valid for 24 hours. `RefreshMediaToken` gives a new one. Answers: 401 without a valid token, 403 for someone no longer a member, 400 for a malformed hash, 404 for an unknown sound. The upload endpoints (`POST /media/sounds`, `POST /media/external-sounds`) answer 501 until the soundboard arrives.
 
-`GET /info` adds `voice_enabled` and `voice_udp_port`.
+`GET /info` adds `voice_enabled` and `voice_udp_port` (the embedded node's media port; null without one).
+
+### Voice nodes
+
+A server with `[[voice.external_nodes]]` in `opencord.toml` serves a control channel at `/internal/voice` on its own port; nodes connect to it (`proto/opencord/v1/internal.proto`, package `opencord.internal.v1`, one `ControlEnvelope` per binary frame).
+
+1. The server sends `Challenge { nonce }`, 32 random bytes.
+2. Within 10 seconds the node sends `Register { proof, endpoint, certificate_fingerprint, public_address, udp_port }`. `proof` is HMAC-SHA256 of the nonce, keyed with the shared secret from the node's `secret_file` (surrounding whitespace removed, at least 16 bytes). `endpoint` must match a configured node exactly.
+3. The server answers `Registered { node_id, voice_signing_public_key, settings }`, or `Error` and close 4003.
+
+Then the server sends `ParticipantUpdate` (flags, moderation and permissions), `DisconnectParticipant` and `ChannelUpdate` (limits) for the node's channels. The node sends `LoadReport` every 5 seconds, with a WebSocket ping, and `ParticipantDisconnected` when someone's voice connection did not come back within the resume window; reports about channels the node does not serve are ignored. Either side treats 15 seconds without hearing from the other as a lost channel.
+
+When the channel closes, the server moves the node's channels elsewhere (see [Joining a voice node](#joining-a-voice-node)). The node ends every call on it (4015) and accepts nobody until it has registered again. A node that registers again replaces its old registration and starts without channels.
 
 ### Voice limits
 
@@ -299,4 +342,8 @@ Deleting the AFK channel clears the setting. Voice channels carry `bitrate` (def
 | Voice token | 60 seconds, single use |
 | Media token | 24 hours |
 | Voice grace period | 30 seconds (up to 35) |
+| Voice gateway messages | 50 per 10 s per connection |
+| Voice gateway resume window | 30 seconds |
+| Voice node registrations | 10 per minute per IP address |
+| Voice node shared secret | at least 16 bytes |
 

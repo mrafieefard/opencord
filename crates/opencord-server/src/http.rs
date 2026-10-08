@@ -12,19 +12,29 @@ use opencord_voice::node::VoiceNode;
 use serde::Serialize;
 
 use crate::state::AppState;
-use crate::{gateway, media};
+use crate::{gateway, media, voice};
 
 /// Voice gateway messages are small.
 const VOICE_FRAME_BYTES: usize = 64 * 1024;
 
 pub fn router(state: Arc<AppState>) -> Router {
-    Router::new()
+    let router = Router::new()
         .route("/health", get(health))
         .route("/info", get(info))
         .route("/gateway", get(gateway::upgrade))
         .route("/voice", get(voice_gateway))
-        .merge(media::routes())
-        .with_state(state)
+        .merge(media::routes());
+    // Only servers with external voice nodes listen for them.
+    let voice = &state.config.voice;
+    let router = if voice.enabled && !voice.external_nodes.is_empty() {
+        router.route(
+            opencord_voice::control::CONTROL_PATH,
+            get(voice::control::upgrade),
+        )
+    } else {
+        router
+    };
+    router.with_state(state)
 }
 
 #[derive(Debug, Serialize)]
@@ -45,9 +55,14 @@ struct Info {
 
 /// The embedded voice node's gateway.
 async fn voice_gateway(State(state): State<Arc<AppState>>, upgrade: WebSocketUpgrade) -> Response {
-    let Some(node) = state.voice_nodes.embedded().cloned() else {
-        return StatusCode::NOT_FOUND.into_response();
-    };
+    match state.voice_nodes.embedded().cloned() {
+        Some(node) => voice_gateway_upgrade(node, upgrade),
+        None => StatusCode::NOT_FOUND.into_response(),
+    }
+}
+
+/// Hands a voice gateway WebSocket to `node`.
+pub fn voice_gateway_upgrade(node: VoiceNode, upgrade: WebSocketUpgrade) -> Response {
     upgrade
         .max_message_size(VOICE_FRAME_BYTES)
         .max_frame_size(VOICE_FRAME_BYTES)
