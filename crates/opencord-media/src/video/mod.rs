@@ -2,3 +2,4 @@
 //! pattern. Capture, encoding and decoding arrive with V5.
 
 pub mod pattern;
+pub mod priorities;

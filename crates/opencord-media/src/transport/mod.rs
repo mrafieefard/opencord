@@ -208,11 +208,15 @@ pub enum VoiceEvent {
         reason: i32,
         message: String,
     },
-    /// The layers of one of this client's tracks anyone needs; the rest
-    /// need not be encoded.
-    LayerWants {
+    /// What to encode of one of this client's tracks (plan §7.10): the
+    /// layers anyone needs that the uplink can carry, and how far a screen
+    /// share's main layer comes down in frame rate and in pixels (shares,
+    /// 1.0 for all of it). Comes again whenever any of it changes.
+    Encode {
         track_id: String,
-        rids: Vec<String>,
+        layers: Vec<String>,
+        fps_scale: f32,
+        size_scale: f32,
     },
     /// Someone lost a picture: make the next frame of that layer a
     /// keyframe.

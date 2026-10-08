@@ -709,7 +709,7 @@ impl SessionTask {
                         | VoiceEvent::TrackRemoved { .. }
                         | VoiceEvent::Video(_)
                         | VoiceEvent::TrackStopped { .. }
-                        | VoiceEvent::LayerWants { .. }
+                        | VoiceEvent::Encode { .. }
                         | VoiceEvent::KeyframeRequested { .. }
                         | VoiceEvent::UplinkEstimate(_) => {}
                     }

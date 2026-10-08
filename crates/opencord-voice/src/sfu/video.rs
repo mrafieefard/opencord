@@ -100,9 +100,10 @@ pub(super) struct Track {
     meter: RateMeter,
     /// Since when it has been over its ceiling.
     over_since: Option<Instant>,
-    /// The layers the sender was last asked for, and when anyone last
-    /// needed each.
+    /// The layers the sender was last asked for, since when, and when
+    /// anyone last needed each.
     asked: Vec<bool>,
+    asked_since: Vec<Instant>,
     needed_at: Vec<Instant>,
     /// The layers last reported as produced.
     reported: Vec<bool>,
@@ -127,6 +128,7 @@ impl Track {
             over_since: None,
             // The sender starts with every layer; unneeded ones are let go.
             asked: vec![true; count],
+            asked_since: vec![now; count],
             needed_at: vec![now; count],
             reported: vec![false; count],
             setup,
@@ -144,6 +146,14 @@ impl Track {
         self.layers[index]
             .last_packet
             .is_some_and(|at| now.saturating_duration_since(at) < LAYER_IDLE)
+    }
+
+    /// Asked for long enough to have come, and not coming: the sender's
+    /// uplink cannot carry it (plan §7.10).
+    fn missing(&self, now: Instant, index: usize) -> bool {
+        self.asked[index]
+            && now.saturating_duration_since(self.asked_since[index]) >= LAYER_IDLE
+            && !self.producing(now, index)
     }
 
     /// Bits per second it may send.
@@ -782,7 +792,9 @@ impl Sfu {
     }
 
     /// Tells senders which layers anyone needs: what receivers would get
-    /// with every layer on, are switching to, or are getting.
+    /// with every layer on, are switching to, or are getting; and below a
+    /// needed layer the sender is not sending, the layer under it, so
+    /// receivers have something until it comes.
     fn ask_for_layers(&mut self, now: Instant) {
         let mut needed: HashMap<(PeerId, &str), Vec<u8>> = HashMap::new();
         for peer in self.peers.values() {
@@ -802,14 +814,29 @@ impl Sfu {
         for (id, peer) in peers.iter_mut() {
             for track in &mut peer.tracks {
                 let marks = needed.get(&(*id, track.setup.track_id.clone()));
+                let mut wanted: Vec<bool> = (0..track.layers.len())
+                    .map(|index| marks.is_some_and(|layers| layers.contains(&(index as u8))))
+                    .collect();
+                for index in (1..wanted.len()).rev() {
+                    if wanted[index] && track.missing(now, index) {
+                        wanted[index - 1] = true;
+                    }
+                }
                 let mut asked = Vec::with_capacity(track.layers.len());
                 for (index, needed_at) in track.needed_at.iter_mut().enumerate() {
-                    if marks.is_some_and(|layers| layers.contains(&(index as u8))) {
+                    if wanted[index] {
                         *needed_at = now;
                     }
                     asked.push(now.saturating_duration_since(*needed_at) < LAYER_LINGER);
                 }
                 if asked != track.asked {
+                    for (index, (now_asked, was_asked)) in
+                        asked.iter().zip(&track.asked).enumerate()
+                    {
+                        if *now_asked && !*was_asked {
+                            track.asked_since[index] = now;
+                        }
+                    }
                     track.asked = asked;
                     events.push_back(SfuEvent::LayerWants {
                         peer: *id,

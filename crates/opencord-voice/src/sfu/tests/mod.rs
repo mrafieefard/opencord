@@ -50,6 +50,8 @@ struct Publishing {
     keyframe_due: Vec<bool>,
     /// Layers it encodes: all, until the node says otherwise.
     active: Vec<bool>,
+    /// Layers its uplink cannot carry: never sent, whatever it is asked.
+    held: Vec<bool>,
     /// Bits per second each layer sends.
     rate: Vec<u32>,
 }
@@ -64,6 +66,7 @@ impl Publishing {
             next_frame: vec![now; layers],
             keyframe_due: vec![true; layers],
             active: vec![true; layers],
+            held: vec![false; layers],
             rate: setup.layers.iter().map(|layer| layer.max_bitrate).collect(),
             setup,
         }
@@ -473,7 +476,10 @@ impl Net {
             for track in 0..client.publishing.len() {
                 for layer in 0..client.publishing[track].setup.layers.len() {
                     let publishing = &mut client.publishing[track];
-                    if !publishing.active[layer] || publishing.next_frame[layer] > now {
+                    if !publishing.active[layer]
+                        || publishing.held[layer]
+                        || publishing.next_frame[layer] > now
+                    {
                         continue;
                     }
                     let fps = publishing.setup.layers[layer].fps;
@@ -586,6 +592,22 @@ impl Net {
             }
             publishing.active[index] = active;
         }
+    }
+
+    /// `index` stops sending one layer of `track_id` as if its uplink could
+    /// not carry it (`held`), or starts again with a keyframe.
+    fn hold(&mut self, index: usize, track_id: &str, layer: usize, held: bool) {
+        let now = self.now;
+        let publishing = self.clients[index]
+            .publishing
+            .iter_mut()
+            .find(|p| p.setup.track_id == track_id)
+            .unwrap();
+        if publishing.held[layer] && !held {
+            publishing.keyframe_due[layer] = true;
+            publishing.next_frame[layer] = now;
+        }
+        publishing.held[layer] = held;
     }
 
     /// `index` says one 20 ms frame per step of `run`.

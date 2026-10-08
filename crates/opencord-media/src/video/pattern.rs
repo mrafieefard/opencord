@@ -85,6 +85,9 @@ fn fnv1a(bytes: &[u8]) -> u32 {
 pub struct TestPattern {
     track_id: String,
     layers: Vec<PatternLayer>,
+    /// The top layer's share of its frame rate and of its pixels.
+    fps_scale: f32,
+    size_scale: f32,
 }
 
 struct PatternLayer {
@@ -112,6 +115,8 @@ impl TestPattern {
                     keyframe_due: true,
                 })
                 .collect(),
+            fps_scale: 1.0,
+            size_scale: 1.0,
         }
     }
 
@@ -137,6 +142,14 @@ impl TestPattern {
             }
             layer.active = wanted;
         }
+    }
+
+    /// Does what the transport's `VoiceEvent::Encode` says: only these
+    /// layers, the top one slowed down and shrunk by these shares.
+    pub fn encode(&mut self, rids: &[String], fps_scale: f32, size_scale: f32) {
+        self.wants(rids);
+        self.fps_scale = fps_scale.clamp(0.0, 1.0);
+        self.size_scale = size_scale.clamp(0.0, 1.0);
     }
 
     /// The next picture of `layer` (0 the lowest) is a keyframe.
@@ -165,20 +178,32 @@ impl TestPattern {
     /// The pictures due by `now`; a layer that fell behind skips ahead.
     pub fn frames(&mut self, now: Instant) -> Vec<VideoFrame> {
         let mut frames = Vec::new();
+        let top = self.layers.len().saturating_sub(1);
         for (index, layer) in self.layers.iter_mut().enumerate() {
             if !layer.active || layer.next_at > now {
                 continue;
             }
-            let interval = Duration::from_secs(1) / layer.layer.fps.max(1);
+            let (fps_scale, size_scale) = if index == top {
+                (self.fps_scale, self.size_scale)
+            } else {
+                (1.0, 1.0)
+            };
+            let fps = ((layer.layer.fps as f32 * fps_scale).round() as u32).max(1);
+            let bitrate = f64::from(layer.bitrate) * f64::from(fps_scale) * f64::from(size_scale);
+            let side = |pixels: u32| {
+                let scaled = (f64::from(pixels) * f64::from(size_scale).sqrt()).round();
+                u16::try_from(scaled as u32).unwrap_or(u16::MAX)
+            };
+            let interval = Duration::from_secs(1) / fps;
             layer.next_at = (layer.next_at + interval).max(now);
             let keyframe = std::mem::take(&mut layer.keyframe_due);
-            let size = (layer.bitrate / layer.layer.fps.max(1) / 8) as usize;
+            let size = (bitrate / f64::from(fps) / 8.0) as usize;
             frames.push(VideoFrame {
                 track_id: self.track_id.clone(),
                 layer: index as u8,
                 keyframe,
-                width: u16::try_from(layer.layer.width).unwrap_or(u16::MAX),
-                height: u16::try_from(layer.layer.height).unwrap_or(u16::MAX),
+                width: side(layer.layer.width),
+                height: side(layer.layer.height),
                 captured: now,
                 nal_units: picture(index as u8, layer.number, keyframe, size),
             });
@@ -316,6 +341,46 @@ mod tests {
         let high = back.iter().find(|f| f.layer == 2).unwrap();
         assert!(high.keyframe);
         assert!(back.iter().all(|f| f.layer != 1));
+    }
+
+    #[test]
+    fn the_top_layer_slows_down_and_shrinks_as_told() {
+        let start = Instant::now();
+        let screen = vec![
+            Layer {
+                rid: "l".to_owned(),
+                width: 640,
+                height: 360,
+                fps: 15,
+                max_bitrate: 300_000,
+            },
+            Layer {
+                rid: "h".to_owned(),
+                width: 1920,
+                height: 1080,
+                fps: 30,
+                max_bitrate: 2_000_000,
+            },
+        ];
+        let mut pattern = TestPattern::new("screen", screen, start);
+        pattern.frames(start);
+
+        pattern.encode(&["h".to_owned()], 0.5, 0.25);
+        let mut frames = Vec::new();
+        let mut now = start + Duration::from_millis(5);
+        while now < start + Duration::from_millis(1005) {
+            frames.extend(pattern.frames(now));
+            now += Duration::from_millis(5);
+        }
+
+        assert!(frames.iter().all(|frame| frame.layer == 1));
+        assert!((14..=16).contains(&frames.len()), "{}", frames.len());
+        let frame = &frames[1];
+        assert_eq!((frame.width, frame.height), (960, 540));
+        // 2 Mbit/s, half the frames, a quarter of the pixels: 250 kbit/s
+        // at 15 fps.
+        let bytes: usize = frame.nal_units.iter().map(Vec::len).sum();
+        assert!((2000..=2200).contains(&bytes), "{bytes}");
     }
 
     #[test]

@@ -1,0 +1,498 @@
+//! What a sender encodes within its uplink (plan §7.10). The bandwidth
+//! estimate is the budget; voice comes off the top and is never starved.
+//! As the budget shrinks: the camera's top layer goes, then its middle
+//! layer, then the screen share's low layer; then the screen's frame rate
+//! comes down (to 5 fps), then its resolution. The camera's low layer and
+//! the screen's main layer always stay (their encoders get less instead): a
+//! sender that sends nothing never learns that its uplink came back.
+//!
+//! A plan rides out a dip to 85 % of its cost (an estimate settles not far
+//! above what is sent); a cut beyond that takes effect at once. Recovery is
+//! one step a second, each needing room to spare, so the estimator probes
+//! before a layer comes back.
+
+use std::time::{Duration, Instant};
+
+use crate::transport::{Layer, TrackKind};
+
+/// The frame rates a screen share steps down through (plan §9.2:
+/// "detail" content keeps its resolution and slows down first).
+const SCREEN_FPS_STEPS: [u32; 4] = [20, 15, 10, 5];
+/// Then the share of its pixels it keeps.
+const SIZE_STEPS: [f32; 3] = [0.75, 0.5, 0.25];
+/// The plan being sent stays until the budget falls this far below its
+/// cost.
+const TOLERANCE: f64 = 0.15;
+/// Undoing a cut needs this much room beyond its cost...
+const HEADROOM: f64 = 0.15;
+/// ...and at least this long since the last change.
+const RAISE_EVERY: Duration = Duration::from_secs(1);
+
+/// A track being published, as the plan sees it.
+#[derive(Debug, Clone, Copy)]
+pub struct Sending<'a> {
+    pub kind: TrackKind,
+    /// Lowest first.
+    pub layers: &'a [Layer],
+    /// The layers the voice node says anyone needs.
+    pub wanted: &'a [bool],
+}
+
+/// What to encode of one track.
+#[derive(Debug, Clone, PartialEq)]
+pub struct TrackPlan {
+    /// By layer, lowest first.
+    pub active: Vec<bool>,
+    /// A screen share's main layer: share of its frame rate and of its
+    /// pixels.
+    pub fps_scale: f32,
+    pub size_scale: f32,
+}
+
+impl Sending<'_> {
+    /// Bits per second it sends under `plan`, at its layers' maxima.
+    pub fn bitrate(&self, plan: &TrackPlan) -> u64 {
+        let main = self.layers.len().saturating_sub(1);
+        self.layers
+            .iter()
+            .enumerate()
+            .filter(|(index, _)| plan.active.get(*index) == Some(&true))
+            .map(|(index, layer)| {
+                let full = f64::from(layer.max_bitrate);
+                let scaled = if self.kind == TrackKind::Screen && index == main {
+                    full * f64::from(plan.fps_scale) * f64::from(plan.size_scale)
+                } else {
+                    full
+                };
+                scaled as u64
+            })
+            .sum()
+    }
+
+    fn wants(&self, layer: usize) -> bool {
+        self.wanted.get(layer) == Some(&true)
+    }
+
+    fn full(&self) -> TrackPlan {
+        TrackPlan {
+            active: (0..self.layers.len())
+                .map(|layer| self.wants(layer))
+                .collect(),
+            fps_scale: 1.0,
+            size_scale: 1.0,
+        }
+    }
+}
+
+/// One step down, in the order the plan gives.
+#[derive(Debug, Clone, Copy)]
+enum Cut {
+    Layer { track: usize, layer: usize },
+    Fps { track: usize, scale: f32 },
+    Size { track: usize, scale: f32 },
+}
+
+/// The tracks and wants a run of plans was made for.
+type Signature = Vec<(TrackKind, usize, Vec<bool>)>;
+
+/// Plans one after another, remembering the last.
+#[derive(Debug, Default)]
+pub struct Planner {
+    /// How many cuts the last plan made, for which tracks, and when it
+    /// last changed.
+    cuts: Option<usize>,
+    signature: Signature,
+    changed: Option<Instant>,
+}
+
+impl Planner {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// What each track sends within `budget` bits per second, `voice` of
+    /// it kept for voice. New tracks or wants start afresh.
+    pub fn update(
+        &mut self,
+        now: Instant,
+        budget: u64,
+        voice: u64,
+        tracks: &[Sending<'_>],
+    ) -> Vec<TrackPlan> {
+        let signature: Signature = tracks
+            .iter()
+            .map(|track| (track.kind, track.layers.len(), track.wanted.to_vec()))
+            .collect();
+        if signature != self.signature {
+            self.signature = signature;
+            self.cuts = None;
+        }
+        let steps = cuts(tracks);
+        let available = budget.saturating_sub(voice) as f64;
+        let cost = |count: usize| -> f64 {
+            let plans = apply(tracks, &steps[..count]);
+            tracks
+                .iter()
+                .zip(&plans)
+                .map(|(track, plan)| track.bitrate(plan))
+                .sum::<u64>() as f64
+        };
+        let fits = (0..=steps.len())
+            .find(|count| cost(*count) <= available)
+            .unwrap_or(steps.len());
+        let count = match self.cuts {
+            None => fits,
+            Some(previous) if cost(previous) * (1.0 - TOLERANCE) > available => fits.max(previous),
+            Some(previous) if fits < previous => {
+                let rested = self
+                    .changed
+                    .is_none_or(|at| now.saturating_duration_since(at) >= RAISE_EVERY);
+                let roomy = cost(previous - 1) * (1.0 + HEADROOM) <= available;
+                if rested && roomy {
+                    previous - 1
+                } else {
+                    previous
+                }
+            }
+            Some(previous) => previous,
+        };
+        if self.cuts != Some(count) {
+            self.cuts = Some(count);
+            self.changed = Some(now);
+        }
+        apply(tracks, &steps[..count])
+    }
+}
+
+/// Every step down, mildest first. Layers nobody wants are off already; a
+/// camera's low layer and a screen's main layer are never cut.
+fn cuts(tracks: &[Sending<'_>]) -> Vec<Cut> {
+    let of_kind = |kind: TrackKind| {
+        tracks
+            .iter()
+            .enumerate()
+            .filter(move |(_, track)| track.kind == kind)
+    };
+    let mut steps = Vec::new();
+    for (track, sending) in of_kind(TrackKind::Camera) {
+        for layer in (1..sending.layers.len()).rev() {
+            if sending.wants(layer) {
+                steps.push(Cut::Layer { track, layer });
+            }
+        }
+    }
+    for (track, sending) in of_kind(TrackKind::Screen) {
+        if sending.layers.len() > 1 && sending.wants(0) {
+            steps.push(Cut::Layer { track, layer: 0 });
+        }
+    }
+    for (track, sending) in of_kind(TrackKind::Screen) {
+        let Some(main) = sending.layers.len().checked_sub(1) else {
+            continue;
+        };
+        if !sending.wants(main) {
+            continue;
+        }
+        let fps = sending.layers[main].fps;
+        for step in SCREEN_FPS_STEPS.into_iter().filter(|step| *step < fps) {
+            let scale = step as f32 / fps as f32;
+            steps.push(Cut::Fps { track, scale });
+        }
+        for scale in SIZE_STEPS {
+            steps.push(Cut::Size { track, scale });
+        }
+    }
+    steps
+}
+
+fn apply(tracks: &[Sending<'_>], steps: &[Cut]) -> Vec<TrackPlan> {
+    let mut plans: Vec<TrackPlan> = tracks.iter().map(Sending::full).collect();
+    for step in steps {
+        match *step {
+            Cut::Layer { track, layer } => plans[track].active[layer] = false,
+            Cut::Fps { track, scale } => plans[track].fps_scale = scale,
+            Cut::Size { track, scale } => plans[track].size_scale = scale,
+        }
+    }
+    plans
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn layer(rid: &str, height: u32, fps: u32, max_bitrate: u32) -> Layer {
+        Layer {
+            rid: rid.to_owned(),
+            width: height * 16 / 9,
+            height,
+            fps,
+            max_bitrate,
+        }
+    }
+
+    fn camera() -> Vec<Layer> {
+        vec![
+            layer("l", 180, 15, 150_000),
+            layer("m", 360, 30, 500_000),
+            layer("h", 720, 30, 1_500_000),
+        ]
+    }
+
+    fn screen() -> Vec<Layer> {
+        vec![
+            layer("l", 360, 15, 300_000),
+            layer("h", 1080, 30, 2_000_000),
+        ]
+    }
+
+    const VOICE: u64 = 64_000;
+
+    fn on(layers: &[Layer]) -> Vec<bool> {
+        vec![true; layers.len()]
+    }
+
+    fn sending<'a>(kind: TrackKind, layers: &'a [Layer], wanted: &'a [bool]) -> Sending<'a> {
+        Sending {
+            kind,
+            layers,
+            wanted,
+        }
+    }
+
+    /// A first plan, from nothing.
+    fn plan(budget: u64, tracks: &[Sending<'_>]) -> Vec<TrackPlan> {
+        Planner::new().update(Instant::now(), budget, VOICE, tracks)
+    }
+
+    #[test]
+    fn with_room_every_wanted_layer_is_sent_in_full() {
+        let layers = camera();
+        let wanted = on(&layers);
+
+        let plan = plan(10_000_000, &[sending(TrackKind::Camera, &layers, &wanted)]);
+
+        assert_eq!(plan[0].active, vec![true, true, true]);
+        assert_eq!(plan[0].fps_scale, 1.0);
+        assert_eq!(plan[0].size_scale, 1.0);
+    }
+
+    #[test]
+    fn layers_nobody_wants_are_never_sent() {
+        let layers = camera();
+        let wanted = vec![true, false, true];
+
+        let plan = plan(10_000_000, &[sending(TrackKind::Camera, &layers, &wanted)]);
+
+        assert_eq!(plan[0].active, vec![true, false, true]);
+    }
+
+    #[test]
+    fn the_camera_loses_its_top_layer_then_its_middle_one_and_keeps_its_low_one() {
+        let layers = camera();
+        let wanted = on(&layers);
+        let camera = [sending(TrackKind::Camera, &layers, &wanted)];
+
+        assert_eq!(
+            plan(VOICE + 1_000_000, &camera)[0].active,
+            vec![true, true, false]
+        );
+        assert_eq!(
+            plan(VOICE + 400_000, &camera)[0].active,
+            vec![true, false, false]
+        );
+        // Below even that, its encoder gets less, but the track stays.
+        assert_eq!(plan(VOICE, &camera)[0].active, vec![true, false, false]);
+    }
+
+    #[test]
+    fn a_camera_asked_only_for_its_top_layer_can_lose_it() {
+        // The node then asks for the layer below (it backs a layer that
+        // does not come with the one under it).
+        let layers = camera();
+        let wanted = vec![false, false, true];
+
+        let plan = plan(
+            VOICE + 1_000_000,
+            &[sending(TrackKind::Camera, &layers, &wanted)],
+        );
+
+        assert_eq!(plan[0].active, vec![false, false, false]);
+    }
+
+    #[test]
+    fn voice_comes_off_the_top() {
+        let layers = camera();
+        let wanted = on(&layers);
+        let camera = [sending(TrackKind::Camera, &layers, &wanted)];
+
+        assert_eq!(
+            plan(VOICE + 650_000, &camera)[0].active,
+            vec![true, true, false]
+        );
+        assert_eq!(plan(650_000, &camera)[0].active, vec![true, false, false]);
+    }
+
+    #[test]
+    fn a_screen_share_outlasts_the_cameras_upper_layers() {
+        let cam = camera();
+        let scr = screen();
+        let (cam_wanted, scr_wanted) = (on(&cam), on(&scr));
+        let both = [
+            sending(TrackKind::Camera, &cam, &cam_wanted),
+            sending(TrackKind::Screen, &scr, &scr_wanted),
+        ];
+
+        // Room for everything but the camera's top layer.
+        let first = plan(VOICE + 3_000_000, &both);
+        assert_eq!(first[0].active, vec![true, true, false]);
+        assert_eq!(first[1].active, vec![true, true]);
+        // Then the camera's middle layer, then the screen's low layer.
+        let second = plan(VOICE + 2_400_000, &both);
+        assert_eq!(second[0].active, vec![true, false, false]);
+        assert_eq!(second[1].active, vec![false, true]);
+        assert_eq!(second[1].fps_scale, 1.0);
+    }
+
+    #[test]
+    fn then_the_screen_slows_down_beside_the_cameras_low_layer() {
+        let cam = camera();
+        let scr = screen();
+        let (cam_wanted, scr_wanted) = (on(&cam), on(&scr));
+        let both = [
+            sending(TrackKind::Camera, &cam, &cam_wanted),
+            sending(TrackKind::Screen, &scr, &scr_wanted),
+        ];
+
+        let plan = plan(VOICE + 2_050_000, &both);
+
+        assert_eq!(plan[0].active, vec![true, false, false]);
+        assert_eq!(plan[1].active, vec![false, true]);
+        assert!((plan[1].fps_scale * 30.0 - 20.0).abs() < 0.01);
+    }
+
+    #[test]
+    fn then_the_screen_slows_down_to_5_fps_and_then_shrinks() {
+        let scr = screen();
+        let wanted = on(&scr);
+        let share = [sending(TrackKind::Screen, &scr, &wanted)];
+
+        let slower = plan(VOICE + 1_000_000, &share);
+        assert_eq!(slower[0].fps_scale, 0.5);
+        assert_eq!(slower[0].size_scale, 1.0);
+
+        let smaller = plan(VOICE + 250_000, &share);
+        assert!((smaller[0].fps_scale * 30.0 - 5.0).abs() < 0.01);
+        assert_eq!(smaller[0].size_scale, 0.75);
+        assert_eq!(smaller[0].active, vec![false, true]);
+
+        // As small as it gets, but still sent.
+        let smallest = plan(VOICE, &share);
+        assert_eq!(smallest[0].size_scale, 0.25);
+        assert_eq!(smallest[0].active, vec![false, true]);
+    }
+
+    #[test]
+    fn a_plan_rides_out_a_dip_to_85_percent_of_its_cost() {
+        let layers = camera();
+        let wanted = on(&layers);
+        let camera = [sending(TrackKind::Camera, &layers, &wanted)];
+        let start = Instant::now();
+        let at = |millis| start + Duration::from_millis(millis);
+        let mut planner = Planner::new();
+        let mut update = |millis, budget| {
+            planner.update(at(millis), budget, VOICE, &camera)[0]
+                .active
+                .clone()
+        };
+
+        assert_eq!(update(0, VOICE + 700_000), vec![true, true, false]);
+        assert_eq!(update(100, VOICE + 560_000), vec![true, true, false]);
+        assert_eq!(update(200, VOICE + 540_000), vec![true, false, false]);
+    }
+
+    #[test]
+    fn a_cut_is_immediate_and_recovery_is_one_step_a_second() {
+        let layers = camera();
+        let wanted = on(&layers);
+        let camera = [sending(TrackKind::Camera, &layers, &wanted)];
+        let start = Instant::now();
+        let at = |millis| start + Duration::from_millis(millis);
+        let mut planner = Planner::new();
+        let mut update = |millis, budget| {
+            planner.update(at(millis), budget, VOICE, &camera)[0]
+                .active
+                .clone()
+        };
+
+        assert_eq!(update(0, VOICE + 1_000_000), vec![true, true, false]);
+        assert_eq!(update(100, VOICE + 400_000), vec![true, false, false]);
+        assert_eq!(update(500, VOICE + 10_000_000), vec![true, false, false]);
+        assert_eq!(update(1_200, VOICE + 10_000_000), vec![true, true, false]);
+        assert_eq!(update(1_500, VOICE + 10_000_000), vec![true, true, false]);
+        assert_eq!(update(2_300, VOICE + 10_000_000), vec![true, true, true]);
+    }
+
+    #[test]
+    fn something_cut_comes_back_only_with_room_to_spare() {
+        let layers = camera();
+        let wanted = on(&layers);
+        let camera = [sending(TrackKind::Camera, &layers, &wanted)];
+        let start = Instant::now();
+        let mut planner = Planner::new();
+        planner.update(start, VOICE + 1_000_000, VOICE, &camera);
+
+        // Exactly enough for the top layer again is not enough.
+        let exact = planner.update(
+            start + Duration::from_secs(2),
+            VOICE + 2_150_000,
+            VOICE,
+            &camera,
+        );
+        assert_eq!(exact[0].active, vec![true, true, false]);
+        let roomy = planner.update(
+            start + Duration::from_secs(3),
+            VOICE + 2_500_000,
+            VOICE,
+            &camera,
+        );
+        assert_eq!(roomy[0].active, vec![true, true, true]);
+    }
+
+    #[test]
+    fn new_wants_start_afresh() {
+        let layers = camera();
+        let (all, two) = (on(&layers), vec![true, true, false]);
+        let start = Instant::now();
+        let mut planner = Planner::new();
+        planner.update(
+            start,
+            VOICE + 400_000,
+            VOICE,
+            &[sending(TrackKind::Camera, &layers, &two)],
+        );
+
+        let plan = planner.update(
+            start + Duration::from_millis(100),
+            VOICE + 10_000_000,
+            VOICE,
+            &[sending(TrackKind::Camera, &layers, &all)],
+        );
+
+        assert_eq!(plan[0].active, vec![true, true, true]);
+    }
+
+    #[test]
+    fn the_bitrate_a_plan_sends_counts_scales() {
+        let scr = screen();
+        let wanted = on(&scr);
+        let track = sending(TrackKind::Screen, &scr, &wanted);
+        let plan = TrackPlan {
+            active: vec![false, true],
+            fps_scale: 0.5,
+            size_scale: 0.5,
+        };
+
+        assert_eq!(track.bitrate(&plan), 500_000);
+    }
+}

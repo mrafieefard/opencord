@@ -449,3 +449,31 @@ fn a_downlink_with_a_shallow_queue_gets_a_lower_layer_within_2_s() {
         .expect("switched to a lower layer");
     assert!(lower <= Duration::from_secs(2), "after {lower:?}");
 }
+
+#[test]
+fn a_layer_the_sender_cannot_send_is_backed_by_the_one_below() {
+    // A sender whose uplink cannot carry its top layer drops it (plan
+    // §7.10); the node keeps asking for it, asks for the layer below as
+    // well, and moves its receivers there until the top layer is back.
+    let mut net = Net::new();
+    let (alice, bob, _) = three(&mut net);
+    let track = camera("cam-a", 5000);
+    net.publish(alice, track.clone());
+    net.want(bob, &[("cam-a", 720)]);
+    net.run(Duration::from_secs(5));
+    assert_eq!(net.clients[bob].last_layer(track.ssrc), Some(2));
+    assert_eq!(net.layer_wants(alice, "cam-a"), Some(vec!["h".to_owned()]));
+
+    net.hold(alice, "cam-a", 2, true);
+    net.run(Duration::from_secs(4));
+
+    let wants = net.layer_wants(alice, "cam-a").unwrap();
+    assert!(wants.contains(&"h".to_owned()), "{wants:?}");
+    assert!(wants.contains(&"m".to_owned()), "{wants:?}");
+    assert_eq!(net.clients[bob].last_layer(track.ssrc), Some(1));
+
+    net.hold(alice, "cam-a", 2, false);
+    net.run(Duration::from_secs(4));
+    assert_eq!(net.clients[bob].last_layer(track.ssrc), Some(2));
+    assert_eq!(net.layer_wants(alice, "cam-a"), Some(vec!["h".to_owned()]));
+}

@@ -23,9 +23,10 @@ use super::assembler::{Assembled, FrameAssembler, VideoPacket};
 use super::h264::packetize;
 use super::transform::FrameTransform;
 use super::{
-    AudioFrame, Layer, ReceivedAudio, ReceivedVideo, RemoteTrack, TrackKind, TransportError,
-    VideoFrame, VoiceEvent, random,
+    AudioFrame, Layer, ReceivedAudio, ReceivedVideo, RemoteTrack, TrackKind, TrackRequest,
+    TransportError, VideoFrame, VoiceEvent, random,
 };
+use crate::video::priorities::{Planner, Sending, TrackPlan};
 
 /// The most payload bytes in a video packet: room, under str0m's
 /// 1150-byte datagram target, for the RTP header, its extensions, SRTP's
@@ -35,6 +36,19 @@ const MAX_VIDEO_PAYLOAD: usize = 1080;
 const INITIAL_UPLINK: u64 = 1_000_000;
 /// A stream still waiting for a keyframe asks again this often.
 const KEYFRAME_AGAIN: Duration = Duration::from_secs(1);
+/// Voice when the node gave no bitrate.
+const VOICE_BITRATE: u64 = 64_000;
+/// An uplink that wants more than its estimate gets probed this often,
+/// once its estimate has not fallen fast for [`CALM`]: str0m keeps its
+/// estimate at 1.5 times what is sent and seldom probes on its own.
+const PROBE_EVERY: Duration = Duration::from_secs(5);
+const CALM: Duration = Duration::from_secs(2);
+/// An estimate below this share of the last one means congestion.
+const ESTIMATE_DROP: f64 = 0.9;
+/// Room for voice is kept for someone who sent audio this recently: a
+/// talker's voice is never starved, and a silent participant's video does
+/// not give way to voice that is not there.
+const TALKING: Duration = Duration::from_secs(10);
 
 /// The client's str0m connection and its UDP socket.
 pub(super) struct Media {
@@ -60,21 +74,42 @@ pub(super) struct Media {
     /// The 90 kHz video clock: its value when the connection started.
     video_base: u32,
     video_start: Instant,
+    uplink: Uplink,
+    planner: Planner,
     #[cfg(any(test, feature = "testing"))]
     shims: Option<Shims>,
 }
 
 struct Outgoing {
     track_id: String,
+    kind: TrackKind,
     mid: String,
     /// In the node's order: lowest first.
     layers: Vec<OutLayer>,
+    /// The layers as asked for, in the same order.
+    specs: Vec<Layer>,
+    /// What the publisher was last told to encode.
+    plan: Option<TrackPlan>,
 }
 
 struct OutLayer {
     rid: String,
     ssrc: u32,
     next_seq: u64,
+    /// The node says someone needs it.
+    wanted: bool,
+}
+
+/// What the uplink estimator knows and was asked for.
+struct Uplink {
+    estimate: u64,
+    /// Voice and the video the node wants.
+    desired: u64,
+    voice: u64,
+    /// When audio last went out.
+    talked: Option<Instant>,
+    congested: Option<Instant>,
+    probed: Option<Instant>,
 }
 
 struct Incoming {
@@ -224,6 +259,19 @@ impl Media {
             incoming: HashMap::new(),
             video_base: u32::from_ne_bytes(random::<4>()),
             video_start: now,
+            uplink: Uplink {
+                estimate: INITIAL_UPLINK,
+                desired: 0,
+                voice: ready
+                    .limits
+                    .map(|limits| u64::from(limits.voice_bitrate))
+                    .filter(|bitrate| *bitrate > 0)
+                    .unwrap_or(VOICE_BITRATE),
+                talked: None,
+                congested: None,
+                probed: None,
+            },
+            planner: Planner::new(),
             #[cfg(any(test, feature = "testing"))]
             shims: None,
         };
@@ -303,8 +351,14 @@ impl Media {
         }
     }
 
-    /// Starts sending a track the node accepted, on the SSRCs it gave.
-    pub fn publish(&mut self, track_id: &str, layers: &[voice::LayerSsrc]) {
+    /// Starts sending a track the node accepted, on the SSRCs it gave;
+    /// `requested` is what was asked for.
+    pub fn publish(
+        &mut self,
+        requested: &TrackRequest,
+        layers: &[voice::LayerSsrc],
+        events: &mpsc::UnboundedSender<VoiceEvent>,
+    ) {
         let Some(first) = layers.first() else {
             return;
         };
@@ -320,8 +374,23 @@ impl Media {
                 Some(layer.rid.as_str().into()),
             );
         }
+        let spec = |rid: &str| {
+            requested
+                .layers
+                .iter()
+                .find(|asked| asked.rid == rid)
+                .cloned()
+                .unwrap_or_else(|| Layer {
+                    rid: rid.to_owned(),
+                    width: 0,
+                    height: 0,
+                    fps: 0,
+                    max_bitrate: 0,
+                })
+        };
         self.outgoing.push(Outgoing {
-            track_id: track_id.to_owned(),
+            track_id: requested.track_id.clone(),
+            kind: requested.kind,
             mid,
             layers: layers
                 .iter()
@@ -329,9 +398,125 @@ impl Media {
                     rid: layer.rid.clone(),
                     ssrc: layer.ssrc,
                     next_seq: u64::from(u16::from_ne_bytes(random::<2>())),
+                    wanted: true,
                 })
                 .collect(),
+            specs: layers.iter().map(|layer| spec(&layer.rid)).collect(),
+            plan: None,
         });
+        self.update_desired();
+        self.replan(Instant::now(), events);
+    }
+
+    /// The layers of a track the node says anyone needs.
+    pub fn set_wanted(
+        &mut self,
+        track_id: &str,
+        rids: &[String],
+        events: &mpsc::UnboundedSender<VoiceEvent>,
+    ) {
+        if let Some(track) = self
+            .outgoing
+            .iter_mut()
+            .find(|track| track.track_id == track_id)
+        {
+            for layer in &mut track.layers {
+                layer.wanted = rids.contains(&layer.rid);
+            }
+        }
+        self.update_desired();
+        self.replan(Instant::now(), events);
+    }
+
+    /// The estimator probes up to what the wanted layers and voice take,
+    /// so a layer cut for lack of room comes back once there is room.
+    fn update_desired(&mut self) {
+        let video: u64 = self
+            .outgoing
+            .iter()
+            .flat_map(|track| track.layers.iter().zip(&track.specs))
+            .filter(|(layer, _)| layer.wanted)
+            .map(|(_, spec)| u64::from(spec.max_bitrate))
+            .sum();
+        let desired = if video > 0 {
+            video + self.uplink.voice
+        } else {
+            0
+        };
+        self.uplink.desired = desired;
+        self.rtc.bwe().set_desired_bitrate(Bitrate::bps(desired));
+    }
+
+    /// Once a second: a probe if the uplink wants more than it has, and a
+    /// step back up for the publisher once there is room.
+    pub fn tick(&mut self, now: Instant, events: &mpsc::UnboundedSender<VoiceEvent>) {
+        self.probe_if_limited(now);
+        self.replan(now, events);
+    }
+
+    /// What each track should encode (plan §7.10); the publisher hears of
+    /// every change.
+    fn replan(&mut self, now: Instant, events: &mpsc::UnboundedSender<VoiceEvent>) {
+        let wanted: Vec<Vec<bool>> = self
+            .outgoing
+            .iter()
+            .map(|track| track.layers.iter().map(|layer| layer.wanted).collect())
+            .collect();
+        let tracks: Vec<Sending<'_>> = self
+            .outgoing
+            .iter()
+            .zip(&wanted)
+            .map(|(track, wanted)| Sending {
+                kind: track.kind,
+                layers: &track.specs,
+                wanted,
+            })
+            .collect();
+        let talking = self
+            .uplink
+            .talked
+            .is_some_and(|at| now.saturating_duration_since(at) < TALKING);
+        let voice = if talking { self.uplink.voice } else { 0 };
+        let plans = self
+            .planner
+            .update(now, self.uplink.estimate, voice, &tracks);
+        for (track, plan) in self.outgoing.iter_mut().zip(plans) {
+            if track.plan.as_ref() == Some(&plan) {
+                continue;
+            }
+            let layers = track
+                .layers
+                .iter()
+                .zip(&plan.active)
+                .filter(|(_, on)| **on)
+                .map(|(layer, _)| layer.rid.clone())
+                .collect();
+            let _ = events.send(VoiceEvent::Encode {
+                track_id: track.track_id.clone(),
+                layers,
+                fps_scale: plan.fps_scale,
+                size_scale: plan.size_scale,
+            });
+            track.plan = Some(plan);
+        }
+    }
+
+    /// Asks for a probe when the uplink wants more than its estimate and
+    /// has been calm: a fresh estimator from the current estimate probes
+    /// at 3x and 6x of it.
+    fn probe_if_limited(&mut self, now: Instant) {
+        let uplink = &self.uplink;
+        let limited = uplink.desired > uplink.estimate;
+        let calm = uplink
+            .congested
+            .is_none_or(|at| now.saturating_duration_since(at) >= CALM);
+        let due = uplink
+            .probed
+            .is_none_or(|at| now.saturating_duration_since(at) >= PROBE_EVERY);
+        if limited && calm && due {
+            self.uplink.probed = Some(now);
+            self.rtc.bwe().reset(Bitrate::bps(self.uplink.estimate));
+        }
     }
 
     pub fn unpublish(&mut self, track_id: &str) {
@@ -346,6 +531,7 @@ impl Media {
         self.rtc
             .direct_api()
             .remove_media(track.mid.as_str().into());
+        self.update_desired();
     }
 
     /// Whether the network this connection was on is gone: sending failed,
@@ -372,6 +558,7 @@ impl Media {
 
     pub fn send_audio(&mut self, frame: AudioFrame) {
         self.timeout();
+        self.uplink.talked = Some(Instant::now());
         let seq = self.next_seq;
         self.next_seq += 1;
         // RTP timestamps are the capture clock, wrapped to 32 bits.
@@ -533,7 +720,13 @@ impl Media {
                 Ok(Output::Event(Event::EgressBitrateEstimate(BweKind::Twcc {
                     estimate, ..
                 }))) => {
-                    let _ = events.send(VoiceEvent::UplinkEstimate(estimate.as_u64()));
+                    let estimate = estimate.as_u64();
+                    if (estimate as f64) < self.uplink.estimate as f64 * ESTIMATE_DROP {
+                        self.uplink.congested = Some(Instant::now());
+                    }
+                    self.uplink.estimate = estimate;
+                    let _ = events.send(VoiceEvent::UplinkEstimate(estimate));
+                    self.replan(Instant::now(), events);
                 }
                 Ok(Output::Event(_)) => {}
                 Err(error) => {
@@ -713,6 +906,10 @@ impl Media {
     }
 
     /// Lets impaired packets through once they are due.
+    #[cfg_attr(
+        not(any(test, feature = "testing")),
+        expect(unused_variables, reason = "only shims hold packets")
+    )]
     pub fn release_shims(&mut self, events: &mpsc::UnboundedSender<VoiceEvent>) {
         #[cfg(any(test, feature = "testing"))]
         {

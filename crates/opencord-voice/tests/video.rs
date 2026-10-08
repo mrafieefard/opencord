@@ -73,8 +73,8 @@ impl Publisher {
                     let wake = due.unwrap_or_else(|| Instant::now() + Duration::from_millis(50));
                     tokio::select! {
                         event = events.recv() => match event {
-                            Some(VoiceEvent::LayerWants { rids, .. }) => {
-                                pattern.lock().unwrap().wants(&rids);
+                            Some(VoiceEvent::Encode { layers, fps_scale, size_scale, .. }) => {
+                                pattern.lock().unwrap().encode(&layers, fps_scale, size_scale);
                             }
                             Some(VoiceEvent::KeyframeRequested { layer, .. }) => {
                                 pattern.lock().unwrap().keyframe(layer);
@@ -169,6 +169,8 @@ async fn camera_publisher(node: &Node, user_id: i64, track_id: &str) -> Publishe
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn a_published_camera_reaches_whoever_wants_it_intact() {
+    // Which layer it settles on depends on the bandwidth estimate: timing.
+    let _machine = whole_machine().await;
     let node = node().await;
     let (bob, mut bob_events) = join(&node, 2).await;
     let _alice = camera_publisher(&node, 1, "cam-1").await;
@@ -195,7 +197,8 @@ async fn a_published_camera_reaches_whoever_wants_it_intact() {
     }
     // A debug build's bandwidth estimate can dip at first; it settles on
     // the tile's layer.
-    assert_eq!(frames.last().map(|frame| frame.layer), Some(1));
+    let layers: Vec<u8> = frames.iter().map(|frame| frame.layer).collect();
+    assert_eq!(layers.last(), Some(&1), "{layers:?}");
     for run in frames.chunk_by(|a, b| a.layer == b.layer) {
         let numbers: Vec<u64> = run
             .iter()
@@ -211,6 +214,7 @@ async fn a_published_camera_reaches_whoever_wants_it_intact() {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn a_hidden_tile_gets_no_video() {
+    let _machine = shared_machine().await;
     let node = node().await;
     let (bob, mut bob_events) = join(&node, 2).await;
     let _alice = camera_publisher(&node, 1, "cam-1").await;
@@ -233,6 +237,7 @@ async fn a_hidden_tile_gets_no_video() {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn unused_layers_stop_being_encoded() {
+    let _machine = shared_machine().await;
     let node = node().await;
     let (bob, mut bob_events) = join(&node, 2).await;
     let alice = camera_publisher(&node, 1, "cam-1").await;
@@ -245,6 +250,7 @@ async fn unused_layers_stop_being_encoded() {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn a_camera_needs_the_permission_and_room_in_the_channel() {
+    let _machine = shared_machine().await;
     let node = node().await;
     let limits = voice::Limits {
         screen_share_max_resolution: ScreenShareResolution::ScreenShareResolution720p as i32,
@@ -294,6 +300,7 @@ async fn a_camera_needs_the_permission_and_room_in_the_channel() {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn a_track_far_over_its_ceiling_is_stopped() {
+    let _machine = shared_machine().await;
     let node = node().await;
     let (bob, mut bob_events) = join(&node, 2).await;
     let (connection, events) = join_with(
@@ -328,6 +335,7 @@ async fn a_track_far_over_its_ceiling_is_stopped() {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn someone_who_joins_later_sees_the_tracks_already_there() {
+    let _machine = shared_machine().await;
     let node = node().await;
     let _alice = camera_publisher(&node, 1, "cam-1").await;
 
@@ -380,6 +388,7 @@ async fn send_wants_burst(node: &Node, user_id: i64, wants: usize) -> Option<Opt
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn more_than_twenty_wants_a_second_close_the_gateway() {
+    let _machine = shared_machine().await;
     let node = node().await;
 
     assert_eq!(send_wants_burst(&node, 1, 15).await, None);
@@ -404,6 +413,7 @@ fn audio(index: u8) -> AudioFrame {
 /// only RTP headers and extensions.
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn an_xor_transform_end_to_end_does_not_stop_the_node() {
+    let _machine = shared_machine().await;
     let node = node().await;
     let xor = || ConnectOptions {
         transform: Some(Box::new(XorTransform { key: 0xa5 })),
@@ -466,11 +476,14 @@ async fn an_xor_transform_end_to_end_does_not_stop_the_node() {
 #[tokio::test(flavor = "multi_thread", worker_threads = 12)]
 #[cfg_attr(debug_assertions, ignore = "needs a release build's timing")]
 async fn a_500_kbps_receiver_gets_a_lower_layer_within_2_s_and_recovers() {
+    let _machine = whole_machine().await;
     let node = node().await;
     let (bob, mut bob_events) = join(&node, 2).await;
     let _alice = camera_publisher(&node, 1, "cam-1").await;
     bob.set_sink_wants(want("cam-1", 720));
-    let top = layer_arrives(&mut bob_events, Duration::from_secs(15), |layer| layer == 2).await;
+    // Both ends ramp up: the node probes the receiver's downlink before it
+    // asks for the top layer, then the sender probes its uplink for it.
+    let top = layer_arrives(&mut bob_events, Duration::from_secs(25), |layer| layer == 2).await;
     assert!(top.is_some(), "never reached the top layer");
     frames_within(&mut bob_events, Duration::from_secs(2)).await;
 
@@ -490,4 +503,65 @@ async fn a_500_kbps_receiver_gets_a_lower_layer_within_2_s_and_recovers() {
     bob.set_impairment(Impairment::default(), Impairment::default());
     let back = layer_arrives(&mut bob_events, Duration::from_secs(25), |layer| layer == 2).await;
     assert!(back.is_some(), "never came back up");
+}
+
+/// Polls `done` until it holds or `within` passes; returns whether it held.
+async fn eventually(within: Duration, done: impl Fn() -> bool) -> bool {
+    let deadline = Instant::now() + within;
+    while Instant::now() < deadline {
+        if done() {
+            return true;
+        }
+        tokio::time::sleep(Duration::from_millis(50)).await;
+    }
+    done()
+}
+
+/// Plan §7.10 on a real connection: a sender whose uplink carries 1 Mbit/s
+/// stops encoding its camera's top layer; the node moves its receiver to a
+/// layer the sender still encodes; the top layer is encoded again once the
+/// cap is lifted and the estimator has probed for room.
+#[tokio::test(flavor = "multi_thread", worker_threads = 12)]
+async fn a_capped_uplink_stops_encoding_the_cameras_top_layer_until_lifted() {
+    let _machine = whole_machine().await;
+    let node = node().await;
+    let (bob, mut bob_events) = join(&node, 2).await;
+    let alice = camera_publisher(&node, 1, "cam-1").await;
+    bob.set_sink_wants(want("cam-1", 720));
+    let top = layer_arrives(&mut bob_events, Duration::from_secs(25), |layer| layer == 2).await;
+    assert!(top.is_some(), "never reached the top layer");
+    let encoding = |rid: &str| {
+        alice
+            .pattern
+            .lock()
+            .unwrap()
+            .active()
+            .contains(&rid.to_owned())
+    };
+
+    let capped = Impairment {
+        rate: 1_000_000,
+        ..Impairment::default()
+    };
+    alice
+        .connection
+        .set_impairment(Impairment::default(), capped);
+    let capped_at = Instant::now();
+    assert!(
+        eventually(Duration::from_secs(5), || !encoding("h")).await,
+        "still encoding the top layer"
+    );
+    let lower = layer_arrives(&mut bob_events, Duration::from_secs(5), |layer| layer < 2).await;
+    assert!(
+        lower.is_some_and(|at| at.saturating_duration_since(capped_at) <= Duration::from_secs(5)),
+        "the receiver got no lower layer"
+    );
+
+    alice
+        .connection
+        .set_impairment(Impairment::default(), Impairment::default());
+    assert!(
+        eventually(Duration::from_secs(25), || encoding("h")).await,
+        "the top layer never came back"
+    );
 }

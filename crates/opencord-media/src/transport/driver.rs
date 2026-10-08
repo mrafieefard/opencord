@@ -45,7 +45,7 @@ pub(super) struct Driver {
     media: Media,
     events: mpsc::UnboundedSender<VoiceEvent>,
     /// Publish requests waiting for the node's answer, by track id.
-    publishing: HashMap<String, oneshot::Sender<Result<(), TrackError>>>,
+    publishing: HashMap<String, (TrackRequest, oneshot::Sender<Result<(), TrackError>>)>,
     /// Wants not sent yet, and when the last went out.
     wants_pending: Option<Vec<SinkWant>>,
     wants_sent: Option<Instant>,
@@ -147,6 +147,7 @@ impl Driver {
                     if self.media.network_changed() {
                         self.rebind().await;
                     }
+                    self.media.tick(Instant::now(), &self.events);
                 }
                 _ = beat.tick() => {
                     if let Some(open) = socket.as_mut() {
@@ -273,7 +274,8 @@ impl Driver {
             let _ = reply.send(Err(TrackError::NotConnected));
             return;
         }
-        self.publishing.insert(request.track_id, reply);
+        self.publishing
+            .insert(request.track_id.clone(), (request, reply));
     }
 
     /// When pending wants may go out.
@@ -336,18 +338,17 @@ impl Driver {
                 });
             }
             Some(Payload::TrackPublished(published)) => {
-                if let Some(reply) = self.publishing.remove(&published.track_id) {
-                    self.media.publish(&published.track_id, &published.layers);
+                if let Some((request, reply)) = self.publishing.remove(&published.track_id) {
+                    self.media
+                        .publish(&request, &published.layers, &self.events);
                     let _ = reply.send(Ok(()));
                 }
             }
             Some(Payload::TrackRejected(rejected)) => self.on_rejected(rejected),
             Some(Payload::TrackUpdate(update)) => self.on_track_update(update),
             Some(Payload::SenderLayerWants(wants)) => {
-                let _ = self.events.send(VoiceEvent::LayerWants {
-                    track_id: wants.track_id,
-                    rids: wants.active_layers,
-                });
+                self.media
+                    .set_wanted(&wants.track_id, &wants.active_layers, &self.events);
             }
             Some(Payload::Resumed(_)) => {
                 let _ = self.events.send(VoiceEvent::Resumed);
@@ -358,7 +359,7 @@ impl Driver {
 
     /// A refused publish, or a running track the node stopped.
     fn on_rejected(&mut self, rejected: voice::TrackRejected) {
-        if let Some(reply) = self.publishing.remove(&rejected.track_id) {
+        if let Some((_, reply)) = self.publishing.remove(&rejected.track_id) {
             let _ = reply.send(Err(TrackError::Refused {
                 reason: rejected.reason,
                 message: rejected.message,
@@ -418,7 +419,7 @@ impl Driver {
     }
 
     fn finish(&mut self, code: Option<u16>) {
-        for (_, reply) in self.publishing.drain() {
+        for (_, (_, reply)) in self.publishing.drain() {
             let _ = reply.send(Err(TrackError::NotConnected));
         }
         let _ = self.events.send(VoiceEvent::Closed { code });

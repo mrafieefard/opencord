@@ -22,6 +22,18 @@ pub const WAIT: Duration = Duration::from_secs(10);
 /// `CONNECT`.
 pub const CONNECT: u64 = 1 << 16;
 
+/// Tests that measure timing have the machine to themselves; the rest
+/// share it.
+static MACHINE: tokio::sync::RwLock<()> = tokio::sync::RwLock::const_new(());
+
+pub async fn shared_machine() -> tokio::sync::RwLockReadGuard<'static, ()> {
+    MACHINE.read().await
+}
+
+pub async fn whole_machine() -> tokio::sync::RwLockWriteGuard<'static, ()> {
+    MACHINE.write().await
+}
+
 pub struct Node {
     pub node: VoiceNode,
     pub events: UnboundedReceiver<NodeEvent>,

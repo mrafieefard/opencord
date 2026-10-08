@@ -426,3 +426,52 @@ async fn the_app_learns_who_starts_and_stops_speaking() {
         ]
     );
 }
+
+/// Waits until `watcher` has `count` more intact pictures from `user_id`
+/// than `before`.
+async fn sees_camera(watcher: &VoiceSession, user_id: i64, before: u64, count: u64) {
+    watcher
+        .wait_until(|view| {
+            view.seen
+                .get(&user_id)
+                .is_some_and(|seen| seen.intact >= before + count)
+        })
+        .await
+        .unwrap();
+}
+
+#[tokio::test]
+async fn a_voicebots_camera_reaches_another_voicebot_intact() {
+    let call = call().await;
+    let owner = call.owner.user_id();
+
+    call.owner_voice.publish_camera("cam-owner").await.unwrap();
+    call.member_voice.watch(360);
+    sees_camera(&call.member_voice, owner, 0, 30).await;
+
+    let seen = call.member_voice.seen()[&owner].clone();
+    assert_eq!(seen.intact, seen.frames, "a picture arrived damaged");
+    assert_eq!(seen.layers[2], 0, "taller than the tile");
+    assert!(seen.keyframes >= 1);
+}
+
+#[tokio::test]
+async fn a_voicebots_camera_comes_back_when_its_call_moves_to_another_node() {
+    let mut call = external_call().await;
+    let owner = call.owner.user_id();
+    call.owner_voice.publish_camera("cam-owner").await.unwrap();
+    call.member_voice.watch(360);
+    sees_camera(&call.member_voice, owner, 0, 10).await;
+
+    let first = call.owner_voice.gateway_url();
+    call.cluster.kill(&first).await;
+    for voice in [&call.owner_voice, &call.member_voice] {
+        voice
+            .wait_until(|view| view.connections == 2 && view.media_connected)
+            .await
+            .unwrap();
+    }
+    let before = call.member_voice.seen()[&owner].intact;
+
+    sees_camera(&call.member_voice, owner, before, 10).await;
+}
