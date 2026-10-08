@@ -10,16 +10,24 @@ use std::sync::mpsc::{self, Receiver, Sender, TryRecvError};
 use std::thread::JoinHandle;
 use std::time::{Duration, Instant};
 
+use super::SAMPLE_RATE;
 use super::capture::{EncodedFrame, InputMode};
 use super::device::{DeviceError, Microphone, Speaker};
 use super::processing::ProcessingSettings;
 use super::processor::{Processor, ProcessorError, ProcessorSettings};
-use super::{SAMPLE_RATE, TICK};
 
 /// How often the engine wakes.
 const WAKE_EVERY: Duration = Duration::from_millis(5);
 /// Audio kept queued for the speaker: enough to ride out a late wake.
 const SPEAKER_QUEUE: Duration = Duration::from_millis(30);
+/// The real-time budget asked for, in frames: how long the thread may run
+/// without sleeping before the kernel sends SIGXCPU, which ends the
+/// process. 100 ms leaves room for a slow tick (or a debug build) while a
+/// runaway thread is still stopped; RTKit's own limit is 200 ms.
+const REAL_TIME_BUDGET_FRAMES: u32 = SAMPLE_RATE / 10;
+/// At most this much microphone audio is processed per wake; more waits for
+/// the next one, so a backlog is worked off in short steps.
+const CAPTURE_PER_WAKE: Duration = Duration::from_millis(40);
 /// Speaking changes and the input level go out at most this often.
 const REPORT_EVERY: Duration = Duration::from_millis(50);
 
@@ -294,7 +302,7 @@ struct Engine {
 impl Engine {
     fn run(&mut self, commands: Receiver<Command>) {
         let _priority = match audio_thread_priority::promote_current_thread_to_real_time(
-            TICK as u32,
+            REAL_TIME_BUDGET_FRAMES,
             SAMPLE_RATE,
         ) {
             Ok(handle) => Some(handle),
@@ -365,11 +373,7 @@ impl Engine {
                 self.unplayed_since = Instant::now();
                 self.open_speaker();
             }
-            Command::Processing(settings) => {
-                if let Err(error) = processor.set_processing(settings) {
-                    tracing::warn!(%error, "could not change the voice processing");
-                }
-            }
+            Command::Processing(settings) => processor.set_processing(settings),
             Command::PriorityHeld(held) => processor.set_priority_held(held),
             Command::Priority(user_id, priority) => processor.set_priority(user_id, priority),
             Command::MicTest(on) => processor.set_mic_test(on),
@@ -490,7 +494,10 @@ impl Engine {
         let Some(microphone) = self.microphone.as_mut() else {
             return;
         };
-        let ready = microphone.samples.slots();
+        let most = (microphone.rate as usize * usize::from(microphone.channels.max(1)))
+            * CAPTURE_PER_WAKE.as_millis() as usize
+            / 1000;
+        let ready = microphone.samples.slots().min(most);
         if ready == 0 {
             return;
         }

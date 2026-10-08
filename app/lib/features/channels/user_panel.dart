@@ -215,59 +215,64 @@ class _QuickAudioMenu extends ConsumerWidget {
     final audio = ref.watch(audioSettingsProvider);
     final devices = ref.watch(audioDeviceListProvider);
     final update = ref.read(audioSettingsProvider.notifier).update;
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        const SectionLabel('Input device'),
-        for (final (device, label) in deviceChoices(devices.inputs))
-          _Choice(
-            label: label,
-            chosen: audio.inputDevice == device?.id,
-            onTap: () => update((a) => a.withInput(device)),
-          ),
-        const SizedBox(height: OcSpace.s10),
-        const SectionLabel('Input mode'),
-        const SizedBox(height: OcSpace.s4),
-        Row(
-          children: [
-            for (final mode in InputMode.values)
-              Expanded(
-                child: Padding(
-                  padding: EdgeInsets.only(
-                    right: mode == InputMode.values.first ? OcSpace.s6 : 0,
-                  ),
-                  child: _ModeButton(
-                    label: mode.label,
-                    active: audio.inputMode == mode,
-                    onTap: () => update((a) => a.copyWith(inputMode: mode)),
+    // A system can list many devices: the menu scrolls when it does not
+    // fit.
+    return SingleChildScrollView(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const SectionLabel('Input device'),
+          for (final (device, label) in deviceChoices(devices.inputs))
+            _Choice(
+              label: label,
+              chosen: audio.inputDevice == device?.id,
+              onTap: () => update((a) => a.withInput(device)),
+            ),
+          const SizedBox(height: OcSpace.s10),
+          const SectionLabel('Input mode'),
+          const SizedBox(height: OcSpace.s4),
+          Row(
+            children: [
+              for (final mode in InputMode.values)
+                Expanded(
+                  child: Padding(
+                    padding: EdgeInsets.only(
+                      right: mode == InputMode.values.first ? OcSpace.s6 : 0,
+                    ),
+                    child: _ModeButton(
+                      label: mode.label,
+                      active: audio.inputMode == mode,
+                      onTap: () => update((a) => a.copyWith(inputMode: mode)),
+                    ),
                   ),
                 ),
-              ),
-          ],
-        ),
-        const SizedBox(height: OcSpace.s10),
-        _Volume(
-          label: 'Input volume',
-          value: audio.inputVolume,
-          onChanged: (value) => update((a) => a.copyWith(inputVolume: value)),
-        ),
-        const InputLevelMeter(),
-        const SizedBox(height: OcSpace.s10),
-        const SectionLabel('Output device'),
-        for (final (device, label) in deviceChoices(devices.outputs))
-          _Choice(
-            label: label,
-            chosen: audio.outputDevice == device?.id,
-            onTap: () => update((a) => a.withOutput(device)),
+            ],
           ),
-        const SizedBox(height: OcSpace.s10),
-        _Volume(
-          label: 'Output volume',
-          value: audio.outputVolume,
-          onChanged: (value) => update((a) => a.copyWith(outputVolume: value)),
-        ),
-      ],
+          const SizedBox(height: OcSpace.s10),
+          _Volume(
+            label: 'Input volume',
+            value: audio.inputVolume,
+            onChanged: (value) => update((a) => a.copyWith(inputVolume: value)),
+          ),
+          const InputLevelMeter(),
+          const SizedBox(height: OcSpace.s10),
+          const SectionLabel('Output device'),
+          for (final (device, label) in deviceChoices(devices.outputs))
+            _Choice(
+              label: label,
+              chosen: audio.outputDevice == device?.id,
+              onTap: () => update((a) => a.withOutput(device)),
+            ),
+          const SizedBox(height: OcSpace.s10),
+          _Volume(
+            label: 'Output volume',
+            value: audio.outputVolume,
+            onChanged: (value) =>
+                update((a) => a.copyWith(outputVolume: value)),
+          ),
+        ],
+      ),
     );
   }
 }

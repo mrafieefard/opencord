@@ -97,6 +97,25 @@ pub fn preload() -> Result<(), DeepFilterError> {
     networks().map(|_| ())
 }
 
+/// Whether the networks are loaded (or failed to): from then on
+/// [`DeepFilter::new`] is quick.
+pub fn loaded() -> bool {
+    NETWORKS.get().is_some()
+}
+
+/// Starts loading the networks on a thread of their own, once, so the
+/// audio thread never does it.
+pub fn load_in_background() {
+    static STARTED: std::sync::Once = std::sync::Once::new();
+    STARTED.call_once(|| {
+        let _ = std::thread::Builder::new()
+            .name("opencord-deepfilter".to_owned())
+            .spawn(|| {
+                let _ = networks();
+            });
+    });
+}
+
 fn f32_fact(shape: impl Into<tract_onnx::tract_hir::infer::ShapeFactoid>) -> InferenceFact {
     InferenceFact::dt_shape(f32::datum_type(), shape)
 }

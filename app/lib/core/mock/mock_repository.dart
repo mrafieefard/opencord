@@ -1516,7 +1516,10 @@ class MockRepository implements OpencordRepository {
   final listening = <(String, int), (int, bool)>{};
 
   @override
-  Future<AudioDeviceList> audioDevices() async => devices;
+  Future<AudioDeviceList> audioDevices() async => deviceList;
+
+  /// What [audioDevices] answers; [devices] unless a test says otherwise.
+  AudioDeviceList deviceList = devices;
 
   @override
   void applyAudio(AudioConfig config) => audio = config;

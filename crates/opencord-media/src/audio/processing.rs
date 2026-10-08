@@ -9,7 +9,8 @@
 //! suppression is RNNoise through `nnnoiseless`, which also says how
 //! likely each tick is to be speech; High is DeepFilterNet
 //! ([`super::deep_filter`]), which falls back to Standard when the computer
-//! cannot keep up.
+//! cannot keep up. Nothing here loads or blocks for long: DeepFilterNet's
+//! networks load on a thread of their own, with Standard standing in.
 
 use std::time::{Duration, Instant};
 
@@ -26,7 +27,7 @@ use aec3::audio_processing::stream_config::StreamConfig;
 use nnnoiseless::DenoiseState;
 
 use super::capture::Heard;
-use super::deep_filter::{DeepFilter, DeepFilterError};
+use super::deep_filter::{self, DeepFilter};
 use super::{SAMPLE_RATE, TICK, dbfs};
 
 /// RNNoise works on samples in the 16-bit range.
@@ -75,16 +76,6 @@ impl Default for ProcessingSettings {
     }
 }
 
-#[derive(Debug, thiserror::Error)]
-#[error("audio processing could not start: {0}")]
-pub struct ProcessingError(String);
-
-impl From<DeepFilterError> for ProcessingError {
-    fn from(error: DeepFilterError) -> Self {
-        Self(error.to_string())
-    }
-}
-
 pub struct VoiceProcessing {
     settings: ProcessingSettings,
     /// RNNoise looks for a voice even with suppression off, for automatic
@@ -96,7 +87,7 @@ pub struct VoiceProcessing {
     /// The levels of the last ticks played, oldest overwritten first.
     played: [f32; PLAYED_TICKS],
     played_next: usize,
-    /// While noise suppression is High.
+    /// While noise suppression is High and its networks are loaded.
     high: Option<Box<DeepFilter>>,
     load: LoadWatch,
     /// High gave way to Standard since the last look.
@@ -111,15 +102,15 @@ pub struct VoiceProcessing {
 }
 
 impl VoiceProcessing {
-    pub fn new(settings: ProcessingSettings) -> Result<Self, ProcessingError> {
-        Ok(Self {
+    pub fn new(settings: ProcessingSettings) -> Self {
+        let mut processing = Self {
             high_pass: HighPass::default(),
             echo: settings
                 .echo_cancellation
                 .then(|| Box::new(EchoCancellation::new())),
             played: [f32::MIN; PLAYED_TICKS],
             played_next: 0,
-            high: high(settings.noise_suppression)?,
+            high: None,
             load: LoadWatch::default(),
             fell_back: false,
             gain: settings
@@ -132,7 +123,11 @@ impl VoiceProcessing {
             cleaned: [0.0; TICK],
             #[cfg(test)]
             artificial_load: Duration::ZERO,
-        })
+        };
+        if settings.noise_suppression == NoiseSuppression::High {
+            processing.start_high();
+        }
+        processing
     }
 
     pub fn settings(&self) -> ProcessingSettings {
@@ -140,23 +135,26 @@ impl VoiceProcessing {
     }
 
     /// Takes new settings; the parts that changed start over.
-    pub fn set_settings(&mut self, settings: ProcessingSettings) -> Result<(), ProcessingError> {
+    pub fn set_settings(&mut self, settings: ProcessingSettings) {
         if settings.echo_cancellation != self.settings.echo_cancellation {
             self.echo = settings
                 .echo_cancellation
                 .then(|| Box::new(EchoCancellation::new()));
-        }
-        if settings.noise_suppression != self.settings.noise_suppression {
-            self.high = high(settings.noise_suppression)?;
-            self.load = LoadWatch::default();
         }
         if settings.automatic_gain != self.settings.automatic_gain {
             self.gain = settings
                 .automatic_gain
                 .then(|| Box::new(GainControl::new()));
         }
+        let changed = settings.noise_suppression != self.settings.noise_suppression;
         self.settings = settings;
-        Ok(())
+        if changed {
+            self.high = None;
+            self.load = LoadWatch::default();
+            if settings.noise_suppression == NoiseSuppression::High {
+                self.start_high();
+            }
+        }
     }
 
     /// Whether High gave way to Standard since the last call.
@@ -195,10 +193,18 @@ impl VoiceProcessing {
             NoiseSuppression::Off => self.voice_analysis.then(|| self.analyze(tick)),
             NoiseSuppression::Standard => Some(self.rnnoise(tick)),
             NoiseSuppression::High => {
-                self.deep_filter(tick);
-                // RNNoise looks at what DeepFilterNet left, so the voice
-                // probability lines up with what is sent.
-                self.voice_analysis.then(|| self.analyze(tick))
+                if self.high.is_none() {
+                    self.start_high();
+                }
+                if self.high.is_some() {
+                    self.deep_filter(tick);
+                    // RNNoise looks at what DeepFilterNet left, so the voice
+                    // probability lines up with what is sent.
+                    self.voice_analysis.then(|| self.analyze(tick))
+                } else {
+                    // Standard, while DeepFilterNet loads.
+                    Some(self.rnnoise(tick))
+                }
             }
         };
         if let Some(gain) = &mut self.gain
@@ -212,6 +218,19 @@ impl VoiceProcessing {
         }
     }
 
+    /// DeepFilterNet, if its networks are loaded; otherwise they start
+    /// loading on a thread of their own and this is tried again next tick.
+    fn start_high(&mut self) {
+        if !deep_filter::loaded() {
+            deep_filter::load_in_background();
+            return;
+        }
+        match DeepFilter::new() {
+            Ok(filter) => self.high = Some(Box::new(filter)),
+            Err(_) => self.give_way(),
+        }
+    }
+
     /// High, timed; falls back to Standard when it is too slow or fails.
     fn deep_filter(&mut self, tick: &mut [f32]) {
         let Some(filter) = &mut self.high else {
@@ -222,11 +241,16 @@ impl VoiceProcessing {
         #[cfg(test)]
         std::thread::sleep(self.artificial_load);
         if self.load.record(start.elapsed()) || failed {
-            self.settings.noise_suppression = NoiseSuppression::Standard;
-            self.high = None;
-            self.load = LoadWatch::default();
-            self.fell_back = true;
+            self.give_way();
         }
+    }
+
+    /// High gives way to Standard, and says so.
+    fn give_way(&mut self) {
+        self.settings.noise_suppression = NoiseSuppression::Standard;
+        self.high = None;
+        self.load = LoadWatch::default();
+        self.fell_back = true;
     }
 
     /// RNNoise's voice probability, leaving the audio as it is.
@@ -261,13 +285,6 @@ fn choose(share: Option<f32>) -> NoiseSuppression {
         Some(share) if share < HIGH_BY_DEFAULT_UNDER => NoiseSuppression::High,
         _ => NoiseSuppression::Standard,
     }
-}
-
-fn high(mode: NoiseSuppression) -> Result<Option<Box<DeepFilter>>, ProcessingError> {
-    Ok(match mode {
-        NoiseSuppression::High => Some(Box::new(DeepFilter::new()?)),
-        NoiseSuppression::Off | NoiseSuppression::Standard => None,
-    })
 }
 
 /// How long High took over the last two seconds of ticks.
@@ -447,7 +464,7 @@ mod tests {
         render: &[f32],
         capture: &[f32],
     ) -> (Vec<f32>, Vec<Option<f32>>) {
-        let mut processing = VoiceProcessing::new(settings).unwrap();
+        let mut processing = VoiceProcessing::new(settings);
         let mut out = Vec::with_capacity(capture.len());
         let mut probabilities = Vec::new();
         let silence = [0.0; TICK];
@@ -552,6 +569,7 @@ mod tests {
 
     #[test]
     fn high_suppression_silences_every_kind_of_noise() {
+        deep_filter::preload().unwrap();
         for kind in ["fan", "street", "keyboard", "dog"] {
             let reduction = noise_reduction(kind, NoiseSuppression::High);
             let change = voice_change(kind, NoiseSuppression::High);
@@ -607,11 +625,12 @@ mod tests {
 
     #[test]
     fn with_high_the_voice_probability_is_there_only_for_voice_analysis() {
+        deep_filter::preload().unwrap();
         let settings = ProcessingSettings {
             noise_suppression: NoiseSuppression::High,
             ..ONLY_EQUALIZING
         };
-        let mut processing = VoiceProcessing::new(settings).unwrap();
+        let mut processing = VoiceProcessing::new(settings);
         let mut tick = [0.0; TICK];
 
         let without = processing.capture(&mut tick).voice_probability;
@@ -623,11 +642,12 @@ mod tests {
     }
 
     fn high_under_load(load: Duration, ticks: usize) -> VoiceProcessing {
+        deep_filter::preload().unwrap();
         let settings = ProcessingSettings {
             noise_suppression: NoiseSuppression::High,
             ..ONLY_EQUALIZING
         };
-        let mut processing = VoiceProcessing::new(settings).unwrap();
+        let mut processing = VoiceProcessing::new(settings);
         processing.artificial_load = load;
         let (capture, _) = voice_with("fan");
         for tick in capture.as_chunks::<TICK>().0.iter().cycle().take(ticks) {
@@ -730,7 +750,7 @@ mod tests {
                 *slot += 0.316 * sample;
             }
         }
-        let mut processing = VoiceProcessing::new(ProcessingSettings::default()).unwrap();
+        let mut processing = VoiceProcessing::new(ProcessingSettings::default());
 
         let heard: Vec<Heard> = capture
             .as_chunks::<TICK>()

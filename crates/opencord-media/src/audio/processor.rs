@@ -10,7 +10,7 @@ use super::capture::{Capture, EncodedFrame, InputMode};
 use super::codec::CodecError;
 use super::convert::{ConvertError, FromDevice, ToDevice};
 use super::playback::{MAX_VOLUME, Playback};
-use super::processing::{ProcessingError, ProcessingSettings, VoiceProcessing};
+use super::processing::{ProcessingSettings, VoiceProcessing};
 use super::{TICK, dbfs};
 
 /// Who the mic test plays as; never a real user (ids are positive).
@@ -35,8 +35,6 @@ pub enum ProcessorError {
     Codec(#[from] CodecError),
     #[error(transparent)]
     Convert(#[from] ConvertError),
-    #[error(transparent)]
-    Processing(#[from] ProcessingError),
     #[error("the audio thread stopped")]
     Stopped,
 }
@@ -69,7 +67,7 @@ impl Processor {
     ) -> Result<Self, ProcessorError> {
         let mut playback = Playback::new();
         playback.set_master(settings.output_volume);
-        let mut processing = VoiceProcessing::new(settings.processing)?;
+        let mut processing = VoiceProcessing::new(settings.processing);
         processing.set_voice_analysis(settings.mode.wants_voice_probability());
         Ok(Self {
             capture: Capture::new(settings.mode, settings.bitrate)?,
@@ -191,8 +189,8 @@ impl Processor {
             .set_voice_analysis(mode.wants_voice_probability());
     }
 
-    pub fn set_processing(&mut self, settings: ProcessingSettings) -> Result<(), ProcessorError> {
-        Ok(self.processing.set_settings(settings)?)
+    pub fn set_processing(&mut self, settings: ProcessingSettings) {
+        self.processing.set_settings(settings);
     }
 
     pub fn set_push_to_talk(&mut self, held: bool) {
@@ -609,6 +607,7 @@ mod tests {
 
     #[test]
     fn what_bob_plays_does_not_go_back_to_alice() {
+        crate::audio::deep_filter::preload().unwrap();
         let mut only_echo_cancellation = settings();
         only_echo_cancellation.processing.echo_cancellation = true;
 
@@ -789,6 +788,7 @@ mod tests {
     #[ignore = "a measurement; run in a release build"]
     fn processing_time_per_tick() {
         const TICKS: usize = 3_000;
+        crate::audio::deep_filter::preload().unwrap();
         let far = at_level(&speech(), -20.0);
         let near: Vec<f32> = at_level(&speech(), -25.0).into_iter().rev().collect();
         let noise = at_level(&crate::audio::fixtures::noise("fan", far.len()), -40.0);
@@ -802,8 +802,7 @@ mod tests {
             let mut processing = VoiceProcessing::new(ProcessingSettings {
                 noise_suppression: mode,
                 ..ProcessingSettings::default()
-            })
-            .unwrap();
+            });
             processing.set_voice_analysis(true);
             let started = Instant::now();
             for index in 0..TICKS {

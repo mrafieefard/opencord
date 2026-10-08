@@ -11,7 +11,7 @@ Open-source, self-hostable voice, video and text chat. It pairs Discord-style UX
 | `crates/opencord-server` | Server binary, and the `opencord-voice-node` binary for voice on other machines |
 | `crates/opencord-voice` | Voice node: voice gateway and the SFU that forwards media, embedded in the server or run on its own |
 | `crates/opencord-core` | Client core in Rust (networking, protocol, identity), used by the app through flutter_rust_bridge |
-| `crates/opencord-media` | Client media engine (so far the voice transport) |
+| `crates/opencord-media` | Client media engine: the voice transport, the audio engine and its voice processing, and global hotkeys |
 | `crates/opencord-voicebot` | Headless voice client for tests and for checking a server's voice |
 | `crates/opencord-proto` | Protobuf types generated from `proto/` |
 | `crates/opencord-common` | Code shared by the server and the client core |
@@ -92,12 +92,14 @@ desktop session:
 - `check_m6.sh`: two identities chat; a new role and restriction arrive live.
 - `check_v0.sh`: voice states without media. The owner joins voice and it shows live; the member joins, is moved, then disconnected.
 - `check_v2.sh`: voice media with this machine's audio devices. The app joins voice and its connection comes up through the server's voice node; nothing is played.
+- `check_v3.sh`: voice processing with this machine's microphone and CPU. The first run benchmarks noise suppression, voice connects with echo cancellation, noise suppression and gain control running, the level meter shows the microphone, and the system says whether hotkeys work outside the app; nothing is played.
 
 ```bash
 app/tool/check_m5.sh
 app/tool/check_m6.sh
 app/tool/check_v0.sh
 app/tool/check_v2.sh
+app/tool/check_v3.sh
 ```
 
 ## Running a server

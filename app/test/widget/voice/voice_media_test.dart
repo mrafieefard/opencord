@@ -1,5 +1,5 @@
 import 'package:flutter/services.dart';
-import 'package:flutter/widgets.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:opencord/core/mock/mock_repository.dart';
 import 'package:opencord/core/model/voice.dart';
@@ -210,6 +210,34 @@ void main() {
     expect(opened, isTrue);
     expect(fill.widthFactor, closeTo(0.5, 0.01), reason: '-30 dBFS of 60');
     expect(app.repository.levelMeterOn, isFalse);
+    await app.dispose(tester);
+  });
+
+  testWidgets('the quick audio menu scrolls when there are many devices', (
+    tester,
+  ) async {
+    final app = await MockApp.pump(tester, size: const Size(1280, 640));
+    app.repository.deviceList = AudioDeviceList(
+      inputs: [
+        for (var i = 0; i < 12; i++)
+          AudioDevice(id: 'mock:in-$i', name: 'Microphone $i'),
+      ],
+      outputs: [
+        for (var i = 0; i < 12; i++)
+          AudioDevice(id: 'mock:out-$i', name: 'Speaker $i'),
+      ],
+    );
+
+    await tester.tap(find.bySemanticsLabel('Audio options').first);
+    await tester.pumpAndSettle();
+    final overflow = tester.takeException();
+    await tester.drag(find.text('Microphone 0'), const Offset(0, -2000));
+    await tester.pumpAndSettle();
+
+    expect(overflow, isNull);
+    expect(find.text('Speaker 11').hitTestable(), findsOneWidget);
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await tester.pumpAndSettle();
     await app.dispose(tester);
   });
 }
