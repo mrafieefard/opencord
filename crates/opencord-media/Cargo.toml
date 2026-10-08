@@ -51,3 +51,11 @@ openh264-sys2.workspace = true
 pipewire.workspace = true
 v4l.workspace = true
 x11rb.workspace = true
+
+[[example]]
+name = "camera_load"
+required-features = ["testing"]
+
+[[example]]
+name = "codec_costs"
+required-features = ["testing"]

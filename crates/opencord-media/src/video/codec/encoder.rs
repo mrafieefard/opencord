@@ -9,7 +9,7 @@ use ffmpeg_next as ff;
 use super::openh264::Software;
 use super::vaapi::{self, Frames};
 use super::{CodecError, NAL_IDR, annexb, ffmpeg, nal_type};
-use crate::video::picture::Picture;
+use crate::video::picture::{Picture, PixelFormat};
 
 /// Pictures between keyframes the encoder would make by itself: an hour,
 /// so in practice they come only on request.
@@ -193,7 +193,11 @@ fn open_hardware(backend: Backend, config: EncoderConfig) -> Result<Hardware, Co
 
 impl Hardware {
     fn encode(&mut self, picture: &Picture, keyframe: bool) -> Result<Vec<u8>, CodecError> {
-        let mut frame = ffmpeg::to_frame(&ffmpeg::to_nv12(picture));
+        let mut frame = if picture.format == PixelFormat::Nv12 {
+            ffmpeg::to_frame(picture)
+        } else {
+            ffmpeg::to_frame(&ffmpeg::to_nv12(picture))
+        };
         let mut input = match &self.frames {
             Some(frames) => frames.upload(&frame)?,
             None => std::mem::replace(&mut frame, ff::frame::Video::empty()),

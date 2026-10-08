@@ -10,6 +10,7 @@ use std::time::{Duration, Instant};
 
 use crate::transport::{Layer, VideoFrame};
 use crate::video::camera::RawFrame;
+use crate::video::codec::convert;
 use crate::video::codec::encoder::{Backend, Encoder, EncoderConfig};
 use crate::video::codec::raw::RawDecoder;
 use crate::video::codec::scale::Scaler;
@@ -233,26 +234,14 @@ impl<S: FnMut(VideoFrame), P: FnMut(&Picture)> Sending<S, P> {
             }
         };
         (self.preview)(&picture);
-        for (index, state) in self.layers.iter_mut().enumerate() {
-            if !state.active || !due(state, picture.captured) {
-                continue;
-            }
-            let layer = &state.layer;
-            let input = if (picture.width, picture.height) == (layer.width, layer.height) {
-                None
-            } else {
-                match self
-                    .scaler
-                    .picture(&picture, layer.width, layer.height, PixelFormat::Nv12)
-                {
-                    Ok(scaled) => Some(scaled),
-                    Err(error) => {
-                        tracing::debug!(%error, "a layer could not be scaled");
-                        continue;
-                    }
-                }
+        let inputs = self.inputs(&picture);
+        for ((index, state), input) in self.layers.iter_mut().enumerate().zip(&inputs) {
+            let input = match input {
+                Input::Skip => continue,
+                Input::Camera => &picture,
+                Input::Made(made) => made,
             };
-            let input = input.as_ref().unwrap_or(&picture);
+            let layer = &state.layer;
             if state.encoder.is_none() {
                 let config = EncoderConfig {
                     width: layer.width,
@@ -294,6 +283,85 @@ impl<S: FnMut(VideoFrame), P: FnMut(&Picture)> Sending<S, P> {
                 }
             }
         }
+    }
+}
+
+/// What a layer encodes from a camera picture.
+enum Input {
+    /// Nothing: it is off, or not due at its frame rate.
+    Skip,
+    /// The camera's picture, at the layer's size already.
+    Camera,
+    Made(Picture),
+}
+
+impl Input {
+    fn made(&self) -> Option<&Picture> {
+        match self {
+            Self::Made(picture) => Some(picture),
+            Self::Skip | Self::Camera => None,
+        }
+    }
+}
+
+impl<S: FnMut(VideoFrame), P: FnMut(&Picture)> Sending<S, P> {
+    /// Each layer's picture, made from the largest layer down: a layer half
+    /// the size of a larger one's picture (or a quarter) is its mean,
+    /// others are scaled from the camera's.
+    fn inputs(&mut self, picture: &Picture) -> Vec<Input> {
+        let mut inputs: Vec<Input> = self
+            .layers
+            .iter_mut()
+            .map(|state| {
+                if state.active && due(state, picture.captured) {
+                    Input::Camera
+                } else {
+                    Input::Skip
+                }
+            })
+            .collect();
+        for index in (0..inputs.len()).rev() {
+            if matches!(inputs[index], Input::Skip) {
+                continue;
+            }
+            let layer = &self.layers[index].layer;
+            let size = (layer.width, layer.height);
+            if (picture.width, picture.height) == size {
+                continue;
+            }
+            // Smallest first: fewer halvings.
+            let halved = inputs[index + 1..]
+                .iter()
+                .filter_map(Input::made)
+                .chain([picture])
+                .find_map(|source| halved(source, size));
+            inputs[index] = match halved {
+                Some(made) => Input::Made(made),
+                None => match self
+                    .scaler
+                    .picture(picture, size.0, size.1, PixelFormat::Nv12)
+                {
+                    Ok(scaled) => Input::Made(scaled),
+                    Err(error) => {
+                        tracing::debug!(%error, "a layer could not be scaled");
+                        Input::Skip
+                    }
+                },
+            };
+        }
+        inputs
+    }
+}
+
+/// `source` halved once or twice to `size`, when that is how to get there.
+fn halved(source: &Picture, size: (u32, u32)) -> Option<Picture> {
+    let halves_to = |times: u32| (source.width >> times, source.height >> times) == size;
+    if halves_to(1) {
+        convert::halve_nv12(source)
+    } else if halves_to(2) {
+        convert::halve_nv12(&convert::halve_nv12(source)?)
+    } else {
+        None
     }
 }
 

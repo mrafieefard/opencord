@@ -4,6 +4,7 @@
 //! capture code.
 
 pub mod annexb;
+pub mod convert;
 #[cfg(target_os = "linux")]
 pub mod decoder;
 #[cfg(target_os = "linux")]

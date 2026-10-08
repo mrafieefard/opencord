@@ -6,7 +6,10 @@ use ff::format::Pixel;
 use ffmpeg_next as ff;
 
 use super::scale::Scaler;
-use super::{CodecError, ffmpeg};
+use super::{CodecError, convert, ffmpeg};
+
+/// A direct conversion of full-range planes to NV12.
+type Planar = fn([&[u8]; 3], [usize; 3], usize, usize) -> Vec<u8>;
 use crate::video::camera::{RawFormat, RawFrame};
 use crate::video::picture::{Picture, PixelFormat};
 
@@ -58,23 +61,40 @@ impl RawDecoder {
             }
             RawFormat::Yuyv => {
                 let row = width as usize * 2;
-                if raw.data.len() != row * height as usize || width == 0 || height == 0 {
+                let even = width.is_multiple_of(2) && height.is_multiple_of(2);
+                if raw.data.len() != row * height as usize || width == 0 || height == 0 || !even {
                     return Err(CodecError::WrongPicture);
                 }
-                let mut frame = ff::frame::Video::new(Pixel::YUYV422, width, height);
-                let stride = frame.stride(0);
-                let plane = frame.data_mut(0);
-                for (line, source) in raw.data.chunks_exact(row).enumerate() {
-                    plane[line * stride..line * stride + row].copy_from_slice(source);
-                }
-                self.scaler
-                    .frame(&frame, width, height, PixelFormat::Nv12, raw.captured)
+                let data = convert::yuyv_to_nv12(&raw.data, width as usize, height as usize);
+                Picture::from_data(PixelFormat::Nv12, width, height, data, raw.captured)
+                    .ok_or(CodecError::WrongPicture)
             }
             RawFormat::Mjpeg => {
                 self.decode_jpeg(&raw.data)?;
                 let (width, height) = (self.frame.width() & !1, self.frame.height() & !1);
-                self.scaler
-                    .frame(&self.frame, width, height, PixelFormat::Nv12, raw.captured)
+                let direct: Option<Planar> = match self.frame.format() {
+                    Pixel::YUVJ422P => Some(convert::full_422_to_nv12),
+                    Pixel::YUVJ420P => Some(convert::full_420_to_nv12),
+                    _ => None,
+                };
+                let Some(direct) = direct else {
+                    return self.scaler.frame(
+                        &self.frame,
+                        width,
+                        height,
+                        PixelFormat::Nv12,
+                        raw.captured,
+                    );
+                };
+                let frame = &self.frame;
+                let data = direct(
+                    [frame.data(0), frame.data(1), frame.data(2)],
+                    [frame.stride(0), frame.stride(1), frame.stride(2)],
+                    width as usize,
+                    height as usize,
+                );
+                Picture::from_data(PixelFormat::Nv12, width, height, data, raw.captured)
+                    .ok_or(CodecError::WrongPicture)
             }
         }
     }
@@ -103,6 +123,34 @@ impl RawDecoder {
             .receive_frame(&mut self.frame)
             .map_err(ffmpeg::error)
     }
+}
+
+#[cfg(any(test, feature = "testing"))]
+/// The picture's luma and chroma as a full-range JPEG (for tests and the
+/// virtual camera).
+pub fn encode_jpeg(picture: &Picture) -> Vec<u8> {
+    ffmpeg::init();
+    let codec = ff::encoder::find(ff::codec::Id::MJPEG).unwrap();
+    let mut video = ff::codec::context::Context::new_with_codec(codec)
+        .encoder()
+        .video()
+        .unwrap();
+    video.set_width(picture.width);
+    video.set_height(picture.height);
+    video.set_format(Pixel::YUVJ420P);
+    video.set_time_base((1, 30));
+    let mut encoder = video.open_as(codec).unwrap();
+    let i420 = Scaler::new()
+        .picture(picture, picture.width, picture.height, PixelFormat::I420)
+        .unwrap();
+    let mut frame = ffmpeg::to_frame(&i420);
+    // SAFETY: relabels the frame's own format; the planes are the same.
+    unsafe { (*frame.as_mut_ptr()).format = ff::ffi::AVPixelFormat::AV_PIX_FMT_YUVJ420P as i32 };
+    encoder.send_frame(&frame).unwrap();
+    encoder.send_eof().unwrap();
+    let mut packet = ff::Packet::empty();
+    encoder.receive_packet(&mut packet).unwrap();
+    packet.data().unwrap().to_vec()
 }
 
 #[cfg(test)]
@@ -187,34 +235,6 @@ mod tests {
             / expected.len() as f64;
         let psnr = 10.0 * (255.0 * 255.0 / error.max(1e-9)).log10();
         assert!(psnr > 30.0, "{psnr:.1} dB");
-    }
-
-    /// The picture's luma and chroma as a full-range JPEG.
-    fn encode_jpeg(picture: &Picture) -> Vec<u8> {
-        ffmpeg::init();
-        let codec = ff::encoder::find(ff::codec::Id::MJPEG).unwrap();
-        let mut video = ff::codec::context::Context::new_with_codec(codec)
-            .encoder()
-            .video()
-            .unwrap();
-        video.set_width(picture.width);
-        video.set_height(picture.height);
-        video.set_format(Pixel::YUVJ420P);
-        video.set_time_base((1, 30));
-        let mut encoder = video.open_as(codec).unwrap();
-        let i420 = Scaler::new()
-            .picture(picture, picture.width, picture.height, PixelFormat::I420)
-            .unwrap();
-        let mut frame = ffmpeg::to_frame(&i420);
-        // SAFETY: relabels the frame's own format; the planes are the same.
-        unsafe {
-            (*frame.as_mut_ptr()).format = ff::ffi::AVPixelFormat::AV_PIX_FMT_YUVJ420P as i32
-        };
-        encoder.send_frame(&frame).unwrap();
-        encoder.send_eof().unwrap();
-        let mut packet = ff::Packet::empty();
-        encoder.receive_packet(&mut packet).unwrap();
-        packet.data().unwrap().to_vec()
     }
 
     #[test]

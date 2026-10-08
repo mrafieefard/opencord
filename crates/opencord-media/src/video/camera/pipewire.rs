@@ -27,9 +27,9 @@ use super::mode::{self, Mode};
 use super::{CameraError, CameraInfo, RawFormat, RawFrame, pack};
 
 /// Camera ids from PipeWire start with this, then the node's name.
-const ID_PREFIX: &str = "pipewire:";
+pub(super) const ID_PREFIX: &str = "pipewire:";
 /// The most a question to PipeWire may take.
-const ROUNDTRIP: Duration = Duration::from_secs(5);
+pub(super) const ROUNDTRIP: Duration = Duration::from_secs(5);
 
 /// Where cameras are found.
 pub enum Remote {
@@ -421,7 +421,7 @@ fn open_stream(
 }
 
 /// The one format to ask a camera for.
-fn format_pod(mode: Mode) -> Vec<u8> {
+pub(super) fn format_pod(mode: Mode) -> Vec<u8> {
     let (subtype, raw) = match mode.format {
         RawFormat::Mjpeg => (MediaSubtype::Mjpg, None),
         RawFormat::Yuyv => (MediaSubtype::Raw, Some(VideoFormat::YUY2)),
@@ -465,7 +465,7 @@ fn format_pod(mode: Mode) -> Vec<u8> {
     })
 }
 
-fn serialize(object: Object) -> Vec<u8> {
+pub(super) fn serialize(object: Object) -> Vec<u8> {
     PodSerializer::serialize(Cursor::new(Vec::new()), &Value::Object(object))
         .map(|(cursor, _)| cursor.into_inner())
         .unwrap_or_default()
@@ -619,188 +619,12 @@ fn rates(value: &Value) -> Vec<u32> {
     }
 }
 
-/// A camera that exists only for tests: a PipeWire video source offering
-/// YUYV 1280×720 at 30 fps, its luma counting frames.
-#[cfg(test)]
-pub(crate) struct VirtualCamera {
-    pub name: String,
-    quit: pw::channel::Sender<()>,
-    thread: Option<JoinHandle<()>>,
-}
-
-#[cfg(test)]
-impl VirtualCamera {
-    pub const NICK: &str = "Opencord test camera";
-    const WIDTH: u32 = 1280;
-    const HEIGHT: u32 = 720;
-
-    /// `None` without a PipeWire server.
-    pub fn start() -> Option<Self> {
-        static NEXT: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
-        let number = NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-        let name = format!("opencord-test-camera-{}-{number}", std::process::id());
-        let (ready, readiness) = mpsc::channel();
-        let (quit, quit_receiver) = pw::channel::channel();
-        let thread = std::thread::spawn({
-            let name = name.clone();
-            move || serve_virtual_camera(&name, &ready, quit_receiver)
-        });
-        if readiness.recv_timeout(ROUNDTRIP) == Ok(true) {
-            Some(Self {
-                name,
-                quit,
-                thread: Some(thread),
-            })
-        } else {
-            let _ = quit.send(());
-            None
-        }
-    }
-}
-
-#[cfg(test)]
-impl Drop for VirtualCamera {
-    fn drop(&mut self) {
-        let _ = self.quit.send(());
-        if let Some(thread) = self.thread.take() {
-            let _ = thread.join();
-        }
-    }
-}
-
-#[cfg(test)]
-fn serve_virtual_camera(name: &str, ready: &mpsc::Sender<bool>, quit: pw::channel::Receiver<()>) {
-    let (width, height) = (VirtualCamera::WIDTH, VirtualCamera::HEIGHT);
-    let size = width * height * 2;
-    pw::init();
-    let Ok(mainloop) = pw::main_loop::MainLoopRc::new(None) else {
-        let _ = ready.send(false);
-        return;
-    };
-    let Ok(context) = pw::context::ContextRc::new(&mainloop, None) else {
-        let _ = ready.send(false);
-        return;
-    };
-    let Ok(core) = context.connect_rc(None) else {
-        let _ = ready.send(false);
-        return;
-    };
-    let Ok(stream) = pw::stream::StreamRc::new(
-        core,
-        name,
-        pw::properties::properties! {
-            *pw::keys::MEDIA_CLASS => "Video/Source",
-            *pw::keys::MEDIA_ROLE => "Camera",
-            *pw::keys::NODE_NAME => name,
-            "node.nick" => VirtualCamera::NICK,
-        },
-    ) else {
-        let _ = ready.send(false);
-        return;
-    };
-    let signal = RefCell::new(Some(ready.clone()));
-    let frame = Cell::new(0u32);
-    let Ok(_listener) = stream
-        .add_local_listener_with_user_data(())
-        .state_changed(move |_, _, _, state| {
-            let ok = match state {
-                pw::stream::StreamState::Paused | pw::stream::StreamState::Streaming => true,
-                pw::stream::StreamState::Error(_) => false,
-                _ => return,
-            };
-            if let Some(signal) = signal.take() {
-                let _ = signal.send(ok);
-            }
-        })
-        .param_changed(move |stream, _, id, param| {
-            if id != ParamType::Format.as_raw() || param.is_none() {
-                return;
-            }
-            let buffers = serialize(Object {
-                type_: SpaTypes::ObjectParamBuffers.as_raw(),
-                id: ParamType::Buffers.as_raw(),
-                properties: vec![
-                    Property::new(spa::sys::SPA_PARAM_BUFFERS_buffers, Value::Int(4)),
-                    Property::new(spa::sys::SPA_PARAM_BUFFERS_blocks, Value::Int(1)),
-                    Property::new(spa::sys::SPA_PARAM_BUFFERS_size, Value::Int(size as i32)),
-                    Property::new(
-                        spa::sys::SPA_PARAM_BUFFERS_stride,
-                        Value::Int(width as i32 * 2),
-                    ),
-                ],
-            });
-            if let Some(pod) = Pod::from_bytes(&buffers) {
-                let _ = stream.update_params(&mut [pod]);
-            }
-        })
-        .process(move |stream, _| {
-            let Some(mut buffer) = stream.dequeue_buffer() else {
-                return;
-            };
-            let Some(data) = buffer.datas_mut().first_mut() else {
-                return;
-            };
-            let luma = 16 + (frame.get() % 200) as u8;
-            frame.set(frame.get() + 1);
-            // Buffers come before the sizes asked for apply; those stay
-            // empty. Nothing in a PipeWire callback may panic.
-            let Some(bytes) = data.data().and_then(|bytes| bytes.get_mut(..size as usize)) else {
-                return;
-            };
-            for pixel in bytes.as_chunks_mut::<4>().0 {
-                *pixel = [luma, 128, luma, 128];
-            }
-            let chunk = data.chunk_mut();
-            *chunk.offset_mut() = 0;
-            *chunk.size_mut() = size;
-            *chunk.stride_mut() = width as i32 * 2;
-        })
-        .register()
-    else {
-        let _ = ready.send(false);
-        return;
-    };
-    let format = format_pod(Mode {
-        format: RawFormat::Yuyv,
-        width,
-        height,
-        fps: 30,
-    });
-    let Some(pod) = Pod::from_bytes(&format) else {
-        let _ = ready.send(false);
-        return;
-    };
-    // PipeWire allocates the buffers (ALLOC_BUFFERS would leave that to
-    // us), as in its video-src example.
-    let flags = pw::stream::StreamFlags::DRIVER | pw::stream::StreamFlags::MAP_BUFFERS;
-    if stream
-        .connect(Direction::Output, None, flags, &mut [pod])
-        .is_err()
-    {
-        let _ = ready.send(false);
-        return;
-    }
-    let timer = mainloop.loop_().add_timer({
-        let stream = stream.clone();
-        move |_| {
-            let _ = stream.trigger_process();
-        }
-    });
-    let interval = Duration::from_millis(33);
-    timer.update_timer(Some(interval), Some(interval));
-    let _quit = quit.attach(mainloop.loop_(), {
-        let mainloop = mainloop.clone();
-        move |()| mainloop.quit()
-    });
-    mainloop.run();
-    let _ = stream.disconnect();
-}
-
 #[cfg(test)]
 mod tests {
     use spa::utils::{Choice, ChoiceFlags};
 
     use super::*;
+    use crate::video::camera::virtual_camera::VirtualCamera;
 
     #[test]
     fn a_camera_on_pipewire_is_listed_and_captured() {
@@ -855,6 +679,29 @@ mod tests {
         while received.try_recv().is_ok() {}
         std::thread::sleep(Duration::from_millis(200));
         assert!(received.try_recv().is_err(), "nothing after stopping");
+    }
+
+    #[test]
+    fn an_mjpeg_camera_is_captured_and_its_frames_decode() {
+        use crate::video::camera::virtual_camera::VirtualFormat;
+        use crate::video::codec::raw::RawDecoder;
+
+        let Some(camera) = VirtualCamera::start_with(VirtualFormat::Mjpeg) else {
+            eprintln!("no PipeWire here");
+            return;
+        };
+        let (frames, received) = mpsc::sync_channel(4);
+        let capture = Capture::start(Remote::Session, Some(&camera.id()), frames).unwrap();
+
+        assert_eq!(capture.mode.format, RawFormat::Mjpeg);
+        let mut decoder = RawDecoder::new();
+        for _ in 0..5 {
+            let frame = received
+                .recv_timeout(Duration::from_secs(3))
+                .expect("a frame");
+            let picture = decoder.picture(&frame).unwrap();
+            assert_eq!((picture.width, picture.height), (1280, 720));
+        }
     }
 
     #[test]

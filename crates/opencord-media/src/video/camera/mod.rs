@@ -7,6 +7,8 @@ pub mod mode;
 pub mod pipewire;
 #[cfg(target_os = "linux")]
 pub mod v4l2;
+#[cfg(all(target_os = "linux", any(test, feature = "testing")))]
+pub mod virtual_camera;
 
 use std::time::Instant;
 
