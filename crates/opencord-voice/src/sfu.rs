@@ -6,7 +6,7 @@
 //! Each participant sends its microphone on [`AUDIO_MID`] with the SSRC the
 //! node gave it, unique in the channel. Every other participant receives it
 //! on its own media, [`receive_mid`] of that SSRC, so a receiver tells
-//! speakers apart by SSRC.
+//! speakers apart by SSRC. Video is in [`video`].
 
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::net::SocketAddr;
@@ -14,25 +14,29 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use hmac::{Hmac, KeyInit, Mac};
-use opencord_common::voice::{AUDIO_MID, LOUDEST_HEARD, LOUDEST_ONLY_ABOVE, receive_mid};
+use opencord_common::voice::{AUDIO_MID, receive_mid, rtc_config};
 use sha1::Sha1;
+use str0m::bwe::{Bitrate, BweKind};
 use str0m::config::{DtlsCert, Fingerprint};
 use str0m::crypto::CryptoProvider;
 use str0m::ice::{IceCreds, StunMessage};
-use str0m::media::MediaKind;
+use str0m::media::{MediaKind, Mid};
 use str0m::net::{Protocol, Receive};
-use str0m::rtp::{ExtensionValues, RtpPacket, RtpWrite, Ssrc};
-use str0m::{Candidate, Event, IceConnectionState, Input, Output, Rtc, RtcConfig};
+use str0m::rtp::{RtpPacket, Ssrc};
+use str0m::{Candidate, Event, IceConnectionState, Input, Output, Rtc};
+
+pub use opencord_common::video::VideoKind;
+pub use video::{LayerSetup, TrackSetup, Want};
+
+mod allocation;
+mod audio;
+mod meter;
+mod video;
+
+use meter::{RateMeter, TokenBucket};
 
 /// A participant on this node.
 pub type PeerId = u64;
-
-/// How often the loudest speakers of a big channel are picked again.
-const LOUDEST_EVERY: Duration = Duration::from_millis(100);
-/// Weight of the newest audio level in the running loudness.
-const LEVEL_WEIGHT: f32 = 0.2;
-/// Silence, in the audio level extension's -dBov.
-const SILENT: f32 = -127.0;
 
 /// What decides a participant's audio, from the main server.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -82,18 +86,38 @@ pub struct Transmit {
     pub contents: Vec<u8>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SfuEvent {
     /// ICE and DTLS are up: media flows.
     Connected(PeerId),
     /// The media connection was lost.
     Disconnected(PeerId),
+    /// The layers of a track anyone needs; the sender stops encoding the
+    /// rest (plan §6, `SenderLayerWants`).
+    LayerWants {
+        peer: PeerId,
+        track_id: String,
+        rids: Vec<String>,
+    },
+    /// The layers a track's sender is producing changed.
+    LayersAvailable {
+        peer: PeerId,
+        track_id: String,
+        rids: Vec<String>,
+    },
+    /// A track sent far over its ceiling for too long and was stopped
+    /// (plan §6, quality enforcement).
+    TrackStopped { peer: PeerId, track_id: String },
 }
 
 #[derive(Debug, thiserror::Error)]
 pub enum SfuError {
     #[error("no such participant")]
     UnknownPeer,
+    #[error("the participant already publishes a track with that id")]
+    TrackExists,
+    #[error("a track needs at least one layer")]
+    NoLayers,
     #[error("the crypto backend could not make a DTLS certificate")]
     NoCertificate,
     #[error("the node's address cannot be an ICE candidate: {0}")]
@@ -117,6 +141,10 @@ pub struct Sfu {
     channels: HashMap<i64, Channel>,
     transmits: VecDeque<Transmit>,
     events: VecDeque<SfuEvent>,
+    /// Keyframe requests receivers sent, by the media they are for.
+    keyframe_requests: Vec<(PeerId, Mid)>,
+    /// When video layers are next chosen; far off without video.
+    allocate_at: Instant,
 }
 
 struct Peer {
@@ -132,6 +160,16 @@ struct Peer {
     /// Per sender: packets not sent to this peer since the last one was,
     /// and how far the sequence numbers it sees lag the sender's.
     forwards: HashMap<PeerId, Forward>,
+    /// Video it publishes.
+    tracks: Vec<video::Track>,
+    /// Others' video it can receive.
+    sending: Vec<video::Sending>,
+    /// Its downlink, from the bandwidth estimator, in bits per second.
+    estimate: u64,
+    /// Audio sent to it.
+    audio_out: RateMeter,
+    /// Media it may send (plan §14).
+    inbound: TokenBucket,
 }
 
 #[derive(Debug, Default, Clone, Copy)]
@@ -165,6 +203,8 @@ impl Sfu {
             channels: HashMap::new(),
             transmits: VecDeque::new(),
             events: VecDeque::new(),
+            keyframe_requests: Vec::new(),
+            allocate_at: far_future(Instant::now()),
         })
     }
 
@@ -176,37 +216,32 @@ impl Sfu {
         setup: PeerSetup,
     ) -> Result<(PeerId, Transport), SfuError> {
         let credentials = IceCreds::new();
-        let mut rtc = RtcConfig::new()
-            .set_rtp_mode(true)
+        let mut rtc = rtc_config()
             .set_ice_lite(true)
-            .clear_codecs()
-            .enable_opus(true, false)
             .set_local_ice_credentials(credentials.clone())
             .set_crypto_provider(Arc::clone(&self.crypto))
             .set_dtls_cert(self.dtls_cert.clone())
+            .enable_bwe(Some(Bitrate::bps(video::INITIAL_ESTIMATE)))
             .build(now);
         for address in [self.candidate_v4, self.candidate_v6] {
             let candidate = Candidate::host(address, "udp")
                 .map_err(|error| SfuError::Candidate(error.to_string()))?;
             rtc.add_local_candidate(candidate);
         }
-        let others: Vec<(PeerId, u32)> = self
+        let others: Vec<PeerId> = self
             .channels
             .get(&setup.channel_id)
-            .map(|channel| {
-                channel
-                    .peers
-                    .iter()
-                    .filter_map(|id| self.peers.get(id).map(|p| (*id, p.setup.audio_ssrc)))
-                    .collect()
-            })
+            .map(|channel| channel.peers.clone())
             .unwrap_or_default();
         let fingerprint = {
             let mut api = rtc.direct_api();
+            api.enable_twcc_feedback();
             api.declare_media(AUDIO_MID.into(), MediaKind::Audio);
             api.expect_stream_rx(Ssrc::from(setup.audio_ssrc), None, AUDIO_MID.into(), None);
-            for (_, ssrc) in &others {
-                declare_receive(&mut api, *ssrc);
+            for other in &others {
+                if let Some(peer) = self.peers.get(other) {
+                    declare_receive(&mut api, peer.setup.audio_ssrc);
+                }
             }
             api.local_dtls_fingerprint().bytes.clone()
         };
@@ -220,12 +255,27 @@ impl Sfu {
                 ice_password: credentials.pass.clone(),
                 address: None,
                 timeout: now,
-                level: SILENT,
+                level: audio::SILENT,
                 forwards: HashMap::new(),
+                tracks: Vec::new(),
+                sending: Vec::new(),
+                estimate: video::INITIAL_ESTIMATE,
+                audio_out: RateMeter::default(),
+                inbound: TokenBucket::new(now, video::inbound_cap(&[])),
             },
         );
+        for other in &others {
+            let tracks: Vec<TrackSetup> = self
+                .peers
+                .get(other)
+                .map(|peer| peer.tracks.iter().map(|t| t.setup.clone()).collect())
+                .unwrap_or_default();
+            for track in &tracks {
+                self.declare_sending(id, *other, track);
+            }
+        }
         self.drain(id);
-        for (other, _) in &others {
+        for other in &others {
             if let Some(peer) = self.peers.get_mut(other) {
                 declare_receive(&mut peer.rtc.direct_api(), setup.audio_ssrc);
             }
@@ -266,7 +316,6 @@ impl Sfu {
         Ok(())
     }
 
-    /// Removes a participant; the others stop receiving its media.
     /// The client nominated a path from a new address (a network change,
     /// or the first path): media goes there from now. str0m keeps sending
     /// on the first nominated path while it lives, so the old address is
@@ -288,7 +337,21 @@ impl Sfu {
         }
     }
 
+    /// Removes a participant; the others stop receiving its media.
     pub fn remove_peer(&mut self, id: PeerId) {
+        let track_ids: Vec<String> = self
+            .peers
+            .get(&id)
+            .map(|peer| {
+                peer.tracks
+                    .iter()
+                    .map(|track| track.setup.track_id.clone())
+                    .collect()
+            })
+            .unwrap_or_default();
+        for track_id in track_ids {
+            self.unpublish_track(id, &track_id);
+        }
         let Some(mut peer) = self.peers.remove(&id) else {
             return;
         };
@@ -324,6 +387,18 @@ impl Sfu {
 
     pub fn setup(&self, id: PeerId) -> Option<PeerSetup> {
         self.peers.get(&id).map(|peer| peer.setup)
+    }
+
+    /// Whether anyone in the channel sends on `ssrc`, audio or video.
+    pub fn ssrc_in_use(&self, channel_id: i64, ssrc: u32) -> bool {
+        let Some(channel) = self.channels.get(&channel_id) else {
+            return false;
+        };
+        channel
+            .peers
+            .iter()
+            .filter_map(|id| self.peers.get(id))
+            .any(|peer| peer.setup.audio_ssrc == ssrc || video::uses_ssrc(&peer.tracks, ssrc))
     }
 
     /// A datagram that arrived from `source`.
@@ -382,6 +457,7 @@ impl Sfu {
         for packet in packets {
             self.forward(now, id, &packet);
         }
+        self.answer_keyframe_requests(now);
     }
 
     /// Lets every participant whose timer is due move on.
@@ -400,11 +476,19 @@ impl Sfu {
             }
             self.drain(id);
         }
+        if self.allocate_at <= now {
+            self.video_tick(now);
+        }
+        self.answer_keyframe_requests(now);
     }
 
     /// When [`Self::handle_timeout`] is next needed.
     pub fn next_timeout(&self) -> Option<Instant> {
-        self.peers.values().map(|peer| peer.timeout).min()
+        self.peers
+            .values()
+            .map(|peer| peer.timeout)
+            .min()
+            .map(|at| at.min(self.allocate_at))
     }
 
     pub fn poll_transmit(&mut self) -> Option<Transmit> {
@@ -422,6 +506,7 @@ impl Sfu {
             peers,
             transmits,
             events,
+            keyframe_requests,
             ..
         } = self;
         let Some(peer) = peers.get_mut(&id) else {
@@ -443,6 +528,12 @@ impl Sfu {
                     IceConnectionState::Disconnected,
                 ))) => events.push_back(SfuEvent::Disconnected(id)),
                 Ok(Output::Event(Event::RtpPacket(packet))) => packets.push(packet),
+                Ok(Output::Event(Event::KeyframeRequest(request))) => {
+                    keyframe_requests.push((id, request.mid));
+                }
+                Ok(Output::Event(Event::EgressBitrateEstimate(BweKind::Twcc {
+                    estimate, ..
+                }))) => peer.estimate = estimate.as_u64(),
                 Ok(Output::Event(_)) => {}
                 Err(error) => {
                     tracing::debug!(%error, peer = id, "the connection failed");
@@ -455,94 +546,19 @@ impl Sfu {
         packets
     }
 
-    /// Sends a participant's audio to everyone else in the channel who
-    /// should hear it.
+    /// Sends what a participant sent on to everyone who should get it.
     fn forward(&mut self, now: Instant, sender: PeerId, packet: &RtpPacket) {
         let Some(from) = self.peers.get_mut(&sender) else {
             return;
         };
-        if packet.header.ssrc != Ssrc::from(from.setup.audio_ssrc) {
+        let ssrc = *packet.header.ssrc;
+        if ssrc == from.setup.audio_ssrc {
+            if from.inbound.take(now, packet.payload.len()) {
+                self.forward_audio(now, sender, packet);
+            }
             return;
         }
-        let level = packet.header.ext_vals.audio_level.map_or(SILENT, f32::from);
-        from.level += (level - from.level) * LEVEL_WEIGHT;
-        let setup = from.setup;
-        let receivers: Vec<PeerId> = match self.channels.get(&setup.channel_id) {
-            Some(channel) => channel
-                .peers
-                .iter()
-                .copied()
-                .filter(|id| *id != sender)
-                .collect(),
-            None => return,
-        };
-        let heard = setup.state.speaks() && self.among_loudest(now, setup.channel_id, sender);
-        let ext_vals = ExtensionValues {
-            audio_level: packet.header.ext_vals.audio_level,
-            voice_activity: packet.header.ext_vals.voice_activity,
-            ..ExtensionValues::default()
-        };
-        for receiver in receivers {
-            let Some(peer) = self.peers.get_mut(&receiver) else {
-                continue;
-            };
-            let forward = peer.forwards.entry(sender).or_default();
-            if !heard || !peer.setup.state.hears() {
-                forward.skipped += 1;
-                continue;
-            }
-            forward.lag += forward.skipped;
-            forward.skipped = 0;
-            let seq_no = (*packet.seq_no).saturating_sub(forward.lag).into();
-            let mut api = peer.rtc.direct_api();
-            let Some(stream) = api.stream_tx(&Ssrc::from(setup.audio_ssrc)) else {
-                continue;
-            };
-            stream.write_rtp(
-                RtpWrite::new(
-                    packet.header.payload_type,
-                    seq_no,
-                    packet.header.timestamp,
-                    packet.timestamp,
-                    Arc::clone(&packet.payload),
-                )
-                .marker(packet.header.marker)
-                .ext_vals(ext_vals.clone()),
-            );
-            self.drain(receiver);
-        }
-    }
-
-    /// In channels over [`LOUDEST_ONLY_ABOVE`] people, only the
-    /// [`LOUDEST_HEARD`] loudest are forwarded.
-    fn among_loudest(&mut self, now: Instant, channel_id: i64, sender: PeerId) -> bool {
-        let Some(channel) = self.channels.get_mut(&channel_id) else {
-            return false;
-        };
-        if channel.peers.len() <= LOUDEST_ONLY_ABOVE {
-            return true;
-        }
-        let stale = channel
-            .loudest_at
-            .is_none_or(|at| now.saturating_duration_since(at) >= LOUDEST_EVERY);
-        if stale {
-            let mut ranked: Vec<(PeerId, f32)> = channel
-                .peers
-                .iter()
-                .filter_map(|id| {
-                    let peer = self.peers.get(id)?;
-                    peer.setup.state.speaks().then_some((*id, peer.level))
-                })
-                .collect();
-            ranked.sort_by(|a, b| b.1.total_cmp(&a.1));
-            channel.loudest = ranked
-                .into_iter()
-                .take(LOUDEST_HEARD)
-                .map(|(id, _)| id)
-                .collect();
-            channel.loudest_at = Some(now);
-        }
-        channel.loudest.contains(&sender)
+        self.forward_video(now, sender, packet);
     }
 }
 

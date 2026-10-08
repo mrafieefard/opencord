@@ -486,6 +486,9 @@ impl Runtime {
                 // The client restarts ICE or resumes; the session ends only
                 // when its gateway connection does not come back.
                 SfuEvent::Disconnected(_) => {}
+                SfuEvent::LayerWants { .. }
+                | SfuEvent::LayersAvailable { .. }
+                | SfuEvent::TrackStopped { .. } => {}
             }
         }
     }

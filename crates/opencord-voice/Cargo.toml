@@ -15,7 +15,7 @@ futures-util.workspace = true
 getrandom.workspace = true
 hex.workspace = true
 hmac.workspace = true
-opencord-common.workspace = true
+opencord-common = { workspace = true, features = ["str0m"] }
 opencord-proto.workspace = true
 prost.workspace = true
 sha1.workspace = true
@@ -27,3 +27,4 @@ tracing.workspace = true
 
 [dev-dependencies]
 opencord-media.workspace = true
+str0m-netem.workspace = true

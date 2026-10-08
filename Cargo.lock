@@ -2870,6 +2870,7 @@ dependencies = [
  "bitflags",
  "ed25519-dalek",
  "hex",
+ "str0m",
  "thiserror 2.0.21",
 ]
 
@@ -2896,6 +2897,7 @@ dependencies = [
  "rustls",
  "sha2 0.11.0",
  "str0m",
+ "str0m-netem",
  "thiserror 2.0.21",
  "tokio",
  "tokio-rustls",
@@ -2969,6 +2971,7 @@ dependencies = [
  "sha1 0.11.0",
  "sha2 0.11.0",
  "str0m",
+ "str0m-netem",
  "thiserror 2.0.21",
  "tokio",
  "tracing",
@@ -4169,6 +4172,16 @@ dependencies = [
  "dimpl",
  "str0m-proto",
  "time",
+]
+
+[[package]]
+name = "str0m-netem"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "76cfce55ee1b5c6068a788424d378842ffd0751e108fac77f8a1d9d6abee18c0"
+dependencies = [
+ "fastrand",
+ "str0m-proto",
 ]
 
 [[package]]

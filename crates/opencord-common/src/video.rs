@@ -148,8 +148,75 @@ impl FrameMarking {
     }
 }
 
+/// Reads and writes [`FrameMarking`] in str0m's extension values (as a
+/// user value).
+#[cfg(feature = "str0m")]
+#[derive(Debug, Clone, Copy)]
+pub struct FrameMarkingSerializer;
+
+#[cfg(feature = "str0m")]
+impl str0m::rtp::ExtensionSerializer for FrameMarkingSerializer {
+    fn write_to(&self, buffer: &mut [u8], values: &str0m::rtp::ExtensionValues) -> usize {
+        values
+            .user_values
+            .get::<FrameMarking>()
+            .map_or(0, |marking| marking.write(buffer))
+    }
+
+    fn parse_value(&self, bytes: &[u8], values: &mut str0m::rtp::ExtensionValues) -> bool {
+        let Some(marking) = FrameMarking::parse(bytes) else {
+            return false;
+        };
+        values.user_values.set(marking);
+        true
+    }
+
+    fn is_audio(&self) -> bool {
+        false
+    }
+
+    fn is_video(&self) -> bool {
+        true
+    }
+}
+
+/// The extension, for `RtcConfig::set_extension(FRAME_MARKING_ID, ...)`.
+#[cfg(feature = "str0m")]
+pub fn frame_marking_extension() -> str0m::rtp::Extension {
+    str0m::rtp::Extension::with_serializer(FRAME_MARKING_URI, FrameMarkingSerializer)
+}
+
 #[cfg(test)]
 mod tests {
+    #[cfg(feature = "str0m")]
+    #[test]
+    fn str0m_reads_and_writes_the_extension() {
+        use str0m::rtp::{ExtensionSerializer as _, ExtensionValues};
+
+        let marking = FrameMarking {
+            keyframe: true,
+            start: true,
+            layer: 1,
+            size: Some((640, 360)),
+        };
+        let mut values = ExtensionValues::default();
+        values.user_values.set(marking);
+        let serializer = FrameMarkingSerializer;
+        let mut buffer = [0u8; 16];
+
+        let written = serializer.write_to(&mut buffer, &values);
+        let mut parsed = ExtensionValues::default();
+
+        assert_eq!(written, 5);
+        assert!(serializer.parse_value(&buffer[..written], &mut parsed));
+        assert_eq!(parsed.user_values.get::<FrameMarking>(), Some(&marking));
+        assert!(serializer.is_video() && !serializer.is_audio());
+        assert_eq!(
+            serializer.write_to(&mut buffer, &ExtensionValues::default()),
+            0
+        );
+    }
+
     use super::*;
 
     #[test]

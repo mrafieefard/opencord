@@ -11,4 +11,9 @@ publish = false
 bitflags.workspace = true
 ed25519-dalek.workspace = true
 hex.workspace = true
+str0m = { workspace = true, optional = true }
 thiserror.workspace = true
+
+[features]
+# The frame-marking header extension for str0m, for clients and voice nodes.
+str0m = ["dep:str0m"]
