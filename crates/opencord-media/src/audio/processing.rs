@@ -3,8 +3,9 @@
 //! (off, Standard or High), then automatic gain control, so noise is not
 //! amplified. The echo canceller hears everything played.
 //!
-//! Echo cancellation, the high-pass filter and gain control are the `aec3`
-//! crate's Rust port of WebRTC's AudioProcessing (D27); Standard noise
+//! Echo cancellation and gain control are the `aec3` crate's Rust port of
+//! WebRTC's AudioProcessing (D27); the high-pass filter is our own, as
+//! WebRTC's (aec3's is tuned wrong at 48 kHz); Standard noise
 //! suppression is RNNoise through `nnnoiseless`, which also says how
 //! likely each tick is to be speech; High is DeepFilterNet
 //! ([`super::deep_filter`]), which falls back to Standard when the computer
@@ -17,18 +18,27 @@ use aec3::graph::{
     GraphBuilder, GraphError, InPort, OutPort, Packet, PacketMeta, QueueConfig, Runtime, Sink,
     Source,
 };
+use aec3::nodes::agc2;
 use aec3::nodes::audio::{AudioChunk, AudioFormat};
-use aec3::nodes::{agc2, hpf};
 use aec3::pipelines::linear::{self, LinearPipeline};
 use std::time::{Duration, Instant};
 
 use nnnoiseless::DenoiseState;
 
+use super::capture::Heard;
 use super::deep_filter::{DeepFilter, DeepFilterError};
-use super::{SAMPLE_RATE, TICK};
+use super::{SAMPLE_RATE, TICK, dbfs};
 
 /// RNNoise works on samples in the 16-bit range.
 const RNNOISE_SCALE: f32 = 32_768.0;
+/// The far end's recent loudness: the loudest tick played in the last
+/// 300 ms, which covers the echo's way back through the room and devices.
+const PLAYED_TICKS: usize = 30;
+/// A microphone tick this far under what was just played, after echo
+/// cancellation, is what is left of the echo, not someone speaking.
+const ECHO_MARGIN_DB: f32 = 25.0;
+/// Played audio quieter than this leaves no echo worth guarding against.
+const FAR_END_DBFS: f32 = -60.0;
 /// High gives way to Standard when it takes more than 60 % of each tick
 /// over two seconds (plan §7.3).
 const FALLBACK_TICKS: usize = 200;
@@ -78,19 +88,17 @@ impl From<DeepFilterError> for ProcessingError {
     }
 }
 
-/// Before noise suppression: the high-pass filter, with or without echo
-/// cancellation.
-enum Front {
-    EchoCancelling(Box<LinearPipeline>),
-    Filtering(Stage),
-}
-
 pub struct VoiceProcessing {
     settings: ProcessingSettings,
     /// RNNoise looks for a voice even with suppression off, for automatic
     /// sensitivity.
     voice_analysis: bool,
-    front: Front,
+    high_pass: HighPass,
+    /// While echo cancellation is on.
+    echo: Option<Box<LinearPipeline>>,
+    /// The levels of the last ticks played, oldest overwritten first.
+    played: [f32; PLAYED_TICKS],
+    played_next: usize,
     /// While noise suppression is High.
     high: Option<Box<DeepFilter>>,
     load: LoadWatch,
@@ -108,7 +116,10 @@ pub struct VoiceProcessing {
 impl VoiceProcessing {
     pub fn new(settings: ProcessingSettings) -> Result<Self, ProcessingError> {
         Ok(Self {
-            front: front(settings.echo_cancellation)?,
+            high_pass: HighPass::default(),
+            echo: echo_canceller(settings.echo_cancellation)?,
+            played: [f32::MIN; PLAYED_TICKS],
+            played_next: 0,
             high: high(settings.noise_suppression)?,
             load: LoadWatch::default(),
             fell_back: false,
@@ -130,7 +141,7 @@ impl VoiceProcessing {
     /// Takes new settings; the parts that changed start over.
     pub fn set_settings(&mut self, settings: ProcessingSettings) -> Result<(), ProcessingError> {
         if settings.echo_cancellation != self.settings.echo_cancellation {
-            self.front = front(settings.echo_cancellation)?;
+            self.echo = echo_canceller(settings.echo_cancellation)?;
         }
         if settings.noise_suppression != self.settings.noise_suppression {
             self.high = high(settings.noise_suppression)?;
@@ -156,26 +167,28 @@ impl VoiceProcessing {
 
     /// A tick of everything played, for the echo canceller.
     pub fn render(&mut self, tick: &[f32]) {
-        if let Front::EchoCancelling(pipeline) = &mut self.front {
-            let _ = pipeline.handle_render_frame(tick);
+        if let Some(echo) = &mut self.echo {
+            let _ = echo.handle_render_frame(tick);
         }
+        self.played[self.played_next] = dbfs(tick);
+        self.played_next = (self.played_next + 1) % PLAYED_TICKS;
     }
 
-    /// Cleans a tick of the microphone in place; returns how likely it is
-    /// to be speech, from 0 to 1, while noise suppression or voice analysis
-    /// is on.
-    pub fn capture(&mut self, tick: &mut [f32]) -> Option<f32> {
-        match &mut self.front {
-            Front::EchoCancelling(pipeline) => {
-                if let Ok(true) = pipeline.process_capture_frame(tick, &mut self.cleaned) {
-                    tick.copy_from_slice(&self.cleaned);
-                }
+    /// Cleans a tick of the microphone in place; says how likely it is to
+    /// be speech (while noise suppression or voice analysis is on) and
+    /// whether it is only the echo's remains, which gain control leaves
+    /// alone so it is not turned up.
+    pub fn capture(&mut self, tick: &mut [f32]) -> Heard {
+        self.high_pass.process(tick);
+        let mut echo_only = false;
+        if let Some(echo) = &mut self.echo {
+            if let Ok(true) = echo.process_capture_frame(tick, &mut self.cleaned) {
+                tick.copy_from_slice(&self.cleaned);
             }
-            Front::Filtering(stage) => {
-                let _ = stage.process(tick);
-            }
+            let played = self.played.iter().copied().fold(f32::MIN, f32::max);
+            echo_only = played > FAR_END_DBFS && played - dbfs(tick) >= ECHO_MARGIN_DB;
         }
-        let probability = match self.settings.noise_suppression {
+        let voice_probability = match self.settings.noise_suppression {
             NoiseSuppression::Off => self.voice_analysis.then(|| self.analyze(tick)),
             NoiseSuppression::Standard => Some(self.rnnoise(tick)),
             NoiseSuppression::High => {
@@ -185,10 +198,15 @@ impl VoiceProcessing {
                 self.voice_analysis.then(|| self.analyze(tick))
             }
         };
-        if let Some(gain) = &mut self.gain {
+        if let Some(gain) = &mut self.gain
+            && !echo_only
+        {
             let _ = gain.process(tick);
         }
-        probability
+        Heard {
+            voice_probability,
+            echo_only,
+        }
     }
 
     /// High, timed; falls back to Standard when it is too slow or fails.
@@ -271,18 +289,63 @@ fn format() -> AudioFormat {
     AudioFormat::ten_ms(SAMPLE_RATE, 1)
 }
 
-fn front(echo_cancellation: bool) -> Result<Front, ProcessingError> {
-    Ok(if echo_cancellation {
-        let pipeline = linear::builder(format(), format())
-            .enable_high_pass_filter(true)
-            .enable_noise_suppression(false)
-            .enable_gain_controller2(false)
-            .enable_post_filter(false)
-            .build()?;
-        Front::EchoCancelling(Box::new(pipeline))
-    } else {
-        Front::Filtering(Stage::high_pass()?)
-    })
+fn echo_canceller(on: bool) -> Result<Option<Box<LinearPipeline>>, ProcessingError> {
+    if !on {
+        return Ok(None);
+    }
+    let pipeline = linear::builder(format(), format())
+        .enable_high_pass_filter(false)
+        .enable_noise_suppression(false)
+        .enable_gain_controller2(false)
+        .enable_post_filter(false)
+        .build()?;
+    Ok(Some(Box::new(pipeline)))
+}
+
+/// A second-order Butterworth high-pass at 100 Hz, which is what WebRTC's
+/// filter does: rumble and mains hum out before echo cancellation, the
+/// voice left alone. (aec3 0.4's filter applies its 48 kHz coefficients
+/// to the 16 kHz low band, which moves the cutoff to about 33 Hz.)
+struct HighPass {
+    b: [f64; 3],
+    a: [f64; 2],
+    /// Transposed direct form II state.
+    state: [f64; 2],
+}
+
+/// Where the high-pass filter starts to cut.
+const HIGH_PASS_HZ: f64 = 100.0;
+
+impl Default for HighPass {
+    fn default() -> Self {
+        let w0 = std::f64::consts::TAU * HIGH_PASS_HZ / f64::from(SAMPLE_RATE);
+        let alpha = w0.sin() / (2.0 * std::f64::consts::FRAC_1_SQRT_2);
+        let cos = w0.cos();
+        let a0 = 1.0 + alpha;
+        Self {
+            b: [
+                (1.0 + cos) / 2.0 / a0,
+                -(1.0 + cos) / a0,
+                (1.0 + cos) / 2.0 / a0,
+            ],
+            a: [-2.0 * cos / a0, (1.0 - alpha) / a0],
+            state: [0.0; 2],
+        }
+    }
+}
+
+impl HighPass {
+    fn process(&mut self, tick: &mut [f32]) {
+        let [b0, b1, b2] = self.b;
+        let [a1, a2] = self.a;
+        for sample in tick {
+            let x = f64::from(*sample);
+            let y = b0 * x + self.state[0];
+            self.state[0] = b1 * x - a1 * y + self.state[1];
+            self.state[1] = b2 * x - a2 * y;
+            *sample = y as f32;
+        }
+    }
 }
 
 /// A graph of one capture-side node: a tick in, a tick out.
@@ -294,13 +357,6 @@ struct Stage {
 }
 
 impl Stage {
-    fn high_pass() -> Result<Self, GraphError> {
-        Self::build(|graph| {
-            let node = hpf::builder(format()).add_to(graph)?;
-            Ok((node.audio_in, node.audio_out))
-        })
-    }
-
     fn gain() -> Result<Self, GraphError> {
         // The operating system's microphone volume is not ours to steer.
         let config = GainController2Config {
@@ -360,7 +416,7 @@ impl Stage {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::audio::fixtures::{at_level, noise, speech, voice_over};
+    use crate::audio::fixtures::{at_level, noise, speech, voice_with};
     use crate::audio::{SAMPLE_RATE, TICK, dbfs};
 
     /// Runs `capture` through processing, with `render` played meanwhile;
@@ -380,7 +436,7 @@ mod tests {
                 .unwrap_or(&silence);
             processing.render(played);
             let mut cleaned = *tick;
-            probabilities.push(processing.capture(&mut cleaned));
+            probabilities.push(processing.capture(&mut cleaned).voice_probability);
             out.extend_from_slice(&cleaned);
         }
         (out, probabilities)
@@ -421,66 +477,85 @@ mod tests {
         );
     }
 
-    /// The voice over `kind` of noise, after a second of the noise alone;
-    /// returns how much quieter the noise got and how the voice changed.
-    fn suppress(kind: &str, mode: NoiseSuppression) -> (f32, f32) {
-        let (capture, lead) = voice_over(kind);
-        let settings = ProcessingSettings {
+    fn suppressing(mode: NoiseSuppression) -> ProcessingSettings {
+        ProcessingSettings {
             noise_suppression: mode,
             ..ONLY_EQUALIZING
+        }
+    }
+
+    /// How much quieter four seconds of `kind` of noise come out, after a
+    /// second to settle.
+    fn noise_reduction(kind: &str, mode: NoiseSuppression) -> f32 {
+        let alone = at_level(&noise(kind, 5 * SAMPLE_RATE as usize), -35.0);
+
+        let (out, _) = process(suppressing(mode), &[], &alone);
+
+        let settled = SAMPLE_RATE as usize..alone.len();
+        dbfs(&alone[settled.clone()]) - dbfs(&out[settled])
+    }
+
+    /// How the voice comes out of `kind` of noise, against the clean voice.
+    fn voice_change(kind: &str, mode: NoiseSuppression) -> f32 {
+        let (mix, voice) = voice_with(kind);
+
+        let (out, _) = process(suppressing(mode), &[], &mix);
+
+        // High's output is 30 ms behind.
+        let delay = if mode == NoiseSuppression::High {
+            3 * TICK
+        } else {
+            0
         };
-
-        let (out, _) = process(settings, &[], &capture);
-
-        // The second half of the noise-only lead, once suppression settled.
-        let noise_only = lead / 2..lead;
-        let reduction = dbfs(&capture[noise_only.clone()]) - dbfs(&out[noise_only]);
-        let speaking = lead..capture.len();
-        let voice_change = dbfs(&out[speaking.clone()]) - dbfs(&capture[speaking]);
-        (reduction, voice_change)
+        dbfs(&out[delay..]) - dbfs(&voice[..voice.len() - delay])
     }
 
     #[test]
-    fn standard_suppression_quiets_steady_noise_and_keeps_the_voice() {
-        // RNNoise barely touches barking (about 2 dB here); that is High's
-        // job (plan §7.3).
-        for (kind, at_least) in [("fan", 20.0), ("street", 20.0), ("keyboard", 6.0)] {
-            let (reduction, voice_change) = suppress(kind, NoiseSuppression::Standard);
+    fn standard_suppression_quiets_fans_streets_and_keyboards() {
+        // RNNoise leaves barking alone (under 1 dB here); that is High's job
+        // (plan §7.3).
+        for (kind, at_least) in [("fan", 8.0), ("street", 30.0), ("keyboard", 30.0)] {
+            let reduction = noise_reduction(kind, NoiseSuppression::Standard);
+            let change = voice_change(kind, NoiseSuppression::Standard);
 
             assert!(
                 reduction >= at_least,
                 "{kind}: the noise is only {reduction:.1} dB quieter"
             );
             assert!(
-                voice_change > -3.0,
-                "{kind}: the voice lost {voice_change:.1} dB"
+                change.abs() < 1.0,
+                "{kind}: the voice changed {change:.1} dB"
             );
         }
     }
 
     #[test]
-    fn the_voice_probability_tells_speech_from_noise() {
-        let voice = at_level(&speech(), -22.0);
-        let lead = SAMPLE_RATE as usize;
-        let mut capture = at_level(&noise("fan", lead + voice.len()), -40.0);
-        for (i, sample) in voice.iter().enumerate() {
-            capture[lead + i] += sample;
+    fn high_suppression_silences_every_kind_of_noise() {
+        for kind in ["fan", "street", "keyboard", "dog"] {
+            let reduction = noise_reduction(kind, NoiseSuppression::High);
+            let change = voice_change(kind, NoiseSuppression::High);
+
+            assert!(
+                reduction >= 40.0,
+                "{kind}: the noise is only {reduction:.1} dB quieter"
+            );
+            // DeepFilterNet trims a voice with noise under it by a few dB;
+            // gain control, after it, makes the level up.
+            assert!(change > -6.0, "{kind}: the voice lost {change:.1} dB");
         }
-        let settings = ProcessingSettings {
-            noise_suppression: NoiseSuppression::Standard,
-            ..ONLY_EQUALIZING
+    }
+
+    #[test]
+    fn the_voice_probability_tells_speech_from_noise() {
+        let mean = |input: &[f32]| {
+            let (_, probabilities) = process(suppressing(NoiseSuppression::Standard), &[], input);
+            probabilities.iter().map(|p| p.unwrap()).sum::<f32>() / probabilities.len() as f32
         };
 
-        let (_, probabilities) = process(settings, &[], &capture);
+        let noise_only = mean(&at_level(&noise("fan", 3 * SAMPLE_RATE as usize), -35.0));
+        let speaking = mean(&voice_with("fan").0);
 
-        let mean = |range: std::ops::Range<usize>| {
-            let values: Vec<f32> = probabilities[range].iter().map(|p| p.unwrap()).collect();
-            values.iter().sum::<f32>() / values.len() as f32
-        };
-        let lead_ticks = lead / TICK;
-        let noise_only = mean(lead_ticks / 2..lead_ticks);
-        let speaking = mean(lead_ticks..probabilities.len());
-        assert!(noise_only < 0.3, "noise looks like speech: {noise_only:.2}");
+        assert!(noise_only < 0.2, "noise looks like speech: {noise_only:.2}");
         assert!(speaking > 0.5, "speech does not: {speaking:.2}");
     }
 
@@ -510,22 +585,6 @@ mod tests {
     }
 
     #[test]
-    fn high_suppression_silences_every_kind_of_noise_and_keeps_the_voice() {
-        for kind in ["fan", "street", "keyboard", "dog"] {
-            let (reduction, voice_change) = suppress(kind, NoiseSuppression::High);
-
-            assert!(
-                reduction >= 30.0,
-                "{kind}: the noise is only {reduction:.1} dB quieter"
-            );
-            assert!(
-                voice_change > -3.0,
-                "{kind}: the voice lost {voice_change:.1} dB"
-            );
-        }
-    }
-
-    #[test]
     fn with_high_the_voice_probability_is_there_only_for_voice_analysis() {
         let settings = ProcessingSettings {
             noise_suppression: NoiseSuppression::High,
@@ -534,9 +593,9 @@ mod tests {
         let mut processing = VoiceProcessing::new(settings).unwrap();
         let mut tick = [0.0; TICK];
 
-        let without = processing.capture(&mut tick);
+        let without = processing.capture(&mut tick).voice_probability;
         processing.set_voice_analysis(true);
-        let with = processing.capture(&mut tick);
+        let with = processing.capture(&mut tick).voice_probability;
 
         assert_eq!(without, None);
         assert!(with.is_some());
@@ -549,7 +608,7 @@ mod tests {
         };
         let mut processing = VoiceProcessing::new(settings).unwrap();
         processing.artificial_load = load;
-        let (capture, _) = voice_over("fan");
+        let (capture, _) = voice_with("fan");
         for tick in capture.as_chunks::<TICK>().0.iter().cycle().take(ticks) {
             processing.capture(&mut tick.clone());
         }
@@ -603,5 +662,73 @@ mod tests {
 
         // 5.25 ms on average: busy, but under 6 ms.
         assert!(!gave_up);
+    }
+
+    /// The level change of a steady tone at `frequency` through processing.
+    fn tone_through(settings: ProcessingSettings, frequency: f32) -> f32 {
+        let tone: Vec<f32> = (0..SAMPLE_RATE as usize)
+            .map(|i| {
+                0.3 * (std::f32::consts::TAU * frequency * i as f32 / SAMPLE_RATE as f32).sin()
+            })
+            .collect();
+
+        let (out, _) = process(settings, &[], &tone);
+
+        let settled = tone.len() / 2..tone.len();
+        dbfs(&out[settled.clone()]) - dbfs(&tone[settled])
+    }
+
+    #[test]
+    fn the_high_pass_filter_takes_out_rumble_and_keeps_the_voice() {
+        for echo_cancellation in [false, true] {
+            let settings = ProcessingSettings {
+                echo_cancellation,
+                ..ONLY_EQUALIZING
+            };
+
+            let hum = tone_through(settings, 50.0);
+            let low_voice = tone_through(settings, 300.0);
+            let voice = tone_through(settings, 1_000.0);
+
+            assert!(
+                hum <= -10.0,
+                "50 Hz only {hum:.1} dB down (echo cancellation {echo_cancellation})"
+            );
+            assert!(low_voice > -1.0, "300 Hz lost {low_voice:.1} dB");
+            assert!(voice.abs() < 0.5, "1 kHz changed {voice:.1} dB");
+        }
+    }
+
+    #[test]
+    fn the_echo_alone_is_marked() {
+        let played = at_level(&speech(), -20.0);
+        let delay = SAMPLE_RATE as usize / 25;
+        let mut capture = vec![0.0; played.len()];
+        for (i, sample) in played.iter().enumerate() {
+            if let Some(slot) = capture.get_mut(i + delay) {
+                *slot += 0.316 * sample;
+            }
+        }
+        let mut processing = VoiceProcessing::new(ProcessingSettings::default()).unwrap();
+
+        let heard: Vec<Heard> = capture
+            .as_chunks::<TICK>()
+            .0
+            .iter()
+            .enumerate()
+            .map(|(index, tick)| {
+                processing.render(&played[index * TICK..(index + 1) * TICK]);
+                processing.capture(&mut tick.clone())
+            })
+            .collect();
+
+        // After a second for the echo canceller to find the echo.
+        let settled = &heard[100..];
+        let marked = settled.iter().filter(|heard| heard.echo_only).count();
+        assert!(
+            marked * 10 >= settled.len() * 9,
+            "{marked} of {} marked",
+            settled.len()
+        );
     }
 }

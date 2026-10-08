@@ -1,16 +1,20 @@
 //! The audio processing tick (plan §7.1): device samples in, Opus frames
 //! out; Opus packets in, device samples out. The engine's thread runs it;
-//! nothing here touches a device, so tests drive it directly.
+//! nothing here touches a device, so tests drive it directly. The mic test
+//! plays what would be sent back through the speaker, Opus and all.
 
 use std::sync::Arc;
 use std::time::Instant;
 
-use super::TICK;
 use super::capture::{Capture, EncodedFrame, InputMode};
 use super::codec::CodecError;
 use super::convert::{ConvertError, FromDevice, ToDevice};
 use super::playback::{MAX_VOLUME, Playback};
 use super::processing::{ProcessingError, ProcessingSettings, VoiceProcessing};
+use super::{TICK, dbfs};
+
+/// Who the mic test plays as; never a real user (ids are positive).
+const MIC_TEST_USER: i64 = -1;
 
 /// What the listener and speaker chose.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -48,6 +52,12 @@ pub struct Processor {
     muted: bool,
     deafened: bool,
     tick: [f32; TICK],
+    mic_test: bool,
+    /// Frames for the mic test, played from the next `play`.
+    mic_test_frames: Vec<EncodedFrame>,
+    /// The loudest microphone tick since the last look, after processing
+    /// and the input volume.
+    input_level: Option<f32>,
 }
 
 impl Processor {
@@ -72,6 +82,9 @@ impl Processor {
             muted: false,
             deafened: false,
             tick: [0.0; TICK],
+            mic_test: false,
+            mic_test_frames: Vec::new(),
+            input_level: None,
         })
     }
 
@@ -93,13 +106,18 @@ impl Processor {
     pub fn capture(&mut self, interleaved: &[f32], mut send: impl FnMut(EncodedFrame)) {
         self.from_device.push(interleaved);
         while self.from_device.pop_tick(&mut self.tick) {
-            let voice_probability = self.processing.capture(&mut self.tick);
+            let heard = self.processing.capture(&mut self.tick);
             if self.input_volume != 1.0 {
                 for sample in &mut self.tick {
                     *sample *= self.input_volume;
                 }
             }
-            if let Some(frame) = self.capture.push(&self.tick, voice_probability) {
+            let level = dbfs(&self.tick);
+            self.input_level = Some(self.input_level.map_or(level, |loudest| loudest.max(level)));
+            if let Some(frame) = self.capture.push(&self.tick, heard) {
+                if self.mic_test {
+                    self.mic_test_frames.push(frame.clone());
+                }
                 send(frame);
             }
         }
@@ -121,6 +139,15 @@ impl Processor {
     /// Fills interleaved speaker samples, playing as many ticks as that
     /// takes; returns the frames written.
     pub fn play(&mut self, now: Instant, interleaved: &mut [f32]) -> usize {
+        for frame in self.mic_test_frames.drain(..) {
+            self.playback.receive(
+                MIC_TEST_USER,
+                frame.position as u32,
+                frame.marker,
+                Arc::from(frame.payload),
+                now,
+            );
+        }
         let wanted = interleaved.len() / self.output_channels;
         while self.to_device.buffered() < wanted {
             self.playback.tick(now, &mut self.tick);
@@ -188,6 +215,53 @@ impl Processor {
     /// Whether the microphone is sending a talk spurt.
     pub fn is_talking(&self) -> bool {
         self.capture.is_talking()
+    }
+
+    /// The priority speaker key.
+    pub fn set_priority_held(&mut self, held: bool) {
+        self.capture.set_priority_held(held);
+    }
+
+    /// Whether this talk spurt is the priority speaker's.
+    pub fn is_priority(&self) -> bool {
+        self.capture.is_priority()
+    }
+
+    /// Whether `user_id` speaks with priority (the node relays it).
+    pub fn set_priority(&mut self, user_id: i64, priority: bool) {
+        self.playback.set_priority(user_id, priority);
+    }
+
+    /// Hear what would be sent.
+    pub fn set_mic_test(&mut self, on: bool) {
+        self.mic_test = on;
+        if !on {
+            self.mic_test_frames.clear();
+            self.playback.remove(MIC_TEST_USER);
+        }
+    }
+
+    /// Adds to `changes` who started or stopped speaking since the last
+    /// call.
+    pub fn speaking_changes(&mut self, changes: &mut Vec<(i64, bool)>) {
+        self.playback.speaking_changes(changes);
+        changes.retain(|(user_id, _)| *user_id != MIC_TEST_USER);
+    }
+
+    /// The loudest microphone tick, in dBFS, since the last call.
+    pub fn take_input_level(&mut self) -> Option<f32> {
+        self.input_level.take()
+    }
+
+    /// Whether the microphone heard speaking while muted (at most every
+    /// 30 s).
+    pub fn take_speaking_while_muted(&mut self) -> bool {
+        self.capture.take_speaking_while_muted()
+    }
+
+    /// Whether High noise suppression gave way to Standard.
+    pub fn take_noise_suppression_fallback(&mut self) -> bool {
+        self.processing.take_fallback()
     }
 }
 
@@ -451,12 +525,24 @@ mod tests {
         assert!(latency_ms <= 60, "{latency_ms} ms");
     }
 
-    /// Alice talks; Bob's microphone hears Bob's speaker 40 ms later, 10 dB
-    /// down. Returns how many frames Bob sent after the first second.
-    fn echo_sent_back(echo_cancellation: bool) -> usize {
+    /// What everyone runs: echo cancellation, `noise_suppression`, gain
+    /// control and automatic sensitivity.
+    fn defaults(noise_suppression: NoiseSuppression) -> ProcessorSettings {
+        ProcessorSettings {
+            mode: InputMode::VoiceActivity(Sensitivity::Automatic),
+            processing: ProcessingSettings {
+                noise_suppression,
+                ..ProcessingSettings::default()
+            },
+            ..settings()
+        }
+    }
+
+    /// Alice talks; Bob's microphone hears his speaker 40 ms later, 10 dB
+    /// down, and from tick `bob_from` on Bob himself, someone else reading.
+    /// Returns the ticks after the first second at which Bob sent a frame.
+    fn sent_by_bob(bob_settings: ProcessorSettings, bob_from: Option<usize>) -> Vec<usize> {
         let mut alice = Processor::new(settings(), (SAMPLE_RATE, 1), (SAMPLE_RATE, 1)).unwrap();
-        let mut bob_settings = settings();
-        bob_settings.processing.echo_cancellation = echo_cancellation;
         let mut bob = Processor::new(bob_settings, (SAMPLE_RATE, 1), (SAMPLE_RATE, 1)).unwrap();
         let voice = at_level(&speech(), -20.0);
         let ticks: Vec<Vec<f32>> = voice
@@ -465,6 +551,9 @@ mod tests {
             .iter()
             .map(|tick| tick.to_vec())
             .collect();
+        // Bob's voice: the reading backwards, so it is no echo of Alice's.
+        let bob_voice: Vec<f32> = at_level(&speech(), -25.0).into_iter().rev().collect();
+        let bob_ticks = bob_voice.len() / TICK;
         let arrivals: Vec<(u64, EncodedFrame)> = capture(&mut alice, &ticks)
             .into_iter()
             .map(|(tick, frame)| ((tick as u64 + 1) * 10, frame))
@@ -472,8 +561,9 @@ mod tests {
         let start = Instant::now();
         let mut arrivals = arrivals.into_iter().peekable();
         let mut room: VecDeque<Vec<f32>> = std::iter::repeat_n(vec![0.0; TICK], 4).collect();
-        let mut sent_back = 0;
-        for index in 0..ticks.len() + 40 {
+        let end = ticks.len().max(bob_from.unwrap_or(0) + bob_ticks) + 40;
+        let mut sent = Vec::new();
+        for index in 0..end {
             let now_ms = index as u64 * 10;
             while let Some((at, frame)) = arrivals.next_if(|(at, _)| *at <= now_ms) {
                 bob.receive(
@@ -487,25 +577,149 @@ mod tests {
             let mut played = vec![0.0; TICK];
             bob.play(start + Duration::from_millis(now_ms), &mut played);
             room.push_back(played.iter().map(|s| s * 0.316).collect());
-            let heard = room.pop_front().unwrap();
+            let mut heard = room.pop_front().unwrap();
+            if let Some(from) = bob_from
+                && let Some(own) = index
+                    .checked_sub(from)
+                    .and_then(|at| bob_voice.get(at * TICK..(at + 1) * TICK))
+            {
+                for (sample, own) in heard.iter_mut().zip(own) {
+                    *sample += own;
+                }
+            }
             bob.capture(&heard, |_| {
                 if index >= 100 {
-                    sent_back += 1;
+                    sent.push(index);
                 }
             });
         }
-        sent_back
+        sent
     }
 
     #[test]
     fn what_bob_plays_does_not_go_back_to_alice() {
-        let without = echo_sent_back(false);
-        let with = echo_sent_back(true);
+        let mut only_echo_cancellation = settings();
+        only_echo_cancellation.processing.echo_cancellation = true;
+
+        let without = sent_by_bob(settings(), None).len();
 
         assert!(
             without > 100,
             "the test has no echo to remove: {without} frames"
         );
-        assert_eq!(with, 0, "{with} frames of echo went back");
+        for bob in [
+            defaults(NoiseSuppression::Standard),
+            defaults(NoiseSuppression::High),
+            only_echo_cancellation,
+        ] {
+            let sent = sent_by_bob(bob, None);
+            assert!(
+                sent.is_empty(),
+                "{} frames of echo went back ({bob:?})",
+                sent.len()
+            );
+        }
+    }
+
+    #[test]
+    fn bob_talking_over_alice_is_still_sent() {
+        // Alice reads until about tick 350; Bob starts at 150.
+        let sent = sent_by_bob(defaults(NoiseSuppression::Standard), Some(150));
+
+        let over_alice = sent
+            .iter()
+            .filter(|tick| (150..350).contains(*tick))
+            .count();
+        // 100 frames would be all of it; Bob's reading has pauses too, and
+        // the echo canceller turns a voice down a little while both talk.
+        assert!(
+            over_alice >= 75,
+            "only {over_alice} frames while both talked"
+        );
+    }
+
+    /// Captures `ticks` ticks of a tone and plays as much, 10 ms apart;
+    /// returns each played tick's level.
+    fn test_microphone(processor: &mut Processor, ticks: usize) -> Vec<f32> {
+        let start = Instant::now();
+        (0..ticks)
+            .map(|index| {
+                processor.capture(&microphone_tick(index, 0.3), |_| {});
+                let mut out = vec![0.0; 2 * TICK];
+                processor.play(start + Duration::from_millis(index as u64 * 10), &mut out);
+                dbfs(&out)
+            })
+            .collect()
+    }
+
+    #[test]
+    fn the_mic_test_plays_the_microphone_back() {
+        let mut processor = Processor::new(settings(), (SAMPLE_RATE, 2), (SAMPLE_RATE, 2)).unwrap();
+        processor.set_mic_test(true);
+
+        let levels = test_microphone(&mut processor, 100);
+
+        let heard = levels[50..].iter().sum::<f32>() / 50.0;
+        let spoken = dbfs(&microphone_tick(0, 0.3));
+        assert!((heard - spoken).abs() < 3.0, "{heard} against {spoken}");
+    }
+
+    #[test]
+    fn without_the_mic_test_nothing_comes_back() {
+        let mut processor = Processor::new(settings(), (SAMPLE_RATE, 2), (SAMPLE_RATE, 2)).unwrap();
+        processor.set_mic_test(true);
+        test_microphone(&mut processor, 50);
+
+        processor.set_mic_test(false);
+        let levels = test_microphone(&mut processor, 50);
+
+        assert!(levels[10..].iter().all(|db| *db < -100.0), "{levels:?}");
+    }
+
+    #[test]
+    fn the_mic_test_is_not_someone_speaking() {
+        let mut processor = Processor::new(settings(), (SAMPLE_RATE, 2), (SAMPLE_RATE, 2)).unwrap();
+        processor.set_mic_test(true);
+        test_microphone(&mut processor, 50);
+
+        let mut changes = Vec::new();
+        processor.speaking_changes(&mut changes);
+
+        assert!(changes.is_empty(), "{changes:?}");
+    }
+
+    #[test]
+    fn the_input_level_is_the_loudest_tick_since_the_last_look() {
+        let mut quiet = settings();
+        quiet.input_volume = 0.5;
+        let mut processor = Processor::new(quiet, (SAMPLE_RATE, 2), (SAMPLE_RATE, 2)).unwrap();
+
+        let before = processor.take_input_level();
+        // Some ticks first, so the high-pass filter has settled.
+        for index in 0..20 {
+            processor.capture(&microphone_tick(index, 0.3), |_| {});
+        }
+        processor.take_input_level();
+        processor.capture(&microphone_tick(20, 0.1), |_| {});
+        processor.capture(&microphone_tick(21, 0.3), |_| {});
+        let level = processor.take_input_level().unwrap();
+        let again = processor.take_input_level();
+
+        // The tone at 0.3, halved by the input volume.
+        let expected = dbfs(&microphone_tick(1, 0.3)) - 6.0;
+        assert_eq!(before, None);
+        assert!((level - expected).abs() < 0.5, "{level} against {expected}");
+        assert_eq!(again, None);
+    }
+
+    #[test]
+    fn holding_the_priority_key_talks_with_priority() {
+        let mut processor = Processor::new(settings(), (SAMPLE_RATE, 2), (SAMPLE_RATE, 2)).unwrap();
+
+        processor.set_priority_held(true);
+        processor.capture(&microphone_tick(0, 0.0), |_| {});
+
+        assert!(processor.is_talking());
+        assert!(processor.is_priority());
     }
 }
