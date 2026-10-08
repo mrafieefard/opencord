@@ -38,7 +38,7 @@ if [[ -z "$invite" ]]; then
   exit 1
 fi
 
-"$bot" --server "$invite" --name Camera --camera --seconds 14 \
+"$bot" --server "$invite" --name Camera --test-pattern --seconds 14 \
   >"$work/camera.log" 2>&1 &
 camera=$!
 background+=("$camera")

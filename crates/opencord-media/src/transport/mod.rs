@@ -209,12 +209,14 @@ pub enum VoiceEvent {
         message: String,
     },
     /// What to encode of one of this client's tracks (plan §7.10): the
-    /// layers anyone needs that the uplink can carry, and how far a screen
-    /// share's main layer comes down in frame rate and in pixels (shares,
-    /// 1.0 for all of it). Comes again whenever any of it changes.
+    /// layers anyone needs that the uplink can carry, each one's bitrate
+    /// (in the same order), and how far a screen share's main layer comes
+    /// down in frame rate and in pixels (shares, 1.0 for all of it). Comes
+    /// again whenever any of it changes.
     Encode {
         track_id: String,
         layers: Vec<String>,
+        bitrates: Vec<u32>,
         fps_scale: f32,
         size_scale: f32,
     },

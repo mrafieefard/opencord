@@ -484,16 +484,17 @@ impl Media {
             if track.plan.as_ref() == Some(&plan) {
                 continue;
             }
-            let layers = track
+            let (layers, bitrates) = track
                 .layers
                 .iter()
-                .zip(&plan.active)
-                .filter(|(_, on)| **on)
-                .map(|(layer, _)| layer.rid.clone())
-                .collect();
+                .zip(plan.active.iter().zip(&plan.bitrates))
+                .filter(|(_, (on, _))| **on)
+                .map(|(layer, (_, bitrate))| (layer.rid.clone(), *bitrate))
+                .unzip();
             let _ = events.send(VoiceEvent::Encode {
                 track_id: track.track_id.clone(),
                 layers,
+                bitrates,
                 fps_scale: plan.fps_scale,
                 size_scale: plan.size_scale,
             });

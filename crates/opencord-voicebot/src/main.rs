@@ -6,7 +6,7 @@ use std::process::ExitCode;
 use std::time::Duration;
 
 use clap::Parser;
-use opencord_voicebot::Voicebot;
+use opencord_voicebot::{VoiceSession, Voicebot};
 
 #[derive(Debug, Parser)]
 #[command(version, about)]
@@ -25,9 +25,14 @@ struct Args {
     /// Tone to play, in Hz; 0 stays silent.
     #[arg(long, default_value_t = 440.0)]
     tone: f32,
-    /// Send a synthetic three-layer camera (180p, 360p, 720p).
+    /// Send a camera of real H.264 (a moving test scene in 180p, 360p and
+    /// 720p layers), as the app's camera would.
     #[arg(long)]
     camera: bool,
+    /// Send the synthetic test pattern instead: H.264-shaped pictures with
+    /// checksums, to check that every picture arrives intact.
+    #[arg(long, conflicts_with = "camera")]
+    test_pattern: bool,
     /// Watch everyone's video in tiles this many pixels tall.
     #[arg(long, value_name = "HEIGHT")]
     watch: Option<u32>,
@@ -55,13 +60,16 @@ async fn run(args: Args) -> anyhow::Result<()> {
     if args.tone > 0.0 {
         session.play_tone(args.tone, duration);
     }
+    // Track ids are unique in a channel.
+    let track_id = format!("voicebot-camera-{}", bot.user_id());
     if args.camera {
-        // Track ids are unique in a channel.
-        let track_id = format!("voicebot-camera-{}", bot.user_id());
+        publish_camera(&session, &track_id).await?;
+    }
+    if args.test_pattern {
         session.publish_camera(&track_id).await?;
     }
     if let Some(height) = args.watch {
-        session.watch(height);
+        session.watch(height, true);
     }
     tokio::time::sleep(duration).await;
     for (user, heard) in session.heard() {
@@ -73,12 +81,23 @@ async fn run(args: Args) -> anyhow::Result<()> {
     for (user, seen) in session.seen() {
         let [low, middle, high] = seen.layers;
         println!(
-            "user {user}: {} pictures, {} intact, {} keyframes, {:.0} kbit/s; by layer {low}/{middle}/{high}",
+            "user {user}: {} pictures, {} intact, {} decoded, {} keyframes, {:.0} kbit/s; by layer {low}/{middle}/{high}",
             seen.frames,
             seen.intact,
+            seen.decoded,
             seen.keyframes,
             seen.bytes as f64 * 8.0 / duration.as_secs_f64() / 1000.0,
         );
     }
     Ok(())
+}
+
+#[cfg(target_os = "linux")]
+async fn publish_camera(session: &VoiceSession, track_id: &str) -> anyhow::Result<()> {
+    session.publish_encoded_camera(track_id).await
+}
+
+#[cfg(not(target_os = "linux"))]
+async fn publish_camera(_session: &VoiceSession, _track_id: &str) -> anyhow::Result<()> {
+    anyhow::bail!("an encoded camera needs Linux for now; try --test-pattern")
 }

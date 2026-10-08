@@ -446,7 +446,7 @@ async fn a_voicebots_camera_reaches_another_voicebot_intact() {
     let owner = call.owner.user_id();
 
     call.owner_voice.publish_camera("cam-owner").await.unwrap();
-    call.member_voice.watch(360);
+    call.member_voice.watch(360, false);
     sees_camera(&call.member_voice, owner, 0, 30).await;
 
     let seen = call.member_voice.seen()[&owner].clone();
@@ -460,7 +460,7 @@ async fn a_voicebots_camera_comes_back_when_its_call_moves_to_another_node() {
     let mut call = external_call().await;
     let owner = call.owner.user_id();
     call.owner_voice.publish_camera("cam-owner").await.unwrap();
-    call.member_voice.watch(360);
+    call.member_voice.watch(360, false);
     sees_camera(&call.member_voice, owner, 0, 10).await;
 
     let first = call.owner_voice.gateway_url();
@@ -474,4 +474,26 @@ async fn a_voicebots_camera_comes_back_when_its_call_moves_to_another_node() {
     let before = call.member_voice.seen()[&owner].intact;
 
     sees_camera(&call.member_voice, owner, before, 10).await;
+}
+
+#[tokio::test]
+async fn a_voicebots_encoded_camera_is_decoded_by_another_voicebot() {
+    let call = call().await;
+    let owner = call.owner.user_id();
+
+    call.owner_voice
+        .publish_encoded_camera("cam-owner")
+        .await
+        .unwrap();
+    call.member_voice.watch(360, true);
+    call.member_voice
+        .wait_until(|view| view.seen.get(&owner).is_some_and(|seen| seen.decoded >= 30))
+        .await
+        .unwrap();
+
+    let seen = call.member_voice.seen()[&owner].clone();
+    assert!(seen.decoded + 1 >= seen.frames, "{seen:?}");
+    assert_eq!(seen.intact, 0, "real H.264, not the test pattern");
+    assert_eq!(seen.layers[2], 0, "taller than the tile");
+    assert!(seen.layers[1] > 0, "{seen:?}");
 }

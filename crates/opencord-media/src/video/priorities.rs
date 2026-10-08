@@ -27,6 +27,11 @@ const TOLERANCE: f64 = 0.15;
 const HEADROOM: f64 = 0.15;
 /// ...and at least this long since the last change.
 const RAISE_EVERY: Duration = Duration::from_secs(1);
+/// The least share of its maximum an encoder is given.
+pub const MIN_SHARE: f64 = 0.3;
+/// Shares go in steps of this, so a wavering estimate does not keep
+/// changing encoders.
+const SHARE_STEP: f64 = 0.1;
 
 /// A track being published, as the plan sees it.
 #[derive(Debug, Clone, Copy)]
@@ -47,26 +52,16 @@ pub struct TrackPlan {
     /// pixels.
     pub fps_scale: f32,
     pub size_scale: f32,
+    /// Bits per second for each layer's encoder, 0 for layers off: their
+    /// maxima, all turned down together when even the lowest layers do
+    /// not fit, but never below [`MIN_SHARE`] of them.
+    pub bitrates: Vec<u32>,
 }
 
 impl Sending<'_> {
     /// Bits per second it sends under `plan`, at its layers' maxima.
     pub fn bitrate(&self, plan: &TrackPlan) -> u64 {
-        let main = self.layers.len().saturating_sub(1);
-        self.layers
-            .iter()
-            .enumerate()
-            .filter(|(index, _)| plan.active.get(*index) == Some(&true))
-            .map(|(index, layer)| {
-                let full = f64::from(layer.max_bitrate);
-                let scaled = if self.kind == TrackKind::Screen && index == main {
-                    full * f64::from(plan.fps_scale) * f64::from(plan.size_scale)
-                } else {
-                    full
-                };
-                scaled as u64
-            })
-            .sum()
+        self.layer_bitrates(plan).into_iter().map(u64::from).sum()
     }
 
     fn wants(&self, layer: usize) -> bool {
@@ -80,7 +75,29 @@ impl Sending<'_> {
                 .collect(),
             fps_scale: 1.0,
             size_scale: 1.0,
+            bitrates: Vec::new(),
         }
+    }
+
+    /// Each layer's bitrate under `plan` at its maximum, 0 when off.
+    fn layer_bitrates(&self, plan: &TrackPlan) -> Vec<u32> {
+        let main = self.layers.len().saturating_sub(1);
+        self.layers
+            .iter()
+            .enumerate()
+            .map(|(index, layer)| {
+                if plan.active.get(index) != Some(&true) {
+                    return 0;
+                }
+                let full = f64::from(layer.max_bitrate);
+                let scaled = if self.kind == TrackKind::Screen && index == main {
+                    full * f64::from(plan.fps_scale) * f64::from(plan.size_scale)
+                } else {
+                    full
+                };
+                scaled as u32
+            })
+            .collect()
     }
 }
 
@@ -160,7 +177,7 @@ impl Planner {
             self.cuts = Some(count);
             self.changed = Some(now);
         }
-        apply(tracks, &steps[..count])
+        fit(apply(tracks, &steps[..count]), available)
     }
 }
 
@@ -213,6 +230,26 @@ fn apply(tracks: &[Sending<'_>], steps: &[Cut]) -> Vec<TrackPlan> {
             Cut::Fps { track, scale } => plans[track].fps_scale = scale,
             Cut::Size { track, scale } => plans[track].size_scale = scale,
         }
+    }
+    for (plan, track) in plans.iter_mut().zip(tracks) {
+        plan.bitrates = track.layer_bitrates(plan);
+    }
+    plans
+}
+
+/// Turns every encoder down together when the plan still does not fit.
+fn fit(mut plans: Vec<TrackPlan>, available: f64) -> Vec<TrackPlan> {
+    let cost: f64 = plans
+        .iter()
+        .flat_map(|plan| &plan.bitrates)
+        .map(|&bitrate| f64::from(bitrate))
+        .sum();
+    if cost <= available || cost == 0.0 {
+        return plans;
+    }
+    let share = ((available / cost / SHARE_STEP).floor() * SHARE_STEP).clamp(MIN_SHARE, 1.0);
+    for bitrate in plans.iter_mut().flat_map(|plan| &mut plan.bitrates) {
+        *bitrate = (f64::from(*bitrate) * share) as u32;
     }
     plans
 }
@@ -393,6 +430,34 @@ mod tests {
     }
 
     #[test]
+    fn each_layer_gets_its_bitrate_and_layers_off_get_none() {
+        let layers = camera();
+        let wanted = vec![true, false, true];
+
+        let plan = plan(10_000_000, &[sending(TrackKind::Camera, &layers, &wanted)]);
+
+        assert_eq!(plan[0].bitrates, vec![150_000, 0, 1_500_000]);
+    }
+
+    #[test]
+    fn when_even_the_lowest_layers_do_not_fit_their_encoders_are_turned_down() {
+        let layers = camera();
+        let wanted = on(&layers);
+        let camera = [sending(TrackKind::Camera, &layers, &wanted)];
+
+        // 100 of 150 kbit/s: two thirds, rounded down to a 10 % step.
+        assert_eq!(
+            plan(VOICE + 100_000, &camera)[0].bitrates,
+            vec![90_000, 0, 0]
+        );
+        // Never below 30 %.
+        assert_eq!(
+            plan(VOICE + 10_000, &camera)[0].bitrates,
+            vec![45_000, 0, 0]
+        );
+    }
+
+    #[test]
     fn a_plan_rides_out_a_dip_to_85_percent_of_its_cost() {
         let layers = camera();
         let wanted = on(&layers);
@@ -491,6 +556,7 @@ mod tests {
             active: vec![false, true],
             fps_scale: 0.5,
             size_scale: 0.5,
+            bitrates: Vec::new(),
         };
 
         assert_eq!(track.bitrate(&plan), 500_000);
