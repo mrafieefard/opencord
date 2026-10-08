@@ -3,6 +3,7 @@ import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:opencord/core/model/channel_kind.dart';
+import 'package:opencord/core/model/voice.dart';
 import 'package:opencord/core/repository/repository.dart';
 import 'package:opencord/core/rust/identity_store.dart';
 import 'package:opencord/core/rust/read_positions.dart';
@@ -748,6 +749,124 @@ void main() {
       expect(sent.maxVoiceBitrate, 96000);
       expect(sent.afkTimeoutS, 300);
       expect(sent.screenShareMaxResolution, core.ScreenShareResolution.p720);
+    });
+  });
+
+  group('voice media (Phase 2 V2)', () {
+    const lounge = 20;
+
+    test('connection states reach the app', () async {
+      final harness = await _Harness.start();
+
+      harness.core.media.add(
+        const core.MediaEvent.connectionState(
+          serverKey: _server,
+          channelId: lounge,
+          state: core.VoiceConnectionState.rtcConnecting(),
+        ),
+      );
+      harness.core.media.add(
+        const core.MediaEvent.connectionState(
+          serverKey: _server,
+          channelId: lounge,
+          state: core.VoiceConnectionState.disconnected(reason: 'refused'),
+        ),
+      );
+      await harness.settle();
+
+      final changes = harness.events.whereType<VoiceConnectionChanged>();
+      expect(changes.map((c) => (c.serverKey, c.channelId, c.status)), [
+        (
+          _server,
+          lounge,
+          const VoiceConnectionStatus(VoiceConnectionPhase.rtcConnecting),
+        ),
+        (
+          _server,
+          lounge,
+          const VoiceConnectionStatus(
+            VoiceConnectionPhase.disconnected,
+            reason: 'refused',
+          ),
+        ),
+      ]);
+    });
+
+    test(
+      'devices, and devices standing in for missing ones, reach the app',
+      () async {
+        final harness = await _Harness.start();
+        const mic = core.AudioDevice(id: 'pipewire:mic', name: 'Mic');
+
+        harness.core.media.add(
+          const core.MediaEvent.devicesChanged(
+            core.AudioDevices(
+              inputs: [mic],
+              outputs: [],
+              defaultInput: 'pipewire:mic',
+            ),
+          ),
+        );
+        harness.core.media.add(
+          const core.MediaEvent.deviceFellBack(output: false, device: 'Mic'),
+        );
+        await harness.settle();
+
+        final devices = harness.events.whereType<AudioDevicesChanged>().single;
+        expect(devices.devices.inputs, [
+          const AudioDevice(id: 'pipewire:mic', name: 'Mic'),
+        ]);
+        expect(devices.devices.defaultInput, 'pipewire:mic');
+        final fellBack = harness.events.whereType<AudioDeviceFellBack>().single;
+        expect((fellBack.output, fellBack.device), (false, 'Mic'));
+      },
+    );
+
+    test('audio choices go to the core as fractions of full volume', () async {
+      final harness = await _Harness.start();
+
+      harness.repository.applyAudio(
+        const AudioConfig(
+          inputDevice: 'pipewire:mic',
+          pushToTalk: true,
+          inputVolume: 150,
+          outputVolume: 50,
+        ),
+      );
+      harness.repository.setPushToTalk(true);
+      harness.repository.setUserVolume(_server, _kai, 200);
+      harness.repository.setUserLocalMute(_server, _kai, true);
+
+      final sent = harness.core.audioSettings!;
+      expect(sent.inputDevice, 'pipewire:mic');
+      expect(sent.outputDevice, isNull);
+      expect(sent.pushToTalk, isTrue);
+      expect(sent.inputVolume, 1.5);
+      expect(sent.outputVolume, 0.5);
+      expect(
+        harness.core.calls,
+        containsAllInOrder([
+          'pushToTalk:true',
+          'userVolume:$_server:$_kai:2.0',
+          'localMute:$_server:$_kai:true',
+        ]),
+      );
+    });
+
+    test('the device list comes from the core', () async {
+      final harness = await _Harness.start();
+      harness.core.devices = const core.AudioDevices(
+        inputs: [core.AudioDevice(id: 'alsa:hw:0', name: 'Built-in')],
+        outputs: [core.AudioDevice(id: 'alsa:hw:1', name: 'Speakers')],
+        defaultOutput: 'alsa:hw:1',
+      );
+
+      final devices = await harness.repository.audioDevices();
+
+      expect(devices.inputs.single.name, 'Built-in');
+      expect(devices.outputs.single.id, 'alsa:hw:1');
+      expect(devices.defaultOutput, 'alsa:hw:1');
+      expect(devices.defaultInput, isNull);
     });
   });
 }

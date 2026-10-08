@@ -386,3 +386,50 @@ AddServerResult addServerFrom(core.AddServerOutcome outcome) =>
       core.AddServerOutcome_NeedsTrust(:final address, :final fingerprint) =>
         ServerNeedsTrust(address: address, fingerprint: fingerprint),
     };
+
+VoiceConnectionStatus voiceConnectionFrom(core.VoiceConnectionState state) =>
+    switch (state) {
+      core.VoiceConnectionState_AwaitingEndpoint() =>
+        const VoiceConnectionStatus(VoiceConnectionPhase.awaitingEndpoint),
+      core.VoiceConnectionState_Authenticating() => const VoiceConnectionStatus(
+        VoiceConnectionPhase.authenticating,
+      ),
+      core.VoiceConnectionState_RtcConnecting() => const VoiceConnectionStatus(
+        VoiceConnectionPhase.rtcConnecting,
+      ),
+      core.VoiceConnectionState_Connected() => const VoiceConnectionStatus(
+        VoiceConnectionPhase.connected,
+      ),
+      core.VoiceConnectionState_Reconnecting() => const VoiceConnectionStatus(
+        VoiceConnectionPhase.reconnecting,
+      ),
+      core.VoiceConnectionState_NoRoute() => const VoiceConnectionStatus(
+        VoiceConnectionPhase.noRoute,
+      ),
+      core.VoiceConnectionState_Disconnected(:final reason) =>
+        VoiceConnectionStatus(
+          VoiceConnectionPhase.disconnected,
+          reason: reason,
+        ),
+    };
+
+AudioDeviceList audioDevicesFrom(core.AudioDevices devices) {
+  List<AudioDevice> list(List<core.AudioDevice> devices) => [
+    for (final device in devices) AudioDevice(id: device.id, name: device.name),
+  ];
+  return AudioDeviceList(
+    inputs: list(devices.inputs),
+    outputs: list(devices.outputs),
+    defaultInput: devices.defaultInput,
+    defaultOutput: devices.defaultOutput,
+  );
+}
+
+/// Volumes in percent to the core's fractions of full volume.
+core.AudioSettings audioSettingsTo(AudioConfig config) => core.AudioSettings(
+  inputDevice: config.inputDevice,
+  outputDevice: config.outputDevice,
+  pushToTalk: config.pushToTalk,
+  inputVolume: config.inputVolume / 100,
+  outputVolume: config.outputVolume / 100,
+);

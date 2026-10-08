@@ -243,7 +243,7 @@ void main() {
       expect(find.text('OUTPUT VOLUME'), findsOneWidget);
       expect(
         app.read(audioSettingsProvider).inputDevice,
-        'USB headset microphone',
+        'mock:usb-microphone',
       );
       await tester.sendKeyEvent(LogicalKeyboardKey.escape);
       await tester.pumpAndSettle();

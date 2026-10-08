@@ -32,6 +32,9 @@ class VoiceConnectedPanel extends ConsumerWidget {
     );
     final session = ref.read(voiceSessionProvider.notifier);
     final capabilities = ref.read(repositoryProvider).capabilities;
+    final connection = ref.watch(voiceConnectionProvider);
+    final status = connection?.phase.label ?? 'Voice connected';
+    final detail = connection?.detail;
     return Container(
       padding: const EdgeInsets.fromLTRB(
         OcSpace.s8,
@@ -53,8 +56,11 @@ class VoiceConnectedPanel extends ConsumerWidget {
                   onTap: () => ref
                       .read(navigationProvider.notifier)
                       .openChannel(server, channelId),
-                  semanticLabel:
-                      'Voice connected to ${channel ?? 'voice'}. Open the voice view',
+                  semanticLabel: [
+                    '$status, ${channel ?? 'voice'}',
+                    ?detail,
+                    'Open the voice view',
+                  ].join('. '),
                   builder: (context, state) => AnimatedContainer(
                     duration: OcMotion.of(context).hover,
                     padding: const EdgeInsets.symmetric(
@@ -77,12 +83,8 @@ class VoiceConnectedPanel extends ConsumerWidget {
                               color: colors.text,
                             ),
                             const SizedBox(width: OcSpace.s6),
-                            Text(
-                              'Voice connected',
-                              style: OcText.bodyStrong.copyWith(
-                                fontSize: 13,
-                                color: colors.text,
-                              ),
+                            Flexible(
+                              child: _StatusText(status, detail: detail),
                             ),
                           ],
                         ),
@@ -194,5 +196,31 @@ class _Toggle extends StatelessWidget {
         );
       },
     );
+  }
+}
+
+/// The connection's phase, with more about it on hover when there is more.
+class _StatusText extends StatelessWidget {
+  const _StatusText(this.status, {this.detail});
+
+  final String status;
+  final String? detail;
+
+  @override
+  Widget build(BuildContext context) {
+    final text = Text(
+      status,
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      style: OcText.bodyStrong.copyWith(fontSize: 13, color: context.oc.text),
+    );
+    return switch (detail) {
+      final detail? => Tooltip(
+        message: detail,
+        excludeFromSemantics: true,
+        child: text,
+      ),
+      null => text,
+    };
   }
 }

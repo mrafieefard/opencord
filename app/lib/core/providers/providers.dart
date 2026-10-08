@@ -9,6 +9,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:opencord/core/model/message.dart';
 import 'package:opencord/core/model/misc.dart';
 import 'package:opencord/core/model/server.dart';
+import 'package:opencord/core/model/voice.dart';
 import 'package:opencord/core/providers/activity_state.dart';
 import 'package:opencord/core/providers/channel_audience.dart';
 import 'package:opencord/core/providers/messages_state.dart';
@@ -34,20 +35,39 @@ typedef ChannelRef = ({String server, int channel});
 /// The current time; overridden in tests.
 final clockProvider = Provider<DateTime Function()>((ref) => clock.now);
 
-/// Routes every repository event to the providers it concerns. Read once
-/// at startup.
+/// Routes every repository event to the providers it concerns, and the
+/// audio choices to voice media. Read once at startup.
 final eventPumpProvider = Provider<void>((ref) {
-  final subscription = ref
-      .watch(repositoryProvider)
-      .events
-      .listen((event) => _route(ref, event));
+  final repository = ref.watch(repositoryProvider);
+  final subscription = repository.events.listen((event) => _route(ref, event));
   ref.onDispose(subscription.cancel);
+  ref.listen(
+    audioSettingsProvider,
+    (_, audio) => repository.applyAudio(audio.config),
+    fireImmediately: true,
+  );
 });
 
 void _route(Ref ref, RepoEvent event) {
-  if (event is ServersChanged) {
-    ref.read(serverListProvider.notifier).refresh();
-    return;
+  switch (event) {
+    case ServersChanged():
+      ref.read(serverListProvider.notifier).refresh();
+      return;
+    case AudioDevicesChanged(:final devices):
+      ref.read(audioDeviceListProvider.notifier).set(devices);
+      return;
+    case AudioDeviceFellBack(:final output, :final device):
+      final which = output ? 'Speaker' : 'Microphone';
+      ref
+          .read(audioNoticeProvider.notifier)
+          .show('$which unavailable. Using $device.');
+      return;
+    case AudioDeviceFailed(:final output):
+      final which = output ? 'speaker' : 'microphone';
+      ref.read(audioNoticeProvider.notifier).show('No $which could be opened.');
+      return;
+    default:
+      break;
   }
   final key = event.serverKey;
   ref.read(serverProvider(key).notifier).apply(event);
@@ -64,6 +84,8 @@ void _route(Ref ref, RepoEvent event) {
       _toChannel(ref, key, channelId, event);
     case OwnVoiceChanged():
       ref.read(voiceSessionProvider.notifier).apply(event);
+    case VoiceConnectionChanged():
+      ref.read(voiceConnectionProvider.notifier).apply(event);
     default:
       break;
   }
@@ -488,6 +510,85 @@ final voiceSessionProvider =
     NotifierProvider<VoiceSessionNotifier, VoiceSession>(
       VoiceSessionNotifier.new,
     );
+
+/// How this device's voice connection is doing (Phase 2 plan §7.14); null
+/// outside voice. News can come before the join is done, so the latest per
+/// channel is kept.
+class VoiceConnectionNotifier extends Notifier<VoiceConnectionStatus?> {
+  final _latest = <(String, int), VoiceConnectionStatus>{};
+
+  @override
+  VoiceConnectionStatus? build() {
+    final (server, channel) = ref.watch(
+      voiceSessionProvider.select((s) => (s.serverKey, s.channelId)),
+    );
+    if (server == null || channel == null) {
+      _latest.clear();
+      return null;
+    }
+    return _latest[(server, channel)] ??
+        const VoiceConnectionStatus(VoiceConnectionPhase.awaitingEndpoint);
+  }
+
+  void apply(VoiceConnectionChanged event) {
+    _latest[(event.serverKey, event.channelId)] = event.status;
+    final session = ref.read(voiceSessionProvider);
+    if (session.serverKey == event.serverKey &&
+        session.channelId == event.channelId) {
+      state = event.status;
+    }
+  }
+}
+
+final voiceConnectionProvider =
+    NotifierProvider<VoiceConnectionNotifier, VoiceConnectionStatus?>(
+      VoiceConnectionNotifier.new,
+    );
+
+/// The system's microphones and speakers (Phase 2 plan §7.6). Voice media
+/// reports changes while in voice; pickers ask again when they open.
+class AudioDeviceListNotifier extends Notifier<AudioDeviceList> {
+  @override
+  AudioDeviceList build() {
+    unawaited(refresh());
+    return const AudioDeviceList();
+  }
+
+  void set(AudioDeviceList devices) => state = devices;
+
+  Future<void> refresh() async {
+    try {
+      state = await ref.read(repositoryProvider).audioDevices();
+    } on RepoException {
+      // Listing failed; the list stays as it was.
+    }
+  }
+}
+
+final audioDeviceListProvider =
+    NotifierProvider<AudioDeviceListNotifier, AudioDeviceList>(
+      AudioDeviceListNotifier.new,
+    );
+
+/// Something about the audio devices worth a toast. A new notice replaces
+/// the last, even with the same words.
+@immutable
+class AudioNotice {
+  const AudioNotice(this.message);
+
+  final String message;
+}
+
+class AudioNoticeNotifier extends Notifier<AudioNotice?> {
+  @override
+  AudioNotice? build() => null;
+
+  void show(String message) => state = AudioNotice(message);
+}
+
+final audioNoticeProvider = NotifierProvider<AudioNoticeNotifier, AudioNotice?>(
+  AudioNoticeNotifier.new,
+);
 
 // Messages ------------------------------------------------------------------
 

@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:opencord/core/model/voice.dart';
 import 'package:opencord/core/repository/repository.dart';
 import 'package:opencord/core/settings/key_value_store.dart';
 
@@ -263,30 +264,15 @@ enum InputMode {
   final String label;
 }
 
-/// Microphones and speakers to choose from. Phase 1 has no audio engine,
-/// so the list is a stand-in until Phase 2 asks the system (§17).
-@immutable
-class AudioDevices {
-  const AudioDevices({required this.inputs, required this.outputs});
-
-  final List<String> inputs;
-  final List<String> outputs;
-}
-
-final audioDevicesProvider = Provider<AudioDevices>(
-  (ref) => const AudioDevices(
-    inputs: ['Default', 'Built-in microphone', 'USB headset microphone'],
-    outputs: ['Default', 'Built-in speakers', 'USB headset'],
-  ),
-);
-
-/// Audio choices reachable from the quick audio menu (§4.2, §17.1). Voice
-/// is mock-only in Phase 1; these are saved so Phase 2 starts from them.
+/// Audio choices reachable from the quick audio menu (§4.2, §17.1), saved
+/// on this device; voice media follows them (Phase 2 plan §7.12).
 @immutable
 class AudioSettings {
   const AudioSettings({
-    this.inputDevice = 'Default',
-    this.outputDevice = 'Default',
+    this.inputDevice,
+    this.inputDeviceName,
+    this.outputDevice,
+    this.outputDeviceName,
     this.inputMode = InputMode.voiceActivity,
     this.inputVolume = 100,
     this.outputVolume = 100,
@@ -294,8 +280,13 @@ class AudioSettings {
 
   static const maxVolume = 200;
 
-  final String inputDevice;
-  final String outputDevice;
+  /// A device id; null follows the system's default.
+  final String? inputDevice;
+
+  /// The chosen device's name, shown while it is unplugged.
+  final String? inputDeviceName;
+  final String? outputDevice;
+  final String? outputDeviceName;
   final InputMode inputMode;
 
   /// Microphone gain, 0–200 %.
@@ -304,23 +295,56 @@ class AudioSettings {
   /// Everything you hear, 0–200 %.
   final int outputVolume;
 
+  /// The microphone to use; null for the system's default.
+  AudioSettings withInput(AudioDevice? device) => AudioSettings(
+    inputDevice: device?.id,
+    inputDeviceName: device?.name,
+    outputDevice: outputDevice,
+    outputDeviceName: outputDeviceName,
+    inputMode: inputMode,
+    inputVolume: inputVolume,
+    outputVolume: outputVolume,
+  );
+
+  /// The speaker to use; null for the system's default.
+  AudioSettings withOutput(AudioDevice? device) => AudioSettings(
+    inputDevice: inputDevice,
+    inputDeviceName: inputDeviceName,
+    outputDevice: device?.id,
+    outputDeviceName: device?.name,
+    inputMode: inputMode,
+    inputVolume: inputVolume,
+    outputVolume: outputVolume,
+  );
+
   AudioSettings copyWith({
-    String? inputDevice,
-    String? outputDevice,
     InputMode? inputMode,
     int? inputVolume,
     int? outputVolume,
   }) => AudioSettings(
-    inputDevice: inputDevice ?? this.inputDevice,
-    outputDevice: outputDevice ?? this.outputDevice,
+    inputDevice: inputDevice,
+    inputDeviceName: inputDeviceName,
+    outputDevice: outputDevice,
+    outputDeviceName: outputDeviceName,
     inputMode: inputMode ?? this.inputMode,
     inputVolume: (inputVolume ?? this.inputVolume).clamp(0, maxVolume),
     outputVolume: (outputVolume ?? this.outputVolume).clamp(0, maxVolume),
   );
 
+  /// What voice media takes.
+  AudioConfig get config => AudioConfig(
+    inputDevice: inputDevice,
+    outputDevice: outputDevice,
+    pushToTalk: inputMode == InputMode.pushToTalk,
+    inputVolume: inputVolume,
+    outputVolume: outputVolume,
+  );
+
   Map<String, Object?> toJson() => {
     'inputDevice': inputDevice,
+    'inputDeviceName': inputDeviceName,
     'outputDevice': outputDevice,
+    'outputDeviceName': outputDeviceName,
     'inputMode': inputMode.name,
     'inputVolume': inputVolume,
     'outputVolume': outputVolume,
@@ -329,13 +353,23 @@ class AudioSettings {
   static AudioSettings fromJson(Object? json) {
     const defaults = AudioSettings();
     if (json is! Map) return defaults;
-    return defaults.copyWith(
-      inputDevice: json['inputDevice'] is String
-          ? json['inputDevice'] as String
-          : null,
-      outputDevice: json['outputDevice'] is String
-          ? json['outputDevice'] as String
-          : null,
+    // Ids look like "host:device"; Phase 1 saved stand-in names instead,
+    // which mean the default device now.
+    String? id(Object? value) =>
+        value is String && value.contains(':') ? value : null;
+    String? name(Object? value) => value is String ? value : null;
+    final inputDevice = id(json['inputDevice']);
+    final outputDevice = id(json['outputDevice']);
+    return AudioSettings(
+      inputDevice: inputDevice,
+      inputDeviceName: inputDevice == null
+          ? null
+          : name(json['inputDeviceName']),
+      outputDevice: outputDevice,
+      outputDeviceName: outputDevice == null
+          ? null
+          : name(json['outputDeviceName']),
+    ).copyWith(
       inputMode: InputMode.values
           .where((m) => m.name == json['inputMode'])
           .firstOrNull,
@@ -347,6 +381,22 @@ class AudioSettings {
           : null,
     );
   }
+}
+
+/// What a device picker offers: the system's default first, then each
+/// device.
+List<(AudioDevice?, String)> deviceChoices(List<AudioDevice> devices) => [
+  (null, 'Default'),
+  for (final device in devices) (device, device.name),
+];
+
+/// The chosen device's name: from the list, or as saved while it is
+/// unplugged.
+String deviceLabel(String? id, String? savedName, List<AudioDevice> devices) {
+  if (id == null) return 'Default';
+  return devices.where((device) => device.id == id).firstOrNull?.name ??
+      savedName ??
+      id;
 }
 
 const audioSettingsKey = 'ui.audio';

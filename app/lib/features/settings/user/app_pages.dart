@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:opencord/core/app_info.dart';
 import 'package:opencord/core/format.dart';
+import 'package:opencord/core/model/voice.dart';
 import 'package:opencord/core/providers/providers.dart';
 import 'package:opencord/core/repository/repository.dart';
 import 'package:opencord/core/settings/app_settings.dart';
@@ -67,21 +68,34 @@ class BehaviorPage extends ConsumerWidget {
 
 /// Voice & audio (§8.1, §17): devices, input mode and volumes. The full
 /// page waits for the rest of §17.
-class VoicePage extends ConsumerWidget {
+class VoicePage extends ConsumerStatefulWidget {
   const VoicePage({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<VoicePage> createState() => _VoicePageState();
+}
+
+class _VoicePageState extends ConsumerState<VoicePage> {
+  @override
+  void initState() {
+    super.initState();
+    // Devices plugged in since voice last looked.
+    ref.read(audioDeviceListProvider.notifier).refresh();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final audio = ref.watch(audioSettingsProvider);
-    final devices = ref.watch(audioDevicesProvider);
+    final devices = ref.watch(audioDeviceListProvider);
     final update = ref.read(audioSettingsProvider.notifier).update;
     Widget device(
-      String current,
-      List<String> choices,
-      AudioSettings Function(String device) choose,
+      String? current,
+      String? savedName,
+      List<AudioDevice> choices,
+      AudioSettings Function(AudioDevice? device) choose,
     ) => Builder(
       builder: (context) => OcButton(
-        label: current,
+        label: deviceLabel(current, savedName, choices),
         dense: true,
         icon: OcIcons.expandMore,
         onPressed: () {
@@ -90,10 +104,10 @@ class VoicePage extends ConsumerWidget {
             context: context,
             position: rect.bottomLeft.translate(0, 4),
             entries: [
-              for (final choice in choices)
+              for (final (choice, label) in deviceChoices(choices))
                 OcMenuItem(
-                  label: choice,
-                  checked: choice == current,
+                  label: label,
+                  checked: choice?.id == current,
                   onSelected: () => update((_) => choose(choice)),
                 ),
             ],
@@ -112,8 +126,9 @@ class VoicePage extends ConsumerWidget {
               icon: OcIcons.mic,
               trailing: device(
                 audio.inputDevice,
+                audio.inputDeviceName,
                 devices.inputs,
-                (choice) => audio.copyWith(inputDevice: choice),
+                audio.withInput,
               ),
             ),
             SettingsRow(
@@ -121,8 +136,9 @@ class VoicePage extends ConsumerWidget {
               icon: OcIcons.headphones,
               trailing: device(
                 audio.outputDevice,
+                audio.outputDeviceName,
                 devices.outputs,
-                (choice) => audio.copyWith(outputDevice: choice),
+                audio.withOutput,
               ),
             ),
           ],
@@ -155,7 +171,6 @@ class VoicePage extends ConsumerWidget {
         const SizedBox(height: OcSpace.s24),
         SettingsSection(
           title: 'Volume',
-          footer: 'Voice arrives in Phase 2; these choices are kept for it.',
           children: [
             _VolumeRow(
               label: 'Input volume',

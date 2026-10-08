@@ -73,6 +73,9 @@ class _DesktopShellState extends ConsumerState<DesktopShell> {
     ref.listenManual(appLinkInboxProvider, (_, links) {
       if (links.isNotEmpty) _openLinks();
     }, fireImmediately: true);
+    ref.listenManual(audioNoticeProvider, (_, notice) {
+      if (notice != null && mounted) showOcToast(context, notice.message);
+    });
   }
 
   /// Opens the `opencord://` links waiting in the inbox (§15), after the

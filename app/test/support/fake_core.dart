@@ -8,6 +8,13 @@ import 'package:opencord/src/rust/api/types.dart' as core;
 /// The Rust core's calls, recorded and answered from fields the test sets.
 class FakeCoreApi extends Fake implements CoreApi {
   final events = StreamController<core.CoreEvent>.broadcast();
+  final media = StreamController<core.MediaEvent>.broadcast();
+
+  /// What audioDevices answers.
+  var devices = const core.AudioDevices(inputs: [], outputs: []);
+
+  /// What audioApplySettings was last sent.
+  core.AudioSettings? audioSettings;
   final calls = <String>[];
   var servers = <core.Server>[];
   var identityInfo = const core.IdentityInfo(
@@ -37,6 +44,27 @@ class FakeCoreApi extends Fake implements CoreApi {
 
   @override
   Stream<core.CoreEvent> eventStream() => events.stream;
+
+  @override
+  Stream<core.MediaEvent> mediaEventStream() => media.stream;
+
+  @override
+  Future<core.AudioDevices> audioDevices() async => devices;
+
+  @override
+  void audioApplySettings(core.AudioSettings settings) =>
+      audioSettings = settings;
+
+  @override
+  void voiceSetPushToTalk(bool held) => calls.add('pushToTalk:$held');
+
+  @override
+  void voiceSetUserVolume(String serverKey, int userId, double volume) =>
+      calls.add('userVolume:$serverKey:$userId:$volume');
+
+  @override
+  void voiceSetUserLocalMute(String serverKey, int userId, bool muted) =>
+      calls.add('localMute:$serverKey:$userId:$muted');
 
   @override
   core.GeneratedIdentity identityGenerate() => core.GeneratedIdentity(

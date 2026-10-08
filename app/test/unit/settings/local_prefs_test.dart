@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:opencord/core/model/voice.dart';
 import 'package:opencord/core/repository/repository.dart';
 import 'package:opencord/core/settings/key_value_store.dart';
 import 'package:opencord/core/settings/local_prefs.dart';
@@ -80,6 +81,48 @@ void main() {
     expect(later.read(selfPresenceProvider), SelfPresence.doNotDisturb);
     expect(later.read(audioSettingsProvider).inputVolume, 150);
     expect(later.read(audioSettingsProvider).inputMode, InputMode.pushToTalk);
+  });
+
+  test('devices are kept by id, with a name for while they are unplugged', () {
+    const usb = AudioDevice(id: 'pipewire:usb-mic', name: 'USB mic');
+
+    final chosen = const AudioSettings().withInput(usb);
+    final restored = AudioSettings.fromJson(chosen.toJson());
+    final back = restored.withInput(null);
+
+    expect(
+      (restored.inputDevice, restored.inputDeviceName),
+      ('pipewire:usb-mic', 'USB mic'),
+    );
+    expect((back.inputDevice, back.inputDeviceName), (null, null));
+  });
+
+  test('device names saved before Phase 2 mean the default device', () {
+    final old = AudioSettings.fromJson({
+      'inputDevice': 'USB headset microphone',
+      'outputDevice': 'Default',
+    });
+
+    expect(old.inputDevice, isNull);
+    expect(old.outputDevice, isNull);
+  });
+
+  test('the audio settings tell voice media what to use', () {
+    const usb = AudioDevice(id: 'pipewire:usb-mic', name: 'USB mic');
+
+    final config = const AudioSettings()
+        .withInput(usb)
+        .copyWith(inputMode: InputMode.pushToTalk, outputVolume: 80)
+        .config;
+
+    expect(
+      config,
+      const AudioConfig(
+        inputDevice: 'pipewire:usb-mic',
+        pushToTalk: true,
+        outputVolume: 80,
+      ),
+    );
   });
 
   test('volumes stay within 0–200 %', () {

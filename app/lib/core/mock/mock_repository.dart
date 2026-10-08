@@ -1416,6 +1416,7 @@ class MockRepository implements OpencordRepository {
     participants.add(_selfVoice);
     _voice = (server: serverKey, channel: channelId);
     _emit(VoiceChanged(serverKey, channelId, List.of(participants)));
+    _emit(VoiceConnectionChanged(serverKey, channelId, _connected));
     if (!simulateLife) return;
     _speaking = Timer.periodic(const Duration(milliseconds: 650), (_) {
       final speakers = <int>{
@@ -1473,6 +1474,65 @@ class MockRepository implements OpencordRepository {
     _emit(VoiceChanged(session.server, session.channel, List.of(from)));
     _emit(VoiceChanged(session.server, channelId, List.of(to)));
     _emit(OwnVoiceChanged(session.server, channelId));
+    _emit(VoiceConnectionChanged(session.server, channelId, _connected));
+  }
+
+  static const _connected = VoiceConnectionStatus(
+    VoiceConnectionPhase.connected,
+  );
+
+  /// As voice media would report: the connection of the current voice
+  /// session is now [status].
+  void debugVoiceConnection(VoiceConnectionStatus status) {
+    final session = _voice;
+    if (session == null) return;
+    _emit(VoiceConnectionChanged(session.server, session.channel, status));
+  }
+
+  /// As voice media would report: the chosen device is missing.
+  void debugDeviceFellBack({required bool output, required String device}) =>
+      _emit(AudioDeviceFellBack(output: output, device: device));
+
+  /// Stand-ins for the system's microphones and speakers.
+  static const devices = AudioDeviceList(
+    inputs: [
+      AudioDevice(id: 'mock:microphone', name: 'Built-in microphone'),
+      AudioDevice(id: 'mock:usb-microphone', name: 'USB headset microphone'),
+    ],
+    outputs: [
+      AudioDevice(id: 'mock:speakers', name: 'Built-in speakers'),
+      AudioDevice(id: 'mock:usb-headset', name: 'USB headset'),
+    ],
+    defaultInput: 'mock:microphone',
+    defaultOutput: 'mock:speakers',
+  );
+
+  /// What [applyAudio] was last given.
+  AudioConfig? audio;
+  var pushToTalkHeld = false;
+
+  /// Per server and user: volume in percent, and local mute.
+  final listening = <(String, int), (int, bool)>{};
+
+  @override
+  Future<AudioDeviceList> audioDevices() async => devices;
+
+  @override
+  void applyAudio(AudioConfig config) => audio = config;
+
+  @override
+  void setPushToTalk(bool held) => pushToTalkHeld = held;
+
+  @override
+  void setUserVolume(String serverKey, int userId, int volume) {
+    final (_, muted) = listening[(serverKey, userId)] ?? (100, false);
+    listening[(serverKey, userId)] = (volume, muted);
+  }
+
+  @override
+  void setUserLocalMute(String serverKey, int userId, bool muted) {
+    final (volume, _) = listening[(serverKey, userId)] ?? (100, false);
+    listening[(serverKey, userId)] = (volume, muted);
   }
 
   @override

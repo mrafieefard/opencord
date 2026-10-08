@@ -162,3 +162,39 @@ final class SpeakingChanged extends RepoEvent {
 
   final Set<int> speaking;
 }
+
+/// How this device's voice connection is doing (Phase 2 plan §7.14).
+final class VoiceConnectionChanged extends RepoEvent {
+  const VoiceConnectionChanged(super.serverKey, this.channelId, this.status);
+
+  final int channelId;
+  final VoiceConnectionStatus status;
+}
+
+/// The microphones and speakers plugged in changed.
+final class AudioDevicesChanged extends RepoEvent {
+  const AudioDevicesChanged(this.devices) : super('');
+
+  final AudioDeviceList devices;
+}
+
+/// The chosen microphone or speaker is missing; the system's default stands
+/// in (Phase 2 plan §7.6).
+final class AudioDeviceFellBack extends RepoEvent {
+  const AudioDeviceFellBack({required this.output, required this.device})
+    : super('');
+
+  final bool output;
+
+  /// The device standing in.
+  final String device;
+}
+
+/// No microphone or speaker could be opened.
+final class AudioDeviceFailed extends RepoEvent {
+  const AudioDeviceFailed({required this.output, required this.message})
+    : super('');
+
+  final bool output;
+  final String message;
+}

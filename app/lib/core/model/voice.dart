@@ -129,3 +129,143 @@ class VoiceSettings {
     maxSounds,
   );
 }
+
+/// Where this device's voice connection is (Phase 2 plan §7.14), as the
+/// voice panel names it.
+enum VoiceConnectionPhase {
+  awaitingEndpoint('Awaiting endpoint'),
+  authenticating('Authenticating'),
+  rtcConnecting('RTC connecting'),
+  connected('Voice connected'),
+  reconnecting('Reconnecting'),
+  noRoute('No route'),
+  disconnected('Voice disconnected');
+
+  const VoiceConnectionPhase(this.label);
+
+  final String label;
+}
+
+@immutable
+class VoiceConnectionStatus {
+  const VoiceConnectionStatus(this.phase, {this.reason});
+
+  final VoiceConnectionPhase phase;
+
+  /// Why it disconnected, in the core's words.
+  final String? reason;
+
+  /// More about the phase, where there is something to say.
+  String? get detail => switch (phase) {
+    VoiceConnectionPhase.noRoute =>
+      "UDP port 7711 may be blocked by your network or the server's firewall",
+    VoiceConnectionPhase.disconnected => reason,
+    _ => null,
+  };
+
+  @override
+  bool operator ==(Object other) =>
+      other is VoiceConnectionStatus &&
+      other.phase == phase &&
+      other.reason == reason;
+
+  @override
+  int get hashCode => Object.hash(phase, reason);
+
+  @override
+  String toString() => 'VoiceConnectionStatus($phase, $reason)';
+}
+
+/// A microphone or speaker the system offers.
+@immutable
+class AudioDevice {
+  const AudioDevice({required this.id, required this.name});
+
+  /// What settings keep.
+  final String id;
+  final String name;
+
+  @override
+  bool operator ==(Object other) =>
+      other is AudioDevice && other.id == id && other.name == name;
+
+  @override
+  int get hashCode => Object.hash(id, name);
+}
+
+@immutable
+class AudioDeviceList {
+  const AudioDeviceList({
+    this.inputs = const [],
+    this.outputs = const [],
+    this.defaultInput,
+    this.defaultOutput,
+  });
+
+  final List<AudioDevice> inputs;
+  final List<AudioDevice> outputs;
+
+  /// The system's default devices' ids.
+  final String? defaultInput;
+  final String? defaultOutput;
+
+  @override
+  bool operator ==(Object other) =>
+      other is AudioDeviceList &&
+      listEquals(other.inputs, inputs) &&
+      listEquals(other.outputs, outputs) &&
+      other.defaultInput == defaultInput &&
+      other.defaultOutput == defaultOutput;
+
+  @override
+  int get hashCode => Object.hash(
+    Object.hashAll(inputs),
+    Object.hashAll(outputs),
+    defaultInput,
+    defaultOutput,
+  );
+}
+
+/// Audio choices, as voice media takes them.
+@immutable
+class AudioConfig {
+  const AudioConfig({
+    this.inputDevice,
+    this.outputDevice,
+    this.pushToTalk = false,
+    this.inputVolume = 100,
+    this.outputVolume = 100,
+  });
+
+  /// A device id; null follows the system's default.
+  final String? inputDevice;
+  final String? outputDevice;
+  final bool pushToTalk;
+
+  /// 0–200 %.
+  final int inputVolume;
+  final int outputVolume;
+
+  @override
+  bool operator ==(Object other) =>
+      other is AudioConfig &&
+      other.inputDevice == inputDevice &&
+      other.outputDevice == outputDevice &&
+      other.pushToTalk == pushToTalk &&
+      other.inputVolume == inputVolume &&
+      other.outputVolume == outputVolume;
+
+  @override
+  int get hashCode => Object.hash(
+    inputDevice,
+    outputDevice,
+    pushToTalk,
+    inputVolume,
+    outputVolume,
+  );
+
+  @override
+  String toString() =>
+      'AudioConfig($inputDevice, $outputDevice, push-to-talk: $pushToTalk, '
+      '$inputVolume %, $outputVolume %)';
+}

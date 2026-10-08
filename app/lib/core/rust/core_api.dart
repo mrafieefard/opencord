@@ -11,6 +11,20 @@ import 'package:opencord/src/rust/api/types.dart' as core;
 abstract interface class CoreApi {
   Stream<core.CoreEvent> eventStream();
 
+  /// Voice media's connection states and device news.
+  Stream<core.MediaEvent> mediaEventStream();
+
+  Future<core.AudioDevices> audioDevices();
+
+  void audioApplySettings(core.AudioSettings settings);
+
+  void voiceSetPushToTalk(bool held);
+
+  /// 0–2 (200 %).
+  void voiceSetUserVolume(String serverKey, int userId, double volume);
+
+  void voiceSetUserLocalMute(String serverKey, int userId, bool muted);
+
   core.GeneratedIdentity identityGenerate();
 
   /// Checks what [identityLoad] would use, without using it.
@@ -178,6 +192,31 @@ class FrbCoreApi implements CoreApi {
 
   @override
   Stream<core.CoreEvent> eventStream() => frb.eventStream();
+
+  @override
+  Stream<core.MediaEvent> mediaEventStream() => frb.mediaEventStream();
+
+  @override
+  Future<core.AudioDevices> audioDevices() => frb.audioDevices();
+
+  @override
+  void audioApplySettings(core.AudioSettings settings) =>
+      frb.audioApplySettings(settings: settings);
+
+  @override
+  void voiceSetPushToTalk(bool held) => frb.voiceSetPushToTalk(held: held);
+
+  @override
+  void voiceSetUserVolume(String serverKey, int userId, double volume) => frb
+      .voiceSetUserVolume(serverKey: serverKey, userId: userId, volume: volume);
+
+  @override
+  void voiceSetUserLocalMute(String serverKey, int userId, bool muted) =>
+      frb.voiceSetUserLocalMute(
+        serverKey: serverKey,
+        userId: userId,
+        muted: muted,
+      );
 
   @override
   core.GeneratedIdentity identityGenerate() => frb.identityGenerate();

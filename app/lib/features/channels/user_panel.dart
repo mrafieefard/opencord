@@ -191,15 +191,21 @@ class _SplitButton extends StatelessWidget {
 }
 
 /// The quick audio menu (§4.2, §17.1): devices, input mode and volumes,
-/// without opening settings. Voice is mock-only in Phase 1; the choices
-/// are saved.
-Future<void> showQuickAudioMenu(BuildContext context) => showPopover<void>(
-  context: context,
-  anchor: globalRectOf(context),
-  side: PopoverSide.above,
-  padding: const EdgeInsets.all(OcSpace.s12),
-  builder: (context) => const SizedBox(width: 280, child: _QuickAudioMenu()),
-);
+/// without opening settings.
+Future<void> showQuickAudioMenu(BuildContext context) {
+  // Devices plugged in since voice last looked.
+  ProviderScope.containerOf(
+    context,
+    listen: false,
+  ).read(audioDeviceListProvider.notifier).refresh();
+  return showPopover<void>(
+    context: context,
+    anchor: globalRectOf(context),
+    side: PopoverSide.above,
+    padding: const EdgeInsets.all(OcSpace.s12),
+    builder: (context) => const SizedBox(width: 280, child: _QuickAudioMenu()),
+  );
+}
 
 class _QuickAudioMenu extends ConsumerWidget {
   const _QuickAudioMenu();
@@ -207,17 +213,18 @@ class _QuickAudioMenu extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final audio = ref.watch(audioSettingsProvider);
+    final devices = ref.watch(audioDeviceListProvider);
     final update = ref.read(audioSettingsProvider.notifier).update;
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         const SectionLabel('Input device'),
-        for (final device in ref.watch(audioDevicesProvider).inputs)
+        for (final (device, label) in deviceChoices(devices.inputs))
           _Choice(
-            label: device,
-            chosen: audio.inputDevice == device,
-            onTap: () => update((a) => a.copyWith(inputDevice: device)),
+            label: label,
+            chosen: audio.inputDevice == device?.id,
+            onTap: () => update((a) => a.withInput(device)),
           ),
         const SizedBox(height: OcSpace.s10),
         const SectionLabel('Input mode'),
@@ -248,11 +255,11 @@ class _QuickAudioMenu extends ConsumerWidget {
         _LevelMeter(gain: audio.inputVolume / 100),
         const SizedBox(height: OcSpace.s10),
         const SectionLabel('Output device'),
-        for (final device in ref.watch(audioDevicesProvider).outputs)
+        for (final (device, label) in deviceChoices(devices.outputs))
           _Choice(
-            label: device,
-            chosen: audio.outputDevice == device,
-            onTap: () => update((a) => a.copyWith(outputDevice: device)),
+            label: label,
+            chosen: audio.outputDevice == device?.id,
+            onTap: () => update((a) => a.withOutput(device)),
           ),
         const SizedBox(height: OcSpace.s10),
         _Volume(

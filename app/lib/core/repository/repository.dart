@@ -364,6 +364,22 @@ abstract interface class OpencordRepository {
     bool? camera,
     bool? screensharing,
   });
+
+  /// Microphones and speakers the system offers (Phase 2 plan §7.6).
+  Future<AudioDeviceList> audioDevices();
+
+  /// Devices, input mode and volumes for voice; at start and on every
+  /// change.
+  void applyAudio(AudioConfig config);
+
+  /// The push-to-talk key went down or up.
+  void setPushToTalk(bool held);
+
+  /// How loud someone sounds on this device, 0–200 %.
+  void setUserVolume(String serverKey, int userId, int volume);
+
+  /// Silences someone on this device only.
+  void setUserLocalMute(String serverKey, int userId, bool muted);
 }
 
 /// Overridden at startup with the mock or the Rust-core repository.

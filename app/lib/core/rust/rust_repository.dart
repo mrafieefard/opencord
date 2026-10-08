@@ -75,6 +75,7 @@ class RustRepository implements OpencordRepository {
   final SavedIdentity? _saved;
   final _events = StreamController<RepoEvent>.broadcast();
   StreamSubscription<core.CoreEvent>? _coreEvents;
+  StreamSubscription<core.MediaEvent>? _mediaEvents;
 
   LocalIdentity? _identity;
   Uint8List? _secret;
@@ -128,6 +129,7 @@ class RustRepository implements OpencordRepository {
   @override
   void start() {
     _coreEvents = _core.eventStream().listen(_onCoreEvent);
+    _mediaEvents = _core.mediaEventStream().listen(_onMediaEvent);
     if (_saved case final saved?) _useSaved(saved);
   }
 
@@ -142,6 +144,7 @@ class RustRepository implements OpencordRepository {
   @override
   void dispose() {
     _coreEvents?.cancel();
+    _mediaEvents?.cancel();
     _events.close();
   }
 
@@ -923,6 +926,41 @@ class RustRepository implements OpencordRepository {
     _ownVoice = null;
     await _call(_core.voiceLeave);
   }
+
+  void _onMediaEvent(core.MediaEvent event) => _emit(switch (event) {
+    core.MediaEvent_ConnectionState(
+      :final serverKey,
+      :final channelId,
+      :final state,
+    ) =>
+      VoiceConnectionChanged(serverKey, channelId, voiceConnectionFrom(state)),
+    core.MediaEvent_DevicesChanged(:final field0) => AudioDevicesChanged(
+      audioDevicesFrom(field0),
+    ),
+    core.MediaEvent_DeviceFellBack(:final output, :final device) =>
+      AudioDeviceFellBack(output: output, device: device),
+    core.MediaEvent_DeviceFailed(:final output, :final message) =>
+      AudioDeviceFailed(output: output, message: message),
+  });
+
+  @override
+  Future<AudioDeviceList> audioDevices() async =>
+      audioDevicesFrom(await _call(_core.audioDevices));
+
+  @override
+  void applyAudio(AudioConfig config) =>
+      _now(() => _core.audioApplySettings(audioSettingsTo(config)));
+
+  @override
+  void setPushToTalk(bool held) => _now(() => _core.voiceSetPushToTalk(held));
+
+  @override
+  void setUserVolume(String serverKey, int userId, int volume) =>
+      _now(() => _core.voiceSetUserVolume(serverKey, userId, volume / 100));
+
+  @override
+  void setUserLocalMute(String serverKey, int userId, bool muted) =>
+      _now(() => _core.voiceSetUserLocalMute(serverKey, userId, muted));
 
   /// Camera and screen share wait for media (Phase 2 V5, V6).
   @override
