@@ -16,12 +16,14 @@ opencord-server = { path = "crates/opencord-server" }
 opencord-voice = { path = "crates/opencord-voice" }
 
 anyhow = "1.0.104"
+audio_thread_priority = "0.38.0"
 audioadapter-buffers = "5.2.0"
 axum = { version = "0.8.9", features = ["ws"] }
 axum-server = { version = "0.8.0", features = ["tls-rustls-no-provider"] }
 bitflags = "2.13.2"
 bytes = "1.12.1"
 clap = { version = "4.6.7", features = ["derive", "env"] }
+cpal = { version = "0.18.2", features = ["pipewire"] }
 data-encoding = "2.11.1"
 ed25519-dalek = "3.0.0"
 flutter_rust_bridge = "=2.13.0"

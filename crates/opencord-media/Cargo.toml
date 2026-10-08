@@ -8,8 +8,10 @@ license = "MPL-2.0"
 publish = false
 
 [dependencies]
+audio_thread_priority.workspace = true
 audioadapter-buffers.workspace = true
 bytes.workspace = true
+cpal.workspace = true
 futures-util.workspace = true
 getrandom.workspace = true
 opencord-common.workspace = true

@@ -5,9 +5,12 @@
 pub mod capture;
 pub mod codec;
 pub mod convert;
+pub mod device;
+pub mod engine;
 pub mod jitter;
 pub mod mixer;
 pub mod playback;
+pub mod processor;
 
 /// The processing sample rate.
 pub const SAMPLE_RATE: u32 = 48_000;
