@@ -17,7 +17,7 @@ opencord-voice = { path = "crates/opencord-voice" }
 
 aec3 = "0.4.0"
 anyhow = "1.0.104"
-ashpd = { version = "0.13.13", default-features = false, features = ["tokio", "global_shortcuts"] }
+ashpd = { version = "0.13.13", default-features = false, features = ["tokio", "camera", "global_shortcuts"] }
 audio_thread_priority = "0.38.0"
 audioadapter-buffers = "5.2.0"
 axum = { version = "0.8.9", features = ["ws"] }
@@ -39,6 +39,7 @@ nnnoiseless = { version = "0.5.2", default-features = false }
 openh264 = { version = "0.9.8", default-features = false, features = ["libloading"] }
 openh264-sys2 = { version = "0.9.8", default-features = false, features = ["libloading"] }
 opus = "0.4.0"
+pipewire = "0.10.1"
 prost = "0.14.4"
 prost-build = "0.14.4"
 protox = "0.9.1"
@@ -65,6 +66,7 @@ tract-onnx = "0.23.8"
 tract-pulse = "0.23.8"
 tracing = "0.1.44"
 tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
+v4l = "0.14.0"
 webpki-roots = "1.0.9"
 x11rb = { version = "0.14.0", features = ["xinput", "xtest"] }
 

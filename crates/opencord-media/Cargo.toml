@@ -48,4 +48,6 @@ ashpd.workspace = true
 ffmpeg-next.workspace = true
 openh264.workspace = true
 openh264-sys2.workspace = true
+pipewire.workspace = true
+v4l.workspace = true
 x11rb.workspace = true

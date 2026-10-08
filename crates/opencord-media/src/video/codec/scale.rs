@@ -54,20 +54,37 @@ impl Scaler {
         height: u32,
         format: PixelFormat,
     ) -> Result<Picture, CodecError> {
-        let frame = ffmpeg::to_frame(input);
+        self.frame(
+            &ffmpeg::to_frame(input),
+            width,
+            height,
+            format,
+            input.captured,
+        )
+    }
+
+    /// An FFmpeg frame of any format as a picture.
+    pub(super) fn frame(
+        &mut self,
+        frame: &ff::frame::Video,
+        width: u32,
+        height: u32,
+        format: PixelFormat,
+        captured: std::time::Instant,
+    ) -> Result<Picture, CodecError> {
         let shape = (
             frame.format(),
-            input.width,
-            input.height,
+            frame.width(),
+            frame.height(),
             ffmpeg::pixel(format),
             width,
             height,
         );
         let mut output = ff::frame::Video::empty();
         self.context(shape)?
-            .run(&frame, &mut output)
+            .run(frame, &mut output)
             .map_err(ffmpeg::error)?;
-        ffmpeg::from_frame(&output, input.captured).ok_or(CodecError::WrongPicture)
+        ffmpeg::from_frame(&output, captured).ok_or(CodecError::WrongPicture)
     }
 
     /// The picture as RGBA rows, `width` by `height`.

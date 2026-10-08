@@ -13,6 +13,8 @@ mod ffmpeg;
 #[cfg(target_os = "linux")]
 pub mod openh264;
 #[cfg(target_os = "linux")]
+pub mod raw;
+#[cfg(target_os = "linux")]
 pub mod scale;
 #[cfg(target_os = "linux")]
 mod vaapi;
