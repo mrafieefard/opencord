@@ -383,6 +383,36 @@ void voiceSetSelfMute({required bool muted}) =>
 void voiceSetSelfDeaf({required bool deafened}) =>
     RustLib.instance.api.crateApiClientVoiceSetSelfDeaf(deafened: deafened);
 
+/// Video draws into this Flutter engine's textures (plan §7.11): call once
+/// at start with `EngineContext.instance.getEngineHandle()`.
+void videoInit({required PlatformInt64 engineHandle}) =>
+    RustLib.instance.api.crateApiClientVideoInit(engineHandle: engineHandle);
+
+/// Whether this system has cameras and video yet (Linux only for now).
+bool videoSupported() => RustLib.instance.api.crateApiClientVideoSupported();
+
+/// The cameras there are. On Linux this may ask the user for camera access
+/// first (the Camera portal).
+Future<List<CameraDevice>> cameraDevices() =>
+    RustLib.instance.api.crateApiClientCameraDevices();
+
+/// Turns this device's camera on in its voice channel and publishes it; its
+/// preview is drawn into the texture it returns.
+Future<CameraStarted> cameraStart({String? deviceId}) =>
+    RustLib.instance.api.crateApiClientCameraStart(deviceId: deviceId);
+
+void cameraStop() => RustLib.instance.api.crateApiClientCameraStop();
+
+/// The tiles showing video now, at their sizes in physical pixels; tracks
+/// not named are neither received nor decoded (plan §6, §7.11).
+void videoSetWants({required List<VideoWant> wants}) =>
+    RustLib.instance.api.crateApiClientVideoSetWants(wants: wants);
+
+/// How many pictures a video texture got and how often Flutter drew it;
+/// `None` for a texture that is gone (or none at all).
+TextureStats? videoTextureStats({required PlatformInt64 textureId}) =>
+    RustLib.instance.api.crateApiClientVideoTextureStats(textureId: textureId);
+
 /// Microphones and speakers the system offers now.
 Future<AudioDevices> audioDevices() =>
     RustLib.instance.api.crateApiClientAudioDevices();

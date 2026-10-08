@@ -12,11 +12,12 @@ use opencord_media::audio::processing;
 use tokio::runtime::Runtime;
 
 use super::types::{
-    AddServerOutcome, AudioDevices, AudioSettings, Ban, Channel, ChannelChanges, ChannelKind,
-    ChannelPosition, CoreError, CoreEvent, GeneratedIdentity, HotkeyBinding, HotkeySupport,
-    IdentityInfo, Invite, MediaEvent, Member, Message, NoiseSuppressionMode, OverwriteTargetKind,
-    PermissionOverwrite, PresenceStatus, Role, RoleChanges, Server, ServerChanges, ServerInfo,
-    TrustedFingerprint, User, VoiceSettings, VoiceSettingsChanges, VoiceState,
+    AddServerOutcome, AudioDevices, AudioSettings, Ban, CameraDevice, CameraStarted, Channel,
+    ChannelChanges, ChannelKind, ChannelPosition, CoreError, CoreEvent, GeneratedIdentity,
+    HotkeyBinding, HotkeySupport, IdentityInfo, Invite, MediaEvent, Member, Message,
+    NoiseSuppressionMode, OverwriteTargetKind, PermissionOverwrite, PresenceStatus, Role,
+    RoleChanges, Server, ServerChanges, ServerInfo, TextureStats, TrustedFingerprint, User,
+    VideoWant, VoiceSettings, VoiceSettingsChanges, VoiceState,
 };
 use crate::client::Client;
 use crate::frb_generated::StreamSink;
@@ -482,6 +483,62 @@ pub fn voice_set_self_mute(muted: bool) -> Result<(), CoreError> {
 pub fn voice_set_self_deaf(deafened: bool) -> Result<(), CoreError> {
     client()?.set_voice_self(None, Some(deafened));
     Ok(())
+}
+
+/// Video draws into this Flutter engine's textures (plan §7.11): call once
+/// at start with `EngineContext.instance.getEngineHandle()`.
+#[frb(sync)]
+pub fn video_init(engine_handle: i64) -> Result<(), CoreError> {
+    client()?.video_init(engine_handle);
+    Ok(())
+}
+
+/// Whether this system has cameras and video yet (Linux only for now).
+#[frb(sync)]
+pub fn video_supported() -> bool {
+    cfg!(target_os = "linux")
+}
+
+/// The cameras there are. On Linux this may ask the user for camera access
+/// first (the Camera portal).
+pub async fn camera_devices() -> Result<Vec<CameraDevice>, CoreError> {
+    on_runtime(|_| async move { crate::video::cameras().await }).await
+}
+
+/// Turns this device's camera on in its voice channel and publishes it; its
+/// preview is drawn into the texture it returns.
+pub async fn camera_start(device_id: Option<String>) -> Result<CameraStarted, CoreError> {
+    on_runtime(move |client| async move { client.camera_start(device_id).await }).await
+}
+
+#[frb(sync)]
+pub fn camera_stop() -> Result<(), CoreError> {
+    client()?.camera_stop();
+    Ok(())
+}
+
+/// The tiles showing video now, at their sizes in physical pixels; tracks
+/// not named are neither received nor decoded (plan §6, §7.11).
+#[frb(sync)]
+pub fn video_set_wants(wants: Vec<VideoWant>) -> Result<(), CoreError> {
+    client()?.video_set_wants(wants);
+    Ok(())
+}
+
+/// How many pictures a video texture got and how often Flutter drew it;
+/// `None` for a texture that is gone (or none at all).
+#[frb(sync)]
+pub fn video_texture_stats(texture_id: i64) -> Option<TextureStats> {
+    #[cfg(target_os = "linux")]
+    {
+        crate::video::flutter::stats(texture_id)
+            .map(|(presented, drawn)| TextureStats { presented, drawn })
+    }
+    #[cfg(not(target_os = "linux"))]
+    {
+        let _ = texture_id;
+        None
+    }
 }
 
 /// Microphones and speakers the system offers now.

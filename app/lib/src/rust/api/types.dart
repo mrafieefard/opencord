@@ -8,7 +8,7 @@ import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 import 'package:freezed_annotation/freezed_annotation.dart' hide protected;
 part 'types.freezed.dart';
 
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`
 
 @freezed
 sealed class AddServerOutcome with _$AddServerOutcome {
@@ -188,6 +188,77 @@ class Ban {
           reason == other.reason &&
           bannedBy == other.bannedBy &&
           createdAtMs == other.createdAtMs;
+}
+
+/// A camera (Phase 2 plan §8).
+class CameraDevice {
+  /// Stable while it stays plugged in; what settings keep.
+  final String id;
+  final String name;
+
+  const CameraDevice({required this.id, required this.name});
+
+  @override
+  int get hashCode => id.hashCode ^ name.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is CameraDevice &&
+          runtimeType == other.runtimeType &&
+          id == other.id &&
+          name == other.name;
+}
+
+/// Why the camera could not start.
+enum CameraProblem {
+  /// Not on this system yet (only Linux has cameras for now).
+  notSupported,
+  noCamera,
+
+  /// The user (or the system) refused access.
+  denied,
+
+  /// The camera offers nothing Opencord can use.
+  noUsableMode,
+
+  /// Turning the camera on needs a voice connection.
+  notInVoice,
+  failed,
+}
+
+/// This device's camera, on.
+class CameraStarted {
+  /// Its track, for `video_set_wants` (the preview's tile).
+  final String trackId;
+
+  /// The preview's texture, unmirrored; `None` without `video_init`.
+  final PlatformInt64? textureId;
+
+  /// What the camera captures.
+  final int width;
+  final int height;
+
+  const CameraStarted({
+    required this.trackId,
+    this.textureId,
+    required this.width,
+    required this.height,
+  });
+
+  @override
+  int get hashCode =>
+      trackId.hashCode ^ textureId.hashCode ^ width.hashCode ^ height.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is CameraStarted &&
+          runtimeType == other.runtimeType &&
+          trackId == other.trackId &&
+          textureId == other.textureId &&
+          width == other.width &&
+          height == other.height;
 }
 
 class Channel {
@@ -388,6 +459,10 @@ sealed class CoreError with _$CoreError implements FrbException {
       CoreError_Connection;
   const factory CoreError.storage({required String message}) =
       CoreError_Storage;
+  const factory CoreError.camera({
+    required CameraProblem problem,
+    required String message,
+  }) = CoreError_Camera;
 }
 
 class CoreEvent {
@@ -676,6 +751,32 @@ sealed class MediaEvent with _$MediaEvent {
   /// and the priority key act by themselves).
   const factory MediaEvent.hotkeyPressed({required HotkeyAction action}) =
       MediaEvent_HotkeyPressed;
+
+  /// Someone's camera or screen in this device's voice channel; drawn into
+  /// `texture_id` (with `video_init`) while `video_set_wants` asks for it.
+  const factory MediaEvent.videoTrackAdded({
+    required String serverKey,
+    required PlatformInt64 channelId,
+    required PlatformInt64 userId,
+    required String trackId,
+    required VideoTrackKind kind,
+    PlatformInt64? textureId,
+
+    /// Its largest layer's size: the shape to draw it in.
+    required int width,
+    required int height,
+  }) = MediaEvent_VideoTrackAdded;
+  const factory MediaEvent.videoTrackRemoved({
+    required String serverKey,
+    required PlatformInt64 channelId,
+    required PlatformInt64 userId,
+    required String trackId,
+  }) = MediaEvent_VideoTrackRemoved;
+
+  /// This device's camera stopped by itself: unplugged, failed, or the
+  /// server no longer allows it.
+  const factory MediaEvent.cameraStopped({required String message}) =
+      MediaEvent_CameraStopped;
 }
 
 class Member {
@@ -1093,6 +1194,28 @@ class SpeakingChange {
           speaking == other.speaking;
 }
 
+/// A video texture's counts, for diagnostics and tests.
+class TextureStats {
+  /// Pictures the core handed it.
+  final BigInt presented;
+
+  /// Times Flutter drew from it.
+  final BigInt drawn;
+
+  const TextureStats({required this.presented, required this.drawn});
+
+  @override
+  int get hashCode => presented.hashCode ^ drawn.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is TextureStats &&
+          runtimeType == other.runtimeType &&
+          presented == other.presented &&
+          drawn == other.drawn;
+}
+
 /// A pinned certificate.
 class TrustedFingerprint {
   /// `host:port`.
@@ -1144,6 +1267,34 @@ class User {
           publicKeyHex == other.publicKeyHex &&
           fingerprint == other.fingerprint &&
           displayName == other.displayName;
+}
+
+enum VideoTrackKind { camera, screen }
+
+/// A tile showing a track, in physical pixels; tracks not named are not
+/// shown and not received (plan §6, §7.11).
+class VideoWant {
+  final String trackId;
+  final int width;
+  final int height;
+
+  const VideoWant({
+    required this.trackId,
+    required this.width,
+    required this.height,
+  });
+
+  @override
+  int get hashCode => trackId.hashCode ^ width.hashCode ^ height.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is VideoWant &&
+          runtimeType == other.runtimeType &&
+          trackId == other.trackId &&
+          width == other.width &&
+          height == other.height;
 }
 
 @freezed

@@ -35,6 +35,8 @@ getrandom = "0.4.3"
 governor = "0.10.4"
 hex = "0.4.3"
 hmac = "0.13.0"
+irondash_run_loop = "0.5.0"
+irondash_texture = "0.5.0"
 nnnoiseless = { version = "0.5.2", default-features = false }
 openh264 = { version = "0.9.8", default-features = false, features = ["libloading"] }
 openh264-sys2 = { version = "0.9.8", default-features = false, features = ["libloading"] }

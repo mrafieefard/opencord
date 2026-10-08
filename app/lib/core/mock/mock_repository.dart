@@ -11,6 +11,7 @@ import 'package:opencord/core/model/permissions.dart';
 import 'package:opencord/core/model/presence.dart';
 import 'package:opencord/core/model/server.dart';
 import 'package:opencord/core/model/user.dart';
+import 'package:opencord/core/model/video.dart';
 import 'package:opencord/core/model/voice.dart';
 import 'package:opencord/core/repository/repository.dart';
 
@@ -1457,6 +1458,16 @@ class MockRepository implements OpencordRepository {
   @override
   Future<void> leaveVoice() async => _leaveVoiceNow();
 
+  /// The mock paints its cameras; what the tiles asked for is only kept,
+  /// for tests.
+  @override
+  void setVideoWants(List<VideoWant> wants) => videoWants = wants;
+
+  List<VideoWant> videoWants = const [];
+
+  /// Thrown when the camera is turned on, for tests.
+  RepoException? cameraError;
+
   /// As a moderator would: moves the current user to [channelId] on the
   /// server they are in voice on, or disconnects them (null).
   void debugMoveSelf(int? channelId) {
@@ -1604,6 +1615,7 @@ class MockRepository implements OpencordRepository {
     bool? camera,
     bool? screensharing,
   }) async {
+    if (cameraError case final error? when camera == true) throw error;
     _selfVoice = _selfVoice.copyWith(
       muted: muted,
       deafened: deafened,

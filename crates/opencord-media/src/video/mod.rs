@@ -7,4 +7,6 @@ pub mod pattern;
 pub mod picture;
 pub mod priorities;
 #[cfg(target_os = "linux")]
+pub mod receiver;
+#[cfg(target_os = "linux")]
 pub mod sender;

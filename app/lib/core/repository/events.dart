@@ -6,6 +6,7 @@ import 'package:opencord/core/model/presence.dart';
 import 'package:opencord/core/model/server.dart';
 import 'package:opencord/core/model/snapshot.dart';
 import 'package:opencord/core/model/user.dart';
+import 'package:opencord/core/model/video.dart';
 import 'package:opencord/core/model/voice.dart';
 
 /// Something that happened on one server. Both repositories (mock and Rust
@@ -225,4 +226,46 @@ final class HotkeyPressed extends RepoEvent {
   const HotkeyPressed(this.action) : super('');
 
   final HotkeyAction action;
+}
+
+/// Someone's camera in a voice channel this device is in (Phase 2 V5).
+final class VideoTrackAdded extends RepoEvent {
+  const VideoTrackAdded(
+    super.serverKey,
+    this.channelId,
+    this.userId,
+    this.feed,
+  );
+
+  final int channelId;
+  final int userId;
+  final VideoFeed feed;
+}
+
+final class VideoTrackRemoved extends RepoEvent {
+  const VideoTrackRemoved(
+    super.serverKey,
+    this.channelId,
+    this.userId,
+    this.trackId,
+  );
+
+  final int channelId;
+  final int userId;
+  final String trackId;
+}
+
+/// This device's camera: its preview while on, null once off.
+final class OwnCameraChanged extends RepoEvent {
+  const OwnCameraChanged(this.feed) : super('');
+
+  final VideoFeed? feed;
+}
+
+/// This device's camera stopped by itself: unplugged, failed, or the server
+/// no longer allows it.
+final class CameraStopped extends RepoEvent {
+  const CameraStopped(this.message) : super('');
+
+  final String message;
 }

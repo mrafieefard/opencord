@@ -8,6 +8,7 @@ import 'package:opencord/core/model/permissions.dart';
 import 'package:opencord/core/model/presence.dart';
 import 'package:opencord/core/model/server.dart';
 import 'package:opencord/core/model/user.dart';
+import 'package:opencord/core/model/video.dart';
 import 'package:opencord/core/model/voice.dart';
 import 'package:opencord/core/repository/events.dart';
 
@@ -109,6 +110,12 @@ final class ServerNeedsTrust extends AddServerResult {
 }
 
 enum RepoErrorKind {
+  /// The camera: refused by the user or the system, missing, unusable, not
+  /// supported here yet, or full in this channel (Phase 2 V5).
+  cameraDenied,
+  cameraMissing,
+  cameraUnsupported,
+  cameraLimit,
   unauthorized,
   forbidden,
   notFound,
@@ -358,12 +365,18 @@ abstract interface class OpencordRepository {
 
   Future<void> leaveVoice();
 
+  /// Turning the camera on may fail (a [RepoException] says why); it then
+  /// stays off.
   Future<void> setVoiceSelf({
     bool? muted,
     bool? deafened,
     bool? camera,
     bool? screensharing,
   });
+
+  /// The tiles showing video now and their sizes in physical pixels; video
+  /// not named is neither received nor decoded (Phase 2 plan §6, §7.11).
+  void setVideoWants(List<VideoWant> wants);
 
   /// Microphones and speakers the system offers (Phase 2 plan §7.6).
   Future<AudioDeviceList> audioDevices();

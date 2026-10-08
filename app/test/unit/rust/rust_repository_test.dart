@@ -3,6 +3,7 @@ import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:opencord/core/model/channel_kind.dart';
+import 'package:opencord/core/model/video.dart';
 import 'package:opencord/core/model/voice.dart';
 import 'package:opencord/core/repository/repository.dart';
 import 'package:opencord/core/rust/identity_store.dart';
@@ -873,6 +874,160 @@ void main() {
       expect(devices.outputs.single.id, 'alsa:hw:1');
       expect(devices.defaultOutput, 'alsa:hw:1');
       expect(devices.defaultInput, isNull);
+    });
+  });
+
+  group('video (Phase 2 V5)', () {
+    const lounge = 20;
+
+    test(
+      "others' cameras reach the app with their textures and shapes",
+      () async {
+        final harness = await _Harness.start();
+
+        harness.core.media.add(
+          const core.MediaEvent.videoTrackAdded(
+            serverKey: _server,
+            channelId: lounge,
+            userId: _kai,
+            trackId: 'camera-kai',
+            kind: core.VideoTrackKind.camera,
+            textureId: 42,
+            width: 1280,
+            height: 720,
+          ),
+        );
+        harness.core.media.add(
+          const core.MediaEvent.videoTrackRemoved(
+            serverKey: _server,
+            channelId: lounge,
+            userId: _kai,
+            trackId: 'camera-kai',
+          ),
+        );
+        await harness.settle();
+
+        final added = harness.events.whereType<VideoTrackAdded>().single;
+        expect(
+          (added.serverKey, added.channelId, added.userId),
+          (_server, lounge, _kai),
+        );
+        expect(
+          added.feed,
+          const VideoFeed(
+            trackId: 'camera-kai',
+            textureId: 42,
+            width: 1280,
+            height: 720,
+          ),
+        );
+        final removed = harness.events.whereType<VideoTrackRemoved>().single;
+        expect((removed.userId, removed.trackId), (_kai, 'camera-kai'));
+      },
+    );
+
+    test('turning the camera on gives the app its mirrored preview', () async {
+      final harness = await _Harness.start();
+      harness.core.camera = const core.CameraStarted(
+        trackId: 'camera-me',
+        textureId: 7,
+        width: 1280,
+        height: 720,
+      );
+
+      await harness.repository.setVoiceSelf(camera: true);
+      await harness.repository.setVoiceSelf(camera: true);
+      await harness.repository.setVoiceSelf(camera: false);
+      await harness.settle();
+
+      expect(harness.core.calls.where((call) => call.startsWith('camera')), [
+        'cameraStart:null',
+        'cameraStop',
+      ]);
+      final own = harness.events.whereType<OwnCameraChanged>().toList();
+      expect(own.map((event) => event.feed), [
+        const VideoFeed(
+          trackId: 'camera-me',
+          textureId: 7,
+          width: 1280,
+          height: 720,
+          mirrored: true,
+        ),
+        null,
+      ]);
+    });
+
+    test('a camera that cannot start says why', () async {
+      final harness = await _Harness.start();
+      harness.core.cameraError = const core.CoreError.camera(
+        problem: core.CameraProblem.denied,
+        message: 'camera access was denied',
+      );
+
+      await expectLater(
+        harness.repository.setVoiceSelf(camera: true),
+        throwsA(
+          isA<RepoException>().having(
+            (error) => error.kind,
+            'kind',
+            RepoErrorKind.cameraDenied,
+          ),
+        ),
+      );
+      harness.core.cameraError = null;
+      await harness.repository.setVoiceSelf(camera: true);
+      expect(harness.core.calls.where((call) => call.startsWith('camera')), [
+        'cameraStart:null',
+        'cameraStart:null',
+      ]);
+    });
+
+    test('a camera that stops by itself is reported', () async {
+      final harness = await _Harness.start();
+      await harness.repository.setVoiceSelf(camera: true);
+
+      harness.core.media.add(
+        const core.MediaEvent.cameraStopped(message: 'the camera stopped'),
+      );
+      await harness.settle();
+
+      expect(
+        harness.events.whereType<CameraStopped>().single.message,
+        'the camera stopped',
+      );
+      expect(harness.events.whereType<OwnCameraChanged>().last.feed, isNull);
+      // On again starts it again.
+      await harness.repository.setVoiceSelf(camera: true);
+      expect(
+        harness.core.calls.where((call) => call == 'cameraStart:null'),
+        hasLength(2),
+      );
+    });
+
+    test('tiles showing video go to the core as wants', () async {
+      final harness = await _Harness.start();
+
+      harness.repository.setVideoWants(const [
+        VideoWant(trackId: 'camera-kai', width: 640, height: 360),
+      ]);
+
+      expect(harness.core.videoWants, [
+        const core.VideoWant(trackId: 'camera-kai', width: 640, height: 360),
+      ]);
+    });
+
+    test('the camera is offered where the core has video', () async {
+      final without = await _Harness.start();
+      expect(without.repository.capabilities.camera, isFalse);
+
+      final fake = FakeCoreApi()..video = true;
+      final repository = await RustRepository.open(
+        core: fake,
+        identities: MemoryIdentityStore(null),
+        store: MemoryKeyValueStore(),
+        clock: () => _now,
+      );
+      expect(repository.capabilities.camera, isTrue);
     });
   });
 

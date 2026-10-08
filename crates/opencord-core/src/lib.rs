@@ -11,4 +11,5 @@ pub mod media;
 pub mod mirror;
 pub mod store;
 pub mod tofu;
+pub mod video;
 pub mod voice;

@@ -727,7 +727,7 @@ extension CoreErrorPatterns on CoreError {
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeMap<TResult extends Object?>({TResult Function( CoreError_NotInitialized value)?  notInitialized,TResult Function( CoreError_NoIdentity value)?  noIdentity,TResult Function( CoreError_UnknownServer value)?  unknownServer,TResult Function( CoreError_NotConnected value)?  notConnected,TResult Function( CoreError_Timeout value)?  timeout,TResult Function( CoreError_InvalidInput value)?  invalidInput,TResult Function( CoreError_Server value)?  server,TResult Function( CoreError_FingerprintMismatch value)?  fingerprintMismatch,TResult Function( CoreError_Rejected value)?  rejected,TResult Function( CoreError_Connection value)?  connection,TResult Function( CoreError_Storage value)?  storage,required TResult orElse(),}){
+@optionalTypeArgs TResult maybeMap<TResult extends Object?>({TResult Function( CoreError_NotInitialized value)?  notInitialized,TResult Function( CoreError_NoIdentity value)?  noIdentity,TResult Function( CoreError_UnknownServer value)?  unknownServer,TResult Function( CoreError_NotConnected value)?  notConnected,TResult Function( CoreError_Timeout value)?  timeout,TResult Function( CoreError_InvalidInput value)?  invalidInput,TResult Function( CoreError_Server value)?  server,TResult Function( CoreError_FingerprintMismatch value)?  fingerprintMismatch,TResult Function( CoreError_Rejected value)?  rejected,TResult Function( CoreError_Connection value)?  connection,TResult Function( CoreError_Storage value)?  storage,TResult Function( CoreError_Camera value)?  camera,required TResult orElse(),}){
 final _that = this;
 switch (_that) {
 case CoreError_NotInitialized() when notInitialized != null:
@@ -741,7 +741,8 @@ return server(_that);case CoreError_FingerprintMismatch() when fingerprintMismat
 return fingerprintMismatch(_that);case CoreError_Rejected() when rejected != null:
 return rejected(_that);case CoreError_Connection() when connection != null:
 return connection(_that);case CoreError_Storage() when storage != null:
-return storage(_that);case _:
+return storage(_that);case CoreError_Camera() when camera != null:
+return camera(_that);case _:
   return orElse();
 
 }
@@ -759,7 +760,7 @@ return storage(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult map<TResult extends Object?>({required TResult Function( CoreError_NotInitialized value)  notInitialized,required TResult Function( CoreError_NoIdentity value)  noIdentity,required TResult Function( CoreError_UnknownServer value)  unknownServer,required TResult Function( CoreError_NotConnected value)  notConnected,required TResult Function( CoreError_Timeout value)  timeout,required TResult Function( CoreError_InvalidInput value)  invalidInput,required TResult Function( CoreError_Server value)  server,required TResult Function( CoreError_FingerprintMismatch value)  fingerprintMismatch,required TResult Function( CoreError_Rejected value)  rejected,required TResult Function( CoreError_Connection value)  connection,required TResult Function( CoreError_Storage value)  storage,}){
+@optionalTypeArgs TResult map<TResult extends Object?>({required TResult Function( CoreError_NotInitialized value)  notInitialized,required TResult Function( CoreError_NoIdentity value)  noIdentity,required TResult Function( CoreError_UnknownServer value)  unknownServer,required TResult Function( CoreError_NotConnected value)  notConnected,required TResult Function( CoreError_Timeout value)  timeout,required TResult Function( CoreError_InvalidInput value)  invalidInput,required TResult Function( CoreError_Server value)  server,required TResult Function( CoreError_FingerprintMismatch value)  fingerprintMismatch,required TResult Function( CoreError_Rejected value)  rejected,required TResult Function( CoreError_Connection value)  connection,required TResult Function( CoreError_Storage value)  storage,required TResult Function( CoreError_Camera value)  camera,}){
 final _that = this;
 switch (_that) {
 case CoreError_NotInitialized():
@@ -773,7 +774,8 @@ return server(_that);case CoreError_FingerprintMismatch():
 return fingerprintMismatch(_that);case CoreError_Rejected():
 return rejected(_that);case CoreError_Connection():
 return connection(_that);case CoreError_Storage():
-return storage(_that);}
+return storage(_that);case CoreError_Camera():
+return camera(_that);}
 }
 /// A variant of `map` that fallback to returning `null`.
 ///
@@ -787,7 +789,7 @@ return storage(_that);}
 /// }
 /// ```
 
-@optionalTypeArgs TResult? mapOrNull<TResult extends Object?>({TResult? Function( CoreError_NotInitialized value)?  notInitialized,TResult? Function( CoreError_NoIdentity value)?  noIdentity,TResult? Function( CoreError_UnknownServer value)?  unknownServer,TResult? Function( CoreError_NotConnected value)?  notConnected,TResult? Function( CoreError_Timeout value)?  timeout,TResult? Function( CoreError_InvalidInput value)?  invalidInput,TResult? Function( CoreError_Server value)?  server,TResult? Function( CoreError_FingerprintMismatch value)?  fingerprintMismatch,TResult? Function( CoreError_Rejected value)?  rejected,TResult? Function( CoreError_Connection value)?  connection,TResult? Function( CoreError_Storage value)?  storage,}){
+@optionalTypeArgs TResult? mapOrNull<TResult extends Object?>({TResult? Function( CoreError_NotInitialized value)?  notInitialized,TResult? Function( CoreError_NoIdentity value)?  noIdentity,TResult? Function( CoreError_UnknownServer value)?  unknownServer,TResult? Function( CoreError_NotConnected value)?  notConnected,TResult? Function( CoreError_Timeout value)?  timeout,TResult? Function( CoreError_InvalidInput value)?  invalidInput,TResult? Function( CoreError_Server value)?  server,TResult? Function( CoreError_FingerprintMismatch value)?  fingerprintMismatch,TResult? Function( CoreError_Rejected value)?  rejected,TResult? Function( CoreError_Connection value)?  connection,TResult? Function( CoreError_Storage value)?  storage,TResult? Function( CoreError_Camera value)?  camera,}){
 final _that = this;
 switch (_that) {
 case CoreError_NotInitialized() when notInitialized != null:
@@ -801,7 +803,8 @@ return server(_that);case CoreError_FingerprintMismatch() when fingerprintMismat
 return fingerprintMismatch(_that);case CoreError_Rejected() when rejected != null:
 return rejected(_that);case CoreError_Connection() when connection != null:
 return connection(_that);case CoreError_Storage() when storage != null:
-return storage(_that);case _:
+return storage(_that);case CoreError_Camera() when camera != null:
+return camera(_that);case _:
   return null;
 
 }
@@ -818,7 +821,7 @@ return storage(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>({TResult Function()?  notInitialized,TResult Function()?  noIdentity,TResult Function()?  unknownServer,TResult Function()?  notConnected,TResult Function()?  timeout,TResult Function( String message)?  invalidInput,TResult Function( ErrorCode code,  String message,  int? retryAfterMs)?  server,TResult Function( String expected,  String presented)?  fingerprintMismatch,TResult Function( FailureReason reason,  String message)?  rejected,TResult Function( String message)?  connection,TResult Function( String message)?  storage,required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>({TResult Function()?  notInitialized,TResult Function()?  noIdentity,TResult Function()?  unknownServer,TResult Function()?  notConnected,TResult Function()?  timeout,TResult Function( String message)?  invalidInput,TResult Function( ErrorCode code,  String message,  int? retryAfterMs)?  server,TResult Function( String expected,  String presented)?  fingerprintMismatch,TResult Function( FailureReason reason,  String message)?  rejected,TResult Function( String message)?  connection,TResult Function( String message)?  storage,TResult Function( CameraProblem problem,  String message)?  camera,required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case CoreError_NotInitialized() when notInitialized != null:
 return notInitialized();case CoreError_NoIdentity() when noIdentity != null:
@@ -831,7 +834,8 @@ return server(_that.code,_that.message,_that.retryAfterMs);case CoreError_Finger
 return fingerprintMismatch(_that.expected,_that.presented);case CoreError_Rejected() when rejected != null:
 return rejected(_that.reason,_that.message);case CoreError_Connection() when connection != null:
 return connection(_that.message);case CoreError_Storage() when storage != null:
-return storage(_that.message);case _:
+return storage(_that.message);case CoreError_Camera() when camera != null:
+return camera(_that.problem,_that.message);case _:
   return orElse();
 
 }
@@ -849,7 +853,7 @@ return storage(_that.message);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>({required TResult Function()  notInitialized,required TResult Function()  noIdentity,required TResult Function()  unknownServer,required TResult Function()  notConnected,required TResult Function()  timeout,required TResult Function( String message)  invalidInput,required TResult Function( ErrorCode code,  String message,  int? retryAfterMs)  server,required TResult Function( String expected,  String presented)  fingerprintMismatch,required TResult Function( FailureReason reason,  String message)  rejected,required TResult Function( String message)  connection,required TResult Function( String message)  storage,}) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>({required TResult Function()  notInitialized,required TResult Function()  noIdentity,required TResult Function()  unknownServer,required TResult Function()  notConnected,required TResult Function()  timeout,required TResult Function( String message)  invalidInput,required TResult Function( ErrorCode code,  String message,  int? retryAfterMs)  server,required TResult Function( String expected,  String presented)  fingerprintMismatch,required TResult Function( FailureReason reason,  String message)  rejected,required TResult Function( String message)  connection,required TResult Function( String message)  storage,required TResult Function( CameraProblem problem,  String message)  camera,}) {final _that = this;
 switch (_that) {
 case CoreError_NotInitialized():
 return notInitialized();case CoreError_NoIdentity():
@@ -862,7 +866,8 @@ return server(_that.code,_that.message,_that.retryAfterMs);case CoreError_Finger
 return fingerprintMismatch(_that.expected,_that.presented);case CoreError_Rejected():
 return rejected(_that.reason,_that.message);case CoreError_Connection():
 return connection(_that.message);case CoreError_Storage():
-return storage(_that.message);}
+return storage(_that.message);case CoreError_Camera():
+return camera(_that.problem,_that.message);}
 }
 /// A variant of `when` that fallback to returning `null`
 ///
@@ -876,7 +881,7 @@ return storage(_that.message);}
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>({TResult? Function()?  notInitialized,TResult? Function()?  noIdentity,TResult? Function()?  unknownServer,TResult? Function()?  notConnected,TResult? Function()?  timeout,TResult? Function( String message)?  invalidInput,TResult? Function( ErrorCode code,  String message,  int? retryAfterMs)?  server,TResult? Function( String expected,  String presented)?  fingerprintMismatch,TResult? Function( FailureReason reason,  String message)?  rejected,TResult? Function( String message)?  connection,TResult? Function( String message)?  storage,}) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>({TResult? Function()?  notInitialized,TResult? Function()?  noIdentity,TResult? Function()?  unknownServer,TResult? Function()?  notConnected,TResult? Function()?  timeout,TResult? Function( String message)?  invalidInput,TResult? Function( ErrorCode code,  String message,  int? retryAfterMs)?  server,TResult? Function( String expected,  String presented)?  fingerprintMismatch,TResult? Function( FailureReason reason,  String message)?  rejected,TResult? Function( String message)?  connection,TResult? Function( String message)?  storage,TResult? Function( CameraProblem problem,  String message)?  camera,}) {final _that = this;
 switch (_that) {
 case CoreError_NotInitialized() when notInitialized != null:
 return notInitialized();case CoreError_NoIdentity() when noIdentity != null:
@@ -889,7 +894,8 @@ return server(_that.code,_that.message,_that.retryAfterMs);case CoreError_Finger
 return fingerprintMismatch(_that.expected,_that.presented);case CoreError_Rejected() when rejected != null:
 return rejected(_that.reason,_that.message);case CoreError_Connection() when connection != null:
 return connection(_that.message);case CoreError_Storage() when storage != null:
-return storage(_that.message);case _:
+return storage(_that.message);case CoreError_Camera() when camera != null:
+return camera(_that.problem,_that.message);case _:
   return null;
 
 }
@@ -1454,6 +1460,74 @@ class _$CoreError_StorageCopyWithImpl<$Res>
 @pragma('vm:prefer-inline') $Res call({Object? message = null,}) {
   return _then(CoreError_Storage(
 message: null == message ? _self.message : message // ignore: cast_nullable_to_non_nullable
+as String,
+  ));
+}
+
+
+}
+
+/// @nodoc
+
+
+class CoreError_Camera extends CoreError {
+  const CoreError_Camera({required this.problem, required this.message}): super._();
+  
+
+ final  CameraProblem problem;
+ final  String message;
+
+/// Create a copy of CoreError
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$CoreError_CameraCopyWith<CoreError_Camera> get copyWith => _$CoreError_CameraCopyWithImpl<CoreError_Camera>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is CoreError_Camera&&(identical(other.problem, problem) || other.problem == problem)&&(identical(other.message, message) || other.message == message));
+}
+
+
+@override
+int get hashCode => Object.hash(runtimeType,problem,message);
+
+@override
+String toString() {
+  return 'CoreError.camera(problem: $problem, message: $message)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $CoreError_CameraCopyWith<$Res> implements $CoreErrorCopyWith<$Res> {
+  factory $CoreError_CameraCopyWith(CoreError_Camera value, $Res Function(CoreError_Camera) _then) = _$CoreError_CameraCopyWithImpl;
+@useResult
+$Res call({
+ CameraProblem problem, String message
+});
+
+
+
+
+}
+/// @nodoc
+class _$CoreError_CameraCopyWithImpl<$Res>
+    implements $CoreError_CameraCopyWith<$Res> {
+  _$CoreError_CameraCopyWithImpl(this._self, this._then);
+
+  final CoreError_Camera _self;
+  final $Res Function(CoreError_Camera) _then;
+
+/// Create a copy of CoreError
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? problem = null,Object? message = null,}) {
+  return _then(CoreError_Camera(
+problem: null == problem ? _self.problem : problem // ignore: cast_nullable_to_non_nullable
+as CameraProblem,message: null == message ? _self.message : message // ignore: cast_nullable_to_non_nullable
 as String,
   ));
 }
@@ -3406,7 +3480,7 @@ extension MediaEventPatterns on MediaEvent {
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeMap<TResult extends Object?>({TResult Function( MediaEvent_ConnectionState value)?  connectionState,TResult Function( MediaEvent_DeviceFellBack value)?  deviceFellBack,TResult Function( MediaEvent_DeviceFailed value)?  deviceFailed,TResult Function( MediaEvent_DevicesChanged value)?  devicesChanged,TResult Function( MediaEvent_Speaking value)?  speaking,TResult Function( MediaEvent_InputLevel value)?  inputLevel,TResult Function( MediaEvent_SpeakingWhileMuted value)?  speakingWhileMuted,TResult Function( MediaEvent_NoiseSuppressionFellBack value)?  noiseSuppressionFellBack,TResult Function( MediaEvent_HotkeyPressed value)?  hotkeyPressed,required TResult orElse(),}){
+@optionalTypeArgs TResult maybeMap<TResult extends Object?>({TResult Function( MediaEvent_ConnectionState value)?  connectionState,TResult Function( MediaEvent_DeviceFellBack value)?  deviceFellBack,TResult Function( MediaEvent_DeviceFailed value)?  deviceFailed,TResult Function( MediaEvent_DevicesChanged value)?  devicesChanged,TResult Function( MediaEvent_Speaking value)?  speaking,TResult Function( MediaEvent_InputLevel value)?  inputLevel,TResult Function( MediaEvent_SpeakingWhileMuted value)?  speakingWhileMuted,TResult Function( MediaEvent_NoiseSuppressionFellBack value)?  noiseSuppressionFellBack,TResult Function( MediaEvent_HotkeyPressed value)?  hotkeyPressed,TResult Function( MediaEvent_VideoTrackAdded value)?  videoTrackAdded,TResult Function( MediaEvent_VideoTrackRemoved value)?  videoTrackRemoved,TResult Function( MediaEvent_CameraStopped value)?  cameraStopped,required TResult orElse(),}){
 final _that = this;
 switch (_that) {
 case MediaEvent_ConnectionState() when connectionState != null:
@@ -3418,7 +3492,10 @@ return speaking(_that);case MediaEvent_InputLevel() when inputLevel != null:
 return inputLevel(_that);case MediaEvent_SpeakingWhileMuted() when speakingWhileMuted != null:
 return speakingWhileMuted(_that);case MediaEvent_NoiseSuppressionFellBack() when noiseSuppressionFellBack != null:
 return noiseSuppressionFellBack(_that);case MediaEvent_HotkeyPressed() when hotkeyPressed != null:
-return hotkeyPressed(_that);case _:
+return hotkeyPressed(_that);case MediaEvent_VideoTrackAdded() when videoTrackAdded != null:
+return videoTrackAdded(_that);case MediaEvent_VideoTrackRemoved() when videoTrackRemoved != null:
+return videoTrackRemoved(_that);case MediaEvent_CameraStopped() when cameraStopped != null:
+return cameraStopped(_that);case _:
   return orElse();
 
 }
@@ -3436,7 +3513,7 @@ return hotkeyPressed(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult map<TResult extends Object?>({required TResult Function( MediaEvent_ConnectionState value)  connectionState,required TResult Function( MediaEvent_DeviceFellBack value)  deviceFellBack,required TResult Function( MediaEvent_DeviceFailed value)  deviceFailed,required TResult Function( MediaEvent_DevicesChanged value)  devicesChanged,required TResult Function( MediaEvent_Speaking value)  speaking,required TResult Function( MediaEvent_InputLevel value)  inputLevel,required TResult Function( MediaEvent_SpeakingWhileMuted value)  speakingWhileMuted,required TResult Function( MediaEvent_NoiseSuppressionFellBack value)  noiseSuppressionFellBack,required TResult Function( MediaEvent_HotkeyPressed value)  hotkeyPressed,}){
+@optionalTypeArgs TResult map<TResult extends Object?>({required TResult Function( MediaEvent_ConnectionState value)  connectionState,required TResult Function( MediaEvent_DeviceFellBack value)  deviceFellBack,required TResult Function( MediaEvent_DeviceFailed value)  deviceFailed,required TResult Function( MediaEvent_DevicesChanged value)  devicesChanged,required TResult Function( MediaEvent_Speaking value)  speaking,required TResult Function( MediaEvent_InputLevel value)  inputLevel,required TResult Function( MediaEvent_SpeakingWhileMuted value)  speakingWhileMuted,required TResult Function( MediaEvent_NoiseSuppressionFellBack value)  noiseSuppressionFellBack,required TResult Function( MediaEvent_HotkeyPressed value)  hotkeyPressed,required TResult Function( MediaEvent_VideoTrackAdded value)  videoTrackAdded,required TResult Function( MediaEvent_VideoTrackRemoved value)  videoTrackRemoved,required TResult Function( MediaEvent_CameraStopped value)  cameraStopped,}){
 final _that = this;
 switch (_that) {
 case MediaEvent_ConnectionState():
@@ -3448,7 +3525,10 @@ return speaking(_that);case MediaEvent_InputLevel():
 return inputLevel(_that);case MediaEvent_SpeakingWhileMuted():
 return speakingWhileMuted(_that);case MediaEvent_NoiseSuppressionFellBack():
 return noiseSuppressionFellBack(_that);case MediaEvent_HotkeyPressed():
-return hotkeyPressed(_that);}
+return hotkeyPressed(_that);case MediaEvent_VideoTrackAdded():
+return videoTrackAdded(_that);case MediaEvent_VideoTrackRemoved():
+return videoTrackRemoved(_that);case MediaEvent_CameraStopped():
+return cameraStopped(_that);}
 }
 /// A variant of `map` that fallback to returning `null`.
 ///
@@ -3462,7 +3542,7 @@ return hotkeyPressed(_that);}
 /// }
 /// ```
 
-@optionalTypeArgs TResult? mapOrNull<TResult extends Object?>({TResult? Function( MediaEvent_ConnectionState value)?  connectionState,TResult? Function( MediaEvent_DeviceFellBack value)?  deviceFellBack,TResult? Function( MediaEvent_DeviceFailed value)?  deviceFailed,TResult? Function( MediaEvent_DevicesChanged value)?  devicesChanged,TResult? Function( MediaEvent_Speaking value)?  speaking,TResult? Function( MediaEvent_InputLevel value)?  inputLevel,TResult? Function( MediaEvent_SpeakingWhileMuted value)?  speakingWhileMuted,TResult? Function( MediaEvent_NoiseSuppressionFellBack value)?  noiseSuppressionFellBack,TResult? Function( MediaEvent_HotkeyPressed value)?  hotkeyPressed,}){
+@optionalTypeArgs TResult? mapOrNull<TResult extends Object?>({TResult? Function( MediaEvent_ConnectionState value)?  connectionState,TResult? Function( MediaEvent_DeviceFellBack value)?  deviceFellBack,TResult? Function( MediaEvent_DeviceFailed value)?  deviceFailed,TResult? Function( MediaEvent_DevicesChanged value)?  devicesChanged,TResult? Function( MediaEvent_Speaking value)?  speaking,TResult? Function( MediaEvent_InputLevel value)?  inputLevel,TResult? Function( MediaEvent_SpeakingWhileMuted value)?  speakingWhileMuted,TResult? Function( MediaEvent_NoiseSuppressionFellBack value)?  noiseSuppressionFellBack,TResult? Function( MediaEvent_HotkeyPressed value)?  hotkeyPressed,TResult? Function( MediaEvent_VideoTrackAdded value)?  videoTrackAdded,TResult? Function( MediaEvent_VideoTrackRemoved value)?  videoTrackRemoved,TResult? Function( MediaEvent_CameraStopped value)?  cameraStopped,}){
 final _that = this;
 switch (_that) {
 case MediaEvent_ConnectionState() when connectionState != null:
@@ -3474,7 +3554,10 @@ return speaking(_that);case MediaEvent_InputLevel() when inputLevel != null:
 return inputLevel(_that);case MediaEvent_SpeakingWhileMuted() when speakingWhileMuted != null:
 return speakingWhileMuted(_that);case MediaEvent_NoiseSuppressionFellBack() when noiseSuppressionFellBack != null:
 return noiseSuppressionFellBack(_that);case MediaEvent_HotkeyPressed() when hotkeyPressed != null:
-return hotkeyPressed(_that);case _:
+return hotkeyPressed(_that);case MediaEvent_VideoTrackAdded() when videoTrackAdded != null:
+return videoTrackAdded(_that);case MediaEvent_VideoTrackRemoved() when videoTrackRemoved != null:
+return videoTrackRemoved(_that);case MediaEvent_CameraStopped() when cameraStopped != null:
+return cameraStopped(_that);case _:
   return null;
 
 }
@@ -3491,7 +3574,7 @@ return hotkeyPressed(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>({TResult Function( String serverKey,  PlatformInt64 channelId,  VoiceConnectionState state)?  connectionState,TResult Function( bool output,  String device)?  deviceFellBack,TResult Function( bool output,  String message)?  deviceFailed,TResult Function( AudioDevices field0)?  devicesChanged,TResult Function( String serverKey,  PlatformInt64 channelId,  List<SpeakingChange> changes)?  speaking,TResult Function( double dbfs)?  inputLevel,TResult Function()?  speakingWhileMuted,TResult Function()?  noiseSuppressionFellBack,TResult Function( HotkeyAction action)?  hotkeyPressed,required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>({TResult Function( String serverKey,  PlatformInt64 channelId,  VoiceConnectionState state)?  connectionState,TResult Function( bool output,  String device)?  deviceFellBack,TResult Function( bool output,  String message)?  deviceFailed,TResult Function( AudioDevices field0)?  devicesChanged,TResult Function( String serverKey,  PlatformInt64 channelId,  List<SpeakingChange> changes)?  speaking,TResult Function( double dbfs)?  inputLevel,TResult Function()?  speakingWhileMuted,TResult Function()?  noiseSuppressionFellBack,TResult Function( HotkeyAction action)?  hotkeyPressed,TResult Function( String serverKey,  PlatformInt64 channelId,  PlatformInt64 userId,  String trackId,  VideoTrackKind kind,  PlatformInt64? textureId,  int width,  int height)?  videoTrackAdded,TResult Function( String serverKey,  PlatformInt64 channelId,  PlatformInt64 userId,  String trackId)?  videoTrackRemoved,TResult Function( String message)?  cameraStopped,required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case MediaEvent_ConnectionState() when connectionState != null:
 return connectionState(_that.serverKey,_that.channelId,_that.state);case MediaEvent_DeviceFellBack() when deviceFellBack != null:
@@ -3502,7 +3585,10 @@ return speaking(_that.serverKey,_that.channelId,_that.changes);case MediaEvent_I
 return inputLevel(_that.dbfs);case MediaEvent_SpeakingWhileMuted() when speakingWhileMuted != null:
 return speakingWhileMuted();case MediaEvent_NoiseSuppressionFellBack() when noiseSuppressionFellBack != null:
 return noiseSuppressionFellBack();case MediaEvent_HotkeyPressed() when hotkeyPressed != null:
-return hotkeyPressed(_that.action);case _:
+return hotkeyPressed(_that.action);case MediaEvent_VideoTrackAdded() when videoTrackAdded != null:
+return videoTrackAdded(_that.serverKey,_that.channelId,_that.userId,_that.trackId,_that.kind,_that.textureId,_that.width,_that.height);case MediaEvent_VideoTrackRemoved() when videoTrackRemoved != null:
+return videoTrackRemoved(_that.serverKey,_that.channelId,_that.userId,_that.trackId);case MediaEvent_CameraStopped() when cameraStopped != null:
+return cameraStopped(_that.message);case _:
   return orElse();
 
 }
@@ -3520,7 +3606,7 @@ return hotkeyPressed(_that.action);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>({required TResult Function( String serverKey,  PlatformInt64 channelId,  VoiceConnectionState state)  connectionState,required TResult Function( bool output,  String device)  deviceFellBack,required TResult Function( bool output,  String message)  deviceFailed,required TResult Function( AudioDevices field0)  devicesChanged,required TResult Function( String serverKey,  PlatformInt64 channelId,  List<SpeakingChange> changes)  speaking,required TResult Function( double dbfs)  inputLevel,required TResult Function()  speakingWhileMuted,required TResult Function()  noiseSuppressionFellBack,required TResult Function( HotkeyAction action)  hotkeyPressed,}) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>({required TResult Function( String serverKey,  PlatformInt64 channelId,  VoiceConnectionState state)  connectionState,required TResult Function( bool output,  String device)  deviceFellBack,required TResult Function( bool output,  String message)  deviceFailed,required TResult Function( AudioDevices field0)  devicesChanged,required TResult Function( String serverKey,  PlatformInt64 channelId,  List<SpeakingChange> changes)  speaking,required TResult Function( double dbfs)  inputLevel,required TResult Function()  speakingWhileMuted,required TResult Function()  noiseSuppressionFellBack,required TResult Function( HotkeyAction action)  hotkeyPressed,required TResult Function( String serverKey,  PlatformInt64 channelId,  PlatformInt64 userId,  String trackId,  VideoTrackKind kind,  PlatformInt64? textureId,  int width,  int height)  videoTrackAdded,required TResult Function( String serverKey,  PlatformInt64 channelId,  PlatformInt64 userId,  String trackId)  videoTrackRemoved,required TResult Function( String message)  cameraStopped,}) {final _that = this;
 switch (_that) {
 case MediaEvent_ConnectionState():
 return connectionState(_that.serverKey,_that.channelId,_that.state);case MediaEvent_DeviceFellBack():
@@ -3531,7 +3617,10 @@ return speaking(_that.serverKey,_that.channelId,_that.changes);case MediaEvent_I
 return inputLevel(_that.dbfs);case MediaEvent_SpeakingWhileMuted():
 return speakingWhileMuted();case MediaEvent_NoiseSuppressionFellBack():
 return noiseSuppressionFellBack();case MediaEvent_HotkeyPressed():
-return hotkeyPressed(_that.action);}
+return hotkeyPressed(_that.action);case MediaEvent_VideoTrackAdded():
+return videoTrackAdded(_that.serverKey,_that.channelId,_that.userId,_that.trackId,_that.kind,_that.textureId,_that.width,_that.height);case MediaEvent_VideoTrackRemoved():
+return videoTrackRemoved(_that.serverKey,_that.channelId,_that.userId,_that.trackId);case MediaEvent_CameraStopped():
+return cameraStopped(_that.message);}
 }
 /// A variant of `when` that fallback to returning `null`
 ///
@@ -3545,7 +3634,7 @@ return hotkeyPressed(_that.action);}
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>({TResult? Function( String serverKey,  PlatformInt64 channelId,  VoiceConnectionState state)?  connectionState,TResult? Function( bool output,  String device)?  deviceFellBack,TResult? Function( bool output,  String message)?  deviceFailed,TResult? Function( AudioDevices field0)?  devicesChanged,TResult? Function( String serverKey,  PlatformInt64 channelId,  List<SpeakingChange> changes)?  speaking,TResult? Function( double dbfs)?  inputLevel,TResult? Function()?  speakingWhileMuted,TResult? Function()?  noiseSuppressionFellBack,TResult? Function( HotkeyAction action)?  hotkeyPressed,}) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>({TResult? Function( String serverKey,  PlatformInt64 channelId,  VoiceConnectionState state)?  connectionState,TResult? Function( bool output,  String device)?  deviceFellBack,TResult? Function( bool output,  String message)?  deviceFailed,TResult? Function( AudioDevices field0)?  devicesChanged,TResult? Function( String serverKey,  PlatformInt64 channelId,  List<SpeakingChange> changes)?  speaking,TResult? Function( double dbfs)?  inputLevel,TResult? Function()?  speakingWhileMuted,TResult? Function()?  noiseSuppressionFellBack,TResult? Function( HotkeyAction action)?  hotkeyPressed,TResult? Function( String serverKey,  PlatformInt64 channelId,  PlatformInt64 userId,  String trackId,  VideoTrackKind kind,  PlatformInt64? textureId,  int width,  int height)?  videoTrackAdded,TResult? Function( String serverKey,  PlatformInt64 channelId,  PlatformInt64 userId,  String trackId)?  videoTrackRemoved,TResult? Function( String message)?  cameraStopped,}) {final _that = this;
 switch (_that) {
 case MediaEvent_ConnectionState() when connectionState != null:
 return connectionState(_that.serverKey,_that.channelId,_that.state);case MediaEvent_DeviceFellBack() when deviceFellBack != null:
@@ -3556,7 +3645,10 @@ return speaking(_that.serverKey,_that.channelId,_that.changes);case MediaEvent_I
 return inputLevel(_that.dbfs);case MediaEvent_SpeakingWhileMuted() when speakingWhileMuted != null:
 return speakingWhileMuted();case MediaEvent_NoiseSuppressionFellBack() when noiseSuppressionFellBack != null:
 return noiseSuppressionFellBack();case MediaEvent_HotkeyPressed() when hotkeyPressed != null:
-return hotkeyPressed(_that.action);case _:
+return hotkeyPressed(_that.action);case MediaEvent_VideoTrackAdded() when videoTrackAdded != null:
+return videoTrackAdded(_that.serverKey,_that.channelId,_that.userId,_that.trackId,_that.kind,_that.textureId,_that.width,_that.height);case MediaEvent_VideoTrackRemoved() when videoTrackRemoved != null:
+return videoTrackRemoved(_that.serverKey,_that.channelId,_that.userId,_that.trackId);case MediaEvent_CameraStopped() when cameraStopped != null:
+return cameraStopped(_that.message);case _:
   return null;
 
 }
@@ -4111,6 +4203,225 @@ class _$MediaEvent_HotkeyPressedCopyWithImpl<$Res>
   return _then(MediaEvent_HotkeyPressed(
 action: null == action ? _self.action : action // ignore: cast_nullable_to_non_nullable
 as HotkeyAction,
+  ));
+}
+
+
+}
+
+/// @nodoc
+
+
+class MediaEvent_VideoTrackAdded extends MediaEvent {
+  const MediaEvent_VideoTrackAdded({required this.serverKey, required this.channelId, required this.userId, required this.trackId, required this.kind, this.textureId, required this.width, required this.height}): super._();
+  
+
+ final  String serverKey;
+ final  PlatformInt64 channelId;
+ final  PlatformInt64 userId;
+ final  String trackId;
+ final  VideoTrackKind kind;
+ final  PlatformInt64? textureId;
+/// Its largest layer's size: the shape to draw it in.
+ final  int width;
+ final  int height;
+
+/// Create a copy of MediaEvent
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$MediaEvent_VideoTrackAddedCopyWith<MediaEvent_VideoTrackAdded> get copyWith => _$MediaEvent_VideoTrackAddedCopyWithImpl<MediaEvent_VideoTrackAdded>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is MediaEvent_VideoTrackAdded&&(identical(other.serverKey, serverKey) || other.serverKey == serverKey)&&(identical(other.channelId, channelId) || other.channelId == channelId)&&(identical(other.userId, userId) || other.userId == userId)&&(identical(other.trackId, trackId) || other.trackId == trackId)&&(identical(other.kind, kind) || other.kind == kind)&&(identical(other.textureId, textureId) || other.textureId == textureId)&&(identical(other.width, width) || other.width == width)&&(identical(other.height, height) || other.height == height));
+}
+
+
+@override
+int get hashCode => Object.hash(runtimeType,serverKey,channelId,userId,trackId,kind,textureId,width,height);
+
+@override
+String toString() {
+  return 'MediaEvent.videoTrackAdded(serverKey: $serverKey, channelId: $channelId, userId: $userId, trackId: $trackId, kind: $kind, textureId: $textureId, width: $width, height: $height)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $MediaEvent_VideoTrackAddedCopyWith<$Res> implements $MediaEventCopyWith<$Res> {
+  factory $MediaEvent_VideoTrackAddedCopyWith(MediaEvent_VideoTrackAdded value, $Res Function(MediaEvent_VideoTrackAdded) _then) = _$MediaEvent_VideoTrackAddedCopyWithImpl;
+@useResult
+$Res call({
+ String serverKey, PlatformInt64 channelId, PlatformInt64 userId, String trackId, VideoTrackKind kind, PlatformInt64? textureId, int width, int height
+});
+
+
+
+
+}
+/// @nodoc
+class _$MediaEvent_VideoTrackAddedCopyWithImpl<$Res>
+    implements $MediaEvent_VideoTrackAddedCopyWith<$Res> {
+  _$MediaEvent_VideoTrackAddedCopyWithImpl(this._self, this._then);
+
+  final MediaEvent_VideoTrackAdded _self;
+  final $Res Function(MediaEvent_VideoTrackAdded) _then;
+
+/// Create a copy of MediaEvent
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? serverKey = null,Object? channelId = null,Object? userId = null,Object? trackId = null,Object? kind = null,Object? textureId = freezed,Object? width = null,Object? height = null,}) {
+  return _then(MediaEvent_VideoTrackAdded(
+serverKey: null == serverKey ? _self.serverKey : serverKey // ignore: cast_nullable_to_non_nullable
+as String,channelId: null == channelId ? _self.channelId : channelId // ignore: cast_nullable_to_non_nullable
+as PlatformInt64,userId: null == userId ? _self.userId : userId // ignore: cast_nullable_to_non_nullable
+as PlatformInt64,trackId: null == trackId ? _self.trackId : trackId // ignore: cast_nullable_to_non_nullable
+as String,kind: null == kind ? _self.kind : kind // ignore: cast_nullable_to_non_nullable
+as VideoTrackKind,textureId: freezed == textureId ? _self.textureId : textureId // ignore: cast_nullable_to_non_nullable
+as PlatformInt64?,width: null == width ? _self.width : width // ignore: cast_nullable_to_non_nullable
+as int,height: null == height ? _self.height : height // ignore: cast_nullable_to_non_nullable
+as int,
+  ));
+}
+
+
+}
+
+/// @nodoc
+
+
+class MediaEvent_VideoTrackRemoved extends MediaEvent {
+  const MediaEvent_VideoTrackRemoved({required this.serverKey, required this.channelId, required this.userId, required this.trackId}): super._();
+  
+
+ final  String serverKey;
+ final  PlatformInt64 channelId;
+ final  PlatformInt64 userId;
+ final  String trackId;
+
+/// Create a copy of MediaEvent
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$MediaEvent_VideoTrackRemovedCopyWith<MediaEvent_VideoTrackRemoved> get copyWith => _$MediaEvent_VideoTrackRemovedCopyWithImpl<MediaEvent_VideoTrackRemoved>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is MediaEvent_VideoTrackRemoved&&(identical(other.serverKey, serverKey) || other.serverKey == serverKey)&&(identical(other.channelId, channelId) || other.channelId == channelId)&&(identical(other.userId, userId) || other.userId == userId)&&(identical(other.trackId, trackId) || other.trackId == trackId));
+}
+
+
+@override
+int get hashCode => Object.hash(runtimeType,serverKey,channelId,userId,trackId);
+
+@override
+String toString() {
+  return 'MediaEvent.videoTrackRemoved(serverKey: $serverKey, channelId: $channelId, userId: $userId, trackId: $trackId)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $MediaEvent_VideoTrackRemovedCopyWith<$Res> implements $MediaEventCopyWith<$Res> {
+  factory $MediaEvent_VideoTrackRemovedCopyWith(MediaEvent_VideoTrackRemoved value, $Res Function(MediaEvent_VideoTrackRemoved) _then) = _$MediaEvent_VideoTrackRemovedCopyWithImpl;
+@useResult
+$Res call({
+ String serverKey, PlatformInt64 channelId, PlatformInt64 userId, String trackId
+});
+
+
+
+
+}
+/// @nodoc
+class _$MediaEvent_VideoTrackRemovedCopyWithImpl<$Res>
+    implements $MediaEvent_VideoTrackRemovedCopyWith<$Res> {
+  _$MediaEvent_VideoTrackRemovedCopyWithImpl(this._self, this._then);
+
+  final MediaEvent_VideoTrackRemoved _self;
+  final $Res Function(MediaEvent_VideoTrackRemoved) _then;
+
+/// Create a copy of MediaEvent
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? serverKey = null,Object? channelId = null,Object? userId = null,Object? trackId = null,}) {
+  return _then(MediaEvent_VideoTrackRemoved(
+serverKey: null == serverKey ? _self.serverKey : serverKey // ignore: cast_nullable_to_non_nullable
+as String,channelId: null == channelId ? _self.channelId : channelId // ignore: cast_nullable_to_non_nullable
+as PlatformInt64,userId: null == userId ? _self.userId : userId // ignore: cast_nullable_to_non_nullable
+as PlatformInt64,trackId: null == trackId ? _self.trackId : trackId // ignore: cast_nullable_to_non_nullable
+as String,
+  ));
+}
+
+
+}
+
+/// @nodoc
+
+
+class MediaEvent_CameraStopped extends MediaEvent {
+  const MediaEvent_CameraStopped({required this.message}): super._();
+  
+
+ final  String message;
+
+/// Create a copy of MediaEvent
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$MediaEvent_CameraStoppedCopyWith<MediaEvent_CameraStopped> get copyWith => _$MediaEvent_CameraStoppedCopyWithImpl<MediaEvent_CameraStopped>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is MediaEvent_CameraStopped&&(identical(other.message, message) || other.message == message));
+}
+
+
+@override
+int get hashCode => Object.hash(runtimeType,message);
+
+@override
+String toString() {
+  return 'MediaEvent.cameraStopped(message: $message)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $MediaEvent_CameraStoppedCopyWith<$Res> implements $MediaEventCopyWith<$Res> {
+  factory $MediaEvent_CameraStoppedCopyWith(MediaEvent_CameraStopped value, $Res Function(MediaEvent_CameraStopped) _then) = _$MediaEvent_CameraStoppedCopyWithImpl;
+@useResult
+$Res call({
+ String message
+});
+
+
+
+
+}
+/// @nodoc
+class _$MediaEvent_CameraStoppedCopyWithImpl<$Res>
+    implements $MediaEvent_CameraStoppedCopyWith<$Res> {
+  _$MediaEvent_CameraStoppedCopyWithImpl(this._self, this._then);
+
+  final MediaEvent_CameraStopped _self;
+  final $Res Function(MediaEvent_CameraStopped) _then;
+
+/// Create a copy of MediaEvent
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? message = null,}) {
+  return _then(MediaEvent_CameraStopped(
+message: null == message ? _self.message : message // ignore: cast_nullable_to_non_nullable
+as String,
   ));
 }
 

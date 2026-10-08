@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:opencord/core/model/misc.dart';
 import 'package:opencord/core/model/permissions.dart';
 import 'package:opencord/core/model/user.dart';
+import 'package:opencord/core/model/video.dart';
 import 'package:opencord/core/providers/providers.dart';
 import 'package:opencord/features/voice/voice_controls.dart';
 import 'package:opencord/features/voice/voice_focus.dart';
@@ -67,7 +68,9 @@ class VoiceView extends ConsumerWidget {
 }
 
 /// The tiles: a grid, or one large with the rest in a strip (focus mode).
-class _Stage extends ConsumerWidget {
+/// Tiles showing video ask for it at their size; nothing is asked for once
+/// the stage is gone.
+class _Stage extends ConsumerStatefulWidget {
   const _Stage({required this.channel, required this.participants});
 
   static const _gap = OcSpace.s8;
@@ -77,7 +80,41 @@ class _Stage extends ConsumerWidget {
   final List<VoiceParticipant> participants;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_Stage> createState() => _StageState();
+}
+
+class _StageState extends ConsumerState<_Stage> {
+  late final VideoWantsNotifier _wants;
+
+  @override
+  void initState() {
+    super.initState();
+    _wants = ref.read(videoWantsProvider.notifier);
+  }
+
+  @override
+  void dispose() {
+    final wants = _wants;
+    WidgetsBinding.instance.addPostFrameCallback((_) => wants.set(const []));
+    super.dispose();
+  }
+
+  /// After layout, when every tile's size is known.
+  void _report(List<VideoWant> wants) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _wants.set(wants);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final channel = widget.channel;
+    final participants = widget.participants;
+    final feeds = ref.watch(videoFeedsProvider);
+    final self = ref.watch(
+      serverProvider(channel.server).select((state) => state.data?.self.id),
+    );
+    final pixels = MediaQuery.devicePixelRatioOf(context);
     final members =
         ref.watch(
           serverProvider(channel.server).select((state) => state.data?.members),
@@ -94,8 +131,20 @@ class _Stage extends ConsumerWidget {
       for (final participant in participants) participant.userId: participant,
     };
 
+    final wants = <VideoWant>[];
+
     Widget tile(VoiceTileId id, Size size, {bool small = false}) {
       final participant = byUser[id.userId];
+      final video = id.screen ? null : feeds.of(id.userId, self: self);
+      if (video != null) {
+        wants.add(
+          VideoWant(
+            trackId: video.trackId,
+            width: (size.width * pixels).round(),
+            height: (size.height * pixels).round(),
+          ),
+        );
+      }
       return SizedBox.fromSize(
         size: size,
         child: VoiceTileView(
@@ -106,6 +155,7 @@ class _Stage extends ConsumerWidget {
           muted: participant?.muted ?? false,
           deafened: participant?.deafened ?? false,
           camera: participant?.camera ?? false,
+          video: video,
           speaking: speaking.contains(id.userId),
           focused: id == focused,
           small: small,
@@ -118,68 +168,81 @@ class _Stage extends ConsumerWidget {
       padding: const EdgeInsets.all(OcSpace.s16),
       child: LayoutBuilder(
         builder: (context, constraints) {
-          final area = constraints.biggest;
-          if (focused != null) {
-            final others = [
-              for (final id in tiles)
-                if (id != focused) id,
-            ];
-            final stripHeight = others.isEmpty ? 0.0 : _strip.height + _gap;
-            final large = fitTiles(
-              Size(area.width, math.max(0, area.height - stripHeight)),
-              1,
-            );
-            return Column(
-              children: [
-                Expanded(child: Center(child: tile(focused, large))),
-                if (others.isNotEmpty) ...[
-                  const SizedBox(height: _gap),
-                  SizedBox(
-                    height: _strip.height,
-                    child: Center(
-                      child: SingleChildScrollView(
-                        scrollDirection: Axis.horizontal,
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            for (final (index, id) in others.indexed) ...[
-                              if (index > 0) const SizedBox(width: _gap),
-                              tile(id, _strip, small: true),
-                            ],
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ],
-            );
-          }
-          final size = fitTiles(area, tiles.length, gap: _gap);
-          final columns = gridColumns(tiles.length);
-          final rows = [
-            for (var start = 0; start < tiles.length; start += columns)
-              tiles.sublist(start, math.min(start + columns, tiles.length)),
-          ];
-          return Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              for (final (index, row) in rows.indexed) ...[
-                if (index > 0) const SizedBox(height: _gap),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    for (final (column, id) in row.indexed) ...[
-                      if (column > 0) const SizedBox(width: _gap),
-                      tile(id, size),
-                    ],
-                  ],
-                ),
-              ],
-            ],
-          );
+          wants.clear();
+          final layout = _layout(constraints.biggest, tiles, focused, tile);
+          _report(List.of(wants));
+          return layout;
         },
       ),
+    );
+  }
+
+  Widget _layout(
+    Size area,
+    List<VoiceTileId> tiles,
+    VoiceTileId? focused,
+    Widget Function(VoiceTileId id, Size size, {bool small}) tile,
+  ) {
+    const gap = _Stage._gap;
+    const strip = _Stage._strip;
+    if (focused != null) {
+      final others = [
+        for (final id in tiles)
+          if (id != focused) id,
+      ];
+      final stripHeight = others.isEmpty ? 0.0 : strip.height + gap;
+      final large = fitTiles(
+        Size(area.width, math.max(0, area.height - stripHeight)),
+        1,
+      );
+      return Column(
+        children: [
+          Expanded(child: Center(child: tile(focused, large))),
+          if (others.isNotEmpty) ...[
+            const SizedBox(height: gap),
+            SizedBox(
+              height: strip.height,
+              child: Center(
+                child: SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      for (final (index, id) in others.indexed) ...[
+                        if (index > 0) const SizedBox(width: gap),
+                        tile(id, strip, small: true),
+                      ],
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ],
+      );
+    }
+    final size = fitTiles(area, tiles.length, gap: gap);
+    final columns = gridColumns(tiles.length);
+    final rows = [
+      for (var start = 0; start < tiles.length; start += columns)
+        tiles.sublist(start, math.min(start + columns, tiles.length)),
+    ];
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        for (final (index, row) in rows.indexed) ...[
+          if (index > 0) const SizedBox(height: gap),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              for (final (column, id) in row.indexed) ...[
+                if (column > 0) const SizedBox(width: gap),
+                tile(id, size),
+              ],
+            ],
+          ),
+        ],
+      ],
     );
   }
 }

@@ -1,5 +1,7 @@
+import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:opencord/core/model/video.dart';
 import 'package:opencord/core/providers/providers.dart';
 import 'package:opencord/core/repository/repository.dart';
 import 'package:opencord/core/settings/local_prefs.dart';
@@ -303,5 +305,112 @@ void main() {
       findsNothing,
     );
     await app.dispose(tester);
+  });
+
+  group('video (Phase 2 V5)', () {
+    const kira = VideoFeed(
+      trackId: 'camera-mira',
+      textureId: 11,
+      width: 1280,
+      height: 720,
+    );
+    const own = VideoFeed(
+      trackId: 'camera-me',
+      textureId: 12,
+      width: 1280,
+      height: 720,
+      mirrored: true,
+    );
+
+    Future<int> showCameras(MockApp app, WidgetTester tester) async {
+      await _joinGeneral(tester);
+      final channel = _voiceChannel(app);
+      final feeds = app.read(videoFeedsProvider.notifier);
+      feeds.apply(VideoTrackAdded(_dev, channel, _mira, kira));
+      feeds.setOwn(own);
+      await _pumpFor(tester, const Duration(milliseconds: 100));
+      return app.read(serverProvider(_dev)).data!.self.id;
+    }
+
+    Finder textureIn(Finder tile, int id) => find.descendant(
+      of: tile,
+      matching: find.byWidgetPredicate(
+        (widget) => widget is Texture && widget.textureId == id,
+      ),
+    );
+
+    testWidgets('a camera shows its video, and this device sees itself '
+        'mirrored', (tester) async {
+      final app = await MockApp.pump(tester);
+      final self = await showCameras(app, tester);
+
+      expect(textureIn(_tileOf(_mira), 11), findsOneWidget);
+      expect(textureIn(_tileOf(self), 12), findsOneWidget);
+      final mirrors = find.descendant(
+        of: _tileOf(self),
+        matching: find.byWidgetPredicate(
+          (widget) => widget is Transform && widget.transform.storage[0] < 0,
+        ),
+      );
+      expect(mirrors, findsOneWidget);
+      expect(
+        find.descendant(
+          of: _tileOf(_mira),
+          matching: find.byWidgetPredicate(
+            (widget) => widget is Transform && widget.transform.storage[0] < 0,
+          ),
+        ),
+        findsNothing,
+      );
+      await app.dispose(tester);
+    });
+
+    testWidgets('tiles showing video ask for it at their size, and stop '
+        'when the view closes', (tester) async {
+      final app = await MockApp.pump(tester);
+      final self = await showCameras(app, tester);
+
+      final wants = {
+        for (final want in app.repository.videoWants) want.trackId: want,
+      };
+      final tile = tester.getSize(_tileOf(_mira));
+      expect(wants.keys, unorderedEquals(['camera-mira', 'camera-me']));
+      expect(wants['camera-mira']!.width, tile.width.round());
+      expect(wants['camera-mira']!.height, tile.height.round());
+      expect(
+        wants['camera-me']!.width,
+        tester.getSize(_tileOf(self)).width.round(),
+      );
+
+      await tester.tap(
+        find.descendant(
+          of: find.byKey(DesktopShell.sidebarKey),
+          matching: find.text('general'),
+        ),
+      );
+      await _pumpFor(tester, const Duration(milliseconds: 300));
+      expect(find.byType(VoiceView), findsNothing);
+      expect(app.repository.videoWants, isEmpty);
+      await app.dispose(tester);
+    });
+
+    testWidgets('a camera that cannot start says why and stays off', (
+      tester,
+    ) async {
+      final app = await MockApp.pump(tester);
+      await _joinGeneral(tester);
+      app.repository.cameraError = const RepoException(
+        RepoErrorKind.cameraLimit,
+        'too many cameras',
+      );
+
+      await tester.tap(_control('Turn on camera'));
+      await _pumpFor(tester, const Duration(milliseconds: 300));
+
+      expect(find.text('Camera limit reached in this channel'), findsOneWidget);
+      expect(app.read(voiceSessionProvider).camera, isFalse);
+      expect(_control('Turn on camera'), findsOneWidget);
+      await app.dispose(tester);
+    });
   });
 }

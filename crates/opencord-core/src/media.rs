@@ -30,6 +30,7 @@ use crate::api::types::{
     HotkeySupport, MediaEvent, NoiseSuppressionMode, SpeakingChange, VoiceConnectionState,
 };
 use crate::client::Client;
+use crate::video::Video;
 use crate::voice::VoiceServer;
 
 /// A voice server update waits this long for this device's voice state to
@@ -51,6 +52,8 @@ const MAX_RELEASE: Duration = Duration::from_secs(2);
 const SENSITIVITY_DBFS: (f32, f32) = (-100.0, 0.0);
 /// The bitrate until the node says the channel's.
 const DEFAULT_BITRATE: u32 = 64_000;
+/// How often a camera is checked for having stopped by itself.
+const CAMERA_CHECK: Duration = Duration::from_secs(1);
 
 /// How the media engine is run.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -99,6 +102,7 @@ pub(crate) struct Media {
     options: MediaOptions,
     events: mpsc::UnboundedSender<MediaEvent>,
     state: Mutex<State>,
+    video: Arc<Video>,
 }
 
 #[derive(Default)]
@@ -144,11 +148,17 @@ impl Media {
         events: mpsc::UnboundedSender<MediaEvent>,
     ) -> Self {
         Self {
+            video: Arc::new(Video::new(runtime.clone(), events.clone())),
             runtime,
             options,
             events,
             state: Mutex::new(State::default()),
         }
+    }
+
+    /// This device's camera and others' video.
+    pub fn video(&self) -> &Arc<Video> {
+        &self.video
     }
 
     /// This device's voice state changed: joined, left, moved, or flags.
@@ -447,6 +457,7 @@ impl Media {
             events: self.events.clone(),
             settings: settings.clone(),
             open_devices: self.options.open_devices,
+            video: Arc::clone(&self.video),
         };
         self.runtime
             .spawn(task.run(commands_received, frames_received, engine_events_received));
@@ -579,7 +590,7 @@ pub fn audio_devices() -> AudioDevices {
 /// A voice connection that is up.
 struct Live {
     server: VoiceServer,
-    connection: VoiceConnection,
+    connection: Arc<VoiceConnection>,
     events: mpsc::UnboundedReceiver<VoiceEvent>,
 }
 
@@ -595,6 +606,7 @@ struct SessionTask {
     events: mpsc::UnboundedSender<MediaEvent>,
     settings: AudioSettings,
     open_devices: bool,
+    video: Arc<Video>,
 }
 
 impl SessionTask {
@@ -614,11 +626,13 @@ impl SessionTask {
         let mut fell_back = (false, false);
         // This device talking, and as the priority speaker.
         let mut talking = (false, false);
+        let mut camera_check = tokio::time::interval(CAMERA_CHECK);
         loop {
             tokio::select! {
                 command = commands.recv() => match command {
                     Some(SessionCommand::Connect(server)) => {
                         live = None;
+                        self.video.disconnected();
                         if let Some((_, handle)) = connecting.take() {
                             handle.abort();
                         }
@@ -632,6 +646,9 @@ impl SessionTask {
                         if let Some((_, handle)) = connecting.take() {
                             handle.abort();
                         }
+                        // Leaving voice turns the camera off.
+                        self.video.stop_camera();
+                        self.video.disconnected();
                         return;
                     }
                 },
@@ -645,6 +662,12 @@ impl SessionTask {
                             retry_pause = RETRY_MIN;
                             no_route_at = Some(Instant::now() + NO_ROUTE_AFTER);
                             self.report(server.channel_id, VoiceConnectionState::RtcConnecting);
+                            let connection = Arc::new(connection);
+                            self.video.connected(
+                                &self.server_key,
+                                server.channel_id,
+                                Arc::clone(&connection),
+                            );
                             live = Some(Live { server, connection, events });
                         }
                         Err(error) => {
@@ -685,6 +708,7 @@ impl SessionTask {
                         VoiceEvent::ClientDisconnected { user_id } => self.engine.remove_user(user_id),
                         VoiceEvent::Closed { code } => {
                             live = None;
+                            self.video.disconnected();
                             no_route_at = None;
                             match code {
                                 // Moved, left or replaced: the main server
@@ -703,15 +727,16 @@ impl SessionTask {
                         VoiceEvent::Speaking { user_id, flags } => {
                             self.engine.set_priority(user_id, flags & speaking::PRIORITY != 0);
                         }
-                        VoiceEvent::ClientConnected { .. } | VoiceEvent::Resumed => {}
-                        // The app shows and sends video from V5 on (plan §7.11).
-                        VoiceEvent::Track { .. }
-                        | VoiceEvent::TrackRemoved { .. }
-                        | VoiceEvent::Video(_)
-                        | VoiceEvent::TrackStopped { .. }
-                        | VoiceEvent::Encode { .. }
-                        | VoiceEvent::KeyframeRequested { .. }
+                        VoiceEvent::ClientConnected { .. }
+                        | VoiceEvent::Resumed
                         | VoiceEvent::UplinkEstimate(_) => {}
+                        VoiceEvent::TrackStopped { .. } => {
+                            self.video.on_event(&event);
+                            self.client.set_voice_video(false);
+                        }
+                        video => {
+                            self.video.on_event(&video);
+                        }
                     }
                 }
                 Some(event) = engine_events.recv() => match event {
@@ -751,6 +776,15 @@ impl SessionTask {
                         let _ = self.events.send(MediaEvent::DeviceFailed { output, message });
                     }
                 },
+                _ = camera_check.tick() => {
+                    if self.video.camera_ended() {
+                        self.video.stop_camera();
+                        self.client.set_voice_video(false);
+                        let _ = self.events.send(MediaEvent::CameraStopped {
+                            message: "the camera stopped".to_owned(),
+                        });
+                    }
+                }
                 () = sleep_until(refresh_at) => {
                     refresh_at = None;
                     let client = self.client.clone();

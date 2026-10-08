@@ -18,6 +18,10 @@ pub struct Scaler {
     contexts: Vec<(Shape, Context)>,
 }
 
+// SAFETY: a swscale context belongs to whoever holds the scaler and is used
+// by one thread at a time (`&mut self`); moving it to another thread is fine.
+unsafe impl Send for Scaler {}
+
 impl Scaler {
     pub fn new() -> Self {
         Self::default()

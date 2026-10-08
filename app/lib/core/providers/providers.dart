@@ -12,6 +12,7 @@ import 'package:opencord/core/hotkeys.dart';
 import 'package:opencord/core/model/message.dart';
 import 'package:opencord/core/model/misc.dart';
 import 'package:opencord/core/model/server.dart';
+import 'package:opencord/core/model/video.dart';
 import 'package:opencord/core/model/voice.dart';
 import 'package:opencord/core/providers/activity_state.dart';
 import 'package:opencord/core/providers/channel_audience.dart';
@@ -206,6 +207,16 @@ void _route(Ref ref, RepoEvent event) {
       return;
     case HotkeyPressed(:final action):
       _toggle(ref, action);
+      return;
+    case VideoTrackAdded() || VideoTrackRemoved():
+      ref.read(videoFeedsProvider.notifier).apply(event);
+      return;
+    case OwnCameraChanged(:final feed):
+      ref.read(videoFeedsProvider.notifier).setOwn(feed);
+      ref.read(voiceSessionProvider.notifier).cameraChanged(on: feed != null);
+      return;
+    case CameraStopped():
+      ref.read(audioNoticeProvider.notifier).show('Your camera stopped.');
       return;
     case NoiseSuppressionFellBack():
       ref
@@ -640,9 +651,22 @@ class VoiceSessionNotifier extends Notifier<VoiceSession> {
     await _push();
   }
 
+  /// Turns the camera on or off; if it cannot start, it stays off and
+  /// the [RepoException] says why.
   Future<void> toggleCamera() async {
-    state = state.copyWith(camera: !state.camera);
-    await _push();
+    final on = !state.camera;
+    state = state.copyWith(camera: on);
+    try {
+      await _push();
+    } on RepoException {
+      state = state.copyWith(camera: !on);
+      rethrow;
+    }
+  }
+
+  /// The camera went on or off by itself (stopped, or left with voice).
+  void cameraChanged({required bool on}) {
+    if (state.camera != on) state = state.copyWith(camera: on);
   }
 
   Future<void> toggleScreenshare() async {
@@ -661,6 +685,78 @@ class VoiceSessionNotifier extends Notifier<VoiceSession> {
 final voiceSessionProvider =
     NotifierProvider<VoiceSessionNotifier, VoiceSession>(
       VoiceSessionNotifier.new,
+    );
+
+/// Video in the voice channel this device is in (Phase 2 V5): others'
+/// cameras by user, and this device's own.
+@immutable
+class VideoFeeds {
+  const VideoFeeds({this.cameras = const {}, this.own});
+
+  final Map<int, VideoFeed> cameras;
+  final VideoFeed? own;
+
+  /// What a tile for [userId] shows; [self] is this device's user.
+  VideoFeed? of(int userId, {required int? self}) =>
+      userId == self ? own : cameras[userId];
+}
+
+class VideoFeedsNotifier extends Notifier<VideoFeeds> {
+  @override
+  VideoFeeds build() {
+    // A new channel brings its own cameras; this device's stays as it is.
+    ref.watch(
+      voiceSessionProvider.select(
+        (voice) => (voice.serverKey, voice.channelId),
+      ),
+    );
+    return VideoFeeds(own: stateOrNull?.own);
+  }
+
+  void apply(RepoEvent event) {
+    final voice = ref.read(voiceSessionProvider);
+    switch (event) {
+      case VideoTrackAdded(:final serverKey, :final channelId, :final userId)
+          when serverKey == voice.serverKey && channelId == voice.channelId:
+        state = VideoFeeds(
+          cameras: {...state.cameras, userId: event.feed},
+          own: state.own,
+        );
+      case VideoTrackRemoved(:final userId, :final trackId)
+          when state.cameras[userId]?.trackId == trackId:
+        state = VideoFeeds(
+          cameras: {...state.cameras}..remove(userId),
+          own: state.own,
+        );
+      default:
+        break;
+    }
+  }
+
+  void setOwn(VideoFeed? feed) =>
+      state = VideoFeeds(cameras: state.cameras, own: feed);
+}
+
+final videoFeedsProvider = NotifierProvider<VideoFeedsNotifier, VideoFeeds>(
+  VideoFeedsNotifier.new,
+);
+
+/// The tiles showing video and their sizes; the repository hears each
+/// change, so only what is visible is received and decoded (plan §7.11).
+class VideoWantsNotifier extends Notifier<List<VideoWant>> {
+  @override
+  List<VideoWant> build() => const [];
+
+  void set(List<VideoWant> wants) {
+    if (listEquals(wants, state)) return;
+    state = List.unmodifiable(wants);
+    ref.read(repositoryProvider).setVideoWants(state);
+  }
+}
+
+final videoWantsProvider =
+    NotifierProvider<VideoWantsNotifier, List<VideoWant>>(
+      VideoWantsNotifier.new,
     );
 
 /// How this device's voice connection is doing (Phase 2 plan §7.14); null

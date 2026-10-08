@@ -315,10 +315,10 @@ RepoErrorKind _kindFrom(core.ErrorCode code) => switch (code) {
   core.ErrorCode.conflict ||
   core.ErrorCode.voiceNotConnected ||
   core.ErrorCode.qualityLimit ||
-  core.ErrorCode.cameraLimit ||
   core.ErrorCode.streamViewerLimit ||
   core.ErrorCode.soundboardFull => RepoErrorKind.conflict,
   core.ErrorCode.voiceChannelFull => RepoErrorKind.voiceChannelFull,
+  core.ErrorCode.cameraLimit => RepoErrorKind.cameraLimit,
   core.ErrorCode.soundCooldown => RepoErrorKind.rateLimited,
   core.ErrorCode.soundTooLong ||
   core.ErrorCode.soundInvalid => RepoErrorKind.invalidArgument,
@@ -374,6 +374,17 @@ RepoException errorFrom(core.CoreError error) => switch (error) {
   ),
   core.CoreError_Storage(:final message) => RepoException(
     RepoErrorKind.other,
+    message,
+  ),
+  core.CoreError_Camera(:final problem, :final message) => RepoException(
+    switch (problem) {
+      core.CameraProblem.denied => RepoErrorKind.cameraDenied,
+      core.CameraProblem.noCamera ||
+      core.CameraProblem.noUsableMode => RepoErrorKind.cameraMissing,
+      core.CameraProblem.notSupported => RepoErrorKind.cameraUnsupported,
+      core.CameraProblem.notInVoice => RepoErrorKind.notConnected,
+      core.CameraProblem.failed => RepoErrorKind.other,
+    },
     message,
   ),
 };

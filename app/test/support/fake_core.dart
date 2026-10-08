@@ -97,6 +97,36 @@ class FakeCoreApi extends Fake implements CoreApi {
   void voiceSetUserLocalMute(String serverKey, int userId, bool muted) =>
       calls.add('localMute:$serverKey:$userId:$muted');
 
+  /// Whether videoSupported says so.
+  var video = false;
+
+  /// What cameraStart answers, or throws.
+  core.CameraStarted camera = const core.CameraStarted(
+    trackId: 'camera-1',
+    width: 1280,
+    height: 720,
+  );
+  core.CoreError? cameraError;
+
+  /// What videoSetWants was last sent.
+  List<core.VideoWant>? videoWants;
+
+  @override
+  bool videoSupported() => video;
+
+  @override
+  Future<core.CameraStarted> cameraStart(String? deviceId) async {
+    calls.add('cameraStart:$deviceId');
+    if (cameraError case final error?) throw error;
+    return camera;
+  }
+
+  @override
+  void cameraStop() => calls.add('cameraStop');
+
+  @override
+  void videoSetWants(List<core.VideoWant> wants) => videoWants = wants;
+
   @override
   core.GeneratedIdentity identityGenerate() => core.GeneratedIdentity(
     secret: Uint8List.fromList([1, 2, 3]),

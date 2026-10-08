@@ -30,7 +30,6 @@ class VoiceConnectedPanel extends ConsumerWidget {
     final serverName = ref.watch(
       serverProvider(server).select((s) => s.data?.info.name),
     );
-    final session = ref.read(voiceSessionProvider.notifier);
     final capabilities = ref.read(repositoryProvider).capabilities;
     final connection = ref.watch(voiceConnectionProvider);
     final status = connection?.phase.label ?? 'Voice connected';
@@ -119,7 +118,7 @@ class VoiceConnectedPanel extends ConsumerWidget {
                           : OcIcons.videocamOff,
                       label: 'Camera',
                       active: voice.camera,
-                      onTap: session.toggleCamera,
+                      onTap: () => toggleCamera(context, ref),
                     ),
                   ),
                 if (capabilities.camera && capabilities.screenShare)

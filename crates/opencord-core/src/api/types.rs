@@ -512,6 +512,65 @@ pub struct AudioDevices {
     pub default_output: Option<String>,
 }
 
+/// A camera (Phase 2 plan §8).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CameraDevice {
+    /// Stable while it stays plugged in; what settings keep.
+    pub id: String,
+    pub name: String,
+}
+
+/// This device's camera, on.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CameraStarted {
+    /// Its track, for `video_set_wants` (the preview's tile).
+    pub track_id: String,
+    /// The preview's texture, unmirrored; `None` without `video_init`.
+    pub texture_id: Option<i64>,
+    /// What the camera captures.
+    pub width: u32,
+    pub height: u32,
+}
+
+/// Why the camera could not start.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CameraProblem {
+    /// Not on this system yet (only Linux has cameras for now).
+    NotSupported,
+    NoCamera,
+    /// The user (or the system) refused access.
+    Denied,
+    /// The camera offers nothing Opencord can use.
+    NoUsableMode,
+    /// Turning the camera on needs a voice connection.
+    NotInVoice,
+    Failed,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum VideoTrackKind {
+    Camera,
+    Screen,
+}
+
+/// A tile showing a track, in physical pixels; tracks not named are not
+/// shown and not received (plan §6, §7.11).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct VideoWant {
+    pub track_id: String,
+    pub width: u32,
+    pub height: u32,
+}
+
+/// A video texture's counts, for diagnostics and tests.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TextureStats {
+    /// Pictures the core handed it.
+    pub presented: u64,
+    /// Times Flutter drew from it.
+    pub drawn: u64,
+}
+
 /// Where this device's voice connection is (Phase 2 plan §7.14).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum VoiceConnectionState {
@@ -564,6 +623,28 @@ pub enum MediaEvent {
     /// A global hotkey for one of the toggles was pressed (push-to-talk
     /// and the priority key act by themselves).
     HotkeyPressed { action: HotkeyAction },
+    /// Someone's camera or screen in this device's voice channel; drawn into
+    /// `texture_id` (with `video_init`) while `video_set_wants` asks for it.
+    VideoTrackAdded {
+        server_key: String,
+        channel_id: i64,
+        user_id: i64,
+        track_id: String,
+        kind: VideoTrackKind,
+        texture_id: Option<i64>,
+        /// Its largest layer's size: the shape to draw it in.
+        width: u32,
+        height: u32,
+    },
+    VideoTrackRemoved {
+        server_key: String,
+        channel_id: i64,
+        user_id: i64,
+        track_id: String,
+    },
+    /// This device's camera stopped by itself: unplugged, failed, or the
+    /// server no longer allows it.
+    CameraStopped { message: String },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
@@ -597,4 +678,9 @@ pub enum CoreError {
     Connection { message: String },
     #[error("could not save local data: {message}")]
     Storage { message: String },
+    #[error("{message}")]
+    Camera {
+        problem: CameraProblem,
+        message: String,
+    },
 }

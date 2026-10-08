@@ -35,6 +35,18 @@ abstract interface class CoreApi {
 
   void voiceSetUserLocalMute(String serverKey, int userId, bool muted);
 
+  /// Whether this system has cameras and video (Linux only for now).
+  bool videoSupported();
+
+  /// Video draws into this engine's textures from now on.
+  void videoInit(int engineHandle);
+
+  Future<core.CameraStarted> cameraStart(String? deviceId);
+
+  void cameraStop();
+
+  void videoSetWants(List<core.VideoWant> wants);
+
   core.GeneratedIdentity identityGenerate();
 
   /// Checks what [identityLoad] would use, without using it.
@@ -238,6 +250,23 @@ class FrbCoreApi implements CoreApi {
   @override
   void voiceSetUserVolume(String serverKey, int userId, double volume) => frb
       .voiceSetUserVolume(serverKey: serverKey, userId: userId, volume: volume);
+
+  @override
+  bool videoSupported() => frb.videoSupported();
+
+  @override
+  void videoInit(int engineHandle) => frb.videoInit(engineHandle: engineHandle);
+
+  @override
+  Future<core.CameraStarted> cameraStart(String? deviceId) =>
+      frb.cameraStart(deviceId: deviceId);
+
+  @override
+  void cameraStop() => frb.cameraStop();
+
+  @override
+  void videoSetWants(List<core.VideoWant> wants) =>
+      frb.videoSetWants(wants: wants);
 
   @override
   void voiceSetUserLocalMute(String serverKey, int userId, bool muted) =>

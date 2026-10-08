@@ -3,8 +3,10 @@ import 'dart:developer' as developer;
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:irondash_engine_context/irondash_engine_context.dart';
 import 'package:path_provider/path_provider.dart';
 
 import 'package:opencord/app.dart';
@@ -90,6 +92,7 @@ Future<ProviderContainer> startApp({
           identities: SecureIdentityStore(profile: profile),
           store: store,
         );
+  if (!mock) await _startVideo();
   final container = ProviderContainer(
     overrides: [
       keyValueStoreProvider.overrideWithValue(store),
@@ -157,5 +160,19 @@ Future<Widget> startupWidget(
       },
       onQuit: shown.quit,
     );
+  }
+}
+
+/// Lets the core draw video into this engine's textures (Phase 2 plan
+/// §7.11). Without it, video still flows but nothing is drawn.
+Future<void> _startVideo() async {
+  if (!core.videoSupported()) return;
+  try {
+    final engine = await EngineContext.instance.getEngineHandle();
+    core.videoInit(engineHandle: engine);
+  } on PlatformException catch (error) {
+    developer.log('no video textures: ${error.message}', name: 'opencord');
+  } on MissingPluginException catch (error) {
+    developer.log('no video textures: ${error.message}', name: 'opencord');
   }
 }

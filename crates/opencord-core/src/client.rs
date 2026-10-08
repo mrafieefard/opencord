@@ -16,11 +16,11 @@ use tokio::runtime::Handle;
 use tokio::sync::{broadcast, mpsc, oneshot};
 
 use crate::api::types::{
-    AddServerOutcome, AudioSettings, Ban, Channel, ChannelChanges, ChannelKind, ChannelPosition,
-    CoreError, CoreEvent, CoreEventPayload, ErrorCode, HotkeyBinding, HotkeySupport, IdentityInfo,
-    Invite, MediaEvent, Member, Message, OverwriteTargetKind, PermissionOverwrite, PresenceStatus,
-    Role, RoleChanges, Server, ServerChanges, ServerInfo, User, VoiceSettings,
-    VoiceSettingsChanges, VoiceState,
+    AddServerOutcome, AudioSettings, Ban, CameraStarted, Channel, ChannelChanges, ChannelKind,
+    ChannelPosition, CoreError, CoreEvent, CoreEventPayload, ErrorCode, HotkeyBinding,
+    HotkeySupport, IdentityInfo, Invite, MediaEvent, Member, Message, OverwriteTargetKind,
+    PermissionOverwrite, PresenceStatus, Role, RoleChanges, Server, ServerChanges, ServerInfo,
+    User, VideoWant, VoiceSettings, VoiceSettingsChanges, VoiceState,
 };
 use crate::connection::{
     self, Command, Connection, Context, Credentials, Established, HandshakeError,
@@ -71,6 +71,8 @@ struct Voice {
     target: Option<(String, i64)>,
     mute: bool,
     deaf: bool,
+    /// This device's camera is on.
+    video: bool,
     /// The server's side of this device's voice state.
     server_mute: bool,
     server_deaf: bool,
@@ -810,6 +812,7 @@ impl Client {
                     .is_some_and(|(target, _)| *target == other)
                 {
                     voice.target = None;
+                    voice.video = false;
                 }
             }
             self.sync_media();
@@ -847,6 +850,64 @@ impl Client {
                 let request = client.voice_update(channel_id);
                 let _ = client.request(&key, request).await;
             });
+        }
+    }
+
+    /// Tells the server whether this device's camera is on.
+    pub fn set_voice_video(&self, on: bool) {
+        let target = {
+            let mut voice = self.lock_voice();
+            if voice.video == on {
+                return;
+            }
+            voice.video = on;
+            voice.target.clone()
+        };
+        if let Some((key, channel_id)) = target {
+            let client = self.clone();
+            self.inner.runtime.spawn(async move {
+                let request = client.voice_update(channel_id);
+                let _ = client.request(&key, request).await;
+            });
+        }
+    }
+
+    /// Video draws into this Flutter engine's textures from now on.
+    pub fn video_init(&self, engine_handle: i64) {
+        #[cfg(target_os = "linux")]
+        if let Some(media) = self.inner.media.get() {
+            media
+                .video()
+                .set_textures(Arc::new(crate::video::flutter::FlutterTextures::new(
+                    engine_handle,
+                )));
+        }
+        #[cfg(not(target_os = "linux"))]
+        let _ = engine_handle;
+    }
+
+    /// Turns this device's camera on in its voice channel.
+    pub async fn camera_start(
+        &self,
+        device_id: Option<String>,
+    ) -> Result<CameraStarted, CoreError> {
+        let media = self.inner.media.get().ok_or(CoreError::NotInitialized)?;
+        let started = media.video().start_camera(device_id).await?;
+        self.set_voice_video(true);
+        Ok(started)
+    }
+
+    pub fn camera_stop(&self) {
+        if let Some(media) = self.inner.media.get() {
+            media.video().stop_camera();
+        }
+        self.set_voice_video(false);
+    }
+
+    /// The tiles the app shows video in, and their sizes.
+    pub fn video_set_wants(&self, wants: Vec<VideoWant>) {
+        if let Some(media) = self.inner.media.get() {
+            media.video().set_wants(wants);
         }
     }
 
@@ -945,11 +1006,15 @@ impl Client {
                                 voice.server_deaf = state.server_deaf;
                                 voice.suppress = state.suppress;
                             }
-                            None if here => voice.target = None,
+                            None if here => {
+                                voice.target = None;
+                                voice.video = false;
+                            }
                             None => {}
                         }
                     } else if here {
                         voice.target = None;
+                        voice.video = false;
                     }
                 }
                 self.sync_media();
@@ -974,6 +1039,7 @@ impl Client {
                 return;
             }
             voice.target = None;
+            voice.video = false;
             voice.self_ids.get(key).copied()
         };
         self.sync_media();
@@ -1002,7 +1068,7 @@ impl Client {
             channel_id: Some(channel_id),
             self_mute: voice.mute,
             self_deaf: voice.deaf,
-            self_video: false,
+            self_video: voice.video,
             self_stream: false,
         })
     }

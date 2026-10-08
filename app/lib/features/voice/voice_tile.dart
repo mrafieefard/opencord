@@ -2,6 +2,8 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
+import 'package:opencord/core/model/video.dart';
+
 import 'package:opencord/ui/theme/oc_colors.dart';
 import 'package:opencord/ui/theme/oc_icons.dart';
 import 'package:opencord/ui/theme/oc_metrics.dart';
@@ -21,6 +23,7 @@ class VoiceTileView extends StatelessWidget {
     this.muted = false,
     this.deafened = false,
     this.camera = false,
+    this.video,
     this.speaking = false,
     this.focused = false,
     this.small = false,
@@ -35,6 +38,9 @@ class VoiceTileView extends StatelessWidget {
   final bool muted;
   final bool deafened;
   final bool camera;
+
+  /// Their camera's video, when there is some to draw.
+  final VideoFeed? video;
   final bool speaking;
 
   /// Shown large in focus mode.
@@ -80,6 +86,8 @@ class VoiceTileView extends StatelessWidget {
           children: [
             if (screen)
               const ScreenFeed()
+            else if (video case final feed? when feed.textureId != null)
+              VideoFeedView(feed: feed)
             else if (camera)
               CustomPaint(painter: _CameraFeed(colors))
             else
@@ -138,6 +146,36 @@ class VoiceTileView extends StatelessWidget {
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+/// A camera's video filling its tile: cropped to the tile's shape, never
+/// stretched, mirrored for this device's own preview (Phase 2 plan §8).
+class VideoFeedView extends StatelessWidget {
+  const VideoFeedView({super.key, required this.feed});
+
+  final VideoFeed feed;
+
+  @override
+  Widget build(BuildContext context) {
+    final textureId = feed.textureId;
+    if (textureId == null) return const SizedBox.shrink();
+    final texture = Texture(
+      textureId: textureId,
+      filterQuality: FilterQuality.medium,
+    );
+    return ClipRect(
+      child: FittedBox(
+        fit: BoxFit.cover,
+        child: SizedBox(
+          width: feed.width.toDouble(),
+          height: feed.height.toDouble(),
+          child: feed.mirrored
+              ? Transform.flip(flipX: true, child: texture)
+              : texture,
         ),
       ),
     );

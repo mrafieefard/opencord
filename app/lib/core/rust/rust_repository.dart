@@ -9,6 +9,7 @@ import 'package:opencord/core/model/permissions.dart';
 import 'package:opencord/core/model/server.dart';
 import 'package:opencord/core/model/snapshot.dart';
 import 'package:opencord/core/model/user.dart';
+import 'package:opencord/core/model/video.dart';
 import 'package:opencord/core/model/voice.dart';
 import 'package:opencord/core/providers/activity_state.dart';
 import 'package:opencord/core/repository/repository.dart';
@@ -36,6 +37,10 @@ class RustRepository implements OpencordRepository {
     // Listed now: the tray and the server rail read them before start, and
     // they show while offline too.
     _servers = _listServers();
+    _capabilities = RepoCapabilities(
+      voice: true,
+      camera: _core.videoSupported(),
+    );
   }
 
   /// Reads the saved identity first, so the app knows straight away
@@ -96,8 +101,13 @@ class RustRepository implements OpencordRepository {
   /// The voice channel this device is in, as far as the app knows.
   ({String server, int channel})? _ownVoice;
 
+  late final RepoCapabilities _capabilities;
+
   @override
-  RepoCapabilities get capabilities => const RepoCapabilities(voice: true);
+  RepoCapabilities get capabilities => _capabilities;
+
+  /// Whether this device's camera is on.
+  var _cameraOn = false;
 
   @override
   Stream<RepoEvent> get events => _events.stream;
@@ -924,6 +934,8 @@ class RustRepository implements OpencordRepository {
   @override
   Future<void> leaveVoice() async {
     _ownVoice = null;
+    // Leaving voice turns the camera off.
+    _cameraOff();
     await _call(_core.voiceLeave);
     for (final server in _speaking.keys.toList()) {
       _speaking.remove(server);
@@ -955,7 +967,23 @@ class RustRepository implements OpencordRepository {
     return SpeakingChanged(server, users);
   }
 
-  void _onMediaEvent(core.MediaEvent event) => _emit(switch (event) {
+  void _onMediaEvent(core.MediaEvent event) {
+    if (event is core.MediaEvent_CameraStopped) {
+      _cameraOff();
+      _emit(CameraStopped(event.message));
+      return;
+    }
+    if (_mediaEvent(event) case final repoEvent?) _emit(repoEvent);
+  }
+
+  void _cameraOff() {
+    if (!_cameraOn) return;
+    _cameraOn = false;
+    _emit(const OwnCameraChanged(null));
+  }
+
+  /// Media's news as the app's; screens wait for V6.
+  RepoEvent? _mediaEvent(core.MediaEvent event) => switch (event) {
     core.MediaEvent_ConnectionState(
       :final serverKey,
       :final channelId,
@@ -982,7 +1010,37 @@ class RustRepository implements OpencordRepository {
     core.MediaEvent_HotkeyPressed(:final action) => HotkeyPressed(
       hotkeyActionFrom(action),
     ),
-  });
+    core.MediaEvent_VideoTrackAdded(
+      kind: core.VideoTrackKind.camera,
+      :final serverKey,
+      :final channelId,
+      :final userId,
+      :final trackId,
+      :final textureId,
+      :final width,
+      :final height,
+    ) =>
+      VideoTrackAdded(
+        serverKey,
+        channelId,
+        userId,
+        VideoFeed(
+          trackId: trackId,
+          textureId: textureId,
+          width: width,
+          height: height,
+        ),
+      ),
+    core.MediaEvent_VideoTrackAdded(kind: core.VideoTrackKind.screen) => null,
+    core.MediaEvent_VideoTrackRemoved(
+      :final serverKey,
+      :final channelId,
+      :final userId,
+      :final trackId,
+    ) =>
+      VideoTrackRemoved(serverKey, channelId, userId, trackId),
+    core.MediaEvent_CameraStopped() => null,
+  };
 
   @override
   Future<AudioDeviceList> audioDevices() async =>
@@ -1031,7 +1089,7 @@ class RustRepository implements OpencordRepository {
   void setUserLocalMute(String serverKey, int userId, bool muted) =>
       _now(() => _core.voiceSetUserLocalMute(serverKey, userId, muted));
 
-  /// Camera and screen share wait for media (Phase 2 V5, V6).
+  /// Screen share waits for its media (Phase 2 V6).
   @override
   Future<void> setVoiceSelf({
     bool? muted,
@@ -1041,5 +1099,36 @@ class RustRepository implements OpencordRepository {
   }) async {
     if (muted != null) _now(() => _core.voiceSetSelfMute(muted));
     if (deafened != null) _now(() => _core.voiceSetSelfDeaf(deafened));
+    if (camera == null || camera == _cameraOn) return;
+    if (!camera) {
+      _now(_core.cameraStop);
+      _cameraOff();
+      return;
+    }
+    final started = await _call(() => _core.cameraStart(null));
+    _cameraOn = true;
+    _emit(
+      OwnCameraChanged(
+        VideoFeed(
+          trackId: started.trackId,
+          textureId: started.textureId,
+          width: started.width,
+          height: started.height,
+          mirrored: true,
+        ),
+      ),
+    );
   }
+
+  @override
+  void setVideoWants(List<VideoWant> wants) => _now(
+    () => _core.videoSetWants([
+      for (final want in wants)
+        core.VideoWant(
+          trackId: want.trackId,
+          width: want.width,
+          height: want.height,
+        ),
+    ]),
+  );
 }

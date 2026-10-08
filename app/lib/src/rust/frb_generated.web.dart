@@ -109,6 +109,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   ServerInfo dco_decode_box_autoadd_server_info(dynamic raw);
 
   @protected
+  TextureStats dco_decode_box_autoadd_texture_stats(dynamic raw);
+
+  @protected
   int dco_decode_box_autoadd_u_32(dynamic raw);
 
   @protected
@@ -126,6 +129,15 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   VoiceState dco_decode_box_autoadd_voice_state(dynamic raw);
+
+  @protected
+  CameraDevice dco_decode_camera_device(dynamic raw);
+
+  @protected
+  CameraProblem dco_decode_camera_problem(dynamic raw);
+
+  @protected
+  CameraStarted dco_decode_camera_started(dynamic raw);
 
   @protected
   Channel dco_decode_channel(dynamic raw);
@@ -194,6 +206,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   List<Ban> dco_decode_list_ban(dynamic raw);
 
   @protected
+  List<CameraDevice> dco_decode_list_camera_device(dynamic raw);
+
+  @protected
   List<Channel> dco_decode_list_channel(dynamic raw);
 
   @protected
@@ -242,6 +257,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   List<TrustedFingerprint> dco_decode_list_trusted_fingerprint(dynamic raw);
 
   @protected
+  List<VideoWant> dco_decode_list_video_want(dynamic raw);
+
+  @protected
   List<VoiceState> dco_decode_list_voice_state(dynamic raw);
 
   @protected
@@ -269,6 +287,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   ScreenShareResolution? dco_decode_opt_box_autoadd_screen_share_resolution(
     dynamic raw,
   );
+
+  @protected
+  TextureStats? dco_decode_opt_box_autoadd_texture_stats(dynamic raw);
 
   @protected
   int? dco_decode_opt_box_autoadd_u_32(dynamic raw);
@@ -310,6 +331,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   SpeakingChange dco_decode_speaking_change(dynamic raw);
 
   @protected
+  TextureStats dco_decode_texture_stats(dynamic raw);
+
+  @protected
   TrustedFingerprint dco_decode_trusted_fingerprint(dynamic raw);
 
   @protected
@@ -319,6 +343,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   int dco_decode_u_32(dynamic raw);
 
   @protected
+  BigInt dco_decode_u_64(dynamic raw);
+
+  @protected
   int dco_decode_u_8(dynamic raw);
 
   @protected
@@ -326,6 +353,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   User dco_decode_user(dynamic raw);
+
+  @protected
+  VideoTrackKind dco_decode_video_track_kind(dynamic raw);
+
+  @protected
+  VideoWant dco_decode_video_want(dynamic raw);
 
   @protected
   VoiceConnectionState dco_decode_voice_connection_state(dynamic raw);
@@ -444,6 +477,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   ServerInfo sse_decode_box_autoadd_server_info(SseDeserializer deserializer);
 
   @protected
+  TextureStats sse_decode_box_autoadd_texture_stats(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   int sse_decode_box_autoadd_u_32(SseDeserializer deserializer);
 
   @protected
@@ -463,6 +501,15 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   VoiceState sse_decode_box_autoadd_voice_state(SseDeserializer deserializer);
+
+  @protected
+  CameraDevice sse_decode_camera_device(SseDeserializer deserializer);
+
+  @protected
+  CameraProblem sse_decode_camera_problem(SseDeserializer deserializer);
+
+  @protected
+  CameraStarted sse_decode_camera_started(SseDeserializer deserializer);
 
   @protected
   Channel sse_decode_channel(SseDeserializer deserializer);
@@ -533,6 +580,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   List<Ban> sse_decode_list_ban(SseDeserializer deserializer);
 
   @protected
+  List<CameraDevice> sse_decode_list_camera_device(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   List<Channel> sse_decode_list_channel(SseDeserializer deserializer);
 
   @protected
@@ -593,6 +645,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  List<VideoWant> sse_decode_list_video_want(SseDeserializer deserializer);
+
+  @protected
   List<VoiceState> sse_decode_list_voice_state(SseDeserializer deserializer);
 
   @protected
@@ -620,6 +675,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   ScreenShareResolution? sse_decode_opt_box_autoadd_screen_share_resolution(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  TextureStats? sse_decode_opt_box_autoadd_texture_stats(
     SseDeserializer deserializer,
   );
 
@@ -669,6 +729,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   SpeakingChange sse_decode_speaking_change(SseDeserializer deserializer);
 
   @protected
+  TextureStats sse_decode_texture_stats(SseDeserializer deserializer);
+
+  @protected
   TrustedFingerprint sse_decode_trusted_fingerprint(
     SseDeserializer deserializer,
   );
@@ -680,6 +743,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   int sse_decode_u_32(SseDeserializer deserializer);
 
   @protected
+  BigInt sse_decode_u_64(SseDeserializer deserializer);
+
+  @protected
   int sse_decode_u_8(SseDeserializer deserializer);
 
   @protected
@@ -687,6 +753,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   User sse_decode_user(SseDeserializer deserializer);
+
+  @protected
+  VideoTrackKind sse_decode_video_track_kind(SseDeserializer deserializer);
+
+  @protected
+  VideoWant sse_decode_video_want(SseDeserializer deserializer);
 
   @protected
   VoiceConnectionState sse_decode_voice_connection_state(
@@ -834,6 +906,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_box_autoadd_texture_stats(
+    TextureStats self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_box_autoadd_u_32(int self, SseSerializer serializer);
 
   @protected
@@ -859,6 +937,15 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
     VoiceState self,
     SseSerializer serializer,
   );
+
+  @protected
+  void sse_encode_camera_device(CameraDevice self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_camera_problem(CameraProblem self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_camera_started(CameraStarted self, SseSerializer serializer);
 
   @protected
   void sse_encode_channel(Channel self, SseSerializer serializer);
@@ -948,6 +1035,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_list_ban(List<Ban> self, SseSerializer serializer);
 
   @protected
+  void sse_encode_list_camera_device(
+    List<CameraDevice> self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_list_channel(List<Channel> self, SseSerializer serializer);
 
   @protected
@@ -1020,6 +1113,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_list_video_want(
+    List<VideoWant> self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_list_voice_state(
     List<VoiceState> self,
     SseSerializer serializer,
@@ -1055,6 +1154,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_opt_box_autoadd_screen_share_resolution(
     ScreenShareResolution? self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_opt_box_autoadd_texture_stats(
+    TextureStats? self,
     SseSerializer serializer,
   );
 
@@ -1113,6 +1218,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_texture_stats(TextureStats self, SseSerializer serializer);
+
+  @protected
   void sse_encode_trusted_fingerprint(
     TrustedFingerprint self,
     SseSerializer serializer,
@@ -1125,6 +1233,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_u_32(int self, SseSerializer serializer);
 
   @protected
+  void sse_encode_u_64(BigInt self, SseSerializer serializer);
+
+  @protected
   void sse_encode_u_8(int self, SseSerializer serializer);
 
   @protected
@@ -1132,6 +1243,15 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_user(User self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_video_track_kind(
+    VideoTrackKind self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_video_want(VideoWant self, SseSerializer serializer);
 
   @protected
   void sse_encode_voice_connection_state(

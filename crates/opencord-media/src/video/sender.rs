@@ -105,6 +105,12 @@ impl CameraSender {
     pub fn keyframe(&self, layer: u8) {
         let _ = self.commands.send(Command::Keyframe(layer));
     }
+
+    /// Whether the thread has ended: the camera's frames stopped (it was
+    /// unplugged, or failed).
+    pub fn finished(&self) -> bool {
+        self.thread.as_ref().is_none_or(JoinHandle::is_finished)
+    }
 }
 
 impl Drop for CameraSender {

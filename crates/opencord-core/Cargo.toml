@@ -26,9 +26,10 @@ serde.workspace = true
 serde_json.workspace = true
 sha2.workspace = true
 thiserror.workspace = true
-tokio.workspace = true
 tokio-rustls.workspace = true
 tokio-tungstenite.workspace = true
+tokio.workspace = true
+tracing.workspace = true
 webpki-roots.workspace = true
 
 [dev-dependencies]
@@ -37,3 +38,8 @@ tempfile.workspace = true
 
 [lints.rust]
 unexpected_cfgs = { level = "warn", check-cfg = ['cfg(frb_expand)'] }
+
+# Video textures go with the video backends, which are Linux-only for now.
+[target.'cfg(target_os = "linux")'.dependencies]
+irondash_run_loop.workspace = true
+irondash_texture.workspace = true

@@ -36,6 +36,25 @@ Future<void> joinVoice(
   }
 }
 
+/// Turns the camera on or off; why it could not start shows as a toast.
+Future<void> toggleCamera(BuildContext context, WidgetRef ref) async {
+  try {
+    await ref.read(voiceSessionProvider.notifier).toggleCamera();
+  } on RepoException catch (error) {
+    if (!context.mounted) return;
+    showOcToast(context, switch (error.kind) {
+      RepoErrorKind.cameraLimit => 'Camera limit reached in this channel',
+      RepoErrorKind.cameraDenied => 'Camera access was denied.',
+      RepoErrorKind.cameraMissing => 'No camera was found.',
+      RepoErrorKind.cameraUnsupported =>
+        "Cameras don't work on this system yet.",
+      RepoErrorKind.forbidden =>
+        "You don't have permission to use your camera here.",
+      _ => error.message,
+    });
+  }
+}
+
 /// Stops sharing, or asks what to share first (§4.10).
 Future<void> toggleScreenshare(BuildContext context, WidgetRef ref) async {
   final session = ref.read(voiceSessionProvider.notifier);
@@ -97,7 +116,7 @@ class VoiceControlBar extends ConsumerWidget {
             activeIcon: OcIcons.videocam,
             tooltip: voice.camera ? 'Turn off camera' : 'Turn on camera',
             active: voice.camera,
-            onPressed: session.toggleCamera,
+            onPressed: () => toggleCamera(context, ref),
           ),
         ],
         if (capabilities.screenShare) ...[

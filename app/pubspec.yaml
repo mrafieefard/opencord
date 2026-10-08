@@ -43,6 +43,9 @@ dependencies:
   dbus: ^0.7.15
   desktop_drop: ^0.8.4
   flutter_secure_storage: ^11.2.0
+  # Hands the Flutter engine to the Rust core for video textures (Phase 2
+  # V5, plan §7.11).
+  irondash_engine_context: ^0.5.5
 
 dev_dependencies:
   flutter_test:
