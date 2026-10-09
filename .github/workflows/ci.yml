@@ -102,8 +102,15 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
+      # One file per run: on desktop, flutter test can start only the first
+      # file's app ("The log reader stopped unexpectedly"); the rest fail.
       - name: Integration test
-        run: xvfb-run flutter test integration_test -d linux
+        run: |
+          status=0
+          for test in integration_test/*_test.dart; do
+            xvfb-run -a flutter test "$test" -d linux || status=1
+          done
+          exit $status
 
   desktop:
     name: Flutter (${{ matrix.target }})
