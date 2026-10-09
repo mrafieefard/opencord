@@ -934,3 +934,17 @@ fn only_a_nomination_signed_with_the_peers_password_counts() {
     ));
     assert!(!signed_nomination(&[0x80, 0x6f, 0, 1], "the password"));
 }
+
+#[test]
+fn forwarded_audio_starts_without_rollovers_and_skips_leave_no_gaps() {
+    let mut forward = super::Forward::default();
+
+    // The sender has wrapped three times before this receiver came: SRTP
+    // takes a new stream to start at rollover count 0.
+    assert_eq!(forward.seq(0x3_fff0), 0xfff0);
+    assert_eq!(forward.seq(0x3_fff1), 0xfff1);
+    forward.skipped += 2;
+    assert_eq!(forward.seq(0x3_fff4), 0xfff2);
+    // Its own rollovers carry on from there.
+    assert_eq!(forward.seq(0x4_000f), 0x1_000d);
+}

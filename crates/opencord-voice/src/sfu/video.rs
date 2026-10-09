@@ -274,7 +274,9 @@ impl Sending {
     fn switch(&mut self, now: Instant, layer: u8, seq: u64, timestamp: u32) {
         self.current = Some(layer);
         self.from_seq = seq;
-        let next_seq = self.last_seq.map_or(seq, |last| last + 1);
+        // A new copy keeps the number's low 16 bits but no rollovers:
+        // SRTP takes a new stream's first packet to have none.
+        let next_seq = self.last_seq.map_or(seq % super::ROLLOVER, |last| last + 1);
         self.seq_offset = next_seq.wrapping_sub(seq);
         let next_ts = match self.last_at {
             Some(at) => {
@@ -938,4 +940,34 @@ struct Offer {
     track_id: String,
     screen: bool,
     layers: Vec<LayerOption>,
+}
+
+#[cfg(test)]
+mod sequence_tests {
+    use super::*;
+
+    fn setup() -> TrackSetup {
+        TrackSetup {
+            track_id: "cam".to_owned(),
+            kind: VideoKind::Camera,
+            layers: Vec::new(),
+            ssrc: 1,
+            rtx_ssrc: 2,
+        }
+    }
+
+    #[test]
+    fn a_receivers_copy_starts_without_rollovers_and_runs_on_across_layers() {
+        let now = Instant::now();
+        let mut sending = Sending::new(7, &setup());
+        // The publisher's layer has wrapped twice before this receiver came:
+        // SRTP takes a new stream to start at rollover count 0.
+        sending.switch(now, 0, 0x2_fff0, 1000);
+
+        assert_eq!(sending.rewrite(now, 0x2_fff0, 1000).0, 0xfff0);
+        assert_eq!(sending.rewrite(now, 0x2_fff1, 4000).0, 0xfff1);
+        // Another layer, numbered on from where this one was.
+        sending.switch(now, 1, 0x5_0010, 7000);
+        assert_eq!(sending.rewrite(now, 0x5_0010, 7000).0, 0xfff2);
+    }
 }

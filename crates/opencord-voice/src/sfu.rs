@@ -210,7 +210,25 @@ const ESTIMATE_DROP: f64 = 0.9;
 struct Forward {
     skipped: u64,
     lag: u64,
+    /// Taken off the sender's sequence numbers: the receiver's first packet
+    /// has a rollover count of 0, as SRTP assumes of a new stream.
+    base: Option<u64>,
 }
+
+impl Forward {
+    /// What the receiver gets for the sender's sequence number `seq`: no
+    /// gaps where packets were skipped, rollovers counted from its first.
+    fn seq(&mut self, seq: u64) -> u64 {
+        self.lag += std::mem::take(&mut self.skipped);
+        let seq = seq.saturating_sub(self.lag);
+        let base = *self.base.get_or_insert(seq - seq % ROLLOVER);
+        seq.saturating_sub(base)
+    }
+}
+
+/// RTP sequence numbers are 16 bits; SRTP counts their rollovers, and a
+/// receiver takes a stream's first packet to have none.
+pub(super) const ROLLOVER: u64 = 1 << 16;
 
 #[derive(Default)]
 struct Channel {
