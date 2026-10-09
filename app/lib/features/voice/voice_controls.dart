@@ -47,7 +47,8 @@ Future<void> toggleCamera(BuildContext context, WidgetRef ref) async {
     if (!context.mounted) return;
     showOcToast(context, switch (error.kind) {
       RepoErrorKind.cameraLimit => 'Camera limit reached in this channel',
-      RepoErrorKind.cameraDenied => 'Camera access was denied.',
+      RepoErrorKind.cameraDenied =>
+        "Camera access is off. Allow it in your system's privacy settings.",
       RepoErrorKind.cameraMissing => 'No camera was found.',
       RepoErrorKind.cameraUnsupported =>
         "Cameras don't work on this system yet.",
