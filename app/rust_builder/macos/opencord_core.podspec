@@ -39,6 +39,9 @@ A new Flutter FFI plugin project.
     'DEFINES_MODULE' => 'YES',
     # Flutter.framework does not contain a i386 slice.
     'EXCLUDED_ARCHS[sdk=iphonesimulator*]' => 'i386',
-    'OTHER_LDFLAGS' => '-force_load ${BUILT_PRODUCTS_DIR}/libopencord_core.a',
+    # A Rust static library doesn't carry its framework dependencies, so the
+    # ones cpal's CoreAudio backend calls into are linked here. CoreAudio is
+    # weak: its process taps (macOS 14.2+) must not stop older systems.
+    'OTHER_LDFLAGS' => '-force_load ${BUILT_PRODUCTS_DIR}/libopencord_core.a -weak_framework CoreAudio -framework AudioToolbox',
   }
 end
