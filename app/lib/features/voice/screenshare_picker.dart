@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import 'package:opencord/core/settings/local_prefs.dart';
-import 'package:opencord/features/voice/voice_tile.dart';
+import 'package:opencord/core/model/stream.dart';
+import 'package:opencord/core/model/voice.dart';
+import 'package:opencord/core/providers/providers.dart';
 import 'package:opencord/ui/theme/oc_colors.dart';
-import 'package:opencord/ui/theme/oc_icons.dart';
 import 'package:opencord/ui/theme/oc_metrics.dart';
 import 'package:opencord/ui/theme/oc_text.dart';
 import 'package:opencord/ui/widgets/choice_chips.dart';
@@ -13,116 +13,136 @@ import 'package:opencord/ui/widgets/oc_dialog.dart';
 import 'package:opencord/ui/widgets/section_label.dart';
 import 'package:opencord/ui/widgets/settings.dart';
 
-/// What to share and how well. [source] is null on Linux, where the
-/// desktop's own picker (xdg-desktop-portal) chooses it.
-typedef ScreenshareChoice = ({String? source, ScreenQuality quality});
+/// What to share: its quality, within the server's maximum, and whether
+/// its sound goes too.
+typedef ScreenshareChoice = ({ScreenShareQuality quality, bool audio});
 
-typedef _Source = ({String id, String label, String? detail});
+/// The share dialog (Phase 2 plan §9.1): resolution and frame rate, with
+/// options above the server's maximum disabled, and the sound switch. On
+/// Linux the desktop's own picker chooses the screen or window after it.
+/// [changing] asks only for a new quality, starting from [current].
+Future<ScreenshareChoice?> showScreenshareDialog(
+  BuildContext context, {
+  required String serverKey,
+  ScreenShareQuality? current,
+  bool changing = false,
+}) => showOcDialog<ScreenshareChoice>(
+  context: context,
+  builder: (context) => _ScreenshareDialog(
+    serverKey: serverKey,
+    current: current,
+    changing: changing,
+  ),
+);
 
-// Phase 2 lists the real screens and windows.
-const _screens = <_Source>[
-  (id: 'screen-1', label: 'Screen 1', detail: '2560 × 1440'),
-  (id: 'screen-2', label: 'Screen 2', detail: '1920 × 1080'),
-];
-const _windows = <_Source>[
-  (id: 'window-opencord', label: 'Opencord', detail: null),
-  (id: 'window-browser', label: 'Browser', detail: null),
-  (id: 'window-terminal', label: 'Terminal', detail: null),
-];
+class _ScreenshareDialog extends ConsumerStatefulWidget {
+  const _ScreenshareDialog({
+    required this.serverKey,
+    required this.current,
+    required this.changing,
+  });
 
-/// The screenshare source picker (§4.10), with the quality options.
-Future<ScreenshareChoice?> showScreensharePicker(BuildContext context) =>
-    showOcDialog<ScreenshareChoice>(
-      context: context,
-      builder: (context) => const _ScreensharePicker(),
-    );
-
-class _ScreensharePicker extends ConsumerStatefulWidget {
-  const _ScreensharePicker();
+  final String serverKey;
+  final ScreenShareQuality? current;
+  final bool changing;
 
   @override
-  ConsumerState<_ScreensharePicker> createState() => _ScreensharePickerState();
+  ConsumerState<_ScreenshareDialog> createState() => _ScreenshareDialogState();
 }
 
-class _ScreensharePickerState extends ConsumerState<_ScreensharePicker> {
-  late var _quality = ref.read(screenQualityProvider);
-  var _source = _screens.first.id;
+class _ScreenshareDialogState extends ConsumerState<_ScreenshareDialog> {
+  late final VoiceSettings _settings =
+      ref.read(serverProvider(widget.serverKey)).data?.voiceSettings ??
+      const VoiceSettings();
+  late var _quality = startingQuality(
+    _settings,
+    widget.current ?? ref.read(lastScreenQualityProvider(widget.serverKey)),
+  );
 
   bool get _portal => Theme.of(context).platform == TargetPlatform.linux;
 
-  void _goLive() {
-    ref.read(screenQualityProvider.notifier).set(_quality);
-    Navigator.pop<ScreenshareChoice>(context, (
-      source: _portal ? null : _source,
-      quality: _quality,
-    ));
-  }
+  ScreenShareResolution get _maxResolution =>
+      _settings.screenShareMaxResolution;
+  int get _maxFps => _settings.screenShareMaxFps;
 
-  Widget _sources(List<_Source> sources, IconData icon) =>
-      SettingsChoiceCards<String>(
-        options: [
-          for (final source in sources)
-            ChoiceCardOption(
-              value: source.id,
-              label: source.label,
-              description: source.detail,
-              icon: icon,
-              preview: AspectRatio(
-                aspectRatio: 16 / 9,
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(OcRadius.quote),
-                  child: ColoredBox(
-                    color: context.oc.rail,
-                    child: const ScreenFeed(),
-                  ),
-                ),
-              ),
-            ),
-        ],
-        value: _source,
-        onChanged: (source) => setState(() => _source = source),
-      );
+  bool get _capped =>
+      _maxResolution != ScreenShareResolution.values.last ||
+      _maxFps != ScreenShareQuality.frameRates.last;
+
+  void _done() => Navigator.pop<ScreenshareChoice>(context, (
+    quality: _quality,
+    // Sharing sound arrives with V7.
+    audio: false,
+  ));
 
   @override
   Widget build(BuildContext context) {
     final colors = context.oc;
     return OcDialog(
-      title: 'Share your screen',
-      width: 600,
+      title: widget.changing ? 'Change quality' : 'Share your screen',
+      width: 480,
       actions: [
         OcButton(label: 'Cancel', onPressed: () => Navigator.pop(context)),
-        OcButton.primary(label: 'Go live', onPressed: _goLive),
+        OcButton.primary(
+          label: widget.changing ? 'Apply' : 'Go live',
+          onPressed: _done,
+        ),
       ],
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         mainAxisSize: MainAxisSize.min,
         children: [
-          if (_portal)
+          if (_portal && !widget.changing) ...[
             Text(
               'Your desktop asks which screen or window to share once you '
               'go live.',
               style: OcText.body.copyWith(color: colors.textSecondary),
-            )
-          else ...[
-            const SectionLabel('Screens'),
-            const SizedBox(height: OcSpace.s6),
-            _sources(_screens, OcIcons.monitor),
+            ),
             const SizedBox(height: OcSpace.s16),
-            const SectionLabel('Windows'),
-            const SizedBox(height: OcSpace.s6),
-            _sources(_windows, OcIcons.webAsset),
           ],
-          const SizedBox(height: OcSpace.s16),
-          const SectionLabel('Quality'),
+          const SectionLabel('Resolution'),
           const SizedBox(height: OcSpace.s6),
-          ChoiceChips<ScreenQuality>(
+          ChoiceChips<ScreenShareResolution>(
             options: [
-              for (final quality in ScreenQuality.values)
-                (quality, quality.label),
+              for (final resolution in ScreenShareResolution.values)
+                (resolution, resolution.label),
             ],
-            value: _quality,
-            onChanged: (quality) => setState(() => _quality = quality),
+            value: _quality.resolution,
+            isEnabled: (resolution) => resolution.index <= _maxResolution.index,
+            onChanged: (resolution) => setState(
+              () => _quality = ScreenShareQuality(resolution, _quality.fps),
+            ),
           ),
+          const SizedBox(height: OcSpace.s16),
+          const SectionLabel('Frame rate'),
+          const SizedBox(height: OcSpace.s6),
+          ChoiceChips<int>(
+            options: [
+              for (final fps in ScreenShareQuality.frameRates)
+                (fps, '$fps fps'),
+            ],
+            value: _quality.fps,
+            isEnabled: (fps) => fps <= _maxFps,
+            onChanged: (fps) => setState(
+              () => _quality = ScreenShareQuality(_quality.resolution, fps),
+            ),
+          ),
+          if (_capped) ...[
+            const SizedBox(height: OcSpace.s8),
+            Text(
+              'Server limit: ${_maxResolution.label} · $_maxFps fps',
+              style: OcText.small.copyWith(color: colors.textMuted),
+            ),
+          ],
+          if (!widget.changing) ...[
+            const SizedBox(height: OcSpace.s16),
+            const SettingsSwitchRow(
+              title: 'Share computer sound (except Opencord)',
+              subtitle: 'Sharing sound comes in a later update.',
+              value: false,
+              onChanged: null,
+            ),
+          ],
         ],
       ),
     );

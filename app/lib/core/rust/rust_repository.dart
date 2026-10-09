@@ -9,6 +9,7 @@ import 'package:opencord/core/model/permissions.dart';
 import 'package:opencord/core/model/server.dart';
 import 'package:opencord/core/model/snapshot.dart';
 import 'package:opencord/core/model/user.dart';
+import 'package:opencord/core/model/stream.dart';
 import 'package:opencord/core/model/video.dart';
 import 'package:opencord/core/model/voice.dart';
 import 'package:opencord/core/providers/activity_state.dart';
@@ -37,9 +38,11 @@ class RustRepository implements OpencordRepository {
     // Listed now: the tray and the server rail read them before start, and
     // they show while offline too.
     _servers = _listServers();
+    final video = _core.videoSupported();
     _capabilities = RepoCapabilities(
       voice: true,
-      camera: _core.videoSupported(),
+      camera: video,
+      screenShare: video,
     );
   }
 
@@ -498,11 +501,23 @@ class RustRepository implements OpencordRepository {
       ),
       core.CoreEventPayload_VoiceSettingsUpdate(:final field0) =>
         VoiceSettingsChanged(server, voiceSettingsFrom(field0)),
-      // Streams reach the app in V6's next step.
-      core.CoreEventPayload_StreamCreate() ||
-      core.CoreEventPayload_StreamUpdate() ||
-      core.CoreEventPayload_StreamDelete() ||
-      core.CoreEventPayload_StreamViewersUpdate() => null,
+      core.CoreEventPayload_StreamCreate(:final field0) => StreamStarted(
+        server,
+        streamFrom(field0),
+      ),
+      core.CoreEventPayload_StreamUpdate(:final field0) => StreamChanged(
+        server,
+        streamFrom(field0),
+      ),
+      core.CoreEventPayload_StreamDelete(:final streamKey, :final channelId) =>
+        StreamEnded(server, streamKey, channelId),
+      core.CoreEventPayload_StreamViewersUpdate(
+        :final streamKey,
+        :final viewerIds,
+      ) =>
+        StreamViewersChanged(server, streamKey, [
+          for (final id in viewerIds) id.toInt(),
+        ]),
     };
     if (event != null) _emit(event);
   }
@@ -942,8 +957,9 @@ class RustRepository implements OpencordRepository {
   @override
   Future<void> leaveVoice() async {
     _ownVoice = null;
-    // Leaving voice turns the camera off.
+    // Leaving voice turns the camera off and ends the screen share.
     _cameraOff();
+    _screenOff();
     await _call(_core.voiceLeave);
     for (final server in _speaking.keys.toList()) {
       _speaking.remove(server);
@@ -981,6 +997,11 @@ class RustRepository implements OpencordRepository {
       _emit(CameraStopped(event.message));
       return;
     }
+    if (event is core.MediaEvent_ScreenShareStopped) {
+      _screenOff();
+      _emit(ScreenShareStopped(event.message));
+      return;
+    }
     if (_mediaEvent(event) case final repoEvent?) _emit(repoEvent);
   }
 
@@ -989,6 +1010,71 @@ class RustRepository implements OpencordRepository {
     _cameraOn = false;
     _emit(const OwnCameraChanged(null));
   }
+
+  /// This device's screen share, while live.
+  OwnScreenShare? _screen;
+
+  void _screenOff() {
+    if (_screen == null) return;
+    _screen = null;
+    _emit(const OwnScreenShareChanged(null));
+  }
+
+  core.ScreenShareRequest _screenRequest(
+    ScreenShareQuality quality,
+    bool audio,
+  ) => core.ScreenShareRequest(
+    resolution: resolutionTo(quality.resolution),
+    fps: quality.fps,
+    hasAudio: audio,
+  );
+
+  @override
+  Future<void> startScreenShare(
+    ScreenShareQuality quality, {
+    bool audio = true,
+  }) async {
+    final started = await _call(
+      () => _core.screenShareStart(_screenRequest(quality, audio)),
+    );
+    _screen = OwnScreenShare(
+      key: started.streamKey,
+      source: streamSourceFrom(started.sourceKind),
+      quality: quality,
+      preview: VideoFeed(
+        trackId: started.trackId,
+        textureId: started.textureId,
+        width: started.width,
+        height: started.height,
+      ),
+    );
+    _emit(OwnScreenShareChanged(_screen));
+  }
+
+  @override
+  Future<void> updateScreenShare(
+    ScreenShareQuality quality, {
+    bool audio = true,
+  }) async {
+    await _call(() => _core.screenShareUpdate(_screenRequest(quality, audio)));
+    if (_screen case final share?) {
+      _screen = share.copyWith(quality: quality);
+      _emit(OwnScreenShareChanged(_screen));
+    }
+  }
+
+  @override
+  Future<void> stopScreenShare() async {
+    await _call(_core.screenShareStop);
+    _screenOff();
+  }
+
+  @override
+  Future<void> watchStream(String key) => _call(() => _core.streamWatch(key));
+
+  @override
+  Future<void> unwatchStream(String key) =>
+      _call(() => _core.streamUnwatch(key));
 
   /// Media's news as the app's; screens wait for V6.
   RepoEvent? _mediaEvent(core.MediaEvent event) => switch (event) {
@@ -1039,7 +1125,28 @@ class RustRepository implements OpencordRepository {
           height: height,
         ),
       ),
-    core.MediaEvent_VideoTrackAdded(kind: core.VideoTrackKind.screen) => null,
+    core.MediaEvent_VideoTrackAdded(
+      kind: core.VideoTrackKind.screen,
+      :final serverKey,
+      :final channelId,
+      :final userId,
+      :final trackId,
+      :final textureId,
+      :final width,
+      :final height,
+    ) =>
+      VideoTrackAdded(
+        serverKey,
+        channelId,
+        userId,
+        VideoFeed(
+          trackId: trackId,
+          textureId: textureId,
+          width: width,
+          height: height,
+        ),
+        screen: true,
+      ),
     core.MediaEvent_VideoTrackRemoved(
       :final serverKey,
       :final channelId,
@@ -1048,7 +1155,6 @@ class RustRepository implements OpencordRepository {
     ) =>
       VideoTrackRemoved(serverKey, channelId, userId, trackId),
     core.MediaEvent_CameraStopped() => null,
-    // Screen shares reach the app in V6's next step.
     core.MediaEvent_ScreenShareStopped() => null,
   };
 
@@ -1099,7 +1205,7 @@ class RustRepository implements OpencordRepository {
   void setUserLocalMute(String serverKey, int userId, bool muted) =>
       _now(() => _core.voiceSetUserLocalMute(serverKey, userId, muted));
 
-  /// Screen share waits for its media (Phase 2 V6).
+  /// Screen sharing has its own calls; `screensharing` is ignored here.
   @override
   Future<void> setVoiceSelf({
     bool? muted,

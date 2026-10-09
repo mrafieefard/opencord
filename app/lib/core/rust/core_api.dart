@@ -45,6 +45,18 @@ abstract interface class CoreApi {
 
   void cameraStop();
 
+  Future<core.ScreenShareStarted> screenShareStart(
+    core.ScreenShareRequest request,
+  );
+
+  Future<void> screenShareUpdate(core.ScreenShareRequest request);
+
+  Future<void> screenShareStop();
+
+  Future<void> streamWatch(String streamKey);
+
+  Future<void> streamUnwatch(String streamKey);
+
   void videoSetWants(List<core.VideoWant> wants);
 
   core.GeneratedIdentity identityGenerate();
@@ -263,6 +275,26 @@ class FrbCoreApi implements CoreApi {
 
   @override
   void cameraStop() => frb.cameraStop();
+
+  @override
+  Future<core.ScreenShareStarted> screenShareStart(
+    core.ScreenShareRequest request,
+  ) => frb.screenShareStart(request: request);
+
+  @override
+  Future<void> screenShareUpdate(core.ScreenShareRequest request) =>
+      frb.screenShareUpdate(request: request);
+
+  @override
+  Future<void> screenShareStop() => frb.screenShareStop();
+
+  @override
+  Future<void> streamWatch(String streamKey) =>
+      frb.streamWatch(streamKey: streamKey);
+
+  @override
+  Future<void> streamUnwatch(String streamKey) =>
+      frb.streamUnwatch(streamKey: streamKey);
 
   @override
   void videoSetWants(List<core.VideoWant> wants) =>

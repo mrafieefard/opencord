@@ -11,6 +11,7 @@ import 'package:opencord/ui/theme/oc_motion.dart';
 import 'package:opencord/ui/theme/oc_text.dart';
 import 'package:opencord/ui/widgets/avatar.dart';
 import 'package:opencord/ui/widgets/hoverable.dart';
+import 'package:opencord/ui/widgets/oc_button.dart';
 
 /// One tile of the voice view (§4.10): someone, or the screen they share.
 /// It fills the size its parent gives it, which is 16:9.
@@ -28,6 +29,10 @@ class VoiceTileView extends StatelessWidget {
     this.focused = false,
     this.small = false,
     this.onTap,
+    this.onWatch,
+    this.onStopWatching,
+    this.viewers,
+    this.onViewers,
   });
 
   final int userId;
@@ -51,6 +56,17 @@ class VoiceTileView extends StatelessWidget {
 
   /// Focuses the tile, or leaves focus mode when it is [focused].
   final VoidCallback? onTap;
+
+  /// Someone else's screen, not watched yet: nothing of it comes until
+  /// they click Watch (§9.5).
+  final VoidCallback? onWatch;
+
+  /// A watched screen, shown large: stops watching it.
+  final VoidCallback? onStopWatching;
+
+  /// This device's own screen: how many watch, and who.
+  final int? viewers;
+  final VoidCallback? onViewers;
 
   String get _semanticLabel => [
     screen ? "$name's screen, live" : name,
@@ -85,7 +101,13 @@ class VoiceTileView extends StatelessWidget {
           fit: StackFit.expand,
           children: [
             if (screen)
-              const ScreenFeed()
+              if (video case final feed? when feed.textureId != null)
+                // Shared text stays whole: fitted, never cropped.
+                VideoFeedView(feed: feed, fit: BoxFit.contain)
+              else if (onWatch case final watch?)
+                _WatchPrompt(name: name, small: small, onWatch: watch)
+              else
+                const ScreenFeed()
             else if (video case final feed? when feed.textureId != null)
               VideoFeedView(feed: feed)
             else if (camera)
@@ -145,6 +167,18 @@ class VoiceTileView extends StatelessWidget {
                 ],
               ),
             ),
+            if (viewers case final count? when !small)
+              Positioned(
+                top: OcSpace.s8,
+                left: OcSpace.s8,
+                child: _ViewersPill(count: count, onTap: onViewers),
+              ),
+            if (onStopWatching case final stop? when focused)
+              Positioned(
+                right: OcSpace.s8,
+                bottom: OcSpace.s8,
+                child: OcButton(label: 'Stop watching', onPressed: stop),
+              ),
           ],
         ),
       ),
@@ -155,9 +189,12 @@ class VoiceTileView extends StatelessWidget {
 /// A camera's video filling its tile: cropped to the tile's shape, never
 /// stretched, mirrored for this device's own preview (Phase 2 plan §8).
 class VideoFeedView extends StatelessWidget {
-  const VideoFeedView({super.key, required this.feed});
+  const VideoFeedView({super.key, required this.feed, this.fit = BoxFit.cover});
 
   final VideoFeed feed;
+
+  /// Cameras fill their tiles; shared screens fit in them.
+  final BoxFit fit;
 
   @override
   Widget build(BuildContext context) {
@@ -169,7 +206,7 @@ class VideoFeedView extends StatelessWidget {
     );
     return ClipRect(
       child: FittedBox(
-        fit: BoxFit.cover,
+        fit: fit,
         child: SizedBox(
           width: feed.width.toDouble(),
           height: feed.height.toDouble(),
@@ -220,6 +257,84 @@ class _NamePill extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// Someone's screen before watching it (§9.5): they are live, and Watch.
+class _WatchPrompt extends StatelessWidget {
+  const _WatchPrompt({
+    required this.name,
+    required this.small,
+    required this.onWatch,
+  });
+
+  final String name;
+  final bool small;
+  final VoidCallback onWatch;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.oc;
+    if (small) {
+      return Center(child: Icon(OcIcons.monitor, color: colors.textMuted));
+    }
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            '$name is live',
+            style: OcText.bodyStrong.copyWith(color: colors.text),
+          ),
+          const SizedBox(height: OcSpace.s8),
+          OcButton.primary(label: 'Watch', onPressed: onWatch),
+        ],
+      ),
+    );
+  }
+}
+
+/// How many watch this device's own stream; opens who.
+class _ViewersPill extends StatelessWidget {
+  const _ViewersPill({required this.count, required this.onTap});
+
+  final int count;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.oc;
+    return Hoverable(
+      onTap: onTap,
+      semanticLabel: count == 1 ? '1 viewer' : '$count viewers',
+      focusRadius: BorderRadius.circular(OcRadius.reaction),
+      builder: (context, state) => Container(
+        padding: const EdgeInsets.symmetric(
+          horizontal: OcSpace.s8,
+          vertical: OcSpace.s4,
+        ),
+        decoration: BoxDecoration(
+          color: state.active
+              ? colors.hover
+              : colors.elevated.withValues(alpha: 0.9),
+          borderRadius: BorderRadius.circular(OcRadius.reaction),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(OcIcons.visibility, size: 14, color: colors.text),
+            const SizedBox(width: OcSpace.s4),
+            Text(
+              '$count',
+              style: OcText.small.copyWith(
+                fontWeight: FontWeight.w600,
+                color: colors.text,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

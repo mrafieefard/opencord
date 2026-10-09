@@ -10,6 +10,7 @@ import 'package:opencord/core/repository/repository.dart';
 import 'package:opencord/features/channels/channel_row.dart';
 import 'package:opencord/features/shell/navigation.dart';
 import 'package:opencord/features/voice/voice_controls.dart';
+import 'package:opencord/features/voice/voice_focus.dart';
 import 'package:opencord/features/settings/server_settings.dart';
 import 'package:opencord/ui/theme/oc_colors.dart';
 import 'package:opencord/ui/theme/oc_icons.dart';
@@ -111,7 +112,11 @@ class VoiceChannelRow extends ConsumerWidget {
           ),
         ),
         for (final participant in participants)
-          _Participant(serverKey: serverKey, participant: participant),
+          _Participant(
+            serverKey: serverKey,
+            channelId: channel.id,
+            participant: participant,
+          ),
       ],
     );
   }
@@ -176,10 +181,50 @@ class VoiceChannelRow extends ConsumerWidget {
 }
 
 class _Participant extends ConsumerWidget {
-  const _Participant({required this.serverKey, required this.participant});
+  const _Participant({
+    required this.serverKey,
+    required this.channelId,
+    required this.participant,
+  });
 
   final String serverKey;
+  final int channelId;
   final VoiceParticipant participant;
+
+  /// Clicking LIVE joins the channel if needed and watches the stream
+  /// (§9.5).
+  Future<void> _watch(BuildContext context, WidgetRef ref) async {
+    ref.read(navigationProvider.notifier).openChannel(serverKey, channelId);
+    final voice = ref.read(voiceSessionProvider);
+    if (voice.serverKey != serverKey || voice.channelId != channelId) {
+      await joinVoice(context, ref, serverKey, channelId);
+    }
+    if (!context.mounted) return;
+    final stream = ref
+        .read(streamsProvider(serverKey))
+        .values
+        .where(
+          (stream) =>
+              stream.userId == participant.userId &&
+              stream.channelId == channelId,
+        )
+        .firstOrNull;
+    final self = ref.read(serverProvider(serverKey)).data?.self.id;
+    if (stream == null || participant.userId == self) return;
+    await watchStream(
+      context,
+      ref,
+      stream.key,
+      opened: () => ref
+          .read(
+            voiceFocusProvider((
+              server: serverKey,
+              channel: channelId,
+            )).notifier,
+          )
+          .focus((userId: participant.userId, screen: true)),
+    );
+  }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -238,7 +283,12 @@ class _Participant extends ConsumerWidget {
                 ),
               if (participant.screensharing) ...[
                 const SizedBox(width: OcSpace.s4),
-                const LivePill(),
+                Hoverable(
+                  onTap: () => _watch(context, ref),
+                  semanticLabel: 'Watch $name',
+                  focusRadius: BorderRadius.circular(8),
+                  builder: (context, state) => const LivePill(),
+                ),
               ],
             ],
           ),

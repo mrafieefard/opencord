@@ -1,8 +1,12 @@
 import 'dart:async';
 import 'dart:typed_data';
 
+import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart'
+    as frb
+    show Int64List;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:opencord/core/model/channel_kind.dart';
+import 'package:opencord/core/model/stream.dart';
 import 'package:opencord/core/model/video.dart';
 import 'package:opencord/core/model/voice.dart';
 import 'package:opencord/core/repository/repository.dart';
@@ -1018,6 +1022,184 @@ void main() {
         harness.core.calls.where((call) => call == 'cameraStart:null'),
         hasLength(2),
       );
+    });
+
+    test("others' screens come as screen tracks", () async {
+      final harness = await _Harness.start();
+
+      harness.core.media.add(
+        const core.MediaEvent.videoTrackAdded(
+          serverKey: _server,
+          channelId: lounge,
+          userId: _kai,
+          trackId: 'screen-kai',
+          kind: core.VideoTrackKind.screen,
+          textureId: 43,
+          width: 1920,
+          height: 1080,
+        ),
+      );
+      await harness.settle();
+
+      final added = harness.events.whereType<VideoTrackAdded>().single;
+      expect(added.screen, isTrue);
+      expect(added.feed.trackId, 'screen-kai');
+    });
+
+    test('going live gives the app its share and preview', () async {
+      final harness = await _Harness.start();
+
+      await harness.repository.startScreenShare(
+        const ScreenShareQuality(ScreenShareResolution.p1080, 60),
+        audio: false,
+      );
+      await harness.repository.updateScreenShare(
+        const ScreenShareQuality(ScreenShareResolution.p720, 30),
+        audio: false,
+      );
+      await harness.repository.stopScreenShare();
+      await harness.settle();
+
+      expect(harness.core.calls.where((call) => call.startsWith('screen')), [
+        'screenShareStart:p1080:60:false',
+        'screenShareUpdate:p720:30',
+        'screenShareStop',
+      ]);
+      final shares = harness.events
+          .whereType<OwnScreenShareChanged>()
+          .map((event) => event.share)
+          .toList();
+      expect(shares.length, 3);
+      expect(shares[0]?.key, 'stream:5:1');
+      expect(shares[0]?.source, StreamSource.window);
+      expect(
+        shares[0]?.preview,
+        const VideoFeed(
+          trackId: 'screen-1',
+          textureId: 9,
+          width: 1920,
+          height: 1080,
+        ),
+      );
+      expect(
+        shares[1]?.quality,
+        const ScreenShareQuality(ScreenShareResolution.p720, 30),
+      );
+      expect(shares[2], isNull);
+    });
+
+    test('a closed picker says so and nothing goes live', () async {
+      final harness = await _Harness.start();
+      harness.core.screenError = const core.CoreError.screen(
+        problem: core.ScreenProblem.cancelled,
+        message: 'no screen or window was chosen',
+      );
+
+      await expectLater(
+        harness.repository.startScreenShare(
+          const ScreenShareQuality(ScreenShareResolution.p720, 30),
+        ),
+        throwsA(
+          isA<RepoException>().having(
+            (error) => error.kind,
+            'kind',
+            RepoErrorKind.screenCancelled,
+          ),
+        ),
+      );
+      expect(harness.events.whereType<OwnScreenShareChanged>(), isEmpty);
+    });
+
+    test('a share that ends by itself is reported and over', () async {
+      final harness = await _Harness.start();
+      await harness.repository.startScreenShare(
+        const ScreenShareQuality(ScreenShareResolution.p720, 30),
+      );
+
+      harness.core.media.add(
+        const core.MediaEvent.screenShareStopped(
+          message: 'The shared window was closed',
+        ),
+      );
+      await harness.settle();
+
+      expect(
+        harness.events.whereType<ScreenShareStopped>().single.message,
+        'The shared window was closed',
+      );
+      expect(
+        harness.events.whereType<OwnScreenShareChanged>().last.share,
+        null,
+      );
+    });
+
+    test('streams and their viewers reach the app', () async {
+      final harness = await _Harness.start();
+      const stream = core.ScreenStream(
+        streamKey: 'stream:20:7',
+        channelId: lounge,
+        userId: _kai,
+        sourceKind: core.StreamSourceKind.screen,
+        resolution: core.ScreenShareResolution.p1080,
+        fps: 30,
+        hasAudio: false,
+        viewerCount: 1,
+      );
+
+      for (final payload in [
+        const core.CoreEventPayload.streamCreate(stream),
+        core.CoreEventPayload.streamViewersUpdate(
+          streamKey: 'stream:20:7',
+          viewerIds: frb.Int64List.fromList([3, 4]),
+        ),
+        const core.CoreEventPayload.streamDelete(
+          streamKey: 'stream:20:7',
+          channelId: lounge,
+        ),
+      ]) {
+        harness.core.events.add(
+          core.CoreEvent(serverKey: _server, payload: payload),
+        );
+      }
+      await harness.settle();
+
+      final started = harness.events.whereType<StreamStarted>().single.stream;
+      expect(
+        (started.key, started.userId, started.resolution, started.viewerCount),
+        ('stream:20:7', _kai, ScreenShareResolution.p1080, 1),
+      );
+      expect(
+        harness.events.whereType<StreamViewersChanged>().single.viewerIds,
+        [3, 4],
+      );
+      expect(harness.events.whereType<StreamEnded>().single.key, 'stream:20:7');
+    });
+
+    test('watching asks the core, and a full stream says so', () async {
+      final harness = await _Harness.start();
+
+      await harness.repository.watchStream('stream:20:7');
+      await harness.repository.unwatchStream('stream:20:7');
+      harness.core.watchError = const core.CoreError.server(
+        code: core.ErrorCode.streamViewerLimit,
+        message: 'This stream is full (50 viewers)',
+      );
+
+      await expectLater(
+        harness.repository.watchStream('stream:20:8'),
+        throwsA(
+          isA<RepoException>().having(
+            (error) => error.kind,
+            'kind',
+            RepoErrorKind.streamFull,
+          ),
+        ),
+      );
+      expect(harness.core.calls.where((call) => call.startsWith('stream')), [
+        'streamWatch:stream:20:7',
+        'streamUnwatch:stream:20:7',
+        'streamWatch:stream:20:8',
+      ]);
     });
 
     test('tiles showing video go to the core as wants', () async {

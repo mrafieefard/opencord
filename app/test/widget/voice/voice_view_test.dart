@@ -4,7 +4,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:opencord/core/model/video.dart';
 import 'package:opencord/core/providers/providers.dart';
 import 'package:opencord/core/repository/repository.dart';
-import 'package:opencord/core/settings/local_prefs.dart';
+import 'package:opencord/core/model/stream.dart';
+import 'package:opencord/core/model/voice.dart';
 import 'package:opencord/features/channels/voice_panel.dart';
 import 'package:opencord/features/chat/chat_header.dart';
 import 'package:opencord/features/shell/desktop_shell.dart';
@@ -19,7 +20,7 @@ import '../../support/app.dart';
 
 const _dev = 'opencord.example:7710';
 const _berlin = 'rust-berlin.example:7710';
-const _mira = 1002, _priya = 1005;
+const _mira = 1002, _priya = 1005, _tomas = 1006;
 
 Future<void> _pumpFor(WidgetTester tester, Duration total) async {
   const step = Duration(milliseconds: 50);
@@ -186,7 +187,7 @@ void main() {
   });
 
   group('screenshare', () {
-    testWidgets('asks what to share and how well, then goes live', (
+    testWidgets('asks for a quality within the server limit, then goes live', (
       tester,
     ) async {
       final app = await MockApp.pump(tester);
@@ -195,21 +196,29 @@ void main() {
       await tester.tap(_control('Share your screen'));
       await _pumpFor(tester, const Duration(milliseconds: 300));
       expect(find.text('Share your screen'), findsWidgets);
-      await tester.tap(find.text('Screen 2'));
-      await tester.tap(find.text('1080p60'));
+      // The mock server allows 720p at 30 fps.
+      expect(find.text('Server limit: 720p · 30 fps'), findsOneWidget);
+      await tester.tap(find.text('1080p'));
+      await tester.tap(find.text('60 fps'));
+      await tester.tap(find.text('15 fps'));
       await tester.pump();
       await tester.tap(find.widgetWithText(OcButton, 'Go live'));
       await _pumpFor(tester, const Duration(milliseconds: 300));
 
       expect(app.read(voiceSessionProvider).screensharing, isTrue);
-      expect(app.read(screenQualityProvider), ScreenQuality.hd1080p60);
+      expect(
+        app.read(lastScreenQualityProvider(_dev)),
+        const ScreenShareQuality(ScreenShareResolution.p720, 15),
+      );
       expect(_tileOf(1000, screen: true), findsOneWidget);
 
-      await tester.tap(_control('Stop sharing'));
+      await tester.tap(_control('Screen share options'));
+      await _pumpFor(tester, const Duration(milliseconds: 300));
+      await tester.tap(find.text('Stop sharing'));
       await _pumpFor(tester, const Duration(milliseconds: 300));
 
       expect(app.read(voiceSessionProvider).screensharing, isFalse);
-      expect(find.text('Go live'), findsNothing);
+      expect(_tileOf(1000, screen: true), findsNothing);
       await app.dispose(tester);
     });
 
@@ -221,7 +230,6 @@ void main() {
       await _pumpFor(tester, const Duration(milliseconds: 300));
 
       expect(find.textContaining('Your desktop asks'), findsOneWidget);
-      expect(find.text('Screen 1'), findsNothing);
       await app.dispose(tester);
     });
 
@@ -239,6 +247,50 @@ void main() {
 
       expect(find.widgetWithText(OcButton, 'Go live'), findsOneWidget);
       expect(app.read(voiceSessionProvider).screensharing, isFalse);
+      await app.dispose(tester);
+    });
+
+    testWidgets("others' streams come only once watched, and open large", (
+      tester,
+    ) async {
+      final app = await MockApp.pump(tester);
+      await _joinGeneral(tester);
+      final key = 'stream:${_voiceChannel(app)}:$_tomas';
+
+      expect(app.repository.watched, isEmpty);
+      await tester.tap(_inView(find.widgetWithText(OcButton, 'Watch')));
+      await _pumpFor(tester, const Duration(milliseconds: 300));
+
+      expect(app.repository.watched, {key});
+      expect(
+        tester.widget<VoiceTileView>(_tileOf(_tomas, screen: true)).focused,
+        isTrue,
+      );
+
+      await tester.tap(_inView(find.widgetWithText(OcButton, 'Stop watching')));
+      await _pumpFor(tester, const Duration(milliseconds: 300));
+
+      expect(app.repository.watched, isEmpty);
+      expect(
+        tester.widget<VoiceTileView>(_tileOf(_tomas, screen: true)).focused,
+        isFalse,
+      );
+      await app.dispose(tester);
+    });
+
+    testWidgets('a full stream says so', (tester) async {
+      final app = await MockApp.pump(tester);
+      await _joinGeneral(tester);
+      app.repository.watchError = const RepoException(
+        RepoErrorKind.streamFull,
+        'This stream is full (50 viewers)',
+      );
+
+      await tester.tap(_inView(find.widgetWithText(OcButton, 'Watch')));
+      await _pumpFor(tester, const Duration(milliseconds: 300));
+
+      expect(find.text('This stream is full (50 viewers)'), findsOneWidget);
+      expect(app.repository.watched, isEmpty);
       await app.dispose(tester);
     });
   });

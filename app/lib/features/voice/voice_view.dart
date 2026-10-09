@@ -17,6 +17,7 @@ import 'package:opencord/ui/theme/oc_metrics.dart';
 import 'package:opencord/ui/theme/oc_text.dart';
 import 'package:opencord/ui/widgets/avatar.dart';
 import 'package:opencord/ui/widgets/oc_button.dart';
+import 'package:opencord/ui/widgets/popover.dart';
 import 'package:opencord/core/repository/repository.dart';
 import 'package:opencord/ui/theme/oc_icons.dart';
 
@@ -130,12 +131,30 @@ class _StageState extends ConsumerState<_Stage> {
     final byUser = {
       for (final participant in participants) participant.userId: participant,
     };
-
+    final streams = ref.watch(streamsProvider(channel.server));
+    final watching = ref.watch(watchingProvider);
+    final ownShare = ref.watch(ownScreenShareProvider);
+    final viewers = ref.watch(ownStreamViewersProvider);
     final wants = <VideoWant>[];
-
     Widget tile(VoiceTileId id, Size size, {bool small = false}) {
       final participant = byUser[id.userId];
-      final video = id.screen ? null : feeds.of(id.userId, self: self);
+      final own = id.userId == self;
+      final stream = id.screen && !own
+          ? streams.values
+                .where(
+                  (stream) =>
+                      stream.userId == id.userId &&
+                      stream.channelId == channel.channel,
+                )
+                .firstOrNull
+          : null;
+      final watched = stream != null && watching.contains(stream.key);
+      final video = switch (id) {
+        (screen: false, :final userId) => feeds.of(userId, self: self),
+        _ when own => ownShare?.preview,
+        (screen: true, :final userId) when watched => feeds.screens[userId],
+        _ => null,
+      };
       if (video != null) {
         wants.add(
           VideoWant(
@@ -160,6 +179,27 @@ class _StageState extends ConsumerState<_Stage> {
           focused: id == focused,
           small: small,
           onTap: () => ref.read(focus.notifier).toggle(id),
+          onWatch: stream != null && !watched
+              ? () => watchStream(
+                  context,
+                  ref,
+                  stream.key,
+                  // Watching opens the stream large (§9.5).
+                  opened: () {
+                    if (ref.read(focus) != id) {
+                      ref.read(focus.notifier).toggle(id);
+                    }
+                  },
+                )
+              : null,
+          onStopWatching: watched
+              ? () {
+                  ref.read(focus.notifier).clear();
+                  ref.read(watchingProvider.notifier).unwatch(stream.key);
+                }
+              : null,
+          viewers: id.screen && own && ownShare != null ? viewers.length : null,
+          onViewers: () => _showViewers(context, viewers, members),
         ),
       );
     }
@@ -173,6 +213,53 @@ class _StageState extends ConsumerState<_Stage> {
           _report(List.of(wants));
           return layout;
         },
+      ),
+    );
+  }
+
+  /// Who watches this device's stream (§9.1), by name.
+  void _showViewers(
+    BuildContext context,
+    List<int> viewers,
+    Map<int, Member> members,
+  ) {
+    final colors = context.oc;
+    showPopover<void>(
+      context: context,
+      anchor: globalRectOf(context),
+      builder: (context) => ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 240, maxHeight: 320),
+        child: viewers.isEmpty
+            ? Text(
+                'No one is watching yet.',
+                style: OcText.small.copyWith(color: colors.textSecondary),
+              )
+            : ListView(
+                shrinkWrap: true,
+                children: [
+                  for (final id in viewers)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: OcSpace.s4),
+                      child: Row(
+                        children: [
+                          OcAvatar(
+                            id: id,
+                            name: members[id]?.displayName ?? 'Someone',
+                            size: 24,
+                          ),
+                          const SizedBox(width: OcSpace.s8),
+                          Expanded(
+                            child: Text(
+                              members[id]?.displayName ?? 'Someone',
+                              overflow: TextOverflow.ellipsis,
+                              style: OcText.body.copyWith(color: colors.text),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                ],
+              ),
       ),
     );
   }

@@ -6,6 +6,7 @@ import 'package:opencord/core/model/misc.dart';
 import 'package:opencord/core/model/permissions.dart';
 import 'package:opencord/core/model/presence.dart';
 import 'package:opencord/core/model/server.dart';
+import 'package:opencord/core/model/stream.dart';
 import 'package:opencord/core/model/user.dart';
 import 'package:opencord/core/model/voice.dart';
 
@@ -24,6 +25,7 @@ class ReadySnapshot {
     this.presences = const {},
     this.activities = const {},
     this.voice = const {},
+    this.streams = const {},
     this.voiceEnabled = true,
     this.voiceSettings = const VoiceSettings(),
     this.lastMessages = const {},
@@ -46,6 +48,9 @@ class ReadySnapshot {
 
   /// Voice participants per voice channel.
   final Map<int, List<VoiceParticipant>> voice;
+
+  /// Screen shares in those channels, by stream key.
+  final Map<String, LiveStream> streams;
 
   /// Whether the server has voice at all.
   final bool voiceEnabled;

@@ -1,3 +1,4 @@
+import 'package:opencord/core/model/stream.dart';
 import 'package:opencord/core/model/channel.dart';
 import 'package:opencord/core/model/message.dart';
 import 'package:opencord/core/model/misc.dart';
@@ -111,6 +112,19 @@ class MockServer {
       voice: {
         for (final MapEntry(:key, :value) in voice.entries)
           if (visible.containsKey(key)) key: List.of(value),
+      },
+      streams: {
+        for (final MapEntry(:key, :value) in voice.entries)
+          if (visible.containsKey(key))
+            for (final participant in value)
+              if (participant.screensharing)
+                mockStreamKey(key, participant.userId): LiveStream(
+                  key: mockStreamKey(key, participant.userId),
+                  channelId: key,
+                  userId: participant.userId,
+                  resolution: voiceSettings.screenShareMaxResolution,
+                  fps: voiceSettings.screenShareMaxFps,
+                ),
       },
       voiceSettings: voiceSettings,
       lastMessages: {
@@ -926,3 +940,6 @@ MockServer _homelab(DateTime now, MockIds ids) {
   b.readAll(monitoring);
   return server;
 }
+
+/// A stream's key, as servers make them (Phase 2 plan §3).
+String mockStreamKey(int channelId, int userId) => 'stream:$channelId:$userId';

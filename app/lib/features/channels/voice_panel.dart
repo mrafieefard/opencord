@@ -12,6 +12,7 @@ import 'package:opencord/ui/theme/oc_motion.dart';
 import 'package:opencord/ui/theme/oc_text.dart';
 import 'package:opencord/ui/widgets/hoverable.dart';
 import 'package:opencord/ui/widgets/oc_icon_button.dart';
+import 'package:opencord/ui/widgets/popover.dart';
 
 /// The voice connected panel (§4.2), above the user panel while in voice.
 class VoiceConnectedPanel extends ConsumerWidget {
@@ -125,13 +126,17 @@ class VoiceConnectedPanel extends ConsumerWidget {
                   const SizedBox(width: OcSpace.s8),
                 if (capabilities.screenShare)
                   Expanded(
-                    child: _Toggle(
-                      icon: voice.screensharing
-                          ? OcIcons.stopScreenShare
-                          : OcIcons.screenShare,
-                      label: 'Screen',
-                      active: voice.screensharing,
-                      onTap: () => toggleScreenshare(context, ref),
+                    child: Builder(
+                      builder: (button) => _Toggle(
+                        icon: OcIcons.screenShare,
+                        label: voice.screensharing ? 'Live' : 'Screen',
+                        active: voice.screensharing,
+                        onTap: () => screenshareControl(
+                          context,
+                          ref,
+                          anchor: globalRectOf(button),
+                        ),
+                      ),
                     ),
                   ),
               ],

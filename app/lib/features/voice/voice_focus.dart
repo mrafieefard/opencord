@@ -17,6 +17,9 @@ class VoiceFocusNotifier extends Notifier<VoiceTileId?> {
   void toggle(VoiceTileId tile) => state = state == tile ? null : tile;
 
   void clear() => state = null;
+
+  /// Shows [tile] large.
+  void focus(VoiceTileId tile) => state = tile;
 }
 
 final voiceFocusProvider = NotifierProvider.autoDispose

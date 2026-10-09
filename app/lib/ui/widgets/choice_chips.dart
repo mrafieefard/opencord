@@ -15,6 +15,7 @@ class ChoiceChips<T> extends StatelessWidget {
     required this.value,
     required this.onChanged,
     this.iconOf,
+    this.isEnabled,
   });
 
   final List<(T, String)> options;
@@ -23,6 +24,9 @@ class ChoiceChips<T> extends StatelessWidget {
 
   /// An icon before an option's label, when it has one.
   final IconData? Function(T option)? iconOf;
+
+  /// Options that cannot be picked are shown muted; all can by default.
+  final bool Function(T option)? isEnabled;
 
   @override
   Widget build(BuildContext context) {
@@ -33,7 +37,9 @@ class ChoiceChips<T> extends StatelessWidget {
       children: [
         for (final (option, label) in options)
           Hoverable(
-            onTap: () => onChanged(option),
+            onTap: (isEnabled?.call(option) ?? true)
+                ? () => onChanged(option)
+                : null,
             semanticLabel: label,
             selected: option == value,
             focusRadius: BorderRadius.circular(OcRadius.reaction + 4),
@@ -76,7 +82,11 @@ class ChoiceChips<T> extends StatelessWidget {
                         overflow: TextOverflow.ellipsis,
                         style: OcText.small.copyWith(
                           fontWeight: FontWeight.w600,
-                          color: selected ? colors.onAccent : colors.text,
+                          color: selected
+                              ? colors.onAccent
+                              : (isEnabled?.call(option) ?? true)
+                              ? colors.text
+                              : colors.textMuted,
                         ),
                       ),
                     ),

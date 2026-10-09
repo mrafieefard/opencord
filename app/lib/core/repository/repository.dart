@@ -7,6 +7,7 @@ import 'package:opencord/core/model/misc.dart';
 import 'package:opencord/core/model/permissions.dart';
 import 'package:opencord/core/model/presence.dart';
 import 'package:opencord/core/model/server.dart';
+import 'package:opencord/core/model/stream.dart';
 import 'package:opencord/core/model/user.dart';
 import 'package:opencord/core/model/video.dart';
 import 'package:opencord/core/model/voice.dart';
@@ -390,6 +391,24 @@ abstract interface class OpencordRepository {
   /// The tiles showing video now and their sizes in physical pixels; video
   /// not named is neither received nor decoded (Phase 2 plan §6, §7.11).
   void setVideoWants(List<VideoWant> wants);
+
+  /// Goes live in this device's voice channel (Phase 2 plan §9.1): on Linux
+  /// the system's picker chooses a screen or a window first. Sharing again
+  /// while live changes the source and keeps the viewers. The share comes
+  /// as [OwnScreenShareChanged]; a [RepoException] says why it could not
+  /// start (the picker closed: [RepoErrorKind.screenCancelled]).
+  Future<void> startScreenShare(ScreenShareQuality quality, {bool audio});
+
+  /// A new quality while live, within the server's maximum.
+  Future<void> updateScreenShare(ScreenShareQuality quality, {bool audio});
+
+  Future<void> stopScreenShare();
+
+  /// Watching is opt-in (§9.5): nothing of a stream comes until then. A
+  /// full stream fails with [RepoErrorKind.streamFull].
+  Future<void> watchStream(String key);
+
+  Future<void> unwatchStream(String key);
 
   /// Microphones and speakers the system offers (Phase 2 plan §7.6).
   Future<AudioDeviceList> audioDevices();

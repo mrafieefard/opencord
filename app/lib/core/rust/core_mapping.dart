@@ -5,6 +5,7 @@ import 'package:opencord/core/model/permissions.dart';
 import 'package:opencord/core/model/presence.dart';
 import 'package:opencord/core/model/server.dart';
 import 'package:opencord/core/model/snapshot.dart';
+import 'package:opencord/core/model/stream.dart';
 import 'package:opencord/core/model/user.dart';
 import 'package:opencord/core/model/voice.dart';
 import 'package:opencord/core/repository/repository.dart';
@@ -130,6 +131,26 @@ core.ScreenShareResolution _resolutionTo(ScreenShareResolution value) =>
       ScreenShareResolution.p1440 => core.ScreenShareResolution.p1440,
       ScreenShareResolution.source => core.ScreenShareResolution.source,
     };
+
+/// The app's screen share preset as the core's.
+core.ScreenShareResolution resolutionTo(ScreenShareResolution value) =>
+    _resolutionTo(value);
+
+LiveStream streamFrom(core.ScreenStream stream) => LiveStream(
+  key: stream.streamKey,
+  channelId: stream.channelId,
+  userId: stream.userId,
+  source: streamSourceFrom(stream.sourceKind),
+  resolution: _resolutionFrom(stream.resolution),
+  fps: stream.fps,
+  hasAudio: stream.hasAudio,
+  viewerCount: stream.viewerCount,
+);
+
+StreamSource streamSourceFrom(core.StreamSourceKind kind) => switch (kind) {
+  core.StreamSourceKind.screen => StreamSource.screen,
+  core.StreamSourceKind.window => StreamSource.window,
+};
 
 VoiceSettings voiceSettingsFrom(core.VoiceSettings settings) => VoiceSettings(
   screenShareMaxResolution: _resolutionFrom(settings.screenShareMaxResolution),
@@ -299,6 +320,9 @@ ReadySnapshot snapshotFrom(
       entry.channelId: Permissions(entry.permissions),
   },
   voice: voiceFrom(ready.voiceStates),
+  streams: {
+    for (final stream in ready.streams) stream.streamKey: streamFrom(stream),
+  },
   voiceEnabled: ready.voiceEnabled,
   voiceSettings: voiceSettingsFrom(ready.voiceSettings),
   lastMessages: lastMessages,

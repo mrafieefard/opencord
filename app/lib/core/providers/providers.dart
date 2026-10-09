@@ -20,6 +20,7 @@ import 'package:opencord/core/providers/messages_state.dart';
 import 'package:opencord/core/providers/pins_state.dart';
 import 'package:opencord/core/providers/presence_state.dart';
 import 'package:opencord/core/providers/server_state.dart';
+import 'package:opencord/core/providers/stream_state.dart';
 import 'package:opencord/core/providers/typing_state.dart';
 import 'package:opencord/core/repository/repository.dart';
 import 'package:opencord/core/settings/local_prefs.dart';
@@ -31,6 +32,7 @@ export 'package:opencord/core/providers/messages_state.dart';
 export 'package:opencord/core/providers/pins_state.dart';
 export 'package:opencord/core/providers/presence_state.dart';
 export 'package:opencord/core/providers/server_state.dart';
+export 'package:opencord/core/providers/stream_state.dart';
 export 'package:opencord/core/providers/typing_state.dart';
 
 /// A channel on a server: the key of per-channel providers.
@@ -218,6 +220,20 @@ void _route(Ref ref, RepoEvent event) {
     case CameraStopped():
       ref.read(audioNoticeProvider.notifier).show('Your camera stopped.');
       return;
+    case OwnScreenShareChanged(:final share):
+      ref.read(ownScreenShareProvider.notifier).set(share);
+      ref
+          .read(voiceSessionProvider.notifier)
+          .screenShareChanged(on: share != null);
+      return;
+    case ScreenShareStopped(:final message):
+      ref.read(audioNoticeProvider.notifier).show(message);
+      return;
+    case StreamViewersChanged():
+      ref.read(ownStreamViewersProvider.notifier).apply(event);
+      return;
+    case StreamEnded(:final key):
+      ref.read(watchingProvider.notifier).ended(key);
     case NoiseSuppressionFellBack():
       ref
           .read(audioSettingsProvider.notifier)
@@ -238,6 +254,7 @@ void _route(Ref ref, RepoEvent event) {
   ref.read(activityProvider(key).notifier).apply(event);
   ref.read(typingProvider(key).notifier).apply(event);
   ref.read(voiceProvider(key).notifier).apply(event);
+  ref.read(streamsProvider(key).notifier).apply(event);
   switch (event) {
     case SpeakingChanged(:final speaking):
       ref.read(speakingProvider(key).notifier).set(speaking);
@@ -669,9 +686,9 @@ class VoiceSessionNotifier extends Notifier<VoiceSession> {
     if (state.camera != on) state = state.copyWith(camera: on);
   }
 
-  Future<void> toggleScreenshare() async {
-    state = state.copyWith(screensharing: !state.screensharing);
-    await _push();
+  /// This device's screen share went live or ended (§9).
+  void screenShareChanged({required bool on}) {
+    if (state.screensharing != on) state = state.copyWith(screensharing: on);
   }
 
   Future<void> _push() => _repository.setVoiceSelf(
@@ -687,13 +704,18 @@ final voiceSessionProvider =
       VoiceSessionNotifier.new,
     );
 
-/// Video in the voice channel this device is in (Phase 2 V5): others'
-/// cameras by user, and this device's own.
+/// Video in the voice channel this device is in (Phase 2 V5, V6): others'
+/// cameras and screens by user, and this device's own camera.
 @immutable
 class VideoFeeds {
-  const VideoFeeds({this.cameras = const {}, this.own});
+  const VideoFeeds({
+    this.cameras = const {},
+    this.screens = const {},
+    this.own,
+  });
 
   final Map<int, VideoFeed> cameras;
+  final Map<int, VideoFeed> screens;
   final VideoFeed? own;
 
   /// What a tile for [userId] shows; [self] is this device's user.
@@ -718,14 +740,29 @@ class VideoFeedsNotifier extends Notifier<VideoFeeds> {
     switch (event) {
       case VideoTrackAdded(:final serverKey, :final channelId, :final userId)
           when serverKey == voice.serverKey && channelId == voice.channelId:
+        state = event.screen
+            ? VideoFeeds(
+                cameras: state.cameras,
+                screens: {...state.screens, userId: event.feed},
+                own: state.own,
+              )
+            : VideoFeeds(
+                cameras: {...state.cameras, userId: event.feed},
+                screens: state.screens,
+                own: state.own,
+              );
+      case VideoTrackRemoved(:final userId, :final trackId):
+        bool keep(VideoFeed? feed) => feed?.trackId != trackId;
+        if (keep(state.cameras[userId]) && keep(state.screens[userId])) return;
         state = VideoFeeds(
-          cameras: {...state.cameras, userId: event.feed},
-          own: state.own,
-        );
-      case VideoTrackRemoved(:final userId, :final trackId)
-          when state.cameras[userId]?.trackId == trackId:
-        state = VideoFeeds(
-          cameras: {...state.cameras}..remove(userId),
+          cameras: {
+            for (final MapEntry(:key, :value) in state.cameras.entries)
+              if (key != userId || keep(value)) key: value,
+          },
+          screens: {
+            for (final MapEntry(:key, :value) in state.screens.entries)
+              if (key != userId || keep(value)) key: value,
+          },
           own: state.own,
         );
       default:
@@ -733,8 +770,11 @@ class VideoFeedsNotifier extends Notifier<VideoFeeds> {
     }
   }
 
-  void setOwn(VideoFeed? feed) =>
-      state = VideoFeeds(cameras: state.cameras, own: feed);
+  void setOwn(VideoFeed? feed) => state = VideoFeeds(
+    cameras: state.cameras,
+    screens: state.screens,
+    own: feed,
+  );
 }
 
 final videoFeedsProvider = NotifierProvider<VideoFeedsNotifier, VideoFeeds>(

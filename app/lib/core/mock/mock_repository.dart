@@ -4,6 +4,7 @@ import 'dart:math';
 import 'package:clock/clock.dart';
 
 import 'package:opencord/core/mock/mock_world.dart';
+import 'package:opencord/core/model/stream.dart';
 import 'package:opencord/core/model/channel.dart';
 import 'package:opencord/core/model/message.dart';
 import 'package:opencord/core/model/misc.dart';
@@ -1440,6 +1441,14 @@ class MockRepository implements OpencordRepository {
   void _leaveVoiceNow() {
     _speaking?.cancel();
     _speaking = null;
+    if (_screen case final share?) {
+      _screen = null;
+      _emit(const OwnScreenShareChanged(null));
+      if (_voice case final session?) {
+        _emit(StreamEnded(session.server, share.key, session.channel));
+      }
+    }
+    watched.clear();
     final session = _voice;
     _voice = null;
     if (session == null) return;
@@ -1474,6 +1483,102 @@ class MockRepository implements OpencordRepository {
 
   /// Thrown when the camera is turned on, for tests.
   RepoException? cameraError;
+
+  /// Thrown when going live or watching, for tests.
+  RepoException? screenError;
+  RepoException? watchError;
+
+  /// The streams this device watches, for tests.
+  final watched = <String>{};
+
+  OwnScreenShare? _screen;
+
+  @override
+  Future<void> startScreenShare(
+    ScreenShareQuality quality, {
+    bool audio = true,
+  }) async {
+    if (screenError case final error?) throw error;
+    final session = _voice;
+    if (session == null) {
+      throw const RepoException(
+        RepoErrorKind.notConnected,
+        'Join a voice channel first.',
+      );
+    }
+    await setVoiceSelf(screensharing: true);
+    final key = mockStreamKey(session.channel, _selfVoice.userId);
+    final stream = LiveStream(
+      key: key,
+      channelId: session.channel,
+      userId: _selfVoice.userId,
+      resolution: quality.resolution,
+      fps: quality.fps,
+      hasAudio: audio,
+    );
+    _emit(
+      _screen == null
+          ? StreamStarted(session.server, stream)
+          : StreamChanged(session.server, stream),
+    );
+    _screen = OwnScreenShare(
+      key: key,
+      source: StreamSource.screen,
+      quality: quality,
+      preview: const VideoFeed(
+        trackId: 'mock-screen',
+        textureId: null,
+        width: 1920,
+        height: 1080,
+      ),
+    );
+    _emit(OwnScreenShareChanged(_screen));
+  }
+
+  @override
+  Future<void> updateScreenShare(
+    ScreenShareQuality quality, {
+    bool audio = true,
+  }) async {
+    final (session, share) = (_voice, _screen);
+    if (session == null || share == null) return;
+    _screen = share.copyWith(quality: quality);
+    _emit(
+      StreamChanged(
+        session.server,
+        LiveStream(
+          key: share.key,
+          channelId: session.channel,
+          userId: _selfVoice.userId,
+          resolution: quality.resolution,
+          fps: quality.fps,
+          hasAudio: audio,
+        ),
+      ),
+    );
+    _emit(OwnScreenShareChanged(_screen));
+  }
+
+  @override
+  Future<void> stopScreenShare() async {
+    final (session, share) = (_voice, _screen);
+    _screen = null;
+    if (share == null) return;
+    _emit(const OwnScreenShareChanged(null));
+    if (session == null) return;
+    _emit(StreamEnded(session.server, share.key, session.channel));
+    await setVoiceSelf(screensharing: false);
+  }
+
+  /// The mock paints its screens; watching is only kept, for tests.
+  @override
+  Future<void> watchStream(String key) async {
+    if (watchError case final error?) throw error;
+    watched.add(key);
+  }
+
+  @override
+  Future<void> unwatchStream(String key) async => watched.remove(key);
 
   /// As a moderator would: moves the current user to [channelId] on the
   /// server they are in voice on, or disconnects them (null).

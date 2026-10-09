@@ -124,6 +124,49 @@ class FakeCoreApi extends Fake implements CoreApi {
   @override
   void cameraStop() => calls.add('cameraStop');
 
+  /// What screenShareStart answers, or throws.
+  core.ScreenShareStarted screen = const core.ScreenShareStarted(
+    streamKey: 'stream:5:1',
+    trackId: 'screen-1',
+    textureId: 9,
+    width: 1920,
+    height: 1080,
+    sourceKind: core.StreamSourceKind.window,
+  );
+  core.CoreError? screenError;
+
+  @override
+  Future<core.ScreenShareStarted> screenShareStart(
+    core.ScreenShareRequest request,
+  ) async {
+    calls.add(
+      'screenShareStart:${request.resolution.name}:${request.fps}:'
+      '${request.hasAudio}',
+    );
+    if (screenError case final error?) throw error;
+    return screen;
+  }
+
+  @override
+  Future<void> screenShareUpdate(core.ScreenShareRequest request) async =>
+      calls.add('screenShareUpdate:${request.resolution.name}:${request.fps}');
+
+  @override
+  Future<void> screenShareStop() async => calls.add('screenShareStop');
+
+  /// Thrown by streamWatch, for tests.
+  core.CoreError? watchError;
+
+  @override
+  Future<void> streamWatch(String streamKey) async {
+    calls.add('streamWatch:$streamKey');
+    if (watchError case final error?) throw error;
+  }
+
+  @override
+  Future<void> streamUnwatch(String streamKey) async =>
+      calls.add('streamUnwatch:$streamKey');
+
   @override
   void videoSetWants(List<core.VideoWant> wants) => videoWants = wants;
 

@@ -5,6 +5,7 @@ import 'package:opencord/core/model/permissions.dart';
 import 'package:opencord/core/model/presence.dart';
 import 'package:opencord/core/model/server.dart';
 import 'package:opencord/core/model/snapshot.dart';
+import 'package:opencord/core/model/stream.dart';
 import 'package:opencord/core/model/user.dart';
 import 'package:opencord/core/model/video.dart';
 import 'package:opencord/core/model/voice.dart';
@@ -228,18 +229,23 @@ final class HotkeyPressed extends RepoEvent {
   final HotkeyAction action;
 }
 
-/// Someone's camera in a voice channel this device is in (Phase 2 V5).
+/// Someone's camera, or the screen they share, in a voice channel this
+/// device is in (Phase 2 V5, V6).
 final class VideoTrackAdded extends RepoEvent {
   const VideoTrackAdded(
     super.serverKey,
     this.channelId,
     this.userId,
-    this.feed,
-  );
+    this.feed, {
+    this.screen = false,
+  });
 
   final int channelId;
   final int userId;
   final VideoFeed feed;
+
+  /// Their screen share's video, not their camera.
+  final bool screen;
 }
 
 final class VideoTrackRemoved extends RepoEvent {
@@ -266,6 +272,50 @@ final class OwnCameraChanged extends RepoEvent {
 /// no longer allows it.
 final class CameraStopped extends RepoEvent {
   const CameraStopped(this.message) : super('');
+
+  final String message;
+}
+
+/// Someone went live in a voice channel this user can see (Phase 2 V6).
+final class StreamStarted extends RepoEvent {
+  const StreamStarted(super.serverKey, this.stream);
+
+  final LiveStream stream;
+}
+
+/// A stream's quality, sound or viewer count changed.
+final class StreamChanged extends RepoEvent {
+  const StreamChanged(super.serverKey, this.stream);
+
+  final LiveStream stream;
+}
+
+final class StreamEnded extends RepoEvent {
+  const StreamEnded(super.serverKey, this.key, this.channelId);
+
+  final String key;
+  final int channelId;
+}
+
+/// Who watches this user's own stream; only the streamer hears it.
+final class StreamViewersChanged extends RepoEvent {
+  const StreamViewersChanged(super.serverKey, this.key, this.viewerIds);
+
+  final String key;
+  final List<int> viewerIds;
+}
+
+/// This device's screen share: live with its preview, or null once over.
+final class OwnScreenShareChanged extends RepoEvent {
+  const OwnScreenShareChanged(this.share) : super('');
+
+  final OwnScreenShare? share;
+}
+
+/// This device's screen share ended by itself: the window closed, the
+/// screen went, or the server stopped it.
+final class ScreenShareStopped extends RepoEvent {
+  const ScreenShareStopped(this.message) : super('');
 
   final String message;
 }

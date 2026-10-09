@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:opencord/core/model/stream.dart';
 import 'package:opencord/core/providers/providers.dart';
 import 'package:opencord/core/repository/repository.dart';
 import 'package:opencord/features/voice/screenshare_picker.dart';
@@ -13,6 +14,8 @@ import 'package:opencord/ui/theme/oc_text.dart';
 import 'package:opencord/ui/widgets/hoverable.dart';
 import 'package:opencord/ui/widgets/key_hint.dart';
 import 'package:opencord/ui/widgets/oc_icon_button.dart';
+import 'package:opencord/ui/widgets/oc_menu.dart';
+import 'package:opencord/ui/widgets/popover.dart';
 import 'package:opencord/ui/widgets/toast.dart';
 
 /// Joins a voice channel; why not, when the server refuses, shows as a
@@ -55,18 +58,126 @@ Future<void> toggleCamera(BuildContext context, WidgetRef ref) async {
   }
 }
 
-/// Stops sharing, or asks what to share first (§4.10).
-Future<void> toggleScreenshare(BuildContext context, WidgetRef ref) async {
-  final session = ref.read(voiceSessionProvider.notifier);
-  if (ref.read(voiceSessionProvider).screensharing) {
-    return session.toggleScreenshare();
-  }
-  final choice = await showScreensharePicker(context);
+/// Goes live (§9.1); while live, offers a new source or quality, or
+/// stopping. [anchor] is where the menu opens (a global rectangle).
+Future<void> screenshareControl(
+  BuildContext context,
+  WidgetRef ref, {
+  Rect? anchor,
+}) async {
+  final voice = ref.read(voiceSessionProvider);
+  final server = voice.serverKey;
+  if (server == null) return;
+  if (!voice.screensharing) return goLive(context, ref, server);
+  final share = ref.read(ownScreenShareProvider);
+  final sharing = ref.read(ownScreenShareProvider.notifier);
+  await showOcMenu(
+    context: context,
+    position: (anchor ?? Rect.zero).topCenter,
+    entries: [
+      OcMenuItem(
+        label: 'Change source',
+        icon: OcIcons.monitor,
+        onSelected: share == null
+            ? null
+            : () => _sharing(
+                context,
+                () => sharing.start(server, share.quality, audio: false),
+              ),
+      ),
+      OcMenuItem(
+        label: 'Change quality',
+        icon: OcIcons.tune,
+        onSelected: share == null
+            ? null
+            : () => _changeQuality(context, ref, server, share.quality),
+      ),
+      const OcMenuDivider(),
+      OcMenuItem(
+        label: 'Stop sharing',
+        icon: OcIcons.stopScreenShare,
+        onSelected: () => _sharing(context, sharing.stop),
+      ),
+    ],
+  );
+}
+
+/// The share dialog, then the system's picker (on Linux).
+Future<void> goLive(BuildContext context, WidgetRef ref, String server) async {
+  final choice = await showScreenshareDialog(context, serverKey: server);
   if (choice == null || !context.mounted) return;
   // The call may have ended, or sharing begun elsewhere, meanwhile.
   final voice = ref.read(voiceSessionProvider);
   if (!voice.connected || voice.screensharing) return;
-  await session.toggleScreenshare();
+  await _sharing(
+    context,
+    () => ref
+        .read(ownScreenShareProvider.notifier)
+        .start(server, choice.quality, audio: choice.audio),
+  );
+}
+
+Future<void> _changeQuality(
+  BuildContext context,
+  WidgetRef ref,
+  String server,
+  ScreenShareQuality current,
+) async {
+  final choice = await showScreenshareDialog(
+    context,
+    serverKey: server,
+    current: current,
+    changing: true,
+  );
+  if (choice == null || !context.mounted) return;
+  await _sharing(
+    context,
+    () => ref
+        .read(ownScreenShareProvider.notifier)
+        .changeQuality(server, choice.quality, audio: choice.audio),
+  );
+}
+
+/// Runs a screen share action; why it failed shows as a toast. Closing the
+/// picker is the user's choice and says nothing.
+Future<void> _sharing(
+  BuildContext context,
+  Future<void> Function() action,
+) async {
+  try {
+    await action();
+  } on RepoException catch (error) {
+    if (!context.mounted || error.kind == RepoErrorKind.screenCancelled) {
+      return;
+    }
+    showOcToast(context, switch (error.kind) {
+      RepoErrorKind.screenDenied => 'Screen sharing was not allowed.',
+      RepoErrorKind.screenUnsupported =>
+        "Screen sharing doesn't work on this system yet.",
+      RepoErrorKind.qualityLimit => "That's above this server's limit.",
+      RepoErrorKind.forbidden =>
+        "You don't have permission to share your screen here.",
+      RepoErrorKind.rateLimited => 'Wait a moment before going live again.',
+      _ => error.message,
+    });
+  }
+}
+
+/// Starts watching a stream, which opens it large (§9.5); a full one
+/// says so.
+Future<void> watchStream(
+  BuildContext context,
+  WidgetRef ref,
+  String key, {
+  VoidCallback? opened,
+}) async {
+  try {
+    await ref.read(watchingProvider.notifier).watch(key);
+    opened?.call();
+  } on RepoException catch (error) {
+    if (!context.mounted) return;
+    showOcToast(context, error.message);
+  }
 }
 
 /// Leaves voice; the toast's Undo joins the same channel again (§16).
@@ -121,12 +232,20 @@ class VoiceControlBar extends ConsumerWidget {
         ],
         if (capabilities.screenShare) ...[
           const SizedBox(width: OcSpace.s12),
-          _RoundToggle(
-            icon: OcIcons.screenShare,
-            activeIcon: OcIcons.stopScreenShare,
-            tooltip: voice.screensharing ? 'Stop sharing' : 'Share your screen',
-            active: voice.screensharing,
-            onPressed: () => toggleScreenshare(context, ref),
+          Builder(
+            builder: (button) => _RoundToggle(
+              icon: OcIcons.screenShare,
+              activeIcon: OcIcons.screenShare,
+              tooltip: voice.screensharing
+                  ? 'Screen share options'
+                  : 'Share your screen',
+              active: voice.screensharing,
+              onPressed: () => screenshareControl(
+                context,
+                ref,
+                anchor: globalRectOf(button),
+              ),
+            ),
           ),
         ],
         const SizedBox(width: OcSpace.s12),
