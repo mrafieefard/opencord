@@ -67,8 +67,8 @@ class BehaviorPage extends ConsumerWidget {
   }
 }
 
-/// Voice & audio (§8.1, §17): devices, input mode and volumes. The full
-/// page waits for the rest of §17.
+/// Voice & audio (§8.1, §17): devices, input mode, noise suppression and
+/// volumes. The full page waits for the rest of §17.
 class VoicePage extends ConsumerStatefulWidget {
   const VoicePage({super.key});
 
@@ -163,6 +163,37 @@ class _VoicePageState extends ConsumerState<VoicePage> {
                     value: InputMode.pushToTalk,
                     label: 'Push to talk',
                     description: 'Sends while a key is held',
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: OcSpace.s24),
+        SettingsSection(
+          title: 'Noise suppression',
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(OcSpace.s12),
+              child: SettingsChoiceCards<NoiseSuppression>(
+                value: audio.noiseSuppression ?? NoiseSuppression.standard,
+                onChanged: (mode) =>
+                    update((a) => a.copyWith(noiseSuppression: mode)),
+                options: const [
+                  ChoiceCardOption(
+                    value: NoiseSuppression.off,
+                    label: 'Off',
+                    description: 'Sends the microphone as it is',
+                  ),
+                  ChoiceCardOption(
+                    value: NoiseSuppression.standard,
+                    label: 'Standard',
+                    description: 'Removes steady noise; very light',
+                  ),
+                  ChoiceCardOption(
+                    value: NoiseSuppression.high,
+                    label: 'High',
+                    description: 'Also keyboards and dogs; heavier',
                   ),
                 ],
               ),

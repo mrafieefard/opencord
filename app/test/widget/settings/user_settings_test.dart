@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:opencord/core/app_info.dart';
+import 'package:opencord/core/model/voice.dart';
 import 'package:opencord/core/providers/providers.dart';
 import 'package:opencord/core/settings/app_settings.dart';
+import 'package:opencord/core/settings/local_prefs.dart';
 import 'package:opencord/features/settings/settings_dialog.dart';
 import 'package:opencord/features/voice/input_level_meter.dart';
 import 'package:opencord/features/window/window_startup.dart';
@@ -267,6 +269,30 @@ void main() {
     expect(
       _inPage(find.text('App: MPL-2.0 · Server: AGPL-3.0')),
       findsOneWidget,
+    );
+    await app.dispose(tester);
+  });
+
+  testWidgets('noise suppression can be switched off and on again', (
+    tester,
+  ) async {
+    final app = await MockApp.pump(tester);
+    await _openSettings(tester);
+    await _page(tester, 'Voice & audio');
+
+    await tester.ensureVisible(_inPage(find.text('Off')));
+    await tester.tap(_inPage(find.text('Off')));
+    await tester.pump();
+    final off = app.repository.audio?.noiseSuppression;
+    await tester.tap(_inPage(find.text('Standard')));
+    await tester.pump();
+
+    expect(off, NoiseSuppression.off);
+    expect(app.repository.audio?.noiseSuppression, NoiseSuppression.standard);
+    expect(
+      app.container.read(audioSettingsProvider).noiseSuppression,
+      NoiseSuppression.standard,
+      reason: 'kept with the other audio choices',
     );
     await app.dispose(tester);
   });
