@@ -43,9 +43,12 @@ pub enum RawFormat {
     Yuyv,
     Nv12,
     I420,
+    /// Four bytes a pixel, the last unused: what screen capture delivers.
+    Bgrx,
+    Rgbx,
 }
 
-/// A frame as a camera delivered it, rows packed.
+/// A frame as a camera (or a screen) delivered it, rows packed.
 #[derive(Clone)]
 pub struct RawFrame {
     pub format: RawFormat,
@@ -180,6 +183,7 @@ pub(crate) fn pack(mode: Mode, data: &[u8], stride: i32, captured: Instant) -> O
     }
     let luma_row = match mode.format {
         RawFormat::Yuyv => width * 2,
+        RawFormat::Bgrx | RawFormat::Rgbx => width * 4,
         _ => width,
     };
     let stride = usize::try_from(stride)
@@ -196,7 +200,9 @@ pub(crate) fn pack(mode: Mode, data: &[u8], stride: i32, captured: Instant) -> O
         };
     let mut packed = Vec::with_capacity(luma_row * height * 2);
     match mode.format {
-        RawFormat::Yuyv => rows(data, 0, luma_row, stride, height, &mut packed)?,
+        RawFormat::Yuyv | RawFormat::Bgrx | RawFormat::Rgbx => {
+            rows(data, 0, luma_row, stride, height, &mut packed)?;
+        }
         RawFormat::Nv12 => {
             rows(data, 0, width, stride, height, &mut packed)?;
             rows(

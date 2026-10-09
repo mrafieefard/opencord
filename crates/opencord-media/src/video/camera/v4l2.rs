@@ -99,6 +99,9 @@ fn fourcc(format: RawFormat) -> FourCC {
         RawFormat::Yuyv => b"YUYV",
         RawFormat::Nv12 => b"NV12",
         RawFormat::I420 => b"YU12",
+        // V4L2's XBGR32 and RGBX32: B G R x and R G B x in memory.
+        RawFormat::Bgrx => b"XR24",
+        RawFormat::Rgbx => b"XB24",
     })
 }
 

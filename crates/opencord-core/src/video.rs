@@ -141,16 +141,19 @@ impl Video {
                 track_id,
                 layers,
                 bitrates,
-                ..
+                fps_scale,
+                size_scale,
             } => {
                 #[cfg(target_os = "linux")]
                 if let Some(camera) = lock(&self.hub).camera.as_ref()
                     && camera.request.track_id == *track_id
                 {
-                    camera.sender.encode(layers, bitrates);
+                    camera
+                        .sender
+                        .encode(layers, bitrates, *fps_scale, *size_scale);
                 }
                 #[cfg(not(target_os = "linux"))]
-                let _ = (track_id, layers, bitrates);
+                let _ = (track_id, layers, bitrates, fps_scale, size_scale);
             }
             VoiceEvent::KeyframeRequested { track_id, layer } => {
                 #[cfg(target_os = "linux")]
@@ -373,7 +376,8 @@ mod camera {
     use opencord_media::transport::{TrackError, TrackKind, TrackRequest};
     use opencord_media::video::camera::{CameraError, Capture};
     use opencord_media::video::codec::scale::Scaler;
-    use opencord_media::video::sender::{CameraSender, camera_layers};
+    use opencord_media::video::layers::camera_layers;
+    use opencord_media::video::sender::VideoSender;
 
     use super::{FrameSink, Video, camera_error, lock};
     use crate::api::types::{CameraProblem, CameraStarted, CoreError};
@@ -383,7 +387,7 @@ mod camera {
 
     pub(super) struct Camera {
         pub request: TrackRequest,
-        pub sender: CameraSender,
+        pub sender: VideoSender,
         pub preview_size: Arc<Mutex<(u32, u32)>>,
         _capture: Capture,
     }
@@ -427,7 +431,7 @@ mod camera {
         let texture_id = preview.as_ref().map(|preview| preview.id());
         let preview_size = Arc::new(Mutex::new(PREVIEW));
         let outlet = Arc::clone(&video.outlet);
-        let sender = CameraSender::start(
+        let sender = VideoSender::camera(
             track_id.clone(),
             layers,
             captured,

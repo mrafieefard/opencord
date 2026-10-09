@@ -41,6 +41,7 @@ fn score(mode: Mode) -> (u8, bool, i64, u8, i64) {
         RawFormat::Nv12 => 3,
         RawFormat::Yuyv | RawFormat::I420 => 2,
         RawFormat::Mjpeg => 1,
+        RawFormat::Bgrx | RawFormat::Rgbx => 0,
     };
     let near_thirty = -(i64::from(mode.fps) - 30).abs();
     (rate, reaches, size, format, near_thirty)

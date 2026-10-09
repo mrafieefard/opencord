@@ -1,8 +1,10 @@
-//! A camera's send side (plan §7.8, §8): its frames become NV12 pictures,
-//! each layer's size, and H.264 from each layer's encoder, as the
-//! transport asks (which layers, at what bitrate, keyframes when someone
-//! lost a picture). One thread per track; the newest frame wins when the
-//! encoders fall behind.
+//! A video track's send side (plan §7.8, §8, §9.2): camera or screen frames
+//! become NV12 pictures, each layer's size, and H.264 from each layer's
+//! encoder, as the transport asks (which layers, at what bitrate, keyframes
+//! when someone lost a picture, and for a screen how much of its frame rate
+//! and pixels to keep). One thread per track; the newest frame wins when
+//! the encoders fall behind. A screen that has not changed is sent again
+//! every second, so the stream stays alive.
 
 use std::sync::mpsc::{self, Receiver, RecvTimeoutError};
 use std::thread::JoinHandle;
@@ -14,91 +16,84 @@ use crate::video::codec::convert;
 use crate::video::codec::encoder::{Backend, Encoder, EncoderConfig};
 use crate::video::codec::raw::RawDecoder;
 use crate::video::codec::scale::Scaler;
+use crate::video::layers::{ScreenShape, ScreenSizes, screen_sizes};
 use crate::video::picture::{Picture, PixelFormat};
 
-/// The plan's camera layers (§8): name, height, frame rate and bitrate at
-/// 16:9.
-const LAYERS: [(&str, u32, u32, u32); 3] = [
-    ("l", 180, 15, 150_000),
-    ("m", 360, 30, 500_000),
-    ("h", 720, 30, 1_500_000),
-];
 /// How long the thread waits for a frame before it looks at its commands.
 const WAIT: Duration = Duration::from_millis(100);
 /// A bitrate this much away from an encoder's reopens it.
 const BITRATE_CHANGE: f64 = 0.2;
-
-/// The layers for a camera of this size: 180, 360 and 720 lines (no more
-/// than the camera has), its shape kept, bitrates by pixel count.
-pub fn camera_layers(width: u32, height: u32) -> Vec<Layer> {
-    let mut layers: Vec<Layer> = Vec::new();
-    if width == 0 || height == 0 {
-        return layers;
-    }
-    for (rid, target, fps, bitrate) in LAYERS {
-        let layer_height = target.min(height) & !1;
-        let layer_width =
-            (u64::from(width) * u64::from(layer_height) / u64::from(height)) as u32 & !1;
-        let taller = layers.last().is_none_or(|last| last.height < layer_height);
-        if layer_height == 0 || layer_width == 0 || !taller {
-            continue;
-        }
-        let reference = u64::from(target * 16 / 9) * u64::from(target);
-        let pixels = u64::from(layer_width) * u64::from(layer_height);
-        let max_bitrate = (u64::from(bitrate) * pixels / reference).min(u64::from(bitrate)) as u32;
-        layers.push(Layer {
-            rid: rid.to_owned(),
-            width: layer_width,
-            height: layer_height,
-            fps,
-            max_bitrate,
-        });
-    }
-    layers
-}
+/// A screen that has not changed is sent again this often (plan §9.2).
+const KEEPALIVE: Duration = Duration::from_secs(1);
 
 enum Command {
     Encode {
         rids: Vec<String>,
         bitrates: Vec<u32>,
+        fps_scale: f32,
+        size_scale: f32,
     },
     Keyframe(u8),
 }
 
-/// A track's encoding thread; stops when dropped or when the camera's
-/// frames end.
-pub struct CameraSender {
+/// A track's encoding thread; stops when dropped or when its frames end.
+pub struct VideoSender {
     commands: mpsc::Sender<Command>,
     thread: Option<JoinHandle<()>>,
 }
 
-impl CameraSender {
-    /// Encodes the frames from `frames` into `layers`, handing each picture
-    /// to `send` and each camera frame to `preview` first.
-    pub fn start(
+impl VideoSender {
+    /// Encodes a camera's frames into `layers`, handing each picture to
+    /// `send` and each camera frame to `preview` first.
+    pub fn camera(
         track_id: String,
         layers: Vec<Layer>,
         frames: Receiver<RawFrame>,
         send: impl FnMut(VideoFrame) + Send + 'static,
         preview: impl FnMut(&Picture) + Send + 'static,
     ) -> Self {
+        Self::start(Sending::new(track_id, layers, None, send, preview), frames)
+    }
+
+    /// Encodes a screen's frames into `layers` (see `screen_layers`, from
+    /// the screen's first size), resizing them as the screen or window
+    /// changes size.
+    pub fn screen(
+        track_id: String,
+        layers: Vec<Layer>,
+        shape: ScreenShape,
+        frames: Receiver<RawFrame>,
+        send: impl FnMut(VideoFrame) + Send + 'static,
+        preview: impl FnMut(&Picture) + Send + 'static,
+    ) -> Self {
+        Self::start(
+            Sending::new(track_id, layers, Some(shape), send, preview),
+            frames,
+        )
+    }
+
+    fn start<S, P>(mut sending: Sending<S, P>, frames: Receiver<RawFrame>) -> Self
+    where
+        S: FnMut(VideoFrame) + Send + 'static,
+        P: FnMut(&Picture) + Send + 'static,
+    {
         let (commands, received) = mpsc::channel();
         let thread = std::thread::Builder::new()
             .name("opencord-video-send".to_owned())
-            .spawn(move || {
-                let mut sending = Sending::new(track_id, layers, send, preview);
-                sending.run(&frames, &received);
-            })
+            .spawn(move || sending.run(&frames, &received))
             .ok();
         Self { commands, thread }
     }
 
-    /// What to encode: the layers named, at these bitrates (the transport's
-    /// `VoiceEvent::Encode`).
-    pub fn encode(&self, rids: &[String], bitrates: &[u32]) {
+    /// What to encode: the layers named, at these bitrates, and of a
+    /// screen's main layer this share of its frame rate and of its pixels
+    /// (the transport's `VoiceEvent::Encode`).
+    pub fn encode(&self, rids: &[String], bitrates: &[u32], fps_scale: f32, size_scale: f32) {
         let _ = self.commands.send(Command::Encode {
             rids: rids.to_vec(),
             bitrates: bitrates.to_vec(),
+            fps_scale,
+            size_scale,
         });
     }
 
@@ -114,7 +109,7 @@ impl CameraSender {
     }
 }
 
-impl Drop for CameraSender {
+impl Drop for VideoSender {
     fn drop(&mut self) {
         // Closing the command channel ends the thread at its next look.
         let (closed, _) = mpsc::channel();
@@ -137,6 +132,13 @@ struct LayerState {
 struct Sending<S, P> {
     track_id: String,
     layers: Vec<LayerState>,
+    /// A screen's quality, and the planner's share of its main layer's
+    /// frame rate and pixels; `None` for a camera.
+    screen: Option<ScreenShape>,
+    scales: (f32, f32),
+    /// The newest picture and when it came, sent again while a screen
+    /// does not change.
+    last: Option<(Picture, Instant)>,
     decoder: RawDecoder,
     scaler: Scaler,
     send: S,
@@ -144,8 +146,17 @@ struct Sending<S, P> {
 }
 
 impl<S: FnMut(VideoFrame), P: FnMut(&Picture)> Sending<S, P> {
-    fn new(track_id: String, layers: Vec<Layer>, send: S, preview: P) -> Self {
+    fn new(
+        track_id: String,
+        layers: Vec<Layer>,
+        screen: Option<ScreenShape>,
+        send: S,
+        preview: P,
+    ) -> Self {
         Self {
+            screen,
+            scales: (1.0, 1.0),
+            last: None,
             track_id,
             layers: layers
                 .into_iter()
@@ -178,6 +189,7 @@ impl<S: FnMut(VideoFrame), P: FnMut(&Picture)> Sending<S, P> {
                 Err(RecvTimeoutError::Timeout) => None,
                 Err(RecvTimeoutError::Disconnected) => return,
             };
+            let repeat = frame.is_none() && self.screen.is_some();
             // Commands sent before the frame arrived apply to it.
             loop {
                 match commands.try_recv() {
@@ -188,13 +200,36 @@ impl<S: FnMut(VideoFrame), P: FnMut(&Picture)> Sending<S, P> {
             }
             if let Some(frame) = frame {
                 self.frame(&frame);
+            } else if repeat {
+                self.repeat();
             }
         }
     }
 
+    /// Sends a screen's last picture again once it has not changed for
+    /// [`KEEPALIVE`].
+    fn repeat(&mut self) {
+        let now = Instant::now();
+        let Some((mut picture, at)) = self.last.take() else {
+            return;
+        };
+        if now.saturating_duration_since(at) < KEEPALIVE {
+            self.last = Some((picture, at));
+            return;
+        }
+        picture.captured = now;
+        self.encode_picture(picture);
+    }
+
     fn apply(&mut self, command: Command) {
         match command {
-            Command::Encode { rids, bitrates } => {
+            Command::Encode {
+                rids,
+                bitrates,
+                fps_scale,
+                size_scale,
+            } => {
+                self.scales = (fps_scale, size_scale);
                 for state in &mut self.layers {
                     let position = rids.iter().position(|rid| *rid == state.layer.rid);
                     let active = position.is_some();
@@ -229,11 +264,41 @@ impl<S: FnMut(VideoFrame), P: FnMut(&Picture)> Sending<S, P> {
         let picture = match self.decoder.picture(raw) {
             Ok(picture) => picture,
             Err(error) => {
-                tracing::debug!(%error, "a camera frame could not be read");
+                tracing::debug!(%error, "a frame could not be read");
                 return;
             }
         };
         (self.preview)(&picture);
+        self.encode_picture(picture);
+    }
+
+    /// A screen's layers at the sizes and frame rates it should have now:
+    /// a layer that changes gets a new encoder, starting with a keyframe.
+    fn fit_screen(&mut self, picture: &Picture) {
+        let Some(shape) = self.screen else {
+            return;
+        };
+        let (fps_scale, size_scale) = self.scales;
+        let sizes = match screen_sizes(picture.width, picture.height, shape, fps_scale, size_scale)
+        {
+            ScreenSizes::None => return,
+            ScreenSizes::Main(main) => vec![main],
+            ScreenSizes::Both { low, main } => vec![low, main],
+        };
+        // The main layer is the last; a low one, if published, the first.
+        let offset = self.layers.len().saturating_sub(sizes.len());
+        for (state, (width, height, fps)) in self.layers.iter_mut().skip(offset).zip(sizes) {
+            let layer = &mut state.layer;
+            if (layer.width, layer.height, layer.fps) != (width, height, fps) {
+                (layer.width, layer.height, layer.fps) = (width, height, fps);
+                state.encoder = None;
+                state.keyframe_due = true;
+            }
+        }
+    }
+
+    fn encode_picture(&mut self, picture: Picture) {
+        self.fit_screen(&picture);
         let inputs = self.inputs(&picture);
         for ((index, state), input) in self.layers.iter_mut().enumerate().zip(&inputs) {
             let input = match input {
@@ -282,6 +347,9 @@ impl<S: FnMut(VideoFrame), P: FnMut(&Picture)> Sending<S, P> {
                     state.keyframe_due = true;
                 }
             }
+        }
+        if self.screen.is_some() {
+            self.last = Some((picture, Instant::now()));
         }
     }
 }
@@ -390,73 +458,30 @@ mod tests {
     use std::sync::mpsc;
     use std::time::{Duration, Instant};
 
-    use opencord_common::video::{VideoKind, layer_ceiling};
-
     use super::*;
     use crate::video::camera::{RawFormat, RawFrame};
     use crate::video::codec::decoder::Decoder;
+    use crate::video::layers::{camera_layers, screen_layers};
     use crate::video::pattern::scene;
-
-    #[test]
-    fn a_720p_camera_gets_the_plans_three_layers() {
-        let layers = camera_layers(1280, 720);
-
-        let shape: Vec<(&str, u32, u32, u32, u32)> = layers
-            .iter()
-            .map(|l| (l.rid.as_str(), l.width, l.height, l.fps, l.max_bitrate))
-            .collect();
-        assert_eq!(
-            shape,
-            vec![
-                ("l", 320, 180, 15, 150_000),
-                ("m", 640, 360, 30, 500_000),
-                ("h", 1280, 720, 30, 1_500_000),
-            ]
-        );
-    }
-
-    #[test]
-    fn layers_keep_the_cameras_shape_and_stay_under_their_ceilings() {
-        for (width, height) in [
-            (640, 480),
-            (1920, 1080),
-            (1280, 720),
-            (320, 240),
-            (1280, 960),
-        ] {
-            let layers = camera_layers(width, height);
-
-            assert!(!layers.is_empty());
-            let top = layers.last().unwrap();
-            assert!(top.height <= 720 && top.height <= height);
-            for layer in &layers {
-                assert!(layer.width % 2 == 0 && layer.height % 2 == 0);
-                let shape = f64::from(layer.width) / f64::from(layer.height);
-                let camera = f64::from(width) / f64::from(height);
-                assert!((shape - camera).abs() < 0.02, "{width}×{height}: {layer:?}");
-                let ceiling =
-                    layer_ceiling(VideoKind::Camera, layer.width, layer.height, layer.fps);
-                assert!(layer.max_bitrate <= ceiling, "{layer:?} over {ceiling}");
-            }
-            let heights: Vec<u32> = layers.iter().map(|layer| layer.height).collect();
-            assert!(
-                heights.windows(2).all(|pair| pair[0] < pair[1]),
-                "{heights:?}"
-            );
-        }
-        assert_eq!(camera_layers(1920, 1080).last().unwrap().width, 1280);
-        assert_eq!(camera_layers(640, 480).last().unwrap().height, 480);
-    }
 
     /// Feeds `count` frames of the moving scene at 30 fps, in real time.
     fn feed(frames: &mpsc::SyncSender<RawFrame>, from: u64, count: u64) {
+        feed_sized(frames, from, count, (1280, 720));
+    }
+
+    fn feed_sized(
+        frames: &mpsc::SyncSender<RawFrame>,
+        from: u64,
+        count: u64,
+        (width, height): (u32, u32),
+    ) {
         let start = Instant::now();
         for number in from..from + count {
-            let picture = scene(1280, 720, number, Instant::now());
+            let picture = scene(width, height, number, Instant::now());
             let frame = RawFrame {
                 format: RawFormat::Nv12,
-                width: 1280,
-                height: 720,
+                width,
+                height,
                 data: picture.data,
                 captured: picture.captured,
             };
@@ -467,13 +492,13 @@ mod tests {
     }
 
     fn started() -> (
-        CameraSender,
+        VideoSender,
         mpsc::SyncSender<RawFrame>,
         mpsc::Receiver<VideoFrame>,
     ) {
         let (frames, captured) = mpsc::sync_channel(4);
         let (sent, received) = mpsc::channel();
-        let sender = CameraSender::start(
+        let sender = VideoSender::camera(
             "cam".to_owned(),
             camera_layers(1280, 720),
             captured,
@@ -556,12 +581,19 @@ mod tests {
         feed(&frames, 0, 10);
         drain(&received);
 
-        sender.encode(&["l".to_owned(), "m".to_owned()], &[150_000, 500_000]);
+        sender.encode(
+            &["l".to_owned(), "m".to_owned()],
+            &[150_000, 500_000],
+            1.0,
+            1.0,
+        );
         feed(&frames, 10, 10);
         let without_top = drain(&received);
         sender.encode(
             &["l".to_owned(), "m".to_owned(), "h".to_owned()],
             &[150_000, 500_000, 1_500_000],
+            1.0,
+            1.0,
         );
         feed(&frames, 20, 10);
         let with_top = drain(&received);
@@ -599,6 +631,8 @@ mod tests {
         sender.encode(
             &["l".to_owned(), "m".to_owned(), "h".to_owned()],
             &[150_000, 500_000, 600_000],
+            1.0,
+            1.0,
         );
         feed(&frames, 10, 30);
         let sent = drain(&received);
@@ -625,5 +659,110 @@ mod tests {
 
         // At most the picture it was encoding when the camera stopped.
         assert!(ended.elapsed() < Duration::from_secs(3));
+    }
+
+    const P720_30: ScreenShape = ScreenShape {
+        max_pixels: 1280 * 720,
+        fps: 30,
+    };
+
+    /// A screen sender for a 1280×720 screen at 720p30: a 640×360 low
+    /// layer and the main one.
+    fn started_screen() -> (
+        VideoSender,
+        mpsc::SyncSender<RawFrame>,
+        mpsc::Receiver<VideoFrame>,
+    ) {
+        let (frames, captured) = mpsc::sync_channel(4);
+        let (sent, received) = mpsc::channel();
+        let sender = VideoSender::screen(
+            "screen".to_owned(),
+            screen_layers(1280, 720, P720_30),
+            P720_30,
+            captured,
+            move |frame| {
+                let _ = sent.send(frame);
+            },
+            |_| {},
+        );
+        (sender, frames, received)
+    }
+
+    fn sizes(sent: &[VideoFrame], layer: u8) -> Vec<(u16, u16, bool)> {
+        sent.iter()
+            .filter(|frame| frame.layer == layer)
+            .map(|frame| (frame.width, frame.height, frame.keyframe))
+            .collect()
+    }
+
+    #[test]
+    fn a_screen_sends_its_main_and_low_layers_and_follows_a_resized_window() {
+        let (_sender, frames, received) = started_screen();
+
+        feed_sized(&frames, 0, 10, (1280, 720));
+        let before = drain(&received);
+        feed_sized(&frames, 10, 10, (1024, 768));
+        let after = drain(&received);
+
+        assert!(
+            sizes(&before, 1)
+                .iter()
+                .all(|size| size.0 == 1280 && size.1 == 720)
+        );
+        assert!(
+            sizes(&before, 0)
+                .iter()
+                .all(|size| size.0 == 640 && size.1 == 360)
+        );
+        let main = sizes(&after, 1);
+        assert_eq!(
+            main[0],
+            (1024, 768, true),
+            "a new size starts with a keyframe"
+        );
+        assert_eq!(sizes(&after, 0)[0], (554, 414, true));
+    }
+
+    #[test]
+    fn a_screen_that_does_not_change_is_sent_again_every_second() {
+        let (_sender, frames, received) = started_screen();
+        feed_sized(&frames, 0, 3, (1280, 720));
+        drain(&received);
+
+        std::thread::sleep(Duration::from_millis(2_600));
+        let repeated = sizes(&received.try_iter().collect::<Vec<_>>(), 1);
+
+        assert!(
+            (2..=3).contains(&repeated.len()),
+            "{} pictures in 2.6 s",
+            repeated.len()
+        );
+    }
+
+    #[test]
+    fn the_planners_cuts_shrink_and_slow_a_screens_main_layer() {
+        let (sender, frames, received) = started_screen();
+        feed_sized(&frames, 0, 5, (1280, 720));
+        drain(&received);
+
+        sender.encode(
+            &["l".to_owned(), "h".to_owned()],
+            &[300_000, 250_000],
+            0.5,
+            0.25,
+        );
+        feed_sized(&frames, 5, 30, (1280, 720));
+        let sent = drain(&received);
+
+        let main = sizes(&sent, 1);
+        assert!(
+            main.iter().all(|size| (size.0, size.1) == (640, 360)),
+            "{main:?}"
+        );
+        assert!(
+            (12..=17).contains(&main.len()),
+            "{} pictures in 1 s",
+            main.len()
+        );
     }
 }

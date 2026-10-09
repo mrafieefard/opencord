@@ -125,6 +125,72 @@ fn full_planar_to_nv12(
     out
 }
 
+/// BGRx (as screen capture most often delivers it, the fourth byte unused)
+/// with rows `stride` bytes apart, as video-range BT.601 NV12 of `width` ×
+/// `height` (even, at most the source's size: an odd source loses its
+/// last column or row); chroma from each 2×2 block's mean colour.
+pub fn bgrx_to_nv12(bgrx: &[u8], stride: usize, width: usize, height: usize) -> Vec<u8> {
+    rgb32_to_nv12::<2, 0>(bgrx, stride, width, height)
+}
+
+/// RGBx as video-range BT.601 NV12; see [`bgrx_to_nv12`].
+pub fn rgbx_to_nv12(rgbx: &[u8], stride: usize, width: usize, height: usize) -> Vec<u8> {
+    rgb32_to_nv12::<0, 2>(rgbx, stride, width, height)
+}
+
+/// Four bytes a pixel, red at `RED`, green at 1 and blue at `BLUE`.
+fn rgb32_to_nv12<const RED: usize, const BLUE: usize>(
+    data: &[u8],
+    stride: usize,
+    width: usize,
+    height: usize,
+) -> Vec<u8> {
+    let row = width * 4;
+    let line = |index: usize| {
+        data.get(index * stride..index * stride + row)
+            .unwrap_or_default()
+    };
+    let mut out = vec![16u8; width * height];
+    out.resize(width * height + width * height / 2, 128);
+    let (luma, chroma) = out.split_at_mut(width * height);
+    let luma_of = |pixel: &[u8; 4]| {
+        let (r, g, b) = (
+            u32::from(pixel[RED]),
+            u32::from(pixel[1]),
+            u32::from(pixel[BLUE]),
+        );
+        (((66 * r + 129 * g + 25 * b + 128) >> 8) + 16) as u8
+    };
+    for (index, target) in luma.chunks_exact_mut(width).enumerate() {
+        for (value, pixel) in target.iter_mut().zip(line(index).as_chunks::<4>().0) {
+            *value = luma_of(pixel);
+        }
+    }
+    for (pair, target) in chroma.chunks_exact_mut(width).enumerate() {
+        let (top, bottom) = (line(2 * pair), line(2 * pair + 1));
+        for ((uv, a), b) in target
+            .as_chunks_mut::<2>()
+            .0
+            .iter_mut()
+            .zip(top.as_chunks::<8>().0)
+            .zip(bottom.as_chunks::<8>().0)
+        {
+            let sum = |channel: usize| {
+                i32::from(a[channel])
+                    + i32::from(a[channel + 4])
+                    + i32::from(b[channel])
+                    + i32::from(b[channel + 4])
+            };
+            let (r, g, b) = ((sum(RED) + 2) >> 2, (sum(1) + 2) >> 2, (sum(BLUE) + 2) >> 2);
+            *uv = [
+                (((-38 * r - 74 * g + 112 * b + 128) >> 8) + 128) as u8,
+                (((112 * r - 94 * g - 18 * b + 128) >> 8) + 128) as u8,
+            ];
+        }
+    }
+    out
+}
+
 /// An NV12 picture at half its width and height, each value the mean of
 /// the four it covers; `None` unless the picture is NV12 with both sizes
 /// multiples of four.
@@ -194,7 +260,7 @@ fn row(plane: &[u8], stride: usize, length: usize, index: usize) -> &[u8] {
         .unwrap_or_default()
 }
 
-#[cfg(test)]
+#[cfg(all(test, target_os = "linux"))]
 mod tests {
     use std::time::Instant;
 
@@ -270,6 +336,52 @@ mod tests {
 
         let theirs = scaler.picture(&source, 64, 32, PixelFormat::Nv12).unwrap();
         assert!(close(&ours, &theirs.data, 1));
+    }
+
+    #[test]
+    fn screen_pixels_become_nv12_as_swscale_makes_them() {
+        use ffmpeg_next as ff;
+
+        // A gradient with some colour, as BGRx.
+        let (width, height) = (64usize, 32usize);
+        let mut bgrx = Vec::new();
+        for y in 0..height {
+            for x in 0..width {
+                bgrx.extend([(x * 4) as u8, (y * 8) as u8, (255 - x * 3) as u8, 0]);
+            }
+        }
+        let rgbx: Vec<u8> = bgrx
+            .as_chunks::<4>()
+            .0
+            .iter()
+            .flat_map(|pixel| [pixel[2], pixel[1], pixel[0], 0])
+            .collect();
+
+        let ours = bgrx_to_nv12(&bgrx, width * 4, width, height);
+
+        crate::video::codec::ffmpeg::init();
+        let mut frame = ff::frame::Video::new(ff::format::Pixel::BGRZ, width as u32, height as u32);
+        let stride = frame.stride(0);
+        for (line, source) in bgrx.chunks_exact(width * 4).enumerate() {
+            frame.data_mut(0)[line * stride..line * stride + width * 4].copy_from_slice(source);
+        }
+        let theirs = Scaler::new()
+            .frame(
+                &frame,
+                width as u32,
+                height as u32,
+                PixelFormat::Nv12,
+                Instant::now(),
+            )
+            .unwrap();
+        assert!(close(&ours, &theirs.data, 2));
+        assert_eq!(rgbx_to_nv12(&rgbx, width * 4, width, height), ours);
+        // White and black land on video range.
+        let white = bgrx_to_nv12(&[255; 16], 8, 2, 2);
+        assert_eq!(white, [235, 235, 235, 235, 128, 128]);
+        assert_eq!(bgrx_to_nv12(&[0; 16], 8, 2, 2), [16, 16, 16, 16, 128, 128]);
+        // An odd 3×3 window loses its last column and row.
+        assert_eq!(bgrx_to_nv12(&[255; 36], 12, 2, 2), white);
     }
 
     #[test]

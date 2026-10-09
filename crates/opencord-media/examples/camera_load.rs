@@ -13,7 +13,8 @@ use std::time::{Duration, Instant};
 
 use opencord_media::video::camera::pipewire::{Capture, Remote};
 use opencord_media::video::camera::virtual_camera::{VirtualCamera, VirtualFormat};
-use opencord_media::video::sender::{CameraSender, camera_layers};
+use opencord_media::video::layers::camera_layers;
+use opencord_media::video::sender::VideoSender;
 
 const RUN: Duration = Duration::from_secs(20);
 
@@ -57,7 +58,7 @@ fn main() {
     let capture = Capture::start(Remote::Session, Some(&camera.id()), frames).expect("the camera");
     let layers = camera_layers(capture.mode.width, capture.mode.height);
     let (sent, received) = mpsc::channel();
-    let sender = CameraSender::start(
+    let sender = VideoSender::camera(
         "load".to_owned(),
         layers,
         captured,

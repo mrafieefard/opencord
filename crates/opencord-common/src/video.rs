@@ -74,6 +74,44 @@ pub fn layer_ceiling(kind: VideoKind, width: u32, height: u32, fps: u32) -> u32 
     }
 }
 
+/// A screen share preset (plan §9.2): a maximum pixel count, not a fixed
+/// size, so ultrawide and portrait screens are treated fairly. Ordered
+/// from the smallest.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum ScreenPreset {
+    P480,
+    P720,
+    P1080,
+    P1440,
+    /// The source's own size, up to 4K.
+    Source,
+}
+
+impl ScreenPreset {
+    pub fn max_pixels(self) -> u32 {
+        match self {
+            Self::P480 => 854 * 480,
+            Self::P720 => 1280 * 720,
+            Self::P1080 => 1920 * 1080,
+            Self::P1440 => 2560 * 1440,
+            Self::Source => 3840 * 2160,
+        }
+    }
+}
+
+/// A source of `width` × `height` scaled to at most `max_pixels`, its shape
+/// kept, rounded down to even sizes; never upscaled (plan §9.2).
+pub fn scaled_to_fit(width: u32, height: u32, max_pixels: u32) -> (u32, u32) {
+    let pixels = u64::from(width) * u64::from(height);
+    if pixels <= u64::from(max_pixels) {
+        return (width & !1, height & !1);
+    }
+    let scale = (f64::from(max_pixels) / pixels as f64).sqrt();
+    // A hair over, so exact fits (1920×1080 into 720p) are not rounded down.
+    let fit = |side: u32| ((f64::from(side) * scale + 1e-6) as u32) & !1;
+    (fit(width), fit(height))
+}
+
 /// URI of Opencord's frame-marking RTP header extension. Clients and nodes
 /// map it to [`FRAME_MARKING_ID`] without negotiating.
 pub const FRAME_MARKING_URI: &str = "http://opencord.dev/rtp-hdrext/frame-marking";
@@ -189,6 +227,24 @@ pub fn frame_marking_extension() -> str0m::rtp::Extension {
 
 #[cfg(test)]
 mod tests {
+    use super::{ScreenPreset, scaled_to_fit};
+
+    #[test]
+    fn screens_scale_down_to_their_preset_by_pixel_count() {
+        let p720 = ScreenPreset::P720.max_pixels();
+        assert_eq!(scaled_to_fit(1920, 1080, p720), (1280, 720));
+        assert_eq!(scaled_to_fit(2560, 1440, p720), (1280, 720));
+        // Portrait and ultrawide keep their shape and their pixel budget.
+        assert_eq!(scaled_to_fit(1080, 1920, p720), (720, 1280));
+        assert_eq!(
+            scaled_to_fit(3440, 1440, ScreenPreset::P1080.max_pixels()),
+            (2224, 930)
+        );
+        // Never upscaled; odd sizes become even.
+        assert_eq!(scaled_to_fit(1001, 701, p720), (1000, 700));
+        assert!(ScreenPreset::P480 < ScreenPreset::Source);
+    }
+
     #[cfg(feature = "str0m")]
     #[test]
     fn str0m_reads_and_writes_the_extension() {

@@ -427,6 +427,8 @@ pub(super) fn format_pod(mode: Mode) -> Vec<u8> {
         RawFormat::Yuyv => (MediaSubtype::Raw, Some(VideoFormat::YUY2)),
         RawFormat::Nv12 => (MediaSubtype::Raw, Some(VideoFormat::NV12)),
         RawFormat::I420 => (MediaSubtype::Raw, Some(VideoFormat::I420)),
+        RawFormat::Bgrx => (MediaSubtype::Raw, Some(VideoFormat::BGRx)),
+        RawFormat::Rgbx => (MediaSubtype::Raw, Some(VideoFormat::RGBx)),
     };
     let mut properties = vec![
         Property::new(

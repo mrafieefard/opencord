@@ -69,6 +69,27 @@ impl RawDecoder {
                 Picture::from_data(PixelFormat::Nv12, width, height, data, raw.captured)
                     .ok_or(CodecError::WrongPicture)
             }
+            RawFormat::Bgrx | RawFormat::Rgbx => {
+                let stride = width as usize * 4;
+                let (even_width, even_height) = (width & !1, height & !1);
+                if raw.data.len() != stride * height as usize || even_width == 0 || even_height == 0
+                {
+                    return Err(CodecError::WrongPicture);
+                }
+                let convert = match raw.format {
+                    RawFormat::Bgrx => convert::bgrx_to_nv12,
+                    _ => convert::rgbx_to_nv12,
+                };
+                let data = convert(&raw.data, stride, even_width as usize, even_height as usize);
+                Picture::from_data(
+                    PixelFormat::Nv12,
+                    even_width,
+                    even_height,
+                    data,
+                    raw.captured,
+                )
+                .ok_or(CodecError::WrongPicture)
+            }
             RawFormat::Mjpeg => {
                 self.decode_jpeg(&raw.data)?;
                 let (width, height) = (self.frame.width() & !1, self.frame.height() & !1);

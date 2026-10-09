@@ -2,7 +2,7 @@
 //! §9.2, §14): permissions, the server's limits and the bitrate ceilings.
 
 use opencord_common::permissions::Permissions;
-use opencord_common::video::{LAYER_RIDS, VideoKind, layer_ceiling, layer_index};
+use opencord_common::video::{LAYER_RIDS, ScreenPreset, VideoKind, layer_ceiling, layer_index};
 use opencord_proto::v1 as proto;
 use opencord_proto::voice::v1 as voice;
 
@@ -11,8 +11,6 @@ pub const MAX_TRACK_ID: usize = 64;
 /// The largest camera layer (plan §8).
 const CAMERA_PIXELS: u32 = 1280 * 720;
 const CAMERA_FPS: u32 = 30;
-/// "Source" is the screen's own size, up to 4K's pixel count.
-const SOURCE_PIXELS: u32 = 3840 * 2160;
 const MAX_FPS: u32 = 60;
 /// Width and height a layer may have.
 const SIDES: std::ops::RangeInclusive<u32> = 2..=8192;
@@ -166,14 +164,15 @@ fn within_limits(
 /// The pixel count a screen share preset allows (plan §9.2).
 fn screen_pixels(resolution: i32) -> u32 {
     use proto::ScreenShareResolution as Preset;
-    match Preset::try_from(resolution) {
-        Ok(Preset::ScreenShareResolution480p) => 854 * 480,
-        Ok(Preset::ScreenShareResolution1080p) => 1920 * 1080,
-        Ok(Preset::ScreenShareResolution1440p) => 2560 * 1440,
-        Ok(Preset::Source) => SOURCE_PIXELS,
+    let preset = match Preset::try_from(resolution) {
+        Ok(Preset::ScreenShareResolution480p) => ScreenPreset::P480,
+        Ok(Preset::ScreenShareResolution1080p) => ScreenPreset::P1080,
+        Ok(Preset::ScreenShareResolution1440p) => ScreenPreset::P1440,
+        Ok(Preset::Source) => ScreenPreset::Source,
         // 720p is the default (plan §5.2).
-        _ => 1280 * 720,
-    }
+        _ => ScreenPreset::P720,
+    };
+    preset.max_pixels()
 }
 
 #[cfg(test)]

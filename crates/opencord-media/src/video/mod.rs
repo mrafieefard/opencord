@@ -3,6 +3,7 @@
 
 pub mod camera;
 pub mod codec;
+pub mod layers;
 pub mod pattern;
 pub mod picture;
 pub mod priorities;

@@ -2,7 +2,9 @@
 //! estimate is the budget; voice comes off the top and is never starved.
 //! As the budget shrinks: the camera's top layer goes, then its middle
 //! layer, then the screen share's low layer; then the screen's frame rate
-//! comes down (to 5 fps), then its resolution. The camera's low layer and
+//! comes down (to 5 fps), then its resolution. A screen shared at more
+//! than 30 fps is "motion" content (games, video) and shrinks first,
+//! keeping its frame rate as long as it can (plan §9.2). The camera's low layer and
 //! the screen's main layer always stay (their encoders get less instead): a
 //! sender that sends nothing never learns that its uplink came back.
 //!
@@ -20,6 +22,8 @@ use crate::transport::{Layer, TrackKind};
 const SCREEN_FPS_STEPS: [u32; 4] = [20, 15, 10, 5];
 /// Then the share of its pixels it keeps.
 const SIZE_STEPS: [f32; 3] = [0.75, 0.5, 0.25];
+/// A screen above this frame rate is "motion" content: size goes first.
+const MOTION_ABOVE: u32 = 30;
 /// The plan being sent stays until the budget falls this far below its
 /// cost.
 const TOLERANCE: f64 = 0.15;
@@ -211,12 +215,20 @@ fn cuts(tracks: &[Sending<'_>]) -> Vec<Cut> {
             continue;
         }
         let fps = sending.layers[main].fps;
-        for step in SCREEN_FPS_STEPS.into_iter().filter(|step| *step < fps) {
-            let scale = step as f32 / fps as f32;
-            steps.push(Cut::Fps { track, scale });
-        }
-        for scale in SIZE_STEPS {
-            steps.push(Cut::Size { track, scale });
+        let slower = SCREEN_FPS_STEPS
+            .into_iter()
+            .filter(|step| *step < fps)
+            .map(|step| Cut::Fps {
+                track,
+                scale: step as f32 / fps as f32,
+            });
+        let smaller = SIZE_STEPS
+            .into_iter()
+            .map(|scale| Cut::Size { track, scale });
+        if fps > MOTION_ABOVE {
+            steps.extend(smaller.chain(slower));
+        } else {
+            steps.extend(slower.chain(smaller));
         }
     }
     steps
@@ -427,6 +439,26 @@ mod tests {
         let smallest = plan(VOICE, &share);
         assert_eq!(smallest[0].size_scale, 0.25);
         assert_eq!(smallest[0].active, vec![false, true]);
+    }
+
+    #[test]
+    fn a_60_fps_screen_keeps_its_frame_rate_and_shrinks_first() {
+        let scr = vec![
+            layer("l", 360, 15, 300_000),
+            layer("h", 1080, 60, 6_500_000),
+        ];
+        let wanted = on(&scr);
+        let share = [sending(TrackKind::Screen, &scr, &wanted)];
+
+        let smaller = plan(VOICE + 3_500_000, &share);
+        assert_eq!(smaller[0].active, vec![false, true]);
+        assert_eq!(smaller[0].fps_scale, 1.0);
+        assert_eq!(smaller[0].size_scale, 0.5);
+
+        // Only at a quarter of its pixels does it slow down.
+        let slower = plan(VOICE + 1_000_000, &share);
+        assert_eq!(slower[0].size_scale, 0.25);
+        assert!(slower[0].fps_scale < 1.0);
     }
 
     #[test]

@@ -600,7 +600,9 @@ fn on_video_event(shared: &Mutex<Shared>, event: VoiceEvent) {
             }
             #[cfg(target_os = "linux")]
             if let Some(camera) = &shared.encoded {
-                camera.sender.encode(&layers, &bitrates);
+                camera
+                    .sender
+                    .encode(&layers, &bitrates, fps_scale, size_scale);
             }
             #[cfg(not(target_os = "linux"))]
             let _ = bitrates;
@@ -726,8 +728,9 @@ mod camera {
 
     use opencord_media::transport::{TrackKind, TrackRequest};
     use opencord_media::video::camera::{RawFormat, RawFrame};
+    use opencord_media::video::layers::camera_layers;
     use opencord_media::video::pattern::scene;
-    use opencord_media::video::sender::{CameraSender, camera_layers};
+    use opencord_media::video::sender::VideoSender;
 
     use super::{Shared, lock};
 
@@ -737,7 +740,7 @@ mod camera {
 
     pub(super) struct EncodedCamera {
         pub request: TrackRequest,
-        pub sender: CameraSender,
+        pub sender: VideoSender,
         stop: Arc<AtomicBool>,
         feeder: Option<JoinHandle<()>>,
     }
@@ -751,7 +754,7 @@ mod camera {
                 layers: layers.clone(),
             };
             let (frames, captured) = sync_channel(4);
-            let sender = CameraSender::start(
+            let sender = VideoSender::camera(
                 track_id.to_owned(),
                 layers,
                 captured,
