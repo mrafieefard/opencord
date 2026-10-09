@@ -1,7 +1,7 @@
 //! Cameras straight from V4L2 (plan §8): the fallback where the Camera
 //! portal is missing or PipeWire shows no cameras. Never used when the
-//! portal said no. Capture runs on a thread of its own and polls with a
-//! timeout, so it notices when to stop.
+//! portal said no. Capture runs on a thread of its own and waits for each
+//! picture with a timeout, so it notices when to stop.
 
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -15,7 +15,7 @@ use v4l::capability::Flags;
 use v4l::frameinterval::FrameIntervalEnum;
 use v4l::framesize::FrameSizeEnum;
 use v4l::io::mmap::Stream;
-use v4l::io::traits::CaptureStream;
+use v4l::io::traits::{CaptureStream, Stream as _};
 use v4l::video::Capture as _;
 use v4l::video::capture::Parameters;
 use v4l::{Device, Format, FourCC};
@@ -30,6 +30,8 @@ const ID_PREFIX: &str = "v4l2:";
 const POLL: Duration = Duration::from_millis(200);
 /// Buffers the driver fills in turn.
 const BUFFERS: u32 = 4;
+/// poll(2)'s "there is data to read".
+const POLLIN: i16 = 0x1;
 
 /// Capture devices that offer something Opencord can use.
 pub fn cameras() -> Vec<CameraInfo> {
@@ -255,16 +257,29 @@ fn run(
     stop: &AtomicBool,
     started: &mpsc::Sender<Result<(), CameraError>>,
 ) {
-    let mut stream = match Stream::with_buffers(device, Type::VideoCapture, BUFFERS) {
+    let mut stream = match start_stream(device) {
         Ok(stream) => stream,
         Err(error) => {
             let _ = started.send(Err(CameraError::Failed(error.to_string())));
             return;
         }
     };
-    stream.set_timeout(POLL);
     let _ = started.send(Ok(()));
+    let handle = stream.handle();
+    let wait = i32::try_from(POLL.as_millis()).unwrap_or(i32::MAX);
     while !stop.load(Ordering::Relaxed) {
+        // `next` is only asked once a picture is ready: a `next` that
+        // times out has handed nothing back, and the one after it would
+        // queue a buffer the driver still holds (EINVAL) — which is what
+        // a webcam slower than `POLL` to its first picture got.
+        match handle.poll(POLLIN, wait) {
+            Ok(0) => continue,
+            Ok(_) => {}
+            Err(error) => {
+                tracing::warn!(%error, "the camera stopped");
+                return;
+            }
+        }
         match stream.next() {
             Ok((data, metadata)) => {
                 let used = (metadata.bytesused as usize).min(data.len());
@@ -273,13 +288,25 @@ fn run(
                     let _ = frames.try_send(frame);
                 }
             }
-            Err(error) if error.kind() == std::io::ErrorKind::TimedOut => {}
             Err(error) => {
                 tracing::warn!(%error, "the camera stopped");
                 return;
             }
         }
     }
+}
+
+/// Starts streaming with every buffer but the first queued: `next`
+/// queues the buffer it handed out last (the first, to begin with)
+/// before it takes the next picture.
+fn start_stream(device: &Device) -> std::io::Result<Stream<'static>> {
+    let mut stream = Stream::with_buffers(device, Type::VideoCapture, BUFFERS)?;
+    stream.set_timeout(POLL);
+    for index in 1..BUFFERS as usize {
+        CaptureStream::queue(&mut stream, index)?;
+    }
+    stream.start()?;
+    Ok(stream)
 }
 
 #[cfg(test)]

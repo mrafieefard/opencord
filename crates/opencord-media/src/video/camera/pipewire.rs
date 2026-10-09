@@ -404,7 +404,11 @@ fn open_stream(
         .register()
         .map_err(failed)?;
     let format = format_pod(mode);
-    let mut params = [Pod::from_bytes(&format).ok_or(CameraError::NoUsableMode)?];
+    let buffers = buffers_pod();
+    let mut params = [
+        Pod::from_bytes(&format).ok_or(CameraError::NoUsableMode)?,
+        Pod::from_bytes(&buffers).ok_or(CameraError::NoUsableMode)?,
+    ];
     stream
         .connect(
             Direction::Input,
@@ -464,6 +468,32 @@ pub(super) fn format_pod(mode: Mode) -> Vec<u8> {
         type_: SpaTypes::ObjectParamFormat.as_raw(),
         id: ParamType::EnumFormat.as_raw(),
         properties,
+    })
+}
+
+/// The buffers a camera may fill: memory its node can share with this
+/// process — DMA-BUF or memfd, which the stream maps (`MAP_BUFFERS`) — or
+/// plain memory. Unasked, the PipeWire server's V4L2 node kept plain
+/// memory of its own, which cannot cross to another process, and linking a
+/// real webcam failed ("use input buffers: -22"); a virtual camera's
+/// buffers come from a stream like ours, so it never showed.
+fn buffers_pod() -> Vec<u8> {
+    let types = (1 << spa::sys::SPA_DATA_MemPtr)
+        | (1 << spa::sys::SPA_DATA_MemFd)
+        | (1 << spa::sys::SPA_DATA_DmaBuf);
+    serialize(Object {
+        type_: SpaTypes::ObjectParamBuffers.as_raw(),
+        id: ParamType::Buffers.as_raw(),
+        properties: vec![Property::new(
+            spa::sys::SPA_PARAM_BUFFERS_dataType,
+            Value::Choice(ChoiceValue::Int(spa::utils::Choice(
+                spa::utils::ChoiceFlags::empty(),
+                ChoiceEnum::Flags {
+                    default: types,
+                    flags: Vec::new(),
+                },
+            ))),
+        )],
     })
 }
 
@@ -783,6 +813,30 @@ mod tests {
             mode(RawFormat::I420, 320, 240, 15),
         ] {
             assert_eq!(parsed(&format_pod(wanted)), vec![wanted]);
+        }
+    }
+
+    #[test]
+    fn a_cameras_buffers_may_be_memory_another_process_shares() {
+        let Ok((_, Value::Object(object))) =
+            PodDeserializer::deserialize_any_from(buffers_pod().as_slice())
+        else {
+            panic!("not an object");
+        };
+        let data_types = object
+            .properties
+            .iter()
+            .find(|property| property.key == spa::sys::SPA_PARAM_BUFFERS_dataType)
+            .map(|property| &property.value);
+
+        assert_eq!(object.id, ParamType::Buffers.as_raw());
+        let Some(Value::Choice(ChoiceValue::Int(Choice(_, ChoiceEnum::Flags { default, .. })))) =
+            data_types
+        else {
+            panic!("no data types: {data_types:?}");
+        };
+        for shared in [spa::sys::SPA_DATA_MemFd, spa::sys::SPA_DATA_DmaBuf] {
+            assert_ne!(default & (1 << shared), 0, "data type {shared} missing");
         }
     }
 

@@ -37,6 +37,7 @@ tract-pulse.workspace = true
 
 [dev-dependencies]
 str0m-netem.workspace = true
+tracing-subscriber.workspace = true
 
 [features]
 # Test support: the network impairment shim and the XOR frame transform
