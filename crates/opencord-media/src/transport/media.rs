@@ -6,7 +6,8 @@ use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::time::{Duration, Instant};
 
-use opencord_common::video::{FrameMarking, H264_PAYLOAD_TYPE, layer_index, video_mid};
+use opencord_common::rate::RateMeter;
+use opencord_common::video::{FrameMarking, H264_PAYLOAD_TYPE, video_mid};
 use opencord_common::voice::{AUDIO_MID, OPUS_PAYLOAD_TYPE, receive_mid, rtc_config};
 use opencord_proto::voice::v1 as voice;
 use str0m::bwe::{Bitrate, BweKind};
@@ -98,6 +99,8 @@ struct OutLayer {
     next_seq: u64,
     /// The node says someone needs it.
     wanted: bool,
+    /// What it sends, for the planner (encoders send under their targets).
+    sent: RateMeter,
 }
 
 /// What the uplink estimator knows and was asked for.
@@ -399,6 +402,7 @@ impl Media {
                     ssrc: layer.ssrc,
                     next_seq: u64::from(u16::from_ne_bytes(random::<2>())),
                     wanted: true,
+                    sent: RateMeter::default(),
                 })
                 .collect(),
             specs: layers.iter().map(|layer| spec(&layer.rid)).collect(),
@@ -462,14 +466,27 @@ impl Media {
             .iter()
             .map(|track| track.layers.iter().map(|layer| layer.wanted).collect())
             .collect();
+        let sent: Vec<Vec<u64>> = self
+            .outgoing
+            .iter()
+            .map(|track| {
+                track
+                    .layers
+                    .iter()
+                    .map(|layer| layer.sent.bits_per_second(now))
+                    .collect()
+            })
+            .collect();
         let tracks: Vec<Sending<'_>> = self
             .outgoing
             .iter()
             .zip(&wanted)
-            .map(|(track, wanted)| Sending {
+            .zip(&sent)
+            .map(|((track, wanted), sent)| Sending {
                 kind: track.kind,
                 layers: &track.specs,
                 wanted,
+                sent,
             })
             .collect();
         let talking = self
@@ -516,7 +533,9 @@ impl Media {
             .is_none_or(|at| now.saturating_duration_since(at) >= PROBE_EVERY);
         if limited && calm && due {
             self.uplink.probed = Some(now);
-            self.rtc.bwe().reset(Bitrate::bps(self.uplink.estimate));
+            // From half the target at least: one probe passes it.
+            let start = self.uplink.estimate.max(self.uplink.desired / 2);
+            self.rtc.bwe().reset(Bitrate::bps(start));
         }
     }
 
@@ -598,11 +617,8 @@ impl Media {
         else {
             return;
         };
-        let Some(layer) = track
-            .layers
-            .iter_mut()
-            .find(|layer| layer_index(&layer.rid) == Some(frame.layer))
-        else {
+        // Layers count from the track's lowest: a screen's are "l" and "h".
+        let Some(layer) = track.layers.get_mut(usize::from(frame.layer)) else {
             return;
         };
         let elapsed = frame.captured.saturating_duration_since(self.video_start);
@@ -611,6 +627,8 @@ impl Media {
         let nal_units = self.transform.outbound_video(frame.nal_units);
         let packets = packetize(&nal_units, MAX_VIDEO_PAYLOAD);
         let count = packets.len();
+        let bytes: usize = packets.iter().map(Vec::len).sum();
+        layer.sent.add(Instant::now(), bytes);
         let mut api = self.rtc.direct_api();
         let Some(stream) = api.stream_tx(&Ssrc::from(layer.ssrc)) else {
             return;
@@ -805,7 +823,12 @@ impl Media {
         else {
             return;
         };
-        let Some(layer) = rid.and_then(layer_index) else {
+        let Some(layer) = track
+            .layers
+            .iter()
+            .position(|layer| Some(layer.rid.as_str()) == rid)
+            .and_then(|position| u8::try_from(position).ok())
+        else {
             return;
         };
         let _ = events.send(VoiceEvent::KeyframeRequested {

@@ -20,8 +20,8 @@ use crate::api::types::{
     ChannelPosition, CoreError, CoreEvent, CoreEventPayload, ErrorCode, HotkeyBinding,
     HotkeySupport, IdentityInfo, Invite, MediaEvent, Member, Message, OverwriteTargetKind,
     PermissionOverwrite, PresenceStatus, Role, RoleChanges, ScreenProblem, ScreenShareRequest,
-    ScreenShareStarted, Server, ServerChanges, ServerInfo, User, VideoWant, VoiceSettings,
-    VoiceSettingsChanges, VoiceState,
+    ScreenShareStarted, ScreenStream, Server, ServerChanges, ServerInfo, StreamSourceKind, User,
+    VideoWant, VoiceSettings, VoiceSettingsChanges, VoiceState,
 };
 use crate::connection::{
     self, Command, Connection, Context, Credentials, Established, HandshakeError,
@@ -927,19 +927,11 @@ impl Client {
         if pending.restore_token.is_some() {
             self.lock_voice().screen_restore_token = pending.restore_token.clone();
         }
-        let create = Request::CreateStream(proto::CreateStream {
-            channel_id,
-            source_kind: convert::stream_source_kind_to_proto(pending.kind) as i32,
-            resolution: convert::screen_share_resolution_to_proto(request.resolution) as i32,
-            fps: request.fps,
-            has_audio: request.has_audio,
-        });
-        let stream_key = match self.request(&server_key, create).await {
-            Ok(Response::Stream(stream)) => stream.stream_key,
-            Ok(other) => {
-                drop_pending(pending);
-                return Err(unexpected(&other));
-            }
+        let created = self
+            .create_stream(&server_key, channel_id, pending.kind, request)
+            .await;
+        let stream_key = match created {
+            Ok(stream) => stream.stream_key,
             Err(error) => {
                 drop_pending(pending);
                 return Err(error);
@@ -996,6 +988,28 @@ impl Client {
             self.delete_stream(&server_key, &stream_key).await;
         }
         Ok(())
+    }
+
+    /// Goes live on the server (a stream in `channel_id`, where this user
+    /// is in voice); the media is the caller's.
+    pub async fn create_stream(
+        &self,
+        server_key: &str,
+        channel_id: i64,
+        kind: StreamSourceKind,
+        request: ScreenShareRequest,
+    ) -> Result<ScreenStream, CoreError> {
+        let create = Request::CreateStream(proto::CreateStream {
+            channel_id,
+            source_kind: convert::stream_source_kind_to_proto(kind) as i32,
+            resolution: convert::screen_share_resolution_to_proto(request.resolution) as i32,
+            fps: request.fps,
+            has_audio: request.has_audio,
+        });
+        match self.request(server_key, create).await? {
+            Response::Stream(stream) => Ok(convert::stream(stream)),
+            other => Err(unexpected(&other)),
+        }
     }
 
     /// Ends a stream on the server; one already gone is fine.

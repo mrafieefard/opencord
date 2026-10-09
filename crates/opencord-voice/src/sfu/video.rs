@@ -112,6 +112,8 @@ pub(super) struct Track {
 #[derive(Default)]
 struct LayerState {
     last_packet: Option<Instant>,
+    /// What it sends.
+    meter: RateMeter,
     /// From the latest keyframe.
     size: Option<(u16, u16)>,
     keyframe_asked: Option<Instant>,
@@ -184,6 +186,7 @@ impl Track {
                         .map_or(setup.height, |(_, height)| u32::from(height)),
                     cost: floor,
                     available: self.asked[index] && self.producing(now, index),
+                    sent: state.meter.bits_per_second(now),
                 }
             })
             .collect()
@@ -530,6 +533,7 @@ impl Sfu {
         let started = !track.producing(now, layer_index);
         let state = &mut track.layers[layer_index];
         state.last_packet = Some(now);
+        state.meter.add(now, bytes);
         if let Some(size) = marking.and_then(|marking| marking.size) {
             state.size = Some(size);
         }
@@ -740,10 +744,14 @@ impl Sfu {
                 .probed
                 .is_none_or(|at| now.saturating_duration_since(at) >= PROBE_EVERY);
             if limited && calm && due {
-                // A fresh estimator from the current estimate probes at 3x
-                // and 6x of it at once.
+                // A fresh estimator probes at 3x and 6x of where it starts:
+                // from half the target at least, so one probe passes it
+                // however far below the estimate is (a screen's main layer
+                // is several times its low one, and its low layer often
+                // sends well under its maximum).
                 peer.probed = Some(now);
-                peer.rtc.bwe().reset(Bitrate::bps(peer.estimate));
+                let start = peer.estimate.max(desired_bitrate / 2);
+                peer.rtc.bwe().reset(Bitrate::bps(start));
             }
         }
         for (publisher, track_id, layer) in keyframes {

@@ -512,3 +512,43 @@ fn a_screen_goes_only_to_those_watching_it() {
     net.run(Duration::from_secs(1));
     assert!(net.clients[bob].video_on(screen.ssrc, stopped).is_empty());
 }
+
+/// A screen share: a 640×360 low layer at 15 fps and the main one at
+/// 1280×720 and 30 fps (plan §9.2).
+fn screen(track_id: &str, base: u32) -> TrackSetup {
+    let layer = |index: u32, rid: &str, width, height, fps, max_bitrate| LayerSetup {
+        rid: rid.to_owned(),
+        ssrc: base + index * 2,
+        rtx_ssrc: base + index * 2 + 1,
+        width,
+        height,
+        fps,
+        max_bitrate,
+    };
+    TrackSetup {
+        track_id: track_id.to_owned(),
+        kind: VideoKind::Screen,
+        layers: vec![
+            layer(0, "l", 640, 360, 15, 300_000),
+            layer(1, "h", 1280, 720, 30, 2_000_000),
+        ],
+        ssrc: base + 100,
+        rtx_ssrc: base + 101,
+    }
+}
+
+#[test]
+fn a_viewer_with_room_gets_a_screens_main_layer() {
+    let mut net = Net::new();
+    let (alice, bob, _) = three(&mut net);
+    let share = screen("screen-a", 7000);
+    net.publish(alice, share.clone());
+    let now = net.now;
+    net.sfu
+        .set_stream_viewers(now, CHANNEL, 100 + alice as i64, vec![100 + bob as i64]);
+    net.want(bob, &[("screen-a", 720)]);
+
+    net.run(Duration::from_secs(15));
+
+    assert_eq!(net.clients[bob].last_layer(share.ssrc), Some(1));
+}

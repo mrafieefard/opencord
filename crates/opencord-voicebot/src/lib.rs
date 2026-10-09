@@ -156,6 +156,12 @@ impl Voicebot {
         VoiceSession::start(server, voice_servers).await
     }
 
+    /// The next core event, without a time limit; `None` once the core
+    /// stopped.
+    pub async fn next_event(&mut self) -> Option<CoreEventPayload> {
+        self.events.recv().await.map(|event| event.payload)
+    }
+
     /// Skips core events until `pick` returns something.
     pub async fn wait_for<T>(
         &mut self,
@@ -242,7 +248,10 @@ struct Shared {
     /// still has to be told of it.
     pattern: Option<TestPattern>,
     #[cfg(target_os = "linux")]
-    encoded: Option<camera::EncodedCamera>,
+    encoded: Option<camera::EncodedVideo>,
+    /// The screen this bot shares, if any.
+    #[cfg(target_os = "linux")]
+    screen: Option<camera::EncodedVideo>,
     republish: bool,
     /// Others' tracks, and the tile height to watch them at.
     tracks: Vec<(i64, RemoteTrack)>,
@@ -262,6 +271,25 @@ impl Shared {
         self.pattern
             .as_ref()
             .map(|pattern| pattern.request(TrackKind::Camera))
+    }
+
+    /// Every track this bot publishes: its camera and its screen.
+    fn requests(&self) -> Vec<TrackRequest> {
+        let mut requests: Vec<TrackRequest> = self.camera_request().into_iter().collect();
+        #[cfg(target_os = "linux")]
+        if let Some(screen) = &self.screen {
+            requests.push(screen.request.clone());
+        }
+        requests
+    }
+
+    /// This bot's encoded track with this id.
+    #[cfg(target_os = "linux")]
+    fn encoded(&self, track_id: &str) -> Option<&camera::EncodedVideo> {
+        [self.encoded.as_ref(), self.screen.as_ref()]
+            .into_iter()
+            .flatten()
+            .find(|video| video.request.track_id == track_id)
     }
 
     /// Tells the node which tracks this bot watches.
@@ -384,9 +412,28 @@ impl VoiceSession {
             .connection
             .clone()
             .context("not connected")?;
-        let camera = camera::EncodedCamera::start(track_id, Arc::clone(&self.shared))?;
+        let camera = camera::EncodedVideo::camera(track_id, Arc::clone(&self.shared))?;
         connection.publish_track(camera.request.clone()).await?;
         lock(&self.shared).encoded = Some(camera);
+        Ok(())
+    }
+
+    /// Publishes a screen share of real H.264: the moving scene as a
+    /// 1920×1080 screen, in the layers `shape` gives (plan §9.2). Going live
+    /// on the main server is the caller's part.
+    #[cfg(target_os = "linux")]
+    pub async fn publish_encoded_screen(
+        &self,
+        track_id: &str,
+        shape: opencord_media::video::layers::ScreenShape,
+    ) -> anyhow::Result<()> {
+        let connection = lock(&self.shared)
+            .connection
+            .clone()
+            .context("not connected")?;
+        let screen = camera::EncodedVideo::screen(track_id, shape, Arc::clone(&self.shared))?;
+        connection.publish_track(screen.request.clone()).await?;
+        lock(&self.shared).screen = Some(screen);
         Ok(())
     }
 
@@ -495,7 +542,7 @@ async fn connect(
     // The new node announces its tracks again; a camera is published
     // again once media is up.
     shared.tracks.clear();
-    shared.republish = shared.camera_request().is_some();
+    shared.republish = !shared.requests().is_empty();
     Ok(events)
 }
 
@@ -527,17 +574,21 @@ async fn send_pattern(shared: Arc<Mutex<Shared>>) {
 
 /// Publishes the camera on a connection that just came up.
 fn republish(shared: &Arc<Mutex<Shared>>) {
-    let (request, connection) = {
+    let (requests, connection) = {
         let mut shared = lock(shared);
         if !std::mem::take(&mut shared.republish) {
             return;
         }
-        (shared.camera_request(), shared.connection.clone())
+        (shared.requests(), shared.connection.clone())
     };
-    if let (Some(request), Some(connection)) = (request, connection) {
+    let Some(connection) = connection else {
+        return;
+    };
+    for request in requests {
+        let connection = Arc::clone(&connection);
         tokio::spawn(async move {
             if let Err(error) = connection.publish_track(request).await {
-                eprintln!("voicebot: could not publish the camera again: {error}");
+                eprintln!("voicebot: could not publish a track again: {error}");
             }
         });
     }
@@ -589,40 +640,52 @@ fn on_video_event(shared: &Mutex<Shared>, event: VoiceEvent) {
             shared.send_wants();
         }
         VoiceEvent::Encode {
+            track_id,
             layers,
             bitrates,
             fps_scale,
             size_scale,
-            ..
         } => {
             if let Some(pattern) = shared.pattern.as_mut() {
                 pattern.encode(&layers, fps_scale, size_scale);
             }
             #[cfg(target_os = "linux")]
-            if let Some(camera) = &shared.encoded {
-                camera
+            if let Some(video) = shared.encoded(&track_id) {
+                video
                     .sender
                     .encode(&layers, &bitrates, fps_scale, size_scale);
             }
             #[cfg(not(target_os = "linux"))]
-            let _ = bitrates;
+            let _ = (track_id, bitrates);
         }
-        VoiceEvent::KeyframeRequested { layer, .. } => {
+        VoiceEvent::KeyframeRequested { track_id, layer } => {
             if let Some(pattern) = shared.pattern.as_mut() {
                 pattern.keyframe(layer);
             }
             #[cfg(target_os = "linux")]
-            if let Some(camera) = &shared.encoded {
-                camera.sender.keyframe(layer);
+            if let Some(video) = shared.encoded(&track_id) {
+                video.sender.keyframe(layer);
             }
+            #[cfg(not(target_os = "linux"))]
+            let _ = track_id;
         }
-        VoiceEvent::TrackStopped { message, .. } => {
-            eprintln!("voicebot: the node stopped the camera: {message}");
-            shared.pattern = None;
+        VoiceEvent::TrackStopped {
+            track_id, message, ..
+        } => {
+            eprintln!("voicebot: the node stopped {track_id}: {message}");
             #[cfg(target_os = "linux")]
             {
+                let screen = shared
+                    .screen
+                    .as_ref()
+                    .is_some_and(|screen| screen.request.track_id == track_id);
+                if screen {
+                    shared.screen = None;
+                    return;
+                }
                 shared.encoded = None;
             }
+            shared.pattern = None;
         }
         _ => {}
     }
@@ -728,53 +791,93 @@ mod camera {
 
     use opencord_media::transport::{TrackKind, TrackRequest};
     use opencord_media::video::camera::{RawFormat, RawFrame};
-    use opencord_media::video::layers::camera_layers;
+    use opencord_media::video::layers::{ScreenShape, camera_layers, screen_layers};
     use opencord_media::video::pattern::scene;
     use opencord_media::video::sender::VideoSender;
 
     use super::{Shared, lock};
 
-    const WIDTH: u32 = 1280;
-    const HEIGHT: u32 = 720;
-    const FRAME: Duration = Duration::from_nanos(1_000_000_000 / 30);
+    /// A screen share's source: a 1080p screen.
+    const SCREEN: (u32, u32) = (1920, 1080);
 
-    pub(super) struct EncodedCamera {
+    /// Real H.264 of the moving scene, sent as a camera (1280×720 at
+    /// 30 fps) or a screen (1920×1080 at the share's frame rate).
+    pub(super) struct EncodedVideo {
         pub request: TrackRequest,
         pub sender: VideoSender,
         stop: Arc<AtomicBool>,
         feeder: Option<JoinHandle<()>>,
     }
 
-    impl EncodedCamera {
-        pub fn start(track_id: &str, shared: Arc<Mutex<Shared>>) -> anyhow::Result<Self> {
-            let layers = camera_layers(WIDTH, HEIGHT);
-            let request = TrackRequest {
-                track_id: track_id.to_owned(),
-                kind: TrackKind::Camera,
-                layers: layers.clone(),
-            };
+    impl EncodedVideo {
+        pub fn camera(track_id: &str, shared: Arc<Mutex<Shared>>) -> anyhow::Result<Self> {
+            let (width, height, fps) = (1280, 720, 30);
+            let layers = camera_layers(width, height);
             let (frames, captured) = sync_channel(4);
             let sender = VideoSender::camera(
                 track_id.to_owned(),
-                layers,
+                layers.clone(),
                 captured,
-                move |frame| {
-                    let connection = lock(&shared).connection.clone();
-                    if let Some(connection) = connection {
-                        connection.send_video(frame);
-                    }
-                },
+                sending(shared),
                 |_| {},
             );
+            Self::start(
+                track_id,
+                TrackKind::Camera,
+                layers,
+                sender,
+                frames,
+                (width, height, fps),
+            )
+        }
+
+        pub fn screen(
+            track_id: &str,
+            shape: ScreenShape,
+            shared: Arc<Mutex<Shared>>,
+        ) -> anyhow::Result<Self> {
+            let (width, height) = SCREEN;
+            let layers = screen_layers(width, height, shape);
+            let (frames, captured) = sync_channel(4);
+            let sender = VideoSender::screen(
+                track_id.to_owned(),
+                layers.clone(),
+                shape,
+                captured,
+                sending(shared),
+                |_| {},
+            );
+            Self::start(
+                track_id,
+                TrackKind::Screen,
+                layers,
+                sender,
+                frames,
+                (width, height, shape.fps),
+            )
+        }
+
+        fn start(
+            track_id: &str,
+            kind: TrackKind,
+            layers: Vec<opencord_media::transport::Layer>,
+            sender: VideoSender,
+            frames: SyncSender<RawFrame>,
+            size: (u32, u32, u32),
+        ) -> anyhow::Result<Self> {
             let stop = Arc::new(AtomicBool::new(false));
             let feeder = std::thread::Builder::new()
-                .name("voicebot-camera".to_owned())
+                .name("voicebot-video".to_owned())
                 .spawn({
                     let stop = Arc::clone(&stop);
-                    move || feed(&frames, &stop)
+                    move || feed(&frames, &stop, size)
                 })?;
             Ok(Self {
-                request,
+                request: TrackRequest {
+                    track_id: track_id.to_owned(),
+                    kind,
+                    layers,
+                },
                 sender,
                 stop,
                 feeder: Some(feeder),
@@ -782,7 +885,7 @@ mod camera {
         }
     }
 
-    impl Drop for EncodedCamera {
+    impl Drop for EncodedVideo {
         fn drop(&mut self) {
             self.stop.store(true, Ordering::Relaxed);
             if let Some(feeder) = self.feeder.take() {
@@ -791,16 +894,33 @@ mod camera {
         }
     }
 
-    /// The moving scene at 30 fps, as a camera would deliver it.
-    fn feed(frames: &SyncSender<RawFrame>, stop: &AtomicBool) {
+    fn sending(
+        shared: Arc<Mutex<Shared>>,
+    ) -> impl FnMut(opencord_media::transport::VideoFrame) + Send + 'static {
+        move |frame| {
+            let connection = lock(&shared).connection.clone();
+            if let Some(connection) = connection {
+                connection.send_video(frame);
+            }
+        }
+    }
+
+    /// The moving scene at its size and frame rate, as a camera or a
+    /// screen would deliver it.
+    fn feed(
+        frames: &SyncSender<RawFrame>,
+        stop: &AtomicBool,
+        (width, height, fps): (u32, u32, u32),
+    ) {
+        let frame_time = Duration::from_secs(1) / fps.max(1);
         let start = Instant::now();
         let mut number = 0u64;
         while !stop.load(Ordering::Relaxed) {
-            let picture = scene(WIDTH, HEIGHT, number, Instant::now());
+            let picture = scene(width, height, number, Instant::now());
             let frame = RawFrame {
                 format: RawFormat::Nv12,
-                width: WIDTH,
-                height: HEIGHT,
+                width,
+                height,
                 data: picture.data,
                 captured: picture.captured,
             };
@@ -808,7 +928,7 @@ mod camera {
                 return;
             }
             number += 1;
-            let due = start + FRAME * u32::try_from(number).unwrap_or(u32::MAX);
+            let due = start + frame_time * u32::try_from(number).unwrap_or(u32::MAX);
             std::thread::sleep(due.saturating_duration_since(Instant::now()));
         }
     }

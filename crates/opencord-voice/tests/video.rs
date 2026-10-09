@@ -16,6 +16,7 @@ use opencord_media::transport::{
 use opencord_media::video::pattern::{TestPattern, check};
 use opencord_proto::v1::{ErrorCode, ScreenShareResolution};
 use opencord_proto::voice::v1 as voice;
+use opencord_voice::node::NodeCommand;
 use tokio::sync::mpsc::UnboundedReceiver;
 use tokio::task::JoinHandle;
 
@@ -52,12 +53,19 @@ struct Publisher {
 impl Publisher {
     async fn start(
         connection: VoiceConnection,
-        mut events: UnboundedReceiver<VoiceEvent>,
+        events: UnboundedReceiver<VoiceEvent>,
         pattern: TestPattern,
     ) -> Result<Self, TrackError> {
-        connection
-            .publish_track(pattern.request(TrackKind::Camera))
-            .await?;
+        Self::start_as(connection, events, pattern, TrackKind::Camera).await
+    }
+
+    async fn start_as(
+        connection: VoiceConnection,
+        mut events: UnboundedReceiver<VoiceEvent>,
+        pattern: TestPattern,
+        kind: TrackKind,
+    ) -> Result<Self, TrackError> {
+        connection.publish_track(pattern.request(kind)).await?;
         let connection = Arc::new(connection);
         let pattern = Arc::new(Mutex::new(pattern));
         let seen = Arc::new(Mutex::new(Vec::new()));
@@ -564,4 +572,50 @@ async fn a_capped_uplink_stops_encoding_the_cameras_top_layer_until_lifted() {
         eventually(Duration::from_secs(25), || encoding("h")).await,
         "the top layer never came back"
     );
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn a_screens_main_layer_reaches_its_viewer() {
+    // Whether it gets there in time depends on the bandwidth estimate.
+    let _machine = whole_machine().await;
+    let node = node().await;
+    let (bob, mut bob_events) = join(&node, 2).await;
+    let share = CONNECT | Permissions::SCREENSHARE.bits();
+    let (connection, events) = join_with(
+        &node,
+        1,
+        token_with(&node, 1, share, None),
+        ConnectOptions::default(),
+    )
+    .await;
+    let layer = |rid: &str, width, height, fps, max_bitrate| Layer {
+        rid: rid.to_owned(),
+        width,
+        height,
+        fps,
+        max_bitrate,
+    };
+    // A screen's layers are "l" and "h": the main one is the second.
+    let layers = vec![
+        layer("l", 640, 360, 15, 300_000),
+        layer("h", 1280, 720, 30, 2_000_000),
+    ];
+    let _alice = Publisher::start_as(
+        connection,
+        events,
+        TestPattern::new("screen-1", layers, Instant::now()),
+        TrackKind::Screen,
+    )
+    .await
+    .unwrap();
+    node.node.send(NodeCommand::StreamViewers {
+        channel_id: CHANNEL,
+        user_id: 1,
+        viewers: vec![2],
+    });
+
+    bob.set_sink_wants(want("screen-1", 720));
+    let main = layer_arrives(&mut bob_events, Duration::from_secs(15), |layer| layer == 1).await;
+
+    assert!(main.is_some(), "the main layer never came");
 }

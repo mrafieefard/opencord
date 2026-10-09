@@ -9,9 +9,13 @@
 //! sender that sends nothing never learns that its uplink came back.
 //!
 //! A plan rides out a dip to 85 % of its cost (an estimate settles not far
-//! above what is sent); a cut beyond that takes effect at once. Recovery is
-//! one step a second, each needing room to spare, so the estimator probes
-//! before a layer comes back.
+//! above what is sent); a cut beyond that takes effect at once. The plan
+//! being sent costs what its layers actually send, with room to grow, when
+//! that is less than their maxima: encoders often send well under their
+//! targets, and the estimate settles near what is sent, so holding on to
+//! the maxima would cut layers that fit. Recovery is one step a second,
+//! each needing room for the maxima, so the estimator probes before a
+//! layer comes back.
 
 use std::time::{Duration, Instant};
 
@@ -36,6 +40,8 @@ pub const MIN_SHARE: f64 = 0.3;
 /// Shares go in steps of this, so a wavering estimate does not keep
 /// changing encoders.
 const SHARE_STEP: f64 = 0.1;
+/// What a layer being sent is allowed beyond what it sends.
+const HOLD_MARGIN_PERCENT: u64 = 125;
 
 /// A track being published, as the plan sees it.
 #[derive(Debug, Clone, Copy)]
@@ -45,6 +51,9 @@ pub struct Sending<'a> {
     pub layers: &'a [Layer],
     /// The layers the voice node says anyone needs.
     pub wanted: &'a [bool],
+    /// Bits per second each layer sent over the last second; empty when
+    /// unknown.
+    pub sent: &'a [u64],
 }
 
 /// What to encode of one track.
@@ -66,6 +75,24 @@ impl Sending<'_> {
     /// Bits per second it sends under `plan`, at its layers' maxima.
     pub fn bitrate(&self, plan: &TrackPlan) -> u64 {
         self.layer_bitrates(plan).into_iter().map(u64::from).sum()
+    }
+
+    /// What `plan` costs while it is being sent: each active layer at what
+    /// it sends, with room to grow, when that is under its share.
+    fn held_bitrate(&self, plan: &TrackPlan) -> u64 {
+        self.layer_bitrates(plan)
+            .into_iter()
+            .enumerate()
+            .map(|(index, planned)| {
+                let planned = u64::from(planned);
+                match self.sent.get(index) {
+                    Some(&sent) if sent > 0 && planned > 0 => {
+                        planned.min(sent.saturating_mul(HOLD_MARGIN_PERCENT) / 100)
+                    }
+                    _ => planned,
+                }
+            })
+            .sum()
     }
 
     fn wants(&self, layer: usize) -> bool {
@@ -158,12 +185,24 @@ impl Planner {
                 .map(|(track, plan)| track.bitrate(plan))
                 .sum::<u64>() as f64
         };
+        let held = |count: usize| -> f64 {
+            let plans = apply(tracks, &steps[..count]);
+            tracks
+                .iter()
+                .zip(&plans)
+                .map(|(track, plan)| track.held_bitrate(plan))
+                .sum::<u64>() as f64
+        };
         let fits = (0..=steps.len())
             .find(|count| cost(*count) <= available)
             .unwrap_or(steps.len());
         let count = match self.cuts {
             None => fits,
-            Some(previous) if cost(previous) * (1.0 - TOLERANCE) > available => fits.max(previous),
+            // Cut no further than what is sent needs.
+            Some(previous) if held(previous) * (1.0 - TOLERANCE) > available => (previous
+                ..=steps.len())
+                .find(|count| held(*count) <= available)
+                .unwrap_or(steps.len()),
             Some(previous) if fits < previous => {
                 let rested = self
                     .changed
@@ -181,7 +220,7 @@ impl Planner {
             self.cuts = Some(count);
             self.changed = Some(now);
         }
-        fit(apply(tracks, &steps[..count]), available)
+        fit(apply(tracks, &steps[..count]), available, held(count))
     }
 }
 
@@ -250,12 +289,14 @@ fn apply(tracks: &[Sending<'_>], steps: &[Cut]) -> Vec<TrackPlan> {
 }
 
 /// Turns every encoder down together when the plan still does not fit.
-fn fit(mut plans: Vec<TrackPlan>, available: f64) -> Vec<TrackPlan> {
+/// `held` is what the plan costs as it is being sent.
+fn fit(mut plans: Vec<TrackPlan>, available: f64, held: f64) -> Vec<TrackPlan> {
     let cost: f64 = plans
         .iter()
         .flat_map(|plan| &plan.bitrates)
         .map(|&bitrate| f64::from(bitrate))
-        .sum();
+        .sum::<f64>()
+        .min(held);
     if cost <= available || cost == 0.0 {
         return plans;
     }
@@ -306,6 +347,7 @@ mod tests {
             kind,
             layers,
             wanted,
+            sent: &[],
         }
     }
 
@@ -459,6 +501,31 @@ mod tests {
         let slower = plan(VOICE + 1_000_000, &share);
         assert_eq!(slower[0].size_scale, 0.25);
         assert!(slower[0].fps_scale < 1.0);
+    }
+
+    #[test]
+    fn a_plan_sending_under_its_maximum_is_held_on_what_it_sends() {
+        let layers = camera();
+        let wanted = on(&layers);
+        let mut planner = Planner::new();
+        let now = Instant::now();
+        let full = [sending(TrackKind::Camera, &layers, &wanted)];
+        planner.update(now, 10_000_000, VOICE, &full);
+
+        // The encoders send about half their maxima; the estimate settles
+        // near 1.5 times that, under the declared 2.15 Mbit/s.
+        let sent = [80_000, 250_000, 750_000];
+        let measured = [Sending {
+            sent: &sent,
+            ..full[0]
+        }];
+        let held = planner.update(now, VOICE + 1_600_000, VOICE, &measured);
+
+        assert_eq!(held[0].active, vec![true, true, true]);
+        assert_eq!(held[0].bitrates, vec![150_000, 500_000, 1_500_000]);
+        // From scratch it starts lower: going up takes the maxima.
+        let fresh = Planner::new().update(now, VOICE + 1_600_000, VOICE, &measured);
+        assert_eq!(fresh[0].active, vec![true, true, false]);
     }
 
     #[test]

@@ -89,7 +89,8 @@ pub enum ScreenSizes {
 
 /// A screen of `width` × `height` under `shape`, its main layer cut to
 /// `fps_scale` of the frame rate and `size_scale` of the pixels by the
-/// planner. The low layer is never larger or faster than the main one.
+/// planner (plan §7.10: the main layer's). The low layer is never larger
+/// than the main one, nor faster than the share.
 pub fn screen_sizes(
     width: u32,
     height: u32,
@@ -119,7 +120,11 @@ pub fn screen_sizes(
         LOW_LAYER_PIXELS.min(main_width * main_height),
     );
     ScreenSizes::Both {
-        low: (low_width.max(2), low_height.max(2), LOW_LAYER_FPS.min(fps)),
+        low: (
+            low_width.max(2),
+            low_height.max(2),
+            LOW_LAYER_FPS.min(shape.fps),
+        ),
         main,
     }
 }
@@ -245,11 +250,12 @@ mod tests {
                 main: (640, 360, 15)
             }
         );
-        // The low layer stays no larger and no faster than the main one.
+        // The low layer stays no larger than the main one, and keeps its
+        // frame rate: the cuts are the main layer's.
         assert_eq!(
             screen_sizes(1920, 1080, p720, 1.0 / 6.0, 0.1),
             ScreenSizes::Both {
-                low: (402, 226, 5),
+                low: (402, 226, 15),
                 main: (404, 226, 5)
             }
         );

@@ -6,6 +6,9 @@ use std::process::ExitCode;
 use std::time::Duration;
 
 use clap::Parser;
+use opencord_core::api::types::{
+    CoreEventPayload, ScreenShareRequest, ScreenShareResolution, StreamSourceKind,
+};
 use opencord_voicebot::{VoiceSession, Voicebot};
 
 #[derive(Debug, Parser)]
@@ -36,6 +39,15 @@ struct Args {
     /// Watch everyone's video in tiles this many pixels tall.
     #[arg(long, value_name = "HEIGHT")]
     watch: Option<u32>,
+    /// Share a screen of real H.264 (the moving scene as a 1920×1080
+    /// screen) at a quality such as 720p30 or 1080p60, within the server's
+    /// maximum.
+    #[arg(long, value_name = "QUALITY", value_parser = screen_quality)]
+    screen: Option<ScreenShareRequest>,
+    /// Watch every screen share in the channel (opt-in, plan §9.5); with
+    /// --watch, their video comes too.
+    #[arg(long)]
+    watch_streams: bool,
     #[arg(long, default_value_t = 10)]
     seconds: u64,
 }
@@ -52,7 +64,7 @@ async fn main() -> ExitCode {
 }
 
 async fn run(args: Args) -> anyhow::Result<()> {
-    let bot = Voicebot::connect(&args.server, args.claim, &args.name).await?;
+    let mut bot = Voicebot::connect(&args.server, args.claim, &args.name).await?;
     let channel = bot.voice_channel(&args.channel)?;
     let session = bot.join(channel).await?;
     println!("joined {} as user {}", args.channel, bot.user_id());
@@ -71,7 +83,39 @@ async fn run(args: Args) -> anyhow::Result<()> {
     if let Some(height) = args.watch {
         session.watch(height, true);
     }
-    tokio::time::sleep(duration).await;
+    if let Some(request) = args.screen {
+        go_live(&bot, &session, channel, request).await?;
+    }
+    if args.watch_streams {
+        let self_id = bot.user_id();
+        let streams: Vec<String> = bot
+            .ready
+            .streams
+            .iter()
+            .filter(|stream| stream.channel_id == channel && stream.user_id != self_id)
+            .map(|stream| stream.stream_key.clone())
+            .collect();
+        for key in streams {
+            watch_stream(&bot, &key).await;
+        }
+        let deadline = tokio::time::Instant::now() + duration;
+        loop {
+            tokio::select! {
+                () = tokio::time::sleep_until(deadline) => break,
+                payload = bot.next_event() => match payload {
+                    Some(CoreEventPayload::StreamCreate(stream))
+                        if stream.channel_id == channel && stream.user_id != self_id =>
+                    {
+                        watch_stream(&bot, &stream.stream_key).await;
+                    }
+                    Some(_) => {}
+                    None => break,
+                },
+            }
+        }
+    } else {
+        tokio::time::sleep(duration).await;
+    }
     for (user, heard) in session.heard() {
         println!(
             "user {user}: {} packets, {} decoded, peak {:.1} dBFS",
@@ -90,6 +134,78 @@ async fn run(args: Args) -> anyhow::Result<()> {
         );
     }
     Ok(())
+}
+
+async fn watch_stream(bot: &Voicebot, key: &str) {
+    match bot.client.stream_watch(key, true).await {
+        Ok(()) => println!("watching {key}"),
+        Err(error) => eprintln!("voicebot: could not watch {key}: {error}"),
+    }
+}
+
+/// "720p30", "1080p60", "source60"...: a preset and a frame rate.
+fn screen_quality(text: &str) -> Result<ScreenShareRequest, String> {
+    let presets = [
+        ("source", ScreenShareResolution::Source),
+        ("1440p", ScreenShareResolution::P1440),
+        ("1080p", ScreenShareResolution::P1080),
+        ("720p", ScreenShareResolution::P720),
+        ("480p", ScreenShareResolution::P480),
+    ];
+    let (resolution, fps) = presets
+        .into_iter()
+        .find_map(|(name, resolution)| Some((resolution, text.strip_prefix(name)?)))
+        .ok_or("a quality is like 720p30 or source60")?;
+    let fps = fps
+        .parse()
+        .map_err(|_| format!("no frame rate in {text}"))?;
+    Ok(ScreenShareRequest {
+        resolution,
+        fps,
+        has_audio: false,
+    })
+}
+
+/// Goes live on the server, then sends the screen.
+#[cfg(target_os = "linux")]
+async fn go_live(
+    bot: &Voicebot,
+    session: &VoiceSession,
+    channel: i64,
+    request: ScreenShareRequest,
+) -> anyhow::Result<()> {
+    use opencord_common::video::ScreenPreset;
+    use opencord_media::video::layers::ScreenShape;
+
+    let stream = bot
+        .client
+        .create_stream(&bot.server_key, channel, StreamSourceKind::Screen, request)
+        .await?;
+    let preset = match request.resolution {
+        ScreenShareResolution::P480 => ScreenPreset::P480,
+        ScreenShareResolution::P720 => ScreenPreset::P720,
+        ScreenShareResolution::P1080 => ScreenPreset::P1080,
+        ScreenShareResolution::P1440 => ScreenPreset::P1440,
+        ScreenShareResolution::Source => ScreenPreset::Source,
+    };
+    let shape = ScreenShape {
+        max_pixels: preset.max_pixels(),
+        fps: request.fps,
+    };
+    let track_id = format!("voicebot-screen-{}", bot.user_id());
+    session.publish_encoded_screen(&track_id, shape).await?;
+    println!("live as {}", stream.stream_key);
+    Ok(())
+}
+
+#[cfg(not(target_os = "linux"))]
+async fn go_live(
+    _bot: &Voicebot,
+    _session: &VoiceSession,
+    _channel: i64,
+    _request: ScreenShareRequest,
+) -> anyhow::Result<()> {
+    anyhow::bail!("an encoded screen needs Linux for now")
 }
 
 #[cfg(target_os = "linux")]

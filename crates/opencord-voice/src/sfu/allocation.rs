@@ -17,10 +17,12 @@ pub(crate) struct LayerOption {
     /// 0 for the lowest; taller layers have higher indexes.
     pub index: u8,
     pub height: u32,
-    /// Bits per second it takes.
+    /// Bits per second it may take: its declared maximum.
     pub cost: u64,
     /// The sender is producing it.
     pub available: bool,
+    /// Bits per second it sent over the last second; 0 when unknown.
+    pub sent: u64,
 }
 
 /// A video a receiver wants.
@@ -97,11 +99,29 @@ fn usable_layers(candidate: &Candidate<'_>) -> Vec<LayerOption> {
         .layers
         .iter()
         .filter(|layer| layer.available && layer.index <= top)
-        .copied()
+        .map(|layer| held(candidate, *layer))
         .collect();
     layers.sort_by_key(|layer| layer.index);
     layers
 }
+
+/// The layer being sent costs what it sends, with room to grow, when that
+/// is less than its maximum: encoders often send well under their target
+/// (still screens most of all), and a downlink estimate settles near what
+/// is sent, so holding on to the maximum would drop a layer that fits.
+/// Going up still costs the maximum, so the downlink is probed first.
+fn held(candidate: &Candidate<'_>, layer: LayerOption) -> LayerOption {
+    if candidate.current != Some(layer.index) || layer.sent == 0 {
+        return layer;
+    }
+    let cost = layer
+        .cost
+        .min(layer.sent.saturating_mul(HOLD_MARGIN_PERCENT) / 100);
+    LayerOption { cost, ..layer }
+}
+
+/// What the layer being sent is allowed beyond what it sends.
+const HOLD_MARGIN_PERCENT: u64 = 125;
 
 /// How much more (or less) than its cost taking `layer` needs.
 fn adjustment(candidate: &Candidate<'_>, layer: &LayerOption) -> i64 {
@@ -124,18 +144,21 @@ mod tests {
                 height: 180,
                 cost: 150_000,
                 available: true,
+                sent: 0,
             },
             LayerOption {
                 index: 1,
                 height: 360,
                 cost: 500_000,
                 available: true,
+                sent: 0,
             },
             LayerOption {
                 index: 2,
                 height: 720,
                 cost: 1_500_000,
                 available: true,
+                sent: 0,
             },
         ]
     }
@@ -147,6 +170,23 @@ mod tests {
             layers,
             current: None,
         }
+    }
+
+    #[test]
+    fn a_layer_sending_under_its_maximum_is_held_on_what_it_sends() {
+        let mut layers = camera();
+        layers[2].sent = 600_000;
+        let holding = Candidate {
+            current: Some(2),
+            ..wanting(720, &layers)
+        };
+        let new = wanting(720, &layers);
+
+        // 150k for the lowest layer, then the top one at 750k (600k sent,
+        // with room) less its tolerance: 1 Mbit/s holds it.
+        assert_eq!(allocate(1_000_000, &[holding]), [Some(2)]);
+        // Going up to it still takes its maximum.
+        assert_eq!(allocate(1_000_000, &[new]), [Some(1)]);
     }
 
     #[test]
