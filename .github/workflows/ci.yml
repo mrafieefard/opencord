@@ -21,8 +21,9 @@ env:
   SQLX_OFFLINE: "true"
   # Native libraries the Rust crates build against on Linux: cpal's PipeWire
   # and ALSA backends (libspa-sys runs bindgen, hence libclang) and the D-Bus
-  # client audio_thread_priority uses for RtKit.
-  RUST_LINUX_DEPS: clang libclang-dev pkg-config libasound2-dev libpipewire-0.3-dev libspa-0.2-dev libdbus-1-dev libavcodec-dev libavformat-dev libavutil-dev libswscale-dev
+  # client audio_thread_priority uses for RtKit; FFmpeg for video; GLib for
+  # irondash's Linux textures.
+  RUST_LINUX_DEPS: clang libclang-dev pkg-config libasound2-dev libpipewire-0.3-dev libspa-0.2-dev libdbus-1-dev libavcodec-dev libavformat-dev libavutil-dev libswscale-dev libglib2.0-dev
 
 jobs:
   rust:
