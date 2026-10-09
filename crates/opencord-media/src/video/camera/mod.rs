@@ -157,11 +157,12 @@ impl Capture {
 
     /// What the camera delivers.
     pub fn mode(&self) -> Mode {
-        match self {
+        // Elsewhere there are no captures, and `*self` matches none.
+        match *self {
             #[cfg(target_os = "linux")]
-            Self::PipeWire(capture) => capture.mode,
+            Self::PipeWire(ref capture) => capture.mode,
             #[cfg(target_os = "linux")]
-            Self::V4l2(capture) => capture.mode,
+            Self::V4l2(ref capture) => capture.mode,
         }
     }
 }
