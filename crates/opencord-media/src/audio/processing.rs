@@ -40,6 +40,13 @@ const PLAYED_TICKS: usize = 30;
 const ECHO_MARGIN_DB: f32 = 25.0;
 /// Played audio quieter than this leaves no echo worth guarding against.
 const FAR_END_DBFS: f32 = -60.0;
+/// What the echo canceller must have taken out of the microphone over the
+/// last 300 ms before a quiet tick can be the echo's remains: proof that
+/// what is played reaches the microphone at all. With headphones nothing
+/// is taken out, so however loud the others are, a voice is a voice.
+const ECHO_REMOVED_DB: f32 = 10.0;
+/// Keeps the ratio of two silences at 0 dB.
+const SILENT_ENERGY: f32 = 1e-9;
 /// High gives way to Standard when it takes more than 60 % of each tick
 /// over two seconds (plan §7.3).
 const FALLBACK_TICKS: usize = 200;
@@ -187,7 +194,9 @@ impl VoiceProcessing {
         if let Some(echo) = &mut self.echo {
             echo.capture(tick);
             let played = self.played.iter().copied().fold(f32::MIN, f32::max);
-            echo_only = played > FAR_END_DBFS && played - dbfs(tick) >= ECHO_MARGIN_DB;
+            echo_only = played > FAR_END_DBFS
+                && played - dbfs(tick) >= ECHO_MARGIN_DB
+                && echo.removed_db() >= ECHO_REMOVED_DB;
         }
         let voice_probability = match self.settings.noise_suppression {
             NoiseSuppression::Off => self.voice_analysis.then(|| self.analyze(tick)),
@@ -337,6 +346,10 @@ struct EchoCancellation {
     render: AudioBuffer,
     capture: AudioBuffer,
     stream: StreamConfig,
+    /// The microphone's energy before and after cancelling, for the last
+    /// ticks, oldest overwritten first.
+    energy: [(f32, f32); PLAYED_TICKS],
+    energy_next: usize,
 }
 
 impl EchoCancellation {
@@ -352,6 +365,8 @@ impl EchoCancellation {
             render: audio_buffer(),
             capture: audio_buffer(),
             stream: stream(),
+            energy: [(0.0, 0.0); PLAYED_TICKS],
+            energy_next: 0,
         }
     }
 
@@ -362,13 +377,32 @@ impl EchoCancellation {
     }
 
     fn capture(&mut self, tick: &mut [f32]) {
+        let before = energy(tick);
         self.capture.copy_from(&[tick], &self.stream);
         self.canceller.analyze_capture(&mut self.capture);
         self.capture.split_into_frequency_bands();
         self.canceller.process_capture(&mut self.capture, false);
         self.capture.merge_frequency_bands();
         self.capture.copy_to_stream(&self.stream, &mut [tick]);
+        self.energy[self.energy_next] = (before, energy(tick));
+        self.energy_next = (self.energy_next + 1) % PLAYED_TICKS;
     }
+
+    /// How much quieter cancelling made the microphone over the last
+    /// 300 ms, in dB: about nothing when no echo reaches it.
+    fn removed_db(&self) -> f32 {
+        let (before, after) = self
+            .energy
+            .iter()
+            .fold((0.0, 0.0), |(before, after), tick| {
+                (before + tick.0, after + tick.1)
+            });
+        10.0 * ((before + SILENT_ENERGY) / (after + SILENT_ENERGY)).log10()
+    }
+}
+
+fn energy(tick: &[f32]) -> f32 {
+    tick.iter().map(|sample| sample * sample).sum()
 }
 
 /// AGC2, without the graph runtime either.
@@ -770,6 +804,36 @@ mod tests {
             marked * 10 >= settled.len() * 9,
             "{marked} of {} marked",
             settled.len()
+        );
+    }
+
+    #[test]
+    fn a_voice_is_never_the_echo_when_nothing_played_reaches_the_microphone() {
+        // Headphones: someone is heard at a normal level while a quiet
+        // microphone picks up only its own speaker and a fan.
+        let voice = at_level(&speech(), -40.0);
+        let room = at_level(&noise("fan", voice.len()), -65.0);
+        let microphone: Vec<f32> = voice.iter().zip(&room).map(|(v, n)| v + n).collect();
+        let reversed: Vec<f32> = speech().into_iter().rev().collect();
+        let played = at_level(&reversed, -18.0);
+        let mut processing = VoiceProcessing::new(ProcessingSettings::default());
+
+        let mut speaking = 0;
+        let mut marked = 0;
+        for (index, tick) in microphone.as_chunks::<TICK>().0.iter().enumerate() {
+            let ticks = index * TICK..(index + 1) * TICK;
+            processing.render(&played[ticks.clone()]);
+            let heard = processing.capture(&mut tick.clone());
+            // After a second for the echo canceller to find there is none.
+            if index >= 100 && dbfs(&voice[ticks]) > -55.0 {
+                speaking += 1;
+                marked += usize::from(heard.echo_only);
+            }
+        }
+
+        assert!(
+            marked * 20 <= speaking,
+            "{marked} of {speaking} spoken ticks taken for echo"
         );
     }
 
