@@ -814,6 +814,25 @@ impl Media {
         });
     }
 
+    /// Asks for a keyframe of a track received here, unless one was asked
+    /// for less than [`KEYFRAME_AGAIN`] ago.
+    pub fn request_keyframe(&mut self, track_id: &str) {
+        let now = Instant::now();
+        let Self { incoming, rtc, .. } = self;
+        for (ssrc, stream) in incoming.iter_mut() {
+            let allowed = stream
+                .keyframe_asked
+                .is_none_or(|at| now.saturating_duration_since(at) >= KEYFRAME_AGAIN);
+            if stream.track_id == track_id
+                && allowed
+                && let Some(rx) = rtc.direct_api().stream_rx(&Ssrc::from(*ssrc))
+            {
+                rx.request_keyframe(KeyframeRequestKind::Pli);
+                stream.keyframe_asked = Some(now);
+            }
+        }
+    }
+
     /// Hands over finished frames; asks for keyframes where pictures were
     /// lost. Returns whether it asked for any.
     fn collect_frames(&mut self, events: &mpsc::UnboundedSender<VoiceEvent>) -> bool {

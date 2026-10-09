@@ -260,9 +260,15 @@ impl Video {
             match (size, remote.texture.clone()) {
                 (Some((width, height)), Some(texture)) => {
                     let receiver = remote.receiver.get_or_insert_with(|| {
+                        let outlet = Arc::clone(&self.outlet);
+                        let track_id = track_id.clone();
                         opencord_media::video::receiver::VideoReceiver::start(
                             move |rgba| texture.present(rgba.width, rgba.height, rgba.data),
-                            || {},
+                            move || {
+                                if let Some(connection) = lock(&outlet).as_ref() {
+                                    connection.request_keyframe(&track_id);
+                                }
+                            },
                         )
                     });
                     receiver.set_size(width, height);

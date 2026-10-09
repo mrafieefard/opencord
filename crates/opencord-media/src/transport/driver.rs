@@ -189,6 +189,7 @@ impl Driver {
         match command {
             Some(Command::Audio(frame)) => self.media.send_audio(frame),
             Some(Command::Video(frame)) => self.media.send_video(frame),
+            Some(Command::Keyframe(track_id)) => self.media.request_keyframe(&track_id),
             Some(Command::Speaking(flags)) => {
                 if let Some(open) = socket.as_mut() {
                     let speaking = Payload::Speaking(voice::Speaking { flags, user_id: 0 });

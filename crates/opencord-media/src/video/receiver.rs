@@ -127,6 +127,8 @@ impl<S: FnMut(Rgba), L: FnMut()> Receiving<S, L> {
             }
         }
         if self.awaiting_keyframe {
+            // What came before it was missed, or could not be decoded.
+            (self.lost)();
             return;
         }
         let large = self.height > HARDWARE_ABOVE;
@@ -291,6 +293,21 @@ mod tests {
 
         // Fitted into the tile, kept no larger than the picture.
         assert_eq!((shown[0].width, shown[0].height), (640, 360));
+    }
+
+    #[test]
+    fn a_receiver_that_missed_the_keyframe_asks_for_one() {
+        let (receiver, frames, losses) = started(320, 180);
+        let mut videos = stream(640, 360, 4);
+
+        // Its keyframe went by before the receiver was there.
+        videos.remove(0);
+        for video in videos {
+            receiver.push(video);
+        }
+
+        assert!(losses.recv_timeout(Duration::from_secs(3)).is_ok());
+        assert!(frames.recv_timeout(Duration::from_millis(200)).is_err());
     }
 
     #[test]

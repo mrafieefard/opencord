@@ -262,6 +262,7 @@ enum Command {
     },
     Unpublish(String),
     SinkWants(Vec<SinkWant>),
+    Keyframe(String),
     #[cfg(any(test, feature = "testing"))]
     Impair {
         inbound: impairment::Impairment,
@@ -418,6 +419,13 @@ impl VoiceConnection {
     /// sent to it (plan §6).
     pub fn set_sink_wants(&self, wants: Vec<SinkWant>) {
         let _ = self.commands.send(Command::SinkWants(wants));
+    }
+
+    /// Asks for a keyframe of a track this client receives: its pictures
+    /// could not be decoded, or came before anything was there to decode
+    /// them. Paced as the transport's own requests are.
+    pub fn request_keyframe(&self, track_id: &str) {
+        let _ = self.commands.send(Command::Keyframe(track_id.to_owned()));
     }
 
     /// Impairs this connection's packets, for tests (plan §15).
