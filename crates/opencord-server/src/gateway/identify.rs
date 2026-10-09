@@ -290,7 +290,13 @@ fn ready(
     }
     let guild = state.guild();
     let visible = guild.visible_channel_ids(user_id);
-    let voice_states = state.voice().visible_to(&guild, user_id);
+    let (voice_states, streams) = {
+        let voice = state.voice();
+        (
+            voice.visible_to(&guild, user_id),
+            voice.streams.visible_to(&guild, user_id),
+        )
+    };
     proto::Ready {
         session_id,
         resume_token,
@@ -320,7 +326,7 @@ fn ready(
             .collect(),
         voice_enabled: state.config.voice.enabled,
         voice_states,
-        streams: Vec::new(),
+        streams,
         soundboard_sounds: Vec::new(),
         voice_settings: Some(guild.voice_settings.to_proto()),
         media_token: Some(media_token::issue(

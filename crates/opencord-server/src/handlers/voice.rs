@@ -48,7 +48,11 @@ pub async fn update_voice_state(
             self_mute: flags.mute,
             self_deaf: flags.deaf,
             self_video: flags.video,
-            self_stream: flags.stream,
+            // Going live is CreateStream; a move ends the stream.
+            self_stream: voice_states
+                .streams
+                .of(ctx.user_id)
+                .is_some_and(|stream| stream.channel_id == channel_id),
             suppress: suppressed(&guild, ctx.user_id, channel_id),
         };
         let connecting = previous.as_ref().is_none_or(|previous| {

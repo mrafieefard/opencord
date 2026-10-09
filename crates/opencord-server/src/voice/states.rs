@@ -8,6 +8,7 @@ use opencord_common::permissions::Permissions;
 use opencord_proto::v1 as proto;
 use opencord_proto::voice::v1 as voice_proto;
 
+use super::streams::Streams;
 use crate::error::ApiError;
 use crate::guild::{Channel, Guild};
 use crate::permissions::require_channel;
@@ -54,6 +55,8 @@ pub struct VoiceConfig {
 pub struct VoiceStates {
     by_user: HashMap<i64, VoiceState>,
     moderation: HashMap<i64, Moderation>,
+    /// Screen shares, which live and die with voice states.
+    pub streams: Streams,
 }
 
 impl VoiceStates {

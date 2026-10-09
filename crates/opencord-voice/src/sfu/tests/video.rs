@@ -477,3 +477,38 @@ fn a_layer_the_sender_cannot_send_is_backed_by_the_one_below() {
     assert_eq!(net.clients[bob].last_layer(track.ssrc), Some(2));
     assert_eq!(net.layer_wants(alice, "cam-a"), Some(vec!["h".to_owned()]));
 }
+
+#[test]
+fn a_screen_goes_only_to_those_watching_it() {
+    let mut net = Net::new();
+    let (alice, bob, carol) = three(&mut net);
+    let user = |index: usize| 100 + index as i64;
+    let screen = TrackSetup {
+        kind: VideoKind::Screen,
+        ..camera("screen-a", 5000)
+    };
+    net.publish(alice, screen.clone());
+    net.want(bob, &[("screen-a", 720)]);
+    net.want(carol, &[("screen-a", 720)]);
+
+    // Wanting a screen is not enough: nobody watches yet.
+    net.run(Duration::from_secs(2));
+    assert!(net.clients[bob].video.is_empty());
+    assert!(net.clients[carol].video.is_empty());
+
+    let now = net.now;
+    net.sfu
+        .set_stream_viewers(now, CHANNEL, user(alice), vec![user(bob)]);
+    net.run(Duration::from_secs(3));
+    assert!(net.clients[bob].last_layer(screen.ssrc).is_some());
+    assert!(net.clients[carol].video.is_empty());
+
+    // The stream ended (or bob stopped watching).
+    let now = net.now;
+    net.sfu
+        .set_stream_viewers(now, CHANNEL, user(alice), Vec::new());
+    net.run(Duration::from_millis(500));
+    let stopped = net.now;
+    net.run(Duration::from_secs(1));
+    assert!(net.clients[bob].video_on(screen.ssrc, stopped).is_empty());
+}

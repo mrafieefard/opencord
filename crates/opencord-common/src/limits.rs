@@ -61,6 +61,12 @@ pub const VOICE_STATE_RATE: RateLimit = RateLimit {
     period: Duration::from_secs(10),
 };
 
+/// Screen shares started per user (plan §14).
+pub const STREAM_CREATE_RATE: RateLimit = RateLimit {
+    burst: 5,
+    period: Duration::from_secs(60),
+};
+
 /// How long a voice state outlives a dropped gateway connection.
 pub const VOICE_GRACE_PERIOD: Duration = Duration::from_secs(30);
 pub const VOICE_TOKEN_LIFETIME: Duration = Duration::from_secs(60);

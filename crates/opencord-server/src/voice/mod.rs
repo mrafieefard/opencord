@@ -22,6 +22,7 @@ pub mod media_token;
 pub mod nodes;
 pub mod settings;
 pub mod states;
+pub mod streams;
 
 /// The configuration's voice limits.
 pub fn config(state: &AppState) -> VoiceConfig {
@@ -65,6 +66,7 @@ pub fn announce(state: &AppState, voice_state: proto::VoiceState, channels: &[i6
     };
     for left in channels.iter().copied().filter(|c| Some(*c) != current) {
         disconnect_from_node(state, user_id, left);
+        streams::left_channel(state, user_id, left);
     }
     if let (Some(channel_id), Some(permissions)) = (current, permissions) {
         state.voice_nodes.send(
@@ -282,6 +284,7 @@ pub fn reconcile(state: &AppState) {
     for (channel_id, command) in updates {
         state.voice_nodes.send(channel_id, command);
     }
+    streams::reconcile(state);
 }
 
 /// Ends voice states whose session is gone, or has been without a

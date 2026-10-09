@@ -66,6 +66,15 @@ pub fn envelope_for(command: &NodeCommand) -> internal::ControlEnvelope {
                 limits: Some(*limits),
             })
         }
+        NodeCommand::StreamViewers {
+            channel_id,
+            user_id,
+            viewers,
+        } => Payload::StreamViewers(internal::StreamViewers {
+            channel_id: *channel_id,
+            user_id: *user_id,
+            viewer_ids: viewers.clone(),
+        }),
     };
     internal::ControlEnvelope {
         payload: Some(payload),
@@ -94,6 +103,11 @@ pub fn command_from(envelope: internal::ControlEnvelope) -> Option<NodeCommand> 
         Payload::ChannelUpdate(update) => NodeCommand::Limits {
             channel_id: update.channel_id,
             limits: update.limits.unwrap_or_default(),
+        },
+        Payload::StreamViewers(viewers) => NodeCommand::StreamViewers {
+            channel_id: viewers.channel_id,
+            user_id: viewers.user_id,
+            viewers: viewers.viewer_ids,
         },
         _ => return None,
     })
@@ -183,6 +197,11 @@ mod tests {
                     voice_bitrate: 64_000,
                     ..Default::default()
                 },
+            },
+            NodeCommand::StreamViewers {
+                channel_id: 2,
+                user_id: 1,
+                viewers: vec![3, 4],
             },
         ];
 

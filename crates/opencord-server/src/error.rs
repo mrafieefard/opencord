@@ -70,6 +70,18 @@ impl ApiError {
         )
     }
 
+    pub fn quality_limit(message: impl Into<String>) -> Self {
+        Self::new(proto::ErrorCode::QualityLimit, message)
+    }
+
+    /// The plan's wording (§9.5).
+    pub fn stream_viewer_limit(max_viewers: u32) -> Self {
+        Self::new(
+            proto::ErrorCode::StreamViewerLimit,
+            format!("This stream is full ({max_viewers} viewers)"),
+        )
+    }
+
     pub fn camera_limit() -> Self {
         Self::new(
             proto::ErrorCode::CameraLimit,

@@ -451,6 +451,13 @@ impl Runtime {
                     self.end_session(now, &id, Ending::Disconnected);
                 }
             }
+            NodeCommand::StreamViewers {
+                channel_id,
+                user_id,
+                viewers,
+            } => self
+                .sfu
+                .set_stream_viewers(now, channel_id, user_id, viewers),
             NodeCommand::Limits { channel_id, limits } => {
                 self.limits.insert(channel_id, limits);
                 let ids: Vec<String> = self

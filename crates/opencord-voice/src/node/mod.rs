@@ -60,6 +60,12 @@ pub enum NodeCommand {
         channel_id: i64,
         limits: voice::Limits,
     },
+    /// Who watches `user_id`'s screen share; empty when it ended.
+    StreamViewers {
+        channel_id: i64,
+        user_id: i64,
+        viewers: Vec<i64>,
+    },
 }
 
 /// To the main server.

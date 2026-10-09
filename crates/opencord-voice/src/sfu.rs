@@ -145,6 +145,9 @@ pub struct Sfu {
     keyframe_requests: Vec<(PeerId, Mid)>,
     /// When video layers are next chosen; far off without video.
     allocate_at: Instant,
+    /// Who watches each screen share, by channel and streamer: screens go
+    /// to them only (plan §6).
+    stream_viewers: HashMap<(i64, i64), HashSet<i64>>,
 }
 
 struct Peer {
@@ -257,6 +260,7 @@ impl Sfu {
             events: VecDeque::new(),
             keyframe_requests: Vec::new(),
             allocate_at: far_future(Instant::now()),
+            stream_viewers: HashMap::new(),
         })
     }
 

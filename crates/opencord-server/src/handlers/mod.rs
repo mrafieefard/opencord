@@ -17,6 +17,7 @@ mod messages;
 mod profile;
 mod roles;
 pub(crate) mod settings;
+mod streams;
 mod voice;
 
 /// The caller of a request.
@@ -85,13 +86,11 @@ async fn dispatch(ctx: &Ctx<'_>, request: proto::Request) -> Result<Response, Ap
         Kind::MoveMember(request) => voice::move_member(ctx, request).await,
         Kind::DisconnectMember(request) => voice::disconnect_member(ctx, request).await,
         Kind::RefreshVoiceServer(_) => voice::refresh_voice_server(ctx).await,
-        Kind::CreateStream(_)
-        | Kind::UpdateStream(_)
-        | Kind::DeleteStream(_)
-        | Kind::WatchStream(_)
-        | Kind::UnwatchStream(_) => Err(ApiError::invalid_argument(
-            "this server does not support screen sharing yet",
-        )),
+        Kind::CreateStream(request) => streams::create(ctx, request).await,
+        Kind::UpdateStream(request) => streams::update(ctx, request).await,
+        Kind::DeleteStream(request) => streams::delete(ctx, request).await,
+        Kind::WatchStream(request) => streams::watch(ctx, request).await,
+        Kind::UnwatchStream(request) => streams::unwatch(ctx, request).await,
         Kind::PlaySoundboardSound(_)
         | Kind::UpdateSoundboardSound(_)
         | Kind::DeleteSoundboardSound(_) => Err(ApiError::invalid_argument(

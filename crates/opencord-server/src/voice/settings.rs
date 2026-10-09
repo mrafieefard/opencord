@@ -15,8 +15,8 @@ use sqlx::SqliteConnection;
 use crate::db::meta;
 use crate::error::ApiError;
 
-/// A screen share preset: a maximum pixel count.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// A screen share preset: a maximum pixel count. Ordered from the smallest.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Resolution {
     P480,
     P720,
@@ -34,7 +34,7 @@ impl Resolution {
         Self::Source,
     ];
 
-    fn as_str(self) -> &'static str {
+    pub fn as_str(self) -> &'static str {
         match self {
             Self::P480 => "480p",
             Self::P720 => "720p",

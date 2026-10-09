@@ -6,7 +6,7 @@
 //! and keyframe information comes from the frame-marking header extension,
 //! never from payloads.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
@@ -420,6 +420,24 @@ impl Sfu {
         }
     }
 
+    /// Who may receive `user_id`'s screen share in `channel_id`: those
+    /// who chose to watch it (plan §6). Nobody, until the main server says.
+    pub fn set_stream_viewers(
+        &mut self,
+        now: Instant,
+        channel_id: i64,
+        user_id: i64,
+        viewers: Vec<i64>,
+    ) {
+        if viewers.is_empty() {
+            self.stream_viewers.remove(&(channel_id, user_id));
+        } else {
+            self.stream_viewers
+                .insert((channel_id, user_id), viewers.into_iter().collect());
+        }
+        self.allocate_at = self.allocate_at.min(now);
+    }
+
     /// The tracks `id` publishes.
     pub fn tracks(&self, id: PeerId) -> Vec<TrackSetup> {
         self.peers
@@ -600,11 +618,20 @@ impl Sfu {
             .iter()
             .filter_map(|id| self.peers.get(id).map(|peer| (*id, peer)))
             .flat_map(|(id, peer)| {
-                peer.tracks.iter().map(move |track| Offer {
-                    publisher: id,
-                    track_id: track.setup.track_id.clone(),
-                    screen: track.setup.kind == VideoKind::Screen,
-                    layers: track.options(now),
+                let viewers = self
+                    .stream_viewers
+                    .get(&(peer.setup.channel_id, peer.setup.user_id))
+                    .cloned()
+                    .unwrap_or_default();
+                peer.tracks.iter().map(move |track| {
+                    let screen = track.setup.kind == VideoKind::Screen;
+                    Offer {
+                        publisher: id,
+                        track_id: track.setup.track_id.clone(),
+                        screen,
+                        layers: track.options(now),
+                        viewers: screen.then(|| viewers.clone()),
+                    }
                 })
             })
             .collect();
@@ -625,8 +652,12 @@ impl Sfu {
                     })
                 })
                 .collect();
+            let user_id = peer.setup.user_id;
             let wanted: Vec<usize> = (0..peer.sending.len())
-                .filter(|&i| peer.sending[i].want.is_some() && offered[i].is_some())
+                .filter(|&i| {
+                    peer.sending[i].want.is_some()
+                        && offered[i].is_some_and(|offer| offer.for_user(user_id))
+                })
                 .collect();
             let candidates: Vec<Candidate<'_>> = wanted
                 .iter()
@@ -940,6 +971,16 @@ struct Offer {
     track_id: String,
     screen: bool,
     layers: Vec<LayerOption>,
+    /// Who may receive it; everyone when `None` (cameras).
+    viewers: Option<HashSet<i64>>,
+}
+
+impl Offer {
+    fn for_user(&self, user_id: i64) -> bool {
+        self.viewers
+            .as_ref()
+            .is_none_or(|viewers| viewers.contains(&user_id))
+    }
 }
 
 #[cfg(test)]
