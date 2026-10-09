@@ -240,6 +240,27 @@ pub enum ScreenShareResolution {
     Source,
 }
 
+/// What a screen share shows.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum StreamSourceKind {
+    Screen,
+    Window,
+}
+
+/// A screen share in progress (Phase 2 plan §9).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ScreenStream {
+    /// `stream:<channel_id>:<user_id>`.
+    pub stream_key: String,
+    pub channel_id: i64,
+    pub user_id: i64,
+    pub source_kind: StreamSourceKind,
+    pub resolution: ScreenShareResolution,
+    pub fps: u32,
+    pub has_audio: bool,
+    pub viewer_count: u32,
+}
+
 /// Server-wide voice, video and soundboard settings.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct VoiceSettings {
@@ -299,6 +320,8 @@ pub struct ReadySnapshot {
     pub voice_enabled: bool,
     /// Everyone in the voice channels this user can view.
     pub voice_states: Vec<VoiceState>,
+    /// Screen shares in those channels.
+    pub streams: Vec<ScreenStream>,
     pub voice_settings: VoiceSettings,
 }
 
@@ -384,6 +407,19 @@ pub enum CoreEventPayload {
     /// channel that becomes visible is followed by its participants.
     VoiceStateUpdate(VoiceState),
     VoiceSettingsUpdate(VoiceSettings),
+    /// Someone went live, in a voice channel this user can view.
+    StreamCreate(ScreenStream),
+    /// A stream's quality, audio or viewer count changed.
+    StreamUpdate(ScreenStream),
+    StreamDelete {
+        stream_key: String,
+        channel_id: i64,
+    },
+    /// Who watches this user's own stream.
+    StreamViewersUpdate {
+        stream_key: String,
+        viewer_ids: Vec<i64>,
+    },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -532,6 +568,43 @@ pub struct CameraStarted {
     pub height: u32,
 }
 
+/// What to share (Phase 2 plan §9.1): the quality, within the server's
+/// maximum, and whether its sound goes too (V7).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ScreenShareRequest {
+    pub resolution: ScreenShareResolution,
+    /// 15, 30 or 60.
+    pub fps: u32,
+    pub has_audio: bool,
+}
+
+/// This device's screen share, live.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ScreenShareStarted {
+    pub stream_key: String,
+    /// Its track, for `video_set_wants` (the preview's tile).
+    pub track_id: String,
+    /// The small preview of what is shared; `None` without `video_init`.
+    pub texture_id: Option<i64>,
+    /// What is captured.
+    pub width: u32,
+    pub height: u32,
+    pub source_kind: StreamSourceKind,
+}
+
+/// Why a screen share could not start.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ScreenProblem {
+    /// Not on this system yet (only Linux shares screens for now).
+    NotSupported,
+    /// The user closed the system picker.
+    Cancelled,
+    Denied,
+    /// Sharing needs a voice connection.
+    NotInVoice,
+    Failed,
+}
+
 /// Why the camera could not start.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CameraProblem {
@@ -645,6 +718,9 @@ pub enum MediaEvent {
     /// This device's camera stopped by itself: unplugged, failed, or the
     /// server no longer allows it.
     CameraStopped { message: String },
+    /// This device's screen share ended by itself: the window closed, the
+    /// screen went, or the server or voice node stopped it.
+    ScreenShareStopped { message: String },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
@@ -678,6 +754,11 @@ pub enum CoreError {
     Connection { message: String },
     #[error("could not save local data: {message}")]
     Storage { message: String },
+    #[error("{message}")]
+    Screen {
+        problem: ScreenProblem,
+        message: String,
+    },
     #[error("{message}")]
     Camera {
         problem: CameraProblem,

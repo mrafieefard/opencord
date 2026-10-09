@@ -93,9 +93,15 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   RoleChanges dco_decode_box_autoadd_role_changes(dynamic raw);
 
   @protected
+  ScreenShareRequest dco_decode_box_autoadd_screen_share_request(dynamic raw);
+
+  @protected
   ScreenShareResolution dco_decode_box_autoadd_screen_share_resolution(
     dynamic raw,
   );
+
+  @protected
+  ScreenStream dco_decode_box_autoadd_screen_stream(dynamic raw);
 
   @protected
   Server dco_decode_box_autoadd_server(dynamic raw);
@@ -246,6 +252,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   List<Role> dco_decode_list_role(dynamic raw);
 
   @protected
+  List<ScreenStream> dco_decode_list_screen_stream(dynamic raw);
+
+  @protected
   List<Server> dco_decode_list_server(dynamic raw);
 
   @protected
@@ -314,7 +323,19 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   RoleChanges dco_decode_role_changes(dynamic raw);
 
   @protected
+  ScreenProblem dco_decode_screen_problem(dynamic raw);
+
+  @protected
+  ScreenShareRequest dco_decode_screen_share_request(dynamic raw);
+
+  @protected
   ScreenShareResolution dco_decode_screen_share_resolution(dynamic raw);
+
+  @protected
+  ScreenShareStarted dco_decode_screen_share_started(dynamic raw);
+
+  @protected
+  ScreenStream dco_decode_screen_stream(dynamic raw);
 
   @protected
   Server dco_decode_server(dynamic raw);
@@ -327,6 +348,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   SpeakingChange dco_decode_speaking_change(dynamic raw);
+
+  @protected
+  StreamSourceKind dco_decode_stream_source_kind(dynamic raw);
 
   @protected
   TextureStats dco_decode_texture_stats(dynamic raw);
@@ -459,7 +483,17 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   RoleChanges sse_decode_box_autoadd_role_changes(SseDeserializer deserializer);
 
   @protected
+  ScreenShareRequest sse_decode_box_autoadd_screen_share_request(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   ScreenShareResolution sse_decode_box_autoadd_screen_share_resolution(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  ScreenStream sse_decode_box_autoadd_screen_stream(
     SseDeserializer deserializer,
   );
 
@@ -630,6 +664,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   List<Role> sse_decode_list_role(SseDeserializer deserializer);
 
   @protected
+  List<ScreenStream> sse_decode_list_screen_stream(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   List<Server> sse_decode_list_server(SseDeserializer deserializer);
 
   @protected
@@ -710,9 +749,25 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   RoleChanges sse_decode_role_changes(SseDeserializer deserializer);
 
   @protected
+  ScreenProblem sse_decode_screen_problem(SseDeserializer deserializer);
+
+  @protected
+  ScreenShareRequest sse_decode_screen_share_request(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   ScreenShareResolution sse_decode_screen_share_resolution(
     SseDeserializer deserializer,
   );
+
+  @protected
+  ScreenShareStarted sse_decode_screen_share_started(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  ScreenStream sse_decode_screen_stream(SseDeserializer deserializer);
 
   @protected
   Server sse_decode_server(SseDeserializer deserializer);
@@ -725,6 +780,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   SpeakingChange sse_decode_speaking_change(SseDeserializer deserializer);
+
+  @protected
+  StreamSourceKind sse_decode_stream_source_kind(SseDeserializer deserializer);
 
   @protected
   TextureStats sse_decode_texture_stats(SseDeserializer deserializer);
@@ -883,8 +941,20 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_box_autoadd_screen_share_request(
+    ScreenShareRequest self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_box_autoadd_screen_share_resolution(
     ScreenShareResolution self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_box_autoadd_screen_stream(
+    ScreenStream self,
     SseSerializer serializer,
   );
 
@@ -1096,6 +1166,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_list_role(List<Role> self, SseSerializer serializer);
 
   @protected
+  void sse_encode_list_screen_stream(
+    List<ScreenStream> self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_list_server(List<Server> self, SseSerializer serializer);
 
   @protected
@@ -1195,10 +1271,28 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_role_changes(RoleChanges self, SseSerializer serializer);
 
   @protected
+  void sse_encode_screen_problem(ScreenProblem self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_screen_share_request(
+    ScreenShareRequest self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_screen_share_resolution(
     ScreenShareResolution self,
     SseSerializer serializer,
   );
+
+  @protected
+  void sse_encode_screen_share_started(
+    ScreenShareStarted self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_screen_stream(ScreenStream self, SseSerializer serializer);
 
   @protected
   void sse_encode_server(Server self, SseSerializer serializer);
@@ -1212,6 +1306,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_speaking_change(
     SpeakingChange self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_stream_source_kind(
+    StreamSourceKind self,
     SseSerializer serializer,
   );
 

@@ -48,6 +48,7 @@ final _readyPayload = core.CoreEventPayload.ready(
   core.ReadySnapshot(
     voiceEnabled: true,
     voiceStates: const [],
+    streams: const [],
     voiceSettings: coreVoiceSettings,
     selfUser: const core.User(
       id: 1,

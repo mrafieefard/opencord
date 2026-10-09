@@ -116,6 +116,15 @@ enum RepoErrorKind {
   cameraMissing,
   cameraUnsupported,
   cameraLimit,
+
+  /// Screen sharing: the picker closed without a choice, refused, not
+  /// supported here yet; above the server's maximum; a full stream (Phase 2
+  /// V6).
+  screenCancelled,
+  screenDenied,
+  screenUnsupported,
+  qualityLimit,
+  streamFull,
   unauthorized,
   forbidden,
   notFound,

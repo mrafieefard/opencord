@@ -8,7 +8,7 @@ import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 import 'package:freezed_annotation/freezed_annotation.dart' hide protected;
 part 'types.freezed.dart';
 
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`
 
 @freezed
 sealed class AddServerOutcome with _$AddServerOutcome {
@@ -459,6 +459,10 @@ sealed class CoreError with _$CoreError implements FrbException {
       CoreError_Connection;
   const factory CoreError.storage({required String message}) =
       CoreError_Storage;
+  const factory CoreError.screen({
+    required ScreenProblem problem,
+    required String message,
+  }) = CoreError_Screen;
   const factory CoreError.camera({
     required CameraProblem problem,
     required String message,
@@ -541,6 +545,24 @@ sealed class CoreEventPayload with _$CoreEventPayload {
       CoreEventPayload_VoiceStateUpdate;
   const factory CoreEventPayload.voiceSettingsUpdate(VoiceSettings field0) =
       CoreEventPayload_VoiceSettingsUpdate;
+
+  /// Someone went live, in a voice channel this user can view.
+  const factory CoreEventPayload.streamCreate(ScreenStream field0) =
+      CoreEventPayload_StreamCreate;
+
+  /// A stream's quality, audio or viewer count changed.
+  const factory CoreEventPayload.streamUpdate(ScreenStream field0) =
+      CoreEventPayload_StreamUpdate;
+  const factory CoreEventPayload.streamDelete({
+    required String streamKey,
+    required PlatformInt64 channelId,
+  }) = CoreEventPayload_StreamDelete;
+
+  /// Who watches this user's own stream.
+  const factory CoreEventPayload.streamViewersUpdate({
+    required String streamKey,
+    required Int64List viewerIds,
+  }) = CoreEventPayload_StreamViewersUpdate;
 }
 
 enum ErrorCode {
@@ -777,6 +799,11 @@ sealed class MediaEvent with _$MediaEvent {
   /// server no longer allows it.
   const factory MediaEvent.cameraStopped({required String message}) =
       MediaEvent_CameraStopped;
+
+  /// This device's screen share ended by itself: the window closed, the
+  /// screen went, or the server or voice node stopped it.
+  const factory MediaEvent.screenShareStopped({required String message}) =
+      MediaEvent_ScreenShareStopped;
 }
 
 class Member {
@@ -936,6 +963,9 @@ class ReadySnapshot {
 
   /// Everyone in the voice channels this user can view.
   final List<VoiceState> voiceStates;
+
+  /// Screen shares in those channels.
+  final List<ScreenStream> streams;
   final VoiceSettings voiceSettings;
 
   const ReadySnapshot({
@@ -949,6 +979,7 @@ class ReadySnapshot {
     required this.channelPermissions,
     required this.voiceEnabled,
     required this.voiceStates,
+    required this.streams,
     required this.voiceSettings,
   });
 
@@ -964,6 +995,7 @@ class ReadySnapshot {
       channelPermissions.hashCode ^
       voiceEnabled.hashCode ^
       voiceStates.hashCode ^
+      streams.hashCode ^
       voiceSettings.hashCode;
 
   @override
@@ -981,6 +1013,7 @@ class ReadySnapshot {
           channelPermissions == other.channelPermissions &&
           voiceEnabled == other.voiceEnabled &&
           voiceStates == other.voiceStates &&
+          streams == other.streams &&
           voiceSettings == other.voiceSettings;
 }
 
@@ -1067,8 +1100,145 @@ class RoleChanges {
           mentionable == other.mentionable;
 }
 
+/// Why a screen share could not start.
+enum ScreenProblem {
+  /// Not on this system yet (only Linux shares screens for now).
+  notSupported,
+
+  /// The user closed the system picker.
+  cancelled,
+  denied,
+
+  /// Sharing needs a voice connection.
+  notInVoice,
+  failed,
+}
+
+/// What to share (Phase 2 plan §9.1): the quality, within the server's
+/// maximum, and whether its sound goes too (V7).
+class ScreenShareRequest {
+  final ScreenShareResolution resolution;
+
+  /// 15, 30 or 60.
+  final int fps;
+  final bool hasAudio;
+
+  const ScreenShareRequest({
+    required this.resolution,
+    required this.fps,
+    required this.hasAudio,
+  });
+
+  @override
+  int get hashCode => resolution.hashCode ^ fps.hashCode ^ hasAudio.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is ScreenShareRequest &&
+          runtimeType == other.runtimeType &&
+          resolution == other.resolution &&
+          fps == other.fps &&
+          hasAudio == other.hasAudio;
+}
+
 /// A screen share preset, as a maximum pixel count.
 enum ScreenShareResolution { p480, p720, p1080, p1440, source }
+
+/// This device's screen share, live.
+class ScreenShareStarted {
+  final String streamKey;
+
+  /// Its track, for `video_set_wants` (the preview's tile).
+  final String trackId;
+
+  /// The small preview of what is shared; `None` without `video_init`.
+  final PlatformInt64? textureId;
+
+  /// What is captured.
+  final int width;
+  final int height;
+  final StreamSourceKind sourceKind;
+
+  const ScreenShareStarted({
+    required this.streamKey,
+    required this.trackId,
+    this.textureId,
+    required this.width,
+    required this.height,
+    required this.sourceKind,
+  });
+
+  @override
+  int get hashCode =>
+      streamKey.hashCode ^
+      trackId.hashCode ^
+      textureId.hashCode ^
+      width.hashCode ^
+      height.hashCode ^
+      sourceKind.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is ScreenShareStarted &&
+          runtimeType == other.runtimeType &&
+          streamKey == other.streamKey &&
+          trackId == other.trackId &&
+          textureId == other.textureId &&
+          width == other.width &&
+          height == other.height &&
+          sourceKind == other.sourceKind;
+}
+
+/// A screen share in progress (Phase 2 plan §9).
+class ScreenStream {
+  /// `stream:<channel_id>:<user_id>`.
+  final String streamKey;
+  final PlatformInt64 channelId;
+  final PlatformInt64 userId;
+  final StreamSourceKind sourceKind;
+  final ScreenShareResolution resolution;
+  final int fps;
+  final bool hasAudio;
+  final int viewerCount;
+
+  const ScreenStream({
+    required this.streamKey,
+    required this.channelId,
+    required this.userId,
+    required this.sourceKind,
+    required this.resolution,
+    required this.fps,
+    required this.hasAudio,
+    required this.viewerCount,
+  });
+
+  @override
+  int get hashCode =>
+      streamKey.hashCode ^
+      channelId.hashCode ^
+      userId.hashCode ^
+      sourceKind.hashCode ^
+      resolution.hashCode ^
+      fps.hashCode ^
+      hasAudio.hashCode ^
+      viewerCount.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is ScreenStream &&
+          runtimeType == other.runtimeType &&
+          streamKey == other.streamKey &&
+          channelId == other.channelId &&
+          userId == other.userId &&
+          sourceKind == other.sourceKind &&
+          resolution == other.resolution &&
+          fps == other.fps &&
+          hasAudio == other.hasAudio &&
+          viewerCount == other.viewerCount;
+}
 
 /// A server in the local list.
 class Server {
@@ -1193,6 +1363,9 @@ class SpeakingChange {
           userId == other.userId &&
           speaking == other.speaking;
 }
+
+/// What a screen share shows.
+enum StreamSourceKind { screen, window }
 
 /// A video texture's counts, for diagnostics and tests.
 class TextureStats {

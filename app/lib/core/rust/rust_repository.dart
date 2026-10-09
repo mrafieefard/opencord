@@ -498,6 +498,11 @@ class RustRepository implements OpencordRepository {
       ),
       core.CoreEventPayload_VoiceSettingsUpdate(:final field0) =>
         VoiceSettingsChanged(server, voiceSettingsFrom(field0)),
+      // Streams reach the app in V6's next step.
+      core.CoreEventPayload_StreamCreate() ||
+      core.CoreEventPayload_StreamUpdate() ||
+      core.CoreEventPayload_StreamDelete() ||
+      core.CoreEventPayload_StreamViewersUpdate() => null,
     };
     if (event != null) _emit(event);
   }
@@ -1043,6 +1048,8 @@ class RustRepository implements OpencordRepository {
     ) =>
       VideoTrackRemoved(serverKey, channelId, userId, trackId),
     core.MediaEvent_CameraStopped() => null,
+    // Screen shares reach the app in V6's next step.
+    core.MediaEvent_ScreenShareStopped() => null,
   };
 
   @override

@@ -16,8 +16,9 @@ use super::types::{
     ChannelChanges, ChannelKind, ChannelPosition, CoreError, CoreEvent, GeneratedIdentity,
     HotkeyBinding, HotkeySupport, IdentityInfo, Invite, MediaEvent, Member, Message,
     NoiseSuppressionMode, OverwriteTargetKind, PermissionOverwrite, PresenceStatus, Role,
-    RoleChanges, Server, ServerChanges, ServerInfo, TextureStats, TrustedFingerprint, User,
-    VideoWant, VoiceSettings, VoiceSettingsChanges, VoiceState,
+    RoleChanges, ScreenShareRequest, ScreenShareStarted, Server, ServerChanges, ServerInfo,
+    TextureStats, TrustedFingerprint, User, VideoWant, VoiceSettings, VoiceSettingsChanges,
+    VoiceState,
 };
 use crate::client::Client;
 use crate::frb_generated::StreamSink;
@@ -515,6 +516,34 @@ pub async fn camera_start(device_id: Option<String>) -> Result<CameraStarted, Co
 pub fn camera_stop() -> Result<(), CoreError> {
     client()?.camera_stop();
     Ok(())
+}
+
+/// Goes live in this device's voice channel (Phase 2 plan §9): on Linux the
+/// system picker chooses a screen or a window first. Sharing again while
+/// live changes the source and keeps the viewers.
+pub async fn screen_share_start(
+    request: ScreenShareRequest,
+) -> Result<ScreenShareStarted, CoreError> {
+    on_runtime(move |client| async move { client.screen_share_start(request).await }).await
+}
+
+/// A new quality for the screen share, within the server's maximum.
+pub async fn screen_share_update(request: ScreenShareRequest) -> Result<(), CoreError> {
+    on_runtime(move |client| async move { client.screen_share_update(request).await }).await
+}
+
+pub async fn screen_share_stop() -> Result<(), CoreError> {
+    on_runtime(|client| async move { client.screen_share_stop().await }).await
+}
+
+/// Starts watching a stream in this device's voice channel; its video then
+/// comes on its screen track, like any other (`video_set_wants`).
+pub async fn stream_watch(stream_key: String) -> Result<(), CoreError> {
+    on_runtime(move |client| async move { client.stream_watch(&stream_key, true).await }).await
+}
+
+pub async fn stream_unwatch(stream_key: String) -> Result<(), CoreError> {
+    on_runtime(move |client| async move { client.stream_watch(&stream_key, false).await }).await
 }
 
 /// The tiles showing video now, at their sizes in physical pixels; tracks

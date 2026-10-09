@@ -727,7 +727,7 @@ extension CoreErrorPatterns on CoreError {
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeMap<TResult extends Object?>({TResult Function( CoreError_NotInitialized value)?  notInitialized,TResult Function( CoreError_NoIdentity value)?  noIdentity,TResult Function( CoreError_UnknownServer value)?  unknownServer,TResult Function( CoreError_NotConnected value)?  notConnected,TResult Function( CoreError_Timeout value)?  timeout,TResult Function( CoreError_InvalidInput value)?  invalidInput,TResult Function( CoreError_Server value)?  server,TResult Function( CoreError_FingerprintMismatch value)?  fingerprintMismatch,TResult Function( CoreError_Rejected value)?  rejected,TResult Function( CoreError_Connection value)?  connection,TResult Function( CoreError_Storage value)?  storage,TResult Function( CoreError_Camera value)?  camera,required TResult orElse(),}){
+@optionalTypeArgs TResult maybeMap<TResult extends Object?>({TResult Function( CoreError_NotInitialized value)?  notInitialized,TResult Function( CoreError_NoIdentity value)?  noIdentity,TResult Function( CoreError_UnknownServer value)?  unknownServer,TResult Function( CoreError_NotConnected value)?  notConnected,TResult Function( CoreError_Timeout value)?  timeout,TResult Function( CoreError_InvalidInput value)?  invalidInput,TResult Function( CoreError_Server value)?  server,TResult Function( CoreError_FingerprintMismatch value)?  fingerprintMismatch,TResult Function( CoreError_Rejected value)?  rejected,TResult Function( CoreError_Connection value)?  connection,TResult Function( CoreError_Storage value)?  storage,TResult Function( CoreError_Screen value)?  screen,TResult Function( CoreError_Camera value)?  camera,required TResult orElse(),}){
 final _that = this;
 switch (_that) {
 case CoreError_NotInitialized() when notInitialized != null:
@@ -741,7 +741,8 @@ return server(_that);case CoreError_FingerprintMismatch() when fingerprintMismat
 return fingerprintMismatch(_that);case CoreError_Rejected() when rejected != null:
 return rejected(_that);case CoreError_Connection() when connection != null:
 return connection(_that);case CoreError_Storage() when storage != null:
-return storage(_that);case CoreError_Camera() when camera != null:
+return storage(_that);case CoreError_Screen() when screen != null:
+return screen(_that);case CoreError_Camera() when camera != null:
 return camera(_that);case _:
   return orElse();
 
@@ -760,7 +761,7 @@ return camera(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult map<TResult extends Object?>({required TResult Function( CoreError_NotInitialized value)  notInitialized,required TResult Function( CoreError_NoIdentity value)  noIdentity,required TResult Function( CoreError_UnknownServer value)  unknownServer,required TResult Function( CoreError_NotConnected value)  notConnected,required TResult Function( CoreError_Timeout value)  timeout,required TResult Function( CoreError_InvalidInput value)  invalidInput,required TResult Function( CoreError_Server value)  server,required TResult Function( CoreError_FingerprintMismatch value)  fingerprintMismatch,required TResult Function( CoreError_Rejected value)  rejected,required TResult Function( CoreError_Connection value)  connection,required TResult Function( CoreError_Storage value)  storage,required TResult Function( CoreError_Camera value)  camera,}){
+@optionalTypeArgs TResult map<TResult extends Object?>({required TResult Function( CoreError_NotInitialized value)  notInitialized,required TResult Function( CoreError_NoIdentity value)  noIdentity,required TResult Function( CoreError_UnknownServer value)  unknownServer,required TResult Function( CoreError_NotConnected value)  notConnected,required TResult Function( CoreError_Timeout value)  timeout,required TResult Function( CoreError_InvalidInput value)  invalidInput,required TResult Function( CoreError_Server value)  server,required TResult Function( CoreError_FingerprintMismatch value)  fingerprintMismatch,required TResult Function( CoreError_Rejected value)  rejected,required TResult Function( CoreError_Connection value)  connection,required TResult Function( CoreError_Storage value)  storage,required TResult Function( CoreError_Screen value)  screen,required TResult Function( CoreError_Camera value)  camera,}){
 final _that = this;
 switch (_that) {
 case CoreError_NotInitialized():
@@ -774,7 +775,8 @@ return server(_that);case CoreError_FingerprintMismatch():
 return fingerprintMismatch(_that);case CoreError_Rejected():
 return rejected(_that);case CoreError_Connection():
 return connection(_that);case CoreError_Storage():
-return storage(_that);case CoreError_Camera():
+return storage(_that);case CoreError_Screen():
+return screen(_that);case CoreError_Camera():
 return camera(_that);}
 }
 /// A variant of `map` that fallback to returning `null`.
@@ -789,7 +791,7 @@ return camera(_that);}
 /// }
 /// ```
 
-@optionalTypeArgs TResult? mapOrNull<TResult extends Object?>({TResult? Function( CoreError_NotInitialized value)?  notInitialized,TResult? Function( CoreError_NoIdentity value)?  noIdentity,TResult? Function( CoreError_UnknownServer value)?  unknownServer,TResult? Function( CoreError_NotConnected value)?  notConnected,TResult? Function( CoreError_Timeout value)?  timeout,TResult? Function( CoreError_InvalidInput value)?  invalidInput,TResult? Function( CoreError_Server value)?  server,TResult? Function( CoreError_FingerprintMismatch value)?  fingerprintMismatch,TResult? Function( CoreError_Rejected value)?  rejected,TResult? Function( CoreError_Connection value)?  connection,TResult? Function( CoreError_Storage value)?  storage,TResult? Function( CoreError_Camera value)?  camera,}){
+@optionalTypeArgs TResult? mapOrNull<TResult extends Object?>({TResult? Function( CoreError_NotInitialized value)?  notInitialized,TResult? Function( CoreError_NoIdentity value)?  noIdentity,TResult? Function( CoreError_UnknownServer value)?  unknownServer,TResult? Function( CoreError_NotConnected value)?  notConnected,TResult? Function( CoreError_Timeout value)?  timeout,TResult? Function( CoreError_InvalidInput value)?  invalidInput,TResult? Function( CoreError_Server value)?  server,TResult? Function( CoreError_FingerprintMismatch value)?  fingerprintMismatch,TResult? Function( CoreError_Rejected value)?  rejected,TResult? Function( CoreError_Connection value)?  connection,TResult? Function( CoreError_Storage value)?  storage,TResult? Function( CoreError_Screen value)?  screen,TResult? Function( CoreError_Camera value)?  camera,}){
 final _that = this;
 switch (_that) {
 case CoreError_NotInitialized() when notInitialized != null:
@@ -803,7 +805,8 @@ return server(_that);case CoreError_FingerprintMismatch() when fingerprintMismat
 return fingerprintMismatch(_that);case CoreError_Rejected() when rejected != null:
 return rejected(_that);case CoreError_Connection() when connection != null:
 return connection(_that);case CoreError_Storage() when storage != null:
-return storage(_that);case CoreError_Camera() when camera != null:
+return storage(_that);case CoreError_Screen() when screen != null:
+return screen(_that);case CoreError_Camera() when camera != null:
 return camera(_that);case _:
   return null;
 
@@ -821,7 +824,7 @@ return camera(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>({TResult Function()?  notInitialized,TResult Function()?  noIdentity,TResult Function()?  unknownServer,TResult Function()?  notConnected,TResult Function()?  timeout,TResult Function( String message)?  invalidInput,TResult Function( ErrorCode code,  String message,  int? retryAfterMs)?  server,TResult Function( String expected,  String presented)?  fingerprintMismatch,TResult Function( FailureReason reason,  String message)?  rejected,TResult Function( String message)?  connection,TResult Function( String message)?  storage,TResult Function( CameraProblem problem,  String message)?  camera,required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>({TResult Function()?  notInitialized,TResult Function()?  noIdentity,TResult Function()?  unknownServer,TResult Function()?  notConnected,TResult Function()?  timeout,TResult Function( String message)?  invalidInput,TResult Function( ErrorCode code,  String message,  int? retryAfterMs)?  server,TResult Function( String expected,  String presented)?  fingerprintMismatch,TResult Function( FailureReason reason,  String message)?  rejected,TResult Function( String message)?  connection,TResult Function( String message)?  storage,TResult Function( ScreenProblem problem,  String message)?  screen,TResult Function( CameraProblem problem,  String message)?  camera,required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case CoreError_NotInitialized() when notInitialized != null:
 return notInitialized();case CoreError_NoIdentity() when noIdentity != null:
@@ -834,7 +837,8 @@ return server(_that.code,_that.message,_that.retryAfterMs);case CoreError_Finger
 return fingerprintMismatch(_that.expected,_that.presented);case CoreError_Rejected() when rejected != null:
 return rejected(_that.reason,_that.message);case CoreError_Connection() when connection != null:
 return connection(_that.message);case CoreError_Storage() when storage != null:
-return storage(_that.message);case CoreError_Camera() when camera != null:
+return storage(_that.message);case CoreError_Screen() when screen != null:
+return screen(_that.problem,_that.message);case CoreError_Camera() when camera != null:
 return camera(_that.problem,_that.message);case _:
   return orElse();
 
@@ -853,7 +857,7 @@ return camera(_that.problem,_that.message);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>({required TResult Function()  notInitialized,required TResult Function()  noIdentity,required TResult Function()  unknownServer,required TResult Function()  notConnected,required TResult Function()  timeout,required TResult Function( String message)  invalidInput,required TResult Function( ErrorCode code,  String message,  int? retryAfterMs)  server,required TResult Function( String expected,  String presented)  fingerprintMismatch,required TResult Function( FailureReason reason,  String message)  rejected,required TResult Function( String message)  connection,required TResult Function( String message)  storage,required TResult Function( CameraProblem problem,  String message)  camera,}) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>({required TResult Function()  notInitialized,required TResult Function()  noIdentity,required TResult Function()  unknownServer,required TResult Function()  notConnected,required TResult Function()  timeout,required TResult Function( String message)  invalidInput,required TResult Function( ErrorCode code,  String message,  int? retryAfterMs)  server,required TResult Function( String expected,  String presented)  fingerprintMismatch,required TResult Function( FailureReason reason,  String message)  rejected,required TResult Function( String message)  connection,required TResult Function( String message)  storage,required TResult Function( ScreenProblem problem,  String message)  screen,required TResult Function( CameraProblem problem,  String message)  camera,}) {final _that = this;
 switch (_that) {
 case CoreError_NotInitialized():
 return notInitialized();case CoreError_NoIdentity():
@@ -866,7 +870,8 @@ return server(_that.code,_that.message,_that.retryAfterMs);case CoreError_Finger
 return fingerprintMismatch(_that.expected,_that.presented);case CoreError_Rejected():
 return rejected(_that.reason,_that.message);case CoreError_Connection():
 return connection(_that.message);case CoreError_Storage():
-return storage(_that.message);case CoreError_Camera():
+return storage(_that.message);case CoreError_Screen():
+return screen(_that.problem,_that.message);case CoreError_Camera():
 return camera(_that.problem,_that.message);}
 }
 /// A variant of `when` that fallback to returning `null`
@@ -881,7 +886,7 @@ return camera(_that.problem,_that.message);}
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>({TResult? Function()?  notInitialized,TResult? Function()?  noIdentity,TResult? Function()?  unknownServer,TResult? Function()?  notConnected,TResult? Function()?  timeout,TResult? Function( String message)?  invalidInput,TResult? Function( ErrorCode code,  String message,  int? retryAfterMs)?  server,TResult? Function( String expected,  String presented)?  fingerprintMismatch,TResult? Function( FailureReason reason,  String message)?  rejected,TResult? Function( String message)?  connection,TResult? Function( String message)?  storage,TResult? Function( CameraProblem problem,  String message)?  camera,}) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>({TResult? Function()?  notInitialized,TResult? Function()?  noIdentity,TResult? Function()?  unknownServer,TResult? Function()?  notConnected,TResult? Function()?  timeout,TResult? Function( String message)?  invalidInput,TResult? Function( ErrorCode code,  String message,  int? retryAfterMs)?  server,TResult? Function( String expected,  String presented)?  fingerprintMismatch,TResult? Function( FailureReason reason,  String message)?  rejected,TResult? Function( String message)?  connection,TResult? Function( String message)?  storage,TResult? Function( ScreenProblem problem,  String message)?  screen,TResult? Function( CameraProblem problem,  String message)?  camera,}) {final _that = this;
 switch (_that) {
 case CoreError_NotInitialized() when notInitialized != null:
 return notInitialized();case CoreError_NoIdentity() when noIdentity != null:
@@ -894,7 +899,8 @@ return server(_that.code,_that.message,_that.retryAfterMs);case CoreError_Finger
 return fingerprintMismatch(_that.expected,_that.presented);case CoreError_Rejected() when rejected != null:
 return rejected(_that.reason,_that.message);case CoreError_Connection() when connection != null:
 return connection(_that.message);case CoreError_Storage() when storage != null:
-return storage(_that.message);case CoreError_Camera() when camera != null:
+return storage(_that.message);case CoreError_Screen() when screen != null:
+return screen(_that.problem,_that.message);case CoreError_Camera() when camera != null:
 return camera(_that.problem,_that.message);case _:
   return null;
 
@@ -1470,6 +1476,74 @@ as String,
 /// @nodoc
 
 
+class CoreError_Screen extends CoreError {
+  const CoreError_Screen({required this.problem, required this.message}): super._();
+  
+
+ final  ScreenProblem problem;
+ final  String message;
+
+/// Create a copy of CoreError
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$CoreError_ScreenCopyWith<CoreError_Screen> get copyWith => _$CoreError_ScreenCopyWithImpl<CoreError_Screen>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is CoreError_Screen&&(identical(other.problem, problem) || other.problem == problem)&&(identical(other.message, message) || other.message == message));
+}
+
+
+@override
+int get hashCode => Object.hash(runtimeType,problem,message);
+
+@override
+String toString() {
+  return 'CoreError.screen(problem: $problem, message: $message)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $CoreError_ScreenCopyWith<$Res> implements $CoreErrorCopyWith<$Res> {
+  factory $CoreError_ScreenCopyWith(CoreError_Screen value, $Res Function(CoreError_Screen) _then) = _$CoreError_ScreenCopyWithImpl;
+@useResult
+$Res call({
+ ScreenProblem problem, String message
+});
+
+
+
+
+}
+/// @nodoc
+class _$CoreError_ScreenCopyWithImpl<$Res>
+    implements $CoreError_ScreenCopyWith<$Res> {
+  _$CoreError_ScreenCopyWithImpl(this._self, this._then);
+
+  final CoreError_Screen _self;
+  final $Res Function(CoreError_Screen) _then;
+
+/// Create a copy of CoreError
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? problem = null,Object? message = null,}) {
+  return _then(CoreError_Screen(
+problem: null == problem ? _self.problem : problem // ignore: cast_nullable_to_non_nullable
+as ScreenProblem,message: null == message ? _self.message : message // ignore: cast_nullable_to_non_nullable
+as String,
+  ));
+}
+
+
+}
+
+/// @nodoc
+
+
 class CoreError_Camera extends CoreError {
   const CoreError_Camera({required this.problem, required this.message}): super._();
   
@@ -1579,7 +1653,7 @@ extension CoreEventPayloadPatterns on CoreEventPayload {
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeMap<TResult extends Object?>({TResult Function( CoreEventPayload_ConnectionState value)?  connectionState,TResult Function( CoreEventPayload_Ready value)?  ready,TResult Function( CoreEventPayload_MessageCreate value)?  messageCreate,TResult Function( CoreEventPayload_MessageUpdate value)?  messageUpdate,TResult Function( CoreEventPayload_MessageDelete value)?  messageDelete,TResult Function( CoreEventPayload_ChannelCreate value)?  channelCreate,TResult Function( CoreEventPayload_ChannelUpdate value)?  channelUpdate,TResult Function( CoreEventPayload_ChannelDelete value)?  channelDelete,TResult Function( CoreEventPayload_RoleCreate value)?  roleCreate,TResult Function( CoreEventPayload_RoleUpdate value)?  roleUpdate,TResult Function( CoreEventPayload_RoleDelete value)?  roleDelete,TResult Function( CoreEventPayload_MemberJoin value)?  memberJoin,TResult Function( CoreEventPayload_MemberLeave value)?  memberLeave,TResult Function( CoreEventPayload_MemberUpdate value)?  memberUpdate,TResult Function( CoreEventPayload_PresenceUpdate value)?  presenceUpdate,TResult Function( CoreEventPayload_TypingStart value)?  typingStart,TResult Function( CoreEventPayload_ServerUpdate value)?  serverUpdate,TResult Function( CoreEventPayload_PermissionsUpdate value)?  permissionsUpdate,TResult Function( CoreEventPayload_VoiceStateUpdate value)?  voiceStateUpdate,TResult Function( CoreEventPayload_VoiceSettingsUpdate value)?  voiceSettingsUpdate,required TResult orElse(),}){
+@optionalTypeArgs TResult maybeMap<TResult extends Object?>({TResult Function( CoreEventPayload_ConnectionState value)?  connectionState,TResult Function( CoreEventPayload_Ready value)?  ready,TResult Function( CoreEventPayload_MessageCreate value)?  messageCreate,TResult Function( CoreEventPayload_MessageUpdate value)?  messageUpdate,TResult Function( CoreEventPayload_MessageDelete value)?  messageDelete,TResult Function( CoreEventPayload_ChannelCreate value)?  channelCreate,TResult Function( CoreEventPayload_ChannelUpdate value)?  channelUpdate,TResult Function( CoreEventPayload_ChannelDelete value)?  channelDelete,TResult Function( CoreEventPayload_RoleCreate value)?  roleCreate,TResult Function( CoreEventPayload_RoleUpdate value)?  roleUpdate,TResult Function( CoreEventPayload_RoleDelete value)?  roleDelete,TResult Function( CoreEventPayload_MemberJoin value)?  memberJoin,TResult Function( CoreEventPayload_MemberLeave value)?  memberLeave,TResult Function( CoreEventPayload_MemberUpdate value)?  memberUpdate,TResult Function( CoreEventPayload_PresenceUpdate value)?  presenceUpdate,TResult Function( CoreEventPayload_TypingStart value)?  typingStart,TResult Function( CoreEventPayload_ServerUpdate value)?  serverUpdate,TResult Function( CoreEventPayload_PermissionsUpdate value)?  permissionsUpdate,TResult Function( CoreEventPayload_VoiceStateUpdate value)?  voiceStateUpdate,TResult Function( CoreEventPayload_VoiceSettingsUpdate value)?  voiceSettingsUpdate,TResult Function( CoreEventPayload_StreamCreate value)?  streamCreate,TResult Function( CoreEventPayload_StreamUpdate value)?  streamUpdate,TResult Function( CoreEventPayload_StreamDelete value)?  streamDelete,TResult Function( CoreEventPayload_StreamViewersUpdate value)?  streamViewersUpdate,required TResult orElse(),}){
 final _that = this;
 switch (_that) {
 case CoreEventPayload_ConnectionState() when connectionState != null:
@@ -1602,7 +1676,11 @@ return typingStart(_that);case CoreEventPayload_ServerUpdate() when serverUpdate
 return serverUpdate(_that);case CoreEventPayload_PermissionsUpdate() when permissionsUpdate != null:
 return permissionsUpdate(_that);case CoreEventPayload_VoiceStateUpdate() when voiceStateUpdate != null:
 return voiceStateUpdate(_that);case CoreEventPayload_VoiceSettingsUpdate() when voiceSettingsUpdate != null:
-return voiceSettingsUpdate(_that);case _:
+return voiceSettingsUpdate(_that);case CoreEventPayload_StreamCreate() when streamCreate != null:
+return streamCreate(_that);case CoreEventPayload_StreamUpdate() when streamUpdate != null:
+return streamUpdate(_that);case CoreEventPayload_StreamDelete() when streamDelete != null:
+return streamDelete(_that);case CoreEventPayload_StreamViewersUpdate() when streamViewersUpdate != null:
+return streamViewersUpdate(_that);case _:
   return orElse();
 
 }
@@ -1620,7 +1698,7 @@ return voiceSettingsUpdate(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult map<TResult extends Object?>({required TResult Function( CoreEventPayload_ConnectionState value)  connectionState,required TResult Function( CoreEventPayload_Ready value)  ready,required TResult Function( CoreEventPayload_MessageCreate value)  messageCreate,required TResult Function( CoreEventPayload_MessageUpdate value)  messageUpdate,required TResult Function( CoreEventPayload_MessageDelete value)  messageDelete,required TResult Function( CoreEventPayload_ChannelCreate value)  channelCreate,required TResult Function( CoreEventPayload_ChannelUpdate value)  channelUpdate,required TResult Function( CoreEventPayload_ChannelDelete value)  channelDelete,required TResult Function( CoreEventPayload_RoleCreate value)  roleCreate,required TResult Function( CoreEventPayload_RoleUpdate value)  roleUpdate,required TResult Function( CoreEventPayload_RoleDelete value)  roleDelete,required TResult Function( CoreEventPayload_MemberJoin value)  memberJoin,required TResult Function( CoreEventPayload_MemberLeave value)  memberLeave,required TResult Function( CoreEventPayload_MemberUpdate value)  memberUpdate,required TResult Function( CoreEventPayload_PresenceUpdate value)  presenceUpdate,required TResult Function( CoreEventPayload_TypingStart value)  typingStart,required TResult Function( CoreEventPayload_ServerUpdate value)  serverUpdate,required TResult Function( CoreEventPayload_PermissionsUpdate value)  permissionsUpdate,required TResult Function( CoreEventPayload_VoiceStateUpdate value)  voiceStateUpdate,required TResult Function( CoreEventPayload_VoiceSettingsUpdate value)  voiceSettingsUpdate,}){
+@optionalTypeArgs TResult map<TResult extends Object?>({required TResult Function( CoreEventPayload_ConnectionState value)  connectionState,required TResult Function( CoreEventPayload_Ready value)  ready,required TResult Function( CoreEventPayload_MessageCreate value)  messageCreate,required TResult Function( CoreEventPayload_MessageUpdate value)  messageUpdate,required TResult Function( CoreEventPayload_MessageDelete value)  messageDelete,required TResult Function( CoreEventPayload_ChannelCreate value)  channelCreate,required TResult Function( CoreEventPayload_ChannelUpdate value)  channelUpdate,required TResult Function( CoreEventPayload_ChannelDelete value)  channelDelete,required TResult Function( CoreEventPayload_RoleCreate value)  roleCreate,required TResult Function( CoreEventPayload_RoleUpdate value)  roleUpdate,required TResult Function( CoreEventPayload_RoleDelete value)  roleDelete,required TResult Function( CoreEventPayload_MemberJoin value)  memberJoin,required TResult Function( CoreEventPayload_MemberLeave value)  memberLeave,required TResult Function( CoreEventPayload_MemberUpdate value)  memberUpdate,required TResult Function( CoreEventPayload_PresenceUpdate value)  presenceUpdate,required TResult Function( CoreEventPayload_TypingStart value)  typingStart,required TResult Function( CoreEventPayload_ServerUpdate value)  serverUpdate,required TResult Function( CoreEventPayload_PermissionsUpdate value)  permissionsUpdate,required TResult Function( CoreEventPayload_VoiceStateUpdate value)  voiceStateUpdate,required TResult Function( CoreEventPayload_VoiceSettingsUpdate value)  voiceSettingsUpdate,required TResult Function( CoreEventPayload_StreamCreate value)  streamCreate,required TResult Function( CoreEventPayload_StreamUpdate value)  streamUpdate,required TResult Function( CoreEventPayload_StreamDelete value)  streamDelete,required TResult Function( CoreEventPayload_StreamViewersUpdate value)  streamViewersUpdate,}){
 final _that = this;
 switch (_that) {
 case CoreEventPayload_ConnectionState():
@@ -1643,7 +1721,11 @@ return typingStart(_that);case CoreEventPayload_ServerUpdate():
 return serverUpdate(_that);case CoreEventPayload_PermissionsUpdate():
 return permissionsUpdate(_that);case CoreEventPayload_VoiceStateUpdate():
 return voiceStateUpdate(_that);case CoreEventPayload_VoiceSettingsUpdate():
-return voiceSettingsUpdate(_that);}
+return voiceSettingsUpdate(_that);case CoreEventPayload_StreamCreate():
+return streamCreate(_that);case CoreEventPayload_StreamUpdate():
+return streamUpdate(_that);case CoreEventPayload_StreamDelete():
+return streamDelete(_that);case CoreEventPayload_StreamViewersUpdate():
+return streamViewersUpdate(_that);}
 }
 /// A variant of `map` that fallback to returning `null`.
 ///
@@ -1657,7 +1739,7 @@ return voiceSettingsUpdate(_that);}
 /// }
 /// ```
 
-@optionalTypeArgs TResult? mapOrNull<TResult extends Object?>({TResult? Function( CoreEventPayload_ConnectionState value)?  connectionState,TResult? Function( CoreEventPayload_Ready value)?  ready,TResult? Function( CoreEventPayload_MessageCreate value)?  messageCreate,TResult? Function( CoreEventPayload_MessageUpdate value)?  messageUpdate,TResult? Function( CoreEventPayload_MessageDelete value)?  messageDelete,TResult? Function( CoreEventPayload_ChannelCreate value)?  channelCreate,TResult? Function( CoreEventPayload_ChannelUpdate value)?  channelUpdate,TResult? Function( CoreEventPayload_ChannelDelete value)?  channelDelete,TResult? Function( CoreEventPayload_RoleCreate value)?  roleCreate,TResult? Function( CoreEventPayload_RoleUpdate value)?  roleUpdate,TResult? Function( CoreEventPayload_RoleDelete value)?  roleDelete,TResult? Function( CoreEventPayload_MemberJoin value)?  memberJoin,TResult? Function( CoreEventPayload_MemberLeave value)?  memberLeave,TResult? Function( CoreEventPayload_MemberUpdate value)?  memberUpdate,TResult? Function( CoreEventPayload_PresenceUpdate value)?  presenceUpdate,TResult? Function( CoreEventPayload_TypingStart value)?  typingStart,TResult? Function( CoreEventPayload_ServerUpdate value)?  serverUpdate,TResult? Function( CoreEventPayload_PermissionsUpdate value)?  permissionsUpdate,TResult? Function( CoreEventPayload_VoiceStateUpdate value)?  voiceStateUpdate,TResult? Function( CoreEventPayload_VoiceSettingsUpdate value)?  voiceSettingsUpdate,}){
+@optionalTypeArgs TResult? mapOrNull<TResult extends Object?>({TResult? Function( CoreEventPayload_ConnectionState value)?  connectionState,TResult? Function( CoreEventPayload_Ready value)?  ready,TResult? Function( CoreEventPayload_MessageCreate value)?  messageCreate,TResult? Function( CoreEventPayload_MessageUpdate value)?  messageUpdate,TResult? Function( CoreEventPayload_MessageDelete value)?  messageDelete,TResult? Function( CoreEventPayload_ChannelCreate value)?  channelCreate,TResult? Function( CoreEventPayload_ChannelUpdate value)?  channelUpdate,TResult? Function( CoreEventPayload_ChannelDelete value)?  channelDelete,TResult? Function( CoreEventPayload_RoleCreate value)?  roleCreate,TResult? Function( CoreEventPayload_RoleUpdate value)?  roleUpdate,TResult? Function( CoreEventPayload_RoleDelete value)?  roleDelete,TResult? Function( CoreEventPayload_MemberJoin value)?  memberJoin,TResult? Function( CoreEventPayload_MemberLeave value)?  memberLeave,TResult? Function( CoreEventPayload_MemberUpdate value)?  memberUpdate,TResult? Function( CoreEventPayload_PresenceUpdate value)?  presenceUpdate,TResult? Function( CoreEventPayload_TypingStart value)?  typingStart,TResult? Function( CoreEventPayload_ServerUpdate value)?  serverUpdate,TResult? Function( CoreEventPayload_PermissionsUpdate value)?  permissionsUpdate,TResult? Function( CoreEventPayload_VoiceStateUpdate value)?  voiceStateUpdate,TResult? Function( CoreEventPayload_VoiceSettingsUpdate value)?  voiceSettingsUpdate,TResult? Function( CoreEventPayload_StreamCreate value)?  streamCreate,TResult? Function( CoreEventPayload_StreamUpdate value)?  streamUpdate,TResult? Function( CoreEventPayload_StreamDelete value)?  streamDelete,TResult? Function( CoreEventPayload_StreamViewersUpdate value)?  streamViewersUpdate,}){
 final _that = this;
 switch (_that) {
 case CoreEventPayload_ConnectionState() when connectionState != null:
@@ -1680,7 +1762,11 @@ return typingStart(_that);case CoreEventPayload_ServerUpdate() when serverUpdate
 return serverUpdate(_that);case CoreEventPayload_PermissionsUpdate() when permissionsUpdate != null:
 return permissionsUpdate(_that);case CoreEventPayload_VoiceStateUpdate() when voiceStateUpdate != null:
 return voiceStateUpdate(_that);case CoreEventPayload_VoiceSettingsUpdate() when voiceSettingsUpdate != null:
-return voiceSettingsUpdate(_that);case _:
+return voiceSettingsUpdate(_that);case CoreEventPayload_StreamCreate() when streamCreate != null:
+return streamCreate(_that);case CoreEventPayload_StreamUpdate() when streamUpdate != null:
+return streamUpdate(_that);case CoreEventPayload_StreamDelete() when streamDelete != null:
+return streamDelete(_that);case CoreEventPayload_StreamViewersUpdate() when streamViewersUpdate != null:
+return streamViewersUpdate(_that);case _:
   return null;
 
 }
@@ -1697,7 +1783,7 @@ return voiceSettingsUpdate(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>({TResult Function( ConnectionState field0)?  connectionState,TResult Function( ReadySnapshot field0)?  ready,TResult Function( Message field0)?  messageCreate,TResult Function( Message field0)?  messageUpdate,TResult Function( PlatformInt64 channelId,  PlatformInt64 messageId)?  messageDelete,TResult Function( Channel field0)?  channelCreate,TResult Function( Channel field0)?  channelUpdate,TResult Function( PlatformInt64 channelId)?  channelDelete,TResult Function( Role field0)?  roleCreate,TResult Function( Role field0)?  roleUpdate,TResult Function( PlatformInt64 roleId)?  roleDelete,TResult Function( Member field0)?  memberJoin,TResult Function( PlatformInt64 userId)?  memberLeave,TResult Function( Member field0)?  memberUpdate,TResult Function( Presence field0)?  presenceUpdate,TResult Function( PlatformInt64 channelId,  PlatformInt64 userId)?  typingStart,TResult Function( ServerInfo field0)?  serverUpdate,TResult Function( PlatformInt64 serverPermissions,  List<ChannelPermissions> channelPermissions)?  permissionsUpdate,TResult Function( VoiceState field0)?  voiceStateUpdate,TResult Function( VoiceSettings field0)?  voiceSettingsUpdate,required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>({TResult Function( ConnectionState field0)?  connectionState,TResult Function( ReadySnapshot field0)?  ready,TResult Function( Message field0)?  messageCreate,TResult Function( Message field0)?  messageUpdate,TResult Function( PlatformInt64 channelId,  PlatformInt64 messageId)?  messageDelete,TResult Function( Channel field0)?  channelCreate,TResult Function( Channel field0)?  channelUpdate,TResult Function( PlatformInt64 channelId)?  channelDelete,TResult Function( Role field0)?  roleCreate,TResult Function( Role field0)?  roleUpdate,TResult Function( PlatformInt64 roleId)?  roleDelete,TResult Function( Member field0)?  memberJoin,TResult Function( PlatformInt64 userId)?  memberLeave,TResult Function( Member field0)?  memberUpdate,TResult Function( Presence field0)?  presenceUpdate,TResult Function( PlatformInt64 channelId,  PlatformInt64 userId)?  typingStart,TResult Function( ServerInfo field0)?  serverUpdate,TResult Function( PlatformInt64 serverPermissions,  List<ChannelPermissions> channelPermissions)?  permissionsUpdate,TResult Function( VoiceState field0)?  voiceStateUpdate,TResult Function( VoiceSettings field0)?  voiceSettingsUpdate,TResult Function( ScreenStream field0)?  streamCreate,TResult Function( ScreenStream field0)?  streamUpdate,TResult Function( String streamKey,  PlatformInt64 channelId)?  streamDelete,TResult Function( String streamKey,  Int64List viewerIds)?  streamViewersUpdate,required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case CoreEventPayload_ConnectionState() when connectionState != null:
 return connectionState(_that.field0);case CoreEventPayload_Ready() when ready != null:
@@ -1719,7 +1805,11 @@ return typingStart(_that.channelId,_that.userId);case CoreEventPayload_ServerUpd
 return serverUpdate(_that.field0);case CoreEventPayload_PermissionsUpdate() when permissionsUpdate != null:
 return permissionsUpdate(_that.serverPermissions,_that.channelPermissions);case CoreEventPayload_VoiceStateUpdate() when voiceStateUpdate != null:
 return voiceStateUpdate(_that.field0);case CoreEventPayload_VoiceSettingsUpdate() when voiceSettingsUpdate != null:
-return voiceSettingsUpdate(_that.field0);case _:
+return voiceSettingsUpdate(_that.field0);case CoreEventPayload_StreamCreate() when streamCreate != null:
+return streamCreate(_that.field0);case CoreEventPayload_StreamUpdate() when streamUpdate != null:
+return streamUpdate(_that.field0);case CoreEventPayload_StreamDelete() when streamDelete != null:
+return streamDelete(_that.streamKey,_that.channelId);case CoreEventPayload_StreamViewersUpdate() when streamViewersUpdate != null:
+return streamViewersUpdate(_that.streamKey,_that.viewerIds);case _:
   return orElse();
 
 }
@@ -1737,7 +1827,7 @@ return voiceSettingsUpdate(_that.field0);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>({required TResult Function( ConnectionState field0)  connectionState,required TResult Function( ReadySnapshot field0)  ready,required TResult Function( Message field0)  messageCreate,required TResult Function( Message field0)  messageUpdate,required TResult Function( PlatformInt64 channelId,  PlatformInt64 messageId)  messageDelete,required TResult Function( Channel field0)  channelCreate,required TResult Function( Channel field0)  channelUpdate,required TResult Function( PlatformInt64 channelId)  channelDelete,required TResult Function( Role field0)  roleCreate,required TResult Function( Role field0)  roleUpdate,required TResult Function( PlatformInt64 roleId)  roleDelete,required TResult Function( Member field0)  memberJoin,required TResult Function( PlatformInt64 userId)  memberLeave,required TResult Function( Member field0)  memberUpdate,required TResult Function( Presence field0)  presenceUpdate,required TResult Function( PlatformInt64 channelId,  PlatformInt64 userId)  typingStart,required TResult Function( ServerInfo field0)  serverUpdate,required TResult Function( PlatformInt64 serverPermissions,  List<ChannelPermissions> channelPermissions)  permissionsUpdate,required TResult Function( VoiceState field0)  voiceStateUpdate,required TResult Function( VoiceSettings field0)  voiceSettingsUpdate,}) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>({required TResult Function( ConnectionState field0)  connectionState,required TResult Function( ReadySnapshot field0)  ready,required TResult Function( Message field0)  messageCreate,required TResult Function( Message field0)  messageUpdate,required TResult Function( PlatformInt64 channelId,  PlatformInt64 messageId)  messageDelete,required TResult Function( Channel field0)  channelCreate,required TResult Function( Channel field0)  channelUpdate,required TResult Function( PlatformInt64 channelId)  channelDelete,required TResult Function( Role field0)  roleCreate,required TResult Function( Role field0)  roleUpdate,required TResult Function( PlatformInt64 roleId)  roleDelete,required TResult Function( Member field0)  memberJoin,required TResult Function( PlatformInt64 userId)  memberLeave,required TResult Function( Member field0)  memberUpdate,required TResult Function( Presence field0)  presenceUpdate,required TResult Function( PlatformInt64 channelId,  PlatformInt64 userId)  typingStart,required TResult Function( ServerInfo field0)  serverUpdate,required TResult Function( PlatformInt64 serverPermissions,  List<ChannelPermissions> channelPermissions)  permissionsUpdate,required TResult Function( VoiceState field0)  voiceStateUpdate,required TResult Function( VoiceSettings field0)  voiceSettingsUpdate,required TResult Function( ScreenStream field0)  streamCreate,required TResult Function( ScreenStream field0)  streamUpdate,required TResult Function( String streamKey,  PlatformInt64 channelId)  streamDelete,required TResult Function( String streamKey,  Int64List viewerIds)  streamViewersUpdate,}) {final _that = this;
 switch (_that) {
 case CoreEventPayload_ConnectionState():
 return connectionState(_that.field0);case CoreEventPayload_Ready():
@@ -1759,7 +1849,11 @@ return typingStart(_that.channelId,_that.userId);case CoreEventPayload_ServerUpd
 return serverUpdate(_that.field0);case CoreEventPayload_PermissionsUpdate():
 return permissionsUpdate(_that.serverPermissions,_that.channelPermissions);case CoreEventPayload_VoiceStateUpdate():
 return voiceStateUpdate(_that.field0);case CoreEventPayload_VoiceSettingsUpdate():
-return voiceSettingsUpdate(_that.field0);}
+return voiceSettingsUpdate(_that.field0);case CoreEventPayload_StreamCreate():
+return streamCreate(_that.field0);case CoreEventPayload_StreamUpdate():
+return streamUpdate(_that.field0);case CoreEventPayload_StreamDelete():
+return streamDelete(_that.streamKey,_that.channelId);case CoreEventPayload_StreamViewersUpdate():
+return streamViewersUpdate(_that.streamKey,_that.viewerIds);}
 }
 /// A variant of `when` that fallback to returning `null`
 ///
@@ -1773,7 +1867,7 @@ return voiceSettingsUpdate(_that.field0);}
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>({TResult? Function( ConnectionState field0)?  connectionState,TResult? Function( ReadySnapshot field0)?  ready,TResult? Function( Message field0)?  messageCreate,TResult? Function( Message field0)?  messageUpdate,TResult? Function( PlatformInt64 channelId,  PlatformInt64 messageId)?  messageDelete,TResult? Function( Channel field0)?  channelCreate,TResult? Function( Channel field0)?  channelUpdate,TResult? Function( PlatformInt64 channelId)?  channelDelete,TResult? Function( Role field0)?  roleCreate,TResult? Function( Role field0)?  roleUpdate,TResult? Function( PlatformInt64 roleId)?  roleDelete,TResult? Function( Member field0)?  memberJoin,TResult? Function( PlatformInt64 userId)?  memberLeave,TResult? Function( Member field0)?  memberUpdate,TResult? Function( Presence field0)?  presenceUpdate,TResult? Function( PlatformInt64 channelId,  PlatformInt64 userId)?  typingStart,TResult? Function( ServerInfo field0)?  serverUpdate,TResult? Function( PlatformInt64 serverPermissions,  List<ChannelPermissions> channelPermissions)?  permissionsUpdate,TResult? Function( VoiceState field0)?  voiceStateUpdate,TResult? Function( VoiceSettings field0)?  voiceSettingsUpdate,}) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>({TResult? Function( ConnectionState field0)?  connectionState,TResult? Function( ReadySnapshot field0)?  ready,TResult? Function( Message field0)?  messageCreate,TResult? Function( Message field0)?  messageUpdate,TResult? Function( PlatformInt64 channelId,  PlatformInt64 messageId)?  messageDelete,TResult? Function( Channel field0)?  channelCreate,TResult? Function( Channel field0)?  channelUpdate,TResult? Function( PlatformInt64 channelId)?  channelDelete,TResult? Function( Role field0)?  roleCreate,TResult? Function( Role field0)?  roleUpdate,TResult? Function( PlatformInt64 roleId)?  roleDelete,TResult? Function( Member field0)?  memberJoin,TResult? Function( PlatformInt64 userId)?  memberLeave,TResult? Function( Member field0)?  memberUpdate,TResult? Function( Presence field0)?  presenceUpdate,TResult? Function( PlatformInt64 channelId,  PlatformInt64 userId)?  typingStart,TResult? Function( ServerInfo field0)?  serverUpdate,TResult? Function( PlatformInt64 serverPermissions,  List<ChannelPermissions> channelPermissions)?  permissionsUpdate,TResult? Function( VoiceState field0)?  voiceStateUpdate,TResult? Function( VoiceSettings field0)?  voiceSettingsUpdate,TResult? Function( ScreenStream field0)?  streamCreate,TResult? Function( ScreenStream field0)?  streamUpdate,TResult? Function( String streamKey,  PlatformInt64 channelId)?  streamDelete,TResult? Function( String streamKey,  Int64List viewerIds)?  streamViewersUpdate,}) {final _that = this;
 switch (_that) {
 case CoreEventPayload_ConnectionState() when connectionState != null:
 return connectionState(_that.field0);case CoreEventPayload_Ready() when ready != null:
@@ -1795,7 +1889,11 @@ return typingStart(_that.channelId,_that.userId);case CoreEventPayload_ServerUpd
 return serverUpdate(_that.field0);case CoreEventPayload_PermissionsUpdate() when permissionsUpdate != null:
 return permissionsUpdate(_that.serverPermissions,_that.channelPermissions);case CoreEventPayload_VoiceStateUpdate() when voiceStateUpdate != null:
 return voiceStateUpdate(_that.field0);case CoreEventPayload_VoiceSettingsUpdate() when voiceSettingsUpdate != null:
-return voiceSettingsUpdate(_that.field0);case _:
+return voiceSettingsUpdate(_that.field0);case CoreEventPayload_StreamCreate() when streamCreate != null:
+return streamCreate(_that.field0);case CoreEventPayload_StreamUpdate() when streamUpdate != null:
+return streamUpdate(_that.field0);case CoreEventPayload_StreamDelete() when streamDelete != null:
+return streamDelete(_that.streamKey,_that.channelId);case CoreEventPayload_StreamViewersUpdate() when streamViewersUpdate != null:
+return streamViewersUpdate(_that.streamKey,_that.viewerIds);case _:
   return null;
 
 }
@@ -3145,6 +3243,274 @@ as VoiceSettings,
 }
 
 /// @nodoc
+
+
+class CoreEventPayload_StreamCreate extends CoreEventPayload {
+  const CoreEventPayload_StreamCreate(this.field0): super._();
+  
+
+ final  ScreenStream field0;
+
+/// Create a copy of CoreEventPayload
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$CoreEventPayload_StreamCreateCopyWith<CoreEventPayload_StreamCreate> get copyWith => _$CoreEventPayload_StreamCreateCopyWithImpl<CoreEventPayload_StreamCreate>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is CoreEventPayload_StreamCreate&&(identical(other.field0, field0) || other.field0 == field0));
+}
+
+
+@override
+int get hashCode => Object.hash(runtimeType,field0);
+
+@override
+String toString() {
+  return 'CoreEventPayload.streamCreate(field0: $field0)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $CoreEventPayload_StreamCreateCopyWith<$Res> implements $CoreEventPayloadCopyWith<$Res> {
+  factory $CoreEventPayload_StreamCreateCopyWith(CoreEventPayload_StreamCreate value, $Res Function(CoreEventPayload_StreamCreate) _then) = _$CoreEventPayload_StreamCreateCopyWithImpl;
+@useResult
+$Res call({
+ ScreenStream field0
+});
+
+
+
+
+}
+/// @nodoc
+class _$CoreEventPayload_StreamCreateCopyWithImpl<$Res>
+    implements $CoreEventPayload_StreamCreateCopyWith<$Res> {
+  _$CoreEventPayload_StreamCreateCopyWithImpl(this._self, this._then);
+
+  final CoreEventPayload_StreamCreate _self;
+  final $Res Function(CoreEventPayload_StreamCreate) _then;
+
+/// Create a copy of CoreEventPayload
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? field0 = null,}) {
+  return _then(CoreEventPayload_StreamCreate(
+null == field0 ? _self.field0 : field0 // ignore: cast_nullable_to_non_nullable
+as ScreenStream,
+  ));
+}
+
+
+}
+
+/// @nodoc
+
+
+class CoreEventPayload_StreamUpdate extends CoreEventPayload {
+  const CoreEventPayload_StreamUpdate(this.field0): super._();
+  
+
+ final  ScreenStream field0;
+
+/// Create a copy of CoreEventPayload
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$CoreEventPayload_StreamUpdateCopyWith<CoreEventPayload_StreamUpdate> get copyWith => _$CoreEventPayload_StreamUpdateCopyWithImpl<CoreEventPayload_StreamUpdate>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is CoreEventPayload_StreamUpdate&&(identical(other.field0, field0) || other.field0 == field0));
+}
+
+
+@override
+int get hashCode => Object.hash(runtimeType,field0);
+
+@override
+String toString() {
+  return 'CoreEventPayload.streamUpdate(field0: $field0)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $CoreEventPayload_StreamUpdateCopyWith<$Res> implements $CoreEventPayloadCopyWith<$Res> {
+  factory $CoreEventPayload_StreamUpdateCopyWith(CoreEventPayload_StreamUpdate value, $Res Function(CoreEventPayload_StreamUpdate) _then) = _$CoreEventPayload_StreamUpdateCopyWithImpl;
+@useResult
+$Res call({
+ ScreenStream field0
+});
+
+
+
+
+}
+/// @nodoc
+class _$CoreEventPayload_StreamUpdateCopyWithImpl<$Res>
+    implements $CoreEventPayload_StreamUpdateCopyWith<$Res> {
+  _$CoreEventPayload_StreamUpdateCopyWithImpl(this._self, this._then);
+
+  final CoreEventPayload_StreamUpdate _self;
+  final $Res Function(CoreEventPayload_StreamUpdate) _then;
+
+/// Create a copy of CoreEventPayload
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? field0 = null,}) {
+  return _then(CoreEventPayload_StreamUpdate(
+null == field0 ? _self.field0 : field0 // ignore: cast_nullable_to_non_nullable
+as ScreenStream,
+  ));
+}
+
+
+}
+
+/// @nodoc
+
+
+class CoreEventPayload_StreamDelete extends CoreEventPayload {
+  const CoreEventPayload_StreamDelete({required this.streamKey, required this.channelId}): super._();
+  
+
+ final  String streamKey;
+ final  PlatformInt64 channelId;
+
+/// Create a copy of CoreEventPayload
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$CoreEventPayload_StreamDeleteCopyWith<CoreEventPayload_StreamDelete> get copyWith => _$CoreEventPayload_StreamDeleteCopyWithImpl<CoreEventPayload_StreamDelete>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is CoreEventPayload_StreamDelete&&(identical(other.streamKey, streamKey) || other.streamKey == streamKey)&&(identical(other.channelId, channelId) || other.channelId == channelId));
+}
+
+
+@override
+int get hashCode => Object.hash(runtimeType,streamKey,channelId);
+
+@override
+String toString() {
+  return 'CoreEventPayload.streamDelete(streamKey: $streamKey, channelId: $channelId)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $CoreEventPayload_StreamDeleteCopyWith<$Res> implements $CoreEventPayloadCopyWith<$Res> {
+  factory $CoreEventPayload_StreamDeleteCopyWith(CoreEventPayload_StreamDelete value, $Res Function(CoreEventPayload_StreamDelete) _then) = _$CoreEventPayload_StreamDeleteCopyWithImpl;
+@useResult
+$Res call({
+ String streamKey, PlatformInt64 channelId
+});
+
+
+
+
+}
+/// @nodoc
+class _$CoreEventPayload_StreamDeleteCopyWithImpl<$Res>
+    implements $CoreEventPayload_StreamDeleteCopyWith<$Res> {
+  _$CoreEventPayload_StreamDeleteCopyWithImpl(this._self, this._then);
+
+  final CoreEventPayload_StreamDelete _self;
+  final $Res Function(CoreEventPayload_StreamDelete) _then;
+
+/// Create a copy of CoreEventPayload
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? streamKey = null,Object? channelId = null,}) {
+  return _then(CoreEventPayload_StreamDelete(
+streamKey: null == streamKey ? _self.streamKey : streamKey // ignore: cast_nullable_to_non_nullable
+as String,channelId: null == channelId ? _self.channelId : channelId // ignore: cast_nullable_to_non_nullable
+as PlatformInt64,
+  ));
+}
+
+
+}
+
+/// @nodoc
+
+
+class CoreEventPayload_StreamViewersUpdate extends CoreEventPayload {
+  const CoreEventPayload_StreamViewersUpdate({required this.streamKey, required this.viewerIds}): super._();
+  
+
+ final  String streamKey;
+ final  Int64List viewerIds;
+
+/// Create a copy of CoreEventPayload
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$CoreEventPayload_StreamViewersUpdateCopyWith<CoreEventPayload_StreamViewersUpdate> get copyWith => _$CoreEventPayload_StreamViewersUpdateCopyWithImpl<CoreEventPayload_StreamViewersUpdate>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is CoreEventPayload_StreamViewersUpdate&&(identical(other.streamKey, streamKey) || other.streamKey == streamKey)&&const DeepCollectionEquality().equals(other.viewerIds, viewerIds));
+}
+
+
+@override
+int get hashCode => Object.hash(runtimeType,streamKey,const DeepCollectionEquality().hash(viewerIds));
+
+@override
+String toString() {
+  return 'CoreEventPayload.streamViewersUpdate(streamKey: $streamKey, viewerIds: $viewerIds)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $CoreEventPayload_StreamViewersUpdateCopyWith<$Res> implements $CoreEventPayloadCopyWith<$Res> {
+  factory $CoreEventPayload_StreamViewersUpdateCopyWith(CoreEventPayload_StreamViewersUpdate value, $Res Function(CoreEventPayload_StreamViewersUpdate) _then) = _$CoreEventPayload_StreamViewersUpdateCopyWithImpl;
+@useResult
+$Res call({
+ String streamKey, Int64List viewerIds
+});
+
+
+
+
+}
+/// @nodoc
+class _$CoreEventPayload_StreamViewersUpdateCopyWithImpl<$Res>
+    implements $CoreEventPayload_StreamViewersUpdateCopyWith<$Res> {
+  _$CoreEventPayload_StreamViewersUpdateCopyWithImpl(this._self, this._then);
+
+  final CoreEventPayload_StreamViewersUpdate _self;
+  final $Res Function(CoreEventPayload_StreamViewersUpdate) _then;
+
+/// Create a copy of CoreEventPayload
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? streamKey = null,Object? viewerIds = null,}) {
+  return _then(CoreEventPayload_StreamViewersUpdate(
+streamKey: null == streamKey ? _self.streamKey : streamKey // ignore: cast_nullable_to_non_nullable
+as String,viewerIds: null == viewerIds ? _self.viewerIds : viewerIds // ignore: cast_nullable_to_non_nullable
+as Int64List,
+  ));
+}
+
+
+}
+
+/// @nodoc
 mixin _$HotkeySupport {
 
 
@@ -3480,7 +3846,7 @@ extension MediaEventPatterns on MediaEvent {
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeMap<TResult extends Object?>({TResult Function( MediaEvent_ConnectionState value)?  connectionState,TResult Function( MediaEvent_DeviceFellBack value)?  deviceFellBack,TResult Function( MediaEvent_DeviceFailed value)?  deviceFailed,TResult Function( MediaEvent_DevicesChanged value)?  devicesChanged,TResult Function( MediaEvent_Speaking value)?  speaking,TResult Function( MediaEvent_InputLevel value)?  inputLevel,TResult Function( MediaEvent_SpeakingWhileMuted value)?  speakingWhileMuted,TResult Function( MediaEvent_NoiseSuppressionFellBack value)?  noiseSuppressionFellBack,TResult Function( MediaEvent_HotkeyPressed value)?  hotkeyPressed,TResult Function( MediaEvent_VideoTrackAdded value)?  videoTrackAdded,TResult Function( MediaEvent_VideoTrackRemoved value)?  videoTrackRemoved,TResult Function( MediaEvent_CameraStopped value)?  cameraStopped,required TResult orElse(),}){
+@optionalTypeArgs TResult maybeMap<TResult extends Object?>({TResult Function( MediaEvent_ConnectionState value)?  connectionState,TResult Function( MediaEvent_DeviceFellBack value)?  deviceFellBack,TResult Function( MediaEvent_DeviceFailed value)?  deviceFailed,TResult Function( MediaEvent_DevicesChanged value)?  devicesChanged,TResult Function( MediaEvent_Speaking value)?  speaking,TResult Function( MediaEvent_InputLevel value)?  inputLevel,TResult Function( MediaEvent_SpeakingWhileMuted value)?  speakingWhileMuted,TResult Function( MediaEvent_NoiseSuppressionFellBack value)?  noiseSuppressionFellBack,TResult Function( MediaEvent_HotkeyPressed value)?  hotkeyPressed,TResult Function( MediaEvent_VideoTrackAdded value)?  videoTrackAdded,TResult Function( MediaEvent_VideoTrackRemoved value)?  videoTrackRemoved,TResult Function( MediaEvent_CameraStopped value)?  cameraStopped,TResult Function( MediaEvent_ScreenShareStopped value)?  screenShareStopped,required TResult orElse(),}){
 final _that = this;
 switch (_that) {
 case MediaEvent_ConnectionState() when connectionState != null:
@@ -3495,7 +3861,8 @@ return noiseSuppressionFellBack(_that);case MediaEvent_HotkeyPressed() when hotk
 return hotkeyPressed(_that);case MediaEvent_VideoTrackAdded() when videoTrackAdded != null:
 return videoTrackAdded(_that);case MediaEvent_VideoTrackRemoved() when videoTrackRemoved != null:
 return videoTrackRemoved(_that);case MediaEvent_CameraStopped() when cameraStopped != null:
-return cameraStopped(_that);case _:
+return cameraStopped(_that);case MediaEvent_ScreenShareStopped() when screenShareStopped != null:
+return screenShareStopped(_that);case _:
   return orElse();
 
 }
@@ -3513,7 +3880,7 @@ return cameraStopped(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult map<TResult extends Object?>({required TResult Function( MediaEvent_ConnectionState value)  connectionState,required TResult Function( MediaEvent_DeviceFellBack value)  deviceFellBack,required TResult Function( MediaEvent_DeviceFailed value)  deviceFailed,required TResult Function( MediaEvent_DevicesChanged value)  devicesChanged,required TResult Function( MediaEvent_Speaking value)  speaking,required TResult Function( MediaEvent_InputLevel value)  inputLevel,required TResult Function( MediaEvent_SpeakingWhileMuted value)  speakingWhileMuted,required TResult Function( MediaEvent_NoiseSuppressionFellBack value)  noiseSuppressionFellBack,required TResult Function( MediaEvent_HotkeyPressed value)  hotkeyPressed,required TResult Function( MediaEvent_VideoTrackAdded value)  videoTrackAdded,required TResult Function( MediaEvent_VideoTrackRemoved value)  videoTrackRemoved,required TResult Function( MediaEvent_CameraStopped value)  cameraStopped,}){
+@optionalTypeArgs TResult map<TResult extends Object?>({required TResult Function( MediaEvent_ConnectionState value)  connectionState,required TResult Function( MediaEvent_DeviceFellBack value)  deviceFellBack,required TResult Function( MediaEvent_DeviceFailed value)  deviceFailed,required TResult Function( MediaEvent_DevicesChanged value)  devicesChanged,required TResult Function( MediaEvent_Speaking value)  speaking,required TResult Function( MediaEvent_InputLevel value)  inputLevel,required TResult Function( MediaEvent_SpeakingWhileMuted value)  speakingWhileMuted,required TResult Function( MediaEvent_NoiseSuppressionFellBack value)  noiseSuppressionFellBack,required TResult Function( MediaEvent_HotkeyPressed value)  hotkeyPressed,required TResult Function( MediaEvent_VideoTrackAdded value)  videoTrackAdded,required TResult Function( MediaEvent_VideoTrackRemoved value)  videoTrackRemoved,required TResult Function( MediaEvent_CameraStopped value)  cameraStopped,required TResult Function( MediaEvent_ScreenShareStopped value)  screenShareStopped,}){
 final _that = this;
 switch (_that) {
 case MediaEvent_ConnectionState():
@@ -3528,7 +3895,8 @@ return noiseSuppressionFellBack(_that);case MediaEvent_HotkeyPressed():
 return hotkeyPressed(_that);case MediaEvent_VideoTrackAdded():
 return videoTrackAdded(_that);case MediaEvent_VideoTrackRemoved():
 return videoTrackRemoved(_that);case MediaEvent_CameraStopped():
-return cameraStopped(_that);}
+return cameraStopped(_that);case MediaEvent_ScreenShareStopped():
+return screenShareStopped(_that);}
 }
 /// A variant of `map` that fallback to returning `null`.
 ///
@@ -3542,7 +3910,7 @@ return cameraStopped(_that);}
 /// }
 /// ```
 
-@optionalTypeArgs TResult? mapOrNull<TResult extends Object?>({TResult? Function( MediaEvent_ConnectionState value)?  connectionState,TResult? Function( MediaEvent_DeviceFellBack value)?  deviceFellBack,TResult? Function( MediaEvent_DeviceFailed value)?  deviceFailed,TResult? Function( MediaEvent_DevicesChanged value)?  devicesChanged,TResult? Function( MediaEvent_Speaking value)?  speaking,TResult? Function( MediaEvent_InputLevel value)?  inputLevel,TResult? Function( MediaEvent_SpeakingWhileMuted value)?  speakingWhileMuted,TResult? Function( MediaEvent_NoiseSuppressionFellBack value)?  noiseSuppressionFellBack,TResult? Function( MediaEvent_HotkeyPressed value)?  hotkeyPressed,TResult? Function( MediaEvent_VideoTrackAdded value)?  videoTrackAdded,TResult? Function( MediaEvent_VideoTrackRemoved value)?  videoTrackRemoved,TResult? Function( MediaEvent_CameraStopped value)?  cameraStopped,}){
+@optionalTypeArgs TResult? mapOrNull<TResult extends Object?>({TResult? Function( MediaEvent_ConnectionState value)?  connectionState,TResult? Function( MediaEvent_DeviceFellBack value)?  deviceFellBack,TResult? Function( MediaEvent_DeviceFailed value)?  deviceFailed,TResult? Function( MediaEvent_DevicesChanged value)?  devicesChanged,TResult? Function( MediaEvent_Speaking value)?  speaking,TResult? Function( MediaEvent_InputLevel value)?  inputLevel,TResult? Function( MediaEvent_SpeakingWhileMuted value)?  speakingWhileMuted,TResult? Function( MediaEvent_NoiseSuppressionFellBack value)?  noiseSuppressionFellBack,TResult? Function( MediaEvent_HotkeyPressed value)?  hotkeyPressed,TResult? Function( MediaEvent_VideoTrackAdded value)?  videoTrackAdded,TResult? Function( MediaEvent_VideoTrackRemoved value)?  videoTrackRemoved,TResult? Function( MediaEvent_CameraStopped value)?  cameraStopped,TResult? Function( MediaEvent_ScreenShareStopped value)?  screenShareStopped,}){
 final _that = this;
 switch (_that) {
 case MediaEvent_ConnectionState() when connectionState != null:
@@ -3557,7 +3925,8 @@ return noiseSuppressionFellBack(_that);case MediaEvent_HotkeyPressed() when hotk
 return hotkeyPressed(_that);case MediaEvent_VideoTrackAdded() when videoTrackAdded != null:
 return videoTrackAdded(_that);case MediaEvent_VideoTrackRemoved() when videoTrackRemoved != null:
 return videoTrackRemoved(_that);case MediaEvent_CameraStopped() when cameraStopped != null:
-return cameraStopped(_that);case _:
+return cameraStopped(_that);case MediaEvent_ScreenShareStopped() when screenShareStopped != null:
+return screenShareStopped(_that);case _:
   return null;
 
 }
@@ -3574,7 +3943,7 @@ return cameraStopped(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>({TResult Function( String serverKey,  PlatformInt64 channelId,  VoiceConnectionState state)?  connectionState,TResult Function( bool output,  String device)?  deviceFellBack,TResult Function( bool output,  String message)?  deviceFailed,TResult Function( AudioDevices field0)?  devicesChanged,TResult Function( String serverKey,  PlatformInt64 channelId,  List<SpeakingChange> changes)?  speaking,TResult Function( double dbfs)?  inputLevel,TResult Function()?  speakingWhileMuted,TResult Function()?  noiseSuppressionFellBack,TResult Function( HotkeyAction action)?  hotkeyPressed,TResult Function( String serverKey,  PlatformInt64 channelId,  PlatformInt64 userId,  String trackId,  VideoTrackKind kind,  PlatformInt64? textureId,  int width,  int height)?  videoTrackAdded,TResult Function( String serverKey,  PlatformInt64 channelId,  PlatformInt64 userId,  String trackId)?  videoTrackRemoved,TResult Function( String message)?  cameraStopped,required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>({TResult Function( String serverKey,  PlatformInt64 channelId,  VoiceConnectionState state)?  connectionState,TResult Function( bool output,  String device)?  deviceFellBack,TResult Function( bool output,  String message)?  deviceFailed,TResult Function( AudioDevices field0)?  devicesChanged,TResult Function( String serverKey,  PlatformInt64 channelId,  List<SpeakingChange> changes)?  speaking,TResult Function( double dbfs)?  inputLevel,TResult Function()?  speakingWhileMuted,TResult Function()?  noiseSuppressionFellBack,TResult Function( HotkeyAction action)?  hotkeyPressed,TResult Function( String serverKey,  PlatformInt64 channelId,  PlatformInt64 userId,  String trackId,  VideoTrackKind kind,  PlatformInt64? textureId,  int width,  int height)?  videoTrackAdded,TResult Function( String serverKey,  PlatformInt64 channelId,  PlatformInt64 userId,  String trackId)?  videoTrackRemoved,TResult Function( String message)?  cameraStopped,TResult Function( String message)?  screenShareStopped,required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case MediaEvent_ConnectionState() when connectionState != null:
 return connectionState(_that.serverKey,_that.channelId,_that.state);case MediaEvent_DeviceFellBack() when deviceFellBack != null:
@@ -3588,7 +3957,8 @@ return noiseSuppressionFellBack();case MediaEvent_HotkeyPressed() when hotkeyPre
 return hotkeyPressed(_that.action);case MediaEvent_VideoTrackAdded() when videoTrackAdded != null:
 return videoTrackAdded(_that.serverKey,_that.channelId,_that.userId,_that.trackId,_that.kind,_that.textureId,_that.width,_that.height);case MediaEvent_VideoTrackRemoved() when videoTrackRemoved != null:
 return videoTrackRemoved(_that.serverKey,_that.channelId,_that.userId,_that.trackId);case MediaEvent_CameraStopped() when cameraStopped != null:
-return cameraStopped(_that.message);case _:
+return cameraStopped(_that.message);case MediaEvent_ScreenShareStopped() when screenShareStopped != null:
+return screenShareStopped(_that.message);case _:
   return orElse();
 
 }
@@ -3606,7 +3976,7 @@ return cameraStopped(_that.message);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>({required TResult Function( String serverKey,  PlatformInt64 channelId,  VoiceConnectionState state)  connectionState,required TResult Function( bool output,  String device)  deviceFellBack,required TResult Function( bool output,  String message)  deviceFailed,required TResult Function( AudioDevices field0)  devicesChanged,required TResult Function( String serverKey,  PlatformInt64 channelId,  List<SpeakingChange> changes)  speaking,required TResult Function( double dbfs)  inputLevel,required TResult Function()  speakingWhileMuted,required TResult Function()  noiseSuppressionFellBack,required TResult Function( HotkeyAction action)  hotkeyPressed,required TResult Function( String serverKey,  PlatformInt64 channelId,  PlatformInt64 userId,  String trackId,  VideoTrackKind kind,  PlatformInt64? textureId,  int width,  int height)  videoTrackAdded,required TResult Function( String serverKey,  PlatformInt64 channelId,  PlatformInt64 userId,  String trackId)  videoTrackRemoved,required TResult Function( String message)  cameraStopped,}) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>({required TResult Function( String serverKey,  PlatformInt64 channelId,  VoiceConnectionState state)  connectionState,required TResult Function( bool output,  String device)  deviceFellBack,required TResult Function( bool output,  String message)  deviceFailed,required TResult Function( AudioDevices field0)  devicesChanged,required TResult Function( String serverKey,  PlatformInt64 channelId,  List<SpeakingChange> changes)  speaking,required TResult Function( double dbfs)  inputLevel,required TResult Function()  speakingWhileMuted,required TResult Function()  noiseSuppressionFellBack,required TResult Function( HotkeyAction action)  hotkeyPressed,required TResult Function( String serverKey,  PlatformInt64 channelId,  PlatformInt64 userId,  String trackId,  VideoTrackKind kind,  PlatformInt64? textureId,  int width,  int height)  videoTrackAdded,required TResult Function( String serverKey,  PlatformInt64 channelId,  PlatformInt64 userId,  String trackId)  videoTrackRemoved,required TResult Function( String message)  cameraStopped,required TResult Function( String message)  screenShareStopped,}) {final _that = this;
 switch (_that) {
 case MediaEvent_ConnectionState():
 return connectionState(_that.serverKey,_that.channelId,_that.state);case MediaEvent_DeviceFellBack():
@@ -3620,7 +3990,8 @@ return noiseSuppressionFellBack();case MediaEvent_HotkeyPressed():
 return hotkeyPressed(_that.action);case MediaEvent_VideoTrackAdded():
 return videoTrackAdded(_that.serverKey,_that.channelId,_that.userId,_that.trackId,_that.kind,_that.textureId,_that.width,_that.height);case MediaEvent_VideoTrackRemoved():
 return videoTrackRemoved(_that.serverKey,_that.channelId,_that.userId,_that.trackId);case MediaEvent_CameraStopped():
-return cameraStopped(_that.message);}
+return cameraStopped(_that.message);case MediaEvent_ScreenShareStopped():
+return screenShareStopped(_that.message);}
 }
 /// A variant of `when` that fallback to returning `null`
 ///
@@ -3634,7 +4005,7 @@ return cameraStopped(_that.message);}
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>({TResult? Function( String serverKey,  PlatformInt64 channelId,  VoiceConnectionState state)?  connectionState,TResult? Function( bool output,  String device)?  deviceFellBack,TResult? Function( bool output,  String message)?  deviceFailed,TResult? Function( AudioDevices field0)?  devicesChanged,TResult? Function( String serverKey,  PlatformInt64 channelId,  List<SpeakingChange> changes)?  speaking,TResult? Function( double dbfs)?  inputLevel,TResult? Function()?  speakingWhileMuted,TResult? Function()?  noiseSuppressionFellBack,TResult? Function( HotkeyAction action)?  hotkeyPressed,TResult? Function( String serverKey,  PlatformInt64 channelId,  PlatformInt64 userId,  String trackId,  VideoTrackKind kind,  PlatformInt64? textureId,  int width,  int height)?  videoTrackAdded,TResult? Function( String serverKey,  PlatformInt64 channelId,  PlatformInt64 userId,  String trackId)?  videoTrackRemoved,TResult? Function( String message)?  cameraStopped,}) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>({TResult? Function( String serverKey,  PlatformInt64 channelId,  VoiceConnectionState state)?  connectionState,TResult? Function( bool output,  String device)?  deviceFellBack,TResult? Function( bool output,  String message)?  deviceFailed,TResult? Function( AudioDevices field0)?  devicesChanged,TResult? Function( String serverKey,  PlatformInt64 channelId,  List<SpeakingChange> changes)?  speaking,TResult? Function( double dbfs)?  inputLevel,TResult? Function()?  speakingWhileMuted,TResult? Function()?  noiseSuppressionFellBack,TResult? Function( HotkeyAction action)?  hotkeyPressed,TResult? Function( String serverKey,  PlatformInt64 channelId,  PlatformInt64 userId,  String trackId,  VideoTrackKind kind,  PlatformInt64? textureId,  int width,  int height)?  videoTrackAdded,TResult? Function( String serverKey,  PlatformInt64 channelId,  PlatformInt64 userId,  String trackId)?  videoTrackRemoved,TResult? Function( String message)?  cameraStopped,TResult? Function( String message)?  screenShareStopped,}) {final _that = this;
 switch (_that) {
 case MediaEvent_ConnectionState() when connectionState != null:
 return connectionState(_that.serverKey,_that.channelId,_that.state);case MediaEvent_DeviceFellBack() when deviceFellBack != null:
@@ -3648,7 +4019,8 @@ return noiseSuppressionFellBack();case MediaEvent_HotkeyPressed() when hotkeyPre
 return hotkeyPressed(_that.action);case MediaEvent_VideoTrackAdded() when videoTrackAdded != null:
 return videoTrackAdded(_that.serverKey,_that.channelId,_that.userId,_that.trackId,_that.kind,_that.textureId,_that.width,_that.height);case MediaEvent_VideoTrackRemoved() when videoTrackRemoved != null:
 return videoTrackRemoved(_that.serverKey,_that.channelId,_that.userId,_that.trackId);case MediaEvent_CameraStopped() when cameraStopped != null:
-return cameraStopped(_that.message);case _:
+return cameraStopped(_that.message);case MediaEvent_ScreenShareStopped() when screenShareStopped != null:
+return screenShareStopped(_that.message);case _:
   return null;
 
 }
@@ -4420,6 +4792,72 @@ class _$MediaEvent_CameraStoppedCopyWithImpl<$Res>
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') $Res call({Object? message = null,}) {
   return _then(MediaEvent_CameraStopped(
+message: null == message ? _self.message : message // ignore: cast_nullable_to_non_nullable
+as String,
+  ));
+}
+
+
+}
+
+/// @nodoc
+
+
+class MediaEvent_ScreenShareStopped extends MediaEvent {
+  const MediaEvent_ScreenShareStopped({required this.message}): super._();
+  
+
+ final  String message;
+
+/// Create a copy of MediaEvent
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$MediaEvent_ScreenShareStoppedCopyWith<MediaEvent_ScreenShareStopped> get copyWith => _$MediaEvent_ScreenShareStoppedCopyWithImpl<MediaEvent_ScreenShareStopped>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is MediaEvent_ScreenShareStopped&&(identical(other.message, message) || other.message == message));
+}
+
+
+@override
+int get hashCode => Object.hash(runtimeType,message);
+
+@override
+String toString() {
+  return 'MediaEvent.screenShareStopped(message: $message)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $MediaEvent_ScreenShareStoppedCopyWith<$Res> implements $MediaEventCopyWith<$Res> {
+  factory $MediaEvent_ScreenShareStoppedCopyWith(MediaEvent_ScreenShareStopped value, $Res Function(MediaEvent_ScreenShareStopped) _then) = _$MediaEvent_ScreenShareStoppedCopyWithImpl;
+@useResult
+$Res call({
+ String message
+});
+
+
+
+
+}
+/// @nodoc
+class _$MediaEvent_ScreenShareStoppedCopyWithImpl<$Res>
+    implements $MediaEvent_ScreenShareStoppedCopyWith<$Res> {
+  _$MediaEvent_ScreenShareStoppedCopyWithImpl(this._self, this._then);
+
+  final MediaEvent_ScreenShareStopped _self;
+  final $Res Function(MediaEvent_ScreenShareStopped) _then;
+
+/// Create a copy of MediaEvent
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? message = null,}) {
+  return _then(MediaEvent_ScreenShareStopped(
 message: null == message ? _self.message : message // ignore: cast_nullable_to_non_nullable
 as String,
   ));

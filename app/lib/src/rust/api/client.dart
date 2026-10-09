@@ -403,6 +403,28 @@ Future<CameraStarted> cameraStart({String? deviceId}) =>
 
 void cameraStop() => RustLib.instance.api.crateApiClientCameraStop();
 
+/// Goes live in this device's voice channel (Phase 2 plan §9): on Linux the
+/// system picker chooses a screen or a window first. Sharing again while
+/// live changes the source and keeps the viewers.
+Future<ScreenShareStarted> screenShareStart({
+  required ScreenShareRequest request,
+}) => RustLib.instance.api.crateApiClientScreenShareStart(request: request);
+
+/// A new quality for the screen share, within the server's maximum.
+Future<void> screenShareUpdate({required ScreenShareRequest request}) =>
+    RustLib.instance.api.crateApiClientScreenShareUpdate(request: request);
+
+Future<void> screenShareStop() =>
+    RustLib.instance.api.crateApiClientScreenShareStop();
+
+/// Starts watching a stream in this device's voice channel; its video then
+/// comes on its screen track, like any other (`video_set_wants`).
+Future<void> streamWatch({required String streamKey}) =>
+    RustLib.instance.api.crateApiClientStreamWatch(streamKey: streamKey);
+
+Future<void> streamUnwatch({required String streamKey}) =>
+    RustLib.instance.api.crateApiClientStreamUnwatch(streamKey: streamKey);
+
 /// The tiles showing video now, at their sizes in physical pixels; tracks
 /// not named are neither received nor decoded (plan §6, §7.11).
 void videoSetWants({required List<VideoWant> wants}) =>

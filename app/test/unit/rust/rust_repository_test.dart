@@ -49,6 +49,7 @@ core.ReadySnapshot _ready({
 }) => core.ReadySnapshot(
   voiceEnabled: true,
   voiceStates: voice,
+  streams: const [],
   voiceSettings: coreVoiceSettings,
   selfUser: const core.User(
     id: _self,

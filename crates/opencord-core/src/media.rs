@@ -646,8 +646,10 @@ impl SessionTask {
                         if let Some((_, handle)) = connecting.take() {
                             handle.abort();
                         }
-                        // Leaving voice turns the camera off.
+                        // Leaving voice turns the camera off, and ends the
+                        // screen share (the server ends its stream).
                         self.video.stop_camera();
+                        self.video.stop_screen();
                         self.video.disconnected();
                         return;
                     }
@@ -731,8 +733,11 @@ impl SessionTask {
                         | VoiceEvent::Resumed
                         | VoiceEvent::UplinkEstimate(_) => {}
                         VoiceEvent::TrackStopped { .. } => {
+                            let camera_on = self.video.camera_on();
                             self.video.on_event(&event);
-                            self.client.set_voice_video(false);
+                            if camera_on && !self.video.camera_on() {
+                                self.client.set_voice_video(false);
+                            }
                         }
                         video => {
                             self.video.on_event(&video);
@@ -777,6 +782,12 @@ impl SessionTask {
                     }
                 },
                 _ = camera_check.tick() => {
+                    if let Some((server_key, stream_key)) = self.video.screen_ended() {
+                        let client = self.client.clone();
+                        tokio::spawn(async move {
+                            client.delete_stream(&server_key, &stream_key).await;
+                        });
+                    }
                     if self.video.camera_ended() {
                         self.video.stop_camera();
                         self.client.set_voice_video(false);

@@ -19,8 +19,9 @@ use crate::api::types::{
     AddServerOutcome, AudioSettings, Ban, CameraStarted, Channel, ChannelChanges, ChannelKind,
     ChannelPosition, CoreError, CoreEvent, CoreEventPayload, ErrorCode, HotkeyBinding,
     HotkeySupport, IdentityInfo, Invite, MediaEvent, Member, Message, OverwriteTargetKind,
-    PermissionOverwrite, PresenceStatus, Role, RoleChanges, Server, ServerChanges, ServerInfo,
-    User, VideoWant, VoiceSettings, VoiceSettingsChanges, VoiceState,
+    PermissionOverwrite, PresenceStatus, Role, RoleChanges, ScreenProblem, ScreenShareRequest,
+    ScreenShareStarted, Server, ServerChanges, ServerInfo, User, VideoWant, VoiceSettings,
+    VoiceSettingsChanges, VoiceState,
 };
 use crate::connection::{
     self, Command, Connection, Context, Credentials, Established, HandshakeError,
@@ -79,6 +80,9 @@ struct Voice {
     suppress: bool,
     /// The user's id on each server, from its last `Ready`.
     self_ids: HashMap<String, i64>,
+    /// The portal's token for the last screen shared, so sharing it again
+    /// can skip the picker.
+    screen_restore_token: Option<String>,
 }
 
 impl Voice {
@@ -904,6 +908,126 @@ impl Client {
         self.set_voice_video(false);
     }
 
+    /// Goes live: picks the source, creates the stream on the server, then
+    /// publishes and sends the screen. Live already, it changes the source
+    /// and keeps the stream and its viewers.
+    #[cfg(target_os = "linux")]
+    pub async fn screen_share_start(
+        &self,
+        request: ScreenShareRequest,
+    ) -> Result<ScreenShareStarted, CoreError> {
+        use crate::video::screen;
+
+        let media = self.inner.media.get().ok_or(CoreError::NotInitialized)?;
+        let not_in_voice =
+            || screen::screen_error(ScreenProblem::NotInVoice, "not in a voice channel");
+        let (server_key, channel_id) = self.lock_voice().target.clone().ok_or_else(not_in_voice)?;
+        let token = self.lock_voice().screen_restore_token.clone();
+        let pending = screen::pick(request.fps, token).await?;
+        if pending.restore_token.is_some() {
+            self.lock_voice().screen_restore_token = pending.restore_token.clone();
+        }
+        let create = Request::CreateStream(proto::CreateStream {
+            channel_id,
+            source_kind: convert::stream_source_kind_to_proto(pending.kind) as i32,
+            resolution: convert::screen_share_resolution_to_proto(request.resolution) as i32,
+            fps: request.fps,
+            has_audio: request.has_audio,
+        });
+        let stream_key = match self.request(&server_key, create).await {
+            Ok(Response::Stream(stream)) => stream.stream_key,
+            Ok(other) => {
+                drop_pending(pending);
+                return Err(unexpected(&other));
+            }
+            Err(error) => {
+                drop_pending(pending);
+                return Err(error);
+            }
+        };
+        let started = media
+            .video()
+            .publish_screen(pending, server_key.clone(), stream_key.clone(), request)
+            .await;
+        if started.is_err() {
+            self.delete_stream(&server_key, &stream_key).await;
+        }
+        started
+    }
+
+    #[cfg(not(target_os = "linux"))]
+    pub async fn screen_share_start(
+        &self,
+        request: ScreenShareRequest,
+    ) -> Result<ScreenShareStarted, CoreError> {
+        let _ = request;
+        Err(crate::video::screen_unsupported())
+    }
+
+    /// A new quality: the server checks it against its maximum first.
+    pub async fn screen_share_update(&self, request: ScreenShareRequest) -> Result<(), CoreError> {
+        let media = self.inner.media.get().ok_or(CoreError::NotInitialized)?;
+        let Some((server_key, stream_key)) = media.video().screen_share() else {
+            return Err(CoreError::InvalidInput {
+                message: "not sharing a screen".to_owned(),
+            });
+        };
+        let update = Request::UpdateStream(proto::UpdateStream {
+            stream_key,
+            resolution: Some(convert::screen_share_resolution_to_proto(request.resolution) as i32),
+            fps: Some(request.fps),
+            has_audio: Some(request.has_audio),
+        });
+        match self.request(&server_key, update).await? {
+            Response::Stream(_) => {}
+            other => return Err(unexpected(&other)),
+        }
+        #[cfg(target_os = "linux")]
+        {
+            media.video().reshape_screen(request).await
+        }
+        #[cfg(not(target_os = "linux"))]
+        Ok(())
+    }
+
+    pub async fn screen_share_stop(&self) -> Result<(), CoreError> {
+        let media = self.inner.media.get().ok_or(CoreError::NotInitialized)?;
+        if let Some((server_key, stream_key)) = media.video().stop_screen() {
+            self.delete_stream(&server_key, &stream_key).await;
+        }
+        Ok(())
+    }
+
+    /// Ends a stream on the server; one already gone is fine.
+    pub async fn delete_stream(&self, server_key: &str, stream_key: &str) {
+        let request = Request::DeleteStream(proto::DeleteStream {
+            stream_key: stream_key.to_owned(),
+        });
+        if let Err(error) = self.request(server_key, request).await {
+            tracing::debug!(%error, "the stream could not be ended on the server");
+        }
+    }
+
+    /// Starts or stops watching a stream in this device's voice channel.
+    pub async fn stream_watch(&self, stream_key: &str, watching: bool) -> Result<(), CoreError> {
+        let Some((server_key, _)) = self.lock_voice().target.clone() else {
+            return Err(CoreError::Server {
+                code: ErrorCode::VoiceNotConnected,
+                message: "not in a voice channel".to_owned(),
+                retry_after_ms: None,
+            });
+        };
+        let stream_key = stream_key.to_owned();
+        let request = match watching {
+            true => Request::WatchStream(proto::WatchStream { stream_key }),
+            false => Request::UnwatchStream(proto::UnwatchStream { stream_key }),
+        };
+        match self.request(&server_key, request).await? {
+            Response::Ack(_) => Ok(()),
+            other => Err(unexpected(&other)),
+        }
+    }
+
     /// The tiles the app shows video in, and their sizes.
     pub fn video_set_wants(&self, wants: Vec<VideoWant>) {
         if let Some(media) = self.inner.media.get() {
@@ -1018,6 +1142,11 @@ impl Client {
                     }
                 }
                 self.sync_media();
+            }
+            CoreEventPayload::StreamDelete { stream_key, .. } => {
+                if let Some(media) = self.inner.media.get() {
+                    media.video().screen_ended_by_server(stream_key);
+                }
             }
             _ => {}
         }
@@ -1245,6 +1374,13 @@ fn expect_member(response: Response) -> Result<Member, CoreError> {
         Response::Member(member) => Ok(convert::member(member)),
         other => Err(unexpected(&other)),
     }
+}
+
+/// A picked screen that will not go live: its capture stops off the async
+/// runtime.
+#[cfg(target_os = "linux")]
+fn drop_pending(pending: crate::video::screen::Pending) {
+    std::thread::spawn(move || drop(pending));
 }
 
 fn unexpected(response: &Response) -> CoreError {

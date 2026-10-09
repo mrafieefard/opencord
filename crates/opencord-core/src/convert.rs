@@ -5,8 +5,8 @@ use opencord_proto::v1 as proto;
 use crate::api::types::{
     Ban, Channel, ChannelKind, ChannelPermissions, CoreError, CoreEventPayload, ErrorCode, Invite,
     Member, Message, OverwriteTargetKind, PermissionOverwrite, Presence, PresenceStatus,
-    ReadySnapshot, Role, ScreenShareResolution, ServerInfo, User, VoiceSettings,
-    VoiceSettingsChanges, VoiceState,
+    ReadySnapshot, Role, ScreenShareResolution, ScreenStream, ServerInfo, StreamSourceKind, User,
+    VoiceSettings, VoiceSettingsChanges, VoiceState,
 };
 use crate::identity::public_key_fingerprint;
 
@@ -126,6 +126,29 @@ pub fn screen_share_resolution(value: i32) -> ScreenShareResolution {
         }
         Ok(proto::ScreenShareResolution::Source) => ScreenShareResolution::Source,
         _ => ScreenShareResolution::P720,
+    }
+}
+
+pub fn stream(stream: proto::Stream) -> ScreenStream {
+    ScreenStream {
+        stream_key: stream.stream_key,
+        channel_id: stream.channel_id,
+        user_id: stream.user_id,
+        source_kind: match proto::StreamSourceKind::try_from(stream.source_kind) {
+            Ok(proto::StreamSourceKind::Window) => StreamSourceKind::Window,
+            _ => StreamSourceKind::Screen,
+        },
+        resolution: screen_share_resolution(stream.resolution),
+        fps: stream.fps,
+        has_audio: stream.has_audio,
+        viewer_count: stream.viewer_count,
+    }
+}
+
+pub fn stream_source_kind_to_proto(kind: StreamSourceKind) -> proto::StreamSourceKind {
+    match kind {
+        StreamSourceKind::Screen => proto::StreamSourceKind::Screen,
+        StreamSourceKind::Window => proto::StreamSourceKind::Window,
     }
 }
 
@@ -279,6 +302,7 @@ pub fn ready(ready: proto::Ready) -> ReadySnapshot {
             .into_iter()
             .map(|state| voice_state(state, &session_id))
             .collect(),
+        streams: ready.streams.into_iter().map(stream).collect(),
         voice_settings: voice_settings(ready.voice_settings.unwrap_or_default()),
     }
 }
@@ -323,12 +347,18 @@ pub fn event(kind: proto::event::Kind, session_id: &str) -> Option<CoreEventPayl
         }
         // The media engine's business (V1 onward), not the app's.
         Kind::VoiceServerUpdate(_) => return None,
-        // Screen share and soundboard events arrive with their milestones.
-        Kind::StreamCreate(_)
-        | Kind::StreamUpdate(_)
-        | Kind::StreamDelete(_)
-        | Kind::StreamViewersUpdate(_)
-        | Kind::VoiceChannelEffect(_)
+        Kind::StreamCreate(event) => CoreEventPayload::StreamCreate(stream(event.stream?)),
+        Kind::StreamUpdate(event) => CoreEventPayload::StreamUpdate(stream(event.stream?)),
+        Kind::StreamDelete(event) => CoreEventPayload::StreamDelete {
+            stream_key: event.stream_key,
+            channel_id: event.channel_id,
+        },
+        Kind::StreamViewersUpdate(event) => CoreEventPayload::StreamViewersUpdate {
+            stream_key: event.stream_key,
+            viewer_ids: event.viewer_ids,
+        },
+        // Soundboard events arrive with their milestone.
+        Kind::VoiceChannelEffect(_)
         | Kind::SoundboardSoundCreate(_)
         | Kind::SoundboardSoundUpdate(_)
         | Kind::SoundboardSoundDelete(_) => return None,
@@ -406,6 +436,56 @@ mod tests {
             }
         );
         assert!(!elsewhere.this_device);
+    }
+
+    #[test]
+    fn streams_reach_the_app_from_ready_and_events() {
+        let live = proto::Stream {
+            stream_key: "stream:5:8".to_owned(),
+            channel_id: 5,
+            user_id: 8,
+            source_kind: proto::StreamSourceKind::Window as i32,
+            resolution: proto::ScreenShareResolution::ScreenShareResolution1080p as i32,
+            fps: 60,
+            has_audio: true,
+            viewer_count: 2,
+        };
+        let expected = ScreenStream {
+            stream_key: "stream:5:8".to_owned(),
+            channel_id: 5,
+            user_id: 8,
+            source_kind: StreamSourceKind::Window,
+            resolution: ScreenShareResolution::P1080,
+            fps: 60,
+            has_audio: true,
+            viewer_count: 2,
+        };
+
+        let snapshot = super::ready(proto::Ready {
+            streams: vec![live.clone()],
+            ..Default::default()
+        });
+        let created = super::event(
+            proto::event::Kind::StreamCreate(proto::StreamCreate { stream: Some(live) }),
+            "mine",
+        );
+        let viewers = super::event(
+            proto::event::Kind::StreamViewersUpdate(proto::StreamViewersUpdate {
+                stream_key: "stream:5:8".to_owned(),
+                viewer_ids: vec![3, 4],
+            }),
+            "mine",
+        );
+
+        assert_eq!(snapshot.streams, std::slice::from_ref(&expected));
+        assert_eq!(created, Some(CoreEventPayload::StreamCreate(expected)));
+        assert_eq!(
+            viewers,
+            Some(CoreEventPayload::StreamViewersUpdate {
+                stream_key: "stream:5:8".to_owned(),
+                viewer_ids: vec![3, 4],
+            })
+        );
     }
 
     #[test]

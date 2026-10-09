@@ -34,6 +34,12 @@ enum Command {
         size_scale: f32,
     },
     Keyframe(u8),
+    /// A screen's new quality: a new track, its layers and its shape.
+    Reshape {
+        track_id: String,
+        layers: Vec<Layer>,
+        shape: ScreenShape,
+    },
 }
 
 /// A track's encoding thread; stops when dropped or when its frames end.
@@ -94,6 +100,16 @@ impl VideoSender {
             bitrates: bitrates.to_vec(),
             fps_scale,
             size_scale,
+        });
+    }
+
+    /// A screen's quality changed: from the next picture on, its pictures
+    /// go out as `track_id` in `layers`, each starting with a keyframe.
+    pub fn reshape(&self, track_id: String, layers: Vec<Layer>, shape: ScreenShape) {
+        let _ = self.commands.send(Command::Reshape {
+            track_id,
+            layers,
+            shape,
         });
     }
 
@@ -158,17 +174,7 @@ impl<S: FnMut(VideoFrame), P: FnMut(&Picture)> Sending<S, P> {
             scales: (1.0, 1.0),
             last: None,
             track_id,
-            layers: layers
-                .into_iter()
-                .map(|layer| LayerState {
-                    bitrate: layer.max_bitrate,
-                    layer,
-                    active: true,
-                    encoder: None,
-                    keyframe_due: true,
-                    next_at: None,
-                })
-                .collect(),
+            layers: layer_states(layers),
             decoder: RawDecoder::new(),
             scaler: Scaler::new(),
             send,
@@ -256,6 +262,16 @@ impl<S: FnMut(VideoFrame), P: FnMut(&Picture)> Sending<S, P> {
                 if let Some(state) = self.layers.get_mut(usize::from(layer)) {
                     state.keyframe_due = true;
                 }
+            }
+            Command::Reshape {
+                track_id,
+                layers,
+                shape,
+            } => {
+                self.track_id = track_id;
+                self.layers = layer_states(layers);
+                self.screen = Some(shape);
+                self.scales = (1.0, 1.0);
             }
         }
     }
@@ -352,6 +368,21 @@ impl<S: FnMut(VideoFrame), P: FnMut(&Picture)> Sending<S, P> {
             self.last = Some((picture, Instant::now()));
         }
     }
+}
+
+/// Fresh layers: every one on at its maximum, a keyframe first.
+fn layer_states(layers: Vec<Layer>) -> Vec<LayerState> {
+    layers
+        .into_iter()
+        .map(|layer| LayerState {
+            bitrate: layer.max_bitrate,
+            layer,
+            active: true,
+            encoder: None,
+            keyframe_due: true,
+            next_at: None,
+        })
+        .collect()
 }
 
 /// What a layer encodes from a camera picture.
@@ -764,5 +795,28 @@ mod tests {
             "{} pictures in 1 s",
             main.len()
         );
+    }
+
+    #[test]
+    fn a_reshaped_screen_goes_out_as_its_new_track_and_layers() {
+        let (sender, frames, received) = started_screen();
+        feed_sized(&frames, 0, 5, (1280, 720));
+        drain(&received);
+        let p480 = ScreenShape {
+            max_pixels: 854 * 480,
+            fps: 15,
+        };
+
+        sender.reshape("screen-2".to_owned(), screen_layers(1280, 720, p480), p480);
+        feed_sized(&frames, 5, 30, (1280, 720));
+        let sent = drain(&received);
+
+        assert!(sent.iter().all(|frame| frame.track_id == "screen-2"));
+        let first = &sent[0];
+        assert_eq!(
+            (first.layer, first.width, first.height, first.keyframe),
+            (0, 852, 480, true)
+        );
+        assert!((13..=17).contains(&sent.len()), "{} at 15 fps", sent.len());
     }
 }

@@ -13,6 +13,8 @@ use crate::api::types::{CameraProblem, CoreError, MediaEvent, VideoTrackKind, Vi
 
 #[cfg(target_os = "linux")]
 pub mod flutter;
+#[cfg(target_os = "linux")]
+pub(crate) mod screen;
 
 /// Where a track's pictures are drawn: one of the app's textures.
 pub trait FrameSink: Send + Sync {
@@ -46,6 +48,8 @@ struct Hub {
     wants: HashMap<String, (u32, u32)>,
     #[cfg(target_os = "linux")]
     camera: Option<camera::Camera>,
+    #[cfg(target_os = "linux")]
+    screen: Option<screen::Share>,
 }
 
 struct Remote {
@@ -88,13 +92,20 @@ impl Video {
         let mut hub = lock(&self.hub);
         hub.place = Some((server_key.to_owned(), channel_id));
         #[cfg(target_os = "linux")]
-        if let Some(camera) = &hub.camera {
-            let request = camera.request.clone();
-            self.runtime.spawn(async move {
-                if let Err(error) = connection.publish_track(request).await {
-                    tracing::warn!(%error, "the camera could not be published again");
-                }
-            });
+        {
+            let requests = hub
+                .camera
+                .iter()
+                .map(|camera| camera.request.clone())
+                .chain(hub.screen.iter().map(|share| share.request.clone()));
+            for request in requests {
+                let connection = Arc::clone(&connection);
+                self.runtime.spawn(async move {
+                    if let Err(error) = connection.publish_track(request).await {
+                        tracing::warn!(%error, "a track could not be published again");
+                    }
+                });
+            }
         }
     }
 
@@ -165,7 +176,20 @@ impl Video {
                 #[cfg(not(target_os = "linux"))]
                 let _ = (track_id, layer);
             }
-            VoiceEvent::TrackStopped { message, .. } => {
+            VoiceEvent::TrackStopped {
+                track_id, message, ..
+            } => {
+                #[cfg(target_os = "linux")]
+                if let Some(share) = lock(&self.hub)
+                    .screen
+                    .as_mut()
+                    .filter(|share| share.request.track_id == *track_id)
+                {
+                    // The periodic check ends it, on the server too.
+                    share.stopped = true;
+                    return true;
+                }
+                let _ = track_id;
                 if self.stop_camera() {
                     let _ = self.events.send(MediaEvent::CameraStopped {
                         message: message.clone(),
@@ -241,6 +265,11 @@ impl Video {
             let size = hub.wants.get(&camera.request.track_id).copied();
             *lock(&camera.preview_size) = size.unwrap_or_default();
         }
+        #[cfg(target_os = "linux")]
+        if let Some(share) = &hub.screen {
+            let size = hub.wants.get(&share.request.track_id).copied();
+            *lock(&share.preview_size) = size.unwrap_or_default();
+        }
         self.apply_wants(&mut hub);
     }
 
@@ -305,6 +334,95 @@ impl Video {
         false
     }
 
+    /// Publishes a picked screen and sends it, replacing any other share.
+    #[cfg(target_os = "linux")]
+    pub(crate) async fn publish_screen(
+        &self,
+        pending: screen::Pending,
+        server_key: String,
+        stream_key: String,
+        request: crate::api::types::ScreenShareRequest,
+    ) -> Result<crate::api::types::ScreenShareStarted, CoreError> {
+        screen::publish(self, pending, server_key, stream_key, request).await
+    }
+
+    /// A new quality for the screen share.
+    #[cfg(target_os = "linux")]
+    pub(crate) async fn reshape_screen(
+        &self,
+        request: crate::api::types::ScreenShareRequest,
+    ) -> Result<(), CoreError> {
+        screen::reshape(self, request).await
+    }
+
+    /// Ends the screen share here; its server and stream key, if it was on.
+    pub fn stop_screen(&self) -> Option<(String, String)> {
+        #[cfg(target_os = "linux")]
+        {
+            let share = lock(&self.hub).screen.take()?;
+            if let Some(connection) = lock(&self.outlet).as_ref() {
+                connection.unpublish_track(&share.request.track_id);
+            }
+            let keys = (share.server_key.clone(), share.stream_key.clone());
+            screen::drop_later(share);
+            Some(keys)
+        }
+        #[cfg(not(target_os = "linux"))]
+        None
+    }
+
+    /// The live screen share's server and stream key.
+    pub fn screen_share(&self) -> Option<(String, String)> {
+        #[cfg(target_os = "linux")]
+        {
+            lock(&self.hub)
+                .screen
+                .as_ref()
+                .map(|share| (share.server_key.clone(), share.stream_key.clone()))
+        }
+        #[cfg(not(target_os = "linux"))]
+        None
+    }
+
+    /// A screen share that ended by itself (its window closed, its screen
+    /// went, the node stopped it) is stopped here and reported; returns its
+    /// server and stream key, for the server.
+    pub fn screen_ended(&self) -> Option<(String, String)> {
+        #[cfg(target_os = "linux")]
+        {
+            let message = lock(&self.hub).screen.as_ref().and_then(screen::ended)?;
+            let keys = self.stop_screen()?;
+            let _ = self.events.send(MediaEvent::ScreenShareStopped {
+                message: message.to_owned(),
+            });
+            Some(keys)
+        }
+        #[cfg(not(target_os = "linux"))]
+        None
+    }
+
+    /// The server ended this device's stream (a permission or the server's
+    /// maximum changed): stop sharing here too, and say so.
+    pub fn screen_ended_by_server(&self, stream_key: &str) {
+        let ours = self
+            .screen_share()
+            .is_some_and(|(_, key)| key == stream_key);
+        if ours && self.stop_screen().is_some() {
+            let _ = self.events.send(MediaEvent::ScreenShareStopped {
+                message: "The server ended the screen share".to_owned(),
+            });
+        }
+    }
+
+    pub fn camera_on(&self) -> bool {
+        #[cfg(target_os = "linux")]
+        {
+            lock(&self.hub).camera.is_some()
+        }
+        #[cfg(not(target_os = "linux"))]
+        false
+    }
+
     /// Whether the camera is on but has stopped by itself (unplugged).
     pub fn camera_ended(&self) -> bool {
         #[cfg(target_os = "linux")]
@@ -335,6 +453,15 @@ impl Video {
                 "cameras need Linux for now",
             ))
         }
+    }
+}
+
+/// Screen sharing needs Linux for now.
+#[cfg(not(target_os = "linux"))]
+pub(crate) fn screen_unsupported() -> CoreError {
+    CoreError::Screen {
+        problem: crate::api::types::ScreenProblem::NotSupported,
+        message: "screen sharing needs Linux for now".to_owned(),
     }
 }
 
@@ -470,7 +597,7 @@ mod camera {
 
     /// Draws each camera picture into the preview at the size its tile
     /// asked for.
-    fn preview_drawer(
+    pub(super) fn preview_drawer(
         preview: Option<Arc<dyn FrameSink>>,
         size: Arc<Mutex<(u32, u32)>>,
     ) -> impl FnMut(&opencord_media::video::picture::Picture) + Send + 'static {

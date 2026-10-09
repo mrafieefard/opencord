@@ -163,6 +163,7 @@ void main() {
       core.ReadySnapshot(
         voiceEnabled: true,
         voiceStates: const [],
+        streams: const [],
         voiceSettings: coreVoiceSettings,
         selfUser: _user,
         server: const core.ServerInfo(
