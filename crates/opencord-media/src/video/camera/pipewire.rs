@@ -29,7 +29,7 @@ use super::{CameraError, CameraInfo, RawFormat, RawFrame, pack};
 /// Camera ids from PipeWire start with this, then the node's name.
 pub(super) const ID_PREFIX: &str = "pipewire:";
 /// The most a question to PipeWire may take.
-pub(super) const ROUNDTRIP: Duration = Duration::from_secs(5);
+pub(crate) const ROUNDTRIP: Duration = Duration::from_secs(5);
 
 /// Where cameras are found.
 pub enum Remote {
@@ -467,7 +467,7 @@ pub(super) fn format_pod(mode: Mode) -> Vec<u8> {
     })
 }
 
-pub(super) fn serialize(object: Object) -> Vec<u8> {
+pub(crate) fn serialize(object: Object) -> Vec<u8> {
     PodSerializer::serialize(Cursor::new(Vec::new()), &Value::Object(object))
         .map(|(cursor, _)| cursor.into_inner())
         .unwrap_or_default()

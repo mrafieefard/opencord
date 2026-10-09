@@ -17,7 +17,7 @@ opencord-voice = { path = "crates/opencord-voice" }
 
 aec3 = "0.4.0"
 anyhow = "1.0.104"
-ashpd = { version = "0.13.13", default-features = false, features = ["tokio", "camera", "global_shortcuts"] }
+ashpd = { version = "0.13.13", default-features = false, features = ["tokio", "camera", "global_shortcuts", "screencast"] }
 audio_thread_priority = "0.38.0"
 audioadapter-buffers = "5.2.0"
 axum = { version = "0.8.9", features = ["ws"] }
