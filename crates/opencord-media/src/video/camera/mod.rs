@@ -60,13 +60,11 @@ pub struct RawFrame {
 /// A refusal is final.
 #[cfg(target_os = "linux")]
 pub async fn cameras() -> Result<Vec<CameraInfo>, CameraError> {
-    match pipewire::portal_remote().await {
+    match pipewire_remote().await {
         Ok(remote) => {
-            let listed = tokio::task::spawn_blocking(move || {
-                pipewire::cameras(pipewire::Remote::Portal(remote))
-            })
-            .await
-            .map_err(|error| CameraError::Failed(error.to_string()))??;
+            let listed = tokio::task::spawn_blocking(move || pipewire::cameras(remote))
+                .await
+                .map_err(|error| CameraError::Failed(error.to_string()))??;
             if listed.is_empty() {
                 return Ok(v4l2_cameras().await);
             }
@@ -78,6 +76,20 @@ pub async fn cameras() -> Result<Vec<CameraInfo>, CameraError> {
             Ok(v4l2_cameras().await)
         }
     }
+}
+
+/// Where PipeWire's cameras are: the Camera portal, which may ask the user
+/// for access; or, with `OPENCORD_CAMERA_PORTAL=0`, the PipeWire session
+/// itself, as an unsandboxed app may reach it — for checks that run with
+/// nobody to answer the portal.
+#[cfg(target_os = "linux")]
+async fn pipewire_remote() -> Result<pipewire::Remote, CameraError> {
+    if std::env::var_os("OPENCORD_CAMERA_PORTAL").is_some_and(|value| value == "0") {
+        return Ok(pipewire::Remote::Session);
+    }
+    pipewire::portal_remote()
+        .await
+        .map(pipewire::Remote::Portal)
 }
 
 #[cfg(target_os = "linux")]
@@ -112,7 +124,7 @@ impl Capture {
         let remote = if v4l2 {
             None
         } else {
-            match pipewire::portal_remote().await {
+            match pipewire_remote().await {
                 Ok(remote) => Some(remote),
                 Err(CameraError::Denied) => return Err(CameraError::Denied),
                 Err(error) if camera.is_some() => return Err(error),
@@ -123,12 +135,9 @@ impl Capture {
             }
         };
         tokio::task::spawn_blocking(move || match remote {
-            Some(remote) => pipewire::Capture::start(
-                pipewire::Remote::Portal(remote),
-                camera.as_deref(),
-                frames,
-            )
-            .map(Self::PipeWire),
+            Some(remote) => {
+                pipewire::Capture::start(remote, camera.as_deref(), frames).map(Self::PipeWire)
+            }
             None => v4l2::Capture::start(camera.as_deref(), frames).map(Self::V4l2),
         })
         .await

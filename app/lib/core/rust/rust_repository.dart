@@ -109,6 +109,9 @@ class RustRepository implements OpencordRepository {
   /// Whether this device's camera is on.
   var _cameraOn = false;
 
+  /// The camera to turn on; `null` for the system's first.
+  String? _cameraDevice;
+
   @override
   Stream<RepoEvent> get events => _events.stream;
 
@@ -1105,7 +1108,7 @@ class RustRepository implements OpencordRepository {
       _cameraOff();
       return;
     }
-    final started = await _call(() => _core.cameraStart(null));
+    final started = await _call(() => _core.cameraStart(_cameraDevice));
     _cameraOn = true;
     _emit(
       OwnCameraChanged(
@@ -1119,6 +1122,9 @@ class RustRepository implements OpencordRepository {
       ),
     );
   }
+
+  @override
+  void chooseCamera(String? deviceId) => _cameraDevice = deviceId;
 
   @override
   void setVideoWants(List<VideoWant> wants) => _now(

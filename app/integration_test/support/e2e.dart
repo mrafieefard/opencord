@@ -24,8 +24,17 @@ Future<void> waitFor(
     if (finder.evaluate().isNotEmpty) return;
     await Future<void>.delayed(const Duration(milliseconds: 100));
   }
-  throw TestFailure('Timed out waiting for $finder');
+  throw TestFailure('Timed out waiting for $finder; on screen: ${_texts()}');
 }
+
+/// The text on screen, to say what was there instead.
+String _texts() => find
+    .byType(Text)
+    .evaluate()
+    .map((element) => (element.widget as Text).data)
+    .nonNulls
+    .take(40)
+    .join(' | ');
 
 /// Pumps until [condition] holds.
 Future<void> waitUntil(

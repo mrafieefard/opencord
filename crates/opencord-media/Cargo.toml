@@ -59,3 +59,7 @@ required-features = ["testing"]
 [[example]]
 name = "codec_costs"
 required-features = ["testing"]
+
+[[example]]
+name = "virtual_camera"
+required-features = ["testing"]

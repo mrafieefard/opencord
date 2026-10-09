@@ -982,6 +982,21 @@ void main() {
       ]);
     });
 
+    test('the camera chosen is the one turned on', () async {
+      final harness = await _Harness.start();
+
+      harness.repository.chooseCamera('pipewire:usb-camera');
+      await harness.repository.setVoiceSelf(camera: true);
+      await harness.repository.setVoiceSelf(camera: false);
+      harness.repository.chooseCamera(null);
+      await harness.repository.setVoiceSelf(camera: true);
+
+      expect(
+        harness.core.calls.where((call) => call.startsWith('cameraStart')),
+        ['cameraStart:pipewire:usb-camera', 'cameraStart:null'],
+      );
+    });
+
     test('a camera that stops by itself is reported', () async {
       final harness = await _Harness.start();
       await harness.repository.setVoiceSelf(camera: true);

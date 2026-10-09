@@ -11,7 +11,7 @@ use std::time::{Duration, Instant};
 
 use anyhow::{Context as _, anyhow, bail};
 use opencord_core::api::types::{
-    AddServerOutcome, ChannelKind, CoreEvent, CoreEventPayload, ReadySnapshot,
+    AddServerOutcome, ChannelKind, CoreError, CoreEvent, CoreEventPayload, ErrorCode, ReadySnapshot,
 };
 use opencord_core::client::Client;
 use opencord_core::identity::Identity;
@@ -31,6 +31,11 @@ pub const FRAME_SAMPLES: usize = 960;
 const FRAME: Duration = Duration::from_millis(20);
 const WAIT: Duration = Duration::from_secs(15);
 /// How often an idle test pattern looks again for layers to send.
+/// How long the bot keeps trying when the server says to slow down or
+/// cannot be reached: bots started together from one address meet its
+/// per-address limits (5 identifies a minute).
+const RETRY_FOR: Duration = Duration::from_secs(120);
+const RETRY_EVERY: Duration = Duration::from_secs(3);
 const PATTERN_IDLE: Duration = Duration::from_millis(50);
 
 /// The bot's camera: 180p at 15 fps, 360p and 720p at 30, each at its
@@ -59,6 +64,34 @@ pub struct Voicebot {
     _data: tempfile::TempDir,
 }
 
+/// `attempt`'s result, trying again while it fails for a while only:
+/// trouble connecting, or the server asking to slow down.
+async fn retrying<T, F>(mut attempt: impl FnMut() -> F) -> Result<T, CoreError>
+where
+    F: Future<Output = Result<T, CoreError>>,
+{
+    let started = Instant::now();
+    loop {
+        let error = match attempt().await {
+            Err(error) => error,
+            done => return done,
+        };
+        let wait = match &error {
+            CoreError::Connection { .. } => RETRY_EVERY,
+            CoreError::Server {
+                code: ErrorCode::RateLimited,
+                retry_after_ms,
+                ..
+            } => retry_after_ms.map_or(RETRY_EVERY, |ms| Duration::from_millis(u64::from(ms))),
+            _ => return Err(error),
+        };
+        if started.elapsed() + wait > RETRY_FOR {
+            return Err(error);
+        }
+        tokio::time::sleep(wait).await;
+    }
+}
+
 impl Voicebot {
     /// Adds the server (an invite link or `host:port`), trusting its
     /// certificate on first use, and waits for Ready.
@@ -70,14 +103,15 @@ impl Voicebot {
         let data = tempfile::tempdir()?;
         let (client, mut events) = Client::new(data.path(), tokio::runtime::Handle::current())?;
         client.set_identity(Identity::generate(), name.to_owned());
-        let server_key = match client.add_server(server, claim_token.clone()).await? {
+        let add = || retrying(|| client.add_server(server, claim_token.clone()));
+        let server_key = match add().await? {
             AddServerOutcome::Added(added) => added.key,
             AddServerOutcome::NeedsTrust {
                 address,
                 fingerprint,
             } => {
                 client.trust_fingerprint(&address, &fingerprint)?;
-                match client.add_server(server, claim_token).await? {
+                match add().await? {
                     AddServerOutcome::Added(added) => added.key,
                     AddServerOutcome::NeedsTrust { .. } => {
                         bail!("the certificate is still not trusted")
@@ -117,7 +151,7 @@ impl Voicebot {
     /// it sends this bot to another node.
     pub async fn join(&self, channel_id: i64) -> anyhow::Result<VoiceSession> {
         let mut voice_servers = self.client.voice_servers();
-        self.client.voice_join(&self.server_key, channel_id).await?;
+        retrying(|| self.client.voice_join(&self.server_key, channel_id)).await?;
         let server = next_voice_server(&mut voice_servers, &self.server_key).await?;
         VoiceSession::start(server, voice_servers).await
     }

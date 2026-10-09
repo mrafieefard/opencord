@@ -1465,6 +1465,13 @@ class MockRepository implements OpencordRepository {
 
   List<VideoWant> videoWants = const [];
 
+  /// The mock paints its own camera; the one chosen is only kept, for
+  /// tests.
+  @override
+  void chooseCamera(String? deviceId) => cameraDevice = deviceId;
+
+  String? cameraDevice;
+
   /// Thrown when the camera is turned on, for tests.
   RepoException? cameraError;
 
