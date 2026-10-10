@@ -60,4 +60,25 @@ Not measured yet:
 
 - **End-to-end voice latency on a LAN, with devices** (≤ 150 ms). It needs two machines. The software path's 40 ms comes on top of the device buffers: 10 ms each way at 48 kHz, plus the engine's 30 ms speaker queue.
 - **A real webcam.** The camera numbers come from the virtual camera; this machine's webcam (MJPEG 1280×720 at 30) wasn't switched on.
-- **Screen share, decoding a 1080p60 stream, and the voice node's load.** These arrive with V6–V10.
+
+## Screen share (V6)
+
+Same setup as the camera: release builds, a virtual PipeWire screen at 1920×1080 in place of a real capture.
+
+| Area | Target | Measured | Where |
+|---|---|---|---|
+| Screen share on, 720p30 with two layers, hardware encoding | ≤ 8 % CPU | 17.6 % of a core, 1.10 % of the machine | `screen_load` example (opencord-media, `--features testing`) |
+| Screen share on, 1080p60 with two layers, hardware encoding | ≤ 15 % CPU | 32.5 % of a core, 2.03 % | same |
+
+The screen share numbers are well within their targets. A screen's source is read from PipeWire (zero CPU) and converted to NV12 in Rust. The low layer (640×360 at 15 fps) adds little to the cost of the main layer.
+
+| Step | 1080p60, back to back |
+|---|---|
+| BGRx to NV12 | 0.6 ms |
+| NVENC encoding, 1080p60 main | 2.1 ms |
+| NVENC encoding, 360p15 low | 0.3 ms |
+
+Not measured yet:
+
+- **A real screen.** The numbers come from the virtual screen at a fixed 1920×1080.
+- **Screen share audio, decoding, and watching.** These arrive with V7.
