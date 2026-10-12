@@ -4,7 +4,7 @@
 
 pub mod audio;
 pub mod hotkeys;
-pub mod transport;
 #[cfg(target_os = "linux")]
 pub mod share_audio;
+pub mod transport;
 pub mod video;

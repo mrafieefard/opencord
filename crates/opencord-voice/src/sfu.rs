@@ -296,7 +296,12 @@ impl Sfu {
             api.enable_twcc_feedback();
             api.declare_media(AUDIO_MID.into(), MediaKind::Audio);
             api.expect_stream_rx(Ssrc::from(setup.audio_ssrc), None, AUDIO_MID.into(), None);
-            api.expect_stream_rx(Ssrc::from(setup.screen_audio_ssrc), None, AUDIO_MID.into(), None);
+            api.expect_stream_rx(
+                Ssrc::from(setup.screen_audio_ssrc),
+                None,
+                AUDIO_MID.into(),
+                None,
+            );
             for other in &others {
                 if let Some(peer) = self.peers.get(other) {
                     declare_receive(&mut api, peer.setup.audio_ssrc);

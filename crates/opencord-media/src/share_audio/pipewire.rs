@@ -15,19 +15,17 @@ use pipewire as pw;
 use pw::link::Link;
 use pw::spa;
 use pw::types::ObjectType;
-use spa::param::format::{MediaSubtype, MediaType};
 use spa::param::ParamType;
+use spa::param::format::{MediaSubtype, MediaType};
+use spa::pod::ValueArray;
 use spa::pod::serialize::PodSerializer;
 use spa::pod::{Object, Pod, Property, Value};
-use spa::pod::ValueArray;
 use spa::utils::{Direction, Id, SpaTypes};
 
 use super::CaptureError;
 
 /// The capture sample rate.
 const SAMPLE_RATE: u32 = 48_000;
-/// Frames per 20 ms Opus packet.
-const FRAMES_PER_PACKET: usize = 960;
 /// Stereo.
 const CHANNELS: usize = 2;
 
@@ -102,10 +100,23 @@ impl Capture {
         let (quit, quit_receiver) = pw::channel::channel();
         let thread = std::thread::Builder::new()
             .name("opencord-share-audio".to_owned())
-            .spawn(move || serve(remote, window_pid, opencord_pid, frames, quit_receiver, started))
+            .spawn(move || {
+                serve(
+                    remote,
+                    window_pid,
+                    opencord_pid,
+                    frames,
+                    quit_receiver,
+                    started,
+                )
+            })
             .map_err(|e| CaptureError::Failed(e.to_string()))?;
         match outcome.recv_timeout(ROUNDTRIP) {
-            Ok(Ok(())) => Ok(Self { quit, thread: Some(thread), pid: opencord_pid }),
+            Ok(Ok(())) => Ok(Self {
+                quit,
+                thread: Some(thread),
+                pid: opencord_pid,
+            }),
             Ok(Err(e)) => {
                 let _ = thread.join();
                 Err(e)
@@ -177,10 +188,10 @@ fn serve(
         .global({
             let playback = std::sync::Arc::clone(&playback);
             move |global| {
-                if let Some(info) = playback_info(global) {
-                    if should_include(info.1, &info.2, opencord_pid, &want_pid) {
-                        playback.lock().unwrap().insert(info.0, info);
-                    }
+                if let Some(info) = playback_info(global)
+                    && should_include(info.1, &info.2, opencord_pid, &want_pid)
+                {
+                    playback.lock().unwrap().insert(info.0, info);
                 }
             }
         })
@@ -218,7 +229,8 @@ fn serve(
             let frames_count = size / stride;
             // Position is just a counter — the RTP timestamp carries the real clock.
             static POSITION: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
-            let position = POSITION.fetch_add(frames_count as u64, std::sync::atomic::Ordering::Relaxed);
+            let position =
+                POSITION.fetch_add(frames_count as u64, std::sync::atomic::Ordering::Relaxed);
             if let Some(captured) = Captured::from_buffer(bytes, stride, frames_count, position) {
                 let _ = frames.try_send(captured);
             }
@@ -229,7 +241,12 @@ fn serve(
     let format_bytes = format_pod();
     let pod = match Pod::from_bytes(&format_bytes) {
         Some(p) => p,
-        None => return void(&started, CaptureError::Failed("invalid audio format pod".to_owned())),
+        None => {
+            return void(
+                &started,
+                CaptureError::Failed("invalid audio format pod".to_owned()),
+            );
+        }
     };
     let mut params = [pod];
     if let Err(e) = capture_stream.connect(
@@ -241,9 +258,8 @@ fn serve(
         return void(&started, failed(e));
     }
 
-    // Start the loop and then connect all the playback nodes we've seen so far.
-    let links: std::sync::Arc<std::sync::Mutex<Vec<Link>>> =
-        std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
+    // Links live as long as their proxies: kept until the loop ends.
+    let mut links: Vec<Link> = Vec::new();
 
     // Get the capture stream's node id and a port id.
     let capture_node_id = capture_stream.node_id();
@@ -252,10 +268,10 @@ fn serve(
     // Seed links for existing nodes.
     {
         let existing = playback.lock().unwrap();
-        for (&node_id, _info) in existing.iter() {
+        for &node_id in existing.keys() {
             // Try to link each playback node to the capture stream.
             if let Ok(link) = create_link(&core, node_id, capture_node_id, capture_port_id) {
-                links.lock().unwrap().push(link);
+                links.push(link);
             }
         }
     }
@@ -268,6 +284,7 @@ fn serve(
     let _ = started.send(Ok(()));
     mainloop.run();
 
+    drop(links);
     drop(_capture_listener);
     drop(_links_listener);
     let _ = capture_stream.disconnect();
@@ -297,11 +314,7 @@ fn create_link(
     props.insert(*pw::keys::LINK_INPUT_NODE, input_node.to_string());
     props.insert(*pw::keys::LINK_INPUT_PORT, "64".to_string());
 
-    core.create_object::<Link>(
-        "link",
-        &props,
-    )
-    .map_err(failed)
+    core.create_object::<Link>("link", &props).map_err(failed)
 }
 
 fn make_capture_stream(core: &pw::core::CoreRc) -> Result<pw::stream::StreamRc, CaptureError> {
@@ -347,8 +360,8 @@ fn format_pod() -> Vec<u8> {
             Property::new(
                 spa::sys::SPA_FORMAT_AUDIO_position,
                 Value::ValueArray(ValueArray::Id(vec![
-                    Id(spa::sys::SPA_AUDIO_CHANNEL_FL as u32),
-                    Id(spa::sys::SPA_AUDIO_CHANNEL_FR as u32),
+                    Id(spa::sys::SPA_AUDIO_CHANNEL_FL),
+                    Id(spa::sys::SPA_AUDIO_CHANNEL_FR),
                 ])),
             ),
         ],
@@ -362,13 +375,13 @@ fn serialize(object: Object) -> Vec<u8> {
 }
 
 /// Info extracted from a playback stream node.
-fn playback_info(global: &pw::registry::GlobalObject<&spa::utils::dict::DictRef>) -> Option<NodeInfo> {
+fn playback_info(
+    global: &pw::registry::GlobalObject<&spa::utils::dict::DictRef>,
+) -> Option<NodeInfo> {
     if global.type_ != ObjectType::Node {
         return None;
     }
-    let Some(props) = global.props else {
-        return None;
-    };
+    let props = global.props?;
     if props.get("media.class") != Some("Stream/Output/Audio") {
         return None;
     }
@@ -440,7 +453,9 @@ pub fn apps_with_audio(remote: OwnedFd) -> Result<Vec<AppInfo>, CaptureError> {
             let _ = result.send(apps);
         })
         .map_err(|e| CaptureError::Failed(e.to_string()))?;
-    outcome.recv().map_err(|_| CaptureError::Failed("thread ended".to_owned()))
+    outcome
+        .recv()
+        .map_err(|_| CaptureError::Failed("thread ended".to_owned()))
 }
 
 fn list_apps(remote: OwnedFd) -> Vec<AppInfo> {
@@ -484,13 +499,13 @@ fn list_apps(remote: OwnedFd) -> Vec<AppInfo> {
     apps.lock().unwrap().clone()
 }
 
-fn playback_app(global: &pw::registry::GlobalObject<&spa::utils::dict::DictRef>) -> Option<(u32, String)> {
+fn playback_app(
+    global: &pw::registry::GlobalObject<&spa::utils::dict::DictRef>,
+) -> Option<(u32, String)> {
     if global.type_ != ObjectType::Node {
         return None;
     }
-    let Some(props) = global.props else {
-        return None;
-    };
+    let props = global.props?;
     if props.get("media.class") != Some("Stream/Output/Audio") {
         return None;
     }

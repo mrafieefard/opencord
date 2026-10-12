@@ -29,7 +29,7 @@ pub trait Textures: Send + Sync {
 }
 
 /// The voice connection video goes out on, while there is one.
-type Outlet = Arc<Mutex<Option<Arc<VoiceConnection>>>>;
+pub(super) type Outlet = Arc<Mutex<Option<Arc<VoiceConnection>>>>;
 
 pub struct Video {
     runtime: Handle,

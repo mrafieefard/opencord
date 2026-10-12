@@ -41,6 +41,7 @@ pub struct VoiceSession {
     pub main_session_id: String,
     pub peer: PeerId,
     pub audio_ssrc: u32,
+    #[allow(dead_code)]
     pub screen_audio_ssrc: u32,
     pub permissions: u64,
     /// Whether ICE and DTLS came up.
