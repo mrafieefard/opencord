@@ -101,8 +101,34 @@ pub(crate) struct Media {
     runtime: Handle,
     options: MediaOptions,
     events: mpsc::UnboundedSender<MediaEvent>,
-    state: Mutex<State>,
+    state: Arc<Mutex<State>>,
     video: Arc<Video>,
+}
+
+/// How long a preview's engine stays after its sound, so a quick next
+/// preview reuses it.
+const PREVIEW_TAIL: Duration = Duration::from_millis(500);
+
+/// Closes the preview engine once its last preview has played.
+struct PreviewCloser {
+    state: Arc<Mutex<State>>,
+}
+
+impl PreviewCloser {
+    fn close_preview(&self, preview: u64) {
+        let mut state = self.state.lock().unwrap_or_else(PoisonError::into_inner);
+        let done = state
+            .preview_engine
+            .as_ref()
+            .is_some_and(|(owner, _)| *owner == preview);
+        let engine = if done {
+            state.preview_engine.take()
+        } else {
+            None
+        };
+        drop(state);
+        drop(engine);
+    }
 }
 
 #[derive(Default)]
@@ -117,6 +143,10 @@ struct State {
     mic_test: bool,
     /// The mic test's own engine, while not in voice.
     mic_test_engine: Option<AudioEngine>,
+    /// An engine for a soundboard preview while not in voice (speaker
+    /// only), and which preview it is for, so a later one keeps it.
+    preview_engine: Option<(u64, AudioEngine)>,
+    previews: u64,
     /// The listener's choices, per server and user: volume and local mute.
     listening: HashMap<(String, i64), (f32, bool)>,
 }
@@ -152,7 +182,7 @@ impl Media {
             runtime,
             options,
             events,
-            state: Mutex::new(State::default()),
+            state: Arc::new(Mutex::new(State::default())),
         }
     }
 
@@ -168,6 +198,8 @@ impl Media {
             return;
         }
         state.target = target.clone();
+        // The call's engine plays previews from now on.
+        state.preview_engine = None;
         let Some(target) = target else {
             state.session = None;
             state.pending = None;
@@ -215,6 +247,79 @@ impl Media {
             self.apply_to(engine, &state.settings, &settings);
         }
         state.settings = settings;
+    }
+
+    /// A soundboard sound played in a voice channel (plan §11.5): heard
+    /// when this device is in that channel, not deafened, and has not
+    /// muted the player.
+    pub fn play_effect(
+        &self,
+        server_key: &str,
+        channel_id: i64,
+        user_id: i64,
+        samples: Arc<[f32]>,
+        gain: f32,
+    ) {
+        let state = self.lock();
+        let here = state.target.as_ref().is_some_and(|target| {
+            target.server_key == server_key && target.channel_id == channel_id && !target.deafened
+        });
+        let muted = state
+            .listening
+            .get(&(server_key.to_owned(), user_id))
+            .is_some_and(|(_, muted)| *muted);
+        if let Some(session) = state.session.as_ref().filter(|_| here && !muted) {
+            session.engine.play_sound(samples, gain);
+        }
+    }
+
+    /// A sound heard only on this device: in the call when there is one,
+    /// otherwise through an engine started for it with the microphone off.
+    pub fn preview(&self, samples: Arc<[f32]>, gain: f32) {
+        let length = Duration::from_secs_f64(samples.len() as f64 / 48_000.0);
+        let mut state = self.lock();
+        if let Some(session) = &state.session {
+            session.engine.play_sound(samples, gain);
+            return;
+        }
+        if let Some(engine) = &state.mic_test_engine {
+            engine.play_sound(samples, gain);
+            return;
+        }
+        state.previews += 1;
+        let preview = state.previews;
+        if state.preview_engine.is_none() {
+            let settings = EngineSettings {
+                input_device: DeviceChoice::Off,
+                ..self.engine_settings(&state.settings)
+            };
+            match AudioEngine::start(settings, |_| {}, |_| {}) {
+                Ok(engine) => state.preview_engine = Some((preview, engine)),
+                Err(error) => {
+                    let _ = self.events.send(MediaEvent::DeviceFailed {
+                        output: true,
+                        message: error.to_string(),
+                    });
+                    return;
+                }
+            }
+        }
+        if let Some((owner, engine)) = &mut state.preview_engine {
+            *owner = preview;
+            engine.play_sound(samples, gain);
+        }
+        // Closed when the last preview has played out.
+        let media = self.preview_closer();
+        self.runtime.spawn(async move {
+            tokio::time::sleep(length + PREVIEW_TAIL).await;
+            media.close_preview(preview);
+        });
+    }
+
+    fn preview_closer(&self) -> PreviewCloser {
+        PreviewCloser {
+            state: Arc::clone(&self.state),
+        }
     }
 
     /// What changed from `old` to `new`, to a running engine.
@@ -288,6 +393,7 @@ impl Media {
             session.engine.set_mic_test(on);
             return;
         }
+        state.preview_engine = None;
         state.mic_test_engine = if on {
             self.start_mic_test(&state)
         } else {

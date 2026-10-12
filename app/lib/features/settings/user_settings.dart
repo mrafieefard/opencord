@@ -4,10 +4,12 @@ import 'package:opencord/features/settings/settings_dialog.dart';
 import 'package:opencord/features/settings/user/app_pages.dart';
 import 'package:opencord/features/settings/user/appearance_page.dart';
 import 'package:opencord/features/settings/user/profile_pages.dart';
+import 'package:opencord/features/settings/user/sounds_page.dart';
 import 'package:opencord/ui/theme/oc_icons.dart';
 
-/// The user settings pages (§8.1). Video, screen share, sounds and voice
-/// diagnostics join when the rest of §17 arrives.
+/// The user settings pages (§8.1). Video, screen share, the rest of Sounds
+/// (join and leave sounds) and voice diagnostics join when the rest of §17
+/// arrives.
 List<SettingsPage> userSettingsPages(TargetPlatform platform) {
   final desktop =
       platform == TargetPlatform.linux ||
@@ -49,6 +51,13 @@ List<SettingsPage> userSettingsPages(TargetPlatform platform) {
       icon: OcIcons.mic,
       group: 'App',
       builder: (_) => const VoicePage(),
+    ),
+    SettingsPage(
+      id: 'sounds',
+      label: 'Sounds',
+      icon: OcIcons.musicNote,
+      group: 'App',
+      builder: (_) => const SoundsPage(),
     ),
     SettingsPage(
       id: 'notifications',

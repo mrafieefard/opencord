@@ -7,6 +7,7 @@ import 'package:opencord/core/model/misc.dart';
 import 'package:opencord/core/model/permissions.dart';
 import 'package:opencord/core/model/presence.dart';
 import 'package:opencord/core/model/server.dart';
+import 'package:opencord/core/model/sound.dart';
 import 'package:opencord/core/model/stream.dart';
 import 'package:opencord/core/model/user.dart';
 import 'package:opencord/core/model/video.dart';
@@ -29,6 +30,7 @@ class RepoCapabilities {
     this.announcementChannels = false,
     this.readStates = false,
     this.replies = false,
+    this.soundboard = false,
   });
 
   static const everything = RepoCapabilities(
@@ -40,6 +42,7 @@ class RepoCapabilities {
     announcementChannels: true,
     readStates: true,
     replies: true,
+    soundboard: true,
   );
 
   final bool reactions;
@@ -54,6 +57,9 @@ class RepoCapabilities {
 
   /// Messages can answer an earlier one.
   final bool replies;
+
+  /// Soundboard sounds play and can be uploaded (Phase 2 V8).
+  final bool soundboard;
 }
 
 /// The current user as far as the UI is concerned.
@@ -126,6 +132,13 @@ enum RepoErrorKind {
   screenUnsupported,
   qualityLimit,
   streamFull,
+
+  /// The soundboard (Phase 2 V8): cooling down or three sounds already
+  /// playing; a file too long or not a sound; no room for another.
+  soundCooldown,
+  soundTooLong,
+  soundInvalid,
+  soundboardFull,
   unauthorized,
   forbidden,
   notFound,
@@ -445,6 +458,57 @@ abstract interface class OpencordRepository {
 
   /// Silences someone on this device only.
   void setUserLocalMute(String serverKey, int userId, bool muted);
+
+  /// The sounds every client has (Phase 2 plan §11.8).
+  List<DefaultSound> get defaultSounds;
+
+  /// Plays a sound for everyone in this device's voice channel (§11.5). A
+  /// sound from another server names that server in [from]; this server
+  /// gets a copy first if it has none. The server checks again and may
+  /// refuse ([RepoErrorKind.soundCooldown], [RepoErrorKind.forbidden]).
+  Future<void> playSound(
+    String serverKey,
+    int channelId,
+    String soundRef, {
+    ({String serverKey, Sound sound})? from,
+  });
+
+  /// Plays a sound on this device only.
+  Future<void> previewSound(String serverKey, String soundRef);
+
+  /// The soundboard volume (0–100 %) and "Mute all soundboards".
+  void setSoundboardListening({required int volume, required bool muted});
+
+  /// "Mute their soundboard": their sounds are not played here.
+  void setUserSoundboardMute(String serverKey, int userId, bool muted);
+
+  /// Needs Manage soundboard; an empty [emoji] clears it.
+  Future<Sound> updateSound(
+    String serverKey,
+    int soundId, {
+    String? name,
+    String? emoji,
+    int? volume,
+  });
+
+  Future<void> deleteSound(String serverKey, int soundId);
+
+  /// Opens an audio file (MP3, WAV, FLAC, OGG, M4A; at most 10 MB) for the
+  /// trim editor (§11.3).
+  Future<SoundDraft> openSoundDraft(String path);
+
+  /// Plays a window of a draft here, as it would be uploaded.
+  Future<void> previewSoundDraft(SoundWindow window);
+
+  /// Uploads a window of a draft as a new sound; needs Manage soundboard.
+  Future<Sound> uploadSound(
+    String serverKey,
+    SoundWindow window, {
+    required String name,
+    String? emoji,
+  });
+
+  void closeSoundDraft(int draftId);
 }
 
 /// Overridden at startup with the mock or the Rust-core repository.

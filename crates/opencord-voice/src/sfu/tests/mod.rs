@@ -311,6 +311,7 @@ impl Net {
             user_id: 100 + index as i64,
             channel_id: CHANNEL,
             audio_ssrc: ssrc,
+            screen_audio_ssrc: ssrc.wrapping_add(1000),
             state,
         };
         let (peer, node) = self.sfu.add_peer(self.now, setup).unwrap();
@@ -777,6 +778,7 @@ fn big_channels_forward_only_the_loudest() {
                 user_id: i64::from(index),
                 channel_id: CHANNEL,
                 audio_ssrc: 2000 + index,
+                screen_audio_ssrc: 2000 + index + 1000,
                 state: PeerState::default(),
             };
             sfu.add_peer(now, setup).unwrap().0
@@ -816,6 +818,7 @@ fn small_channels_forward_everyone() {
         user_id: 1,
         channel_id: CHANNEL,
         audio_ssrc: 3000,
+        screen_audio_ssrc: 4000,
         state: PeerState::default(),
     };
     let (quiet, _) = sfu.add_peer(now, setup).unwrap();

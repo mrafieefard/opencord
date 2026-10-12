@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:opencord/core/providers/providers.dart';
+import 'package:opencord/core/repository/repository.dart';
 import 'package:opencord/features/channels/channel_sidebar.dart';
 import 'package:opencord/features/chat/chat_area.dart';
 import 'package:opencord/features/dialogs/identity_changed_dialog.dart';
@@ -14,6 +15,7 @@ import 'package:opencord/features/shell/shell_layout.dart';
 import 'package:opencord/features/shell/shortcuts.dart';
 import 'package:opencord/features/shell/window_title.dart';
 import 'package:opencord/features/settings/user_settings.dart';
+import 'package:opencord/features/soundboard/soundboard_picker.dart';
 import 'package:opencord/features/switcher/quick_switcher.dart';
 import 'package:opencord/features/window/window_providers.dart';
 import 'package:opencord/features/voice/voice_focus.dart';
@@ -174,6 +176,9 @@ class _DesktopShellState extends ConsumerState<DesktopShell> {
     ToggleMembersIntent: CallbackAction<ToggleMembersIntent>(
       onInvoke: (_) => _toggleMembers(),
     ),
+    OpenSoundboardIntent: CallbackAction<OpenSoundboardIntent>(
+      onInvoke: (_) => _openSoundboard(),
+    ),
     MarkReadIntent: CallbackAction<MarkReadIntent>(onInvoke: (_) => _escape()),
     UserSettingsIntent: CallbackAction<UserSettingsIntent>(
       onInvoke: (_) => showUserSettings(context),
@@ -188,6 +193,25 @@ class _DesktopShellState extends ConsumerState<DesktopShell> {
       onInvoke: (_) => _toggleFullscreen(),
     ),
   };
+
+  /// From the keyboard there is no button to open it from: it opens above
+  /// the window's bottom middle.
+  void _openSoundboard() {
+    final voice = ref.read(voiceSessionProvider);
+    if (!voice.connected ||
+        !ref.read(repositoryProvider).capabilities.soundboard) {
+      return;
+    }
+    final size = MediaQuery.sizeOf(context);
+    showSoundboardPicker(
+      context,
+      anchor: Rect.fromCenter(
+        center: Offset(size.width / 2, size.height - OcSpace.s24),
+        width: 1,
+        height: 1,
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {

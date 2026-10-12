@@ -37,6 +37,11 @@ class ToggleMembersIntent extends Intent {
   const ToggleMembersIntent();
 }
 
+/// Opens the soundboard while in voice (Phase 2 plan §11.7).
+class OpenSoundboardIntent extends Intent {
+  const OpenSoundboardIntent();
+}
+
 /// Escape with nothing else to close: leaves voice focus mode, or marks
 /// the open channel read.
 class MarkReadIntent extends Intent {
@@ -84,6 +89,7 @@ Map<ShortcutActivator, Intent> shellShortcuts(TargetPlatform platform) {
     primary(LogicalKeyboardKey.keyM, shift: true): const ToggleMuteIntent(),
     primary(LogicalKeyboardKey.keyD, shift: true): const ToggleDeafenIntent(),
     primary(LogicalKeyboardKey.keyU, shift: true): const ToggleMembersIntent(),
+    primary(LogicalKeyboardKey.keyB, shift: true): const OpenSoundboardIntent(),
     const SingleActivator(LogicalKeyboardKey.escape): const MarkReadIntent(),
     if (mac)
       const SingleActivator(LogicalKeyboardKey.keyF, control: true, meta: true):

@@ -8,6 +8,7 @@ import 'package:opencord/core/model/misc.dart';
 import 'package:opencord/core/model/permissions.dart';
 import 'package:opencord/core/model/server.dart';
 import 'package:opencord/core/model/snapshot.dart';
+import 'package:opencord/core/model/sound.dart';
 import 'package:opencord/core/model/user.dart';
 import 'package:opencord/core/model/stream.dart';
 import 'package:opencord/core/model/video.dart';
@@ -43,6 +44,7 @@ class RustRepository implements OpencordRepository {
       voice: true,
       camera: video,
       screenShare: video,
+      soundboard: true,
     );
   }
 
@@ -518,6 +520,16 @@ class RustRepository implements OpencordRepository {
         StreamViewersChanged(server, streamKey, [
           for (final id in viewerIds) id.toInt(),
         ]),
+      core.CoreEventPayload_SoundboardSoundCreate(:final field0) ||
+      core.CoreEventPayload_SoundboardSoundUpdate(
+        :final field0,
+      ) => SoundUpserted(server, soundFrom(field0)),
+      core.CoreEventPayload_SoundboardSoundDelete(:final soundId) =>
+        SoundDeleted(server, soundId),
+      core.CoreEventPayload_VoiceChannelEffect(:final field0) => SoundPlayed(
+        server,
+        soundPlayFrom(field0),
+      ),
     };
     if (event != null) _emit(event);
   }
@@ -1071,6 +1083,96 @@ class RustRepository implements OpencordRepository {
 
   @override
   Future<void> watchStream(String key) => _call(() => _core.streamWatch(key));
+
+  @override
+  late final List<DefaultSound> defaultSounds = [
+    for (final sound in _core.soundboardDefaultSounds())
+      defaultSoundFrom(sound),
+  ];
+
+  @override
+  Future<void> playSound(
+    String serverKey,
+    int channelId,
+    String soundRef, {
+    ({String serverKey, Sound sound})? from,
+  }) => _call(
+    () => _core.soundboardPlay(
+      serverKey,
+      channelId,
+      soundRef,
+      externalServerKey: from?.serverKey,
+      externalSound: switch (from) {
+        (:final sound, serverKey: _) => soundTo(sound),
+        null => null,
+      },
+    ),
+  );
+
+  @override
+  Future<void> previewSound(String serverKey, String soundRef) =>
+      _call(() => _core.soundboardPreview(serverKey, soundRef));
+
+  @override
+  void setSoundboardListening({required int volume, required bool muted}) =>
+      _now(
+        () => _core.soundboardSetListening(volume.clamp(0, 100) / 100, muted),
+      );
+
+  @override
+  void setUserSoundboardMute(String serverKey, int userId, bool muted) =>
+      _now(() => _core.soundboardMutePlayer(serverKey, userId, muted));
+
+  @override
+  Future<Sound> updateSound(
+    String serverKey,
+    int soundId, {
+    String? name,
+    String? emoji,
+    int? volume,
+  }) async => soundFrom(
+    await _call(
+      () => _core.soundboardUpdateSound(
+        serverKey,
+        soundId,
+        core.SoundboardSoundChanges(name: name, emoji: emoji, volume: volume),
+      ),
+    ),
+  );
+
+  @override
+  Future<void> deleteSound(String serverKey, int soundId) =>
+      _call(() => _core.soundboardDeleteSound(serverKey, soundId));
+
+  @override
+  Future<SoundDraft> openSoundDraft(String path) async {
+    final draft = await _call(() => _core.soundboardOpenDraft(path));
+    return SoundDraft(
+      id: draft.draftId.toInt(),
+      duration: Duration(milliseconds: draft.durationMs),
+      waveform: [for (final peak in draft.waveform) peak.toDouble()],
+    );
+  }
+
+  @override
+  Future<void> previewSoundDraft(SoundWindow window) =>
+      _call(() => _core.soundboardPreviewDraft(selectionTo(window)));
+
+  @override
+  Future<Sound> uploadSound(
+    String serverKey,
+    SoundWindow window, {
+    required String name,
+    String? emoji,
+  }) async => soundFrom(
+    await _call(
+      () => _core.soundboardUpload(serverKey, selectionTo(window), name, emoji),
+    ),
+  );
+
+  @override
+  void closeSoundDraft(int draftId) =>
+      _now(() => _core.soundboardCloseDraft(draftId));
 
   @override
   Future<void> unwatchStream(String key) =>

@@ -379,10 +379,16 @@ message UnwatchStream {
 }
 
 // -> ack. sound_ref is "server:<sha256 hex>", "external:<sha256 hex>" or
-// "default:<id>".
+// "default:<id>". An external sound must have been uploaded to this server
+// first (POST /media/external-sounds); until then the answer is NOT_FOUND.
+// Its name, emoji and volume are what its own server says, which this one
+// cannot know; they are ignored for other sounds.
 message PlaySoundboardSound {
   int64 channel_id = 1;
   string sound_ref = 2;
+  optional string name = 3;
+  optional string emoji = 4;
+  optional uint32 volume = 5;
 }
 
 // -> soundboard_sound. Absent fields are left unchanged; an empty emoji

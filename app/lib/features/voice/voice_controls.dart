@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:opencord/core/model/stream.dart';
 import 'package:opencord/core/providers/providers.dart';
 import 'package:opencord/core/repository/repository.dart';
+import 'package:opencord/features/soundboard/soundboard_picker.dart';
 import 'package:opencord/features/voice/screenshare_picker.dart';
 import 'package:opencord/ui/theme/oc_colors.dart';
 import 'package:opencord/ui/theme/oc_icons.dart';
@@ -246,6 +247,24 @@ class VoiceControlBar extends ConsumerWidget {
                 ref,
                 anchor: globalRectOf(button),
               ),
+            ),
+          ),
+        ],
+        if (capabilities.soundboard) ...[
+          const SizedBox(width: OcSpace.s12),
+          Builder(
+            builder: (button) => _RoundToggle(
+              icon: OcIcons.musicNote,
+              activeIcon: OcIcons.musicNote,
+              tooltip: 'Soundboard',
+              shortcut: appShortcut(
+                LogicalKeyboardKey.keyB,
+                platform,
+                shift: true,
+              ),
+              active: false,
+              onPressed: () =>
+                  showSoundboardPicker(context, anchor: globalRectOf(button)),
             ),
           ),
         ],

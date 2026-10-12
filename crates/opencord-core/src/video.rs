@@ -29,7 +29,7 @@ pub trait Textures: Send + Sync {
 }
 
 /// The voice connection video goes out on, while there is one.
-type Outlet = Arc<Mutex<Option<Arc<VoiceConnection>>>>;
+pub(super) type Outlet = Arc<Mutex<Option<Arc<VoiceConnection>>>>;
 
 pub struct Video {
     runtime: Handle,
@@ -66,7 +66,7 @@ fn lock<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
 fn video_kind(kind: TrackKind) -> VideoTrackKind {
     match kind {
         TrackKind::Camera => VideoTrackKind::Camera,
-        TrackKind::Screen => VideoTrackKind::Screen,
+        TrackKind::Screen | TrackKind::ScreenAudio => VideoTrackKind::Screen,
     }
 }
 

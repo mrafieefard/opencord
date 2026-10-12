@@ -366,6 +366,7 @@ class KeybindsPage extends StatelessWidget {
       ('Toggle mute', [primary(LogicalKeyboardKey.keyM, shift: true)]),
       ('Toggle deafen', [primary(LogicalKeyboardKey.keyD, shift: true)]),
       ('Toggle member list', [primary(LogicalKeyboardKey.keyU, shift: true)]),
+      ('Open the soundboard', [primary(LogicalKeyboardKey.keyB, shift: true)]),
       (
         'Send / new line',
         [

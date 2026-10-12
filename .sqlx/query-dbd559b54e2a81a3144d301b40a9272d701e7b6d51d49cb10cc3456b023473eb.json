@@ -1,0 +1,74 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT sha256, size_bytes, duration_ms, uploaded_by, last_used_at\n         FROM external_sounds ORDER BY last_used_at, sha256",
+  "describe": {
+    "columns": [
+      {
+        "name": "sha256",
+        "ordinal": 0,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "external_sounds",
+            "name": "sha256"
+          }
+        }
+      },
+      {
+        "name": "size_bytes",
+        "ordinal": 1,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "external_sounds",
+            "name": "size_bytes"
+          }
+        }
+      },
+      {
+        "name": "duration_ms",
+        "ordinal": 2,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "external_sounds",
+            "name": "duration_ms"
+          }
+        }
+      },
+      {
+        "name": "uploaded_by",
+        "ordinal": 3,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "external_sounds",
+            "name": "uploaded_by"
+          }
+        }
+      },
+      {
+        "name": "last_used_at",
+        "ordinal": 4,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "external_sounds",
+            "name": "last_used_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      true,
+      false
+    ]
+  },
+  "hash": "dbd559b54e2a81a3144d301b40a9272d701e7b6d51d49cb10cc3456b023473eb"
+}

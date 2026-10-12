@@ -323,6 +323,80 @@ pub struct ReadySnapshot {
     /// Screen shares in those channels.
     pub streams: Vec<ScreenStream>,
     pub voice_settings: VoiceSettings,
+    /// This server's soundboard.
+    pub soundboard_sounds: Vec<SoundboardSound>,
+}
+
+/// One of a server's soundboard sounds (Phase 2 plan §11).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SoundboardSound {
+    pub id: i64,
+    pub name: String,
+    pub emoji: Option<String>,
+    /// 0–100 %.
+    pub volume: u32,
+    /// The file's SHA-256, lowercase hex: it is played as `server:<sha256>`.
+    pub sha256: String,
+    pub size_bytes: u32,
+    pub duration_ms: u32,
+    pub uploader_id: Option<i64>,
+    pub created_at_ms: i64,
+}
+
+/// A sound every client has (plan §11.8), played as `default:<id>`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DefaultSound {
+    pub id: String,
+    pub name: String,
+    pub emoji: String,
+    pub duration_ms: u32,
+}
+
+/// Someone in a voice channel played a sound; everyone in it hears it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SoundEffect {
+    pub channel_id: i64,
+    pub user_id: i64,
+    /// `server:<sha256>`, `external:<sha256>` or `default:<id>`.
+    pub sound_ref: String,
+    pub name: String,
+    pub emoji: Option<String>,
+    /// 0–100 %.
+    pub volume: u32,
+    pub started_at_ms: i64,
+    /// How long it plays: the player's soundboard ring shows this long.
+    pub duration_ms: u32,
+}
+
+/// A file opened for the trim editor (plan §11.3), decoded to 48 kHz mono.
+#[derive(Debug, Clone, PartialEq)]
+pub struct SoundDraft {
+    pub draft_id: u64,
+    pub duration_ms: u32,
+    /// The loudest sample in each of equal slices of the file, 0–1.
+    pub waveform: Vec<f32>,
+}
+
+/// What to change about a sound; `None` keeps it. An empty emoji clears it.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct SoundboardSoundChanges {
+    pub name: Option<String>,
+    pub emoji: Option<String>,
+    /// 0–100 %.
+    pub volume: Option<u32>,
+}
+
+/// The window of a draft to upload or preview, and how.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SoundSelection {
+    pub draft_id: u64,
+    pub start_ms: u32,
+    /// At most 5 seconds.
+    pub length_ms: u32,
+    /// Bring it to −18 LUFS (on by default in the editor).
+    pub normalize: bool,
+    /// 0–100 %.
+    pub volume: u32,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -420,6 +494,14 @@ pub enum CoreEventPayload {
         stream_key: String,
         viewer_ids: Vec<i64>,
     },
+    SoundboardSoundCreate(SoundboardSound),
+    SoundboardSoundUpdate(SoundboardSound),
+    SoundboardSoundDelete {
+        sound_id: i64,
+    },
+    /// A sound played in a voice channel this device is connected to on
+    /// that server.
+    VoiceChannelEffect(SoundEffect),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

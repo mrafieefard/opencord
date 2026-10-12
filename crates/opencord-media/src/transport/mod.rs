@@ -71,6 +71,14 @@ pub struct AudioFrame {
     pub voice_activity: bool,
 }
 
+/// One Opus packet of screen share audio (Phase 2 plan §10.5).
+#[derive(Debug, Clone)]
+pub struct EncodedScreenAudio {
+    pub payload: Vec<u8>,
+    /// The frame's first sample on the sender's 48 kHz capture clock.
+    pub position: u64,
+}
+
 /// Someone's Opus packet, as it arrived.
 #[derive(Debug, Clone)]
 pub struct ReceivedAudio {
@@ -90,6 +98,7 @@ pub struct ReceivedAudio {
 pub enum TrackKind {
     Camera,
     Screen,
+    ScreenAudio,
 }
 
 /// One simulcast layer of a video track.
@@ -254,6 +263,7 @@ pub enum TransportError {
 
 enum Command {
     Audio(AudioFrame),
+    ScreenAudio(EncodedScreenAudio),
     Video(VideoFrame),
     Speaking(u32),
     Publish {
@@ -390,6 +400,10 @@ impl VoiceConnection {
 
     pub fn send_audio(&self, frame: AudioFrame) {
         let _ = self.commands.send(Command::Audio(frame));
+    }
+
+    pub fn send_screen_audio(&self, frame: EncodedScreenAudio) {
+        let _ = self.commands.send(Command::ScreenAudio(frame));
     }
 
     /// `flags` from [`opencord_common::voice::speaking`].

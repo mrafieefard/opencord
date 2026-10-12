@@ -122,6 +122,7 @@ class _StageState extends ConsumerState<_Stage> {
         ) ??
         const <int, Member>{};
     final speaking = ref.watch(speakingProvider(channel.server));
+    final sounds = ref.watch(soundPlaysProvider(channel.server));
     final focus = voiceFocusProvider(channel);
     final tiles = voiceTiles(participants);
     final focused = switch (ref.watch(focus)) {
@@ -176,6 +177,7 @@ class _StageState extends ConsumerState<_Stage> {
           camera: participant?.camera ?? false,
           video: video,
           speaking: speaking.contains(id.userId),
+          sound: id.screen ? null : sounds[id.userId],
           focused: id == focused,
           small: small,
           onTap: () => ref.read(focus.notifier).toggle(id),

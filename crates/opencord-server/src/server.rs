@@ -9,6 +9,7 @@ use axum_server::Handle;
 use axum_server::tls_rustls::RustlsConfig;
 use ed25519_dalek::VerifyingKey;
 use opencord_common::address::{Fingerprint, InviteLink, ServerAddress};
+use opencord_common::limits::SOUND_COOLDOWN_MAX_S;
 use opencord_common::snowflake::SnowflakeGenerator;
 use tokio::task::JoinHandle;
 
@@ -202,5 +203,7 @@ async fn reap_sessions(state: Arc<AppState>) {
             voice::expire_detached(&state, Instant::now());
         }
         state.rate_limits.prune();
+        let longest_cooldown = Duration::from_secs(u64::from(SOUND_COOLDOWN_MAX_S));
+        state.voice().sounds.prune(Instant::now(), longest_cooldown);
     }
 }

@@ -41,6 +41,8 @@ pub struct VoiceSession {
     pub main_session_id: String,
     pub peer: PeerId,
     pub audio_ssrc: u32,
+    #[allow(dead_code)]
+    pub screen_audio_ssrc: u32,
     pub permissions: u64,
     /// Whether ICE and DTLS came up.
     pub media_connected: bool,
@@ -62,6 +64,7 @@ pub struct NewSession {
     pub main_session_id: String,
     pub peer: PeerId,
     pub audio_ssrc: u32,
+    pub screen_audio_ssrc: u32,
     pub permissions: u64,
     pub connection: Connection,
 }
@@ -76,6 +79,7 @@ impl VoiceSession {
             main_session_id: new.main_session_id,
             peer: new.peer,
             audio_ssrc: new.audio_ssrc,
+            screen_audio_ssrc: new.screen_audio_ssrc,
             permissions: new.permissions,
             media_connected: false,
             next_seq: 1,
@@ -221,6 +225,7 @@ mod tests {
             main_session_id: "s1".to_owned(),
             peer: 1,
             audio_ssrc: 99,
+            screen_audio_ssrc: 199,
             permissions: 0,
             connection,
         })

@@ -162,6 +162,8 @@ message VoiceChannelEffect {
   optional string emoji = 5;
   uint32 volume = 6;
   int64 started_at_ms = 7;
+  // How long the sound plays, for the player's soundboard ring.
+  uint32 duration_ms = 8;
 }
 
 message SoundboardSoundCreate {

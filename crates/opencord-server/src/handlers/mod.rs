@@ -17,6 +17,7 @@ mod messages;
 mod profile;
 mod roles;
 pub(crate) mod settings;
+pub(crate) mod soundboard;
 mod streams;
 mod voice;
 
@@ -91,11 +92,9 @@ async fn dispatch(ctx: &Ctx<'_>, request: proto::Request) -> Result<Response, Ap
         Kind::DeleteStream(request) => streams::delete(ctx, request).await,
         Kind::WatchStream(request) => streams::watch(ctx, request).await,
         Kind::UnwatchStream(request) => streams::unwatch(ctx, request).await,
-        Kind::PlaySoundboardSound(_)
-        | Kind::UpdateSoundboardSound(_)
-        | Kind::DeleteSoundboardSound(_) => Err(ApiError::invalid_argument(
-            "this server does not support the soundboard yet",
-        )),
+        Kind::PlaySoundboardSound(request) => soundboard::play(ctx, request).await,
+        Kind::UpdateSoundboardSound(request) => soundboard::update(ctx, request).await,
+        Kind::DeleteSoundboardSound(request) => soundboard::delete(ctx, request).await,
     }
 }
 

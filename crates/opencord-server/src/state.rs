@@ -1,5 +1,6 @@
 //! State shared by every connection, and event fan-out.
 
+use std::collections::HashSet;
 use std::sync::{Mutex as StdMutex, PoisonError, RwLock, RwLockReadGuard, RwLockWriteGuard};
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
 
@@ -25,6 +26,9 @@ pub enum Audience {
     Everyone,
     /// Sessions whose user can view the channel.
     Channel(i64),
+    /// Sessions whose user is connected to the voice channel. Never
+    /// broadcast to it while holding the voice states.
+    Voice(i64),
     User(i64),
 }
 
@@ -98,10 +102,19 @@ impl AppState {
         let event = proto::Event { kind: Some(kind) };
         let now = Instant::now();
         let guild = self.guild();
+        let in_voice: HashSet<i64> = match audience {
+            Audience::Voice(channel_id) => self
+                .voice()
+                .in_channel(channel_id)
+                .map(|state| state.user_id)
+                .collect(),
+            _ => HashSet::new(),
+        };
         for session in self.sessions.all() {
             let receives = match audience {
                 Audience::Everyone => true,
                 Audience::Channel(channel_id) => guild.can_view(session.user_id, channel_id),
+                Audience::Voice(_) => in_voice.contains(&session.user_id),
                 Audience::User(user_id) => session.user_id == user_id,
             };
             if receives {

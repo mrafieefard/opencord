@@ -68,7 +68,7 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
   String get codegenVersion => '2.13.0';
 
   @override
-  int get rustContentHash => 1861018754;
+  int get rustContentHash => -590951315;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -279,6 +279,60 @@ abstract class RustLibApi extends BaseApi {
   String? crateApiClientSettingsGet({required String key});
 
   void crateApiClientSettingsSet({required String key, String? value});
+
+  void crateApiClientSoundboardCloseDraft({required BigInt draftId});
+
+  List<DefaultSound> crateApiClientSoundboardDefaultSounds();
+
+  Future<void> crateApiClientSoundboardDeleteSound({
+    required String serverKey,
+    required PlatformInt64 soundId,
+  });
+
+  void crateApiClientSoundboardMutePlayer({
+    required String serverKey,
+    required PlatformInt64 userId,
+    required bool muted,
+  });
+
+  Future<SoundDraft> crateApiClientSoundboardOpenDraft({required String path});
+
+  Future<void> crateApiClientSoundboardPlay({
+    required String serverKey,
+    required PlatformInt64 channelId,
+    required String soundRef,
+    String? externalServerKey,
+    SoundboardSound? externalSound,
+  });
+
+  Future<void> crateApiClientSoundboardPreview({
+    required String serverKey,
+    required String soundRef,
+  });
+
+  Future<void> crateApiClientSoundboardPreviewDraft({
+    required SoundSelection selection,
+  });
+
+  void crateApiClientSoundboardSetListening({
+    required double volume,
+    required bool muted,
+  });
+
+  Future<SoundboardSoundChanges> crateApiTypesSoundboardSoundChangesDefault();
+
+  Future<SoundboardSound> crateApiClientSoundboardUpdateSound({
+    required String serverKey,
+    required PlatformInt64 soundId,
+    required SoundboardSoundChanges changes,
+  });
+
+  Future<SoundboardSound> crateApiClientSoundboardUpload({
+    required String serverKey,
+    required SoundSelection selection,
+    required String name,
+    String? emoji,
+  });
 
   Future<void> crateApiClientStartTyping({
     required String serverKey,
@@ -2066,6 +2120,412 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   );
 
   @override
+  void crateApiClientSoundboardCloseDraft({required BigInt draftId}) {
+    return handler.executeSync(
+      SyncTask(
+        callFfi: () {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_u_64(draftId, serializer);
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 55)!;
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: sse_decode_core_error,
+        ),
+        constMeta: kCrateApiClientSoundboardCloseDraftConstMeta,
+        argValues: [draftId],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiClientSoundboardCloseDraftConstMeta =>
+      const TaskConstMeta(
+        debugName: "soundboard_close_draft",
+        argNames: ["draftId"],
+      );
+
+  @override
+  List<DefaultSound> crateApiClientSoundboardDefaultSounds() {
+    return handler.executeSync(
+      SyncTask(
+        callFfi: () {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 56)!;
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_list_default_sound,
+          decodeErrorData: null,
+        ),
+        constMeta: kCrateApiClientSoundboardDefaultSoundsConstMeta,
+        argValues: [],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiClientSoundboardDefaultSoundsConstMeta =>
+      const TaskConstMeta(debugName: "soundboard_default_sounds", argNames: []);
+
+  @override
+  Future<void> crateApiClientSoundboardDeleteSound({
+    required String serverKey,
+    required PlatformInt64 soundId,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(serverKey, serializer);
+          sse_encode_i_64(soundId, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 57,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: sse_decode_core_error,
+        ),
+        constMeta: kCrateApiClientSoundboardDeleteSoundConstMeta,
+        argValues: [serverKey, soundId],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiClientSoundboardDeleteSoundConstMeta =>
+      const TaskConstMeta(
+        debugName: "soundboard_delete_sound",
+        argNames: ["serverKey", "soundId"],
+      );
+
+  @override
+  void crateApiClientSoundboardMutePlayer({
+    required String serverKey,
+    required PlatformInt64 userId,
+    required bool muted,
+  }) {
+    return handler.executeSync(
+      SyncTask(
+        callFfi: () {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(serverKey, serializer);
+          sse_encode_i_64(userId, serializer);
+          sse_encode_bool(muted, serializer);
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 58)!;
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: sse_decode_core_error,
+        ),
+        constMeta: kCrateApiClientSoundboardMutePlayerConstMeta,
+        argValues: [serverKey, userId, muted],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiClientSoundboardMutePlayerConstMeta =>
+      const TaskConstMeta(
+        debugName: "soundboard_mute_player",
+        argNames: ["serverKey", "userId", "muted"],
+      );
+
+  @override
+  Future<SoundDraft> crateApiClientSoundboardOpenDraft({required String path}) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(path, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 59,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_sound_draft,
+          decodeErrorData: sse_decode_core_error,
+        ),
+        constMeta: kCrateApiClientSoundboardOpenDraftConstMeta,
+        argValues: [path],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiClientSoundboardOpenDraftConstMeta =>
+      const TaskConstMeta(
+        debugName: "soundboard_open_draft",
+        argNames: ["path"],
+      );
+
+  @override
+  Future<void> crateApiClientSoundboardPlay({
+    required String serverKey,
+    required PlatformInt64 channelId,
+    required String soundRef,
+    String? externalServerKey,
+    SoundboardSound? externalSound,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(serverKey, serializer);
+          sse_encode_i_64(channelId, serializer);
+          sse_encode_String(soundRef, serializer);
+          sse_encode_opt_String(externalServerKey, serializer);
+          sse_encode_opt_box_autoadd_soundboard_sound(
+            externalSound,
+            serializer,
+          );
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 60,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: sse_decode_core_error,
+        ),
+        constMeta: kCrateApiClientSoundboardPlayConstMeta,
+        argValues: [
+          serverKey,
+          channelId,
+          soundRef,
+          externalServerKey,
+          externalSound,
+        ],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiClientSoundboardPlayConstMeta =>
+      const TaskConstMeta(
+        debugName: "soundboard_play",
+        argNames: [
+          "serverKey",
+          "channelId",
+          "soundRef",
+          "externalServerKey",
+          "externalSound",
+        ],
+      );
+
+  @override
+  Future<void> crateApiClientSoundboardPreview({
+    required String serverKey,
+    required String soundRef,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(serverKey, serializer);
+          sse_encode_String(soundRef, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 61,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: sse_decode_core_error,
+        ),
+        constMeta: kCrateApiClientSoundboardPreviewConstMeta,
+        argValues: [serverKey, soundRef],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiClientSoundboardPreviewConstMeta =>
+      const TaskConstMeta(
+        debugName: "soundboard_preview",
+        argNames: ["serverKey", "soundRef"],
+      );
+
+  @override
+  Future<void> crateApiClientSoundboardPreviewDraft({
+    required SoundSelection selection,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_box_autoadd_sound_selection(selection, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 62,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: sse_decode_core_error,
+        ),
+        constMeta: kCrateApiClientSoundboardPreviewDraftConstMeta,
+        argValues: [selection],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiClientSoundboardPreviewDraftConstMeta =>
+      const TaskConstMeta(
+        debugName: "soundboard_preview_draft",
+        argNames: ["selection"],
+      );
+
+  @override
+  void crateApiClientSoundboardSetListening({
+    required double volume,
+    required bool muted,
+  }) {
+    return handler.executeSync(
+      SyncTask(
+        callFfi: () {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_f_32(volume, serializer);
+          sse_encode_bool(muted, serializer);
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 63)!;
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: sse_decode_core_error,
+        ),
+        constMeta: kCrateApiClientSoundboardSetListeningConstMeta,
+        argValues: [volume, muted],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiClientSoundboardSetListeningConstMeta =>
+      const TaskConstMeta(
+        debugName: "soundboard_set_listening",
+        argNames: ["volume", "muted"],
+      );
+
+  @override
+  Future<SoundboardSoundChanges> crateApiTypesSoundboardSoundChangesDefault() {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 64,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_soundboard_sound_changes,
+          decodeErrorData: null,
+        ),
+        constMeta: kCrateApiTypesSoundboardSoundChangesDefaultConstMeta,
+        argValues: [],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiTypesSoundboardSoundChangesDefaultConstMeta =>
+      const TaskConstMeta(
+        debugName: "soundboard_sound_changes_default",
+        argNames: [],
+      );
+
+  @override
+  Future<SoundboardSound> crateApiClientSoundboardUpdateSound({
+    required String serverKey,
+    required PlatformInt64 soundId,
+    required SoundboardSoundChanges changes,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(serverKey, serializer);
+          sse_encode_i_64(soundId, serializer);
+          sse_encode_box_autoadd_soundboard_sound_changes(changes, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 65,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_soundboard_sound,
+          decodeErrorData: sse_decode_core_error,
+        ),
+        constMeta: kCrateApiClientSoundboardUpdateSoundConstMeta,
+        argValues: [serverKey, soundId, changes],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiClientSoundboardUpdateSoundConstMeta =>
+      const TaskConstMeta(
+        debugName: "soundboard_update_sound",
+        argNames: ["serverKey", "soundId", "changes"],
+      );
+
+  @override
+  Future<SoundboardSound> crateApiClientSoundboardUpload({
+    required String serverKey,
+    required SoundSelection selection,
+    required String name,
+    String? emoji,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(serverKey, serializer);
+          sse_encode_box_autoadd_sound_selection(selection, serializer);
+          sse_encode_String(name, serializer);
+          sse_encode_opt_String(emoji, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 66,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_soundboard_sound,
+          decodeErrorData: sse_decode_core_error,
+        ),
+        constMeta: kCrateApiClientSoundboardUploadConstMeta,
+        argValues: [serverKey, selection, name, emoji],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiClientSoundboardUploadConstMeta =>
+      const TaskConstMeta(
+        debugName: "soundboard_upload",
+        argNames: ["serverKey", "selection", "name", "emoji"],
+      );
+
+  @override
   Future<void> crateApiClientStartTyping({
     required String serverKey,
     required PlatformInt64 channelId,
@@ -2079,7 +2539,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 55,
+            funcId: 67,
             port: port_,
           );
         },
@@ -2109,7 +2569,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 56,
+            funcId: 68,
             port: port_,
           );
         },
@@ -2137,7 +2597,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 57,
+            funcId: 69,
             port: port_,
           );
         },
@@ -2161,7 +2621,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       SyncTask(
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 58)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 70)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_list_trusted_fingerprint,
@@ -2191,7 +2651,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 59,
+            funcId: 71,
             port: port_,
           );
         },
@@ -2227,7 +2687,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 60,
+            funcId: 72,
             port: port_,
           );
         },
@@ -2264,7 +2724,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 61,
+            funcId: 73,
             port: port_,
           );
         },
@@ -2299,7 +2759,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 62,
+            funcId: 74,
             port: port_,
           );
         },
@@ -2334,7 +2794,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 63,
+            funcId: 75,
             port: port_,
           );
         },
@@ -2371,7 +2831,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 64,
+            funcId: 76,
             port: port_,
           );
         },
@@ -2405,7 +2865,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 65,
+            funcId: 77,
             port: port_,
           );
         },
@@ -2439,7 +2899,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 66,
+            funcId: 78,
             port: port_,
           );
         },
@@ -2467,7 +2927,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_i_64(engineHandle, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 67)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 79)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_unit,
@@ -2490,7 +2950,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_list_video_want(wants, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 68)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 80)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_unit,
@@ -2512,7 +2972,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       SyncTask(
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 69)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 81)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_bool,
@@ -2537,7 +2997,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_i_64(textureId, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 70)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 82)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_opt_box_autoadd_texture_stats,
@@ -2570,7 +3030,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 71,
+            funcId: 83,
             port: port_,
           );
         },
@@ -2605,7 +3065,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 72,
+            funcId: 84,
             port: port_,
           );
         },
@@ -2634,7 +3094,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 73,
+            funcId: 85,
             port: port_,
           );
         },
@@ -2668,7 +3128,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 74,
+            funcId: 86,
             port: port_,
           );
         },
@@ -2705,7 +3165,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 75,
+            funcId: 87,
             port: port_,
           );
         },
@@ -2742,7 +3202,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 76,
+            funcId: 88,
             port: port_,
           );
         },
@@ -2770,7 +3230,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_bool(held, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 77)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 89)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_unit,
@@ -2796,7 +3256,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_bool(held, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 78)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 90)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_unit,
@@ -2822,7 +3282,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_bool(deafened, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 79)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 91)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_unit,
@@ -2848,7 +3308,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_bool(muted, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 80)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 92)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_unit,
@@ -2880,7 +3340,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           sse_encode_String(serverKey, serializer);
           sse_encode_i_64(userId, serializer);
           sse_encode_bool(muted, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 81)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 93)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_unit,
@@ -2912,7 +3372,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           sse_encode_String(serverKey, serializer);
           sse_encode_i_64(userId, serializer);
           sse_encode_f_32(volume, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 82)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 94)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_unit,
@@ -2940,7 +3400,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 83,
+            funcId: 95,
             port: port_,
           );
         },
@@ -3190,6 +3650,32 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   ServerInfo dco_decode_box_autoadd_server_info(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return dco_decode_server_info(raw);
+  }
+
+  @protected
+  SoundEffect dco_decode_box_autoadd_sound_effect(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return dco_decode_sound_effect(raw);
+  }
+
+  @protected
+  SoundSelection dco_decode_box_autoadd_sound_selection(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return dco_decode_sound_selection(raw);
+  }
+
+  @protected
+  SoundboardSound dco_decode_box_autoadd_soundboard_sound(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return dco_decode_soundboard_sound(raw);
+  }
+
+  @protected
+  SoundboardSoundChanges dco_decode_box_autoadd_soundboard_sound_changes(
+    dynamic raw,
+  ) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return dco_decode_soundboard_sound_changes(raw);
   }
 
   @protected
@@ -3515,9 +4001,39 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           streamKey: dco_decode_String(raw[1]),
           viewerIds: dco_decode_list_prim_i_64_strict(raw[2]),
         );
+      case 24:
+        return CoreEventPayload_SoundboardSoundCreate(
+          dco_decode_box_autoadd_soundboard_sound(raw[1]),
+        );
+      case 25:
+        return CoreEventPayload_SoundboardSoundUpdate(
+          dco_decode_box_autoadd_soundboard_sound(raw[1]),
+        );
+      case 26:
+        return CoreEventPayload_SoundboardSoundDelete(
+          soundId: dco_decode_i_64(raw[1]),
+        );
+      case 27:
+        return CoreEventPayload_VoiceChannelEffect(
+          dco_decode_box_autoadd_sound_effect(raw[1]),
+        );
       default:
         throw Exception("unreachable");
     }
+  }
+
+  @protected
+  DefaultSound dco_decode_default_sound(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 4)
+      throw Exception('unexpected arr length: expect 4 but see ${arr.length}');
+    return DefaultSound(
+      id: dco_decode_String(arr[0]),
+      name: dco_decode_String(arr[1]),
+      emoji: dco_decode_String(arr[2]),
+      durationMs: dco_decode_u_32(arr[3]),
+    );
   }
 
   @protected
@@ -3659,6 +4175,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  List<DefaultSound> dco_decode_list_default_sound(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return (raw as List<dynamic>).map(dco_decode_default_sound).toList();
+  }
+
+  @protected
   List<HotkeyBinding> dco_decode_list_hotkey_binding(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return (raw as List<dynamic>).map(dco_decode_hotkey_binding).toList();
@@ -3695,6 +4217,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  Float32List dco_decode_list_prim_f_32_strict(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return raw as Float32List;
+  }
+
+  @protected
   Int64List dco_decode_list_prim_i_64_strict(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return dcoDecodeInt64List(raw);
@@ -3728,6 +4256,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   List<Server> dco_decode_list_server(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return (raw as List<dynamic>).map(dco_decode_server).toList();
+  }
+
+  @protected
+  List<SoundboardSound> dco_decode_list_soundboard_sound(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return (raw as List<dynamic>).map(dco_decode_soundboard_sound).toList();
   }
 
   @protected
@@ -3889,6 +4423,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  SoundboardSound? dco_decode_opt_box_autoadd_soundboard_sound(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return raw == null ? null : dco_decode_box_autoadd_soundboard_sound(raw);
+  }
+
+  @protected
   TextureStats? dco_decode_opt_box_autoadd_texture_stats(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return raw == null ? null : dco_decode_box_autoadd_texture_stats(raw);
@@ -3942,8 +4482,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   ReadySnapshot dco_decode_ready_snapshot(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 12)
-      throw Exception('unexpected arr length: expect 12 but see ${arr.length}');
+    if (arr.length != 13)
+      throw Exception('unexpected arr length: expect 13 but see ${arr.length}');
     return ReadySnapshot(
       selfUser: dco_decode_user(arr[0]),
       server: dco_decode_server_info(arr[1]),
@@ -3957,6 +4497,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       voiceStates: dco_decode_list_voice_state(arr[9]),
       streams: dco_decode_list_screen_stream(arr[10]),
       voiceSettings: dco_decode_voice_settings(arr[11]),
+      soundboardSounds: dco_decode_list_soundboard_sound(arr[12]),
     );
   }
 
@@ -4093,6 +4634,84 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       ownerId: dco_decode_opt_box_autoadd_i_64(arr[3]),
       openJoin: dco_decode_bool(arr[4]),
       everyoneRoleId: dco_decode_i_64(arr[5]),
+    );
+  }
+
+  @protected
+  SoundDraft dco_decode_sound_draft(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 3)
+      throw Exception('unexpected arr length: expect 3 but see ${arr.length}');
+    return SoundDraft(
+      draftId: dco_decode_u_64(arr[0]),
+      durationMs: dco_decode_u_32(arr[1]),
+      waveform: dco_decode_list_prim_f_32_strict(arr[2]),
+    );
+  }
+
+  @protected
+  SoundEffect dco_decode_sound_effect(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 8)
+      throw Exception('unexpected arr length: expect 8 but see ${arr.length}');
+    return SoundEffect(
+      channelId: dco_decode_i_64(arr[0]),
+      userId: dco_decode_i_64(arr[1]),
+      soundRef: dco_decode_String(arr[2]),
+      name: dco_decode_String(arr[3]),
+      emoji: dco_decode_opt_String(arr[4]),
+      volume: dco_decode_u_32(arr[5]),
+      startedAtMs: dco_decode_i_64(arr[6]),
+      durationMs: dco_decode_u_32(arr[7]),
+    );
+  }
+
+  @protected
+  SoundSelection dco_decode_sound_selection(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 5)
+      throw Exception('unexpected arr length: expect 5 but see ${arr.length}');
+    return SoundSelection(
+      draftId: dco_decode_u_64(arr[0]),
+      startMs: dco_decode_u_32(arr[1]),
+      lengthMs: dco_decode_u_32(arr[2]),
+      normalize: dco_decode_bool(arr[3]),
+      volume: dco_decode_u_32(arr[4]),
+    );
+  }
+
+  @protected
+  SoundboardSound dco_decode_soundboard_sound(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 9)
+      throw Exception('unexpected arr length: expect 9 but see ${arr.length}');
+    return SoundboardSound(
+      id: dco_decode_i_64(arr[0]),
+      name: dco_decode_String(arr[1]),
+      emoji: dco_decode_opt_String(arr[2]),
+      volume: dco_decode_u_32(arr[3]),
+      sha256: dco_decode_String(arr[4]),
+      sizeBytes: dco_decode_u_32(arr[5]),
+      durationMs: dco_decode_u_32(arr[6]),
+      uploaderId: dco_decode_opt_box_autoadd_i_64(arr[7]),
+      createdAtMs: dco_decode_i_64(arr[8]),
+    );
+  }
+
+  @protected
+  SoundboardSoundChanges dco_decode_soundboard_sound_changes(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 3)
+      throw Exception('unexpected arr length: expect 3 but see ${arr.length}');
+    return SoundboardSoundChanges(
+      name: dco_decode_opt_String(arr[0]),
+      emoji: dco_decode_opt_String(arr[1]),
+      volume: dco_decode_opt_box_autoadd_u_32(arr[2]),
     );
   }
 
@@ -4560,6 +5179,38 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  SoundEffect sse_decode_box_autoadd_sound_effect(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return (sse_decode_sound_effect(deserializer));
+  }
+
+  @protected
+  SoundSelection sse_decode_box_autoadd_sound_selection(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return (sse_decode_sound_selection(deserializer));
+  }
+
+  @protected
+  SoundboardSound sse_decode_box_autoadd_soundboard_sound(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return (sse_decode_soundboard_sound(deserializer));
+  }
+
+  @protected
+  SoundboardSoundChanges sse_decode_box_autoadd_soundboard_sound_changes(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return (sse_decode_soundboard_sound_changes(deserializer));
+  }
+
+  @protected
   TextureStats sse_decode_box_autoadd_texture_stats(
     SseDeserializer deserializer,
   ) {
@@ -4906,9 +5557,36 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           streamKey: var_streamKey,
           viewerIds: var_viewerIds,
         );
+      case 24:
+        var var_field0 = sse_decode_box_autoadd_soundboard_sound(deserializer);
+        return CoreEventPayload_SoundboardSoundCreate(var_field0);
+      case 25:
+        var var_field0 = sse_decode_box_autoadd_soundboard_sound(deserializer);
+        return CoreEventPayload_SoundboardSoundUpdate(var_field0);
+      case 26:
+        var var_soundId = sse_decode_i_64(deserializer);
+        return CoreEventPayload_SoundboardSoundDelete(soundId: var_soundId);
+      case 27:
+        var var_field0 = sse_decode_box_autoadd_sound_effect(deserializer);
+        return CoreEventPayload_VoiceChannelEffect(var_field0);
       default:
         throw UnimplementedError('');
     }
+  }
+
+  @protected
+  DefaultSound sse_decode_default_sound(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_id = sse_decode_String(deserializer);
+    var var_name = sse_decode_String(deserializer);
+    var var_emoji = sse_decode_String(deserializer);
+    var var_durationMs = sse_decode_u_32(deserializer);
+    return DefaultSound(
+      id: var_id,
+      name: var_name,
+      emoji: var_emoji,
+      durationMs: var_durationMs,
+    );
   }
 
   @protected
@@ -5096,6 +5774,20 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  List<DefaultSound> sse_decode_list_default_sound(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    var len_ = sse_decode_i_32(deserializer);
+    var ans_ = <DefaultSound>[];
+    for (var idx_ = 0; idx_ < len_; ++idx_) {
+      ans_.add(sse_decode_default_sound(deserializer));
+    }
+    return ans_;
+  }
+
+  @protected
   List<HotkeyBinding> sse_decode_list_hotkey_binding(
     SseDeserializer deserializer,
   ) {
@@ -5172,6 +5864,13 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  Float32List sse_decode_list_prim_f_32_strict(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var len_ = sse_decode_i_32(deserializer);
+    return deserializer.buffer.getFloat32List(len_);
+  }
+
+  @protected
   Int64List sse_decode_list_prim_i_64_strict(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     var len_ = sse_decode_i_32(deserializer);
@@ -5226,6 +5925,20 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     var ans_ = <Server>[];
     for (var idx_ = 0; idx_ < len_; ++idx_) {
       ans_.add(sse_decode_server(deserializer));
+    }
+    return ans_;
+  }
+
+  @protected
+  List<SoundboardSound> sse_decode_list_soundboard_sound(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    var len_ = sse_decode_i_32(deserializer);
+    var ans_ = <SoundboardSound>[];
+    for (var idx_ = 0; idx_ < len_; ++idx_) {
+      ans_.add(sse_decode_soundboard_sound(deserializer));
     }
     return ans_;
   }
@@ -5468,6 +6181,19 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  SoundboardSound? sse_decode_opt_box_autoadd_soundboard_sound(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    if (sse_decode_bool(deserializer)) {
+      return (sse_decode_box_autoadd_soundboard_sound(deserializer));
+    } else {
+      return null;
+    }
+  }
+
+  @protected
   TextureStats? sse_decode_opt_box_autoadd_texture_stats(
     SseDeserializer deserializer,
   ) {
@@ -5549,6 +6275,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     var var_voiceStates = sse_decode_list_voice_state(deserializer);
     var var_streams = sse_decode_list_screen_stream(deserializer);
     var var_voiceSettings = sse_decode_voice_settings(deserializer);
+    var var_soundboardSounds = sse_decode_list_soundboard_sound(deserializer);
     return ReadySnapshot(
       selfUser: var_selfUser,
       server: var_server,
@@ -5562,6 +6289,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       voiceStates: var_voiceStates,
       streams: var_streams,
       voiceSettings: var_voiceSettings,
+      soundboardSounds: var_soundboardSounds,
     );
   }
 
@@ -5726,6 +6454,99 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       ownerId: var_ownerId,
       openJoin: var_openJoin,
       everyoneRoleId: var_everyoneRoleId,
+    );
+  }
+
+  @protected
+  SoundDraft sse_decode_sound_draft(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_draftId = sse_decode_u_64(deserializer);
+    var var_durationMs = sse_decode_u_32(deserializer);
+    var var_waveform = sse_decode_list_prim_f_32_strict(deserializer);
+    return SoundDraft(
+      draftId: var_draftId,
+      durationMs: var_durationMs,
+      waveform: var_waveform,
+    );
+  }
+
+  @protected
+  SoundEffect sse_decode_sound_effect(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_channelId = sse_decode_i_64(deserializer);
+    var var_userId = sse_decode_i_64(deserializer);
+    var var_soundRef = sse_decode_String(deserializer);
+    var var_name = sse_decode_String(deserializer);
+    var var_emoji = sse_decode_opt_String(deserializer);
+    var var_volume = sse_decode_u_32(deserializer);
+    var var_startedAtMs = sse_decode_i_64(deserializer);
+    var var_durationMs = sse_decode_u_32(deserializer);
+    return SoundEffect(
+      channelId: var_channelId,
+      userId: var_userId,
+      soundRef: var_soundRef,
+      name: var_name,
+      emoji: var_emoji,
+      volume: var_volume,
+      startedAtMs: var_startedAtMs,
+      durationMs: var_durationMs,
+    );
+  }
+
+  @protected
+  SoundSelection sse_decode_sound_selection(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_draftId = sse_decode_u_64(deserializer);
+    var var_startMs = sse_decode_u_32(deserializer);
+    var var_lengthMs = sse_decode_u_32(deserializer);
+    var var_normalize = sse_decode_bool(deserializer);
+    var var_volume = sse_decode_u_32(deserializer);
+    return SoundSelection(
+      draftId: var_draftId,
+      startMs: var_startMs,
+      lengthMs: var_lengthMs,
+      normalize: var_normalize,
+      volume: var_volume,
+    );
+  }
+
+  @protected
+  SoundboardSound sse_decode_soundboard_sound(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_id = sse_decode_i_64(deserializer);
+    var var_name = sse_decode_String(deserializer);
+    var var_emoji = sse_decode_opt_String(deserializer);
+    var var_volume = sse_decode_u_32(deserializer);
+    var var_sha256 = sse_decode_String(deserializer);
+    var var_sizeBytes = sse_decode_u_32(deserializer);
+    var var_durationMs = sse_decode_u_32(deserializer);
+    var var_uploaderId = sse_decode_opt_box_autoadd_i_64(deserializer);
+    var var_createdAtMs = sse_decode_i_64(deserializer);
+    return SoundboardSound(
+      id: var_id,
+      name: var_name,
+      emoji: var_emoji,
+      volume: var_volume,
+      sha256: var_sha256,
+      sizeBytes: var_sizeBytes,
+      durationMs: var_durationMs,
+      uploaderId: var_uploaderId,
+      createdAtMs: var_createdAtMs,
+    );
+  }
+
+  @protected
+  SoundboardSoundChanges sse_decode_soundboard_sound_changes(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_name = sse_decode_opt_String(deserializer);
+    var var_emoji = sse_decode_opt_String(deserializer);
+    var var_volume = sse_decode_opt_box_autoadd_u_32(deserializer);
+    return SoundboardSoundChanges(
+      name: var_name,
+      emoji: var_emoji,
+      volume: var_volume,
     );
   }
 
@@ -6236,6 +7057,42 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_box_autoadd_sound_effect(
+    SoundEffect self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_sound_effect(self, serializer);
+  }
+
+  @protected
+  void sse_encode_box_autoadd_sound_selection(
+    SoundSelection self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_sound_selection(self, serializer);
+  }
+
+  @protected
+  void sse_encode_box_autoadd_soundboard_sound(
+    SoundboardSound self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_soundboard_sound(self, serializer);
+  }
+
+  @protected
+  void sse_encode_box_autoadd_soundboard_sound_changes(
+    SoundboardSoundChanges self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_soundboard_sound_changes(self, serializer);
+  }
+
+  @protected
   void sse_encode_box_autoadd_texture_stats(
     TextureStats self,
     SseSerializer serializer,
@@ -6555,7 +7412,28 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         sse_encode_i_32(23, serializer);
         sse_encode_String(streamKey, serializer);
         sse_encode_list_prim_i_64_strict(viewerIds, serializer);
+      case CoreEventPayload_SoundboardSoundCreate(field0: final field0):
+        sse_encode_i_32(24, serializer);
+        sse_encode_box_autoadd_soundboard_sound(field0, serializer);
+      case CoreEventPayload_SoundboardSoundUpdate(field0: final field0):
+        sse_encode_i_32(25, serializer);
+        sse_encode_box_autoadd_soundboard_sound(field0, serializer);
+      case CoreEventPayload_SoundboardSoundDelete(soundId: final soundId):
+        sse_encode_i_32(26, serializer);
+        sse_encode_i_64(soundId, serializer);
+      case CoreEventPayload_VoiceChannelEffect(field0: final field0):
+        sse_encode_i_32(27, serializer);
+        sse_encode_box_autoadd_sound_effect(field0, serializer);
     }
+  }
+
+  @protected
+  void sse_encode_default_sound(DefaultSound self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_String(self.id, serializer);
+    sse_encode_String(self.name, serializer);
+    sse_encode_String(self.emoji, serializer);
+    sse_encode_u_32(self.durationMs, serializer);
   }
 
   @protected
@@ -6710,6 +7588,18 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_list_default_sound(
+    List<DefaultSound> self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.length, serializer);
+    for (final item in self) {
+      sse_encode_default_sound(item, serializer);
+    }
+  }
+
+  @protected
   void sse_encode_list_hotkey_binding(
     List<HotkeyBinding> self,
     SseSerializer serializer,
@@ -6767,6 +7657,16 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     for (final item in self) {
       sse_encode_presence(item, serializer);
     }
+  }
+
+  @protected
+  void sse_encode_list_prim_f_32_strict(
+    Float32List self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.length, serializer);
+    serializer.buffer.putFloat32List(self);
   }
 
   @protected
@@ -6828,6 +7728,18 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_i_32(self.length, serializer);
     for (final item in self) {
       sse_encode_server(item, serializer);
+    }
+  }
+
+  @protected
+  void sse_encode_list_soundboard_sound(
+    List<SoundboardSound> self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.length, serializer);
+    for (final item in self) {
+      sse_encode_soundboard_sound(item, serializer);
     }
   }
 
@@ -7044,6 +7956,19 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_opt_box_autoadd_soundboard_sound(
+    SoundboardSound? self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    sse_encode_bool(self != null, serializer);
+    if (self != null) {
+      sse_encode_box_autoadd_soundboard_sound(self, serializer);
+    }
+  }
+
+  @protected
   void sse_encode_opt_box_autoadd_texture_stats(
     TextureStats? self,
     SseSerializer serializer,
@@ -7118,6 +8043,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_list_voice_state(self.voiceStates, serializer);
     sse_encode_list_screen_stream(self.streams, serializer);
     sse_encode_voice_settings(self.voiceSettings, serializer);
+    sse_encode_list_soundboard_sound(self.soundboardSounds, serializer);
   }
 
   @protected
@@ -7223,6 +8149,68 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_opt_box_autoadd_i_64(self.ownerId, serializer);
     sse_encode_bool(self.openJoin, serializer);
     sse_encode_i_64(self.everyoneRoleId, serializer);
+  }
+
+  @protected
+  void sse_encode_sound_draft(SoundDraft self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_u_64(self.draftId, serializer);
+    sse_encode_u_32(self.durationMs, serializer);
+    sse_encode_list_prim_f_32_strict(self.waveform, serializer);
+  }
+
+  @protected
+  void sse_encode_sound_effect(SoundEffect self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_64(self.channelId, serializer);
+    sse_encode_i_64(self.userId, serializer);
+    sse_encode_String(self.soundRef, serializer);
+    sse_encode_String(self.name, serializer);
+    sse_encode_opt_String(self.emoji, serializer);
+    sse_encode_u_32(self.volume, serializer);
+    sse_encode_i_64(self.startedAtMs, serializer);
+    sse_encode_u_32(self.durationMs, serializer);
+  }
+
+  @protected
+  void sse_encode_sound_selection(
+    SoundSelection self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_u_64(self.draftId, serializer);
+    sse_encode_u_32(self.startMs, serializer);
+    sse_encode_u_32(self.lengthMs, serializer);
+    sse_encode_bool(self.normalize, serializer);
+    sse_encode_u_32(self.volume, serializer);
+  }
+
+  @protected
+  void sse_encode_soundboard_sound(
+    SoundboardSound self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_64(self.id, serializer);
+    sse_encode_String(self.name, serializer);
+    sse_encode_opt_String(self.emoji, serializer);
+    sse_encode_u_32(self.volume, serializer);
+    sse_encode_String(self.sha256, serializer);
+    sse_encode_u_32(self.sizeBytes, serializer);
+    sse_encode_u_32(self.durationMs, serializer);
+    sse_encode_opt_box_autoadd_i_64(self.uploaderId, serializer);
+    sse_encode_i_64(self.createdAtMs, serializer);
+  }
+
+  @protected
+  void sse_encode_soundboard_sound_changes(
+    SoundboardSoundChanges self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_opt_String(self.name, serializer);
+    sse_encode_opt_String(self.emoji, serializer);
+    sse_encode_opt_box_autoadd_u_32(self.volume, serializer);
   }
 
   @protected

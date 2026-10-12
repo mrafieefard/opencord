@@ -9,6 +9,7 @@ import 'package:opencord/core/providers/providers.dart';
 import 'package:opencord/core/repository/repository.dart';
 import 'package:opencord/features/channels/channel_row.dart';
 import 'package:opencord/features/shell/navigation.dart';
+import 'package:opencord/features/soundboard/soundboard_ring.dart';
 import 'package:opencord/features/voice/voice_controls.dart';
 import 'package:opencord/features/voice/voice_focus.dart';
 import 'package:opencord/features/settings/server_settings.dart';
@@ -237,6 +238,7 @@ class _Participant extends ConsumerWidget {
     final speaking = ref.watch(
       speakingProvider(serverKey).select((s) => s.contains(participant.userId)),
     );
+    final sound = playingSound(ref, serverKey, participant.userId);
     final name = member?.displayName ?? 'Someone';
     final state = [
       if (participant.muted) 'muted',
@@ -244,6 +246,7 @@ class _Participant extends ConsumerWidget {
       if (participant.camera) 'camera on',
       if (participant.screensharing) 'sharing their screen',
       if (speaking) 'speaking',
+      if (sound != null) 'playing ${sound.name}',
     ];
     return Semantics(
       label: state.isEmpty ? name : '$name, ${state.join(', ')}',
@@ -253,14 +256,17 @@ class _Participant extends ConsumerWidget {
           height: 28,
           child: Row(
             children: [
-              OcAvatar(
-                id: participant.userId,
-                name: name,
-                size: OcSize.voiceAvatar,
-                speaking: speaking,
+              SoundboardRing(
+                playing: sound != null,
+                child: OcAvatar(
+                  id: participant.userId,
+                  name: name,
+                  size: OcSize.voiceAvatar,
+                  speaking: speaking,
+                ),
               ),
               const SizedBox(width: OcSpace.s8),
-              Expanded(
+              Flexible(
                 child: EllipsisText(
                   name,
                   style: OcText.small.copyWith(
@@ -268,6 +274,14 @@ class _Participant extends ConsumerWidget {
                   ),
                 ),
               ),
+              if (sound?.emoji case final emoji?)
+                Padding(
+                  padding: const EdgeInsets.only(left: OcSpace.s4),
+                  child: ExcludeSemantics(
+                    child: Text(emoji, style: const TextStyle(fontSize: 13)),
+                  ),
+                ),
+              const Spacer(),
               for (final icon in [
                 if (participant.muted) OcIcons.micOff,
                 if (participant.deafened) OcIcons.headsetOff,

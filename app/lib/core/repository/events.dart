@@ -5,6 +5,7 @@ import 'package:opencord/core/model/permissions.dart';
 import 'package:opencord/core/model/presence.dart';
 import 'package:opencord/core/model/server.dart';
 import 'package:opencord/core/model/snapshot.dart';
+import 'package:opencord/core/model/sound.dart';
 import 'package:opencord/core/model/stream.dart';
 import 'package:opencord/core/model/user.dart';
 import 'package:opencord/core/model/video.dart';
@@ -318,4 +319,24 @@ final class ScreenShareStopped extends RepoEvent {
   const ScreenShareStopped(this.message) : super('');
 
   final String message;
+}
+
+/// A soundboard sound was added or edited (Phase 2 V8).
+final class SoundUpserted extends RepoEvent {
+  const SoundUpserted(super.serverKey, this.sound);
+
+  final Sound sound;
+}
+
+final class SoundDeleted extends RepoEvent {
+  const SoundDeleted(super.serverKey, this.soundId);
+
+  final int soundId;
+}
+
+/// Someone played a sound in the voice channel this device is in.
+final class SoundPlayed extends RepoEvent {
+  const SoundPlayed(super.serverKey, this.play);
+
+  final SoundPlay play;
 }

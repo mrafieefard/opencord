@@ -89,6 +89,36 @@ impl ApiError {
         )
     }
 
+    /// A user's cooldown, or a channel already playing its most sounds.
+    pub fn sound_cooldown(message: impl Into<String>, retry_after: Option<Duration>) -> Self {
+        Self {
+            retry_after_ms: retry_after
+                .map(|wait| u64::try_from(wait.as_millis()).unwrap_or(u64::MAX)),
+            ..Self::new(proto::ErrorCode::SoundCooldown, message)
+        }
+    }
+
+    pub fn sound_too_long(duration_ms: u32) -> Self {
+        Self::new(
+            proto::ErrorCode::SoundTooLong,
+            format!(
+                "sounds can be at most 5 seconds long, not {:.1}",
+                f64::from(duration_ms) / 1_000.0
+            ),
+        )
+    }
+
+    pub fn sound_invalid(message: impl Into<String>) -> Self {
+        Self::new(proto::ErrorCode::SoundInvalid, message)
+    }
+
+    pub fn soundboard_full(max_sounds: u32) -> Self {
+        Self::new(
+            proto::ErrorCode::SoundboardFull,
+            format!("this server's soundboard is full ({max_sounds} sounds)"),
+        )
+    }
+
     pub fn internal() -> Self {
         Self::new(proto::ErrorCode::Internal, "internal server error")
     }

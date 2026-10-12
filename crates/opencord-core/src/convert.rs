@@ -5,8 +5,8 @@ use opencord_proto::v1 as proto;
 use crate::api::types::{
     Ban, Channel, ChannelKind, ChannelPermissions, CoreError, CoreEventPayload, ErrorCode, Invite,
     Member, Message, OverwriteTargetKind, PermissionOverwrite, Presence, PresenceStatus,
-    ReadySnapshot, Role, ScreenShareResolution, ScreenStream, ServerInfo, StreamSourceKind, User,
-    VoiceSettings, VoiceSettingsChanges, VoiceState,
+    ReadySnapshot, Role, ScreenShareResolution, ScreenStream, ServerInfo, SoundEffect,
+    SoundboardSound, StreamSourceKind, User, VoiceSettings, VoiceSettingsChanges, VoiceState,
 };
 use crate::identity::public_key_fingerprint;
 
@@ -304,6 +304,38 @@ pub fn ready(ready: proto::Ready) -> ReadySnapshot {
             .collect(),
         streams: ready.streams.into_iter().map(stream).collect(),
         voice_settings: voice_settings(ready.voice_settings.unwrap_or_default()),
+        soundboard_sounds: ready
+            .soundboard_sounds
+            .into_iter()
+            .map(soundboard_sound)
+            .collect(),
+    }
+}
+
+pub fn soundboard_sound(sound: proto::SoundboardSound) -> SoundboardSound {
+    SoundboardSound {
+        id: sound.id,
+        name: sound.name,
+        emoji: sound.emoji,
+        volume: sound.volume,
+        sha256: hex::encode(sound.sha256),
+        size_bytes: sound.size_bytes,
+        duration_ms: sound.duration_ms,
+        uploader_id: sound.uploader_id,
+        created_at_ms: sound.created_at_ms,
+    }
+}
+
+pub fn sound_effect(effect: proto::VoiceChannelEffect) -> SoundEffect {
+    SoundEffect {
+        channel_id: effect.channel_id,
+        user_id: effect.user_id,
+        sound_ref: effect.sound_ref,
+        name: effect.name,
+        emoji: effect.emoji,
+        volume: effect.volume,
+        started_at_ms: effect.started_at_ms,
+        duration_ms: effect.duration_ms,
     }
 }
 
@@ -358,10 +390,18 @@ pub fn event(kind: proto::event::Kind, session_id: &str) -> Option<CoreEventPayl
             viewer_ids: event.viewer_ids,
         },
         // Soundboard events arrive with their milestone.
-        Kind::VoiceChannelEffect(_)
-        | Kind::SoundboardSoundCreate(_)
-        | Kind::SoundboardSoundUpdate(_)
-        | Kind::SoundboardSoundDelete(_) => return None,
+        Kind::VoiceChannelEffect(effect) => {
+            CoreEventPayload::VoiceChannelEffect(sound_effect(effect))
+        }
+        Kind::SoundboardSoundCreate(event) => {
+            CoreEventPayload::SoundboardSoundCreate(soundboard_sound(event.sound?))
+        }
+        Kind::SoundboardSoundUpdate(event) => {
+            CoreEventPayload::SoundboardSoundUpdate(soundboard_sound(event.sound?))
+        }
+        Kind::SoundboardSoundDelete(event) => CoreEventPayload::SoundboardSoundDelete {
+            sound_id: event.sound_id,
+        },
     })
 }
 

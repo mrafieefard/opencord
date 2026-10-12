@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:opencord/core/providers/providers.dart';
 import 'package:opencord/core/repository/repository.dart';
 import 'package:opencord/features/shell/navigation.dart';
+import 'package:opencord/features/soundboard/soundboard_picker.dart';
 import 'package:opencord/features/voice/voice_controls.dart';
 import 'package:opencord/ui/theme/oc_colors.dart';
 import 'package:opencord/ui/theme/oc_icons.dart';
@@ -99,6 +100,19 @@ class VoiceConnectedPanel extends ConsumerWidget {
                   ),
                 ),
               ),
+              if (capabilities.soundboard)
+                Builder(
+                  builder: (button) => OcIconButton(
+                    icon: OcIcons.musicNote,
+                    tooltip: 'Soundboard',
+                    size: OcIconButtonSize.compact,
+                    onPressed: () => showSoundboardPicker(
+                      context,
+                      anchor: globalRectOf(button),
+                      side: PopoverSide.right,
+                    ),
+                  ),
+                ),
               OcIconButton(
                 icon: OcIcons.callEnd,
                 tooltip: 'Disconnect',

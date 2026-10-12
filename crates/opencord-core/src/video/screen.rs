@@ -11,7 +11,8 @@ use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 use opencord_common::video::ScreenPreset;
-use opencord_media::transport::{TrackError, TrackKind, TrackRequest};
+use opencord_media::share_audio::{self, sender::Encoded};
+use opencord_media::transport::{EncodedScreenAudio, TrackError, TrackKind, TrackRequest};
 use opencord_media::video::camera::RawFrame;
 use opencord_media::video::camera::pipewire::Remote;
 use opencord_media::video::layers::{ScreenShape, screen_layers};
@@ -45,6 +46,13 @@ pub(super) struct Share {
     pub stopped: bool,
     capture: ScreenCapture,
     _picked: Option<Picked>,
+    _audio: Option<ScreenAudio>,
+}
+
+/// The shared sound: captured and sent while held.
+struct ScreenAudio {
+    _capture: share_audio::pipewire::Capture,
+    _sender: share_audio::sender::Sender,
 }
 
 /// A source chosen and capturing, not live yet.
@@ -55,6 +63,8 @@ pub(crate) struct Pending {
     pub kind: StreamSourceKind,
     /// For sharing the same source again without the picker.
     pub restore_token: Option<String>,
+    /// PipeWire remote fd for screen audio capture.
+    audio_remote: Option<std::os::fd::OwnedFd>,
 }
 
 pub(crate) fn screen_error(problem: ScreenProblem, message: impl Into<String>) -> CoreError {
@@ -110,6 +120,13 @@ pub(crate) async fn pick(fps: u32, restore_token: Option<String>) -> Result<Pend
             )
         }
     };
+    let audio_remote = match &remote {
+        Remote::Portal(fd) => Some(
+            fd.try_clone()
+                .map_err(|error| screen_error(ScreenProblem::Failed, error.to_string()))?,
+        ),
+        Remote::Session => None,
+    };
     let capture =
         tokio::task::spawn_blocking(move || ScreenCapture::start(remote, target, fps, frames))
             .await
@@ -128,6 +145,7 @@ pub(crate) async fn pick(fps: u32, restore_token: Option<String>) -> Result<Pend
         picked,
         kind,
         restore_token,
+        audio_remote,
     })
 }
 
@@ -178,6 +196,12 @@ pub(super) async fn publish(
             Arc::clone(&preview_size),
         )),
     );
+
+    let audio = match pending.audio_remote {
+        Some(remote) if request.has_audio => start_audio(remote, &video.outlet),
+        _ => None,
+    };
+
     let share = Share {
         server_key,
         stream_key: stream_key.clone(),
@@ -189,6 +213,7 @@ pub(super) async fn publish(
         stopped: false,
         capture: pending.capture,
         _picked: pending.picked,
+        _audio: audio,
     };
     if let Err(error) = connection.publish_track(track).await {
         drop_later(share);
@@ -212,6 +237,32 @@ pub(super) async fn publish(
         width: size.0,
         height: size.1,
         source_kind: pending.kind,
+    })
+}
+
+/// Captures the shared sound and sends it on the screen audio track; a
+/// share without its sound goes on when this fails.
+fn start_audio(remote: OwnedFd, outlet: &super::Outlet) -> Option<ScreenAudio> {
+    let (captured, frames) = sync_channel(4);
+    let capture = match share_audio::pipewire::Capture::start_screen(remote, captured) {
+        Ok(capture) => capture,
+        Err(error) => {
+            tracing::warn!(%error, "screen audio capture could not start");
+            return None;
+        }
+    };
+    let outlet = Arc::clone(outlet);
+    let sender = share_audio::sender::Sender::start(frames, move |encoded: Encoded| {
+        if let Some(connection) = lock(&outlet).as_ref() {
+            connection.send_screen_audio(EncodedScreenAudio {
+                payload: encoded.payload,
+                position: encoded.position,
+            });
+        }
+    });
+    Some(ScreenAudio {
+        _capture: capture,
+        _sender: sender,
     })
 }
 

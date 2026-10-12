@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO external_sounds (sha256, size_bytes, duration_ms, uploaded_by, last_used_at)\n         VALUES ($1, $2, $3, $4, $5)\n         ON CONFLICT (sha256) DO UPDATE SET last_used_at = excluded.last_used_at",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 5
+    },
+    "nullable": []
+  },
+  "hash": "fc1d4d192e2adc79f1e2cc8f40937bd75be697b137dd36a3bd6687bf024c9e10"
+}

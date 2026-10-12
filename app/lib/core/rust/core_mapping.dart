@@ -5,6 +5,7 @@ import 'package:opencord/core/model/permissions.dart';
 import 'package:opencord/core/model/presence.dart';
 import 'package:opencord/core/model/server.dart';
 import 'package:opencord/core/model/snapshot.dart';
+import 'package:opencord/core/model/sound.dart';
 import 'package:opencord/core/model/stream.dart';
 import 'package:opencord/core/model/user.dart';
 import 'package:opencord/core/model/voice.dart';
@@ -325,8 +326,60 @@ ReadySnapshot snapshotFrom(
   },
   voiceEnabled: ready.voiceEnabled,
   voiceSettings: voiceSettingsFrom(ready.voiceSettings),
+  sounds: {
+    for (final sound in ready.soundboardSounds) sound.id: soundFrom(sound),
+  },
   lastMessages: lastMessages,
   readStates: readStates,
+);
+
+Sound soundFrom(core.SoundboardSound sound) => Sound(
+  id: sound.id,
+  name: sound.name,
+  emoji: sound.emoji,
+  volume: sound.volume,
+  sha256: sound.sha256,
+  duration: Duration(milliseconds: sound.durationMs),
+  uploaderId: sound.uploaderId,
+  createdAt: _time(sound.createdAtMs),
+);
+
+core.SoundboardSound soundTo(Sound sound) => core.SoundboardSound(
+  id: sound.id,
+  name: sound.name,
+  emoji: sound.emoji,
+  volume: sound.volume,
+  sha256: sound.sha256,
+  sizeBytes: 0,
+  durationMs: sound.duration.inMilliseconds,
+  uploaderId: sound.uploaderId,
+  createdAtMs: sound.createdAt?.millisecondsSinceEpoch ?? 0,
+);
+
+DefaultSound defaultSoundFrom(core.DefaultSound sound) => DefaultSound(
+  id: sound.id,
+  name: sound.name,
+  emoji: sound.emoji,
+  duration: Duration(milliseconds: sound.durationMs),
+);
+
+SoundPlay soundPlayFrom(core.SoundEffect effect) => SoundPlay(
+  channelId: effect.channelId,
+  userId: effect.userId,
+  soundRef: effect.soundRef,
+  name: effect.name,
+  emoji: effect.emoji,
+  volume: effect.volume,
+  duration: Duration(milliseconds: effect.durationMs),
+  startedAt: _time(effect.startedAtMs),
+);
+
+core.SoundSelection selectionTo(SoundWindow window) => core.SoundSelection(
+  draftId: BigInt.from(window.draftId),
+  startMs: window.start.inMilliseconds,
+  lengthMs: window.length.inMilliseconds,
+  normalize: window.normalize,
+  volume: window.volume,
 );
 
 RepoErrorKind _kindFrom(core.ErrorCode code) => switch (code) {
@@ -337,15 +390,15 @@ RepoErrorKind _kindFrom(core.ErrorCode code) => switch (code) {
   core.ErrorCode.invalidArgument => RepoErrorKind.invalidArgument,
   core.ErrorCode.rateLimited => RepoErrorKind.rateLimited,
   core.ErrorCode.conflict ||
-  core.ErrorCode.voiceNotConnected ||
-  core.ErrorCode.soundboardFull => RepoErrorKind.conflict,
+  core.ErrorCode.voiceNotConnected => RepoErrorKind.conflict,
+  core.ErrorCode.soundboardFull => RepoErrorKind.soundboardFull,
   core.ErrorCode.qualityLimit => RepoErrorKind.qualityLimit,
   core.ErrorCode.streamViewerLimit => RepoErrorKind.streamFull,
   core.ErrorCode.voiceChannelFull => RepoErrorKind.voiceChannelFull,
   core.ErrorCode.cameraLimit => RepoErrorKind.cameraLimit,
-  core.ErrorCode.soundCooldown => RepoErrorKind.rateLimited,
-  core.ErrorCode.soundTooLong ||
-  core.ErrorCode.soundInvalid => RepoErrorKind.invalidArgument,
+  core.ErrorCode.soundCooldown => RepoErrorKind.soundCooldown,
+  core.ErrorCode.soundTooLong => RepoErrorKind.soundTooLong,
+  core.ErrorCode.soundInvalid => RepoErrorKind.soundInvalid,
   core.ErrorCode.internal || core.ErrorCode.unknown => RepoErrorKind.other,
 };
 
