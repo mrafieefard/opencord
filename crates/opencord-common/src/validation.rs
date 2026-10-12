@@ -6,6 +6,7 @@ use crate::limits::{
     NAME_MAX_CHARS, REASON_MAX_CHARS, ROLE_NAME_MAX_CHARS, SERVER_DESCRIPTION_MAX_CHARS,
     SERVER_NAME_MAX_CHARS, TOPIC_MAX_CHARS,
 };
+use crate::sound;
 
 #[derive(Debug, thiserror::Error, PartialEq, Eq)]
 pub enum ValidationError {
@@ -13,6 +14,10 @@ pub enum ValidationError {
     Empty { field: &'static str },
     #[error("{field} must be at most {max} characters")]
     TooLong { field: &'static str, max: usize },
+    #[error("{field} must be at least {min} characters")]
+    TooShort { field: &'static str, min: usize },
+    #[error("{field} must be a single emoji")]
+    NotEmoji { field: &'static str },
     #[error("{field} must not contain control characters")]
     ControlCharacters { field: &'static str },
 }
@@ -73,6 +78,36 @@ pub fn server_description(input: &str) -> Result<String, ValidationError> {
 /// Kick or ban reason. `None` when empty.
 pub fn reason(input: &str) -> Result<Option<String>, ValidationError> {
     optional_text("reason", input, REASON_MAX_CHARS)
+}
+
+/// A soundboard sound's name, 2 to 32 characters.
+pub fn sound_name(input: &str) -> Result<String, ValidationError> {
+    let name = single_line_name("sound name", input, sound::NAME_MAX_CHARS)?;
+    if name.chars().count() < sound::NAME_MIN_CHARS {
+        return Err(ValidationError::TooShort {
+            field: "sound name",
+            min: sound::NAME_MIN_CHARS,
+        });
+    }
+    Ok(name)
+}
+
+/// A sound's emoji: one emoji sequence, so no letters, digits, spaces or
+/// control characters, and no longer than the longest sequences. `None`
+/// clears it.
+pub fn sound_emoji(input: &str) -> Result<Option<String>, ValidationError> {
+    let trimmed = input.trim();
+    if trimmed.is_empty() {
+        return Ok(None);
+    }
+    let field = "sound emoji";
+    let plain = trimmed
+        .chars()
+        .any(|c| c.is_alphanumeric() || c.is_whitespace() || c.is_control());
+    if plain || trimmed.chars().count() > sound::EMOJI_MAX_CHARS {
+        return Err(ValidationError::NotEmoji { field });
+    }
+    Ok(Some(trimmed.to_owned()))
 }
 
 /// 0 means the default; anything above the maximum is capped.
@@ -284,6 +319,37 @@ mod tests {
         assert_eq!(reason(" "), Ok(None));
         assert_eq!(reason("spam").unwrap(), Some("spam".to_owned()));
         assert!(reason(&"a".repeat(REASON_MAX_CHARS + 1)).is_err());
+    }
+
+    #[test]
+    fn sound_names_are_2_to_32_characters() {
+        assert_eq!(sound_name("  Ta-da ").unwrap(), "Ta-da");
+        assert_eq!(
+            sound_name("x"),
+            Err(ValidationError::TooShort {
+                field: "sound name",
+                min: 2
+            })
+        );
+        assert!(sound_name(&"é".repeat(32)).is_ok());
+        assert!(sound_name(&"é".repeat(33)).is_err());
+    }
+
+    #[test]
+    fn a_sound_emoji_is_one_emoji_sequence() {
+        assert_eq!(sound_emoji(" ").unwrap(), None);
+        for emoji in ["🔔", "👍🏽", "🇫🇷", "👨‍👩‍👧‍👦", "❤️"] {
+            assert_eq!(sound_emoji(emoji).unwrap().as_deref(), Some(emoji));
+        }
+        for not_emoji in ["a", "🔔 🔔", "1", "🔔x", "🔔🔔🔔🔔🔔🔔🔔🔔🔔"] {
+            assert_eq!(
+                sound_emoji(not_emoji),
+                Err(ValidationError::NotEmoji {
+                    field: "sound emoji"
+                }),
+                "{not_emoji}"
+            );
+        }
     }
 
     #[test]

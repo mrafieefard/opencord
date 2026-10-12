@@ -8,6 +8,7 @@ pub mod permissions;
 pub mod rate;
 pub mod signed;
 pub mod snowflake;
+pub mod sound;
 pub mod validation;
 pub mod video;
 pub mod voice;

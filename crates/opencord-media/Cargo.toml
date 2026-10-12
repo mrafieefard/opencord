@@ -13,6 +13,7 @@ audio_thread_priority.workspace = true
 audioadapter-buffers.workspace = true
 bytes.workspace = true
 cpal.workspace = true
+ebur128.workspace = true
 futures-util.workspace = true
 getrandom.workspace = true
 nnnoiseless.workspace = true
