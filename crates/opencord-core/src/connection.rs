@@ -299,7 +299,13 @@ pub(crate) struct Context {
     pub store: Arc<Mutex<Store>>,
     pub events: mpsc::UnboundedSender<CoreEvent>,
     pub voice_servers: broadcast::Sender<VoiceServer>,
+    /// Each server's latest media token, for its HTTP endpoints.
+    pub media_tokens: MediaTokens,
 }
+
+/// Media tokens by server key. They stay in Rust: the soundboard needs
+/// them, the app does not.
+pub(crate) type MediaTokens = Arc<Mutex<HashMap<String, String>>>;
 
 pub(crate) fn spawn(
     runtime: &Handle,
@@ -569,6 +575,13 @@ impl Task {
     }
 
     fn on_ready(&mut self, ready: proto::Ready) {
+        if let Some(token) = &ready.media_token {
+            self.context
+                .media_tokens
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .insert(self.context.key.clone(), token.token.clone());
+        }
         let mirror = GuildMirror::from_ready(&ready);
         self.permissions = Some(mirror.permissions());
         self.mirror = Some(mirror);

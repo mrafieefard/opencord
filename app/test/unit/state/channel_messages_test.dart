@@ -50,6 +50,7 @@ final _readyPayload = core.CoreEventPayload.ready(
     voiceStates: const [],
     streams: const [],
     voiceSettings: coreVoiceSettings,
+    soundboardSounds: const [],
     selfUser: const core.User(
       id: 1,
       publicKeyHex: 'abcd',

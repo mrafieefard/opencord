@@ -66,11 +66,23 @@ pub struct OpusFile {
 }
 
 impl OpusFile {
+    /// A stored sound: everything checked, the input sample rate included.
     pub fn read(bytes: &[u8]) -> Result<Self, OggError> {
+        Self::read_with(bytes, true)
+    }
+
+    /// A file someone picked to make a sound from: the header's input
+    /// sample rate is only what the audio was before encoding, so any is
+    /// fine.
+    pub fn read_any_rate(bytes: &[u8]) -> Result<Self, OggError> {
+        Self::read_with(bytes, false)
+    }
+
+    fn read_with(bytes: &[u8], only_48_khz: bool) -> Result<Self, OggError> {
         let pages = pages(bytes)?;
         let mut packets = packets(&pages)?.into_iter();
         let head = packets.next().ok_or(OggError::NotOpus)?;
-        let (channels, pre_skip) = opus_head(&head)?;
+        let (channels, pre_skip) = opus_head(&head, only_48_khz)?;
         let tags = packets.next().ok_or(OggError::NotOpus)?;
         if !tags.starts_with(b"OpusTags") {
             return Err(OggError::NotOpus);
@@ -195,7 +207,7 @@ fn packets(pages: &[Page<'_>]) -> Result<Vec<Vec<u8>>, OggError> {
 }
 
 /// Channels and pre-skip from the identification header (RFC 7845 §5.1).
-fn opus_head(packet: &[u8]) -> Result<(u8, u16), OggError> {
+fn opus_head(packet: &[u8], only_48_khz: bool) -> Result<(u8, u16), OggError> {
     if packet.len() < 19 || !packet.starts_with(b"OpusHead") || packet[8] >> 4 != 0 {
         return Err(OggError::NotOpus);
     }
@@ -206,7 +218,7 @@ fn opus_head(packet: &[u8]) -> Result<(u8, u16), OggError> {
     if !(1..=2).contains(&channels) || mapping_family != 0 {
         return Err(OggError::Channels(channels));
     }
-    if sample_rate != SAMPLE_RATE {
+    if only_48_khz && sample_rate != SAMPLE_RATE {
         return Err(OggError::SampleRate(sample_rate));
     }
     Ok((channels, pre_skip))
@@ -412,6 +424,7 @@ mod tests {
             OpusFile::read(&at_44).unwrap_err(),
             OggError::SampleRate(44_100)
         );
+        assert!(OpusFile::read_any_rate(&at_44).is_ok());
 
         let surround = rewrite_head(&file(1.0), |head| head[9] = 6);
         assert_eq!(

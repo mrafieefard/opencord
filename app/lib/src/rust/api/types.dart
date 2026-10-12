@@ -8,7 +8,7 @@ import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 import 'package:freezed_annotation/freezed_annotation.dart' hide protected;
 part 'types.freezed.dart';
 
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`
 
 @freezed
 sealed class AddServerOutcome with _$AddServerOutcome {
@@ -563,6 +563,47 @@ sealed class CoreEventPayload with _$CoreEventPayload {
     required String streamKey,
     required Int64List viewerIds,
   }) = CoreEventPayload_StreamViewersUpdate;
+  const factory CoreEventPayload.soundboardSoundCreate(SoundboardSound field0) =
+      CoreEventPayload_SoundboardSoundCreate;
+  const factory CoreEventPayload.soundboardSoundUpdate(SoundboardSound field0) =
+      CoreEventPayload_SoundboardSoundUpdate;
+  const factory CoreEventPayload.soundboardSoundDelete({
+    required PlatformInt64 soundId,
+  }) = CoreEventPayload_SoundboardSoundDelete;
+
+  /// A sound played in a voice channel this device is connected to on
+  /// that server.
+  const factory CoreEventPayload.voiceChannelEffect(SoundEffect field0) =
+      CoreEventPayload_VoiceChannelEffect;
+}
+
+/// A sound every client has (plan §11.8), played as `default:<id>`.
+class DefaultSound {
+  final String id;
+  final String name;
+  final String emoji;
+  final int durationMs;
+
+  const DefaultSound({
+    required this.id,
+    required this.name,
+    required this.emoji,
+    required this.durationMs,
+  });
+
+  @override
+  int get hashCode =>
+      id.hashCode ^ name.hashCode ^ emoji.hashCode ^ durationMs.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is DefaultSound &&
+          runtimeType == other.runtimeType &&
+          id == other.id &&
+          name == other.name &&
+          emoji == other.emoji &&
+          durationMs == other.durationMs;
 }
 
 enum ErrorCode {
@@ -968,6 +1009,9 @@ class ReadySnapshot {
   final List<ScreenStream> streams;
   final VoiceSettings voiceSettings;
 
+  /// This server's soundboard.
+  final List<SoundboardSound> soundboardSounds;
+
   const ReadySnapshot({
     required this.selfUser,
     required this.server,
@@ -981,6 +1025,7 @@ class ReadySnapshot {
     required this.voiceStates,
     required this.streams,
     required this.voiceSettings,
+    required this.soundboardSounds,
   });
 
   @override
@@ -996,7 +1041,8 @@ class ReadySnapshot {
       voiceEnabled.hashCode ^
       voiceStates.hashCode ^
       streams.hashCode ^
-      voiceSettings.hashCode;
+      voiceSettings.hashCode ^
+      soundboardSounds.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -1014,7 +1060,8 @@ class ReadySnapshot {
           voiceEnabled == other.voiceEnabled &&
           voiceStates == other.voiceStates &&
           streams == other.streams &&
-          voiceSettings == other.voiceSettings;
+          voiceSettings == other.voiceSettings &&
+          soundboardSounds == other.soundboardSounds;
 }
 
 class Role {
@@ -1343,6 +1390,212 @@ class ServerInfo {
           ownerId == other.ownerId &&
           openJoin == other.openJoin &&
           everyoneRoleId == other.everyoneRoleId;
+}
+
+/// A file opened for the trim editor (plan §11.3), decoded to 48 kHz mono.
+class SoundDraft {
+  final BigInt draftId;
+  final int durationMs;
+
+  /// The loudest sample in each of equal slices of the file, 0–1.
+  final Float32List waveform;
+
+  const SoundDraft({
+    required this.draftId,
+    required this.durationMs,
+    required this.waveform,
+  });
+
+  @override
+  int get hashCode =>
+      draftId.hashCode ^ durationMs.hashCode ^ waveform.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is SoundDraft &&
+          runtimeType == other.runtimeType &&
+          draftId == other.draftId &&
+          durationMs == other.durationMs &&
+          waveform == other.waveform;
+}
+
+/// Someone in a voice channel played a sound; everyone in it hears it.
+class SoundEffect {
+  final PlatformInt64 channelId;
+  final PlatformInt64 userId;
+
+  /// `server:<sha256>`, `external:<sha256>` or `default:<id>`.
+  final String soundRef;
+  final String name;
+  final String? emoji;
+
+  /// 0–100 %.
+  final int volume;
+  final PlatformInt64 startedAtMs;
+
+  /// How long it plays: the player's soundboard ring shows this long.
+  final int durationMs;
+
+  const SoundEffect({
+    required this.channelId,
+    required this.userId,
+    required this.soundRef,
+    required this.name,
+    this.emoji,
+    required this.volume,
+    required this.startedAtMs,
+    required this.durationMs,
+  });
+
+  @override
+  int get hashCode =>
+      channelId.hashCode ^
+      userId.hashCode ^
+      soundRef.hashCode ^
+      name.hashCode ^
+      emoji.hashCode ^
+      volume.hashCode ^
+      startedAtMs.hashCode ^
+      durationMs.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is SoundEffect &&
+          runtimeType == other.runtimeType &&
+          channelId == other.channelId &&
+          userId == other.userId &&
+          soundRef == other.soundRef &&
+          name == other.name &&
+          emoji == other.emoji &&
+          volume == other.volume &&
+          startedAtMs == other.startedAtMs &&
+          durationMs == other.durationMs;
+}
+
+/// The window of a draft to upload or preview, and how.
+class SoundSelection {
+  final BigInt draftId;
+  final int startMs;
+
+  /// At most 5 seconds.
+  final int lengthMs;
+
+  /// Bring it to −18 LUFS (on by default in the editor).
+  final bool normalize;
+
+  /// 0–100 %.
+  final int volume;
+
+  const SoundSelection({
+    required this.draftId,
+    required this.startMs,
+    required this.lengthMs,
+    required this.normalize,
+    required this.volume,
+  });
+
+  @override
+  int get hashCode =>
+      draftId.hashCode ^
+      startMs.hashCode ^
+      lengthMs.hashCode ^
+      normalize.hashCode ^
+      volume.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is SoundSelection &&
+          runtimeType == other.runtimeType &&
+          draftId == other.draftId &&
+          startMs == other.startMs &&
+          lengthMs == other.lengthMs &&
+          normalize == other.normalize &&
+          volume == other.volume;
+}
+
+/// One of a server's soundboard sounds (Phase 2 plan §11).
+class SoundboardSound {
+  final PlatformInt64 id;
+  final String name;
+  final String? emoji;
+
+  /// 0–100 %.
+  final int volume;
+
+  /// The file's SHA-256, lowercase hex: it is played as `server:<sha256>`.
+  final String sha256;
+  final int sizeBytes;
+  final int durationMs;
+  final PlatformInt64? uploaderId;
+  final PlatformInt64 createdAtMs;
+
+  const SoundboardSound({
+    required this.id,
+    required this.name,
+    this.emoji,
+    required this.volume,
+    required this.sha256,
+    required this.sizeBytes,
+    required this.durationMs,
+    this.uploaderId,
+    required this.createdAtMs,
+  });
+
+  @override
+  int get hashCode =>
+      id.hashCode ^
+      name.hashCode ^
+      emoji.hashCode ^
+      volume.hashCode ^
+      sha256.hashCode ^
+      sizeBytes.hashCode ^
+      durationMs.hashCode ^
+      uploaderId.hashCode ^
+      createdAtMs.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is SoundboardSound &&
+          runtimeType == other.runtimeType &&
+          id == other.id &&
+          name == other.name &&
+          emoji == other.emoji &&
+          volume == other.volume &&
+          sha256 == other.sha256 &&
+          sizeBytes == other.sizeBytes &&
+          durationMs == other.durationMs &&
+          uploaderId == other.uploaderId &&
+          createdAtMs == other.createdAtMs;
+}
+
+/// What to change about a sound; `None` keeps it. An empty emoji clears it.
+class SoundboardSoundChanges {
+  final String? name;
+  final String? emoji;
+
+  /// 0–100 %.
+  final int? volume;
+
+  const SoundboardSoundChanges({this.name, this.emoji, this.volume});
+
+  static Future<SoundboardSoundChanges> default_() =>
+      RustLib.instance.api.crateApiTypesSoundboardSoundChangesDefault();
+
+  @override
+  int get hashCode => name.hashCode ^ emoji.hashCode ^ volume.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is SoundboardSoundChanges &&
+          runtimeType == other.runtimeType &&
+          name == other.name &&
+          emoji == other.emoji &&
+          volume == other.volume;
 }
 
 /// Someone started or stopped speaking.

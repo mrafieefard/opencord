@@ -3,10 +3,12 @@
 //! 96 kbps) and a stored sound decoded for playing.
 
 pub mod defaults;
+pub mod input;
 
 use opencord_common::sound::ogg::{self, OggError, OpusFile};
 use opencord_common::sound::{NORMALIZE_LUFS, UPLOAD_BITRATE};
 
+use crate::audio::convert::ConvertError;
 use crate::audio::{FRAME, SAMPLE_RATE};
 
 /// Opus allows no longer packet than 120 ms.
@@ -24,6 +26,14 @@ pub enum SoundError {
     Loudness(String),
     #[error("a sound has one or two channels, not {0}")]
     Channels(u8),
+    #[error("the file is larger than 10 MB")]
+    TooLarge,
+    #[error("this kind of file can't be used: {0}")]
+    Unsupported(String),
+    #[error("the file has no sound in it")]
+    Empty,
+    #[error(transparent)]
+    Convert(#[from] ConvertError),
 }
 
 /// Interleaved samples at 48 kHz.
@@ -121,10 +131,44 @@ pub fn encode(pcm: &Pcm) -> Result<Vec<u8>, SoundError> {
     Ok(ogg::write(pcm.channels, pre_skip, &packets, samples))
 }
 
+/// What is uploaded for the window `start_ms`..`start_ms + length_ms` of
+/// `pcm`: normalized to −18 LUFS when asked (plan §11.3), encoded.
+pub fn prepare_upload(
+    pcm: &Pcm,
+    start_ms: u32,
+    length_ms: u32,
+    normalize: bool,
+) -> Result<Vec<u8>, SoundError> {
+    let window = pcm.trimmed(start_ms, length_ms);
+    if window.frames() == 0 {
+        return Err(SoundError::Empty);
+    }
+    let window = if normalize {
+        window.scaled(normalizing_gain(&window)?)
+    } else {
+        window
+    };
+    encode(&window)
+}
+
 /// A stored sound's samples, pre-skip dropped and the end trimmed to the
 /// final granule position.
 pub fn decode(file: &[u8]) -> Result<Pcm, SoundError> {
-    let file = OpusFile::read(file)?;
+    decode_packets(&OpusFile::read(file)?)
+}
+
+/// A stored sound as the mixer plays it: mono.
+pub fn decode_mono(file: &[u8]) -> Result<Vec<f32>, SoundError> {
+    let pcm = decode(file)?;
+    let width = usize::from(pcm.channels.max(1));
+    Ok(pcm
+        .samples
+        .chunks_exact(width)
+        .map(|frame| frame.iter().sum::<f32>() / width as f32)
+        .collect())
+}
+
+fn decode_packets(file: &OpusFile) -> Result<Pcm, SoundError> {
     let channels = match file.info.channels {
         1 => opus::Channels::Mono,
         _ => opus::Channels::Stereo,

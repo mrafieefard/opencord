@@ -115,6 +115,20 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   ServerInfo dco_decode_box_autoadd_server_info(dynamic raw);
 
   @protected
+  SoundEffect dco_decode_box_autoadd_sound_effect(dynamic raw);
+
+  @protected
+  SoundSelection dco_decode_box_autoadd_sound_selection(dynamic raw);
+
+  @protected
+  SoundboardSound dco_decode_box_autoadd_soundboard_sound(dynamic raw);
+
+  @protected
+  SoundboardSoundChanges dco_decode_box_autoadd_soundboard_sound_changes(
+    dynamic raw,
+  );
+
+  @protected
   TextureStats dco_decode_box_autoadd_texture_stats(dynamic raw);
 
   @protected
@@ -173,6 +187,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   CoreEventPayload dco_decode_core_event_payload(dynamic raw);
 
   @protected
+  DefaultSound dco_decode_default_sound(dynamic raw);
+
+  @protected
   ErrorCode dco_decode_error_code(dynamic raw);
 
   @protected
@@ -224,6 +241,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   List<ChannelPosition> dco_decode_list_channel_position(dynamic raw);
 
   @protected
+  List<DefaultSound> dco_decode_list_default_sound(dynamic raw);
+
+  @protected
   List<HotkeyBinding> dco_decode_list_hotkey_binding(dynamic raw);
 
   @protected
@@ -242,6 +262,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   List<Presence> dco_decode_list_presence(dynamic raw);
 
   @protected
+  Float32List dco_decode_list_prim_f_32_strict(dynamic raw);
+
+  @protected
   Int64List dco_decode_list_prim_i_64_strict(dynamic raw);
 
   @protected
@@ -258,6 +281,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   List<Server> dco_decode_list_server(dynamic raw);
+
+  @protected
+  List<SoundboardSound> dco_decode_list_soundboard_sound(dynamic raw);
 
   @protected
   List<SpeakingChange> dco_decode_list_speaking_change(dynamic raw);
@@ -296,6 +322,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   ScreenShareResolution? dco_decode_opt_box_autoadd_screen_share_resolution(
     dynamic raw,
   );
+
+  @protected
+  SoundboardSound? dco_decode_opt_box_autoadd_soundboard_sound(dynamic raw);
 
   @protected
   TextureStats? dco_decode_opt_box_autoadd_texture_stats(dynamic raw);
@@ -347,6 +376,21 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   ServerInfo dco_decode_server_info(dynamic raw);
+
+  @protected
+  SoundDraft dco_decode_sound_draft(dynamic raw);
+
+  @protected
+  SoundEffect dco_decode_sound_effect(dynamic raw);
+
+  @protected
+  SoundSelection dco_decode_sound_selection(dynamic raw);
+
+  @protected
+  SoundboardSound dco_decode_soundboard_sound(dynamic raw);
+
+  @protected
+  SoundboardSoundChanges dco_decode_soundboard_sound_changes(dynamic raw);
 
   @protected
   SpeakingChange dco_decode_speaking_change(dynamic raw);
@@ -511,6 +555,24 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   ServerInfo sse_decode_box_autoadd_server_info(SseDeserializer deserializer);
 
   @protected
+  SoundEffect sse_decode_box_autoadd_sound_effect(SseDeserializer deserializer);
+
+  @protected
+  SoundSelection sse_decode_box_autoadd_sound_selection(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  SoundboardSound sse_decode_box_autoadd_soundboard_sound(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  SoundboardSoundChanges sse_decode_box_autoadd_soundboard_sound_changes(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   TextureStats sse_decode_box_autoadd_texture_stats(
     SseDeserializer deserializer,
   );
@@ -575,6 +637,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   CoreEventPayload sse_decode_core_event_payload(SseDeserializer deserializer);
 
   @protected
+  DefaultSound sse_decode_default_sound(SseDeserializer deserializer);
+
+  @protected
   ErrorCode sse_decode_error_code(SseDeserializer deserializer);
 
   @protected
@@ -632,6 +697,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  List<DefaultSound> sse_decode_list_default_sound(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   List<HotkeyBinding> sse_decode_list_hotkey_binding(
     SseDeserializer deserializer,
   );
@@ -654,6 +724,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   List<Presence> sse_decode_list_presence(SseDeserializer deserializer);
 
   @protected
+  Float32List sse_decode_list_prim_f_32_strict(SseDeserializer deserializer);
+
+  @protected
   Int64List sse_decode_list_prim_i_64_strict(SseDeserializer deserializer);
 
   @protected
@@ -672,6 +745,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   List<Server> sse_decode_list_server(SseDeserializer deserializer);
+
+  @protected
+  List<SoundboardSound> sse_decode_list_soundboard_sound(
+    SseDeserializer deserializer,
+  );
 
   @protected
   List<SpeakingChange> sse_decode_list_speaking_change(
@@ -714,6 +792,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   ScreenShareResolution? sse_decode_opt_box_autoadd_screen_share_resolution(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  SoundboardSound? sse_decode_opt_box_autoadd_soundboard_sound(
     SseDeserializer deserializer,
   );
 
@@ -779,6 +862,23 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   ServerInfo sse_decode_server_info(SseDeserializer deserializer);
+
+  @protected
+  SoundDraft sse_decode_sound_draft(SseDeserializer deserializer);
+
+  @protected
+  SoundEffect sse_decode_sound_effect(SseDeserializer deserializer);
+
+  @protected
+  SoundSelection sse_decode_sound_selection(SseDeserializer deserializer);
+
+  @protected
+  SoundboardSound sse_decode_soundboard_sound(SseDeserializer deserializer);
+
+  @protected
+  SoundboardSoundChanges sse_decode_soundboard_sound_changes(
+    SseDeserializer deserializer,
+  );
 
   @protected
   SpeakingChange sse_decode_speaking_change(SseDeserializer deserializer);
@@ -976,6 +1076,30 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_box_autoadd_sound_effect(
+    SoundEffect self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_box_autoadd_sound_selection(
+    SoundSelection self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_box_autoadd_soundboard_sound(
+    SoundboardSound self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_box_autoadd_soundboard_sound_changes(
+    SoundboardSoundChanges self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_box_autoadd_texture_stats(
     TextureStats self,
     SseSerializer serializer,
@@ -1060,6 +1184,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_default_sound(DefaultSound self, SseSerializer serializer);
+
+  @protected
   void sse_encode_error_code(ErrorCode self, SseSerializer serializer);
 
   @protected
@@ -1126,6 +1253,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_list_default_sound(
+    List<DefaultSound> self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_list_hotkey_binding(
     List<HotkeyBinding> self,
     SseSerializer serializer,
@@ -1148,6 +1281,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_list_presence(List<Presence> self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_list_prim_f_32_strict(
+    Float32List self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_list_prim_i_64_strict(
@@ -1175,6 +1314,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_list_server(List<Server> self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_list_soundboard_sound(
+    List<SoundboardSound> self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_list_speaking_change(
@@ -1230,6 +1375,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_opt_box_autoadd_screen_share_resolution(
     ScreenShareResolution? self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_opt_box_autoadd_soundboard_sound(
+    SoundboardSound? self,
     SseSerializer serializer,
   );
 
@@ -1304,6 +1455,30 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_server_info(ServerInfo self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_sound_draft(SoundDraft self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_sound_effect(SoundEffect self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_sound_selection(
+    SoundSelection self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_soundboard_sound(
+    SoundboardSound self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_soundboard_sound_changes(
+    SoundboardSoundChanges self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_speaking_change(

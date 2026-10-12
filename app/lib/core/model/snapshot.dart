@@ -6,6 +6,7 @@ import 'package:opencord/core/model/misc.dart';
 import 'package:opencord/core/model/permissions.dart';
 import 'package:opencord/core/model/presence.dart';
 import 'package:opencord/core/model/server.dart';
+import 'package:opencord/core/model/sound.dart';
 import 'package:opencord/core/model/stream.dart';
 import 'package:opencord/core/model/user.dart';
 import 'package:opencord/core/model/voice.dart';
@@ -28,6 +29,7 @@ class ReadySnapshot {
     this.streams = const {},
     this.voiceEnabled = true,
     this.voiceSettings = const VoiceSettings(),
+    this.sounds = const {},
     this.lastMessages = const {},
     this.readStates = const {},
   });
@@ -55,6 +57,9 @@ class ReadySnapshot {
   /// Whether the server has voice at all.
   final bool voiceEnabled;
   final VoiceSettings voiceSettings;
+
+  /// The soundboard's sounds by id, oldest first.
+  final Map<int, Sound> sounds;
 
   /// Newest message per channel, for the channel list previews.
   final Map<int, Message> lastMessages;

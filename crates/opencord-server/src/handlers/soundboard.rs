@@ -128,6 +128,7 @@ pub async fn play(
             emoji,
             volume,
             started_at_ms: now_ms(),
+            duration_ms,
         }
     };
     if let SoundRef::External(hash) = sound_ref {

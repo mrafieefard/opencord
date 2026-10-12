@@ -167,6 +167,15 @@ impl Processor {
         }
     }
 
+    /// A soundboard sound, mono at 48 kHz, at `gain` (0–1).
+    pub fn play_sound(&mut self, samples: Arc<[f32]>, gain: f32) {
+        self.playback.play_sound(samples, gain);
+    }
+
+    pub fn stop_sounds(&mut self) {
+        self.playback.stop_sounds();
+    }
+
     pub fn remove_user(&mut self, user_id: i64) {
         self.playback.remove(user_id);
     }

@@ -6,6 +6,7 @@ import 'package:opencord/core/model/permissions.dart';
 import 'package:opencord/core/model/presence.dart';
 import 'package:opencord/core/model/server.dart';
 import 'package:opencord/core/model/snapshot.dart';
+import 'package:opencord/core/model/sound.dart';
 import 'package:opencord/core/model/user.dart';
 import 'package:opencord/core/model/voice.dart';
 
@@ -52,6 +53,9 @@ class MockServer {
   final List<Invite> invites = [];
   final List<Ban> bans = [];
   VoiceSettings voiceSettings = const VoiceSettings();
+
+  /// The soundboard, by id.
+  final Map<int, Sound> sounds = {};
 
   ServerSummary get summary => ServerSummary(
     key: key,
@@ -127,6 +131,7 @@ class MockServer {
                 ),
       },
       voiceSettings: voiceSettings,
+      sounds: Map.of(sounds),
       lastMessages: {
         for (final MapEntry(:key, :value) in messages.entries)
           if (visible.containsKey(key) && value.isNotEmpty) key: value.last,
@@ -155,11 +160,83 @@ const selfFingerprint = 'KQ7M-3XPA-ZR2D-W9TB';
 /// Builds the three servers of plan §11 around [now].
 MockWorld buildMockWorld(DateTime now) {
   final ids = MockIds();
-  return MockWorld([
-    _opencordDev(now, ids),
-    _rustBerlin(now, ids),
-    _homelab(now, ids),
-  ], ids);
+  final dev = _opencordDev(now, ids);
+  _seedSounds(dev, now);
+  return MockWorld([dev, _rustBerlin(now, ids), _homelab(now, ids)], ids);
+}
+
+/// The core's default sounds (Phase 2 plan §11.8), as the mock offers them.
+const mockDefaultSounds = [
+  DefaultSound(
+    id: 'chime',
+    name: 'Chime',
+    emoji: '🔔',
+    duration: Duration(milliseconds: 1400),
+  ),
+  DefaultSound(
+    id: 'tada',
+    name: 'Ta-da',
+    emoji: '🎉',
+    duration: Duration(milliseconds: 1600),
+  ),
+  DefaultSound(
+    id: 'air-horn',
+    name: 'Air horn',
+    emoji: '📯',
+    duration: Duration(milliseconds: 1750),
+  ),
+  DefaultSound(
+    id: 'rimshot',
+    name: 'Ba dum tss',
+    emoji: '🥁',
+    duration: Duration(milliseconds: 1600),
+  ),
+  DefaultSound(
+    id: 'applause',
+    name: 'Applause',
+    emoji: '👏',
+    duration: Duration(milliseconds: 3000),
+  ),
+  DefaultSound(
+    id: 'sad-trombone',
+    name: 'Sad trombone',
+    emoji: '🎺',
+    duration: Duration(milliseconds: 2800),
+  ),
+  DefaultSound(
+    id: 'boing',
+    name: 'Boing',
+    emoji: '🪀',
+    duration: Duration(milliseconds: 900),
+  ),
+  DefaultSound(
+    id: 'crickets',
+    name: 'Crickets',
+    emoji: '🦗',
+    duration: Duration(milliseconds: 2500),
+  ),
+];
+
+void _seedSounds(MockServer server, DateTime now) {
+  final sounds = [
+    ('Bruh', '💀', 1200, 100),
+    ('Drum roll', '🥁', 4200, 80),
+    ('Wow', '😮', 900, 100),
+    ('Ship it', null, 2600, 60),
+  ];
+  for (final (index, (name, emoji, ms, volume)) in sounds.indexed) {
+    final id = 900 + index;
+    server.sounds[id] = Sound(
+      id: id,
+      name: name,
+      emoji: emoji,
+      volume: volume,
+      sha256: fakeFingerprint('sound $name'),
+      duration: Duration(milliseconds: ms),
+      uploaderId: server.selfId,
+      createdAt: now.subtract(Duration(days: 9 - index)),
+    );
+  }
 }
 
 String fakeFingerprint(String seed) {

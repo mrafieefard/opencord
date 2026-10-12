@@ -115,8 +115,35 @@ impl Voice {
     }
 }
 
+/// A soundboard sound playing (plan §11.5): mono at 48 kHz, mixed in with
+/// the voices, so the echo canceller hears it too.
+struct Sound {
+    samples: Arc<[f32]>,
+    position: usize,
+    gain: f32,
+    /// Its next 10 ms; silence past its end.
+    tick: [f32; TICK],
+}
+
+impl Sound {
+    fn next_tick(&mut self) {
+        let start = self.position.min(self.samples.len());
+        let end = (start + TICK).min(self.samples.len());
+        let length = end - start;
+        self.tick[..length].copy_from_slice(&self.samples[start..end]);
+        self.tick[length..].fill(0.0);
+        self.position += TICK;
+    }
+
+    fn playing(&self) -> bool {
+        self.position < self.samples.len()
+    }
+}
+
 pub struct Playback {
     voices: HashMap<i64, Voice>,
+    /// Soundboard sounds, until they end.
+    sounds: Vec<Sound>,
     listening: HashMap<i64, Listening>,
     /// Who speaks with priority now, as the node relays it.
     priority: HashSet<i64>,
@@ -137,6 +164,7 @@ impl Playback {
     pub fn new() -> Self {
         Self {
             voices: HashMap::new(),
+            sounds: Vec::new(),
             listening: HashMap::new(),
             priority: HashSet::new(),
             reported: HashSet::new(),
@@ -223,6 +251,20 @@ impl Playback {
         self.deafened = deafened;
     }
 
+    /// Plays a soundboard sound, mono at 48 kHz, at `gain` (0–1).
+    pub fn play_sound(&mut self, samples: Arc<[f32]>, gain: f32) {
+        self.sounds.push(Sound {
+            samples,
+            position: 0,
+            gain: gain.clamp(0.0, 1.0),
+            tick: [0.0; TICK],
+        });
+    }
+
+    pub fn stop_sounds(&mut self) {
+        self.sounds.clear();
+    }
+
     /// The next 10 ms of everything heard, at 48 kHz mono.
     pub fn tick(&mut self, now: Instant, out: &mut [f32]) {
         for voice in self.voices.values_mut() {
@@ -237,17 +279,26 @@ impl Playback {
             let ducked = ducking && !priority.contains(user_id);
             voice.duck_to(if ducked { DUCKED } else { 1.0 });
         }
+        // Sounds go on while deafened, like everyone's voice.
+        for sound in &mut self.sounds {
+            sound.next_tick();
+        }
         if self.deafened {
             out.fill(0.0);
-            return;
+        } else {
+            let listening = &self.listening;
+            let voices = self.voices.iter().map(|(user_id, voice)| {
+                let choice = listening.get(user_id).copied().unwrap_or_default();
+                let volume = if choice.muted { 0.0 } else { choice.volume };
+                (&voice.tick[..], volume)
+            });
+            let sounds = self
+                .sounds
+                .iter()
+                .map(|sound| (&sound.tick[..], sound.gain));
+            self.mixer.mix(voices.chain(sounds), self.master, out);
         }
-        let listening = &self.listening;
-        let sources = self.voices.iter().map(|(user_id, voice)| {
-            let choice = listening.get(user_id).copied().unwrap_or_default();
-            let volume = if choice.muted { 0.0 } else { choice.volume };
-            (&voice.tick[..], volume)
-        });
-        self.mixer.mix(sources, self.master, out);
+        self.sounds.retain(Sound::playing);
     }
 }
 
@@ -594,5 +645,48 @@ mod tests {
         let after: f32 = levels[100..140].iter().sum::<f32>() / 40.0;
         let expected: f32 = plain[100..140].iter().sum::<f32>() / 40.0;
         assert!((after - expected).abs() < 0.5, "{after} against {expected}");
+    }
+
+    /// The tick-by-tick peak of `ticks` ticks.
+    fn peaks(playback: &mut Playback, ticks: usize) -> Vec<f32> {
+        let now = Instant::now();
+        let mut out = [0.0; TICK];
+        (0..ticks)
+            .map(|_| {
+                playback.tick(now, &mut out);
+                out.iter().fold(0f32, |peak, sample| peak.max(sample.abs()))
+            })
+            .collect()
+    }
+
+    #[test]
+    fn a_sound_plays_at_its_gain_until_it_ends() {
+        let mut playback = Playback::new();
+        // 25 ms of a steady 0.5.
+        playback.play_sound(Arc::from(vec![0.5; 1_200]), 0.4);
+
+        let heard = peaks(&mut playback, 4);
+
+        assert_eq!(heard, [0.2, 0.2, 0.2, 0.0]);
+        assert!(playback.sounds.is_empty());
+    }
+
+    #[test]
+    fn sounds_overlap_and_go_on_while_deafened() {
+        let mut playback = Playback::new();
+        playback.play_sound(Arc::from(vec![0.25; 4_800]), 1.0);
+        playback.play_sound(Arc::from(vec![0.25; 2_400]), 1.0);
+
+        let together = peaks(&mut playback, 2);
+        playback.set_deafened(true);
+        let deafened = peaks(&mut playback, 3);
+        playback.set_deafened(false);
+        let after = peaks(&mut playback, 6);
+
+        assert_eq!(together, [0.5, 0.5]);
+        assert_eq!(deafened, [0.0; 3]);
+        // The short one ended while deafened; the long one plays on to its
+        // end at 100 ms.
+        assert_eq!(after, [0.25, 0.25, 0.25, 0.25, 0.25, 0.0]);
     }
 }

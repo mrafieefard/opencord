@@ -13,17 +13,18 @@ use tokio::runtime::Runtime;
 
 use super::types::{
     AddServerOutcome, AudioDevices, AudioSettings, Ban, CameraDevice, CameraStarted, Channel,
-    ChannelChanges, ChannelKind, ChannelPosition, CoreError, CoreEvent, GeneratedIdentity,
-    HotkeyBinding, HotkeySupport, IdentityInfo, Invite, MediaEvent, Member, Message,
-    NoiseSuppressionMode, OverwriteTargetKind, PermissionOverwrite, PresenceStatus, Role,
+    ChannelChanges, ChannelKind, ChannelPosition, CoreError, CoreEvent, DefaultSound,
+    GeneratedIdentity, HotkeyBinding, HotkeySupport, IdentityInfo, Invite, MediaEvent, Member,
+    Message, NoiseSuppressionMode, OverwriteTargetKind, PermissionOverwrite, PresenceStatus, Role,
     RoleChanges, ScreenShareRequest, ScreenShareStarted, Server, ServerChanges, ServerInfo,
-    TextureStats, TrustedFingerprint, User, VideoWant, VoiceSettings, VoiceSettingsChanges,
-    VoiceState,
+    SoundDraft, SoundSelection, SoundboardSound, SoundboardSoundChanges, TextureStats,
+    TrustedFingerprint, User, VideoWant, VoiceSettings, VoiceSettingsChanges, VoiceState,
 };
 use crate::client::Client;
 use crate::frb_generated::StreamSink;
 use crate::identity::{self, Identity};
 use crate::media::{self, MediaOptions};
+use crate::soundboard::Soundboard;
 
 /// Events kept for a stream that has not been opened yet.
 const BACKLOG_LIMIT: usize = 10_000;
@@ -708,6 +709,111 @@ pub async fn voice_move_member(
 pub async fn voice_disconnect_member(server_key: String, user_id: i64) -> Result<(), CoreError> {
     on_runtime(move |client| async move { client.disconnect_member(&server_key, user_id).await })
         .await
+}
+
+/// The sounds every client has (plan §11.8), played as `default:<id>`.
+#[frb(sync)]
+pub fn soundboard_default_sounds() -> Vec<DefaultSound> {
+    Soundboard::default_sounds()
+}
+
+/// Plays a sound in a voice channel this device is in, for everyone there
+/// (plan §11.5). `sound_ref` is `server:<sha256>`, `external:<sha256>` or
+/// `default:<id>`. For a sound from another server, `external_server_key`
+/// and `external_sound` name it: it is uploaded here first if needed.
+pub async fn soundboard_play(
+    server_key: String,
+    channel_id: i64,
+    sound_ref: String,
+    external_server_key: Option<String>,
+    external_sound: Option<SoundboardSound>,
+) -> Result<(), CoreError> {
+    let external = external_server_key.zip(external_sound);
+    on_runtime(move |client| async move {
+        client
+            .soundboard_play(&server_key, channel_id, &sound_ref, external)
+            .await
+    })
+    .await
+}
+
+/// Plays a sound on this device only; nobody else hears it.
+pub async fn soundboard_preview(server_key: String, sound_ref: String) -> Result<(), CoreError> {
+    on_runtime(
+        move |client| async move { client.soundboard_preview(&server_key, &sound_ref).await },
+    )
+    .await
+}
+
+/// The soundboard's volume (0–1) and "Mute all soundboards" (User settings
+/// → Sounds).
+#[frb(sync)]
+pub fn soundboard_set_listening(volume: f32, muted: bool) -> Result<(), CoreError> {
+    client()?.soundboard_set_listening(volume, muted);
+    Ok(())
+}
+
+/// "Mute their soundboard": their sounds are not played on this device.
+#[frb(sync)]
+pub fn soundboard_mute_player(
+    server_key: String,
+    user_id: i64,
+    muted: bool,
+) -> Result<(), CoreError> {
+    client()?.soundboard_mute_player(&server_key, user_id, muted);
+    Ok(())
+}
+
+pub async fn soundboard_update_sound(
+    server_key: String,
+    sound_id: i64,
+    changes: SoundboardSoundChanges,
+) -> Result<SoundboardSound, CoreError> {
+    on_runtime(move |client| async move {
+        client
+            .update_soundboard_sound(&server_key, sound_id, changes)
+            .await
+    })
+    .await
+}
+
+pub async fn soundboard_delete_sound(server_key: String, sound_id: i64) -> Result<(), CoreError> {
+    on_runtime(
+        move |client| async move { client.delete_soundboard_sound(&server_key, sound_id).await },
+    )
+    .await
+}
+
+/// Opens an audio file (MP3, WAV, FLAC, OGG, M4A; at most 10 MB) for the
+/// trim editor.
+pub async fn soundboard_open_draft(path: String) -> Result<SoundDraft, CoreError> {
+    on_runtime(move |client| async move { client.soundboard_open_draft(path).await }).await
+}
+
+/// Plays the selected window on this device, as it would be uploaded.
+pub async fn soundboard_preview_draft(selection: SoundSelection) -> Result<(), CoreError> {
+    on_runtime(move |client| async move { client.soundboard_preview_draft(selection).await }).await
+}
+
+/// Uploads the selected window as a new sound on that server.
+pub async fn soundboard_upload(
+    server_key: String,
+    selection: SoundSelection,
+    name: String,
+    emoji: Option<String>,
+) -> Result<SoundboardSound, CoreError> {
+    on_runtime(move |client| async move {
+        client
+            .soundboard_upload(&server_key, selection, name, emoji)
+            .await
+    })
+    .await
+}
+
+#[frb(sync)]
+pub fn soundboard_close_draft(draft_id: u64) -> Result<(), CoreError> {
+    client()?.soundboard_close_draft(draft_id);
+    Ok(())
 }
 
 fn client() -> Result<Client, CoreError> {

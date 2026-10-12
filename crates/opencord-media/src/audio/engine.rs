@@ -98,6 +98,8 @@ enum Command {
     Priority(i64, bool),
     MicTest(bool),
     LevelMeter(bool),
+    PlaySound(Arc<[f32]>, f32),
+    StopSounds,
     Stop,
 }
 
@@ -263,6 +265,16 @@ impl AudioEngine {
     }
 
     /// Report the microphone's level 20 times a second while on.
+    /// Plays a soundboard sound or a preview, mono at 48 kHz, at `gain`
+    /// (0–1), mixed with the voices.
+    pub fn play_sound(&self, samples: Arc<[f32]>, gain: f32) {
+        self.command(Command::PlaySound(samples, gain));
+    }
+
+    pub fn stop_sounds(&self) {
+        self.command(Command::StopSounds);
+    }
+
     pub fn set_level_meter(&self, on: bool) {
         self.command(Command::LevelMeter(on));
     }
@@ -377,6 +389,8 @@ impl Engine {
             Command::PriorityHeld(held) => processor.set_priority_held(held),
             Command::Priority(user_id, priority) => processor.set_priority(user_id, priority),
             Command::MicTest(on) => processor.set_mic_test(on),
+            Command::PlaySound(samples, gain) => processor.play_sound(samples, gain),
+            Command::StopSounds => processor.stop_sounds(),
             Command::LevelMeter(on) => self.level_meter = on,
             Command::Stop => {}
         }

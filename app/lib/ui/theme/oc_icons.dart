@@ -27,6 +27,7 @@ abstract final class OcIcons {
     fontFamily: fontFamily,
   );
   static const IconData attachFile = IconData(0xe226, fontFamily: fontFamily);
+  static const IconData audioFile = IconData(0xeb82, fontFamily: fontFamily);
   static const IconData badge = IconData(0xea67, fontFamily: fontFamily);
   static const IconData block = IconData(0xf08c, fontFamily: fontFamily);
   static const IconData bugReport = IconData(0xe868, fontFamily: fontFamily);
@@ -117,6 +118,7 @@ abstract final class OcIcons {
   static const IconData mood = IconData(0xea22, fontFamily: fontFamily);
   static const IconData moreHoriz = IconData(0xe5d3, fontFamily: fontFamily);
   static const IconData moreVert = IconData(0xe5d4, fontFamily: fontFamily);
+  static const IconData musicNote = IconData(0xe405, fontFamily: fontFamily);
   static const IconData notifications = IconData(
     0xe7f5,
     fontFamily: fontFamily,
@@ -131,6 +133,7 @@ abstract final class OcIcons {
   static const IconData person = IconData(0xf0d3, fontFamily: fontFamily);
   static const IconData personAdd = IconData(0xea4d, fontFamily: fontFamily);
   static const IconData personRemove = IconData(0xef66, fontFamily: fontFamily);
+  static const IconData playArrow = IconData(0xe037, fontFamily: fontFamily);
   static const IconData pushPin = IconData(0xf10d, fontFamily: fontFamily);
   static const IconData refresh = IconData(0xe5d5, fontFamily: fontFamily);
   static const IconData remove = IconData(0xe15b, fontFamily: fontFamily);

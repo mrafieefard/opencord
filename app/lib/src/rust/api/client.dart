@@ -536,3 +536,98 @@ Future<void> voiceDisconnectMember({
   serverKey: serverKey,
   userId: userId,
 );
+
+/// The sounds every client has (plan §11.8), played as `default:<id>`.
+List<DefaultSound> soundboardDefaultSounds() =>
+    RustLib.instance.api.crateApiClientSoundboardDefaultSounds();
+
+/// Plays a sound in a voice channel this device is in, for everyone there
+/// (plan §11.5). `sound_ref` is `server:<sha256>`, `external:<sha256>` or
+/// `default:<id>`. For a sound from another server, `external_server_key`
+/// and `external_sound` name it: it is uploaded here first if needed.
+Future<void> soundboardPlay({
+  required String serverKey,
+  required PlatformInt64 channelId,
+  required String soundRef,
+  String? externalServerKey,
+  SoundboardSound? externalSound,
+}) => RustLib.instance.api.crateApiClientSoundboardPlay(
+  serverKey: serverKey,
+  channelId: channelId,
+  soundRef: soundRef,
+  externalServerKey: externalServerKey,
+  externalSound: externalSound,
+);
+
+/// Plays a sound on this device only; nobody else hears it.
+Future<void> soundboardPreview({
+  required String serverKey,
+  required String soundRef,
+}) => RustLib.instance.api.crateApiClientSoundboardPreview(
+  serverKey: serverKey,
+  soundRef: soundRef,
+);
+
+/// The soundboard's volume (0–1) and "Mute all soundboards" (User settings
+/// → Sounds).
+void soundboardSetListening({required double volume, required bool muted}) =>
+    RustLib.instance.api.crateApiClientSoundboardSetListening(
+      volume: volume,
+      muted: muted,
+    );
+
+/// "Mute their soundboard": their sounds are not played on this device.
+void soundboardMutePlayer({
+  required String serverKey,
+  required PlatformInt64 userId,
+  required bool muted,
+}) => RustLib.instance.api.crateApiClientSoundboardMutePlayer(
+  serverKey: serverKey,
+  userId: userId,
+  muted: muted,
+);
+
+Future<SoundboardSound> soundboardUpdateSound({
+  required String serverKey,
+  required PlatformInt64 soundId,
+  required SoundboardSoundChanges changes,
+}) => RustLib.instance.api.crateApiClientSoundboardUpdateSound(
+  serverKey: serverKey,
+  soundId: soundId,
+  changes: changes,
+);
+
+Future<void> soundboardDeleteSound({
+  required String serverKey,
+  required PlatformInt64 soundId,
+}) => RustLib.instance.api.crateApiClientSoundboardDeleteSound(
+  serverKey: serverKey,
+  soundId: soundId,
+);
+
+/// Opens an audio file (MP3, WAV, FLAC, OGG, M4A; at most 10 MB) for the
+/// trim editor.
+Future<SoundDraft> soundboardOpenDraft({required String path}) =>
+    RustLib.instance.api.crateApiClientSoundboardOpenDraft(path: path);
+
+/// Plays the selected window on this device, as it would be uploaded.
+Future<void> soundboardPreviewDraft({required SoundSelection selection}) =>
+    RustLib.instance.api.crateApiClientSoundboardPreviewDraft(
+      selection: selection,
+    );
+
+/// Uploads the selected window as a new sound on that server.
+Future<SoundboardSound> soundboardUpload({
+  required String serverKey,
+  required SoundSelection selection,
+  required String name,
+  String? emoji,
+}) => RustLib.instance.api.crateApiClientSoundboardUpload(
+  serverKey: serverKey,
+  selection: selection,
+  name: name,
+  emoji: emoji,
+);
+
+void soundboardCloseDraft({required BigInt draftId}) =>
+    RustLib.instance.api.crateApiClientSoundboardCloseDraft(draftId: draftId);

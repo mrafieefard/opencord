@@ -6,9 +6,11 @@ mod connection;
 mod convert;
 #[rustfmt::skip]
 mod frb_generated;
+mod http;
 pub mod identity;
 pub mod media;
 pub mod mirror;
+mod soundboard;
 pub mod store;
 pub mod tofu;
 pub mod video;

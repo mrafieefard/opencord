@@ -165,6 +165,7 @@ void main() {
         voiceStates: const [],
         streams: const [],
         voiceSettings: coreVoiceSettings,
+        soundboardSounds: const [],
         selfUser: _user,
         server: const core.ServerInfo(
           serverIdHex: 'ff',

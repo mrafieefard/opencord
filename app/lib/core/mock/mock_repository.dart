@@ -11,6 +11,7 @@ import 'package:opencord/core/model/misc.dart';
 import 'package:opencord/core/model/permissions.dart';
 import 'package:opencord/core/model/presence.dart';
 import 'package:opencord/core/model/server.dart';
+import 'package:opencord/core/model/sound.dart';
 import 'package:opencord/core/model/user.dart';
 import 'package:opencord/core/model/video.dart';
 import 'package:opencord/core/model/voice.dart';
@@ -1713,6 +1714,218 @@ class MockRepository implements OpencordRepository {
     final (_, muted) = listening[(serverKey, userId)] ?? (100, false);
     listening[(serverKey, userId)] = (volume, muted);
   }
+
+  @override
+  List<DefaultSound> get defaultSounds => mockDefaultSounds;
+
+  /// Sound references played and previewed, for tests.
+  final soundsPlayed = <String>[];
+  final soundsPreviewed = <String>[];
+
+  /// The soundboard volume and mute, and whose soundboards are muted.
+  ({int volume, bool muted}) soundboardListening = (volume: 100, muted: false);
+  final mutedSoundboards = <(String, int)>{};
+
+  /// When this user last played a sound, per server: the cooldown.
+  final _lastSound = <String, DateTime>{};
+  final _drafts = <int, SoundDraft>{};
+  var _nextDraft = 0;
+
+  @override
+  Future<void> playSound(
+    String serverKey,
+    int channelId,
+    String soundRef, {
+    ({String serverKey, Sound sound})? from,
+  }) async {
+    final server = _server(serverKey);
+    if (_voice != (server: serverKey, channel: channelId)) {
+      throw const RepoException(
+        RepoErrorKind.conflict,
+        'you are not in a voice channel',
+      );
+    }
+    final settings = server.voiceSettings;
+    if (!settings.soundboardEnabled) {
+      throw const RepoException(
+        RepoErrorKind.forbidden,
+        'the soundboard is turned off on this server',
+      );
+    }
+    if (_selfVoice.deafened) {
+      throw const RepoException(
+        RepoErrorKind.forbidden,
+        "sounds can't be played while deafened",
+      );
+    }
+    final now = _clock();
+    if (_lastSound[serverKey] case final last?) {
+      final ready = last.add(settings.soundCooldown);
+      if (now.isBefore(ready)) {
+        throw RepoException(
+          RepoErrorKind.soundCooldown,
+          'Wait for the cooldown to play another sound',
+          retryAfter: ready.difference(now),
+        );
+      }
+    }
+    final (name, emoji, volume, duration) = switch (soundRef.split(':')) {
+      ['server', final sha] => switch (server.sounds.values
+          .where((sound) => sound.sha256 == sha)
+          .firstOrNull) {
+        final sound? => (sound.name, sound.emoji, sound.volume, sound.duration),
+        null => throw const RepoException(
+          RepoErrorKind.notFound,
+          'sound not found',
+        ),
+      },
+      ['external', _] when from != null => (
+        from.sound.name,
+        from.sound.emoji,
+        from.sound.volume,
+        from.sound.duration,
+      ),
+      ['default', final id] => switch (defaultSounds
+          .where((sound) => sound.id == id)
+          .firstOrNull) {
+        final sound? => (sound.name, sound.emoji, 100, sound.duration),
+        null => throw const RepoException(
+          RepoErrorKind.notFound,
+          'sound not found',
+        ),
+      },
+      _ => throw const RepoException(
+        RepoErrorKind.invalidArgument,
+        'that is not a sound',
+      ),
+    };
+    _lastSound[serverKey] = now;
+    soundsPlayed.add(soundRef);
+    _emit(
+      SoundPlayed(
+        serverKey,
+        SoundPlay(
+          channelId: channelId,
+          userId: server.selfId,
+          soundRef: soundRef,
+          name: name,
+          emoji: emoji,
+          volume: volume,
+          duration: duration,
+          startedAt: now,
+        ),
+      ),
+    );
+  }
+
+  @override
+  Future<void> previewSound(String serverKey, String soundRef) async =>
+      soundsPreviewed.add(soundRef);
+
+  @override
+  void setSoundboardListening({required int volume, required bool muted}) =>
+      soundboardListening = (volume: volume, muted: muted);
+
+  @override
+  void setUserSoundboardMute(String serverKey, int userId, bool muted) {
+    if (muted) {
+      mutedSoundboards.add((serverKey, userId));
+    } else {
+      mutedSoundboards.remove((serverKey, userId));
+    }
+  }
+
+  @override
+  Future<Sound> updateSound(
+    String serverKey,
+    int soundId, {
+    String? name,
+    String? emoji,
+    int? volume,
+  }) async {
+    final server = _server(serverKey);
+    final sound =
+        server.sounds[soundId] ??
+        (throw const RepoException(RepoErrorKind.notFound, 'sound not found'));
+    final updated = sound.copyWith(
+      name: name,
+      emoji: emoji == null || emoji.isEmpty ? null : emoji,
+      clearEmoji: emoji != null && emoji.isEmpty,
+      volume: volume,
+    );
+    server.sounds[soundId] = updated;
+    _emit(SoundUpserted(serverKey, updated));
+    return updated;
+  }
+
+  @override
+  Future<void> deleteSound(String serverKey, int soundId) async {
+    final server = _server(serverKey);
+    if (server.sounds.remove(soundId) != null) {
+      _emit(SoundDeleted(serverKey, soundId));
+    }
+  }
+
+  /// Any file opens as eight seconds of a made-up waveform.
+  @override
+  Future<SoundDraft> openSoundDraft(String path) async {
+    final id = ++_nextDraft;
+    final draft = SoundDraft(
+      id: id,
+      duration: const Duration(seconds: 8),
+      waveform: [
+        for (var i = 0; i < 600; i++)
+          (0.2 + 0.8 * ((i * 37) % 100) / 100) * (i % 150 < 120 ? 1 : 0.1),
+      ],
+    );
+    _drafts[id] = draft;
+    return draft;
+  }
+
+  @override
+  Future<void> previewSoundDraft(SoundWindow window) async =>
+      soundsPreviewed.add('draft:${window.draftId}');
+
+  @override
+  Future<Sound> uploadSound(
+    String serverKey,
+    SoundWindow window, {
+    required String name,
+    String? emoji,
+  }) async {
+    final server = _server(serverKey);
+    if (!_drafts.containsKey(window.draftId)) {
+      throw const RepoException(
+        RepoErrorKind.invalidArgument,
+        'that file is no longer open',
+      );
+    }
+    final max = server.voiceSettings.maxSounds;
+    if (server.sounds.length >= max) {
+      throw RepoException(
+        RepoErrorKind.soundboardFull,
+        "this server's soundboard is full ($max sounds)",
+      );
+    }
+    final id = _world.ids.at(_clock());
+    final sound = Sound(
+      id: id,
+      name: name.trim(),
+      emoji: emoji,
+      volume: window.volume,
+      sha256: fakeFingerprint('upload $id'),
+      duration: window.length,
+      uploaderId: server.selfId,
+      createdAt: _clock(),
+    );
+    server.sounds[id] = sound;
+    _drafts.remove(window.draftId);
+    _emit(SoundUpserted(serverKey, sound));
+    return sound;
+  }
+
+  @override
+  void closeSoundDraft(int draftId) => _drafts.remove(draftId);
 
   @override
   void setUserLocalMute(String serverKey, int userId, bool muted) {

@@ -28,6 +28,7 @@ rustls.workspace = true
 sha2.workspace = true
 str0m.workspace = true
 str0m-netem = { workspace = true, optional = true }
+symphonia.workspace = true
 thiserror.workspace = true
 tokio.workspace = true
 tokio-rustls.workspace = true

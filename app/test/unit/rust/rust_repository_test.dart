@@ -55,6 +55,7 @@ core.ReadySnapshot _ready({
   voiceStates: voice,
   streams: const [],
   voiceSettings: coreVoiceSettings,
+  soundboardSounds: const [],
   selfUser: const core.User(
     id: _self,
     publicKeyHex: 'abcd',

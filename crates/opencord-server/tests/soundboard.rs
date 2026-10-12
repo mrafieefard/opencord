@@ -244,6 +244,7 @@ async fn a_sound_is_played_for_everyone_in_the_channel_after_the_servers_checks(
         assert_eq!(heard.user_id, room.member_id);
         assert_eq!(heard.sound_ref, sound_ref);
         assert_eq!((heard.name.as_str(), heard.volume), ("Chime", 80));
+        assert_eq!(heard.duration_ms, 1_000);
     }
     outsider
         .assert_no_event(QUIET, |event| matches!(event, Event::VoiceChannelEffect(_)))

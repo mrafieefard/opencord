@@ -119,6 +119,13 @@ impl FromDevice {
         self.ready.len()
     }
 
+    /// Samples at 48 kHz that come out before the first one pushed in.
+    pub fn delay(&self) -> usize {
+        self.resample
+            .as_ref()
+            .map_or(0, |resample| resample.resampler.output_delay())
+    }
+
     /// Forgets what is waiting, after the microphone fell behind or ran ahead.
     pub fn clear(&mut self) {
         self.ready.clear();

@@ -59,6 +59,43 @@ abstract interface class CoreApi {
 
   void videoSetWants(List<core.VideoWant> wants);
 
+  List<core.DefaultSound> soundboardDefaultSounds();
+
+  Future<void> soundboardPlay(
+    String serverKey,
+    int channelId,
+    String soundRef, {
+    String? externalServerKey,
+    core.SoundboardSound? externalSound,
+  });
+
+  Future<void> soundboardPreview(String serverKey, String soundRef);
+
+  void soundboardSetListening(double volume, bool muted);
+
+  void soundboardMutePlayer(String serverKey, int userId, bool muted);
+
+  Future<core.SoundboardSound> soundboardUpdateSound(
+    String serverKey,
+    int soundId,
+    core.SoundboardSoundChanges changes,
+  );
+
+  Future<void> soundboardDeleteSound(String serverKey, int soundId);
+
+  Future<core.SoundDraft> soundboardOpenDraft(String path);
+
+  Future<void> soundboardPreviewDraft(core.SoundSelection selection);
+
+  Future<core.SoundboardSound> soundboardUpload(
+    String serverKey,
+    core.SoundSelection selection,
+    String name,
+    String? emoji,
+  );
+
+  void soundboardCloseDraft(int draftId);
+
   core.GeneratedIdentity identityGenerate();
 
   /// Checks what [identityLoad] would use, without using it.
@@ -299,6 +336,77 @@ class FrbCoreApi implements CoreApi {
   @override
   void videoSetWants(List<core.VideoWant> wants) =>
       frb.videoSetWants(wants: wants);
+
+  @override
+  List<core.DefaultSound> soundboardDefaultSounds() =>
+      frb.soundboardDefaultSounds();
+
+  @override
+  Future<void> soundboardPlay(
+    String serverKey,
+    int channelId,
+    String soundRef, {
+    String? externalServerKey,
+    core.SoundboardSound? externalSound,
+  }) => frb.soundboardPlay(
+    serverKey: serverKey,
+    channelId: channelId,
+    soundRef: soundRef,
+    externalServerKey: externalServerKey,
+    externalSound: externalSound,
+  );
+
+  @override
+  Future<void> soundboardPreview(String serverKey, String soundRef) =>
+      frb.soundboardPreview(serverKey: serverKey, soundRef: soundRef);
+
+  @override
+  void soundboardSetListening(double volume, bool muted) =>
+      frb.soundboardSetListening(volume: volume, muted: muted);
+
+  @override
+  void soundboardMutePlayer(String serverKey, int userId, bool muted) => frb
+      .soundboardMutePlayer(serverKey: serverKey, userId: userId, muted: muted);
+
+  @override
+  Future<core.SoundboardSound> soundboardUpdateSound(
+    String serverKey,
+    int soundId,
+    core.SoundboardSoundChanges changes,
+  ) => frb.soundboardUpdateSound(
+    serverKey: serverKey,
+    soundId: soundId,
+    changes: changes,
+  );
+
+  @override
+  Future<void> soundboardDeleteSound(String serverKey, int soundId) =>
+      frb.soundboardDeleteSound(serverKey: serverKey, soundId: soundId);
+
+  @override
+  Future<core.SoundDraft> soundboardOpenDraft(String path) =>
+      frb.soundboardOpenDraft(path: path);
+
+  @override
+  Future<void> soundboardPreviewDraft(core.SoundSelection selection) =>
+      frb.soundboardPreviewDraft(selection: selection);
+
+  @override
+  Future<core.SoundboardSound> soundboardUpload(
+    String serverKey,
+    core.SoundSelection selection,
+    String name,
+    String? emoji,
+  ) => frb.soundboardUpload(
+    serverKey: serverKey,
+    selection: selection,
+    name: name,
+    emoji: emoji,
+  );
+
+  @override
+  void soundboardCloseDraft(int draftId) =>
+      frb.soundboardCloseDraft(draftId: BigInt.from(draftId));
 
   @override
   void voiceSetUserLocalMute(String serverKey, int userId, bool muted) =>

@@ -20,15 +20,17 @@ use crate::api::types::{
     ChannelPosition, CoreError, CoreEvent, CoreEventPayload, ErrorCode, HotkeyBinding,
     HotkeySupport, IdentityInfo, Invite, MediaEvent, Member, Message, OverwriteTargetKind,
     PermissionOverwrite, PresenceStatus, Role, RoleChanges, ScreenProblem, ScreenShareRequest,
-    ScreenShareStarted, ScreenStream, Server, ServerChanges, ServerInfo, StreamSourceKind, User,
-    VideoWant, VoiceSettings, VoiceSettingsChanges, VoiceState,
+    ScreenShareStarted, ScreenStream, Server, ServerChanges, ServerInfo, SoundDraft,
+    SoundSelection, SoundboardSound, SoundboardSoundChanges, StreamSourceKind, User, VideoWant,
+    VoiceSettings, VoiceSettingsChanges, VoiceState,
 };
 use crate::connection::{
-    self, Command, Connection, Context, Credentials, Established, HandshakeError,
+    self, Command, Connection, Context, Credentials, Established, HandshakeError, MediaTokens,
 };
 use crate::convert;
 use crate::identity::Identity;
 use crate::media::{self, Media, MediaOptions, MediaTarget};
+use crate::soundboard::Soundboard;
 use crate::store::{SavedServer, Store, StoreError};
 use crate::voice::VoiceServer;
 use opencord_media::hotkeys::Hotkeys;
@@ -58,6 +60,9 @@ struct Inner {
     media: OnceLock<Media>,
     /// The system's global hotkeys, once the app asked for some.
     hotkeys: tokio::sync::Mutex<Option<Hotkeys>>,
+    /// Each server's media token, kept by its connection.
+    media_tokens: MediaTokens,
+    soundboard: Arc<Soundboard>,
 }
 
 /// The app's id, as its desktop file names it; the system's portals ask for
@@ -112,21 +117,30 @@ impl Client {
         data_dir: &Path,
         runtime: Handle,
     ) -> Result<(Self, mpsc::UnboundedReceiver<CoreEvent>), CoreError> {
-        let store = Store::open(data_dir)?;
+        let store = Arc::new(Mutex::new(Store::open(data_dir)?));
         let (events, mut incoming) = mpsc::unbounded_channel();
         let (outward, receiver) = mpsc::unbounded_channel();
+        let media_tokens = MediaTokens::default();
+        let soundboard = Arc::new(Soundboard::new(
+            runtime.clone(),
+            data_dir,
+            Arc::clone(&store),
+            Arc::clone(&media_tokens),
+        ));
         let client = Self {
             inner: Arc::new(Inner {
                 runtime: runtime.clone(),
                 events,
                 outward: outward.clone(),
                 voice_servers: broadcast::channel(VOICE_SERVER_BACKLOG).0,
-                store: Arc::new(Mutex::new(store)),
+                store,
                 credentials: RwLock::new(None),
                 connections: Mutex::new(HashMap::new()),
                 voice: Mutex::new(Voice::default()),
                 media: OnceLock::new(),
                 hotkeys: tokio::sync::Mutex::new(None),
+                media_tokens,
+                soundboard,
             }),
         };
         let watcher: Weak<Inner> = Arc::downgrade(&client.inner);
@@ -1082,6 +1096,88 @@ impl Client {
         expect_ack(self.request(key, request).await?)
     }
 
+    /// Plays a sound in `channel_id` for everyone there (plan §11.5). For a
+    /// sound from another server, `external` is that server's key and the
+    /// sound.
+    pub async fn soundboard_play(
+        &self,
+        key: &str,
+        channel_id: i64,
+        sound_ref: &str,
+        external: Option<(String, SoundboardSound)>,
+    ) -> Result<(), CoreError> {
+        self.inner
+            .soundboard
+            .play(self, key, channel_id, sound_ref, external)
+            .await
+    }
+
+    /// Plays a sound on this device only.
+    pub async fn soundboard_preview(&self, key: &str, sound_ref: &str) -> Result<(), CoreError> {
+        self.inner.soundboard.preview(self, key, sound_ref).await
+    }
+
+    /// The soundboard's volume (0–1) and "Mute all soundboards".
+    pub fn soundboard_set_listening(&self, volume: f32, muted: bool) {
+        self.inner.soundboard.set_listening(volume, muted);
+    }
+
+    pub fn soundboard_mute_player(&self, key: &str, user_id: i64, muted: bool) {
+        self.inner.soundboard.set_player_muted(key, user_id, muted);
+    }
+
+    pub async fn update_soundboard_sound(
+        &self,
+        key: &str,
+        sound_id: i64,
+        changes: SoundboardSoundChanges,
+    ) -> Result<SoundboardSound, CoreError> {
+        let request = Request::UpdateSoundboardSound(proto::UpdateSoundboardSound {
+            sound_id,
+            name: changes.name,
+            emoji: changes.emoji,
+            volume: changes.volume,
+        });
+        match self.request(key, request).await? {
+            Response::SoundboardSound(sound) => Ok(convert::soundboard_sound(sound)),
+            other => Err(unexpected(&other)),
+        }
+    }
+
+    pub async fn delete_soundboard_sound(&self, key: &str, sound_id: i64) -> Result<(), CoreError> {
+        let request = Request::DeleteSoundboardSound(proto::DeleteSoundboardSound { sound_id });
+        expect_ack(self.request(key, request).await?)
+    }
+
+    /// Opens a file for the trim editor (plan §11.3).
+    pub async fn soundboard_open_draft(&self, path: String) -> Result<SoundDraft, CoreError> {
+        self.inner.soundboard.open_draft(path).await
+    }
+
+    pub async fn soundboard_preview_draft(
+        &self,
+        selection: SoundSelection,
+    ) -> Result<(), CoreError> {
+        self.inner.soundboard.preview_draft(self, selection).await
+    }
+
+    pub async fn soundboard_upload(
+        &self,
+        key: &str,
+        selection: SoundSelection,
+        name: String,
+        emoji: Option<String>,
+    ) -> Result<SoundboardSound, CoreError> {
+        self.inner
+            .soundboard
+            .upload(self, key, selection, name, emoji)
+            .await
+    }
+
+    pub fn soundboard_close_draft(&self, draft_id: u64) {
+        self.inner.soundboard.close_draft(draft_id);
+    }
+
     pub async fn update_voice_settings(
         &self,
         key: &str,
@@ -1098,6 +1194,7 @@ impl Client {
     /// disconnects by moderators, losing the channel, another device taking
     /// over, and getting back in after a fresh session.
     fn observe(&self, event: &CoreEvent) {
+        self.inner.soundboard.observe(self, event);
         let key = &event.server_key;
         match &event.payload {
             CoreEventPayload::Ready(snapshot) => {
@@ -1223,7 +1320,7 @@ impl Client {
             .unwrap_or_else(PoisonError::into_inner)
     }
 
-    async fn request(&self, key: &str, kind: Request) -> Result<Response, CoreError> {
+    pub(crate) async fn request(&self, key: &str, kind: Request) -> Result<Response, CoreError> {
         let commands = self
             .lock_connections()
             .get(key)
@@ -1268,6 +1365,7 @@ impl Client {
             store: Arc::clone(&self.inner.store),
             events: self.inner.events.clone(),
             voice_servers: self.inner.voice_servers.clone(),
+            media_tokens: Arc::clone(&self.inner.media_tokens),
         }
     }
 
@@ -1352,6 +1450,22 @@ fn expect_voice_state(response: Response) -> Result<proto::VoiceState, CoreError
     match response {
         Response::VoiceState(state) => Ok(state),
         other => Err(unexpected(&other)),
+    }
+}
+
+impl Client {
+    /// Voice media, once the app turned it on.
+    pub(crate) fn media(&self) -> Option<&Media> {
+        self.inner.media.get()
+    }
+
+    pub(crate) fn soundboard(&self) -> Arc<Soundboard> {
+        Arc::clone(&self.inner.soundboard)
+    }
+
+    /// A request answered with an ack.
+    pub(crate) async fn ack(&self, key: &str, kind: Request) -> Result<(), CoreError> {
+        expect_ack(self.request(key, kind).await?)
     }
 }
 
