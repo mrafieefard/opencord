@@ -2,7 +2,9 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
+import 'package:opencord/core/model/sound.dart';
 import 'package:opencord/core/model/video.dart';
+import 'package:opencord/features/soundboard/soundboard_ring.dart';
 
 import 'package:opencord/ui/theme/oc_colors.dart';
 import 'package:opencord/ui/theme/oc_icons.dart';
@@ -26,6 +28,7 @@ class VoiceTileView extends StatelessWidget {
     this.camera = false,
     this.video,
     this.speaking = false,
+    this.sound,
     this.focused = false,
     this.small = false,
     this.onTap,
@@ -47,6 +50,10 @@ class VoiceTileView extends StatelessWidget {
   /// Their camera's video, when there is some to draw.
   final VideoFeed? video;
   final bool speaking;
+
+  /// The soundboard sound they are playing (§11.6): a dashed outer border
+  /// and its emoji in the top-left corner.
+  final SoundPlay? sound;
 
   /// Shown large in focus mode.
   final bool focused;
@@ -73,113 +80,130 @@ class VoiceTileView extends StatelessWidget {
     if (!screen && camera) 'camera on',
     if (!screen && deafened) 'deafened' else if (!screen && muted) 'muted',
     if (!screen && speaking) 'speaking',
+    if (!screen && sound != null) 'playing ${sound!.name}',
   ].join(', ');
 
   @override
   Widget build(BuildContext context) {
     final colors = context.oc;
     final radius = BorderRadius.circular(OcRadius.tile);
+    final playing = !screen ? sound : null;
     return Hoverable(
       onTap: onTap,
       semanticLabel: _semanticLabel,
       focusRadius: radius,
-      builder: (context, state) => Container(
-        clipBehavior: Clip.antiAlias,
-        decoration: BoxDecoration(
-          color: screen ? colors.rail : colors.surface,
-          borderRadius: radius,
-          border: Border.all(color: colors.border),
-        ),
-        // Drawn over the content so speaking never moves anything.
-        foregroundDecoration: speaking && !screen
-            ? BoxDecoration(
-                borderRadius: radius,
-                border: Border.all(color: colors.text, width: 2),
-              )
-            : null,
-        child: Stack(
-          fit: StackFit.expand,
-          children: [
-            if (screen)
-              if (video case final feed? when feed.textureId != null)
-                // Shared text stays whole: fitted, never cropped.
-                VideoFeedView(feed: feed, fit: BoxFit.contain)
-              else if (onWatch case final watch?)
-                _WatchPrompt(name: name, small: small, onWatch: watch)
+      builder: (context, state) => SoundboardRing(
+        playing: playing != null,
+        radius: OcRadius.tile,
+        child: Container(
+          clipBehavior: Clip.antiAlias,
+          decoration: BoxDecoration(
+            color: screen ? colors.rail : colors.surface,
+            borderRadius: radius,
+            border: Border.all(color: colors.border),
+          ),
+          // Drawn over the content so speaking never moves anything.
+          foregroundDecoration: speaking && !screen
+              ? BoxDecoration(
+                  borderRadius: radius,
+                  border: Border.all(color: colors.text, width: 2),
+                )
+              : null,
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              if (screen)
+                if (video case final feed? when feed.textureId != null)
+                  // Shared text stays whole: fitted, never cropped.
+                  VideoFeedView(feed: feed, fit: BoxFit.contain)
+                else if (onWatch case final watch?)
+                  _WatchPrompt(name: name, small: small, onWatch: watch)
+                else
+                  const ScreenFeed()
+              else if (video case final feed? when feed.textureId != null)
+                VideoFeedView(feed: feed)
+              else if (camera)
+                CustomPaint(painter: _CameraFeed(colors))
               else
-                const ScreenFeed()
-            else if (video case final feed? when feed.textureId != null)
-              VideoFeedView(feed: feed)
-            else if (camera)
-              CustomPaint(painter: _CameraFeed(colors))
-            else
-              // At most 72 px, and never into the name pill on small tiles.
-              LayoutBuilder(
-                builder: (context, constraints) => Center(
-                  child: OcAvatar(
-                    id: userId,
+                // At most 72 px, and never into the name pill on small tiles.
+                LayoutBuilder(
+                  builder: (context, constraints) => Center(
+                    child: OcAvatar(
+                      id: userId,
+                      name: name,
+                      size: small
+                          ? 36
+                          : math.min(72, constraints.maxHeight * 0.5),
+                    ),
+                  ),
+                ),
+              Positioned(
+                left: small ? OcSpace.s4 : OcSpace.s8,
+                right: small ? OcSpace.s4 : 56,
+                bottom: small ? OcSpace.s4 : OcSpace.s8,
+                child: Align(
+                  alignment: Alignment.bottomLeft,
+                  child: _NamePill(
                     name: name,
-                    size: small
-                        ? 36
-                        : math.min(72, constraints.maxHeight * 0.5),
+                    icon: screen
+                        ? OcIcons.monitor
+                        : deafened
+                        ? OcIcons.headsetOff
+                        : muted
+                        ? OcIcons.micOff
+                        : null,
+                    small: small,
                   ),
                 ),
               ),
-            Positioned(
-              left: small ? OcSpace.s4 : OcSpace.s8,
-              right: small ? OcSpace.s4 : 56,
-              bottom: small ? OcSpace.s4 : OcSpace.s8,
-              child: Align(
-                alignment: Alignment.bottomLeft,
-                child: _NamePill(
-                  name: name,
-                  icon: screen
-                      ? OcIcons.monitor
-                      : deafened
-                      ? OcIcons.headsetOff
-                      : muted
-                      ? OcIcons.micOff
-                      : null,
-                  small: small,
+              Positioned(
+                top: small ? OcSpace.s4 : OcSpace.s8,
+                right: small ? OcSpace.s4 : OcSpace.s8,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (!small)
+                      AnimatedOpacity(
+                        opacity: state.active ? 1 : 0,
+                        duration: OcMotion.of(context).hover,
+                        child: _CornerIcon(
+                          icon: focused
+                              ? OcIcons.closeFullscreen
+                              : OcIcons.openInFull,
+                        ),
+                      ),
+                    if (screen) ...[
+                      const SizedBox(width: OcSpace.s6),
+                      _LivePill(small: small),
+                    ],
+                  ],
                 ),
               ),
-            ),
-            Positioned(
-              top: small ? OcSpace.s4 : OcSpace.s8,
-              right: small ? OcSpace.s4 : OcSpace.s8,
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  if (!small)
-                    AnimatedOpacity(
-                      opacity: state.active ? 1 : 0,
-                      duration: OcMotion.of(context).hover,
-                      child: _CornerIcon(
-                        icon: focused
-                            ? OcIcons.closeFullscreen
-                            : OcIcons.openInFull,
-                      ),
+              if (viewers case final count? when !small)
+                Positioned(
+                  top: OcSpace.s8,
+                  left: OcSpace.s8,
+                  child: _ViewersPill(count: count, onTap: onViewers),
+                ),
+              if (playing?.emoji case final emoji?)
+                Positioned(
+                  top: small ? OcSpace.s4 : OcSpace.s8,
+                  left: small ? OcSpace.s4 : OcSpace.s8,
+                  child: ExcludeSemantics(
+                    child: Text(
+                      emoji,
+                      style: TextStyle(fontSize: small ? 14 : 20),
                     ),
-                  if (screen) ...[
-                    const SizedBox(width: OcSpace.s6),
-                    _LivePill(small: small),
-                  ],
-                ],
-              ),
-            ),
-            if (viewers case final count? when !small)
-              Positioned(
-                top: OcSpace.s8,
-                left: OcSpace.s8,
-                child: _ViewersPill(count: count, onTap: onViewers),
-              ),
-            if (onStopWatching case final stop? when focused)
-              Positioned(
-                right: OcSpace.s8,
-                bottom: OcSpace.s8,
-                child: OcButton(label: 'Stop watching', onPressed: stop),
-              ),
-          ],
+                  ),
+                ),
+              if (onStopWatching case final stop? when focused)
+                Positioned(
+                  right: OcSpace.s8,
+                  bottom: OcSpace.s8,
+                  child: OcButton(label: 'Stop watching', onPressed: stop),
+                ),
+            ],
+          ),
         ),
       ),
     );

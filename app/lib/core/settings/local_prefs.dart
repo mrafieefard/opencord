@@ -561,3 +561,95 @@ final audioSettingsProvider =
     NotifierProvider<AudioSettingsNotifier, AudioSettings>(
       AudioSettingsNotifier.new,
     );
+
+/// The soundboard on this device (Phase 2 plan §11.7, User settings →
+/// Sounds): its volume, "Mute all soundboards", and favourite sounds.
+@immutable
+class SoundboardPrefs {
+  const SoundboardPrefs({
+    this.volume = 100,
+    this.muted = false,
+    this.favorites = const {},
+  });
+
+  /// 0–100 %.
+  final int volume;
+  final bool muted;
+
+  /// See [favoriteKey].
+  final Set<String> favorites;
+
+  SoundboardPrefs copyWith({
+    int? volume,
+    bool? muted,
+    Set<String>? favorites,
+  }) => SoundboardPrefs(
+    volume: volume ?? this.volume,
+    muted: muted ?? this.muted,
+    favorites: favorites ?? this.favorites,
+  );
+
+  Map<String, Object?> toJson() => {
+    'volume': volume,
+    'muted': muted,
+    'favorites': favorites.toList()..sort(),
+  };
+
+  static SoundboardPrefs fromJson(Object? json) {
+    if (json is! Map) return const SoundboardPrefs();
+    final volume = json['volume'];
+    final favorites = json['favorites'];
+    return SoundboardPrefs(
+      volume: volume is int ? volume.clamp(0, 100) : 100,
+      muted: json['muted'] == true,
+      favorites: favorites is List
+          ? {...favorites.whereType<String>()}
+          : const {},
+    );
+  }
+
+  @override
+  bool operator ==(Object other) =>
+      other is SoundboardPrefs &&
+      other.volume == volume &&
+      other.muted == muted &&
+      setEquals(other.favorites, favorites);
+
+  @override
+  int get hashCode =>
+      Object.hash(volume, muted, Object.hashAllUnordered(favorites));
+}
+
+/// A favourite's key: a default sound's reference, or a server's sound by
+/// that server and the sound's hash (it can be played on other servers).
+String favoriteKey(String soundRef, {String? serverKey}) =>
+    serverKey == null ? soundRef : '$serverKey $soundRef';
+
+const soundboardPrefsKey = 'ui.soundboard';
+
+class SoundboardPrefsNotifier extends Notifier<SoundboardPrefs> {
+  @override
+  SoundboardPrefs build() => SoundboardPrefs.fromJson(
+    _readJson(ref.watch(keyValueStoreProvider), soundboardPrefsKey),
+  );
+
+  void update(SoundboardPrefs Function(SoundboardPrefs prefs) change) {
+    state = change(state);
+    ref
+        .read(keyValueStoreProvider)
+        .write(soundboardPrefsKey, jsonEncode(state.toJson()));
+  }
+
+  void toggleFavorite(String key) => update(
+    (prefs) => prefs.copyWith(
+      favorites: prefs.favorites.contains(key)
+          ? ({...prefs.favorites}..remove(key))
+          : {...prefs.favorites, key},
+    ),
+  );
+}
+
+final soundboardPrefsProvider =
+    NotifierProvider<SoundboardPrefsNotifier, SoundboardPrefs>(
+      SoundboardPrefsNotifier.new,
+    );

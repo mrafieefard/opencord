@@ -106,6 +106,10 @@ class OcColors extends ThemeExtension<OcColors> {
   /// Primary text and icons.
   final Color text;
 
+  /// The soundboard's dashed ring (Phase 2 plan §11.6): the text color, so
+  /// the app stays monochrome; its own token so it can take a color later.
+  Color get soundboardRing => text;
+
   /// Secondary text, inactive icons.
   final Color textSecondary;
 

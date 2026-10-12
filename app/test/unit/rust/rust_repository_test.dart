@@ -10,6 +10,7 @@ import 'package:opencord/core/model/stream.dart';
 import 'package:opencord/core/model/video.dart';
 import 'package:opencord/core/model/voice.dart';
 import 'package:opencord/core/repository/repository.dart';
+import 'package:opencord/core/rust/core_mapping.dart';
 import 'package:opencord/core/rust/identity_store.dart';
 import 'package:opencord/core/rust/read_positions.dart';
 import 'package:opencord/core/rust/rust_repository.dart';
@@ -1370,5 +1371,95 @@ void main() {
         HotkeyAction.toggleMute,
       );
     });
+  });
+
+  group('soundboard (Phase 2 V8)', () {
+    const lounge = 20;
+    const sound = core.SoundboardSound(
+      id: 7,
+      name: 'Bruh',
+      emoji: '💀',
+      volume: 80,
+      sha256: 'ab',
+      sizeBytes: 1000,
+      durationMs: 1200,
+      createdAtMs: 0,
+    );
+
+    test('sounds and sounds played reach the app', () async {
+      final harness = await _Harness.start();
+
+      for (final payload in [
+        const core.CoreEventPayload.soundboardSoundCreate(sound),
+        const core.CoreEventPayload.soundboardSoundDelete(soundId: 7),
+        const core.CoreEventPayload.voiceChannelEffect(
+          core.SoundEffect(
+            channelId: lounge,
+            userId: _kai,
+            soundRef: 'server:ab',
+            name: 'Bruh',
+            emoji: '💀',
+            volume: 80,
+            startedAtMs: 1000,
+            durationMs: 1200,
+          ),
+        ),
+      ]) {
+        harness.core.events.add(
+          core.CoreEvent(serverKey: _server, payload: payload),
+        );
+      }
+      await harness.settle();
+
+      final added = harness.events.whereType<SoundUpserted>().single.sound;
+      expect(
+        (added.name, added.ref, added.duration),
+        ('Bruh', 'server:ab', const Duration(milliseconds: 1200)),
+      );
+      expect(harness.events.whereType<SoundDeleted>().single.soundId, 7);
+      final played = harness.events.whereType<SoundPlayed>().single.play;
+      expect(
+        (played.userId, played.soundRef, played.duration),
+        (_kai, 'server:ab', const Duration(milliseconds: 1200)),
+      );
+    });
+
+    test(
+      'playing names another server for its sounds; cooldowns say so',
+      () async {
+        final harness = await _Harness.start();
+
+        await harness.repository.playSound(
+          _server,
+          lounge,
+          'external:ab',
+          from: (serverKey: 'other:7710', sound: soundFrom(sound)),
+        );
+        harness.core.playError = const core.CoreError.server(
+          code: core.ErrorCode.soundCooldown,
+          message: 'Wait for the cooldown to play another sound',
+          retryAfterMs: 1200,
+        );
+
+        await expectLater(
+          harness.repository.playSound(_server, lounge, 'default:boing'),
+          throwsA(
+            isA<RepoException>().having(
+              (error) => error.kind,
+              'kind',
+              RepoErrorKind.soundCooldown,
+            ),
+          ),
+        );
+        expect(
+          harness.core.calls.where((call) => call.startsWith('soundboardPlay')),
+          [
+            'soundboardPlay:$_server:$lounge:external:ab:other:7710:Bruh',
+            'soundboardPlay:$_server:$lounge:default:boing:-:-',
+          ],
+        );
+        expect(harness.repository.defaultSounds.single.ref, 'default:boing');
+      },
+    );
   });
 }

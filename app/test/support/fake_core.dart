@@ -167,6 +167,33 @@ class FakeCoreApi extends Fake implements CoreApi {
   Future<void> streamUnwatch(String streamKey) async =>
       calls.add('streamUnwatch:$streamKey');
 
+  /// Thrown by soundboardPlay, when set.
+  core.CoreError? playError;
+
+  @override
+  List<core.DefaultSound> soundboardDefaultSounds() => const [
+    core.DefaultSound(id: 'boing', name: 'Boing', emoji: '🪀', durationMs: 900),
+  ];
+
+  @override
+  Future<void> soundboardPlay(
+    String serverKey,
+    int channelId,
+    String soundRef, {
+    String? externalServerKey,
+    core.SoundboardSound? externalSound,
+  }) async {
+    calls.add(
+      'soundboardPlay:$serverKey:$channelId:$soundRef:'
+      '${externalServerKey ?? '-'}:${externalSound?.name ?? '-'}',
+    );
+    if (playError case final error?) throw error;
+  }
+
+  @override
+  void soundboardSetListening(double volume, bool muted) =>
+      calls.add('soundboardSetListening:$volume:$muted');
+
   @override
   void videoSetWants(List<core.VideoWant> wants) => videoWants = wants;
 

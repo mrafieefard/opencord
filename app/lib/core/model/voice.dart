@@ -46,6 +46,11 @@ class VoiceSettings {
   static const maxStreamViewersLimit = 200;
   static const maxCameraParticipantsLimit = 50;
 
+  /// The soundboard (Phase 2 plan §11.2): a cooldown of 0–30 s, room for
+  /// 0–200 sounds.
+  static const maxSoundCooldown = Duration(seconds: 30);
+  static const maxSoundsLimit = 200;
+
   final ScreenShareResolution screenShareMaxResolution;
   final int screenShareMaxFps;
   final int maxStreamViewers;

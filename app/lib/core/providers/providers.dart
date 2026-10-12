@@ -20,6 +20,7 @@ import 'package:opencord/core/providers/messages_state.dart';
 import 'package:opencord/core/providers/pins_state.dart';
 import 'package:opencord/core/providers/presence_state.dart';
 import 'package:opencord/core/providers/server_state.dart';
+import 'package:opencord/core/providers/sound_state.dart';
 import 'package:opencord/core/providers/stream_state.dart';
 import 'package:opencord/core/providers/typing_state.dart';
 import 'package:opencord/core/repository/repository.dart';
@@ -32,6 +33,7 @@ export 'package:opencord/core/providers/messages_state.dart';
 export 'package:opencord/core/providers/pins_state.dart';
 export 'package:opencord/core/providers/presence_state.dart';
 export 'package:opencord/core/providers/server_state.dart';
+export 'package:opencord/core/providers/sound_state.dart';
 export 'package:opencord/core/providers/stream_state.dart';
 export 'package:opencord/core/providers/typing_state.dart';
 
@@ -53,6 +55,14 @@ final eventPumpProvider = Provider<void>((ref) {
     fireImmediately: true,
   );
   _chooseNoiseSuppression(ref, repository);
+  ref.listen(
+    soundboardPrefsProvider,
+    (_, prefs) => repository.setSoundboardListening(
+      volume: prefs.volume,
+      muted: prefs.muted,
+    ),
+    fireImmediately: true,
+  );
   ref.listen(
     hotkeyBindingsProvider,
     (_, hotkeys) => _applyHotkeys(ref, repository, hotkeys),
@@ -255,7 +265,10 @@ void _route(Ref ref, RepoEvent event) {
   ref.read(typingProvider(key).notifier).apply(event);
   ref.read(voiceProvider(key).notifier).apply(event);
   ref.read(streamsProvider(key).notifier).apply(event);
+  ref.read(soundsProvider(key).notifier).apply(event);
   switch (event) {
+    case SoundPlayed(:final play):
+      ref.read(soundPlaysProvider(key).notifier).played(play);
     case SpeakingChanged(:final speaking):
       ref.read(speakingProvider(key).notifier).set(speaking);
     case MessageCreated(:final message) || MessageUpdated(:final message):

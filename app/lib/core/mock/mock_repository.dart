@@ -1677,6 +1677,10 @@ class MockRepository implements OpencordRepository {
   /// As voice media would report: the microphone's level.
   void debugInputLevel(double dbfs) => _emit(InputLevelChanged(dbfs));
 
+  /// Someone else plays a sound in the call (Phase 2 V8).
+  void debugSoundPlayed(String serverKey, SoundPlay play) =>
+      _emit(SoundPlayed(serverKey, play));
+
   /// As voice media would report: someone spoke while muted.
   void debugSpokeWhileMuted() => _emit(const SpokeWhileMuted());
 
