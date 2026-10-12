@@ -66,7 +66,7 @@ fn lock<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
 fn video_kind(kind: TrackKind) -> VideoTrackKind {
     match kind {
         TrackKind::Camera => VideoTrackKind::Camera,
-        TrackKind::Screen => VideoTrackKind::Screen,
+        TrackKind::Screen | TrackKind::ScreenAudio => VideoTrackKind::Screen,
     }
 }
 

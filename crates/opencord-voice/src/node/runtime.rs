@@ -294,10 +294,12 @@ impl Runtime {
             permissions = pending_permissions;
         }
         let audio_ssrc = self.free_ssrc(claims.channel_id, &mut Vec::new());
+        let screen_audio_ssrc = self.free_ssrc(claims.channel_id, &mut vec![audio_ssrc]);
         let setup = PeerSetup {
             user_id: claims.user_id,
             channel_id: claims.channel_id,
             audio_ssrc,
+            screen_audio_ssrc,
             state,
         };
         let (peer, transport) = self
@@ -333,6 +335,7 @@ impl Runtime {
             main_session_id: claims.session_id,
             peer,
             audio_ssrc,
+            screen_audio_ssrc,
             permissions,
             connection,
         });
@@ -341,6 +344,7 @@ impl Runtime {
                 voice_session_id: session_id.clone(),
                 resume_token,
                 audio_ssrc,
+                screen_audio_ssrc,
                 ice_ufrag: transport.ice_ufrag,
                 ice_pwd: transport.ice_pwd,
                 candidates: vec![voice::IceCandidate {

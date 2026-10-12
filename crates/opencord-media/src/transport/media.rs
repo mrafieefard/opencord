@@ -24,8 +24,8 @@ use super::assembler::{Assembled, FrameAssembler, VideoPacket};
 use super::h264::packetize;
 use super::transform::FrameTransform;
 use super::{
-    AudioFrame, Layer, ReceivedAudio, ReceivedVideo, RemoteTrack, TrackKind, TrackRequest,
-    TransportError, VideoFrame, VoiceEvent, random,
+    AudioFrame, EncodedScreenAudio, Layer, ReceivedAudio, ReceivedVideo, RemoteTrack, TrackKind,
+    TrackRequest, TransportError, VideoFrame, VoiceEvent, random,
 };
 use crate::video::priorities::{Planner, Sending, TrackPlan};
 
@@ -60,6 +60,7 @@ pub(super) struct Media {
     pub local: IceCreds,
     pub fingerprint: Vec<u8>,
     audio_ssrc: u32,
+    screen_audio_ssrc: u32,
     next_seq: u64,
     /// The RTP timestamp of capture position 0.
     timestamp_base: u32,
@@ -164,6 +165,7 @@ pub(super) fn remote_track(
     let kind = match voice::TrackKind::try_from(track.kind) {
         Ok(voice::TrackKind::Camera) => TrackKind::Camera,
         Ok(voice::TrackKind::Screen) => TrackKind::Screen,
+        Ok(voice::TrackKind::ScreenAudio) => TrackKind::ScreenAudio,
         _ => return None,
     };
     Some(RemoteTrack {
@@ -248,6 +250,7 @@ impl Media {
             local,
             fingerprint,
             audio_ssrc: ready.audio_ssrc,
+            screen_audio_ssrc: ready.screen_audio_ssrc,
             next_seq: u64::from(u16::from_ne_bytes(random::<2>())),
             timestamp_base: u32::from_ne_bytes(random::<4>()),
             users_by_ssrc: ready
@@ -657,6 +660,27 @@ impl Media {
                 .ext_vals(ext_vals),
             );
         }
+    }
+
+    /// A datagram read at `at`. The bandwidth estimator needs arrival
+    /// times as they were, not when the packet got its turn.
+    pub fn send_screen_audio(&mut self, frame: EncodedScreenAudio) {
+        self.timeout();
+        let seq = self.next_seq;
+        self.next_seq += 1;
+        let timestamp = self.timestamp_base.wrapping_add(frame.position as u32);
+        let payload = frame.payload;
+        let mut api = self.rtc.direct_api();
+        let Some(stream) = api.stream_tx(&Ssrc::from(self.screen_audio_ssrc)) else {
+            return;
+        };
+        stream.write_rtp(RtpWrite::new(
+            Pt::from(OPUS_PAYLOAD_TYPE),
+            seq.into(),
+            timestamp,
+            Instant::now(),
+            payload,
+        ));
     }
 
     /// A datagram read at `at`. The bandwidth estimator needs arrival

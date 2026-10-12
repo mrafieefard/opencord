@@ -188,6 +188,7 @@ impl Driver {
     ) -> Flow {
         match command {
             Some(Command::Audio(frame)) => self.media.send_audio(frame),
+            Some(Command::ScreenAudio(frame)) => self.media.send_screen_audio(frame),
             Some(Command::Video(frame)) => self.media.send_video(frame),
             Some(Command::Keyframe(track_id)) => self.media.request_keyframe(&track_id),
             Some(Command::Speaking(flags)) => {
@@ -254,6 +255,7 @@ impl Driver {
             kind: match request.kind {
                 TrackKind::Camera => voice::TrackKind::Camera,
                 TrackKind::Screen => voice::TrackKind::Screen,
+                TrackKind::ScreenAudio => voice::TrackKind::ScreenAudio,
             } as i32,
             codec: voice::Codec::H264 as i32,
             layers: request

@@ -153,6 +153,7 @@ message Ready {
   string voice_session_id = 1;
   bytes resume_token = 2;
   uint32 audio_ssrc = 3;
+  uint32 screen_audio_ssrc = 11;
   string ice_ufrag = 4;
   string ice_pwd = 5;
   repeated IceCandidate candidates = 6;
