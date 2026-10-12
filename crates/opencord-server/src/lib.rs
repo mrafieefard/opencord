@@ -15,6 +15,7 @@ pub mod presence;
 pub mod random;
 pub mod rate_limit;
 pub mod server;
+pub mod soundboard;
 pub mod state;
 pub mod tls;
 pub mod visibility;

@@ -327,7 +327,11 @@ fn ready(
         voice_enabled: state.config.voice.enabled,
         voice_states,
         streams,
-        soundboard_sounds: Vec::new(),
+        soundboard_sounds: guild
+            .sounds
+            .values()
+            .map(|sound| sound.to_proto())
+            .collect(),
         voice_settings: Some(guild.voice_settings.to_proto()),
         media_token: Some(media_token::issue(
             &state.voice_key,

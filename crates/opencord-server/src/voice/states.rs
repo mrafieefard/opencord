@@ -12,6 +12,7 @@ use super::streams::Streams;
 use crate::error::ApiError;
 use crate::guild::{Channel, Guild};
 use crate::permissions::require_channel;
+use crate::soundboard::Plays;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct VoiceState {
@@ -57,6 +58,8 @@ pub struct VoiceStates {
     moderation: HashMap<i64, Moderation>,
     /// Screen shares, which live and die with voice states.
     pub streams: Streams,
+    /// Soundboard cooldowns and the sounds playing in each channel.
+    pub sounds: Plays,
 }
 
 impl VoiceStates {

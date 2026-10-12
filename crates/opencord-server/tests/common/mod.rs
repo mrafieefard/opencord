@@ -78,6 +78,41 @@ impl TestServer {
             .unwrap_or_default();
         (status, body)
     }
+
+    /// An HTTPS request with a binary body; returns the status code and
+    /// the body's bytes.
+    pub async fn send_http(
+        &self,
+        method: &str,
+        path: &str,
+        headers: &[(&str, &str)],
+        body: &[u8],
+    ) -> (u16, Vec<u8>) {
+        let mut stream = tls_connect(self).await;
+        let extra: String = headers
+            .iter()
+            .map(|(name, value)| format!("{name}: {value}\r\n"))
+            .collect();
+        let head = format!(
+            "{method} {path} HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\
+             Content-Length: {}\r\n{extra}\r\n",
+            body.len()
+        );
+        stream.write_all(head.as_bytes()).await.unwrap();
+        // A server that refuses early may stop reading the body.
+        let _ = stream.write_all(body).await;
+        let mut response = Vec::new();
+        let _ = stream.read_to_end(&mut response).await;
+        let status = std::str::from_utf8(&response[9..12])
+            .unwrap()
+            .parse()
+            .unwrap();
+        let start = response
+            .windows(4)
+            .position(|window| window == b"\r\n\r\n")
+            .map_or(response.len(), |at| at + 4);
+        (status, response[start..].to_vec())
+    }
 }
 
 pub fn key(seed: u8) -> SigningKey {

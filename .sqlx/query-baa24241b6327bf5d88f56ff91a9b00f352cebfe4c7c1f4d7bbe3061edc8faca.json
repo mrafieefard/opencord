@@ -1,0 +1,134 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT id, name, emoji, volume, sha256, size_bytes, duration_ms, channel_count,\n                uploader_id, created_at\n         FROM soundboard_sounds ORDER BY id",
+  "describe": {
+    "columns": [
+      {
+        "name": "id",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "soundboard_sounds",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "name": "name",
+        "ordinal": 1,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "soundboard_sounds",
+            "name": "name"
+          }
+        }
+      },
+      {
+        "name": "emoji",
+        "ordinal": 2,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "soundboard_sounds",
+            "name": "emoji"
+          }
+        }
+      },
+      {
+        "name": "volume",
+        "ordinal": 3,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "soundboard_sounds",
+            "name": "volume"
+          }
+        }
+      },
+      {
+        "name": "sha256",
+        "ordinal": 4,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "soundboard_sounds",
+            "name": "sha256"
+          }
+        }
+      },
+      {
+        "name": "size_bytes",
+        "ordinal": 5,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "soundboard_sounds",
+            "name": "size_bytes"
+          }
+        }
+      },
+      {
+        "name": "duration_ms",
+        "ordinal": 6,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "soundboard_sounds",
+            "name": "duration_ms"
+          }
+        }
+      },
+      {
+        "name": "channel_count",
+        "ordinal": 7,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "soundboard_sounds",
+            "name": "channel_count"
+          }
+        }
+      },
+      {
+        "name": "uploader_id",
+        "ordinal": 8,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "soundboard_sounds",
+            "name": "uploader_id"
+          }
+        }
+      },
+      {
+        "name": "created_at",
+        "ordinal": 9,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "soundboard_sounds",
+            "name": "created_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": [
+      false,
+      false,
+      true,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      false
+    ]
+  },
+  "hash": "baa24241b6327bf5d88f56ff91a9b00f352cebfe4c7c1f4d7bbe3061edc8faca"
+}

@@ -10,6 +10,7 @@ use opencord_common::limits::{
     IDENTIFY_RATE, MESSAGE_RATE, REQUEST_RATE, RateLimit, STREAM_CREATE_RATE, VOICE_NODE_RATE,
     VOICE_STATE_RATE,
 };
+use opencord_common::sound::EXTERNAL_UPLOAD_RATE;
 
 #[derive(Debug)]
 pub struct RateLimits {
@@ -19,6 +20,7 @@ pub struct RateLimits {
     voice_states: DefaultKeyedRateLimiter<i64>,
     voice_nodes: DefaultKeyedRateLimiter<IpAddr>,
     streams: DefaultKeyedRateLimiter<i64>,
+    external_sounds: DefaultKeyedRateLimiter<i64>,
     clock: DefaultClock,
 }
 
@@ -31,6 +33,7 @@ impl Default for RateLimits {
             voice_states: DefaultKeyedRateLimiter::keyed(quota(VOICE_STATE_RATE)),
             voice_nodes: DefaultKeyedRateLimiter::keyed(quota(VOICE_NODE_RATE)),
             streams: DefaultKeyedRateLimiter::keyed(quota(STREAM_CREATE_RATE)),
+            external_sounds: DefaultKeyedRateLimiter::keyed(quota(EXTERNAL_UPLOAD_RATE)),
             clock: DefaultClock::default(),
         }
     }
@@ -74,6 +77,13 @@ impl RateLimits {
             .map_err(|not_until| not_until.wait_time_from(self.clock.now()))
     }
 
+    /// Sounds from other servers uploaded here (plan §11.2).
+    pub fn check_external_sound(&self, user_id: i64) -> Result<(), Duration> {
+        self.external_sounds
+            .check_key(&user_id)
+            .map_err(|not_until| not_until.wait_time_from(self.clock.now()))
+    }
+
     /// Forgets keys whose limits have fully recovered.
     pub fn prune(&self) {
         self.identify.retain_recent();
@@ -82,6 +92,7 @@ impl RateLimits {
         self.voice_states.retain_recent();
         self.voice_nodes.retain_recent();
         self.streams.retain_recent();
+        self.external_sounds.retain_recent();
     }
 }
 

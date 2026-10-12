@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE external_sounds SET last_used_at = $1 WHERE sha256 = $2",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "f8c9d8b21a8ea0e383310a9d4f3ee5658927b31664d998435bf3a7b38a701052"
+}

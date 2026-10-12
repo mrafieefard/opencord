@@ -16,6 +16,7 @@ pub mod members;
 pub mod messages;
 pub mod meta;
 pub mod roles;
+pub mod sounds;
 pub mod users;
 
 pub const DATABASE_FILE: &str = "opencord.db";

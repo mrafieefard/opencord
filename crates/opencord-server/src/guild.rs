@@ -2,7 +2,7 @@
 //! permission checks and event fan-out without touching the database.
 //! Every change is written to the database first, then applied here.
 
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet};
 
 use opencord_common::channel::ChannelKind;
 use opencord_common::permissions::{
@@ -14,7 +14,8 @@ use sqlx::SqliteConnection;
 use crate::db::channels::{ChannelRow, OverwriteRow};
 use crate::db::meta::ServerMeta;
 use crate::db::roles::RoleRow;
-use crate::db::{channels, members, permissions_from_db, permissions_to_db, roles};
+use crate::db::{channels, members, permissions_from_db, permissions_to_db, roles, sounds};
+use crate::soundboard::Sound;
 use crate::voice::settings::VoiceSettings;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -68,6 +69,8 @@ pub struct Guild {
     pub roles: HashMap<i64, Role>,
     pub channels: HashMap<i64, Channel>,
     pub members: HashMap<i64, Member>,
+    /// Soundboard sounds, oldest first.
+    pub sounds: BTreeMap<i64, Sound>,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -163,12 +166,24 @@ impl Guild {
             })
             .collect();
 
+        let sounds = sounds::list(conn)
+            .await?
+            .into_iter()
+            .map(|row| {
+                let id = row.id;
+                Sound::from_row(row)
+                    .map(|sound| (id, sound))
+                    .ok_or_else(|| corrupt("sound", id))
+            })
+            .collect::<Result<_, _>>()?;
+
         Ok(Self {
             meta,
             voice_settings: VoiceSettings::load(conn).await?,
             roles,
             channels,
             members,
+            sounds,
         })
     }
 
