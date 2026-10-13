@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'package:opencord/features/settings/settings_dialog.dart';
 import 'package:opencord/features/settings/user/app_pages.dart';
+import 'package:opencord/features/settings/user/keybinds_page.dart';
 import 'package:opencord/features/settings/user/appearance_page.dart';
 import 'package:opencord/features/settings/user/profile_pages.dart';
 import 'package:opencord/features/settings/user/sounds_page.dart';

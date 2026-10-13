@@ -588,10 +588,13 @@ pub enum HotkeyAction {
     PrioritySpeaker,
     ToggleMute,
     ToggleDeafen,
+    /// Switches between push-to-talk and voice activity.
+    ToggleInputMode,
 }
 
 /// A hotkey: a key and the modifiers held with it, as the XDG shortcuts
-/// specification writes them, such as `CTRL+SHIFT+m` or `F12`.
+/// specification writes them, such as `CTRL+SHIFT+m` or `F12`. An action
+/// may have several; it is down while any of its keys is.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct HotkeyBinding {
     pub action: HotkeyAction,
@@ -648,6 +651,24 @@ pub struct CameraStarted {
     /// What the camera captures.
     pub width: u32,
     pub height: u32,
+}
+
+/// Whether a screen share's sound can be shared on this system (plan
+/// §10.1), and why not.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ScreenAudioSupport {
+    pub supported: bool,
+    /// For people, when not supported.
+    pub reason: Option<String>,
+}
+
+/// An app with sound playing that a window share can send (plan §10.4,
+/// "Sound from").
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ScreenAudioApp {
+    pub name: String,
+    /// Its icon's name in the desktop's icon theme, when it gives one.
+    pub icon: Option<String>,
 }
 
 /// What to share (Phase 2 plan §9.1): the quality, within the server's

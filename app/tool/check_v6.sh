@@ -14,7 +14,7 @@ cargo build --quiet --manifest-path "$repo/Cargo.toml" -p opencord-voicebot
 bot="$repo/target/debug/opencord-voicebot"
 
 # A virtual screen for the app to share.
-cargo build --quiet --release --manifest-path "$repo/Cargo.toml" -p opencord-media
+cargo build --quiet --release --manifest-path "$repo/Cargo.toml" -p opencord-media --features testing --example virtual_camera
 virtual_screen="$repo/target/release/examples/virtual_camera"
 screen_log="$work/screen.log"
 
@@ -31,7 +31,7 @@ background+=("$!")
 flutter test integration_test/v6_test.dart -d linux \
   --dart-define=OPENCORD_E2E_INVITE="$invite" \
   --dart-define=OPENCORD_E2E_TEST=watches \
-  >"$work/v6_watches.log" 2>&1
+  >"$work/v6_watches.log" 2>&1 || { cat "$work/v6_watches.log" >&2; exit 1; }
 echo "V6 watches check passed."
 
 # Test 2: app shares a screen, bot watches it
@@ -61,10 +61,23 @@ done
   --watch-streams --seconds 600 >"$work/bot.log" 2>&1 &
 background+=("$!")
 
-# Start the virtual screen for the app to share.
-export OPENCORD_SCREEN_NODE=opencord-virtual-screen
+# Start the virtual screen for the app to share; its node's name is its
+# own (it says it on its first line).
+screen_log="$work/screen.log"
 "$virtual_screen" screen >"$screen_log" 2>&1 &
 background+=("$!")
+screen_node=""
+for _ in $(seq 1 100); do
+  screen_node="$(grep -oE '^screen=.+' "$screen_log" | cut -d= -f2- || true)"
+  [[ -n "$screen_node" ]] && break
+  sleep 0.1
+done
+if [[ -z "$screen_node" ]]; then
+  echo "The virtual screen did not start:" >&2
+  cat "$screen_log" >&2
+  exit 1
+fi
+export OPENCORD_SCREEN_NODE="$screen_node"
 
 sleep 1
 
@@ -89,5 +102,5 @@ flutter test integration_test/v6_test.dart -d linux \
   --dart-define=OPENCORD_E2E_INVITE="$invite" \
   --dart-define=OPENCORD_E2E_TEST=shares \
   --dart-define=OPENCORD_SCREEN_NODE="$OPENCORD_SCREEN_NODE" \
-  >"$work/v6_shares.log" 2>&1
+  >"$work/v6_shares.log" 2>&1 || { cat "$work/v6_shares.log" >&2; exit 1; }
 echo "V6 shares check passed."

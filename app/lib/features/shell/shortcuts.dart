@@ -2,6 +2,8 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 
+import 'package:opencord/core/hotkeys.dart';
+import 'package:opencord/core/model/voice.dart';
 import 'package:opencord/ui/widgets/key_hint.dart';
 
 /// Steps through text channels (Alt+↑/↓).
@@ -98,5 +100,31 @@ Map<ShortcutActivator, Intent> shellShortcuts(TargetPlatform platform) {
       const SingleActivator(LogicalKeyboardKey.f11): const FullscreenIntent(),
     if (kDebugMode)
       primary(LogicalKeyboardKey.f12, shift: true): const DebugMenuIntent(),
+  };
+}
+
+/// [shortcuts] without the ones a keybind uses: keybinds come first, and
+/// a toggle on both would flip twice.
+Map<ShortcutActivator, Intent> leavingKeybinds(
+  Map<ShortcutActivator, Intent> shortcuts,
+  List<HotkeyBinding> keybinds,
+) {
+  final taken = {
+    for (final keybind in keybinds) ?Accelerator.parse(keybind.keys),
+  };
+  bool usedByKeybind(ShortcutActivator activator) =>
+      activator is SingleActivator &&
+      taken.contains(
+        Accelerator(
+          key: activator.trigger,
+          ctrl: activator.control,
+          alt: activator.alt,
+          shift: activator.shift,
+          logo: activator.meta,
+        ),
+      );
+  return {
+    for (final MapEntry(:key, :value) in shortcuts.entries)
+      if (!usedByKeybind(key)) key: value,
   };
 }

@@ -67,17 +67,27 @@ impl VoiceEncoder {
 
 pub struct VoiceDecoder {
     inner: opus::Decoder,
+    channels: usize,
 }
 
 impl VoiceDecoder {
     pub fn new() -> Result<Self, CodecError> {
         Ok(Self {
             inner: opus::Decoder::new(SAMPLE_RATE, Channels::Mono)?,
+            channels: 1,
+        })
+    }
+
+    /// Interleaved stereo: a screen share's sound (plan §10.5).
+    pub fn stereo() -> Result<Self, CodecError> {
+        Ok(Self {
+            inner: opus::Decoder::new(SAMPLE_RATE, Channels::Stereo)?,
+            channels: 2,
         })
     }
 
     /// Decodes a packet into `pcm`, which has room for [`MAX_DECODED`]
-    /// samples; returns how many it wrote.
+    /// samples per channel; returns how many it wrote per channel.
     pub fn decode(&mut self, packet: &[u8], pcm: &mut [f32]) -> Result<usize, CodecError> {
         Ok(self.inner.decode_float(packet, pcm, false)?)
     }
@@ -86,14 +96,16 @@ impl VoiceDecoder {
     /// error correction `next_packet` carries (or concealed when it has
     /// none).
     pub fn recover(&mut self, next_packet: &[u8], pcm: &mut [f32]) -> Result<usize, CodecError> {
+        let frame = FRAME * self.channels;
         Ok(self
             .inner
-            .decode_float(next_packet, &mut pcm[..FRAME], true)?)
+            .decode_float(next_packet, &mut pcm[..frame], true)?)
     }
 
     /// A frame to stand in for one that is missing.
     pub fn conceal(&mut self, pcm: &mut [f32]) -> Result<usize, CodecError> {
-        Ok(self.inner.decode_float(&[], &mut pcm[..FRAME], false)?)
+        let frame = FRAME * self.channels;
+        Ok(self.inner.decode_float(&[], &mut pcm[..frame], false)?)
     }
 }
 

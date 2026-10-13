@@ -14,7 +14,7 @@ use x11rb::protocol::Event;
 use x11rb::protocol::xinput::{self, ConnectionExt as _};
 use x11rb::protocol::xproto::ConnectionExt as _;
 
-use super::{HotkeyAction, HotkeyBinding, HotkeyEvent};
+use super::{Held, HotkeyAction, HotkeyBinding, HotkeyEvent};
 
 /// How often the thread looks for key events, and for being stopped.
 const POLL: Duration = Duration::from_millis(5);
@@ -53,7 +53,9 @@ struct Matcher {
     watched: Vec<Watched>,
     modifiers: HashMap<u32, Modifier>,
     held: HashSet<u32>,
-    active: HashSet<HotkeyAction>,
+    /// Bindings down, by index.
+    down: HashSet<usize>,
+    actions: Held,
 }
 
 impl Matcher {
@@ -97,7 +99,8 @@ impl Matcher {
             watched,
             modifiers,
             held: HashSet::new(),
-            active: HashSet::new(),
+            down: HashSet::new(),
+            actions: Held::default(),
         }
     }
 
@@ -110,15 +113,15 @@ impl Matcher {
     fn press(&mut self, keycode: u32) -> Vec<HotkeyEvent> {
         self.held.insert(keycode);
         let mut events = Vec::new();
-        for watched in &self.watched {
+        for (index, watched) in self.watched.iter().enumerate() {
             if watched.keys.contains(&keycode)
                 && watched
                     .modifiers
                     .iter()
                     .all(|modifier| self.holding(*modifier))
-                && self.active.insert(watched.action)
+                && self.down.insert(index)
             {
-                events.push(HotkeyEvent::Pressed(watched.action));
+                events.extend(self.actions.press(index, watched.action));
             }
         }
         events
@@ -127,9 +130,9 @@ impl Matcher {
     fn release(&mut self, keycode: u32) -> Vec<HotkeyEvent> {
         self.held.remove(&keycode);
         let mut events = Vec::new();
-        for watched in &self.watched {
-            if watched.keys.contains(&keycode) && self.active.remove(&watched.action) {
-                events.push(HotkeyEvent::Released(watched.action));
+        for (index, watched) in self.watched.iter().enumerate() {
+            if watched.keys.contains(&keycode) && self.down.remove(&index) {
+                events.extend(self.actions.release(index, watched.action));
             }
         }
         events
@@ -306,6 +309,39 @@ mod tests {
         );
     }
 
+    #[test]
+    fn push_to_talk_on_two_keys_lasts_until_both_are_up() {
+        let mut keys = matcher(&[
+            (HotkeyAction::PushToTalk, "CTRL+m"),
+            (HotkeyAction::PushToTalk, "F12"),
+        ]);
+        keys.press(10);
+
+        let first = keys.press(12);
+        let second = keys.press(13);
+        let one_up = keys.release(12);
+        let last_up = keys.release(13);
+
+        assert_eq!(first, vec![HotkeyEvent::Pressed(HotkeyAction::PushToTalk)]);
+        assert!(second.is_empty());
+        assert!(one_up.is_empty(), "F12 is still down");
+        assert_eq!(
+            last_up,
+            vec![HotkeyEvent::Released(HotkeyAction::PushToTalk)]
+        );
+    }
+
+    #[test]
+    fn a_modifier_key_alone_is_a_hotkey() {
+        let mut keys = matcher(&[(HotkeyAction::PushToTalk, "Control_L")]);
+
+        let down = keys.press(10);
+        let up = keys.release(10);
+
+        assert_eq!(down, vec![HotkeyEvent::Pressed(HotkeyAction::PushToTalk)]);
+        assert_eq!(up, vec![HotkeyEvent::Released(HotkeyAction::PushToTalk)]);
+    }
+
     /// A private X server, gone when dropped.
     struct Xvfb {
         child: std::process::Child,
@@ -342,19 +378,25 @@ mod tests {
         }
     }
 
-    /// Needs Xvfb; run with `--ignored` where it is installed.
-    #[test]
-    #[ignore = "needs Xvfb"]
-    fn keys_typed_anywhere_on_an_x_server_press_and_release_hotkeys() {
+    /// Types `keys` (X keysym, down?) on a private X server watched for
+    /// `bindings`, and returns the hotkey events that came.
+    fn typed_on_x(
+        bindings: &[(HotkeyAction, &str)],
+        keys: &[(u32, bool)],
+        expected: usize,
+    ) -> Vec<HotkeyEvent> {
         use x11rb::protocol::xtest::ConnectionExt as _;
 
         let server = Xvfb::start();
         let (sender, mut received) = mpsc::unbounded_channel();
-        let binding = HotkeyBinding {
-            action: HotkeyAction::PushToTalk,
-            accelerator: "CTRL+m".parse().unwrap(),
-        };
-        let _keys = X11Keys::start(&server.display, &[binding], sender).unwrap();
+        let bindings: Vec<HotkeyBinding> = bindings
+            .iter()
+            .map(|(action, text)| HotkeyBinding {
+                action: *action,
+                accelerator: text.parse().unwrap(),
+            })
+            .collect();
+        let _keys = X11Keys::start(&server.display, &bindings, sender).unwrap();
         let (typist, screen) = x11rb::connect(Some(&server.display)).unwrap();
         let root = typist.setup().roots[screen].root;
         let first = typist.setup().min_keycode;
@@ -372,22 +414,70 @@ mod tests {
                 .unwrap();
             first + index as u8
         };
-        let (ctrl, m) = (keycode(0xffe3), keycode(u32::from(b'm')));
 
-        for (kind, key) in [(2, ctrl), (2, m), (3, m), (3, ctrl)] {
+        for (keysym, down) in keys {
+            let kind = if *down { 2 } else { 3 };
             typist
-                .xtest_fake_input(kind, key, 0, root, 0, 0, 0)
+                .xtest_fake_input(kind, keycode(*keysym), 0, root, 0, 0, 0)
                 .unwrap();
         }
         typist.flush().unwrap();
         let mut events = Vec::new();
         let deadline = std::time::Instant::now() + Duration::from_secs(5);
-        while events.len() < 2 && std::time::Instant::now() < deadline {
+        while events.len() < expected && std::time::Instant::now() < deadline {
             match received.try_recv() {
                 Ok(event) => events.push(event),
                 Err(_) => std::thread::sleep(Duration::from_millis(10)),
             }
         }
+        // Anything more would come at once.
+        std::thread::sleep(Duration::from_millis(200));
+        while let Ok(event) = received.try_recv() {
+            events.push(event);
+        }
+        events
+    }
+
+    /// Needs Xvfb; run with `--ignored` where it is installed.
+    #[test]
+    #[ignore = "needs Xvfb"]
+    fn keys_typed_anywhere_on_an_x_server_press_and_release_hotkeys() {
+        let (ctrl, m) = (0xffe3, u32::from(b'm'));
+
+        let events = typed_on_x(
+            &[(HotkeyAction::PushToTalk, "CTRL+m")],
+            &[(ctrl, true), (m, true), (m, false), (ctrl, false)],
+            2,
+        );
+
+        assert_eq!(
+            events,
+            vec![
+                HotkeyEvent::Pressed(HotkeyAction::PushToTalk),
+                HotkeyEvent::Released(HotkeyAction::PushToTalk),
+            ]
+        );
+    }
+
+    /// Needs Xvfb; run with `--ignored` where it is installed.
+    #[test]
+    #[ignore = "needs Xvfb"]
+    fn push_to_talk_on_two_keys_of_an_x_server_holds_until_both_are_up() {
+        let (grave, right_ctrl) = (0x60, 0xffe4);
+
+        let events = typed_on_x(
+            &[
+                (HotkeyAction::PushToTalk, "grave"),
+                (HotkeyAction::PushToTalk, "Control_R"),
+            ],
+            &[
+                (grave, true),
+                (right_ctrl, true),
+                (grave, false),
+                (right_ctrl, false),
+            ],
+            2,
+        );
 
         assert_eq!(
             events,

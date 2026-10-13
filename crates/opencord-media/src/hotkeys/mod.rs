@@ -1,6 +1,7 @@
 //! Global hotkeys (plan §7.13): push-to-talk and the priority speaker key
 //! work while Opencord is in the background, straight from here to the
-//! audio engine; the mute and deafen toggles go to the app.
+//! audio engine; the toggles go to the app. An action may have several
+//! keys, like Discord's keybinds: it is down while any of them is.
 //!
 //! On Linux, Wayland desktops bind them through the GlobalShortcuts portal
 //! and X11 sessions read the keyboard through XInput 2. Elsewhere (for now)
@@ -11,6 +12,8 @@ mod portal;
 #[cfg(target_os = "linux")]
 mod x11;
 
+use std::collections::{HashMap, HashSet};
+
 use tokio::sync::mpsc;
 
 /// What a hotkey does.
@@ -20,9 +23,19 @@ pub enum HotkeyAction {
     PrioritySpeaker,
     ToggleMute,
     ToggleDeafen,
+    /// Switches between push-to-talk and voice activity.
+    ToggleInputMode,
 }
 
 impl HotkeyAction {
+    const ALL: [Self; 5] = [
+        Self::PushToTalk,
+        Self::PrioritySpeaker,
+        Self::ToggleMute,
+        Self::ToggleDeafen,
+        Self::ToggleInputMode,
+    ];
+
     /// The id the portal knows it by.
     fn id(self) -> &'static str {
         match self {
@@ -30,18 +43,8 @@ impl HotkeyAction {
             Self::PrioritySpeaker => "priority-speaker",
             Self::ToggleMute => "toggle-mute",
             Self::ToggleDeafen => "toggle-deafen",
+            Self::ToggleInputMode => "toggle-input-mode",
         }
-    }
-
-    fn from_id(id: &str) -> Option<Self> {
-        [
-            Self::PushToTalk,
-            Self::PrioritySpeaker,
-            Self::ToggleMute,
-            Self::ToggleDeafen,
-        ]
-        .into_iter()
-        .find(|action| action.id() == id)
     }
 
     /// What the system's shortcut settings show.
@@ -51,7 +54,78 @@ impl HotkeyAction {
             Self::PrioritySpeaker => "Priority speaker",
             Self::ToggleMute => "Toggle mute",
             Self::ToggleDeafen => "Toggle deafen",
+            Self::ToggleInputMode => "Toggle push-to-talk",
         }
+    }
+}
+
+/// The portal's id for an action's `nth` key (from 0): the action's own id,
+/// then `push-to-talk-2`, `push-to-talk-3`, … — a desktop that remembers
+/// the first keeps it.
+fn shortcut_id(action: HotkeyAction, nth: usize) -> String {
+    match nth {
+        0 => action.id().to_owned(),
+        _ => format!("{}-{}", action.id(), nth + 1),
+    }
+}
+
+fn shortcut_description(action: HotkeyAction, nth: usize) -> String {
+    match nth {
+        0 => action.description().to_owned(),
+        _ => format!("{} ({})", action.description(), nth + 1),
+    }
+}
+
+/// The action a portal shortcut id is for.
+fn action_of(shortcut_id: &str) -> Option<HotkeyAction> {
+    HotkeyAction::ALL
+        .into_iter()
+        .find(|action| match shortcut_id.strip_prefix(action.id()) {
+            Some("") => true,
+            Some(rest) => rest
+                .strip_prefix('-')
+                .and_then(|n| n.parse::<usize>().ok())
+                .is_some_and(|n| n >= 2),
+            None => false,
+        })
+}
+
+/// The portal ids of `bindings`, in order: each action's keys counted.
+fn shortcut_ids(bindings: &[HotkeyBinding]) -> Vec<(String, String)> {
+    let mut seen: HashMap<HotkeyAction, usize> = HashMap::new();
+    bindings
+        .iter()
+        .map(|binding| {
+            let nth = seen.entry(binding.action).or_default();
+            let named = (
+                shortcut_id(binding.action, *nth),
+                shortcut_description(binding.action, *nth),
+            );
+            *nth += 1;
+            named
+        })
+        .collect()
+}
+
+/// Which bindings are down, so an action with several keys presses when
+/// the first goes down and releases when the last comes up.
+#[derive(Debug, Default)]
+struct Held {
+    down: HashMap<HotkeyAction, HashSet<usize>>,
+}
+
+impl Held {
+    /// Binding `index` (for `action`) went down.
+    fn press(&mut self, index: usize, action: HotkeyAction) -> Option<HotkeyEvent> {
+        let down = self.down.entry(action).or_default();
+        let first = down.is_empty();
+        (down.insert(index) && first).then_some(HotkeyEvent::Pressed(action))
+    }
+
+    /// Binding `index` came up.
+    fn release(&mut self, index: usize, action: HotkeyAction) -> Option<HotkeyEvent> {
+        let down = self.down.get_mut(&action)?;
+        (down.remove(&index) && down.is_empty()).then_some(HotkeyEvent::Released(action))
     }
 }
 
@@ -124,8 +198,9 @@ impl std::fmt::Display for Accelerator {
     }
 }
 
-/// The keysyms of the keys a hotkey can use: letters, digits, F1–F24, and
-/// keys left free in most apps.
+/// The keysyms of the keys a hotkey can use: letters, digits, F1–F24, the
+/// keypad, punctuation, navigation and editing keys, and a modifier key on
+/// its own (Right Ctrl is a common push-to-talk key).
 fn keysym(name: &str) -> Option<u32> {
     if let [character] = name.as_bytes() {
         return match character {
@@ -165,6 +240,31 @@ fn keysym(name: &str) -> Option<u32> {
         "End" => 0xff57,
         "Insert" => 0xff63,
         "Delete" => 0xffff,
+        "BackSpace" => 0xff08,
+        "Return" => 0xff0d,
+        "Escape" => 0xff1b,
+        "Left" => 0xff51,
+        "Up" => 0xff52,
+        "Right" => 0xff53,
+        "Down" => 0xff54,
+        "Print" => 0xff61,
+        "Menu" => 0xff67,
+        "Num_Lock" => 0xff7f,
+        "KP_Enter" => 0xff8d,
+        "KP_Multiply" => 0xffaa,
+        "KP_Add" => 0xffab,
+        "KP_Subtract" => 0xffad,
+        "KP_Decimal" => 0xffae,
+        "KP_Divide" => 0xffaf,
+        "Shift_L" => 0xffe1,
+        "Shift_R" => 0xffe2,
+        "Control_L" => 0xffe3,
+        "Control_R" => 0xffe4,
+        "Caps_Lock" => 0xffe5,
+        "Alt_L" => 0xffe9,
+        "Alt_R" => 0xffea,
+        "Super_L" => 0xffeb,
+        "Super_R" => 0xffec,
         _ => return None,
     })
 }
@@ -302,8 +402,8 @@ mod tests {
             Err(AcceleratorError::NoKey("CTRL+".to_owned()))
         );
         assert_eq!(
-            "CTRL+Return".parse::<Accelerator>(),
-            Err(AcceleratorError::UnknownKey("Return".to_owned()))
+            "CTRL+Hyper_L".parse::<Accelerator>(),
+            Err(AcceleratorError::UnknownKey("Hyper_L".to_owned()))
         );
         assert_eq!(
             "HYPER+m".parse::<Accelerator>(),
@@ -317,15 +417,68 @@ mod tests {
     }
 
     #[test]
-    fn actions_keep_their_portal_ids() {
-        for action in [
-            HotkeyAction::PushToTalk,
-            HotkeyAction::PrioritySpeaker,
-            HotkeyAction::ToggleMute,
-            HotkeyAction::ToggleDeafen,
-        ] {
-            assert_eq!(HotkeyAction::from_id(action.id()), Some(action));
+    fn a_modifier_key_can_be_a_hotkey_on_its_own() {
+        let right_ctrl: Accelerator = "Control_R".parse().unwrap();
+        let caps: Accelerator = "SHIFT+Caps_Lock".parse().unwrap();
+
+        assert_eq!(right_ctrl.keysym, 0xffe4);
+        assert!(!right_ctrl.ctrl, "the key, not the modifier");
+        assert_eq!(caps.keysym, 0xffe5);
+    }
+
+    #[test]
+    fn every_key_of_an_action_gets_its_own_portal_id() {
+        let binding = |action, text: &str| HotkeyBinding {
+            action,
+            accelerator: text.parse().unwrap(),
+        };
+        let bindings = [
+            binding(HotkeyAction::PushToTalk, "grave"),
+            binding(HotkeyAction::ToggleMute, "CTRL+m"),
+            binding(HotkeyAction::PushToTalk, "Control_R"),
+            binding(HotkeyAction::PushToTalk, "F13"),
+        ];
+
+        let ids = shortcut_ids(&bindings);
+
+        assert_eq!(
+            ids.iter().map(|(id, _)| id.as_str()).collect::<Vec<_>>(),
+            [
+                "push-to-talk",
+                "toggle-mute",
+                "push-to-talk-2",
+                "push-to-talk-3"
+            ]
+        );
+        assert_eq!(ids[2].1, "Push to talk (2)");
+        for ((id, _), binding) in ids.iter().zip(&bindings) {
+            assert_eq!(action_of(id), Some(binding.action));
         }
-        assert_eq!(HotkeyAction::from_id("something-else"), None);
+        for action in HotkeyAction::ALL {
+            assert_eq!(action_of(action.id()), Some(action));
+        }
+        assert_eq!(action_of("toggle-mute-1"), None);
+        assert_eq!(action_of("toggle-mute-x"), None);
+        assert_eq!(action_of("something-else"), None);
+    }
+
+    #[test]
+    fn an_action_with_several_keys_is_down_while_any_of_them_is() {
+        let mut held = Held::default();
+        let talk = HotkeyAction::PushToTalk;
+
+        let first = held.press(0, talk);
+        let second = held.press(2, talk);
+        let one_up = held.release(0, talk);
+        let again = held.press(0, talk);
+        let both_up = [held.release(2, talk), held.release(0, talk)];
+        let never_down = held.release(5, talk);
+
+        assert_eq!(first, Some(HotkeyEvent::Pressed(talk)));
+        assert_eq!(second, None);
+        assert_eq!(one_up, None, "the other key still holds it");
+        assert_eq!(again, None);
+        assert_eq!(both_up, [None, Some(HotkeyEvent::Released(talk))]);
+        assert_eq!(never_down, None);
     }
 }

@@ -513,6 +513,60 @@ fn a_screen_goes_only_to_those_watching_it() {
     assert!(net.clients[bob].video_on(screen.ssrc, stopped).is_empty());
 }
 
+#[test]
+fn a_screens_sound_goes_only_to_those_watching_it_on_its_own_sequence() {
+    let mut net = Net::new();
+    let (alice, bob, carol) = three(&mut net);
+    let user = |index: usize| 100 + index as i64;
+    let sound_of_alice = screen_audio(net.clients[alice].ssrc);
+    let share = |net: &mut Net, from: u64, packets: u64| -> Vec<Vec<u8>> {
+        let mut sent = Vec::new();
+        for seq in from..from + packets {
+            let payload = vec![0x5a, seq as u8];
+            let now = net.now;
+            net.clients[alice].send_screen_audio(now, seq, &payload);
+            sent.push(payload);
+            net.run(Duration::from_millis(20));
+        }
+        sent
+    };
+
+    // Watchers set, but no screen live: the sound goes nowhere.
+    let now = net.now;
+    net.sfu
+        .set_stream_viewers(now, CHANNEL, user(alice), vec![user(bob)]);
+    share(&mut net, 1, 5);
+    assert!(net.clients[bob].payloads_from(sound_of_alice).is_empty());
+
+    net.publish(alice, screen("screen-a", 7000));
+    let voice = net.talk(alice, 3);
+    let watched = share(&mut net, 6, 10);
+
+    assert_eq!(net.clients[bob].payloads_from(sound_of_alice), watched);
+    assert!(net.clients[carol].payloads_from(sound_of_alice).is_empty());
+    // Voice is not stream sound, and goes to everyone as before.
+    assert_eq!(net.clients[carol].payloads_from(1001), voice);
+    assert!(
+        net.clients[bob]
+            .received
+            .iter()
+            .filter(|(ssrc, _, _)| *ssrc == sound_of_alice)
+            .map(|(_, seq, _)| *seq)
+            .collect::<Vec<_>>()
+            .windows(2)
+            .all(|pair| pair[1] == pair[0] + 1),
+        "no gaps where the sound went nowhere"
+    );
+
+    // Bob stops watching; carol starts.
+    let now = net.now;
+    net.sfu
+        .set_stream_viewers(now, CHANNEL, user(alice), vec![user(carol)]);
+    let later = share(&mut net, 16, 5);
+    assert_eq!(net.clients[bob].payloads_from(sound_of_alice), watched);
+    assert_eq!(net.clients[carol].payloads_from(sound_of_alice), later);
+}
+
 /// A screen share: a 640×360 low layer at 15 fps and the main one at
 /// 1280×720 and 30 fps (plan §9.2).
 fn screen(track_id: &str, base: u32) -> TrackSetup {

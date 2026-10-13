@@ -7,9 +7,11 @@ import 'package:opencord/core/model/voice.dart';
 import 'package:opencord/core/repository/repository.dart';
 import 'package:opencord/core/settings/key_value_store.dart';
 
+export 'package:opencord/core/settings/keybinds.dart';
+
 /// Decodes the JSON saved under [key], or null when it is missing or
 /// damaged.
-Object? _readJson(KeyValueStore store, String key) {
+Object? readJson(KeyValueStore store, String key) {
   final saved = store.read(key);
   if (saved == null) return null;
   try {
@@ -73,7 +75,7 @@ class NotificationPrefsNotifier extends Notifier<NotificationPrefs> {
   @override
   NotificationPrefs build() =>
       NotificationPrefs.fromJson(
-        _readJson(ref.watch(keyValueStoreProvider), notificationPrefsKey),
+        readJson(ref.watch(keyValueStoreProvider), notificationPrefsKey),
       ) ??
       NotificationPrefs(mutedServers: ref.watch(defaultMutedServersProvider));
 
@@ -120,7 +122,7 @@ const collapsedCategoriesKey = 'ui.collapsed';
 class CollapsedCategoriesNotifier extends Notifier<Set<String>> {
   @override
   Set<String> build() {
-    final json = _readJson(
+    final json = readJson(
       ref.watch(keyValueStoreProvider),
       collapsedCategoriesKey,
     );
@@ -149,7 +151,7 @@ const trustedLinkDomainsKey = 'ui.trustedLinkDomains';
 class TrustedLinkDomainsNotifier extends Notifier<Set<String>> {
   @override
   Set<String> build() {
-    final json = _readJson(
+    final json = readJson(
       ref.watch(keyValueStoreProvider),
       trustedLinkDomainsKey,
     );
@@ -210,7 +212,7 @@ const emojiUsageKey = 'ui.emojiUsage';
 class EmojiUsageNotifier extends Notifier<Map<String, int>> {
   @override
   Map<String, int> build() {
-    final json = _readJson(ref.watch(keyValueStoreProvider), emojiUsageKey);
+    final json = readJson(ref.watch(keyValueStoreProvider), emojiUsageKey);
     return {
       if (json is Map)
         for (final MapEntry(:key, :value) in json.entries)
@@ -469,62 +471,6 @@ class AudioSettings {
   }
 }
 
-/// The hotkeys chosen on this device (Phase 2 plan §7.13): per action, a
-/// key and its modifiers as the XDG shortcuts specification writes them,
-/// such as `CTRL+SHIFT+m` or `grave`. None until chosen.
-@immutable
-class HotkeyBindings {
-  const HotkeyBindings([this.bindings = const {}]);
-
-  final Map<HotkeyAction, String> bindings;
-
-  Map<String, Object?> toJson() => {
-    for (final MapEntry(:key, :value) in bindings.entries) key.name: value,
-  };
-
-  static HotkeyBindings fromJson(Object? json) {
-    if (json is! Map) return const HotkeyBindings();
-    return HotkeyBindings({
-      for (final action in HotkeyAction.values)
-        if (json[action.name] case final String accelerator)
-          action: accelerator,
-    });
-  }
-
-  @override
-  bool operator ==(Object other) =>
-      other is HotkeyBindings && mapEquals(other.bindings, bindings);
-
-  @override
-  int get hashCode => Object.hashAllUnordered(
-    bindings.entries.map((entry) => Object.hash(entry.key, entry.value)),
-  );
-}
-
-const hotkeyBindingsKey = 'ui.hotkeys';
-
-class HotkeyBindingsNotifier extends Notifier<HotkeyBindings> {
-  @override
-  HotkeyBindings build() => HotkeyBindings.fromJson(
-    _readJson(ref.watch(keyValueStoreProvider), hotkeyBindingsKey),
-  );
-
-  /// Binds [action] to [accelerator], or unbinds it with null.
-  void bind(HotkeyAction action, String? accelerator) {
-    final bindings = {...state.bindings}..remove(action);
-    if (accelerator != null) bindings[action] = accelerator;
-    state = HotkeyBindings(bindings);
-    ref
-        .read(keyValueStoreProvider)
-        .write(hotkeyBindingsKey, jsonEncode(state.toJson()));
-  }
-}
-
-final hotkeyBindingsProvider =
-    NotifierProvider<HotkeyBindingsNotifier, HotkeyBindings>(
-      HotkeyBindingsNotifier.new,
-    );
-
 /// What a device picker offers: the system's default first, then each
 /// device.
 List<(AudioDevice?, String)> deviceChoices(List<AudioDevice> devices) => [
@@ -546,7 +492,7 @@ const audioSettingsKey = 'ui.audio';
 class AudioSettingsNotifier extends Notifier<AudioSettings> {
   @override
   AudioSettings build() => AudioSettings.fromJson(
-    _readJson(ref.watch(keyValueStoreProvider), audioSettingsKey),
+    readJson(ref.watch(keyValueStoreProvider), audioSettingsKey),
   );
 
   void update(AudioSettings Function(AudioSettings audio) change) {
@@ -630,7 +576,7 @@ const soundboardPrefsKey = 'ui.soundboard';
 class SoundboardPrefsNotifier extends Notifier<SoundboardPrefs> {
   @override
   SoundboardPrefs build() => SoundboardPrefs.fromJson(
-    _readJson(ref.watch(keyValueStoreProvider), soundboardPrefsKey),
+    readJson(ref.watch(keyValueStoreProvider), soundboardPrefsKey),
   );
 
   void update(SoundboardPrefs Function(SoundboardPrefs prefs) change) {

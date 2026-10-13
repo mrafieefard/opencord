@@ -1341,19 +1341,20 @@ void main() {
         reason: 'no portal',
       );
 
-      final support = await harness.repository.setHotkeys({
-        HotkeyAction.pushToTalk: 'grave',
-        HotkeyAction.toggleDeafen: 'CTRL+SHIFT+F12',
-      });
+      final support = await harness.repository.setHotkeys([
+        (action: HotkeyAction.pushToTalk, keys: 'grave'),
+        (action: HotkeyAction.toggleDeafen, keys: 'CTRL+SHIFT+F12'),
+        (action: HotkeyAction.pushToTalk, keys: 'Control_R'),
+        (action: HotkeyAction.toggleInputMode, keys: 'F13'),
+      ]);
 
       expect(support, const HotkeySupport.focusedOnly('no portal'));
-      expect(
-        harness.core.hotkeys!.map((b) => (b.action, b.accelerator)),
-        unorderedEquals([
-          (core.HotkeyAction.pushToTalk, 'grave'),
-          (core.HotkeyAction.toggleDeafen, 'CTRL+SHIFT+F12'),
-        ]),
-      );
+      expect(harness.core.hotkeys!.map((b) => (b.action, b.accelerator)), [
+        (core.HotkeyAction.pushToTalk, 'grave'),
+        (core.HotkeyAction.toggleDeafen, 'CTRL+SHIFT+F12'),
+        (core.HotkeyAction.pushToTalk, 'Control_R'),
+        (core.HotkeyAction.toggleInputMode, 'F13'),
+      ]);
     });
 
     test('a toggle pressed anywhere reaches the app', () async {
@@ -1370,6 +1371,36 @@ void main() {
         harness.events.whereType<HotkeyPressed>().single.action,
         HotkeyAction.toggleMute,
       );
+    });
+  });
+
+  group('screen share sound (Phase 2 V7)', () {
+    test('support, apps and choices go to and from the core', () async {
+      final harness = await _Harness.start();
+      final repository = harness.repository;
+
+      final supported = await repository.screenAudioSupport();
+      final apps = await repository.screenAudioApps();
+      repository.setScreenShareAudioFrom('Firefox');
+      repository.setScreenShareAudioFrom(null);
+      repository.setStreamVolume('a.example:7710', 7, 150);
+      repository.setStreamMute('a.example:7710', 7, true);
+      harness.core.screenAudio = null;
+      final failed = await repository.screenAudioSupport();
+
+      expect(supported, (supported: true, reason: null));
+      expect(apps, [(name: 'Firefox', icon: 'firefox')]);
+      expect(
+        harness.core.calls,
+        containsAllInOrder([
+          'soundFrom:Firefox',
+          'soundFrom:null',
+          'streamVolume:a.example:7710:7:1.5',
+          'streamMute:a.example:7710:7:true',
+        ]),
+      );
+      expect(failed.supported, isFalse);
+      expect(failed.reason, contains('no PipeWire'));
     });
   });
 

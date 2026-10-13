@@ -425,6 +425,43 @@ Future<void> streamWatch({required String streamKey}) =>
 Future<void> streamUnwatch({required String streamKey}) =>
     RustLib.instance.api.crateApiClientStreamUnwatch(streamKey: streamKey);
 
+/// Whether this system can share a screen's sound (plan §10.1): Linux with
+/// PipeWire for now.
+Future<ScreenAudioSupport> screenAudioSupport() =>
+    RustLib.instance.api.crateApiClientScreenAudioSupport();
+
+/// The apps with sound playing now, Opencord left out: what a window
+/// share's "Sound from" offers.
+Future<List<ScreenAudioApp>> screenAudioApps() =>
+    RustLib.instance.api.crateApiClientScreenAudioApps();
+
+/// Whose sound this device's window share sends: an app from
+/// [`screen_audio_apps`] by name, or none.
+void screenShareAudioFrom({String? app}) =>
+    RustLib.instance.api.crateApiClientScreenShareAudioFrom(app: app);
+
+/// How loud someone's screen share sound is here, 0–2 (200 %), apart from
+/// their voice.
+void voiceSetStreamVolume({
+  required String serverKey,
+  required PlatformInt64 userId,
+  required double volume,
+}) => RustLib.instance.api.crateApiClientVoiceSetStreamVolume(
+  serverKey: serverKey,
+  userId: userId,
+  volume: volume,
+);
+
+void voiceSetStreamMute({
+  required String serverKey,
+  required PlatformInt64 userId,
+  required bool muted,
+}) => RustLib.instance.api.crateApiClientVoiceSetStreamMute(
+  serverKey: serverKey,
+  userId: userId,
+  muted: muted,
+);
+
 /// The tiles showing video now, at their sizes in physical pixels; tracks
 /// not named are neither received nor decoded (plan §6, §7.11).
 void videoSetWants({required List<VideoWant> wants}) =>

@@ -1045,14 +1045,52 @@ impl Client {
                 retry_after_ms: None,
             });
         };
-        let stream_key = stream_key.to_owned();
+        let key = stream_key.to_owned();
         let request = match watching {
-            true => Request::WatchStream(proto::WatchStream { stream_key }),
-            false => Request::UnwatchStream(proto::UnwatchStream { stream_key }),
+            true => Request::WatchStream(proto::WatchStream { stream_key: key }),
+            false => Request::UnwatchStream(proto::UnwatchStream { stream_key: key }),
         };
         match self.request(&server_key, request).await? {
-            Response::Ack(_) => Ok(()),
-            other => Err(unexpected(&other)),
+            Response::Ack(_) => {}
+            other => return Err(unexpected(&other)),
+        }
+        // `stream:<channel>:<user>`: no longer watched, its sound stops.
+        let streamer = stream_key
+            .rsplit(':')
+            .next()
+            .and_then(|user| user.parse::<i64>().ok());
+        if let (false, Some(user_id), Some(media)) = (watching, streamer, self.inner.media.get()) {
+            media.stop_stream_audio(user_id);
+        }
+        Ok(())
+    }
+
+    /// How loud someone's screen share sound is on this device, apart from
+    /// their voice (plan §10.5).
+    pub fn set_stream_volume(&self, server_key: &str, user_id: i64, volume: f32) {
+        if let Some(media) = self.inner.media.get() {
+            media.set_stream_volume(server_key, user_id, volume.clamp(0.0, 2.0));
+        }
+    }
+
+    pub fn set_stream_mute(&self, server_key: &str, user_id: i64, muted: bool) {
+        if let Some(media) = self.inner.media.get() {
+            media.set_stream_mute(server_key, user_id, muted);
+        }
+    }
+
+    /// Whose sound this device's window share sends: an app by name (from
+    /// [`crate::api::client::screen_audio_apps`]), or none.
+    pub fn screen_share_audio_from(&self, app: Option<String>) -> Result<(), CoreError> {
+        let media = self.inner.media.get().ok_or(CoreError::NotInitialized)?;
+        #[cfg(target_os = "linux")]
+        {
+            media.video().share_audio_from(app)
+        }
+        #[cfg(not(target_os = "linux"))]
+        {
+            let _ = (media, app);
+            Err(crate::video::screen_unsupported())
         }
     }
 
@@ -1110,6 +1148,17 @@ impl Client {
             .soundboard
             .play(self, key, channel_id, sound_ref, external)
             .await
+    }
+
+    /// A sound as the mixer would play it: mono samples at 48 kHz, from the
+    /// cache or fetched, and its volume in percent. For headless clients
+    /// such as the voicebot, which bring their own media.
+    pub async fn soundboard_samples(
+        &self,
+        key: &str,
+        sound_ref: &str,
+    ) -> Result<(Arc<[f32]>, u32), CoreError> {
+        self.inner.soundboard.samples(self, key, sound_ref).await
     }
 
     /// Plays a sound on this device only.

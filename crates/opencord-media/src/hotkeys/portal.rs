@@ -12,7 +12,7 @@ use futures_util::StreamExt;
 use tokio::sync::{OnceCell, mpsc};
 use tokio::task::JoinHandle;
 
-use super::{HotkeyAction, HotkeyBinding, HotkeyEvent};
+use super::{Held, HotkeyBinding, HotkeyEvent, action_of, shortcut_ids};
 
 /// Whether this process told the portal who it is; once, before any other
 /// portal call (an app outside a sandbox has no app id otherwise).
@@ -67,13 +67,19 @@ impl Portal {
             .iter()
             .map(|binding| binding.accelerator.to_string())
             .collect();
-        let wanted: Vec<NewShortcut> = bindings
+        let ids = shortcut_ids(bindings);
+        let wanted: Vec<NewShortcut> = ids
             .iter()
             .zip(&triggers)
-            .map(|(binding, trigger)| {
-                NewShortcut::new(binding.action.id(), binding.action.description())
+            .map(|((id, description), trigger)| {
+                NewShortcut::new(id.as_str(), description.as_str())
                     .preferred_trigger(trigger.as_str())
             })
+            .collect();
+        let index_of: std::collections::HashMap<String, usize> = ids
+            .into_iter()
+            .enumerate()
+            .map(|(index, (id, _))| (id, index))
             .collect();
         shortcuts
             .bind_shortcuts(&session, &wanted, None, BindShortcutsOptions::default())
@@ -85,16 +91,19 @@ impl Portal {
         let listener = tokio::spawn(async move {
             // The portal and the session live as long as this task.
             let _kept = (shortcuts, kept);
+            let mut held = Held::default();
             loop {
-                let event = tokio::select! {
-                    Some(signal) = activated.next() => {
-                        HotkeyAction::from_id(signal.shortcut_id()).map(HotkeyEvent::Pressed)
-                    }
-                    Some(signal) = deactivated.next() => {
-                        HotkeyAction::from_id(signal.shortcut_id()).map(HotkeyEvent::Released)
-                    }
+                let (id, down) = tokio::select! {
+                    Some(signal) = activated.next() => (signal.shortcut_id().to_owned(), true),
+                    Some(signal) = deactivated.next() => (signal.shortcut_id().to_owned(), false),
                     else => return,
                 };
+                let event = action_of(&id)
+                    .zip(index_of.get(&id))
+                    .and_then(|(action, &index)| match down {
+                        true => held.press(index, action),
+                        false => held.release(index, action),
+                    });
                 if let Some(event) = event
                     && events.send(event).is_err()
                 {

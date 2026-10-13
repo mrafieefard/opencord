@@ -4,6 +4,7 @@ import 'package:integration_test/integration_test.dart';
 import 'package:opencord/core/model/voice.dart';
 import 'package:opencord/core/providers/providers.dart';
 import 'package:opencord/core/rust/identity_store.dart';
+import 'package:opencord/features/voice/voice_controls.dart';
 import 'package:opencord/src/rust/api/client.dart' as core;
 import 'package:opencord/ui/widgets/oc_button.dart';
 
@@ -32,8 +33,7 @@ void main() {
           await tester.tap(find.widgetWithText(OcButton, 'Join'));
           await waitFor(tester, inSidebar('General'));
 
-          // Extract server key from invite for streamsProvider
-          final serverKey = _invite.split('/').first.replaceFirst('opencord://', '');
+          final serverKey = container.read(serverListProvider).single.key;
 
           await tester.tap(inSidebar('General'));
           await waitUntil(
@@ -99,8 +99,7 @@ void main() {
           await tester.tap(find.widgetWithText(OcButton, 'Join'));
           await waitFor(tester, inSidebar('General'));
 
-          // Extract server key from invite
-          final serverKey = _invite.split('/').first.replaceFirst('opencord://', '');
+          final serverKey = container.read(serverListProvider).single.key;
 
           await tester.tap(inSidebar('General'));
           await waitUntil(
@@ -111,13 +110,16 @@ void main() {
             reason: 'voice media connecting',
           );
 
-          // Find and tap the Screenshare button.
-          await tester.tap(find.byTooltip('Screenshare'));
-          await waitFor(tester, find.text('Share'));
-
-          // Select a source (the dialog should have appeared).
-          // With a virtual screen set via OPENCORD_SCREEN_NODE, it auto-selects.
-          await tester.tap(find.text('Share'));
+          // The share dialog; with OPENCORD_SCREEN_NODE the core shares
+          // that virtual screen instead of asking the desktop's picker.
+          await tester.tap(
+            find.descendant(
+              of: find.byType(VoiceControlBar),
+              matching: find.bySemanticsLabel('Share your screen'),
+            ),
+          );
+          await waitFor(tester, find.widgetWithText(OcButton, 'Go live'));
+          await tester.tap(find.widgetWithText(OcButton, 'Go live'));
 
           // Wait for going live.
           await waitUntil(
@@ -127,14 +129,10 @@ void main() {
           );
 
           // The bot should be watching.
-          await waitUntil(
-            tester,
-            () {
-              final streams = container.read(streamsProvider(serverKey));
-              return streams.isNotEmpty && streams.values.first.viewerCount > 0;
-            },
-            reason: 'the bot watching',
-          );
+          await waitUntil(tester, () {
+            final streams = container.read(streamsProvider(serverKey));
+            return streams.isNotEmpty && streams.values.first.viewerCount > 0;
+          }, reason: 'the bot watching');
 
           await container.read(voiceSessionProvider.notifier).leave();
         } finally {

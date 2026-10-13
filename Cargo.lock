@@ -3218,6 +3218,7 @@ dependencies = [
  "str0m",
  "str0m-netem",
  "symphonia",
+ "tempfile",
  "thiserror 2.0.21",
  "tokio",
  "tokio-rustls",

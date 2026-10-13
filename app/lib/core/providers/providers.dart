@@ -23,6 +23,7 @@ import 'package:opencord/core/providers/server_state.dart';
 import 'package:opencord/core/providers/sound_state.dart';
 import 'package:opencord/core/providers/stream_state.dart';
 import 'package:opencord/core/providers/typing_state.dart';
+import 'package:opencord/core/providers/user_audio.dart';
 import 'package:opencord/core/repository/repository.dart';
 import 'package:opencord/core/settings/local_prefs.dart';
 import 'package:opencord/core/settings/key_value_store.dart';
@@ -36,6 +37,7 @@ export 'package:opencord/core/providers/server_state.dart';
 export 'package:opencord/core/providers/sound_state.dart';
 export 'package:opencord/core/providers/stream_state.dart';
 export 'package:opencord/core/providers/typing_state.dart';
+export 'package:opencord/core/providers/user_audio.dart';
 
 /// A channel on a server: the key of per-channel providers.
 typedef ChannelRef = ({String server, int channel});
@@ -63,11 +65,17 @@ final eventPumpProvider = Provider<void>((ref) {
     ),
     fireImmediately: true,
   );
-  ref.listen(
-    hotkeyBindingsProvider,
-    (_, hotkeys) => _applyHotkeys(ref, repository, hotkeys),
-    fireImmediately: true,
-  );
+  applyUserAudio(ref, repository);
+  ref.listen(keybindsProvider.select((keybinds) => keybinds.bound), (
+    before,
+    bound,
+  ) {
+    // A row without keys yet binds nothing new; binding again could make
+    // the desktop ask again.
+    if (before == null || !listEquals(before, bound)) {
+      _applyHotkeys(ref, repository, bound);
+    }
+  }, fireImmediately: true);
   final inApp = _InAppHotkeys(ref);
   HardwareKeyboard.instance.addHandler(inApp.handle);
   ref.onDispose(() => HardwareKeyboard.instance.removeHandler(inApp.handle));
@@ -78,7 +86,7 @@ final eventPumpProvider = Provider<void>((ref) {
 void _applyHotkeys(
   Ref ref,
   OpencordRepository repository,
-  HotkeyBindings hotkeys,
+  List<HotkeyBinding> bindings,
 ) {
   void answered(HotkeySupport support) {
     if (ref.mounted) ref.read(hotkeySupportProvider.notifier).set(support);
@@ -86,7 +94,7 @@ void _applyHotkeys(
 
   unawaited(
     repository
-        .setHotkeys(hotkeys.bindings)
+        .setHotkeys(bindings)
         .then(
           answered,
           onError: (Object error) =>
@@ -96,26 +104,32 @@ void _applyHotkeys(
 }
 
 /// The hotkeys, while Opencord is focused and the system does not bind
-/// them itself. Keys still reach everything else.
+/// them itself. Keys still reach everything else. An action with several
+/// keys is down while any of them is.
 class _InAppHotkeys {
   _InAppHotkeys(this.ref);
 
   final Ref ref;
-  final _held = <HotkeyAction>{};
+
+  /// The bindings down, by action.
+  final _down = <HotkeyAction, Set<HotkeyBinding>>{};
 
   bool handle(KeyEvent event) {
-    if (ref.read(hotkeySupportProvider) is! HotkeysFocusedOnly) return false;
-    final bindings = ref.read(hotkeyBindingsProvider).bindings;
-    for (final MapEntry(key: action, value: text) in bindings.entries) {
-      final accelerator = Accelerator.parse(text);
+    if (ref.read(hotkeySupportProvider) is! HotkeysFocusedOnly ||
+        ref.read(recordingKeybindProvider)) {
+      return false;
+    }
+    for (final binding in ref.read(keybindsProvider).bound) {
+      final accelerator = Accelerator.parse(binding.keys);
       if (accelerator == null || event.logicalKey != accelerator.key) continue;
+      final down = _down.putIfAbsent(binding.action, () => {});
       switch (event) {
         case KeyDownEvent()
-            when accelerator.modifiersHeld(HardwareKeyboard.instance) &&
-                _held.add(action):
-          _act(action, pressed: true);
-        case KeyUpEvent() when _held.remove(action):
-          _act(action, pressed: false);
+            when accelerator.modifiersHeld(HardwareKeyboard.instance):
+          final first = down.isEmpty;
+          if (down.add(binding) && first) _act(binding.action, pressed: true);
+        case KeyUpEvent() when down.remove(binding) && down.isEmpty:
+          _act(binding.action, pressed: false);
         default:
           break;
       }
@@ -130,21 +144,35 @@ class _InAppHotkeys {
         repository.setPushToTalk(pressed);
       case HotkeyAction.prioritySpeaker:
         repository.setPrioritySpeaker(pressed);
-      case HotkeyAction.toggleMute || HotkeyAction.toggleDeafen when pressed:
+      case _ when pressed:
         _toggle(ref, action);
-      case HotkeyAction.toggleMute || HotkeyAction.toggleDeafen:
+      case _:
         break;
     }
   }
 }
 
+/// A toggle's hotkey went down.
 void _toggle(Ref ref, HotkeyAction action) {
   final session = ref.read(voiceSessionProvider.notifier);
-  unawaited(
-    action == HotkeyAction.toggleDeafen
-        ? session.toggleDeafen()
-        : session.toggleMute(),
-  );
+  switch (action) {
+    case HotkeyAction.toggleMute:
+      unawaited(session.toggleMute());
+    case HotkeyAction.toggleDeafen:
+      unawaited(session.toggleDeafen());
+    case HotkeyAction.toggleInputMode:
+      ref
+          .read(audioSettingsProvider.notifier)
+          .update(
+            (audio) => audio.copyWith(
+              inputMode: audio.inputMode == InputMode.pushToTalk
+                  ? InputMode.voiceActivity
+                  : InputMode.pushToTalk,
+            ),
+          );
+    case HotkeyAction.pushToTalk || HotkeyAction.prioritySpeaker:
+      break;
+  }
 }
 
 /// On the first run, High noise suppression when this computer runs it

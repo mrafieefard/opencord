@@ -11,6 +11,7 @@ use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 use opencord_common::video::ScreenPreset;
+use opencord_media::share_audio::pipewire::{Capture, Source};
 use opencord_media::share_audio::{self, sender::Encoded};
 use opencord_media::transport::{EncodedScreenAudio, TrackError, TrackKind, TrackRequest};
 use opencord_media::video::camera::RawFrame;
@@ -46,12 +47,15 @@ pub(super) struct Share {
     pub stopped: bool,
     capture: ScreenCapture,
     _picked: Option<Picked>,
-    _audio: Option<ScreenAudio>,
+    /// What sound is shared (plan §10.1): a screen's everything but
+    /// Opencord, a window's chosen app.
+    audio_source: Source,
+    audio: Option<ScreenAudio>,
 }
 
 /// The shared sound: captured and sent while held.
 struct ScreenAudio {
-    _capture: share_audio::pipewire::Capture,
+    capture: Capture,
     _sender: share_audio::sender::Sender,
 }
 
@@ -63,8 +67,6 @@ pub(crate) struct Pending {
     pub kind: StreamSourceKind,
     /// For sharing the same source again without the picker.
     pub restore_token: Option<String>,
-    /// PipeWire remote fd for screen audio capture.
-    audio_remote: Option<std::os::fd::OwnedFd>,
 }
 
 pub(crate) fn screen_error(problem: ScreenProblem, message: impl Into<String>) -> CoreError {
@@ -120,13 +122,6 @@ pub(crate) async fn pick(fps: u32, restore_token: Option<String>) -> Result<Pend
             )
         }
     };
-    let audio_remote = match &remote {
-        Remote::Portal(fd) => Some(
-            fd.try_clone()
-                .map_err(|error| screen_error(ScreenProblem::Failed, error.to_string()))?,
-        ),
-        Remote::Session => None,
-    };
     let capture =
         tokio::task::spawn_blocking(move || ScreenCapture::start(remote, target, fps, frames))
             .await
@@ -145,7 +140,6 @@ pub(crate) async fn pick(fps: u32, restore_token: Option<String>) -> Result<Pend
         picked,
         kind,
         restore_token,
-        audio_remote,
     })
 }
 
@@ -197,10 +191,16 @@ pub(super) async fn publish(
         )),
     );
 
-    let audio = match pending.audio_remote {
-        Some(remote) if request.has_audio => start_audio(remote, &video.outlet),
-        _ => None,
+    // The portal says nothing of which app a window is: its sound waits
+    // until one is chosen (plan §10.4, "Sound from").
+    let audio_source = match pending.kind {
+        StreamSourceKind::Screen => Source::Everything,
+        StreamSourceKind::Window => Source::Nothing,
     };
+    let audio = request
+        .has_audio
+        .then(|| start_audio(audio_source.clone(), &video.outlet, &video.engine))
+        .flatten();
 
     let share = Share {
         server_key,
@@ -213,7 +213,8 @@ pub(super) async fn publish(
         stopped: false,
         capture: pending.capture,
         _picked: pending.picked,
-        _audio: audio,
+        audio_source,
+        audio,
     };
     if let Err(error) = connection.publish_track(track).await {
         drop_later(share);
@@ -240,11 +241,17 @@ pub(super) async fn publish(
     })
 }
 
-/// Captures the shared sound and sends it on the screen audio track; a
-/// share without its sound goes on when this fails.
-fn start_audio(remote: OwnedFd, outlet: &super::Outlet) -> Option<ScreenAudio> {
-    let (captured, frames) = sync_channel(4);
-    let capture = match share_audio::pipewire::Capture::start_screen(remote, captured) {
+/// Captures the shared sound from the session's PipeWire (the portal's
+/// connection shows only the screen) and sends it on its own stream; the
+/// call's echo canceller hears it too (plan §10.6). A share goes on
+/// without its sound when this fails.
+fn start_audio(
+    source: Source,
+    outlet: &super::Outlet,
+    engine: &super::Engine,
+) -> Option<ScreenAudio> {
+    let (captured, frames) = sync_channel(8);
+    let capture = match Capture::start(source, captured) {
         Ok(capture) => capture,
         Err(error) => {
             tracing::warn!(%error, "screen audio capture could not start");
@@ -252,22 +259,62 @@ fn start_audio(remote: OwnedFd, outlet: &super::Outlet) -> Option<ScreenAudio> {
         }
     };
     let outlet = Arc::clone(outlet);
-    let sender = share_audio::sender::Sender::start(frames, move |encoded: Encoded| {
-        if let Some(connection) = lock(&outlet).as_ref() {
-            connection.send_screen_audio(EncodedScreenAudio {
-                payload: encoded.payload,
-                position: encoded.position,
-            });
-        }
-    });
+    let engine = Arc::clone(engine);
+    let sender = share_audio::sender::Sender::start(
+        frames,
+        move |stereo: &[f32]| {
+            if let Some(engine) = lock(&engine).as_ref() {
+                engine.shared_sound(stereo.to_vec());
+            }
+        },
+        move |encoded: Encoded| {
+            if let Some(connection) = lock(&outlet).as_ref() {
+                connection.send_screen_audio(EncodedScreenAudio {
+                    payload: encoded.payload,
+                    position: encoded.position,
+                    captured: encoded.captured,
+                });
+            }
+        },
+    );
     Some(ScreenAudio {
-        _capture: capture,
+        capture,
         _sender: sender,
     })
 }
 
+/// A window share's sound comes from `app` from now on (none: silence).
+pub(super) fn share_audio_from(share: &mut Share, app: Option<String>) {
+    let source = app.map_or(Source::Nothing, Source::App);
+    if let Some(audio) = &share.audio {
+        audio.capture.share(source.clone());
+    }
+    share.audio_source = source;
+}
+
+/// Starts or stops a share's sound, as `has_audio` now says.
+fn follow_audio(video: &Video, has_audio: bool) {
+    let mut hub = lock(&video.hub);
+    let Some(share) = hub.screen.as_mut() else {
+        return;
+    };
+    match (has_audio, share.audio.is_some()) {
+        (true, false) => {
+            share.audio = start_audio(share.audio_source.clone(), &video.outlet, &video.engine);
+        }
+        (false, true) => {
+            if let Some(audio) = share.audio.take() {
+                drop_later(audio);
+            }
+        }
+        _ => {}
+    }
+}
+
 /// A new quality: a new track in the new layers, then the old one goes.
+/// The sound follows `has_audio`.
 pub(super) async fn reshape(video: &Video, request: ScreenShareRequest) -> Result<(), CoreError> {
+    follow_audio(video, request.has_audio);
     let not_live = || screen_error(ScreenProblem::Failed, "not sharing a screen");
     let connection = lock(&video.outlet).clone().ok_or_else(not_live)?;
     let size = lock(&video.hub)
@@ -277,6 +324,14 @@ pub(super) async fn reshape(video: &Video, request: ScreenShareRequest) -> Resul
         .ok_or_else(not_live)?;
     let shape = shape(&request);
     let layers = screen_layers(size.0, size.1, shape);
+    let unchanged = lock(&video.hub)
+        .screen
+        .as_ref()
+        .is_some_and(|share| share.request.layers == layers);
+    if unchanged {
+        // Only the sound changed.
+        return Ok(());
+    }
     let track = TrackRequest {
         track_id: format!("screen-{:016x}", rand_id()),
         kind: TrackKind::Screen,

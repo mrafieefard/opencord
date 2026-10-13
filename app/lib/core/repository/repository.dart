@@ -417,6 +417,22 @@ abstract interface class OpencordRepository {
 
   Future<void> stopScreenShare();
 
+  /// Whether this system can share a screen's sound (Phase 2 plan §10.1).
+  Future<ScreenAudioSupport> screenAudioSupport();
+
+  /// The apps with sound playing now, Opencord left out (§10.4).
+  Future<List<ScreenAudioApp>> screenAudioApps();
+
+  /// Whose sound this device's window share sends: an app from
+  /// [screenAudioApps] by name, or none.
+  void setScreenShareAudioFrom(String? app);
+
+  /// How loud someone's screen share sound is on this device, 0–200 %,
+  /// apart from their voice (§10.5).
+  void setStreamVolume(String serverKey, int userId, int volume);
+
+  void setStreamMute(String serverKey, int userId, bool muted);
+
   /// Watching is opt-in (§9.5): nothing of a stream comes until then. A
   /// full stream fails with [RepoErrorKind.streamFull].
   Future<void> watchStream(String key);
@@ -449,15 +465,29 @@ abstract interface class OpencordRepository {
 
   /// Binds the hotkeys system-wide where the system allows (Phase 2 plan
   /// §7.13), replacing the ones bound before; says whether they work while
-  /// Opencord is in the background. Toggles pressed there arrive as
-  /// [HotkeyPressed].
-  Future<HotkeySupport> setHotkeys(Map<HotkeyAction, String> bindings);
+  /// Opencord is in the background. An action may have several keys.
+  /// Toggles pressed there arrive as [HotkeyPressed].
+  Future<HotkeySupport> setHotkeys(List<HotkeyBinding> bindings);
 
   /// How loud someone sounds on this device, 0–200 %.
   void setUserVolume(String serverKey, int userId, int volume);
 
   /// Silences someone on this device only.
   void setUserLocalMute(String serverKey, int userId, bool muted);
+
+  /// Server mute and deafen: for everyone, until lifted. Needs Mute or
+  /// Deafen members in their channel and to outrank them (but not on
+  /// yourself).
+  Future<void> serverMuteMember(String serverKey, int userId, bool muted);
+
+  Future<void> serverDeafenMember(String serverKey, int userId, bool deafened);
+
+  /// Moves someone in voice to another voice channel; needs Move members in
+  /// both.
+  Future<void> moveMember(String serverKey, int userId, int channelId);
+
+  /// Takes someone out of voice; needs Move members in their channel.
+  Future<void> disconnectMember(String serverKey, int userId);
 
   /// The sounds every client has (Phase 2 plan §11.8).
   List<DefaultSound> get defaultSounds;

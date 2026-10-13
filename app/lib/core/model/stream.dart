@@ -101,6 +101,8 @@ class OwnScreenShare {
     required this.source,
     required this.quality,
     required this.preview,
+    this.audio = false,
+    this.audioFrom,
   });
 
   final String key;
@@ -110,11 +112,24 @@ class OwnScreenShare {
   /// The streamer's own, slow preview (§9.4).
   final VideoFeed preview;
 
-  OwnScreenShare copyWith({ScreenShareQuality? quality}) => OwnScreenShare(
+  /// Whether its sound is shared (V7).
+  final bool audio;
+
+  /// A window share's sound: the app it comes from; none until chosen
+  /// (§10.4, "Sound from"). A screen shares every app but Opencord.
+  final String? audioFrom;
+
+  OwnScreenShare copyWith({
+    ScreenShareQuality? quality,
+    bool? audio,
+    String? Function()? audioFrom,
+  }) => OwnScreenShare(
     key: key,
     source: source,
     quality: quality ?? this.quality,
     preview: preview,
+    audio: audio ?? this.audio,
+    audioFrom: audioFrom == null ? this.audioFrom : audioFrom(),
   );
 
   @override
@@ -123,8 +138,17 @@ class OwnScreenShare {
       other.key == key &&
       other.source == source &&
       other.quality == quality &&
-      other.preview == preview;
+      other.preview == preview &&
+      other.audio == audio &&
+      other.audioFrom == audioFrom;
 
   @override
-  int get hashCode => Object.hash(key, source, quality, preview);
+  int get hashCode =>
+      Object.hash(key, source, quality, preview, audio, audioFrom);
 }
+
+/// Whether this system can share a screen's sound, and why not (§10.1).
+typedef ScreenAudioSupport = ({bool supported, String? reason});
+
+/// An app with sound playing that a window share can send (§10.4).
+typedef ScreenAudioApp = ({String name, String? icon});

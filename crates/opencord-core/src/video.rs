@@ -35,12 +35,19 @@ pub struct Video {
     runtime: Handle,
     events: mpsc::UnboundedSender<MediaEvent>,
     outlet: Outlet,
+    /// The call's audio engine: the shared screen sound goes to its echo
+    /// canceller (plan §10.6).
+    engine: Engine,
     hub: Mutex<Hub>,
 }
+
+pub(super) type Engine = Arc<Mutex<Option<Arc<opencord_media::audio::engine::AudioEngine>>>>;
 
 #[derive(Default)]
 struct Hub {
     textures: Option<Arc<dyn Textures>>,
+    /// How long each watched stream's sound waits to play, by streamer.
+    stream_delays: HashMap<i64, std::time::Duration>,
     /// The server and channel of the live connection.
     place: Option<(String, i64)>,
     tracks: HashMap<String, Remote>,
@@ -54,6 +61,8 @@ struct Hub {
 
 struct Remote {
     user_id: i64,
+    /// A screen share: its pictures wait for its sound.
+    screen: bool,
     texture: Option<Arc<dyn FrameSink>>,
     #[cfg(target_os = "linux")]
     receiver: Option<opencord_media::video::receiver::VideoReceiver>,
@@ -76,7 +85,43 @@ impl Video {
             runtime,
             events,
             outlet: Arc::new(Mutex::new(None)),
+            engine: Arc::new(Mutex::new(None)),
             hub: Mutex::new(Hub::default()),
+        }
+    }
+
+    /// `user_id`'s screen share sound plays `delay` after arriving: its
+    /// pictures wait as long (plan §10.5).
+    pub fn set_stream_delay(&self, user_id: i64, delay: std::time::Duration) {
+        let mut hub = lock(&self.hub);
+        hub.stream_delays.insert(user_id, delay);
+        #[cfg(target_os = "linux")]
+        for remote in hub.tracks.values() {
+            if remote.screen
+                && remote.user_id == user_id
+                && let Some(receiver) = &remote.receiver
+            {
+                receiver.set_hold(delay);
+            }
+        }
+    }
+
+    /// The call's audio engine, while there is a call.
+    pub fn set_audio_engine(
+        &self,
+        engine: Option<Arc<opencord_media::audio::engine::AudioEngine>>,
+    ) {
+        *lock(&self.engine) = engine;
+    }
+
+    /// The call that had `engine` ended (a newer one may have its own).
+    pub fn release_audio_engine(&self, engine: &Arc<opencord_media::audio::engine::AudioEngine>) {
+        let mut current = lock(&self.engine);
+        if current
+            .as_ref()
+            .is_some_and(|held| Arc::ptr_eq(held, engine))
+        {
+            *current = None;
         }
     }
 
@@ -212,6 +257,7 @@ impl Video {
             track.track_id.clone(),
             Remote {
                 user_id,
+                screen: track.kind == TrackKind::Screen,
                 texture,
                 #[cfg(target_os = "linux")]
                 receiver: None,
@@ -275,7 +321,12 @@ impl Video {
 
     /// Decodes what is shown, at its size; tells the node what to send.
     fn apply_wants(&self, hub: &mut Hub) {
-        let Hub { tracks, wants, .. } = hub;
+        let Hub {
+            tracks,
+            wants,
+            stream_delays,
+            ..
+        } = hub;
         let mut sink_wants = Vec::new();
         for (track_id, remote) in tracks.iter_mut() {
             let size = wants
@@ -304,6 +355,11 @@ impl Video {
                         )
                     });
                     receiver.set_size(width, height);
+                    if remote.screen
+                        && let Some(delay) = stream_delays.get(&remote.user_id)
+                    {
+                        receiver.set_hold(*delay);
+                    }
                 }
                 _ => remote.receiver = None,
             }
@@ -353,6 +409,17 @@ impl Video {
         request: crate::api::types::ScreenShareRequest,
     ) -> Result<(), CoreError> {
         screen::reshape(self, request).await
+    }
+
+    /// Whose sound a window share sends: an app by name, or none.
+    #[cfg(target_os = "linux")]
+    pub fn share_audio_from(&self, app: Option<String>) -> Result<(), CoreError> {
+        let mut hub = lock(&self.hub);
+        let share = hub.screen.as_mut().ok_or_else(|| CoreError::InvalidInput {
+            message: "not sharing a screen".to_owned(),
+        })?;
+        screen::share_audio_from(share, app);
+        Ok(())
     }
 
     /// Ends the screen share here; its server and stream key, if it was on.

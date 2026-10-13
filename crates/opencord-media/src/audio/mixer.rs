@@ -42,6 +42,41 @@ impl Mixer {
                 *mixed += sample * volume;
             }
         }
+        self.finish(master, out);
+    }
+
+    /// The same into interleaved stereo `out`: `mono` sources play on both
+    /// sides, `stereo` ones (interleaved) on their own.
+    pub fn mix_stereo<'a>(
+        &mut self,
+        mono: impl IntoIterator<Item = (&'a [f32], f32)>,
+        stereo: impl IntoIterator<Item = (&'a [f32], f32)>,
+        master: f32,
+        out: &mut [f32],
+    ) {
+        out.fill(0.0);
+        for (samples, volume) in mono {
+            if volume == 0.0 {
+                continue;
+            }
+            for (frame, sample) in out.as_chunks_mut::<2>().0.iter_mut().zip(samples) {
+                frame[0] += sample * volume;
+                frame[1] += sample * volume;
+            }
+        }
+        for (samples, volume) in stereo {
+            if volume == 0.0 {
+                continue;
+            }
+            for (mixed, sample) in out.iter_mut().zip(samples) {
+                *mixed += sample * volume;
+            }
+        }
+        self.finish(master, out);
+    }
+
+    /// The master volume, then the limiter, over the whole of `out`.
+    fn finish(&mut self, master: f32, out: &mut [f32]) {
         let mut peak = 0.0f32;
         for mixed in out.iter_mut() {
             *mixed *= master;

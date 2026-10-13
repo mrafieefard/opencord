@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:opencord/core/providers/providers.dart';
+import 'package:opencord/core/settings/local_prefs.dart';
 import 'package:opencord/core/repository/repository.dart';
 import 'package:opencord/features/channels/channel_sidebar.dart';
 import 'package:opencord/features/chat/chat_area.dart';
@@ -224,7 +225,10 @@ class _DesktopShellState extends ConsumerState<DesktopShell> {
     return Material(
       type: MaterialType.transparency,
       child: Shortcuts(
-        shortcuts: shellShortcuts(Theme.of(context).platform),
+        shortcuts: leavingKeybinds(
+          shellShortcuts(Theme.of(context).platform),
+          ref.watch(keybindsProvider.select((keybinds) => keybinds.bound)),
+        ),
         child: Actions(
           actions: _actions(),
           child: MacMenuBar(

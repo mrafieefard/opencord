@@ -118,6 +118,7 @@ abstract final class OcIcons {
   static const IconData mood = IconData(0xea22, fontFamily: fontFamily);
   static const IconData moreHoriz = IconData(0xe5d3, fontFamily: fontFamily);
   static const IconData moreVert = IconData(0xe5d4, fontFamily: fontFamily);
+  static const IconData moveDown = IconData(0xeb61, fontFamily: fontFamily);
   static const IconData musicNote = IconData(0xe405, fontFamily: fontFamily);
   static const IconData notifications = IconData(
     0xe7f5,

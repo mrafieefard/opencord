@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -195,4 +197,68 @@ ScreenShareQuality startingQuality(
     return last;
   }
   return maximum;
+}
+
+/// Whether this system can share a screen's sound (§10.1); asked once.
+final screenAudioSupportProvider = FutureProvider<ScreenAudioSupport>(
+  (ref) => ref.watch(repositoryProvider).screenAudioSupport(),
+);
+
+/// Whether the last share sent its sound: the share dialog starts there.
+/// On until turned off, where sharing sound works (§10.1).
+class ShareSoundNotifier extends Notifier<bool> {
+  static const _key = 'ui.shareSound';
+
+  @override
+  bool build() => ref.watch(keyValueStoreProvider).read(_key) != 'off';
+
+  void set(bool on) {
+    state = on;
+    ref.read(keyValueStoreProvider).write(_key, on ? null : 'off');
+  }
+}
+
+final shareSoundProvider = NotifierProvider<ShareSoundNotifier, bool>(
+  ShareSoundNotifier.new,
+);
+
+/// The apps a window share's sound came from before, most recent first:
+/// one of them playing again is chosen again (§10.4).
+class SoundFromNotifier extends Notifier<List<String>> {
+  static const _key = 'ui.shareSoundFrom';
+  static const _kept = 10;
+
+  @override
+  List<String> build() {
+    final saved = ref.watch(keyValueStoreProvider).read(_key);
+    if (saved == null) return const [];
+    try {
+      final list = jsonDecode(saved);
+      return list is List ? [...list.whereType<String>()] : const [];
+    } on FormatException {
+      return const [];
+    }
+  }
+
+  void chose(String app) {
+    state = [app, ...state.where((other) => other != app)].take(_kept).toList();
+    ref.read(keyValueStoreProvider).write(_key, jsonEncode(state));
+  }
+}
+
+final soundFromProvider = NotifierProvider<SoundFromNotifier, List<String>>(
+  SoundFromNotifier.new,
+);
+
+/// Which app a window share's sound starts from (§10.4): the one chosen
+/// before, if playing; else the only one playing; else none, so no app is
+/// shared by surprise.
+String? preselectedSoundFrom(
+  List<ScreenAudioApp> playing,
+  List<String> before,
+) {
+  for (final app in before) {
+    if (playing.any((other) => other.name == app)) return app;
+  }
+  return playing.length == 1 ? playing.single.name : null;
 }

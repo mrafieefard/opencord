@@ -45,6 +45,14 @@ class OcMenuDivider extends OcMenuEntry {
   const OcMenuDivider();
 }
 
+/// Controls that work inside the open menu, such as a slider or toggles
+/// that keep it open ([OcMenuToggle]).
+class OcMenuCustom extends OcMenuEntry {
+  const OcMenuCustom(this.builder);
+
+  final WidgetBuilder builder;
+}
+
 /// Opens a context menu at [position] (global). The chosen item runs after
 /// the menu has closed, so it can open dialogs of its own.
 Future<void> showOcMenu({
@@ -150,6 +158,7 @@ class OcMenuPanel extends StatelessWidget {
                       padding: const EdgeInsets.symmetric(vertical: 4),
                       child: Divider(height: 1, color: colors.border),
                     ),
+                    OcMenuCustom(:final builder) => Builder(builder: builder),
                   },
               ],
             ),
@@ -247,6 +256,66 @@ class _MenuItemTile extends StatelessWidget {
         SingleActivator(LogicalKeyboardKey.arrowRight): ActivateIntent(),
       },
       child: tile,
+    );
+  }
+}
+
+/// A menu row with a check mark that flips in place, leaving the menu
+/// open, for [OcMenuCustom].
+class OcMenuToggle extends StatelessWidget {
+  const OcMenuToggle({
+    super.key,
+    required this.label,
+    required this.checked,
+    required this.onChanged,
+  });
+
+  final String label;
+  final bool checked;
+  final ValueChanged<bool>? onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.oc;
+    final enabled = onChanged != null;
+    return Semantics(
+      checked: checked,
+      child: Hoverable(
+        onTap: enabled ? () => onChanged!(!checked) : null,
+        showFocusRing: false,
+        focusRadius: BorderRadius.circular(6),
+        semanticLabel: label,
+        builder: (context, state) => Container(
+          height: 32,
+          padding: const EdgeInsets.symmetric(horizontal: 10),
+          decoration: BoxDecoration(
+            color: enabled && (state.active || state.focused)
+                ? colors.selected
+                : null,
+            borderRadius: BorderRadius.circular(6),
+          ),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: OcText.body.copyWith(
+                    color: enabled ? colors.text : colors.textMuted,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Icon(
+                checked ? OcIcons.checkBox : OcIcons.checkBoxOutlineBlank,
+                size: 18,
+                color: checked ? colors.text : colors.textMuted,
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

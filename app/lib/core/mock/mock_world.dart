@@ -128,6 +128,7 @@ class MockServer {
                   userId: participant.userId,
                   resolution: voiceSettings.screenShareMaxResolution,
                   fps: voiceSettings.screenShareMaxFps,
+                  hasAudio: true,
                 ),
       },
       voiceSettings: voiceSettings,

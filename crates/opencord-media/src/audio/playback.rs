@@ -2,11 +2,14 @@
 //! jitter buffer and decoder, then the mixer. Volumes and local mutes are
 //! the listener's choices and outlast people leaving and coming back.
 //! Someone speaks from their first sound until 250 ms after their last;
-//! while a priority speaker speaks, everyone else plays at 25 %.
+//! while a priority speaker speaks, everyone else plays at 25 %. A watched
+//! screen share's sound (plan §10.5) is stereo, with its own jitter buffer
+//! and its own volume and mute, apart from the streamer's voice; voices and
+//! sounds play the same on both sides.
 
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::sync::Arc;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use super::codec::{CodecError, MAX_DECODED, VoiceDecoder};
 use super::jitter::{JitterBuffer, Playout};
@@ -21,6 +24,8 @@ const SPEAKING_DBFS: f32 = -60.0;
 const SPEAKING_ENDS_TICKS: u32 = 25;
 /// Everyone else while a priority speaker speaks: −12 dB.
 const DUCKED: f32 = 0.25;
+/// One tick of playing.
+const TICK_TIME: Duration = Duration::from_millis(10);
 
 /// How the listener wants to hear someone.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -115,6 +120,53 @@ impl Voice {
     }
 }
 
+/// A screen share's sound being watched: stereo, interleaved.
+struct Stream {
+    jitter: JitterBuffer,
+    decoder: VoiceDecoder,
+    /// Decoded, not yet played.
+    pcm: VecDeque<f32>,
+    decoded: Box<[f32]>,
+    /// This tick's samples.
+    tick: [f32; 2 * TICK],
+}
+
+impl Stream {
+    fn new() -> Result<Self, CodecError> {
+        Ok(Self {
+            jitter: JitterBuffer::new(),
+            decoder: VoiceDecoder::stereo()?,
+            pcm: VecDeque::with_capacity(2 * (MAX_DECODED + TICK)),
+            decoded: vec![0.0; 2 * MAX_DECODED].into_boxed_slice(),
+            tick: [0.0; 2 * TICK],
+        })
+    }
+
+    /// Decodes until the next tick is there, or silence.
+    fn next_tick(&mut self, now: Instant) {
+        while self.pcm.len() < 2 * TICK {
+            let decoded = match self.jitter.next_frame(now) {
+                Playout::Frame(packet) => self.decoder.decode(&packet, &mut self.decoded),
+                Playout::Recover(next) => self.decoder.recover(&next, &mut self.decoded),
+                Playout::Conceal => self.decoder.conceal(&mut self.decoded),
+                Playout::Silence => break,
+            };
+            let frames = decoded
+                .or_else(|_| self.decoder.conceal(&mut self.decoded))
+                .unwrap_or(0);
+            if frames == 0 {
+                break;
+            }
+            self.pcm.extend(&self.decoded[..2 * frames]);
+        }
+        let ready = self.pcm.len().min(2 * TICK);
+        for (slot, sample) in self.tick.iter_mut().zip(self.pcm.drain(..ready)) {
+            *slot = sample;
+        }
+        self.tick[ready..].fill(0.0);
+    }
+}
+
 /// A soundboard sound playing (plan §11.5): mono at 48 kHz, mixed in with
 /// the voices, so the echo canceller hears it too.
 struct Sound {
@@ -142,6 +194,11 @@ impl Sound {
 
 pub struct Playback {
     voices: HashMap<i64, Voice>,
+    /// Watched screen shares' sound, by streamer.
+    streams: HashMap<i64, Stream>,
+    stream_listening: HashMap<i64, Listening>,
+    /// A mono tick of everything heard, for [`Self::tick`].
+    stereo: [f32; 2 * TICK],
     /// Soundboard sounds, until they end.
     sounds: Vec<Sound>,
     listening: HashMap<i64, Listening>,
@@ -164,6 +221,9 @@ impl Playback {
     pub fn new() -> Self {
         Self {
             voices: HashMap::new(),
+            streams: HashMap::new(),
+            stream_listening: HashMap::new(),
+            stereo: [0.0; 2 * TICK],
             sounds: Vec::new(),
             listening: HashMap::new(),
             priority: HashSet::new(),
@@ -193,9 +253,43 @@ impl Playback {
         voice.jitter.insert(timestamp, marker, payload, arrived);
     }
 
+    /// A packet of `user_id`'s screen share sound.
+    pub fn receive_stream(
+        &mut self,
+        user_id: i64,
+        timestamp: u32,
+        marker: bool,
+        payload: Arc<[u8]>,
+        arrived: Instant,
+    ) {
+        let stream = match self.streams.entry(user_id) {
+            std::collections::hash_map::Entry::Occupied(entry) => entry.into_mut(),
+            std::collections::hash_map::Entry::Vacant(entry) => match Stream::new() {
+                Ok(stream) => entry.insert(stream),
+                Err(_) => return,
+            },
+        };
+        stream.jitter.insert(timestamp, marker, payload, arrived);
+    }
+
+    /// How long after arriving each watched stream's sound plays: its
+    /// jitter buffer's delay plus a tick. Its pictures wait as long, so
+    /// they stay with it (plan §10.5).
+    pub fn stream_delays(&self) -> impl Iterator<Item = (i64, Duration)> + '_ {
+        self.streams
+            .iter()
+            .map(|(user_id, stream)| (*user_id, stream.jitter.target_delay() + TICK_TIME))
+    }
+
+    /// `user_id`'s screen share is no longer watched here.
+    pub fn remove_stream(&mut self, user_id: i64) {
+        self.streams.remove(&user_id);
+    }
+
     /// `user_id` left: their audio stops; the listener's choices stay.
     pub fn remove(&mut self, user_id: i64) {
         self.voices.remove(&user_id);
+        self.streams.remove(&user_id);
         self.priority.remove(&user_id);
     }
 
@@ -242,6 +336,16 @@ impl Playback {
         self.listening.entry(user_id).or_default().muted = muted;
     }
 
+    /// How loud `user_id`'s screen share sound is, 0–2 (200 %), apart
+    /// from their voice.
+    pub fn set_stream_volume(&mut self, user_id: i64, volume: f32) {
+        self.stream_listening.entry(user_id).or_default().volume = volume.clamp(0.0, MAX_VOLUME);
+    }
+
+    pub fn set_stream_mute(&mut self, user_id: i64, muted: bool) {
+        self.stream_listening.entry(user_id).or_default().muted = muted;
+    }
+
     /// 0–2 (200 %).
     pub fn set_master(&mut self, volume: f32) {
         self.master = volume.clamp(0.0, MAX_VOLUME);
@@ -265,10 +369,24 @@ impl Playback {
         self.sounds.clear();
     }
 
-    /// The next 10 ms of everything heard, at 48 kHz mono.
+    /// The next 10 ms of everything heard, at 48 kHz, both sides mixed.
     pub fn tick(&mut self, now: Instant, out: &mut [f32]) {
+        let mut stereo = std::mem::replace(&mut self.stereo, [0.0; 2 * TICK]);
+        self.tick_stereo(now, &mut stereo);
+        for (slot, frame) in out.iter_mut().zip(stereo.as_chunks::<2>().0) {
+            *slot = (frame[0] + frame[1]) / 2.0;
+        }
+        self.stereo = stereo;
+    }
+
+    /// The next 10 ms of everything heard, at 48 kHz, interleaved stereo
+    /// (`2 * TICK` samples).
+    pub fn tick_stereo(&mut self, now: Instant, out: &mut [f32]) {
         for voice in self.voices.values_mut() {
             voice.next_tick(now);
+        }
+        for stream in self.streams.values_mut() {
+            stream.next_tick(now);
         }
         let priority = &self.priority;
         let ducking = self
@@ -296,7 +414,14 @@ impl Playback {
                 .sounds
                 .iter()
                 .map(|sound| (&sound.tick[..], sound.gain));
-            self.mixer.mix(voices.chain(sounds), self.master, out);
+            let stream_listening = &self.stream_listening;
+            let streams = self.streams.iter().map(|(user_id, stream)| {
+                let choice = stream_listening.get(user_id).copied().unwrap_or_default();
+                let volume = if choice.muted { 0.0 } else { choice.volume };
+                (&stream.tick[..], volume)
+            });
+            self.mixer
+                .mix_stereo(voices.chain(sounds), streams, self.master, out);
         }
         self.sounds.retain(Sound::playing);
     }
@@ -671,6 +796,55 @@ mod tests {
         assert!(playback.sounds.is_empty());
     }
 
+    /// How strongly `frequency` is in `samples` (Goertzel), as an amplitude.
+    fn strength(samples: &[f32], frequency: f32) -> f32 {
+        let coefficient = 2.0 * (std::f32::consts::TAU * frequency / SAMPLE_RATE as f32).cos();
+        let (mut previous, mut before) = (0.0f32, 0.0f32);
+        for sample in samples {
+            let current = sample + coefficient * previous - before;
+            before = previous;
+            previous = current;
+        }
+        let power = previous * previous + before * before - coefficient * previous * before;
+        2.0 * power.max(0.0).sqrt() / samples.len() as f32
+    }
+
+    #[test]
+    fn someone_talking_during_a_sound_is_heard_together_with_it() {
+        let start = Instant::now();
+        let mut playback = Playback::new();
+        let sound: Vec<f32> = (0..2 * SAMPLE_RATE as usize)
+            .map(|n| 0.2 * (std::f32::consts::TAU * 1_000.0 * n as f32 / SAMPLE_RATE as f32).sin())
+            .collect();
+        playback.play_sound(Arc::from(sound), 1.0);
+        let mut arrivals = talk(1, 300.0, 50, start, &[]).into_iter().peekable();
+
+        let mut heard = Vec::new();
+        let mut out = [0.0; TICK];
+        for index in 0..80 {
+            let now = start + Duration::from_millis(index * 10);
+            while let Some(arrival) = arrivals.next_if(|arrival| arrival.at <= now) {
+                playback.receive(
+                    arrival.user_id,
+                    arrival.timestamp,
+                    arrival.marker,
+                    arrival.payload,
+                    arrival.at,
+                );
+            }
+            playback.tick(now, &mut out);
+            if index >= 20 {
+                heard.extend_from_slice(&out);
+            }
+        }
+
+        let (voice, sound) = (strength(&heard, 300.0), strength(&heard, 1_000.0));
+        let elsewhere = strength(&heard, 2_300.0);
+        assert!(voice > 0.1, "the voice at {voice}");
+        assert!(sound > 0.1, "the sound at {sound}");
+        assert!(elsewhere < 0.01, "nothing else, {elsewhere}");
+    }
+
     #[test]
     fn sounds_overlap_and_go_on_while_deafened() {
         let mut playback = Playback::new();
@@ -688,5 +862,130 @@ mod tests {
         // The short one ended while deafened; the long one plays on to its
         // end at 100 ms.
         assert_eq!(after, [0.25, 0.25, 0.25, 0.25, 0.25, 0.0]);
+    }
+
+    /// `user_id`'s screen share sound: 1 kHz left, 2.4 kHz right, as
+    /// packets 20 ms apart from `start`.
+    fn stream_packets(start: Instant, count: usize) -> Vec<(u32, Arc<[u8]>, Instant)> {
+        let mut encoder = opus::Encoder::new(
+            SAMPLE_RATE,
+            opus::Channels::Stereo,
+            opus::Application::Audio,
+        )
+        .unwrap();
+        let mut packet = [0u8; MAX_PACKET];
+        (0..count)
+            .map(|index| {
+                let pcm: Vec<f32> = (0..FRAME)
+                    .flat_map(|n| {
+                        let t = (index * FRAME + n) as f32 / SAMPLE_RATE as f32;
+                        [
+                            0.3 * (std::f32::consts::TAU * 1000.0 * t).sin(),
+                            0.3 * (std::f32::consts::TAU * 2400.0 * t).sin(),
+                        ]
+                    })
+                    .collect();
+                let size = encoder.encode_float(&pcm, &mut packet).unwrap();
+                (
+                    (index * FRAME) as u32,
+                    Arc::from(&packet[..size]),
+                    start + Duration::from_millis(index as u64 * 20),
+                )
+            })
+            .collect()
+    }
+
+    /// The level of `frequency` in one side of interleaved stereo.
+    fn side_level(stereo: &[f32], side: usize, frequency: f32) -> f32 {
+        let samples: Vec<f32> = stereo.iter().skip(side).step_by(2).copied().collect();
+        let coefficient = 2.0 * (std::f32::consts::TAU * frequency / SAMPLE_RATE as f32).cos();
+        let (mut s1, mut s2) = (0f32, 0f32);
+        for sample in &samples {
+            (s1, s2) = (sample + coefficient * s1 - s2, s1);
+        }
+        let power = (s1 * s1 + s2 * s2 - coefficient * s1 * s2).max(0.0);
+        20.0 * (2.0 * power.sqrt() / samples.len() as f32)
+            .max(1e-10)
+            .log10()
+    }
+
+    /// Plays 100 packets of a stream from user 9 (and their voice, a
+    /// 440 Hz tone) through `setup`; returns the last 1.5 s in stereo.
+    fn hear_stream(setup: impl FnOnce(&mut Playback)) -> Vec<f32> {
+        let mut playback = Playback::new();
+        setup(&mut playback);
+        let start = Instant::now();
+        let packets = stream_packets(start, 100);
+        let mut voice = VoiceEncoder::new(64_000).unwrap();
+        let mut packet = [0u8; MAX_PACKET];
+        let mut out = Vec::new();
+        let mut stereo = [0.0; 2 * TICK];
+        for tick in 0..200 {
+            let now = start + Duration::from_millis(tick * 10);
+            if tick % 2 == 0 {
+                let (timestamp, payload, arrived) = packets[tick as usize / 2].clone();
+                playback.receive_stream(9, timestamp, false, payload, arrived);
+                let frame = tick as usize / 2;
+                let tone: Vec<f32> = (0..FRAME)
+                    .map(|n| {
+                        let t = (frame * FRAME + n) as f32 / SAMPLE_RATE as f32;
+                        0.2 * (std::f32::consts::TAU * 440.0 * t).sin()
+                    })
+                    .collect();
+                let size = voice.encode(&tone, &mut packet).unwrap();
+                playback.receive(9, timestamp, false, Arc::from(&packet[..size]), arrived);
+            }
+            playback.tick_stereo(now, &mut stereo);
+            if tick >= 50 {
+                out.extend_from_slice(&stereo);
+            }
+        }
+        out
+    }
+
+    #[test]
+    fn a_watched_stream_plays_in_stereo_at_its_own_volume_apart_from_the_voice() {
+        let normal = hear_stream(|_| {});
+        let half = hear_stream(|playback| playback.set_stream_volume(9, 0.5));
+        let voice_muted = hear_stream(|playback| playback.set_local_mute(9, true));
+        let stream_muted = hear_stream(|playback| playback.set_stream_mute(9, true));
+        let deafened = hear_stream(|playback| playback.set_deafened(true));
+
+        // The sides stay apart; the voice is on both.
+        assert!(side_level(&normal, 0, 1000.0) > -20.0);
+        assert!(side_level(&normal, 0, 2400.0) < -50.0);
+        assert!(side_level(&normal, 1, 2400.0) > -20.0);
+        assert!(side_level(&normal, 1, 1000.0) < -50.0);
+        assert!(side_level(&normal, 0, 440.0) > -25.0 && side_level(&normal, 1, 440.0) > -25.0);
+        let halved = side_level(&half, 0, 1000.0) - side_level(&normal, 0, 1000.0);
+        assert!((halved + 6.0).abs() < 0.5, "half volume: {halved} dB");
+        assert!((side_level(&half, 0, 440.0) - side_level(&normal, 0, 440.0)).abs() < 0.5);
+        // Muting their voice keeps their stream, and the other way round.
+        assert!(side_level(&voice_muted, 0, 440.0) < -60.0);
+        assert!(side_level(&voice_muted, 0, 1000.0) > -20.0);
+        assert!(side_level(&stream_muted, 0, 1000.0) < -60.0);
+        assert!(side_level(&stream_muted, 0, 440.0) > -25.0);
+        assert!(side_level(&deafened, 0, 1000.0) < -60.0);
+    }
+
+    #[test]
+    fn a_stream_no_longer_watched_stops_and_its_volume_stays() {
+        let mut playback = Playback::new();
+        playback.set_stream_volume(9, 0.0);
+        let start = Instant::now();
+        for (timestamp, payload, arrived) in stream_packets(start, 10) {
+            playback.receive_stream(9, timestamp, false, payload, arrived);
+        }
+        let delays: Vec<(i64, Duration)> = playback.stream_delays().collect();
+        playback.remove_stream(9);
+        let mut stereo = [0.0; 2 * TICK];
+        playback.tick_stereo(start + Duration::from_millis(200), &mut stereo);
+
+        // Its pictures wait as long as the sound: the jitter buffer's least
+        // delay and a tick.
+        assert_eq!(delays, [(9, Duration::from_millis(30))]);
+        assert!(playback.streams.is_empty());
+        assert_eq!(playback.stream_delays().count(), 0);
+        assert_eq!(playback.stream_listening[&9].volume, 0.0);
     }
 }

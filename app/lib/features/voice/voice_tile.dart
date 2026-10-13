@@ -25,6 +25,7 @@ class VoiceTileView extends StatelessWidget {
     this.screen = false,
     this.muted = false,
     this.deafened = false,
+    this.mutedHere = false,
     this.camera = false,
     this.video,
     this.speaking = false,
@@ -32,6 +33,7 @@ class VoiceTileView extends StatelessWidget {
     this.focused = false,
     this.small = false,
     this.onTap,
+    this.onSecondaryTap,
     this.onWatch,
     this.onStopWatching,
     this.viewers,
@@ -43,8 +45,13 @@ class VoiceTileView extends StatelessWidget {
 
   /// The screen [name] shares, not [name] themselves.
   final bool screen;
+
+  /// By themselves or by a moderator.
   final bool muted;
   final bool deafened;
+
+  /// Muted on this device only (the per-user menu, desktop UI plan §17.3).
+  final bool mutedHere;
   final bool camera;
 
   /// Their camera's video, when there is some to draw.
@@ -64,6 +71,9 @@ class VoiceTileView extends StatelessWidget {
   /// Focuses the tile, or leaves focus mode when it is [focused].
   final VoidCallback? onTap;
 
+  /// Opens their member menu at the pointer.
+  final ValueChanged<Offset>? onSecondaryTap;
+
   /// Someone else's screen, not watched yet: nothing of it comes until
   /// they click Watch (§9.5).
   final VoidCallback? onWatch;
@@ -77,8 +87,10 @@ class VoiceTileView extends StatelessWidget {
 
   String get _semanticLabel => [
     screen ? "$name's screen, live" : name,
+    if (screen && mutedHere) 'sound muted by you',
     if (!screen && camera) 'camera on',
     if (!screen && deafened) 'deafened' else if (!screen && muted) 'muted',
+    if (!screen && mutedHere) 'muted by you',
     if (!screen && speaking) 'speaking',
     if (!screen && sound != null) 'playing ${sound!.name}',
   ].join(', ');
@@ -90,6 +102,7 @@ class VoiceTileView extends StatelessWidget {
     final playing = !screen ? sound : null;
     return Hoverable(
       onTap: onTap,
+      onSecondaryTap: onSecondaryTap,
       semanticLabel: _semanticLabel,
       focusRadius: radius,
       builder: (context, state) => SoundboardRing(
@@ -146,11 +159,13 @@ class VoiceTileView extends StatelessWidget {
                   child: _NamePill(
                     name: name,
                     icon: screen
-                        ? OcIcons.monitor
+                        ? (mutedHere ? OcIcons.volumeOff : OcIcons.monitor)
                         : deafened
                         ? OcIcons.headsetOff
                         : muted
                         ? OcIcons.micOff
+                        : mutedHere
+                        ? OcIcons.volumeOff
                         : null,
                     small: small,
                   ),

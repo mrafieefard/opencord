@@ -554,6 +554,7 @@ core.HotkeyAction hotkeyActionTo(HotkeyAction action) => switch (action) {
   HotkeyAction.prioritySpeaker => core.HotkeyAction.prioritySpeaker,
   HotkeyAction.toggleMute => core.HotkeyAction.toggleMute,
   HotkeyAction.toggleDeafen => core.HotkeyAction.toggleDeafen,
+  HotkeyAction.toggleInputMode => core.HotkeyAction.toggleInputMode,
 };
 
 HotkeyAction hotkeyActionFrom(core.HotkeyAction action) => switch (action) {
@@ -561,6 +562,7 @@ HotkeyAction hotkeyActionFrom(core.HotkeyAction action) => switch (action) {
   core.HotkeyAction.prioritySpeaker => HotkeyAction.prioritySpeaker,
   core.HotkeyAction.toggleMute => HotkeyAction.toggleMute,
   core.HotkeyAction.toggleDeafen => HotkeyAction.toggleDeafen,
+  core.HotkeyAction.toggleInputMode => HotkeyAction.toggleInputMode,
 };
 
 HotkeySupport hotkeySupportFrom(core.HotkeySupport support) =>

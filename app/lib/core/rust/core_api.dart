@@ -35,6 +35,25 @@ abstract interface class CoreApi {
 
   void voiceSetUserLocalMute(String serverKey, int userId, bool muted);
 
+  Future<void> voiceServerMute(String serverKey, int userId, bool muted);
+
+  Future<void> voiceServerDeafen(String serverKey, int userId, bool deafened);
+
+  Future<void> voiceMoveMember(String serverKey, int userId, int channelId);
+
+  Future<void> voiceDisconnectMember(String serverKey, int userId);
+
+  Future<core.ScreenAudioSupport> screenAudioSupport();
+
+  Future<List<core.ScreenAudioApp>> screenAudioApps();
+
+  void screenShareAudioFrom(String? app);
+
+  /// 0–2 (200 %).
+  void voiceSetStreamVolume(String serverKey, int userId, double volume);
+
+  void voiceSetStreamMute(String serverKey, int userId, bool muted);
+
   /// Whether this system has cameras and video (Linux only for now).
   bool videoSupported();
 
@@ -299,6 +318,52 @@ class FrbCoreApi implements CoreApi {
   @override
   void voiceSetUserVolume(String serverKey, int userId, double volume) => frb
       .voiceSetUserVolume(serverKey: serverKey, userId: userId, volume: volume);
+
+  @override
+  Future<void> voiceServerMute(String serverKey, int userId, bool muted) =>
+      frb.voiceServerMute(serverKey: serverKey, userId: userId, muted: muted);
+
+  @override
+  Future<void> voiceServerDeafen(String serverKey, int userId, bool deafened) =>
+      frb.voiceServerDeafen(
+        serverKey: serverKey,
+        userId: userId,
+        deafened: deafened,
+      );
+
+  @override
+  Future<void> voiceMoveMember(String serverKey, int userId, int channelId) =>
+      frb.voiceMoveMember(
+        serverKey: serverKey,
+        userId: userId,
+        channelId: channelId,
+      );
+
+  @override
+  Future<void> voiceDisconnectMember(String serverKey, int userId) =>
+      frb.voiceDisconnectMember(serverKey: serverKey, userId: userId);
+
+  @override
+  Future<core.ScreenAudioSupport> screenAudioSupport() =>
+      frb.screenAudioSupport();
+
+  @override
+  Future<List<core.ScreenAudioApp>> screenAudioApps() => frb.screenAudioApps();
+
+  @override
+  void screenShareAudioFrom(String? app) => frb.screenShareAudioFrom(app: app);
+
+  @override
+  void voiceSetStreamVolume(String serverKey, int userId, double volume) =>
+      frb.voiceSetStreamVolume(
+        serverKey: serverKey,
+        userId: userId,
+        volume: volume,
+      );
+
+  @override
+  void voiceSetStreamMute(String serverKey, int userId, bool muted) => frb
+      .voiceSetStreamMute(serverKey: serverKey, userId: userId, muted: muted);
 
   @override
   bool videoSupported() => frb.videoSupported();

@@ -6,7 +6,9 @@
 //! Each participant sends its microphone on [`AUDIO_MID`] with the SSRC the
 //! node gave it, unique in the channel. Every other participant receives it
 //! on its own media, [`receive_mid`] of that SSRC, so a receiver tells
-//! speakers apart by SSRC. Video is in [`video`].
+//! speakers apart by SSRC. A screen share's sound comes on
+//! [`SCREEN_AUDIO_MID`] and goes only to those watching that share. Video
+//! is in [`video`].
 
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::net::SocketAddr;
@@ -14,7 +16,7 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use hmac::{Hmac, KeyInit, Mac};
-use opencord_common::voice::{AUDIO_MID, receive_mid, rtc_config};
+use opencord_common::voice::{AUDIO_MID, SCREEN_AUDIO_MID, receive_mid, rtc_config};
 use sha1::Sha1;
 use str0m::bwe::{Bitrate, BweKind};
 use str0m::config::{DtlsCert, Fingerprint};
@@ -166,6 +168,8 @@ struct Peer {
     /// Per sender: packets not sent to this peer since the last one was,
     /// and how far the sequence numbers it sees lag the sender's.
     forwards: HashMap<PeerId, Forward>,
+    /// The same for each sender's screen share sound.
+    stream_forwards: HashMap<PeerId, Forward>,
     /// Video it publishes.
     tracks: Vec<video::Track>,
     /// Others' video it can receive.
@@ -296,10 +300,11 @@ impl Sfu {
             api.enable_twcc_feedback();
             api.declare_media(AUDIO_MID.into(), MediaKind::Audio);
             api.expect_stream_rx(Ssrc::from(setup.audio_ssrc), None, AUDIO_MID.into(), None);
+            api.declare_media(SCREEN_AUDIO_MID.into(), MediaKind::Audio);
             api.expect_stream_rx(
                 Ssrc::from(setup.screen_audio_ssrc),
                 None,
-                AUDIO_MID.into(),
+                SCREEN_AUDIO_MID.into(),
                 None,
             );
             for other in &others {
@@ -323,6 +328,7 @@ impl Sfu {
                 clock: now,
                 level: audio::SILENT,
                 forwards: HashMap::new(),
+                stream_forwards: HashMap::new(),
                 tracks: Vec::new(),
                 sending: Vec::new(),
                 estimate: video::INITIAL_ESTIMATE,
@@ -348,7 +354,9 @@ impl Sfu {
         self.drain(id);
         for other in &others {
             if let Some(peer) = self.peers.get_mut(other) {
-                declare_receive(&mut peer.rtc.direct_api(), setup.audio_ssrc);
+                let mut api = peer.rtc.direct_api();
+                declare_receive(&mut api, setup.audio_ssrc);
+                declare_receive(&mut api, setup.screen_audio_ssrc);
             }
             self.drain(*other);
         }
@@ -440,11 +448,18 @@ impl Sfu {
         if others.is_empty() {
             self.channels.remove(&channel_id);
         }
-        let mid = receive_mid(peer.setup.audio_ssrc);
+        let mids = [
+            receive_mid(peer.setup.audio_ssrc),
+            receive_mid(peer.setup.screen_audio_ssrc),
+        ];
         for other in others {
             if let Some(receiver) = self.peers.get_mut(&other) {
                 receiver.forwards.remove(&id);
-                receiver.rtc.direct_api().remove_media(mid.as_str().into());
+                receiver.stream_forwards.remove(&id);
+                let mut api = receiver.rtc.direct_api();
+                for mid in &mids {
+                    api.remove_media(mid.as_str().into());
+                }
             }
             self.drain(other);
         }
@@ -469,7 +484,11 @@ impl Sfu {
             .peers
             .iter()
             .filter_map(|id| self.peers.get(id))
-            .any(|peer| peer.setup.audio_ssrc == ssrc || video::uses_ssrc(&peer.tracks, ssrc))
+            .any(|peer| {
+                peer.setup.audio_ssrc == ssrc
+                    || peer.setup.screen_audio_ssrc == ssrc
+                    || video::uses_ssrc(&peer.tracks, ssrc)
+            })
     }
 
     /// A datagram that arrived from `source`.
@@ -657,6 +676,12 @@ impl Sfu {
         if ssrc == from.setup.audio_ssrc {
             if from.inbound.take(now, packet.payload.len()) {
                 self.forward_audio(now, sender, packet);
+            }
+            return;
+        }
+        if ssrc == from.setup.screen_audio_ssrc {
+            if from.inbound.take(now, packet.payload.len()) {
+                self.forward_screen_audio(now, sender, packet);
             }
             return;
         }

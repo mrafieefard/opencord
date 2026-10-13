@@ -58,6 +58,7 @@ class _ScreenshareDialogState extends ConsumerState<_ScreenshareDialog> {
     _settings,
     widget.current ?? ref.read(lastScreenQualityProvider(widget.serverKey)),
   );
+  late var _sound = ref.read(shareSoundProvider);
 
   bool get _portal => Theme.of(context).platform == TargetPlatform.linux;
 
@@ -69,11 +70,17 @@ class _ScreenshareDialogState extends ConsumerState<_ScreenshareDialog> {
       _maxResolution != ScreenShareResolution.values.last ||
       _maxFps != ScreenShareQuality.frameRates.last;
 
-  void _done() => Navigator.pop<ScreenshareChoice>(context, (
-    quality: _quality,
-    // Sharing sound arrives with V7.
-    audio: false,
-  ));
+  /// Sound goes when chosen and this system can share it.
+  bool get _soundWorks =>
+      ref.read(screenAudioSupportProvider).value?.supported ?? false;
+
+  void _done() {
+    if (_soundWorks) ref.read(shareSoundProvider.notifier).set(_sound);
+    Navigator.pop<ScreenshareChoice>(context, (
+      quality: _quality,
+      audio: _sound && _soundWorks,
+    ));
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -136,12 +143,30 @@ class _ScreenshareDialogState extends ConsumerState<_ScreenshareDialog> {
           ],
           if (!widget.changing) ...[
             const SizedBox(height: OcSpace.s16),
-            const SettingsSwitchRow(
-              title: 'Share computer sound (except Opencord)',
-              subtitle: 'Sharing sound comes in a later update.',
-              value: false,
-              onChanged: null,
-            ),
+            switch (ref.watch(screenAudioSupportProvider)) {
+              AsyncData(value: (supported: true, reason: _)) =>
+                SettingsSwitchRow(
+                  title: 'Share sound',
+                  subtitle: _portal
+                      ? 'A screen shares every app but Opencord; for a '
+                            'window you choose the app.'
+                      : 'Every app but Opencord.',
+                  value: _sound,
+                  onChanged: (on) => setState(() => _sound = on),
+                ),
+              AsyncData(value: (supported: false, :final reason)) =>
+                SettingsSwitchRow(
+                  title: 'Share sound',
+                  subtitle: reason ?? "This system can't share sound yet.",
+                  value: false,
+                  onChanged: null,
+                ),
+              _ => const SettingsSwitchRow(
+                title: 'Share sound',
+                value: false,
+                onChanged: null,
+              ),
+            },
           ],
         ],
       ),

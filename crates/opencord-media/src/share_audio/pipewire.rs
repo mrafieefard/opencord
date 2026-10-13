@@ -1,15 +1,20 @@
-//! PipeWire screen audio capture (Phase 2 plan §10.4): watch the registry
-//! for playback streams and link them into our capture stream. Screens
-//! share everything except Opencord's own output; windows share only that
-//! app's audio. Streams that appear during sharing are linked; removed
-//! ones disappear.
+//! PipeWire screen audio capture (Phase 2 plan §10.4): a capture stream of
+//! our own, not connected to anything by the session manager, and links
+//! from the playback streams being shared into it. An entire screen shares
+//! every app's playback except Opencord's own (its process and children,
+//! and nodes named `opencord-…`); a window shares only its app's. Streams
+//! that start while sharing are linked as they appear; ones that end take
+//! their links with them. Devices (microphones, monitors) are never
+//! linked: only application playback streams.
 
-use std::collections::HashMap;
+use std::cell::RefCell;
+use std::collections::{HashMap, HashSet};
 use std::io::Cursor;
-use std::os::fd::OwnedFd;
+use std::rc::Rc;
 use std::sync::mpsc::{self, SyncSender};
+use std::sync::{Arc, Mutex};
 use std::thread::JoinHandle;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use pipewire as pw;
 use pw::link::Link;
@@ -17,322 +22,545 @@ use pw::spa;
 use pw::types::ObjectType;
 use spa::param::ParamType;
 use spa::param::format::{MediaSubtype, MediaType};
-use spa::pod::ValueArray;
 use spa::pod::serialize::PodSerializer;
-use spa::pod::{Object, Pod, Property, Value};
+use spa::pod::{Object, Pod, Property, Value, ValueArray};
 use spa::utils::{Direction, Id, SpaTypes};
 
 use super::CaptureError;
 
 /// The capture sample rate.
-const SAMPLE_RATE: u32 = 48_000;
+pub const SAMPLE_RATE: u32 = 48_000;
 /// Stereo.
-const CHANNELS: usize = 2;
+pub const CHANNELS: usize = 2;
+/// Our capture node's name; nodes named like it are never shared.
+const NODE_NAME: &str = "opencord-screen-audio";
 
 /// How long we wait for PipeWire to answer.
-pub(super) const ROUNDTRIP: Duration = Duration::from_secs(5);
+const ROUNDTRIP: Duration = Duration::from_secs(5);
 
-/// An app with audio that can be shared.
+/// What is shared.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Source {
+    /// Every app's sound but Opencord's: an entire screen.
+    Everything,
+    /// One app's: every playback stream it names itself by
+    /// (`application.name`), from any of its processes.
+    App(String),
+    /// Every playback stream of a process and its children: a window
+    /// whose process is known (X11's `_NET_WM_PID`).
+    Process(u32),
+    /// Nothing yet: a window share before its app is chosen.
+    Nothing,
+}
+
+/// An app with a playback stream open, which a window share can share.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AppInfo {
+    /// As it names itself (`application.name`).
     pub name: String,
-    pub pid: u32,
+    /// Its icon's name in the desktop's icon theme, when it gives one.
+    pub icon: Option<String>,
+    pub pid: Option<u32>,
 }
 
 /// What was captured.
 #[derive(Debug, Clone)]
 pub struct Captured {
+    /// Interleaved stereo at 48 kHz.
     pub samples: Vec<f32>,
-    /// Position on the 48 kHz capture clock.
+    /// The first frame's position on this capture's 48 kHz clock.
     pub position: u64,
-}
-
-impl Captured {
-    /// Reads one 20 ms frame of stereo F32 from a PipeWire buffer.
-    /// `stride` is bytes per frame (4 for F32LE stereo = 8 bytes).
-    fn from_buffer(data: &[u8], stride: usize, frames: usize, position: u64) -> Option<Self> {
-        let mut samples = Vec::with_capacity(frames * CHANNELS);
-        for frame in 0..frames {
-            let base = frame * stride;
-            for ch in 0..CHANNELS {
-                let i = base + ch * 4;
-                if i + 4 > data.len() {
-                    return None;
-                }
-                let value = f32::from_le_bytes([data[i], data[i + 1], data[i + 2], data[i + 3]]);
-                samples.push(value);
-            }
-        }
-        Some(Self { samples, position })
-    }
+    /// When the first frame was captured.
+    pub captured: Instant,
 }
 
 /// A running capture; stops when dropped.
 pub struct Capture {
-    quit: pw::channel::Sender<()>,
+    commands: pw::channel::Sender<Command>,
     thread: Option<JoinHandle<()>>,
-    pub pid: u32,
+    /// The apps linked now, by name.
+    linked: Arc<Mutex<Vec<String>>>,
+}
+
+enum Command {
+    Share(Source),
+    Quit,
 }
 
 impl Capture {
-    pub fn start_screen(
-        remote: OwnedFd,
-        frames: SyncSender<Captured>,
-    ) -> Result<Self, CaptureError> {
-        Self::start(remote, None, frames)
-    }
-
-    pub fn start_window(
-        remote: OwnedFd,
-        window_pid: u32,
-        frames: SyncSender<Captured>,
-    ) -> Result<Self, CaptureError> {
-        Self::start(remote, Some(window_pid), frames)
-    }
-
-    fn start(
-        remote: OwnedFd,
-        window_pid: Option<u32>,
-        frames: SyncSender<Captured>,
-    ) -> Result<Self, CaptureError> {
-        let opencord_pid = std::process::id();
+    /// Captures `source` from the session's PipeWire. Fails when there is
+    /// none (a PulseAudio-only system).
+    pub fn start(source: Source, frames: SyncSender<Captured>) -> Result<Self, CaptureError> {
         let (started, outcome) = mpsc::channel();
-        let (quit, quit_receiver) = pw::channel::channel();
+        let (commands, received) = pw::channel::channel();
+        let linked = Arc::new(Mutex::new(Vec::new()));
+        let shown = Arc::clone(&linked);
         let thread = std::thread::Builder::new()
             .name("opencord-share-audio".to_owned())
             .spawn(move || {
-                serve(
-                    remote,
-                    window_pid,
-                    opencord_pid,
-                    frames,
-                    quit_receiver,
-                    started,
-                )
+                if let Err(error) = serve(source, frames, received, &started, shown) {
+                    let _ = started.send(Err(error));
+                }
             })
-            .map_err(|e| CaptureError::Failed(e.to_string()))?;
-        match outcome.recv_timeout(ROUNDTRIP) {
-            Ok(Ok(())) => Ok(Self {
-                quit,
-                thread: Some(thread),
-                pid: opencord_pid,
-            }),
-            Ok(Err(e)) => {
-                let _ = thread.join();
-                Err(e)
-            }
-            Err(_) => {
-                let _ = quit.send(());
-                let _ = thread.join();
-                Err(CaptureError::Failed("the capture thread ended".to_owned()))
-            }
+            .map_err(|error| CaptureError::Failed(error.to_string()))?;
+        let failed = match outcome.recv_timeout(ROUNDTRIP) {
+            Ok(Ok(())) => None,
+            Ok(Err(error)) => Some(error),
+            Err(_) => Some(CaptureError::Failed("PipeWire did not answer".to_owned())),
+        };
+        let capture = Self {
+            commands,
+            thread: Some(thread),
+            linked,
+        };
+        match failed {
+            None => Ok(capture),
+            Some(error) => Err(error),
         }
+    }
+
+    /// Shares another source from now: links that no longer belong go,
+    /// new ones come.
+    pub fn share(&self, source: Source) {
+        let _ = self.commands.send(Command::Share(source));
+    }
+
+    /// The apps whose sound is linked in now.
+    pub fn linked_apps(&self) -> Vec<String> {
+        self.linked
+            .lock()
+            .map(|apps| apps.clone())
+            .unwrap_or_default()
     }
 }
 
 impl Drop for Capture {
     fn drop(&mut self) {
-        let _ = self.quit.send(());
-        if let Some(t) = self.thread.take() {
-            let _ = t.join();
+        let _ = self.commands.send(Command::Quit);
+        if let Some(thread) = self.thread.take() {
+            let _ = thread.join();
         }
     }
 }
 
-fn failed(error: pw::Error) -> CaptureError {
+fn failed(error: impl std::fmt::Display) -> CaptureError {
     CaptureError::Failed(error.to_string())
 }
 
-/// Info extracted from a playback stream node.
-struct NodeInfo(u32, u32, String);
+/// A process with PipeWire objects: its id and name.
+#[derive(Debug, Clone, Default)]
+struct Client {
+    pid: Option<u32>,
+    name: Option<String>,
+    icon: Option<String>,
+}
+
+/// A playback stream.
+#[derive(Debug, Clone)]
+struct Playback {
+    client: Option<u32>,
+    pid: Option<u32>,
+    name: Option<String>,
+    icon: Option<String>,
+    node_name: String,
+}
+
+#[derive(Debug, Clone)]
+struct Port {
+    node: u32,
+    output: bool,
+    channel: String,
+}
+
+/// What the registry has shown, and the links made from it.
+#[derive(Default)]
+struct Graph {
+    clients: HashMap<u32, Client>,
+    playbacks: HashMap<u32, Playback>,
+    ports: HashMap<u32, Port>,
+    /// Ours, once PipeWire has made it.
+    capture_node: Option<u32>,
+    /// Links by output and input port.
+    links: HashMap<(u32, u32), Link>,
+}
+
+impl Graph {
+    /// A playback stream's process and app name: its own properties, else
+    /// its client's (native PipeWire clients put them there).
+    fn owner(&self, playback: &Playback) -> (Option<u32>, Option<String>, Option<String>) {
+        let client = playback.client.and_then(|id| self.clients.get(&id));
+        (
+            playback.pid.or(client.and_then(|c| c.pid)),
+            playback
+                .name
+                .clone()
+                .or_else(|| client.and_then(|c| c.name.clone())),
+            playback
+                .icon
+                .clone()
+                .or_else(|| client.and_then(|c| c.icon.clone())),
+        )
+    }
+
+    /// Whether `playback` is to be shared.
+    fn shares(&self, playback: &Playback, source: &Source, opencord: u32) -> bool {
+        let (pid, name, _) = self.owner(playback);
+        let ours = playback.node_name.starts_with("opencord-")
+            || pid.is_some_and(|pid| pid == opencord || is_descendant(pid, opencord));
+        if ours {
+            return false;
+        }
+        match source {
+            Source::Everything => true,
+            Source::App(app) => name.as_deref() == Some(app.as_str()),
+            Source::Process(root) => {
+                pid.is_some_and(|pid| pid == *root || is_descendant(pid, *root))
+            }
+            Source::Nothing => false,
+        }
+    }
+
+    /// The links `source` needs now: each shared stream's output ports to
+    /// our input ports, channel by channel.
+    fn wanted(&self, source: &Source, opencord: u32) -> HashSet<(u32, u32)> {
+        let Some(capture) = self.capture_node else {
+            return HashSet::new();
+        };
+        let inputs: HashMap<&str, u32> = self
+            .ports
+            .iter()
+            .filter(|(_, port)| port.node == capture && !port.output)
+            .map(|(id, port)| (port.channel.as_str(), *id))
+            .collect();
+        let mut wanted = HashSet::new();
+        for (node, playback) in &self.playbacks {
+            if !self.shares(playback, source, opencord) {
+                continue;
+            }
+            for (id, port) in &self.ports {
+                if port.node != *node || !port.output {
+                    continue;
+                }
+                for channel in into_channels(&port.channel) {
+                    if let Some(input) = inputs.get(channel) {
+                        wanted.insert((*id, *input));
+                    }
+                }
+            }
+        }
+        wanted
+    }
+
+    /// The apps `source` shares now, for showing.
+    fn shared_apps(&self, source: &Source, opencord: u32) -> Vec<String> {
+        let mut apps: Vec<String> = self
+            .playbacks
+            .values()
+            .filter(|playback| self.shares(playback, source, opencord))
+            .map(|playback| {
+                self.owner(playback)
+                    .1
+                    .unwrap_or_else(|| playback.node_name.clone())
+            })
+            .collect();
+        apps.sort();
+        apps.dedup();
+        apps
+    }
+}
+
+/// Which of our two channels an output port's channel goes to: stereo
+/// stays apart; mono and centre go to both; unpositioned ports count as
+/// left then right; surround's rear and LFE are left out (plan §10.4:
+/// multichannel → front left and right).
+fn into_channels(channel: &str) -> &'static [&'static str] {
+    match channel {
+        "FL" | "AUX0" => &["FL"],
+        "FR" | "AUX1" => &["FR"],
+        "MONO" | "FC" => &["FL", "FR"],
+        _ => &[],
+    }
+}
 
 fn serve(
-    remote: OwnedFd,
-    window_pid: Option<u32>,
-    opencord_pid: u32,
+    source: Source,
     frames: SyncSender<Captured>,
-    quit: pw::channel::Receiver<()>,
-    started: mpsc::Sender<Result<(), CaptureError>>,
-) {
+    commands: pw::channel::Receiver<Command>,
+    started: &mpsc::Sender<Result<(), CaptureError>>,
+    linked: Arc<Mutex<Vec<String>>>,
+) -> Result<(), CaptureError> {
     pw::init();
-    let Ok(mainloop) = pw::main_loop::MainLoopRc::new(None) else {
-        return void(&started, CaptureError::Failed("no mainloop".to_owned()));
-    };
-    let Ok(context) = pw::context::ContextRc::new(&mainloop, None) else {
-        return void(&started, CaptureError::Failed("no context".to_owned()));
-    };
-    let core = match context.connect_fd_rc(remote, None) {
-        Ok(c) => c,
-        Err(e) => return void(&started, failed(e)),
-    };
+    let mainloop = pw::main_loop::MainLoopRc::new(None).map_err(failed)?;
+    let context = pw::context::ContextRc::new(&mainloop, None).map_err(failed)?;
+    let core = context
+        .connect_rc(None)
+        .map_err(|_| CaptureError::NotSupported)?;
+    let registry = core.get_registry_rc().map_err(failed)?;
+    let opencord = std::process::id();
+    let graph = Rc::new(RefCell::new(Graph::default()));
+    let source = Rc::new(RefCell::new(source));
 
-    // Create the capture stream before we start the loop.
-    let capture_stream = match make_capture_stream(&core) {
-        Ok(s) => s,
-        Err(e) => return void(&started, e),
+    let relink = {
+        let graph = Rc::clone(&graph);
+        let source = Rc::clone(&source);
+        let core = core.clone();
+        move || {
+            let mut graph = graph.borrow_mut();
+            let source = source.borrow();
+            let wanted = graph.wanted(&source, opencord);
+            graph.links.retain(|key, _| wanted.contains(key));
+            for (output, input) in wanted {
+                if graph.links.contains_key(&(output, input)) {
+                    continue;
+                }
+                let (Some(from), Some(capture)) = (graph.ports.get(&output), graph.capture_node)
+                else {
+                    continue;
+                };
+                match make_link(&core, from.node, output, capture, input) {
+                    Ok(link) => {
+                        graph.links.insert((output, input), link);
+                    }
+                    Err(error) => tracing::debug!(%error, "a screen audio link failed"),
+                }
+            }
+            if let Ok(mut shown) = linked.lock() {
+                *shown = graph.shared_apps(&source, opencord);
+            }
+        }
     };
+    let relink = Rc::new(relink);
 
-    let registry = match core.get_registry_rc() {
-        Ok(r) => r,
-        Err(e) => return void(&started, failed(e)),
-    };
+    let stream = pw::stream::StreamRc::new(
+        core.clone(),
+        NODE_NAME,
+        pw::properties::properties! {
+            *pw::keys::MEDIA_TYPE => "Audio",
+            *pw::keys::MEDIA_CATEGORY => "Capture",
+            *pw::keys::MEDIA_CLASS => "Stream/Input/Audio",
+            *pw::keys::NODE_NAME => NODE_NAME,
+            *pw::keys::NODE_DESCRIPTION => "Opencord screen share sound",
+            *pw::keys::APP_NAME => "Opencord",
+            // Linked by hand: the session manager must not connect the
+            // microphone, or anything, to it.
+            "node.autoconnect" => "false",
+            "node.dont-reconnect" => "true",
+            "stream.dont-remix" => "true",
+        },
+    )
+    .map_err(failed)?;
 
-    // Collect playback nodes: node_id → (pid, name).
-    let playback: std::sync::Arc<std::sync::Mutex<HashMap<u32, NodeInfo>>> =
-        std::sync::Arc::new(std::sync::Mutex::new(HashMap::new()));
-    let want_pid = std::sync::Arc::new(std::sync::Mutex::new(window_pid));
-
-    // Add listeners before connecting, so we catch everything.
-    let _links_listener = registry
+    let _registry_listener = registry
         .add_listener_local()
         .global({
-            let playback = std::sync::Arc::clone(&playback);
+            let graph = Rc::clone(&graph);
+            let relink = Rc::clone(&relink);
             move |global| {
-                if let Some(info) = playback_info(global)
-                    && should_include(info.1, &info.2, opencord_pid, &want_pid)
-                {
-                    playback.lock().unwrap().insert(info.0, info);
+                if remember(&mut graph.borrow_mut(), global) {
+                    relink();
                 }
             }
         })
         .global_remove({
-            let playback = std::sync::Arc::clone(&playback);
+            let graph = Rc::clone(&graph);
+            let relink = Rc::clone(&relink);
             move |id| {
-                // Remove by node id when a node disappears.
-                playback.lock().unwrap().remove(&id);
+                let mut graph = graph.borrow_mut();
+                let known = graph.clients.remove(&id).is_some()
+                    | graph.playbacks.remove(&id).is_some()
+                    | graph.ports.remove(&id).is_some();
+                // Its links went with it.
+                graph
+                    .links
+                    .retain(|(output, input), _| *output != id && *input != id);
+                drop(graph);
+                if known {
+                    relink();
+                }
             }
         })
         .register();
 
-    let capture_stream2 = capture_stream.clone();
-    let _capture_listener = capture_stream
-        .add_local_listener_with_user_data(())
-        .process(move |_stream, _| {
-            let Some(mut buffer) = capture_stream2.dequeue_buffer() else {
+    let _stream_listener = stream
+        .add_local_listener_with_user_data(0u64)
+        .state_changed({
+            let graph = Rc::clone(&graph);
+            let relink = Rc::clone(&relink);
+            move |stream, _, _, state| {
+                if matches!(
+                    state,
+                    pw::stream::StreamState::Paused | pw::stream::StreamState::Streaming
+                ) {
+                    let node = stream.node_id();
+                    let known = graph.borrow().capture_node == Some(node);
+                    if !known && node != spa::constants::ID_INVALID {
+                        graph.borrow_mut().capture_node = Some(node);
+                        relink();
+                    }
+                }
+            }
+        })
+        .process(move |stream, position| {
+            let Some(mut buffer) = stream.dequeue_buffer() else {
                 return;
             };
             let Some(data) = buffer.datas_mut().first_mut() else {
                 return;
             };
             let chunk = data.chunk();
-            let stride = chunk.stride() as usize;
+            let offset = chunk.offset() as usize;
             let size = chunk.size() as usize;
-            if size == 0 {
-                return;
-            }
+            let stride = (chunk.stride() as usize).max(CHANNELS * 4);
             let Some(bytes) = data.data() else {
                 return;
             };
-            if bytes.len() < size {
+            let Some(bytes) = bytes.get(offset..offset + size) else {
+                return;
+            };
+            let frames_count = size / stride;
+            if frames_count == 0 {
                 return;
             }
-            let frames_count = size / stride;
-            // Position is just a counter — the RTP timestamp carries the real clock.
-            static POSITION: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
-            let position =
-                POSITION.fetch_add(frames_count as u64, std::sync::atomic::Ordering::Relaxed);
-            if let Some(captured) = Captured::from_buffer(bytes, stride, frames_count, position) {
-                let _ = frames.try_send(captured);
-            }
+            let samples: Vec<f32> = bytes
+                .chunks_exact(stride)
+                .flat_map(|frame| {
+                    (0..CHANNELS).map(move |channel| {
+                        let at = channel * 4;
+                        f32::from_le_bytes([frame[at], frame[at + 1], frame[at + 2], frame[at + 3]])
+                    })
+                })
+                .collect();
+            let length = Duration::from_secs_f64(frames_count as f64 / f64::from(SAMPLE_RATE));
+            let captured = Captured {
+                samples,
+                position: *position,
+                captured: Instant::now()
+                    .checked_sub(length)
+                    .unwrap_or_else(Instant::now),
+            };
+            *position += frames_count as u64;
+            let _ = frames.try_send(captured);
         })
-        .register();
+        .register()
+        .map_err(failed)?;
 
-    // Connect the capture stream to the Input direction so we receive audio.
-    let format_bytes = format_pod();
-    let pod = match Pod::from_bytes(&format_bytes) {
-        Some(p) => p,
-        None => {
-            return void(
-                &started,
-                CaptureError::Failed("invalid audio format pod".to_owned()),
-            );
-        }
-    };
-    let mut params = [pod];
-    if let Err(e) = capture_stream.connect(
-        Direction::Input,
-        Some(pw::constants::ID_ANY),
-        pw::stream::StreamFlags::MAP_BUFFERS,
-        &mut params,
-    ) {
-        return void(&started, failed(e));
-    }
+    let format = format_pod();
+    let pod = Pod::from_bytes(&format)
+        .ok_or_else(|| CaptureError::Failed("the audio format did not serialize".to_owned()))?;
+    stream
+        .connect(
+            Direction::Input,
+            None,
+            pw::stream::StreamFlags::MAP_BUFFERS | pw::stream::StreamFlags::RT_PROCESS,
+            &mut [pod],
+        )
+        .map_err(failed)?;
 
-    // Links live as long as their proxies: kept until the loop ends.
-    let mut links: Vec<Link> = Vec::new();
-
-    // Get the capture stream's node id and a port id.
-    let capture_node_id = capture_stream.node_id();
-    let capture_port_id = spa::constants::ID_INVALID;
-
-    // Seed links for existing nodes.
-    {
-        let existing = playback.lock().unwrap();
-        for &node_id in existing.keys() {
-            // Try to link each playback node to the capture stream.
-            if let Ok(link) = create_link(&core, node_id, capture_node_id, capture_port_id) {
-                links.push(link);
-            }
-        }
-    }
-
-    let _quit = quit.attach(mainloop.loop_(), {
+    let _commands = commands.attach(mainloop.loop_(), {
         let mainloop = mainloop.clone();
-        move |()| mainloop.quit()
+        let source = Rc::clone(&source);
+        let relink = Rc::clone(&relink);
+        move |command| match command {
+            Command::Share(new) => {
+                *source.borrow_mut() = new;
+                relink();
+            }
+            Command::Quit => mainloop.quit(),
+        }
     });
 
     let _ = started.send(Ok(()));
     mainloop.run();
 
-    drop(links);
-    drop(_capture_listener);
-    drop(_links_listener);
-    let _ = capture_stream.disconnect();
+    graph.borrow_mut().links.clear();
+    let _ = stream.disconnect();
+    Ok(())
 }
 
-fn void(started: &mpsc::Sender<Result<(), CaptureError>>, error: CaptureError) {
-    let _ = started.send(Err(error));
+/// Keeps what matters of a new registry object; whether it might change
+/// the links.
+fn remember(
+    graph: &mut Graph,
+    global: &pw::registry::GlobalObject<&spa::utils::dict::DictRef>,
+) -> bool {
+    let Some(props) = global.props else {
+        return false;
+    };
+    let number = |key: &str| props.get(key).and_then(|value| value.parse::<u32>().ok());
+    let text = |key: &str| props.get(key).map(str::to_owned);
+    match global.type_ {
+        ObjectType::Client => {
+            graph.clients.insert(
+                global.id,
+                Client {
+                    // The global's properties hold the pid PipeWire took
+                    // from the socket; the client's own claim may be there
+                    // too.
+                    pid: number("application.process.id").or_else(|| number("pipewire.sec.pid")),
+                    name: text("application.name"),
+                    icon: text("application.icon-name"),
+                },
+            );
+            false
+        }
+        ObjectType::Node if props.get("media.class") == Some("Stream/Output/Audio") => {
+            graph.playbacks.insert(
+                global.id,
+                Playback {
+                    client: number("client.id"),
+                    pid: number("application.process.id"),
+                    name: text("application.name"),
+                    icon: text("application.icon-name").or_else(|| text("media.icon-name")),
+                    node_name: text("node.name").unwrap_or_default(),
+                },
+            );
+            true
+        }
+        ObjectType::Port => {
+            let (Some(node), Some(direction)) = (number("node.id"), props.get("port.direction"))
+            else {
+                return false;
+            };
+            // A playback stream's monitor ports are its output again.
+            if props.get("port.monitor") == Some("true") {
+                return false;
+            }
+            graph.ports.insert(
+                global.id,
+                Port {
+                    node,
+                    output: direction == "out",
+                    channel: text("audio.channel").unwrap_or_default(),
+                },
+            );
+            true
+        }
+        _ => false,
+    }
 }
 
-/// Creates a PipeWire link from a playback node to a capture node.
-/// Uses the link factory via core.create_object.
-fn create_link(
+fn make_link(
     core: &pw::core::CoreRc,
     output_node: u32,
+    output_port: u32,
     input_node: u32,
-    _input_port: u32,
-) -> Result<Link, CaptureError> {
-    use pw::properties::PropertiesBox;
-
-    let mut props = PropertiesBox::new();
-    // Link passive so it doesn't prevent the nodes from disappearing.
-    props.insert(*pw::keys::LINK_PASSIVE, "true");
-    // Output node and port
-    props.insert(*pw::keys::LINK_OUTPUT_NODE, output_node.to_string());
-    props.insert(*pw::keys::LINK_OUTPUT_PORT, "64".to_string()); // Use a reasonable default port
-    // Input node and port
-    props.insert(*pw::keys::LINK_INPUT_NODE, input_node.to_string());
-    props.insert(*pw::keys::LINK_INPUT_PORT, "64".to_string());
-
-    core.create_object::<Link>("link", &props).map_err(failed)
-}
-
-fn make_capture_stream(core: &pw::core::CoreRc) -> Result<pw::stream::StreamRc, CaptureError> {
-    pw::stream::StreamRc::new(
-        core.clone(),
-        "opencord-share-audio",
-        pw::properties::properties! {
-            *pw::keys::MEDIA_CLASS => "Audio/Source",
-            *pw::keys::NODE_NAME => "opencord-share-audio",
-            "node.autoconnect" => "false",
-            "stream.capture.suspend" => "false",
+    input_port: u32,
+) -> Result<Link, pw::Error> {
+    core.create_object::<Link>(
+        "link-factory",
+        &pw::properties::properties! {
+            "link.output.node" => output_node.to_string(),
+            "link.output.port" => output_port.to_string(),
+            "link.input.node" => input_node.to_string(),
+            "link.input.port" => input_port.to_string(),
+            // Gone with its proxy: when the share ends, or Opencord does.
+            "object.linger" => "false",
         },
     )
-    .map_err(failed)
 }
 
 fn format_pod() -> Vec<u8> {
-    serialize(Object {
+    let object = Object {
         type_: SpaTypes::ObjectParamFormat.as_raw(),
         id: ParamType::EnumFormat.as_raw(),
         properties: vec![
@@ -356,7 +584,6 @@ fn format_pod() -> Vec<u8> {
                 spa::sys::SPA_FORMAT_AUDIO_channels,
                 Value::Int(CHANNELS as i32),
             ),
-            // Position array: FL, FR for stereo
             Property::new(
                 spa::sys::SPA_FORMAT_AUDIO_position,
                 Value::ValueArray(ValueArray::Id(vec![
@@ -365,155 +592,232 @@ fn format_pod() -> Vec<u8> {
                 ])),
             ),
         ],
-    })
-}
-
-fn serialize(object: Object) -> Vec<u8> {
+    };
     PodSerializer::serialize(Cursor::new(Vec::new()), &Value::Object(object))
-        .map(|(c, _)| c.into_inner())
+        .map(|(cursor, _)| cursor.into_inner())
         .unwrap_or_default()
 }
 
-/// Info extracted from a playback stream node.
-fn playback_info(
-    global: &pw::registry::GlobalObject<&spa::utils::dict::DictRef>,
-) -> Option<NodeInfo> {
-    if global.type_ != ObjectType::Node {
-        return None;
-    }
-    let props = global.props?;
-    if props.get("media.class") != Some("Stream/Output/Audio") {
-        return None;
-    }
-    let node_id = global.id;
-    let pid = props.get("application.process.id")?.parse().ok()?;
-    let name = props
-        .get("application.name")
-        .or_else(|| props.get("node.description"))
-        .unwrap_or("?")
-        .to_owned();
-    Some(NodeInfo(node_id, pid, name))
-}
-
-fn should_include(
-    pid: u32,
-    name: &str,
-    opencord_pid: u32,
-    want_pid: &std::sync::Arc<std::sync::Mutex<Option<u32>>>,
-) -> bool {
-    // Exclude our own process.
-    if pid == opencord_pid {
-        return false;
-    }
-    // Exclude our own nodes by name prefix.
-    if name.starts_with("opencord-") || name.starts_with("Opencord") {
-        return false;
-    }
-    // If a specific window is wanted, match by pid.
-    if let Some(want) = *want_pid.lock().unwrap() {
-        return pid == want || is_descendant(pid, want);
-    }
-    // Screen share: include everything else.
-    true
-}
-
+/// Whether `pid` descends from `ancestor`, by the parent chain in /proc.
 fn is_descendant(pid: u32, ancestor: u32) -> bool {
     let mut current = pid;
-    loop {
-        if current == ancestor {
-            return true;
-        }
-        let Some(parent) = read_parent_pid(current) else {
+    for _ in 0..64 {
+        let Some(parent) = parent_of(current) else {
             return false;
         };
-        if parent == current {
+        if parent == ancestor {
+            return true;
+        }
+        if parent <= 1 || parent == current {
             return false;
         }
         current = parent;
     }
+    false
 }
 
-fn read_parent_pid(pid: u32) -> Option<u32> {
+fn parent_of(pid: u32) -> Option<u32> {
     let stat = std::fs::read_to_string(format!("/proc/{pid}/stat")).ok()?;
-    stat.split(')')
-        .nth(1)?
+    // The name in parentheses may hold spaces; the fields after it do not.
+    stat.rsplit_once(')')?
+        .1
         .split_whitespace()
         .nth(1)?
         .parse()
         .ok()
 }
 
-/// Lists apps with audio that can be shared.
-pub fn apps_with_audio(remote: OwnedFd) -> Result<Vec<AppInfo>, CaptureError> {
-    let (result, outcome) = mpsc::sync_channel(1);
-    std::thread::Builder::new()
-        .name("opencord-share-audio-apps".to_owned())
-        .spawn(move || {
-            let apps = list_apps(remote);
-            let _ = result.send(apps);
-        })
-        .map_err(|e| CaptureError::Failed(e.to_string()))?;
-    outcome
-        .recv()
-        .map_err(|_| CaptureError::Failed("thread ended".to_owned()))
+/// Whether the session has PipeWire: screen sound needs it.
+pub fn available() -> bool {
+    std::thread::spawn(|| {
+        pw::init();
+        let Ok(mainloop) = pw::main_loop::MainLoopRc::new(None) else {
+            return false;
+        };
+        let Ok(context) = pw::context::ContextRc::new(&mainloop, None) else {
+            return false;
+        };
+        context.connect_rc(None).is_ok()
+    })
+    .join()
+    .unwrap_or(false)
 }
 
-fn list_apps(remote: OwnedFd) -> Vec<AppInfo> {
-    pw::init();
-    let Ok(mainloop) = pw::main_loop::MainLoopRc::new(None) else {
-        return Vec::new();
-    };
-    let Ok(context) = pw::context::ContextRc::new(&mainloop, None) else {
-        return Vec::new();
-    };
-    let Ok(core) = context.connect_fd_rc(remote, None) else {
-        return Vec::new();
-    };
-    let Ok(registry) = core.get_registry_rc() else {
-        return Vec::new();
-    };
-    let apps: std::sync::Arc<std::sync::Mutex<Vec<AppInfo>>> =
-        std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
+/// The apps with a playback stream open now, Opencord left out, each once.
+pub fn apps_with_audio() -> Result<Vec<AppInfo>, CaptureError> {
+    std::thread::Builder::new()
+        .name("opencord-share-audio-apps".to_owned())
+        .spawn(list_apps)
+        .map_err(failed)?
+        .join()
+        .map_err(|_| CaptureError::Failed("listing apps failed".to_owned()))?
+}
 
+fn list_apps() -> Result<Vec<AppInfo>, CaptureError> {
+    pw::init();
+    let mainloop = pw::main_loop::MainLoopRc::new(None).map_err(failed)?;
+    let context = pw::context::ContextRc::new(&mainloop, None).map_err(failed)?;
+    let core = context
+        .connect_rc(None)
+        .map_err(|_| CaptureError::NotSupported)?;
+    let registry = core.get_registry_rc().map_err(failed)?;
+    let graph = Rc::new(RefCell::new(Graph::default()));
     let _listener = registry
         .add_listener_local()
         .global({
-            let apps = std::sync::Arc::clone(&apps);
+            let graph = Rc::clone(&graph);
             move |global| {
-                if let Some((pid, name)) = playback_app(global) {
-                    let mut apps = apps.lock().unwrap();
-                    if !apps.iter().any(|a| a.pid == pid) {
-                        apps.push(AppInfo { name, pid });
-                    }
+                remember(&mut graph.borrow_mut(), global);
+            }
+        })
+        .register();
+    let pending = core.sync(0).map_err(failed)?;
+    let done = Rc::new(std::cell::Cell::new(false));
+    let _core_listener = core
+        .add_listener_local()
+        .done({
+            let done = Rc::clone(&done);
+            let mainloop = mainloop.clone();
+            move |id, seq| {
+                if id == pw::core::PW_ID_CORE && seq == pending {
+                    done.set(true);
+                    mainloop.quit();
                 }
             }
         })
         .register();
-
-    std::thread::sleep(ROUNDTRIP);
-    std::mem::drop(_listener);
-    std::mem::drop(registry);
-    std::mem::drop(core);
-    std::mem::drop(context);
-    mainloop.quit();
-    apps.lock().unwrap().clone()
+    let deadline = Instant::now() + ROUNDTRIP;
+    while !done.get() && Instant::now() < deadline {
+        mainloop
+            .loop_()
+            .iterate(pw::loop_::Timeout::Finite(Duration::from_millis(50)));
+    }
+    let graph = graph.borrow();
+    let opencord = std::process::id();
+    let mut apps: Vec<AppInfo> = Vec::new();
+    for playback in graph.playbacks.values() {
+        if !graph.shares(playback, &Source::Everything, opencord) {
+            continue;
+        }
+        let (pid, name, icon) = graph.owner(playback);
+        let Some(name) = name else {
+            continue;
+        };
+        if !apps.iter().any(|app| app.name == name) {
+            apps.push(AppInfo { name, icon, pid });
+        }
+    }
+    apps.sort_by(|a, b| a.name.cmp(&b.name));
+    Ok(apps)
 }
 
-fn playback_app(
-    global: &pw::registry::GlobalObject<&spa::utils::dict::DictRef>,
-) -> Option<(u32, String)> {
-    if global.type_ != ObjectType::Node {
-        return None;
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn channels_go_to_the_front_pair() {
+        assert_eq!(into_channels("FL"), ["FL"]);
+        assert_eq!(into_channels("FR"), ["FR"]);
+        assert_eq!(into_channels("MONO"), ["FL", "FR"]);
+        assert_eq!(into_channels("FC"), ["FL", "FR"]);
+        assert_eq!(into_channels("AUX1"), ["FR"]);
+        assert!(into_channels("RL").is_empty());
+        assert!(into_channels("LFE").is_empty());
     }
-    let props = global.props?;
-    if props.get("media.class") != Some("Stream/Output/Audio") {
-        return None;
+
+    #[test]
+    fn this_process_descends_from_its_parent_but_not_from_a_stranger() {
+        let me = std::process::id();
+        let parent = parent_of(me).unwrap();
+
+        assert!(is_descendant(me, parent));
+        assert!(!is_descendant(parent, me));
+        assert!(!is_descendant(me, u32::MAX));
     }
-    let pid = props.get("application.process.id")?.parse().ok()?;
-    let name = props
-        .get("application.name")
-        .or_else(|| props.get("node.description"))
-        .unwrap_or("?")
-        .to_owned();
-    Some((pid, name))
+
+    fn graph() -> Graph {
+        let mut graph = Graph::default();
+        graph.clients.insert(
+            7,
+            Client {
+                pid: Some(4242),
+                name: Some("Player".to_owned()),
+                icon: None,
+            },
+        );
+        let playback = |client, pid, name: Option<&str>, node: &str| Playback {
+            client,
+            pid,
+            name: name.map(str::to_owned),
+            icon: None,
+            node_name: node.to_owned(),
+        };
+        graph
+            .playbacks
+            .insert(10, playback(Some(7), None, None, "player"));
+        graph.playbacks.insert(
+            11,
+            playback(None, Some(std::process::id()), Some("Opencord"), "voice"),
+        );
+        graph
+            .playbacks
+            .insert(12, playback(None, Some(5151), Some("Browser"), "tab"));
+        graph
+            .playbacks
+            .insert(13, playback(None, None, Some("Tool"), "opencord-preview"));
+        graph.capture_node = Some(99);
+        let port = |node, output, channel: &str| Port {
+            node,
+            output,
+            channel: channel.to_owned(),
+        };
+        graph.ports.insert(100, port(10, true, "FL"));
+        graph.ports.insert(101, port(10, true, "FR"));
+        graph.ports.insert(110, port(11, true, "MONO"));
+        graph.ports.insert(120, port(12, true, "MONO"));
+        graph.ports.insert(130, port(13, true, "FL"));
+        graph.ports.insert(990, port(99, false, "FL"));
+        graph.ports.insert(991, port(99, false, "FR"));
+        graph
+    }
+
+    #[test]
+    fn a_screen_links_every_app_but_opencord_channel_by_channel() {
+        let wanted = graph().wanted(&Source::Everything, std::process::id());
+
+        assert_eq!(
+            wanted,
+            HashSet::from([(100, 990), (101, 991), (120, 990), (120, 991)])
+        );
+    }
+
+    #[test]
+    fn a_window_links_only_its_app() {
+        let opencord = std::process::id();
+        let graph = graph();
+
+        // The app name comes from the client when the node has none.
+        let player = graph.wanted(&Source::App("Player".to_owned()), opencord);
+        let browser = graph.wanted(&Source::Process(5151), opencord);
+        let nothing = graph.wanted(&Source::Nothing, opencord);
+        let opencord_by_name = graph.wanted(&Source::App("Opencord".to_owned()), opencord);
+
+        assert_eq!(player, HashSet::from([(100, 990), (101, 991)]));
+        assert_eq!(browser, HashSet::from([(120, 990), (120, 991)]));
+        assert!(nothing.is_empty());
+        assert!(opencord_by_name.is_empty(), "never Opencord's own");
+        assert_eq!(
+            graph.shared_apps(&Source::Everything, opencord),
+            ["Browser", "Player"]
+        );
+    }
+
+    #[test]
+    fn nothing_links_before_the_capture_node_exists() {
+        let mut graph = graph();
+        graph.capture_node = None;
+
+        assert!(graph.wanted(&Source::Everything, 1).is_empty());
+    }
 }

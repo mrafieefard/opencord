@@ -6,7 +6,7 @@
 
 use std::sync::mpsc;
 use std::thread::JoinHandle;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use crate::transport::ReceivedVideo;
 use crate::video::codec::decoder::Decoder;
@@ -28,6 +28,7 @@ pub struct Rgba {
 enum Command {
     Video(ReceivedVideo),
     Size(u32, u32),
+    Hold(Duration),
 }
 
 /// One remote track's decoding thread; stops when dropped.
@@ -60,6 +61,13 @@ impl VideoReceiver {
     pub fn set_size(&self, width: u32, height: u32) {
         let _ = self.commands.send(Command::Size(width, height));
     }
+
+    /// Shows each picture this long after it arrived, at the soonest: as
+    /// long as its sound waits to play, so the two stay together (plan
+    /// §10.5).
+    pub fn set_hold(&self, hold: Duration) {
+        let _ = self.commands.send(Command::Hold(hold.min(MAX_HOLD)));
+    }
 }
 
 impl Drop for VideoReceiver {
@@ -82,7 +90,11 @@ struct Receiving<S, L> {
     height: u16,
     awaiting_keyframe: bool,
     scaler: Scaler,
+    hold: Duration,
 }
+
+/// The most a picture waits for its sound.
+const MAX_HOLD: Duration = Duration::from_millis(250);
 
 impl<S: FnMut(Rgba), L: FnMut()> Receiving<S, L> {
     fn new(show: S, lost: L) -> Self {
@@ -95,6 +107,7 @@ impl<S: FnMut(Rgba), L: FnMut()> Receiving<S, L> {
             height: 0,
             awaiting_keyframe: true,
             scaler: Scaler::new(),
+            hold: Duration::ZERO,
         }
     }
 
@@ -112,6 +125,7 @@ impl<S: FnMut(Rgba), L: FnMut()> Receiving<S, L> {
                     self.size = (width, height);
                 }
                 Command::Video(video) => self.video(&video),
+                Command::Hold(hold) => self.hold = hold,
             }
         }
     }
@@ -166,7 +180,14 @@ impl<S: FnMut(Rgba), L: FnMut()> Receiving<S, L> {
 
     fn present(&mut self, picture: &Picture, arrived: Instant) {
         let (width, height) = fit(picture.width, picture.height, self.size.0, self.size.1);
-        match self.scaler.rgba(picture, width, height) {
+        let data = self.scaler.rgba(picture, width, height);
+        // Its sound plays this long after arriving; it waits as long.
+        let due = arrived + self.hold;
+        let now = Instant::now();
+        if due > now {
+            std::thread::sleep(due - now);
+        }
+        match data {
             Ok(data) => (self.show)(Rgba {
                 width,
                 height,
@@ -256,6 +277,24 @@ mod tests {
             }
         }
         got
+    }
+
+    #[test]
+    fn pictures_wait_as_long_as_their_sound_does() {
+        let (receiver, frames, _) = started(320, 180);
+        receiver.set_hold(Duration::from_millis(120));
+
+        for mut video in stream(640, 360, 5) {
+            video.arrived = Instant::now();
+            receiver.push(video);
+        }
+        let shown = collect(&frames, 5);
+
+        assert_eq!(shown.len(), 5);
+        for rgba in &shown {
+            let waited = rgba.arrived.elapsed();
+            assert!(waited >= Duration::from_millis(120), "{waited:?}");
+        }
     }
 
     #[test]

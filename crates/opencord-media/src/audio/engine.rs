@@ -5,6 +5,7 @@
 //! Who is speaking, and the microphone's level while a meter is open, go
 //! out at most every 50 ms (plan §7.5, §7.12).
 
+use std::collections::HashMap;
 use std::sync::Arc;
 use std::sync::mpsc::{self, Receiver, Sender, TryRecvError};
 use std::thread::JoinHandle;
@@ -30,6 +31,8 @@ const REAL_TIME_BUDGET_FRAMES: u32 = SAMPLE_RATE / 10;
 const CAPTURE_PER_WAKE: Duration = Duration::from_millis(40);
 /// Speaking changes and the input level go out at most this often.
 const REPORT_EVERY: Duration = Duration::from_millis(50);
+/// A stream's sound delay is reported again once it moved this much.
+const DELAY_STEP: Duration = Duration::from_millis(10);
 
 /// Which device to use.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
@@ -70,6 +73,9 @@ pub enum EngineEvent {
     SpeakingWhileMuted,
     /// High noise suppression could not keep up; Standard took over.
     NoiseSuppressionFellBack,
+    /// How long after arriving a watched stream's sound plays now, when
+    /// it changed: its pictures wait as long (plan §10.5).
+    StreamDelay { user_id: i64, delay: Duration },
 }
 
 enum Command {
@@ -81,6 +87,17 @@ enum Command {
         arrived: Instant,
     },
     RemoveUser(i64),
+    ReceiveStream {
+        user_id: i64,
+        timestamp: u32,
+        marker: bool,
+        payload: Arc<[u8]>,
+        arrived: Instant,
+    },
+    RemoveStream(i64),
+    StreamVolume(i64, f32),
+    StreamMute(i64, bool),
+    SharedSound(Vec<f32>),
     Muted(bool),
     Deafened(bool),
     Mode(InputMode),
@@ -141,6 +158,7 @@ impl AudioEngine {
                     level_meter: false,
                     reported_at: Instant::now(),
                     changes: Vec::new(),
+                    stream_delays: HashMap::new(),
                     processor,
                     microphone: None,
                     speaker: None,
@@ -193,6 +211,44 @@ impl AudioEngine {
 
     pub fn remove_user(&self, user_id: i64) {
         self.command(Command::RemoveUser(user_id));
+    }
+
+    /// A packet of `user_id`'s screen share sound (plan §10.5).
+    pub fn receive_stream(
+        &self,
+        user_id: i64,
+        timestamp: u32,
+        marker: bool,
+        payload: Arc<[u8]>,
+        arrived: Instant,
+    ) {
+        self.command(Command::ReceiveStream {
+            user_id,
+            timestamp,
+            marker,
+            payload,
+            arrived,
+        });
+    }
+
+    /// `user_id`'s screen share is no longer watched here.
+    pub fn remove_stream(&self, user_id: i64) {
+        self.command(Command::RemoveStream(user_id));
+    }
+
+    /// 0–2 (200 %), apart from their voice.
+    pub fn set_stream_volume(&self, user_id: i64, volume: f32) {
+        self.command(Command::StreamVolume(user_id, volume));
+    }
+
+    pub fn set_stream_mute(&self, user_id: i64, muted: bool) {
+        self.command(Command::StreamMute(user_id, muted));
+    }
+
+    /// The sound this device shares (interleaved stereo at 48 kHz): the
+    /// echo canceller removes it from the microphone (plan §10.6).
+    pub fn shared_sound(&self, stereo: Vec<f32>) {
+        self.command(Command::SharedSound(stereo));
     }
 
     pub fn set_muted(&self, muted: bool) {
@@ -306,6 +362,8 @@ struct Engine {
     level_meter: bool,
     reported_at: Instant,
     changes: Vec<(i64, bool)>,
+    /// Each watched stream's sound delay, as last reported.
+    stream_delays: HashMap<i64, Duration>,
     /// Without a speaker, playing follows the clock from here.
     unplayed_since: Instant,
     scratch: Vec<f32>,
@@ -358,6 +416,20 @@ impl Engine {
                 arrived,
             } => processor.receive(user_id, timestamp, marker, payload, arrived),
             Command::RemoveUser(user_id) => processor.remove_user(user_id),
+            Command::ReceiveStream {
+                user_id,
+                timestamp,
+                marker,
+                payload,
+                arrived,
+            } => processor.receive_stream(user_id, timestamp, marker, payload, arrived),
+            Command::RemoveStream(user_id) => {
+                processor.remove_stream(user_id);
+                self.stream_delays.remove(&user_id);
+            }
+            Command::StreamVolume(user_id, volume) => processor.set_stream_volume(user_id, volume),
+            Command::StreamMute(user_id, muted) => processor.set_stream_mute(user_id, muted),
+            Command::SharedSound(stereo) => processor.shared_sound(&stereo),
             Command::Muted(muted) => processor.set_muted(muted),
             Command::Deafened(deafened) => processor.set_deafened(deafened),
             Command::Mode(mode) => processor.set_mode(mode),
@@ -418,6 +490,16 @@ impl Engine {
         self.processor.speaking_changes(&mut self.changes);
         if !self.changes.is_empty() {
             (self.events)(EngineEvent::Speaking(std::mem::take(&mut self.changes)));
+        }
+        for (user_id, delay) in self.processor.stream_delays() {
+            let before = self.stream_delays.insert(user_id, delay);
+            let moved = before.is_none_or(|before| before.abs_diff(delay) >= DELAY_STEP);
+            if moved {
+                (self.events)(EngineEvent::StreamDelay { user_id, delay });
+            } else if let Some(before) = before {
+                // Small moves are not reported; the last one stands.
+                self.stream_delays.insert(user_id, before);
+            }
         }
         let level = self.processor.take_input_level();
         if let Some(level) = level.filter(|_| self.level_meter) {

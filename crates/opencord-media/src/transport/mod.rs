@@ -77,6 +77,9 @@ pub struct EncodedScreenAudio {
     pub payload: Vec<u8>,
     /// The frame's first sample on the sender's 48 kHz capture clock.
     pub position: u64,
+    /// When that sample was captured: with the video's capture times, what
+    /// receivers line sound and picture up by (sender reports).
+    pub captured: Instant,
 }
 
 /// Someone's Opus packet, as it arrived.
@@ -195,6 +198,8 @@ pub enum VoiceEvent {
         user_id: i64,
     },
     Audio(ReceivedAudio),
+    /// The sound of someone's screen share, watched here (plan §10.5).
+    StreamAudio(ReceivedAudio),
     Speaking {
         user_id: i64,
         flags: u32,

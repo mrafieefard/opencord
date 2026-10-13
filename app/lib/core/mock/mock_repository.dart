@@ -1468,6 +1468,128 @@ class MockRepository implements OpencordRepository {
   @override
   Future<void> leaveVoice() async => _leaveVoiceNow();
 
+  /// The voice channel [userId] is in and their place in it.
+  (int, List<VoiceParticipant>, int) _inVoice(MockServer server, int userId) {
+    for (final MapEntry(key: channel, value: participants)
+        in server.voice.entries) {
+      final index = participants.indexWhere((p) => p.userId == userId);
+      if (index != -1) return (channel, participants, index);
+    }
+    throw const RepoException(
+      RepoErrorKind.notFound,
+      'They are not in a voice channel.',
+    );
+  }
+
+  void _moderate(
+    String serverKey,
+    int userId,
+    Permissions needed,
+    VoiceParticipant Function(VoiceParticipant) change,
+  ) {
+    final server = _server(serverKey);
+    final (channel, participants, index) = _inVoice(server, userId);
+    _require(server, needed, channel);
+    participants[index] = change(participants[index]);
+    if (userId == server.selfId) _selfVoice = participants[index];
+    _emit(VoiceChanged(serverKey, channel, List.of(participants)));
+  }
+
+  @override
+  Future<void> serverMuteMember(
+    String serverKey,
+    int userId,
+    bool muted,
+  ) async => _moderate(
+    serverKey,
+    userId,
+    Permissions.muteMembers,
+    (p) => p.copyWith(serverMuted: muted),
+  );
+
+  @override
+  Future<void> serverDeafenMember(
+    String serverKey,
+    int userId,
+    bool deafened,
+  ) async => _moderate(
+    serverKey,
+    userId,
+    Permissions.deafenMembers,
+    (p) => p.copyWith(serverDeafened: deafened),
+  );
+
+  @override
+  Future<void> moveMember(String serverKey, int userId, int channelId) async {
+    final server = _server(serverKey);
+    final (from, participants, index) = _inVoice(server, userId);
+    _require(server, Permissions.moveMembers, from);
+    final destination =
+        server.voice[channelId] ??
+        (throw const RepoException(
+          RepoErrorKind.invalidArgument,
+          'That is not a voice channel.',
+        ));
+    _require(server, Permissions.moveMembers, channelId);
+    if (from == channelId) return;
+    destination.add(participants.removeAt(index));
+    if (userId == server.selfId) {
+      _voice = (server: serverKey, channel: channelId);
+      _emit(VoiceConnectionChanged(serverKey, channelId, _connected));
+    }
+    _emit(VoiceChanged(serverKey, from, List.of(participants)));
+    _emit(VoiceChanged(serverKey, channelId, List.of(destination)));
+  }
+
+  @override
+  Future<void> disconnectMember(String serverKey, int userId) async {
+    final server = _server(serverKey);
+    final (channel, participants, index) = _inVoice(server, userId);
+    _require(server, Permissions.moveMembers, channel);
+    if (userId == server.selfId) return _leaveVoiceNow();
+    participants.removeAt(index);
+    _emit(VoiceChanged(serverKey, channel, List.of(participants)));
+  }
+
+  /// What the system's picker chooses, for tests.
+  StreamSource debugShareSource = StreamSource.screen;
+
+  /// Whether sharing sound works here, and the apps playing, for tests.
+  ScreenAudioSupport screenAudio = (supported: true, reason: null);
+  List<ScreenAudioApp> appsPlaying = [
+    (name: 'Firefox', icon: 'firefox'),
+    (name: 'Spotify', icon: 'spotify'),
+  ];
+
+  /// Each stream's volume and mute here, by server and user, for tests.
+  final streamListening = <(String, int), (int, bool)>{};
+
+  @override
+  Future<ScreenAudioSupport> screenAudioSupport() async => screenAudio;
+
+  @override
+  Future<List<ScreenAudioApp>> screenAudioApps() async => appsPlaying;
+
+  @override
+  void setScreenShareAudioFrom(String? app) {
+    if (_screen case final share?) {
+      _screen = share.copyWith(audioFrom: () => app);
+      _emit(OwnScreenShareChanged(_screen));
+    }
+  }
+
+  @override
+  void setStreamVolume(String serverKey, int userId, int volume) {
+    final (_, muted) = streamListening[(serverKey, userId)] ?? (100, false);
+    streamListening[(serverKey, userId)] = (volume, muted);
+  }
+
+  @override
+  void setStreamMute(String serverKey, int userId, bool muted) {
+    final (volume, _) = streamListening[(serverKey, userId)] ?? (100, false);
+    streamListening[(serverKey, userId)] = (volume, muted);
+  }
+
   /// The mock paints its cameras; what the tiles asked for is only kept,
   /// for tests.
   @override
@@ -1524,8 +1646,9 @@ class MockRepository implements OpencordRepository {
     );
     _screen = OwnScreenShare(
       key: key,
-      source: StreamSource.screen,
+      source: debugShareSource,
       quality: quality,
+      audio: audio && screenAudio.supported,
       preview: const VideoFeed(
         trackId: 'mock-screen',
         textureId: null,
@@ -1543,7 +1666,7 @@ class MockRepository implements OpencordRepository {
   }) async {
     final (session, share) = (_voice, _screen);
     if (session == null || share == null) return;
-    _screen = share.copyWith(quality: quality);
+    _screen = share.copyWith(quality: quality, audio: audio);
     _emit(
       StreamChanged(
         session.server,
@@ -1702,10 +1825,10 @@ class MockRepository implements OpencordRepository {
   );
 
   /// What [setHotkeys] was last given.
-  Map<HotkeyAction, String> hotkeys = const {};
+  List<HotkeyBinding> hotkeys = const [];
 
   @override
-  Future<HotkeySupport> setHotkeys(Map<HotkeyAction, String> bindings) async {
+  Future<HotkeySupport> setHotkeys(List<HotkeyBinding> bindings) async {
     hotkeys = bindings;
     return hotkeySupport;
   }
