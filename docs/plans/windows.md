@@ -753,7 +753,7 @@ pushed milestone, and the Mac's work reaches this branch only through
 |---|---|---|
 | W0 | (this commit) | **The PC.** Windows 10 Pro 22H2, build 19045.7417 — *not* Windows 11, so screen share sound (decision C) cannot be measured here; see the W7 note below. i7-13620H; RTX 4070 Laptop (32.0.16.1078) and Intel UHD (31.0.101.4255); 15.7 GB. Visual Studio Community 2026 18.8.2 (NativeDesktop), rustc/cargo 1.99.0, Flutter 3.44.0 (Dart 3.12.0), FFmpeg n9.0.2 LGPL shared, pwsh 7.6.6, Python 3.14.7. **Rust.** `cargo build --workspace` 6 m 30 s, 8 warnings, every one off-Linux dead code in a shared file. `cargo fmt --all --check` clean. `cargo test --workspace --lib --bins --tests --no-fail-fast`: **608 passed, 5 failed, 4 ignored**, plus one target that does not compile. `cargo clippy --workspace --all-targets` **fails** (five `opencord-media` examples do not compile off Linux). **Dart.** `flutter analyze` clean, 49.1 s. `flutter test`: **730 passed, 20 failed, 1 skipped**. Every failure of either is listed under "Shared code that fails on Windows" below; none was fixed here (platforms.md §4). **The app.** `check_m5.ps1` and `check_m6.ps1` both pass: the app builds (225.8 s cold, 23–29 s warm), creates an identity, claims a server, is still connected after a restart, and two identities chat live while a new restriction reaches the member's UI without a reconnect. `e2e_server.ps1` starts and stops a server. **Not done:** the tray and `opencord://` links still need a person at the PC (W0 step 4); LLVM is not installed, which W3 needs. |
 | W1 | (three commits) | **Steps 1 to 5 and 7 pass. Step 6's acceptance is met but is not demonstrative on this machine's own speakers; it needs external ones.** **Step 1** needed nothing — microphone access and "Let desktop apps access your microphone" were both already `Allow`. **Step 2 answered: a denied microphone fails to open, it does not record silence.** `Microphone::open` returns `could not open the microphone: Failed to initialize audio client: Access is denied. (os error -2147024891)` — `0x80070005`, `E_ACCESSDENIED`, from `IAudioClient::Initialize`. Measured by setting both `ConsentStore\microphone` values to `Deny` and restoring them. So the app's noticeable path is the right one and no shared UI follow-up is needed: `engine.rs:551` turns that `Err` into `EngineEvent::DeviceFailed { output: false }` → `MediaEvent::DeviceFailed` → Dart `AudioDeviceFailed` → the notice "No microphone could be opened." (traced through the code, not yet watched end to end in the app). **Step 3, the device lists:** ids are `wasapi:{0.0.1.00000000}.{guid}` for microphones and `wasapi:{0.0.0.00000000}.{guid}` for speakers. 3 microphones — Intel Smart Sound mic array (the default), WO Mic Device, Razer Barracuda X 2.4 — and 2 speakers — Realtek(R) Audio, Razer Barracuda X 2.4 (the default). A control measurement with access allowed: the default microphone opened at 48000 Hz on 2 channels and delivered 144000 samples in 1.5 s (exactly 48 kHz × 2), peak −42.7 dBFS, 0 glitches, not lost. `crates/opencord-media/tests/devices_windows.rs` holds both, and is the instrument for step 2. **The rest of step 3** came out of steps 4 and 5: a voicebot hears the app (the Listener took 595 packets carrying the app's tone) and the app hears a voicebot (it played Talker's 440 Hz at −9.2 dBFS). The level meter itself was not measured separately; it is a shared Dart binding of `InputLevelChanged` and only fires while a meter is open. **Step 4, the per-user audio check, passes, every number inside the plan's 0.5 dB:** Talker's 440 Hz at 100 % −9.2 dBFS; at 50 % −15.3 dBFS (**−6.0 dB**, wanted −6); at 200 % −3.2 dBFS (**+6.0 dB**, wanted +6); muted **−106.2 dBFS** (wanted < −90); unmuted −9.7 dBFS. Player's 880 Hz sound −11.7 dBFS, with the soundboard muted **−123.0 dBFS** while Talker stayed at −9.2 dBFS, and −11.7 dBFS again when unmuted. **Step 5, the microphone path, passes in both processing modes.** 440 Hz as a Listener voicebot heard it: voice activity −21.1 dBFS, push-to-talk released **nothing at all — no packets** (recorded as −200), push-to-talk held −21.1 dBFS. Repeated with `standard` (RNNoise) suppression: −21.0 / none / −21.1 dBFS, so the chain passes a pure tone through unchanged, which is what W2's acceptance will rest on. **Step 7: the audio thread does get real-time priority.** The core installs no tracing subscriber, so there is no app log to read as the step suggests; measured instead on the threads, where MMCSS shows up as a boost into the 16–26 band: while the app held voice, exactly one of its 128 threads sat at base priority **21**, against 98 at the ordinary 8, in a process whose class is Normal. **Step 6, the echo test: the plan's acceptance is met in every run, but it does not demonstrate echo cancellation on this machine.** The app plays Talker's 440 Hz at −9.2 dBFS (W1 step 4; the plan says about −12) and what comes back is −129 dBFS or quieter, against an acceptance of under −50 — met with about 80 dB to spare. What it does not show is the canceller doing that, because the echo does not survive to be cancelled. Over 5 runs, 4 had the un-cancelled control at −129.5, −130.4, −136.4 and −147.7 dBFS, already far under the threshold, with the cancelled figure the same to within a few dB; a dead speaker would score identically. The one run that did discriminate — control −42.1 dBFS, cancelled −132.5 dBFS, 90.4 dB removed — had a sent peak of −10.9 dBFS against −78 to −88 dBFS in all the others, so what held the gate open was room noise, not the speakers, and it did not repeat. The cause is measured, not guessed: a 440 Hz tone played out of `Speakers (Realtek(R) Audio)` arrives at the Intel microphone array at **−56.8 dBFS** from a −18.2 dBFS source, with 1 kHz unmoved at −111 dBFS (room floor −112.3) — about **38 dB of acoustic loss**. At that level noise suppression removes the echo as the non-speech it is before the canceller is reached. `check_echo.ps1` therefore exits 2, "inconclusive", rather than reporting a pass it has not earned. **To demonstrate the canceller, the machine needs external speakers, turned up, close to the microphone** — see the note below. |
-| W2 | | |
+| W2 | (this commit) | **All seven steps done. Step 7's acceptance is measured and passing; step 6 found one limit, in shared Dart.** **The merge first,** because it settles what W0 logged: after `git merge origin/phase2-remaining` (L1 at `eb40bc8`, a fast-forward to `2de3e0c`), `cargo fmt --all --check` and `cargo clippy --workspace --all-targets -- -D warnings` **both exit 0 on Windows**. The 8 shared dead-code warnings, the 5 non-compiling examples and `opencord-voicebot/tests/voice.rs`'s compile error are all gone, so `-D warnings` is usable here from now on. **Steps 1 to 4, the hook.** `hotkeys/windows.rs` is a `WH_KEYBOARD_LL` hook on a thread of its own, installed from that thread and stopped with `PostThreadMessageW(WM_QUIT)`; the procedure maps the key, updates the shared `Held`, sends the events and always calls `CallNextHookEx`, taking no lock that could block (`try_borrow_mut`, and the only other borrower is a `WM_TIMER` on the same thread). `RegisterHotKey` is not used at all. Keysyms map to virtual keys through a fixed table plus `VkKeyScanExW` against the **foreground window's** layout, rebuilt on a 500 ms `WM_TIMER`. Support is `Global { method: "a Windows keyboard hook" }`. **Step 5, tests: 16 unit tests pass, 0 fail**, covering the keysym↔virtual-key table (F1/F24, KP_0/KP_9, Control_R, Super_L, Escape, KP_Divide, and `m`/`7`/`space` through the layout), extended keys (`KP_Enter` and `Return` share `VK_RETURN` and are told apart; a keypad key with Num Lock off does **not** match the arrow it reports), AltGr, left/right modifiers, and the five press/release behaviours mirrored from `x11.rs`. **5 `#[ignore]`d live tests pass** with real keys injected by `SendInput`: press and release reach the action, two push-to-talk keys hold until both are up, Right Ctrl alone works, a toggle fires once per press, and Print Screen reaches the hook. **Step 6, the key recorder: 2 of 3 keys record as the core names them, Print Screen records nothing.** Measured with keys really pressed into the real app window (`check_key_recorder.ps1`): the right Alt → `Alt_R`, shown "Right Alt"; the left Windows key → `Super_L`, shown "Left Super" (it also opens the Start menu, as it must — nothing may swallow a key); **Print Screen → `""`**, the recorder still saying "Press keys…". The cause is not the hook: `print_screen_reaches_the_hook` shows the hook gets both the down and the up, so `Print` works as a keybind once set — Windows just doesn't send a focused window the key-down, and the recorder commits a key on its key-down. A note for the Linux session, below; `check_key_recorder.ps1` exits 2 for it rather than failing. AltGr itself could not be recorded on this PC: a US layout has no AltGr key, so the right Alt is only the right Alt here; the phantom-Ctrl path is covered by the unit test instead. **Step 7's acceptance passes, measured.** `check_keybinds.ps1`, with F13 bound to push-to-talk, the app's microphone on CABLE Output and a 440 Hz tone down the cable, the key injected from outside the app **while Notepad had the focus** (`foreground=notepad` in the held run's own report): held, the Listener voicebot took **604 packets** and heard 440 Hz at **−21.1 dBFS**; never pressed, it heard **nothing at all — no packets** (recorded as −200). A difference of 178.9 dB against a 20 dB requirement, and −21.1 dBFS is the same figure W1 step 5 measured for a held push-to-talk, so the hook costs the chain nothing. Both runs reported `support=global (a Windows keyboard hook)`, which is the second half of step 7: the settings page can say the keybinds are global. **Checks:** `cargo test --workspace --lib --bins --tests` 686 passed, 4 failed, 10 ignored — every failure in `opencord-voice/tests/video.rs`, the Linux-owned file this PC has never got through (W1's note); every other W0 Rust failure is gone. `flutter analyze` clean; `flutter test` **735 passed, 1 skipped, 16 failed**, all 16 goldens and not regenerated (W0 had 20 failures; L1's shared fixes removed the other 4). `dart format` clean on own files. **Zero `shared:` commits:** `hotkeys/mod.rs` needed no change. **Known limit, for the log:** keys typed into a window of a process running as administrator never reach a hook in a normal one (UIPI), so push-to-talk inside such a game needs Opencord started as administrator; this is in the file's doc comment. |
 | W3 | | |
 | W4 | | |
 | W5 | | |
@@ -935,7 +935,84 @@ Decided while doing W1:
   clippy names none of them — cost if wrong: a warning in an own file could
   hide among the shared ones, so each one is grepped for by name.
 
+Decided while doing W2:
+- W2: Ruling: `RegisterHotKey` is not used at all, not even for the toggles the
+  plan suggests it for; the one `WH_KEYBOARD_LL` hook handles every action —
+  cost if wrong: none measured, since a hook does everything `RegisterHotKey`
+  does; what it buys is that Opencord never takes a key away from the game or
+  app the user is actually in.
+- W2: Ruling: a keysym that names a key the keyboard has twice is matched on
+  the extended-key flag as well as the virtual-key code. `Left` matches only
+  the arrow cluster, `Return` only the main keyboard's, `KP_Enter` only the
+  keypad's — so a keypad key pressed with Num Lock off matches **nothing**
+  rather than the arrow someone bound. X11 gives those keys keysyms of their
+  own (`KP_Left`), which no accelerator can name, so matching nothing is what
+  mirrors Linux — cost if wrong: someone who bound `Left` and presses keypad 4
+  with Num Lock off gets no push-to-talk, exactly as on Linux.
+- W2: Ruling: AltGr's phantom left Ctrl is recognised by its extended-key flag
+  — a real left Ctrl never carries it — and dropped before the matcher sees
+  it, rather than by timing it against the right Alt — cost if wrong: on a
+  driver that doesn't set the flag, AltGr+key could trigger a `CTRL+ALT+…`
+  binding. The timing approach was rejected because it would have the hook
+  procedure look at the message queue, which it must not do.
+- W2: Ruling: the printable keys' table is rebuilt from the **foreground
+  window's** keyboard layout, on a 500 ms `WM_TIMER` in the hook thread's own
+  message loop and never in the hook procedure — cost if wrong: for up to half
+  a second after the user switches layout, a printable keybind still watches
+  the old layout's key. Doing it in the procedure would risk
+  `LowLevelHooksTimeout`, which drops the hook silently.
+- W2: Ruling: a key the layout cannot type at all (`watch` returning `None`)
+  matches nothing, instead of falling back to some other key — cost if wrong:
+  a keybind recorded on one layout quietly stops working on another, which is
+  better than quietly firing on the wrong key.
+- W2: Ruling: `hotkeys/windows.rs` needed no change to `hotkeys/mod.rs`. A
+  child module reaches its ancestors' private items, and L1 made `Held`,
+  `press` and `release` `pub(crate)` anyway — cost if wrong: nothing; it is
+  what makes W2 a zero-`shared:` milestone.
+- W2: Ruling: the Rust live tests inject keys with `SendInput`, as decision F
+  says, and the app-level checks use `keybd_event` from
+  `app/tool/windows/hold_key.ps1`, because a check cannot inject from inside
+  the app under test. Both put the key into the same stream a real keyboard
+  uses — cost if wrong: `keybd_event` is deprecated but not removed, and if it
+  ever goes, the script is four lines of P/Invoke to change.
+- W2: Ruling: the live tests press F13, F14, F15 and Right Ctrl, and nothing
+  else. They have virtual-key codes, no app binds them, and none of them types
+  a character anywhere — cost if wrong: a test run would type into whatever
+  window happened to have the focus.
+- W2: Ruling: `check_key_recorder.ps1` exits **2** for a key the recorder
+  cannot record at all, and 1 only for a key recorded as the *wrong* key, the
+  same convention as `check_echo.ps1` — cost if wrong: a milestone could
+  otherwise be blocked by a shared-Dart limit this session may not fix
+  (platforms.md §4).
+- W2: Ruling: `check_keybinds.ps1` builds the app with
+  `flutter build windows --debug` before any phase starts. A voicebot's run is
+  a fixed number of seconds from when it starts, so a cold cargokit build
+  inside a phase had the Listener gone before the app ever joined — the first
+  attempt failed in exactly that way, with the Listener listed offline in the
+  app's own sidebar — cost if wrong: none; it only moves work earlier.
+- W2: Ruling: AltGr was not measured through the app's key recorder. This PC's
+  layout is US, which has no AltGr key at all, so the right Alt is only the
+  right Alt here; adding a German layout would change the user's system
+  settings for one measurement. The hook's phantom-Ctrl handling is unit-tested
+  instead (`altgr_does_not_press_a_ctrl_alt_hotkey`) — cost if wrong: the
+  recorder's own AltGr behaviour is untested on a layout that has one; it is
+  shared Dart, so the Mac and Linux sessions are better placed for it anyway.
+
 For the Linux session, and for the user:
+- W2: **Print Screen cannot be recorded by the app's key recorder on Windows**,
+  though it works perfectly well as a keybind once set. Measured: pressing it
+  into the real app window leaves the recorder at "Press keys…" and saves `""`,
+  while the hook below it sees both the key-down and the key-up
+  (`print_screen_reaches_the_hook`). Windows does not send a focused window the
+  key-down for Print Screen, and `keybind_recorder.dart` commits a non-modifier
+  key on `KeyDownEvent`. The fix is in shared Dart, so it is not made here:
+  committing a non-modifier key on its `KeyUpEvent` too, when no down was seen,
+  would cover it. Right Alt (`Alt_R`) and the left Windows key (`Super_L`) both
+  record correctly.
+- W2: Recording the Windows key alone also opens the Start menu, which takes
+  the focus. That is correct behaviour — nothing may swallow a key — but it
+  does make the Windows key a poor keybind, and the Keybinds page says nothing
+  about it. Worth a word in the UI, in shared Dart.
 - W0: **W7 cannot be measured on this PC.** Decision C puts screen share sound
   at build 20348 and this is 19045. W2–W6 are unaffected. Unless the PC moves
   to Windows 11, W7 can only be written and unit-tested here, shipped behind
@@ -966,7 +1043,13 @@ For the Linux session, and for the user:
   the wrong device for the echo test anyway — cancelling an echo that barely
   exists is no test — so the built-in speakers were used instead.
 
-Shared code that fails on Windows (platforms.md §4: listed, not edited here):
+Shared code that fails on Windows (platforms.md §4: listed, not edited here).
+**Re-measured after merging L1 at W2: everything below is fixed except
+`opencord-voice/tests/video.rs` and the goldens.** The voicebot test compiles,
+the five examples compile, the server's config tests pass, the D-Bus tests are
+`@TestOn('linux')`, `hardcoded_colors_test` accepts backslashes, and
+`app/test/golden/failures/` is gitignored. The entries are kept as the record
+of what W0 found:
 - `crates/opencord-voicebot/tests/voice.rs` **does not compile**:
   `a_voicebots_encoded_camera_is_decoded_by_another_voicebot` calls
   `publish_encoded_camera`, which `src/lib.rs:570` gates behind
@@ -1011,7 +1094,10 @@ Shared code that fails on Windows (platforms.md §4: listed, not edited here):
   `lib\ui\theme\…` on Windows, so every token in `oc_colors.dart` and
   `oc_theme.dart` is reported as an offender.
 
-Warnings in shared files, expected before L1 and not fixed (§0, platforms.md §4):
+Warnings in shared files, expected before L1 and not fixed (§0, platforms.md §4).
+**All 15 are gone after merging L1:** `cargo clippy --workspace --all-targets
+-- -D warnings` exits 0 on Windows as of W2. Kept as the record of what W0
+found:
 - `opencord-media` lib, 8: `hotkeys/mod.rs` `shortcut_id`,
   `shortcut_description`, `action_of`, `shortcut_ids`, `Held::press` and
   `Held::release`; `video/camera/mod.rs` `pack`.

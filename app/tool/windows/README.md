@@ -24,13 +24,22 @@ pwsh -File app/tool/windows/check_m5.ps1
 | `check_user_audio.ps1` | W1 step 4: the per-user voice menu, measured at the speaker through the cable. |
 | `check_microphone.ps1` | W1 step 5: the microphone path, in voice activity and push-to-talk, held and released. |
 | `check_echo.ps1` | W1 step 6: the echo test, on real speakers. **Exits 2 when the run cannot discriminate** — see below. |
+| `hold_key.ps1` | Holds one key down for a while, wherever the focus is, and says which app had it. How the checks press a global keybind with nobody at the PC. |
+| `check_keybinds.ps1` | W2 step 7: push-to-talk on a global keybind, held from outside the app while Notepad has the focus. |
+| `check_key_recorder.ps1` | W2 step 6: what the app's key recorder makes of Print Screen, the Windows key and the right Alt. **Exits 2 for a key it cannot record at all** — see below. |
 
-A check exits 0 when it passed, 1 when it failed, and `check_echo.ps1` exits
-**2** when the result proves nothing either way: its acceptance is "the echo
-comes back under −50 dBFS", so it first runs with echo cancellation off, and if
-that control is already under −47 dBFS there was nothing to cancel and a silent
-speaker would score the same as a working canceller. Treat 2 as "run it again
-with louder speakers", not as a pass.
+A check exits 0 when it passed and 1 when it failed. Two of them also exit
+**2**, for a result that proves nothing either way:
+
+- `check_echo.ps1`, when the control run was already quiet. Its acceptance is
+  "the echo comes back under −50 dBFS", so it first runs with echo cancellation
+  off, and if that control is already under −47 dBFS there was nothing to
+  cancel and a silent speaker would score the same as a working canceller.
+  Treat 2 as "run it again with louder speakers", not as a pass.
+- `check_key_recorder.ps1`, when the recorder could not record a key at all.
+  That is a limit in shared Dart, which a platform session does not fix
+  (platforms.md §4), and the key may still work as a keybind once set; 1 is
+  kept for a key recorded as the *wrong* key.
 
 ## Test stand-ins
 

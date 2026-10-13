@@ -3228,6 +3228,7 @@ dependencies = [
  "tract-onnx",
  "tract-pulse",
  "v4l",
+ "windows",
  "x11rb",
 ]
 
