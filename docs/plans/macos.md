@@ -788,7 +788,7 @@ contract in its doc comments and is already called by the shared code.
 | M0 | `M0: macOS setup and baseline` (+ f6aff9a `shared:`) | **Mac:** MacBook Pro 2019, Intel Core i7-9750H (`uname -m` x86_64, 6 cores), macOS 15.8.1 (24H32), Xcode 26.3 (17C529), Flutter 3.44.0 / Dart 3.12.0 (the CI pin; the Mac also has 3.47.5), rustc 1.99.0. **Rust:** `cargo build --workspace` passes (54 s, only the expected off-Linux warnings); `cargo test --workspace --lib --bins --tests` 625 passed, 0 failed, 4 ignored over 24 binaries (one timing flake on the first run, below); `cargo fmt --check` clean; clippy as in the ruling below, clean. **Flutter:** `flutter analyze` no issues; `flutter test` +731 ~1 −19: the 16 goldens and 3 D-Bus tests, below. **App:** Debug build signed "Apple Development" (team 56D9H34Y6B) through `Signing.local.xcconfig`. Through `app/tool/macos/run_check.sh`: `m6` (sign in, join, chat live, follow a new restriction), `m5` (TOFU join, restart, still connected) and `v0` (voice states live, moved, disconnected) all pass on macOS. Not done: Homebrew, sox, SwitchAudioSource and BlackHole are not installed (needs the user; M1). |
 | M1 | `M1: microphone and camera usage, entitlements, macOS 13; Mac voice checks` and the three M1 commits after it | **Bundle:** the three usage strings and `device.audio-input` + `device.camera` (Debug and Release) are in the built app; `LSMinimumSystemVersion` 13.0, `minos 13.0` for the app and `opencord_core` (the "building for macOS-10.15" linker warnings are gone). **Prompt (with the user):** Opencord launched on its own asked for the microphone on joining General; after Allow it is listed under Privacy & Security → Microphone and uses the MacBook's microphone. **`app/tool/macos/check_user_audio.sh`:** passes. Talker 440 Hz at 100 % −12.2 dBFS; 50 % −18.3 (−6.0 dB); 200 % −6.2 (+6.0 dB); muted −106.1; unmuted −12.2; Player's 880 Hz sound −14.7; soundboard muted −200 (nothing); Talker meanwhile −12.2; soundboard unmuted −14.8 — Linux's numbers within 0.5 dB. Run from BlackHole at 44.1 kHz, which the script moves to 48 kHz. **`check_microphone.sh`:** passes. 1 kHz from `afplay` through BlackHole as the microphone, in what a listening voicebot got: voice activity −8.6 dBFS (225 packets), push-to-talk held −12.6 dBFS (221), released nothing; level meter 577 readings, loudest −3.8 dBFS; device lists: inputs Mohammad Microphone, BlackHole 2ch, MacBook Pro Microphone; outputs BlackHole 2ch, MacBook Pro Speakers. **`check_echo.sh` (V3's echo acceptance, user present, MacBook Pro Speakers + Microphone, Talker at −12.2 dBFS):** passes. 440 Hz in what the app sent: **−110.1 dBFS** with its processing (echo cancellation on, noise suppression standard), −19.1 dBFS with both off. **Shared integration tests with `-d macos`** (`run_check.sh`): `v2` passes; `v3` passes (noise suppression standard by benchmark, hotkeys `FocusedOnly`, 11 levels, loudest −40.1 dBFS); `v8` passes; none failed for a platform reason. **Not done:** nothing in M1. L1 had not landed when M1 ended (checked after the last step). |
 | M2 | `M2: global keybinds through a listen-only event tap` (57c2d60) | **`hotkeys/macos.rs`:** a `kCGSessionEventTap`, `kCGHeadInsertEventTap`, listen-only (keyDown, keyUp, flagsChanged) on its own thread and run loop, re-enabled on `TapDisabledByTimeout`/`…ByUserInput`; printable keys from the current layout (`TISCopyCurrentKeyboardLayoutInputSource` + `UCKeyTranslate`, unshifted and shifted, rebuilt on `kTISNotifySelectedKeyboardInputSourceChanged`), the rest from a fixed `kVK_*` table; modifier keys alone from flagsChanged, their side from the device flags. New macOS deps: `objc2-core-graphics` 0.3.2, `objc2-core-foundation` 0.3.2, `dispatch2` 0.3.1. The podspec links CoreGraphics and Carbon. **Unit tests:** 12 new (keysym → keycode table, the current layout's letters, left/right flags, matcher cases); `hotkeys` 16 passed, 0 failed. **Live, posted keys** (`--ignored`, iTerm with Input Monitoring + Accessibility, TextEdit focused): 4 passed, 0 failed, 9.6 s — CTRL+F13 press and release; F14 + Right Ctrl hold until both are up; Right Ctrl alone (Left Ctrl does nothing); a toggle fires once over three auto-repeated downs. **Accept, `app/tool/macos/check_hotkeys.sh`:** passes. Push-to-talk on F13, TextEdit focused throughout, 1 kHz from `afplay` as the microphone, what a Listener voicebot got: not held nothing; F13 held −12.6 dBFS (225 packets, peak −12.5); released nothing. The app reports `HotkeysGlobal` ("Keybinds work in other apps too, through Input Monitoring"). **By hand (user):** Opencord launched on its own asked for Input Monitoring when a keybind was added; after Allow it is listed and, after a relaunch, binds F12 globally and the Keybinds page says they work in other apps. The first build crashed there (below), so whether a grant works without a relaunch, and whether "Open settings" opens the pane, were not seen: next user visit (M5). **§0 checks:** fmt clean; `clippy --workspace --all-targets -D warnings` clean, no exceptions; `cargo test --workspace --lib --bins --tests` 658 passed, 0 failed, 8 ignored over 25 binaries; `flutter analyze` no issues; `flutter test` +735 ~1 −16 (the 16 goldens; the D-Bus tests skip since L1). |
-| M3 | | |
+| M3 | `M3: H.264 through VideoToolbox; scaling with pic-scale and yuv` (a0f2ff6, + 0ef70a4 `shared:`) | **Codec:** `video/codec/macos/` — VideoToolbox encoder and decoder, pic-scale + yuv scaler, raw decoder; `supported()` true. **Encoder opened:** `Backend::VideoToolbox` is the hardware encoder (Quick Sync on this i7-9750H: `UsingHardwareAcceleratedVideoEncoder` true) with low-latency rate control; software encoder as the fallback. **Encode time per picture** (release, wall clock, pictures made beforehand; hardware work runs in VideoToolbox's own process, so not this process's CPU): 720p30 hardware 8.87 ms mean (5.17 best), software 9.53 (7.93); 360p30 hardware 5.70 (3.05), software 2.74 (2.25); 180p15 hardware 3.86 (1.68), software 1.66 (1.37); 1080p30 hardware 10.83 (6.89), software 20.29 (16.26). **Bitrate over 10 s of the test pattern:** 720p at 1.5 Mbit/s: hardware 1.53 Mbit/s (+2 %), software 1.19 (−20 %); 360p at 500 kbit/s: hardware 289 k (−42 %), software 515 k; 180p at 150 k: hardware 106 k, software 155 k (ruling below). Without low latency the hardware encoder overshoots: 729 k at 360p, 2.12 M at 720p. **First hardware open in a process:** 667–674 ms (291 ms without low latency); later opens 25–29 ms. **Decoding:** round trip worst PSNR 47.3 dB (software and hardware decoders, 640×360, 30 pictures, each out of its own call); a size change mid-stream decodes; nothing before a keyframe; garbage and damage are errors. **Scaler:** 1080p NV12 → 640×360 RGBA 1.23 ms in release (budget 2 ms; 2.1 ms in a debug test build); BT.601 colour patches (full red, green, blue, grey) within 3 levels. **Tests:** 21 in `codec::macos` (port of the Linux ones plus AVCC, I420, colour patches, the 2 ms budget), all pass; the shared sender/receiver/codec tests (84 in `video::`) now run here: all pass alone, two sender tests are load-sensitive (below). Voicebot: `a_voicebots_encoded_camera_is_decoded_by_another_voicebot` and `screen_audio.rs` pass on macOS. **Accept, `app/tool/macos/check_v4.sh`:** passes. Shared flow: 299 pictures, 299 intact, none of the top layer, 498 kbit/s. Real H.264 (`--camera`, VideoToolbox both ends): 195 pictures in 10 s, all 195 decoded, none of the top layer, 216 kbit/s with the debug voicebot (it draws the 720p scene itself); with a release voicebot 298 pictures, 298 decoded, 366 kbit/s. **Release build:** `flutter build macos --release` builds the universal app (x86_64 + arm64; `rustup target add aarch64-apple-darwin`); `opencord_core.framework` links VideoToolbox, CoreMedia, CoreVideo, Carbon, CoreGraphics. **§0 checks:** fmt clean; clippy `--all-targets -D warnings` clean; `cargo test --workspace --lib --bins --tests` 678 passed, 1 failed (`a_reshaped_screen_goes_out_as_its_new_track_and_layers`, "30 at 15 fps"; alone 3 of 3 pass), 8 ignored over 25 binaries; `flutter analyze` no issues; `flutter test` +735 ~1 −16 (the goldens). |
 | M4 | | |
 | M5 | | |
 | M6 | | |
@@ -941,6 +941,52 @@ Rulings (`Mn: Ruling: … — cost if wrong: …`):
   (a CPU-speed test) failed once (Standard instead of High); alone it
   passed 3 of 3 (1.01 s, 0.75 s, 0.74 s) and in the full run — cost if
   wrong: none.
+- M3: Ruling: VideoToolbox, Core Media and Core Video are declared by
+  hand in `video/codec/macos/ffi.rs` (about 30 functions and keys), with
+  objc2-core-foundation for the CF types, instead of the objc2 0.3
+  `objc2-video-toolbox`/`-core-media`/`-core-video` crates (decision A):
+  those are plain C APIs whose generated free functions are deprecated
+  aliases (which `-D warnings` refuses) of methods spread over many
+  features — cost if wrong: a wrong declaration is caught only by the
+  tests, which exercise every call.
+- M3: Ruling: decision C chosen by measurement on this Mac: pic-scale
+  (planes, bilinear) + yuv (NV12 → RGBA, BT.601 video range) took 1.33 ms
+  for 1080p NV12 → 640×360 RGBA against 9.93 ms for a hand-written
+  separable filter. Both crates are BSD-3-Clause OR Apache-2.0, in the
+  macOS section only — cost if wrong: two dependencies.
+- M3: Ruling: the encoder tries low-latency rate control first, then
+  without it, for each backend. Low latency never overshoots; on the test
+  pattern it undershoots small layers (360p: 289 k of 500 k), which only
+  means the pattern needs fewer bits there; without it the hardware
+  encoder overshot by 40–46 %. Step 7's ±25 % test runs at 720p, where
+  both encoders hold (+2 %, −20 %) — cost if wrong: a small camera layer
+  looks a little softer than it could.
+- M3: Ruling: encoder errors are reported as
+  `CodecError::Unavailable("VideoToolbox's encoder")` (and the decoder's
+  likewise), with the OSStatus in the debug log, so the shared
+  `CodecError` keeps its variants — cost if wrong: the status is only in
+  the log.
+- M3: Ruling: a process's first hardware encoder takes 0.67 s to open, so
+  the first call to `supported()` (the app's `video_support()` at launch)
+  opens and drops a 320×180 hardware encoder on a thread of its own; this
+  crate's own tests wait for it, so the sender tests time the sender, not
+  VideoToolbox loading — cost if wrong: one small encoder at launch.
+- M3: Ruling: VideoToolbox conceals a damaged access unit without an
+  error, so an access unit with slices that gives no picture is an error
+  (the receiver then asks for a keyframe, as with FFmpeg) — cost if wrong:
+  a needless keyframe request.
+- M3: Ruling: `check_v4.sh`'s `--test-pattern` camera is synthetic
+  (checksummed NAL units), so it never reaches the codec;
+  `app/tool/macos/check_v4.sh` runs it and then a second part with
+  `--camera` (real H.264 through the app's encoders), requiring every
+  picture decoded — cost if wrong: none.
+- M3: Ruling: `dev` profile `opt-level = 3` for pic-scale and yuv
+  (0ef70a4, `shared:`): profile settings only exist at the workspace root,
+  and without them the debug app scales each picture far slower than its
+  frame time — cost if wrong: longer debug builds of two crates.
+- M3: Note: VideoToolbox prints "AVCaptureDeviceTypeExternal is
+  deprecated for Continuity Cameras" once per process; it comes from the
+  system, not from Opencord's code.
 
 `shared:` commits (file, why):
 - M0 f6aff9a `crates/opencord-voicebot/tests/voice.rs`:
@@ -949,6 +995,9 @@ Rulings (`Mn: Ruling: … — cost if wrong: …`):
   the file did not compile on macOS, so `cargo test --workspace` failed. It
   should have been a seam: L1's run-time skip (platforms.md §2.6) replaces
   the gate.
+- M3 0ef70a4 `Cargo.toml` (workspace root): `[profile.dev.package]`
+  `opt-level = 3` for pic-scale and yuv, the macOS scaler's crates, as for
+  tract and the FFT crates. Not a seam: profiles exist only at the root.
 
 Shared tests that fail on macOS for a platform reason (not edited):
 - M0: `app/test/unit/desktop/linux_notifications_test.dart` (2 tests) and
@@ -962,3 +1011,13 @@ Shared tests that fail on macOS for a platform reason (not edited):
   layer" within 5 s), then passed 3 of 3 alone (10.1 s, 16.1 s, 12.2 s) and
   in the next full run. Timing on a loaded 6-core Intel Mac; not a macOS
   difference.
+- M3: with the codec on, `opencord-media`'s video tests run here, and the
+  sender's wall-clock tests are load-sensitive on this 6-core Intel Mac in
+  debug builds: `video::sender::tests::a_reshaped_screen_goes_out_as_its_new_track_and_layers`
+  failed in the full runs ("30 at 15 fps"; a frame on the old track) and
+  alone once in 5 ("19 at 15 fps"), then passed alone 3 of 3;
+  `the_planners_cuts_shrink_and_slow_a_screens_main_layer` failed once in
+  a full run ("11 pictures in 1 s") and passed alone 2 of 2 after the
+  warm-up. Under the same load `audio::processing::tests::high_stays_when_it_keeps_up`
+  and `high_suppression_silences_every_kind_of_noise` failed once each in
+  a full `opencord-media` run, and passed in the full workspace run.
