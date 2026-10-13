@@ -679,7 +679,7 @@ pushed milestone, and the Mac's work reaches this branch only through
 
 | Milestone | Commit | Result, measurements, what's not done |
 |---|---|---|
-| W0 | | |
+| W0 | (this commit) | **The PC.** Windows 10 Pro 22H2, build 19045.7417 — *not* Windows 11, so screen share sound (decision C) cannot be measured here; see the W7 note below. i7-13620H; RTX 4070 Laptop (32.0.16.1078) and Intel UHD (31.0.101.4255); 15.7 GB. Visual Studio Community 2026 18.8.2 (NativeDesktop), rustc/cargo 1.99.0, Flutter 3.44.0 (Dart 3.12.0), FFmpeg n9.0.2 LGPL shared, pwsh 7.6.6, Python 3.14.7. **Rust.** `cargo build --workspace` 6 m 30 s, 8 warnings, every one off-Linux dead code in a shared file. `cargo fmt --all --check` clean. `cargo test --workspace --lib --bins --tests --no-fail-fast`: **608 passed, 5 failed, 4 ignored**, plus one target that does not compile. `cargo clippy --workspace --all-targets` **fails** (five `opencord-media` examples do not compile off Linux). **Dart.** `flutter analyze` clean, 49.1 s. `flutter test`: **730 passed, 20 failed, 1 skipped**. Every failure of either is listed under "Shared code that fails on Windows" below; none was fixed here (platforms.md §4). **The app.** `check_m5.ps1` and `check_m6.ps1` both pass: the app builds (225.8 s cold, 23–29 s warm), creates an identity, claims a server, is still connected after a restart, and two identities chat live while a new restriction reaches the member's UI without a reconnect. `e2e_server.ps1` starts and stops a server. **Not done:** the tray and `opencord://` links still need a person at the PC (W0 step 4); LLVM is not installed, which W3 needs. |
 | W1 | | |
 | W2 | | |
 | W3 | | |
@@ -690,7 +690,154 @@ pushed milestone, and the Mac's work reaches this branch only through
 | W8 | | |
 
 Rulings (`Wn: Ruling: … — cost if wrong: …`):
-- (none yet)
+
+The six decisions §3 settled, taken as they stand:
+- W0: Ruling: bindings come from the `windows` crate 0.62, the one cpal already
+  uses, with features added per milestone in opencord-media's
+  `[target.'cfg(windows)'.dependencies]`; COM is initialized multithreaded on
+  our own threads and never on Flutter's UI thread; COM callbacks use
+  `#[windows::core::implement]` (decision A) — cost if wrong: a second copy of
+  the `windows` crate in the tree, or apartment errors at run time.
+- W0: Ruling: the video codec is FFmpeg reusing the Linux codec layer, with
+  encoders tried NVENC → AMF → Quick Sync → Media Foundation → OpenH264,
+  D3D11VA for large layers, and the LGPL shared DLLs shipped beside the exe
+  (decision B) — cost if wrong: 25–40 MB of DLLs in the download, against
+  writing Media Foundation transforms by hand.
+- W0: Ruling: Windows 10 21H2 is the floor for voice, keybinds, camera, video
+  and screen share; build 20348 for screen share sound (decision C) — cost if
+  wrong: the sound switch is disabled on a machine that could have managed it.
+- W0: Ruling: Opencord uses its own picker, with Screens and Windows tabs and
+  no system dialog after it (decision D) — cost if wrong: the integration tests
+  cannot drive a system dialog, so this is also what makes W6 testable.
+- W0: Ruling: a window's sound is found from `GetWindowThreadProcessId`, and
+  for UWP apps from the hosted `CoreWindow` child of `ApplicationFrameHost.exe`
+  (decision E) — cost if wrong: a window share captures the wrong process's
+  sound, or none.
+- W0: Ruling: the test stand-ins are VB-CABLE and Hi-Fi CABLE for devices,
+  `ffmpeg`/`ffplay` for recording and playing, and `SendInput` for keys, with
+  every script in PowerShell 7 (decision F) — cost if wrong: Git Bash's
+  `python3` and `setsid` are unreliable here, which is why the shell changed.
+
+Decided while doing W0:
+- W0: Ruling: Flutter 3.44.0 is cloned to `C:\src\flutter` and put first on
+  PATH, instead of the 3.47.6 already on the PC. 3.47.6's `pub get` rewrites
+  `app/analysis_options.yaml` (adding platform excludes) and `app/pubspec.lock`
+  (5 packages), both shared files this session does not own, and CI pins
+  3.44.0 — cost if wrong: analyzer and test results here would not match CI's
+  or the Linux session's, and the churn would reach a commit.
+- W0: Ruling: the repository is reached at `C:\src\opencord`, a directory
+  junction to `C:\Users\mrafi\dev\opencord`, and every build runs through it.
+  MSBuild's `FileTracker` ignores `LongPathsEnabled`, and cargokit's deepest
+  path — opusic-sys's CMake `TryCompile` tlog — is **260** characters from the
+  real path against a 259 limit, but **248** through the junction. The tree
+  could not simply be moved to the short path §1 asks for, because the session
+  holds it open. A junction is what makes §1's intent reachable without moving
+  it — cost if wrong: builds fail with `FTK1011: could not create the new file
+  tracking log file`, which is how this was found; and cargo rebuilds `target/`
+  once, because its fingerprints record absolute paths.
+- W0: Ruling: FFmpeg is BtbN's `ffmpeg-n9.0-latest-win64-lgpl-shared-9.0`
+  (it reports `n9.0.2-27-g7e93014c5b`), unzipped to `C:\ffmpeg` so that `bin`,
+  `include` and `lib\*.lib` all exist, with `FFMPEG_DIR=C:\ffmpeg` and
+  `C:\ffmpeg\bin` first on PATH. §1's vcpkg fallback is not needed, and the
+  build has `dshow`, `lavfi`, `testsrc2` and `sine`, which decision F's stand-ins
+  all rely on — cost if wrong: a `gpl` build would make the shipped DLLs
+  undistributable, and a build without `lib\*.lib` would block W3.
+- W0: Ruling: PowerShell 7.6.6 was installed from the Microsoft Store, which is
+  per-user, rather than §1's MSI, because this session cannot elevate — cost if
+  wrong: none found; `pwsh -File` runs the check scripts.
+- W0: Ruling: Visual Studio Community **2026** (18.8.2) with the NativeDesktop
+  workload stands in for §1's 2022, being what the PC has. The Rust DLL and the
+  Flutter runner both compile and link against it — cost if wrong: an MSVC or
+  Windows SDK incompatibility would have shown as a link failure, and did not.
+- W0: Ruling: `e2e_server.ps1` isolates the app's data with `OPENCORD_PROFILE`
+  alone, and empties that profile's folder before and after a check. Windows
+  has no `XDG_DATA_HOME`, and `getApplicationSupportDirectory` is
+  `%APPDATA%\dev.opencord\Opencord`, so a profile is a folder inside it
+  (`app/lib/app_start.dart`); the keychain is left to the credential manager,
+  which the M5 test clears itself — cost if wrong: a check inherits the
+  previous run's identity.
+- W0: Ruling: a hard kill runs no `finally`, so `e2e_server.ps1` also clears
+  stale `opencord-e2e-*` folders when it starts, waits for a killed process to
+  actually exit before removing its work folder, and retries that removal —
+  cost if wrong: temporary folders and a live server survive an interrupted
+  check, which happened once before this was added.
+- W0: Ruling: W0 step 4 is checked by `check_m5.ps1` and `check_m6.ps1`, the
+  twins of the Linux scripts, rather than by hand, so "the app runs and chats"
+  is a measured result rather than an impression — cost if wrong: none; the
+  tray and `opencord://` links still need a person, and are listed as not done.
+- W0: Ruling: `app/tool/windows/README.md` is written now, though
+  platforms.md §2.8 has L1 create that folder's README. The folder was needed
+  for W0 step 5 — cost if wrong: a small conflict when L1 merges, in a file
+  platforms.md §3 gives to Windows, so this side wins.
+
+For the Linux session, and for the user:
+- W0: **W7 cannot be measured on this PC.** Decision C puts screen share sound
+  at build 20348 and this is 19045. W2–W6 are unaffected. Unless the PC moves
+  to Windows 11, W7 can only be written and unit-tested here, shipped behind
+  the "Sharing sound needs Windows 11" switch the plan already specifies, with
+  the live capture never measured. The user has been told; the call is theirs
+  and is not needed before W7.
+- W0: **LLVM is not installed**, because there is no user-scope installer and
+  this session cannot elevate. W3's `ffmpeg-sys-next` bindgen needs
+  `LIBCLANG_PATH` — cost if wrong: W3 cannot start.
+- W0: `app/test/golden/failures/` is written by any golden run off Linux and no
+  `.gitignore` covers it. One line in a shared `.gitignore` would save every
+  platform session from almost committing it.
+
+Shared code that fails on Windows (platforms.md §4: listed, not edited here):
+- `crates/opencord-voicebot/tests/voice.rs` **does not compile**:
+  `a_voicebots_encoded_camera_is_decoded_by_another_voicebot` calls
+  `publish_encoded_camera`, which `src/lib.rs:570` gates behind
+  `cfg(target_os = "linux")`. That takes the whole target with it, so none of
+  that file's tests can run here. platforms.md §2.6 has L1 make these skip at
+  run time instead.
+- `crates/opencord-media/examples/{camera_load,camera_probe,codec_costs,screen_load,virtual_camera}.rs`
+  **do not compile** off Linux: they import `camera::pipewire`, `camera::v4l2`,
+  `camera::virtual_camera`, `video::sender`, `video::screen` and
+  `codec::{encoder,raw,scale}` ungated. This is the whole reason
+  `cargo clippy --workspace --all-targets` fails here while
+  `cargo build --workspace` and `cargo test --lib --bins --tests` both pass —
+  only `--all-targets` builds examples. L1's "everything compiles on every
+  desktop OS" should be read to include examples.
+- `opencord-server` `config::tests::reads_an_existing_file` and
+  `config::tests::environment_overrides_the_file`: Unix absolute paths.
+  `/srv/opencord` loads as `C:/srv/opencord` and `/certs/full.pem` as
+  `C:/certs/full.pem`, which is correct on Windows — the expectations are what
+  is Unix-only.
+- `opencord-voice tests/video.rs` is **unstable** here, not cleanly failing.
+  Over 5 runs, 5–7 of the 10 runnable tests passed each time (63–77 s).
+  Failing in **5 of 5**: `a_capped_uplink_stops_encoding_the_cameras_top_layer_until_lifted`
+  ("never reached the top layer") and `a_screens_main_layer_reaches_its_viewer`
+  ("the main layer never came"). Intermittent:
+  `more_than_twenty_wants_a_second_close_the_gateway` 3/5,
+  `a_published_camera_reaches_whoever_wants_it_intact` 2/5, and
+  `unused_layers_stop_being_encoded`,
+  `an_xor_transform_end_to_end_does_not_stop_the_node` and
+  `a_track_far_over_its_ceiling_is_stopped` 1/5 each. The single worst run was
+  the one run alone with `--test-threads=1` (5 failed), so this is not CPU
+  contention from other work. The suite is pacing-sensitive by design — it
+  already carries
+  `a_500_kbps_receiver_gets_a_lower_layer_within_2_s_and_recovers` as
+  `ignored, needs a release build's timing`. The file is the Linux session's.
+- `app/test/golden/**`: 16 failures, expected — the goldens were rendered on
+  Linux (§0). Not regenerated here.
+- `app/test/unit/desktop/linux_notifications_test.dart` (2 tests) and
+  `linux_tray_test.dart` (1): `TimeoutException after 0:00:30` each. They need
+  a D-Bus session.
+- `app/test/unit/hardcoded_colors_test.dart`: it excludes the theme with
+  `file.path.startsWith('lib/ui/theme/')`, but `Directory.listSync` returns
+  `lib\ui\theme\…` on Windows, so every token in `oc_colors.dart` and
+  `oc_theme.dart` is reported as an offender.
+
+Warnings in shared files, expected before L1 and not fixed (§0, platforms.md §4):
+- `opencord-media` lib, 8: `hotkeys/mod.rs` `shortcut_id`,
+  `shortcut_description`, `action_of`, `shortcut_ids`, `Held::press` and
+  `Held::release`; `video/camera/mod.rs` `pack`.
+- `opencord_core` lib, 5: `client.rs` unused import `ScreenProblem` and field
+  `screen_restore_token`; `video.rs` fields `runtime`, `screen`, `texture` and
+  unused variable `stream_delays`.
+- `opencord-voicebot`, 2: an unneeded `mut` in `src/lib.rs:374` and an unused
+  import `StreamSourceKind` in `src/main.rs:12`.
 
 `shared:` commits (file, why):
 - (none yet)
