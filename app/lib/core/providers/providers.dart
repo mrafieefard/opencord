@@ -23,6 +23,7 @@ import 'package:opencord/core/providers/server_state.dart';
 import 'package:opencord/core/providers/sound_state.dart';
 import 'package:opencord/core/providers/stream_state.dart';
 import 'package:opencord/core/providers/typing_state.dart';
+import 'package:opencord/core/providers/user_audio.dart';
 import 'package:opencord/core/repository/repository.dart';
 import 'package:opencord/core/settings/local_prefs.dart';
 import 'package:opencord/core/settings/key_value_store.dart';
@@ -36,6 +37,7 @@ export 'package:opencord/core/providers/server_state.dart';
 export 'package:opencord/core/providers/sound_state.dart';
 export 'package:opencord/core/providers/stream_state.dart';
 export 'package:opencord/core/providers/typing_state.dart';
+export 'package:opencord/core/providers/user_audio.dart';
 
 /// A channel on a server: the key of per-channel providers.
 typedef ChannelRef = ({String server, int channel});
@@ -63,6 +65,7 @@ final eventPumpProvider = Provider<void>((ref) {
     ),
     fireImmediately: true,
   );
+  applyUserAudio(ref, repository);
   ref.listen(
     hotkeyBindingsProvider,
     (_, hotkeys) => _applyHotkeys(ref, repository, hotkeys),

@@ -459,6 +459,20 @@ abstract interface class OpencordRepository {
   /// Silences someone on this device only.
   void setUserLocalMute(String serverKey, int userId, bool muted);
 
+  /// Server mute and deafen: for everyone, until lifted. Needs Mute or
+  /// Deafen members in their channel and to outrank them (but not on
+  /// yourself).
+  Future<void> serverMuteMember(String serverKey, int userId, bool muted);
+
+  Future<void> serverDeafenMember(String serverKey, int userId, bool deafened);
+
+  /// Moves someone in voice to another voice channel; needs Move members in
+  /// both.
+  Future<void> moveMember(String serverKey, int userId, int channelId);
+
+  /// Takes someone out of voice; needs Move members in their channel.
+  Future<void> disconnectMember(String serverKey, int userId);
+
   /// The sounds every client has (Phase 2 plan §11.8).
   List<DefaultSound> get defaultSounds;
 

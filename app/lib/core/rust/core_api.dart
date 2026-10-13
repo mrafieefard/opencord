@@ -35,6 +35,14 @@ abstract interface class CoreApi {
 
   void voiceSetUserLocalMute(String serverKey, int userId, bool muted);
 
+  Future<void> voiceServerMute(String serverKey, int userId, bool muted);
+
+  Future<void> voiceServerDeafen(String serverKey, int userId, bool deafened);
+
+  Future<void> voiceMoveMember(String serverKey, int userId, int channelId);
+
+  Future<void> voiceDisconnectMember(String serverKey, int userId);
+
   /// Whether this system has cameras and video (Linux only for now).
   bool videoSupported();
 
@@ -299,6 +307,30 @@ class FrbCoreApi implements CoreApi {
   @override
   void voiceSetUserVolume(String serverKey, int userId, double volume) => frb
       .voiceSetUserVolume(serverKey: serverKey, userId: userId, volume: volume);
+
+  @override
+  Future<void> voiceServerMute(String serverKey, int userId, bool muted) =>
+      frb.voiceServerMute(serverKey: serverKey, userId: userId, muted: muted);
+
+  @override
+  Future<void> voiceServerDeafen(String serverKey, int userId, bool deafened) =>
+      frb.voiceServerDeafen(
+        serverKey: serverKey,
+        userId: userId,
+        deafened: deafened,
+      );
+
+  @override
+  Future<void> voiceMoveMember(String serverKey, int userId, int channelId) =>
+      frb.voiceMoveMember(
+        serverKey: serverKey,
+        userId: userId,
+        channelId: channelId,
+      );
+
+  @override
+  Future<void> voiceDisconnectMember(String serverKey, int userId) =>
+      frb.voiceDisconnectMember(serverKey: serverKey, userId: userId);
 
   @override
   bool videoSupported() => frb.videoSupported();

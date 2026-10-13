@@ -1468,6 +1468,89 @@ class MockRepository implements OpencordRepository {
   @override
   Future<void> leaveVoice() async => _leaveVoiceNow();
 
+  /// The voice channel [userId] is in and their place in it.
+  (int, List<VoiceParticipant>, int) _inVoice(MockServer server, int userId) {
+    for (final MapEntry(key: channel, value: participants)
+        in server.voice.entries) {
+      final index = participants.indexWhere((p) => p.userId == userId);
+      if (index != -1) return (channel, participants, index);
+    }
+    throw const RepoException(
+      RepoErrorKind.notFound,
+      'They are not in a voice channel.',
+    );
+  }
+
+  void _moderate(
+    String serverKey,
+    int userId,
+    Permissions needed,
+    VoiceParticipant Function(VoiceParticipant) change,
+  ) {
+    final server = _server(serverKey);
+    final (channel, participants, index) = _inVoice(server, userId);
+    _require(server, needed, channel);
+    participants[index] = change(participants[index]);
+    if (userId == server.selfId) _selfVoice = participants[index];
+    _emit(VoiceChanged(serverKey, channel, List.of(participants)));
+  }
+
+  @override
+  Future<void> serverMuteMember(
+    String serverKey,
+    int userId,
+    bool muted,
+  ) async => _moderate(
+    serverKey,
+    userId,
+    Permissions.muteMembers,
+    (p) => p.copyWith(serverMuted: muted),
+  );
+
+  @override
+  Future<void> serverDeafenMember(
+    String serverKey,
+    int userId,
+    bool deafened,
+  ) async => _moderate(
+    serverKey,
+    userId,
+    Permissions.deafenMembers,
+    (p) => p.copyWith(serverDeafened: deafened),
+  );
+
+  @override
+  Future<void> moveMember(String serverKey, int userId, int channelId) async {
+    final server = _server(serverKey);
+    final (from, participants, index) = _inVoice(server, userId);
+    _require(server, Permissions.moveMembers, from);
+    final destination =
+        server.voice[channelId] ??
+        (throw const RepoException(
+          RepoErrorKind.invalidArgument,
+          'That is not a voice channel.',
+        ));
+    _require(server, Permissions.moveMembers, channelId);
+    if (from == channelId) return;
+    destination.add(participants.removeAt(index));
+    if (userId == server.selfId) {
+      _voice = (server: serverKey, channel: channelId);
+      _emit(VoiceConnectionChanged(serverKey, channelId, _connected));
+    }
+    _emit(VoiceChanged(serverKey, from, List.of(participants)));
+    _emit(VoiceChanged(serverKey, channelId, List.of(destination)));
+  }
+
+  @override
+  Future<void> disconnectMember(String serverKey, int userId) async {
+    final server = _server(serverKey);
+    final (channel, participants, index) = _inVoice(server, userId);
+    _require(server, Permissions.moveMembers, channel);
+    if (userId == server.selfId) return _leaveVoiceNow();
+    participants.removeAt(index);
+    _emit(VoiceChanged(serverKey, channel, List.of(participants)));
+  }
+
   /// The mock paints its cameras; what the tiles asked for is only kept,
   /// for tests.
   @override

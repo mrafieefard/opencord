@@ -8,6 +8,7 @@ import 'package:opencord/core/model/permissions.dart';
 import 'package:opencord/core/providers/providers.dart';
 import 'package:opencord/core/repository/repository.dart';
 import 'package:opencord/features/channels/channel_row.dart';
+import 'package:opencord/features/members/member_actions.dart';
 import 'package:opencord/features/shell/navigation.dart';
 import 'package:opencord/features/soundboard/soundboard_ring.dart';
 import 'package:opencord/features/voice/voice_controls.dart';
@@ -239,19 +240,45 @@ class _Participant extends ConsumerWidget {
       speakingProvider(serverKey).select((s) => s.contains(participant.userId)),
     );
     final sound = playingSound(ref, serverKey, participant.userId);
+    final mutedHere = ref.watch(
+      userAudioProvider((
+        server: serverKey,
+        user: participant.userId,
+      )).select((audio) => audio.muted),
+    );
     final name = member?.displayName ?? 'Someone';
     final state = [
+      if (mutedHere) 'muted by you',
       if (participant.muted) 'muted',
+      if (participant.serverMuted) 'server muted',
       if (participant.deafened) 'deafened',
+      if (participant.serverDeafened) 'server deafened',
       if (participant.camera) 'camera on',
       if (participant.screensharing) 'sharing their screen',
       if (speaking) 'speaking',
       if (sound != null) 'playing ${sound.name}',
     ];
-    return Semantics(
-      label: state.isEmpty ? name : '$name, ${state.join(', ')}',
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(44, 2, 16, 2),
+    final actions = MemberActions(
+      context: context,
+      ref: ref,
+      serverKey: serverKey,
+    );
+    // Click for the profile, right-click for the member menu with the voice
+    // controls (desktop UI plan §17.3), like the member list.
+    return Hoverable(
+      onTap: member == null ? null : () => actions.profile(member),
+      onSecondaryTap: member == null
+          ? null
+          : (position) => actions.showMenu(member, position),
+      semanticLabel: state.isEmpty ? name : '$name, ${state.join(', ')}',
+      cursor: SystemMouseCursors.basic,
+      builder: (context, hover) => Container(
+        margin: const EdgeInsets.fromLTRB(36, 1, 8, 1),
+        padding: const EdgeInsets.fromLTRB(8, 1, 8, 1),
+        decoration: BoxDecoration(
+          color: hover.active ? colors.hover : null,
+          borderRadius: BorderRadius.circular(OcRadius.row),
+        ),
         child: SizedBox(
           height: 28,
           child: Row(
@@ -283,8 +310,11 @@ class _Participant extends ConsumerWidget {
                 ),
               const Spacer(),
               for (final icon in [
-                if (participant.muted) OcIcons.micOff,
-                if (participant.deafened) OcIcons.headsetOff,
+                if (mutedHere) OcIcons.volumeOff,
+                if (participant.muted || participant.serverMuted)
+                  OcIcons.micOff,
+                if (participant.deafened || participant.serverDeafened)
+                  OcIcons.headsetOff,
                 if (participant.camera) OcIcons.videocam,
               ])
                 Padding(

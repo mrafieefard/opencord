@@ -1307,6 +1307,25 @@ class RustRepository implements OpencordRepository {
   void setUserLocalMute(String serverKey, int userId, bool muted) =>
       _now(() => _core.voiceSetUserLocalMute(serverKey, userId, muted));
 
+  @override
+  Future<void> serverMuteMember(String serverKey, int userId, bool muted) =>
+      _call(() => _core.voiceServerMute(serverKey, userId, muted));
+
+  @override
+  Future<void> serverDeafenMember(
+    String serverKey,
+    int userId,
+    bool deafened,
+  ) => _call(() => _core.voiceServerDeafen(serverKey, userId, deafened));
+
+  @override
+  Future<void> moveMember(String serverKey, int userId, int channelId) =>
+      _call(() => _core.voiceMoveMember(serverKey, userId, channelId));
+
+  @override
+  Future<void> disconnectMember(String serverKey, int userId) =>
+      _call(() => _core.voiceDisconnectMember(serverKey, userId));
+
   /// Screen sharing has its own calls; `screensharing` is ignored here.
   @override
   Future<void> setVoiceSelf({

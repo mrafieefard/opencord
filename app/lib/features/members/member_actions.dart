@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:opencord/core/model/channel.dart';
+import 'package:opencord/core/model/misc.dart';
 import 'package:opencord/core/model/permissions.dart';
 import 'package:opencord/core/model/user.dart';
 import 'package:opencord/core/providers/providers.dart';
@@ -10,6 +12,7 @@ import 'package:opencord/features/chat/chat_controller.dart';
 import 'package:opencord/features/chat/composer_state.dart';
 import 'package:opencord/features/members/member_profile.dart';
 import 'package:opencord/features/shell/navigation.dart';
+import 'package:opencord/features/voice/user_audio_controls.dart';
 import 'package:opencord/ui/theme/oc_icons.dart';
 import 'package:opencord/ui/theme/oc_metrics.dart';
 import 'package:opencord/ui/widgets/oc_button.dart';
@@ -47,13 +50,18 @@ class MemberActions {
 
   bool _isSelf(Member member) => member.id == _data?.self.id;
 
-  /// Whether the current user may act on [member] with [permission]: they
-  /// hold it, it is not themselves, and they rank above them.
-  bool _may(Member member, Permissions permission) {
+  /// Whether the current user may act on [member] with [permission] (in
+  /// [channelId], when given): they hold it, and they rank above them —
+  /// voice moderation may also be used on yourself, the rest may not.
+  bool _may(Member member, Permissions permission, {int? channelId}) {
     final data = _data;
     final self = data?.selfMember;
-    if (data == null || self == null || _isSelf(member)) return false;
-    if (!data.can(permission)) return false;
+    if (data == null || self == null) return false;
+    final held = channelId == null
+        ? data.serverPermissions
+        : data.permissionsIn(channelId);
+    if (!held.has(permission)) return false;
+    if (_isSelf(member)) return channelId != null;
     return data
         .contextFor(self)
         .outranksMember(
@@ -127,6 +135,114 @@ class MemberActions {
     }
   });
 
+  /// The voice channel [member] is in on this server, and how.
+  (int, VoiceParticipant)? voiceOf(Member member) {
+    for (final MapEntry(key: channelId, value: participants)
+        in ref.read(voiceProvider(serverKey)).entries) {
+      for (final participant in participants) {
+        if (participant.userId == member.id) return (channelId, participant);
+      }
+    }
+    return null;
+  }
+
+  /// Voice channels [member] can be moved to from [from]: Move members is
+  /// needed in both (the server checks they may join).
+  List<Channel> moveTargets(Member member, int from) {
+    final data = _data;
+    if (data == null ||
+        !_may(member, Permissions.moveMembers, channelId: from)) {
+      return const [];
+    }
+    return [
+      for (final channel in data.channels.values)
+        if (channel.kind == ChannelKind.voice &&
+            channel.id != from &&
+            data.permissionsIn(channel.id).has(Permissions.moveMembers))
+          channel,
+    ]..sort((a, b) => a.position.compareTo(b.position));
+  }
+
+  Future<void> serverMute(Member member, bool muted) => _guard(
+    () => ref
+        .read(repositoryProvider)
+        .serverMuteMember(serverKey, member.id, muted),
+  );
+
+  Future<void> serverDeafen(Member member, bool deafened) => _guard(
+    () => ref
+        .read(repositoryProvider)
+        .serverDeafenMember(serverKey, member.id, deafened),
+  );
+
+  Future<void> moveTo(Member member, int channelId) => _guard(
+    () => ref
+        .read(repositoryProvider)
+        .moveMember(serverKey, member.id, channelId),
+  );
+
+  Future<void> disconnect(Member member) => _guard(
+    () => ref.read(repositoryProvider).disconnectMember(serverKey, member.id),
+  );
+
+  /// The voice part of the menu (desktop UI plan §17.3) for someone in
+  /// voice: this device's volume, Mute and Mute soundboard for them, then
+  /// what moderators may do.
+  List<OcMenuEntry> _voiceEntries(Member member) {
+    final (channelId, participant) = voiceOf(member) ?? (null, null);
+    if (channelId == null || participant == null) return const [];
+    final mute = _may(member, Permissions.muteMembers, channelId: channelId);
+    final deafen = _may(
+      member,
+      Permissions.deafenMembers,
+      channelId: channelId,
+    );
+    final move = _may(member, Permissions.moveMembers, channelId: channelId);
+    final targets = moveTargets(member, channelId);
+    return [
+      if (!_isSelf(member)) ...[
+        const OcMenuDivider(),
+        OcMenuCustom(
+          (_) => UserAudioControls(serverKey: serverKey, userId: member.id),
+        ),
+      ],
+      if (mute || deafen || move) const OcMenuDivider(),
+      if (mute)
+        OcMenuItem(
+          label: 'Server mute',
+          icon: OcIcons.micOff,
+          checked: participant.serverMuted,
+          onSelected: () => serverMute(member, !participant.serverMuted),
+        ),
+      if (deafen)
+        OcMenuItem(
+          label: 'Server deafen',
+          icon: OcIcons.headsetOff,
+          checked: participant.serverDeafened,
+          onSelected: () => serverDeafen(member, !participant.serverDeafened),
+        ),
+      if (targets.isNotEmpty)
+        OcMenuItem(
+          label: 'Move to',
+          icon: OcIcons.moveDown,
+          submenu: [
+            for (final channel in targets)
+              OcMenuItem(
+                label: channel.name,
+                icon: OcIcons.volumeUp,
+                onSelected: () => moveTo(member, channel.id),
+              ),
+          ],
+        ),
+      if (move)
+        OcMenuItem(
+          label: 'Disconnect',
+          icon: OcIcons.callEnd,
+          onSelected: () => disconnect(member),
+        ),
+    ];
+  }
+
   /// Kick and ban act on someone else, so they ask first (§16).
   Future<void> kick(Member member) async {
     final reason = await _confirm(
@@ -178,7 +294,8 @@ class MemberActions {
   );
 
   /// The member menu (§4.7): Profile · Mention · Copy identity fingerprint
-  /// · Roles ▸ · Kick · Ban, each only when allowed.
+  /// · (in voice) volume, Mute, Mute soundboard, server mute and deafen,
+  /// Move to ▸, Disconnect · Roles ▸ · Kick · Ban, each only when allowed.
   List<OcMenuEntry> menu(Member member) {
     final roles = manageableRoles();
     final canMention = ref.read(canMentionProvider(serverKey));
@@ -200,7 +317,9 @@ class MemberActions {
           icon: OcIcons.fingerprint,
           onSelected: () => copyFingerprint(member),
         ),
-      if (roles.isNotEmpty)
+      ..._voiceEntries(member),
+      if (roles.isNotEmpty) ...[
+        if (voiceOf(member) != null) const OcMenuDivider(),
         OcMenuItem(
           label: 'Roles',
           icon: OcIcons.shieldPerson,
@@ -217,6 +336,7 @@ class MemberActions {
               ),
           ],
         ),
+      ],
       if (canKick(member) || canBan(member)) const OcMenuDivider(),
       if (canKick(member))
         OcMenuItem(

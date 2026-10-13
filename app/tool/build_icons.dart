@@ -90,6 +90,7 @@ const icons = <String, String>{
   'mood': 'mood',
   'moreHoriz': 'more_horiz',
   'moreVert': 'more_vert',
+  'moveDown': 'move_down',
   'musicNote': 'music_note',
   'notifications': 'notifications',
   'notificationsOff': 'notifications_off',

@@ -9,7 +9,7 @@ import 'package:opencord/core/settings/key_value_store.dart';
 
 /// Decodes the JSON saved under [key], or null when it is missing or
 /// damaged.
-Object? _readJson(KeyValueStore store, String key) {
+Object? readJson(KeyValueStore store, String key) {
   final saved = store.read(key);
   if (saved == null) return null;
   try {
@@ -73,7 +73,7 @@ class NotificationPrefsNotifier extends Notifier<NotificationPrefs> {
   @override
   NotificationPrefs build() =>
       NotificationPrefs.fromJson(
-        _readJson(ref.watch(keyValueStoreProvider), notificationPrefsKey),
+        readJson(ref.watch(keyValueStoreProvider), notificationPrefsKey),
       ) ??
       NotificationPrefs(mutedServers: ref.watch(defaultMutedServersProvider));
 
@@ -120,7 +120,7 @@ const collapsedCategoriesKey = 'ui.collapsed';
 class CollapsedCategoriesNotifier extends Notifier<Set<String>> {
   @override
   Set<String> build() {
-    final json = _readJson(
+    final json = readJson(
       ref.watch(keyValueStoreProvider),
       collapsedCategoriesKey,
     );
@@ -149,7 +149,7 @@ const trustedLinkDomainsKey = 'ui.trustedLinkDomains';
 class TrustedLinkDomainsNotifier extends Notifier<Set<String>> {
   @override
   Set<String> build() {
-    final json = _readJson(
+    final json = readJson(
       ref.watch(keyValueStoreProvider),
       trustedLinkDomainsKey,
     );
@@ -210,7 +210,7 @@ const emojiUsageKey = 'ui.emojiUsage';
 class EmojiUsageNotifier extends Notifier<Map<String, int>> {
   @override
   Map<String, int> build() {
-    final json = _readJson(ref.watch(keyValueStoreProvider), emojiUsageKey);
+    final json = readJson(ref.watch(keyValueStoreProvider), emojiUsageKey);
     return {
       if (json is Map)
         for (final MapEntry(:key, :value) in json.entries)
@@ -506,7 +506,7 @@ const hotkeyBindingsKey = 'ui.hotkeys';
 class HotkeyBindingsNotifier extends Notifier<HotkeyBindings> {
   @override
   HotkeyBindings build() => HotkeyBindings.fromJson(
-    _readJson(ref.watch(keyValueStoreProvider), hotkeyBindingsKey),
+    readJson(ref.watch(keyValueStoreProvider), hotkeyBindingsKey),
   );
 
   /// Binds [action] to [accelerator], or unbinds it with null.
@@ -546,7 +546,7 @@ const audioSettingsKey = 'ui.audio';
 class AudioSettingsNotifier extends Notifier<AudioSettings> {
   @override
   AudioSettings build() => AudioSettings.fromJson(
-    _readJson(ref.watch(keyValueStoreProvider), audioSettingsKey),
+    readJson(ref.watch(keyValueStoreProvider), audioSettingsKey),
   );
 
   void update(AudioSettings Function(AudioSettings audio) change) {
@@ -630,7 +630,7 @@ const soundboardPrefsKey = 'ui.soundboard';
 class SoundboardPrefsNotifier extends Notifier<SoundboardPrefs> {
   @override
   SoundboardPrefs build() => SoundboardPrefs.fromJson(
-    _readJson(ref.watch(keyValueStoreProvider), soundboardPrefsKey),
+    readJson(ref.watch(keyValueStoreProvider), soundboardPrefsKey),
   );
 
   void update(SoundboardPrefs Function(SoundboardPrefs prefs) change) {

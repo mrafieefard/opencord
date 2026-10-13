@@ -8,6 +8,7 @@ import 'package:opencord/core/model/permissions.dart';
 import 'package:opencord/core/model/user.dart';
 import 'package:opencord/core/model/video.dart';
 import 'package:opencord/core/providers/providers.dart';
+import 'package:opencord/features/members/member_actions.dart';
 import 'package:opencord/features/voice/voice_controls.dart';
 import 'package:opencord/features/voice/voice_focus.dart';
 import 'package:opencord/features/voice/voice_layout.dart';
@@ -123,6 +124,12 @@ class _StageState extends ConsumerState<_Stage> {
         const <int, Member>{};
     final speaking = ref.watch(speakingProvider(channel.server));
     final sounds = ref.watch(soundPlaysProvider(channel.server));
+    final call = ref.watch(callUserAudioProvider);
+    final mutedHere = {
+      if (call.serverKey == channel.server)
+        for (final MapEntry(key: userId, value: audio) in call.users.entries)
+          if (audio.muted) userId,
+    };
     final focus = voiceFocusProvider(channel);
     final tiles = voiceTiles(participants);
     final focused = switch (ref.watch(focus)) {
@@ -172,8 +179,13 @@ class _StageState extends ConsumerState<_Stage> {
           userId: id.userId,
           name: members[id.userId]?.displayName ?? 'Someone',
           screen: id.screen,
-          muted: participant?.muted ?? false,
-          deafened: participant?.deafened ?? false,
+          muted:
+              participant != null &&
+              (participant.muted || participant.serverMuted),
+          deafened:
+              participant != null &&
+              (participant.deafened || participant.serverDeafened),
+          mutedHere: !id.screen && mutedHere.contains(id.userId),
           camera: participant?.camera ?? false,
           video: video,
           speaking: speaking.contains(id.userId),
@@ -181,6 +193,14 @@ class _StageState extends ConsumerState<_Stage> {
           focused: id == focused,
           small: small,
           onTap: () => ref.read(focus.notifier).toggle(id),
+          onSecondaryTap: switch (members[id.userId]) {
+            final member? => (position) => MemberActions(
+              context: context,
+              ref: ref,
+              serverKey: channel.server,
+            ).showMenu(member, position),
+            null => null,
+          },
           onWatch: stream != null && !watched
               ? () => watchStream(
                   context,

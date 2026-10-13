@@ -97,6 +97,31 @@ class FakeCoreApi extends Fake implements CoreApi {
   void voiceSetUserLocalMute(String serverKey, int userId, bool muted) =>
       calls.add('localMute:$serverKey:$userId:$muted');
 
+  @override
+  Future<void> voiceServerMute(
+    String serverKey,
+    int userId,
+    bool muted,
+  ) async => calls.add('serverMute:$serverKey:$userId:$muted');
+
+  @override
+  Future<void> voiceServerDeafen(
+    String serverKey,
+    int userId,
+    bool deafened,
+  ) async => calls.add('serverDeafen:$serverKey:$userId:$deafened');
+
+  @override
+  Future<void> voiceMoveMember(
+    String serverKey,
+    int userId,
+    int channelId,
+  ) async => calls.add('move:$serverKey:$userId:$channelId');
+
+  @override
+  Future<void> voiceDisconnectMember(String serverKey, int userId) async =>
+      calls.add('disconnect:$serverKey:$userId');
+
   /// Whether videoSupported says so.
   var video = false;
 
