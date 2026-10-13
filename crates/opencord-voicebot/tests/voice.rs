@@ -476,6 +476,7 @@ async fn a_voicebots_camera_comes_back_when_its_call_moves_to_another_node() {
     sees_camera(&call.member_voice, owner, before, 10).await;
 }
 
+#[cfg(target_os = "linux")]
 #[tokio::test]
 async fn a_voicebots_encoded_camera_is_decoded_by_another_voicebot() {
     let call = call().await;
