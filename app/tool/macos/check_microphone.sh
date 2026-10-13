@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # The microphone path on macOS (docs/plans/macos.md M1, step 6): afplay
-# plays a 1 kHz tone into BlackHole 16ch, which the app
-# (integration_test/macos/microphone_test.dart) uses as its microphone,
-# while it plays into BlackHole 2ch; nothing reaches your speakers. The app
+# plays a 1 kHz tone into BlackHole 2ch, which the app
+# (integration_test/macos/microphone_test.dart) uses as its microphone. It
+# plays into BlackHole too, where its own near-silence is the echo
+# canceller's reference; nothing reaches your speakers. The app
 # goes through voice activity, push-to-talk held and push-to-talk released;
 # in each, a Listener voicebot measures the tone in what the app sends.
 # Its own server, data folders and profile, so it never touches yours.
@@ -17,7 +18,7 @@ cargo build --quiet --manifest-path "$repo/Cargo.toml" -p opencord-voicebot
 bot="$repo/target/debug/opencord-voicebot"
 claim_and_invite "$bot"
 
-# 10 s of 1 kHz at -12 dBFS, played into BlackHole 16ch again and again.
+# 10 s of 1 kHz at -12 dBFS, played into BlackHole again and again.
 python3 - "$work/tone.wav" <<'PY'
 import math, struct, sys, wave
 with wave.open(sys.argv[1], "wb") as out:
@@ -27,7 +28,6 @@ with wave.open(sys.argv[1], "wb") as out:
     frames = (int(0.25 * 32767 * math.sin(2 * math.pi * 1000 * n / 48000)) for n in range(48000 * 10))
     out.writeframes(b"".join(struct.pack("<h", f) for f in frames))
 PY
-"$switch_audio" -t output -s "$blackhole_16ch" >/dev/null
 (while :; do afplay "$work/tone.wav"; done) &
 background+=("$!")
 
@@ -35,8 +35,8 @@ export OPENCORD_PROFILE=e2e_microphone
 cd "$app"
 flutter test integration_test/macos/microphone_test.dart -d macos \
   --dart-define=OPENCORD_E2E_INVITE="$invite" \
-  --dart-define=OPENCORD_E2E_OUTPUT="$blackhole_2ch_id" \
-  --dart-define=OPENCORD_E2E_INPUT="$blackhole_16ch_id" \
+  --dart-define=OPENCORD_E2E_OUTPUT="$blackhole_id" \
+  --dart-define=OPENCORD_E2E_INPUT="$blackhole_id" \
   >"$work/microphone.log" 2>&1 &
 test_pid=$!
 background+=("$test_pid")

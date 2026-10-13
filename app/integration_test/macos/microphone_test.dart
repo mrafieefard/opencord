@@ -11,7 +11,7 @@ import '../support/e2e.dart';
 
 // The microphone path on macOS (docs/plans/macos.md M1, step 6), from
 // app/tool/macos/check_microphone.sh: afplay plays a 1 kHz tone into
-// BlackHole 16ch, which the app uses as its microphone. The app holds each
+// BlackHole 2ch, which the app uses as its microphone. The app holds each
 // phase (voice activity, push-to-talk held, push-to-talk released) for a
 // while and prints its name; the script then starts a listening voicebot
 // that measures the tone in what the app sends. The app also checks that
@@ -93,9 +93,7 @@ void main() {
         await hold('voice activity');
         container
             .read(audioSettingsProvider.notifier)
-            .update(
-              (audio) => audio.copyWith(inputMode: InputMode.pushToTalk),
-            );
+            .update((audio) => audio.copyWith(inputMode: InputMode.pushToTalk));
         await tester.pump();
         repository.setPushToTalk(true);
         await hold('push-to-talk held');

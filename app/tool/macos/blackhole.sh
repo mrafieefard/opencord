@@ -1,33 +1,36 @@
 # Sourced by the macOS check scripts after ../e2e_server.sh: the BlackHole
-# virtual devices in place of PipeWire null sinks (docs/plans/macos.md §3,
-# decision F). Makes BlackHole 2ch the default output and BlackHole 16ch the
-# default input, so nothing reaches your speakers or comes from your
+# 2ch virtual device in place of PipeWire null sinks (docs/plans/macos.md
+# §3, decision F, and the M1 ruling on one device). Makes it the default
+# output and input, so nothing reaches your speakers or comes from your
 # microphone, and puts the defaults back at exit (with e2e_server.sh's
-# cleanup). Sets $sox, $switch_audio, $blackhole_2ch, $blackhole_16ch and
-# the cpal ids $blackhole_2ch_id and $blackhole_16ch_id.
+# cleanup). Sets $sox, $switch_audio, $blackhole and its cpal id
+# $blackhole_id.
 
-blackhole_2ch="BlackHole 2ch"
-blackhole_16ch="BlackHole 16ch"
-# cpal's id of a Core Audio device is "coreaudio:" and its UID.
-blackhole_2ch_id="coreaudio:BlackHole2ch_UID"
-blackhole_16ch_id="coreaudio:BlackHole16ch_UID"
+blackhole="BlackHole 2ch"
 
-# Homebrew's folder, Apple silicon or Intel, even when it's not on PATH.
-for brew_bin in /opt/homebrew/bin /usr/local/bin; do
-  [[ -d "$brew_bin" ]] && PATH="$PATH:$brew_bin"
+# MacPorts' and Homebrew's folders, even when they're not on PATH.
+for bin in /opt/local/bin /opt/homebrew/bin /usr/local/bin; do
+  [[ -d "$bin" ]] && PATH="$PATH:$bin"
 done
 sox="$(command -v sox || true)"
 switch_audio="$(command -v SwitchAudioSource || true)"
 if [[ -z "$sox" || -z "$switch_audio" ]]; then
-  echo "Needs sox and SwitchAudioSource: brew install sox switchaudio-osx" >&2
+  echo "Needs sox and SwitchAudioSource: sudo port install sox switchaudio-osx" >&2
   exit 1
 fi
-for device in "$blackhole_2ch" "$blackhole_16ch"; do
-  if ! "$switch_audio" -a -t output | grep -qx "$device"; then
-    echo "No $device: brew install --cask blackhole-2ch blackhole-16ch" >&2
-    exit 1
-  fi
-done
+# cpal's id of a Core Audio device is "coreaudio:" and the device's UID.
+blackhole_uid="$("$switch_audio" -a -t output -f json |
+  python3 -c 'import json, sys
+for line in sys.stdin:
+    device = json.loads(line)
+    if device["name"] == sys.argv[1]:
+        print(device["uid"])
+        break' "$blackhole")"
+if [[ -z "$blackhole_uid" ]]; then
+  echo "No $blackhole: sudo port install BlackHole" >&2
+  exit 1
+fi
+blackhole_id="coreaudio:$blackhole_uid"
 
 saved_output="$("$switch_audio" -c -t output)"
 saved_input="$("$switch_audio" -c -t input)"
@@ -39,6 +42,6 @@ restore_devices() {
   stop_background
 }
 trap restore_devices EXIT
-"$switch_audio" -t output -s "$blackhole_2ch" >/dev/null
-"$switch_audio" -t system -s "$blackhole_2ch" >/dev/null
-"$switch_audio" -t input -s "$blackhole_16ch" >/dev/null
+"$switch_audio" -t output -s "$blackhole" >/dev/null
+"$switch_audio" -t system -s "$blackhole" >/dev/null
+"$switch_audio" -t input -s "$blackhole" >/dev/null

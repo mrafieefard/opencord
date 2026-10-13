@@ -3,16 +3,15 @@
 # (desktop UI plan §17.3) against a real server, measured at the speaker.
 # Talker (a voicebot) sends a 440 Hz tone, Player plays an 880 Hz soundboard
 # sound every 3 s. The app (integration_test/macos/user_audio_test.dart)
-# plays into BlackHole 2ch, with the silent BlackHole 16ch as its
-# microphone, so nothing reaches your speakers or comes from your
-# microphone; it records BlackHole 2ch with sox and measures each tone while
-# its menu sets Talker to 50 % and 200 %, mutes and unmutes them, and mutes
-# Player's soundboard. The system's default devices are set to the two
-# BlackHoles while it runs and put back at exit. Its own server, data
+# plays into BlackHole 2ch and uses it as its microphone too, so nothing
+# reaches your speakers or comes from your microphone; it records BlackHole
+# 2ch with sox and measures each tone while its menu sets Talker to 50 % and
+# 200 %, mutes and unmutes them, and mutes Player's soundboard. What the
+# app sends isn't measured here. The system's default devices are set to
+# BlackHole while it runs and put back at exit. Its own server, data
 # folders and profile, so it never touches yours.
 #
-# Needs: brew install sox switchaudio-osx
-#        brew install --cask blackhole-2ch blackhole-16ch
+# Needs: sudo port install sox switchaudio-osx BlackHole
 #
 #   app/tool/macos/check_user_audio.sh
 set -euo pipefail
@@ -51,9 +50,9 @@ export OPENCORD_PROFILE=e2e_user_audio
 cd "$app"
 if ! flutter test integration_test/macos/user_audio_test.dart -d macos \
   --dart-define=OPENCORD_E2E_INVITE="$invite" \
-  --dart-define=OPENCORD_E2E_OUTPUT="$blackhole_2ch_id" \
-  --dart-define=OPENCORD_E2E_INPUT="$blackhole_16ch_id" \
-  --dart-define=OPENCORD_E2E_RECORD="$blackhole_2ch" \
+  --dart-define=OPENCORD_E2E_OUTPUT="$blackhole_id" \
+  --dart-define=OPENCORD_E2E_INPUT="$blackhole_id" \
+  --dart-define=OPENCORD_E2E_RECORD="$blackhole" \
   --dart-define=OPENCORD_E2E_SOX="$sox" \
   >"$work/user_audio.log" 2>&1; then
   cat "$work/user_audio.log" >&2

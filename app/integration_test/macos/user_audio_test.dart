@@ -19,8 +19,8 @@ import '../support/e2e.dart';
 // The macOS copy of integration_test/user_audio_test.dart
 // (app/tool/macos/check_user_audio.sh): the same steps and numbers, with
 // BlackHole in place of PipeWire's null sinks. The app plays into
-// BlackHole 2ch, recorded with sox, and uses the silent BlackHole 16ch as
-// its microphone. Without the script this test skips.
+// BlackHole 2ch, recorded with sox, and uses it as its microphone too (what
+// it sends isn't measured here). Without the script this test skips.
 const _invite = String.fromEnvironment('OPENCORD_E2E_INVITE');
 
 /// The cpal ids of the devices the app plays into and records from.
@@ -30,7 +30,7 @@ const _input = String.fromEnvironment('OPENCORD_E2E_INPUT');
 /// Core Audio's name for [_output], as sox wants it.
 const _recordDevice = String.fromEnvironment('OPENCORD_E2E_RECORD');
 
-/// sox, by its full path: the app's PATH has no Homebrew in it.
+/// sox, by its full path: the app's PATH has no MacPorts or Homebrew in it.
 const _sox = String.fromEnvironment('OPENCORD_E2E_SOX', defaultValue: 'sox');
 const _profile = 'e2e_user_audio';
 
@@ -122,12 +122,8 @@ void main() {
             .read(audioSettingsProvider.notifier)
             .update(
               (audio) => audio
-                  .withInput(
-                    const AudioDevice(id: _input, name: 'Silence'),
-                  )
-                  .withOutput(
-                    const AudioDevice(id: _output, name: 'Measure'),
-                  ),
+                  .withInput(const AudioDevice(id: _input, name: 'Silence'))
+                  .withOutput(const AudioDevice(id: _output, name: 'Measure')),
             );
         await tester.tap(inSidebar('General'));
         await waitUntil(
