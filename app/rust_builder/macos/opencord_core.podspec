@@ -44,8 +44,9 @@ A new Flutter FFI plugin project.
     # AudioToolbox; CoreGraphics and Carbon (HIToolbox) for the hotkeys'
     # event tap and keyboard layouts; VideoToolbox, CoreMedia and CoreVideo
     # for the H.264 codec; AVFoundation and Foundation for the camera;
-    # ScreenCaptureKit for screen sharing. CoreAudio is weak: its process
-    # taps (macOS 14.2+) must not stop older systems.
-    'OTHER_LDFLAGS' => '-force_load ${BUILT_PRODUCTS_DIR}/libopencord_core.a -weak_framework CoreAudio -framework AudioToolbox -framework CoreGraphics -framework Carbon -framework VideoToolbox -framework CoreMedia -framework CoreVideo -framework AVFoundation -framework Foundation -framework ScreenCaptureKit',
+    # ScreenCaptureKit for screen sharing; AppKit to name the apps whose
+    # sound a share takes. CoreAudio is weak: its process taps (macOS
+    # 14.2+) must not stop older systems.
+    'OTHER_LDFLAGS' => '-force_load ${BUILT_PRODUCTS_DIR}/libopencord_core.a -weak_framework CoreAudio -framework AudioToolbox -framework CoreGraphics -framework Carbon -framework VideoToolbox -framework CoreMedia -framework CoreVideo -framework AVFoundation -framework Foundation -framework ScreenCaptureKit -framework AppKit',
   }
 end
