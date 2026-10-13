@@ -1027,6 +1027,57 @@ Rulings (`Mn: Ruling: … — cost if wrong: …`):
   (`integration_test/macos/driver.dart`) stopped at the shared onboarding
   helper's backup step, which behaves differently outside debug builds —
   cost if wrong: the UI's own share of CPU is not in the number.
+- M6: Ruling: the capture size is the content's pixels (`contentRect` ×
+  `pointPixelScale`) at most 3840×2160 (the largest preset, `Source`):
+  `start` gets only the frame rate, and the sender scales each layer to
+  the share's own preset, as on Linux — cost if wrong: more pixels copied
+  than a lower preset needs.
+- M6: Ruling: `Picked.sound` for a window is `Source::App(bundle ID)` with
+  the app's name, from `SCContentFilter.includedWindows` (macOS 15.2+); on
+  14.0–15.1 the app asks "Sound from" as on Wayland — cost if wrong: an
+  extra question on older systems.
+- M6: Ruling: the share dialog's line "Your desktop asks which screen or
+  window to share once you go live" fits macOS well enough; "Your Mac
+  asks…" would read better there (the dialog is the Windows session's
+  file) — cost if wrong: wording.
+- M7: Ruling: iTerm's Info.plist has no `NSAudioCaptureUsageDescription`,
+  so macOS can't ask on its behalf: a tap made from a process iTerm is
+  responsible for (`cargo test`, `flutter test`) is created and its
+  aggregate device starts, but the IOProc is never called — no frames at
+  all, not silence. The user adds iTerm by hand under Screen & System
+  Audio Recording → System Audio Recording Only; Opencord itself has the
+  usage string and asks — cost if wrong: none; the checks wait for it.
+- M7: Ruling: an app's processes, besides bundle ID and prefix (the plan's
+  rule), are found through the process macOS holds responsible
+  (`responsibility_get_pid_responsible_for_pid`, looked up with `dlsym`):
+  Safari's sound plays from `com.apple.WebKit.WebContent`, whose bundle ID
+  doesn't start with Safari's. `Source::App` also matches an executable's
+  name, for command-line players. `apps_with_audio()` groups by the
+  responsible app, so a command-line player shows as its terminal — cost
+  if wrong: a private symbol; without it, only bundle IDs match.
+- M7: Ruling: `OPENCORD_SHARE_AUDIO_INCLUDE_SELF=1` (read only in
+  `coreaudio.rs`) keeps Opencord in a screen's tap, for the V7 check's
+  mutation (`check_v7.sh --mutation` must see Talker in the stream) —
+  cost if wrong: a variable nobody else sets.
+- M7: Ruling: with one BlackHole device, the V7 check's app plays Talker
+  into BlackHole and records from it too, so its microphone is muted in the
+  check; a process tap takes processes' output whatever the device, so the
+  music and Talker share BlackHole without mixing in the tap — cost if
+  wrong: none.
+- M8: Ruling: CI's macOS step `rustup target add aarch64-apple-darwin
+  x86_64-apple-darwin` before the build: the release is universal, and
+  this Mac's build needed the Apple-silicon target added by hand. Proposed
+  for the Linux session (platforms.md §4): a `cargo test` job on
+  `macos-latest` for the tests that need no hardware (everything not
+  `#[ignore]`d; it would also show the load-sensitive sender tests) —
+  cost if wrong: a few seconds of CI.
+- M8: Ruling: Release's entitlements match Debug's except
+  `cs.allow-jit` and `network.server`, which only Debug needs (Flutter's
+  debugger); both have the sandbox, network client, audio input and
+  camera. For the release notes (the `release` job is shared): "The macOS
+  build is not notarized yet: open it the first time with right-click →
+  Open, and macOS asks again for the microphone, camera, screen and input
+  permissions after each update." — cost if wrong: wording.
 
 `shared:` commits (file, why):
 - M0 f6aff9a `crates/opencord-voicebot/tests/voice.rs`:
