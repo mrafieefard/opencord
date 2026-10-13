@@ -1785,10 +1785,10 @@ class MockRepository implements OpencordRepository {
   );
 
   /// What [setHotkeys] was last given.
-  Map<HotkeyAction, String> hotkeys = const {};
+  List<HotkeyBinding> hotkeys = const [];
 
   @override
-  Future<HotkeySupport> setHotkeys(Map<HotkeyAction, String> bindings) async {
+  Future<HotkeySupport> setHotkeys(List<HotkeyBinding> bindings) async {
     hotkeys = bindings;
     return hotkeySupport;
   }

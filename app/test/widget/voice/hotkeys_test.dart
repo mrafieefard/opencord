@@ -18,8 +18,8 @@ void main() {
   ) async {
     final app = await MockApp.pump(tester);
     app
-        .read(hotkeyBindingsProvider.notifier)
-        .bind(HotkeyAction.pushToTalk, 'grave');
+        .read(keybindsProvider.notifier)
+        .add(HotkeyAction.pushToTalk, keys: 'grave');
     await _settle(tester);
 
     await tester.sendKeyDownEvent(LogicalKeyboardKey.backquote);
@@ -37,8 +37,8 @@ void main() {
   ) async {
     final app = await MockApp.pump(tester);
     app
-        .read(hotkeyBindingsProvider.notifier)
-        .bind(HotkeyAction.toggleMute, 'ALT+F12');
+        .read(keybindsProvider.notifier)
+        .add(HotkeyAction.toggleMute, keys: 'ALT+F12');
     await _settle(tester);
 
     await tester.sendKeyEvent(LogicalKeyboardKey.f12);
@@ -59,8 +59,8 @@ void main() {
     final app = await MockApp.pump(tester);
     app.repository.hotkeySupport = const HotkeySupport.global('the portal');
     app
-        .read(hotkeyBindingsProvider.notifier)
-        .bind(HotkeyAction.toggleDeafen, 'F12');
+        .read(keybindsProvider.notifier)
+        .add(HotkeyAction.toggleDeafen, keys: 'F12');
     await _settle(tester);
 
     await tester.sendKeyEvent(LogicalKeyboardKey.f12);
@@ -71,6 +71,66 @@ void main() {
 
     expect(fromTheApp, isFalse);
     expect(app.read(voiceSessionProvider).deafened, isTrue);
+    await app.dispose(tester);
+  });
+
+  testWidgets('focused, push to talk on two keys lasts until both are up', (
+    tester,
+  ) async {
+    final app = await MockApp.pump(tester);
+    app.read(keybindsProvider.notifier)
+      ..add(HotkeyAction.pushToTalk, keys: 'grave')
+      ..add(HotkeyAction.pushToTalk, keys: 'Control_R');
+    await _settle(tester);
+
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.backquote);
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.controlRight);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.backquote);
+    final oneUp = app.repository.pushToTalkHeld;
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.controlRight);
+
+    expect(oneUp, isTrue, reason: 'Right Ctrl still holds it');
+    expect(app.repository.pushToTalkHeld, isFalse);
+    await app.dispose(tester);
+  });
+
+  testWidgets('Toggle push-to-talk switches the input mode', (tester) async {
+    final app = await MockApp.pump(tester);
+    app
+        .read(keybindsProvider.notifier)
+        .add(HotkeyAction.toggleInputMode, keys: 'F9');
+    await _settle(tester);
+    final before = app.read(audioSettingsProvider).inputMode;
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.f9);
+    final switched = app.read(audioSettingsProvider).inputMode;
+    // Pressed elsewhere, as the system reports it.
+    app.repository.debugHotkeyPressed(HotkeyAction.toggleInputMode);
+    await _settle(tester);
+
+    expect(before, InputMode.voiceActivity);
+    expect(switched, InputMode.pushToTalk);
+    expect(app.read(audioSettingsProvider).inputMode, InputMode.voiceActivity);
+    await app.dispose(tester);
+  });
+
+  testWidgets("a keybind on the app's own toggle keys acts once", (
+    tester,
+  ) async {
+    final app = await MockApp.pump(tester, platform: TargetPlatform.linux);
+    app
+        .read(keybindsProvider.notifier)
+        .add(HotkeyAction.toggleMute, keys: 'CTRL+SHIFT+m');
+    await _settle(tester);
+
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
+    await tester.sendKeyEvent(LogicalKeyboardKey.keyM);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+    await _settle(tester);
+
+    expect(app.read(voiceSessionProvider).muted, isTrue);
     await app.dispose(tester);
   });
 }

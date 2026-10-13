@@ -1341,19 +1341,20 @@ void main() {
         reason: 'no portal',
       );
 
-      final support = await harness.repository.setHotkeys({
-        HotkeyAction.pushToTalk: 'grave',
-        HotkeyAction.toggleDeafen: 'CTRL+SHIFT+F12',
-      });
+      final support = await harness.repository.setHotkeys([
+        (action: HotkeyAction.pushToTalk, keys: 'grave'),
+        (action: HotkeyAction.toggleDeafen, keys: 'CTRL+SHIFT+F12'),
+        (action: HotkeyAction.pushToTalk, keys: 'Control_R'),
+        (action: HotkeyAction.toggleInputMode, keys: 'F13'),
+      ]);
 
       expect(support, const HotkeySupport.focusedOnly('no portal'));
-      expect(
-        harness.core.hotkeys!.map((b) => (b.action, b.accelerator)),
-        unorderedEquals([
-          (core.HotkeyAction.pushToTalk, 'grave'),
-          (core.HotkeyAction.toggleDeafen, 'CTRL+SHIFT+F12'),
-        ]),
-      );
+      expect(harness.core.hotkeys!.map((b) => (b.action, b.accelerator)), [
+        (core.HotkeyAction.pushToTalk, 'grave'),
+        (core.HotkeyAction.toggleDeafen, 'CTRL+SHIFT+F12'),
+        (core.HotkeyAction.pushToTalk, 'Control_R'),
+        (core.HotkeyAction.toggleInputMode, 'F13'),
+      ]);
     });
 
     test('a toggle pressed anywhere reaches the app', () async {

@@ -449,9 +449,9 @@ abstract interface class OpencordRepository {
 
   /// Binds the hotkeys system-wide where the system allows (Phase 2 plan
   /// §7.13), replacing the ones bound before; says whether they work while
-  /// Opencord is in the background. Toggles pressed there arrive as
-  /// [HotkeyPressed].
-  Future<HotkeySupport> setHotkeys(Map<HotkeyAction, String> bindings);
+  /// Opencord is in the background. An action may have several keys.
+  /// Toggles pressed there arrive as [HotkeyPressed].
+  Future<HotkeySupport> setHotkeys(List<HotkeyBinding> bindings);
 
   /// How loud someone sounds on this device, 0–200 %.
   void setUserVolume(String serverKey, int userId, int volume);

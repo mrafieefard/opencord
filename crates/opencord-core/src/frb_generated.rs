@@ -4158,6 +4158,7 @@ impl SseDecode for crate::api::types::HotkeyAction {
             1 => crate::api::types::HotkeyAction::PrioritySpeaker,
             2 => crate::api::types::HotkeyAction::ToggleMute,
             3 => crate::api::types::HotkeyAction::ToggleDeafen,
+            4 => crate::api::types::HotkeyAction::ToggleInputMode,
             _ => unreachable!("Invalid variant for HotkeyAction: {}", inner),
         };
     }
@@ -6275,6 +6276,7 @@ impl flutter_rust_bridge::IntoDart for crate::api::types::HotkeyAction {
             Self::PrioritySpeaker => 1.into_dart(),
             Self::ToggleMute => 2.into_dart(),
             Self::ToggleDeafen => 3.into_dart(),
+            Self::ToggleInputMode => 4.into_dart(),
             _ => unreachable!(),
         }
     }
@@ -7834,6 +7836,7 @@ impl SseEncode for crate::api::types::HotkeyAction {
                 crate::api::types::HotkeyAction::PrioritySpeaker => 1,
                 crate::api::types::HotkeyAction::ToggleMute => 2,
                 crate::api::types::HotkeyAction::ToggleDeafen => 3,
+                crate::api::types::HotkeyAction::ToggleInputMode => 4,
                 _ => {
                     unimplemented!("");
                 }

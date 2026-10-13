@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:opencord/core/app_info.dart';
@@ -9,13 +8,13 @@ import 'package:opencord/core/providers/providers.dart';
 import 'package:opencord/core/repository/repository.dart';
 import 'package:opencord/core/settings/app_settings.dart';
 import 'package:opencord/core/settings/local_prefs.dart';
+import 'package:opencord/features/settings/user/keybind_recorder.dart';
 import 'package:opencord/features/voice/input_level_meter.dart';
 import 'package:opencord/ui/theme/oc_colors.dart';
 import 'package:opencord/ui/theme/oc_icons.dart';
 import 'package:opencord/ui/theme/oc_metrics.dart';
 import 'package:opencord/ui/theme/oc_text.dart';
 import 'package:opencord/ui/widgets/confirm_dialog.dart';
-import 'package:opencord/ui/widgets/key_hint.dart';
 import 'package:opencord/ui/widgets/oc_button.dart';
 import 'package:opencord/ui/widgets/oc_menu.dart';
 import 'package:opencord/ui/widgets/popover.dart';
@@ -167,6 +166,21 @@ class _VoicePageState extends ConsumerState<VoicePage> {
                 ],
               ),
             ),
+            if (audio.inputMode == InputMode.pushToTalk) ...[
+              const _PushToTalkKeys(),
+              SettingsSliderRow(
+                title: 'Release delay',
+                value: audio.pushToTalkRelease.inMilliseconds,
+                min: 0,
+                max: AudioSettings.maxRelease.inMilliseconds,
+                step: 20,
+                shown: '${audio.pushToTalkRelease.inMilliseconds} ms',
+                onChanged: (ms) => update(
+                  (a) =>
+                      a.copyWith(pushToTalkRelease: Duration(milliseconds: ms)),
+                ),
+              ),
+            ],
           ],
         ),
         const SizedBox(height: OcSpace.s24),
@@ -220,6 +234,38 @@ class _VoicePageState extends ConsumerState<VoicePage> {
           ],
         ),
       ],
+    );
+  }
+}
+
+/// The push-to-talk key, as Discord's voice settings show it: the first
+/// push-to-talk keybind, recorded here; more in Keybinds.
+class _PushToTalkKeys extends ConsumerWidget {
+  const _PushToTalkKeys();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final keybinds = ref.watch(
+      keybindsProvider.select((k) => k.of(HotkeyAction.pushToTalk)),
+    );
+    final first = keybinds.firstOrNull;
+    final notifier = ref.read(keybindsProvider.notifier);
+    final more = keybinds.length - 1;
+    return SettingsRow(
+      title: 'Shortcut',
+      subtitle: more > 0
+          ? 'And $more more in Keybinds'
+          : 'Add more keys in Keybinds',
+      trailing: SizedBox(
+        width: 220,
+        child: KeybindRecorder(
+          keys: first?.keys ?? '',
+          semanticLabel: 'Push-to-talk keys',
+          onRecorded: (keys) => first == null
+              ? notifier.add(HotkeyAction.pushToTalk, keys: keys)
+              : notifier.change(first.id, (row) => row.copyWith(keys: keys)),
+        ),
+      ),
     );
   }
 }
@@ -322,111 +368,6 @@ class NotificationsPage extends ConsumerWidget {
           value: settings.flashTaskbar,
           onChanged: (value) => update((s) => s.copyWith(flashTaskbar: value)),
         ),
-      ],
-    );
-  }
-}
-
-/// Keybinds (§7, §8.1): what each shortcut does on this platform.
-class KeybindsPage extends StatelessWidget {
-  const KeybindsPage({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    final platform = Theme.of(context).platform;
-    final mac = platform == TargetPlatform.macOS;
-    SingleActivator primary(
-      LogicalKeyboardKey key, {
-      bool shift = false,
-      bool alt = false,
-    }) => appShortcut(key, platform, shift: shift, alt: alt);
-    const up = LogicalKeyboardKey.arrowUp;
-    const down = LogicalKeyboardKey.arrowDown;
-    final rows = <(String, List<SingleActivator>)>[
-      ('Quick switcher', [primary(LogicalKeyboardKey.keyK)]),
-      ('User settings', [primary(LogicalKeyboardKey.comma)]),
-      (
-        'Previous / next channel',
-        [
-          const SingleActivator(up, alt: true),
-          const SingleActivator(down, alt: true),
-        ],
-      ),
-      (
-        'Previous / next unread channel',
-        [
-          const SingleActivator(up, alt: true, shift: true),
-          const SingleActivator(down, alt: true, shift: true),
-        ],
-      ),
-      (
-        'Previous / next server',
-        [primary(up, alt: true), primary(down, alt: true)],
-      ),
-      ('Toggle mute', [primary(LogicalKeyboardKey.keyM, shift: true)]),
-      ('Toggle deafen', [primary(LogicalKeyboardKey.keyD, shift: true)]),
-      ('Toggle member list', [primary(LogicalKeyboardKey.keyU, shift: true)]),
-      ('Open the soundboard', [primary(LogicalKeyboardKey.keyB, shift: true)]),
-      (
-        'Send / new line',
-        [
-          const SingleActivator(LogicalKeyboardKey.enter),
-          const SingleActivator(LogicalKeyboardKey.enter, shift: true),
-        ],
-      ),
-      ('Edit your last message (empty composer)', [const SingleActivator(up)]),
-      (
-        'Cancel a reply or edit, close, mark read',
-        [const SingleActivator(LogicalKeyboardKey.escape)],
-      ),
-      (
-        'Scroll messages',
-        [
-          const SingleActivator(LogicalKeyboardKey.pageUp),
-          const SingleActivator(LogicalKeyboardKey.pageDown),
-        ],
-      ),
-      (
-        'Fullscreen',
-        [
-          if (mac)
-            const SingleActivator(
-              LogicalKeyboardKey.keyF,
-              control: true,
-              meta: true,
-            )
-          else
-            const SingleActivator(LogicalKeyboardKey.f11),
-        ],
-      ),
-    ];
-    final colors = context.oc;
-    return SettingsSection(
-      title: 'Shortcuts',
-      footer:
-          'Double-click a message to reply. Changing shortcuts comes in a later version.',
-      children: [
-        for (final (action, keys) in rows)
-          Padding(
-            padding: const EdgeInsets.symmetric(
-              horizontal: OcSpace.s16,
-              vertical: OcSpace.s12,
-            ),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    action,
-                    style: OcText.body.copyWith(color: colors.text),
-                  ),
-                ),
-                Wrap(
-                  spacing: OcSpace.s4,
-                  children: [for (final key in keys) KeyHint(key)],
-                ),
-              ],
-            ),
-          ),
       ],
     );
   }

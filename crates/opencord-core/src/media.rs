@@ -644,6 +644,7 @@ fn hotkey_action_to(action: HotkeyAction) -> hotkeys::HotkeyAction {
         HotkeyAction::PrioritySpeaker => hotkeys::HotkeyAction::PrioritySpeaker,
         HotkeyAction::ToggleMute => hotkeys::HotkeyAction::ToggleMute,
         HotkeyAction::ToggleDeafen => hotkeys::HotkeyAction::ToggleDeafen,
+        HotkeyAction::ToggleInputMode => hotkeys::HotkeyAction::ToggleInputMode,
     }
 }
 
@@ -653,6 +654,7 @@ fn hotkey_action_from(action: hotkeys::HotkeyAction) -> HotkeyAction {
         hotkeys::HotkeyAction::PrioritySpeaker => HotkeyAction::PrioritySpeaker,
         hotkeys::HotkeyAction::ToggleMute => HotkeyAction::ToggleMute,
         hotkeys::HotkeyAction::ToggleDeafen => HotkeyAction::ToggleDeafen,
+        hotkeys::HotkeyAction::ToggleInputMode => HotkeyAction::ToggleInputMode,
     }
 }
 

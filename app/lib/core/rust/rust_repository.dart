@@ -1286,14 +1286,14 @@ class RustRepository implements OpencordRepository {
       noiseSuppressionFrom(await _call(_core.audioRecommendedNoiseSuppression));
 
   @override
-  Future<HotkeySupport> setHotkeys(Map<HotkeyAction, String> bindings) async =>
+  Future<HotkeySupport> setHotkeys(List<HotkeyBinding> bindings) async =>
       hotkeySupportFrom(
         await _call(
           () => _core.hotkeysSet([
-            for (final MapEntry(:key, :value) in bindings.entries)
+            for (final (:action, :keys) in bindings)
               core.HotkeyBinding(
-                action: hotkeyActionTo(key),
-                accelerator: value,
+                action: hotkeyActionTo(action),
+                accelerator: keys,
               ),
           ]),
         ),

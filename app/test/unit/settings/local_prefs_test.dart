@@ -208,22 +208,58 @@ void main() {
     );
   });
 
-  test('hotkeys start unbound and are remembered', () {
-    final container = app(MemoryKeyValueStore());
+  test('keybinds start empty and are remembered', () {
+    final store = MemoryKeyValueStore();
+    final container = app(store);
 
-    final before = container.read(hotkeyBindingsProvider);
-    container
-        .read(hotkeyBindingsProvider.notifier)
-        .bind(HotkeyAction.pushToTalk, 'grave');
-    final restored = HotkeyBindings.fromJson(
-      container.read(hotkeyBindingsProvider).toJson(),
-    );
+    final before = container.read(keybindsProvider);
+    final notifier = container.read(keybindsProvider.notifier);
+    notifier.add(HotkeyAction.pushToTalk, keys: 'grave');
+    final second = notifier.add(HotkeyAction.pushToTalk);
+    notifier.change(second, (row) => row.copyWith(keys: 'Control_R'));
+    notifier.add(HotkeyAction.toggleMute);
+    final restored = app(store).read(keybindsProvider);
 
-    expect(before.bindings, isEmpty);
-    expect(restored.bindings, {HotkeyAction.pushToTalk: 'grave'});
+    expect(before.list, isEmpty);
     expect(
-      HotkeyBindings.fromJson({'pushToTalk': 5, 'nonsense': 'F1'}).bindings,
-      isEmpty,
+      [for (final row in restored.list) (row.action, row.keys)],
+      [
+        (HotkeyAction.pushToTalk, 'grave'),
+        (HotkeyAction.pushToTalk, 'Control_R'),
+        (HotkeyAction.toggleMute, ''),
+      ],
+    );
+    // The row without keys yet binds nothing.
+    expect(restored.bound, [
+      (action: HotkeyAction.pushToTalk, keys: 'grave'),
+      (action: HotkeyAction.pushToTalk, keys: 'Control_R'),
+    ]);
+  });
+
+  test('keybinds saved one per action still load, damage is skipped', () {
+    final earlier = Keybinds.fromJson({
+      'pushToTalk': 'grave',
+      'toggleDeafen': 'CTRL+SHIFT+F12',
+      'nonsense': 'F1',
+      'toggleMute': 5,
+    });
+    final damaged = Keybinds.fromJson([
+      {'action': 'pushToTalk', 'keys': 'F13'},
+      {'action': 'pushToTalk', 'keys': 'F13'},
+      {'action': 'pushToTalk', 'keys': 'not a key'},
+      'not a row',
+      {'action': 'fly', 'keys': 'F1'},
+    ]);
+
+    expect(earlier.bound, [
+      (action: HotkeyAction.pushToTalk, keys: 'grave'),
+      (action: HotkeyAction.toggleDeafen, keys: 'CTRL+SHIFT+F12'),
+    ]);
+    expect(damaged.list, hasLength(3));
+    expect(damaged.bound, [(action: HotkeyAction.pushToTalk, keys: 'F13')]);
+    expect(
+      damaged.sharingKeys(damaged.list.first).single.id,
+      damaged.list[1].id,
     );
   });
 }

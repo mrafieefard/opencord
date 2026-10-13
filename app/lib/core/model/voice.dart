@@ -232,7 +232,25 @@ class AudioDeviceList {
 }
 
 /// What a hotkey does (Phase 2 plan §7.13).
-enum HotkeyAction { pushToTalk, prioritySpeaker, toggleMute, toggleDeafen }
+enum HotkeyAction {
+  pushToTalk('Push to talk'),
+  prioritySpeaker('Priority speaker'),
+  toggleMute('Toggle mute'),
+  toggleDeafen('Toggle deafen'),
+  toggleInputMode('Toggle push-to-talk');
+
+  const HotkeyAction(this.label);
+
+  final String label;
+
+  /// Acts while held, rather than once per press.
+  bool get held => this == pushToTalk || this == prioritySpeaker;
+}
+
+/// A key the system or the app watches for: [keys] as the XDG shortcuts
+/// specification writes them (`CTRL+SHIFT+m`, `grave`). An action may have
+/// several; it is down while any of them is.
+typedef HotkeyBinding = ({HotkeyAction action, String keys});
 
 /// Whether hotkeys work while Opencord is in the background.
 @immutable

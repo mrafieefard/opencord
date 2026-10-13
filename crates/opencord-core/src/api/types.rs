@@ -588,10 +588,13 @@ pub enum HotkeyAction {
     PrioritySpeaker,
     ToggleMute,
     ToggleDeafen,
+    /// Switches between push-to-talk and voice activity.
+    ToggleInputMode,
 }
 
 /// A hotkey: a key and the modifiers held with it, as the XDG shortcuts
-/// specification writes them, such as `CTRL+SHIFT+m` or `F12`.
+/// specification writes them, such as `CTRL+SHIFT+m` or `F12`. An action
+/// may have several; it is down while any of its keys is.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct HotkeyBinding {
     pub action: HotkeyAction,
