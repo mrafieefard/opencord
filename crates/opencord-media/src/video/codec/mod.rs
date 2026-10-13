@@ -2,32 +2,36 @@
 //! pictures. Each system has its codec backend (docs/plans/platforms.md),
 //! all with one API, which the video sender and receiver use: `supported()`,
 //! `encoder::{Backend, Encoder}`, `decoder::Decoder`, `scale::Scaler` and
-//! `raw::RawDecoder`, with the signatures of the FFmpeg files here. Linux
-//! uses hardware encoders through FFmpeg, Cisco's OpenH264 as the software
-//! fallback and FFmpeg's decoder.
+//! `raw::RawDecoder`, with the signatures of the FFmpeg files here. Linux and
+//! Windows use hardware encoders through FFmpeg, Cisco's OpenH264 as the
+//! software fallback and FFmpeg's decoder.
 
 pub mod annexb;
 pub mod convert;
 
 // One block per system: each session edits only its own.
 
-// FFmpeg: Linux, and Windows once its plan's W3 turns it on there.
-#[cfg(target_os = "linux")]
+// FFmpeg: Linux and Windows (docs/plans/windows.md W3). The hardware device
+// differs — VA-API on Linux, D3D11VA on Windows — and so do the encoders it
+// offers; everything else is the same code.
+#[cfg(windows)]
+mod d3d11va;
+#[cfg(any(target_os = "linux", windows))]
 pub mod decoder;
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 pub mod encoder;
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 mod ffmpeg;
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 pub mod openh264;
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 pub mod raw;
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 pub mod scale;
 #[cfg(target_os = "linux")]
 mod vaapi;
 /// Whether this system can encode and decode video.
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 pub fn supported() -> bool {
     true
 }
@@ -37,12 +41,6 @@ pub fn supported() -> bool {
 mod macos;
 #[cfg(target_os = "macos")]
 pub use macos::{decoder, encoder, raw, scale, supported};
-
-// Until W3 (docs/plans/windows.md) uses the FFmpeg files on Windows.
-#[cfg(target_os = "windows")]
-mod windows_pending;
-#[cfg(target_os = "windows")]
-pub use windows_pending::{decoder, encoder, raw, scale, supported};
 
 #[cfg(not(any(target_os = "linux", target_os = "macos", target_os = "windows")))]
 mod unsupported;

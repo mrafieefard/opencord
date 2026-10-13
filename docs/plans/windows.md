@@ -754,7 +754,7 @@ pushed milestone, and the Mac's work reaches this branch only through
 | W0 | (this commit) | **The PC.** Windows 10 Pro 22H2, build 19045.7417 — *not* Windows 11, so screen share sound (decision C) cannot be measured here; see the W7 note below. i7-13620H; RTX 4070 Laptop (32.0.16.1078) and Intel UHD (31.0.101.4255); 15.7 GB. Visual Studio Community 2026 18.8.2 (NativeDesktop), rustc/cargo 1.99.0, Flutter 3.44.0 (Dart 3.12.0), FFmpeg n9.0.2 LGPL shared, pwsh 7.6.6, Python 3.14.7. **Rust.** `cargo build --workspace` 6 m 30 s, 8 warnings, every one off-Linux dead code in a shared file. `cargo fmt --all --check` clean. `cargo test --workspace --lib --bins --tests --no-fail-fast`: **608 passed, 5 failed, 4 ignored**, plus one target that does not compile. `cargo clippy --workspace --all-targets` **fails** (five `opencord-media` examples do not compile off Linux). **Dart.** `flutter analyze` clean, 49.1 s. `flutter test`: **730 passed, 20 failed, 1 skipped**. Every failure of either is listed under "Shared code that fails on Windows" below; none was fixed here (platforms.md §4). **The app.** `check_m5.ps1` and `check_m6.ps1` both pass: the app builds (225.8 s cold, 23–29 s warm), creates an identity, claims a server, is still connected after a restart, and two identities chat live while a new restriction reaches the member's UI without a reconnect. `e2e_server.ps1` starts and stops a server. **Not done:** the tray and `opencord://` links still need a person at the PC (W0 step 4); LLVM is not installed, which W3 needs. |
 | W1 | (three commits) | **Steps 1 to 5 and 7 pass. Step 6's acceptance is met but is not demonstrative on this machine's own speakers; it needs external ones.** **Step 1** needed nothing — microphone access and "Let desktop apps access your microphone" were both already `Allow`. **Step 2 answered: a denied microphone fails to open, it does not record silence.** `Microphone::open` returns `could not open the microphone: Failed to initialize audio client: Access is denied. (os error -2147024891)` — `0x80070005`, `E_ACCESSDENIED`, from `IAudioClient::Initialize`. Measured by setting both `ConsentStore\microphone` values to `Deny` and restoring them. So the app's noticeable path is the right one and no shared UI follow-up is needed: `engine.rs:551` turns that `Err` into `EngineEvent::DeviceFailed { output: false }` → `MediaEvent::DeviceFailed` → Dart `AudioDeviceFailed` → the notice "No microphone could be opened." (traced through the code, not yet watched end to end in the app). **Step 3, the device lists:** ids are `wasapi:{0.0.1.00000000}.{guid}` for microphones and `wasapi:{0.0.0.00000000}.{guid}` for speakers. 3 microphones — Intel Smart Sound mic array (the default), WO Mic Device, Razer Barracuda X 2.4 — and 2 speakers — Realtek(R) Audio, Razer Barracuda X 2.4 (the default). A control measurement with access allowed: the default microphone opened at 48000 Hz on 2 channels and delivered 144000 samples in 1.5 s (exactly 48 kHz × 2), peak −42.7 dBFS, 0 glitches, not lost. `crates/opencord-media/tests/devices_windows.rs` holds both, and is the instrument for step 2. **The rest of step 3** came out of steps 4 and 5: a voicebot hears the app (the Listener took 595 packets carrying the app's tone) and the app hears a voicebot (it played Talker's 440 Hz at −9.2 dBFS). The level meter itself was not measured separately; it is a shared Dart binding of `InputLevelChanged` and only fires while a meter is open. **Step 4, the per-user audio check, passes, every number inside the plan's 0.5 dB:** Talker's 440 Hz at 100 % −9.2 dBFS; at 50 % −15.3 dBFS (**−6.0 dB**, wanted −6); at 200 % −3.2 dBFS (**+6.0 dB**, wanted +6); muted **−106.2 dBFS** (wanted < −90); unmuted −9.7 dBFS. Player's 880 Hz sound −11.7 dBFS, with the soundboard muted **−123.0 dBFS** while Talker stayed at −9.2 dBFS, and −11.7 dBFS again when unmuted. **Step 5, the microphone path, passes in both processing modes.** 440 Hz as a Listener voicebot heard it: voice activity −21.1 dBFS, push-to-talk released **nothing at all — no packets** (recorded as −200), push-to-talk held −21.1 dBFS. Repeated with `standard` (RNNoise) suppression: −21.0 / none / −21.1 dBFS, so the chain passes a pure tone through unchanged, which is what W2's acceptance will rest on. **Step 7: the audio thread does get real-time priority.** The core installs no tracing subscriber, so there is no app log to read as the step suggests; measured instead on the threads, where MMCSS shows up as a boost into the 16–26 band: while the app held voice, exactly one of its 128 threads sat at base priority **21**, against 98 at the ordinary 8, in a process whose class is Normal. **Step 6, the echo test: the plan's acceptance is met in every run, but it does not demonstrate echo cancellation on this machine.** The app plays Talker's 440 Hz at −9.2 dBFS (W1 step 4; the plan says about −12) and what comes back is −129 dBFS or quieter, against an acceptance of under −50 — met with about 80 dB to spare. What it does not show is the canceller doing that, because the echo does not survive to be cancelled. Over 5 runs, 4 had the un-cancelled control at −129.5, −130.4, −136.4 and −147.7 dBFS, already far under the threshold, with the cancelled figure the same to within a few dB; a dead speaker would score identically. The one run that did discriminate — control −42.1 dBFS, cancelled −132.5 dBFS, 90.4 dB removed — had a sent peak of −10.9 dBFS against −78 to −88 dBFS in all the others, so what held the gate open was room noise, not the speakers, and it did not repeat. The cause is measured, not guessed: a 440 Hz tone played out of `Speakers (Realtek(R) Audio)` arrives at the Intel microphone array at **−56.8 dBFS** from a −18.2 dBFS source, with 1 kHz unmoved at −111 dBFS (room floor −112.3) — about **38 dB of acoustic loss**. At that level noise suppression removes the echo as the non-speech it is before the canceller is reached. `check_echo.ps1` therefore exits 2, "inconclusive", rather than reporting a pass it has not earned. **To demonstrate the canceller, the machine needs external speakers, turned up, close to the microphone** — see the note below. |
 | W2 | (this commit) | **All seven steps done. Step 7's acceptance is measured and passing; step 6 found one limit, in shared Dart.** **The merge first,** because it settles what W0 logged: after `git merge origin/phase2-remaining` (L1 at `eb40bc8`, a fast-forward to `2de3e0c`), `cargo fmt --all --check` and `cargo clippy --workspace --all-targets -- -D warnings` **both exit 0 on Windows**. The 8 shared dead-code warnings, the 5 non-compiling examples and `opencord-voicebot/tests/voice.rs`'s compile error are all gone, so `-D warnings` is usable here from now on. **Steps 1 to 4, the hook.** `hotkeys/windows.rs` is a `WH_KEYBOARD_LL` hook on a thread of its own, installed from that thread and stopped with `PostThreadMessageW(WM_QUIT)`; the procedure maps the key, updates the shared `Held`, sends the events and always calls `CallNextHookEx`, taking no lock that could block (`try_borrow_mut`, and the only other borrower is a `WM_TIMER` on the same thread). `RegisterHotKey` is not used at all. Keysyms map to virtual keys through a fixed table plus `VkKeyScanExW` against the **foreground window's** layout, rebuilt on a 500 ms `WM_TIMER`. Support is `Global { method: "a Windows keyboard hook" }`. **Step 5, tests: 16 unit tests pass, 0 fail**, covering the keysym↔virtual-key table (F1/F24, KP_0/KP_9, Control_R, Super_L, Escape, KP_Divide, and `m`/`7`/`space` through the layout), extended keys (`KP_Enter` and `Return` share `VK_RETURN` and are told apart; a keypad key with Num Lock off does **not** match the arrow it reports), AltGr, left/right modifiers, and the five press/release behaviours mirrored from `x11.rs`. **5 `#[ignore]`d live tests pass** with real keys injected by `SendInput`: press and release reach the action, two push-to-talk keys hold until both are up, Right Ctrl alone works, a toggle fires once per press, and Print Screen reaches the hook. **Step 6, the key recorder: 2 of 3 keys record as the core names them, Print Screen records nothing.** Measured with keys really pressed into the real app window (`check_key_recorder.ps1`): the right Alt → `Alt_R`, shown "Right Alt"; the left Windows key → `Super_L`, shown "Left Super" (it also opens the Start menu, as it must — nothing may swallow a key); **Print Screen → `""`**, the recorder still saying "Press keys…". The cause is not the hook: `print_screen_reaches_the_hook` shows the hook gets both the down and the up, so `Print` works as a keybind once set — Windows just doesn't send a focused window the key-down, and the recorder commits a key on its key-down. A note for the Linux session, below; `check_key_recorder.ps1` exits 2 for it rather than failing. AltGr itself could not be recorded on this PC: a US layout has no AltGr key, so the right Alt is only the right Alt here; the phantom-Ctrl path is covered by the unit test instead. **Step 7's acceptance passes, measured.** `check_keybinds.ps1`, with F13 bound to push-to-talk, the app's microphone on CABLE Output and a 440 Hz tone down the cable, the key injected from outside the app **while Notepad had the focus** (`foreground=notepad` in the held run's own report): held, the Listener voicebot took **604 packets** and heard 440 Hz at **−21.1 dBFS**; never pressed, it heard **nothing at all — no packets** (recorded as −200). A difference of 178.9 dB against a 20 dB requirement, and −21.1 dBFS is the same figure W1 step 5 measured for a held push-to-talk, so the hook costs the chain nothing. Both runs reported `support=global (a Windows keyboard hook)`, which is the second half of step 7: the settings page can say the keybinds are global. **Checks:** `cargo test --workspace --lib --bins --tests` 686 passed, 4 failed, 10 ignored — every failure in `opencord-voice/tests/video.rs`, the Linux-owned file this PC has never got through (W1's note); every other W0 Rust failure is gone. `flutter analyze` clean; `flutter test` **735 passed, 1 skipped, 16 failed**, all 16 goldens and not regenerated (W0 had 20 failures; L1's shared fixes removed the other 4). `dart format` clean on own files. **Zero `shared:` commits:** `hotkeys/mod.rs` needed no change. **Known limit, for the log:** keys typed into a window of a process running as administrator never reach a hook in a normal one (UIPI), so push-to-talk inside such a game needs Opencord started as administrator; this is in the file's doc comment. |
-| W3 | | |
+| W3 | (this commit) | **All eight steps done; the acceptance is met. Windows encodes and decodes H.264.** **Step 1:** the FFmpeg block in `video/codec/mod.rs` is now `cfg(any(target_os = "linux", windows))` for `decoder`, `encoder`, `ffmpeg`, `openh264`, `raw` and `scale`; `vaapi` stays Linux-only and `d3d11va` is its Windows counterpart; `windows_pending.rs` is deleted; `ffmpeg-next`, `openh264` and `openh264-sys2` are in opencord-media's Windows section. LLVM 23.1.3 was installed by the user and `LIBCLANG_PATH` was already set machine-wide; `ffmpeg-sys-next` 9.0.1's bindgen builds in **39.9 s**. **Step 2, the encoders. What this PC has, from FFmpeg itself:** `h264_nvenc`, `h264_amf`, `h264_qsv` and `h264_mf` all present, **no `libx264` and no `h264` software encoder** — the LGPL build carries none, so OpenH264 is the only software path and Cisco's DLL is not fetched on any OS. `Backend` gained `Amf`, `Qsv` and `MediaFoundation` behind `cfg(windows)`, `VaApi` is now Linux-only, and `Backend::ALL` on Windows is `[Nvenc, Amf, Qsv, OpenH264]`. **Media Foundation is deliberately not in `ALL`: measured, it holds 16 pictures before letting the first out and only 14 of 30 encode calls produce a packet** (~533 ms at 30 fps), which W3 step 2 says is grounds for dropping it; NVENC and Quick Sync both answer on call 0, 30 of 30. It stays openable by name, and `media_foundation_holds_pictures_back` keeps that measurement as a test. Option names were read off `ffmpeg -h encoder=…` on this machine, not guessed. **One real bug found and fixed:** the shared `profile=high` broke `h264_mf`, which has no `profile` option at all, so FFmpeg tried the generic enum and refused to open the encoder ("Invalid argument"); `profile` is now set per encoder. **Step 3:** `video/codec/d3d11va.rs`, a D3D11VA device on the default adapter — Windows picks the adapter, so there is nothing like `vaapi.rs`'s render-node hunt; `decoder.rs` takes `vaapi` on Linux and `d3d11va` on Windows by `cfg`, and `prefer_vaapi` is now `prefer_hardware` against a per-system `SURFACE`. Hardware decoding works: `hardware_decoding_gives_nv12_pictures_where_there_is_a_device` passes here. **Step 4:** `openh264.rs` has Windows names (`openh264-2.6.0-win64.dll`, and `openh264-` as Cisco's prefix without the `lib`). Nothing fetches Cisco's library on any OS, and with Media Foundation out of `ALL` **Windows currently has no software encoder at all** — see the note below. **Step 5, FFmpeg bundled, and the release build runs without it installed.** `dumpbin /dependents` gives five DLLs transitively: avcodec-63 (91.1 MB), avformat-63 (22.8 MB), avutil-61 (3.0 MB), swresample-7 (0.7 MB), swscale-10 (2.3 MB) — **120.0 MB**, against the plan's guess of 25–40 MB. The release folder is **195.8 MB**. `check_bundled_ffmpeg.ps1` renames `C:\ffmpeg` away and measures both halves: the exe is still running after 12 s, so every DLL resolved, and the V4 check through only the bundled DLLs gives **146 pictures, 146 intact, 146 kbit/s**. **One real bug found and fixed:** `FFMPEG_DIR` is `C:\ffmpeg`, so the globbed paths reached the generated `cmake_install.cmake` as `C:\ffmpeg/bin/…` and CMake read `\f` as a bad escape — `file(TO_CMAKE_PATH …)` first. **Step 6, CI:** a Windows-only "Use FFmpeg" step downloads a pinned BtbN asset (`autobuild-2026-10-13-13-05`, `ffmpeg-n9.0.2-27-g7e93014c5b-win64-lgpl-shared-9.0.zip`, 77,230,840 bytes, SHA-256 `9df4db960f3f0cd3ed76be0a2be96265d00db4c3be2526a6d39b03c2b547100d` — downloaded and hashed here, not copied from a page) and sets `FFMPEG_DIR`, `LIBCLANG_PATH` and PATH; "Package Windows" now also ships `FFMPEG-LICENSE.txt`. **Step 7:** `check_v4.ps1` passes — **154 pictures, 154 intact, 151 decoded, 3 keyframes, 163 kbit/s, by layer 140/14/0**. **Step 8, what an encode costs on this PC** (wall time per `encode` call, 480 rounds after 10; `tests/codec_costs_windows.rs`, ignored): 720p30 NVENC **1.99 ms** / 1497 kbit/s, Quick Sync **3.50 ms** / 1079 kbit/s, Media Foundation 1.48 ms / 1380 kbit/s; 360p30 NVENC **0.60 ms** / 509 kbit/s, Quick Sync 1.89 ms / 482 kbit/s, MF 0.31 ms / 447 kbit/s; 180p15 NVENC **0.31 ms** / 149 kbit/s, Quick Sync 1.56 ms / 148 kbit/s, MF 0.18 ms / 124 kbit/s. All three layers on NVENC come to **2.90 ms** of a 33 ms frame. AMF does not open (no AMD GPU here) and OpenH264 does not (no Cisco DLL), so no software column could be measured. Quick Sync undershoots its target at 720p (1079 of 1500 kbit/s) and is the slowest of the three. **Checks:** `cargo fmt --all --check` and `cargo clippy --workspace --all-targets -- -D warnings` both **0**. `cargo test --workspace --lib --bins --tests -- --test-threads=1`: **676 passed, 4 failed, 11 ignored** — `opencord-media` is **243/243**, and all four failures are in the two Linux-owned files listed below. `flutter analyze` clean. **Turning the codec on woke up every `needs_codec!()` test**, and one of them found a real Windows bug, fixed in `decoder.rs`: FFmpeg here *conceals* a damaged picture and returns `Ok`, so `receiver.rs` never asked the sender for a keyframe; `err_recognition = AV_EF_EXPLODE \| AV_EF_BITSTREAM` on Windows makes it report the damage, and `damage_asks_for_a_keyframe` passes. |
 | W4 | | |
 | W5 | | |
 | W6 | | |
@@ -998,7 +998,111 @@ Decided while doing W2:
   recorder's own AltGr behaviour is untested on a layout that has one; it is
   shared Dart, so the Mac and Linux sessions are better placed for it anyway.
 
+Decided while doing W3:
+- W3: Ruling: `Backend::MediaFoundation` exists but is **not** in
+  `Backend::ALL`. Measured: it holds 16 pictures before the first one comes
+  out and only 14 of 30 encode calls produce a packet, about 533 ms at 30 fps;
+  W3 step 2 says an encoder that holds pictures back is dropped. FFmpeg's own
+  capability line for it says `delay hybrid`, so this is by design, not a
+  setting — cost if wrong: Windows has **no software encoder** until Cisco's
+  OpenH264 is fetched (see the note below), so a PC with no usable GPU encoder
+  cannot send video at all. That is the lesser evil: half a second of latency
+  would make a call unusable rather than merely limited.
+- W3: Ruling: `profile=high` is set per encoder instead of once for all of
+  them. `h264_mf` has no `profile` option, so FFmpeg fell back to the generic
+  enum, could not parse "high", and refused to open the encoder — the
+  "Invalid argument" this milestone first saw. NVENC, AMF and Quick Sync all
+  keep it — cost if wrong: Media Foundation encodes at whatever profile it
+  picks, which for a conferencing scenario is baseline or main, not high.
+- W3: Ruling: `err_recognition = AV_EF_EXPLODE | AV_EF_BITSTREAM` is set on
+  the decoder **on Windows only**. Measured: with every NAL unit of one
+  picture truncated, FFmpeg here returned `Ok` with a concealed picture, so
+  `receiver.rs` never called its `lost` hook and never asked the sender for a
+  keyframe; with the flags it returns "Invalid data found when processing
+  input" and the shared `damage_asks_for_a_keyframe` passes. Linux is left
+  alone because it already reports this damage and W3 must not change how
+  Linux behaves — cost if wrong: Windows may now treat a stream Linux would
+  have ridden out as damaged and ask for a keyframe it did not need, which
+  costs one keyframe. Worth the Linux session's opinion on setting it
+  everywhere.
+- W3: Ruling: the hardware device is chosen by `cfg` in `decoder.rs`
+  (`vaapi` or `d3d11va` behind one name) rather than by a runtime list, and
+  `d3d11va.rs` asks `av_hwdevice_ctx_create` for the **default adapter**
+  instead of walking adapters as `vaapi.rs` walks `/dev/dri` — cost if wrong:
+  on a hybrid laptop the decoder uses whichever GPU the display is on rather
+  than the fastest one. That is the right default: the decoded picture goes
+  to the screen.
+- W3: Ruling: only the five FFmpeg DLLs `opencord_core.dll` needs
+  transitively are bundled — avcodec, avformat, avutil, swresample, swscale —
+  matched by prefix because the names carry a soname (`avcodec-63.dll`).
+  avfilter, avdevice and postproc are left out; nothing calls them — cost if
+  wrong: a future dependency on one of them fails at load time rather than at
+  build time, which the `FATAL_ERROR` on a missing DLL at least makes loud for
+  the five that are listed.
+- W3: Ruling: `app/rust_builder/windows/CMakeLists.txt` **fails the build**
+  when `FFMPEG_DIR` is unset or missing a DLL, instead of quietly bundling
+  nothing — cost if wrong: a developer without FFmpeg cannot build at all,
+  which is better than shipping a zip that dies on someone else's PC.
+- W3: Ruling: CI pins an exact BtbN asset by URL **and** SHA-256, downloaded
+  and hashed here rather than taken from a web page, because BtbN's `latest`
+  tag moves and an LGPL **shared** build is required — cost if wrong: the
+  asset is eventually deleted and the Windows job fails loudly, which is the
+  intended failure. The hash check also means a replaced asset stops the build
+  instead of silently changing what ships.
+- W3: Ruling: step 5's "rename `C:\ffmpeg` for a moment" is a script,
+  `check_bundled_ffmpeg.ps1`, not four manual steps, and it checks *both*
+  halves: that the exe stays up (every DLL resolved) and that the bundled DLLs
+  really encode, by running V4 with the release folder on PATH. The folder is
+  restored in a `finally` — cost if wrong: a crash between the two renames
+  leaves `C:\ffmpeg.hidden`, which the script refuses to start on top of and
+  names in its error.
+- W3: Ruling: on Windows the §0 test check is run with `--test-threads=1`.
+  Measured, and reproducible: in parallel, `cargo test -p opencord-media
+  --lib` fails 3 of 243 and the log shows `[h264_nvenc] No capable devices
+  found` — a GeForce card caps simultaneous NVENC sessions, and when they run
+  out `Encoder::open` silently falls through to Quick Sync, which is 3.5 ms
+  against NVENC's 2.0 ms at 720p, so the sender's timing assertions miss.
+  Serially: **243 passed, 0 failed**. A real user opens three layers, well
+  inside the cap; only a test suite opens dozens at once — cost if wrong: the
+  suite takes 61 s instead of 12 s for that crate, and a genuine race between
+  tests would no longer show up here. Flagged for the Linux session below.
+- W3: Ruling: encode cost is measured by a Windows-owned ignored test,
+  `crates/opencord-media/tests/codec_costs_windows.rs`, rather than by
+  extending `examples/codec_costs`, which is Linux's. It reports wall time per
+  `encode` call where the Linux example also reports CPU time from `/proc`:
+  there is no equivalent here without adding a dependency for one
+  measurement, and wall time is what the real-time sender actually lives with
+  — cost if wrong: the two systems' numbers are not directly comparable on
+  CPU, only on latency.
+
 For the Linux session, and for the user:
+- W3: **Windows has no software H.264 encoder.** The LGPL FFmpeg build carries
+  no `libx264` and no `h264` software encoder (checked: only `h264_nvenc`,
+  `h264_amf`, `h264_qsv`, `h264_mf`), Cisco's OpenH264 is not fetched on any
+  OS, and Media Foundation — which does have a software path — is out of
+  `ALL` because it holds pictures back. So a Windows PC with no usable GPU
+  encoder cannot send video. Nothing in this plan fixes that; downloading
+  Cisco's library on first use is out of scope on every OS (W3 step 4). It
+  deserves a decision before release: either fetch Cisco's DLL, or accept
+  Media Foundation's latency as a last resort, or say the feature needs a GPU
+  from this decade.
+- W3: **The FFmpeg DLLs are 120.0 MB** — avcodec alone is 91.1 MB — and the
+  release folder is 195.8 MB. The plan guessed 25–40 MB. BtbN's build carries
+  every LGPL codec; the engine uses H.264 and MJPEG. A minimal build like
+  Linux's (D32) is listed as a W8 follow-up and on these numbers it is worth
+  doing: it should take the download back under 100 MB.
+- W3: **`cargo test` needs `--test-threads=1` on Windows**, and the reason is
+  the GPU, not a flaky test: NVENC's session cap is reached when many encoder
+  tests run at once, and the fallback to Quick Sync is slow enough to miss the
+  sender's timing assertions (the ruling above has the numbers). If the shared
+  suite is ever meant to run in parallel on Windows CI, the encoder tests need
+  a lock of their own — that is a shared-code change, so it is noted here
+  rather than made.
+- W3: **`err_recognition` is set on the decoder on Windows only.** Linux
+  already reports the damage `damage_asks_for_a_keyframe` relies on; Windows
+  concealed it. Setting the flags everywhere would make the two behave alike
+  and is probably right, but it changes Linux behaviour, which W3 must not —
+  the Linux session's call.
 - W2: **Print Screen cannot be recorded by the app's key recorder on Windows**,
   though it works perfectly well as a keybind once set. Measured: pressing it
   into the real app window leaves the recorder at "Press keys…" and saves `""`,
@@ -1049,7 +1153,9 @@ Shared code that fails on Windows (platforms.md §4: listed, not edited here).
 the five examples compile, the server's config tests pass, the D-Bus tests are
 `@TestOn('linux')`, `hardcoded_colors_test` accepts backslashes, and
 `app/test/golden/failures/` is gitignored. The entries are kept as the record
-of what W0 found:
+of what W0 found. **W3 re-measured them again once the codec was on, which
+woke up every `needs_codec!()` test; the two that still fail are below the W0
+list, under "found in W3".**
 - `crates/opencord-voicebot/tests/voice.rs` **does not compile**:
   `a_voicebots_encoded_camera_is_decoded_by_another_voicebot` calls
   `publish_encoded_camera`, which `src/lib.rs:570` gates behind
@@ -1093,6 +1199,29 @@ of what W0 found:
   `file.path.startsWith('lib/ui/theme/')`, but `Directory.listSync` returns
   `lib\ui\theme\…` on Windows, so every token in `oc_colors.dart` and
   `oc_theme.dart` is reported as an offender.
+
+Found in W3, once the codec was on and the skipped tests ran (platforms.md §4:
+listed, not edited here). Both are Linux-owned files, and both were measured
+with `--test-threads=1`, so this is not test contention:
+- **`opencord-voicebot` `tests/voice.rs`
+  `a_voicebots_encoded_camera_is_decoded_by_another_voicebot` fails, and
+  deterministically: 4 runs out of 4, always
+  `Seen { frames: 30, intact: 0, decoded: 30, layers: [30, 0, 0] }`, 34,074
+  bytes in three of them.** `intact: 0` is what the test wants ("real H.264,
+  not the test pattern"); the assertion that misses is `seen.layers[1] > 0`.
+  Everything arrives on layer 0 and nothing on layer 1 within the 30 frames
+  the test waits for. The cause looks like how long this PC takes to climb:
+  V4 over 14 s gives `by layer 140/14/0`, so layer 1 only appears several
+  seconds in, and one of the two bundled-FFmpeg V4 runs got `146/0/0` — no
+  layer 1 at all. If that reading is right the test needs to wait for a layer
+  rather than for 30 frames. It is a run-time skip now, so it no longer blocks
+  compilation (thank you); it does fail.
+- **`opencord-voice` `tests/video.rs` still misses its timing**, as W1 found:
+  7 passed, 3 failed in the final serial run
+  (`a_capped_uplink_stops_encoding_the_cameras_top_layer_until_lifted`,
+  `a_screens_main_layer_reaches_its_viewer`, `unused_layers_stop_being_encoded`).
+  The first two also failed 5 of 5 in W1, so they are the stable pair. Logged
+  and not treated as blocking, as the user asked.
 
 Warnings in shared files, expected before L1 and not fixed (§0, platforms.md §4).
 **All 15 are gone after merging L1:** `cargo clippy --workspace --all-targets

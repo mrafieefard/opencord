@@ -27,6 +27,8 @@ pwsh -File app/tool/windows/check_m5.ps1
 | `hold_key.ps1` | Holds one key down for a while, wherever the focus is, and says which app had it. How the checks press a global keybind with nobody at the PC. |
 | `check_keybinds.ps1` | W2 step 7: push-to-talk on a global keybind, held from outside the app while Notepad has the focus. |
 | `check_key_recorder.ps1` | W2 step 6: what the app's key recorder makes of Print Screen, the Windows key and the right Alt. **Exits 2 for a key it cannot record at all** — see below. |
+| `check_v4.ps1` | Phase 2 V4 (W3 step 7): a voicebot's three-layer camera reaching a watching voicebot in a 360-pixel tile, every picture intact. The twin of `../check_v4.sh`. |
+| `check_bundled_ffmpeg.ps1` | W3 step 5: takes FFmpeg away and checks the release build still starts and still encodes, on the DLLs it ships. |
 
 A check exits 0 when it passed and 1 when it failed. Two of them also exit
 **2**, for a result that proves nothing either way:
@@ -40,6 +42,12 @@ A check exits 0 when it passed and 1 when it failed. Two of them also exit
   That is a limit in shared Dart, which a platform session does not fix
   (platforms.md §4), and the key may still work as a keybind once set; 1 is
   kept for a key recorded as the *wrong* key.
+
+`check_v4.ps1` and `check_bundled_ffmpeg.ps1` need `FFMPEG_DIR` and
+`LIBCLANG_PATH` set, like any build here from W3 on, and
+`check_bundled_ffmpeg.ps1` renames `FFMPEG_DIR` out of the way while it runs —
+so don't start anything else that needs `ffmpeg.exe` at the same time. It puts
+the folder back whatever happens.
 
 ## Test stand-ins
 

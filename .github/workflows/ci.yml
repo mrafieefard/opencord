@@ -189,6 +189,27 @@ jobs:
           flutter-version: 3.44.0
           cache: true
 
+      # FFmpeg, for the Windows codec layer (docs/plans/windows.md W3). A
+      # pinned asset with its checksum, as build_ffmpeg.sh pins its source:
+      # BtbN's `latest` tag moves under you. It has to be an LGPL **shared**
+      # build — never a gpl one. LLVM, which FFmpeg's bindings need, is
+      # already on windows-latest.
+      - name: Use FFmpeg
+        if: matrix.target == 'windows'
+        shell: pwsh
+        run: |
+          $url = 'https://github.com/BtbN/FFmpeg-Builds/releases/download/autobuild-2026-10-13-13-05/ffmpeg-n9.0.2-27-g7e93014c5b-win64-lgpl-shared-9.0.zip'
+          $sha256 = '9df4db960f3f0cd3ed76be0a2be96265d00db4c3be2526a6d39b03c2b547100d'
+          $zip = Join-Path $env:RUNNER_TEMP 'ffmpeg.zip'
+          Invoke-WebRequest -Uri $url -OutFile $zip
+          $got = (Get-FileHash $zip -Algorithm SHA256).Hash.ToLower()
+          if ($got -ne $sha256) { throw "FFmpeg's zip hashes to $got, not $sha256." }
+          Expand-Archive $zip -DestinationPath $env:RUNNER_TEMP -Force
+          $dir = (Get-ChildItem (Join-Path $env:RUNNER_TEMP 'ffmpeg-n9.0.2-*') -Directory)[0].FullName
+          "FFMPEG_DIR=$dir" | Out-File $env:GITHUB_ENV -Append
+          "LIBCLANG_PATH=C:\Program Files\LLVM\bin" | Out-File $env:GITHUB_ENV -Append
+          Join-Path $dir 'bin' | Out-File $env:GITHUB_PATH -Append
+
       - name: Get packages
         run: flutter pub get
 
@@ -200,7 +221,9 @@ jobs:
           flutter build ${{ matrix.target }} --release ${build_name:+--build-name="$build_name"}
 
       # The Visual C++ runtime goes next to the exe so the zip also runs on
-      # machines without the redistributable installed.
+      # machines without the redistributable installed. FFmpeg's DLLs are
+      # already there: the rust_builder bundles them (windows.md W3 step 5),
+      # and its licence goes beside them, which LGPL §4 asks for.
       - name: Package Windows
         if: matrix.target == 'windows'
         shell: pwsh
@@ -210,6 +233,7 @@ jobs:
           foreach ($dll in 'msvcp140.dll', 'vcruntime140.dll', 'vcruntime140_1.dll') {
             Copy-Item (Join-Path $env:WINDIR "System32/$dll") $stage
           }
+          Copy-Item (Join-Path $env:FFMPEG_DIR 'LICENSE.txt') (Join-Path $stage 'FFMPEG-LICENSE.txt')
           New-Item -ItemType Directory -Force (Join-Path $env:RUNNER_TEMP 'dist') | Out-Null
           Compress-Archive -Path $stage -DestinationPath (Join-Path $env:RUNNER_TEMP 'dist/${{ matrix.artifact }}')
 
