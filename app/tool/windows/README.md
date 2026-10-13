@@ -30,6 +30,7 @@ pwsh -File app/tool/windows/check_m5.ps1
 | `check_v4.ps1` | Phase 2 V4 (W3 step 7): a voicebot's three-layer camera reaching a watching voicebot in a 360-pixel tile, every picture intact. The twin of `../check_v4.sh`. |
 | `check_bundled_ffmpeg.ps1` | W3 step 5: takes FFmpeg away and checks the release build still starts and still encodes, on the DLLs it ships. |
 | `sample_video.ps1` | The mean colour of a rectangle of the app's window, copied off the screen. How W4 checks that red looks red, which Flutter cannot answer about a `Texture`. |
+| `check_v5.ps1` | W5: this PC's camera in a real call — on and off timings, the mirrored preview, and three voicebots watching at three sizes to see which layers go out. **Exits 2 when only the top layer is missing.** |
 | `check_receive_video.ps1` | W4: a voicebot's camera and screen shown in the app, drawn, the right colours, focus mode, and hidden tiles that stop receiving. **Exits 2 when only the screen half did not come** — see below. |
 
 A check exits 0 when it passed and 1 when it failed. Two of them also exit
@@ -40,6 +41,9 @@ A check exits 0 when it passed and 1 when it failed. Two of them also exit
   off, and if that control is already under −47 dBFS there was nothing to
   cancel and a silent speaker would score the same as a working canceller.
   Treat 2 as "run it again with louder speakers", not as a pass.
+- `check_v5.ps1`, when the camera worked but the top layer never went out. That
+  is not the camera: this PC never reaches the top layer at all (windows.md
+  §7, W5), and a shared test has said so since W1.
 - `check_receive_video.ps1`, when the camera half passed and only the screen
   share failed to arrive. It does arrive on this PC, but only about half the
   time and always at a trickle (windows.md §7, W4); W6 is where screen sharing
