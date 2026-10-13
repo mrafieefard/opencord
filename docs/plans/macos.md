@@ -719,7 +719,7 @@ contract in its doc comments and is already called by the shared code.
 | Milestone | Commit | Result, measurements, what's not done |
 |---|---|---|
 | M0 | `M0: macOS setup and baseline` (+ f6aff9a `shared:`) | **Mac:** MacBook Pro 2019, Intel Core i7-9750H (`uname -m` x86_64, 6 cores), macOS 15.8.1 (24H32), Xcode 26.3 (17C529), Flutter 3.44.0 / Dart 3.12.0 (the CI pin; the Mac also has 3.47.5), rustc 1.99.0. **Rust:** `cargo build --workspace` passes (54 s, only the expected off-Linux warnings); `cargo test --workspace --lib --bins --tests` 625 passed, 0 failed, 4 ignored over 24 binaries (one timing flake on the first run, below); `cargo fmt --check` clean; clippy as in the ruling below, clean. **Flutter:** `flutter analyze` no issues; `flutter test` +731 ~1 −19: the 16 goldens and 3 D-Bus tests, below. **App:** Debug build signed "Apple Development" (team 56D9H34Y6B) through `Signing.local.xcconfig`. Through `app/tool/macos/run_check.sh`: `m6` (sign in, join, chat live, follow a new restriction), `m5` (TOFU join, restart, still connected) and `v0` (voice states live, moved, disconnected) all pass on macOS. Not done: Homebrew, sox, SwitchAudioSource and BlackHole are not installed (needs the user; M1). |
-| M1 | | |
+| M1 | `M1: microphone and camera usage, entitlements, macOS 13; Mac voice checks` and the three M1 commits after it | **Bundle:** the three usage strings and `device.audio-input` + `device.camera` (Debug and Release) are in the built app; `LSMinimumSystemVersion` 13.0, `minos 13.0` for the app and `opencord_core` (the "building for macOS-10.15" linker warnings are gone). **Prompt (with the user):** Opencord launched on its own asked for the microphone on joining General; after Allow it is listed under Privacy & Security → Microphone and uses the MacBook's microphone. **`app/tool/macos/check_user_audio.sh`:** passes. Talker 440 Hz at 100 % −12.2 dBFS; 50 % −18.3 (−6.0 dB); 200 % −6.2 (+6.0 dB); muted −106.1; unmuted −12.2; Player's 880 Hz sound −14.7; soundboard muted −200 (nothing); Talker meanwhile −12.2; soundboard unmuted −14.8 — Linux's numbers within 0.5 dB. Run from BlackHole at 44.1 kHz, which the script moves to 48 kHz. **`check_microphone.sh`:** passes. 1 kHz from `afplay` through BlackHole as the microphone, in what a listening voicebot got: voice activity −8.6 dBFS (225 packets), push-to-talk held −12.6 dBFS (221), released nothing; level meter 577 readings, loudest −3.8 dBFS; device lists: inputs Mohammad Microphone, BlackHole 2ch, MacBook Pro Microphone; outputs BlackHole 2ch, MacBook Pro Speakers. **`check_echo.sh` (V3's echo acceptance, user present, MacBook Pro Speakers + Microphone, Talker at −12.2 dBFS):** passes. 440 Hz in what the app sent: **−110.1 dBFS** with its processing (echo cancellation on, noise suppression standard), −19.1 dBFS with both off. **Shared integration tests with `-d macos`** (`run_check.sh`): `v2` passes; `v3` passes (noise suppression standard by benchmark, hotkeys `FocusedOnly`, 11 levels, loudest −40.1 dBFS); `v8` passes; none failed for a platform reason. **Not done:** nothing in M1. L1 had not landed when M1 ended (checked after the last step). |
 | M2 | | |
 | M3 | | |
 | M4 | | |
@@ -784,6 +784,47 @@ Rulings (`Mn: Ruling: … — cost if wrong: …`):
   --workspace --lib --bins --tests -- -D warnings -A dead_code -A unused -A
   clippy::unnecessary_literal_unwrap` — clean. For L1: the examples need a
   plan too — cost if wrong: none; L1 removes the gates.
+- M1: Ruling: MacPorts in place of Homebrew (the user's Homebrew no longer
+  works on this Intel Mac): `sudo port install sox switchaudio-osx
+  BlackHole`. The scripts look in `/opt/local/bin`, then Homebrew's folders
+  — cost if wrong: none; both are searched.
+- M1: Ruling: **one BlackHole device, not two** (decision F said 2ch and
+  16ch). MacPorts' BlackHole port builds one device; its channel variants
+  conflict. Building a second from BlackHole's source and signing it with
+  the user's identity was not done (it needs the user's say-so). BlackHole
+  2ch is the app's speaker and microphone in `check_user_audio.sh` and its
+  microphone and speaker in `check_microphone.sh`; both pass. The scripts
+  read its UID from `SwitchAudioSource -f json` (`BlackHole2ch_UID`; cpal's
+  id is `coreaudio:BlackHole2ch_UID`) — cost if wrong: a check that needs
+  two separate devices gets the second BlackHole then.
+- M1: Ruling: the app sandbox refuses to start `sox` (`ProcessException:
+  Operation not permitted`), and the sandbox stays (decision E). So
+  `check_user_audio.sh` records BlackHole with sox for the whole run, the
+  app prints each window to measure (`WINDOW: <name> <start ms> <end ms>`),
+  and the script measures them with the shared test's Goertzel blocks and
+  limits. Each window drops 300 ms at both ends (sox starts 100–200 ms
+  after its timestamp); BlackHole is set to 48 kHz first, because the app
+  changing its rate mid-recording made the recording lose time (the first
+  run's −10 dB at 50 % and −56 dBFS muted); the script fails if the
+  recording is shorter than its wall-clock time — cost if wrong: a
+  mis-timed window, which the per-block dump on failure shows.
+- M1: Ruling: test data. The sandboxed app keeps its data in its container,
+  so `e2e_server.sh`'s `XDG_DATA_HOME` doesn't isolate it, and a failed run
+  left its server in the profile. `app/tool/macos/profile.sh` deletes the
+  check's own `e2e*` profile folder before each run (it refuses any other
+  name); `run_check.sh` uses it too — cost if wrong: none.
+- M1: Ruling: under `flutter test -d macos` the app is the terminal's
+  child, so macOS asks (and records) microphone access for the terminal
+  app, not Opencord. Opencord's own prompt was checked by hand, launched
+  with `open --env OPENCORD_PROFILE=…`. The same will hold for camera,
+  screen and input permissions in the automated checks of M2–M7 — cost if
+  wrong: none; a manual run per permission covers the app.
+- M1: Ruling: the microphone check turns noise suppression off (a steady
+  tone is what it removes) and drives push-to-talk through
+  `Repository.setPushToTalk`, which the key handler calls; real keys are
+  M2's. The echo check holds push-to-talk so the app sends throughout and
+  adds a phase with echo cancellation and noise suppression off, which
+  shows the echo was there (−19.1 dBFS) — cost if wrong: none.
 
 `shared:` commits (file, why):
 - M0 f6aff9a `crates/opencord-voicebot/tests/voice.rs`:
