@@ -5,3 +5,6 @@
 # Xcode-related
 **/dgph
 **/xcuserdata/
+
+# A developer's own signing identity (Runner/Configs/Debug.xcconfig).
+**/Signing.local.xcconfig

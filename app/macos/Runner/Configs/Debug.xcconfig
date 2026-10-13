@@ -1,2 +1,10 @@
 #include "../../Flutter/Flutter-Debug.xcconfig"
 #include "Warnings.xcconfig"
+
+// Ad hoc unless Signing.local.xcconfig (gitignored) names a stable identity.
+// macOS ties the camera, microphone, screen and input permissions to the
+// signature, so an ad hoc build asks again after every rebuild. For example:
+//   CODE_SIGN_IDENTITY = Apple Development
+//   DEVELOPMENT_TEAM = <your team ID>
+CODE_SIGN_IDENTITY = -
+#include? "Signing.local.xcconfig"
