@@ -784,6 +784,18 @@ Rulings (`Mn: Ruling: … — cost if wrong: …`):
   --workspace --lib --bins --tests -- -D warnings -A dead_code -A unused -A
   clippy::unnecessary_literal_unwrap` — clean. For L1: the examples need a
   plan too — cost if wrong: none; L1 removes the gates.
+- M0: Ruling: step 5's "run the app, sign in, open a text channel and
+  send a message" was checked with the shared M6 check against the Mac app
+  (`run_check.sh m6`: sign in, join, send in #general, get the owner's
+  answer live) instead of by hand with `flutter run -d macos` — cost if
+  wrong: none seen; M1's hand-run launch (the microphone prompt) also
+  signed in and joined.
+- M1: Ruling: §0's checks before each commit were not all re-run for M1's
+  first four commits (only `cargo fmt` and `flutter analyze`; M1 changed no
+  Rust and nothing under `app/lib` or `app/test`). Run in full after M1:
+  fmt clean; clippy (as M0's ruling) clean; `cargo test` 625 passed, 0
+  failed, 4 ignored; `flutter analyze` no issues; `flutter test` +731 ~1
+  −19, the same 16 goldens and 3 D-Bus tests as M0 — cost if wrong: none.
 - M1: Ruling: MacPorts in place of Homebrew (the user's Homebrew no longer
   works on this Intel Mac): `sudo port install sox switchaudio-osx
   BlackHole`. The scripts look in `/opt/local/bin`, then Homebrew's folders
