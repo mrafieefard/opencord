@@ -568,6 +568,6 @@ HotkeyAction hotkeyActionFrom(core.HotkeyAction action) => switch (action) {
 HotkeySupport hotkeySupportFrom(core.HotkeySupport support) =>
     switch (support) {
       core.HotkeySupport_Global(:final method) => HotkeySupport.global(method),
-      core.HotkeySupport_FocusedOnly(:final reason) =>
-        HotkeySupport.focusedOnly(reason),
+      core.HotkeySupport_FocusedOnly(:final reason, :final settingsUrl) =>
+        HotkeySupport.focusedOnly(reason, settingsUrl: settingsUrl),
     };

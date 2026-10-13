@@ -138,7 +138,7 @@ Future<void> screenshareControl(
   );
 }
 
-/// The share dialog, then the system's picker (on Linux).
+/// The share dialog, then the system's picker where there is one.
 Future<void> goLive(BuildContext context, WidgetRef ref, String server) async {
   // The button asking goes once live: dialogs after it open from here.
   final navigator = Navigator.of(context);
@@ -163,7 +163,11 @@ Future<void> _askSoundFrom(NavigatorState navigator) async {
   // The repository's news of the share arrives a moment after.
   await Future<void>.delayed(Duration.zero);
   final share = container.read(ownScreenShareProvider);
-  if (share == null || !share.audio || share.source != StreamSource.window) {
+  // Where the system says which app the window is, its sound already goes.
+  if (share == null ||
+      !share.audio ||
+      share.source != StreamSource.window ||
+      share.audioFrom != null) {
     return;
   }
   if (navigator.mounted) await chooseSoundFrom(navigator.context);

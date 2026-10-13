@@ -17,9 +17,9 @@ use super::types::{
     GeneratedIdentity, HotkeyBinding, HotkeySupport, IdentityInfo, Invite, MediaEvent, Member,
     Message, NoiseSuppressionMode, OverwriteTargetKind, PermissionOverwrite, PresenceStatus, Role,
     RoleChanges, ScreenAudioApp, ScreenAudioSupport, ScreenShareRequest, ScreenShareStarted,
-    Server, ServerChanges, ServerInfo, SoundDraft, SoundSelection, SoundboardSound,
-    SoundboardSoundChanges, TextureStats, TrustedFingerprint, User, VideoWant, VoiceSettings,
-    VoiceSettingsChanges, VoiceState,
+    ScreenSource, ScreenThumbnail, Server, ServerChanges, ServerInfo, SoundDraft, SoundSelection,
+    SoundboardSound, SoundboardSoundChanges, StreamSourceKind, TextureStats, TrustedFingerprint,
+    User, VideoSupport, VideoWant, VoiceSettings, VoiceSettingsChanges, VoiceState,
 };
 use crate::client::Client;
 use crate::frb_generated::StreamSink;
@@ -496,10 +496,31 @@ pub fn video_init(engine_handle: i64) -> Result<(), CoreError> {
     Ok(())
 }
 
-/// Whether this system has cameras and video yet (Linux only for now).
+/// What this system can do with video: each system's backends say
+/// (docs/plans/platforms.md). Sending needs the codec too.
 #[frb(sync)]
-pub fn video_supported() -> bool {
-    cfg!(target_os = "linux")
+pub fn video_support() -> VideoSupport {
+    use opencord_media::video::{camera, codec, screen};
+
+    let receive = codec::supported()
+        && cfg!(any(
+            target_os = "linux",
+            target_os = "macos",
+            target_os = "windows"
+        ));
+    let screens = screen::support();
+    let screen = receive && screens.supported;
+    VideoSupport {
+        receive,
+        camera: receive && camera::supported(),
+        screen,
+        screen_reason: (!screen).then(|| {
+            screens
+                .reason
+                .unwrap_or_else(|| "Screen sharing is not available on this system yet".to_owned())
+        }),
+        own_screen_picker: screens.own_picker,
+    }
 }
 
 /// The cameras there are. On Linux this may ask the user for camera access
@@ -520,13 +541,44 @@ pub fn camera_stop() -> Result<(), CoreError> {
     Ok(())
 }
 
-/// Goes live in this device's voice channel (Phase 2 plan §9): on Linux the
-/// system picker chooses a screen or a window first. Sharing again while
-/// live changes the source and keeps the viewers.
+/// Goes live in this device's voice channel (Phase 2 plan §9): where the
+/// system has a picker (`VideoSupport::own_screen_picker` false) it chooses
+/// a screen or a window first; otherwise `source_id` is one of
+/// [`screen_sources`]. Sharing again while live changes the source and
+/// keeps the viewers.
 pub async fn screen_share_start(
     request: ScreenShareRequest,
+    source_id: Option<String>,
 ) -> Result<ScreenShareStarted, CoreError> {
-    on_runtime(move |client| async move { client.screen_share_start(request).await }).await
+    on_runtime(move |client| async move { client.screen_share_start(request, source_id).await })
+        .await
+}
+
+/// The screens and windows the share dialog offers where Opencord has its
+/// own picker; empty where the system picks.
+pub async fn screen_sources() -> Result<Vec<ScreenSource>, CoreError> {
+    use opencord_media::video::screen::{self, SourceKind};
+
+    let sources = screen::sources()
+        .await
+        .map_err(crate::video::screen::problem)?;
+    Ok(sources
+        .into_iter()
+        .map(|source| ScreenSource {
+            id: source.id,
+            kind: match source.kind {
+                SourceKind::Screen => StreamSourceKind::Screen,
+                SourceKind::Window => StreamSourceKind::Window,
+            },
+            title: source.title,
+            app: source.app,
+            thumbnail: source.thumbnail.map(|thumbnail| ScreenThumbnail {
+                width: thumbnail.width,
+                height: thumbnail.height,
+                rgba: thumbnail.rgba,
+            }),
+        })
+        .collect())
 }
 
 /// A new quality for the screen share, within the server's maximum.
@@ -548,50 +600,42 @@ pub async fn stream_unwatch(stream_key: String) -> Result<(), CoreError> {
     on_runtime(move |client| async move { client.stream_watch(&stream_key, false).await }).await
 }
 
-/// Whether this system can share a screen's sound (plan §10.1): Linux with
-/// PipeWire for now.
+/// Whether this system can share a screen's sound (plan §10.1), and why
+/// not: each system's backend says.
 pub async fn screen_audio_support() -> ScreenAudioSupport {
-    #[cfg(target_os = "linux")]
-    {
-        let running = tokio::task::spawn_blocking(opencord_media::share_audio::pipewire::available)
-            .await
-            .unwrap_or(false);
-        ScreenAudioSupport {
-            supported: running,
-            reason: (!running).then(|| "Sharing sound needs PipeWire".to_owned()),
-        }
-    }
-    #[cfg(not(target_os = "linux"))]
-    ScreenAudioSupport {
-        supported: false,
-        reason: Some("Sharing sound is not available on this system yet".to_owned()),
+    let support = tokio::task::spawn_blocking(opencord_media::share_audio::support)
+        .await
+        .ok();
+    match support {
+        Some(support) => ScreenAudioSupport {
+            supported: support.supported,
+            reason: support.reason,
+        },
+        None => ScreenAudioSupport {
+            supported: false,
+            reason: Some("Sharing sound could not be checked".to_owned()),
+        },
     }
 }
 
 /// The apps with sound playing now, Opencord left out: what a window
 /// share's "Sound from" offers.
 pub async fn screen_audio_apps() -> Result<Vec<ScreenAudioApp>, CoreError> {
-    #[cfg(target_os = "linux")]
-    {
-        let apps =
-            tokio::task::spawn_blocking(opencord_media::share_audio::pipewire::apps_with_audio)
-                .await
-                .map_err(|error| CoreError::Connection {
-                    message: error.to_string(),
-                })?
-                .map_err(|error| CoreError::InvalidInput {
-                    message: error.to_string(),
-                })?;
-        Ok(apps
-            .into_iter()
-            .map(|app| ScreenAudioApp {
-                name: app.name,
-                icon: app.icon,
-            })
-            .collect())
-    }
-    #[cfg(not(target_os = "linux"))]
-    Ok(Vec::new())
+    let apps = tokio::task::spawn_blocking(opencord_media::share_audio::apps_with_audio)
+        .await
+        .map_err(|error| CoreError::Connection {
+            message: error.to_string(),
+        })?
+        .map_err(|error| CoreError::InvalidInput {
+            message: error.to_string(),
+        })?;
+    Ok(apps
+        .into_iter()
+        .map(|app| ScreenAudioApp {
+            name: app.name,
+            icon: app.icon,
+        })
+        .collect())
 }
 
 /// Whose sound this device's window share sends: an app from
@@ -635,12 +679,12 @@ pub fn video_set_wants(wants: Vec<VideoWant>) -> Result<(), CoreError> {
 /// `None` for a texture that is gone (or none at all).
 #[frb(sync)]
 pub fn video_texture_stats(texture_id: i64) -> Option<TextureStats> {
-    #[cfg(target_os = "linux")]
+    #[cfg(any(target_os = "linux", target_os = "macos", target_os = "windows"))]
     {
         crate::video::flutter::stats(texture_id)
             .map(|(presented, drawn)| TextureStats { presented, drawn })
     }
-    #[cfg(not(target_os = "linux"))]
+    #[cfg(not(any(target_os = "linux", target_os = "macos", target_os = "windows")))]
     {
         let _ = texture_id;
         None

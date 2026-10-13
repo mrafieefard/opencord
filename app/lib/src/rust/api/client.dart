@@ -388,8 +388,10 @@ void voiceSetSelfDeaf({required bool deafened}) =>
 void videoInit({required PlatformInt64 engineHandle}) =>
     RustLib.instance.api.crateApiClientVideoInit(engineHandle: engineHandle);
 
-/// Whether this system has cameras and video yet (Linux only for now).
-bool videoSupported() => RustLib.instance.api.crateApiClientVideoSupported();
+/// What this system can do with video: each system's backends say
+/// (docs/plans/platforms.md). Sending needs the codec too.
+VideoSupport videoSupport() =>
+    RustLib.instance.api.crateApiClientVideoSupport();
 
 /// The cameras there are. On Linux this may ask the user for camera access
 /// first (the Camera portal).
@@ -403,12 +405,23 @@ Future<CameraStarted> cameraStart({String? deviceId}) =>
 
 void cameraStop() => RustLib.instance.api.crateApiClientCameraStop();
 
-/// Goes live in this device's voice channel (Phase 2 plan §9): on Linux the
-/// system picker chooses a screen or a window first. Sharing again while
-/// live changes the source and keeps the viewers.
+/// Goes live in this device's voice channel (Phase 2 plan §9): where the
+/// system has a picker (`VideoSupport::own_screen_picker` false) it chooses
+/// a screen or a window first; otherwise `source_id` is one of
+/// [`screen_sources`]. Sharing again while live changes the source and
+/// keeps the viewers.
 Future<ScreenShareStarted> screenShareStart({
   required ScreenShareRequest request,
-}) => RustLib.instance.api.crateApiClientScreenShareStart(request: request);
+  String? sourceId,
+}) => RustLib.instance.api.crateApiClientScreenShareStart(
+  request: request,
+  sourceId: sourceId,
+);
+
+/// The screens and windows the share dialog offers where Opencord has its
+/// own picker; empty where the system picks.
+Future<List<ScreenSource>> screenSources() =>
+    RustLib.instance.api.crateApiClientScreenSources();
 
 /// A new quality for the screen share, within the server's maximum.
 Future<void> screenShareUpdate({required ScreenShareRequest request}) =>
@@ -425,8 +438,8 @@ Future<void> streamWatch({required String streamKey}) =>
 Future<void> streamUnwatch({required String streamKey}) =>
     RustLib.instance.api.crateApiClientStreamUnwatch(streamKey: streamKey);
 
-/// Whether this system can share a screen's sound (plan §10.1): Linux with
-/// PipeWire for now.
+/// Whether this system can share a screen's sound (plan §10.1), and why
+/// not: each system's backend says.
 Future<ScreenAudioSupport> screenAudioSupport() =>
     RustLib.instance.api.crateApiClientScreenAudioSupport();
 

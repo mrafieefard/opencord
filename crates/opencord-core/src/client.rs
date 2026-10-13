@@ -892,7 +892,7 @@ impl Client {
 
     /// Video draws into this Flutter engine's textures from now on.
     pub fn video_init(&self, engine_handle: i64) {
-        #[cfg(target_os = "linux")]
+        #[cfg(any(target_os = "linux", target_os = "macos", target_os = "windows"))]
         if let Some(media) = self.inner.media.get() {
             media
                 .video()
@@ -900,7 +900,7 @@ impl Client {
                     engine_handle,
                 )));
         }
-        #[cfg(not(target_os = "linux"))]
+        #[cfg(not(any(target_os = "linux", target_os = "macos", target_os = "windows")))]
         let _ = engine_handle;
     }
 
@@ -922,13 +922,14 @@ impl Client {
         self.set_voice_video(false);
     }
 
-    /// Goes live: picks the source, creates the stream on the server, then
+    /// Goes live: picks the source (the system's picker, or `source_id`
+    /// from Opencord's own), creates the stream on the server, then
     /// publishes and sends the screen. Live already, it changes the source
     /// and keeps the stream and its viewers.
-    #[cfg(target_os = "linux")]
     pub async fn screen_share_start(
         &self,
         request: ScreenShareRequest,
+        source_id: Option<String>,
     ) -> Result<ScreenShareStarted, CoreError> {
         use crate::video::screen;
 
@@ -937,7 +938,7 @@ impl Client {
             || screen::screen_error(ScreenProblem::NotInVoice, "not in a voice channel");
         let (server_key, channel_id) = self.lock_voice().target.clone().ok_or_else(not_in_voice)?;
         let token = self.lock_voice().screen_restore_token.clone();
-        let pending = screen::pick(request.fps, token).await?;
+        let pending = screen::pick(request.fps, token, source_id).await?;
         if pending.restore_token.is_some() {
             self.lock_voice().screen_restore_token = pending.restore_token.clone();
         }
@@ -961,15 +962,6 @@ impl Client {
         started
     }
 
-    #[cfg(not(target_os = "linux"))]
-    pub async fn screen_share_start(
-        &self,
-        request: ScreenShareRequest,
-    ) -> Result<ScreenShareStarted, CoreError> {
-        let _ = request;
-        Err(crate::video::screen_unsupported())
-    }
-
     /// A new quality: the server checks it against its maximum first.
     pub async fn screen_share_update(&self, request: ScreenShareRequest) -> Result<(), CoreError> {
         let media = self.inner.media.get().ok_or(CoreError::NotInitialized)?;
@@ -988,12 +980,7 @@ impl Client {
             Response::Stream(_) => {}
             other => return Err(unexpected(&other)),
         }
-        #[cfg(target_os = "linux")]
-        {
-            media.video().reshape_screen(request).await
-        }
-        #[cfg(not(target_os = "linux"))]
-        Ok(())
+        media.video().reshape_screen(request).await
     }
 
     pub async fn screen_share_stop(&self) -> Result<(), CoreError> {
@@ -1083,15 +1070,7 @@ impl Client {
     /// [`crate::api::client::screen_audio_apps`]), or none.
     pub fn screen_share_audio_from(&self, app: Option<String>) -> Result<(), CoreError> {
         let media = self.inner.media.get().ok_or(CoreError::NotInitialized)?;
-        #[cfg(target_os = "linux")]
-        {
-            media.video().share_audio_from(app)
-        }
-        #[cfg(not(target_os = "linux"))]
-        {
-            let _ = (media, app);
-            Err(crate::video::screen_unsupported())
-        }
+        media.video().share_audio_from(app)
     }
 
     /// The tiles the app shows video in, and their sizes.
@@ -1555,7 +1534,6 @@ fn expect_member(response: Response) -> Result<Member, CoreError> {
 
 /// A picked screen that will not go live: its capture stops off the async
 /// runtime.
-#[cfg(target_os = "linux")]
 fn drop_pending(pending: crate::video::screen::Pending) {
     std::thread::spawn(move || drop(pending));
 }

@@ -3,14 +3,36 @@
 //! audio engine; the toggles go to the app. An action may have several
 //! keys, like Discord's keybinds: it is down while any of them is.
 //!
-//! On Linux, Wayland desktops bind them through the GlobalShortcuts portal
-//! and X11 sessions read the keyboard through XInput 2. Elsewhere (for now)
-//! hotkeys only work while Opencord is focused, and [`Hotkeys::set`] says so.
+//! Each system has its backend in a file of its own, all with one contract:
+//! `bind(app_id, bindings, events) -> (Option<Keys>, HotkeySupport)`, the
+//! keys staying bound while their `Keys` is kept, presses and releases sent
+//! as [`HotkeyEvent`]s (through [`Held`], so an action with several keys
+//! presses once). On Linux, Wayland desktops bind them through the
+//! GlobalShortcuts portal and X11 sessions read the keyboard through
+//! XInput 2. Where a backend can't bind them, hotkeys only work while
+//! Opencord is focused, and [`Hotkeys::set`] says so.
 
+// One block per system (docs/plans/platforms.md): each session edits only
+// its own.
+#[cfg(target_os = "linux")]
+#[path = "linux.rs"]
+mod backend;
 #[cfg(target_os = "linux")]
 mod portal;
 #[cfg(target_os = "linux")]
 mod x11;
+
+#[cfg(target_os = "macos")]
+#[path = "macos.rs"]
+mod backend;
+
+#[cfg(target_os = "windows")]
+#[path = "windows.rs"]
+mod backend;
+
+#[cfg(not(any(target_os = "linux", target_os = "macos", target_os = "windows")))]
+#[path = "unsupported.rs"]
+mod backend;
 
 use std::collections::{HashMap, HashSet};
 
@@ -28,6 +50,7 @@ pub enum HotkeyAction {
 }
 
 impl HotkeyAction {
+    #[cfg_attr(not(target_os = "linux"), allow(dead_code))]
     const ALL: [Self; 5] = [
         Self::PushToTalk,
         Self::PrioritySpeaker,
@@ -37,6 +60,7 @@ impl HotkeyAction {
     ];
 
     /// The id the portal knows it by.
+    #[cfg_attr(not(target_os = "linux"), allow(dead_code))]
     fn id(self) -> &'static str {
         match self {
             Self::PushToTalk => "push-to-talk",
@@ -48,6 +72,7 @@ impl HotkeyAction {
     }
 
     /// What the system's shortcut settings show.
+    #[cfg_attr(not(target_os = "linux"), allow(dead_code))]
     fn description(self) -> &'static str {
         match self {
             Self::PushToTalk => "Push to talk",
@@ -62,6 +87,7 @@ impl HotkeyAction {
 /// The portal's id for an action's `nth` key (from 0): the action's own id,
 /// then `push-to-talk-2`, `push-to-talk-3`, … — a desktop that remembers
 /// the first keeps it.
+#[cfg_attr(not(target_os = "linux"), allow(dead_code))]
 fn shortcut_id(action: HotkeyAction, nth: usize) -> String {
     match nth {
         0 => action.id().to_owned(),
@@ -69,6 +95,7 @@ fn shortcut_id(action: HotkeyAction, nth: usize) -> String {
     }
 }
 
+#[cfg_attr(not(target_os = "linux"), allow(dead_code))]
 fn shortcut_description(action: HotkeyAction, nth: usize) -> String {
     match nth {
         0 => action.description().to_owned(),
@@ -77,6 +104,7 @@ fn shortcut_description(action: HotkeyAction, nth: usize) -> String {
 }
 
 /// The action a portal shortcut id is for.
+#[cfg_attr(not(target_os = "linux"), allow(dead_code))]
 fn action_of(shortcut_id: &str) -> Option<HotkeyAction> {
     HotkeyAction::ALL
         .into_iter()
@@ -91,6 +119,7 @@ fn action_of(shortcut_id: &str) -> Option<HotkeyAction> {
 }
 
 /// The portal ids of `bindings`, in order: each action's keys counted.
+#[cfg_attr(not(target_os = "linux"), allow(dead_code))]
 fn shortcut_ids(bindings: &[HotkeyBinding]) -> Vec<(String, String)> {
     let mut seen: HashMap<HotkeyAction, usize> = HashMap::new();
     bindings
@@ -110,20 +139,23 @@ fn shortcut_ids(bindings: &[HotkeyBinding]) -> Vec<(String, String)> {
 /// Which bindings are down, so an action with several keys presses when
 /// the first goes down and releases when the last comes up.
 #[derive(Debug, Default)]
-struct Held {
+#[cfg_attr(not(target_os = "linux"), allow(dead_code))]
+pub(crate) struct Held {
     down: HashMap<HotkeyAction, HashSet<usize>>,
 }
 
 impl Held {
     /// Binding `index` (for `action`) went down.
-    fn press(&mut self, index: usize, action: HotkeyAction) -> Option<HotkeyEvent> {
+    #[cfg_attr(not(target_os = "linux"), allow(dead_code))]
+    pub(crate) fn press(&mut self, index: usize, action: HotkeyAction) -> Option<HotkeyEvent> {
         let down = self.down.entry(action).or_default();
         let first = down.is_empty();
         (down.insert(index) && first).then_some(HotkeyEvent::Pressed(action))
     }
 
     /// Binding `index` came up.
-    fn release(&mut self, index: usize, action: HotkeyAction) -> Option<HotkeyEvent> {
+    #[cfg_attr(not(target_os = "linux"), allow(dead_code))]
+    pub(crate) fn release(&mut self, index: usize, action: HotkeyAction) -> Option<HotkeyEvent> {
         let down = self.down.get_mut(&action)?;
         (down.remove(&index) && down.is_empty()).then_some(HotkeyEvent::Released(action))
     }
@@ -288,8 +320,13 @@ pub enum HotkeyEvent {
 pub enum HotkeySupport {
     /// System-wide, through `method`.
     Global { method: String },
-    /// Only while Opencord is focused, because of `reason`.
-    FocusedOnly { reason: String },
+    /// Only while Opencord is focused, because of `reason`. `settings_url`
+    /// opens the system settings where the user can allow them, when that
+    /// is what's missing (macOS's Input Monitoring).
+    FocusedOnly {
+        reason: String,
+        settings_url: Option<String>,
+    },
 }
 
 /// The system's global hotkeys, while kept.
@@ -297,10 +334,8 @@ pub struct Hotkeys {
     /// The app's id, as its desktop file names it; portals want it.
     app_id: String,
     events: mpsc::UnboundedSender<HotkeyEvent>,
-    #[cfg(target_os = "linux")]
-    portal: Option<portal::Portal>,
-    #[cfg(target_os = "linux")]
-    x11: Option<x11::X11Keys>,
+    /// The bound keys, in this system's backend.
+    keys: Option<backend::Keys>,
 }
 
 impl Hotkeys {
@@ -310,66 +345,18 @@ impl Hotkeys {
         Self {
             app_id: app_id.to_owned(),
             events,
-            #[cfg(target_os = "linux")]
-            portal: None,
-            #[cfg(target_os = "linux")]
-            x11: None,
+            keys: None,
         }
     }
 
     /// Binds these hotkeys system-wide where the system allows, replacing
     /// the ones bound before. Needs a tokio runtime.
     pub async fn set(&mut self, bindings: &[HotkeyBinding]) -> HotkeySupport {
-        self.set_on_this_system(bindings).await
-    }
-
-    #[cfg(target_os = "linux")]
-    async fn set_on_this_system(&mut self, bindings: &[HotkeyBinding]) -> HotkeySupport {
-        self.portal = None;
-        self.x11 = None;
-        if std::env::var_os("WAYLAND_DISPLAY").is_some() {
-            // XWayland sees no keys meant for Wayland windows, so only the
-            // portal can help here.
-            return match portal::Portal::bind(&self.app_id, bindings, self.events.clone()).await {
-                Ok(portal) => {
-                    self.portal = Some(portal);
-                    HotkeySupport::Global {
-                        method: "the desktop's global shortcuts".to_owned(),
-                    }
-                }
-                Err(error) => HotkeySupport::FocusedOnly {
-                    reason: format!("this desktop offers no global shortcuts ({error})"),
-                },
-            };
-        }
-        if let Some(display) = std::env::var_os("DISPLAY") {
-            return match x11::X11Keys::start(
-                &display.to_string_lossy(),
-                bindings,
-                self.events.clone(),
-            ) {
-                Ok(keys) => {
-                    self.x11 = Some(keys);
-                    HotkeySupport::Global {
-                        method: "X11 input".to_owned(),
-                    }
-                }
-                Err(error) => HotkeySupport::FocusedOnly {
-                    reason: format!("the X server's keyboard cannot be read ({error})"),
-                },
-            };
-        }
-        HotkeySupport::FocusedOnly {
-            reason: "no graphical session was found".to_owned(),
-        }
-    }
-
-    #[cfg(not(target_os = "linux"))]
-    async fn set_on_this_system(&mut self, _bindings: &[HotkeyBinding]) -> HotkeySupport {
-        let _ = (&self.app_id, &self.events);
-        HotkeySupport::FocusedOnly {
-            reason: "global hotkeys are not available on this system yet".to_owned(),
-        }
+        // The old keys go first: a portal session holds its shortcuts.
+        self.keys = None;
+        let (keys, support) = backend::bind(&self.app_id, bindings, &self.events).await;
+        self.keys = keys;
+        support
     }
 }
 

@@ -281,6 +281,7 @@ mod tests {
 
     #[test]
     fn pictures_wait_as_long_as_their_sound_does() {
+        crate::video::codec::needs_codec!();
         let (receiver, frames, _) = started(320, 180);
         receiver.set_hold(Duration::from_millis(120));
 
@@ -299,6 +300,7 @@ mod tests {
 
     #[test]
     fn a_picture_is_fitted_into_its_tile() {
+        crate::video::codec::needs_codec!();
         assert_eq!(fit(1280, 720, 640, 360), (640, 360));
         assert_eq!(fit(1280, 720, 400, 400), (400, 224));
         assert_eq!(fit(640, 360, 1920, 1080), (640, 360));
@@ -307,6 +309,7 @@ mod tests {
 
     #[test]
     fn pictures_come_out_as_rgba_at_the_tile_size() {
+        crate::video::codec::needs_codec!();
         let (receiver, frames, _) = started(320, 180);
 
         for video in stream(640, 360, 10) {
@@ -323,6 +326,7 @@ mod tests {
 
     #[test]
     fn a_tile_larger_than_the_picture_gets_the_picture_size_and_its_shape() {
+        crate::video::codec::needs_codec!();
         let (receiver, frames, _) = started(1920, 1440);
 
         for video in stream(640, 360, 3) {
@@ -336,6 +340,7 @@ mod tests {
 
     #[test]
     fn a_receiver_that_missed_the_keyframe_asks_for_one() {
+        crate::video::codec::needs_codec!();
         let (receiver, frames, losses) = started(320, 180);
         let mut videos = stream(640, 360, 4);
 
@@ -351,6 +356,7 @@ mod tests {
 
     #[test]
     fn a_hidden_tile_decodes_nothing() {
+        crate::video::codec::needs_codec!();
         let (receiver, frames, _) = started(320, 180);
         receiver.set_size(0, 0);
 
@@ -363,6 +369,7 @@ mod tests {
 
     #[test]
     fn large_layers_decode_like_small_ones() {
+        crate::video::codec::needs_codec!();
         let (receiver, frames, _) = started(1280, 720);
 
         for video in stream(1280, 720, 5) {
@@ -376,6 +383,7 @@ mod tests {
 
     #[test]
     fn damage_asks_for_a_keyframe() {
+        crate::video::codec::needs_codec!();
         let (receiver, _frames, losses) = started(320, 180);
         let mut pictures = stream(320, 180, 4);
         for unit in &mut pictures[2].nal_units {

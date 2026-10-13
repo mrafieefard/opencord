@@ -1,10 +1,3 @@
-//! How long each step of sending a camera picture takes on this machine:
-//! reading the camera's frame, scaling to each layer, encoding each layer.
-//! With `paced`, steps come 33 ms apart as a camera's pictures do, so the
-//! GPU idles between them.
-//!
-//!   cargo run --release -p opencord-media --features testing --example codec_costs -- paced
-
 use std::time::{Duration, Instant};
 
 use opencord_media::video::camera::{RawFormat, RawFrame};
@@ -63,7 +56,7 @@ fn time(label: &str, mut step: impl FnMut(u32)) {
     );
 }
 
-fn main() {
+pub fn main() {
     let now = Instant::now();
     let pictures: Vec<_> = (0..8).map(|number| scene(1280, 720, number, now)).collect();
     let yuyv: Vec<u8> = pictures[0]

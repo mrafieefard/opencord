@@ -147,8 +147,10 @@ class FakeCoreApi extends Fake implements CoreApi {
   Future<void> voiceDisconnectMember(String serverKey, int userId) async =>
       calls.add('disconnect:$serverKey:$userId');
 
-  /// Whether videoSupported says so.
+  /// What videoSupport says: video at all, and whether the share dialog
+  /// picks the source itself.
   var video = false;
+  var ownScreenPicker = false;
 
   /// What cameraStart answers, or throws.
   core.CameraStarted camera = const core.CameraStarted(
@@ -162,7 +164,19 @@ class FakeCoreApi extends Fake implements CoreApi {
   List<core.VideoWant>? videoWants;
 
   @override
-  bool videoSupported() => video;
+  core.VideoSupport videoSupport() => core.VideoSupport(
+    receive: video,
+    camera: video,
+    screen: video,
+    screenReason: video ? null : 'not here',
+    ownScreenPicker: ownScreenPicker,
+  );
+
+  /// What screenSources answers.
+  List<core.ScreenSource> screenSourceList = const [];
+
+  @override
+  Future<List<core.ScreenSource>> screenSources() async => screenSourceList;
 
   @override
   Future<core.CameraStarted> cameraStart(String? deviceId) async {
@@ -182,16 +196,18 @@ class FakeCoreApi extends Fake implements CoreApi {
     width: 1920,
     height: 1080,
     sourceKind: core.StreamSourceKind.window,
+    audioApp: null,
   );
   core.CoreError? screenError;
 
   @override
   Future<core.ScreenShareStarted> screenShareStart(
     core.ScreenShareRequest request,
+    String? sourceId,
   ) async {
     calls.add(
       'screenShareStart:${request.resolution.name}:${request.fps}:'
-      '${request.hasAudio}',
+      '${request.hasAudio}${sourceId == null ? '' : ':$sourceId'}',
     );
     if (screenError case final error?) throw error;
     return screen;

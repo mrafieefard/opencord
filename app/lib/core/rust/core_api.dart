@@ -54,8 +54,9 @@ abstract interface class CoreApi {
 
   void voiceSetStreamMute(String serverKey, int userId, bool muted);
 
-  /// Whether this system has cameras and video (Linux only for now).
-  bool videoSupported();
+  /// What this system can do with video: receive, camera, screen, and
+  /// whether the share dialog picks the source itself.
+  core.VideoSupport videoSupport();
 
   /// Video draws into this engine's textures from now on.
   void videoInit(int engineHandle);
@@ -66,7 +67,10 @@ abstract interface class CoreApi {
 
   Future<core.ScreenShareStarted> screenShareStart(
     core.ScreenShareRequest request,
+    String? sourceId,
   );
+
+  Future<List<core.ScreenSource>> screenSources();
 
   Future<void> screenShareUpdate(core.ScreenShareRequest request);
 
@@ -366,7 +370,7 @@ class FrbCoreApi implements CoreApi {
       .voiceSetStreamMute(serverKey: serverKey, userId: userId, muted: muted);
 
   @override
-  bool videoSupported() => frb.videoSupported();
+  core.VideoSupport videoSupport() => frb.videoSupport();
 
   @override
   void videoInit(int engineHandle) => frb.videoInit(engineHandle: engineHandle);
@@ -381,7 +385,11 @@ class FrbCoreApi implements CoreApi {
   @override
   Future<core.ScreenShareStarted> screenShareStart(
     core.ScreenShareRequest request,
-  ) => frb.screenShareStart(request: request);
+    String? sourceId,
+  ) => frb.screenShareStart(request: request, sourceId: sourceId);
+
+  @override
+  Future<List<core.ScreenSource>> screenSources() => frb.screenSources();
 
   @override
   Future<void> screenShareUpdate(core.ScreenShareRequest request) =>

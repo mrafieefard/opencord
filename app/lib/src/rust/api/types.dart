@@ -8,7 +8,7 @@ import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 import 'package:freezed_annotation/freezed_annotation.dart' hide protected;
 part 'types.freezed.dart';
 
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`
 
 @freezed
 sealed class AddServerOutcome with _$AddServerOutcome {
@@ -700,9 +700,13 @@ sealed class HotkeySupport with _$HotkeySupport {
   const factory HotkeySupport.global({required String method}) =
       HotkeySupport_Global;
 
-  /// Only while Opencord is focused, because of `reason`.
-  const factory HotkeySupport.focusedOnly({required String reason}) =
-      HotkeySupport_FocusedOnly;
+  /// Only while Opencord is focused, because of `reason`. `settings_url`
+  /// opens the system settings where the user can allow them, when that
+  /// is what's missing; the app binds again when its window is focused.
+  const factory HotkeySupport.focusedOnly({
+    required String reason,
+    String? settingsUrl,
+  }) = HotkeySupport_FocusedOnly;
 }
 
 /// A key pair's public half, ready to show.
@@ -1202,7 +1206,7 @@ class ScreenAudioSupport {
 
 /// Why a screen share could not start.
 enum ScreenProblem {
-  /// Not on this system yet (only Linux shares screens for now).
+  /// Not on this system (yet).
   notSupported,
 
   /// The user closed the system picker.
@@ -1260,6 +1264,10 @@ class ScreenShareStarted {
   final int height;
   final StreamSourceKind sourceKind;
 
+  /// The app whose sound a window share sends, when the system said which
+  /// app the window is; `None` and a window: the app asks ("Sound from").
+  final String? audioApp;
+
   const ScreenShareStarted({
     required this.streamKey,
     required this.trackId,
@@ -1267,6 +1275,7 @@ class ScreenShareStarted {
     required this.width,
     required this.height,
     required this.sourceKind,
+    this.audioApp,
   });
 
   @override
@@ -1276,7 +1285,8 @@ class ScreenShareStarted {
       textureId.hashCode ^
       width.hashCode ^
       height.hashCode ^
-      sourceKind.hashCode;
+      sourceKind.hashCode ^
+      audioApp.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -1288,7 +1298,49 @@ class ScreenShareStarted {
           textureId == other.textureId &&
           width == other.width &&
           height == other.height &&
-          sourceKind == other.sourceKind;
+          sourceKind == other.sourceKind &&
+          audioApp == other.audioApp;
+}
+
+/// A screen or window Opencord's own picker offers (plan §9.1).
+class ScreenSource {
+  /// What `screen_share_start` takes as `source_id`.
+  final String id;
+  final StreamSourceKind kind;
+
+  /// "Screen 1 · 2560×1440", or the window's title.
+  final String title;
+
+  /// The app a window belongs to.
+  final String? app;
+  final ScreenThumbnail? thumbnail;
+
+  const ScreenSource({
+    required this.id,
+    required this.kind,
+    required this.title,
+    this.app,
+    this.thumbnail,
+  });
+
+  @override
+  int get hashCode =>
+      id.hashCode ^
+      kind.hashCode ^
+      title.hashCode ^
+      app.hashCode ^
+      thumbnail.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is ScreenSource &&
+          runtimeType == other.runtimeType &&
+          id == other.id &&
+          kind == other.kind &&
+          title == other.title &&
+          app == other.app &&
+          thumbnail == other.thumbnail;
 }
 
 /// A screen share in progress (Phase 2 plan §9).
@@ -1338,6 +1390,31 @@ class ScreenStream {
           fps == other.fps &&
           hasAudio == other.hasAudio &&
           viewerCount == other.viewerCount;
+}
+
+/// A small picture of a screen or window, as RGBA rows.
+class ScreenThumbnail {
+  final int width;
+  final int height;
+  final Uint8List rgba;
+
+  const ScreenThumbnail({
+    required this.width,
+    required this.height,
+    required this.rgba,
+  });
+
+  @override
+  int get hashCode => width.hashCode ^ height.hashCode ^ rgba.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is ScreenThumbnail &&
+          runtimeType == other.runtimeType &&
+          width == other.width &&
+          height == other.height &&
+          rgba == other.rgba;
 }
 
 /// A server in the local list.
@@ -1746,6 +1823,48 @@ class User {
           publicKeyHex == other.publicKeyHex &&
           fingerprint == other.fingerprint &&
           displayName == other.displayName;
+}
+
+/// What this system can do with video (Phase 2 plan §7.11, §8, §9).
+class VideoSupport {
+  /// Others' cameras and screens can be decoded and shown.
+  final bool receive;
+  final bool camera;
+  final bool screen;
+
+  /// Why screens can't be shared, when not.
+  final String? screenReason;
+
+  /// The share dialog lists the screens and windows itself
+  /// (`screen_sources`); otherwise the system's picker opens after it.
+  final bool ownScreenPicker;
+
+  const VideoSupport({
+    required this.receive,
+    required this.camera,
+    required this.screen,
+    this.screenReason,
+    required this.ownScreenPicker,
+  });
+
+  @override
+  int get hashCode =>
+      receive.hashCode ^
+      camera.hashCode ^
+      screen.hashCode ^
+      screenReason.hashCode ^
+      ownScreenPicker.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is VideoSupport &&
+          runtimeType == other.runtimeType &&
+          receive == other.receive &&
+          camera == other.camera &&
+          screen == other.screen &&
+          screenReason == other.screenReason &&
+          ownScreenPicker == other.ownScreenPicker;
 }
 
 enum VideoTrackKind { camera, screen }

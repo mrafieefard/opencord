@@ -1,13 +1,3 @@
-//! Which cameras this computer has and what each way of opening them
-//! delivers, for diagnosing a camera that does not work: lists them
-//! through the PipeWire session and V4L2, then captures three seconds
-//! through each (the camera named, or the first) and says how many
-//! pictures came, in what mode, and whether the first one decodes as the
-//! sender decodes it.
-//! Opens the camera; the portal is not asked.
-//!
-//!   cargo run -p opencord-media --example camera_probe [-- <camera id>]
-
 use std::sync::mpsc;
 use std::time::{Duration, Instant};
 
@@ -17,7 +7,7 @@ use opencord_media::video::codec::raw::RawDecoder;
 
 const RUN: Duration = Duration::from_secs(3);
 
-fn main() {
+pub fn main() {
     tracing_subscriber::fmt()
         .with_env_filter(
             tracing_subscriber::EnvFilter::try_from_default_env()

@@ -15,6 +15,7 @@ import 'package:opencord/core/settings/local_prefs.dart';
 import 'package:opencord/features/window/native_window.dart';
 import 'package:opencord/features/window/window_providers.dart';
 import 'package:opencord/features/links/app_links.dart';
+import 'package:opencord/features/desktop/hotkey_binding.dart';
 import 'package:opencord/features/desktop/tray_binding.dart';
 import 'package:opencord/features/desktop/notification_binding.dart';
 import 'package:opencord/features/desktop/login_item.dart';
@@ -77,6 +78,7 @@ class MockApp {
     }
     container.read(eventPumpProvider);
     container.read(trayBindingProvider);
+    container.read(hotkeyBindingProvider);
     container.read(notificationBindingProvider);
     container.read(loginItemBindingProvider);
     for (final link in links) {

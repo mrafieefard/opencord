@@ -1,25 +1,22 @@
-//! This device's screen share (Phase 2 plan §9): a source picked through
-//! the ScreenCast portal (or, for checks with nobody to pick, a PipeWire
-//! node named in `OPENCORD_SCREEN_NODE`), captured, published as a screen
-//! track and sent in its layers. The streamer's own tile shows a small,
+//! This device's screen share (Phase 2 plan §9): a source picked (the
+//! system's picker, or Opencord's own where the system has none) and
+//! captured by this system's backend (`opencord_media::video::screen`),
+//! published as a screen track and sent in its layers. The streamer's own tile shows a small,
 //! slow preview (plan §9.4). Going live on the main server is the
 //! client's part; this is the media.
 
-use std::os::fd::OwnedFd;
 use std::sync::mpsc::{Receiver, sync_channel};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 use opencord_common::video::ScreenPreset;
-use opencord_media::share_audio::pipewire::{Capture, Source};
-use opencord_media::share_audio::{self, sender::Encoded};
+use opencord_media::share_audio::{self, Capture, Source, sender::Encoded};
 use opencord_media::transport::{EncodedScreenAudio, TrackError, TrackKind, TrackRequest};
 use opencord_media::video::camera::RawFrame;
-use opencord_media::video::camera::pipewire::Remote;
 use opencord_media::video::layers::{ScreenShape, screen_layers};
-use opencord_media::video::screen::capture::{ScreenCapture, Target};
-use opencord_media::video::screen::portal::{self, Picked};
-use opencord_media::video::screen::{ScreenError, SourceKind};
+use opencord_media::video::screen::{
+    self as screens, ScreenError, SourceKind, StartRequest, WindowSound,
+};
 use opencord_media::video::sender::VideoSender;
 
 use super::{Video, lock};
@@ -28,8 +25,6 @@ use crate::api::types::{
     StreamSourceKind,
 };
 
-/// Names a PipeWire node to share in place of the portal's picker.
-const NODE_VARIABLE: &str = "OPENCORD_SCREEN_NODE";
 /// The streamer's own preview is drawn this often at most.
 const PREVIEW_EVERY: Duration = Duration::from_millis(200);
 /// And this large until its tile says.
@@ -45,8 +40,8 @@ pub(super) struct Share {
     pub preview_size: Arc<Mutex<(u32, u32)>>,
     /// The voice node stopped its track.
     pub stopped: bool,
-    capture: ScreenCapture,
-    _picked: Option<Picked>,
+    /// The capture, and with it the system's sharing session.
+    capture: screens::Capture,
     /// What sound is shared (plan §10.1): a screen's everything but
     /// Opencord, a window's chosen app.
     audio_source: Source,
@@ -61,12 +56,13 @@ struct ScreenAudio {
 
 /// A source chosen and capturing, not live yet.
 pub(crate) struct Pending {
-    capture: ScreenCapture,
+    capture: screens::Capture,
     frames: Receiver<RawFrame>,
-    picked: Option<Picked>,
     pub kind: StreamSourceKind,
     /// For sharing the same source again without the picker.
     pub restore_token: Option<String>,
+    /// A window's app, when the system says which it is.
+    sound: Option<WindowSound>,
 }
 
 pub(crate) fn screen_error(problem: ScreenProblem, message: impl Into<String>) -> CoreError {
@@ -76,7 +72,7 @@ pub(crate) fn screen_error(problem: ScreenProblem, message: impl Into<String>) -
     }
 }
 
-fn problem(error: ScreenError) -> CoreError {
+pub(crate) fn problem(error: ScreenError) -> CoreError {
     let problem = match error {
         ScreenError::NotSupported => ScreenProblem::NotSupported,
         ScreenError::Cancelled => ScreenProblem::Cancelled,
@@ -101,45 +97,30 @@ pub(crate) fn shape(request: &ScreenShareRequest) -> ScreenShape {
     }
 }
 
-/// Picks the source (the portal's picker, unless `restore_token` still
-/// names one) and starts capturing it.
-pub(crate) async fn pick(fps: u32, restore_token: Option<String>) -> Result<Pending, CoreError> {
+/// Picks the source (the system's picker, unless `restore_token` still
+/// names one; or `source_id` from Opencord's own) and starts capturing it.
+pub(crate) async fn pick(
+    fps: u32,
+    restore_token: Option<String>,
+    source_id: Option<String>,
+) -> Result<Pending, CoreError> {
     let (frames, received) = sync_channel(4);
-    let (remote, target, picked) = match std::env::var(NODE_VARIABLE) {
-        Ok(name) => (Remote::Session, Target::Named(name), None),
-        Err(_) => {
-            let picked = portal::pick(restore_token.as_deref())
-                .await
-                .map_err(problem)?;
-            let remote: OwnedFd = picked
-                .remote
-                .try_clone()
-                .map_err(|error| screen_error(ScreenProblem::Failed, error.to_string()))?;
-            (
-                Remote::Portal(remote),
-                Target::Id(picked.node_id),
-                Some(picked),
-            )
-        }
+    let request = StartRequest {
+        fps,
+        restore_token,
+        source_id,
     };
-    let capture =
-        tokio::task::spawn_blocking(move || ScreenCapture::start(remote, target, fps, frames))
-            .await
-            .map_err(|error| screen_error(ScreenProblem::Failed, error.to_string()))?
-            .map_err(problem)?;
-    let kind = match picked.as_ref().map(|picked| picked.kind) {
-        Some(SourceKind::Window) => StreamSourceKind::Window,
-        _ => StreamSourceKind::Screen,
+    let (capture, picked) = screens::start(request, frames).await.map_err(problem)?;
+    let kind = match picked.kind {
+        SourceKind::Window => StreamSourceKind::Window,
+        SourceKind::Screen => StreamSourceKind::Screen,
     };
-    let restore_token = picked
-        .as_ref()
-        .and_then(|picked| picked.restore_token.clone());
     Ok(Pending {
         capture,
         frames: received,
-        picked,
         kind,
-        restore_token,
+        restore_token: picked.restore_token,
+        sound: picked.sound,
     })
 }
 
@@ -160,7 +141,7 @@ pub(super) async fn publish(
         ));
     };
     let shape = shape(&request);
-    let size = pending.capture.size;
+    let size = pending.capture.size();
     let layers = screen_layers(size.0, size.1, shape);
     let track_id = format!("screen-{:016x}", rand_id());
     let track = TrackRequest {
@@ -191,11 +172,13 @@ pub(super) async fn publish(
         )),
     );
 
-    // The portal says nothing of which app a window is: its sound waits
-    // until one is chosen (plan §10.4, "Sound from").
-    let audio_source = match pending.kind {
-        StreamSourceKind::Screen => Source::Everything,
-        StreamSourceKind::Window => Source::Nothing,
+    // A window's sound is its app's. Where the system doesn't say which app
+    // that is, it waits until one is chosen (plan §10.4, "Sound from").
+    let audio_app = pending.sound.as_ref().map(|sound| sound.app.clone());
+    let audio_source = match (pending.kind, pending.sound) {
+        (StreamSourceKind::Screen, _) => Source::Everything,
+        (StreamSourceKind::Window, Some(sound)) => sound.source,
+        (StreamSourceKind::Window, None) => Source::Nothing,
     };
     let audio = request
         .has_audio
@@ -212,7 +195,6 @@ pub(super) async fn publish(
         preview_size,
         stopped: false,
         capture: pending.capture,
-        _picked: pending.picked,
         audio_source,
         audio,
     };
@@ -238,12 +220,13 @@ pub(super) async fn publish(
         width: size.0,
         height: size.1,
         source_kind: pending.kind,
+        audio_app,
     })
 }
 
-/// Captures the shared sound from the session's PipeWire (the portal's
-/// connection shows only the screen) and sends it on its own stream; the
-/// call's echo canceller hears it too (plan §10.6). A share goes on
+/// Captures the shared sound (on Linux from the session's PipeWire: the
+/// portal's connection shows only the screen) and sends it on its own
+/// stream; the call's echo canceller hears it too (plan §10.6). A share goes on
 /// without its sound when this fails.
 fn start_audio(
     source: Source,

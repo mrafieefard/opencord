@@ -362,9 +362,15 @@ mod tests {
     fn reads_an_existing_file() {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("opencord.toml");
+        // Absolute on every system (`/srv/…` has no drive on Windows); a
+        // TOML literal string keeps Windows' backslashes.
+        let data_dir = dir.path().join("srv").join("opencord");
         fs::write(
             &path,
-            "[server]\nbind = \"127.0.0.1:9000\"\ndata_dir = \"/srv/opencord\"\n",
+            format!(
+                "[server]\nbind = \"127.0.0.1:9000\"\ndata_dir = '{}'\n",
+                data_dir.display()
+            ),
         )
         .unwrap();
 
@@ -372,10 +378,7 @@ mod tests {
 
         assert!(!loaded.created);
         assert_eq!(loaded.config.server.bind, "127.0.0.1:9000".parse().unwrap());
-        assert_eq!(
-            loaded.config.server.data_dir,
-            PathBuf::from("/srv/opencord")
-        );
+        assert_eq!(loaded.config.server.data_dir, data_dir);
         assert_eq!(loaded.config.server.name, "Opencord");
     }
 
@@ -383,14 +386,18 @@ mod tests {
     fn environment_overrides_the_file() {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("opencord.toml");
+        // Absolute on every system (`/certs/…` has no drive on Windows).
+        let cert = dir.path().join("certs").join("full.pem");
+        let key = dir.path().join("certs").join("key.pem");
+        let (cert_text, key_text) = (cert.display().to_string(), key.display().to_string());
         let env: HashMap<&str, &str> = HashMap::from([
             ("OPENCORD_BIND", "127.0.0.1:7000"),
             ("OPENCORD_PUBLIC_HOST", "chat.example.com"),
             ("OPENCORD_PUBLIC_PORT", "443"),
             ("OPENCORD_DATA_DIR", "state"),
             ("OPENCORD_SERVER_NAME", "Friends"),
-            ("OPENCORD_TLS_CERT", "/certs/full.pem"),
-            ("OPENCORD_TLS_KEY", "/certs/key.pem"),
+            ("OPENCORD_TLS_CERT", cert_text.as_str()),
+            ("OPENCORD_TLS_KEY", key_text.as_str()),
             ("OPENCORD_HEARTBEAT_INTERVAL_MS", "5000"),
             ("OPENCORD_LOG", "debug"),
             ("OPENCORD_VOICE_ENABLED", "false"),
@@ -407,8 +414,8 @@ mod tests {
         assert_eq!(config.public_port(), 443);
         assert_eq!(config.server.data_dir, dir.path().join("state"));
         assert_eq!(config.server.name, "Friends");
-        assert_eq!(config.tls.cert, Some(PathBuf::from("/certs/full.pem")));
-        assert_eq!(config.tls.key, Some(PathBuf::from("/certs/key.pem")));
+        assert_eq!(config.tls.cert, Some(cert));
+        assert_eq!(config.tls.key, Some(key));
         assert_eq!(config.gateway.heartbeat_interval_ms, 5000);
         assert_eq!(config.log.filter, "debug");
         assert!(!config.voice.enabled);

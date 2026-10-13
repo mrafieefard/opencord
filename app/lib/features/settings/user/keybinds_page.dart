@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -5,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:opencord/core/model/voice.dart';
 import 'package:opencord/core/providers/providers.dart';
 import 'package:opencord/core/settings/local_prefs.dart';
+import 'package:opencord/features/chat/links.dart';
 import 'package:opencord/features/settings/user/keybind_recorder.dart';
 import 'package:opencord/ui/theme/oc_colors.dart';
 import 'package:opencord/ui/theme/oc_icons.dart';
@@ -50,6 +53,17 @@ class _KeybindsPageState extends ConsumerState<KeybindsPage> {
             null => null,
           },
           children: [
+            if (support case HotkeysFocusedOnly(:final settingsUrl?))
+              SettingsRow(
+                title: 'Allow keybinds in other apps',
+                subtitle:
+                    'Opencord tries again when you come back to this window.',
+                trailing: OcButton(
+                  label: 'Open settings',
+                  dense: true,
+                  onPressed: () => _openSettings(ref, settingsUrl),
+                ),
+              ),
             if (keybinds.list.isEmpty)
               const SettingsRow(
                 title: 'No keybinds yet',
@@ -308,4 +322,10 @@ class _AppShortcuts extends StatelessWidget {
       ],
     );
   }
+}
+
+/// Opens the system settings where global hotkeys are allowed.
+void _openSettings(WidgetRef ref, String url) {
+  final uri = Uri.tryParse(url);
+  if (uri != null) unawaited(ref.read(linkLauncherProvider)(uri));
 }

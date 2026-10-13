@@ -9,6 +9,7 @@ use ffmpeg_next as ff;
 use super::openh264::Software;
 use super::vaapi::{self, Frames};
 use super::{CodecError, NAL_IDR, annexb, ffmpeg, nal_type};
+pub use super::{Encoded, EncoderConfig};
 use crate::video::picture::{Picture, PixelFormat};
 
 /// Pictures between keyframes the encoder would make by itself: an hour,
@@ -29,23 +30,6 @@ impl Backend {
     pub fn is_hardware(self) -> bool {
         self != Backend::OpenH264
     }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct EncoderConfig {
-    pub width: u32,
-    pub height: u32,
-    pub fps: u32,
-    /// Bits per second.
-    pub bitrate: u32,
-}
-
-/// One encoded picture.
-#[derive(Debug, Clone)]
-pub struct Encoded {
-    pub nal_units: Vec<Vec<u8>>,
-    /// An IDR picture: decodable on its own.
-    pub keyframe: bool,
 }
 
 pub struct Encoder {

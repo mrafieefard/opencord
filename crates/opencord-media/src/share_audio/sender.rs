@@ -5,7 +5,7 @@ use std::sync::mpsc::{self, Receiver, RecvTimeoutError, TryRecvError};
 use std::thread::JoinHandle;
 use std::time::{Duration, Instant};
 
-use super::pipewire::Captured;
+use super::Captured;
 use crate::audio::codec::{CodecError, MAX_PACKET};
 use crate::audio::{FRAME, SAMPLE_RATE};
 

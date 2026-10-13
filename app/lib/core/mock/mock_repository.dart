@@ -1554,6 +1554,10 @@ class MockRepository implements OpencordRepository {
   /// What the system's picker chooses, for tests.
   StreamSource debugShareSource = StreamSource.screen;
 
+  /// The app a shared window belongs to, where the system says (Windows),
+  /// for tests; `null`: the app asks ("Sound from").
+  String? debugShareSound;
+
   /// Whether sharing sound works here, and the apps playing, for tests.
   ScreenAudioSupport screenAudio = (supported: true, reason: null);
   List<ScreenAudioApp> appsPlaying = [
@@ -1616,12 +1620,37 @@ class MockRepository implements OpencordRepository {
 
   OwnScreenShare? _screen;
 
+  /// The sources the share dialog lists where Opencord picks, for tests;
+  /// the id last asked to share.
+  List<ScreenSource> debugScreenSources = [
+    (
+      id: 'screen:1',
+      kind: StreamSource.screen,
+      title: 'Screen 1 · 2560×1440',
+      app: null,
+      thumbnail: null,
+    ),
+    (
+      id: 'window:42',
+      kind: StreamSource.window,
+      title: 'Notes — Opencord plan',
+      app: 'Notes',
+      thumbnail: null,
+    ),
+  ];
+  String? lastScreenSourceId;
+
+  @override
+  Future<List<ScreenSource>> screenSources() async => debugScreenSources;
+
   @override
   Future<void> startScreenShare(
     ScreenShareQuality quality, {
     bool audio = true,
+    String? sourceId,
   }) async {
     if (screenError case final error?) throw error;
+    lastScreenSourceId = sourceId;
     final session = _voice;
     if (session == null) {
       throw const RepoException(
@@ -1649,6 +1678,9 @@ class MockRepository implements OpencordRepository {
       source: debugShareSource,
       quality: quality,
       audio: audio && screenAudio.supported,
+      audioFrom: debugShareSource == StreamSource.window
+          ? debugShareSound
+          : null,
       preview: const VideoFeed(
         trackId: 'mock-screen',
         textureId: null,
@@ -1824,12 +1856,16 @@ class MockRepository implements OpencordRepository {
     'the mock has no system hotkeys',
   );
 
+  /// How many times [setHotkeys] was called.
+  var hotkeyBinds = 0;
+
   /// What [setHotkeys] was last given.
   List<HotkeyBinding> hotkeys = const [];
 
   @override
   Future<HotkeySupport> setHotkeys(List<HotkeyBinding> bindings) async {
     hotkeys = bindings;
+    hotkeyBinds++;
     return hotkeySupport;
   }
 

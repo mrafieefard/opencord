@@ -260,8 +260,12 @@ sealed class HotkeySupport {
   /// System-wide, through [HotkeysGlobal.method].
   const factory HotkeySupport.global(String method) = HotkeysGlobal;
 
-  /// Only while Opencord is focused, because of [HotkeysFocusedOnly.reason].
-  const factory HotkeySupport.focusedOnly(String reason) = HotkeysFocusedOnly;
+  /// Only while Opencord is focused, because of [HotkeysFocusedOnly.reason];
+  /// [HotkeysFocusedOnly.settingsUrl] opens where the user can allow them.
+  const factory HotkeySupport.focusedOnly(
+    String reason, {
+    String? settingsUrl,
+  }) = HotkeysFocusedOnly;
 }
 
 final class HotkeysGlobal extends HotkeySupport {
@@ -278,16 +282,23 @@ final class HotkeysGlobal extends HotkeySupport {
 }
 
 final class HotkeysFocusedOnly extends HotkeySupport {
-  const HotkeysFocusedOnly(this.reason);
+  const HotkeysFocusedOnly(this.reason, {this.settingsUrl});
 
   final String reason;
 
-  @override
-  bool operator ==(Object other) =>
-      other is HotkeysFocusedOnly && other.reason == reason;
+  /// The system settings where the user can allow global hotkeys, when
+  /// that is what's missing (macOS's Input Monitoring). Opencord binds them
+  /// again when its window is focused, so a grant takes effect.
+  final String? settingsUrl;
 
   @override
-  int get hashCode => reason.hashCode;
+  bool operator ==(Object other) =>
+      other is HotkeysFocusedOnly &&
+      other.reason == reason &&
+      other.settingsUrl == settingsUrl;
+
+  @override
+  int get hashCode => Object.hash(reason, settingsUrl);
 }
 
 /// Noise suppression on the microphone (Phase 2 plan §7.3).

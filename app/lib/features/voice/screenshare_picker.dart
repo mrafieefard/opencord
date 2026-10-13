@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:opencord/core/model/stream.dart';
 import 'package:opencord/core/model/voice.dart';
 import 'package:opencord/core/providers/providers.dart';
+import 'package:opencord/core/repository/repository.dart';
 import 'package:opencord/ui/theme/oc_colors.dart';
 import 'package:opencord/ui/theme/oc_metrics.dart';
 import 'package:opencord/ui/theme/oc_text.dart';
@@ -60,7 +61,10 @@ class _ScreenshareDialogState extends ConsumerState<_ScreenshareDialog> {
   );
   late var _sound = ref.read(shareSoundProvider);
 
-  bool get _portal => Theme.of(context).platform == TargetPlatform.linux;
+  /// The system's picker opens after this dialog (Linux's portal, macOS's
+  /// picker); otherwise the dialog lists the sources itself.
+  bool get _portal =>
+      !ref.read(repositoryProvider).capabilities.ownScreenPicker;
 
   ScreenShareResolution get _maxResolution =>
       _settings.screenShareMaxResolution;

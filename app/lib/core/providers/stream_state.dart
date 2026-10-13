@@ -95,9 +95,14 @@ class OwnScreenShareNotifier extends Notifier<OwnScreenShare?> {
     String serverKey,
     ScreenShareQuality quality, {
     bool audio = true,
+    String? sourceId,
   }) async {
     ref.read(lastScreenQualityProvider(serverKey).notifier).set(quality);
-    await _repository.startScreenShare(quality, audio: audio);
+    await _repository.startScreenShare(
+      quality,
+      audio: audio,
+      sourceId: sourceId,
+    );
   }
 
   Future<void> changeQuality(

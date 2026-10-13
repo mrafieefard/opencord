@@ -555,6 +555,7 @@ mod tests {
 
     #[test]
     fn each_layer_takes_pictures_at_its_own_frame_rate() {
+        crate::video::codec::needs_codec!();
         let layers = camera_layers(1280, 720);
         let start = Instant::now();
         let mut taken = [0; 3];
@@ -584,6 +585,7 @@ mod tests {
 
     #[test]
     fn every_layer_comes_out_at_its_size_starting_with_a_keyframe() {
+        crate::video::codec::needs_codec!();
         let (_sender, frames, received) = started();
 
         feed(&frames, 0, 30);
@@ -615,6 +617,7 @@ mod tests {
 
     #[test]
     fn only_the_layers_asked_for_are_encoded_and_a_returning_one_starts_with_a_keyframe() {
+        crate::video::codec::needs_codec!();
         let (sender, frames, received) = started();
         feed(&frames, 0, 10);
         drain(&received);
@@ -643,6 +646,7 @@ mod tests {
 
     #[test]
     fn a_keyframe_comes_when_asked_for() {
+        crate::video::codec::needs_codec!();
         let (sender, frames, received) = started();
         feed(&frames, 0, 10);
         drain(&received);
@@ -662,6 +666,7 @@ mod tests {
 
     #[test]
     fn a_new_bitrate_restarts_the_layer_with_a_keyframe() {
+        crate::video::codec::needs_codec!();
         let (sender, frames, received) = started();
         feed(&frames, 0, 10);
         drain(&received);
@@ -688,6 +693,7 @@ mod tests {
 
     #[test]
     fn the_sender_ends_when_the_camera_does() {
+        crate::video::codec::needs_codec!();
         let (sender, frames, _received) = started();
         feed(&frames, 0, 3);
 
@@ -735,6 +741,7 @@ mod tests {
 
     #[test]
     fn a_screen_sends_its_main_and_low_layers_and_follows_a_resized_window() {
+        crate::video::codec::needs_codec!();
         let (_sender, frames, received) = started_screen();
 
         feed_sized(&frames, 0, 10, (1280, 720));
@@ -763,6 +770,7 @@ mod tests {
 
     #[test]
     fn a_screen_that_does_not_change_is_sent_again_every_second() {
+        crate::video::codec::needs_codec!();
         let (_sender, frames, received) = started_screen();
         feed_sized(&frames, 0, 3, (1280, 720));
         drain(&received);
@@ -779,6 +787,7 @@ mod tests {
 
     #[test]
     fn the_planners_cuts_shrink_and_slow_a_screens_main_layer() {
+        crate::video::codec::needs_codec!();
         let (sender, frames, received) = started_screen();
         feed_sized(&frames, 0, 5, (1280, 720));
         drain(&received);
@@ -806,6 +815,7 @@ mod tests {
 
     #[test]
     fn a_reshaped_screen_goes_out_as_its_new_track_and_layers() {
+        crate::video::codec::needs_codec!();
         let (sender, frames, received) = started_screen();
         feed_sized(&frames, 0, 5, (1280, 720));
         drain(&received);

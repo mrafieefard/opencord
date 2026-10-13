@@ -267,13 +267,9 @@ fn tone_pair(text: &str) -> Result<(f32, f32), String> {
     Ok((parse(left)?, parse(right)?))
 }
 
-#[cfg(target_os = "linux")]
 fn share_tone(session: &VoiceSession, left: f32, right: f32, duration: Duration) {
     session.share_tone(left, right, duration);
 }
-
-#[cfg(not(target_os = "linux"))]
-fn share_tone(_session: &VoiceSession, _left: f32, _right: f32, _duration: Duration) {}
 
 /// "720p30", "1080p60", "source60"...: a preset and a frame rate.
 fn screen_quality(text: &str) -> Result<ScreenShareRequest, String> {
@@ -299,7 +295,6 @@ fn screen_quality(text: &str) -> Result<ScreenShareRequest, String> {
 }
 
 /// Goes live on the server, then sends the screen.
-#[cfg(target_os = "linux")]
 async fn go_live(
     bot: &Voicebot,
     session: &VoiceSession,
@@ -330,22 +325,6 @@ async fn go_live(
     Ok(())
 }
 
-#[cfg(not(target_os = "linux"))]
-async fn go_live(
-    _bot: &Voicebot,
-    _session: &VoiceSession,
-    _channel: i64,
-    _request: ScreenShareRequest,
-) -> anyhow::Result<()> {
-    anyhow::bail!("an encoded screen needs Linux for now")
-}
-
-#[cfg(target_os = "linux")]
 async fn publish_camera(session: &VoiceSession, track_id: &str) -> anyhow::Result<()> {
     session.publish_encoded_camera(track_id).await
-}
-
-#[cfg(not(target_os = "linux"))]
-async fn publish_camera(_session: &VoiceSession, _track_id: &str) -> anyhow::Result<()> {
-    anyhow::bail!("an encoded camera needs Linux for now; try --test-pattern")
 }

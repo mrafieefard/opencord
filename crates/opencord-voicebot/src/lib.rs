@@ -22,7 +22,6 @@ use opencord_media::transport::{
     AudioFrame, Layer, RemoteTrack, SinkWant, TrackKind, TrackRequest, VoiceConnection, VoiceEvent,
     VoiceTarget,
 };
-#[cfg(target_os = "linux")]
 use opencord_media::video::codec::decoder::Decoder;
 use opencord_media::video::pattern::{TestPattern, check};
 use tokio::sync::{broadcast, mpsc};
@@ -343,24 +342,20 @@ struct Shared {
     /// The camera this bot publishes, if any, and whether a new connection
     /// still has to be told of it.
     pattern: Option<TestPattern>,
-    #[cfg(target_os = "linux")]
     encoded: Option<camera::EncodedVideo>,
     /// The screen this bot shares, if any.
-    #[cfg(target_os = "linux")]
     screen: Option<camera::EncodedVideo>,
     republish: bool,
     /// Others' tracks, and the tile height to watch them at.
     tracks: Vec<(i64, RemoteTrack)>,
     watch_height: Option<u32>,
     /// Decoders for what is watched, by track, when decoding.
-    #[cfg(target_os = "linux")]
     decoders: Option<HashMap<String, Decoder>>,
 }
 
 impl Shared {
     /// What to publish this bot's camera with, if it has one.
     fn camera_request(&self) -> Option<TrackRequest> {
-        #[cfg(target_os = "linux")]
         if let Some(camera) = &self.encoded {
             return Some(camera.request.clone());
         }
@@ -372,7 +367,6 @@ impl Shared {
     /// Every track this bot publishes: its camera and its screen.
     fn requests(&self) -> Vec<TrackRequest> {
         let mut requests: Vec<TrackRequest> = self.camera_request().into_iter().collect();
-        #[cfg(target_os = "linux")]
         if let Some(screen) = &self.screen {
             requests.push(screen.request.clone());
         }
@@ -380,7 +374,6 @@ impl Shared {
     }
 
     /// This bot's encoded track with this id.
-    #[cfg(target_os = "linux")]
     fn encoded(&self, track_id: &str) -> Option<&camera::EncodedVideo> {
         [self.encoded.as_ref(), self.screen.as_ref()]
             .into_iter()
@@ -490,14 +483,13 @@ impl VoiceSession {
     /// Sends a stereo tone as this bot's screen share sound for
     /// `duration`: `left` Hz on the left, `right` Hz on the right, through
     /// the same encoder as the app's (Opus stereo, 128 kbit/s, music).
-    #[cfg(target_os = "linux")]
     pub fn share_tone(
         &self,
         left: f32,
         right: f32,
         duration: Duration,
     ) -> std::thread::JoinHandle<()> {
-        use opencord_media::share_audio::pipewire::Captured;
+        use opencord_media::share_audio::Captured;
         use opencord_media::share_audio::sender::Sender;
         use opencord_media::transport::EncodedScreenAudio;
 
@@ -567,8 +559,11 @@ impl VoiceSession {
     /// and 30 fps through the same encoders as the app's camera, its layers
     /// as the node and the uplink allow. Published again whenever the call
     /// moves to another node.
-    #[cfg(target_os = "linux")]
     pub async fn publish_encoded_camera(&self, track_id: &str) -> anyhow::Result<()> {
+        anyhow::ensure!(
+            opencord_media::video::codec::supported(),
+            "this system has no video codec yet"
+        );
         let connection = lock(&self.shared)
             .connection
             .clone()
@@ -582,12 +577,15 @@ impl VoiceSession {
     /// Publishes a screen share of real H.264: the moving scene as a
     /// 1920×1080 screen, in the layers `shape` gives (plan §9.2). Going live
     /// on the main server is the caller's part.
-    #[cfg(target_os = "linux")]
     pub async fn publish_encoded_screen(
         &self,
         track_id: &str,
         shape: opencord_media::video::layers::ScreenShape,
     ) -> anyhow::Result<()> {
+        anyhow::ensure!(
+            opencord_media::video::codec::supported(),
+            "this system has no video codec yet"
+        );
         let connection = lock(&self.shared)
             .connection
             .clone()
@@ -603,12 +601,10 @@ impl VoiceSession {
     pub fn watch(&self, height: u32, decode: bool) {
         let mut shared = lock(&self.shared);
         shared.watch_height = Some(height);
-        #[cfg(target_os = "linux")]
-        if decode && shared.decoders.is_none() {
+        // Where this system has no codec yet, video is counted, not decoded.
+        if decode && shared.decoders.is_none() && opencord_media::video::codec::supported() {
             shared.decoders = Some(HashMap::new());
         }
-        #[cfg(not(target_os = "linux"))]
-        let _ = decode;
         shared.send_wants();
     }
 
@@ -760,7 +756,6 @@ fn record_video(shared: &Mutex<Shared>, video: &opencord_media::transport::Recei
     let intact = check(&video.nal_units).is_some();
     let bytes: usize = video.nal_units.iter().map(Vec::len).sum();
     let mut shared = lock(shared);
-    #[cfg(target_os = "linux")]
     let decoded = shared.decoders.as_mut().map(|decoders| {
         let decoder = decoders
             .entry(video.track_id.clone())
@@ -769,8 +764,6 @@ fn record_video(shared: &Mutex<Shared>, video: &opencord_media::transport::Recei
             .decode(&video.nal_units, video.arrived)
             .map_or(0, |pictures| pictures.len() as u64)
     });
-    #[cfg(not(target_os = "linux"))]
-    let decoded: Option<u64> = None;
     let seen = shared.seen.entry(video.user_id).or_default();
     seen.frames += 1;
     seen.intact += u64::from(intact);
@@ -810,31 +803,24 @@ fn on_video_event(shared: &Mutex<Shared>, event: VoiceEvent) {
             if let Some(pattern) = shared.pattern.as_mut() {
                 pattern.encode(&layers, fps_scale, size_scale);
             }
-            #[cfg(target_os = "linux")]
             if let Some(video) = shared.encoded(&track_id) {
                 video
                     .sender
                     .encode(&layers, &bitrates, fps_scale, size_scale);
             }
-            #[cfg(not(target_os = "linux"))]
-            let _ = (track_id, bitrates);
         }
         VoiceEvent::KeyframeRequested { track_id, layer } => {
             if let Some(pattern) = shared.pattern.as_mut() {
                 pattern.keyframe(layer);
             }
-            #[cfg(target_os = "linux")]
             if let Some(video) = shared.encoded(&track_id) {
                 video.sender.keyframe(layer);
             }
-            #[cfg(not(target_os = "linux"))]
-            let _ = track_id;
         }
         VoiceEvent::TrackStopped {
             track_id, message, ..
         } => {
             eprintln!("voicebot: the node stopped {track_id}: {message}");
-            #[cfg(target_os = "linux")]
             {
                 let screen = shared
                     .screen
@@ -951,7 +937,6 @@ fn level_dbov(pcm: &[i16]) -> i8 {
 }
 
 /// The voicebot's camera of real H.264.
-#[cfg(target_os = "linux")]
 mod camera {
     use std::sync::atomic::{AtomicBool, Ordering};
     use std::sync::mpsc::{SyncSender, TrySendError, sync_channel};

@@ -47,6 +47,9 @@ tracing-subscriber.workspace = true
 # (plan §13, §15). Never in release builds.
 testing = ["dep:str0m-netem"]
 
+# One section per system (docs/plans/platforms.md): each session edits only
+# its own. A crate only one system needs goes here with its version, never
+# in [workspace.dependencies].
 [target.'cfg(target_os = "linux")'.dependencies]
 ashpd.workspace = true
 ffmpeg-next.workspace = true
@@ -55,6 +58,10 @@ openh264-sys2.workspace = true
 pipewire.workspace = true
 v4l.workspace = true
 x11rb.workspace = true
+
+[target.'cfg(target_os = "macos")'.dependencies]
+
+[target.'cfg(target_os = "windows")'.dependencies]
 
 [[example]]
 name = "camera_load"

@@ -712,7 +712,13 @@ fn hotkey_action_from(action: hotkeys::HotkeyAction) -> HotkeyAction {
 pub(crate) fn hotkey_support_from(support: hotkeys::HotkeySupport) -> HotkeySupport {
     match support {
         hotkeys::HotkeySupport::Global { method } => HotkeySupport::Global { method },
-        hotkeys::HotkeySupport::FocusedOnly { reason } => HotkeySupport::FocusedOnly { reason },
+        hotkeys::HotkeySupport::FocusedOnly {
+            reason,
+            settings_url,
+        } => HotkeySupport::FocusedOnly {
+            reason,
+            settings_url,
+        },
     }
 }
 

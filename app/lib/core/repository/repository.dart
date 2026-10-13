@@ -31,6 +31,7 @@ class RepoCapabilities {
     this.readStates = false,
     this.replies = false,
     this.soundboard = false,
+    this.ownScreenPicker = false,
   });
 
   static const everything = RepoCapabilities(
@@ -60,6 +61,11 @@ class RepoCapabilities {
 
   /// Soundboard sounds play and can be uploaded (Phase 2 V8).
   final bool soundboard;
+
+  /// The share dialog lists the screens and windows itself
+  /// ([OpencordRepository.screenSources]); otherwise the system's picker
+  /// opens after it (Phase 2 plan §9.1).
+  final bool ownScreenPicker;
 }
 
 /// The current user as far as the UI is concerned.
@@ -405,12 +411,22 @@ abstract interface class OpencordRepository {
   /// not named is neither received nor decoded (Phase 2 plan §6, §7.11).
   void setVideoWants(List<VideoWant> wants);
 
-  /// Goes live in this device's voice channel (Phase 2 plan §9.1): on Linux
-  /// the system's picker chooses a screen or a window first. Sharing again
-  /// while live changes the source and keeps the viewers. The share comes
-  /// as [OwnScreenShareChanged]; a [RepoException] says why it could not
-  /// start (the picker closed: [RepoErrorKind.screenCancelled]).
-  Future<void> startScreenShare(ScreenShareQuality quality, {bool audio});
+  /// Goes live in this device's voice channel (Phase 2 plan §9.1): where
+  /// the system has a picker it chooses a screen or a window first;
+  /// otherwise [sourceId] is one of [screenSources]
+  /// ([RepoCapabilities.ownScreenPicker]). Sharing again while live changes
+  /// the source and keeps the viewers. The share comes as
+  /// [OwnScreenShareChanged]; a [RepoException] says why it could not start
+  /// (the picker closed: [RepoErrorKind.screenCancelled]).
+  Future<void> startScreenShare(
+    ScreenShareQuality quality, {
+    bool audio,
+    String? sourceId,
+  });
+
+  /// The screens and windows the share dialog lists where Opencord has its
+  /// own picker; empty where the system picks.
+  Future<List<ScreenSource>> screenSources();
 
   /// A new quality while live, within the server's maximum.
   Future<void> updateScreenShare(ScreenShareQuality quality, {bool audio});

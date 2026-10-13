@@ -606,8 +606,13 @@ pub struct HotkeyBinding {
 pub enum HotkeySupport {
     /// System-wide, through `method`.
     Global { method: String },
-    /// Only while Opencord is focused, because of `reason`.
-    FocusedOnly { reason: String },
+    /// Only while Opencord is focused, because of `reason`. `settings_url`
+    /// opens the system settings where the user can allow them, when that
+    /// is what's missing; the app binds again when its window is focused.
+    FocusedOnly {
+        reason: String,
+        settings_url: Option<String>,
+    },
 }
 
 /// Someone started or stopped speaking.
@@ -693,12 +698,50 @@ pub struct ScreenShareStarted {
     pub width: u32,
     pub height: u32,
     pub source_kind: StreamSourceKind,
+    /// The app whose sound a window share sends, when the system said which
+    /// app the window is; `None` and a window: the app asks ("Sound from").
+    pub audio_app: Option<String>,
+}
+
+/// What this system can do with video (Phase 2 plan §7.11, §8, §9).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct VideoSupport {
+    /// Others' cameras and screens can be decoded and shown.
+    pub receive: bool,
+    pub camera: bool,
+    pub screen: bool,
+    /// Why screens can't be shared, when not.
+    pub screen_reason: Option<String>,
+    /// The share dialog lists the screens and windows itself
+    /// (`screen_sources`); otherwise the system's picker opens after it.
+    pub own_screen_picker: bool,
+}
+
+/// A screen or window Opencord's own picker offers (plan §9.1).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ScreenSource {
+    /// What `screen_share_start` takes as `source_id`.
+    pub id: String,
+    pub kind: StreamSourceKind,
+    /// "Screen 1 · 2560×1440", or the window's title.
+    pub title: String,
+    /// The app a window belongs to.
+    pub app: Option<String>,
+    pub thumbnail: Option<ScreenThumbnail>,
+}
+
+/// A small picture of a screen or window, as RGBA rows.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ScreenThumbnail {
+    pub width: u32,
+    pub height: u32,
+    pub rgba: Vec<u8>,
 }
 
 /// Why a screen share could not start.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ScreenProblem {
-    /// Not on this system yet (only Linux shares screens for now).
+    /// Not on this system (yet).
     NotSupported,
     /// The user closed the system picker.
     Cancelled,

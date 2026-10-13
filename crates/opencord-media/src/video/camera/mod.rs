@@ -1,14 +1,35 @@
 //! Cameras (plan §8): quality is automatic, up to 1280×720 at 30 fps.
-//! Linux captures through the Camera portal and PipeWire; other systems
-//! get their backends later.
+//! Each system has its backend in a file of its own (docs/plans/platforms.md),
+//! all with one contract: `SUPPORTED`, `cameras()`, and a `Capture` that
+//! starts a camera by id (or the first one) into a frame queue, reports its
+//! `mode()`, closes the queue when the camera goes away and stops when
+//! dropped. Linux captures through the Camera portal and PipeWire, with
+//! V4L2 as the fallback.
 
 pub mod mode;
+
+// One block per system: each session edits only its own.
+#[cfg(target_os = "linux")]
+#[path = "linux.rs"]
+mod backend;
 #[cfg(target_os = "linux")]
 pub mod pipewire;
 #[cfg(target_os = "linux")]
 pub mod v4l2;
 #[cfg(all(target_os = "linux", any(test, feature = "testing")))]
 pub mod virtual_camera;
+
+#[cfg(target_os = "macos")]
+#[path = "avfoundation.rs"]
+mod backend;
+
+#[cfg(target_os = "windows")]
+#[path = "media_foundation.rs"]
+mod backend;
+
+#[cfg(not(any(target_os = "linux", target_os = "macos", target_os = "windows")))]
+#[path = "unsupported.rs"]
+mod backend;
 
 use std::time::Instant;
 
@@ -58,118 +79,40 @@ pub struct RawFrame {
     pub captured: Instant,
 }
 
-/// The cameras there are: through the Camera portal (which may ask the
-/// user for access), or V4L2 where the portal or its cameras are missing.
-/// A refusal is final.
-#[cfg(target_os = "linux")]
+/// Whether this system has a camera backend.
+pub fn supported() -> bool {
+    backend::SUPPORTED
+}
+
+/// The cameras there are. On Linux this may ask the user for access first
+/// (the Camera portal); a refusal is final.
 pub async fn cameras() -> Result<Vec<CameraInfo>, CameraError> {
-    match pipewire_remote().await {
-        Ok(remote) => {
-            let listed = tokio::task::spawn_blocking(move || pipewire::cameras(remote))
-                .await
-                .map_err(|error| CameraError::Failed(error.to_string()))??;
-            if listed.is_empty() {
-                return Ok(v4l2_cameras().await);
-            }
-            Ok(listed)
-        }
-        Err(CameraError::Denied) => Err(CameraError::Denied),
-        Err(error) => {
-            tracing::debug!(%error, "no Camera portal; trying V4L2");
-            Ok(v4l2_cameras().await)
-        }
-    }
-}
-
-/// Where PipeWire's cameras are: the Camera portal, which may ask the user
-/// for access; or, with `OPENCORD_CAMERA_PORTAL=0`, the PipeWire session
-/// itself, as an unsandboxed app may reach it — for checks that run with
-/// nobody to answer the portal.
-#[cfg(target_os = "linux")]
-async fn pipewire_remote() -> Result<pipewire::Remote, CameraError> {
-    if std::env::var_os("OPENCORD_CAMERA_PORTAL").is_some_and(|value| value == "0") {
-        return Ok(pipewire::Remote::Session);
-    }
-    pipewire::portal_remote()
-        .await
-        .map(pipewire::Remote::Portal)
-}
-
-#[cfg(target_os = "linux")]
-async fn v4l2_cameras() -> Vec<CameraInfo> {
-    tokio::task::spawn_blocking(v4l2::cameras)
-        .await
-        .unwrap_or_default()
-}
-
-#[cfg(not(target_os = "linux"))]
-pub async fn cameras() -> Result<Vec<CameraInfo>, CameraError> {
-    Err(CameraError::NotSupported)
+    backend::cameras().await
 }
 
 /// A camera capturing; stops when dropped. Its frames go to the queue it
 /// was started with, which closes if the camera goes away.
-pub enum Capture {
-    #[cfg(target_os = "linux")]
-    PipeWire(pipewire::Capture),
-    #[cfg(target_os = "linux")]
-    V4l2(v4l2::Capture),
-}
+pub struct Capture(backend::Capture);
 
 impl Capture {
     /// Starts the camera with this id from [`cameras`], or the first one.
-    #[cfg(target_os = "linux")]
     pub async fn start(
         camera: Option<String>,
         frames: std::sync::mpsc::SyncSender<RawFrame>,
     ) -> Result<Self, CameraError> {
-        let v4l2 = camera.as_deref().is_some_and(|id| id.starts_with("v4l2:"));
-        let remote = if v4l2 {
-            None
-        } else {
-            match pipewire_remote().await {
-                Ok(remote) => Some(remote),
-                Err(CameraError::Denied) => return Err(CameraError::Denied),
-                Err(error) if camera.is_some() => return Err(error),
-                Err(error) => {
-                    tracing::debug!(%error, "no Camera portal; trying V4L2");
-                    None
-                }
-            }
-        };
-        tokio::task::spawn_blocking(move || match remote {
-            Some(remote) => {
-                pipewire::Capture::start(remote, camera.as_deref(), frames).map(Self::PipeWire)
-            }
-            None => v4l2::Capture::start(camera.as_deref(), frames).map(Self::V4l2),
-        })
-        .await
-        .map_err(|error| CameraError::Failed(error.to_string()))?
-    }
-
-    #[cfg(not(target_os = "linux"))]
-    pub async fn start(
-        _camera: Option<String>,
-        _frames: std::sync::mpsc::SyncSender<RawFrame>,
-    ) -> Result<Self, CameraError> {
-        Err(CameraError::NotSupported)
+        backend::Capture::start(camera, frames).await.map(Self)
     }
 
     /// What the camera delivers.
     pub fn mode(&self) -> Mode {
-        // Elsewhere there are no captures, and `*self` matches none.
-        match *self {
-            #[cfg(target_os = "linux")]
-            Self::PipeWire(ref capture) => capture.mode,
-            #[cfg(target_os = "linux")]
-            Self::V4l2(ref capture) => capture.mode,
-        }
+        self.0.mode()
     }
 }
 
 /// A capture buffer's bytes as a frame with packed rows; `None` if they do
 /// not fit the mode. `stride` is the luma row's length in the buffer (0
 /// when packed).
+#[cfg_attr(not(target_os = "linux"), allow(dead_code))]
 pub(crate) fn pack(mode: Mode, data: &[u8], stride: i32, captured: Instant) -> Option<RawFrame> {
     let (width, height) = (mode.width as usize, mode.height as usize);
     let frame = |data: Vec<u8>| RawFrame {

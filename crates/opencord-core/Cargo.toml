@@ -39,7 +39,14 @@ tempfile.workspace = true
 [lints.rust]
 unexpected_cfgs = { level = "warn", check-cfg = ['cfg(frb_expand)'] }
 
-# Video textures go with the video backends, which are Linux-only for now.
-[target.'cfg(target_os = "linux")'.dependencies]
+# Video textures, on every desktop system.
+[target.'cfg(any(target_os = "linux", target_os = "macos", target_os = "windows"))'.dependencies]
 irondash_run_loop.workspace = true
 irondash_texture.workspace = true
+
+# One section per system (docs/plans/platforms.md): each session edits only
+# its own. A crate only one system needs goes here with its version, never
+# in [workspace.dependencies].
+[target.'cfg(target_os = "macos")'.dependencies]
+
+[target.'cfg(target_os = "windows")'.dependencies]

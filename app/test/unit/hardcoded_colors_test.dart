@@ -13,8 +13,9 @@ void main() {
         .listSync(recursive: true)
         .whereType<File>()
         .where((file) => file.path.endsWith('.dart'))
-        .where((file) => !file.path.startsWith('lib/ui/theme/'))
-        .where((file) => !file.path.startsWith('lib/src/rust/'));
+        // Windows lists paths with backslashes.
+        .where((file) => !_posix(file.path).startsWith('lib/ui/theme/'))
+        .where((file) => !_posix(file.path).startsWith('lib/src/rust/'));
     for (final file in sources) {
       final lines = file.readAsLinesSync();
       for (var i = 0; i < lines.length; i++) {
@@ -27,3 +28,5 @@ void main() {
     expect(offenders, isEmpty, reason: offenders.join('\n'));
   });
 }
+
+String _posix(String path) => path.replaceAll(r'\', '/');

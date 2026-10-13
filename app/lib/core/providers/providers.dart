@@ -81,6 +81,14 @@ final eventPumpProvider = Provider<void>((ref) {
   ref.onDispose(() => HardwareKeyboard.instance.removeHandler(inApp.handle));
 });
 
+/// Binds the hotkeys again as they are: after the user allowed global
+/// hotkeys in the system's settings ([HotkeysFocusedOnly.settingsUrl]).
+void rebindHotkeys(Ref ref) => _applyHotkeys(
+  ref,
+  ref.read(repositoryProvider),
+  ref.read(keybindsProvider).bound,
+);
+
 /// Binds the hotkeys system-wide where the system allows (Phase 2 plan
 /// §7.13); otherwise they act only while Opencord is focused.
 void _applyHotkeys(

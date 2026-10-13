@@ -39,12 +39,13 @@ class RustRepository implements OpencordRepository {
     // Listed now: the tray and the server rail read them before start, and
     // they show while offline too.
     _servers = _listServers();
-    final video = _core.videoSupported();
+    final video = _core.videoSupport();
     _capabilities = RepoCapabilities(
       voice: true,
-      camera: video,
-      screenShare: video,
+      camera: video.camera,
+      screenShare: video.screen,
       soundboard: true,
+      ownScreenPicker: video.ownScreenPicker,
     );
   }
 
@@ -1045,15 +1046,18 @@ class RustRepository implements OpencordRepository {
   Future<void> startScreenShare(
     ScreenShareQuality quality, {
     bool audio = true,
+    String? sourceId,
   }) async {
     final started = await _call(
-      () => _core.screenShareStart(_screenRequest(quality, audio)),
+      () => _core.screenShareStart(_screenRequest(quality, audio), sourceId),
     );
     _screen = OwnScreenShare(
       key: started.streamKey,
       source: streamSourceFrom(started.sourceKind),
       quality: quality,
       audio: audio,
+      // Known when the system says which app the window is.
+      audioFrom: started.audioApp,
       preview: VideoFeed(
         trackId: started.trackId,
         textureId: started.textureId,
@@ -1085,6 +1089,25 @@ class RustRepository implements OpencordRepository {
       return (supported: false, reason: error.toString());
     }
   }
+
+  @override
+  Future<List<ScreenSource>> screenSources() async => [
+    for (final source in await _call(_core.screenSources))
+      (
+        id: source.id,
+        kind: streamSourceFrom(source.kind),
+        title: source.title,
+        app: source.app,
+        thumbnail: switch (source.thumbnail) {
+          final thumbnail? => (
+            width: thumbnail.width,
+            height: thumbnail.height,
+            rgba: thumbnail.rgba,
+          ),
+          null => null,
+        },
+      ),
+  ];
 
   @override
   Future<List<ScreenAudioApp>> screenAudioApps() async => [

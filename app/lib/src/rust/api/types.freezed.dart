@@ -3906,11 +3906,11 @@ return focusedOnly(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>({TResult Function( String method)?  global,TResult Function( String reason)?  focusedOnly,required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>({TResult Function( String method)?  global,TResult Function( String reason,  String? settingsUrl)?  focusedOnly,required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case HotkeySupport_Global() when global != null:
 return global(_that.method);case HotkeySupport_FocusedOnly() when focusedOnly != null:
-return focusedOnly(_that.reason);case _:
+return focusedOnly(_that.reason,_that.settingsUrl);case _:
   return orElse();
 
 }
@@ -3928,11 +3928,11 @@ return focusedOnly(_that.reason);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>({required TResult Function( String method)  global,required TResult Function( String reason)  focusedOnly,}) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>({required TResult Function( String method)  global,required TResult Function( String reason,  String? settingsUrl)  focusedOnly,}) {final _that = this;
 switch (_that) {
 case HotkeySupport_Global():
 return global(_that.method);case HotkeySupport_FocusedOnly():
-return focusedOnly(_that.reason);}
+return focusedOnly(_that.reason,_that.settingsUrl);}
 }
 /// A variant of `when` that fallback to returning `null`
 ///
@@ -3946,11 +3946,11 @@ return focusedOnly(_that.reason);}
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>({TResult? Function( String method)?  global,TResult? Function( String reason)?  focusedOnly,}) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>({TResult? Function( String method)?  global,TResult? Function( String reason,  String? settingsUrl)?  focusedOnly,}) {final _that = this;
 switch (_that) {
 case HotkeySupport_Global() when global != null:
 return global(_that.method);case HotkeySupport_FocusedOnly() when focusedOnly != null:
-return focusedOnly(_that.reason);case _:
+return focusedOnly(_that.reason,_that.settingsUrl);case _:
   return null;
 
 }
@@ -4028,10 +4028,11 @@ as String,
 
 
 class HotkeySupport_FocusedOnly extends HotkeySupport {
-  const HotkeySupport_FocusedOnly({required this.reason}): super._();
+  const HotkeySupport_FocusedOnly({required this.reason, this.settingsUrl}): super._();
   
 
  final  String reason;
+ final  String? settingsUrl;
 
 /// Create a copy of HotkeySupport
 /// with the given fields replaced by the non-null parameter values.
@@ -4043,16 +4044,16 @@ $HotkeySupport_FocusedOnlyCopyWith<HotkeySupport_FocusedOnly> get copyWith => _$
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is HotkeySupport_FocusedOnly&&(identical(other.reason, reason) || other.reason == reason));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is HotkeySupport_FocusedOnly&&(identical(other.reason, reason) || other.reason == reason)&&(identical(other.settingsUrl, settingsUrl) || other.settingsUrl == settingsUrl));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,reason);
+int get hashCode => Object.hash(runtimeType,reason,settingsUrl);
 
 @override
 String toString() {
-  return 'HotkeySupport.focusedOnly(reason: $reason)';
+  return 'HotkeySupport.focusedOnly(reason: $reason, settingsUrl: $settingsUrl)';
 }
 
 
@@ -4063,7 +4064,7 @@ abstract mixin class $HotkeySupport_FocusedOnlyCopyWith<$Res> implements $Hotkey
   factory $HotkeySupport_FocusedOnlyCopyWith(HotkeySupport_FocusedOnly value, $Res Function(HotkeySupport_FocusedOnly) _then) = _$HotkeySupport_FocusedOnlyCopyWithImpl;
 @useResult
 $Res call({
- String reason
+ String reason, String? settingsUrl
 });
 
 
@@ -4080,10 +4081,11 @@ class _$HotkeySupport_FocusedOnlyCopyWithImpl<$Res>
 
 /// Create a copy of HotkeySupport
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') $Res call({Object? reason = null,}) {
+@pragma('vm:prefer-inline') $Res call({Object? reason = null,Object? settingsUrl = freezed,}) {
   return _then(HotkeySupport_FocusedOnly(
 reason: null == reason ? _self.reason : reason // ignore: cast_nullable_to_non_nullable
-as String,
+as String,settingsUrl: freezed == settingsUrl ? _self.settingsUrl : settingsUrl // ignore: cast_nullable_to_non_nullable
+as String?,
   ));
 }
 

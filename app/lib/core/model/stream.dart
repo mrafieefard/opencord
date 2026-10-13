@@ -152,3 +152,16 @@ typedef ScreenAudioSupport = ({bool supported, String? reason});
 
 /// An app with sound playing that a window share can send (§10.4).
 typedef ScreenAudioApp = ({String name, String? icon});
+
+/// A small picture of a screen or window, as RGBA rows.
+typedef ScreenThumbnail = ({int width, int height, Uint8List rgba});
+
+/// A screen or window the share dialog lists where Opencord has its own
+/// picker (§9.1): its id goes to [OpencordRepository.startScreenShare].
+typedef ScreenSource = ({
+  String id,
+  StreamSource kind,
+  String title,
+  String? app,
+  ScreenThumbnail? thumbnail,
+});
