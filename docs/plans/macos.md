@@ -6,35 +6,55 @@
 > ([phase-2.md](phase-2.md)) stays the spec; this file says what to build on
 > macOS, in what order, how to test it, and what was decided.
 > Section numbers like §9.3 refer to phase-2.md.
+>
+> **A Windows session works at the same time** ([windows.md](windows.md)).
+> Read [platforms.md](platforms.md) first: it says which files are yours,
+> which are shared, and how the work gets merged without the two sessions
+> colliding. Where this file and platforms.md disagree about who may change a
+> file, platforms.md wins.
 
 ## 0. Working rules
 
-- **Branch:** `phase2-macos`, made from `phase2-remaining`. Commit there. Push
-  at the end of each milestone (the user asked for pushes from the Mac). Never
-  commit to `main`.
-- **Linux stays as it is.** Change Linux code only to move a `cfg` gate or to
-  pull a platform-neutral piece out of a Linux module. The Linux machine pulls
-  each push and runs its tests and live checks; the Mac can't.
+- **Branch:** `phase2-macos`, made from `phase2-remaining`.
+  - Start each milestone with `git fetch && git merge origin/phase2-remaining`.
+  - Push at the end of each milestone (the user asked for pushes from the
+    Mac).
+  - Never merge `phase2-windows`, and never commit to `main` or `pre`.
+- **Your files:** change only the files [platforms.md](platforms.md) §3 gives
+  to the Mac. Anything else follows §4 there: a minimal `shared: …` commit
+  with the reason in the log. Linux code isn't yours: the Linux session
+  merges each push and runs the Linux tests and live checks, which the Mac
+  can't.
+- **Wait for L1:** M0 and M1 can start now. M2 onwards need the Linux
+  session's seams (platforms.md §2): the stub files you fill in, the shared
+  code already calling them, and every Rust↔Dart API change this plan needs.
+  Check with
+  `git log origin/phase2-remaining --oneline --grep 'platform seams (L1)'`.
 - **Don't start V9.** Don't use or mention the Remotion connector.
 - **No questions mid-work.** Make the call, record it as a ruling (below), and
   go on. Some steps need the user at the Mac: permission prompts, picking a
   window, turning speakers on. Batch those and say exactly what to click.
 - **Say where you are:** every progress message names the plan position, for
   example "macOS plan M3, step 3.2".
-- **Rulings:** record each as one line in §7 of this file:
-  `Mn: Ruling: … — cost if wrong: …`. Put the larger ones in
-  `docs/decisions.md` as well, continuing from D31.
+- **Rulings and measurements:** record each in §7 of this file, rulings as
+  `Mn: Ruling: … — cost if wrong: …`. Don't edit `docs/decisions.md`,
+  `docs/performance.md` or `phase-2.md`; the Linux session moves your log
+  into them when it merges (platforms.md §4).
 - **Style:** match the code around you. Read the Linux module you're mirroring
   first and copy its doc comments, naming and plan references. Use the same
   public API, so callers compile unchanged.
 - **Checks before each commit:**
   - `cargo fmt --all --check`
-  - `cargo clippy --workspace --all-targets -- -D warnings`
+  - `cargo clippy --workspace --all-targets -- -D warnings`. Before L1, the
+    dead-code warnings in shared files are expected (platforms.md §4); don't
+    fix them.
   - `cargo test --workspace --lib --bins --tests`
   - In `app/`: `flutter analyze` and `flutter test`
   - Build with `CARGO_INCREMENTAL=0`.
   - Golden tests (`test/golden/`) were rendered on Linux, so they may fail on
     the Mac. That's expected; never regenerate them there.
+  - A shared test that fails on macOS for a platform reason goes in the log.
+    Don't edit it.
 
 ## 1. Install on the Mac
 
@@ -60,10 +80,6 @@ git clone https://github.com/flutter/flutter.git -b 3.44.0 ~/flutter
 echo 'export PATH="$HOME/flutter/bin:$HOME/.cargo/bin:$PATH"' >> ~/.zshrc
 source ~/.zshrc && flutter doctor
 
-# Bindings generator. Only needed when the Rust API changes; the version
-# must match flutter_rust_bridge in Cargo.toml.
-cargo install flutter_rust_bridge_codegen --version 2.13.0 --locked
-
 # The repository.
 gh auth login
 git clone https://github.com/mrafieefard/opencord.git && cd opencord
@@ -71,6 +87,8 @@ git switch phase2-remaining && git switch -c phase2-macos
 ```
 
 What else is already there or isn't needed:
+- `flutter_rust_bridge_codegen`: this session doesn't change the Rust↔Dart
+  API (platforms.md §4).
 - `python3` comes with Xcode; the check scripts use it.
 - `afplay` is built in; the tests use it as "an app playing music".
 - protoc isn't needed: the build uses protox.
@@ -116,7 +134,9 @@ The user also has to be at the Mac to:
 - **Works, but has never been checked on a Mac:** the voice transport, the
   audio engine (cpal's Core Audio host), the processing chain, the soundboard
   and all the UI. The macOS CI job builds `main`/`pre` and PRs, never this
-  branch. V7 and the keybinds have never been compiled for macOS.
+  branch. V7 and the keybinds have never been built on a Mac; the Linux
+  session type-checked their not-Linux paths with a FreeBSD target on
+  2026-10-13.
 - **Linux-only, gated behind `cfg(target_os = "linux")`:**
 
   | Feature | Where | What macOS gets today |
@@ -129,7 +149,11 @@ The user also has to be at the Mac to:
   | Flutter textures | `opencord-core/src/video/flutter.rs`; irondash deps are Linux-only in `opencord-core/Cargo.toml` | none |
   | Core screen share | `opencord-core/src/video/screen.rs` (written against the portal and PipeWire) | "not supported" |
 
-  In `api/client.rs`:
+  L1 turns each of these into a macOS stub file that reports "not
+  supported", already called by the shared code (platforms.md §2). From M2 on
+  you fill in those files and nothing else.
+
+  Today, in `api/client.rs`:
   - `video_supported()` is `cfg!(linux)`, which hides the camera and Screen
     buttons.
   - `screen_audio_support()` reports "not available on this system yet".
@@ -148,7 +172,7 @@ The user also has to be at the Mac to:
   to link. Frameworks with APIs newer than 13.0 are linked weakly
   (`-weak_framework`), as CoreAudio is for process taps.
 
-### Decisions (record them in §7 and as D32+ when you start)
+### Decisions (copy each into §7 as a ruling when you start)
 
 **A. Bindings.**
 - Use the `objc2` framework crates, on the same 0.3 line as the
@@ -173,8 +197,9 @@ The user also has to be at the Mac to:
 - Cost if wrong: about 600–900 lines of encoder/decoder glue that FFmpeg's
   `h264_videotoolbox` would have given us.
 
-**C. Scaling and colour conversion in portable Rust on macOS (Windows will
-reuse it).**
+**C. Scaling and colour conversion in portable Rust, in the macOS codec
+files.** Windows uses FFmpeg's swscale (its decision B), so nothing here is
+shared with it.
 - `codec/convert.rs` already has `bgrx_to_nv12`, `rgbx_to_nv12`,
   `yuyv_to_nv12` and `halve_nv12`, all in BT.601 video range.
 - Add an NV12 scaler and NV12/I420 → RGBA, with the same matrix and range as
@@ -193,8 +218,9 @@ reuse it).**
 
 - On older versions the switch or button is disabled and says what's needed.
 - Not built unless a Mac on 13 or 14.0–14.1 turns up:
-  - Opencord's own Screens/Windows picker for macOS 13 (§9.1). It will be
-    built together with Windows' picker, which needs the same UI.
+  - Opencord's own Screens/Windows picker for macOS 13 (§9.1). The Windows
+    session builds that picker UI (W6); macOS 13 could later use it through
+    `screen_sources()` with `own_picker`.
   - ScreenCaptureKit audio for 13–14.1.
 
 **E. Keep the app sandbox.**
@@ -211,8 +237,12 @@ reuse it).**
 - `SwitchAudioSource` in place of `pactl`.
 - `sox -t coreaudio "BlackHole 2ch" …` in place of `parec`.
 - `afplay` as "another app playing".
-- `OPENCORD_SCREEN_DISPLAY=main` (new, M6) in place of
-  `OPENCORD_SCREEN_NODE`: shares the main display without the picker.
+- `OPENCORD_SCREEN_DISPLAY=main` (new, M6, read only in
+  `video/screen/macos.rs`) in place of `OPENCORD_SCREEN_NODE`: shares the
+  main display without the picker.
+- **Check scripts and integration tests** go in `app/tool/macos/` and
+  `app/integration_test/macos/`. Scripts may `source ../e2e_server.sh`, which
+  is portable, but don't change it or the shared tests (platforms.md §4).
 - The real camera, with the user present, in place of the virtual PipeWire
   camera.
 - Voicebots measure what was received, exactly as on Linux. That part
@@ -220,8 +250,10 @@ reuse it).**
 
 ## 4. Milestones
 
-Order: M0 → M1 → M2 → M3 → M4 → M5 → M6 → M7 → M8. Each one ends with a
-commit, a push, and a line in §7.
+Order: M0 → M1 → (L1) → M2 → M3 → M4 → M5 → M6 → M7 → M8. Each one ends
+with a commit, a push, and a line in §7. From M2 on, every file named
+"stub" below is one the Linux session laid down in L1; it already has the
+contract in its doc comments and is already called by the shared code.
 
 ### M0: Setup and baseline
 1. Install (§1). Record these in §7: `sw_vers`, the chip (`uname -m`), the
@@ -236,9 +268,10 @@ commit, a push, and a line in §7.
 3. Check that the workspace builds and passes:
    - `cargo build --workspace`, then `cargo test --workspace --lib --bins
      --tests`, then clippy.
-   - Fix anything that fails to compile on macOS. Expect it in
-     `hotkeys/mod.rs`, `opencord-core` (`client.rs`, `media.rs`) and
-     anything V7 touched.
+   - On 2026-10-13 the Linux session type-checked the not-Linux code paths
+     with a FreeBSD target: they compile, with dead-code warnings in shared
+     files. Anything that still fails on macOS (a C dependency, the linker)
+     gets a minimal `shared:` fix and a line in the log.
 4. In `app/`: `flutter pub get`, `flutter analyze`, `flutter test`.
 5. Run the app: `flutter run -d macos`. Point it at a local server:
    `cargo run -p opencord-server`, or source `app/tool/e2e_server.sh`, which
@@ -264,12 +297,14 @@ commit, a push, and a line in §7.
    - the app hears a voicebot;
    - the level meter moves;
    - device lists name the Mac's devices.
-5. **Port `app/tool/check_user_audio.sh` and its integration test to macOS:**
+5. **Port `app/tool/check_user_audio.sh` and its integration test to macOS,**
+   as new files: `app/tool/macos/check_user_audio.sh` and
+   `app/integration_test/macos/user_audio_test.dart` (a copy of the shared
+   test that takes the BlackHole device ids):
    - Before launching, set the default output to BlackHole 2ch and the
      default input to BlackHole 16ch with `SwitchAudioSource`. Restore both in
      the exit trap.
    - Record what the app plays with `sox -t coreaudio "BlackHole 2ch"`.
-   - Make the scripts and tests choose per OS; don't fork them.
    - **Accept:** the same numbers as Linux, within 0.5 dB:
 
      | Setting | Expected |
@@ -290,12 +325,12 @@ commit, a push, and a line in §7.
    - Record the number.
    - **Accept:** Listener measures under −50 dBFS while the app plays the
      tone at about −12 dBFS.
-8. Run the integration tests `v2`, `v3` and `v8` with `-d macos`, where they
-   don't depend on Linux.
+8. Run the shared integration tests `v2`, `v3` and `v8` with `-d macos`. Log
+   any that fail for a platform reason; don't edit them.
 
 ### M2: Global keybinds (§7.13, V3, the keybinds work in 937448f)
-1. **New file `crates/opencord-media/src/hotkeys/macos.rs`**, selected in
-   `set_on_this_system` for `target_os = "macos"`. The event tap:
+1. **`crates/opencord-media/src/hotkeys/macos.rs`** (the L1 stub) becomes
+   an event tap:
    - `CGEventTapCreate(kCGSessionEventTap, kCGHeadInsertEventTap,
      kCGEventTapOptionListenOnly, keyDown | keyUp | flagsChanged)`.
    - Listen-only: Opencord never swallows a key.
@@ -325,14 +360,15 @@ commit, a push, and a line in §7.
    - If `CGPreflightListenEventAccess()` is false, call
      `CGRequestListenEventAccess()` once, which shows the system prompt.
    - Then return `FocusedOnly` with the reason "Allow Opencord under System
-     Settings → Privacy & Security → Input Monitoring".
+     Settings → Privacy & Security → Input Monitoring" and `settings_url` =
+     `x-apple.systempreferences:com.apple.preference.security?Privacy_ListenEvent`.
    - The app calls `hotkeys_set` again when its window gains focus, so a
      later grant takes effect. Check whether macOS also needs a relaunch, and
      say so in the reason if it does.
-5. **App:** on macOS, when the keybinds aren't global, the Keybinds page
-   shows that reason and an "Open System Settings" button. The button opens
-   `x-apple.systempreferences:com.apple.preference.security?Privacy_ListenEvent`.
-6. **Known limit, for `docs/`:** while any app has Secure Event Input on (a
+5. **App:** nothing to build. Since L1 the Keybinds page shows the reason
+   and an "Open settings" button whenever `settings_url` is set. Check that
+   the link opens the right pane.
+6. **Known limit, for the log:** while any app has Secure Event Input on (a
    password field is focused), no event tap gets keys.
 7. **Tests:**
    - Unit tests: the keysym → keycode table, flag parsing, left/right
@@ -361,7 +397,9 @@ commit, a push, and a line in §7.
      `rgba`.
    - `codec::raw::RawDecoder`: `new`, `picture(&RawFrame)`.
 
-   Put the macOS versions in their own files, selected with `cfg`.
+   They go in `video/codec/macos/` (the L1 stubs), which `codec/mod.rs`
+   already selects on macOS. Set its `SUPPORTED` to true when they work. Don't
+   touch the FFmpeg files: they are shared with Windows (platforms.md §3).
 2. **Encoder (VideoToolbox):**
    - Open it with `VTCompressionSessionCreate`, H.264, at the configured
      size, with `kVTVideoEncoderSpecification_EnableLowLatencyRateControl`.
@@ -387,7 +425,8 @@ commit, a push, and a line in §7.
        `CMVideoFormatDescriptionGetH264ParameterSetAtIndex`. The transport and
        every receiver expect parameter sets in-band before an IDR (`NAL_SPS`,
        `NAL_PPS`).
-   - **Backends:** `Backend::VideoToolbox` = hardware, opened with
+   - **Backends:** the macOS `Backend` enum lives in your files.
+     `Backend::VideoToolbox` = hardware, opened with
      `EnableHardwareAcceleratedVideoEncoder`. VideoToolbox's software encoder
      is the fallback (§7.9's macOS row). `is_hardware()` reports
      `UsingHardwareAcceleratedVideoEncoder`.
@@ -412,11 +451,11 @@ commit, a push, and a line in §7.
    - The scaler matches Linux's colours:
      - BT.601 video range;
      - `halve_nv12` as the fast path for exact halves.
-5. Widen the `cfg` on `video::{sender, receiver}` to Linux or macOS.
-6. **Voicebot:** turn on video for macOS. Today it is gated in
-   `opencord-voicebot/src/{lib,main}.rs`: the encoded test-pattern camera,
-   decoding received video, and `go_live`. Two voicebots should then send each
-   other video through a local server on the Mac.
+5. The sender and receiver already compile on macOS (L1) and pick the
+   codec up by themselves.
+6. **Voicebot:** since L1 its video code compiles everywhere and skips at run
+   time where the codec isn't supported. Once `SUPPORTED` is true, two
+   voicebots should send each other video through a local server on the Mac.
 7. **Tests** (port the Linux ones that don't depend on a platform):
    - the encoder opens, and every picture comes out of its encode call;
    - a keyframe on request is an IDR led by the SPS and PPS;
@@ -425,26 +464,19 @@ commit, a push, and a line in §7.
    - a size change mid-stream decodes;
    - the scaler's colour patches match the expected BT.601 values.
 8. **Accept:**
-   - The `check_v4.sh` flow passes on the Mac: a voicebot camera → a watching
-     voicebot at 360p, every picture intact.
-   - Encode cost per layer (720p30, 360p30, 180p15) is recorded in
-     `docs/performance.md` under a macOS heading.
+   - `app/tool/macos/check_v4.sh` (the `check_v4.sh` flow) passes on the Mac:
+     a voicebot camera → a watching voicebot at 360p, every picture intact.
+   - Encode cost per layer (720p30, 360p30, 180p15) is in the log.
 
 ### M4: Seeing video in the app (§7.11)
-1. Make `irondash_run_loop` and `irondash_texture` dependencies for Linux or
-   macOS in `opencord-core/Cargo.toml`.
-2. Widen the gates in `opencord-core/src/video.rs` and `video/flutter.rs`.
-   - irondash takes RGBA on macOS and converts it itself.
-   - Check the colours with the test pattern: red must look red.
-3. **`video_supported()`:**
-   - Find what it gates in the app. Receiving should work as soon as the
-     receiver is in.
-   - If needed, split the flag into what this Mac can do: receive, camera,
-     screen (with a reason). Regenerate the bindings with
-     `flutter_rust_bridge_codegen generate` from `app/`.
-4. **Test:** the `v5_test.dart` flow on macOS. A voicebot's test-pattern
-   camera appears in the app, and `video_texture_stats` shows pictures both
-   presented and drawn.
+1. Since L1 the textures (irondash) compile on macOS, and `video_support()`
+   reports `receive` from your codec's `SUPPORTED`. Check that they work:
+   - irondash takes RGBA on macOS and converts it itself;
+   - check the colours with the test pattern: red must look red.
+2. **Test:** `app/integration_test/macos/receive_video_test.dart`, after the
+   `v5_test.dart` flow, receive half. A voicebot's test-pattern camera appears
+   in the app, and `video_texture_stats` shows pictures both presented and
+   drawn.
 5. **Accept:**
    - The app on the Mac shows a voicebot's camera and a voicebot's screen
      stream.
@@ -452,7 +484,7 @@ commit, a push, and a line in §7.
    - Hidden tiles stop receiving (`video_set_wants`).
 
 ### M5: Camera (§8, V5)
-1. **New file `video/camera/avfoundation.rs`.**
+1. **`video/camera/avfoundation.rs`** (the L1 stub):
    - **`cameras()`:**
      - Use `AVCaptureDeviceDiscoverySession` for video.
      - Device types on 14+: built-in wide-angle, `External` and
@@ -473,24 +505,27 @@ commit, a push, and a line in §7.
    - **Unplugged** (`AVCaptureDeviceWasDisconnectedNotification`, a session
      runtime error): close the frame queue. The core then shows that the
      camera went away, as on Linux.
-2. Add an `AvFoundation` variant to `camera::Capture`. Implement `cameras()`
-   and `Capture::start` for macOS. Camera buttons show on macOS.
+2. `camera::Capture` already has its macOS variant (L1). Make the stub's
+   `support()` say supported; the camera buttons then show on macOS.
 3. **Tests:**
    - An `#[ignore]`d real-camera test, run with the user present: the camera
      is listed, the first frame arrives within 1 s at the chosen mode, and
      frames stop after stopping.
-   - Live, the `check_v5.sh` flow: the app turns the camera on, and a
-     watching voicebot decodes every picture.
+   - Live, `app/tool/macos/check_v5.sh` (the `check_v5.sh` flow): the app
+     turns the camera on, and a watching voicebot decodes every picture.
 4. **Accept** (§8 and V5):
    - Camera on and off each take under 1 s (measured).
    - Three layers sent.
    - The preview is mirrored; what's sent isn't.
-   - CPU in `docs/performance.md`.
+   - CPU in the log.
    - With an iPhone nearby, Continuity Camera is listed and works (optional).
 
 ### M6: Screen share (§9, V6)
-1. **New file `video/screen/sck.rs` (ScreenCaptureKit).**
-   - **`pick()`, on 14.0+:**
+1. **`video/screen/macos.rs`** (the L1 stub, plus files beside it):
+   ScreenCaptureKit. It implements the contract of platforms.md §2.3:
+   `support()` (with `own_picker: false`) and `start(request, frames)`, which
+   picks and then captures.
+   - **Picking, on 14.0+:**
      - Use `SCContentSharingPicker.sharedPicker`.
      - Configuration: allowed modes "one display" and "one window";
        `excludedBundleIDs` = Opencord's own, so its windows aren't offered.
@@ -499,7 +534,8 @@ commit, a push, and a line in §7.
        - `didCancelForStream`: `ScreenError::Cancelled`.
        - `StartDidFailWithError`: `Failed`.
      - Set `active` and call `present`.
-     - Return the filter and its kind (`filter.style`: display or window).
+     - Keep the filter; its kind (`filter.style`: display or window) goes in
+       `Picked.kind`.
    - **Capture:**
      - `SCStreamConfiguration`:
        - width and height from §9.2's rule: the preset's pixel budget,
@@ -523,41 +559,34 @@ commit, a push, and a line in §7.
    - **For tests:** `OPENCORD_SCREEN_DISPLAY=main` shares the main display
      through `SCShareableContent` without the picker. It needs Screen
      Recording for the app or the terminal app.
-2. **Core:** `opencord-core/src/video/screen.rs` uses the portal's `Picked`,
-   PipeWire's `Remote` and `Target`.
-   - Put the platform part behind `opencord_media::video::screen`, with a
-     `pick` and a `ScreenCapture` per OS:
-     - Linux: portal + PipeWire, behaving exactly as today;
-     - macOS: `sck.rs`.
-   - Then un-gate the core module for macOS.
-   - The Linux machine reruns `check_v6.sh` and `check_v7.sh` after the push.
+2. **Core:** nothing to change. Since L1 the core's `video/screen.rs` calls
+   `start` and `support` and no longer knows about the portal or PipeWire.
 3. **Permission:** find out whether the system picker path (14+) still needs
    the Screen Recording permission (§9.3 asks). Record the answer.
 4. **macOS 13:** `ScreenError::NotSupported` with "Screen sharing needs macOS
    14 or later", shown by the app.
-5. **App:** `screenshare_picker.dart`'s `_portal` (a system picker follows
-   the dialog) becomes true on macOS too. Check the wording.
+5. **App:** nothing to build. Since L1 the share dialog says a system picker
+   follows whenever `own_picker` is false. Check that the wording fits macOS;
+   if it doesn't, log it (the dialog is the Windows session's file).
 6. **Tests:**
-   - The `check_v6.sh` flow, using the environment variable: the app shares
+   - `app/tool/macos/check_v6.sh` (the `check_v6.sh` flow), using the
+     environment variable: the app shares
      the main display at 720p30 with something moving on screen; a watching
      voicebot decodes every picture at the right size and about 30 fps;
      stopping ends the share for everyone.
    - A window share through the real picker, with the user picking.
 7. **Accept:**
    - V6's acceptance on macOS.
-   - CPU at 1080p30 in `docs/performance.md`.
+   - CPU at 1080p30 in the log.
    - Optional: with an XDR display, HDR content isn't washed out (§9.4).
      Record what you see.
 
 ### M7: Screen share sound (§10.1, §10.3, §10.7, V7)
-1. **Make `share_audio` platform-neutral:**
-   - Move `Source`, `AppInfo` and `Captured` from `pipewire.rs` into
-     `share_audio/mod.rs`.
-   - `pub use` the platform's `Capture`, `available` and `apps_with_audio`.
-   - Un-gate `sender.rs`; it's plain Opus.
-   - The core's `video/screen.rs` imports `share_audio::{Capture, Source}`.
-   - Linux behaves exactly as before.
-2. **New file `share_audio/coreaudio.rs`: Core Audio process taps, 14.2+.**
+1. **Already done in L1:** `Source`, `AppInfo` and `Captured` live in
+   `share_audio/mod.rs`; `sender.rs` is shared; the core calls the OS's
+   `Capture`, `available`, `apps_with_audio` and `support`.
+2. **`share_audio/coreaudio.rs`** (the L1 stub): Core Audio process taps,
+   14.2+.
    - **Opencord's own process object:**
      `kAudioHardwarePropertyTranslatePIDToProcessObject` of `getpid()`.
    - **What the tap covers:**
@@ -591,8 +620,8 @@ commit, a push, and a line in §7.
    - **Stopping:** in this order: `AudioDeviceStop`,
      `AudioDeviceDestroyIOProcID`, `AudioHardwareDestroyAggregateDevice`,
      `AudioHardwareDestroyProcessTap`.
-   - **`available()`:** true on macOS 14.2+. Otherwise the core's
-     `screen_audio_support` says "Sharing sound needs macOS 14.2 or later".
+   - **`available()` and `support()`:** supported on macOS 14.2+. Otherwise
+     the reason is "Sharing sound needs macOS 14.2 or later".
    - **`apps_with_audio()`:** process objects with
      `kAudioProcessPropertyIsRunningOutput`, without Opencord, grouped by app.
      Names come from `NSRunningApplication`.
@@ -605,7 +634,7 @@ commit, a push, and a line in §7.
 3. **Which app a window belongs to:**
    - Read it from the picker's filter if the SDK has it (check
      `SCContentFilter`'s included applications or windows on 15.x, with the
-     owning app's bundle ID and pid).
+     owning app's bundle ID and pid), and return it in `Picked.audio`.
    - Otherwise use the app's existing "Sound from…" dialog, as on Wayland. It
      is already wired through `screen_audio_apps` and
      `screen_share_audio_from`.
@@ -613,15 +642,17 @@ commit, a push, and a line in §7.
    canceller (§10.6). Check that this works on macOS; there's nothing to
    build.
 5. **Tests:**
-   - `#[ignore]`d Rust tests, mirroring `opencord-media/tests/share_audio.rs`:
+   - `#[ignore]`d Rust tests in `crates/opencord-media/tests/share_audio_macos.rs`,
+     mirroring `share_audio.rs`:
      - A global tap captures an `afplay` tone, while a tone the test process
        plays itself is absent.
      - A tap of one `afplay`'s process captures only its frequency while a
        second `afplay` plays another.
-   - Turn on `opencord-voicebot/tests/screen_audio.rs` (`share_tone`) for
-     macOS.
+   - Since L1 the voicebot's `tests/screen_audio.rs` runs on macOS by
+     itself; check that it passes.
 6. **Accept** (§10.7, the "no double audio" test), with every device on
-   BlackHole so nothing is audible. Port `check_v7.sh`:
+   BlackHole so nothing is audible. Port `check_v7.sh` as
+   `app/tool/macos/check_v7.sh`:
    - The app shares the screen with sound.
    - A Talker voicebot talks in the call, which the app plays.
    - `afplay` plays music.
@@ -639,29 +670,29 @@ commit, a push, and a line in §7.
    - an XDR display;
    - Continuity Camera;
    - a call between the Mac app and the Linux app through one server on the
-     LAN, talking both ways (V2's two machines).
+     LAN, talking both ways (V2's two machines); with the Windows PC as
+     well once it gets there (platforms.md §5).
 
    Record each result.
 2. **CI:** the macOS job must keep building. It needs no Homebrew packages,
    only system frameworks. Before pushing M3, M5, M6 and M7:
    - Check locally with `flutter build macos --release`. This is the
      universal build and needs the `x86_64-apple-darwin` target.
-   - Optional: add a `cargo test` job on `macos-latest` for the tests that
-     don't need hardware.
+   - Change only the `desktop` job's macOS steps. Propose a `cargo test` job
+     on `macos-latest` (for the tests that need no hardware) in the log; the
+     Linux session adds it (platforms.md §4).
 3. **Packaging that macOS needs now:**
    - The usage strings and entitlements are done in M1. Check that Release
      matches Debug.
    - Developer ID signing, the hardened runtime and notarization need a paid
      Apple Developer account. That's the user's decision.
    - Until then the release zip stays ad-hoc signed. Its permission prompts
-     still work, but they are asked again after each update. Write this in
-     the release notes text in `ci.yml`.
-4. **Docs:**
-   - `docs/performance.md`: the macOS rows.
-   - `docs/decisions.md`: D32+.
-   - The Secure Event Input limit and the minimum versions table in
-     `docs/voice.md` if it exists, otherwise `docs/architecture.md`.
-   - §7 of this file.
+     still work, but they are asked again after each update. Put the
+     sentence for the release notes in the log; the `release` job is
+     shared.
+4. **Log:** every measurement, ruling and known limit (Secure Event Input,
+   the minimum versions) in §7. The Linux session moves them into
+   `docs/decisions.md`, `docs/performance.md` and `docs/architecture.md`.
 
 ## 5. Out of scope on macOS
 - "Use the operating system's processing" (Voice Processing I/O, §7.4); it's
@@ -697,5 +728,8 @@ commit, a push, and a line in §7.
 | M7 | | |
 | M8 | | |
 
-Rulings:
+Rulings (`Mn: Ruling: … — cost if wrong: …`):
+- (none yet)
+
+`shared:` commits (file, why):
 - (none yet)
