@@ -56,12 +56,12 @@ fi
 
 export XDG_DATA_HOME="$work/data" XDG_CONFIG_HOME="$work/config"
 
-# Claims the server as Owner with the voicebot at $1, then starts it again
-# (a server with an owner logs its invite link at startup) and sets
-# $invite to that link.
+# Claims the server as Owner with the voicebot at $1 (any further arguments
+# go to that bot), then starts it again (a server with an owner logs its
+# invite link at startup) and sets $invite to that link.
 claim_and_invite() {
   "$1" --server "127.0.0.1:$port" --claim "$claim" --name Owner --tone 0 \
-    --seconds 1 >"$work/claim.log"
+    --seconds 1 "${@:2}" >"$work/claim.log"
   kill "${background[0]}"
   wait "${background[0]}" 2>/dev/null || true
   (

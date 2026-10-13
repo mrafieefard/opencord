@@ -1,10 +1,12 @@
 //! `opencord-voicebot`: joins a voice channel, plays a tone, can send a
-//! synthetic camera and watch others', and reports what it hears and
-//! sees. For checking that a server's voice and video work end to end.
+//! synthetic camera and watch others', play soundboard sounds, and reports
+//! what it hears and sees. For checking that a server's voice and video
+//! work end to end.
 
 use std::process::ExitCode;
 use std::time::Duration;
 
+use anyhow::Context as _;
 use clap::Parser;
 use opencord_core::api::types::{
     CoreEventPayload, ScreenShareRequest, ScreenShareResolution, StreamSourceKind,
@@ -48,6 +50,20 @@ struct Args {
     /// --watch, their video comes too.
     #[arg(long)]
     watch_streams: bool,
+    /// Add an audio file (MP3, WAV, FLAC, OGG, M4A) to the soundboard
+    /// before joining; needs Manage soundboard (the owner has it).
+    #[arg(long, value_name = "FILE")]
+    upload_sound: Option<String>,
+    /// The uploaded sound's name.
+    #[arg(long, default_value = "Voicebot", requires = "upload_sound")]
+    sound_name: String,
+    /// Play this soundboard sound once joined: server:<sha256>,
+    /// default:<id>, or "uploaded" for the file from --upload-sound.
+    #[arg(long, value_name = "REF")]
+    sound: Option<String>,
+    /// Play --sound again this often, in seconds.
+    #[arg(long, value_name = "SECONDS", requires = "sound")]
+    sound_every: Option<u64>,
     #[arg(long, default_value_t = 10)]
     seconds: u64,
 }
@@ -65,6 +81,18 @@ async fn main() -> ExitCode {
 
 async fn run(args: Args) -> anyhow::Result<()> {
     let mut bot = Voicebot::connect(&args.server, args.claim, &args.name).await?;
+    let uploaded = match &args.upload_sound {
+        Some(path) => {
+            let sound = bot.upload_sound(path, &args.sound_name).await?;
+            println!("uploaded {} as server:{}", sound.name, sound.sha256);
+            Some(format!("server:{}", sound.sha256))
+        }
+        None => None,
+    };
+    let sound = match args.sound.as_deref() {
+        Some("uploaded") => Some(uploaded.context("--sound uploaded needs --upload-sound")?),
+        other => other.map(str::to_owned),
+    };
     let channel = bot.voice_channel(&args.channel)?;
     let session = bot.join(channel).await?;
     println!("joined {} as user {}", args.channel, bot.user_id());
@@ -86,8 +114,8 @@ async fn run(args: Args) -> anyhow::Result<()> {
     if let Some(request) = args.screen {
         go_live(&bot, &session, channel, request).await?;
     }
+    let self_id = bot.user_id();
     if args.watch_streams {
-        let self_id = bot.user_id();
         let streams: Vec<String> = bot
             .ready
             .streams
@@ -98,23 +126,50 @@ async fn run(args: Args) -> anyhow::Result<()> {
         for key in streams {
             watch_stream(&bot, &key).await;
         }
-        let deadline = tokio::time::Instant::now() + duration;
-        loop {
-            tokio::select! {
-                () = tokio::time::sleep_until(deadline) => break,
-                payload = bot.next_event() => match payload {
-                    Some(CoreEventPayload::StreamCreate(stream))
-                        if stream.channel_id == channel && stream.user_id != self_id =>
-                    {
-                        watch_stream(&bot, &stream.stream_key).await;
-                    }
-                    Some(_) => {}
-                    None => break,
-                },
+    }
+    let started = tokio::time::Instant::now();
+    let deadline = started + duration;
+    // Without --sound-every, the sound plays once.
+    let mut next_sound = sound.as_ref().map(|_| started);
+    loop {
+        let sound_due = async {
+            match next_sound {
+                Some(at) => tokio::time::sleep_until(at).await,
+                None => std::future::pending().await,
             }
+        };
+        tokio::select! {
+            () = tokio::time::sleep_until(deadline) => break,
+            () = sound_due => {
+                if let Some(sound) = &sound {
+                    match bot.play_sound(channel, sound).await {
+                        Ok(()) => println!("played {sound}"),
+                        Err(error) => eprintln!("voicebot: could not play {sound}: {error:#}"),
+                    }
+                }
+                next_sound = args
+                    .sound_every
+                    .map(|every| tokio::time::Instant::now() + Duration::from_secs(every));
+            }
+            payload = bot.next_event() => match payload {
+                Some(CoreEventPayload::StreamCreate(stream))
+                    if args.watch_streams
+                        && stream.channel_id == channel
+                        && stream.user_id != self_id =>
+                {
+                    watch_stream(&bot, &stream.stream_key).await;
+                }
+                Some(CoreEventPayload::VoiceChannelEffect(effect)) => println!(
+                    "sound {} ({}) from user {}, {} ms after start",
+                    effect.sound_ref,
+                    effect.name,
+                    effect.user_id,
+                    started.elapsed().as_millis(),
+                ),
+                Some(_) => {}
+                None => break,
+            },
         }
-    } else {
-        tokio::time::sleep(duration).await;
     }
     for (user, heard) in session.heard() {
         println!(

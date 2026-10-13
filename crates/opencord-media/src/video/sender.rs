@@ -541,9 +541,16 @@ mod tests {
         (sender, frames, received)
     }
 
+    /// Everything sent until the encoder has been quiet for 500 ms: a
+    /// slow (loaded or debug) encoder can still be working through earlier
+    /// pictures when the last one goes in.
     fn drain(received: &mpsc::Receiver<VideoFrame>) -> Vec<VideoFrame> {
-        std::thread::sleep(Duration::from_millis(200));
-        received.try_iter().collect()
+        let quiet = Duration::from_millis(500);
+        let mut sent = Vec::new();
+        while let Ok(frame) = received.recv_timeout(quiet) {
+            sent.push(frame);
+        }
+        sent
     }
 
     #[test]

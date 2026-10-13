@@ -7,6 +7,8 @@ import 'package:opencord/features/shell/desktop_shell.dart';
 import 'package:opencord/features/soundboard/soundboard_picker.dart';
 import 'package:opencord/features/soundboard/soundboard_ring.dart';
 import 'package:opencord/features/voice/voice_controls.dart';
+import 'package:opencord/features/voice/voice_tile.dart';
+import 'package:opencord/ui/widgets/avatar.dart';
 import 'package:opencord/ui/widgets/oc_button.dart';
 import 'package:opencord/ui/widgets/oc_icon_button.dart';
 
@@ -169,6 +171,55 @@ void main() {
     await _pumpFor(tester, const Duration(milliseconds: 1000));
     expect(_playingRing(), findsNothing);
     expect(find.text('🪀'), findsNothing);
+    await app.dispose(tester);
+  });
+
+  testWidgets('speaking while a sound plays shows both rings', (tester) async {
+    final app = await MockApp.pump(tester);
+    await _joinGeneral(tester);
+    final channel = app.read(voiceSessionProvider).channelId!;
+
+    app.repository.debugSoundPlayed(
+      _dev,
+      SoundPlay(
+        channelId: channel,
+        userId: _mira,
+        soundRef: 'default:boing',
+        name: 'Boing',
+        duration: const Duration(seconds: 1),
+        startedAt: DateTime(2026),
+      ),
+    );
+    app.container.read(speakingProvider(_dev).notifier).set({_mira});
+    await _pumpFor(tester, const Duration(milliseconds: 100));
+
+    // In the sidebar: the solid speaking ring inside the dashed one.
+    final row = find.descendant(
+      of: find.byKey(DesktopShell.sidebarKey),
+      matching: find.byWidgetPredicate(
+        (widget) => widget is SoundboardRing && widget.playing,
+      ),
+    );
+    expect(row, findsOneWidget);
+    expect(
+      find.descendant(
+        of: row,
+        matching: find.byWidgetPredicate(
+          (widget) => widget is OcAvatar && widget.speaking,
+        ),
+      ),
+      findsOneWidget,
+    );
+    // On the tile: the dashed ring outside, the speaking border inside.
+    final tile = find.byWidgetPredicate(
+      (widget) =>
+          widget is VoiceTileView &&
+          widget.userId == _mira &&
+          widget.speaking &&
+          widget.sound != null,
+    );
+    expect(tile, findsOneWidget);
+    await _pumpFor(tester, const Duration(seconds: 1));
     await app.dispose(tester);
   });
 

@@ -671,6 +671,55 @@ mod tests {
         assert!(playback.sounds.is_empty());
     }
 
+    /// How strongly `frequency` is in `samples` (Goertzel), as an amplitude.
+    fn strength(samples: &[f32], frequency: f32) -> f32 {
+        let coefficient = 2.0 * (std::f32::consts::TAU * frequency / SAMPLE_RATE as f32).cos();
+        let (mut previous, mut before) = (0.0f32, 0.0f32);
+        for sample in samples {
+            let current = sample + coefficient * previous - before;
+            before = previous;
+            previous = current;
+        }
+        let power = previous * previous + before * before - coefficient * previous * before;
+        2.0 * power.max(0.0).sqrt() / samples.len() as f32
+    }
+
+    #[test]
+    fn someone_talking_during_a_sound_is_heard_together_with_it() {
+        let start = Instant::now();
+        let mut playback = Playback::new();
+        let sound: Vec<f32> = (0..2 * SAMPLE_RATE as usize)
+            .map(|n| 0.2 * (std::f32::consts::TAU * 1_000.0 * n as f32 / SAMPLE_RATE as f32).sin())
+            .collect();
+        playback.play_sound(Arc::from(sound), 1.0);
+        let mut arrivals = talk(1, 300.0, 50, start, &[]).into_iter().peekable();
+
+        let mut heard = Vec::new();
+        let mut out = [0.0; TICK];
+        for index in 0..80 {
+            let now = start + Duration::from_millis(index * 10);
+            while let Some(arrival) = arrivals.next_if(|arrival| arrival.at <= now) {
+                playback.receive(
+                    arrival.user_id,
+                    arrival.timestamp,
+                    arrival.marker,
+                    arrival.payload,
+                    arrival.at,
+                );
+            }
+            playback.tick(now, &mut out);
+            if index >= 20 {
+                heard.extend_from_slice(&out);
+            }
+        }
+
+        let (voice, sound) = (strength(&heard, 300.0), strength(&heard, 1_000.0));
+        let elsewhere = strength(&heard, 2_300.0);
+        assert!(voice > 0.1, "the voice at {voice}");
+        assert!(sound > 0.1, "the sound at {sound}");
+        assert!(elsewhere < 0.01, "nothing else, {elsewhere}");
+    }
+
     #[test]
     fn sounds_overlap_and_go_on_while_deafened() {
         let mut playback = Playback::new();

@@ -112,6 +112,13 @@ Each `Request` gets exactly one `Response`, which is either an `error` or the pa
 | `MoveMember { user_id, channel_id }` | `voice_state` | `MOVE_MEMBERS` in both channels; outranks the target unless it is the caller; the target can view and connect to the destination |
 | `DisconnectMember { user_id }` | `ack` | `MOVE_MEMBERS` in the target's channel; outranks the target unless it is the caller |
 | `RefreshVoiceServer {}` | `ack`, then a fresh `VoiceServerUpdate` | The session holding the caller's voice state; otherwise `VOICE_NOT_CONNECTED` |
+| `CreateStream { channel_id, source_kind, resolution, fps, has_audio }` | `stream` | A voice state in that channel, `SCREENSHARE` there, a quality within the server's cap; 5 per minute. Going live again replaces the stream and keeps its viewers |
+| `UpdateStream { stream_key, resolution?, fps?, has_audio? }` | `stream` | The streamer; within the server's cap |
+| `DeleteStream { stream_key }` | `ack` | The streamer |
+| `WatchStream` / `UnwatchStream { stream_key }` | `ack` | A voice state in the stream's channel, not one's own stream, room under `max_stream_viewers` (`STREAM_VIEWER_LIMIT`) |
+| `PlaySoundboardSound { channel_id, sound_ref, name?, emoji?, volume? }` | `ack` | See [Soundboard](#soundboard) |
+| `UpdateSoundboardSound { sound_id, name?, emoji?, volume? }` | `soundboard_sound` | Base `MANAGE_SOUNDBOARD`; an empty emoji clears it |
+| `DeleteSoundboardSound { sound_id }` | `ack` | Base `MANAGE_SOUNDBOARD` |
 
 Details:
 - **Messages:** the content is trimmed and must be 1–4 000 characters. Only text channels accept messages.
@@ -126,7 +133,6 @@ Details:
 - **Cleanup:** deleting a role removes it from every member and deletes its channel overwrites. Kicking or banning a member deletes their member overwrites.
 - **Deleted messages** disappear from history. They are kept in the database, marked as deleted.
 - **Rate limits** are per user: 50 requests per 10 s, plus 5 messages per 5 s per channel and 10 `UpdateVoiceState` or `RefreshVoiceServer` per 10 s. Over the limit, the response is `RATE_LIMITED` with `retry_after_ms`.
-- **Not yet supported:** the screen share requests (`CreateStream`, `UpdateStream`, `DeleteStream`, `WatchStream`, `UnwatchStream`) and the soundboard requests answer `INVALID_ARGUMENT` until those features arrive.
 
 ## Events
 
@@ -139,12 +145,16 @@ Every event goes to every session of the server, with these exceptions:
 | `ChannelDelete` | Sessions that could view the deleted channel, and sessions for whom a permission change hid a channel |
 | `VoiceStateUpdate` | Sessions that can view the channel joined or left (both, for a move), and the user's own sessions |
 | `VoiceServerUpdate` | The one session that joined or was moved |
+| `StreamCreate`, `StreamUpdate`, `StreamDelete` | Sessions that can view the stream's channel |
+| `StreamViewersUpdate` | The streamer's sessions |
+| `VoiceChannelEffect` | Sessions whose user is connected to that voice channel, the player included |
 
 Other events:
 - `RoleCreate`, `RoleUpdate`, `RoleDelete`, `ServerUpdate` and `PresenceUpdate` behave as their names say.
 - `MemberJoin` and `MemberLeave` are sent when a member joins or leaves. `MemberLeave` also covers kicks and bans.
 - `MemberUpdate` is sent when a member's roles, nickname or display name change.
 - Reordering sends one `ChannelUpdate` or `RoleUpdate` per moved item.
+- `SoundboardSoundCreate`, `SoundboardSoundUpdate` and `SoundboardSoundDelete` go to every session: everyone sees the soundboard.
 
 When roles, member roles or overwrites change, the server recomputes visibility for every session and sends `ChannelCreate` or `ChannelDelete` accordingly. Clients recompute their own permissions from the roles, member and overwrite events with the shared resolver.
 
@@ -320,9 +330,26 @@ Deleting the AFK channel clears the setting. Voice channels carry `bitrate` (def
 
 ### Media endpoints
 
-`GET /media/sounds/{sha256}` returns a soundboard sound (`data/sounds/<sha256>.opus`, lowercase hex). Requests need `Authorization: Bearer <media_token>`: the encoded `MediaTokenClaims` plus the signature over `"opencord-media-token-v1" || claims`, base64url without padding, valid for 24 hours. `RefreshMediaToken` gives a new one. Answers: 401 without a valid token, 403 for someone no longer a member, 400 for a malformed hash, 404 for an unknown sound. The upload endpoints (`POST /media/sounds`, `POST /media/external-sounds`) answer 501 until the soundboard arrives.
+Requests need `Authorization: Bearer <media_token>`: the encoded `MediaTokenClaims` plus the signature over `"opencord-media-token-v1" || claims`, base64url without padding, valid for 24 hours. `RefreshMediaToken` gives a new one. Without a valid token the answer is 401; for someone no longer a member, 403.
+
+- `GET /media/sounds/{sha256}` returns a sound's Ogg Opus file (`data/sounds/<sha256>.opus`, lowercase hex), cacheable forever: files are named by their hash and never change. 400 for a malformed hash, 404 for an unknown sound.
+- `POST /media/sounds?name=…&emoji=…&volume=…`, with the Ogg Opus file as the body, adds a sound to this server's soundboard. It needs base `MANAGE_SOUNDBOARD` and room under `max_sounds`; the answer is 201 with the sound.
+- `POST /media/external-sounds`, with the file as the body, keeps another server's sound here so this server's listeners can fetch it. It needs `allow_external_sounds`; 10 per minute per user; the answer is 200 with an ack.
+
+Both uploads answer with a protobuf `Response` (`application/x-protobuf`), the same envelope as gateway requests: the result, or an `error` with its code and a matching status (400 `SOUND_TOO_LONG`, `SOUND_INVALID` or `INVALID_ARGUMENT`; 403 `FORBIDDEN`; 409 `SOUNDBOARD_FULL`; 429 `RATE_LIMITED`). The body is read up to 256 KB and no further, then parsed: the server trusts nothing the client says about the file.
 
 `GET /info` adds `voice_enabled` and `voice_udp_port` (the embedded node's media port; null without one).
+
+### Soundboard
+
+Sounds play on each listener's device; the server only checks and announces them (Phase 2 plan §11).
+
+- **Files** are Ogg Opus, 48 kHz, one or two channels, at most 256 KB and 5 seconds (20 ms of tolerance). The server reads the whole file: every page checksum, one logical stream, the `OpusHead` header, and the length of every packet. A file whose header claims less time than its packets play is too long.
+- **Sound references:** `server:<sha256>` (this server's sound), `external:<sha256>` (another server's, uploaded here first) and `default:<id>` (the sounds every client has: `chime`, `tada`, `air-horn`, `rimshot`, `applause`, `sad-trombone`, `boing`, `crickets`).
+- **Names** are 2–32 characters. An **emoji** is one emoji sequence of at most 8 Unicode scalar values. **Volume** is 0–100 %.
+- **`PlaySoundboardSound`** is checked in this order: the soundboard is enabled; the caller has a voice state in that channel (`VOICE_NOT_CONNECTED`); they are not deafened, server-muted or suppressed (`FORBIDDEN`; self-muted people may play); `USE_SOUNDBOARD` in the channel; the sound exists (`NOT_FOUND`). An external sound also needs `allow_external_sounds` and `USE_EXTERNAL_SOUNDS` in the channel, and a default sound needs `allow_default_sounds`. Then a per-user cooldown (`sound_cooldown_s`) and at most three sounds playing at once in a channel; both answer `SOUND_COOLDOWN` with `retry_after_ms`. An external sound the server does not have answers `NOT_FOUND`: the client uploads it to `/media/external-sounds` and asks again. Its `name`, `emoji` and `volume` come with the request, since this server cannot know them; they are checked like this server's own and ignored for other sounds.
+- **`VoiceChannelEffect`** carries the sound reference, its name, emoji and volume, when it started and how long it plays (`duration_ms`).
+- **External sounds** are kept by hash, at most 50 MB, the least recently played going first. A file this server's own sounds use is never removed.
 
 ### Voice nodes
 
@@ -348,4 +375,9 @@ When the channel closes, the server moves the node's channels elsewhere (see [Jo
 | Voice gateway resume window | 30 seconds |
 | Voice node registrations | 10 per minute per IP address |
 | Voice node shared secret | at least 16 bytes |
+| `CreateStream` | 5 per minute per user |
+| Sound file | 256 KB, 5 seconds |
+| Soundboard sounds | `max_sounds`, 0–200 (48 by default) |
+| `/media/external-sounds` | 10 per minute per user |
+| Sounds playing at once | 3 per voice channel |
 

@@ -237,7 +237,7 @@ impl Soundboard {
     }
 
     /// A sound's samples, mono for the mixer, and its volume in percent.
-    async fn samples(
+    pub async fn samples(
         &self,
         client: &Client,
         key: &str,

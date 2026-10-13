@@ -10,8 +10,10 @@ use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 use std::time::{Duration, Instant};
 
 use anyhow::{Context as _, anyhow, bail};
+use opencord_common::sound::MAX_DURATION_MS;
 use opencord_core::api::types::{
-    AddServerOutcome, ChannelKind, CoreError, CoreEvent, CoreEventPayload, ErrorCode, ReadySnapshot,
+    AddServerOutcome, ChannelKind, CoreError, CoreEvent, CoreEventPayload, ErrorCode,
+    ReadySnapshot, SoundSelection, SoundboardSound,
 };
 use opencord_core::client::Client;
 use opencord_core::identity::Identity;
@@ -154,6 +156,43 @@ impl Voicebot {
         retrying(|| self.client.voice_join(&self.server_key, channel_id)).await?;
         let server = next_voice_server(&mut voice_servers, &self.server_key).await?;
         VoiceSession::start(server, voice_servers).await
+    }
+
+    /// Plays a soundboard sound in `channel_id` for everyone there; waits
+    /// out the cooldown when the server asks to (plan §11.5).
+    pub async fn play_sound(&self, channel_id: i64, sound_ref: &str) -> anyhow::Result<()> {
+        loop {
+            match self
+                .client
+                .soundboard_play(&self.server_key, channel_id, sound_ref, None)
+                .await
+            {
+                Err(CoreError::Server {
+                    code: ErrorCode::SoundCooldown,
+                    retry_after_ms: Some(wait),
+                    ..
+                }) => tokio::time::sleep(Duration::from_millis(u64::from(wait))).await,
+                played => return Ok(played?),
+            }
+        }
+    }
+
+    /// Makes a sound of the audio file at `path` (its first five seconds,
+    /// loudness normalized) and adds it to this server's soundboard; needs
+    /// Manage soundboard.
+    pub async fn upload_sound(&self, path: &str, name: &str) -> anyhow::Result<SoundboardSound> {
+        let draft = self.client.soundboard_open_draft(path.to_owned()).await?;
+        let selection = SoundSelection {
+            draft_id: draft.draft_id,
+            start_ms: 0,
+            length_ms: draft.duration_ms.min(MAX_DURATION_MS),
+            normalize: true,
+            volume: 100,
+        };
+        Ok(self
+            .client
+            .soundboard_upload(&self.server_key, selection, name.to_owned(), None)
+            .await?)
     }
 
     /// The next core event, without a time limit; `None` once the core

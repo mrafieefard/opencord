@@ -1015,7 +1015,12 @@ async fn upload_tone(client: &TestClient, server_key: &str, name: &str) -> Sound
     };
     client
         .client
-        .soundboard_upload(server_key, selection, name.to_owned(), Some("🔔".to_owned()))
+        .soundboard_upload(
+            server_key,
+            selection,
+            name.to_owned(),
+            Some("🔔".to_owned()),
+        )
         .await
         .unwrap()
 }
@@ -1037,7 +1042,10 @@ async fn a_sound_made_from_a_file_is_fetched_by_everyone_and_played_in_the_call(
     let sound = upload_tone(&owner, &key, "Beep").await;
 
     assert_eq!((sound.name.as_str(), sound.volume), ("Beep", 70));
-    assert_eq!((sound.emoji.as_deref(), sound.duration_ms), (Some("🔔"), 2_000));
+    assert_eq!(
+        (sound.emoji.as_deref(), sound.duration_ms),
+        (Some("🔔"), 2_000)
+    );
     let announced = member
         .wait_for(|payload| match payload {
             CoreEventPayload::SoundboardSoundCreate(sound) => Some(sound.clone()),
@@ -1046,7 +1054,10 @@ async fn a_sound_made_from_a_file_is_fetched_by_everyone_and_played_in_the_call(
         .await;
     assert_eq!(announced, sound);
     // Fetched in the background before anyone plays it (plan §11.4).
-    let cached = member.dir.path().join(format!("sounds/{}.opus", sound.sha256));
+    let cached = member
+        .dir
+        .path()
+        .join(format!("sounds/{}.opus", sound.sha256));
     tokio::time::timeout(WAIT, async {
         while !cached.is_file() {
             tokio::time::sleep(Duration::from_millis(20)).await;
@@ -1064,7 +1075,10 @@ async fn a_sound_made_from_a_file_is_fetched_by_everyone_and_played_in_the_call(
         .await
         .unwrap();
     let heard = owner.wait_for(sound_effect).await;
-    let again = member.client.soundboard_play(&key, voice, &sound_ref, None).await;
+    let again = member
+        .client
+        .soundboard_play(&key, voice, &sound_ref, None)
+        .await;
 
     assert_eq!(heard.user_id, member_ready.self_user.id);
     assert_eq!((heard.sound_ref, heard.duration_ms), (sound_ref, 2_000));

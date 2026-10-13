@@ -1112,6 +1112,17 @@ impl Client {
             .await
     }
 
+    /// A sound as the mixer would play it: mono samples at 48 kHz, from the
+    /// cache or fetched, and its volume in percent. For headless clients
+    /// such as the voicebot, which bring their own media.
+    pub async fn soundboard_samples(
+        &self,
+        key: &str,
+        sound_ref: &str,
+    ) -> Result<(Arc<[f32]>, u32), CoreError> {
+        self.inner.soundboard.samples(self, key, sound_ref).await
+    }
+
     /// Plays a sound on this device only.
     pub async fn soundboard_preview(&self, key: &str, sound_ref: &str) -> Result<(), CoreError> {
         self.inner.soundboard.preview(self, key, sound_ref).await

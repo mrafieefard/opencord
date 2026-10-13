@@ -33,7 +33,10 @@ void main() {
           await waitFor(tester, inSidebar('General'));
 
           // Extract server key from invite for streamsProvider
-          final serverKey = _invite.split('/').first.replaceFirst('opencord://', '');
+          final serverKey = _invite
+              .split('/')
+              .first
+              .replaceFirst('opencord://', '');
 
           await tester.tap(inSidebar('General'));
           await waitUntil(
@@ -100,7 +103,10 @@ void main() {
           await waitFor(tester, inSidebar('General'));
 
           // Extract server key from invite
-          final serverKey = _invite.split('/').first.replaceFirst('opencord://', '');
+          final serverKey = _invite
+              .split('/')
+              .first
+              .replaceFirst('opencord://', '');
 
           await tester.tap(inSidebar('General'));
           await waitUntil(
@@ -127,14 +133,10 @@ void main() {
           );
 
           // The bot should be watching.
-          await waitUntil(
-            tester,
-            () {
-              final streams = container.read(streamsProvider(serverKey));
-              return streams.isNotEmpty && streams.values.first.viewerCount > 0;
-            },
-            reason: 'the bot watching',
-          );
+          await waitUntil(tester, () {
+            final streams = container.read(streamsProvider(serverKey));
+            return streams.isNotEmpty && streams.values.first.viewerCount > 0;
+          }, reason: 'the bot watching');
 
           await container.read(voiceSessionProvider.notifier).leave();
         } finally {
