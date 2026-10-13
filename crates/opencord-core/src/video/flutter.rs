@@ -69,10 +69,12 @@ impl PayloadProvider<BoxedPixelData> for Latest {
     fn get_payload(&self) -> BoxedPixelData {
         self.drawn.fetch_add(1, Ordering::Relaxed);
         let picture = lock(&self.picture).clone().unwrap_or_else(|| {
+            // Blank until the first picture; as wide as Metal needs on macOS.
+            let width = if cfg!(target_os = "macos") { 64 } else { 2 };
             Arc::new(Rows {
-                width: 2,
+                width,
                 height: 2,
-                data: vec![0; 16],
+                data: vec![0; width as usize * 2 * 4],
             })
         });
         Box::new(Shared(picture))
@@ -92,6 +94,8 @@ impl FrameSink for FlutterSink {
     }
 
     fn present(&self, width: u32, height: u32, rgba: Vec<u8>) {
+        #[cfg(target_os = "macos")]
+        let (width, rgba) = metal_rows(width, height, &rgba);
         let (Ok(width), Ok(height)) = (i32::try_from(width), i32::try_from(height)) else {
             return;
         };
@@ -105,6 +109,28 @@ impl FrameSink for FlutterSink {
             texture.mark_frame_available();
         }
     }
+}
+
+/// What irondash 0.5's macOS surfaces need (docs/plans/macos.md §7, M4):
+/// BGRA, the format it gives them (its pixel data says RGBA), and rows a
+/// multiple of 256 bytes, which Metal needs to draw from them, while
+/// irondash makes each row exactly the picture's width. So the picture is
+/// stretched to the next width of a multiple of 64 pixels, red and blue
+/// swapped; Flutter scales the texture to its tile anyway.
+#[cfg(target_os = "macos")]
+fn metal_rows(width: u32, height: u32, rgba: &[u8]) -> (u32, Vec<u8>) {
+    const ALIGN: u32 = 64;
+    let aligned = width.div_ceil(ALIGN).max(1) * ALIGN;
+    let (from, to) = (width as usize, aligned as usize);
+    let columns: Vec<usize> = (0..to).map(|x| x * from / to).collect();
+    let mut bgra = Vec::with_capacity(to * height as usize * 4);
+    for row in rgba.chunks_exact(from * 4).take(height as usize) {
+        for &x in &columns {
+            let [r, g, b, a] = [row[x * 4], row[x * 4 + 1], row[x * 4 + 2], row[x * 4 + 3]];
+            bgra.extend_from_slice(&[b, g, r, a]);
+        }
+    }
+    (aligned, bgra)
 }
 
 impl Drop for FlutterSink {
@@ -148,5 +174,26 @@ impl Textures for FlutterTextures {
                 None
             }
         }
+    }
+}
+
+#[cfg(all(test, target_os = "macos"))]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn macos_textures_get_bgra_rows_of_a_multiple_of_64_pixels() {
+        // Two rows of three pixels: red, green, blue.
+        let rgba = [[255u8, 0, 0, 255], [0, 255, 0, 255], [0, 0, 255, 255]]
+            .repeat(2)
+            .concat();
+
+        let (width, bgra) = metal_rows(3, 2, &rgba);
+
+        assert_eq!(width, 64);
+        assert_eq!(bgra.len(), 64 * 2 * 4);
+        assert_eq!(&bgra[..4], &[0, 0, 255, 255], "red, as BGRA");
+        assert_eq!(&bgra[63 * 4..64 * 4], &[255, 0, 0, 255], "blue at the end");
+        assert_eq!(metal_rows(128, 1, &[0; 128 * 4]).0, 128, "already aligned");
     }
 }
