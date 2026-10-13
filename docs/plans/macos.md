@@ -13,6 +13,72 @@
 > colliding. Where this file and platforms.md disagree about who may change a
 > file, platforms.md wins.
 
+## Next phase: M2 to M8 (from 2026-10-13)
+
+**Done:** M0 and M1 (merged), and the Linux session's seams, L1
+(platforms.md §2). Start with `git fetch && git merge origin/phase2-remaining`
+and check that `git log --oneline --grep 'platform seams (L1)'` prints a
+commit.
+
+**This phase is everything left on macOS: M2 to M8 in §4, in order.** The
+Windows session waits until you finish M8.
+
+| Milestone | What you build | Your files (all L1 stubs or your own folders) |
+|---|---|---|
+| M2 | Global keybinds: a listen-only event tap, Input Monitoring | `hotkeys/macos.rs` |
+| M3 | VideoToolbox H.264 encoder and decoder; Rust scaling and conversion | `video/codec/macos/` |
+| M4 | Others' video shown in the app (irondash textures) | none new: check them |
+| M5 | Camera through AVFoundation | `video/camera/avfoundation.rs` |
+| M6 | Screen share through ScreenCaptureKit and the system picker | `video/screen/macos.rs` (+ files beside it) |
+| M7 | Screen share sound through Core Audio process taps | `share_audio/coreaudio.rs` |
+| M8 | Hardware checklist, CI steps, packaging notes, the log | `app/macos/**`, your CI steps, §7 |
+
+Paths are under `crates/opencord-media/src/`. Checks and integration tests go
+in `app/tool/macos/` and `app/integration_test/macos/`.
+
+**L1 already did, so don't build these:**
+- Every Rust↔Dart API change this plan needs: `video_support()`,
+  `settings_url` on `HotkeySupport`, `ScreenShareStarted.audio_app`.
+- In the app:
+  - "Open settings" on the Keybinds page, and binding again when the window
+    is focused;
+  - the share dialog's "your desktop asks" line where the system picks;
+  - not asking "Sound from" when `Picked.sound` names the app.
+- Shared code that calls your files.
+- Run-time skips for tests that need a codec (`needs_codec!()`).
+
+**Adjusted to this Mac** (from M0 and M1):
+- **The Mac:** an Intel MacBook Pro (2019, i7-9750H, macOS 15.8.1), not
+  Apple silicon.
+  - VideoToolbox's hardware H.264 runs on Intel's Quick Sync here; record
+    which encoder opened.
+  - The macOS 13 and 14.0–14.1 paths can only be checked by reading the code.
+- **Tools:** MacPorts, not Homebrew (`/opt/local/bin`).
+- **One BlackHole device (2ch).** Wherever §4 says BlackHole 16ch or two
+  devices, use BlackHole 2ch in both directions, as `check_microphone.sh`
+  does.
+- **Permissions:** checks run with `flutter test -d macos` make the terminal
+  the one asking. Check the app's own prompt once by hand for each new
+  permission (`open --env OPENCORD_PROFILE=…`): Input Monitoring (M2), Camera
+  (M5), Screen & System Audio Recording (M6, M7).
+- **The sandbox** won't let the app start processes, such as `sox`, so
+  recordings run from the scripts, as in M1.
+- **`opencord-voice`'s `tests/video.rs`** can miss its timing on a loaded
+  machine. It's a Linux-owned file: rerun it alone, log it, and don't let it
+  block a milestone.
+
+**When the user has to be at the Mac:**
+
+| Milestone | What for |
+|---|---|
+| M2 | Input Monitoring, for Opencord and the terminal; Accessibility, for the terminal (posted keys) |
+| M5 | Camera access; the camera on; an iPhone nearby (optional) |
+| M6 | Screen & System Audio Recording; picking a window in the system picker |
+| M7 | The audio capture prompt; picking Safari's window for the window test |
+| M8 | A second monitor, AirPods, sleep and wake, and the Linux machine (later the Windows PC) for a call |
+
+Batch these, and say exactly what to click.
+
 ## 0. Working rules
 
 - **Branch:** `phase2-macos`, made from `phase2-remaining`.
@@ -25,11 +91,9 @@
   with the reason in the log. Linux code isn't yours: the Linux session
   merges each push and runs the Linux tests and live checks, which the Mac
   can't.
-- **Wait for L1:** M0 and M1 can start now. M2 onwards need the Linux
-  session's seams (platforms.md §2): the stub files you fill in, the shared
-  code already calling them, and every Rust↔Dart API change this plan needs.
-  Check with
-  `git log origin/phase2-remaining --oneline --grep 'platform seams (L1)'`.
+- **L1 has landed** (commit `refactor: platform seams (L1)`, platforms.md §2):
+  the stub files you fill in from M2 on exist, the shared code already
+  calls them, and every Rust↔Dart API change this plan needs is made.
 - **Don't start V9.** Don't use or mention the Remotion connector.
 - **No questions mid-work.** Make the call, record it as a ruling (below), and
   go on. Some steps need the user at the Mac: permission prompts, picking a
@@ -45,9 +109,9 @@
   public API, so callers compile unchanged.
 - **Checks before each commit:**
   - `cargo fmt --all --check`
-  - `cargo clippy --workspace --all-targets -- -D warnings`. Before L1, the
-    dead-code warnings in shared files are expected (platforms.md §4); don't
-    fix them.
+  - `cargo clippy --workspace --all-targets -- -D warnings`. The off-Linux
+    dead-code warnings L1 removed must not come back; a warning in a shared
+    file goes in the log.
   - `cargo test --workspace --lib --bins --tests`
   - In `app/`: `flutter analyze` and `flutter test`
   - Build with `CARGO_INCREMENTAL=0`.
@@ -398,7 +462,7 @@ contract in its doc comments and is already called by the shared code.
    - `codec::raw::RawDecoder`: `new`, `picture(&RawFrame)`.
 
    They go in `video/codec/macos/` (the L1 stubs), which `codec/mod.rs`
-   already selects on macOS. Set its `SUPPORTED` to true when they work. Don't
+   already selects on macOS. Make its `supported()` return true when they work. Don't
    touch the FFmpeg files: they are shared with Windows (platforms.md §3).
 2. **Encoder (VideoToolbox):**
    - Open it with `VTCompressionSessionCreate`, H.264, at the configured
@@ -454,7 +518,7 @@ contract in its doc comments and is already called by the shared code.
 5. The sender and receiver already compile on macOS (L1) and pick the
    codec up by themselves.
 6. **Voicebot:** since L1 its video code compiles everywhere and skips at run
-   time where the codec isn't supported. Once `SUPPORTED` is true, two
+   time where the codec isn't supported. Once `supported()` is true, two
    voicebots should send each other video through a local server on the Mac.
 7. **Tests** (port the Linux ones that don't depend on a platform):
    - the encoder opens, and every picture comes out of its encode call;
@@ -470,7 +534,7 @@ contract in its doc comments and is already called by the shared code.
 
 ### M4: Seeing video in the app (§7.11)
 1. Since L1 the textures (irondash) compile on macOS, and `video_support()`
-   reports `receive` from your codec's `SUPPORTED`. Check that they work:
+   reports `receive` from your codec's `supported()`. Check that they work:
    - irondash takes RGBA on macOS and converts it itself;
    - check the colours with the test pattern: red must look red.
 2. **Test:** `app/integration_test/macos/receive_video_test.dart`, after the
@@ -505,8 +569,9 @@ contract in its doc comments and is already called by the shared code.
    - **Unplugged** (`AVCaptureDeviceWasDisconnectedNotification`, a session
      runtime error): close the frame queue. The core then shows that the
      camera went away, as on Linux.
-2. `camera::Capture` already has its macOS variant (L1). Make the stub's
-   `support()` say supported; the camera buttons then show on macOS.
+2. `camera::Capture` already wraps your backend's `Capture` (L1). Set the
+   file's `SUPPORTED` to true; the camera buttons then show on macOS once
+   the codec works too (`video_support().camera` needs both).
 3. **Tests:**
    - An `#[ignore]`d real-camera test, run with the user present: the camera
      is listed, the first frame arrives within 1 s at the chosen mode, and
@@ -522,9 +587,10 @@ contract in its doc comments and is already called by the shared code.
 
 ### M6: Screen share (§9, V6)
 1. **`video/screen/macos.rs`** (the L1 stub, plus files beside it):
-   ScreenCaptureKit. It implements the contract of platforms.md §2.3:
-   `support()` (with `own_picker: false`) and `start(request, frames)`, which
-   picks and then captures.
+   ScreenCaptureKit. It implements the contract in `screen/mod.rs`:
+   `support()` (with `own_picker: false`), `sources()` (empty here) and
+   `start(request, frames) -> (Capture, Picked)`, which picks and then
+   captures. Your `Capture` has `size()` and `finished()`.
    - **Picking, on 14.0+:**
      - Use `SCContentSharingPicker.sharedPicker`.
      - Configuration: allowed modes "one display" and "one window";
@@ -634,7 +700,8 @@ contract in its doc comments and is already called by the shared code.
 3. **Which app a window belongs to:**
    - Read it from the picker's filter if the SDK has it (check
      `SCContentFilter`'s included applications or windows on 15.x, with the
-     owning app's bundle ID and pid), and return it in `Picked.audio`.
+     owning app's bundle ID and pid), and return it in `Picked.sound` (a
+     `WindowSound { source, app }`); the app then skips "Sound from".
    - Otherwise use the app's existing "Sound from…" dialog, as on Wayland. It
      is already wired through `screen_audio_apps` and
      `screen_share_audio_from`.

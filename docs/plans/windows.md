@@ -11,6 +11,76 @@
 > [platforms.md](platforms.md) first: it says which files are yours, which are
 > shared, and how the work gets merged without the two sessions colliding.
 
+## Next phase: W2 to W8 (after the Mac's M8)
+
+**Done:** W0 and W1 (merged), and the Linux session's seams, L1
+(platforms.md §2). **The Mac goes first** (M2 to M8); start when the user
+says so. Begin with `git fetch && git merge origin/phase2-remaining`, which
+by then holds the Mac's work too, and check that
+`git log --oneline --grep 'platform seams (L1)'` prints a commit.
+
+**This phase is everything left on Windows: W2 to W8 in §4, in order.**
+
+| Milestone | What you build | Your files (L1 stubs, the FFmpeg files from W3, your folders) |
+|---|---|---|
+| W2 | Global keybinds: a low-level keyboard hook | `hotkeys/windows.rs` |
+| W3 | FFmpeg codecs on Windows (NVENC, AMF, Quick Sync, Media Foundation), D3D11VA decoding, bundled DLLs, CI | the FFmpeg files in `video/codec/`, `video/codec/d3d11va.rs`; delete `windows_pending.rs` |
+| W4 | Others' video shown in the app (irondash textures) | none new: check them |
+| W5 | Camera through Media Foundation | `video/camera/media_foundation.rs` |
+| W6 | Screen share: Windows.Graphics.Capture and Opencord's own picker | `video/screen/windows.rs` (+ files beside it); `screenshare_picker.dart`, a new `screen_source_picker.dart`, the source-passing part of `voice_controls.dart` |
+| W7 | Screen share sound through WASAPI process loopback | `share_audio/wasapi.rs` |
+| W8 | Hardware checklist, CI steps, packaging notes, the log | `app/windows/**`, your CI steps, §7 |
+
+Paths are under `crates/opencord-media/src/` and `app/lib/features/voice/`.
+Checks and integration tests go in `app/tool/windows/` and
+`app/integration_test/windows/`.
+
+**L1 already did, so don't build these:**
+- Every Rust↔Dart API change this plan needs:
+  - `video_support()` (with `own_screen_picker`);
+  - `screen_sources()` with thumbnails;
+  - `screen_share_start(request, source_id)` and the repository's
+    `startScreenShare(…, sourceId)`;
+  - `ScreenShareStarted.audio_app`, so a window share that knows its app
+    doesn't ask "Sound from".
+- The mock repository's `debugScreenSources`, `lastScreenSourceId` and
+  `debugShareSound`, for your picker's widget tests.
+- Shared code that calls your files.
+- Run-time skips for tests that need a codec.
+
+**Adjusted to this PC** (from W0 and W1):
+- **Windows 10 22H2 (build 19045).** Screen share sound needs 20348.
+  - In W7, write the backend and unit-test what runs here; its `support()`
+    says "Sharing sound needs Windows 11".
+  - The §10.7 live test needs a Windows 11 PC. Whether to upgrade is the
+    user's call: log W7's live test as not done unless one is there.
+  - W2 to W6 are unaffected.
+- **LLVM must be installed before W3,** from an administrator prompt (the
+  user does this): `winget install --id LLVM.LLVM -e`, then set
+  `LIBCLANG_PATH=C:\Program Files\LLVM\bin`.
+- **One VB-CABLE pair,** no Hi-Fi CABLE. Wherever §4 says Hi-Fi CABLE, use the
+  W1 arrangement: `check_microphone.ps1` makes CABLE Input the default output
+  for a run, and the app's microphone is CABLE Output.
+  - In W7 the app's speaker can be CABLE Input too: process loopback
+    captures by process, not by device.
+- **Builds run through the `C:\src\opencord` junction,** as in W0.
+- **The echo test** (W1 step 6) is met but not demonstrated. It needs external
+  speakers: optional, the user's call.
+- **`opencord-voice`'s `tests/video.rs`** misses its timing on this PC. It's a
+  Linux-owned file: rerun it alone, log it, and don't let it block a
+  milestone.
+
+**When the user has to be at the PC:**
+
+| Milestone | What for |
+|---|---|
+| W3 | Installing LLVM (administrator) |
+| W5 | The webcam, or OBS Virtual Camera |
+| W7 | A Windows 11 PC for the live test, if there is one; a video in Edge (optional) |
+| W8 | Monitors, an HDR monitor, a headset, sleep and wake, and the Mac and the Linux machine for a call |
+
+Batch these, and say exactly what to do.
+
 ## 0. Working rules
 
 - **Branch:** `phase2-windows`, made from `phase2-remaining`.
@@ -20,9 +90,9 @@
 - **Your files:** change only the files [platforms.md](platforms.md) §3 gives
   to Windows. Anything else follows §4 there: a minimal `shared: …` commit
   with the reason in the log.
-- **Wait for L1:** W0 and W1 can start now. W2 onwards need the Linux
-  session's seams (platforms.md §2). Check with
-  `git log origin/phase2-remaining --oneline --grep 'platform seams (L1)'`.
+- **L1 has landed** (commit `refactor: platform seams (L1)`, platforms.md §2):
+  the stub files you fill in from W2 on exist, the shared code already
+  calls them, and every Rust↔Dart API change this plan needs is made.
 - **Don't start V9.** Don't use or mention the Remotion connector.
 - **No questions mid-work.** Make the call, record it as a ruling in §7, and
   go on. Some steps need the user at the PC: speakers on, a real webcam,
@@ -34,9 +104,9 @@
   API the stub file defines, so callers compile unchanged.
 - **Checks before each commit:**
   - `cargo fmt --all --check`
-  - `cargo clippy --workspace --all-targets -- -D warnings`. Before L1, the
-    dead-code warnings in shared files are expected (platforms.md §4); don't
-    fix them.
+  - `cargo clippy --workspace --all-targets -- -D warnings`. The off-Linux
+    dead-code warnings L1 removed must not come back; a warning in a shared
+    file goes in the log.
   - `cargo test --workspace --lib --bins --tests`
   - In `app/`: `flutter analyze` and `flutter test`
   - Golden tests (`test/golden/`) were rendered on Linux, so they may fail on
@@ -174,7 +244,7 @@ The user also has to be at the PC to:
 **A. Bindings: the `windows` crate at version 0.62, the one cpal already
 uses.**
 - Add only the features each milestone needs, in opencord-media's
-  `[target.'cfg(windows)'.dependencies]` section (platforms.md §2.7).
+  `[target.'cfg(windows)'.dependencies]` section (platforms.md §2, item 7).
 - WinRT (Windows.Graphics.Capture) also comes through the `windows` crate.
 - COM: initialize as multithreaded apartment (`CoInitializeEx`, MTA) on our
   own threads, never on Flutter's UI thread.
@@ -385,8 +455,8 @@ a commit, a push, and a line in §7.
      `cfg(any(target_os = "linux", windows))` for `decoder`, `encoder`,
      `ffmpeg`, `openh264`, `raw` and `scale`.
    - `vaapi` stays Linux-only.
-   - Delete `windows_pending.rs` and its block.
-   - Set `SUPPORTED`.
+   - Delete `windows_pending.rs` and its block, and add Windows to the
+     FFmpeg block's `supported()`.
 
    `ffmpeg-next` and `openh264` move into the Windows target section of
    `opencord-media/Cargo.toml` as well. Linux behaviour must not change: the
@@ -545,10 +615,11 @@ a commit, a push, and a line in §7.
      the core shows "The shared window was closed".
    - Minimized windows send nothing. Check that the sender keeps sending the
      last picture at 1 fps (§9.4).
-5. **`Picked`:**
+5. **`Picked`** (the contract is in `screen/mod.rs`):
    - `kind`.
-   - `audio = Some(Source::Process(pid))` for a window, using decision E for
-     UWP apps; `None` for a screen.
+   - `sound = Some(WindowSound { source: Source::Process(pid), app })` for a
+     window, using decision E for UWP apps; `None` for a screen. The app
+     then skips "Sound from".
 6. **`support()`:** supported when `GraphicsCaptureSession::IsSupported()`;
    `own_picker: true`.
 7. **GPU work only if needed:** start with the CPU path. Measure CPU at 1080p30
@@ -558,7 +629,8 @@ a commit, a push, and a line in §7.
 8. **App**, in your Dart files (platforms.md §3):
    - `screen_source_picker.dart`: Screens and Windows tabs; thumbnails that
      refresh every 2 s while open; a selected state.
-   - `screenshare_picker.dart` shows it when `ownPicker` is set. Go live stays
+   - `screenshare_picker.dart` shows it when the repository's
+     `capabilities.ownScreenPicker` is set. Go live stays
      disabled until something is chosen.
    - "Change source" while live opens it again.
    - The chosen id goes through `startScreenShare(…, sourceId)`, which L1
