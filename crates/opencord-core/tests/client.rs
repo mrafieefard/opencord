@@ -962,7 +962,7 @@ async fn hotkeys_refuse_keys_they_cannot_use_and_say_where_they_work() {
         .client
         .set_hotkeys(&[HotkeyBinding {
             action: HotkeyAction::PushToTalk,
-            accelerator: "CTRL+Return".to_owned(),
+            accelerator: "CTRL+Hyper_L".to_owned(),
         }])
         .await;
     let none = client.client.set_hotkeys(&[]).await;

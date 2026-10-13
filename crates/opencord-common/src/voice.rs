@@ -7,6 +7,9 @@ pub const OPUS_PAYLOAD_TYPE: u8 = 111;
 /// The media a client sends its microphone on.
 pub const AUDIO_MID: &str = "a";
 
+/// The media a client sends its screen share's sound on (plan §10.5).
+pub const SCREEN_AUDIO_MID: &str = "s";
+
 /// The media a client receives `ssrc`'s audio on: one per other speaker.
 pub fn receive_mid(ssrc: u32) -> String {
     format!("u{ssrc:08x}")

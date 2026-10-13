@@ -147,6 +147,8 @@ message Participant {
   int64 user_id = 1;
   uint32 audio_ssrc = 2;
   repeated Track tracks = 3;
+  // Their screen share's sound, sent only to those watching it.
+  uint32 screen_audio_ssrc = 4;
 }
 
 message Ready {
@@ -194,6 +196,7 @@ message ClientConnect {
   int64 user_id = 1;
   uint32 audio_ssrc = 2;
   repeated Track tracks = 3;
+  uint32 screen_audio_ssrc = 4;
 }
 
 message ClientDisconnect {

@@ -96,3 +96,81 @@ class UserAudioControls extends ConsumerWidget {
     );
   }
 }
+
+/// A watched screen share's sound on this device (Phase 2 plan §10.5):
+/// its volume and mute, apart from the streamer's voice; kept with the
+/// streamer's other choices.
+class StreamAudioControls extends ConsumerWidget {
+  const StreamAudioControls({
+    super.key,
+    required this.serverKey,
+    required this.userId,
+  });
+
+  final String serverKey;
+  final int userId;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final colors = context.oc;
+    final who = (server: serverKey, user: userId);
+    final key = ref.watch(userAudioKeyProvider(who));
+    final audio = ref.watch(userAudioProvider(who));
+    void change(UserAudio Function(UserAudio audio) edit) {
+      if (key != null) {
+        ref.read(userAudioPrefsProvider.notifier).update(key, edit);
+      }
+    }
+
+    final shown = '${audio.streamVolume}%';
+    return Material(
+      type: MaterialType.transparency,
+      child: SizedBox(
+        width: 240,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(10, 6, 10, 0),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      'Stream volume',
+                      style: OcText.body.copyWith(color: colors.text),
+                    ),
+                  ),
+                  Text(
+                    shown,
+                    style: OcText.small.copyWith(color: colors.textSecondary),
+                  ),
+                ],
+              ),
+            ),
+            Slider(
+              value: audio.streamVolume.toDouble(),
+              max: UserAudio.maxVolume.toDouble(),
+              divisions: UserAudio.maxVolume ~/ UserAudioControls.step,
+              label: shown,
+              semanticFormatterCallback: (_) => shown,
+              onChanged: key == null
+                  ? null
+                  : (raw) => change(
+                      (audio) => audio.copyWith(streamVolume: raw.round()),
+                    ),
+            ),
+            OcMenuToggle(
+              label: 'Mute stream',
+              checked: audio.streamMuted,
+              onChanged: key == null
+                  ? null
+                  : (muted) =>
+                        change((audio) => audio.copyWith(streamMuted: muted)),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}

@@ -43,6 +43,17 @@ abstract interface class CoreApi {
 
   Future<void> voiceDisconnectMember(String serverKey, int userId);
 
+  Future<core.ScreenAudioSupport> screenAudioSupport();
+
+  Future<List<core.ScreenAudioApp>> screenAudioApps();
+
+  void screenShareAudioFrom(String? app);
+
+  /// 0–2 (200 %).
+  void voiceSetStreamVolume(String serverKey, int userId, double volume);
+
+  void voiceSetStreamMute(String serverKey, int userId, bool muted);
+
   /// Whether this system has cameras and video (Linux only for now).
   bool videoSupported();
 
@@ -331,6 +342,28 @@ class FrbCoreApi implements CoreApi {
   @override
   Future<void> voiceDisconnectMember(String serverKey, int userId) =>
       frb.voiceDisconnectMember(serverKey: serverKey, userId: userId);
+
+  @override
+  Future<core.ScreenAudioSupport> screenAudioSupport() =>
+      frb.screenAudioSupport();
+
+  @override
+  Future<List<core.ScreenAudioApp>> screenAudioApps() => frb.screenAudioApps();
+
+  @override
+  void screenShareAudioFrom(String? app) => frb.screenShareAudioFrom(app: app);
+
+  @override
+  void voiceSetStreamVolume(String serverKey, int userId, double volume) =>
+      frb.voiceSetStreamVolume(
+        serverKey: serverKey,
+        userId: userId,
+        volume: volume,
+      );
+
+  @override
+  void voiceSetStreamMute(String serverKey, int userId, bool muted) => frb
+      .voiceSetStreamMute(serverKey: serverKey, userId: userId, muted: muted);
 
   @override
   bool videoSupported() => frb.videoSupported();

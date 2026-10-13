@@ -3,6 +3,7 @@
 //! nothing here touches a device, so tests drive it directly. The mic test
 //! plays what would be sent back through the speaker, Opus and all.
 
+use std::collections::VecDeque;
 use std::sync::Arc;
 use std::time::Instant;
 
@@ -15,6 +16,8 @@ use super::{TICK, dbfs};
 
 /// Who the mic test plays as; never a real user (ids are positive).
 const MIC_TEST_USER: i64 = -1;
+/// The shared sound kept for the echo canceller, at most: 300 ms.
+const SHARED_KEPT: usize = 30 * TICK;
 
 /// What the listener and speaker chose.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -50,6 +53,11 @@ pub struct Processor {
     muted: bool,
     deafened: bool,
     tick: [f32; TICK],
+    /// What plays, both sides.
+    stereo: [f32; 2 * TICK],
+    /// This device's shared screen sound, mixed to mono, not yet in the
+    /// echo canceller's reference (plan §10.6).
+    shared: VecDeque<f32>,
     mic_test: bool,
     /// Frames for the mic test, played from the next `play`.
     mic_test_frames: Vec<EncodedFrame>,
@@ -80,6 +88,8 @@ impl Processor {
             muted: false,
             deafened: false,
             tick: [0.0; TICK],
+            stereo: [0.0; 2 * TICK],
+            shared: VecDeque::with_capacity(SHARED_KEPT),
             mic_test: false,
             mic_test_frames: Vec::new(),
             input_level: None,
@@ -140,10 +150,18 @@ impl Processor {
         self.deliver_mic_test(now);
         let wanted = interleaved.len() / self.output_channels;
         while self.to_device.buffered() < wanted {
-            self.playback.tick(now, &mut self.tick);
-            // Everything played is what the echo canceller listens for.
+            self.playback.tick_stereo(now, &mut self.stereo);
+            // Everything played is what the echo canceller listens for,
+            // and the sound this device shares, which its speakers play
+            // too: the microphone must not send it again (plan §10.6).
+            let shared = self.shared.len().min(TICK);
+            let mut shared = self.shared.drain(..shared);
+            for (slot, frame) in self.tick.iter_mut().zip(self.stereo.as_chunks::<2>().0) {
+                *slot = (frame[0] + frame[1]) / 2.0 + shared.next().unwrap_or(0.0);
+            }
+            drop(shared);
             self.processing.render(&self.tick);
-            self.to_device.push_tick(&self.tick);
+            self.to_device.push_tick(&self.stereo);
         }
         self.to_device.pop(interleaved)
     }
@@ -152,7 +170,52 @@ impl Processor {
     /// moves on in time, and nothing is an echo to cancel.
     pub fn play_unheard(&mut self, now: Instant) {
         self.deliver_mic_test(now);
-        self.playback.tick(now, &mut self.tick);
+        self.playback.tick_stereo(now, &mut self.stereo);
+        self.shared.clear();
+    }
+
+    /// The sound this device shares, as captured (interleaved stereo at
+    /// 48 kHz), for the echo canceller.
+    pub fn shared_sound(&mut self, stereo: &[f32]) {
+        self.shared.extend(
+            stereo
+                .as_chunks::<2>()
+                .0
+                .iter()
+                .map(|frame| (frame[0] + frame[1]) / 2.0),
+        );
+        let over = self.shared.len().saturating_sub(SHARED_KEPT);
+        self.shared.drain(..over);
+    }
+
+    /// A packet of `user_id`'s screen share sound.
+    pub fn receive_stream(
+        &mut self,
+        user_id: i64,
+        timestamp: u32,
+        marker: bool,
+        payload: Arc<[u8]>,
+        arrived: Instant,
+    ) {
+        self.playback
+            .receive_stream(user_id, timestamp, marker, payload, arrived);
+    }
+
+    pub fn remove_stream(&mut self, user_id: i64) {
+        self.playback.remove_stream(user_id);
+    }
+
+    /// See [`Playback::stream_delays`].
+    pub fn stream_delays(&self) -> Vec<(i64, std::time::Duration)> {
+        self.playback.stream_delays().collect()
+    }
+
+    pub fn set_stream_volume(&mut self, user_id: i64, volume: f32) {
+        self.playback.set_stream_volume(user_id, volume);
+    }
+
+    pub fn set_stream_mute(&mut self, user_id: i64, muted: bool) {
+        self.playback.set_stream_mute(user_id, muted);
     }
 
     fn deliver_mic_test(&mut self, now: Instant) {
@@ -638,6 +701,59 @@ mod tests {
                 sent.len()
             );
         }
+    }
+
+    /// Bob shares his screen's sound: an app plays a reading on his
+    /// speakers, which his microphone hears 40 ms later, 10 dB down.
+    /// Returns the ticks after the first second at which Bob sent a frame.
+    fn sent_while_sharing(echo_cancellation: bool, told: bool) -> Vec<usize> {
+        let mut bob_settings = settings();
+        bob_settings.processing.echo_cancellation = echo_cancellation;
+        let mut bob = Processor::new(bob_settings, (SAMPLE_RATE, 1), (SAMPLE_RATE, 1)).unwrap();
+        let shared = at_level(&speech(), -20.0);
+        let start = Instant::now();
+        let mut room: VecDeque<Vec<f32>> = std::iter::repeat_n(vec![0.0; TICK], 4).collect();
+        let mut sent = Vec::new();
+        for (index, tick) in shared.as_chunks::<TICK>().0.iter().enumerate() {
+            if told {
+                let stereo: Vec<f32> = tick.iter().flat_map(|s| [*s, *s]).collect();
+                bob.shared_sound(&stereo);
+            }
+            let mut played = vec![0.0; TICK];
+            bob.play(
+                start + Duration::from_millis(index as u64 * 10),
+                &mut played,
+            );
+            room.push_back(tick.iter().map(|s| s * 0.316).collect());
+            let heard = room.pop_front().unwrap();
+            bob.capture(&heard, |_| {
+                if index >= 100 {
+                    sent.push(index);
+                }
+            });
+        }
+        sent
+    }
+
+    #[test]
+    fn the_sound_bob_shares_is_not_sent_again_through_his_microphone() {
+        let without_canceller = sent_while_sharing(false, true);
+        let not_told = sent_while_sharing(true, false);
+        let told = sent_while_sharing(true, true);
+
+        assert!(
+            without_canceller.len() > 100 && not_told.len() > 100,
+            "the test has no echo to remove: {}, {}",
+            without_canceller.len(),
+            not_told.len()
+        );
+        // The reading starts near the end of the first second; the
+        // canceller takes a few hundred milliseconds to find the echo,
+        // then nothing of it goes out.
+        assert!(
+            told.iter().all(|tick| *tick < 150),
+            "the shared sound went out at {told:?}"
+        );
     }
 
     #[test]

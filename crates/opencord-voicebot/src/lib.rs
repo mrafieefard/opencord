@@ -4,7 +4,7 @@
 //! whom. Used by the integration tests, load tests, and self-hosters
 //! checking their voice setup.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 use std::f32::consts::TAU;
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 use std::time::{Duration, Instant};
@@ -257,7 +257,8 @@ pub struct Seen {
     pub layers: [u64; 3],
 }
 
-/// What a bot heard from one person.
+/// What a bot heard from one person: their voice, or their screen share's
+/// sound.
 #[derive(Debug, Clone, Default)]
 pub struct Heard {
     pub packets: u64,
@@ -269,11 +270,67 @@ pub struct Heard {
     pub last: Option<Instant>,
     /// Arrival time of every packet.
     pub arrivals: Vec<Instant>,
+    /// 1 for a voice, 2 for a screen share's sound.
+    pub channels: usize,
+    /// The last [`KEPT_SECONDS`] decoded, interleaved, at 48 kHz.
+    pub recent: VecDeque<f32>,
+}
+
+/// How much decoded sound a bot keeps of each source, for measuring.
+pub const KEPT_SECONDS: usize = 5;
+
+impl Heard {
+    /// The level of `frequency` in `channel` of what was heard last, in
+    /// dBFS (a full-scale sine is 0).
+    pub fn tone_dbfs(&self, channel: usize, frequency: f32) -> f32 {
+        let samples: Vec<f32> = self
+            .recent
+            .iter()
+            .skip(channel)
+            .step_by(self.channels.max(1))
+            .copied()
+            .collect();
+        tone_dbfs(&samples, frequency)
+    }
+
+    fn record(&mut self, arrived: Instant, decoded: Option<&[i16]>) {
+        self.packets += 1;
+        self.first.get_or_insert(arrived);
+        self.last = Some(arrived);
+        self.arrivals.push(arrived);
+        if let Some(pcm) = decoded {
+            self.decoded += 1;
+            self.peak_dbfs = self.peak_dbfs.max(dbfs(pcm));
+            self.recent
+                .extend(pcm.iter().map(|s| f32::from(*s) / f32::from(i16::MAX)));
+            let kept = KEPT_SECONDS * SAMPLE_RATE as usize * self.channels.max(1);
+            let over = self.recent.len().saturating_sub(kept);
+            self.recent.drain(..over);
+        }
+    }
+}
+
+/// The level of `frequency` in mono `samples` at 48 kHz, in dBFS.
+pub fn tone_dbfs(samples: &[f32], frequency: f32) -> f32 {
+    if samples.is_empty() {
+        return -200.0;
+    }
+    let coefficient = 2.0 * (TAU * frequency / SAMPLE_RATE as f32).cos();
+    let (mut s1, mut s2) = (0f32, 0f32);
+    for sample in samples {
+        (s1, s2) = (sample + coefficient * s1 - s2, s1);
+    }
+    let power = (s1 * s1 + s2 * s2 - coefficient * s1 * s2).max(0.0);
+    20.0 * (2.0 * power.sqrt() / samples.len() as f32)
+        .max(1e-10)
+        .log10()
 }
 
 #[derive(Default)]
 struct Shared {
     heard: HashMap<i64, Heard>,
+    /// Others' screen share sound, by user.
+    stream_heard: HashMap<i64, Heard>,
     connection: Option<Arc<VoiceConnection>>,
     media_connected: bool,
     connections: u32,
@@ -423,6 +480,71 @@ impl VoiceSession {
     /// What has been heard so far, by user id.
     pub fn heard(&self) -> HashMap<i64, Heard> {
         lock(&self.shared).heard.clone()
+    }
+
+    /// The screen share sound heard so far, by streamer.
+    pub fn stream_heard(&self) -> HashMap<i64, Heard> {
+        lock(&self.shared).stream_heard.clone()
+    }
+
+    /// Sends a stereo tone as this bot's screen share sound for
+    /// `duration`: `left` Hz on the left, `right` Hz on the right, through
+    /// the same encoder as the app's (Opus stereo, 128 kbit/s, music).
+    #[cfg(target_os = "linux")]
+    pub fn share_tone(
+        &self,
+        left: f32,
+        right: f32,
+        duration: Duration,
+    ) -> std::thread::JoinHandle<()> {
+        use opencord_media::share_audio::pipewire::Captured;
+        use opencord_media::share_audio::sender::Sender;
+        use opencord_media::transport::EncodedScreenAudio;
+
+        let shared = Arc::clone(&self.shared);
+        std::thread::spawn(move || {
+            let (captured, frames) = std::sync::mpsc::sync_channel(8);
+            let _sender = Sender::start(
+                frames,
+                |_| {},
+                move |encoded| {
+                    let connection = lock(&shared).connection.clone();
+                    if let Some(connection) = connection {
+                        connection.send_screen_audio(EncodedScreenAudio {
+                            payload: encoded.payload,
+                            position: encoded.position,
+                            captured: encoded.captured,
+                        });
+                    }
+                },
+            );
+            let start = Instant::now();
+            let mut position = 0u64;
+            while start.elapsed() < duration {
+                let samples = (0..FRAME_SAMPLES as u64)
+                    .flat_map(|n| {
+                        let t = (position + n) as f32 / SAMPLE_RATE as f32;
+                        [
+                            0.25 * (TAU * left * t).sin(),
+                            0.25 * (TAU * right * t).sin(),
+                        ]
+                    })
+                    .collect();
+                if captured
+                    .send(Captured {
+                        samples,
+                        position,
+                        captured: Instant::now(),
+                    })
+                    .is_err()
+                {
+                    return;
+                }
+                position += FRAME_SAMPLES as u64;
+                let due = start + FRAME * (position / FRAME_SAMPLES as u64) as u32;
+                std::thread::sleep(due.saturating_duration_since(Instant::now()));
+            }
+        })
     }
 
     /// Publishes a synthetic three-layer camera (the test pattern): the
@@ -739,7 +861,8 @@ async fn follow(
     mut voice_servers: broadcast::Receiver<VoiceServer>,
 ) {
     let mut decoders: HashMap<i64, opus::Decoder> = HashMap::new();
-    let mut pcm = vec![0i16; FRAME_SAMPLES * 6];
+    let mut stream_decoders: HashMap<i64, opus::Decoder> = HashMap::new();
+    let mut pcm = vec![0i16; FRAME_SAMPLES * 12];
     loop {
         tokio::select! {
             event = events.recv() => match event {
@@ -757,16 +880,24 @@ async fn follow(
                     let mut shared = lock(&shared);
                     let heard = shared.heard.entry(audio.user_id).or_insert_with(|| Heard {
                         peak_dbfs: -120.0,
+                        channels: 1,
                         ..Heard::default()
                     });
-                    heard.packets += 1;
-                    heard.first.get_or_insert(audio.arrived);
-                    heard.last = Some(audio.arrived);
-                    heard.arrivals.push(audio.arrived);
-                    if let Some(samples) = decoded {
-                        heard.decoded += 1;
-                        heard.peak_dbfs = heard.peak_dbfs.max(dbfs(&pcm[..samples]));
-                    }
+                    heard.record(audio.arrived, decoded.map(|samples| &pcm[..samples]));
+                }
+                Some(VoiceEvent::StreamAudio(audio)) => {
+                    let decoder = stream_decoders.entry(audio.user_id).or_insert_with(|| {
+                        opus::Decoder::new(SAMPLE_RATE, opus::Channels::Stereo)
+                            .expect("Opus decoders can be made")
+                    });
+                    let decoded = decoder.decode(&audio.payload, &mut pcm, false).ok();
+                    let mut shared = lock(&shared);
+                    let heard = shared.stream_heard.entry(audio.user_id).or_insert_with(|| Heard {
+                        peak_dbfs: -120.0,
+                        channels: 2,
+                        ..Heard::default()
+                    });
+                    heard.record(audio.arrived, decoded.map(|frames| &pcm[..2 * frames]));
                 }
                 Some(VoiceEvent::Closed { code }) => lock(&shared).closed = Some(code),
                 Some(VoiceEvent::Video(video)) => record_video(&shared, &video),

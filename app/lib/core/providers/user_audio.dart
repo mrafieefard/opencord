@@ -81,6 +81,12 @@ void applyUserAudio(Ref ref, OpencordRepository repository) {
           audio.soundboardMuted,
         );
       }
+      if (before == null || before.streamVolume != audio.streamVolume) {
+        repository.setStreamVolume(serverKey, userId, audio.streamVolume);
+      }
+      if (before == null || before.streamMuted != audio.streamMuted) {
+        repository.setStreamMute(serverKey, userId, audio.streamMuted);
+      }
     }
     applied = call.users;
   }, fireImmediately: true);

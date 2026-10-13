@@ -16,9 +16,10 @@ use super::types::{
     ChannelChanges, ChannelKind, ChannelPosition, CoreError, CoreEvent, DefaultSound,
     GeneratedIdentity, HotkeyBinding, HotkeySupport, IdentityInfo, Invite, MediaEvent, Member,
     Message, NoiseSuppressionMode, OverwriteTargetKind, PermissionOverwrite, PresenceStatus, Role,
-    RoleChanges, ScreenShareRequest, ScreenShareStarted, Server, ServerChanges, ServerInfo,
-    SoundDraft, SoundSelection, SoundboardSound, SoundboardSoundChanges, TextureStats,
-    TrustedFingerprint, User, VideoWant, VoiceSettings, VoiceSettingsChanges, VoiceState,
+    RoleChanges, ScreenAudioApp, ScreenAudioSupport, ScreenShareRequest, ScreenShareStarted,
+    Server, ServerChanges, ServerInfo, SoundDraft, SoundSelection, SoundboardSound,
+    SoundboardSoundChanges, TextureStats, TrustedFingerprint, User, VideoWant, VoiceSettings,
+    VoiceSettingsChanges, VoiceState,
 };
 use crate::client::Client;
 use crate::frb_generated::StreamSink;
@@ -545,6 +546,81 @@ pub async fn stream_watch(stream_key: String) -> Result<(), CoreError> {
 
 pub async fn stream_unwatch(stream_key: String) -> Result<(), CoreError> {
     on_runtime(move |client| async move { client.stream_watch(&stream_key, false).await }).await
+}
+
+/// Whether this system can share a screen's sound (plan §10.1): Linux with
+/// PipeWire for now.
+pub async fn screen_audio_support() -> ScreenAudioSupport {
+    #[cfg(target_os = "linux")]
+    {
+        let running = tokio::task::spawn_blocking(opencord_media::share_audio::pipewire::available)
+            .await
+            .unwrap_or(false);
+        ScreenAudioSupport {
+            supported: running,
+            reason: (!running).then(|| "Sharing sound needs PipeWire".to_owned()),
+        }
+    }
+    #[cfg(not(target_os = "linux"))]
+    ScreenAudioSupport {
+        supported: false,
+        reason: Some("Sharing sound is not available on this system yet".to_owned()),
+    }
+}
+
+/// The apps with sound playing now, Opencord left out: what a window
+/// share's "Sound from" offers.
+pub async fn screen_audio_apps() -> Result<Vec<ScreenAudioApp>, CoreError> {
+    #[cfg(target_os = "linux")]
+    {
+        let apps =
+            tokio::task::spawn_blocking(opencord_media::share_audio::pipewire::apps_with_audio)
+                .await
+                .map_err(|error| CoreError::Connection {
+                    message: error.to_string(),
+                })?
+                .map_err(|error| CoreError::InvalidInput {
+                    message: error.to_string(),
+                })?;
+        Ok(apps
+            .into_iter()
+            .map(|app| ScreenAudioApp {
+                name: app.name,
+                icon: app.icon,
+            })
+            .collect())
+    }
+    #[cfg(not(target_os = "linux"))]
+    Ok(Vec::new())
+}
+
+/// Whose sound this device's window share sends: an app from
+/// [`screen_audio_apps`] by name, or none.
+#[frb(sync)]
+pub fn screen_share_audio_from(app: Option<String>) -> Result<(), CoreError> {
+    client()?.screen_share_audio_from(app)
+}
+
+/// How loud someone's screen share sound is here, 0–2 (200 %), apart from
+/// their voice.
+#[frb(sync)]
+pub fn voice_set_stream_volume(
+    server_key: String,
+    user_id: i64,
+    volume: f32,
+) -> Result<(), CoreError> {
+    client()?.set_stream_volume(&server_key, user_id, volume);
+    Ok(())
+}
+
+#[frb(sync)]
+pub fn voice_set_stream_mute(
+    server_key: String,
+    user_id: i64,
+    muted: bool,
+) -> Result<(), CoreError> {
+    client()?.set_stream_mute(&server_key, user_id, muted);
+    Ok(())
 }
 
 /// The tiles showing video now, at their sizes in physical pixels; tracks

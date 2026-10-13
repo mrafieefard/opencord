@@ -653,6 +653,24 @@ pub struct CameraStarted {
     pub height: u32,
 }
 
+/// Whether a screen share's sound can be shared on this system (plan
+/// §10.1), and why not.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ScreenAudioSupport {
+    pub supported: bool,
+    /// For people, when not supported.
+    pub reason: Option<String>,
+}
+
+/// An app with sound playing that a window share can send (plan §10.4,
+/// "Sound from").
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ScreenAudioApp {
+    pub name: String,
+    /// Its icon's name in the desktop's icon theme, when it gives one.
+    pub icon: Option<String>,
+}
+
 /// What to share (Phase 2 plan §9.1): the quality, within the server's
 /// maximum, and whether its sound goes too (V7).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

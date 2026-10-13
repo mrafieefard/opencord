@@ -132,12 +132,18 @@ impl FromDevice {
     }
 }
 
-/// Ticks, to the device's rate and channels.
+/// Stereo ticks, to the device's rate and channels: one channel gets
+/// both sides mixed; two get left and right; more get left and right on
+/// the first two and both mixed on the rest (so voices, which are the same
+/// on both sides, play everywhere, as before).
 pub struct ToDevice {
     channels: usize,
-    resample: Option<Resample>,
-    /// Mono at the device's rate.
-    ready: VecDeque<f32>,
+    resample: Option<[Resample; 2]>,
+    /// Each side at the device's rate.
+    left: VecDeque<f32>,
+    right: VecDeque<f32>,
+    /// One side of a tick, split out of the interleaved one.
+    side: [f32; TICK],
 }
 
 impl ToDevice {
@@ -146,38 +152,66 @@ impl ToDevice {
             return Err(ConvertError::NoChannels);
         }
         let resample = (rate != SAMPLE_RATE)
-            .then(|| Resample::new(SAMPLE_RATE, rate))
+            .then(|| -> Result<[Resample; 2], ConvertError> {
+                Ok([
+                    Resample::new(SAMPLE_RATE, rate)?,
+                    Resample::new(SAMPLE_RATE, rate)?,
+                ])
+            })
             .transpose()?;
         Ok(Self {
             channels: usize::from(channels),
             resample,
-            ready: VecDeque::with_capacity(8 * TICK),
+            left: VecDeque::with_capacity(8 * TICK),
+            right: VecDeque::with_capacity(8 * TICK),
+            side: [0.0; TICK],
         })
     }
 
-    pub fn push_tick(&mut self, tick: &[f32]) {
-        match &mut self.resample {
-            Some(resample) => resample.process(tick, &mut self.ready),
-            None => self.ready.extend(tick),
+    /// One tick, interleaved stereo (`2 * TICK` samples).
+    pub fn push_tick(&mut self, stereo: &[f32]) {
+        let Self {
+            resample,
+            left,
+            right,
+            side,
+            ..
+        } = self;
+        for (index, out) in [left, right].into_iter().enumerate() {
+            for (slot, frame) in side.iter_mut().zip(stereo.as_chunks::<2>().0) {
+                *slot = frame[index];
+            }
+            match resample {
+                Some(resample) => resample[index].process(&side[..], out),
+                None => out.extend(&side[..]),
+            }
         }
     }
 
     /// Fills interleaved device samples with what is ready; returns the
     /// frames written.
     pub fn pop(&mut self, interleaved: &mut [f32]) -> usize {
-        let frames = (interleaved.len() / self.channels).min(self.ready.len());
-        for (frame, sample) in interleaved
-            .chunks_exact_mut(self.channels)
-            .zip(self.ready.drain(..frames))
-        {
-            frame.fill(sample);
+        let frames = (interleaved.len() / self.channels)
+            .min(self.left.len())
+            .min(self.right.len());
+        let sides = self.left.drain(..frames).zip(self.right.drain(..frames));
+        for (frame, (left, right)) in interleaved.chunks_exact_mut(self.channels).zip(sides) {
+            match frame {
+                [only] => *only = (left + right) / 2.0,
+                [first, second, rest @ ..] => {
+                    *first = left;
+                    *second = right;
+                    rest.fill((left + right) / 2.0);
+                }
+                [] => {}
+            }
         }
         frames
     }
 
     /// Frames waiting for the device.
     pub fn buffered(&self) -> usize {
-        self.ready.len()
+        self.left.len().min(self.right.len())
     }
 }
 
@@ -250,26 +284,49 @@ mod tests {
         assert!((heard - 1_000.0).abs() < 15.0, "{heard} Hz");
     }
 
-    #[test]
-    fn ticks_go_to_every_speaker_channel() {
-        let mut converter = ToDevice::new(SAMPLE_RATE, 2).unwrap();
-        let tick = [0.25; TICK];
+    /// A stereo tick with `left` and `right` throughout.
+    fn stereo_tick(left: f32, right: f32) -> Vec<f32> {
+        (0..TICK).flat_map(|_| [left, right]).collect()
+    }
 
-        converter.push_tick(&tick);
+    #[test]
+    fn the_two_sides_go_to_a_stereo_speaker_apart() {
+        let mut converter = ToDevice::new(SAMPLE_RATE, 2).unwrap();
+
+        converter.push_tick(&stereo_tick(0.25, -0.5));
         let mut interleaved = vec![0.0; 2 * TICK];
         let frames = converter.pop(&mut interleaved);
 
         assert_eq!(frames, TICK);
-        assert!(interleaved.iter().all(|s| *s == 0.25));
+        assert!(interleaved.chunks(2).all(|frame| frame == [0.25, -0.5]));
+    }
+
+    #[test]
+    fn a_mono_speaker_gets_both_sides_and_surround_gets_the_mix_beyond_the_front() {
+        let mut mono = ToDevice::new(SAMPLE_RATE, 1).unwrap();
+        let mut surround = ToDevice::new(SAMPLE_RATE, 6).unwrap();
+        let tick = stereo_tick(0.4, 0.2);
+
+        mono.push_tick(&tick);
+        surround.push_tick(&tick);
+        let mut one = vec![0.0; TICK];
+        let mut six = vec![0.0; 6 * TICK];
+        mono.pop(&mut one);
+        surround.pop(&mut six);
+
+        assert!(one.iter().all(|s| (s - 0.3).abs() < 1e-6));
+        assert!(six.chunks(6).all(|frame| {
+            frame[0] == 0.4 && frame[1] == 0.2 && frame[2..].iter().all(|s| (s - 0.3).abs() < 1e-6)
+        }));
     }
 
     #[test]
     fn ticks_play_on_a_44_1_khz_speaker() {
         let mut converter = ToDevice::new(44_100, 2).unwrap();
-        let one_second = sine(SAMPLE_RATE, 1_000.0, SAMPLE_RATE as usize, 1);
+        let one_second = sine(SAMPLE_RATE, 1_000.0, SAMPLE_RATE as usize, 2);
 
         let mut played = Vec::new();
-        for tick in one_second.chunks(TICK) {
+        for tick in one_second.chunks(2 * TICK) {
             converter.push_tick(tick);
             let mut interleaved = vec![0.0; 2 * 1024];
             let frames = converter.pop(&mut interleaved);
@@ -288,7 +345,7 @@ mod tests {
     #[test]
     fn what_the_speaker_cannot_take_yet_waits() {
         let mut converter = ToDevice::new(SAMPLE_RATE, 1).unwrap();
-        converter.push_tick(&[0.1; TICK]);
+        converter.push_tick(&stereo_tick(0.1, 0.1));
 
         let mut small = [0.0; 100];
         let first = converter.pop(&mut small);

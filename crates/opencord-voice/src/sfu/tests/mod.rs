@@ -6,7 +6,9 @@ use std::net::{Ipv4Addr, Ipv6Addr, SocketAddr};
 use std::time::{Duration, Instant};
 
 use opencord_common::video::{FrameMarking, H264_PAYLOAD_TYPE, LAYER_RIDS, VideoKind, video_mid};
-use opencord_common::voice::{AUDIO_MID, OPUS_PAYLOAD_TYPE, receive_mid, rtc_config};
+use opencord_common::voice::{
+    AUDIO_MID, OPUS_PAYLOAD_TYPE, SCREEN_AUDIO_MID, receive_mid, rtc_config,
+};
 use str0m::bwe::Bitrate;
 use str0m::config::Fingerprint;
 use str0m::format::Codec;
@@ -114,6 +116,19 @@ impl Client {
                 ..Default::default()
             }),
         );
+    }
+
+    /// One packet of its screen share's sound, on its own sequence.
+    fn send_screen_audio(&mut self, now: Instant, seq: u64, payload: &[u8]) {
+        let mut api = self.rtc.direct_api();
+        let stream = api.stream_tx(&Ssrc::from(screen_audio(self.ssrc))).unwrap();
+        stream.write_rtp(RtpWrite::new(
+            Pt::from(OPUS_PAYLOAD_TYPE),
+            seq.into(),
+            u32::try_from(seq * 960).unwrap(),
+            now,
+            payload.to_vec(),
+        ));
     }
 
     /// Receiving `ssrc`'s audio, as a ClientConnect would set up.
@@ -311,7 +326,7 @@ impl Net {
             user_id: 100 + index as i64,
             channel_id: CHANNEL,
             audio_ssrc: ssrc,
-            screen_audio_ssrc: ssrc.wrapping_add(1000),
+            screen_audio_ssrc: screen_audio(ssrc),
             state,
         };
         let (peer, node) = self.sfu.add_peer(self.now, setup).unwrap();
@@ -338,6 +353,13 @@ impl Net {
             api.enable_twcc_feedback();
             api.declare_media(AUDIO_MID.into(), MediaKind::Audio);
             api.declare_stream_tx(Ssrc::from(ssrc), None, AUDIO_MID.into(), None);
+            api.declare_media(SCREEN_AUDIO_MID.into(), MediaKind::Audio);
+            api.declare_stream_tx(
+                Ssrc::from(screen_audio(ssrc)),
+                None,
+                SCREEN_AUDIO_MID.into(),
+                None,
+            );
             api.start_dtls(true).unwrap();
             api.local_dtls_fingerprint().bytes.clone()
         };
@@ -374,12 +396,14 @@ impl Net {
         };
         for other in others {
             client.hear(other);
+            client.hear(screen_audio(other));
         }
         for track in &tracks {
             client.watch(track);
         }
         for existing in &mut self.clients {
             existing.hear(ssrc);
+            existing.hear(screen_audio(ssrc));
         }
         self.clients.push(client);
         self.run(Duration::from_millis(500));
@@ -635,6 +659,12 @@ impl Net {
             _ => None,
         })
     }
+}
+
+/// The screen audio SSRC the tests give the client sending voice on
+/// `ssrc`.
+fn screen_audio(ssrc: u32) -> u32 {
+    ssrc.wrapping_add(1000)
 }
 
 /// Datagrams an impaired link lets through by `now`.

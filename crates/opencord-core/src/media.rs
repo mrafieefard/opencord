@@ -149,6 +149,8 @@ struct State {
     previews: u64,
     /// The listener's choices, per server and user: volume and local mute.
     listening: HashMap<(String, i64), (f32, bool)>,
+    /// The same for their screen share's sound (plan §10.5).
+    stream_listening: HashMap<(String, i64), (f32, bool)>,
 }
 
 /// One server's voice, from joining to leaving: the engine, and the task
@@ -418,7 +420,8 @@ impl Media {
                     EngineEvent::NoiseSuppressionFellBack => MediaEvent::NoiseSuppressionFellBack,
                     EngineEvent::Talking { .. }
                     | EngineEvent::Speaking(_)
-                    | EngineEvent::SpeakingWhileMuted => return,
+                    | EngineEvent::SpeakingWhileMuted
+                    | EngineEvent::StreamDelay { .. } => return,
                 };
                 let _ = events.send(event);
             },
@@ -474,6 +477,47 @@ impl Media {
             .filter(|s| s.server_key == server_key)
         {
             session.engine.set_user_volume(user_id, volume);
+        }
+    }
+
+    /// How loud someone's screen share sound is here, 0–2, apart from
+    /// their voice.
+    pub fn set_stream_volume(&self, server_key: &str, user_id: i64, volume: f32) {
+        let mut state = self.lock();
+        let choice = state
+            .stream_listening
+            .entry((server_key.to_owned(), user_id))
+            .or_insert((1.0, false));
+        choice.0 = volume;
+        if let Some(session) = state
+            .session
+            .as_ref()
+            .filter(|s| s.server_key == server_key)
+        {
+            session.engine.set_stream_volume(user_id, volume);
+        }
+    }
+
+    pub fn set_stream_mute(&self, server_key: &str, user_id: i64, muted: bool) {
+        let mut state = self.lock();
+        let choice = state
+            .stream_listening
+            .entry((server_key.to_owned(), user_id))
+            .or_insert((1.0, false));
+        choice.1 = muted;
+        if let Some(session) = state
+            .session
+            .as_ref()
+            .filter(|s| s.server_key == server_key)
+        {
+            session.engine.set_stream_mute(user_id, muted);
+        }
+    }
+
+    /// Someone's screen share is no longer watched here: its sound stops.
+    pub fn stop_stream_audio(&self, user_id: i64) {
+        if let Some(session) = self.lock().session.as_ref() {
+            session.engine.remove_stream(user_id);
         }
     }
 
@@ -555,6 +599,13 @@ impl Media {
                 engine.set_local_mute(*user_id, *muted);
             }
         }
+        for ((key, user_id), (volume, muted)) in &state.stream_listening {
+            if key == server_key {
+                engine.set_stream_volume(*user_id, *volume);
+                engine.set_stream_mute(*user_id, *muted);
+            }
+        }
+        self.video.set_audio_engine(Some(Arc::clone(&engine)));
         let (commands, commands_received) = mpsc::unbounded_channel();
         let task = SessionTask {
             client: client.clone(),
@@ -759,6 +810,7 @@ impl SessionTask {
                         self.video.stop_camera();
                         self.video.stop_screen();
                         self.video.disconnected();
+                        self.video.release_audio_engine(&self.engine);
                         return;
                     }
                 },
@@ -809,6 +861,13 @@ impl SessionTask {
                             self.report(channel_id, VoiceConnectionState::Reconnecting);
                         }
                         VoiceEvent::Audio(audio) => self.engine.receive(
+                            audio.user_id,
+                            audio.timestamp,
+                            audio.marker,
+                            audio.payload,
+                            audio.arrived,
+                        ),
+                        VoiceEvent::StreamAudio(audio) => self.engine.receive_stream(
                             audio.user_id,
                             audio.timestamp,
                             audio.marker,
@@ -880,6 +939,9 @@ impl SessionTask {
                     }
                     EngineEvent::NoiseSuppressionFellBack => {
                         let _ = self.events.send(MediaEvent::NoiseSuppressionFellBack);
+                    }
+                    EngineEvent::StreamDelay { user_id, delay } => {
+                        self.video.set_stream_delay(user_id, delay);
                     }
                     EngineEvent::DeviceFellBack { output, device } => {
                         if output { fell_back.1 = true } else { fell_back.0 = true }
@@ -1231,7 +1293,7 @@ mod tests {
     fn a_hotkey_with_a_key_it_cannot_use_is_refused() {
         let bindings = vec![HotkeyBinding {
             action: HotkeyAction::PushToTalk,
-            accelerator: "CTRL+Return".to_owned(),
+            accelerator: "CTRL+Hyper_L".to_owned(),
         }];
 
         let refused = hotkey_bindings(&bindings);
@@ -1239,7 +1301,7 @@ mod tests {
         assert_eq!(
             refused,
             Err(CoreError::InvalidInput {
-                message: "\"Return\" is not a key a hotkey can use".to_owned()
+                message: "\"Hyper_L\" is not a key a hotkey can use".to_owned()
             })
         );
         assert_eq!(

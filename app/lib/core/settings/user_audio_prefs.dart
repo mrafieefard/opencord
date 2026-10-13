@@ -8,13 +8,16 @@ import 'package:opencord/core/settings/key_value_store.dart';
 import 'package:opencord/core/settings/local_prefs.dart';
 
 /// How someone sounds on this device: the per-user voice menu's volume,
-/// Mute and Mute soundboard (desktop UI plan §17.3).
+/// Mute and Mute soundboard (desktop UI plan §17.3), and their screen
+/// share's sound, apart from their voice (Phase 2 plan §10.5).
 @immutable
 class UserAudio {
   const UserAudio({
     this.volume = 100,
     this.muted = false,
     this.soundboardMuted = false,
+    this.streamVolume = 100,
+    this.streamMuted = false,
   });
 
   static const maxVolume = 200;
@@ -28,28 +31,44 @@ class UserAudio {
   /// Their soundboard sounds are not played here.
   final bool soundboardMuted;
 
-  bool get isDefault => volume == 100 && !muted && !soundboardMuted;
+  /// Their screen share's sound, 0–200 %, and its mute.
+  final int streamVolume;
+  final bool streamMuted;
 
-  UserAudio copyWith({int? volume, bool? muted, bool? soundboardMuted}) =>
-      UserAudio(
-        volume: volume ?? this.volume,
-        muted: muted ?? this.muted,
-        soundboardMuted: soundboardMuted ?? this.soundboardMuted,
-      );
+  bool get isDefault => this == const UserAudio();
+
+  UserAudio copyWith({
+    int? volume,
+    bool? muted,
+    bool? soundboardMuted,
+    int? streamVolume,
+    bool? streamMuted,
+  }) => UserAudio(
+    volume: volume ?? this.volume,
+    muted: muted ?? this.muted,
+    soundboardMuted: soundboardMuted ?? this.soundboardMuted,
+    streamVolume: streamVolume ?? this.streamVolume,
+    streamMuted: streamMuted ?? this.streamMuted,
+  );
 
   Map<String, Object?> toJson() => {
     'volume': volume,
     'muted': muted,
     'soundboardMuted': soundboardMuted,
+    if (streamVolume != 100) 'streamVolume': streamVolume,
+    if (streamMuted) 'streamMuted': streamMuted,
   };
 
   static UserAudio fromJson(Object? json) {
     if (json is! Map) return const UserAudio();
-    final volume = json['volume'];
+    int percent(Object? value) =>
+        value is int ? value.clamp(0, maxVolume) : 100;
     return UserAudio(
-      volume: volume is int ? volume.clamp(0, maxVolume) : 100,
+      volume: percent(json['volume']),
       muted: json['muted'] == true,
       soundboardMuted: json['soundboardMuted'] == true,
+      streamVolume: percent(json['streamVolume']),
+      streamMuted: json['streamMuted'] == true,
     );
   }
 
@@ -58,10 +77,13 @@ class UserAudio {
       other is UserAudio &&
       other.volume == volume &&
       other.muted == muted &&
-      other.soundboardMuted == soundboardMuted;
+      other.soundboardMuted == soundboardMuted &&
+      other.streamVolume == streamVolume &&
+      other.streamMuted == streamMuted;
 
   @override
-  int get hashCode => Object.hash(volume, muted, soundboardMuted);
+  int get hashCode =>
+      Object.hash(volume, muted, soundboardMuted, streamVolume, streamMuted);
 }
 
 /// Whom a [UserAudio] belongs to: their identity's fingerprint, so the

@@ -1374,6 +1374,36 @@ void main() {
     });
   });
 
+  group('screen share sound (Phase 2 V7)', () {
+    test('support, apps and choices go to and from the core', () async {
+      final harness = await _Harness.start();
+      final repository = harness.repository;
+
+      final supported = await repository.screenAudioSupport();
+      final apps = await repository.screenAudioApps();
+      repository.setScreenShareAudioFrom('Firefox');
+      repository.setScreenShareAudioFrom(null);
+      repository.setStreamVolume('a.example:7710', 7, 150);
+      repository.setStreamMute('a.example:7710', 7, true);
+      harness.core.screenAudio = null;
+      final failed = await repository.screenAudioSupport();
+
+      expect(supported, (supported: true, reason: null));
+      expect(apps, [(name: 'Firefox', icon: 'firefox')]);
+      expect(
+        harness.core.calls,
+        containsAllInOrder([
+          'soundFrom:Firefox',
+          'soundFrom:null',
+          'streamVolume:a.example:7710:7:1.5',
+          'streamMute:a.example:7710:7:true',
+        ]),
+      );
+      expect(failed.supported, isFalse);
+      expect(failed.reason, contains('no PipeWire'));
+    });
+  });
+
   group('soundboard (Phase 2 V8)', () {
     const lounge = 20;
     const sound = core.SoundboardSound(

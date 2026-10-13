@@ -8,7 +8,9 @@ use std::time::{Duration, Instant};
 
 use opencord_common::rate::RateMeter;
 use opencord_common::video::{FrameMarking, H264_PAYLOAD_TYPE, video_mid};
-use opencord_common::voice::{AUDIO_MID, OPUS_PAYLOAD_TYPE, receive_mid, rtc_config};
+use opencord_common::voice::{
+    AUDIO_MID, OPUS_PAYLOAD_TYPE, SCREEN_AUDIO_MID, receive_mid, rtc_config,
+};
 use opencord_proto::voice::v1 as voice;
 use str0m::bwe::{Bitrate, BweKind};
 use str0m::config::Fingerprint;
@@ -60,11 +62,17 @@ pub(super) struct Media {
     pub local: IceCreds,
     pub fingerprint: Vec<u8>,
     audio_ssrc: u32,
-    screen_audio_ssrc: u32,
     next_seq: u64,
     /// The RTP timestamp of capture position 0.
     timestamp_base: u32,
+    /// This client's screen share sound: its own stream, sequence and
+    /// clock.
+    screen_audio_ssrc: u32,
+    screen_next_seq: u64,
+    screen_timestamp_base: u32,
     users_by_ssrc: HashMap<u32, i64>,
+    /// Whose screen share sound arrives on each SSRC.
+    streams_by_ssrc: HashMap<u32, i64>,
     pub timeout: Instant,
     /// Sending failed in a way that means the network went away.
     network_lost: bool,
@@ -235,8 +243,18 @@ impl Media {
             api.enable_twcc_feedback();
             api.declare_media(AUDIO_MID.into(), MediaKind::Audio);
             api.declare_stream_tx(Ssrc::from(ready.audio_ssrc), None, AUDIO_MID.into(), None);
+            api.declare_media(SCREEN_AUDIO_MID.into(), MediaKind::Audio);
+            api.declare_stream_tx(
+                Ssrc::from(ready.screen_audio_ssrc),
+                None,
+                SCREEN_AUDIO_MID.into(),
+                None,
+            );
             for participant in &ready.participants {
                 hear(&mut api, participant.audio_ssrc);
+                if participant.screen_audio_ssrc != 0 {
+                    hear(&mut api, participant.screen_audio_ssrc);
+                }
             }
             api.start_dtls(true)
                 .map_err(|error| TransportError::Connect(error.to_string()))?;
@@ -250,13 +268,21 @@ impl Media {
             local,
             fingerprint,
             audio_ssrc: ready.audio_ssrc,
-            screen_audio_ssrc: ready.screen_audio_ssrc,
             next_seq: u64::from(u16::from_ne_bytes(random::<2>())),
             timestamp_base: u32::from_ne_bytes(random::<4>()),
+            screen_audio_ssrc: ready.screen_audio_ssrc,
+            screen_next_seq: u64::from(u16::from_ne_bytes(random::<2>())),
+            screen_timestamp_base: u32::from_ne_bytes(random::<4>()),
             users_by_ssrc: ready
                 .participants
                 .iter()
                 .map(|p| (p.audio_ssrc, p.user_id))
+                .collect(),
+            streams_by_ssrc: ready
+                .participants
+                .iter()
+                .filter(|p| p.screen_audio_ssrc != 0)
+                .map(|p| (p.screen_audio_ssrc, p.user_id))
                 .collect(),
             timeout: now,
             network_lost: false,
@@ -289,9 +315,16 @@ impl Media {
         Ok(media)
     }
 
-    pub fn hear(&mut self, user_id: i64, ssrc: u32) {
+    /// Someone joined: their voice on `ssrc`, their screen share's sound
+    /// (when watched) on `screen_ssrc`.
+    pub fn hear(&mut self, user_id: i64, ssrc: u32, screen_ssrc: u32) {
         self.users_by_ssrc.insert(ssrc, user_id);
-        hear(&mut self.rtc.direct_api(), ssrc);
+        let mut api = self.rtc.direct_api();
+        hear(&mut api, ssrc);
+        if screen_ssrc != 0 {
+            self.streams_by_ssrc.insert(screen_ssrc, user_id);
+            hear(&mut api, screen_ssrc);
+        }
     }
 
     /// Someone left: their audio and video go.
@@ -299,11 +332,13 @@ impl Media {
         let gone: Vec<u32> = self
             .users_by_ssrc
             .iter()
+            .chain(&self.streams_by_ssrc)
             .filter(|(_, user)| **user == user_id)
             .map(|(ssrc, _)| *ssrc)
             .collect();
         for ssrc in gone {
             self.users_by_ssrc.remove(&ssrc);
+            self.streams_by_ssrc.remove(&ssrc);
             self.rtc
                 .direct_api()
                 .remove_media(receive_mid(ssrc).as_str().into());
@@ -662,14 +697,16 @@ impl Media {
         }
     }
 
-    /// A datagram read at `at`. The bandwidth estimator needs arrival
-    /// times as they were, not when the packet got its turn.
+    /// One packet of this client's screen share sound, stamped with its
+    /// capture time so sender reports tie it to the video's clock.
     pub fn send_screen_audio(&mut self, frame: EncodedScreenAudio) {
         self.timeout();
-        let seq = self.next_seq;
-        self.next_seq += 1;
-        let timestamp = self.timestamp_base.wrapping_add(frame.position as u32);
-        let payload = frame.payload;
+        let seq = self.screen_next_seq;
+        self.screen_next_seq += 1;
+        let timestamp = self
+            .screen_timestamp_base
+            .wrapping_add(frame.position as u32);
+        let payload = self.transform.outbound_audio(frame.payload);
         let mut api = self.rtc.direct_api();
         let Some(stream) = api.stream_tx(&Ssrc::from(self.screen_audio_ssrc)) else {
             return;
@@ -678,7 +715,7 @@ impl Media {
             Pt::from(OPUS_PAYLOAD_TYPE),
             seq.into(),
             timestamp,
-            Instant::now(),
+            frame.captured,
             payload,
         ));
     }
@@ -816,13 +853,22 @@ impl Media {
             }
             return;
         }
-        let Some(user_id) = self.users_by_ssrc.get(&ssrc).copied() else {
-            return;
+        let (user_id, stream) = match self.users_by_ssrc.get(&ssrc) {
+            Some(user_id) => (*user_id, false),
+            None => match self.streams_by_ssrc.get(&ssrc) {
+                Some(user_id) => (*user_id, true),
+                None => return,
+            },
         };
         let Some(payload) = self.transform.inbound_audio(user_id, packet.payload) else {
             return;
         };
-        let _ = events.send(VoiceEvent::Audio(ReceivedAudio {
+        let wrap = if stream {
+            VoiceEvent::StreamAudio
+        } else {
+            VoiceEvent::Audio
+        };
+        let _ = events.send(wrap(ReceivedAudio {
             user_id,
             ssrc,
             seq: *packet.seq_no,

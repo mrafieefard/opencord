@@ -87,6 +87,7 @@ class VoiceTileView extends StatelessWidget {
 
   String get _semanticLabel => [
     screen ? "$name's screen, live" : name,
+    if (screen && mutedHere) 'sound muted by you',
     if (!screen && camera) 'camera on',
     if (!screen && deafened) 'deafened' else if (!screen && muted) 'muted',
     if (!screen && mutedHere) 'muted by you',
@@ -158,7 +159,7 @@ class VoiceTileView extends StatelessWidget {
                   child: _NamePill(
                     name: name,
                     icon: screen
-                        ? OcIcons.monitor
+                        ? (mutedHere ? OcIcons.volumeOff : OcIcons.monitor)
                         : deafened
                         ? OcIcons.headsetOff
                         : muted

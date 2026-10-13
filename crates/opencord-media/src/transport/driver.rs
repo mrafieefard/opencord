@@ -322,7 +322,11 @@ impl Driver {
         match envelope.payload {
             Some(Payload::HeartbeatAck(_)) => self.awaiting_ack = false,
             Some(Payload::ClientConnect(connect)) => {
-                self.media.hear(connect.user_id, connect.audio_ssrc);
+                self.media.hear(
+                    connect.user_id,
+                    connect.audio_ssrc,
+                    connect.screen_audio_ssrc,
+                );
                 let _ = self.events.send(VoiceEvent::ClientConnected {
                     user_id: connect.user_id,
                     audio_ssrc: connect.audio_ssrc,

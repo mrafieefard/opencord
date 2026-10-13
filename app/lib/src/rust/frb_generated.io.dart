@@ -275,6 +275,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   List<Role> dco_decode_list_role(dynamic raw);
 
   @protected
+  List<ScreenAudioApp> dco_decode_list_screen_audio_app(dynamic raw);
+
+  @protected
   List<ScreenStream> dco_decode_list_screen_stream(dynamic raw);
 
   @protected
@@ -350,6 +353,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   RoleChanges dco_decode_role_changes(dynamic raw);
+
+  @protected
+  ScreenAudioApp dco_decode_screen_audio_app(dynamic raw);
+
+  @protected
+  ScreenAudioSupport dco_decode_screen_audio_support(dynamic raw);
 
   @protected
   ScreenProblem dco_decode_screen_problem(dynamic raw);
@@ -737,6 +746,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   List<Role> sse_decode_list_role(SseDeserializer deserializer);
 
   @protected
+  List<ScreenAudioApp> sse_decode_list_screen_audio_app(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   List<ScreenStream> sse_decode_list_screen_stream(
     SseDeserializer deserializer,
   );
@@ -830,6 +844,14 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   RoleChanges sse_decode_role_changes(SseDeserializer deserializer);
+
+  @protected
+  ScreenAudioApp sse_decode_screen_audio_app(SseDeserializer deserializer);
+
+  @protected
+  ScreenAudioSupport sse_decode_screen_audio_support(
+    SseDeserializer deserializer,
+  );
 
   @protected
   ScreenProblem sse_decode_screen_problem(SseDeserializer deserializer);
@@ -1305,6 +1327,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_list_role(List<Role> self, SseSerializer serializer);
 
   @protected
+  void sse_encode_list_screen_audio_app(
+    List<ScreenAudioApp> self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_list_screen_stream(
     List<ScreenStream> self,
     SseSerializer serializer,
@@ -1420,6 +1448,18 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_role_changes(RoleChanges self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_screen_audio_app(
+    ScreenAudioApp self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_screen_audio_support(
+    ScreenAudioSupport self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_screen_problem(ScreenProblem self, SseSerializer serializer);

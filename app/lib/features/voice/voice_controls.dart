@@ -7,6 +7,7 @@ import 'package:opencord/core/providers/providers.dart';
 import 'package:opencord/core/repository/repository.dart';
 import 'package:opencord/features/soundboard/soundboard_picker.dart';
 import 'package:opencord/features/voice/screenshare_picker.dart';
+import 'package:opencord/features/voice/sound_from.dart';
 import 'package:opencord/ui/theme/oc_colors.dart';
 import 'package:opencord/ui/theme/oc_icons.dart';
 import 'package:opencord/ui/theme/oc_metrics.dart';
@@ -82,10 +83,15 @@ Future<void> screenshareControl(
         icon: OcIcons.monitor,
         onSelected: share == null
             ? null
-            : () => _sharing(
-                context,
-                () => sharing.start(server, share.quality, audio: false),
-              ),
+            : () async {
+                final navigator = Navigator.of(context);
+                await _sharing(
+                  context,
+                  () =>
+                      sharing.start(server, share.quality, audio: share.audio),
+                );
+                await _askSoundFrom(navigator);
+              },
       ),
       OcMenuItem(
         label: 'Change quality',
@@ -94,6 +100,34 @@ Future<void> screenshareControl(
             ? null
             : () => _changeQuality(context, ref, server, share.quality),
       ),
+      if (ref.read(screenAudioSupportProvider).value?.supported ?? false)
+        OcMenuItem(
+          label: 'Share sound',
+          icon: OcIcons.volumeUp,
+          checked: share?.audio ?? false,
+          onSelected: share == null
+              ? null
+              : () async {
+                  final navigator = Navigator.of(context);
+                  await _sharing(
+                    context,
+                    () => sharing.changeQuality(
+                      server,
+                      share.quality,
+                      audio: !share.audio,
+                    ),
+                  );
+                  if (!share.audio) await _askSoundFrom(navigator);
+                },
+        ),
+      if (share != null && share.audio && share.source == StreamSource.window)
+        OcMenuItem(
+          label: share.audioFrom == null
+              ? 'Sound from…'
+              : 'Sound from ${share.audioFrom}…',
+          icon: OcIcons.musicNote,
+          onSelected: () => chooseSoundFrom(context),
+        ),
       const OcMenuDivider(),
       OcMenuItem(
         label: 'Stop sharing',
@@ -106,6 +140,8 @@ Future<void> screenshareControl(
 
 /// The share dialog, then the system's picker (on Linux).
 Future<void> goLive(BuildContext context, WidgetRef ref, String server) async {
+  // The button asking goes once live: dialogs after it open from here.
+  final navigator = Navigator.of(context);
   final choice = await showScreenshareDialog(context, serverKey: server);
   if (choice == null || !context.mounted) return;
   // The call may have ended, or sharing begun elsewhere, meanwhile.
@@ -117,6 +153,20 @@ Future<void> goLive(BuildContext context, WidgetRef ref, String server) async {
         .read(ownScreenShareProvider.notifier)
         .start(server, choice.quality, audio: choice.audio),
   );
+  await _askSoundFrom(navigator);
+}
+
+/// A window shared with its sound asks which app it is (§10.4).
+Future<void> _askSoundFrom(NavigatorState navigator) async {
+  if (!navigator.mounted) return;
+  final container = ProviderScope.containerOf(navigator.context, listen: false);
+  // The repository's news of the share arrives a moment after.
+  await Future<void>.delayed(Duration.zero);
+  final share = container.read(ownScreenShareProvider);
+  if (share == null || !share.audio || share.source != StreamSource.window) {
+    return;
+  }
+  if (navigator.mounted) await chooseSoundFrom(navigator.context);
 }
 
 Future<void> _changeQuality(

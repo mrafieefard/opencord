@@ -1053,6 +1053,7 @@ class RustRepository implements OpencordRepository {
       key: started.streamKey,
       source: streamSourceFrom(started.sourceKind),
       quality: quality,
+      audio: audio,
       preview: VideoFeed(
         trackId: started.trackId,
         textureId: started.textureId,
@@ -1070,10 +1071,43 @@ class RustRepository implements OpencordRepository {
   }) async {
     await _call(() => _core.screenShareUpdate(_screenRequest(quality, audio)));
     if (_screen case final share?) {
-      _screen = share.copyWith(quality: quality);
+      _screen = share.copyWith(quality: quality, audio: audio);
       _emit(OwnScreenShareChanged(_screen));
     }
   }
+
+  @override
+  Future<ScreenAudioSupport> screenAudioSupport() async {
+    try {
+      final support = await _core.screenAudioSupport();
+      return (supported: support.supported, reason: support.reason);
+    } on Object catch (error) {
+      return (supported: false, reason: error.toString());
+    }
+  }
+
+  @override
+  Future<List<ScreenAudioApp>> screenAudioApps() async => [
+    for (final app in await _call(_core.screenAudioApps))
+      (name: app.name, icon: app.icon),
+  ];
+
+  @override
+  void setScreenShareAudioFrom(String? app) {
+    _now(() => _core.screenShareAudioFrom(app));
+    if (_screen case final share?) {
+      _screen = share.copyWith(audioFrom: () => app);
+      _emit(OwnScreenShareChanged(_screen));
+    }
+  }
+
+  @override
+  void setStreamVolume(String serverKey, int userId, int volume) =>
+      _now(() => _core.voiceSetStreamVolume(serverKey, userId, volume / 100));
+
+  @override
+  void setStreamMute(String serverKey, int userId, bool muted) =>
+      _now(() => _core.voiceSetStreamMute(serverKey, userId, muted));
 
   @override
   Future<void> stopScreenShare() async {

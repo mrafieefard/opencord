@@ -97,6 +97,31 @@ class FakeCoreApi extends Fake implements CoreApi {
   void voiceSetUserLocalMute(String serverKey, int userId, bool muted) =>
       calls.add('localMute:$serverKey:$userId:$muted');
 
+  /// What screenAudioSupport answers; throws when null.
+  core.ScreenAudioSupport? screenAudio = const core.ScreenAudioSupport(
+    supported: true,
+  );
+
+  @override
+  Future<core.ScreenAudioSupport> screenAudioSupport() async =>
+      screenAudio ?? (throw StateError('no PipeWire'));
+
+  @override
+  Future<List<core.ScreenAudioApp>> screenAudioApps() async => const [
+    core.ScreenAudioApp(name: 'Firefox', icon: 'firefox'),
+  ];
+
+  @override
+  void screenShareAudioFrom(String? app) => calls.add('soundFrom:$app');
+
+  @override
+  void voiceSetStreamVolume(String serverKey, int userId, double volume) =>
+      calls.add('streamVolume:$serverKey:$userId:$volume');
+
+  @override
+  void voiceSetStreamMute(String serverKey, int userId, bool muted) =>
+      calls.add('streamMute:$serverKey:$userId:$muted');
+
   @override
   Future<void> voiceServerMute(
     String serverKey,

@@ -3,7 +3,7 @@
 
 use std::sync::mpsc::{self, Receiver, RecvTimeoutError, TryRecvError};
 use std::thread::JoinHandle;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use super::pipewire::Captured;
 use crate::audio::codec::{CodecError, MAX_PACKET};
@@ -18,7 +18,12 @@ const CHANNELS: usize = 2;
 pub struct Encoded {
     pub payload: Vec<u8>,
     pub position: u64,
+    /// When its first sample was captured.
+    pub captured: Instant,
 }
+
+/// One Opus frame of time.
+const FRAME_TIME: Duration = Duration::from_millis(20);
 
 pub struct Sender {
     stop: mpsc::Sender<()>,
@@ -26,11 +31,17 @@ pub struct Sender {
 }
 
 impl Sender {
-    pub fn start(captured: Receiver<Captured>, send: impl FnMut(Encoded) + Send + 'static) -> Self {
+    /// Encodes what `captured` brings and hands each packet to `send`;
+    /// `heard` sees each buffer first, as captured.
+    pub fn start(
+        captured: Receiver<Captured>,
+        heard: impl FnMut(&[f32]) + Send + 'static,
+        send: impl FnMut(Encoded) + Send + 'static,
+    ) -> Self {
         let (stop, stopped) = mpsc::channel();
         let thread = std::thread::Builder::new()
             .name("opencord-screen-audio".to_owned())
-            .spawn(move || run(captured, stopped, send))
+            .spawn(move || run(captured, stopped, heard, send))
             .ok();
         Self { stop, thread }
     }
@@ -74,7 +85,12 @@ impl StereoEncoder {
 
 /// PipeWire hands over buffers of its quantum (256, 1024, ... frames), not
 /// Opus frames: samples left over from one buffer wait for the next.
-fn run(captured: Receiver<Captured>, stop: Receiver<()>, mut send: impl FnMut(Encoded)) {
+fn run(
+    captured: Receiver<Captured>,
+    stop: Receiver<()>,
+    mut heard: impl FnMut(&[f32]),
+    mut send: impl FnMut(Encoded),
+) {
     let mut encoder = match StereoEncoder::new() {
         Ok(encoder) => encoder,
         Err(error) => {
@@ -84,8 +100,9 @@ fn run(captured: Receiver<Captured>, stop: Receiver<()>, mut send: impl FnMut(En
     };
     let mut packet = [0u8; MAX_PACKET];
     let mut pending: Vec<f32> = Vec::with_capacity(FRAME * CHANNELS * 2);
-    // The capture position of pending's first frame.
+    // The capture position and time of pending's first frame.
     let mut position = 0;
+    let mut captured_at = Instant::now();
     loop {
         if !matches!(stop.try_recv(), Err(TryRecvError::Empty)) {
             return;
@@ -95,8 +112,10 @@ fn run(captured: Receiver<Captured>, stop: Receiver<()>, mut send: impl FnMut(En
             Err(RecvTimeoutError::Timeout) => continue,
             Err(RecvTimeoutError::Disconnected) => return,
         };
+        heard(&captured.samples);
         if pending.is_empty() {
             position = captured.position;
+            captured_at = captured.captured;
         }
         pending.extend_from_slice(&captured.samples);
         while pending.len() >= FRAME * CHANNELS {
@@ -105,12 +124,14 @@ fn run(captured: Receiver<Captured>, stop: Receiver<()>, mut send: impl FnMut(En
                 Ok(size) if size > 2 => send(Encoded {
                     payload: packet[..size].to_vec(),
                     position,
+                    captured: captured_at,
                 }),
                 Ok(_) => {}
                 Err(error) => tracing::debug!(%error, "screen audio encode failed"),
             }
             pending.drain(..FRAME * CHANNELS);
             position += FRAME as u64;
+            captured_at += FRAME_TIME;
         }
     }
 }
@@ -134,6 +155,7 @@ mod tests {
                 Captured {
                     samples,
                     position: first as u64,
+                    captured: Instant::now(),
                 }
             })
             .collect()
@@ -147,7 +169,7 @@ mod tests {
         drop(frames);
         let (_stop, stopped) = mpsc::channel();
         let mut packets = Vec::new();
-        run(received, stopped, |packet| packets.push(packet));
+        run(received, stopped, |_| {}, |packet| packets.push(packet));
         packets
     }
 

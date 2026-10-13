@@ -137,8 +137,14 @@ void main() {
         }
 
         Future<void> closeMenu() async {
-          await tester.sendKeyEvent(LogicalKeyboardKey.escape);
-          await tester.pump(const Duration(milliseconds: 300));
+          // A slider keeps focus at times and an Escape goes nowhere: press
+          // until the menu is gone.
+          for (var tries = 0; tries < 5; tries++) {
+            if (find.byType(OcMenuPanel).evaluate().isEmpty) return;
+            await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+            await tester.pump(const Duration(milliseconds: 300));
+          }
+          fail('the menu did not close');
         }
 
         Finder inMenu(Finder finder) =>

@@ -1551,6 +1551,45 @@ class MockRepository implements OpencordRepository {
     _emit(VoiceChanged(serverKey, channel, List.of(participants)));
   }
 
+  /// What the system's picker chooses, for tests.
+  StreamSource debugShareSource = StreamSource.screen;
+
+  /// Whether sharing sound works here, and the apps playing, for tests.
+  ScreenAudioSupport screenAudio = (supported: true, reason: null);
+  List<ScreenAudioApp> appsPlaying = [
+    (name: 'Firefox', icon: 'firefox'),
+    (name: 'Spotify', icon: 'spotify'),
+  ];
+
+  /// Each stream's volume and mute here, by server and user, for tests.
+  final streamListening = <(String, int), (int, bool)>{};
+
+  @override
+  Future<ScreenAudioSupport> screenAudioSupport() async => screenAudio;
+
+  @override
+  Future<List<ScreenAudioApp>> screenAudioApps() async => appsPlaying;
+
+  @override
+  void setScreenShareAudioFrom(String? app) {
+    if (_screen case final share?) {
+      _screen = share.copyWith(audioFrom: () => app);
+      _emit(OwnScreenShareChanged(_screen));
+    }
+  }
+
+  @override
+  void setStreamVolume(String serverKey, int userId, int volume) {
+    final (_, muted) = streamListening[(serverKey, userId)] ?? (100, false);
+    streamListening[(serverKey, userId)] = (volume, muted);
+  }
+
+  @override
+  void setStreamMute(String serverKey, int userId, bool muted) {
+    final (volume, _) = streamListening[(serverKey, userId)] ?? (100, false);
+    streamListening[(serverKey, userId)] = (volume, muted);
+  }
+
   /// The mock paints its cameras; what the tiles asked for is only kept,
   /// for tests.
   @override
@@ -1607,8 +1646,9 @@ class MockRepository implements OpencordRepository {
     );
     _screen = OwnScreenShare(
       key: key,
-      source: StreamSource.screen,
+      source: debugShareSource,
       quality: quality,
+      audio: audio && screenAudio.supported,
       preview: const VideoFeed(
         trackId: 'mock-screen',
         textureId: null,
@@ -1626,7 +1666,7 @@ class MockRepository implements OpencordRepository {
   }) async {
     final (session, share) = (_voice, _screen);
     if (session == null || share == null) return;
-    _screen = share.copyWith(quality: quality);
+    _screen = share.copyWith(quality: quality, audio: audio);
     _emit(
       StreamChanged(
         session.server,

@@ -313,6 +313,7 @@ impl Runtime {
             .map(|session| voice::Participant {
                 user_id: session.user_id,
                 audio_ssrc: session.audio_ssrc,
+                screen_audio_ssrc: session.screen_audio_ssrc,
                 tracks: self
                     .sfu
                     .tracks(session.peer)
@@ -376,6 +377,7 @@ impl Runtime {
         let connected = voice::ClientConnect {
             user_id: claims.user_id,
             audio_ssrc,
+            screen_audio_ssrc,
             tracks: Vec::new(),
         };
         for other in self
