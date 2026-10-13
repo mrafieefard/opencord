@@ -31,7 +31,7 @@ background+=("$!")
 flutter test integration_test/v6_test.dart -d linux \
   --dart-define=OPENCORD_E2E_INVITE="$invite" \
   --dart-define=OPENCORD_E2E_TEST=watches \
-  >"$work/v6_watches.log" 2>&1
+  >"$work/v6_watches.log" 2>&1 || { cat "$work/v6_watches.log" >&2; exit 1; }
 echo "V6 watches check passed."
 
 # Test 2: app shares a screen, bot watches it
@@ -89,5 +89,5 @@ flutter test integration_test/v6_test.dart -d linux \
   --dart-define=OPENCORD_E2E_INVITE="$invite" \
   --dart-define=OPENCORD_E2E_TEST=shares \
   --dart-define=OPENCORD_SCREEN_NODE="$OPENCORD_SCREEN_NODE" \
-  >"$work/v6_shares.log" 2>&1
+  >"$work/v6_shares.log" 2>&1 || { cat "$work/v6_shares.log" >&2; exit 1; }
 echo "V6 shares check passed."
