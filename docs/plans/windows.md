@@ -680,7 +680,7 @@ pushed milestone, and the Mac's work reaches this branch only through
 | Milestone | Commit | Result, measurements, what's not done |
 |---|---|---|
 | W0 | (this commit) | **The PC.** Windows 10 Pro 22H2, build 19045.7417 — *not* Windows 11, so screen share sound (decision C) cannot be measured here; see the W7 note below. i7-13620H; RTX 4070 Laptop (32.0.16.1078) and Intel UHD (31.0.101.4255); 15.7 GB. Visual Studio Community 2026 18.8.2 (NativeDesktop), rustc/cargo 1.99.0, Flutter 3.44.0 (Dart 3.12.0), FFmpeg n9.0.2 LGPL shared, pwsh 7.6.6, Python 3.14.7. **Rust.** `cargo build --workspace` 6 m 30 s, 8 warnings, every one off-Linux dead code in a shared file. `cargo fmt --all --check` clean. `cargo test --workspace --lib --bins --tests --no-fail-fast`: **608 passed, 5 failed, 4 ignored**, plus one target that does not compile. `cargo clippy --workspace --all-targets` **fails** (five `opencord-media` examples do not compile off Linux). **Dart.** `flutter analyze` clean, 49.1 s. `flutter test`: **730 passed, 20 failed, 1 skipped**. Every failure of either is listed under "Shared code that fails on Windows" below; none was fixed here (platforms.md §4). **The app.** `check_m5.ps1` and `check_m6.ps1` both pass: the app builds (225.8 s cold, 23–29 s warm), creates an identity, claims a server, is still connected after a restart, and two identities chat live while a new restriction reaches the member's UI without a reconnect. `e2e_server.ps1` starts and stops a server. **Not done:** the tray and `opencord://` links still need a person at the PC (W0 step 4); LLVM is not installed, which W3 needs. |
-| W1 | | |
+| W1 | (this commit) | **Not finished — steps 4 to 7 are blocked on hardware** (VB-CABLE and Hi-Fi CABLE are not installed; see the batched asks below). Done: **step 1** needed nothing — microphone access and "Let desktop apps access your microphone" were both already `Allow`. **Step 2 answered: a denied microphone fails to open, it does not record silence.** `Microphone::open` returns `could not open the microphone: Failed to initialize audio client: Access is denied. (os error -2147024891)` — `0x80070005`, `E_ACCESSDENIED`, from `IAudioClient::Initialize`. Measured by setting both `ConsentStore\microphone` values to `Deny` and restoring them. So the app's noticeable path is the right one and no shared UI follow-up is needed: `engine.rs:551` turns that `Err` into `EngineEvent::DeviceFailed { output: false }` → `MediaEvent::DeviceFailed` → Dart `AudioDeviceFailed` → the notice "No microphone could be opened." (traced through the code, not yet watched end to end in the app). **Step 3, the device lists:** ids are `wasapi:{0.0.1.00000000}.{guid}` for microphones and `wasapi:{0.0.0.00000000}.{guid}` for speakers. 3 microphones — Intel Smart Sound mic array (the default), WO Mic Device, Razer Barracuda X 2.4 — and 2 speakers — Realtek(R) Audio, Razer Barracuda X 2.4 (the default). A control measurement with access allowed: the default microphone opened at 48000 Hz on 2 channels and delivered 144000 samples in 1.5 s (exactly 48 kHz × 2), peak −42.7 dBFS, 0 glitches, not lost. `crates/opencord-media/tests/devices_windows.rs` holds both, and is the instrument for step 2. **Still to do:** the rest of step 3 (a voicebot hearing the app and the level meter), and steps 4, 5, 6 and 7. |
 | W2 | | |
 | W3 | | |
 | W4 | | |
@@ -770,6 +770,34 @@ Decided while doing W0:
   for W0 step 5 — cost if wrong: a small conflict when L1 merges, in a file
   platforms.md §3 gives to Windows, so this side wins.
 
+Decided while doing W1:
+- W1: Ruling: step 2's denied-microphone case was measured by setting
+  `HKCU\…\CapabilityAccessManager\ConsentStore\microphone` and its
+  `NonPackaged` child to `Deny`, running the live test, and putting both back
+  in a `finally`, rather than waiting for someone to use the Settings UI. Both
+  values are per-user and are the same store the UI writes — cost if wrong: the
+  UI may also notify listeners that a registry write does not, so an app
+  already holding a stream open might not react the same way; what was measured
+  is a *fresh* stream, which is the case the plan asks about.
+- W1: Ruling: the Windows device test lives in
+  `crates/opencord-media/tests/devices_windows.rs`, which platforms.md §3 gives
+  to Windows, and asserts only what holds when the machine has devices, so a
+  runner with none does not fail it. Its live microphone test is `#[ignore]`d,
+  as W2 step 5 does for injected keys — cost if wrong: nothing; the enumeration
+  half still runs everywhere.
+- W1: Ruling: `check_user_audio.ps1` and
+  `app/integration_test/windows/user_audio_test.dart` (step 4) are **not**
+  written yet. Their riskiest parts — the exact dshow device names, whether
+  `ffmpeg -f dshow` can record CABLE Output, and how the cables' `wasapi:` ids
+  look — can only be settled with the drivers installed, and writing them blind
+  would mean unrunnable code and likely rework — cost if wrong: W1 takes one
+  more session after the drivers are in, instead of being finished now.
+- W1: Ruling: `cargo clippy` cannot be run with `-D warnings` over the
+  workspace before L1: the 8 shared dead-code warnings in `hotkeys/mod.rs` and
+  `video/camera/mod.rs` become errors. Own files are checked by confirming
+  clippy names none of them — cost if wrong: a warning in an own file could
+  hide among the shared ones, so each one is grepped for by name.
+
 For the Linux session, and for the user:
 - W0: **W7 cannot be measured on this PC.** Decision C puts screen share sound
   at build 20348 and this is 19045. W2–W6 are unaffected. Unless the PC moves
@@ -783,6 +811,12 @@ For the Linux session, and for the user:
 - W0: `app/test/golden/failures/` is written by any golden run off Linux and no
   `.gitignore` covers it. One line in a shared `.gitignore` would save every
   platform session from almost committing it.
+- W1: **The test audio drivers are not installed**, which is what stops W1.
+  VB-CABLE and Hi-Fi CABLE are drivers: they need an administrator and a
+  reboot, so this session cannot put them in. Everything from step 4 on needs
+  them — the app's output has to be CABLE Input so `ffmpeg` can record CABLE
+  Output, and its microphone has to be Hi-Fi CABLE Output. Step 6's echo test
+  additionally needs a person, with the speakers on.
 
 Shared code that fails on Windows (platforms.md §4: listed, not edited here):
 - `crates/opencord-voicebot/tests/voice.rs` **does not compile**:
