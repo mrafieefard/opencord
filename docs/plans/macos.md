@@ -787,7 +787,7 @@ contract in its doc comments and is already called by the shared code.
 |---|---|---|
 | M0 | `M0: macOS setup and baseline` (+ f6aff9a `shared:`) | **Mac:** MacBook Pro 2019, Intel Core i7-9750H (`uname -m` x86_64, 6 cores), macOS 15.8.1 (24H32), Xcode 26.3 (17C529), Flutter 3.44.0 / Dart 3.12.0 (the CI pin; the Mac also has 3.47.5), rustc 1.99.0. **Rust:** `cargo build --workspace` passes (54 s, only the expected off-Linux warnings); `cargo test --workspace --lib --bins --tests` 625 passed, 0 failed, 4 ignored over 24 binaries (one timing flake on the first run, below); `cargo fmt --check` clean; clippy as in the ruling below, clean. **Flutter:** `flutter analyze` no issues; `flutter test` +731 ~1 −19: the 16 goldens and 3 D-Bus tests, below. **App:** Debug build signed "Apple Development" (team 56D9H34Y6B) through `Signing.local.xcconfig`. Through `app/tool/macos/run_check.sh`: `m6` (sign in, join, chat live, follow a new restriction), `m5` (TOFU join, restart, still connected) and `v0` (voice states live, moved, disconnected) all pass on macOS. Not done: Homebrew, sox, SwitchAudioSource and BlackHole are not installed (needs the user; M1). |
 | M1 | `M1: microphone and camera usage, entitlements, macOS 13; Mac voice checks` and the three M1 commits after it | **Bundle:** the three usage strings and `device.audio-input` + `device.camera` (Debug and Release) are in the built app; `LSMinimumSystemVersion` 13.0, `minos 13.0` for the app and `opencord_core` (the "building for macOS-10.15" linker warnings are gone). **Prompt (with the user):** Opencord launched on its own asked for the microphone on joining General; after Allow it is listed under Privacy & Security → Microphone and uses the MacBook's microphone. **`app/tool/macos/check_user_audio.sh`:** passes. Talker 440 Hz at 100 % −12.2 dBFS; 50 % −18.3 (−6.0 dB); 200 % −6.2 (+6.0 dB); muted −106.1; unmuted −12.2; Player's 880 Hz sound −14.7; soundboard muted −200 (nothing); Talker meanwhile −12.2; soundboard unmuted −14.8 — Linux's numbers within 0.5 dB. Run from BlackHole at 44.1 kHz, which the script moves to 48 kHz. **`check_microphone.sh`:** passes. 1 kHz from `afplay` through BlackHole as the microphone, in what a listening voicebot got: voice activity −8.6 dBFS (225 packets), push-to-talk held −12.6 dBFS (221), released nothing; level meter 577 readings, loudest −3.8 dBFS; device lists: inputs Mohammad Microphone, BlackHole 2ch, MacBook Pro Microphone; outputs BlackHole 2ch, MacBook Pro Speakers. **`check_echo.sh` (V3's echo acceptance, user present, MacBook Pro Speakers + Microphone, Talker at −12.2 dBFS):** passes. 440 Hz in what the app sent: **−110.1 dBFS** with its processing (echo cancellation on, noise suppression standard), −19.1 dBFS with both off. **Shared integration tests with `-d macos`** (`run_check.sh`): `v2` passes; `v3` passes (noise suppression standard by benchmark, hotkeys `FocusedOnly`, 11 levels, loudest −40.1 dBFS); `v8` passes; none failed for a platform reason. **Not done:** nothing in M1. L1 had not landed when M1 ended (checked after the last step). |
-| M2 | | |
+| M2 | `M2: global keybinds through a listen-only event tap` (57c2d60) | **`hotkeys/macos.rs`:** a `kCGSessionEventTap`, `kCGHeadInsertEventTap`, listen-only (keyDown, keyUp, flagsChanged) on its own thread and run loop, re-enabled on `TapDisabledByTimeout`/`…ByUserInput`; printable keys from the current layout (`TISCopyCurrentKeyboardLayoutInputSource` + `UCKeyTranslate`, unshifted and shifted, rebuilt on `kTISNotifySelectedKeyboardInputSourceChanged`), the rest from a fixed `kVK_*` table; modifier keys alone from flagsChanged, their side from the device flags. New macOS deps: `objc2-core-graphics` 0.3.2, `objc2-core-foundation` 0.3.2, `dispatch2` 0.3.1. The podspec links CoreGraphics and Carbon. **Unit tests:** 12 new (keysym → keycode table, the current layout's letters, left/right flags, matcher cases); `hotkeys` 16 passed, 0 failed. **Live, posted keys** (`--ignored`, iTerm with Input Monitoring + Accessibility, TextEdit focused): 4 passed, 0 failed, 9.6 s — CTRL+F13 press and release; F14 + Right Ctrl hold until both are up; Right Ctrl alone (Left Ctrl does nothing); a toggle fires once over three auto-repeated downs. **Accept, `app/tool/macos/check_hotkeys.sh`:** passes. Push-to-talk on F13, TextEdit focused throughout, 1 kHz from `afplay` as the microphone, what a Listener voicebot got: not held nothing; F13 held −12.6 dBFS (225 packets, peak −12.5); released nothing. The app reports `HotkeysGlobal` ("Keybinds work in other apps too, through Input Monitoring"). **By hand (user):** Opencord launched on its own asked for Input Monitoring when a keybind was added; after Allow it is listed and, after a relaunch, binds F12 globally and the Keybinds page says they work in other apps. The first build crashed there (below), so whether a grant works without a relaunch, and whether "Open settings" opens the pane, were not seen: next user visit (M5). **§0 checks:** fmt clean; `clippy --workspace --all-targets -D warnings` clean, no exceptions; `cargo test --workspace --lib --bins --tests` 658 passed, 0 failed, 8 ignored over 25 binaries; `flutter analyze` no issues; `flutter test` +735 ~1 −16 (the 16 goldens; the D-Bus tests skip since L1). |
 | M3 | | |
 | M4 | | |
 | M5 | | |
@@ -904,6 +904,43 @@ Rulings (`Mn: Ruling: … — cost if wrong: …`):
   M2's. The echo check holds push-to-talk so the app sends throughout and
   adds a phase with echo cancellation and noise suppression off, which
   shows the echo was there (−19.1 dBFS) — cost if wrong: none.
+- M2: Ruling: HIToolbox reads its input sources only on the main thread
+  in an app: the first build read the layout on the hotkey thread and the
+  app stopped with `_dispatch_assert_queue_fail` in
+  `TSMGetInputSourceProperty` as soon as a keybind was added (a plain
+  process, like `cargo test`, isn't checked). The layout is now read on
+  the main queue (`dispatch2`), at bind time and after a layout change;
+  `bind` waits 2 s for it, then uses a US layout (a process whose main
+  thread doesn't run its queue, i.e. a test) — cost if wrong: in such a
+  process printable keys follow US positions.
+- M2: Ruling: with no keybinds, `bind` neither taps nor asks; it reports
+  `Global` if Input Monitoring is allowed and `FocusedOnly` with the pane
+  otherwise. The app binds an empty list at every start, and the prompt
+  would otherwise greet everyone at first launch — cost if wrong: the
+  prompt comes with the first keybind instead.
+- M2: Ruling: the reason starts lower-case ("allow Opencord under System
+  Settings → Privacy & Security → Input Monitoring"), as it follows "work
+  only while Opencord is focused:" on the Keybinds page; `method` is
+  "Input Monitoring" — cost if wrong: wording.
+- M2: Ruling: keys without a Mac key stay unbound (Print, Scroll_Lock,
+  Pause, Menu, F21–F24); Insert is Help and Num_Lock is Clear, where Mac
+  keyboards put them; Caps Lock alone follows its lock flag (on = down) —
+  cost if wrong: a keybind made on Linux with those keys does nothing on
+  the Mac.
+- M2: Ruling: a modifier's side comes from the device flags; an event
+  without any (posted by a program) falls back to the modifier's own flag
+  — cost if wrong: none seen; the posted-key tests cover both.
+- M2: Ruling: posted keys go to the focused app, which is iTerm running
+  this session, so the live tests use F13–F15 and Control, and run with
+  TextEdit focused (`check_hotkeys.sh` opens it and quits it only if it
+  started it) — cost if wrong: none.
+- M2: Known limit: while any app has Secure Event Input on (a password
+  field is focused), no event tap gets keys, so keybinds don't work then.
+- M2: Ruling: `cargo test` and `flutter test` run one after the other:
+  run together, `audio::processing::tests::high_stays_when_it_keeps_up`
+  (a CPU-speed test) failed once (Standard instead of High); alone it
+  passed 3 of 3 (1.01 s, 0.75 s, 0.74 s) and in the full run — cost if
+  wrong: none.
 
 `shared:` commits (file, why):
 - M0 f6aff9a `crates/opencord-voicebot/tests/voice.rs`:
