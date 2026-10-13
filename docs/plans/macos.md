@@ -718,8 +718,8 @@ contract in its doc comments and is already called by the shared code.
 
 | Milestone | Commit | Result, measurements, what's not done |
 |---|---|---|
-| M0 | | |
-| M1 | | |
+| M0 | `M0: macOS setup and baseline` (+ f6aff9a `shared:`) | **Mac:** MacBook Pro 2019, Intel Core i7-9750H (`uname -m` x86_64, 6 cores), macOS 15.8.1 (24H32), Xcode 26.3 (17C529), Flutter 3.44.0 / Dart 3.12.0 (the CI pin; the Mac also has 3.47.5), rustc 1.99.0. **Rust:** `cargo build --workspace` passes (54 s, only the expected off-Linux warnings); `cargo test --workspace --lib --bins --tests` 625 passed, 0 failed, 4 ignored over 24 binaries (one timing flake on the first run, below); `cargo fmt --check` clean; clippy as in the ruling below, clean. **Flutter:** `flutter analyze` no issues; `flutter test` +731 ~1 −19: the 16 goldens and 3 D-Bus tests, below. **App:** Debug build signed "Apple Development" (team 56D9H34Y6B) through `Signing.local.xcconfig`. Through `app/tool/macos/run_check.sh`: `m6` (sign in, join, chat live, follow a new restriction), `m5` (TOFU join, restart, still connected) and `v0` (voice states live, moved, disconnected) all pass on macOS. Not done: Homebrew, sox, SwitchAudioSource and BlackHole are not installed (needs the user; M1). |
+| M1 | `M1: microphone and camera usage, entitlements, macOS 13; Mac voice checks` and the three M1 commits after it | **Bundle:** the three usage strings and `device.audio-input` + `device.camera` (Debug and Release) are in the built app; `LSMinimumSystemVersion` 13.0, `minos 13.0` for the app and `opencord_core` (the "building for macOS-10.15" linker warnings are gone). **Prompt (with the user):** Opencord launched on its own asked for the microphone on joining General; after Allow it is listed under Privacy & Security → Microphone and uses the MacBook's microphone. **`app/tool/macos/check_user_audio.sh`:** passes. Talker 440 Hz at 100 % −12.2 dBFS; 50 % −18.3 (−6.0 dB); 200 % −6.2 (+6.0 dB); muted −106.1; unmuted −12.2; Player's 880 Hz sound −14.7; soundboard muted −200 (nothing); Talker meanwhile −12.2; soundboard unmuted −14.8 — Linux's numbers within 0.5 dB. Run from BlackHole at 44.1 kHz, which the script moves to 48 kHz. **`check_microphone.sh`:** passes. 1 kHz from `afplay` through BlackHole as the microphone, in what a listening voicebot got: voice activity −8.6 dBFS (225 packets), push-to-talk held −12.6 dBFS (221), released nothing; level meter 577 readings, loudest −3.8 dBFS; device lists: inputs Mohammad Microphone, BlackHole 2ch, MacBook Pro Microphone; outputs BlackHole 2ch, MacBook Pro Speakers. **`check_echo.sh` (V3's echo acceptance, user present, MacBook Pro Speakers + Microphone, Talker at −12.2 dBFS):** passes. 440 Hz in what the app sent: **−110.1 dBFS** with its processing (echo cancellation on, noise suppression standard), −19.1 dBFS with both off. **Shared integration tests with `-d macos`** (`run_check.sh`): `v2` passes; `v3` passes (noise suppression standard by benchmark, hotkeys `FocusedOnly`, 11 levels, loudest −40.1 dBFS); `v8` passes; none failed for a platform reason. **Not done:** nothing in M1. L1 had not landed when M1 ended (checked after the last step). |
 | M2 | | |
 | M3 | | |
 | M4 | | |
@@ -729,7 +729,132 @@ contract in its doc comments and is already called by the shared code.
 | M8 | | |
 
 Rulings (`Mn: Ruling: … — cost if wrong: …`):
-- (none yet)
+- M0: Ruling: decision A as written: the objc2 0.3 framework crates (cpal's
+  line), delegates through `define_class!`, HIToolbox declared by hand,
+  shims only where objc2 can't, `objc2::available!` for OS versions — cost
+  if wrong: a binding gap means a Swift/Objective-C shim per gap.
+- M0: Ruling: decision B as written: VideoToolbox directly, no FFmpeg on
+  macOS — cost if wrong: 600–900 lines of glue FFmpeg would have given.
+- M0: Ruling: decision C as written, but **the test Mac is an Intel
+  MacBook Pro** (i7-9750H, 6 cores, 2019), not Apple silicon. The 2 ms
+  budget for 1080p NV12 → 640×360 RGBA is checked on this Intel CPU, which
+  is the harder bar; nobody measures Apple silicon until a Mac with it
+  turns up — cost if wrong: an Apple-silicon-only regression goes unseen
+  until then.
+- M0: Ruling: decision D as written. This Mac runs 15.8.1, so the 13.x and
+  14.0–14.1 "needs a newer macOS" paths are only checked by reading the
+  code, never run — cost if wrong: a wrong message or crash on an old
+  macOS that nobody here can see.
+- M0: Ruling: decision E as written: the sandbox stays on; M7 checks
+  whether process taps work in it — cost if wrong: DebugProfile drops the
+  sandbox for taps.
+- M0: Ruling: decision F as written (BlackHole, `SwitchAudioSource`, `sox`,
+  `afplay`, `OPENCORD_SCREEN_DISPLAY=main`) — cost if wrong: different
+  stand-ins, the same tests.
+- M0: Ruling: the checks use the Flutter CI pins, 3.44.0, cloned to
+  `~/flutter-3.44.0` and put first on `PATH` by the session. The Mac's own
+  Flutter (3.47.5 at `~/dev/flutter/flutter`) is left as it is — cost if
+  wrong: none; 3.47.5 is one `PATH` away.
+- M0: Ruling: Debug signing. The project-level Debug
+  `CODE_SIGN_IDENTITY = "-"` in `project.pbxproj` won over the xcconfig, so
+  it moved into `Runner/Configs/Debug.xcconfig`, which then does
+  `#include? "Signing.local.xcconfig"` (gitignored in `app/macos/.gitignore`).
+  This Mac's file names `Apple Development` and its team. Profile and
+  Release stay ad hoc — cost if wrong: none; without the local file Debug
+  is ad hoc as before.
+- M0: Ruling: the CocoaPods integration that `flutter build macos` writes
+  (`app/macos/Podfile`, `Podfile.lock`, the Pods phases in
+  `project.pbxproj`, the `#include?` lines in `Flutter-*.xcconfig`, the
+  workspace entry) is committed, as Flutter's template expects; otherwise
+  every Mac build leaves the tree changed. The iOS files `pub get` touches
+  are not the Mac's and stay as they are — cost if wrong: CI's `pod
+  install` rewrites the lock, as it did before.
+- M0: Ruling: `app/tool/macos/run_check.sh <name>` runs a shared
+  `app/tool/check_<name>.sh` that needs nothing from Linux but the device
+  (`m5`, `m6`, `v0`, `v2`, `v3`, `v8`) with `-d macos`, from a temporary
+  copy, so the shared scripts stay untouched. Scripts that use PipeWire
+  (`user_audio`, `v7`) get their own ports — cost if wrong: a shared
+  script whose wording changes defeats the `sed`; the runner says so.
+- M0: Ruling: until L1, `cargo clippy --all-targets -D warnings` can't pass
+  on macOS, and that is left alone: the three `opencord-media` examples
+  (`codec_costs`, `camera_load`, `screen_load`) import Linux-only modules,
+  and the shared files' off-Linux leftovers fail `dead_code`, `unused` and
+  `clippy::unnecessary_literal_unwrap` (`opencord-voicebot/src/lib.rs:777`,
+  `let decoded: Option<u64> = None`). The check run instead: `cargo clippy
+  --workspace --lib --bins --tests -- -D warnings -A dead_code -A unused -A
+  clippy::unnecessary_literal_unwrap` — clean. For L1: the examples need a
+  plan too — cost if wrong: none; L1 removes the gates.
+- M0: Ruling: step 5's "run the app, sign in, open a text channel and
+  send a message" was checked with the shared M6 check against the Mac app
+  (`run_check.sh m6`: sign in, join, send in #general, get the owner's
+  answer live) instead of by hand with `flutter run -d macos` — cost if
+  wrong: none seen; M1's hand-run launch (the microphone prompt) also
+  signed in and joined.
+- M1: Ruling: §0's checks before each commit were not all re-run for M1's
+  first four commits (only `cargo fmt` and `flutter analyze`; M1 changed no
+  Rust and nothing under `app/lib` or `app/test`). Run in full after M1:
+  fmt clean; clippy (as M0's ruling) clean; `cargo test` 625 passed, 0
+  failed, 4 ignored; `flutter analyze` no issues; `flutter test` +731 ~1
+  −19, the same 16 goldens and 3 D-Bus tests as M0 — cost if wrong: none.
+- M1: Ruling: MacPorts in place of Homebrew (the user's Homebrew no longer
+  works on this Intel Mac): `sudo port install sox switchaudio-osx
+  BlackHole`. The scripts look in `/opt/local/bin`, then Homebrew's folders
+  — cost if wrong: none; both are searched.
+- M1: Ruling: **one BlackHole device, not two** (decision F said 2ch and
+  16ch). MacPorts' BlackHole port builds one device; its channel variants
+  conflict. Building a second from BlackHole's source and signing it with
+  the user's identity was not done (it needs the user's say-so). BlackHole
+  2ch is the app's speaker and microphone in `check_user_audio.sh` and its
+  microphone and speaker in `check_microphone.sh`; both pass. The scripts
+  read its UID from `SwitchAudioSource -f json` (`BlackHole2ch_UID`; cpal's
+  id is `coreaudio:BlackHole2ch_UID`) — cost if wrong: a check that needs
+  two separate devices gets the second BlackHole then.
+- M1: Ruling: the app sandbox refuses to start `sox` (`ProcessException:
+  Operation not permitted`), and the sandbox stays (decision E). So
+  `check_user_audio.sh` records BlackHole with sox for the whole run, the
+  app prints each window to measure (`WINDOW: <name> <start ms> <end ms>`),
+  and the script measures them with the shared test's Goertzel blocks and
+  limits. Each window drops 300 ms at both ends (sox starts 100–200 ms
+  after its timestamp); BlackHole is set to 48 kHz first, because the app
+  changing its rate mid-recording made the recording lose time (the first
+  run's −10 dB at 50 % and −56 dBFS muted); the script fails if the
+  recording is shorter than its wall-clock time — cost if wrong: a
+  mis-timed window, which the per-block dump on failure shows.
+- M1: Ruling: test data. The sandboxed app keeps its data in its container,
+  so `e2e_server.sh`'s `XDG_DATA_HOME` doesn't isolate it, and a failed run
+  left its server in the profile. `app/tool/macos/profile.sh` deletes the
+  check's own `e2e*` profile folder before each run (it refuses any other
+  name); `run_check.sh` uses it too — cost if wrong: none.
+- M1: Ruling: under `flutter test -d macos` the app is the terminal's
+  child, so macOS asks (and records) microphone access for the terminal
+  app, not Opencord. Opencord's own prompt was checked by hand, launched
+  with `open --env OPENCORD_PROFILE=…`. The same will hold for camera,
+  screen and input permissions in the automated checks of M2–M7 — cost if
+  wrong: none; a manual run per permission covers the app.
+- M1: Ruling: the microphone check turns noise suppression off (a steady
+  tone is what it removes) and drives push-to-talk through
+  `Repository.setPushToTalk`, which the key handler calls; real keys are
+  M2's. The echo check holds push-to-talk so the app sends throughout and
+  adds a phase with echo cancellation and noise suppression off, which
+  shows the echo was there (−19.1 dBFS) — cost if wrong: none.
 
 `shared:` commits (file, why):
-- (none yet)
+- M0 f6aff9a `crates/opencord-voicebot/tests/voice.rs`:
+  `a_voicebots_encoded_camera_is_decoded_by_another_voicebot` gated
+  `cfg(target_os = "linux")` like `publish_encoded_camera`, which it calls;
+  the file did not compile on macOS, so `cargo test --workspace` failed. It
+  should have been a seam: L1's run-time skip (platforms.md §2.6) replaces
+  the gate.
+
+Shared tests that fail on macOS for a platform reason (not edited):
+- M0: `app/test/unit/desktop/linux_notifications_test.dart` (2 tests) and
+  `linux_tray_test.dart` (1): `package:dbus` says "Authentication not
+  supported on macos" (they need a Linux session bus), then time out after
+  30 s. They should skip off Linux.
+- M0: the golden tests, 16, rendered on Linux, as expected (§0).
+- M0: `opencord-voice` `tests/video.rs`
+  `a_capped_uplink_stops_encoding_the_cameras_top_layer_until_lifted`
+  failed once in a full `cargo test --workspace` ("the receiver got no lower
+  layer" within 5 s), then passed 3 of 3 alone (10.1 s, 16.1 s, 12.2 s) and
+  in the next full run. Timing on a loaded 6-core Intel Mac; not a macOS
+  difference.
