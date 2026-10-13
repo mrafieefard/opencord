@@ -680,7 +680,7 @@ pushed milestone, and the Mac's work reaches this branch only through
 | Milestone | Commit | Result, measurements, what's not done |
 |---|---|---|
 | W0 | (this commit) | **The PC.** Windows 10 Pro 22H2, build 19045.7417 — *not* Windows 11, so screen share sound (decision C) cannot be measured here; see the W7 note below. i7-13620H; RTX 4070 Laptop (32.0.16.1078) and Intel UHD (31.0.101.4255); 15.7 GB. Visual Studio Community 2026 18.8.2 (NativeDesktop), rustc/cargo 1.99.0, Flutter 3.44.0 (Dart 3.12.0), FFmpeg n9.0.2 LGPL shared, pwsh 7.6.6, Python 3.14.7. **Rust.** `cargo build --workspace` 6 m 30 s, 8 warnings, every one off-Linux dead code in a shared file. `cargo fmt --all --check` clean. `cargo test --workspace --lib --bins --tests --no-fail-fast`: **608 passed, 5 failed, 4 ignored**, plus one target that does not compile. `cargo clippy --workspace --all-targets` **fails** (five `opencord-media` examples do not compile off Linux). **Dart.** `flutter analyze` clean, 49.1 s. `flutter test`: **730 passed, 20 failed, 1 skipped**. Every failure of either is listed under "Shared code that fails on Windows" below; none was fixed here (platforms.md §4). **The app.** `check_m5.ps1` and `check_m6.ps1` both pass: the app builds (225.8 s cold, 23–29 s warm), creates an identity, claims a server, is still connected after a restart, and two identities chat live while a new restriction reaches the member's UI without a reconnect. `e2e_server.ps1` starts and stops a server. **Not done:** the tray and `opencord://` links still need a person at the PC (W0 step 4); LLVM is not installed, which W3 needs. |
-| W1 | (this commit) | **Not finished — steps 4 to 7 are blocked on hardware** (VB-CABLE and Hi-Fi CABLE are not installed; see the batched asks below). Done: **step 1** needed nothing — microphone access and "Let desktop apps access your microphone" were both already `Allow`. **Step 2 answered: a denied microphone fails to open, it does not record silence.** `Microphone::open` returns `could not open the microphone: Failed to initialize audio client: Access is denied. (os error -2147024891)` — `0x80070005`, `E_ACCESSDENIED`, from `IAudioClient::Initialize`. Measured by setting both `ConsentStore\microphone` values to `Deny` and restoring them. So the app's noticeable path is the right one and no shared UI follow-up is needed: `engine.rs:551` turns that `Err` into `EngineEvent::DeviceFailed { output: false }` → `MediaEvent::DeviceFailed` → Dart `AudioDeviceFailed` → the notice "No microphone could be opened." (traced through the code, not yet watched end to end in the app). **Step 3, the device lists:** ids are `wasapi:{0.0.1.00000000}.{guid}` for microphones and `wasapi:{0.0.0.00000000}.{guid}` for speakers. 3 microphones — Intel Smart Sound mic array (the default), WO Mic Device, Razer Barracuda X 2.4 — and 2 speakers — Realtek(R) Audio, Razer Barracuda X 2.4 (the default). A control measurement with access allowed: the default microphone opened at 48000 Hz on 2 channels and delivered 144000 samples in 1.5 s (exactly 48 kHz × 2), peak −42.7 dBFS, 0 glitches, not lost. `crates/opencord-media/tests/devices_windows.rs` holds both, and is the instrument for step 2. **Still to do:** the rest of step 3 (a voicebot hearing the app and the level meter), and steps 4, 5, 6 and 7. |
+| W1 | (two commits) | **Steps 1 to 5 and 7 pass; only step 6, the echo test, is left, and it needs a person with the speakers on.** The numbers are in the W1 rows below this table. **Step 1** needed nothing — microphone access and "Let desktop apps access your microphone" were both already `Allow`. **Step 2 answered: a denied microphone fails to open, it does not record silence.** `Microphone::open` returns `could not open the microphone: Failed to initialize audio client: Access is denied. (os error -2147024891)` — `0x80070005`, `E_ACCESSDENIED`, from `IAudioClient::Initialize`. Measured by setting both `ConsentStore\microphone` values to `Deny` and restoring them. So the app's noticeable path is the right one and no shared UI follow-up is needed: `engine.rs:551` turns that `Err` into `EngineEvent::DeviceFailed { output: false }` → `MediaEvent::DeviceFailed` → Dart `AudioDeviceFailed` → the notice "No microphone could be opened." (traced through the code, not yet watched end to end in the app). **Step 3, the device lists:** ids are `wasapi:{0.0.1.00000000}.{guid}` for microphones and `wasapi:{0.0.0.00000000}.{guid}` for speakers. 3 microphones — Intel Smart Sound mic array (the default), WO Mic Device, Razer Barracuda X 2.4 — and 2 speakers — Realtek(R) Audio, Razer Barracuda X 2.4 (the default). A control measurement with access allowed: the default microphone opened at 48000 Hz on 2 channels and delivered 144000 samples in 1.5 s (exactly 48 kHz × 2), peak −42.7 dBFS, 0 glitches, not lost. `crates/opencord-media/tests/devices_windows.rs` holds both, and is the instrument for step 2. **The rest of step 3** came out of steps 4 and 5: a voicebot hears the app (the Listener took 595 packets carrying the app's tone) and the app hears a voicebot (it played Talker's 440 Hz at −9.2 dBFS). The level meter itself was not measured separately; it is a shared Dart binding of `InputLevelChanged` and only fires while a meter is open. **Step 4, the per-user audio check, passes, every number inside the plan's 0.5 dB:** Talker's 440 Hz at 100 % −9.2 dBFS; at 50 % −15.3 dBFS (**−6.0 dB**, wanted −6); at 200 % −3.2 dBFS (**+6.0 dB**, wanted +6); muted **−106.2 dBFS** (wanted < −90); unmuted −9.7 dBFS. Player's 880 Hz sound −11.7 dBFS, with the soundboard muted **−123.0 dBFS** while Talker stayed at −9.2 dBFS, and −11.7 dBFS again when unmuted. **Step 5, the microphone path, passes in both processing modes.** 440 Hz as a Listener voicebot heard it: voice activity −21.1 dBFS, push-to-talk released **nothing at all — no packets** (recorded as −200), push-to-talk held −21.1 dBFS. Repeated with `standard` (RNNoise) suppression: −21.0 / none / −21.1 dBFS, so the chain passes a pure tone through unchanged, which is what W2's acceptance will rest on. **Step 7: the audio thread does get real-time priority.** The core installs no tracing subscriber, so there is no app log to read as the step suggests; measured instead on the threads, where MMCSS shows up as a boost into the 16–26 band: while the app held voice, exactly one of its 128 threads sat at base priority **21**, against 98 at the ordinary 8, in a process whose class is Normal. **Left:** step 6. |
 | W2 | | |
 | W3 | | |
 | W4 | | |
@@ -785,13 +785,55 @@ Decided while doing W1:
   runner with none does not fail it. Its live microphone test is `#[ignore]`d,
   as W2 step 5 does for injected keys — cost if wrong: nothing; the enumeration
   half still runs everywhere.
-- W1: Ruling: `check_user_audio.ps1` and
-  `app/integration_test/windows/user_audio_test.dart` (step 4) are **not**
-  written yet. Their riskiest parts — the exact dshow device names, whether
-  `ffmpeg -f dshow` can record CABLE Output, and how the cables' `wasapi:` ids
-  look — can only be settled with the drivers installed, and writing them blind
-  would mean unrunnable code and likely rework — cost if wrong: W1 takes one
-  more session after the drivers are in, instead of being finished now.
+- W1: Ruling: **one VB-CABLE pair stands in for both of the plan's cables, so
+  Hi-Fi CABLE is not needed.** Only the base VB-CABLE was available (Hi-Fi
+  Cable is a separate download), giving one pair: `CABLE Input` → `CABLE
+  Output`. `CABLE In 16ch` is a second render endpoint of the *same* cable, not
+  an independent pair. It is enough because the two steps need the cable at
+  different ends: step 4 plays into CABLE Input and records CABLE Output, while
+  step 5 does the reverse and needs no cable on the app's speaker. What step 4
+  also needs is Linux's *silent* sink, and `Microphone (WO Mic Device)` is
+  digitally silent (−inf dBFS over 1.5 s) whenever its phone client is not
+  connected — measured, along with CABLE Output at −inf, the Razer headset mic
+  at −70.3 and the Intel array at −23.7 — cost if wrong: a second cable pair
+  would have to be installed, which is an administrator install and a reboot.
+- W1: Ruling: the recording path was proved before anything was built on it:
+  with nothing playing, `ffmpeg -f dshow -i audio="CABLE Output …"` through
+  `measure.py` reads −155.2 dBFS at 440 Hz; with a 440 Hz sine playing into
+  CABLE Input it reads −18.2 dBFS at 440 and −85.9 at 880, steady across 29
+  blocks (median −18.1, loudest −18.1); and −154.6 dBFS again afterwards — cost
+  if wrong: nothing, and it is why the step 4 twin worked first time.
+- W1: Ruling: the Windows `_record` gives ffmpeg `-t` and waits for it, rather
+  than killing it as the Linux original kills `parec`. A killed ffmpeg can lose
+  whatever it had not flushed down the pipe, and a 2-second recording is mostly
+  unflushed. The first 600 ms of every recording is dropped, because dshow
+  takes a moment to start delivering and a silent lead-in would drag a median
+  down — cost if wrong: short recordings would read quieter than the truth.
+- W1: Ruling: device names are turned into the app's `wasapi:` ids from the
+  `MMDevices` registry (`app/tool/windows/audio_devices.ps1`), matching the
+  friendly name, the device name, or cpal's "<friendly> (<device>)" spelling of
+  the two, and only where `DeviceState` is 1. The ids it builds were checked
+  against what the app itself reports: identical for CABLE Input, CABLE Output
+  and WO Mic Device — cost if wrong: a check would configure the app with an id
+  no device has, which the app reports as a device that is not connected.
+- W1: Ruling: step 5's acceptance is the **comparison between phases**, not an
+  absolute level: a pure sine is not speech, and how much the processing chain
+  colours one was the unknown. A held push-to-talk must be at least 20 dB above
+  a released one, and so must voice activity. It then turned out that `off` and
+  `standard` agree to 0.1 dB, so the worry was unfounded — cost if wrong: an
+  absolute threshold would have made the check fail on a processing change that
+  is not a regression.
+- W1: Ruling: push-to-talk is driven in the test through
+  `repository.setPushToTalk(…)`, which is what the hotkey path itself calls
+  (`providers.dart` `_act`), so step 5 does not wait for W2's global keybinds —
+  cost if wrong: it exercises everything below the hotkey, but not the hotkey;
+  W2 covers that end with injected keys.
+- W1: Ruling: step 7 was measured on the app's threads, not from a log. The
+  core installs no tracing subscriber, so the warning the step tells us to look
+  for ("the audio thread runs at normal priority") has nowhere to go and its
+  absence would prove nothing — cost if wrong: base priority is a proxy for
+  MMCSS rather than the call's own return value; one thread at 21 against 98 at
+  8, in a Normal-class process, is not something else in the app asking for it.
 - W1: Ruling: `cargo clippy` cannot be run with `-D warnings` over the
   workspace before L1: the 8 shared dead-code warnings in `hotkeys/mod.rs` and
   `video/camera/mod.rs` become errors. Own files are checked by confirming
@@ -811,12 +853,17 @@ For the Linux session, and for the user:
 - W0: `app/test/golden/failures/` is written by any golden run off Linux and no
   `.gitignore` covers it. One line in a shared `.gitignore` would save every
   platform session from almost committing it.
-- W1: **The test audio drivers are not installed**, which is what stops W1.
-  VB-CABLE and Hi-Fi CABLE are drivers: they need an administrator and a
-  reboot, so this session cannot put them in. Everything from step 4 on needs
-  them — the app's output has to be CABLE Input so `ffmpeg` can record CABLE
-  Output, and its microphone has to be Hi-Fi CABLE Output. Step 6's echo test
-  additionally needs a person, with the speakers on.
+- W1: **Step 6, the echo test, is all that is left of W1, and it needs a
+  person**: the app on the PC's own speakers and microphone, the speakers
+  actually on, a Talker voicebot playing 440 Hz and a Listener measuring
+  440 Hz in what the app sends, which must stay under −50 dBFS while the app
+  plays the tone at about −12 dBFS. Nothing else about it is blocked — the
+  harness it needs is already written and passing for steps 4 and 5.
+- W1: The VB-CABLE installer made `CABLE Input` the **default playback
+  device**, which leaves the machine with no audible sound. It was put back to
+  `Speakers (Realtek(R) Audio)`. `check_microphone.ps1` takes the default over
+  for the length of a run and restores whatever it found, so the echo test
+  should be run with a real speaker as the default.
 
 Shared code that fails on Windows (platforms.md §4: listed, not edited here):
 - `crates/opencord-voicebot/tests/voice.rs` **does not compile**:

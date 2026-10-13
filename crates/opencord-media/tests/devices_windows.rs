@@ -67,7 +67,31 @@ fn windows_names_its_microphones_and_speakers() {
 #[test]
 #[ignore = "opens the real default microphone; needs a device and the system's consent"]
 fn the_default_microphone_opens_and_delivers_samples() {
-    let mut microphone = match Microphone::open(None) {
+    // OPENCORD_TEST_MICROPHONE picks another one by a piece of its name, so a
+    // check can show which inputs are quiet enough to stand in for Linux's
+    // silent null sink:
+    //
+    //   $env:OPENCORD_TEST_MICROPHONE = 'CABLE Output'
+    let wanted = std::env::var("OPENCORD_TEST_MICROPHONE").ok();
+    let chosen = wanted.as_deref().map(|name| {
+        let list = devices();
+        let found = list
+            .inputs
+            .iter()
+            .find(|device| device.name.contains(name))
+            .unwrap_or_else(|| {
+                panic!(
+                    "no microphone's name contains {name:?}; there are {:?}",
+                    list.inputs
+                        .iter()
+                        .map(|device| device.name.as_str())
+                        .collect::<Vec<_>>()
+                )
+            });
+        found.id.clone()
+    });
+
+    let mut microphone = match Microphone::open(chosen.as_deref()) {
         Ok(microphone) => microphone,
         Err(error) => {
             // Step 2, the first of the two outcomes: Windows refused.
@@ -105,14 +129,19 @@ fn the_default_microphone_opens_and_delivers_samples() {
 
     assert!(!microphone.health.is_lost(), "the microphone was lost");
     assert!(frames > 0, "the microphone delivered no samples at all");
-    // Step 2, the second outcome: a stream that opens and stays at exactly
-    // digital zero is a microphone the system is holding back, not a quiet
-    // room — a real one always carries some noise.
-    assert!(
-        peak > 0.0,
-        "the microphone opened but every one of {frames} samples was silent; \
-         this is what a denied microphone looks like"
-    );
+    if chosen.is_none() {
+        // Step 2, the second outcome: a stream that opens and stays at exactly
+        // digital zero is a microphone the system is holding back, not a quiet
+        // room — a real one always carries some noise. Only the default
+        // microphone is held to this: a cable with nothing playing into it is
+        // legitimately silent, and probing for that is the point of
+        // OPENCORD_TEST_MICROPHONE.
+        assert!(
+            peak > 0.0,
+            "the microphone opened but every one of {frames} samples was \
+             silent; this is what a denied microphone looks like"
+        );
+    }
 }
 
 fn report(list: &DeviceList) {
