@@ -1,5 +1,6 @@
-//! macOS's codec: not written yet (docs/plans/macos.md M3: VideoToolbox,
-//! no FFmpeg). Until it is, video is neither sent nor received on macOS.
+//! macOS's codec (docs/plans/macos.md M3, decisions B and C): VideoToolbox
+//! encodes and decodes H.264, without FFmpeg; pic-scale and yuv scale and
+//! convert in portable Rust.
 //!
 //! The contract is the FFmpeg files' API, which the video sender and
 //! receiver use unchanged: pictures are NV12 or I420 at video range
@@ -11,10 +12,14 @@
 
 pub mod decoder;
 pub mod encoder;
+mod ffi;
 pub mod raw;
 pub mod scale;
 
-/// Whether this system can encode and decode video.
+/// Whether this system can encode and decode video: VideoToolbox's
+/// software H.264 encoder and decoder are on every Mac. The first call
+/// also starts loading the hardware encoder in the background.
 pub fn supported() -> bool {
-    false
+    encoder::warm_up();
+    true
 }

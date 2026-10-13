@@ -61,8 +61,10 @@ x11rb.workspace = true
 
 [target.'cfg(target_os = "macos")'.dependencies]
 dispatch2 = { version = "0.3.1", default-features = false, features = ["std"] }
-objc2-core-foundation = { version = "0.3.2", default-features = false, features = ["std", "CFData", "CFDictionary", "CFMachPort", "CFNotificationCenter", "CFRunLoop", "CFString"] }
+objc2-core-foundation = { version = "0.3.2", default-features = false, features = ["std", "CFArray", "CFData", "CFDictionary", "CFMachPort", "CFNotificationCenter", "CFNumber", "CFRunLoop", "CFString"] }
 objc2-core-graphics = { version = "0.3.2", default-features = false, features = ["std", "CGEvent", "CGEventSource", "CGEventTypes", "CGRemoteOperation"] }
+pic-scale = { version = "0.7.12", default-features = false, features = ["avx", "neon", "rdm", "sse"] }
+yuv = { version = "0.8.19", default-features = false, features = ["avx", "rdm", "sse"] }
 
 [target.'cfg(target_os = "windows")'.dependencies]
 
