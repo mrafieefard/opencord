@@ -34,7 +34,7 @@ pub fn supported() -> bool {
 
 // VideoToolbox (docs/plans/macos.md M3).
 #[cfg(target_os = "macos")]
-mod macos;
+pub(crate) mod macos;
 #[cfg(target_os = "macos")]
 pub use macos::{decoder, encoder, raw, scale, supported};
 

@@ -43,8 +43,9 @@ A new Flutter FFI plugin project.
     # ones the Rust code calls into are linked here: cpal's CoreAudio and
     # AudioToolbox; CoreGraphics and Carbon (HIToolbox) for the hotkeys'
     # event tap and keyboard layouts; VideoToolbox, CoreMedia and CoreVideo
-    # for the H.264 codec. CoreAudio is weak: its process taps (macOS
-    # 14.2+) must not stop older systems.
-    'OTHER_LDFLAGS' => '-force_load ${BUILT_PRODUCTS_DIR}/libopencord_core.a -weak_framework CoreAudio -framework AudioToolbox -framework CoreGraphics -framework Carbon -framework VideoToolbox -framework CoreMedia -framework CoreVideo',
+    # for the H.264 codec; AVFoundation and Foundation for the camera.
+    # CoreAudio is weak: its process taps (macOS 14.2+) must not stop
+    # older systems.
+    'OTHER_LDFLAGS' => '-force_load ${BUILT_PRODUCTS_DIR}/libopencord_core.a -weak_framework CoreAudio -framework AudioToolbox -framework CoreGraphics -framework Carbon -framework VideoToolbox -framework CoreMedia -framework CoreVideo -framework AVFoundation -framework Foundation',
   }
 end

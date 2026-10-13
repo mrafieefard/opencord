@@ -12,9 +12,23 @@
 
 pub mod decoder;
 pub mod encoder;
-mod ffi;
+pub(crate) mod ffi;
 pub mod raw;
 pub mod scale;
+
+/// An NV12 Core Video pixel buffer (what VideoToolbox, AVFoundation and
+/// ScreenCaptureKit give) as a packed picture, cut to even sizes.
+///
+/// # Safety
+///
+/// `image` is a valid pixel buffer for the call.
+pub(crate) unsafe fn nv12_picture(
+    image: ffi::Ref,
+    captured: std::time::Instant,
+) -> Option<crate::video::picture::Picture> {
+    // SAFETY: the caller's promise.
+    unsafe { decoder::picture_of(image, captured) }
+}
 
 /// Whether this system can encode and decode video: VideoToolbox's
 /// software H.264 encoder and decoder are on every Mac. The first call

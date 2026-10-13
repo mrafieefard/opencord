@@ -21,7 +21,7 @@ EXTERNAL SOURCES:
 SPEC CHECKSUMS:
   FlutterMacOS: d0db08ddef1a9af05a5ec4b724367152bb0500b1
   irondash_engine_context: da62996ee25616d2f01bbeb85dc115d813359478
-  opencord_core: 9a56a193c723f8a10fe4b12ddbc72e8eefc238d8
+  opencord_core: b3b1a7ffdfd5daee4b5240f0d15760ae6bd19adb
 
 PODFILE CHECKSUM: 89c84cf5c2351c1e554c6dea18d31a879fc3a19e
 

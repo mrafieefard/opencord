@@ -56,6 +56,13 @@ impl CMTime {
     }
 }
 
+#[repr(C)]
+#[derive(Debug, Clone, Copy)]
+pub struct CMVideoDimensions {
+    pub width: i32,
+    pub height: i32,
+}
+
 pub type CompressionOutput = unsafe extern "C" fn(
     refcon: *mut c_void,
     source_frame_refcon: *mut c_void,
@@ -220,6 +227,9 @@ unsafe extern "C" {
     ) -> OSStatus;
     /// Not retained.
     pub fn CMSampleBufferGetDataBuffer(sample_buffer: Ref) -> Ref;
+    /// Not retained.
+    pub fn CMSampleBufferGetImageBuffer(sample_buffer: Ref) -> Ref;
+    pub fn CMVideoFormatDescriptionGetDimensions(format_description: Ref) -> CMVideoDimensions;
     /// Not retained.
     pub fn CMSampleBufferGetFormatDescription(sample_buffer: Ref) -> Ref;
 }

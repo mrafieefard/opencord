@@ -39,6 +39,8 @@
 	<string>Opencord uses your microphone in voice channels.</string>
 	<key>NSCameraUsageDescription</key>
 	<string>Opencord uses your camera when you turn it on in a voice channel.</string>
+	<key>NSCameraUseContinuityCameraDeviceType</key>
+	<true/>
 	<key>NSAudioCaptureUsageDescription</key>
 	<string>Opencord records other apps’ sound when you share your screen with sound.</string>
 	<key>NSMainNibFile</key>
