@@ -37,3 +37,21 @@ pub fn supported() -> bool {
     encoder::warm_up();
     true
 }
+
+/// This process's CPU time, user and system: for the tests that measure
+/// what capture and encoding cost.
+#[cfg(test)]
+pub(crate) fn process_cpu() -> std::time::Duration {
+    unsafe extern "C" {
+        fn getrusage(who: i32, usage: *mut [i64; 18]) -> i32;
+    }
+    let mut usage = [0i64; 18];
+    // SAFETY: getrusage fills a struct rusage (RUSAGE_SELF), which this
+    // covers; its first fields are the user and system timevals.
+    unsafe { getrusage(0, &mut usage) };
+    let time = |seconds: i64, micros: i64| {
+        std::time::Duration::from_secs(seconds as u64)
+            + std::time::Duration::from_micros(micros as u64)
+    };
+    time(usage[0], usage[1]) + time(usage[2], usage[3])
+}

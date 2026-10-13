@@ -525,32 +525,10 @@ mod cost {
     use std::time::Duration;
 
     use super::*;
+    use crate::video::codec::macos::process_cpu;
     use crate::video::codec::macos::scale::Scaler;
     use crate::video::layers::camera_layers;
     use crate::video::sender::VideoSender;
-
-    /// This process's CPU time (user and system).
-    fn cpu() -> Duration {
-        let mut usage = std::mem::MaybeUninit::<libc_rusage>::zeroed();
-        // SAFETY: getrusage fills the struct.
-        unsafe { getrusage(0, usage.as_mut_ptr()) };
-        // SAFETY: filled above.
-        let usage = unsafe { usage.assume_init() };
-        let time =
-            |t: [i64; 2]| Duration::from_secs(t[0] as u64) + Duration::from_micros(t[1] as u64);
-        time(usage.user) + time(usage.system)
-    }
-
-    #[repr(C)]
-    struct libc_rusage {
-        user: [i64; 2],
-        system: [i64; 2],
-        rest: [i64; 14],
-    }
-
-    unsafe extern "C" {
-        fn getrusage(who: i32, usage: *mut libc_rusage) -> i32;
-    }
 
     /// The camera's whole sending side for 10 s, as the app runs it: the
     /// camera, three layers scaled and encoded, and a 640×360 preview
@@ -589,10 +567,10 @@ mod cost {
             1.0,
         );
         std::thread::sleep(Duration::from_secs(2));
-        let (start, cpu_start) = (Instant::now(), cpu());
+        let (start, cpu_start) = (Instant::now(), process_cpu());
         let before = *sent.lock().unwrap();
         std::thread::sleep(Duration::from_secs(10));
-        let (wall, used) = (start.elapsed(), cpu() - cpu_start);
+        let (wall, used) = (start.elapsed(), process_cpu() - cpu_start);
         let after = *sent.lock().unwrap();
         drop(video);
         drop(capture);

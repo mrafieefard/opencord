@@ -229,6 +229,11 @@ unsafe extern "C" {
     pub fn CMSampleBufferGetDataBuffer(sample_buffer: Ref) -> Ref;
     /// Not retained.
     pub fn CMSampleBufferGetImageBuffer(sample_buffer: Ref) -> Ref;
+    /// Not retained; a CFArray of CFDictionaries, or null.
+    pub fn CMSampleBufferGetSampleAttachmentsArray(
+        sample_buffer: Ref,
+        create_if_necessary: u8,
+    ) -> *const std::ffi::c_void;
     pub fn CMVideoFormatDescriptionGetDimensions(format_description: Ref) -> CMVideoDimensions;
     /// Not retained.
     pub fn CMSampleBufferGetFormatDescription(sample_buffer: Ref) -> Ref;
