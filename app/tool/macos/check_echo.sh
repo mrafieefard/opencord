@@ -13,6 +13,7 @@
 set -euo pipefail
 source "$(dirname "$0")/../e2e_server.sh"
 source "$(dirname "$0")/blackhole.sh"
+source "$(dirname "$0")/profile.sh"
 source "$(dirname "$0")/phases.sh"
 
 speakers="${1:-MacBook Pro Speakers}"
@@ -29,6 +30,7 @@ background+=("$!")
 talker="$(voicebot_user "$work/talker.log")"
 
 export OPENCORD_PROFILE=e2e_echo
+fresh_profile e2e_echo
 cd "$app"
 flutter test integration_test/macos/echo_test.dart -d macos \
   --dart-define=OPENCORD_E2E_INVITE="$invite" \

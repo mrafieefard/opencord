@@ -18,6 +18,10 @@ if grep -qE 'pactl|parec|pw-play|pw-cat' "$script"; then
   exit 1
 fi
 
+source "$(dirname "$0")/profile.sh"
+profile="$(sed -nE 's/^export OPENCORD_PROFILE=([A-Za-z0-9_]+)$/\1/p' "$script")"
+[[ -n "$profile" ]] && fresh_profile "$profile"
+
 copy="$(mktemp)"
 trap 'rm -f "$copy"' EXIT
 sed -e "s#\$(dirname \"\$0\")#$tool#g" -e 's/ -d linux / -d macos /g' \

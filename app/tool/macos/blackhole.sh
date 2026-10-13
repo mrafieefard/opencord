@@ -32,6 +32,31 @@ if [[ -z "$blackhole_uid" ]]; then
 fi
 blackhole_id="coreaudio:$blackhole_uid"
 
+# 48 kHz before anyone opens it: when the app changes the rate later, a
+# recording already running loses samples and its times no longer match.
+blackhole_number="$("$switch_audio" -a -t output -f json |
+  python3 -c 'import json, sys
+for line in sys.stdin:
+    device = json.loads(line)
+    if device["name"] == sys.argv[1]:
+        print(device["id"])
+        break' "$blackhole")"
+python3 - "$blackhole_number" <<'PY'
+import ctypes, struct, sys
+audio = ctypes.CDLL("/System/Library/Frameworks/CoreAudio.framework/CoreAudio")
+fourcc = lambda code: struct.unpack(">I", code.encode())[0]
+class Address(ctypes.Structure):
+    _fields_ = [("selector", ctypes.c_uint32), ("scope", ctypes.c_uint32),
+                ("element", ctypes.c_uint32)]
+address = Address(fourcc("nsrt"), fourcc("glob"), 0)
+rate = ctypes.c_double(48000)
+status = audio.AudioObjectSetPropertyData(
+    ctypes.c_uint32(int(sys.argv[1])), ctypes.byref(address), 0, None,
+    ctypes.sizeof(rate), ctypes.byref(rate))
+if status:
+    sys.exit(f"Could not set BlackHole to 48 kHz: OSStatus {status}")
+PY
+
 saved_output="$("$switch_audio" -c -t output)"
 saved_input="$("$switch_audio" -c -t input)"
 saved_system="$("$switch_audio" -c -t system)"

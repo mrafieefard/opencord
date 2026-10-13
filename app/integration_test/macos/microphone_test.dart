@@ -5,6 +5,7 @@ import 'package:opencord/core/providers/providers.dart';
 import 'package:opencord/core/repository/repository.dart';
 import 'package:opencord/core/rust/identity_store.dart';
 import 'package:opencord/core/settings/local_prefs.dart';
+import 'package:opencord/features/voice/input_level_meter.dart';
 import 'package:opencord/ui/widgets/oc_button.dart';
 
 import '../support/e2e.dart';
@@ -90,6 +91,10 @@ void main() {
           reason: 'voice media connecting',
         );
 
+        // The level meter, which the app feeds while it's on screen.
+        await tester.tap(find.bySemanticsLabel('Audio options').first);
+        await waitFor(tester, find.byType(InputLevelMeter));
+
         await hold('voice activity');
         container
             .read(audioSettingsProvider.notifier)
@@ -98,6 +103,9 @@ void main() {
         repository.setPushToTalk(true);
         await hold('push-to-talk held');
         repository.setPushToTalk(false);
+        // Push-to-talk's release delay ends before the listener joins.
+        await tester.pump(const Duration(seconds: 1));
+        await Future<void>.delayed(const Duration(seconds: 1));
         await hold('push-to-talk released');
         // ignore: avoid_print
         print('PHASE: done');

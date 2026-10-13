@@ -12,6 +12,7 @@
 set -euo pipefail
 source "$(dirname "$0")/../e2e_server.sh"
 source "$(dirname "$0")/blackhole.sh"
+source "$(dirname "$0")/profile.sh"
 source "$(dirname "$0")/phases.sh"
 
 cargo build --quiet --manifest-path "$repo/Cargo.toml" -p opencord-voicebot
@@ -28,10 +29,19 @@ with wave.open(sys.argv[1], "wb") as out:
     frames = (int(0.25 * 32767 * math.sin(2 * math.pi * 1000 * n / 48000)) for n in range(48000 * 10))
     out.writeframes(b"".join(struct.pack("<h", f) for f in frames))
 PY
-(while :; do afplay "$work/tone.wav"; done) &
+# Stopping the loop stops the afplay playing at that moment too.
+(
+  trap 'kill "$player" 2>/dev/null; exit' TERM
+  while :; do
+    afplay "$work/tone.wav" &
+    player=$!
+    wait "$player"
+  done
+) &
 background+=("$!")
 
 export OPENCORD_PROFILE=e2e_microphone
+fresh_profile e2e_microphone
 cd "$app"
 flutter test integration_test/macos/microphone_test.dart -d macos \
   --dart-define=OPENCORD_E2E_INVITE="$invite" \
@@ -61,6 +71,10 @@ check() {
 }
 check "voice activity" "> -30"
 check "push-to-talk held" "> -30"
-check "push-to-talk released" "< -60"
+# Released, nothing at all may come: not even silence.
+if [[ "$(grep '^push-to-talk released: ' <<<"$results")" != "push-to-talk released: nothing" ]]; then
+  echo "FAIL: push-to-talk released, the app still sent" >&2
+  status=1
+fi
 [[ $status == 0 ]] && echo "Microphone check passed."
 exit "$status"
