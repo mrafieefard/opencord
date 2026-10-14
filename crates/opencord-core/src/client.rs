@@ -46,6 +46,10 @@ const REJOIN_WAIT: Duration = Duration::from_secs(1);
 /// often the server hears it again while away (§12, AFK moves).
 const IDLE_CHECK_EVERY: Duration = Duration::from_secs(5);
 const IDLE_REPEAT_EVERY: Duration = Duration::from_secs(60);
+/// How often the wall clock is compared with a timer, and how far it must
+/// run ahead to mean the computer slept (§12: rejoin after sleep).
+const WAKE_CHECK_EVERY: Duration = Duration::from_secs(2);
+const SLEEP_GAP: Duration = Duration::from_secs(5);
 
 #[derive(Clone)]
 pub struct Client {
@@ -151,6 +155,7 @@ impl Client {
                 soundboard,
             }),
         };
+        client.spawn_wake_watch();
         let watcher: Weak<Inner> = Arc::downgrade(&client.inner);
         runtime.spawn(async move {
             while let Some(event) = incoming.recv().await {
@@ -721,6 +726,43 @@ impl Client {
         self.sync_media();
         self.spawn_idle_reports();
         Some(receiver)
+    }
+
+    /// Notices the computer waking up: the wall clock runs on while it
+    /// sleeps, but a timer here does not. Then every connection is checked
+    /// at once instead of at its next heartbeat, so the call comes back in
+    /// seconds (Phase 2 §12).
+    fn spawn_wake_watch(&self) {
+        let watcher = Arc::downgrade(&self.inner);
+        self.inner.runtime.spawn(async move {
+            let mut before = SystemTime::now();
+            loop {
+                tokio::time::sleep(WAKE_CHECK_EVERY).await;
+                let now = SystemTime::now();
+                let woke = slept(before, now, WAKE_CHECK_EVERY);
+                before = now;
+                let Some(inner) = watcher.upgrade() else {
+                    return;
+                };
+                if woke {
+                    tracing::info!("the computer woke up; checking the connections");
+                    Self { inner }.check_connections().await;
+                }
+            }
+        });
+    }
+
+    /// Checks every server connection now: a heartbeat answered within a
+    /// few seconds, or a reconnect.
+    pub async fn check_connections(&self) {
+        let commands: Vec<mpsc::Sender<Command>> = self
+            .lock_connections()
+            .values()
+            .map(|connection| connection.commands.clone())
+            .collect();
+        for commands in commands {
+            let _ = commands.send(Command::Probe).await;
+        }
     }
 
     /// While in voice, tells the server when this device has been idle
@@ -1643,6 +1685,13 @@ fn unix_ms() -> i64 {
     i64::try_from(since_epoch.as_millis()).unwrap_or(i64::MAX)
 }
 
+/// Whether the wall clock ran well past `expected` between `before` and
+/// `now`: the computer slept. A clock set back is not sleep.
+fn slept(before: SystemTime, now: SystemTime, expected: Duration) -> bool {
+    now.duration_since(before)
+        .is_ok_and(|elapsed| elapsed > expected + SLEEP_GAP)
+}
+
 /// What the server last heard about this device's idle time.
 struct IdleReport {
     target: (String, i64),
@@ -1776,5 +1825,17 @@ mod tests {
         assert_eq!(idle_report(Some(&away), &other, minute), Some(Some(60_000)));
         let back = report(false, &general);
         assert_eq!(idle_report(Some(&back), &general, Duration::ZERO), None);
+    }
+
+    #[test]
+    fn a_wall_clock_far_ahead_of_the_timer_means_the_computer_slept() {
+        let before = SystemTime::UNIX_EPOCH + Duration::from_secs(1_000_000);
+        let every = Duration::from_secs(2);
+
+        assert!(!slept(before, before + every, every));
+        assert!(!slept(before, before + Duration::from_secs(6), every));
+        assert!(slept(before, before + Duration::from_secs(90), every));
+        // Set back: not sleep.
+        assert!(!slept(before, before - Duration::from_secs(90), every));
     }
 }

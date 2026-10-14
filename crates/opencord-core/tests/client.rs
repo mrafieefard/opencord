@@ -1128,3 +1128,147 @@ async fn a_sound_from_another_server_is_uploaded_there_the_first_time_it_is_play
     assert_eq!((heard.name.as_str(), heard.volume), ("Far away", 70));
     assert_eq!(heard.duration_ms, 2_000);
 }
+
+/// A TCP relay to the server that can stop moving bytes without closing
+/// anything, as a sleeping computer's connections do, and on waking drops
+/// the connections it had, as a router that forgot them would.
+struct Relay {
+    address: String,
+    frozen: std::sync::Arc<std::sync::atomic::AtomicBool>,
+    generation: std::sync::Arc<std::sync::atomic::AtomicU64>,
+}
+
+impl Relay {
+    async fn start(target: std::net::SocketAddr) -> Self {
+        use std::sync::Arc;
+        use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap().to_string();
+        let frozen = Arc::new(AtomicBool::new(false));
+        let generation = Arc::new(AtomicU64::new(0));
+        let (frozen_in, generation_in) = (Arc::clone(&frozen), Arc::clone(&generation));
+        tokio::spawn(async move {
+            while let Ok((client, _)) = listener.accept().await {
+                let Ok(server) = tokio::net::TcpStream::connect(target).await else {
+                    continue;
+                };
+                let born = generation_in.load(Ordering::SeqCst);
+                let (client_read, client_write) = client.into_split();
+                let (server_read, server_write) = server.into_split();
+                for (mut from, mut to) in [
+                    (
+                        Box::new(client_read) as Box<dyn tokio::io::AsyncRead + Send + Unpin>,
+                        Box::new(server_write) as Box<dyn tokio::io::AsyncWrite + Send + Unpin>,
+                    ),
+                    (Box::new(server_read), Box::new(client_write)),
+                ] {
+                    let (frozen, generation) = (Arc::clone(&frozen_in), Arc::clone(&generation_in));
+                    tokio::spawn(async move {
+                        use tokio::io::{AsyncReadExt, AsyncWriteExt};
+                        let mut buffer = vec![0; 16 * 1024];
+                        loop {
+                            let Ok(read) = from.read(&mut buffer).await else {
+                                return;
+                            };
+                            while frozen.load(Ordering::SeqCst) {
+                                tokio::time::sleep(Duration::from_millis(20)).await;
+                            }
+                            if read == 0 || generation.load(Ordering::SeqCst) != born {
+                                return;
+                            }
+                            if to.write_all(&buffer[..read]).await.is_err() {
+                                return;
+                            }
+                        }
+                    });
+                }
+            }
+        });
+        Self {
+            address,
+            frozen,
+            generation,
+        }
+    }
+
+    fn sleep(&self) {
+        self.frozen.store(true, std::sync::atomic::Ordering::SeqCst);
+    }
+
+    fn wake(&self) {
+        self.generation
+            .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        self.frozen
+            .store(false, std::sync::atomic::Ordering::SeqCst);
+    }
+}
+
+#[tokio::test]
+async fn after_the_computer_sleeps_the_call_comes_back_within_seconds() {
+    let server = TestServer::start().await;
+    let relay = Relay::start(server.handle.local_addr).await;
+    let mut owner = TestClient::new("Owner");
+    owner
+        .client
+        .trust_fingerprint(&relay.address, &server.fingerprint())
+        .unwrap();
+    owner
+        .client
+        .add_server(&relay.address, server.handle.claim_token.clone())
+        .await
+        .unwrap();
+    let ready = owner.ready().await;
+    let voice = voice_channel(&ready);
+    owner
+        .client
+        .voice_join(&relay.address, voice)
+        .await
+        .unwrap();
+    owner.wait_for(voice_of(ready.self_user.id)).await;
+
+    relay.sleep();
+    tokio::time::sleep(Duration::from_secs(2)).await;
+    relay.wake();
+    let woke = std::time::Instant::now();
+    // What the wake watcher does when the wall clock jumps.
+    owner.client.check_connections().await;
+
+    // Back well before the next heartbeat (30 s) would have noticed.
+    owner
+        .wait_for(|payload| match payload {
+            CoreEventPayload::ConnectionState(ConnectionState::Reconnecting { .. }) => Some(()),
+            _ => None,
+        })
+        .await;
+    owner
+        .wait_for(|payload| match payload {
+            CoreEventPayload::ConnectionState(ConnectionState::Connected) => Some(()),
+            _ => None,
+        })
+        .await;
+    assert!(
+        woke.elapsed() < Duration::from_secs(8),
+        "{:?}",
+        woke.elapsed()
+    );
+    let mut probe = TestClient::new("Probe");
+    probe
+        .client
+        .trust_fingerprint(&server.address(), &server.fingerprint())
+        .unwrap();
+    let invite = owner
+        .client
+        .create_invite(&relay.address, None, None)
+        .await
+        .unwrap();
+    let link = invite.link.replace(&relay.address, &server.address());
+    probe.client.add_server(&link, None).await.unwrap();
+    let seen = probe.ready().await;
+    let held = seen
+        .voice_states
+        .iter()
+        .find(|state| state.user_id == ready.self_user.id)
+        .copied();
+    assert_eq!(held.and_then(|state| state.channel_id), Some(voice));
+}

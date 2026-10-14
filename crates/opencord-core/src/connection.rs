@@ -298,8 +298,15 @@ pub(crate) enum Command {
     /// Skip the wait before the next attempt, or start over after a
     /// failure.
     RetryNow,
+    /// The computer woke up: check the connection now with a heartbeat,
+    /// and reconnect if it goes unanswered for [`PROBE_TIMEOUT`]; waiting,
+    /// try again at once.
+    Probe,
     Shutdown,
 }
+
+/// How long a probe's heartbeat may go unanswered.
+pub(crate) const PROBE_TIMEOUT: Duration = Duration::from_secs(5);
 
 /// Handle to a running server task.
 pub(crate) struct Connection {
@@ -517,6 +524,8 @@ impl Task {
         heartbeat.set_missed_tick_behavior(MissedTickBehavior::Delay);
         let mut sweep = interval(Duration::from_secs(1));
         let mut awaiting_ack = false;
+        // A probe's deadline for its heartbeat's ack.
+        let mut probe: Option<Instant> = None;
         let ended = loop {
             tokio::select! {
                 frame = socket.next() => match frame {
@@ -534,7 +543,10 @@ impl Task {
                                     let _ = waiting.reply.send(result);
                                 }
                             }
-                            Some(Payload::HeartbeatAck(_)) => awaiting_ack = false,
+                            Some(Payload::HeartbeatAck(_)) => {
+                                awaiting_ack = false;
+                                probe = None;
+                            }
                             _ => {}
                         }
                     }
@@ -554,6 +566,9 @@ impl Task {
                         break Ended::Lost;
                     }
                     awaiting_ack = true;
+                }
+                () = sleep_until(probe.unwrap_or_else(Instant::now)), if probe.is_some() => {
+                    break Ended::Lost;
                 }
                 _ = sweep.tick() => {
                     let now = Instant::now();
@@ -583,6 +598,15 @@ impl Task {
                         });
                     }
                     Some(Command::RetryNow) => {}
+                    Some(Command::Probe) => {
+                        let last_seq = self.session.as_ref().map_or(0, |session| session.last_seq);
+                        let beat = Payload::Heartbeat(proto::Heartbeat { last_seq });
+                        if send_payload(&mut socket, 0, beat).await.is_err() {
+                            break Ended::Lost;
+                        }
+                        awaiting_ack = true;
+                        probe = Some(Instant::now() + PROBE_TIMEOUT);
+                    }
                     Some(Command::Shutdown) | None => {
                         let _ = socket.close(None).await;
                         break Ended::Shutdown;
@@ -705,7 +729,7 @@ impl Task {
                     Some(Command::Request { reply, .. }) => {
                         let _ = reply.send(Err(CoreError::NotConnected));
                     }
-                    Some(Command::RetryNow) => {
+                    Some(Command::RetryNow | Command::Probe) => {
                         // No more waiting: says so, so a countdown stops.
                         self.emit_state(ConnectionState::Reconnecting {
                             attempt,
@@ -728,6 +752,8 @@ impl Task {
                     let _ = reply.send(Err(CoreError::NotConnected));
                 }
                 Command::RetryNow => return true,
+                // A failure that needs the user, not the network.
+                Command::Probe => {}
                 Command::Shutdown => return false,
             }
         }
