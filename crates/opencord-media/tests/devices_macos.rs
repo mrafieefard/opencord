@@ -451,3 +451,70 @@ fn the_default_headset_pulled_out_moves_to_the_new_default_silently() {
     );
     drop(call.engine);
 }
+
+/// A real headset (`OPENCORD_TEST_HEADSET`, its UID without `:output` or
+/// `:input`, e.g. AirPods' `74-65-0C-EE-4E-66`): its speaker is opened,
+/// then its microphone, which moves Bluetooth headsets to their headset
+/// profile; the speaker must still be playing after.
+#[test]
+#[ignore = "needs a Bluetooth headset: OPENCORD_TEST_HEADSET=<uid>"]
+fn a_real_headset_keeps_playing_when_its_microphone_opens() {
+    use opencord_media::audio::device::{Microphone, Speaker};
+    let Ok(uid) = std::env::var("OPENCORD_TEST_HEADSET") else {
+        println!("skipped: no OPENCORD_TEST_HEADSET");
+        return;
+    };
+    let output_uid = format!("{uid}:output");
+    let output = device_id(&output_uid);
+    let running = || {
+        get::<u32>(
+            output, 0x676f6e65, /* kAudioDevicePropertyDeviceIsRunningSomewhere */
+        )
+    };
+    let rate = || get::<f64>(output, kAudioDevicePropertyNominalSampleRate);
+
+    let speaker = Speaker::open(Some(&format!("coreaudio:{output_uid}"))).unwrap();
+    std::thread::sleep(Duration::from_millis(500));
+    println!(
+        "speaker open at {} Hz × {}: device at {} Hz, running {}",
+        speaker.rate,
+        speaker.channels,
+        rate(),
+        running()
+    );
+    let microphone = Microphone::open(Some(&format!("coreaudio:{uid}:input"))).unwrap();
+    println!(
+        "microphone open at {} Hz × {}",
+        microphone.rate, microphone.channels
+    );
+    for tenth in 0..30 {
+        std::thread::sleep(Duration::from_millis(100));
+        if tenth % 5 == 4 {
+            println!(
+                "{} ms: speaker lost {}, device at {} Hz, running {}",
+                (tenth + 1) * 100,
+                speaker.health.is_lost(),
+                rate(),
+                running()
+            );
+        }
+    }
+    // Lost when the profile changes; reopened as the engine does.
+    if speaker.health.is_lost() {
+        drop(speaker);
+        let again = Speaker::open(Some(&format!("coreaudio:{output_uid}"))).unwrap();
+        std::thread::sleep(Duration::from_millis(1000));
+        println!(
+            "reopened at {} Hz × {}: device at {} Hz, running {}, lost {}",
+            again.rate,
+            again.channels,
+            rate(),
+            running(),
+            again.health.is_lost()
+        );
+        assert!(running() == 1 && !again.health.is_lost());
+    } else {
+        assert_eq!(running(), 1);
+    }
+    drop(microphone);
+}
