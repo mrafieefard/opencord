@@ -76,12 +76,72 @@ class VoicePage extends ConsumerStatefulWidget {
 }
 
 class _VoicePageState extends ConsumerState<VoicePage> {
+  /// The chosen camera's name; `null` for the system's.
+  String? _cameraName;
+
   @override
   void initState() {
     super.initState();
     // Devices plugged in since voice last looked.
     ref.read(audioDeviceListProvider.notifier).refresh();
+    _nameChosenCamera();
   }
+
+  Future<List<(String, String)>> _cameras() async {
+    try {
+      return await ref.read(repositoryProvider).cameras();
+    } on Object {
+      return const [];
+    }
+  }
+
+  Future<void> _nameChosenCamera() async {
+    final chosen = ref.read(repositoryProvider).chosenCamera;
+    if (chosen == null) return;
+    final cameras = await _cameras();
+    if (!mounted) return;
+    setState(() {
+      _cameraName = cameras.where((c) => c.$1 == chosen).firstOrNull?.$2;
+    });
+  }
+
+  /// Temporary camera menu (docs/plans/macos.md M8): which camera turning
+  /// it on starts from, until the app gets its real one.
+  Widget _cameraMenu() => Builder(
+    builder: (context) => OcButton(
+      label: _cameraName ?? 'Default',
+      dense: true,
+      icon: OcIcons.expandMore,
+      onPressed: () async {
+        final rect = globalRectOf(context);
+        final repository = ref.read(repositoryProvider);
+        final cameras = await _cameras();
+        if (!context.mounted) return;
+        void choose(String? id, String? name) {
+          repository.chooseCamera(id);
+          setState(() => _cameraName = name);
+        }
+
+        showOcMenu(
+          context: context,
+          position: rect.bottomLeft.translate(0, 4),
+          entries: [
+            OcMenuItem(
+              label: 'Default',
+              checked: repository.chosenCamera == null,
+              onSelected: () => choose(null, null),
+            ),
+            for (final (id, name) in cameras)
+              OcMenuItem(
+                label: name,
+                checked: id == repository.chosenCamera,
+                onSelected: () => choose(id, name),
+              ),
+          ],
+        );
+      },
+    ),
+  );
 
   @override
   Widget build(BuildContext context) {
@@ -140,6 +200,11 @@ class _VoicePageState extends ConsumerState<VoicePage> {
                 devices.outputs,
                 audio.withOutput,
               ),
+            ),
+            SettingsRow(
+              title: 'Camera',
+              icon: OcIcons.videocam,
+              trailing: _cameraMenu(),
             ),
           ],
         ),

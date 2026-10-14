@@ -1608,6 +1608,14 @@ class MockRepository implements OpencordRepository {
 
   String? cameraDevice;
 
+  @override
+  String? get chosenCamera => cameraDevice;
+
+  @override
+  Future<List<(String, String)>> cameras() async => const [
+    ('mock-camera', 'Mock camera'),
+  ];
+
   /// Thrown when the camera is turned on, for tests.
   RepoException? cameraError;
 

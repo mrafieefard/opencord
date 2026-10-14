@@ -1418,6 +1418,15 @@ class RustRepository implements OpencordRepository {
   void chooseCamera(String? deviceId) => _cameraDevice = deviceId;
 
   @override
+  String? get chosenCamera => _cameraDevice;
+
+  @override
+  Future<List<(String, String)>> cameras() async => [
+    for (final camera in await _call(_core.cameraDevices))
+      (camera.id, camera.name),
+  ];
+
+  @override
   void setVideoWants(List<VideoWant> wants) => _now(
     () => _core.videoSetWants([
       for (final want in wants)

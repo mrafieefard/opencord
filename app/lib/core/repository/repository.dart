@@ -398,6 +398,13 @@ abstract interface class OpencordRepository {
   /// device id; `null` for the system's first.
   void chooseCamera(String? deviceId);
 
+  /// The device id [chooseCamera] chose last, or `null`.
+  String? get chosenCamera;
+
+  /// The cameras there are, as (device id, name). Temporary, for the
+  /// camera menu on the Voice & audio page (docs/plans/macos.md M8).
+  Future<List<(String, String)>> cameras();
+
   /// Turning the camera on may fail (a [RepoException] says why); it then
   /// stays off.
   Future<void> setVoiceSelf({

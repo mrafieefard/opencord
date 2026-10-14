@@ -1142,6 +1142,28 @@ Rulings (`Mn: Ruling: … — cost if wrong: …`):
   preferred camera, since it lacks the app's
   `NSCameraUseContinuityCameraDeviceType` — cost if wrong: someone who
   picked another camera in Control Center gets that one.
+- M8: Ruling: **a temporary camera menu** (`shared:`, at the user's
+  request; the Linux session will replace it with a proper one): User
+  settings → Voice & audio → Devices → Camera lists Default and each
+  camera (`OpencordRepository.cameras()` over the existing
+  `cameraDevices()` binding; `chosenCamera`; no bindings regenerated) and
+  calls `chooseCamera`, which takes effect the next time the camera turns
+  on. The choice isn't saved across launches. **Continuity Camera passes
+  (user, release build):** the menu listed the FaceTime HD camera and the
+  iPhone, and the camera started from each — cost if wrong: none; it's
+  meant to be replaced.
+- M8: Finding for the Linux session (server and shared app, not edited):
+  after many app restarts against one server (`serve_lan.sh`, all from
+  this Mac's address), joining General kept failing with "slow down" for
+  several minutes. The app had signed in (one stable gateway connection),
+  but over 2 minutes of retries it sent only about 500 bytes and never
+  opened a voice connection, so the server refused the join request
+  itself. Its limits are 5 sign-ins per minute per address and 10 voice
+  changes per 10 s per user, both of which should have recovered by then.
+  Also, after a refused sign-in the app keeps its unsigned connection and
+  never retries after `retry_after_ms`. A fresh server and profile
+  worked at once — cost if wrong: a user locked out of voice until they
+  restart.
 - M8: Ruling: `app/tool/macos/serve_lan.sh` is the server for the
   checks across machines: it binds 0.0.0.0, advertises en0's address, uses
   port 47700 and a temporary folder, and runs optional Talker and camera
@@ -1194,6 +1216,12 @@ Rulings (`Mn: Ruling: … — cost if wrong: …`):
   instead of asking for 48 kHz; with 48 kHz, AirPods' speaker could not be
   reopened once their microphone was open, and calls went silent. Should
   have been a seam (each system's rule for a device's rate).
+- M8 (`shared:`) `app/lib/core/repository/repository.dart`,
+  `core/rust/core_api.dart`, `core/rust/rust_repository.dart`,
+  `core/mock/mock_repository.dart`,
+  `features/settings/user/app_pages.dart`: a temporary camera menu under
+  Voice & audio → Devices, at the user's request, to check Continuity
+  Camera; the Linux session replaces it.
 
 Shared tests that fail on macOS for a platform reason (not edited):
 - M0: `app/test/unit/desktop/linux_notifications_test.dart` (2 tests) and
