@@ -39,8 +39,13 @@ use crate::video::codec::macos::{ffi, nv12_picture};
 const DISPLAY_VARIABLE: &str = "OPENCORD_SCREEN_DISPLAY";
 
 /// The most pixels captured: the largest preset's (`Source`, 3840×2160).
-/// The sender scales to the share's own preset.
 const MOST_PIXELS: u32 = 3840 * 2160;
+/// The fewest pixels a share's capture budget gets: 1080p's, so a share
+/// whose quality changes between 480p and 1080p while live loses nothing.
+/// ScreenCaptureKit scales on the GPU; the sender's own scaling of a Retina
+/// display's pixels cost 3½ times the CPU and a fifth of the frame rate
+/// (§7, M6).
+const FEWEST_PIXELS: u32 = 1920 * 1080;
 
 /// How long `start` waits for the first picture before going on anyway.
 const FIRST_PICTURE: Duration = Duration::from_secs(3);
@@ -70,12 +75,17 @@ pub(super) async fn sources() -> Result<Vec<ScreenSource>, ScreenError> {
     Ok(Vec::new())
 }
 
+/// The pixel budget for a share's `max_pixels`.
+fn budget(max_pixels: u32) -> u32 {
+    max_pixels.clamp(FEWEST_PIXELS, MOST_PIXELS)
+}
+
 /// The capture size for content of `width` × `height` points at `scale`
-/// pixels a point: its pixels, at most [`MOST_PIXELS`], even.
-fn capture_size(width: f64, height: f64, scale: f64) -> (u32, u32) {
+/// pixels a point: its pixels, at most `budget`, its shape kept, even.
+fn capture_size(width: f64, height: f64, scale: f64, budget: u32) -> (u32, u32) {
     let pixels = |points: f64| (points * scale).round().max(2.0) as u32;
     let (width, height) =
-        opencord_common::video::scaled_to_fit(pixels(width), pixels(height), MOST_PIXELS);
+        opencord_common::video::scaled_to_fit(pixels(width), pixels(height), budget);
     (width.max(2), height.max(2))
 }
 
@@ -86,6 +96,8 @@ struct Shared {
     finished: AtomicBool,
     /// The size asked of the stream now.
     size: Mutex<(u32, u32)>,
+    /// The most pixels to capture.
+    budget: u32,
     /// Told once the first complete picture came.
     first: Mutex<Option<std::sync::mpsc::Sender<()>>>,
 }
@@ -156,7 +168,7 @@ impl Handler {
             return;
         }
         if let Some((width, height, scale)) = info.content {
-            let wanted = capture_size(width, height, scale);
+            let wanted = capture_size(width, height, scale, shared.budget);
             let mut size = shared.size.lock().unwrap_or_else(|e| e.into_inner());
             if wanted != *size {
                 *size = wanted;
@@ -468,7 +480,7 @@ pub(super) async fn start(
     let filter = Sendable(filter);
     tokio::task::spawn_blocking(move || {
         let filter = filter;
-        capture(&filter.0, request.fps, frames)
+        capture(&filter.0, request.fps, budget(request.max_pixels), frames)
     })
     .await
     .map_err(|error| ScreenError::Failed(error.to_string()))?
@@ -479,6 +491,7 @@ pub(super) async fn start(
 fn capture(
     filter: &SCContentFilter,
     fps: u32,
+    budget: u32,
     frames: SyncSender<RawFrame>,
 ) -> Result<(Capture, Picked), ScreenError> {
     // SAFETY: property reads of a filter (14.0 and later).
@@ -489,7 +502,7 @@ fn capture(
             filter.pointPixelScale(),
         )
     };
-    let size = capture_size(rect.size.width, rect.size.height, f64::from(scale));
+    let size = capture_size(rect.size.width, rect.size.height, f64::from(scale), budget);
     let kind = if style == SCShareableContentStyle::Window {
         SourceKind::Window
     } else {
@@ -504,6 +517,7 @@ fn capture(
         sender: Mutex::new(Some(frames)),
         finished: AtomicBool::new(false),
         size: Mutex::new(size),
+        budget,
         first: Mutex::new(Some(first)),
     });
     // SAFETY: ScreenCaptureKit calls with valid arguments.
@@ -581,11 +595,21 @@ mod tests {
     use super::*;
 
     #[test]
-    fn content_is_captured_at_its_pixels_up_to_4k() {
-        assert_eq!(capture_size(1440.0, 900.0, 2.0), (2880, 1800));
-        assert_eq!(capture_size(1440.0, 900.0, 1.0), (1440, 900));
-        assert_eq!(capture_size(2560.0, 1440.0, 2.0), (3840, 2160));
-        assert_eq!(capture_size(801.0, 601.0, 1.0), (800, 600), "even");
+    fn content_is_captured_at_its_pixels_within_the_shares_budget() {
+        let source = budget(3840 * 2160);
+        assert_eq!(capture_size(1440.0, 900.0, 2.0, source), (2880, 1800));
+        assert_eq!(capture_size(2560.0, 1440.0, 2.0, source), (3840, 2160));
+        assert_eq!(
+            capture_size(1680.0, 1050.0, 2.0, budget(1920 * 1080)),
+            (1820, 1138)
+        );
+        assert_eq!(
+            capture_size(1680.0, 1050.0, 2.0, budget(1280 * 720)),
+            (1820, 1138),
+            "never under 1080p's budget"
+        );
+        assert_eq!(capture_size(1440.0, 900.0, 1.0, source), (1440, 900));
+        assert_eq!(capture_size(801.0, 601.0, 1.0, source), (800, 600), "even");
     }
 
     #[test]
@@ -608,6 +632,7 @@ mod tests {
         let asked = Instant::now();
         let request = StartRequest {
             fps: 30,
+            max_pixels: 1920 * 1080,
             restore_token: None,
             source_id: None,
         };
@@ -667,6 +692,7 @@ mod cost {
         let (sender, frames) = mpsc::sync_channel(4);
         let request = StartRequest {
             fps: 30,
+            max_pixels: 1920 * 1080,
             restore_token: None,
             source_id: None,
         };

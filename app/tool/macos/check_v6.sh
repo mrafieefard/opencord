@@ -49,7 +49,7 @@ watch_started=$(date +%s)
 cpu=()
 for _ in $(seq 1 10); do
   sleep 1
-  cpu+=("$(ps -A -o %cpu=,comm= | awk '/Opencord.app\/Contents\/MacOS\/Opencord$/ {print $1; exit}')")
+  cpu+=("$(ps -A -o %cpu=,comm= | awk '/Opencord.app\/Contents\/MacOS\/Opencord$/ && !found {print $1; found = 1}')")
 done
 if ! wait "$test_pid"; then
   cat "$work/share.log" >&2

@@ -42,7 +42,7 @@ done
 cpu=()
 for _ in $(seq 1 8); do
   sleep 1
-  cpu+=("$(ps -A -o %cpu=,comm= | awk '/Opencord.app\/Contents\/MacOS\/Opencord$/ {print $1; exit}')")
+  cpu+=("$(ps -A -o %cpu=,comm= | awk '/Opencord.app\/Contents\/MacOS\/Opencord$/ && !found {print $1; found = 1}')")
 done
 for watcher in "${watchers[@]}"; do
   wait "$watcher"

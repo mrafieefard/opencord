@@ -379,23 +379,26 @@ impl Output {
                 )
             }
         };
+        // The aggregate device's input is its main device's input streams
+        // (BlackHole has one) and then the tap's, which is stereo: the last
+        // buffer, interleaved; or, planar, the last two.
         let mut stereo = Vec::new();
         match buffers {
             [] => return,
-            [one] if one.mNumberChannels >= 2 => {
-                let count = one.mNumberChannels as usize;
-                for frame in channel(one).chunks_exact(count) {
+            [.., last] if last.mNumberChannels >= 2 => {
+                let count = last.mNumberChannels as usize;
+                for frame in channel(last).chunks_exact(count) {
                     stereo.extend_from_slice(&frame[..2]);
                 }
             }
-            [one] => {
-                for sample in channel(one) {
-                    stereo.extend_from_slice(&[*sample, *sample]);
-                }
-            }
-            [left, right, ..] => {
+            [.., left, right] => {
                 for (l, r) in channel(left).iter().zip(channel(right)) {
                     stereo.extend_from_slice(&[*l, *r]);
+                }
+            }
+            [only] => {
+                for sample in channel(only) {
+                    stereo.extend_from_slice(&[*sample, *sample]);
                 }
             }
         }
