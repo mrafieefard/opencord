@@ -118,6 +118,18 @@ fn devices() -> Vec<Retained<AVCaptureDevice>> {
     unsafe { session.devices() }.to_vec()
 }
 
+/// On 14 and later, the camera macOS recommends: the one last picked in
+/// Control Center, or an iPhone mounted as a Continuity Camera, which the
+/// app has no other way to choose.
+fn preferred() -> Option<Retained<AVCaptureDevice>> {
+    if available!(macos = 14.0) {
+        // SAFETY: a class property read.
+        unsafe { AVCaptureDevice::systemPreferredCamera() }
+    } else {
+        None
+    }
+}
+
 pub(super) async fn cameras() -> Result<Vec<CameraInfo>, CameraError> {
     access().await?;
     tokio::task::spawn_blocking(|| {
@@ -255,7 +267,7 @@ impl Capture {
                 // SAFETY: a class method with a valid string.
                 unsafe { AVCaptureDevice::deviceWithUniqueID(&NSString::from_str(id)) }
             }
-            None => devices().into_iter().next(),
+            None => preferred().or_else(|| devices().into_iter().next()),
         }
         .ok_or(CameraError::NoCamera)?;
         // SAFETY: a property read.
@@ -472,6 +484,32 @@ mod tests {
     use std::time::Duration;
 
     use super::*;
+
+    /// The camera used when none is chosen is one of those listed (an
+    /// iPhone when one is mounted as a Continuity Camera).
+    #[test]
+    #[ignore = "needs a camera and camera access"]
+    fn the_camera_used_by_default_is_a_listed_one() {
+        let runtime = tokio::runtime::Runtime::new().unwrap();
+        let listed = runtime.block_on(cameras()).unwrap();
+        // SAFETY: property reads.
+        let used = preferred()
+            .or_else(|| devices().into_iter().next())
+            .map(|device| unsafe {
+                (
+                    device.uniqueID().to_string(),
+                    device.localizedName().to_string(),
+                )
+            })
+            .unwrap();
+        println!(
+            "listed: {:?}; used: {} (macOS's preferred: {})",
+            listed.iter().map(|camera| &camera.name).collect::<Vec<_>>(),
+            used.1,
+            preferred().is_some()
+        );
+        assert!(listed.iter().any(|camera| camera.id == used.0));
+    }
 
     /// Needs a camera and camera access for the terminal app, so it runs
     /// with the user present: `--ignored`.

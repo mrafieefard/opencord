@@ -1110,6 +1110,16 @@ Rulings (`Mn: Ruling: … — cost if wrong: …`):
   silent second per change. Opening the device at its current rate when
   that isn't 48 kHz would avoid both; the resampler already takes any
   rate.
+- M8: Ruling: with no camera chosen (the app has no camera menu), the
+  camera is macOS's `systemPreferredCamera` on 14 and later: the one last
+  picked in Control Center, or an iPhone mounted as a Continuity Camera.
+  Otherwise, as before, it's the first one discovered (built-in first).
+  Until now an iPhone was listed ("Mohammad Camera" in M5) but could never
+  be used. `the_camera_used_by_default_is_a_listed_one` (ignored) passes:
+  with no iPhone near, the FaceTime HD camera. A bare test process gets no
+  preferred camera, since it lacks the app's
+  `NSCameraUseContinuityCameraDeviceType` — cost if wrong: someone who
+  picked another camera in Control Center gets that one.
 - M8: Ruling: `app/tool/macos/serve_lan.sh` is the server for the
   checks across machines: it binds 0.0.0.0, advertises en0's address, uses
   port 47700 and a temporary folder, and runs optional Talker and camera
