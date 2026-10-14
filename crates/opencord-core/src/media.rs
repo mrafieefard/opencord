@@ -16,7 +16,7 @@ use opencord_media::audio::processing::{NoiseSuppression, ProcessingSettings};
 use opencord_media::audio::processor::ProcessorSettings;
 use opencord_media::audio::{deep_filter, device};
 use opencord_media::transport::{
-    AudioFrame, TransportError, VoiceConnection, VoiceEvent, VoiceTarget,
+    AudioFrame, ConnectionStats, TransportError, VoiceConnection, VoiceEvent, VoiceTarget,
 };
 use tokio::runtime::Handle;
 use tokio::sync::mpsc;
@@ -28,6 +28,7 @@ use opencord_media::hotkeys::{self, HotkeyEvent};
 use crate::api::types::{
     AudioDevice, AudioDevices, AudioSettings, CoreError, HotkeyAction, HotkeyBinding,
     HotkeySupport, MediaEvent, NoiseSuppressionMode, SpeakingChange, VoiceConnectionState,
+    VoiceStats,
 };
 use crate::client::Client;
 use crate::video::Video;
@@ -902,6 +903,11 @@ impl SessionTask {
                         VoiceEvent::Speaking { user_id, flags } => {
                             self.engine.set_priority(user_id, flags & speaking::PRIORITY != 0);
                         }
+                        VoiceEvent::Stats(stats) => {
+                            if let Some(live) = &live {
+                                self.stats(&live.server, &stats);
+                            }
+                        }
                         VoiceEvent::ClientConnected { .. }
                         | VoiceEvent::Resumed
                         | VoiceEvent::UplinkEstimate(_) => {}
@@ -1021,6 +1027,28 @@ impl SessionTask {
         }
     }
 
+    fn stats(&self, server: &VoiceServer, stats: &ConnectionStats) {
+        let (camera_encoder, screen_encoder) = self.video.encoders();
+        let percent = |loss: Option<f32>| loss.map(|loss| loss * 100.0);
+        let _ = self.events.send(MediaEvent::ConnectionStats {
+            server_key: server.server_key.clone(),
+            channel_id: server.channel_id,
+            stats: VoiceStats {
+                ping_ms: stats
+                    .rtt
+                    .map(|rtt| u32::try_from(rtt.as_millis()).unwrap_or(u32::MAX)),
+                jitter_ms: stats.jitter.map(|jitter| jitter.as_secs_f32() * 1000.0),
+                loss_in_percent: percent(stats.loss_in),
+                loss_out_percent: percent(stats.loss_out),
+                bitrate_in: stats.bitrate_in,
+                bitrate_out: stats.bitrate_out,
+                voice_node: voice_node(server),
+                camera_encoder,
+                screen_encoder,
+            },
+        });
+    }
+
     fn speaking(&self, server: &VoiceServer, changes: Vec<SpeakingChange>) {
         let _ = self.events.send(MediaEvent::Speaking {
             server_key: server.server_key.clone(),
@@ -1097,8 +1125,34 @@ async fn sleep_until(at: Option<Instant>) {
     }
 }
 
+/// The voice node's host and port, for diagnostics: the endpoint's, or the
+/// main server's own.
+fn voice_node(server: &VoiceServer) -> String {
+    let url = server.gateway_url();
+    let rest = url.split_once("://").map_or(url.as_str(), |(_, rest)| rest);
+    rest.split('/').next().unwrap_or(rest).to_owned()
+}
+
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn the_voice_node_is_named_by_its_host_and_port() {
+        let server = |endpoint: &str| super::VoiceServer {
+            server_key: "chat.example:7710".to_owned(),
+            user_id: 1,
+            session_id: String::new(),
+            channel_id: 2,
+            endpoint: endpoint.to_owned(),
+            certificate_fingerprint: Vec::new(),
+            token: Vec::new(),
+        };
+        assert_eq!(super::voice_node(&server("")), "chat.example:7710");
+        assert_eq!(
+            super::voice_node(&server("wss://node-2.example:7711/voice")),
+            "node-2.example:7711"
+        );
+    }
+
     use super::*;
 
     fn server(key: &str, channel_id: i64) -> VoiceServer {

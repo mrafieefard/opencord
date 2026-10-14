@@ -205,6 +205,15 @@ final class AudioDeviceFailed extends RepoEvent {
 
 /// The microphone's level after processing, in dBFS, about 20 times a
 /// second while a meter is open.
+/// How this device's voice connection is doing, once a second (Phase 2
+/// §12).
+final class VoiceStatsChanged extends RepoEvent {
+  const VoiceStatsChanged(super.serverKey, this.channelId, this.stats);
+
+  final int channelId;
+  final VoiceStats stats;
+}
+
 final class InputLevelChanged extends RepoEvent {
   const InputLevelChanged(this.dbfs) : super('');
 

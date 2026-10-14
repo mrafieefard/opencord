@@ -242,6 +242,8 @@ pub enum VoiceEvent {
     },
     /// What the uplink can carry, in bits per second.
     UplinkEstimate(u64),
+    /// How the connection to the node is doing, once a second.
+    Stats(ConnectionStats),
     /// The gateway dropped and came back without losing anything.
     Resumed,
     /// Over for good. Join again through the main server for another one.
@@ -524,4 +526,20 @@ fn unix_ms() -> i64 {
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap_or_default();
     i64::try_from(since.as_millis()).unwrap_or(i64::MAX)
+}
+
+/// How the connection to the voice node is doing (Phase 2 §12, connection
+/// diagnostics), over the last second.
+#[derive(Debug, Clone, Copy, PartialEq, Default)]
+pub struct ConnectionStats {
+    /// Round trip to the node.
+    pub rtt: Option<Duration>,
+    /// The largest interarrival jitter among the voices received.
+    pub jitter: Option<Duration>,
+    /// Share of packets lost on the way here, and on the way out (0–1).
+    pub loss_in: Option<f32>,
+    pub loss_out: Option<f32>,
+    /// Bits per second received and sent, everything included.
+    pub bitrate_in: u64,
+    pub bitrate_out: u64,
 }

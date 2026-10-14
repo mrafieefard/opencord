@@ -249,6 +249,12 @@ void _route(Ref ref, RepoEvent event) {
     case InputLevelChanged(:final dbfs):
       ref.read(inputLevelProvider.notifier).set(dbfs);
       return;
+    case VoiceStatsChanged(:final serverKey, :final channelId, :final stats):
+      final session = ref.read(voiceSessionProvider);
+      if (session.serverKey == serverKey && session.channelId == channelId) {
+        ref.read(voiceStatsProvider.notifier).set(stats);
+      }
+      return;
     case SpokeWhileMuted():
       _remindMuted(ref);
       return;
@@ -982,6 +988,27 @@ class InputLevelNotifier extends Notifier<double?> {
 
 final inputLevelProvider = NotifierProvider<InputLevelNotifier, double?>(
   InputLevelNotifier.new,
+);
+
+/// This device's voice connection over the last second (Phase 2 §12);
+/// null until the first report, and again after leaving.
+class VoiceStatsNotifier extends Notifier<VoiceStats?> {
+  @override
+  VoiceStats? build() {
+    ref.listen(
+      voiceSessionProvider.select(
+        (session) => (session.serverKey, session.channelId),
+      ),
+      (_, _) => state = null,
+    );
+    return null;
+  }
+
+  void set(VoiceStats stats) => state = stats;
+}
+
+final voiceStatsProvider = NotifierProvider<VoiceStatsNotifier, VoiceStats?>(
+  VoiceStatsNotifier.new,
 );
 
 final audioNoticeProvider = NotifierProvider<AudioNoticeNotifier, AudioNotice?>(

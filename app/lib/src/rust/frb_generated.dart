@@ -3795,6 +3795,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  double dco_decode_box_autoadd_f_32(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return raw as double;
+  }
+
+  @protected
   PlatformInt64 dco_decode_box_autoadd_i_64(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return dco_decode_i_64(raw);
@@ -3950,6 +3956,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   VoiceState dco_decode_box_autoadd_voice_state(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return dco_decode_voice_state(raw);
+  }
+
+  @protected
+  VoiceStats dco_decode_box_autoadd_voice_stats(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return dco_decode_voice_stats(raw);
   }
 
   @protected
@@ -4601,6 +4613,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         return MediaEvent_ScreenShareStopped(
           message: dco_decode_String(raw[1]),
         );
+      case 13:
+        return MediaEvent_ConnectionStats(
+          serverKey: dco_decode_String(raw[1]),
+          channelId: dco_decode_i_64(raw[2]),
+          stats: dco_decode_box_autoadd_voice_stats(raw[3]),
+        );
       default:
         throw Exception("unreachable");
     }
@@ -4653,6 +4671,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   bool? dco_decode_opt_box_autoadd_bool(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return raw == null ? null : dco_decode_box_autoadd_bool(raw);
+  }
+
+  @protected
+  double? dco_decode_opt_box_autoadd_f_32(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return raw == null ? null : dco_decode_box_autoadd_f_32(raw);
   }
 
   @protected
@@ -5242,6 +5266,25 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  VoiceStats dco_decode_voice_stats(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 9)
+      throw Exception('unexpected arr length: expect 9 but see ${arr.length}');
+    return VoiceStats(
+      pingMs: dco_decode_opt_box_autoadd_u_32(arr[0]),
+      jitterMs: dco_decode_opt_box_autoadd_f_32(arr[1]),
+      lossInPercent: dco_decode_opt_box_autoadd_f_32(arr[2]),
+      lossOutPercent: dco_decode_opt_box_autoadd_f_32(arr[3]),
+      bitrateIn: dco_decode_u_64(arr[4]),
+      bitrateOut: dco_decode_u_64(arr[5]),
+      voiceNode: dco_decode_String(arr[6]),
+      cameraEncoder: dco_decode_opt_String(arr[7]),
+      screenEncoder: dco_decode_opt_String(arr[8]),
+    );
+  }
+
+  @protected
   AnyhowException sse_decode_AnyhowException(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     var inner = sse_decode_String(deserializer);
@@ -5407,6 +5450,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     return (sse_decode_connection_state(deserializer));
+  }
+
+  @protected
+  double sse_decode_box_autoadd_f_32(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return (sse_decode_f_32(deserializer));
   }
 
   @protected
@@ -5589,6 +5638,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   VoiceState sse_decode_box_autoadd_voice_state(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     return (sse_decode_voice_state(deserializer));
+  }
+
+  @protected
+  VoiceStats sse_decode_box_autoadd_voice_stats(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return (sse_decode_voice_stats(deserializer));
   }
 
   @protected
@@ -6453,6 +6508,15 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       case 12:
         var var_message = sse_decode_String(deserializer);
         return MediaEvent_ScreenShareStopped(message: var_message);
+      case 13:
+        var var_serverKey = sse_decode_String(deserializer);
+        var var_channelId = sse_decode_i_64(deserializer);
+        var var_stats = sse_decode_box_autoadd_voice_stats(deserializer);
+        return MediaEvent_ConnectionStats(
+          serverKey: var_serverKey,
+          channelId: var_channelId,
+          stats: var_stats,
+        );
       default:
         throw UnimplementedError('');
     }
@@ -6520,6 +6584,17 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
     if (sse_decode_bool(deserializer)) {
       return (sse_decode_box_autoadd_bool(deserializer));
+    } else {
+      return null;
+    }
+  }
+
+  @protected
+  double? sse_decode_opt_box_autoadd_f_32(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    if (sse_decode_bool(deserializer)) {
+      return (sse_decode_box_autoadd_f_32(deserializer));
     } else {
       return null;
     }
@@ -7237,6 +7312,31 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  VoiceStats sse_decode_voice_stats(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_pingMs = sse_decode_opt_box_autoadd_u_32(deserializer);
+    var var_jitterMs = sse_decode_opt_box_autoadd_f_32(deserializer);
+    var var_lossInPercent = sse_decode_opt_box_autoadd_f_32(deserializer);
+    var var_lossOutPercent = sse_decode_opt_box_autoadd_f_32(deserializer);
+    var var_bitrateIn = sse_decode_u_64(deserializer);
+    var var_bitrateOut = sse_decode_u_64(deserializer);
+    var var_voiceNode = sse_decode_String(deserializer);
+    var var_cameraEncoder = sse_decode_opt_String(deserializer);
+    var var_screenEncoder = sse_decode_opt_String(deserializer);
+    return VoiceStats(
+      pingMs: var_pingMs,
+      jitterMs: var_jitterMs,
+      lossInPercent: var_lossInPercent,
+      lossOutPercent: var_lossOutPercent,
+      bitrateIn: var_bitrateIn,
+      bitrateOut: var_bitrateOut,
+      voiceNode: var_voiceNode,
+      cameraEncoder: var_cameraEncoder,
+      screenEncoder: var_screenEncoder,
+    );
+  }
+
+  @protected
   void sse_encode_AnyhowException(
     AnyhowException self,
     SseSerializer serializer,
@@ -7398,6 +7498,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_connection_state(self, serializer);
+  }
+
+  @protected
+  void sse_encode_box_autoadd_f_32(double self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_f_32(self, serializer);
   }
 
   @protected
@@ -7608,6 +7714,15 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_voice_state(self, serializer);
+  }
+
+  @protected
+  void sse_encode_box_autoadd_voice_stats(
+    VoiceStats self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_voice_stats(self, serializer);
   }
 
   @protected
@@ -8371,6 +8486,15 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       case MediaEvent_ScreenShareStopped(message: final message):
         sse_encode_i_32(12, serializer);
         sse_encode_String(message, serializer);
+      case MediaEvent_ConnectionStats(
+        serverKey: final serverKey,
+        channelId: final channelId,
+        stats: final stats,
+      ):
+        sse_encode_i_32(13, serializer);
+        sse_encode_String(serverKey, serializer);
+        sse_encode_i_64(channelId, serializer);
+        sse_encode_box_autoadd_voice_stats(stats, serializer);
     }
   }
 
@@ -8421,6 +8545,16 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_bool(self != null, serializer);
     if (self != null) {
       sse_encode_box_autoadd_bool(self, serializer);
+    }
+  }
+
+  @protected
+  void sse_encode_opt_box_autoadd_f_32(double? self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    sse_encode_bool(self != null, serializer);
+    if (self != null) {
+      sse_encode_box_autoadd_f_32(self, serializer);
     }
   }
 
@@ -8953,5 +9087,19 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_bool(self.suppress, serializer);
     sse_encode_bool(self.selfVideo, serializer);
     sse_encode_bool(self.selfStream, serializer);
+  }
+
+  @protected
+  void sse_encode_voice_stats(VoiceStats self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_opt_box_autoadd_u_32(self.pingMs, serializer);
+    sse_encode_opt_box_autoadd_f_32(self.jitterMs, serializer);
+    sse_encode_opt_box_autoadd_f_32(self.lossInPercent, serializer);
+    sse_encode_opt_box_autoadd_f_32(self.lossOutPercent, serializer);
+    sse_encode_u_64(self.bitrateIn, serializer);
+    sse_encode_u_64(self.bitrateOut, serializer);
+    sse_encode_String(self.voiceNode, serializer);
+    sse_encode_opt_String(self.cameraEncoder, serializer);
+    sse_encode_opt_String(self.screenEncoder, serializer);
   }
 }

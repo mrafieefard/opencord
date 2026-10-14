@@ -4921,6 +4921,16 @@ impl SseDecode for crate::api::types::MediaEvent {
                     message: var_message,
                 };
             }
+            13 => {
+                let mut var_serverKey = <String>::sse_decode(deserializer);
+                let mut var_channelId = <i64>::sse_decode(deserializer);
+                let mut var_stats = <crate::api::types::VoiceStats>::sse_decode(deserializer);
+                return crate::api::types::MediaEvent::ConnectionStats {
+                    server_key: var_serverKey,
+                    channel_id: var_channelId,
+                    stats: var_stats,
+                };
+            }
             _ => {
                 unimplemented!("");
             }
@@ -4995,6 +5005,17 @@ impl SseDecode for Option<bool> {
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         if (<bool>::sse_decode(deserializer)) {
             return Some(<bool>::sse_decode(deserializer));
+        } else {
+            return None;
+        }
+    }
+}
+
+impl SseDecode for Option<f32> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        if (<bool>::sse_decode(deserializer)) {
+            return Some(<f32>::sse_decode(deserializer));
         } else {
             return None;
         }
@@ -5793,6 +5814,32 @@ impl SseDecode for crate::api::types::VoiceState {
             suppress: var_suppress,
             self_video: var_selfVideo,
             self_stream: var_selfStream,
+        };
+    }
+}
+
+impl SseDecode for crate::api::types::VoiceStats {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_pingMs = <Option<u32>>::sse_decode(deserializer);
+        let mut var_jitterMs = <Option<f32>>::sse_decode(deserializer);
+        let mut var_lossInPercent = <Option<f32>>::sse_decode(deserializer);
+        let mut var_lossOutPercent = <Option<f32>>::sse_decode(deserializer);
+        let mut var_bitrateIn = <u64>::sse_decode(deserializer);
+        let mut var_bitrateOut = <u64>::sse_decode(deserializer);
+        let mut var_voiceNode = <String>::sse_decode(deserializer);
+        let mut var_cameraEncoder = <Option<String>>::sse_decode(deserializer);
+        let mut var_screenEncoder = <Option<String>>::sse_decode(deserializer);
+        return crate::api::types::VoiceStats {
+            ping_ms: var_pingMs,
+            jitter_ms: var_jitterMs,
+            loss_in_percent: var_lossInPercent,
+            loss_out_percent: var_lossOutPercent,
+            bitrate_in: var_bitrateIn,
+            bitrate_out: var_bitrateOut,
+            voice_node: var_voiceNode,
+            camera_encoder: var_cameraEncoder,
+            screen_encoder: var_screenEncoder,
         };
     }
 }
@@ -6870,6 +6917,17 @@ impl flutter_rust_bridge::IntoDart for crate::api::types::MediaEvent {
             crate::api::types::MediaEvent::ScreenShareStopped { message } => {
                 [12.into_dart(), message.into_into_dart().into_dart()].into_dart()
             }
+            crate::api::types::MediaEvent::ConnectionStats {
+                server_key,
+                channel_id,
+                stats,
+            } => [
+                13.into_dart(),
+                server_key.into_into_dart().into_dart(),
+                channel_id.into_into_dart().into_dart(),
+                stats.into_into_dart().into_dart(),
+            ]
+            .into_dart(),
             _ => {
                 unimplemented!("");
             }
@@ -7817,6 +7875,31 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::types::VoiceState>
     for crate::api::types::VoiceState
 {
     fn into_into_dart(self) -> crate::api::types::VoiceState {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::types::VoiceStats {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.ping_ms.into_into_dart().into_dart(),
+            self.jitter_ms.into_into_dart().into_dart(),
+            self.loss_in_percent.into_into_dart().into_dart(),
+            self.loss_out_percent.into_into_dart().into_dart(),
+            self.bitrate_in.into_into_dart().into_dart(),
+            self.bitrate_out.into_into_dart().into_dart(),
+            self.voice_node.into_into_dart().into_dart(),
+            self.camera_encoder.into_into_dart().into_dart(),
+            self.screen_encoder.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive for crate::api::types::VoiceStats {}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::types::VoiceStats>
+    for crate::api::types::VoiceStats
+{
+    fn into_into_dart(self) -> crate::api::types::VoiceStats {
         self
     }
 }
@@ -8802,6 +8885,16 @@ impl SseEncode for crate::api::types::MediaEvent {
                 <i32>::sse_encode(12, serializer);
                 <String>::sse_encode(message, serializer);
             }
+            crate::api::types::MediaEvent::ConnectionStats {
+                server_key,
+                channel_id,
+                stats,
+            } => {
+                <i32>::sse_encode(13, serializer);
+                <String>::sse_encode(server_key, serializer);
+                <i64>::sse_encode(channel_id, serializer);
+                <crate::api::types::VoiceStats>::sse_encode(stats, serializer);
+            }
             _ => {
                 unimplemented!("");
             }
@@ -8865,6 +8958,16 @@ impl SseEncode for Option<bool> {
         <bool>::sse_encode(self.is_some(), serializer);
         if let Some(value) = self {
             <bool>::sse_encode(value, serializer);
+        }
+    }
+}
+
+impl SseEncode for Option<f32> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <bool>::sse_encode(self.is_some(), serializer);
+        if let Some(value) = self {
+            <f32>::sse_encode(value, serializer);
         }
     }
 }
@@ -9461,6 +9564,21 @@ impl SseEncode for crate::api::types::VoiceState {
         <bool>::sse_encode(self.suppress, serializer);
         <bool>::sse_encode(self.self_video, serializer);
         <bool>::sse_encode(self.self_stream, serializer);
+    }
+}
+
+impl SseEncode for crate::api::types::VoiceStats {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <Option<u32>>::sse_encode(self.ping_ms, serializer);
+        <Option<f32>>::sse_encode(self.jitter_ms, serializer);
+        <Option<f32>>::sse_encode(self.loss_in_percent, serializer);
+        <Option<f32>>::sse_encode(self.loss_out_percent, serializer);
+        <u64>::sse_encode(self.bitrate_in, serializer);
+        <u64>::sse_encode(self.bitrate_out, serializer);
+        <String>::sse_encode(self.voice_node, serializer);
+        <Option<String>>::sse_encode(self.camera_encoder, serializer);
+        <Option<String>>::sse_encode(self.screen_encoder, serializer);
     }
 }
 

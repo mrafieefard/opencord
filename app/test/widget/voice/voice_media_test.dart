@@ -95,6 +95,50 @@ void main() {
     await app.dispose(tester);
   });
 
+  testWidgets('the voice panel shows the connection as bars, and its '
+      'numbers on click', (tester) async {
+    final app = await MockApp.pump(tester);
+    await _joinGeneral(tester);
+    final session = app.read(voiceSessionProvider);
+    expect(find.byTooltip('Connection info, good'), findsNothing);
+
+    app.repository.debugVoiceStats(
+      session.serverKey!,
+      session.channelId!,
+      const VoiceStats(
+        pingMs: 42,
+        jitterMs: 3.25,
+        lossInPercent: 0.5,
+        lossOutPercent: 0,
+        bitrateIn: 96000,
+        bitrateOut: 1500000,
+        voiceNode: 'opencord.example:7710',
+        cameraEncoder: 'VaApi (hardware)',
+      ),
+    );
+    await _settle(tester);
+    await tester.tap(find.byTooltip('Connection info, good'));
+    await _settle(tester);
+
+    expect(find.text('42 ms'), findsOneWidget);
+    expect(find.text('3.3 ms'), findsOneWidget);
+    expect(find.text('96 kbps'), findsOneWidget);
+    expect(find.text('1.5 Mbps'), findsOneWidget);
+    expect(find.text('opencord.example:7710'), findsOneWidget);
+    expect(find.text('H.264, VaApi (hardware)'), findsOneWidget);
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await _settle(tester);
+
+    app.repository.debugVoiceStats(
+      session.serverKey!,
+      session.channelId!,
+      const VoiceStats(pingMs: 90, lossInPercent: 12),
+    );
+    await _settle(tester);
+    expect(find.byTooltip('Connection info, poor'), findsOneWidget);
+    await app.dispose(tester);
+  });
+
   testWidgets("a headset's two halves going at once make one toast", (
     tester,
   ) async {

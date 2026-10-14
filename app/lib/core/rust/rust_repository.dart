@@ -1333,6 +1333,26 @@ class RustRepository implements OpencordRepository {
       VideoTrackRemoved(serverKey, channelId, userId, trackId),
     core.MediaEvent_CameraStopped() => null,
     core.MediaEvent_ScreenShareStopped() => null,
+    core.MediaEvent_ConnectionStats(
+      :final serverKey,
+      :final channelId,
+      :final stats,
+    ) =>
+      VoiceStatsChanged(
+        serverKey,
+        channelId,
+        VoiceStats(
+          pingMs: stats.pingMs,
+          jitterMs: stats.jitterMs,
+          lossInPercent: stats.lossInPercent,
+          lossOutPercent: stats.lossOutPercent,
+          bitrateIn: stats.bitrateIn.toInt(),
+          bitrateOut: stats.bitrateOut.toInt(),
+          voiceNode: stats.voiceNode,
+          cameraEncoder: stats.cameraEncoder,
+          screenEncoder: stats.screenEncoder,
+        ),
+      ),
   };
 
   @override

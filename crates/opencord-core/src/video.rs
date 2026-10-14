@@ -453,6 +453,17 @@ impl Video {
         lock(&self.hub).camera.is_some()
     }
 
+    /// The encoders of this device's camera and screen share, while on.
+    pub fn encoders(&self) -> (Option<String>, Option<String>) {
+        let hub = lock(&self.hub);
+        (
+            hub.camera
+                .as_ref()
+                .and_then(|camera| camera.sender.encoder()),
+            hub.screen.as_ref().and_then(|share| share.sender.encoder()),
+        )
+    }
+
     /// Whether the camera is on but has stopped by itself (unplugged).
     pub fn camera_ended(&self) -> bool {
         lock(&self.hub)

@@ -410,3 +410,71 @@ enum VoiceCue {
   streamStart,
   streamStop,
 }
+
+/// A voice connection over the last second (Phase 2 §12, connection
+/// diagnostics).
+@immutable
+class VoiceStats {
+  const VoiceStats({
+    this.pingMs,
+    this.jitterMs,
+    this.lossInPercent,
+    this.lossOutPercent,
+    this.bitrateIn = 0,
+    this.bitrateOut = 0,
+    this.voiceNode = '',
+    this.cameraEncoder,
+    this.screenEncoder,
+  });
+
+  final int? pingMs;
+  final double? jitterMs;
+  final double? lossInPercent;
+  final double? lossOutPercent;
+
+  /// Bits per second, everything included.
+  final int bitrateIn;
+  final int bitrateOut;
+  final String voiceNode;
+  final String? cameraEncoder;
+  final String? screenEncoder;
+
+  /// Signal bars, 1–3: three for a call that sounds right, one for one
+  /// that breaks up. Without a ping yet, three.
+  int get bars {
+    final ping = pingMs ?? 0;
+    final loss = [
+      lossInPercent ?? 0,
+      lossOutPercent ?? 0,
+    ].reduce((a, b) => a > b ? a : b);
+    if (ping >= 300 || loss >= 8) return 1;
+    if (ping >= 150 || loss >= 2) return 2;
+    return 3;
+  }
+
+  @override
+  bool operator ==(Object other) =>
+      other is VoiceStats &&
+      other.pingMs == pingMs &&
+      other.jitterMs == jitterMs &&
+      other.lossInPercent == lossInPercent &&
+      other.lossOutPercent == lossOutPercent &&
+      other.bitrateIn == bitrateIn &&
+      other.bitrateOut == bitrateOut &&
+      other.voiceNode == voiceNode &&
+      other.cameraEncoder == cameraEncoder &&
+      other.screenEncoder == screenEncoder;
+
+  @override
+  int get hashCode => Object.hash(
+    pingMs,
+    jitterMs,
+    lossInPercent,
+    lossOutPercent,
+    bitrateIn,
+    bitrateOut,
+    voiceNode,
+    cameraEncoder,
+    screenEncoder,
+  );
+}

@@ -882,6 +882,34 @@ pub enum MediaEvent {
     /// This device's screen share ended by itself: the window closed, the
     /// screen went, or the server or voice node stopped it.
     ScreenShareStopped { message: String },
+    /// How this device's voice connection is doing, once a second while
+    /// connected (Phase 2 §12, connection diagnostics).
+    ConnectionStats {
+        server_key: String,
+        channel_id: i64,
+        stats: VoiceStats,
+    },
+}
+
+/// A voice connection over the last second (Phase 2 §12).
+#[derive(Debug, Clone, PartialEq)]
+pub struct VoiceStats {
+    /// Round trip to the voice node.
+    pub ping_ms: Option<u32>,
+    /// How unevenly the voices heard arrive.
+    pub jitter_ms: Option<f32>,
+    /// Packets lost on the way here and on the way out, 0–100.
+    pub loss_in_percent: Option<f32>,
+    pub loss_out_percent: Option<f32>,
+    /// Bits per second, everything included.
+    pub bitrate_in: u64,
+    pub bitrate_out: u64,
+    /// The voice node's host and port.
+    pub voice_node: String,
+    /// This device's camera and screen share encoders, while on: "NVENC
+    /// (hardware)", say.
+    pub camera_encoder: Option<String>,
+    pub screen_encoder: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]

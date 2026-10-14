@@ -7,6 +7,7 @@
 //! every second, so the stream stays alive.
 
 use std::sync::mpsc::{self, Receiver, RecvTimeoutError};
+use std::sync::{Arc, Mutex, PoisonError};
 use std::thread::JoinHandle;
 use std::time::{Duration, Instant};
 
@@ -46,6 +47,7 @@ enum Command {
 pub struct VideoSender {
     commands: mpsc::Sender<Command>,
     thread: Option<JoinHandle<()>>,
+    encoder: Arc<Mutex<Option<String>>>,
 }
 
 impl VideoSender {
@@ -84,11 +86,25 @@ impl VideoSender {
         P: FnMut(&Picture) + Send + 'static,
     {
         let (commands, received) = mpsc::channel();
+        let encoder = Arc::clone(&sending.encoder);
         let thread = std::thread::Builder::new()
             .name("opencord-video-send".to_owned())
             .spawn(move || sending.run(&frames, &received))
             .ok();
-        Self { commands, thread }
+        Self {
+            commands,
+            thread,
+            encoder,
+        }
+    }
+
+    /// The encoder its last layer opened, for diagnostics: "NVENC
+    /// (hardware)", say; `None` before any.
+    pub fn encoder(&self) -> Option<String> {
+        self.encoder
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .clone()
     }
 
     /// What to encode: the layers named, at these bitrates, and of a
@@ -159,6 +175,8 @@ struct Sending<S, P> {
     scaler: Scaler,
     send: S,
     preview: P,
+    /// See [`VideoSender::encoder`].
+    encoder: Arc<Mutex<Option<String>>>,
 }
 
 impl<S: FnMut(VideoFrame), P: FnMut(&Picture)> Sending<S, P> {
@@ -179,6 +197,7 @@ impl<S: FnMut(VideoFrame), P: FnMut(&Picture)> Sending<S, P> {
             scaler: Scaler::new(),
             send,
             preview,
+            encoder: Arc::default(),
         }
     }
 
@@ -333,6 +352,16 @@ impl<S: FnMut(VideoFrame), P: FnMut(&Picture)> Sending<S, P> {
                 match Encoder::open(config, &Backend::ALL) {
                     Ok(encoder) => {
                         tracing::debug!(layer = %layer.rid, backend = ?encoder.backend(), "encoding");
+                        let backend = encoder.backend();
+                        *self.encoder.lock().unwrap_or_else(PoisonError::into_inner) =
+                            Some(format!(
+                                "{backend:?} ({})",
+                                if backend.is_hardware() {
+                                    "hardware"
+                                } else {
+                                    "software"
+                                }
+                            ));
                         state.encoder = Some(encoder);
                         state.keyframe_due = true;
                     }
