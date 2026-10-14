@@ -82,3 +82,40 @@ Not measured yet:
 
 - **A real screen.** The numbers come from the virtual screen at a fixed 1920×1080.
 - **Screen share audio, decoding, and watching.** These arrive with V7.
+
+## macOS (D34)
+
+An Intel MacBook Pro 2019 (i7-9750H, 6 cores, 12 threads) on macOS 15.8, release builds unless stated. VideoToolbox's hardware encoding runs in a process of its own, so it is not in the app's CPU. The machine throttles hard when hot (its CPU was held at 22 % of its speed in one run), so its timing tests are logged, not chased.
+
+| Area | Target | Measured | Where |
+|---|---|---|---|
+| Per-user volume (50 % / 200 %), local mute | −6 / +6 dB, silent | −6.0 / +6.0 dB, −106 dBFS; soundboard muted −200 dBFS | `app/tool/macos/check_user_audio.sh` |
+| Echo with the laptop's speakers and microphone | not heard | −110.1 dBFS with processing, −19.1 without | `check_echo.sh` |
+| Camera on, 720p30 with three layers and a preview | ≤ 6 % CPU | 12 % of a core (sending side, encoding not counted) | `the_cameras_sending_side_costs` |
+| Camera on / off | < 1 s | 1104 ms / 15 ms (the camera's first frame takes 0.65 s) | `check_v5.sh` |
+| Screen share 1080p30, two layers | ≤ 15 % CPU | 24–25 % of a core at the share's size; 82–83 % capturing the full Retina screen | release test, M6 |
+| Going live | — | 643–833 ms | `check_v6.sh` |
+| Encoding per picture, VideoToolbox hardware | — | 720p 8.9 ms, 360p 5.7 ms, 180p 3.9 ms, 1080p 10.8 ms (wall time) | M3 |
+| Scaling 1080p NV12 to a 640×360 RGBA tile | ≤ 2 ms | 1.23 ms | `codec::macos` tests |
+| "No double audio" | the call's voices not in the stream | music −12.0 dBFS, Talker −117.8 dBFS | `check_v7.sh` |
+| A headset pulled out | back on the default | microphone after 642–674 ms, speaker after 934–947 ms | `check_devices.sh` |
+
+The app's memory after launch is 92 MB. The debug app draws video at only 9–11 fps (per-pixel loops in debug code); every number above is from release code.
+
+## Windows (D35)
+
+An i7-13620H laptop (the development laptop's CPU) with an RTX 4070 Laptop and Intel UHD, on Windows 10 22H2. Wall time per call unless stated.
+
+| Area | Target | Measured | Where |
+|---|---|---|---|
+| Per-user volume (50 % / 200 %), local mute | −6 / +6 dB, silent | −6.0 / +6.0 dB, −106.2 dBFS; soundboard muted −123.0 dBFS | `app/tool/windows/check_user_audio.ps1` |
+| Push-to-talk on a global keybind, another app focused | heard only while held | held −21.1 dBFS (604 packets), released nothing | `check_keybinds.ps1` |
+| Camera on / off | < 1 s | 348–378 ms / 2 ms | `check_v5.ps1` |
+| The built-in camera | — | opened in 79 ms, first frame 620 ms, 30.8 fps NV12 1280×720 | `tests/camera_windows.rs` |
+| Encoding, 720p30 / 360p30 / 180p15, NVENC | — | 1.99 / 0.60 / 0.31 ms (all three 2.90 ms of a 33 ms frame) | `tests/codec_costs_windows.rs` |
+| Encoding, the same, Quick Sync | — | 3.50 / 1.89 / 1.56 ms (720p undershoots: 1079 of 1500 kbit/s) | same |
+| Screen share 1080p30, CPU conversion | ≤ 15 % CPU | 14.8 % of a core in a **debug** build | `check_screen_cost.ps1` |
+| Screen share start / stop | — | 184 ms / 27 ms; 30.3 fps; a closed window ends it in 0.3 s | `tests/screen_windows.rs` |
+| Sleep and hibernate during a call | the call continues | still connected, same level, after 30 s sleep and 77 s hibernation | `check_hardware.ps1` |
+
+The release folder is 195.8 MB, 120 MB of it FFmpeg's DLLs (D35). Not measured on Windows: screen share sound (needs build 20348), the echo canceller (the laptop's speakers are too quiet at its microphone), 1440p shares (no such monitor).

@@ -93,6 +93,13 @@ opt-level = 3
 opt-level = 3
 [profile.dev.package.realfft]
 opt-level = 3
+# The echo canceller (aec3) and Standard noise suppression (nnnoiseless) run
+# every 10 ms too: unoptimized, a debug app's audio thread spent 79 % of its
+# time in them on a throttled Mac and the call cut out (D34).
+[profile.dev.package.aec3]
+opt-level = 3
+[profile.dev.package.nnnoiseless]
+opt-level = 3
 [profile.dev.package.pic-scale]
 opt-level = 3
 [profile.dev.package.yuv]

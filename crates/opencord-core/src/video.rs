@@ -495,9 +495,10 @@ pub async fn cameras() -> Result<Vec<crate::api::types::CameraDevice>, CoreError
 
 mod camera {
     use std::sync::{Arc, Mutex};
+    use std::time::{Duration, Instant};
 
     use opencord_media::transport::{TrackError, TrackKind, TrackRequest};
-    use opencord_media::video::camera::{CameraError, Capture};
+    use opencord_media::video::camera::{CameraError, Capture, RawFrame};
     use opencord_media::video::codec::scale::Scaler;
     use opencord_media::video::layers::camera_layers;
     use opencord_media::video::sender::VideoSender;
@@ -526,6 +527,34 @@ mod camera {
         camera_error(problem, error.to_string())
     }
 
+    /// A camera switched from may still be closing on its own thread for
+    /// a moment (V4L2 and Media Foundation then say it is busy), so a
+    /// switch tries again for up to this long.
+    const SWITCH_WAIT: Duration = Duration::from_secs(1);
+    const SWITCH_RETRY: Duration = Duration::from_millis(100);
+
+    async fn open(
+        device_id: Option<String>,
+        frames: std::sync::mpsc::SyncSender<RawFrame>,
+        switching: bool,
+    ) -> Result<Capture, CoreError> {
+        let wait = if switching {
+            SWITCH_WAIT
+        } else {
+            Duration::ZERO
+        };
+        let give_up = Instant::now() + wait;
+        loop {
+            match Capture::start(device_id.clone(), frames.clone()).await {
+                Ok(capture) => return Ok(capture),
+                Err(CameraError::Failed(_)) if Instant::now() < give_up => {
+                    tokio::time::sleep(SWITCH_RETRY).await;
+                }
+                Err(error) => return Err(problem(error)),
+            }
+        }
+    }
+
     pub(super) async fn start(
         video: &Video,
         device_id: Option<String>,
@@ -536,9 +565,9 @@ mod camera {
                 "not in a voice channel",
             ));
         };
-        video.stop_camera();
+        let switching = video.stop_camera();
         let (frames, captured) = std::sync::mpsc::sync_channel(4);
-        let capture = Capture::start(device_id, frames).await.map_err(problem)?;
+        let capture = open(device_id, frames, switching).await?;
         let mode = capture.mode();
         let layers = camera_layers(mode.width, mode.height);
         let track_id = format!("camera-{:016x}", rand_id());

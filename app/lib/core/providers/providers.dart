@@ -238,10 +238,9 @@ void _route(Ref ref, RepoEvent event) {
       ref.read(audioDeviceListProvider.notifier).set(devices);
       return;
     case AudioDeviceFellBack(:final output, :final device):
-      final which = output ? 'Speaker' : 'Microphone';
       ref
           .read(audioNoticeProvider.notifier)
-          .show('$which unavailable. Using $device.');
+          .fellBack(output: output, device: device);
       return;
     case AudioDeviceFailed(:final output):
       final which = output ? 'speaker' : 'microphone';
@@ -919,8 +918,37 @@ class AudioNotice {
 }
 
 class AudioNoticeNotifier extends Notifier<AudioNotice?> {
+  /// A headset's microphone and speaker go at once, a moment apart.
+  static const _together = Duration(seconds: 2);
+
+  ({bool output, String device, DateTime at})? _fellBack;
+
   @override
   AudioNotice? build() => null;
+
+  /// A device went away and [device] stands in. When the other half of a
+  /// headset went just before, one notice tells of both, since a second
+  /// would hide the first.
+  void fellBack({required bool output, required String device}) {
+    final now = clock.now();
+    final last = _fellBack;
+    _fellBack = (output: output, device: device, at: now);
+    if (last == null ||
+        last.output == output ||
+        now.difference(last.at) > _together) {
+      show('${output ? 'Speaker' : 'Microphone'} unavailable. Using $device.');
+      return;
+    }
+    _fellBack = null;
+    final microphone = output ? last.device : device;
+    final speaker = output ? device : last.device;
+    show(
+      microphone == speaker
+          ? 'Microphone and speaker unavailable. Using $speaker.'
+          : 'Microphone unavailable. Using $microphone. '
+                'Speaker unavailable. Using $speaker.',
+    );
+  }
 
   void show(String message, {String? actionLabel, VoidCallback? onAction}) =>
       state = AudioNotice(

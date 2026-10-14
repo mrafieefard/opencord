@@ -4,7 +4,7 @@
 use std::collections::HashMap;
 use std::path::Path;
 use std::sync::{Arc, Mutex, MutexGuard, OnceLock, PoisonError, RwLock, Weak};
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use opencord_common::address::{
     Fingerprint, InviteLink, ServerAddress, format_fingerprint, parse_fingerprint,
@@ -38,6 +38,10 @@ use opencord_media::hotkeys::Hotkeys;
 const INVITE_SCHEME: &str = "opencord://";
 /// Voice server updates kept for a slow listener.
 const VOICE_SERVER_BACKLOG: usize = 16;
+/// A rejoin told to slow down tries this many times in all, waiting at
+/// least [`REJOIN_WAIT`] between tries.
+const REJOIN_TRIES: u32 = 5;
+const REJOIN_WAIT: Duration = Duration::from_secs(1);
 
 #[derive(Clone)]
 pub struct Client {
@@ -1304,11 +1308,32 @@ impl Client {
     }
 
     /// Gets back into `channel_id` after a fresh session. If the server says
-    /// no, this device has left, and the app hears so.
+    /// no, this device has left, and the app hears so. Told to slow down, it
+    /// tries again once the server's wait is over, while it still wants that
+    /// channel.
     async fn rejoin(&self, key: &str, channel_id: i64) {
-        let request = self.voice_update(channel_id);
-        let Err(CoreError::Server { code, .. }) = self.request(key, request).await else {
-            return;
+        let mut tries = 0;
+        let code = loop {
+            let request = self.voice_update(channel_id);
+            let Err(CoreError::Server {
+                code,
+                retry_after_ms,
+                ..
+            }) = self.request(key, request).await
+            else {
+                return;
+            };
+            tries += 1;
+            if code != ErrorCode::RateLimited || tries == REJOIN_TRIES {
+                break code;
+            }
+            let wait = retry_after_ms.map_or(REJOIN_WAIT, |ms| {
+                Duration::from_millis(u64::from(ms)).max(REJOIN_WAIT)
+            });
+            tokio::time::sleep(wait).await;
+            if self.lock_voice().target != Some((key.to_owned(), channel_id)) {
+                return;
+            }
         };
         if matches!(code, ErrorCode::RateLimited | ErrorCode::Internal) {
             return;
@@ -1587,3 +1612,4 @@ mod tests {
         ));
     }
 }
+

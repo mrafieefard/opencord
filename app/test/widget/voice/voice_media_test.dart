@@ -95,6 +95,24 @@ void main() {
     await app.dispose(tester);
   });
 
+  testWidgets("a headset's two halves going at once make one toast", (
+    tester,
+  ) async {
+    final app = await MockApp.pump(tester);
+
+    app.repository.debugDeviceFellBack(output: false, device: 'Built-in');
+    await tester.pump(const Duration(milliseconds: 100));
+    app.repository.debugDeviceFellBack(output: true, device: 'Built-in');
+    await _settle(tester);
+
+    expect(
+      find.text('Microphone and speaker unavailable. Using Built-in.'),
+      findsOneWidget,
+    );
+    await _pumpFor(tester, const Duration(seconds: 3));
+    await app.dispose(tester);
+  });
+
   testWidgets('audio choices reach voice media at start and on change', (
     tester,
   ) async {

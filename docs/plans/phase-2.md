@@ -4,6 +4,8 @@
 >
 > **Goal:** Discord-quality voice, camera and screen share, using Discord's voice architecture, a Rust media engine in the client for performance, and Discord's soundboard.
 
+**Status (2026-10-15).** V0 to V8 are done on Linux, and on macOS (M0–M8, D34) and Windows (W0–W8, D35), merged on `phase2-remaining`. The three machines held a call through one LAN server, with camera and screen share both ways (D33). V9 and V10 are next. The ledger (`.superpowers/sdd/phase-2/progress.md`) lists what each milestone left undone.
+
 ---
 
 ## 0. Instructions for Claude Code

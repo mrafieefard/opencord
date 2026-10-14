@@ -234,4 +234,6 @@ Windows:                                    W2 ─ W3 ─ W4 ─ W5 ─ W6 ─ W
   - each machine watching another's screen share.
 - **L2:** when both M8 and W8 are merged, the Linux session updates
   `phase-2.md`'s status and the docs, and asks the user about merging
-  `phase2-remaining` onward.
+  `phase2-remaining` onward. Done 2026-10-15: the logs are D34 (macOS) and
+  D35 (Windows) and in `performance.md`; the user chose to go on to V9 and
+  V10 on `phase2-remaining`.
