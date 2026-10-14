@@ -100,13 +100,14 @@ pub(crate) fn shape(request: &ScreenShareRequest) -> ScreenShape {
 /// Picks the source (the system's picker, unless `restore_token` still
 /// names one; or `source_id` from Opencord's own) and starts capturing it.
 pub(crate) async fn pick(
-    fps: u32,
+    shape: ScreenShape,
     restore_token: Option<String>,
     source_id: Option<String>,
 ) -> Result<Pending, CoreError> {
     let (frames, received) = sync_channel(4);
     let request = StartRequest {
-        fps,
+        fps: shape.fps,
+        max_pixels: shape.max_pixels,
         restore_token,
         source_id,
     };

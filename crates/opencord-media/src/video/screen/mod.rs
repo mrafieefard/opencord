@@ -99,6 +99,9 @@ pub struct Thumbnail {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StartRequest {
     pub fps: u32,
+    /// The share's pixel budget (plan §9.2); a system that can capture at
+    /// any size (macOS) captures no larger.
+    pub max_pixels: u32,
     /// The system picker's earlier choice, to share it again without
     /// asking (Linux's portal).
     pub restore_token: Option<String>,

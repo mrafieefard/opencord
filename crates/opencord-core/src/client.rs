@@ -938,7 +938,7 @@ impl Client {
             || screen::screen_error(ScreenProblem::NotInVoice, "not in a voice channel");
         let (server_key, channel_id) = self.lock_voice().target.clone().ok_or_else(not_in_voice)?;
         let token = self.lock_voice().screen_restore_token.clone();
-        let pending = screen::pick(request.fps, token, source_id).await?;
+        let pending = screen::pick(screen::shape(&request), token, source_id).await?;
         if pending.restore_token.is_some() {
             self.lock_voice().screen_restore_token = pending.restore_token.clone();
         }
