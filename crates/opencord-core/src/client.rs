@@ -844,7 +844,13 @@ impl Client {
 
     /// Leaves voice, wherever this device is.
     pub async fn voice_leave(&self) -> Result<(), CoreError> {
-        let target = self.lock_voice().target.take();
+        // Leaving stops the camera (the media session does), so the next
+        // join must not say it's on.
+        let target = {
+            let mut voice = self.lock_voice();
+            voice.video = false;
+            voice.target.take()
+        };
         self.sync_media();
         match target {
             Some((key, _)) => self.request(&key, leave_voice()).await.map(|_| ()),
@@ -855,13 +861,19 @@ impl Client {
     /// Self mute and deafen. They hold outside voice too, for the next
     /// join; in voice, the server hears about them in the background.
     pub fn set_voice_self(&self, mute: Option<bool>, deaf: Option<bool>) {
-        let target = {
+        let (changed, target) = {
             let mut voice = self.lock_voice();
+            let before = (voice.mute, voice.deaf);
             voice.mute = mute.unwrap_or(voice.mute);
             voice.deaf = deaf.unwrap_or(voice.deaf);
-            voice.target.clone()
+            (before != (voice.mute, voice.deaf), voice.target.clone())
         };
         self.sync_media();
+        // Unchanged, nothing to tell: each update counts against the
+        // server's voice state limit (10 in 10 s).
+        if !changed {
+            return;
+        }
         if let Some((key, channel_id)) = target {
             let client = self.clone();
             self.inner.runtime.spawn(async move {
