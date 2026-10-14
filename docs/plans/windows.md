@@ -759,7 +759,7 @@ pushed milestone, and the Mac's work reaches this branch only through
 | W5 | (this commit) | **The camera works, first try, and every part of the acceptance passes except "three layers sent" — and that one is not the camera's doing.** No user was needed: this PC has a built-in **HD Webcam**, and camera access for desktop apps was already `Allow`. **Step 1, `video/camera/media_foundation.rs`.** `MFEnumDeviceSources` for video capture devices; the id is the symbolic link (`mf:\\?\usb#vid_5986&pid_211b&…`) and the name the friendly name. `MFCreateDeviceSource` → `MFCreateSourceReaderFromMediaSource` with `MF_READWRITE_DISABLE_CONVERTERS`, so the reader inserts no decoder or colour converter of its own. The native types are read and `mode::choose` picks one; **this camera gives NV12 1280×720 at 30 fps**, which is the best case — a raw format, so no MJPEG decode at all. A synchronous `ReadSample` loop on its own thread, `IMF2DBuffer::Lock2D` for the real stride, then `camera::pack` and `try_send`. COM is multithreaded and started per thread, never on Flutter's UI thread (decision A). **Step 2, measured on the real camera** (`crates/opencord-media/tests/camera_windows.rs`, ignored): listed, **opened in 79 ms**, first frame **620 ms** after asking, **93 frames in 3.0 s — 30.8 a second**, stopped in **491 ms**, and nothing arrives after stopping. A frame is 1,382,400 bytes, exactly 1280×720×1.5, so the NV12 packing is right. **The "another app has the camera" HRESULT could not be found, because on this Windows it does not happen:** opening the same camera twice from one process succeeded, and holding it with ffmpeg's DirectShow first changed nothing. Windows' Frame Server has shared cameras between applications since Windows 10 1607, so an MF client is not refused. Recorded rather than invented. **Step 3, the acceptance.** *Camera on and off each under 1 s* — **on 348–378 ms, off 2 ms**, measured in the app from the tap to the preview feed appearing and going away. *The preview is mirrored, what is sent is not* — `mirrored=true` on the own feed, which is the only feed that carries it. *Three layers sent* — **2 of 3**, see below. The preview itself draws: 370 presented, 370 drawn. **CPU, for the log:** the whole check — app build excluded, server, three voicebots, the app, the camera and three encoded layers — takes **37.0 s of wall clock**; W3's own measurements are the per-layer cost (720p30 1.99 ms, 360p30 0.60 ms, 180p15 0.31 ms on NVENC, 2.90 ms for all three of a 33 ms frame). **The layer shortfall is this PC, not the camera.** Three voicebots watched at 180, 360 and 720 pixels at once — one watcher can only ever receive one layer, so three sizes is what makes "three layers" visible. The 180 watcher got layer 0 (186 pictures, 15 kbit/s), the 360 watcher layer 1 (330 of 354, 47 kbit/s), and **the 720 watcher also got layer 1** (363, 50 kbit/s), never layer 2: `210/693/0` over all three. A single watcher at 720 alone gave the same `0/371/0`, so it is not the three watchers crowding the uplink. This is the **fourth** sighting of one thing — see the note below — and the shared test `a_capped_uplink_stops_encoding_the_cameras_top_layer_until_lifted` has been failing here with exactly that complaint since W1. `check_v5.ps1` therefore exits 2, not 1. **Checks:** `cargo fmt`, `cargo clippy --workspace --all-targets -- -D warnings` and `flutter analyze` all 0; `cargo test … --test-threads=1` adds `camera_windows.rs` (1 passing, 2 ignored) with no new failures; `flutter test` fails only on the 16 goldens; `dart format` clean. |
 | W6 | (this commit) | **Screen sharing is built and works from the app: the picker, the capture, the sound source and the ending are all measured. What no longer works on this PC is screen-share *media* reaching anyone, in either direction — the same gap W4 found from the other side.** **Steps 1–6, the Rust.** `video/screen/windows.rs` plus `windows_gdi.rs` beside it. `support()` asks `GraphicsCaptureSession::IsSupported()` rather than reading a build number, because a machine can have the API and still refuse it; `own_picker` is true. `sources()` lists monitors from `EnumDisplayMonitors` (`screen:\\.\DISPLAY1`, "Screen 1 · 1920×1080") then at most 30 windows from `EnumWindows` in Z-order, skipping invisible, cloaked (`DWMWA_CLOAKED`), `WS_EX_TOOLWINDOW`, untitled, zero-sized and Opencord's own; the app name is the exe's `FileDescription`. Thumbnails are GDI — `StretchBlt` with `HALFTONE` from the desktop for a screen, `PrintWindow(PW_RENDERFULLCONTENT)` for a window — deliberately not a capture session each, which would light up every window's capture border while the picker is open. Capture is `IGraphicsCaptureItemInterop` → `Direct3D11CaptureFramePool::CreateFreeThreaded` → staging texture → `Map` → BGRx rows. **Measured on this PC:** a screen share starts in **184 ms** at 1920×1080 and runs at **30.3 frames a second** against the 30 asked for, and stops in 27 ms; a window share runs at **30.3** at 1440×759 and reports its sound as `Process(9800)` named "Notepad", which is decision E working. **One real bug, found by the test and fixed:** the `GraphicsCaptureItem.Closed` event never fires, because the capture thread pumps no messages — a closed Notepad left the share running for the full ten seconds the test waited. The loop now also looks at the handle itself every 250 ms, and the share ends **0.3 s** after the window closes. **Step 7, the CPU, and the decision it settles:** 1080p30 on the CPU path costs **14.8 % of one core** (median of 7 samples; worst 15.3; 0.9 % of all 16 cores), just inside the 15 % the plan allows, so the CPU path stays and no D3D11 video-processor work is needed. That is a **debug** build, so a release one is cheaper still — it is a ceiling, not a close call. 1440p60 could not be measured: this PC's only monitor is 1920×1080. `check_screen_cost.ps1` keeps the measurement. **Step 8, the app.** `screen_source_picker.dart`: Screens and Windows tabs with counts, thumbnails refreshed every 2 s (a refresh that fails leaves the list alone rather than blanking it mid-choice), and a chosen state. The share dialog shows it where `ownScreenPicker` is set, and **Go live stays disabled until something is chosen**; "Change source" while live opens the picker again, as its own dialog with only the picker in it. The chosen id goes through `startScreenShare(…, sourceId)`. **Five widget tests on the mock's fake sources, all passing**, and the 47 voice tests that were there still pass: `RepoCapabilities.everything` leaves `ownScreenPicker` false, so nothing else changed shape. **Step 9, live.** `check_v6.ps1` runs an ffplay test pattern (silent: `-an` and a video-only source) and drives the real dialog. All three phases work from the app's side: the screen shares as `StreamSource.screen`; the window shares as `StreamSource.window` with **`audioFrom=ffplay`**, so the app already knows whose sound to send and will not ask; and closing the shared window **ends the share by itself**. **What does not work: no pictures reach the watching voicebot in any of the three phases** — see the note below. The check exits 2 for that rather than 1, since every app-visible part passed. **Two of my own bugs on the way, both mine not the app's:** `Start-Process` splits an argument on its spaces, so a quoted ffplay window title arrived as three arguments and ffplay refused to start; and the watcher first asked for a 720-pixel tile, which this PC never serves (W5), so it would have measured that instead of the share. **Not done:** the optional HDR-monitor colour check (step 10) needs an HDR monitor and a person. |
 | W7 | (this commit) | **Written and unit-tested; the live half has never run, because this PC cannot run it.** Process loopback needs Windows build **20348** and this is **19045**, so `support()` reports "Sharing sound needs Windows 11" and every capture path refuses before it starts. That is the decision C behaviour the plan asks for, and it is now measured rather than assumed. **Step 1, `share_audio/wasapi.rs`.** `support()` reads the build with `RtlGetVersion` — not `GetVersionExW`, which lies about anything past 8.1 without a compatibility manifest. Capture activates the virtual process-loopback device with `ActivateAudioInterfaceAsync`, an `AUDIOCLIENT_ACTIVATION_PARAMS` in a `VT_BLOB` PROPVARIANT and an `#[implement]`ed `IActivateAudioInterfaceCompletionHandler` that only wakes the caller, the result being read off the operation. `Everything` excludes Opencord's own process tree, `Process(pid)` and a resolved `App` include theirs, `Nothing` captures nothing without failing. Initialize is shared mode with `LOOPBACK | EVENTCALLBACK`, 48 kHz stereo float first and 16-bit PCM if that is refused, as the sample does — `IsFormatSupported` is not reliable on this virtual device, so it simply tries. The capture thread is event-driven with `GetBuffer`/`ReleaseBuffer`, honours `AUDCLNT_BUFFERFLAGS_SILENT`, and counts `position` in frames on its own clock as `pipewire.rs` does. `share()` tears the client down and opens another, because a process-loopback client cannot be retargeted. **`apps_with_audio()` does work here**, because it is the ordinary session API rather than loopback: `IAudioSessionManager2` on the default output, active sessions only, one row per app. **A real bug it found:** listing by pid alone offered **`opencord`** itself (a second instance left over from an earlier check) and **`audiodg`**, Windows' audio engine. Both are now excluded by name as well as by this process's id — §10.1's "never Opencord" means any Opencord, not just this one. **Step 2, echo:** not checkable here. The processor feeds the shared sound to the canceller already (§10.6) and there is nothing to build, but with no capture there is nothing to watch it do. **Step 3, tests:** `crates/opencord-media/tests/share_audio_windows.rs` holds the four capture tests — a screen hearing another app, a window hearing only its own, switching source while live, and nothing chosen capturing nothing — and all four **skip** here with "Sharing sound needs Windows 11" rather than pretending. **8 unit tests pass**, covering the build gate, the exclude/include targets, the mutation hook, the 48 kHz stereo format and the app list. **Step 4, `check_v7.ps1`:** written in full — the §10.7 run with a Talker in the call and ffplay playing 1 kHz, the **mutation check**, and the window test — and it stops at its first line here with the same words the disabled switch uses. The mutation is a real hook, not a manual edit: `OPENCORD_TEST_EXCLUDE_PID`, compiled in only under `debug_assertions`, makes the backend exclude some other process so the call's voice *must* reappear in the stream. A check that cannot be made to fail proves nothing, and now it can be. **Not done, and it needs a Windows 11 PC:** every live part of W7. The code has never captured a single sample. |
-| W8 | | |
+| W8 | (this commit) | **Step 1 is three items done and measured, two skipped at the user's request, two still open; steps 2 to 4 are done.** **GPUs.** This is a hybrid laptop, so it counts as two of the three: an RTX 4070 Laptop (32.0.16.1078) and an Intel UHD (31.0.101.4255); there is no AMD GPU here, and `h264_amf` accordingly never opens. Both GPUs encode every layer (`codec_costs_windows`, 480 encodes each): NVENC **2.33 / 0.70 / 0.43 ms** at 720p30 / 360p30 / 180p15 for 1497 / 509 / 149 kbit/s, Quick Sync **3.20 / 1.73 / 1.44 ms** for 1079 / 482 / 148 kbit/s, Media Foundation 2.04 / 0.58 / 0.32 ms. NVENC is what `ALL` picks here; Quick Sync opening and encoding is the Intel half of the checklist, not what the app uses while the NVIDIA GPU is there. **The headset** (`check_hardware.ps1 -Phase headset`, a Razer Barracuda X 2.4): with the headset chosen the cable measures **-135.8 dBFS** — digital silence, so the call really is in the headset; unplugged, the call keeps playing on the device it fell back to at **-9.2 dBFS** and the toast reads *"Microphone unavailable. Using Microphone Array (Intel® Smart Sound Technology for Digital Microphones)."*; replugged, the cable is **-135.8 dBFS** again, which is `switch_back` doing its job. Both of the headset's endpoints leave and return in the same 2 s device poll, and both halves fall back — but `audioNoticeProvider.show` keeps only the newest notice, so the microphone's toast is the one left on screen and the speaker's is never seen. **Sleep and wake** (`-Phase sleep`): this PC has **Modern Standby (S0 Low Power Idle, Network Connected)** and no S3 — `powercfg /a` says the firmware disables it — so both variants were run. Plain sleep, 30 s: the call was **still `connected`** at the wake, played at **-9.2 dBFS** against -9.2 before, and no toast appeared; nothing was torn down, so nothing had to recover. Hibernate (`-Hibernate`), power off for **77 s**: the same, `connected` 2 ms after the resume and -9.2 dBFS. No device was lost in either, so the audio streams either survived or were reopened on the same device without a fallback. Caveat: the app, the server and the voicebot all slept together, so no connection had to be re-negotiated with a peer that stayed awake — that case belongs to the three-machine call. **Skipped at the user's request:** two monitors with mixed scaling, and the HDR monitor. The manifest already asks for `PerMonitorV2`. **Not done:** a Bluetooth headset's profile switch (the headset here is a 2.4 GHz dongle, not Bluetooth; the same check takes `-Headset` and would cover it), and **the call between this PC, the Linux machine and the Mac** — both machines were not available. `host_lan_server.ps1` is written and waiting for it. **Step 2, CI:** no new job added; the `windows-latest` `cargo test` job is proposed below, because a new job is shared ground (platforms.md §4). **Step 3, packaging:** the zip's contents are checked below; code signing and an installer are the user's decisions, listed there. **Housekeeping:** `target/` had grown to **71.7 GB** with 6.8 GB free, which failed a link with `LNK1180`; `cargo clean` took it back (76.25 GB free) at the cost of one cold rebuild. A stale `opencord.exe` from the W7 run was holding the linker's output file, which is what `LNK1104: cannot open opencord.exe` means here. `flutter pub get` rewrote `app/analysis_options.yaml` and bumped five packages in `app/pubspec.lock` again, as in W0 and W7; both are Linux-owned and were reverted before committing. **Checks:** `cargo fmt --all --check` 0; `cargo clippy --workspace --all-targets -- -D warnings` 0 in 2 m 37 s; `cargo test --workspace --lib --bins --tests -- --test-threads=1` fails in the same two Linux-owned files as W7 and nowhere else (`opencord-voice/tests/video.rs` 4 of 11, `opencord-voicebot/tests/voice.rs` 1 of 10 — the top-layer fault in the W5 note); `flutter analyze` clean; `flutter test` **740 passed, 1 skipped, 16 failed**, every failure a golden rendered on Linux. |
 
 Rulings (`Wn: Ruling: … — cost if wrong: …`):
 
@@ -1244,7 +1244,113 @@ Decided while doing W7:
   lost the capability would skip instead of failing; `support()`'s own unit
   test is what catches that, since it asserts against the build number.
 
+- W8: Ruling: the hardware items are one check script with **no prompts**.
+  Its output goes to the session driving it, not to the screen in front of
+  whoever is at the PC, so every step waits for the hardware event itself —
+  a device leaving the list, a device returning, `SetSuspendState` returning
+  — for up to four minutes each, and the instructions are given by the
+  session instead — cost if wrong: a run that proves nothing because the
+  person was slow, which is exactly what the first headset run did (exit 2
+  after four minutes).
+- W8: Ruling: the device the app falls back to is **CABLE Input, made the
+  system default for the length of the run** and put back afterwards. The
+  fallback is then silent and, through CABLE Output, measurable — cost if
+  wrong: the call plays out of the laptop's speakers at night and "it fell
+  back" is an impression rather than a number.
+- W8: Ruling: a sleep is witnessed by `SetSuspendState` returning **in a
+  process of its own**, which happens only once the system is back, and not
+  by a clock jump inside the app. Under Modern Standby a desktop app is
+  throttled rather than stopped, so its own clock may show no gap at all —
+  cost if wrong: a real sleep is reported as "the PC never slept".
+- W8: Ruling: the sleep item is run **twice**, plain and `-Hibernate`, and
+  both are logged. On a PC with no S3, a plain sleep tears nothing down, so
+  the item would pass because nothing happened; hibernation cuts the power,
+  which is the case the checklist is after — cost if wrong: an item that
+  passes for the wrong reason.
+- W8: Ruling: `check_hardware.ps1` **exits 2 when the hardware never moved**,
+  joining the other checks' convention (0 passed, 1 failed, 2 proved
+  nothing) — cost if wrong: a session that reads "the person did not get to
+  it" as "the app is broken".
+- W8: Ruling: the Windows `cargo test` CI job is **proposed in this log, not
+  added**. A new job is shared ground, and Windows' own steps are the only
+  CI this session owns (platforms.md §4) — cost if wrong: two sessions
+  editing the same workflow in the same week.
+- W8: Ruling: `host_lan_server.ps1` adds its firewall rules for **every
+  profile**, not just Private. This laptop's Wi-Fi is categorised Public, and
+  a rule on the wrong profile fails in precisely the way the rule exists to
+  prevent: the other machines join the call and hear nothing — cost if
+  wrong: a rule wider than the test needs, on a laptop, for two ports.
+
 For the Linux session, and for the user:
+- W8: **The three-machine call is the one acceptance left on Windows.** It
+  needs the Mac and the Linux machine at the same time, and neither was
+  available; nothing else about it is missing.
+  `app/tool/windows/host_lan_server.ps1` is written for it: it finds the
+  interface with the default route (192.168.0.122 here), runs a **release**
+  server on 0.0.0.0:7710 with UDP 7711 and `public_host` set to that address
+  so the invite link is not `localhost`, keeps its database across runs in
+  `%LOCALAPPDATA%\Opencord-LAN` so the three machines stay joined, and adds
+  the two firewall rules — or, unelevated, prints the exact commands. Expect
+  the **screen-share media gap** (the W6 note) to be the first thing it runs
+  into: the app shares correctly here and nothing arrives at the other end.
+- W8: **CI has no Windows `cargo test` and no Windows clippy.** The
+  `desktop` job builds the app, so Windows-only code that fails to *compile*
+  is caught — but nothing runs a test or a lint there, which is why W0 found
+  eight off-Linux dead-code warnings that Linux CI could not see. Proposed,
+  for the Linux session to land, since a new job is shared ground:
+
+  ```yaml
+    rust-windows:
+      name: Rust (Windows)
+      runs-on: windows-latest
+      steps:
+        - uses: actions/checkout@v7
+        - uses: dtolnay/rust-toolchain@stable
+          with:
+            components: clippy
+        - uses: Swatinem/rust-cache@v2
+        # The same pinned asset as the desktop job's "Use FFmpeg" step.
+        - name: Use FFmpeg
+          shell: pwsh
+          run: |   # copied from the desktop job, or factored into one
+                   # composite action used by both
+        - name: Clippy
+          run: cargo clippy --workspace --all-targets -- -D warnings
+        - name: Test
+          run: cargo test --workspace
+  ```
+
+  What it buys: every `#[cfg(windows)]` file in this plan gets linted and its
+  unit tests run. What it will *not* cover: a GitHub runner has no GPU, so
+  `h264_nvenc`, `h264_amf` and `h264_qsv` never open and the encoder tests
+  fall through to their run-time skips (L1) — only Media Foundation's
+  software path can actually encode there. The hardware checks
+  (`app/tool/windows/*.ps1`) need devices and a person and are not CI work.
+  `--test-threads=1` is **not** needed on a runner: the cap that forced it
+  here (W3's ruling) is NVENC's session limit, which a GPU-less machine
+  cannot hit.
+- W8: **Packaging is in order; two decisions are the user's.** The zip is the
+  `Release` folder plus `msvcp140.dll`, `vcruntime140.dll` and
+  `vcruntime140_1.dll` from System32 (all three present on this PC) and
+  FFmpeg's `LICENSE.txt` as `FFMPEG-LICENSE.txt`, which LGPL §4 asks for;
+  the five FFmpeg DLLs are already beside the exe because `rust_builder`'s
+  CMakeLists puts them there, which `check_bundled_ffmpeg.ps1` proved on a
+  real release build in W3. The staging step itself only runs in CI and has
+  not been executed here. Still open, both the user's call: **code signing**
+  — unsigned, SmartScreen warns on every download, and the fix is a paid
+  certificate (an OV/EV code-signing certificate, or Azure Trusted Signing)
+  plus a signing step in the `desktop` job; and **an installer** — MSIX or
+  WiX/Inno Setup, which would also give updates. Neither blocks the zip.
+  Worth doing first, and cheaper than both: the **minimal FFmpeg build**
+  already recommended in the W3 note — `avcodec-63.dll` alone is 87 MB of
+  the 149 MB in `C:fmpegin`.
+- W8: **Mixed scaling and HDR were skipped at the user's request,** so three
+  things in §15 are unverified on Windows: two monitors at 100 % and 150 %
+  together, a capture surviving a monitor being unplugged (§8's "display
+  changes: restart capture on the same display, or stop if it's gone"), and
+  HDR colour. The manifest already declares `PerMonitorV2`, which is Flutter's
+  default and not evidence. The W6 check takes a monitor index, so the first
+  two are a short job whenever two monitors are to hand.
 - W7: **Nothing in W7 has ever captured a sample.** It is written, it
   compiles, its unit tests pass and its live tests skip politely, but this PC
   is build 19045 and process loopback needs 20348. The app behaves correctly

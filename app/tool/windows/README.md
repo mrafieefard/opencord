@@ -34,10 +34,12 @@ pwsh -File app/tool/windows/check_m5.ps1
 | `check_v6.ps1` | W6: screen and window sharing, picked in Opencord's own dialog, with an ffplay test pattern to share. **Exits 2 when the app shared but nothing reached the watcher.** |
 | `check_screen_cost.ps1` | W6 step 7: what a shared screen costs the CPU, which decides whether the convert and scale move to the GPU. |
 | `check_v7.ps1` | W7: a screen shared *with its sound*, and the call's own voice kept out of it. **Needs Windows 11 (build 20348); exits 2 below that.** |
+| `check_hardware.ps1` | W8 step 1: the §15 hardware items that need a person at the PC — a headset taken away mid-call and brought back, and the PC slept or hibernated mid-call. It prompts for nothing: each step waits for the hardware itself. **Exits 2 when the hardware never moved.** |
+| `host_lan_server.ps1` | W8 step 1: a real server on the LAN for the call between this PC, the Linux machine and the Mac — the LAN address in the invite link, the two firewall rules, and a database that survives the call. Not a check; it measures nothing. |
 | `check_receive_video.ps1` | W4: a voicebot's camera and screen shown in the app, drawn, the right colours, focus mode, and hidden tiles that stop receiving. **Exits 2 when only the screen half did not come** — see below. |
 
-A check exits 0 when it passed and 1 when it failed. Two of them also exit
-**2**, for a result that proves nothing either way:
+A check exits 0 when it passed and 1 when it failed. Several also exit **2**,
+for a result that proves nothing either way:
 
 - `check_echo.ps1`, when the control run was already quiet. Its acceptance is
   "the echo comes back under −50 dBFS", so it first runs with echo cancellation
@@ -56,6 +58,11 @@ A check exits 0 when it passed and 1 when it failed. Two of them also exit
   share failed to arrive. It does arrive on this PC, but only about half the
   time and always at a trickle (windows.md §7, W4); W6 is where screen sharing
   is built and settled. 1 is kept for the camera half.
+- `check_hardware.ps1`, when the hardware never moved: the headset was never
+  taken away, or the PC never slept. The person at the PC gets their
+  instructions from the session driving the script, not from the script, so a
+  step that nobody performed is a run that says nothing — not a failure of the
+  app.
 - `check_key_recorder.ps1`, when the recorder could not record a key at all.
   That is a limit in shared Dart, which a platform session does not fix
   (platforms.md §4), and the key may still work as a keybind once set; 1 is
