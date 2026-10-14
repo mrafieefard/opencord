@@ -76,10 +76,28 @@ Future<void> screenshareControl(
             ? null
             : () async {
                 final navigator = Navigator.of(context);
+                // Where Opencord picks, "Change source" has to ask which
+                // one; where the desktop picks, starting again is what
+                // opens its picker.
+                String? source;
+                if (ref.read(repositoryProvider).capabilities.ownScreenPicker) {
+                  final choice = await showScreenshareDialog(
+                    context,
+                    serverKey: server,
+                    current: share.quality,
+                    pickingSource: true,
+                  );
+                  if (choice == null || !navigator.mounted) return;
+                  source = choice.sourceId;
+                }
                 await _sharing(
-                  context,
-                  () =>
-                      sharing.start(server, share.quality, audio: share.audio),
+                  navigator.context,
+                  () => sharing.start(
+                    server,
+                    share.quality,
+                    audio: share.audio,
+                    sourceId: source,
+                  ),
                 );
                 await _askSoundFrom(navigator);
               },
@@ -129,7 +147,9 @@ Future<void> screenshareControl(
   );
 }
 
-/// The share dialog, then the system's picker where there is one.
+/// The share dialog — which on a system with Opencord's own picker also
+/// chooses the screen or window — then the system's picker where there is
+/// one instead.
 Future<void> goLive(BuildContext context, WidgetRef ref, String server) async {
   // The button asking goes once live: dialogs after it open from here.
   final navigator = Navigator.of(context);
@@ -142,7 +162,12 @@ Future<void> goLive(BuildContext context, WidgetRef ref, String server) async {
     context,
     () => ref
         .read(ownScreenShareProvider.notifier)
-        .start(server, choice.quality, audio: choice.audio),
+        .start(
+          server,
+          choice.quality,
+          audio: choice.audio,
+          sourceId: choice.sourceId,
+        ),
   );
   await _askSoundFrom(navigator);
 }

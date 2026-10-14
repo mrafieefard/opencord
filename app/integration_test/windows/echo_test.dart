@@ -65,12 +65,11 @@ void main() {
     await SecureIdentityStore(profile: _profile).clear();
     final container = await launch(tester, profile: _profile);
     var selfId = 0;
-    final subscription = container
-        .read(repositoryProvider)
-        .events
-        .listen((event) {
-          if (event is Ready) selfId = event.snapshot.self.id;
-        });
+    final subscription = container.read(repositoryProvider).events.listen((
+      event,
+    ) {
+      if (event is Ready) selfId = event.snapshot.self.id;
+    });
     try {
       await createIdentity(tester, 'EchoTester');
       await startAddingServer(tester, _invite);
