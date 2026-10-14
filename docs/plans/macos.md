@@ -1071,22 +1071,29 @@ Rulings (`Mn: Ruling: … — cost if wrong: …`):
   `macos-latest` for the tests that need no hardware (everything not
   `#[ignore]`d; it would also show the load-sensitive sender tests) —
   cost if wrong: a few seconds of CI.
-- M8: Ruling: Release's entitlements match Debug's except
-  `cs.allow-jit` and `network.server`, which only Debug needs (Flutter's
-  debugger); both have the sandbox, network client, audio input and
-  camera. Xcode also added `com.apple.security.get-task-allow` to the ad
-  hoc release, which lets a debugger attach and which notarization
-  refuses; `CODE_SIGN_INJECT_BASE_ENTITLEMENTS = NO` in `Release.xcconfig`
-  (Release and Profile) leaves exactly `Release.entitlements`. For the
-  release notes (the `release` job is shared): "The macOS build isn't
-  notarized yet. The first time, allow it under System Settings → Privacy
-  & Security → Open Anyway, or run `xattr -dr com.apple.quarantine
+- M8: Ruling: **voice never connected in a release build** ("Voice
+  disconnected"; found by the user at the AirPods check). Release had only
+  `network.client`; the sandbox stopped the voice connection before its
+  UDP socket was made, with no denial in the system log. Every check before
+  this ran a Debug build, whose entitlements have `network.server` for
+  Flutter's debugger, and voicebots aren't sandboxed, so none saw it. A
+  copy of the release app re-signed with `network.server` connected at
+  once (the user), so `Release.entitlements` now has it. Release's
+  entitlements now differ from Debug's only by `cs.allow-jit`. Xcode also
+  added `com.apple.security.get-task-allow` to the ad hoc release, which
+  lets a debugger attach and which notarization refuses;
+  `CODE_SIGN_INJECT_BASE_ENTITLEMENTS = NO` in `Release.xcconfig` (Release
+  and Profile) leaves exactly `Release.entitlements`. For the release
+  notes (the `release` job is shared): "The macOS build isn't notarized
+  yet. The first time, allow it under System Settings → Privacy &
+  Security → Open Anyway, or run `xattr -dr com.apple.quarantine
   Opencord.app`. Each update has a new signature, so macOS asks again for
   the microphone, camera, screen recording and Input Monitoring; if a
   switch is on but the permission doesn't work, remove Opencord from that
   list and allow it again." On macOS 15, right-click → Open no longer
-  gets past Gatekeeper — cost if wrong: Instruments can't attach to a
-  Profile build; Debug still can.
+  gets past Gatekeeper — cost if wrong: `network.server` lets the
+  sandboxed app accept connections, which it never opens a listener for.
+  The checks by hand from now on use the release build.
 - M8: Ruling: AirPods are stood in for by a headset made in the test: a
   public aggregate device over BlackHole 2ch (every app lists it while it
   exists), pulled out by destroying it, with its rate set through Core
@@ -1098,18 +1105,33 @@ Rulings (`Mn: Ruling: … — cost if wrong: …`):
   1.5 s passes — cost if wrong: a real Bluetooth device could report its
   loss differently (cpal listens for `DeviceIsAlive` either way); the
   check with AirPods covers it.
-- M8: Finding for the Linux session (the shared `audio/device.rs`, not
-  edited): `choose()` asks for 48 kHz, and cpal on macOS then sets the
-  device's nominal rate, which applies to every app using the device. When
-  something else changes the rate (another app, or AirPods moving to their
-  headset profile), cpal reports `StreamInvalidated`, `Health` counts that
-  as lost, and the engine reopens the same device (no fallback, no toast)
-  and puts it back to 48 kHz: 1.1–1.2 s without sound each time. AirPods'
-  headset profile offers no 48 kHz, so they stay at their own rate. Two
-  apps that each insist on a rate would take turns — cost if wrong: a
-  silent second per change. Opening the device at its current rate when
-  that isn't 48 kHz would avoid both; the resampler already takes any
-  rate.
+- M8: Ruling (068ec6b, `fix(shared):`, `audio/device.rs`): **AirPods gave
+  no sound** once their microphone was open (found by the user).
+  `choose()` asked for 48 kHz, and cpal on macOS then sets the device's
+  nominal rate, which is the whole system's. Opening the AirPods
+  microphone moves them to their headset profile (16 kHz): the speaker
+  stream was invalidated, reopening it at 48 kHz failed ("Sample rate
+  update timed out", macOS can't change it while the headset microphone
+  runs), the default (the same AirPods) failed the same way, and the
+  engine never tried again. On macOS, `choose()` now takes the device's
+  own rate, and the processor resamples it. Checked on AirPods Pro with
+  `a_real_headset_keeps_playing_when_its_microphone_opens`
+  (`OPENCORD_TEST_HEADSET=74-65-0C-EE-4E-66`): before, the speaker was lost
+  and reopening failed; after, it reopened at 16 kHz mono and plays. The
+  user hears Talker in the AirPods. This also ends Opencord resetting
+  other apps' rate to 48 kHz; on the virtual headset, a rate change is
+  still about 1 s silent (much of that is the looped-back tone pausing
+  while BlackHole changes rate) — cost if wrong: resampling on every Mac
+  device that isn't at 48 kHz. Still open for the Linux session: after a
+  `DeviceFailed`, the engine never tries the device again, so any device
+  that fails once stays silent until the call is rejoined.
+- M8: Finding for the Linux session (the shared root `Cargo.toml`, not
+  edited): the debug app's audio thread spent 79 % of its time in
+  microphone processing (`sample`: 650 of 827 samples, 363 in `aec3`'s
+  echo canceller), with the CPU throttled: in a call with AirPods, Talker
+  cut out while the user talked. `aec3` isn't in `[profile.dev.package]`
+  with tract and the FFT crates. The release app in the same call used
+  7–12 % of a core — cost if wrong: debug-only stutter.
 - M8: Ruling: with no camera chosen (the app has no camera menu), the
   camera is macOS's `systemPreferredCamera` on 14 and later: the one last
   picked in Control Center, or an iPhone mounted as a Continuity Camera.
@@ -1167,6 +1189,11 @@ Rulings (`Mn: Ruling: … — cost if wrong: …`):
   256 bytes long, and its blank is 64 pixels wide; without it the app
   crashed at the first video tile (Metal) and showed red as blue. A seam
   for each system's texture format would have been the place.
+- M8 068ec6b `crates/opencord-media/src/audio/device.rs`
+  (`fix(shared):`): on macOS, `choose()` opens a device at its own rate
+  instead of asking for 48 kHz; with 48 kHz, AirPods' speaker could not be
+  reopened once their microphone was open, and calls went silent. Should
+  have been a seam (each system's rule for a device's rate).
 
 Shared tests that fail on macOS for a platform reason (not edited):
 - M0: `app/test/unit/desktop/linux_notifications_test.dart` (2 tests) and
