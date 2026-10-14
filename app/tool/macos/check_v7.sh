@@ -26,17 +26,9 @@ mode="${1:-check}"
 cargo build --quiet --manifest-path "$repo/Cargo.toml" -p opencord-voicebot
 bot="$repo/target/debug/opencord-voicebot"
 
+# A 5-minute stereo tone at a quarter of full scale (-12 dBFS).
 tone() {
-  python3 - "$1" "$2" <<'PY'
-import math, struct, sys, wave
-with wave.open(sys.argv[1], "wb") as out:
-    out.setnchannels(2)
-    out.setsampwidth(2)
-    out.setframerate(48000)
-    hz = float(sys.argv[2])
-    frames = (int(0.25 * 32767 * math.sin(2 * math.pi * hz * n / 48000)) for n in range(48000 * 300))
-    out.writeframes(b"".join(struct.pack("<hh", f, f) for f in frames))
-PY
+  "$sox" -q -n -r 48000 -c 2 -b 16 "$1" synth 300 sine "$2" vol 0.25
 }
 tone "$work/music.wav" 1000
 

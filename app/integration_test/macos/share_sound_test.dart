@@ -33,13 +33,9 @@ void main() {
       await SecureIdentityStore(profile: _profile).clear();
       final container = await launch(tester, profile: _profile);
 
-      Future<void> hold(Duration length) async {
-        final end = DateTime.now().add(length);
-        while (DateTime.now().isBefore(end)) {
-          await tester.pump(const Duration(milliseconds: 100));
-          await Future<void>.delayed(const Duration(milliseconds: 100));
-        }
-      }
+      // Without frames: a window share puts the shared window in front, and
+      // macOS draws nothing for a window that is covered.
+      Future<void> hold(Duration length) => Future<void>.delayed(length);
 
       try {
         await createIdentity(tester, 'Streamer');
@@ -127,7 +123,7 @@ void main() {
         // Long enough for Watcher to hear several seconds of each.
         await hold(const Duration(seconds: 12));
         await container.read(ownScreenShareProvider.notifier).stop();
-        await tester.pump(const Duration(seconds: 1));
+        await hold(const Duration(seconds: 1));
         // ignore: avoid_print
         print('PHASE: done');
         await container.read(voiceSessionProvider.notifier).leave();
