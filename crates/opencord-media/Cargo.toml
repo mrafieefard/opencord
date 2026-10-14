@@ -62,6 +62,10 @@ x11rb.workspace = true
 [target.'cfg(target_os = "macos")'.dependencies]
 
 [target.'cfg(target_os = "windows")'.dependencies]
+# `#[implement]` expands to paths in `windows_core`, so the COM callback
+# W7 needs it by name as well as through `windows`. Same version, so it is
+# the same crate.
+windows-core = "0.62"
 # The codec layer, the same crates Linux uses (windows.md W3 step 1).
 ffmpeg-next.workspace = true
 openh264.workspace = true
@@ -69,6 +73,7 @@ openh264-sys2.workspace = true
 # cpal's version, so only one copy of it builds (platforms.md §4).
 windows = { version = "0.62", features = [
     "Foundation",
+    "Wdk_System_SystemServices",
     "Graphics_Capture",
     "Graphics_DirectX_Direct3D11",
     "Win32_Foundation",
@@ -78,10 +83,16 @@ windows = { version = "0.62", features = [
     "Win32_Graphics_Dxgi",
     "Win32_Graphics_Dxgi_Common",
     "Win32_Graphics_Gdi",
+    "Win32_Media_Audio",
+    "Win32_Media_KernelStreaming",
     "Win32_Media_MediaFoundation",
+    "Win32_Media_Multimedia",
     "Win32_Storage_FileSystem",
     "Win32_Storage_Xps",
     "Win32_System_Com",
+    "Win32_System_SystemInformation",
+    "Win32_System_Com_StructuredStorage",
+    "Win32_System_Variant",
     "Win32_System_LibraryLoader",
     "Win32_System_Threading",
     "Win32_System_WinRT_Direct3D11",

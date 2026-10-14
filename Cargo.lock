@@ -3229,6 +3229,7 @@ dependencies = [
  "tract-pulse",
  "v4l",
  "windows",
+ "windows-core",
  "x11rb",
 ]
 

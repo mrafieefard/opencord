@@ -31,6 +31,9 @@ pwsh -File app/tool/windows/check_m5.ps1
 | `check_bundled_ffmpeg.ps1` | W3 step 5: takes FFmpeg away and checks the release build still starts and still encodes, on the DLLs it ships. |
 | `sample_video.ps1` | The mean colour of a rectangle of the app's window, copied off the screen. How W4 checks that red looks red, which Flutter cannot answer about a `Texture`. |
 | `check_v5.ps1` | W5: this PC's camera in a real call — on and off timings, the mirrored preview, and three voicebots watching at three sizes to see which layers go out. **Exits 2 when only the top layer is missing.** |
+| `check_v6.ps1` | W6: screen and window sharing, picked in Opencord's own dialog, with an ffplay test pattern to share. **Exits 2 when the app shared but nothing reached the watcher.** |
+| `check_screen_cost.ps1` | W6 step 7: what a shared screen costs the CPU, which decides whether the convert and scale move to the GPU. |
+| `check_v7.ps1` | W7: a screen shared *with its sound*, and the call's own voice kept out of it. **Needs Windows 11 (build 20348); exits 2 below that.** |
 | `check_receive_video.ps1` | W4: a voicebot's camera and screen shown in the app, drawn, the right colours, focus mode, and hidden tiles that stop receiving. **Exits 2 when only the screen half did not come** — see below. |
 
 A check exits 0 when it passed and 1 when it failed. Two of them also exit
@@ -41,6 +44,11 @@ A check exits 0 when it passed and 1 when it failed. Two of them also exit
   off, and if that control is already under −47 dBFS there was nothing to
   cancel and a silent speaker would score the same as a working canceller.
   Treat 2 as "run it again with louder speakers", not as a pass.
+- `check_v6.ps1`, when the app shared correctly but no pictures reached the
+  watching voicebot — the screen-share media gap in windows.md §7.
+- `check_v7.ps1`, on a Windows older than build 20348, which has no process
+  loopback at all. Sharing sound genuinely cannot work there, and the app
+  disables the switch with the same words.
 - `check_v5.ps1`, when the camera worked but the top layer never went out. That
   is not the camera: this PC never reaches the top layer at all (windows.md
   §7, W5), and a shared test has said so since W1.
