@@ -18,8 +18,11 @@ pub(crate) struct LayerOption {
     /// 0 for the lowest; taller layers have higher indexes.
     pub index: u8,
     pub height: u32,
-    /// Bits per second it may take: its declared maximum.
+    /// Bits per second taking it is counted at: its declared maximum, or
+    /// for a screen what it is likely to send.
     pub cost: u64,
+    /// Bits per second it may send: what the downlink is probed for.
+    pub maximum: u64,
     /// The sender is producing it.
     pub available: bool,
     /// Bits per second it sent over the last second; 0 when unknown.
@@ -156,6 +159,7 @@ mod tests {
                 index: 0,
                 height: 180,
                 cost: 150_000,
+                maximum: 150_000,
                 available: true,
                 sent: 0,
             },
@@ -163,6 +167,7 @@ mod tests {
                 index: 1,
                 height: 360,
                 cost: 500_000,
+                maximum: 500_000,
                 available: true,
                 sent: 0,
             },
@@ -170,6 +175,7 @@ mod tests {
                 index: 2,
                 height: 720,
                 cost: 1_500_000,
+                maximum: 1_500_000,
                 available: true,
                 sent: 0,
             },

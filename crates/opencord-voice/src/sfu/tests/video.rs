@@ -668,3 +668,104 @@ fn a_screen_in_a_tile_a_little_smaller_than_its_main_layer_gets_the_main_layer()
 
     assert_eq!(net.clients[bob].last_layer(share.ssrc), Some(1));
 }
+
+/// A 1080p30 screen share: the low layer and a 1920×1080 main layer.
+fn screen_1080p(track_id: &str, base: u32) -> TrackSetup {
+    let mut setup = screen(track_id, base);
+    let main = &mut setup.layers[1];
+    main.width = 1920;
+    main.height = 1080;
+    main.max_bitrate = 4_000_000;
+    setup
+}
+
+/// How long after asking for a still screen `viewer` first got a picture
+/// of its main layer, if within `limit`.
+fn main_layer_after(
+    net: &mut Net,
+    viewer: usize,
+    share: &TrackSetup,
+    limit: Duration,
+) -> Option<Duration> {
+    let asked = net.now;
+    net.want(viewer, &[(share.track_id.as_str(), 1080)]);
+    while net.now - asked < limit {
+        net.run(Duration::from_millis(100));
+        let first = net.clients[viewer]
+            .video_on(share.ssrc, asked)
+            .into_iter()
+            .find(|packet| packet.marking.is_some_and(|marking| marking.layer == 1))
+            .map(|packet| packet.at - asked);
+        if first.is_some() {
+            return first;
+        }
+    }
+    None
+}
+
+/// A still screen shared for a while before `viewer` starts watching it.
+fn still_share_watched_late(share: &TrackSetup) -> Option<Duration> {
+    let mut net = Net::new();
+    let (alice, bob, _) = three(&mut net);
+    net.publish(alice, share.clone());
+    net.still(alice, &share.track_id, STILL_SCREEN);
+    let now = net.now;
+    net.sfu
+        .set_stream_viewers(now, CHANNEL, 100 + alice as i64, vec![100 + bob as i64]);
+    net.run(Duration::from_secs(10));
+    main_layer_after(&mut net, bob, share, Duration::from_secs(10))
+}
+
+#[test]
+fn a_still_720p_screen_watched_late_reaches_its_main_layer_within_2_s() {
+    let after = still_share_watched_late(&screen("screen-a", 7000));
+
+    assert!(
+        after.is_some_and(|after| after <= Duration::from_secs(2)),
+        "{after:?}"
+    );
+}
+
+#[test]
+fn a_still_1080p_screen_watched_late_reaches_its_main_layer_within_2_s() {
+    let after = still_share_watched_late(&screen_1080p("screen-a", 7000));
+
+    assert!(
+        after.is_some_and(|after| after <= Duration::from_secs(2)),
+        "{after:?}"
+    );
+}
+
+#[test]
+fn a_downlink_too_small_for_a_screens_main_layer_is_not_tried_again_and_again() {
+    let mut net = Net::new();
+    let (alice, bob, _) = three(&mut net);
+    let share = screen_1080p("screen-a", 7000);
+    net.publish(alice, share.clone());
+    let now = net.now;
+    net.sfu
+        .set_stream_viewers(now, CHANNEL, 100 + alice as i64, vec![100 + bob as i64]);
+    net.limit_downlink(
+        bob,
+        Some(NetemConfig::new().link(Bitrate::kbps(1000), DataSize::bytes(25_000))),
+    );
+    net.run(Duration::from_secs(5));
+    net.want(bob, &[("screen-a", 1080)]);
+    let asked = net.now;
+
+    net.run(Duration::from_secs(40));
+
+    // Each picture's layer, in order: the main layer (4 Mbit/s while the
+    // screen moves) may be tried once, but not every few seconds.
+    let layers: Vec<u8> = net.clients[bob]
+        .video_on(share.ssrc, asked)
+        .iter()
+        .filter_map(|packet| packet.marking.filter(|marking| marking.start))
+        .map(|marking| marking.layer)
+        .collect();
+    let tries = layers.windows(2).filter(|pair| pair[0] < pair[1]).count();
+    assert!(tries <= 2, "{tries} switches up");
+    assert_eq!(net.clients[bob].last_layer(share.ssrc), Some(0));
+    let lately = net.now - Duration::from_secs(5);
+    assert!(!net.clients[bob].video_on(share.ssrc, lately).is_empty());
+}

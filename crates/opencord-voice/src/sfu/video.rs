@@ -53,6 +53,20 @@ pub(super) const INITIAL_ESTIMATE: u64 = 1_000_000;
 /// after 15 s of no change: after congestion clears, its estimate stays at
 /// 1.5 times what is being sent.
 const PROBE_EVERY: Duration = Duration::from_secs(5);
+/// A receiver that gets a lower layer of something than it asked for, and
+/// has shown no congestion for this long, is taken to have room for it: its
+/// estimate starts again above what that needs ([`TRUST_MARGIN`]). An
+/// estimate grows
+/// only about a quarter a second (str0m smooths it over 3 s), so a still
+/// screen's viewer otherwise waited 5 s or more for a 1080p main layer. If
+/// the room is not there, the loss and the falling estimate move it down,
+/// and it is not taken on trust again for this long.
+const TRUST_AFTER: Duration = Duration::from_secs(30);
+/// How far above the allocation's need a trusted estimate starts: an
+/// estimate falls toward what is sent, and a still screen sends almost
+/// nothing, so starting at the need alone lost it before the main layer's
+/// first picture came.
+const TRUST_MARGIN: f64 = 1.5;
 const CALM: Duration = Duration::from_secs(2);
 /// How often str0m reports each stream, receivers' loss included
 /// (receivers report video once a second).
@@ -181,8 +195,9 @@ impl Track {
     }
 
     /// The layers as receivers could get them. A layer costs its declared
-    /// maximum, and never less than the layer below it; a layer the sender
-    /// was told to stop is gone at once.
+    /// maximum (a screen's: what it is likely to send, see
+    /// [`screen_cost`]), and never less than the layer below it; a layer the
+    /// sender was told to stop is gone at once.
     fn options(&self, now: Instant) -> Vec<LayerOption> {
         let mut floor = 0;
         self.setup
@@ -191,13 +206,19 @@ impl Track {
             .zip(&self.layers)
             .enumerate()
             .map(|(index, (setup, state))| {
-                floor = u64::from(setup.max_bitrate).max(floor);
+                let maximum = u64::from(setup.max_bitrate);
+                let cost = match self.setup.kind {
+                    VideoKind::Screen => screen_cost(maximum, state.meter.bits_per_second(now)),
+                    VideoKind::Camera => maximum,
+                };
+                floor = cost.max(floor);
                 LayerOption {
                     index: index as u8,
                     height: state
                         .size
                         .map_or(setup.height, |(_, height)| u32::from(height)),
                     cost: floor,
+                    maximum: maximum.max(floor),
                     available: self.asked[index] && self.producing(now, index),
                     sent: state.meter.bits_per_second(now),
                 }
@@ -318,6 +339,23 @@ impl Sending {
         (out_seq, out_ts)
     }
 }
+
+/// What a screen's layer is likely to send, in bits per second: what it
+/// sends, with room to grow, and at least [`SCREEN_COST_SHARE`] of its
+/// maximum, but never more than that maximum. A screen sends well under its
+/// maximum most of the time (a still one almost nothing), so waiting for
+/// room for the maximum kept viewers on the low layer: for good, at 1080p.
+/// If it then sends more than a downlink carries, the loss and the
+/// estimate move that viewer down.
+fn screen_cost(maximum: u64, sent: u64) -> u64 {
+    let likely = sent.saturating_mul(SCREEN_MARGIN_PERCENT) / 100;
+    likely.clamp(maximum * SCREEN_COST_SHARE / 100, maximum)
+}
+
+/// The least share of its maximum a screen's layer costs, in percent.
+const SCREEN_COST_SHARE: u64 = 50;
+/// What a screen's layer is allowed beyond what it sends, in percent.
+const SCREEN_MARGIN_PERCENT: u64 = 125;
 
 /// Bits per second a participant with these tracks may send.
 pub(super) fn inbound_cap(tracks: &[Track]) -> u64 {
@@ -684,7 +722,11 @@ impl Sfu {
                         screen: offer.screen,
                         want_height: peer.sending[i].want.unwrap_or(0),
                         layers: &offer.layers,
-                        current: peer.sending[i].current,
+                        // A switch already chosen counts as the layer being
+                        // sent: it waits for that layer's next keyframe (a
+                        // second away on a still screen), and an estimate
+                        // settling meanwhile must not call it off.
+                        current: peer.sending[i].target.or(peer.sending[i].current),
                     })
                 })
                 .collect();
@@ -714,6 +756,7 @@ impl Sfu {
                 .collect();
             let ideals = allocation::allocate(budget, &unrestricted);
             let mut desired_video = 0;
+            let mut held_below = false;
             for (position, sending) in peer.sending.iter_mut().enumerate() {
                 let slot = wanted.iter().position(|&i| i == position);
                 let (target, ideal, desired) = match (slot, offered[position]) {
@@ -729,10 +772,11 @@ impl Sfu {
                         .layers
                         .iter()
                         .find(|layer| layer.index == desired)
-                        .map_or(0, |layer| layer.cost);
+                        .map_or(0, |layer| layer.maximum);
                 }
                 sending.desired = desired;
                 sending.ideal = ideal;
+                held_below |= desired.is_some_and(|desired| target.is_none_or(|got| got < desired));
                 sending.target = target;
                 match target {
                     None => sending.current = None,
@@ -742,10 +786,12 @@ impl Sfu {
                     Some(_) => {}
                 }
             }
-            // The estimator probes up to what the allocation needs to give
-            // everyone what they asked for: headroom and audio included.
+            // The estimator probes up to what the layers everyone asked for
+            // may send (a screen's maximum, not its likely cost, so the
+            // estimate grows with a screen that starts moving): headroom and
+            // audio included.
             let desired = desired_video as f64 * (1.0 + allocation::UPGRADE_HEADROOM) / VIDEO_SHARE;
-            let desired_bitrate = (desired as u64 + audio) * u64::from(desired_video > 0);
+            let desired_bitrate = (desired.ceil() as u64 + audio) * u64::from(desired_video > 0);
             peer.rtc
                 .bwe()
                 .set_desired_bitrate(Bitrate::bps(desired_bitrate));
@@ -763,7 +809,20 @@ impl Sfu {
                 // is several times its low one, and its low layer often
                 // sends well under its maximum).
                 peer.probed = Some(now);
-                let start = peer.estimate.max(desired_bitrate / 2);
+                let trusted = held_below
+                    && peer
+                        .congested
+                        .is_none_or(|at| now.saturating_duration_since(at) >= TRUST_AFTER);
+                // Otherwise a viewer held below what it asked for since its
+                // downlink was congested probes from where it is: a jump
+                // would itself take it up, and down again, every probe.
+                let start = if trusted {
+                    (desired_bitrate as f64 * TRUST_MARGIN) as u64
+                } else if held_below {
+                    peer.estimate
+                } else {
+                    peer.estimate.max(desired_bitrate / 2)
+                };
                 peer.rtc.bwe().reset(Bitrate::bps(start));
             }
         }
