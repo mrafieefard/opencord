@@ -5,6 +5,7 @@ import 'package:opencord/core/providers/providers.dart';
 import 'package:opencord/core/repository/repository.dart';
 import 'package:opencord/features/shell/navigation.dart';
 import 'package:opencord/features/soundboard/soundboard_picker.dart';
+import 'package:opencord/features/voice/camera_menu.dart';
 import 'package:opencord/features/voice/voice_controls.dart';
 import 'package:opencord/ui/theme/oc_colors.dart';
 import 'package:opencord/ui/theme/oc_icons.dart';
@@ -134,6 +135,8 @@ class VoiceConnectedPanel extends ConsumerWidget {
                       label: 'Camera',
                       active: voice.camera,
                       onTap: () => toggleCamera(context, ref),
+                      onSecondaryTap: (position) =>
+                          showCameraMenu(context, ref, position),
                     ),
                   ),
                 if (capabilities.camera && capabilities.screenShare)
@@ -169,18 +172,21 @@ class _Toggle extends StatelessWidget {
     required this.label,
     required this.active,
     required this.onTap,
+    this.onSecondaryTap,
   });
 
   final IconData icon;
   final String label;
   final bool active;
   final VoidCallback onTap;
+  final ValueChanged<Offset>? onSecondaryTap;
 
   @override
   Widget build(BuildContext context) {
     final colors = context.oc;
     return Hoverable(
       onTap: onTap,
+      onSecondaryTap: onSecondaryTap,
       semanticLabel: label,
       selected: active,
       focusRadius: BorderRadius.circular(8),

@@ -192,6 +192,11 @@ jobs:
       - name: Get packages
         run: flutter pub get
 
+      # The macOS release is universal: Rust builds for both architectures.
+      - name: Rust targets for macOS
+        if: matrix.target == 'macos'
+        run: rustup target add aarch64-apple-darwin x86_64-apple-darwin
+
       # On a version tag the app reports the tag's version, not pubspec's.
       - name: Build
         shell: bash

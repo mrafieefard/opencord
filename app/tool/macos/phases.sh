@@ -7,7 +7,8 @@
 # listen_in_phases BOT INVITE LOG HZ [IGNORED_USER_ID...]
 # Prints "<phase>: <the Listener's line about the app>", or "<phase>:
 # nothing" when nothing came from the app, for each phase until the test
-# prints "PHASE: done" or stops.
+# prints "PHASE: done" or stops. A script that defines before_phase has it
+# called with each phase's name before the Listener joins.
 listen_in_phases() {
   local bot="$1" invite="$2" log="$3" hz="$4"
   local ignored=("${@:5}")
@@ -23,6 +24,9 @@ listen_in_phases() {
     fi
     seen=$((seen + 1))
     [[ "$phase" == done ]] && return 0
+    if declare -F before_phase >/dev/null; then
+      before_phase "$phase" >&2
+    fi
     report="$("$bot" --server "$invite" --name Listener --tone 0 \
       --listen-for "$hz" --seconds 5 2>&1 || true)"
     line=""

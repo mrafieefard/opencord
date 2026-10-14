@@ -61,6 +61,8 @@ abstract interface class CoreApi {
   /// Video draws into this engine's textures from now on.
   void videoInit(int engineHandle);
 
+  Future<List<core.CameraDevice>> cameraDevices();
+
   Future<core.CameraStarted> cameraStart(String? deviceId);
 
   void cameraStop();
@@ -374,6 +376,9 @@ class FrbCoreApi implements CoreApi {
 
   @override
   void videoInit(int engineHandle) => frb.videoInit(engineHandle: engineHandle);
+
+  @override
+  Future<List<core.CameraDevice>> cameraDevices() => frb.cameraDevices();
 
   @override
   Future<core.CameraStarted> cameraStart(String? deviceId) =>

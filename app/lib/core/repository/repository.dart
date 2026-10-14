@@ -395,8 +395,14 @@ abstract interface class OpencordRepository {
   Future<void> leaveVoice();
 
   /// The camera that turning the camera on starts from now on, by its
-  /// device id; `null` for the system's first.
-  void chooseCamera(String? deviceId);
+  /// device id; `null` for the system's. With the camera on, it switches
+  /// to it at once; if that one cannot start, the camera goes off and a
+  /// [RepoException] says why.
+  Future<void> chooseCamera(String? deviceId);
+
+  /// The cameras there are, as (device id, name). On Linux listing them
+  /// may ask for camera access first (the Camera portal).
+  Future<List<(String, String)>> cameras();
 
   /// Turning the camera on may fail (a [RepoException] says why); it then
   /// stays off.

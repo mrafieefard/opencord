@@ -9,6 +9,7 @@ import 'package:opencord/core/repository/repository.dart';
 import 'package:opencord/core/settings/app_settings.dart';
 import 'package:opencord/core/settings/local_prefs.dart';
 import 'package:opencord/features/settings/user/keybind_recorder.dart';
+import 'package:opencord/features/voice/camera_menu.dart';
 import 'package:opencord/features/voice/input_level_meter.dart';
 import 'package:opencord/ui/theme/oc_colors.dart';
 import 'package:opencord/ui/theme/oc_icons.dart';
@@ -139,6 +140,22 @@ class _VoicePageState extends ConsumerState<VoicePage> {
                 audio.outputDeviceName,
                 devices.outputs,
                 audio.withOutput,
+              ),
+            ),
+            SettingsRow(
+              title: 'Camera',
+              icon: OcIcons.videocam,
+              trailing: Builder(
+                builder: (context) => OcButton(
+                  label: ref.watch(chosenCameraProvider)?.$2 ?? 'Default',
+                  dense: true,
+                  icon: OcIcons.expandMore,
+                  onPressed: () => showCameraMenu(
+                    context,
+                    ref,
+                    globalRectOf(context).bottomLeft.translate(0, 4),
+                  ),
+                ),
               ),
             ),
           ],

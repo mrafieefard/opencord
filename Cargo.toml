@@ -93,3 +93,7 @@ opt-level = 3
 opt-level = 3
 [profile.dev.package.realfft]
 opt-level = 3
+[profile.dev.package.pic-scale]
+opt-level = 3
+[profile.dev.package.yuv]
+opt-level = 3

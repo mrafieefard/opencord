@@ -56,6 +56,23 @@ struct Hub {
     screen: Option<screen::Share>,
 }
 
+impl Hub {
+    /// The sender of this device's camera or screen share with `track_id`.
+    fn sender_of(&self, track_id: &str) -> Option<&opencord_media::video::sender::VideoSender> {
+        let camera = self
+            .camera
+            .as_ref()
+            .filter(|camera| camera.request.track_id == track_id)
+            .map(|camera| &camera.sender);
+        let screen = self
+            .screen
+            .as_ref()
+            .filter(|share| share.request.track_id == track_id)
+            .map(|share| &share.sender);
+        camera.or(screen)
+    }
+}
+
 struct Remote {
     user_id: i64,
     /// A screen share: its pictures wait for its sound.
@@ -189,6 +206,10 @@ impl Video {
                 fps_scale,
                 size_scale,
             } => {
+                // The camera only: a screen share keeps every layer at its
+                // ceiling. The node's requests for it cycle (main, nothing,
+                // low, main again every 10-20 s), which left text unreadable
+                // (docs/plans/macos.md §7, M8).
                 if let Some(camera) = lock(&self.hub).camera.as_ref()
                     && camera.request.track_id == *track_id
                 {
@@ -197,11 +218,11 @@ impl Video {
                         .encode(layers, bitrates, *fps_scale, *size_scale);
                 }
             }
+            // A viewer that starts watching asks for a keyframe: without
+            // one the node sends it nothing.
             VoiceEvent::KeyframeRequested { track_id, layer } => {
-                if let Some(camera) = lock(&self.hub).camera.as_ref()
-                    && camera.request.track_id == *track_id
-                {
-                    camera.sender.keyframe(*layer);
+                if let Some(sender) = lock(&self.hub).sender_of(track_id) {
+                    sender.keyframe(*layer);
                 }
             }
             VoiceEvent::TrackStopped {
