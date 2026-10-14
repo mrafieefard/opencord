@@ -589,3 +589,91 @@ async fn only_the_session_in_voice_gets_a_voice_token() {
 
     assert_eq!(code(&outside), proto::ErrorCode::VoiceNotConnected);
 }
+
+#[tokio::test]
+async fn a_voice_channel_holds_a_chat_for_those_who_can_see_it() {
+    let mut room = room().await;
+    let sent = match room
+        .member
+        .ok(Request::SendMessage(proto::SendMessage {
+            channel_id: room.voice,
+            content: "can you hear me?".to_owned(),
+            nonce: "n1".to_owned(),
+        }))
+        .await
+    {
+        Response::Message(message) => message,
+        other => panic!("expected a message, got {other:?}"),
+    };
+    assert_eq!(sent.channel_id, room.voice);
+
+    // Everyone who can see the channel gets it, in voice or not.
+    let created = room
+        .owner
+        .wait_for(|event| match event {
+            Event::MessageCreate(proto::MessageCreate {
+                message: Some(message),
+            }) => Some(message.clone()),
+            _ => None,
+        })
+        .await;
+    assert_eq!(created.content, "can you hear me?");
+    let history = match room
+        .owner
+        .ok(Request::FetchMessages(proto::FetchMessages {
+            channel_id: room.voice,
+            before: None,
+            limit: 50,
+        }))
+        .await
+    {
+        Response::Messages(list) => list.messages,
+        other => panic!("expected messages, got {other:?}"),
+    };
+    assert_eq!(history.len(), 1);
+
+    // Send messages is still needed.
+    let everyone = {
+        let (_, ready) = join(&room.server, 3, &room.invite).await;
+        everyone_role(&ready)
+    };
+    room.owner
+        .ok(deny_everyone(
+            room.voice,
+            everyone,
+            Permissions::SEND_MESSAGES,
+        ))
+        .await;
+    let refused = room
+        .member
+        .error(Request::SendMessage(proto::SendMessage {
+            channel_id: room.voice,
+            content: "and now?".to_owned(),
+            nonce: "n2".to_owned(),
+        }))
+        .await;
+    assert_eq!(code(&refused), proto::ErrorCode::Forbidden);
+}
+
+#[tokio::test]
+async fn a_voice_channel_with_its_chat_off_takes_no_messages() {
+    let mut room = room().await;
+    room.owner
+        .ok(Request::UpdateChannel(proto::UpdateChannel {
+            channel_id: room.voice,
+            text_in_voice: Some(false),
+            ..Default::default()
+        }))
+        .await;
+
+    let refused = room
+        .owner
+        .error(Request::SendMessage(proto::SendMessage {
+            channel_id: room.voice,
+            content: "anyone?".to_owned(),
+            nonce: "n1".to_owned(),
+        }))
+        .await;
+
+    assert_eq!(code(&refused), proto::ErrorCode::InvalidArgument);
+}

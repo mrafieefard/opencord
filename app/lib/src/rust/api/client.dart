@@ -618,6 +618,11 @@ Future<void> soundboardPreview({
   soundRef: soundRef,
 );
 
+/// Plays a voice event's sound on this device only (Phase 2 §12), at
+/// `volume` (0–1).
+void playCue({required VoiceCue cue, required double volume}) =>
+    RustLib.instance.api.crateApiClientPlayCue(cue: cue, volume: volume);
+
 /// The soundboard's volume (0–1) and "Mute all soundboards" (User settings
 /// → Sounds).
 void soundboardSetListening({required double volume, required bool muted}) =>

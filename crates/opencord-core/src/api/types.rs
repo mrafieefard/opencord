@@ -240,6 +240,21 @@ pub enum ScreenShareResolution {
     Source,
 }
 
+/// A voice event's sound on this device (Phase 2 §12).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum VoiceCue {
+    Join,
+    Leave,
+    UserJoin,
+    UserLeave,
+    Mute,
+    Unmute,
+    Deafen,
+    Undeafen,
+    StreamStart,
+    StreamStop,
+}
+
 /// What a screen share shows.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum StreamSourceKind {

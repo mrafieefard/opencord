@@ -459,6 +459,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   VoiceConnectionState dco_decode_voice_connection_state(dynamic raw);
 
   @protected
+  VoiceCue dco_decode_voice_cue(dynamic raw);
+
+  @protected
   VoiceSettings dco_decode_voice_settings(dynamic raw);
 
   @protected
@@ -986,6 +989,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   VoiceConnectionState sse_decode_voice_connection_state(
     SseDeserializer deserializer,
   );
+
+  @protected
+  VoiceCue sse_decode_voice_cue(SseDeserializer deserializer);
 
   @protected
   VoiceSettings sse_decode_voice_settings(SseDeserializer deserializer);
@@ -1645,6 +1651,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
     VoiceConnectionState self,
     SseSerializer serializer,
   );
+
+  @protected
+  void sse_encode_voice_cue(VoiceCue self, SseSerializer serializer);
 
   @protected
   void sse_encode_voice_settings(VoiceSettings self, SseSerializer serializer);

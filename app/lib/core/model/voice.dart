@@ -387,3 +387,26 @@ class AudioConfig {
       '$echoCancellation, noise suppression: ${noiseSuppression.name}, '
       'automatic gain: $automaticGain, $inputVolume %, $outputVolume %)';
 }
+
+/// A voice event's sound on this device (Phase 2 §12).
+enum VoiceCue {
+  /// This device joined a voice channel, or was moved to another.
+  join,
+
+  /// This device left, or was disconnected.
+  leave,
+
+  /// Someone else joined the channel this device is in.
+  userJoin,
+
+  /// Someone else left it.
+  userLeave,
+  mute,
+  unmute,
+  deafen,
+  undeafen,
+
+  /// Someone in the channel went live, this device included.
+  streamStart,
+  streamStop,
+}

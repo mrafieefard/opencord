@@ -97,6 +97,7 @@ abstract interface class CoreApi {
   Future<void> soundboardPreview(String serverKey, String soundRef);
 
   void soundboardSetListening(double volume, bool muted);
+  void playCue(core.VoiceCue cue, double volume);
 
   void soundboardMutePlayer(String serverKey, int userId, bool muted);
 
@@ -441,6 +442,10 @@ class FrbCoreApi implements CoreApi {
   @override
   void soundboardSetListening(double volume, bool muted) =>
       frb.soundboardSetListening(volume: volume, muted: muted);
+
+  @override
+  void playCue(core.VoiceCue cue, double volume) =>
+      frb.playCue(cue: cue, volume: volume);
 
   @override
   void soundboardMutePlayer(String serverKey, int userId, bool muted) => frb

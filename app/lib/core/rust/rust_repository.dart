@@ -374,7 +374,9 @@ class RustRepository implements OpencordRepository {
     };
     final pending = [
       for (final channel in ready.channels)
-        if (channel.kind == core.ChannelKind.text &&
+        // Voice channels hold a chat too (Phase 2 §12).
+        if ((channel.kind == core.ChannelKind.text ||
+                channel.kind == core.ChannelKind.voice) &&
             allowed.contains(channel.id))
           channel.id,
     ];
@@ -429,9 +431,9 @@ class RustRepository implements OpencordRepository {
   }
 
   void _forward(String server, core.CoreEventPayload payload) {
-    if (payload case core.CoreEventPayload_ChannelCreate(
-      :final field0,
-    ) when field0.kind == core.ChannelKind.text) {
+    if (payload case core.CoreEventPayload_ChannelCreate(:final field0)
+        when field0.kind == core.ChannelKind.text ||
+            field0.kind == core.ChannelKind.voice) {
       _positions.start(server, field0.id);
     }
     final RepoEvent? event = switch (payload) {
@@ -1175,6 +1177,22 @@ class RustRepository implements OpencordRepository {
       _now(
         () => _core.soundboardSetListening(volume.clamp(0, 100) / 100, muted),
       );
+
+  @override
+  void playCue(VoiceCue cue) => _now(
+    () => _core.playCue(switch (cue) {
+      VoiceCue.join => core.VoiceCue.join,
+      VoiceCue.leave => core.VoiceCue.leave,
+      VoiceCue.userJoin => core.VoiceCue.userJoin,
+      VoiceCue.userLeave => core.VoiceCue.userLeave,
+      VoiceCue.mute => core.VoiceCue.mute,
+      VoiceCue.unmute => core.VoiceCue.unmute,
+      VoiceCue.deafen => core.VoiceCue.deafen,
+      VoiceCue.undeafen => core.VoiceCue.undeafen,
+      VoiceCue.streamStart => core.VoiceCue.streamStart,
+      VoiceCue.streamStop => core.VoiceCue.streamStop,
+    }, 1),
+  );
 
   @override
   void setUserSoundboardMute(String serverKey, int userId, bool muted) =>

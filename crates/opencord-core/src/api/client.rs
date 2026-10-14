@@ -19,7 +19,7 @@ use super::types::{
     RoleChanges, ScreenAudioApp, ScreenAudioSupport, ScreenShareRequest, ScreenShareStarted,
     ScreenSource, ScreenThumbnail, Server, ServerChanges, ServerInfo, SoundDraft, SoundSelection,
     SoundboardSound, SoundboardSoundChanges, StreamSourceKind, TextureStats, TrustedFingerprint,
-    User, VideoSupport, VideoWant, VoiceSettings, VoiceSettingsChanges, VoiceState,
+    User, VideoSupport, VideoWant, VoiceCue, VoiceSettings, VoiceSettingsChanges, VoiceState,
 };
 use crate::client::Client;
 use crate::frb_generated::StreamSink;
@@ -863,6 +863,14 @@ pub async fn soundboard_preview(server_key: String, sound_ref: String) -> Result
         move |client| async move { client.soundboard_preview(&server_key, &sound_ref).await },
     )
     .await
+}
+
+/// Plays a voice event's sound on this device only (Phase 2 §12), at
+/// `volume` (0–1).
+#[frb(sync)]
+pub fn play_cue(cue: VoiceCue, volume: f32) -> Result<(), CoreError> {
+    client()?.play_cue(cue, volume);
+    Ok(())
 }
 
 /// The soundboard's volume (0–1) and "Mute all soundboards" (User settings

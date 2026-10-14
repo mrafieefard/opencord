@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:opencord/core/model/video.dart';
 import 'package:opencord/core/providers/providers.dart';
+import 'package:opencord/core/providers/voice_cues.dart';
 import 'package:opencord/core/repository/repository.dart';
 import 'package:opencord/core/model/stream.dart';
 import 'package:opencord/core/model/voice.dart';
@@ -75,6 +76,88 @@ void main() {
     expect(_inView(find.text('LIVE')), findsOneWidget);
     expect(_inView(find.text('Alex Rivera')), findsOneWidget);
     expect(_inView(find.byType(VoiceControlBar)), findsOneWidget);
+    await app.dispose(tester);
+  });
+
+  testWidgets('hiding non-video participants leaves cameras and screens', (
+    tester,
+  ) async {
+    final app = await MockApp.pump(tester);
+    await _joinGeneral(tester);
+
+    await tester.tap(find.byTooltip('Hide non-video participants'));
+    await _pumpFor(tester, const Duration(milliseconds: 300));
+
+    // Priya's camera and Tomás's screen; nobody else.
+    expect(_inView(find.byType(VoiceTileView)), findsNWidgets(2));
+    expect(_tileOf(_priya), findsOneWidget);
+    expect(_tileOf(_tomas, screen: true), findsOneWidget);
+    expect(_tileOf(_tomas), findsNothing);
+
+    await tester.tap(find.byTooltip('Show non-video participants'));
+    await _pumpFor(tester, const Duration(milliseconds: 300));
+    expect(_inView(find.byType(VoiceTileView)), findsNWidgets(6));
+    await app.dispose(tester);
+  });
+
+  testWidgets("a voice channel's chat opens beside the tiles and is unread "
+      'on its row until seen', (tester) async {
+    final app = await MockApp.pump(tester);
+    await _joinGeneral(tester);
+    final voice = _voiceChannel(app);
+
+    app.repository.debugPostAs(_dev, voice, 'anyone hear the echo?');
+    await _pumpFor(tester, const Duration(milliseconds: 300));
+    expect(
+      find.bySemanticsLabel(RegExp(r'^General, voice, .*1 unread$')),
+      findsOneWidget,
+    );
+    expect(find.byTooltip('Show chat, 1 unread'), findsOneWidget);
+
+    await tester.tap(find.byTooltip('Show chat, 1 unread'));
+    await _pumpFor(tester, const Duration(milliseconds: 500));
+
+    expect(find.textContaining('anyone hear the echo?'), findsOneWidget);
+    expect(_inView(find.byType(VoiceTileView)), findsNWidgets(6));
+    expect(
+      find.bySemanticsLabel(RegExp(r'^General, voice, .*unread$')),
+      findsNothing,
+    );
+
+    await tester.enterText(find.byType(EditableText).last, 'yes, a little');
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+    await _pumpFor(tester, const Duration(milliseconds: 500));
+    expect(find.textContaining('yes, a little'), findsOneWidget);
+
+    await tester.tap(find.byTooltip('Hide chat'));
+    await _pumpFor(tester, const Duration(milliseconds: 300));
+    expect(find.textContaining('anyone hear the echo?'), findsNothing);
+    await _pumpFor(tester, const Duration(seconds: 5));
+    await app.dispose(tester);
+  });
+
+  testWidgets('voice sounds play for joining, muting and leaving, except '
+      'those turned off', (tester) async {
+    final app = await MockApp.pump(tester);
+    await _joinGeneral(tester);
+    expect(app.repository.cuesPlayed, [VoiceCue.join]);
+
+    await tester.tap(_control('Mute'));
+    await _pumpFor(tester, const Duration(milliseconds: 100));
+    await tester.tap(_control('Unmute'));
+    await _pumpFor(tester, const Duration(milliseconds: 100));
+    expect(app.repository.cuesPlayed, [
+      VoiceCue.join,
+      VoiceCue.mute,
+      VoiceCue.unmute,
+    ]);
+
+    app.read(cuePrefsProvider.notifier).set(CueGroup.mute, on: false);
+    await tester.tap(_control('Mute'));
+    await _pumpFor(tester, const Duration(milliseconds: 100));
+    await tester.tap(_control('Disconnect'));
+    await _pumpFor(tester, const Duration(milliseconds: 300));
+    expect(app.repository.cuesPlayed.skip(3), [VoiceCue.leave]);
     await app.dispose(tester);
   });
 

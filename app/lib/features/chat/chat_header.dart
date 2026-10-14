@@ -7,6 +7,7 @@ import 'package:opencord/core/model/channel.dart';
 import 'package:opencord/core/providers/providers.dart';
 import 'package:opencord/core/repository/repository.dart';
 import 'package:opencord/core/settings/local_prefs.dart';
+import 'package:opencord/core/settings/voice_view_prefs.dart';
 import 'package:opencord/features/channels/channel_row.dart';
 import 'package:opencord/features/chat/pinned_bar.dart';
 import 'package:opencord/features/chat/typing_dots.dart';
@@ -15,6 +16,7 @@ import 'package:opencord/ui/theme/oc_colors.dart';
 import 'package:opencord/ui/theme/oc_icons.dart';
 import 'package:opencord/ui/theme/oc_metrics.dart';
 import 'package:opencord/ui/theme/oc_text.dart';
+import 'package:opencord/ui/widgets/badges.dart';
 import 'package:opencord/ui/widgets/oc_icon_button.dart';
 import 'package:opencord/ui/widgets/oc_menu.dart';
 import 'package:opencord/ui/widgets/popover.dart';
@@ -107,6 +109,11 @@ class ChatHeader extends ConsumerWidget {
                 ),
               ),
           ],
+          if (open != null &&
+              target != null &&
+              target.kind == ChannelKind.voice &&
+              ref.read(repositoryProvider).capabilities.voice)
+            _VoiceViewButtons(channel: open, chat: target.textInVoice),
           if (memberToggle)
             OcIconButton(
               icon: OcIcons.group,
@@ -233,6 +240,63 @@ class _Title extends ConsumerWidget {
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: style,
+          ),
+      ],
+    );
+  }
+}
+
+/// A voice channel's view choices (Phase 2 §12): its chat beside the tiles,
+/// with how much is unread there, and tiles only for people with video.
+class _VoiceViewButtons extends ConsumerWidget {
+  const _VoiceViewButtons({required this.channel, required this.chat});
+
+  final ChannelRef channel;
+
+  /// The channel's text chat is on (§5.3).
+  final bool chat;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final prefs = ref.watch(voiceViewPrefsProvider);
+    final unread = ref.watch(
+      activityProvider(
+        channel.server,
+      ).select((activity) => activity.of(channel.channel).read.unread),
+    );
+    final notifier = ref.read(voiceViewPrefsProvider.notifier);
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        OcIconButton(
+          icon: prefs.hideNonVideo ? OcIcons.videocamOff : OcIcons.videocam,
+          tooltip: prefs.hideNonVideo
+              ? 'Show non-video participants'
+              : 'Hide non-video participants',
+          active: prefs.hideNonVideo,
+          onPressed: notifier.toggleHideNonVideo,
+        ),
+        if (chat)
+          Stack(
+            clipBehavior: Clip.none,
+            children: [
+              OcIconButton(
+                icon: OcIcons.chat,
+                tooltip: switch ((prefs.chatOpen, unread)) {
+                  (true, _) => 'Hide chat',
+                  (false, 0) => 'Show chat',
+                  (false, final count) => 'Show chat, $count unread',
+                },
+                active: prefs.chatOpen,
+                onPressed: notifier.toggleChat,
+              ),
+              if (!prefs.chatOpen && unread > 0)
+                Positioned(
+                  right: 0,
+                  top: 0,
+                  child: IgnorePointer(child: UnreadBadge(count: unread)),
+                ),
+            ],
           ),
       ],
     );

@@ -22,7 +22,7 @@ use crate::api::types::{
     PermissionOverwrite, PresenceStatus, Role, RoleChanges, ScreenProblem, ScreenShareRequest,
     ScreenShareStarted, ScreenStream, Server, ServerChanges, ServerInfo, SoundDraft,
     SoundSelection, SoundboardSound, SoundboardSoundChanges, StreamSourceKind, User, VideoWant,
-    VoiceSettings, VoiceSettingsChanges, VoiceState,
+    VoiceCue, VoiceSettings, VoiceSettingsChanges, VoiceState,
 };
 use crate::connection::{
     self, Command, Connection, Context, Credentials, Established, HandshakeError, MediaTokens,
@@ -1161,6 +1161,18 @@ impl Client {
         self.inner.soundboard.preview(self, key, sound_ref).await
     }
 
+    /// Plays a voice event's sound here only, at `volume` (0–1): in the
+    /// call when there is one, else through an engine started for it.
+    pub fn play_cue(&self, cue: VoiceCue, volume: f32) {
+        let Some(media) = self.media() else {
+            return;
+        };
+        match cue_samples(cue) {
+            Ok(samples) => media.preview(samples, volume.clamp(0.0, 1.0)),
+            Err(error) => tracing::warn!(%error, ?cue, "a voice cue could not be decoded"),
+        }
+    }
+
     /// The soundboard's volume (0–1) and "Mute all soundboards".
     pub fn soundboard_set_listening(&self, volume: f32, muted: bool) {
         self.inner.soundboard.set_listening(volume, muted);
@@ -1588,6 +1600,40 @@ fn unix_ms() -> i64 {
     i64::try_from(since_epoch.as_millis()).unwrap_or(i64::MAX)
 }
 
+/// A cue's samples, decoded once.
+fn cue_samples(cue: VoiceCue) -> Result<Arc<[f32]>, opencord_media::soundboard::SoundError> {
+    use opencord_media::soundboard::cues::Cue;
+
+    static DECODED: OnceLock<Mutex<HashMap<VoiceCue, Arc<[f32]>>>> = OnceLock::new();
+    let decoded = DECODED.get_or_init(Mutex::default);
+    if let Some(samples) = decoded
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .get(&cue)
+    {
+        return Ok(Arc::clone(samples));
+    }
+    let file = match cue {
+        VoiceCue::Join => Cue::Join,
+        VoiceCue::Leave => Cue::Leave,
+        VoiceCue::UserJoin => Cue::UserJoin,
+        VoiceCue::UserLeave => Cue::UserLeave,
+        VoiceCue::Mute => Cue::Mute,
+        VoiceCue::Unmute => Cue::Unmute,
+        VoiceCue::Deafen => Cue::Deafen,
+        VoiceCue::Undeafen => Cue::Undeafen,
+        VoiceCue::StreamStart => Cue::StreamStart,
+        VoiceCue::StreamStop => Cue::StreamStop,
+    }
+    .file();
+    let samples: Arc<[f32]> = Arc::from(opencord_media::soundboard::decode_mono(file)?);
+    decoded
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .insert(cue, Arc::clone(&samples));
+    Ok(samples)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1611,5 +1657,24 @@ mod tests {
             Err(CoreError::InvalidInput { .. })
         ));
     }
-}
 
+    #[test]
+    fn every_voice_cue_decodes_once_and_is_kept() {
+        for cue in [
+            VoiceCue::Join,
+            VoiceCue::Leave,
+            VoiceCue::UserJoin,
+            VoiceCue::UserLeave,
+            VoiceCue::Mute,
+            VoiceCue::Unmute,
+            VoiceCue::Deafen,
+            VoiceCue::Undeafen,
+            VoiceCue::StreamStart,
+            VoiceCue::StreamStop,
+        ] {
+            let first = cue_samples(cue).unwrap();
+            assert!(first.len() > 48_000 / 20, "{cue:?} is too short");
+            assert!(Arc::ptr_eq(&first, &cue_samples(cue).unwrap()));
+        }
+    }
+}

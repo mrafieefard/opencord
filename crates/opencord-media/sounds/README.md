@@ -12,3 +12,5 @@ cargo run -p opencord-media --example default_sounds
 To the extent possible under law, the Opencord contributors have waived all
 copyright and related rights to these sound files
 ([CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/)).
+
+The voice event sounds in `cues/` (Phase 2 §12) come from `examples/cue_sounds.rs` the same way, also CC0.

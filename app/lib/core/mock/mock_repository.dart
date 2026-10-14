@@ -799,7 +799,7 @@ class MockRepository implements OpencordRepository {
       ],
     );
     server.channels[id] = channel;
-    if (kind.isTextLike) {
+    if (kind.isTextLike || kind == ChannelKind.voice) {
       server.messages[id] = [];
       server.readStates[id] = ReadState.empty;
     }
@@ -1993,6 +1993,12 @@ class MockRepository implements OpencordRepository {
   @override
   void setSoundboardListening({required int volume, required bool muted}) =>
       soundboardListening = (volume: volume, muted: muted);
+
+  /// Every voice cue played, oldest first.
+  final cuesPlayed = <VoiceCue>[];
+
+  @override
+  void playCue(VoiceCue cue) => cuesPlayed.add(cue);
 
   @override
   void setUserSoundboardMute(String serverKey, int userId, bool muted) {

@@ -19,7 +19,7 @@ pub async fn send(ctx: &Ctx<'_>, request: proto::SendMessage) -> Result<Response
             "nonce must be at most {NONCE_MAX_CHARS} characters"
         )));
     }
-    require_text_channel(
+    require_message_channel(
         ctx,
         request.channel_id,
         Permissions::VIEW_CHANNEL | Permissions::SEND_MESSAGES,
@@ -120,7 +120,7 @@ pub async fn fetch(ctx: &Ctx<'_>, request: proto::FetchMessages) -> Result<Respo
 }
 
 pub fn start_typing(ctx: &Ctx<'_>, request: proto::StartTyping) -> Result<Response, ApiError> {
-    require_text_channel(
+    require_message_channel(
         ctx,
         request.channel_id,
         Permissions::VIEW_CHANNEL | Permissions::SEND_MESSAGES,
@@ -135,19 +135,24 @@ pub fn start_typing(ctx: &Ctx<'_>, request: proto::StartTyping) -> Result<Respon
     Ok(ack())
 }
 
-fn require_text_channel(
+fn require_message_channel(
     ctx: &Ctx<'_>,
     channel_id: i64,
     needed: Permissions,
 ) -> Result<(), ApiError> {
     let guild = ctx.state.guild();
     let channel = require_channel(&guild, ctx.user_id, channel_id, needed)?;
-    if channel.kind == ChannelKind::Text {
-        Ok(())
-    } else {
-        Err(ApiError::invalid_argument(
-            "only text channels have messages",
-        ))
+    // Voice channels hold a chat too (Phase 2 §12), as on Discord, unless
+    // their settings turn it off (§5.3).
+    match channel.kind {
+        ChannelKind::Text => Ok(()),
+        ChannelKind::Voice if channel.text_in_voice => Ok(()),
+        ChannelKind::Voice => Err(ApiError::invalid_argument(
+            "this voice channel's text chat is off",
+        )),
+        _ => Err(ApiError::invalid_argument(
+            "only text and voice channels have messages",
+        )),
     }
 }
 

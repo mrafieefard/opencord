@@ -261,6 +261,10 @@ class FakeCoreApi extends Fake implements CoreApi {
       calls.add('soundboardSetListening:$volume:$muted');
 
   @override
+  void playCue(core.VoiceCue cue, double volume) =>
+      calls.add('playCue:${cue.name}:$volume');
+
+  @override
   void videoSetWants(List<core.VideoWant> wants) => videoWants = wants;
 
   @override

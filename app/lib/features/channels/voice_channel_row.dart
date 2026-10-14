@@ -7,6 +7,7 @@ import 'package:opencord/core/model/misc.dart';
 import 'package:opencord/core/model/permissions.dart';
 import 'package:opencord/core/providers/providers.dart';
 import 'package:opencord/core/repository/repository.dart';
+import 'package:opencord/core/settings/local_prefs.dart';
 import 'package:opencord/features/channels/channel_row.dart';
 import 'package:opencord/features/members/member_actions.dart';
 import 'package:opencord/features/shell/navigation.dart';
@@ -51,6 +52,14 @@ class VoiceChannelRow extends ConsumerWidget {
       ).select((voice) => voice[channel.id] ?? const <VoiceParticipant>[]),
     );
     final selected = ref.watch(currentChannelProvider) == channel.id;
+    // Its chat's unread messages (Phase 2 §12), as a text channel shows.
+    final read = ref.watch(
+      activityProvider(serverKey).select((a) => a.of(channel.id).read),
+    );
+    final muted = ref.watch(
+      notificationPrefsProvider.select((p) => p.muted(serverKey, channel.id)),
+    );
+    final strong = selected || (read.unread > 0 && !muted);
     // Phase 1 servers have no voice: the channel shows, but only opens a
     // note that it is coming (Phase 1 §9.3).
     final voice = ref.read(repositoryProvider).capabilities.voice;
@@ -66,6 +75,7 @@ class VoiceChannelRow extends ConsumerWidget {
           onSecondaryTap: (position) => _showMenu(context, ref, position),
           semanticLabel: voice
               ? '${channel.name}, voice, ${participants.length} connected'
+                    '${read.unread > 0 ? ', ${read.unread} unread' : ''}'
               : '${channel.name}, voice, coming soon',
           selected: selected,
           cursor: SystemMouseCursors.basic,
@@ -94,11 +104,19 @@ class VoiceChannelRow extends ConsumerWidget {
                   child: EllipsisText(
                     channel.name,
                     style: OcText.body.copyWith(
-                      fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
-                      color: selected ? colors.text : colors.textSecondary,
+                      fontWeight: strong ? FontWeight.w600 : FontWeight.w500,
+                      color: strong ? colors.text : colors.textSecondary,
                     ),
                   ),
                 ),
+                if (read.mentions > 0) ...[
+                  const MentionBadge(),
+                  const SizedBox(width: OcSpace.s4),
+                ],
+                if (read.unread > 0) ...[
+                  UnreadBadge(count: read.unread, muted: muted),
+                  const SizedBox(width: OcSpace.s4),
+                ],
                 if (!voice)
                   Text(
                     'Soon',

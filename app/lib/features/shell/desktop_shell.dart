@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:opencord/core/providers/providers.dart';
+import 'package:opencord/core/providers/voice_cues.dart';
 import 'package:opencord/core/settings/local_prefs.dart';
 import 'package:opencord/core/repository/repository.dart';
 import 'package:opencord/features/channels/channel_sidebar.dart';
@@ -76,6 +77,8 @@ class _DesktopShellState extends ConsumerState<DesktopShell> {
     ref.listenManual(appLinkInboxProvider, (_, links) {
       if (links.isNotEmpty) _openLinks();
     }, fireImmediately: true);
+    // Voice sounds play while the shell is up (Phase 2 §12).
+    ref.listenManual(voiceCuesProvider, (_, _) {});
     ref.listenManual(audioNoticeProvider, (_, notice) {
       if (notice != null && mounted) {
         showOcToast(
@@ -218,9 +221,11 @@ class _DesktopShellState extends ConsumerState<DesktopShell> {
   Widget build(BuildContext context) {
     final colors = context.oc;
     // No servers, no members to list (§4.13).
+    // A voice channel's chat takes the member list's place (Phase 2 §12).
     final membersShown =
         ref.watch(memberPanelProvider) &&
-        ref.watch(serverListProvider.select((servers) => servers.isNotEmpty));
+        ref.watch(serverListProvider.select((servers) => servers.isNotEmpty)) &&
+        !ref.watch(voiceChatShownProvider);
     // Text fields (the composer, searches) need Material underneath.
     return Material(
       type: MaterialType.transparency,

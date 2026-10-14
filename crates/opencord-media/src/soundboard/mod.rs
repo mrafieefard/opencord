@@ -2,6 +2,7 @@
 //! upload (normalized to EBU R128 −18 LUFS, encoded to Ogg Opus at
 //! 96 kbps) and a stored sound decoded for playing.
 
+pub mod cues;
 pub mod defaults;
 pub mod input;
 

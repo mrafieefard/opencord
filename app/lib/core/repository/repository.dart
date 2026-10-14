@@ -531,6 +531,9 @@ abstract interface class OpencordRepository {
   /// The soundboard volume (0–100 %) and "Mute all soundboards".
   void setSoundboardListening({required int volume, required bool muted});
 
+  /// Plays a voice event's sound on this device only (Phase 2 §12).
+  void playCue(VoiceCue cue);
+
   /// "Mute their soundboard": their sounds are not played here.
   void setUserSoundboardMute(String serverKey, int userId, bool muted);
 
