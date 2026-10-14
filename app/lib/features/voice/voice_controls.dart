@@ -6,6 +6,7 @@ import 'package:opencord/core/model/stream.dart';
 import 'package:opencord/core/providers/providers.dart';
 import 'package:opencord/core/repository/repository.dart';
 import 'package:opencord/features/soundboard/soundboard_picker.dart';
+import 'package:opencord/features/voice/camera_menu.dart';
 import 'package:opencord/features/voice/screenshare_picker.dart';
 import 'package:opencord/features/voice/sound_from.dart';
 import 'package:opencord/ui/theme/oc_colors.dart';
@@ -47,17 +48,7 @@ Future<void> toggleCamera(BuildContext context, WidgetRef ref) async {
     await ref.read(voiceSessionProvider.notifier).toggleCamera();
   } on RepoException catch (error) {
     if (!context.mounted) return;
-    showOcToast(context, switch (error.kind) {
-      RepoErrorKind.cameraLimit => 'Camera limit reached in this channel',
-      RepoErrorKind.cameraDenied =>
-        "Camera access is off. Allow it in your system's privacy settings.",
-      RepoErrorKind.cameraMissing => 'No camera was found.',
-      RepoErrorKind.cameraUnsupported =>
-        "Cameras don't work on this system yet.",
-      RepoErrorKind.forbidden =>
-        "You don't have permission to use your camera here.",
-      _ => error.message,
-    });
+    showOcToast(context, cameraErrorText(error));
   }
 }
 
@@ -278,12 +269,17 @@ class VoiceControlBar extends ConsumerWidget {
         ),
         if (capabilities.camera) ...[
           const SizedBox(width: OcSpace.s12),
-          _RoundToggle(
-            icon: OcIcons.videocamOff,
-            activeIcon: OcIcons.videocam,
-            tooltip: voice.camera ? 'Turn off camera' : 'Turn on camera',
-            active: voice.camera,
-            onPressed: () => toggleCamera(context, ref),
+          // Right-click: which camera.
+          GestureDetector(
+            onSecondaryTapUp: (details) =>
+                showCameraMenu(context, ref, details.globalPosition),
+            child: _RoundToggle(
+              icon: OcIcons.videocamOff,
+              activeIcon: OcIcons.videocam,
+              tooltip: voice.camera ? 'Turn off camera' : 'Turn on camera',
+              active: voice.camera,
+              onPressed: () => toggleCamera(context, ref),
+            ),
           ),
         ],
         if (capabilities.screenShare) ...[

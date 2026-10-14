@@ -1142,16 +1142,26 @@ Rulings (`Mn: Ruling: … — cost if wrong: …`):
   preferred camera, since it lacks the app's
   `NSCameraUseContinuityCameraDeviceType` — cost if wrong: someone who
   picked another camera in Control Center gets that one.
-- M8: Ruling: **a temporary camera menu** (`shared:`, at the user's
-  request; the Linux session will replace it with a proper one): User
-  settings → Voice & audio → Devices → Camera lists Default and each
-  camera (`OpencordRepository.cameras()` over the existing
-  `cameraDevices()` binding; `chosenCamera`; no bindings regenerated) and
-  calls `chooseCamera`, which takes effect the next time the camera turns
-  on. The choice isn't saved across launches. **Continuity Camera passes
+- M8: Ruling: **a camera menu** (`shared:`, at the user's request; first
+  temporary, then kept and extended): a right-click on either Camera
+  button (the voice panel's and the call's round one), or User settings →
+  Voice & audio → Devices → Camera, lists Default and each camera
+  (`features/voice/camera_menu.dart`; `OpencordRepository.cameras()` over
+  the existing `cameraDevices()` binding, so no bindings were
+  regenerated). With the camera on, a choice switches at once: the core's
+  `camera_start` stops the camera that's on and publishes the new one (a
+  new track and preview), and a camera that can't start leaves it off with
+  the usual toast. The choice lasts for the run; it isn't saved.
+  **Windows and Linux:** both list cameras with the IDs their `start`
+  takes (Media Foundation's symbolic links on `phase2-windows`; PipeWire
+  or `v4l2:` on Linux, where listing may ask the Camera portal first).
+  Choosing the camera already in use does nothing, because reopening it
+  could find it still busy (V4L2, Media Foundation) while the old capture
+  closes on its thread. Switching from Default to the same camera by name
+  can still hit that; for the Linux session. **Continuity Camera passes
   (user, release build):** the menu listed the FaceTime HD camera and the
-  iPhone, and the camera started from each — cost if wrong: none; it's
-  meant to be replaced.
+  iPhone, and the camera started from each — cost if wrong: viewers see
+  the camera's track change on a switch.
 - M8: Finding for the Linux session (server and shared app, not edited):
   after many app restarts against one server (`serve_lan.sh`, all from
   this Mac's address), joining General kept failing with "slow down" for
@@ -1218,10 +1228,12 @@ Rulings (`Mn: Ruling: … — cost if wrong: …`):
   have been a seam (each system's rule for a device's rate).
 - M8 (`shared:`) `app/lib/core/repository/repository.dart`,
   `core/rust/core_api.dart`, `core/rust/rust_repository.dart`,
-  `core/mock/mock_repository.dart`,
-  `features/settings/user/app_pages.dart`: a temporary camera menu under
-  Voice & audio → Devices, at the user's request, to check Continuity
-  Camera; the Linux session replaces it.
+  `core/mock/mock_repository.dart`, `features/voice/camera_menu.dart`
+  (new), `features/voice/voice_controls.dart`,
+  `features/channels/voice_panel.dart`,
+  `features/settings/user/app_pages.dart`: the camera menu (right-click on
+  the Camera buttons, and Voice & audio → Devices), switching at once, at
+  the user's request.
 
 Shared tests that fail on macOS for a platform reason (not edited):
 - M0: `app/test/unit/desktop/linux_notifications_test.dart` (2 tests) and

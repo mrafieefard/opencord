@@ -1401,24 +1401,37 @@ class RustRepository implements OpencordRepository {
     }
     final started = await _call(() => _core.cameraStart(_cameraDevice));
     _cameraOn = true;
-    _emit(
-      OwnCameraChanged(
-        VideoFeed(
-          trackId: started.trackId,
-          textureId: started.textureId,
-          width: started.width,
-          height: started.height,
-          mirrored: true,
-        ),
-      ),
-    );
+    _cameraStarted(started);
   }
 
-  @override
-  void chooseCamera(String? deviceId) => _cameraDevice = deviceId;
+  void _cameraStarted(core.CameraStarted started) => _emit(
+    OwnCameraChanged(
+      VideoFeed(
+        trackId: started.trackId,
+        textureId: started.textureId,
+        width: started.width,
+        height: started.height,
+        mirrored: true,
+      ),
+    ),
+  );
 
   @override
-  String? get chosenCamera => _cameraDevice;
+  Future<void> chooseCamera(String? deviceId) async {
+    // The camera that's on already: reopening it could find it still busy
+    // (V4L2, Media Foundation) while the old capture closes.
+    if (deviceId == _cameraDevice) return;
+    _cameraDevice = deviceId;
+    if (!_cameraOn) return;
+    // Starting again replaces the camera that's on (a new track).
+    try {
+      _cameraStarted(await _call(() => _core.cameraStart(deviceId)));
+    } on RepoException {
+      _now(_core.cameraStop);
+      _cameraOff();
+      rethrow;
+    }
+  }
 
   @override
   Future<List<(String, String)>> cameras() async => [
