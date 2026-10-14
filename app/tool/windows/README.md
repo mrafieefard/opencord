@@ -35,7 +35,7 @@ pwsh -File app/tool/windows/check_m5.ps1
 | `check_screen_cost.ps1` | W6 step 7: what a shared screen costs the CPU, which decides whether the convert and scale move to the GPU. |
 | `check_v7.ps1` | W7: a screen shared *with its sound*, and the call's own voice kept out of it. **Needs Windows 11 (build 20348); exits 2 below that.** |
 | `check_hardware.ps1` | W8 step 1: the §15 hardware items that need a person at the PC — a headset taken away mid-call and brought back, and the PC slept or hibernated mid-call. It prompts for nothing: each step waits for the hardware itself. **Exits 2 when the hardware never moved.** |
-| `host_lan_server.ps1` | W8 step 1: a real server on the LAN for the call between this PC, the Linux machine and the Mac — the LAN address in the invite link, the two firewall rules, and a database that survives the call. Not a check; it measures nothing. |
+| `host_lan_server.ps1` | W8 step 1: a real server on the LAN for the call between this PC, the Linux machine and the Mac — the LAN address in the invite link, the two firewall rules, and a database that survives the call. Only for the case where this PC hosts; neither plan says which machine does, and the Linux machine is the better default. Not a check; it measures nothing. |
 | `check_receive_video.ps1` | W4: a voicebot's camera and screen shown in the app, drawn, the right colours, focus mode, and hidden tiles that stop receiving. **Exits 2 when only the screen half did not come** — see below. |
 
 A check exits 0 when it passed and 1 when it failed. Several also exit **2**,

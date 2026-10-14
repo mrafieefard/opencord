@@ -1285,7 +1285,14 @@ For the Linux session, and for the user:
 - W8: **The three-machine call is the one acceptance left on Windows.** It
   needs the Mac and the Linux machine at the same time, and neither was
   available; nothing else about it is missing.
-  `app/tool/windows/host_lan_server.ps1` is written for it: it finds the
+  **Neither plan says which machine hosts the server** — W8 step 1 and
+  platforms.md §5 both say only "one server on the LAN". Any of the three
+  can, and the **Linux machine is the obvious one**: it owns the server, it
+  is the machine that is always on, and in that case Windows needs nothing
+  new at all, since outbound connections need no firewall rule and the
+  acceptance is about the *app* as a client, not about the server's Windows
+  build. `app/tool/windows/host_lan_server.ps1` is only for the other case,
+  where this PC is the one that has to host: it finds the
   interface with the default route (192.168.0.122 here), runs a **release**
   server on 0.0.0.0:7710 with UDP 7711 and `public_host` set to that address
   so the invite link is not `localhost`, keeps its database across runs in

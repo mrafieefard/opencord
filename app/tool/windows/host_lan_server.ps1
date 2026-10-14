@@ -3,6 +3,13 @@
 # in one call through one server, talking both ways and watching each other's
 # screens.
 #
+# **Only for the case where this PC is the one hosting.** Neither W8 step 1 nor
+# platforms.md §5 says which of the three machines runs that server, and the
+# Linux machine is the better default: it owns the server, it is the machine
+# that stays on, and hosting there asks nothing of Windows, since outbound
+# connections need no firewall rule. What the acceptance is about is the app as
+# a client. Use this when the Linux machine cannot host.
+#
 #   pwsh -File app/tool/windows/host_lan_server.ps1
 #
 # It is not a check and measures nothing: it removes the three things that
