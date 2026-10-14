@@ -24,6 +24,11 @@ use super::{PeerId, Sfu, SfuError, SfuEvent, far_future};
 const ALLOCATE_EVERY: Duration = Duration::from_millis(200);
 /// A layer with no packet for this long is not being produced.
 const LAYER_IDLE: Duration = Duration::from_secs(1);
+/// A screen's layer: a screen that does not change is sent again only once
+/// a second (opencord-media's `video/sender.rs`, `KEEPALIVE`), so on
+/// [`LAYER_IDLE`] a still screen's layers kept stopping and starting, and
+/// its viewers kept losing them.
+const SCREEN_LAYER_IDLE: Duration = Duration::from_millis(2500);
 /// At most one keyframe request a second for each layer (plan §6).
 const KEYFRAME_EVERY: Duration = Duration::from_secs(1);
 /// A layer nobody has needed for this long is no longer asked for.
@@ -147,14 +152,22 @@ impl Track {
     fn producing(&self, now: Instant, index: usize) -> bool {
         self.layers[index]
             .last_packet
-            .is_some_and(|at| now.saturating_duration_since(at) < LAYER_IDLE)
+            .is_some_and(|at| now.saturating_duration_since(at) < self.idle())
+    }
+
+    /// How long a layer may go without a packet and still be produced.
+    fn idle(&self) -> Duration {
+        match self.setup.kind {
+            VideoKind::Screen => SCREEN_LAYER_IDLE,
+            VideoKind::Camera => LAYER_IDLE,
+        }
     }
 
     /// Asked for long enough to have come, and not coming: the sender's
     /// uplink cannot carry it (plan §7.10).
     fn missing(&self, now: Instant, index: usize) -> bool {
         self.asked[index]
-            && now.saturating_duration_since(self.asked_since[index]) >= LAYER_IDLE
+            && now.saturating_duration_since(self.asked_since[index]) >= self.idle()
             && !self.producing(now, index)
     }
 
@@ -707,7 +720,7 @@ impl Sfu {
                     (Some(slot), Some(offer)) => (
                         targets.get(slot).copied().flatten(),
                         ideals.get(slot).copied().flatten(),
-                        allocation::desired(sending.want.unwrap_or(0), &offer.layers),
+                        allocation::desired(sending.want.unwrap_or(0), &offer.layers, offer.screen),
                     ),
                     _ => (None, None, None),
                 };

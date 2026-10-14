@@ -206,16 +206,10 @@ impl Video {
                 fps_scale,
                 size_scale,
             } => {
-                // The camera only: a screen share keeps every layer at its
-                // ceiling. The node's requests for it cycle (main, nothing,
-                // low, main again every 10-20 s), which left text unreadable
-                // (docs/plans/macos.md §7, M8).
-                if let Some(camera) = lock(&self.hub).camera.as_ref()
-                    && camera.request.track_id == *track_id
-                {
-                    camera
-                        .sender
-                        .encode(layers, bitrates, *fps_scale, *size_scale);
+                // The camera's or the screen share's: only the layers
+                // someone watches, within the uplink.
+                if let Some(sender) = lock(&self.hub).sender_of(track_id) {
+                    sender.encode(layers, bitrates, *fps_scale, *size_scale);
                 }
             }
             // A viewer that starts watching asks for a keyframe: without

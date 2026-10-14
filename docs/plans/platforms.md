@@ -190,8 +190,9 @@ otherwise. "Owner" means the only session that changes the file.
   - Platform sessions don't edit `docs/decisions.md`, `docs/performance.md`,
     `docs/plans/phase-2.md` or the ledger.
   - Rulings and measurements go in the platform plan's §7 log.
-  - The Linux session moves them into `decisions.md` (numbering them D33
-    onward, in merge order; D32 is the Linux bundle's FFmpeg) and `performance.md` when merging.
+  - The Linux session moves them into `decisions.md` (numbering them from
+    the next free number, in merge order; D33 is the screen share layer fix)
+    and `performance.md` when merging.
 - **CI:**
   - A platform session changes only its own steps in the `desktop` job.
   - It proposes new jobs (a `cargo test` job for its OS, say) in its log; the

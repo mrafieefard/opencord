@@ -606,3 +606,65 @@ fn a_viewer_with_room_gets_a_screens_main_layer() {
 
     assert_eq!(net.clients[bob].last_layer(share.ssrc), Some(1));
 }
+
+/// A share of a screen that does not change, its pictures sent again once
+/// a second (`video/sender.rs`, `KEEPALIVE`), with the sender's 100 ms
+/// polling on top.
+const STILL_SCREEN: Duration = Duration::from_millis(1100);
+
+#[test]
+fn a_still_screen_keeps_its_main_layer_and_its_sender_is_left_alone() {
+    let mut net = Net::new();
+    let (alice, bob, _) = three(&mut net);
+    let share = screen("screen-a", 7000);
+    net.publish(alice, share.clone());
+    net.still(alice, "screen-a", STILL_SCREEN);
+    let now = net.now;
+    net.sfu
+        .set_stream_viewers(now, CHANNEL, 100 + alice as i64, vec![100 + bob as i64]);
+    net.want(bob, &[("screen-a", 1080)]);
+    net.run(Duration::from_secs(20));
+    let settled = net.now;
+    let asked_before = net.events.len();
+
+    net.run(Duration::from_secs(10));
+
+    let frames: Vec<u8> = net.clients[bob]
+        .video_on(share.ssrc, settled)
+        .iter()
+        .filter(|packet| packet.marking.is_some_and(|marking| marking.start))
+        .filter_map(|packet| packet.marking.map(|marking| marking.layer))
+        .collect();
+    // Every picture of the last 10 s, all on the main layer.
+    assert!(frames.len() >= 8, "{frames:?}");
+    assert!(frames.iter().all(|layer| *layer == 1), "{frames:?}");
+    // And the sender was not told to change what it encodes.
+    let changes: Vec<&SfuEvent> = net.events[asked_before..]
+        .iter()
+        .filter(|event| {
+            matches!(event, SfuEvent::LayerWants { track_id, .. } | SfuEvent::LayersAvailable { track_id, .. } if track_id == "screen-a")
+        })
+        .collect();
+    assert!(changes.is_empty(), "{changes:?}");
+    assert_eq!(
+        net.layer_wants(alice, "screen-a"),
+        Some(vec!["h".to_owned()])
+    );
+}
+
+#[test]
+fn a_screen_in_a_tile_a_little_smaller_than_its_main_layer_gets_the_main_layer() {
+    let mut net = Net::new();
+    let (alice, bob, _) = three(&mut net);
+    let share = screen("screen-a", 7000);
+    net.publish(alice, share.clone());
+    let now = net.now;
+    net.sfu
+        .set_stream_viewers(now, CHANNEL, 100 + alice as i64, vec![100 + bob as i64]);
+    // 640 px of a 720 px share: text stays readable only scaled down.
+    net.want(bob, &[("screen-a", 640)]);
+
+    net.run(Duration::from_secs(15));
+
+    assert_eq!(net.clients[bob].last_layer(share.ssrc), Some(1));
+}
