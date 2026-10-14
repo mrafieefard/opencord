@@ -250,6 +250,42 @@ class _VoicePageState extends ConsumerState<VoicePage> {
             ),
           ],
         ),
+        // Lowering other apps while people talk (Phase 2 §12); macOS has
+        // no way to.
+        if (ref.read(repositoryProvider).capabilities.lowerOtherApps) ...[
+          const SizedBox(height: OcSpace.s24),
+          SettingsSection(
+            title: 'Attenuation',
+            footer:
+                "Lowers other apps' sound while people talk in a call, and "
+                'brings it back a second after.',
+            children: [
+              SettingsSliderRow(
+                title: 'Lower other apps by',
+                value: audio.attenuationPercent,
+                min: 0,
+                max: 100,
+                shown: audio.attenuationPercent == 0
+                    ? 'Off'
+                    : '${audio.attenuationPercent} %',
+                onChanged: (value) =>
+                    update((a) => a.copyWith(attenuationPercent: value)),
+              ),
+              SettingsSwitchRow(
+                title: 'When others speak',
+                value: audio.attenuateWhenOthersSpeak,
+                onChanged: (value) =>
+                    update((a) => a.copyWith(attenuateWhenOthersSpeak: value)),
+              ),
+              SettingsSwitchRow(
+                title: 'When I speak',
+                value: audio.attenuateWhenISpeak,
+                onChanged: (value) =>
+                    update((a) => a.copyWith(attenuateWhenISpeak: value)),
+              ),
+            ],
+          ),
+        ],
       ],
     );
   }

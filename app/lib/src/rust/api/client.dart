@@ -618,6 +618,11 @@ Future<void> soundboardPreview({
   soundRef: soundRef,
 );
 
+/// Whether this system can lower other apps while people talk (Phase 2
+/// §12); the setting is hidden where it cannot.
+bool audioAttenuationSupported() =>
+    RustLib.instance.api.crateApiClientAudioAttenuationSupported();
+
 /// Plays a voice event's sound on this device only (Phase 2 §12), at
 /// `volume` (0–1).
 void playCue({required VoiceCue cue, required double volume}) =>

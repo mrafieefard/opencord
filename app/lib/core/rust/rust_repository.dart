@@ -46,6 +46,7 @@ class RustRepository implements OpencordRepository {
       screenShare: video.screen,
       soundboard: true,
       ownScreenPicker: video.ownScreenPicker,
+      lowerOtherApps: _core.audioAttenuationSupported(),
     );
   }
 

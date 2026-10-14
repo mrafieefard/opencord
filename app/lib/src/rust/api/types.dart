@@ -110,6 +110,12 @@ class AudioSettings {
   /// Everything heard, 0–2 (200 %).
   final double outputVolume;
 
+  /// How much other apps are lowered while people talk, 0–100 %; 0 is
+  /// off (Phase 2 §12, attenuation).
+  final int attenuationPercent;
+  final bool attenuateWhenOthersSpeak;
+  final bool attenuateWhenISpeak;
+
   const AudioSettings({
     this.inputDevice,
     this.outputDevice,
@@ -122,6 +128,9 @@ class AudioSettings {
     required this.automaticGain,
     required this.inputVolume,
     required this.outputVolume,
+    required this.attenuationPercent,
+    required this.attenuateWhenOthersSpeak,
+    required this.attenuateWhenISpeak,
   });
 
   static Future<AudioSettings> default_() =>
@@ -139,7 +148,10 @@ class AudioSettings {
       noiseSuppression.hashCode ^
       automaticGain.hashCode ^
       inputVolume.hashCode ^
-      outputVolume.hashCode;
+      outputVolume.hashCode ^
+      attenuationPercent.hashCode ^
+      attenuateWhenOthersSpeak.hashCode ^
+      attenuateWhenISpeak.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -156,7 +168,10 @@ class AudioSettings {
           noiseSuppression == other.noiseSuppression &&
           automaticGain == other.automaticGain &&
           inputVolume == other.inputVolume &&
-          outputVolume == other.outputVolume;
+          outputVolume == other.outputVolume &&
+          attenuationPercent == other.attenuationPercent &&
+          attenuateWhenOthersSpeak == other.attenuateWhenOthersSpeak &&
+          attenuateWhenISpeak == other.attenuateWhenISpeak;
 }
 
 class Ban {

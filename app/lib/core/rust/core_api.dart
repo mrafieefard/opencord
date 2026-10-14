@@ -98,6 +98,7 @@ abstract interface class CoreApi {
 
   void soundboardSetListening(double volume, bool muted);
   void playCue(core.VoiceCue cue, double volume);
+  bool audioAttenuationSupported();
 
   void soundboardMutePlayer(String serverKey, int userId, bool muted);
 
@@ -446,6 +447,9 @@ class FrbCoreApi implements CoreApi {
   @override
   void playCue(core.VoiceCue cue, double volume) =>
       frb.playCue(cue: cue, volume: volume);
+
+  @override
+  bool audioAttenuationSupported() => frb.audioAttenuationSupported();
 
   @override
   void soundboardMutePlayer(String serverKey, int userId, bool muted) => frb

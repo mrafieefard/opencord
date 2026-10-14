@@ -865,6 +865,13 @@ pub async fn soundboard_preview(server_key: String, sound_ref: String) -> Result
     .await
 }
 
+/// Whether this system can lower other apps while people talk (Phase 2
+/// §12); the setting is hidden where it cannot.
+#[frb(sync)]
+pub fn audio_attenuation_supported() -> bool {
+    opencord_media::attenuation::supported()
+}
+
 /// Plays a voice event's sound on this device only (Phase 2 §12), at
 /// `volume` (0–1).
 #[frb(sync)]

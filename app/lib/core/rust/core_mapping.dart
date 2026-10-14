@@ -540,6 +540,9 @@ core.AudioSettings audioSettingsTo(AudioConfig config) => core.AudioSettings(
   automaticGain: config.automaticGain,
   inputVolume: config.inputVolume / 100,
   outputVolume: config.outputVolume / 100,
+  attenuationPercent: config.attenuationPercent,
+  attenuateWhenOthersSpeak: config.attenuateWhenOthersSpeak,
+  attenuateWhenISpeak: config.attenuateWhenISpeak,
 );
 
 NoiseSuppression noiseSuppressionFrom(core.NoiseSuppressionMode mode) =>

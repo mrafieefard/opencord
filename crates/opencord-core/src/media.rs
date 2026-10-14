@@ -792,6 +792,8 @@ impl SessionTask {
         let mut fell_back = (false, false);
         // This device talking, and as the priority speaker.
         let mut talking = (false, false);
+        // Other apps lowered while people talk; put back when this ends.
+        let mut ducking = crate::ducking::Ducking::default();
         let mut camera_check = tokio::time::interval(CAMERA_CHECK);
         loop {
             tokio::select! {
@@ -807,7 +809,10 @@ impl SessionTask {
                         let target = voice_target(&server);
                         connecting = Some((server, tokio::spawn(VoiceConnection::connect(target))));
                     }
-                    Some(SessionCommand::Settings(settings)) => self.settings = settings,
+                    Some(SessionCommand::Settings(settings)) => {
+                        self.settings = settings;
+                        ducking.update(&self.settings, Instant::now());
+                    }
                     Some(SessionCommand::Stop) | None => {
                         if let Some((_, handle)) = connecting.take() {
                             handle.abort();
@@ -884,6 +889,8 @@ impl SessionTask {
                         VoiceEvent::ClientDisconnected { user_id } => self.engine.remove_user(user_id),
                         VoiceEvent::Closed { code } => {
                             live = None;
+                            ducking.clear();
+                            ducking.update(&self.settings, Instant::now());
                             self.video.disconnected();
                             no_route_at = None;
                             match code {
@@ -926,6 +933,8 @@ impl SessionTask {
                 Some(event) = engine_events.recv() => match event {
                     EngineEvent::Talking { talking: now, priority } => {
                         talking = (now, priority);
+                        ducking.talking(now);
+                        ducking.update(&self.settings, Instant::now());
                         if let Some(live) = &live {
                             live.connection.set_speaking(speaking_flags(now, priority));
                             self.speaking(&live.server, vec![SpeakingChange {
@@ -935,6 +944,10 @@ impl SessionTask {
                         }
                     }
                     EngineEvent::Speaking(changes) => {
+                        for &(user_id, speaking) in &changes {
+                            ducking.others_speaking(user_id, speaking);
+                        }
+                        ducking.update(&self.settings, Instant::now());
                         if let Some(live) = &live {
                             let changes = changes
                                 .into_iter()
@@ -983,6 +996,9 @@ impl SessionTask {
                     let client = self.client.clone();
                     let key = self.server_key.clone();
                     tokio::spawn(async move { client.refresh_voice_server(&key).await });
+                }
+                () = sleep_until(ducking.release_at()) => {
+                    ducking.update(&self.settings, Instant::now());
                 }
                 () = sleep_until(no_route_at) => {
                     no_route_at = None;

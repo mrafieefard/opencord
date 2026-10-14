@@ -284,6 +284,9 @@ class AudioSettings {
     this.automaticGain = true,
     this.inputVolume = 100,
     this.outputVolume = 100,
+    this.attenuationPercent = 0,
+    this.attenuateWhenOthersSpeak = true,
+    this.attenuateWhenISpeak = false,
   });
 
   static const maxVolume = 200;
@@ -321,6 +324,12 @@ class AudioSettings {
   /// Everything you hear, 0–200 %.
   final int outputVolume;
 
+  /// How much other apps are lowered while people talk, 0–100 %; 0 is
+  /// off (Phase 2 §12, Discord's attenuation).
+  final int attenuationPercent;
+  final bool attenuateWhenOthersSpeak;
+  final bool attenuateWhenISpeak;
+
   /// The microphone to use; null for the system's default.
   AudioSettings withInput(AudioDevice? device) =>
       _copy(inputDevice: () => device?.id, inputDeviceName: () => device?.name);
@@ -341,6 +350,9 @@ class AudioSettings {
     bool? automaticGain,
     int? inputVolume,
     int? outputVolume,
+    int? attenuationPercent,
+    bool? attenuateWhenOthersSpeak,
+    bool? attenuateWhenISpeak,
   }) => _copy(
     inputMode: inputMode,
     pushToTalkRelease: pushToTalkRelease,
@@ -351,6 +363,9 @@ class AudioSettings {
     automaticGain: automaticGain,
     inputVolume: inputVolume,
     outputVolume: outputVolume,
+    attenuationPercent: attenuationPercent,
+    attenuateWhenOthersSpeak: attenuateWhenOthersSpeak,
+    attenuateWhenISpeak: attenuateWhenISpeak,
   );
 
   AudioSettings _copy({
@@ -367,6 +382,9 @@ class AudioSettings {
     bool? automaticGain,
     int? inputVolume,
     int? outputVolume,
+    int? attenuationPercent,
+    bool? attenuateWhenOthersSpeak,
+    bool? attenuateWhenISpeak,
   }) {
     final release = pushToTalkRelease ?? this.pushToTalkRelease;
     return AudioSettings(
@@ -391,6 +409,13 @@ class AudioSettings {
       automaticGain: automaticGain ?? this.automaticGain,
       inputVolume: (inputVolume ?? this.inputVolume).clamp(0, maxVolume),
       outputVolume: (outputVolume ?? this.outputVolume).clamp(0, maxVolume),
+      attenuationPercent: (attenuationPercent ?? this.attenuationPercent).clamp(
+        0,
+        100,
+      ),
+      attenuateWhenOthersSpeak:
+          attenuateWhenOthersSpeak ?? this.attenuateWhenOthersSpeak,
+      attenuateWhenISpeak: attenuateWhenISpeak ?? this.attenuateWhenISpeak,
     );
   }
 
@@ -407,6 +432,9 @@ class AudioSettings {
     automaticGain: automaticGain,
     inputVolume: inputVolume,
     outputVolume: outputVolume,
+    attenuationPercent: attenuationPercent,
+    attenuateWhenOthersSpeak: attenuateWhenOthersSpeak,
+    attenuateWhenISpeak: attenuateWhenISpeak,
   );
 
   Map<String, Object?> toJson() => {
@@ -423,6 +451,9 @@ class AudioSettings {
     'automaticGain': automaticGain,
     'inputVolume': inputVolume,
     'outputVolume': outputVolume,
+    'attenuationPercent': attenuationPercent,
+    'attenuateWhenOthersSpeak': attenuateWhenOthersSpeak,
+    'attenuateWhenISpeak': attenuateWhenISpeak,
   };
 
   static AudioSettings fromJson(Object? json) {
@@ -467,6 +498,11 @@ class AudioSettings {
       outputVolume: json['outputVolume'] is int
           ? json['outputVolume'] as int
           : null,
+      attenuationPercent: json['attenuationPercent'] is int
+          ? json['attenuationPercent'] as int
+          : null,
+      attenuateWhenOthersSpeak: flag(json['attenuateWhenOthersSpeak']),
+      attenuateWhenISpeak: flag(json['attenuateWhenISpeak']),
     );
   }
 }

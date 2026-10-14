@@ -32,6 +32,7 @@ class RepoCapabilities {
     this.replies = false,
     this.soundboard = false,
     this.ownScreenPicker = false,
+    this.lowerOtherApps = false,
   });
 
   static const everything = RepoCapabilities(
@@ -44,6 +45,7 @@ class RepoCapabilities {
     readStates: true,
     replies: true,
     soundboard: true,
+    lowerOtherApps: true,
   );
 
   final bool reactions;
@@ -66,6 +68,10 @@ class RepoCapabilities {
   /// ([OpencordRepository.screenSources]); otherwise the system's picker
   /// opens after it (Phase 2 plan §9.1).
   final bool ownScreenPicker;
+
+  /// Other apps can be lowered while people talk (Phase 2 §12); not on
+  /// macOS.
+  final bool lowerOtherApps;
 }
 
 /// The current user as far as the UI is concerned.

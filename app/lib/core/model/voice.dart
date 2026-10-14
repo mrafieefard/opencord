@@ -327,6 +327,9 @@ class AudioConfig {
     this.automaticGain = true,
     this.inputVolume = 100,
     this.outputVolume = 100,
+    this.attenuationPercent = 0,
+    this.attenuateWhenOthersSpeak = true,
+    this.attenuateWhenISpeak = false,
   });
 
   /// A device id; null follows the system's default.
@@ -349,9 +352,18 @@ class AudioConfig {
   final int inputVolume;
   final int outputVolume;
 
+  /// How much other apps are lowered while people talk, 0–100 %; 0 is
+  /// off (Phase 2 §12).
+  final int attenuationPercent;
+  final bool attenuateWhenOthersSpeak;
+  final bool attenuateWhenISpeak;
+
   @override
   bool operator ==(Object other) =>
       other is AudioConfig &&
+      other.attenuationPercent == attenuationPercent &&
+      other.attenuateWhenOthersSpeak == attenuateWhenOthersSpeak &&
+      other.attenuateWhenISpeak == attenuateWhenISpeak &&
       other.inputDevice == inputDevice &&
       other.outputDevice == outputDevice &&
       other.pushToTalk == pushToTalk &&
@@ -377,6 +389,9 @@ class AudioConfig {
     automaticGain,
     inputVolume,
     outputVolume,
+    attenuationPercent,
+    attenuateWhenOthersSpeak,
+    attenuateWhenISpeak,
   );
 
   @override
@@ -385,7 +400,9 @@ class AudioConfig {
       '(${pushToTalkRelease.inMilliseconds} ms), automatic sensitivity: '
       '$automaticSensitivity ($sensitivityDbfs dBFS), echo cancellation: '
       '$echoCancellation, noise suppression: ${noiseSuppression.name}, '
-      'automatic gain: $automaticGain, $inputVolume %, $outputVolume %)';
+      'automatic gain: $automaticGain, $inputVolume %, $outputVolume %, '
+      'others lowered $attenuationPercent % (others: '
+      '$attenuateWhenOthersSpeak, me: $attenuateWhenISpeak))';
 }
 
 /// A voice event's sound on this device (Phase 2 §12).

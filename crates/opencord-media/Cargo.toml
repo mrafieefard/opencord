@@ -38,6 +38,7 @@ tract-onnx.workspace = true
 tract-pulse.workspace = true
 
 [dev-dependencies]
+serde_json.workspace = true
 str0m-netem.workspace = true
 tempfile.workspace = true
 tracing-subscriber.workspace = true

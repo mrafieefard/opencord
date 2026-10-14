@@ -566,6 +566,11 @@ pub struct AudioSettings {
     pub input_volume: f32,
     /// Everything heard, 0–2 (200 %).
     pub output_volume: f32,
+    /// How much other apps are lowered while people talk, 0–100 %; 0 is
+    /// off (Phase 2 §12, attenuation).
+    pub attenuation_percent: u32,
+    pub attenuate_when_others_speak: bool,
+    pub attenuate_when_i_speak: bool,
 }
 
 impl Default for AudioSettings {
@@ -582,6 +587,9 @@ impl Default for AudioSettings {
             automatic_gain: true,
             input_volume: 1.0,
             output_volume: 1.0,
+            attenuation_percent: 0,
+            attenuate_when_others_speak: true,
+            attenuate_when_i_speak: false,
         }
     }
 }

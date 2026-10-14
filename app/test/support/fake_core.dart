@@ -264,6 +264,11 @@ class FakeCoreApi extends Fake implements CoreApi {
   void playCue(core.VoiceCue cue, double volume) =>
       calls.add('playCue:${cue.name}:$volume');
 
+  var attenuationSupported = false;
+
+  @override
+  bool audioAttenuationSupported() => attenuationSupported;
+
   @override
   void videoSetWants(List<core.VideoWant> wants) => videoWants = wants;
 

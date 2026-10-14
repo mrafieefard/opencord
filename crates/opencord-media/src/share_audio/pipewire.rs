@@ -564,7 +564,7 @@ fn format_pod() -> Vec<u8> {
 }
 
 /// Whether `pid` descends from `ancestor`, by the parent chain in /proc.
-fn is_descendant(pid: u32, ancestor: u32) -> bool {
+pub(crate) fn is_descendant(pid: u32, ancestor: u32) -> bool {
     let mut current = pid;
     for _ in 0..64 {
         let Some(parent) = parent_of(current) else {
