@@ -515,4 +515,35 @@ mod tests {
             }
         }
     }
+
+    /// Sizes a 16:10 screen gives (1214×758, 606×378: chroma rows of odd
+    /// width), and a 1366×768 one: through the encoder, the decoder and
+    /// the scaler to a tile.
+    #[test]
+    fn unaligned_sizes_decode_and_scale() {
+        for (width, height) in [(1214, 758), (606, 378), (1366, 768), (1212, 756)] {
+            for hardware in [false, true] {
+                let Some((sources, units)) = encoded(width, height, 5) else {
+                    return;
+                };
+                let mut decoder = Decoder::open(hardware).unwrap();
+                let mut scaler = crate::video::codec::scale::Scaler::new();
+                for (source, access_unit) in sources.iter().zip(&units) {
+                    let pictures = decoder
+                        .decode(access_unit, source.captured)
+                        .unwrap_or_else(|error| panic!("{width}×{height} hw {hardware}: {error}"));
+                    assert_eq!(pictures.len(), 1, "{width}×{height} hw {hardware}");
+                    let picture = &pictures[0];
+                    assert_eq!((picture.width, picture.height), (width, height));
+                    let psnr = psnr(picture, source);
+                    assert!(psnr > 30.0, "{width}×{height} hw {hardware}: {psnr:.1} dB");
+                    let rgba = scaler
+                        .rgba(picture, 640, 400)
+                        .unwrap_or_else(|error| panic!("{width}×{height} scaling: {error}"));
+                    assert_eq!(rgba.len(), 640 * 400 * 4);
+                }
+                eprintln!("{width}×{height} hardware {hardware}: ok");
+            }
+        }
+    }
 }

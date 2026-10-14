@@ -1194,6 +1194,37 @@ Rulings (`Mn: Ruling: … — cost if wrong: …`):
   logging (not committed): before, a join was three `UpdateVoiceState`
   requests at once; after, join, camera on, leave and rejoin were one
   each — cost if wrong: none seen; a join still sends the full state.
+- M8: Ruling (86666ae and the commit after it, `fix(shared):`,
+  `opencord-core` `video.rs`): **app-to-app screen sharing never worked**
+  (user, Mac ↔ Linux ↔ Windows over the LAN). A viewer who starts
+  watching a share already live asks for a keyframe, and the core handed
+  the node's `KeyframeRequested` only to the camera's sender, so the node
+  sent that viewer nothing: an empty tile. Every check had a voicebot on
+  one side, and the voicebot answers keyframes itself. Found with a
+  logging build of the Mac app watching the Windows share: the track and
+  its wants arrived, no video packet did. Ruled out on the way, each with
+  a test: picture size (a 16:10 voicebot share at the same 1214×758 and
+  606×378 showed on Linux and Windows; the Mac decodes and scales
+  1214×758, 606×378 and 1366×768, `unaligned_sizes_decode_and_scale`),
+  sound and A/V hold (empty without sound too), capture timestamps.
+  Keyframe requests now reach the screen share's sender. The node's
+  `Encode` requests still don't, as before (next finding) — cost if
+  wrong: a share keeps both layers at their ceilings, as it always did.
+- M8: Finding for the Linux session (`opencord-voice` SFU, not edited):
+  **viewers get a share's low layer, so text is unreadable.** (1) The
+  node's requests to a sharing voicebot (release server, one 1080 px
+  viewer, logged in a local voicebot build) cycle every 10–20 s:
+  `["h"]` ramping 667 k → 1 M → 1.33 M → 2 Mbit/s with fps ⅓ → ½ → ⅔ →
+  1, then `[]`, then `["l"]` at 300 k, then the ramp again. A sender
+  that obeys them restarts its encoder at a low rate each time. (2) Even
+  with the Mac's share sending both layers (Encode ignored, 207 kbit/s
+  up), a 1080 px viewer got only layer 0 (606×378, 15 fps, 66 kbit/s)
+  for 30 s. (3) `allocation::desired` takes the tallest layer **no
+  taller** than the tile, so a 676 px tile gets the 378 px layer of a
+  758 px share, stretched. (4) The camera obeys the same requests, and
+  its 720p layer never reached a watcher (by layer 616/3076/0). Each is
+  the same on every system — cost if wrong: screen shares stay blurry
+  everywhere.
 - M8: Ruling: `app/tool/macos/serve_lan.sh` is the server for the
   checks across machines: it binds 0.0.0.0, advertises en0's address, uses
   port 47700 and a temporary folder, and runs optional Talker and camera
@@ -1258,6 +1289,10 @@ Rulings (`Mn: Ruling: … — cost if wrong: …`):
   `voice_leave` clears the camera flag, and `set_voice_self` sends nothing
   when mute and deafen haven't changed. Every system had both; found on
   the Mac.
+- M8 86666ae and the next commit, `crates/opencord-core/src/video.rs`
+  (`fix(shared):`): keyframe requests reach a screen share's sender, so
+  a share watched after it started shows; its `Encode` requests still go
+  only to the camera. Every system had it; found on the Mac.
 
 Shared tests that fail on macOS for a platform reason (not edited):
 - M0: `app/test/unit/desktop/linux_notifications_test.dart` (2 tests) and
