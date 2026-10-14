@@ -57,6 +57,10 @@ openh264.workspace = true
 openh264-sys2.workspace = true
 pipewire.workspace = true
 v4l.workspace = true
+# How long the keyboard and mouse have been idle on Wayland, for AFK moves
+# (ext-idle-notify-v1, a staging protocol).
+wayland-client = "0.31.15"
+wayland-protocols = { version = "0.32.13", features = ["client", "staging"] }
 x11rb.workspace = true
 
 [target.'cfg(target_os = "macos")'.dependencies]

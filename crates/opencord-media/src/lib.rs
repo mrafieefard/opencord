@@ -4,6 +4,7 @@
 
 pub mod audio;
 pub mod hotkeys;
+pub mod idle;
 pub mod share_audio;
 pub mod soundboard;
 pub mod transport;

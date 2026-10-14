@@ -87,6 +87,7 @@ async fn dispatch(ctx: &Ctx<'_>, request: proto::Request) -> Result<Response, Ap
         Kind::MoveMember(request) => voice::move_member(ctx, request).await,
         Kind::DisconnectMember(request) => voice::disconnect_member(ctx, request).await,
         Kind::RefreshVoiceServer(_) => voice::refresh_voice_server(ctx).await,
+        Kind::UpdateVoiceActivity(request) => voice::update_voice_activity(ctx, request).await,
         Kind::CreateStream(request) => streams::create(ctx, request).await,
         Kind::UpdateStream(request) => streams::update(ctx, request).await,
         Kind::DeleteStream(request) => streams::delete(ctx, request).await,

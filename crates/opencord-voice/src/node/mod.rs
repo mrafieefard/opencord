@@ -85,7 +85,13 @@ pub enum NodeEvent {
         channel_id: i64,
         session_id: String,
     },
+    /// Someone started speaking, for AFK moves; at most once every
+    /// [`SPOKE_REPORT_EVERY`] per session.
+    Spoke { user_id: i64, channel_id: i64 },
 }
+
+/// How often the main server hears that someone is still speaking.
+pub const SPOKE_REPORT_EVERY: std::time::Duration = std::time::Duration::from_secs(10);
 
 /// What a node is carrying. Traffic counts since the node started.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]

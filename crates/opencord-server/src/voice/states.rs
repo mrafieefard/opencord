@@ -2,6 +2,7 @@
 //! plan §3.5): one per user, held by one gateway session.
 
 use std::collections::HashMap;
+use std::time::Instant;
 
 use opencord_common::channel::ChannelKind;
 use opencord_common::permissions::Permissions;
@@ -60,6 +61,19 @@ pub struct VoiceStates {
     pub streams: Streams,
     /// Soundboard cooldowns and the sounds playing in each channel.
     pub sounds: Plays,
+    /// When each person in voice last joined, moved or spoke, and since
+    /// when their device has had no input, for AFK moves (§12).
+    activity: HashMap<i64, Activity>,
+}
+
+/// One voice state's activity, for AFK moves.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Activity {
+    /// Joined, moved or last spoke.
+    pub active_at: Instant,
+    /// Since when their keyboard and mouse have been idle, as their device
+    /// says; `None` while in use, or never told.
+    pub input_idle_since: Option<Instant>,
 }
 
 impl VoiceStates {
@@ -77,13 +91,54 @@ impl VoiceStates {
             .filter(move |state| state.channel_id == channel_id)
     }
 
-    /// Stores the state, replacing the user's previous one.
+    /// Stores the state, replacing the user's previous one. Joining or
+    /// moving counts as activity.
     pub fn put(&mut self, state: VoiceState) {
+        let moved = self
+            .by_user
+            .get(&state.user_id)
+            .is_none_or(|before| before.channel_id != state.channel_id);
+        if moved {
+            let idle = self
+                .activity
+                .get(&state.user_id)
+                .and_then(|activity| activity.input_idle_since);
+            self.activity.insert(
+                state.user_id,
+                Activity {
+                    active_at: Instant::now(),
+                    input_idle_since: idle,
+                },
+            );
+        }
         self.by_user.insert(state.user_id, state);
     }
 
     pub fn remove(&mut self, user_id: i64) -> Option<VoiceState> {
+        self.activity.remove(&user_id);
         self.by_user.remove(&user_id)
+    }
+
+    pub fn activity(&self, user_id: i64) -> Option<Activity> {
+        self.activity.get(&user_id).copied()
+    }
+
+    /// `user_id` spoke in `channel_id` at `now`.
+    pub fn spoke(&mut self, user_id: i64, channel_id: i64, now: Instant) {
+        let here = self
+            .by_user
+            .get(&user_id)
+            .is_some_and(|state| state.channel_id == channel_id);
+        if let (true, Some(activity)) = (here, self.activity.get_mut(&user_id)) {
+            activity.active_at = activity.active_at.max(now);
+        }
+    }
+
+    /// Their device's input has been idle since `since`, or is in use.
+    pub fn set_input_idle(&mut self, user_id: i64, since: Option<Instant>) {
+        if let Some(activity) = self.activity.get_mut(&user_id) {
+            activity.input_idle_since = since;
+        }
     }
 
     pub fn moderation(&self, user_id: i64) -> Moderation {

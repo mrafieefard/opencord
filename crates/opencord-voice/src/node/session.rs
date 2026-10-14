@@ -50,6 +50,8 @@ pub struct VoiceSession {
     replay: VecDeque<(u64, Bytes)>,
     connection: Option<Connection>,
     detached_at: Option<Instant>,
+    /// When the main server last heard this session speak, for AFK moves.
+    pub spoke_reported_at: Option<Instant>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
@@ -86,6 +88,7 @@ impl VoiceSession {
             replay: VecDeque::new(),
             connection: Some(new.connection),
             detached_at: None,
+            spoke_reported_at: None,
         }
     }
 

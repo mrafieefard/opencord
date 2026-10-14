@@ -139,6 +139,22 @@ impl ServerHandle {
         }
     }
 
+    /// Runs the AFK check as if it were `later` from now, so a test need
+    /// not wait out the timeout. Intended for tests of AFK moves.
+    pub async fn check_afk_after(&self, later: Duration) {
+        let _writes = self.state.write_lock().await;
+        voice::afk::move_idle(&self.state, Instant::now() + later);
+    }
+
+    /// When `user_id` last joined, moved or spoke in voice, and since when
+    /// their device has had no input. Intended for tests of AFK moves.
+    pub fn voice_activity(&self, user_id: i64) -> Option<(Instant, Option<Instant>)> {
+        self.state
+            .voice()
+            .activity(user_id)
+            .map(|activity| (activity.active_at, activity.input_idle_since))
+    }
+
     /// Like [`Self::drop_connections`], for one user only.
     pub fn drop_user_connections(&self, user_id: i64) {
         for session in self.state.sessions.for_user(user_id) {
@@ -201,6 +217,7 @@ async fn reap_sessions(state: Arc<AppState>) {
         {
             let _writes = state.write_lock().await;
             voice::expire_detached(&state, Instant::now());
+            voice::afk::move_idle(&state, Instant::now());
         }
         state.rate_limits.prune();
         let longest_cooldown = Duration::from_secs(u64::from(SOUND_COOLDOWN_MAX_S));

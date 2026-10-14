@@ -134,6 +134,16 @@ pub fn envelope_for_event(event: &NodeEvent) -> internal::ControlEnvelope {
             channel_id: *channel_id,
             session_id: session_id.clone(),
         }),
+        NodeEvent::Spoke {
+            user_id,
+            channel_id,
+        } => Payload::SpeakingActivity(internal::SpeakingActivity {
+            entries: vec![internal::speaking_activity::Entry {
+                user_id: *user_id,
+                channel_id: *channel_id,
+                last_spoke_at_ms: unix_ms(),
+            }],
+        }),
     };
     internal::ControlEnvelope {
         payload: Some(payload),
@@ -153,8 +163,23 @@ pub fn event_from(envelope: &internal::ControlEnvelope) -> Option<NodeEvent> {
             channel_id: gone.channel_id,
             session_id: gone.session_id.clone(),
         }),
+        // One entry per report; the time is the receiver's own.
+        Payload::SpeakingActivity(activity) => {
+            activity.entries.first().map(|entry| NodeEvent::Spoke {
+                user_id: entry.user_id,
+                channel_id: entry.channel_id,
+            })
+        }
         _ => None,
     }
+}
+
+fn unix_ms() -> i64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |since| {
+            i64::try_from(since.as_millis()).unwrap_or(i64::MAX)
+        })
 }
 
 #[cfg(test)]
@@ -162,6 +187,23 @@ mod tests {
     use opencord_proto::voice::v1 as voice;
 
     use super::*;
+
+    #[test]
+    fn speaking_travels_to_the_main_server_and_back() {
+        let spoke = NodeEvent::Spoke {
+            user_id: 4,
+            channel_id: 9,
+        };
+
+        let envelope = envelope_for_event(&spoke);
+
+        assert!(matches!(
+            envelope.payload,
+            Some(Payload::SpeakingActivity(ref activity))
+                if activity.entries.len() == 1 && activity.entries[0].last_spoke_at_ms > 0
+        ));
+        assert_eq!(event_from(&envelope), Some(spoke));
+    }
 
     #[test]
     fn only_the_right_secret_answers_the_challenge() {

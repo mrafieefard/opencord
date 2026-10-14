@@ -42,6 +42,10 @@ const VOICE_SERVER_BACKLOG: usize = 16;
 /// least [`REJOIN_WAIT`] between tries.
 const REJOIN_TRIES: u32 = 5;
 const REJOIN_WAIT: Duration = Duration::from_secs(1);
+/// How often this device's idle time is looked at while in voice, and how
+/// often the server hears it again while away (§12, AFK moves).
+const IDLE_CHECK_EVERY: Duration = Duration::from_secs(5);
+const IDLE_REPEAT_EVERY: Duration = Duration::from_secs(60);
 
 #[derive(Clone)]
 pub struct Client {
@@ -715,7 +719,46 @@ impl Client {
             }
         });
         self.sync_media();
+        self.spawn_idle_reports();
         Some(receiver)
+    }
+
+    /// While in voice, tells the server when this device has been idle
+    /// past [`opencord_media::idle::THRESHOLD`] and when it is in use
+    /// again, so it can move the user to the AFK channel (§12).
+    fn spawn_idle_reports(&self) {
+        let watcher = Arc::downgrade(&self.inner);
+        self.inner.runtime.spawn(async move {
+            let mut every = tokio::time::interval(IDLE_CHECK_EVERY);
+            let mut sent: Option<IdleReport> = None;
+            loop {
+                every.tick().await;
+                let Some(inner) = watcher.upgrade() else {
+                    return;
+                };
+                let client = Self { inner };
+                let target = client.lock_voice().target.clone();
+                let Some(target) = target else {
+                    sent = None;
+                    continue;
+                };
+                let Some(idle) = opencord_media::idle::idle_time().await else {
+                    continue;
+                };
+                let Some(input_idle_ms) = idle_report(sent.as_ref(), &target, idle) else {
+                    continue;
+                };
+                let request =
+                    Request::UpdateVoiceActivity(proto::UpdateVoiceActivity { input_idle_ms });
+                if client.request(&target.0, request).await.is_ok() {
+                    sent = Some(IdleReport {
+                        target,
+                        away: input_idle_ms.is_some(),
+                        at: std::time::Instant::now(),
+                    });
+                }
+            }
+        });
     }
 
     /// Audio devices, volumes and input mode, for voice media.
@@ -1600,6 +1643,32 @@ fn unix_ms() -> i64 {
     i64::try_from(since_epoch.as_millis()).unwrap_or(i64::MAX)
 }
 
+/// What the server last heard about this device's idle time.
+struct IdleReport {
+    target: (String, i64),
+    away: bool,
+    at: std::time::Instant,
+}
+
+/// What to tell the server, if anything, with `idle` measured now in
+/// `target`: `Some(Some(ms))` away, `Some(None)` back, `None` nothing new.
+fn idle_report(
+    sent: Option<&IdleReport>,
+    target: &(String, i64),
+    idle: Duration,
+) -> Option<Option<u64>> {
+    let away = idle >= opencord_media::idle::THRESHOLD;
+    let due = match sent {
+        None => away,
+        Some(sent) => {
+            sent.target != *target
+                || sent.away != away
+                || (away && sent.at.elapsed() >= IDLE_REPEAT_EVERY)
+        }
+    };
+    due.then(|| away.then(|| u64::try_from(idle.as_millis()).unwrap_or(u64::MAX)))
+}
+
 /// A cue's samples, decoded once.
 fn cue_samples(cue: VoiceCue) -> Result<Arc<[f32]>, opencord_media::soundboard::SoundError> {
     use opencord_media::soundboard::cues::Cue;
@@ -1676,5 +1745,36 @@ mod tests {
             assert!(first.len() > 48_000 / 20, "{cue:?} is too short");
             assert!(Arc::ptr_eq(&first, &cue_samples(cue).unwrap()));
         }
+    }
+
+    #[test]
+    fn the_server_hears_of_idle_time_once_it_crosses_a_minute_and_when_it_ends() {
+        let general = ("server".to_owned(), 1);
+        let minute = opencord_media::idle::THRESHOLD;
+        let report = |away, target: &(String, i64)| IdleReport {
+            target: target.clone(),
+            away,
+            at: std::time::Instant::now(),
+        };
+
+        // In use, and nothing said yet: nothing to say.
+        assert_eq!(idle_report(None, &general, Duration::ZERO), None);
+        assert_eq!(
+            idle_report(None, &general, minute),
+            Some(Some(60_000)),
+            "away"
+        );
+        let away = report(true, &general);
+        assert_eq!(idle_report(Some(&away), &general, minute * 2), None);
+        assert_eq!(
+            idle_report(Some(&away), &general, Duration::ZERO),
+            Some(None),
+            "back"
+        );
+        // Moved elsewhere while away: the new channel hears it too.
+        let other = ("server".to_owned(), 2);
+        assert_eq!(idle_report(Some(&away), &other, minute), Some(Some(60_000)));
+        let back = report(false, &general);
+        assert_eq!(idle_report(Some(&back), &general, Duration::ZERO), None);
     }
 }

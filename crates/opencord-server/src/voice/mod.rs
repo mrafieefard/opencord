@@ -16,6 +16,7 @@ use crate::random;
 use crate::state::{AppState, now_ms};
 use states::{VoiceConfig, VoiceState, VoiceStates};
 
+pub mod afk;
 pub mod control;
 pub mod keys;
 pub mod media_token;
@@ -126,6 +127,14 @@ pub fn limits_changed(state: &AppState, channel_ids: &[i64]) {
 /// What a voice node reports: a voice connection that ended for good ends
 /// its voice state, if the state is still that connection's.
 pub async fn on_node_event(state: &AppState, event: NodeEvent) {
+    if let NodeEvent::Spoke {
+        user_id,
+        channel_id,
+    } = event
+    {
+        state.voice().spoke(user_id, channel_id, Instant::now());
+        return;
+    }
     let NodeEvent::Disconnected {
         user_id,
         channel_id,
@@ -376,6 +385,27 @@ mod tests {
             self_stream: false,
             suppress: false,
         }
+    }
+
+    #[tokio::test]
+    async fn speaking_counts_as_activity_only_in_the_channel_it_was_in() {
+        let (state, _dir) = app_state().await;
+        state.voice().put(in_voice("talking"));
+        let joined = state.voice().activity(ALICE).unwrap().active_at;
+        let later = joined + Duration::from_secs(90);
+
+        on_node_event(
+            &state,
+            NodeEvent::Spoke {
+                user_id: ALICE,
+                channel_id: CHANNEL + 1,
+            },
+        )
+        .await;
+        assert_eq!(state.voice().activity(ALICE).unwrap().active_at, joined);
+
+        state.voice().spoke(ALICE, CHANNEL, later);
+        assert_eq!(state.voice().activity(ALICE).unwrap().active_at, later);
     }
 
     #[tokio::test]

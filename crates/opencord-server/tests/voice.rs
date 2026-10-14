@@ -677,3 +677,95 @@ async fn a_voice_channel_with_its_chat_off_takes_no_messages() {
 
     assert_eq!(code(&refused), proto::ErrorCode::InvalidArgument);
 }
+
+fn report_idle(input_idle_ms: Option<u64>) -> Request {
+    Request::UpdateVoiceActivity(proto::UpdateVoiceActivity { input_idle_ms })
+}
+
+#[tokio::test]
+async fn people_idle_for_the_timeout_are_moved_to_the_afk_channel() {
+    let mut room = room().await;
+    let afk = create_voice_channel(&mut room.owner, "AFK").await;
+    room.owner
+        .ok(Request::UpdateVoiceSettings(proto::UpdateVoiceSettings {
+            afk_channel_id: Some(afk),
+            afk_timeout_s: Some(300),
+            ..Default::default()
+        }))
+        .await;
+    let (mut third, third_ready) = join(&room.server, 3, &room.invite).await;
+    let third_id = self_id(&third_ready);
+    for client in [&mut room.owner, &mut room.member, &mut third] {
+        voice_state(client.ok(join_voice(room.voice)).await);
+    }
+    // The member has been away; the owner too, but streaming; the third
+    // person said they were away, then came back.
+    room.member.ok(report_idle(Some(0))).await;
+    room.owner
+        .ok(Request::CreateStream(proto::CreateStream {
+            channel_id: room.voice,
+            source_kind: proto::StreamSourceKind::Screen as i32,
+            resolution: proto::ScreenShareResolution::ScreenShareResolution720p as i32,
+            fps: 30,
+            has_audio: false,
+        }))
+        .await;
+    room.owner.ok(report_idle(Some(0))).await;
+    third.ok(report_idle(Some(0))).await;
+    third.ok(report_idle(None)).await;
+    // The last voice event before the checks: the owner going live.
+    room.owner
+        .wait_for(|event| match event {
+            Event::VoiceStateUpdate(proto::VoiceStateUpdate {
+                voice_state: Some(state),
+            }) if state.user_id == room.owner_id && state.self_stream => Some(()),
+            _ => None,
+        })
+        .await;
+
+    // Not yet: four minutes.
+    room.server
+        .handle
+        .check_afk_after(Duration::from_secs(240))
+        .await;
+    room.owner.assert_no_event(QUIET, is_voice_event).await;
+
+    room.server
+        .handle
+        .check_afk_after(Duration::from_secs(301))
+        .await;
+
+    let moved = state_of(&mut room.owner, room.member_id).await;
+    assert_eq!(moved.channel_id, Some(afk));
+    assert!(moved.suppress, "the AFK channel suppresses");
+    // The moved member is sent to the AFK channel's voice node.
+    room.member
+        .wait_for(|event| match event {
+            Event::VoiceServerUpdate(update) if update.channel_id == afk => Some(()),
+            _ => None,
+        })
+        .await;
+    room.owner
+        .assert_no_event(QUIET, |event| match event {
+            Event::VoiceStateUpdate(proto::VoiceStateUpdate {
+                voice_state: Some(state),
+            }) => state.user_id == room.owner_id || state.user_id == third_id,
+            _ => false,
+        })
+        .await;
+}
+
+#[tokio::test]
+async fn idle_reports_from_another_session_are_ignored() {
+    let mut room = room().await;
+    voice_state(room.member.ok(join_voice(room.voice)).await);
+    let (mut other_device, _) = join(&room.server, 2, &room.invite).await;
+
+    other_device.ok(report_idle(Some(0))).await;
+
+    let (_, idle) = room.server.handle.voice_activity(room.member_id).unwrap();
+    assert_eq!(idle, None);
+    room.member.ok(report_idle(Some(1_000))).await;
+    let (_, idle) = room.server.handle.voice_activity(room.member_id).unwrap();
+    assert!(idle.is_some());
+}

@@ -453,3 +453,28 @@ async fn a_silent_participant_sends_almost_nothing() {
     let bits_per_second = (after.bytes_in - before.bytes_in) * 8 / 3 / 2;
     assert!(bits_per_second < 3_000, "{bits_per_second} bit/s each");
 }
+
+#[tokio::test]
+async fn speaking_reaches_the_main_server_at_most_every_ten_seconds() {
+    let mut node = node().await;
+    let (alice, _alice_events) = join(&node, 1).await;
+    let _ = node_events(&mut node, Duration::from_millis(300)).await;
+
+    alice.set_speaking(1);
+    alice.set_speaking(0);
+    alice.set_speaking(1);
+    let events = node_events(&mut node, Duration::from_millis(500)).await;
+
+    let spoke: Vec<_> = events
+        .iter()
+        .filter(|event| matches!(event, NodeEvent::Spoke { .. }))
+        .collect();
+    assert_eq!(spoke.len(), 1, "{events:?}");
+    assert!(matches!(
+        spoke[0],
+        NodeEvent::Spoke {
+            user_id: 1,
+            channel_id: CHANNEL
+        }
+    ));
+}

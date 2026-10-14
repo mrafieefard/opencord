@@ -145,6 +145,7 @@ message SpeakingActivity {
   message Entry {
     int64 user_id = 1;
     int64 last_spoke_at_ms = 2;
+    int64 channel_id = 3;
   }
   repeated Entry entries = 1;
 }
