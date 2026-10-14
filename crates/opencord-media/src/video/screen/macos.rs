@@ -16,9 +16,11 @@ use std::time::{Duration, Instant};
 
 use block2::RcBlock;
 use dispatch2::DispatchQueue;
+use objc2::MainThreadMarker;
 use objc2::rc::Retained;
 use objc2::runtime::{NSObjectProtocol, ProtocolObject};
 use objc2::{AnyThread, DefinedClass, Message, available, define_class, msg_send};
+use objc2_app_kit::NSApplication;
 use objc2_core_media::{CMSampleBuffer, CMTime, CMTimeFlags};
 use objc2_foundation::{NSArray, NSBundle, NSDictionary, NSError, NSNumber, NSObject, NSString};
 use objc2_screen_capture_kit::{
@@ -317,6 +319,9 @@ struct Sendable<T>(T);
 // SAFETY: see above; each use is on one thread at a time.
 unsafe impl<T> Send for Sendable<T> {}
 
+/// How long after a pick Opencord comes back in front.
+const REFOCUS_AFTER: Duration = Duration::from_millis(400);
+
 /// The system picker, on the main thread: one display or one window, never
 /// Opencord's own.
 async fn pick() -> Result<Retained<SCContentFilter>, ScreenError> {
@@ -344,6 +349,7 @@ async fn pick() -> Result<Retained<SCContentFilter>, ScreenError> {
         }
     });
     let choice = answered.await;
+    let picked = matches!(choice, Ok(Choice::Picked(_)));
     let done = observer;
     DispatchQueue::main().exec_async(move || {
         let observer = done;
@@ -354,6 +360,18 @@ async fn pick() -> Result<Retained<SCContentFilter>, ScreenError> {
             picker.setActive(false);
         }
     });
+    if picked {
+        // Back to Opencord: the picker brings the picked window's app in
+        // front, after it answers, and that app doesn't yield to a polite
+        // `activate`.
+        tokio::time::sleep(REFOCUS_AFTER).await;
+        DispatchQueue::main().exec_async(|| {
+            if let Some(mtm) = MainThreadMarker::new() {
+                #[allow(deprecated)]
+                NSApplication::sharedApplication(mtm).activateIgnoringOtherApps(true);
+            }
+        });
+    }
     match choice {
         Ok(Choice::Picked(filter)) => Ok(filter.0),
         Ok(Choice::Cancelled) => Err(ScreenError::Cancelled),

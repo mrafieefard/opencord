@@ -1174,6 +1174,26 @@ Rulings (`Mn: Ruling: … — cost if wrong: …`):
   never retries after `retry_after_ms`. A fresh server and profile
   worked at once — cost if wrong: a user locked out of voice until they
   restart.
+- M8: Ruling: after a pick in the system picker, Opencord comes back in
+  front (at the user's request). The picker brings the picked window's
+  app forward after it answers, and that app doesn't yield to a polite
+  request: `NSRunningApplication.activateWithOptions` right away did
+  nothing (user). 400 ms after the pick, the deprecated but still honoured
+  `NSApplication.activateIgnoringOtherApps(true)` works for a window and
+  for a display (user, release build). objc2-app-kit gains the
+  `NSApplication` and `NSResponder` features — cost if wrong: a future
+  macOS drops the deprecated call and Opencord stays behind.
+- M8: Ruling (49e0c6b, `fix(shared):`, `opencord-core` `client.rs`):
+  **leaving voice left the camera flag on**, so the next join told the
+  server the camera was on, and everyone saw a camera tile that never got
+  a picture (user). Also, `set_voice_self` sent a voice update even with
+  mute and deafen unchanged; the app pushes both on every change, so a
+  join or a camera toggle cost three updates against the server's 10 in
+  10 s. A few camera toggles then left Disconnect refused with "slow
+  down", which explains the earlier lockout. Found with temporary server
+  logging (not committed): before, a join was three `UpdateVoiceState`
+  requests at once; after, join, camera on, leave and rejoin were one
+  each — cost if wrong: none seen; a join still sends the full state.
 - M8: Ruling: `app/tool/macos/serve_lan.sh` is the server for the
   checks across machines: it binds 0.0.0.0, advertises en0's address, uses
   port 47700 and a temporary folder, and runs optional Talker and camera
@@ -1234,6 +1254,10 @@ Rulings (`Mn: Ruling: … — cost if wrong: …`):
   `features/settings/user/app_pages.dart`: the camera menu (right-click on
   the Camera buttons, and Voice & audio → Devices), switching at once, at
   the user's request.
+- M8 49e0c6b `crates/opencord-core/src/client.rs` (`fix(shared):`):
+  `voice_leave` clears the camera flag, and `set_voice_self` sends nothing
+  when mute and deafen haven't changed. Every system had both; found on
+  the Mac.
 
 Shared tests that fail on macOS for a platform reason (not edited):
 - M0: `app/test/unit/desktop/linux_notifications_test.dart` (2 tests) and
