@@ -8,6 +8,7 @@ The release is `bundle/` from `flutter build linux --release`, as a tarball.
 
 - **Carried:** FFmpeg 9.0.2 (LGPL, only H.264 and MJPEG decoding, VA-API and NVENC encoding, and swscale), next to `libopencord_core.so`, found through its `RUNPATH` (D32). Opus, RNNoise, DeepFilterNet and the echo canceller are built into the core.
 - **Needed on the machine:** glibc 2.39 or newer (the build runs on Ubuntu 24.04), GTK 3, libva 2 (and a VA-API driver for hardware video; without one, video falls back to software), PipeWire with its PulseAudio or ALSA layer for sound, and the xdg-desktop-portal for screen sharing, the camera on Wayland, and global keybinds on Wayland. A Secret Service (GNOME Keyring or KWallet) keeps the identity key.
+- **Written on first run:** with no packaged desktop file, the app writes `~/.local/share/applications/dev.opencord.opencord.desktop` for wherever it runs from, and rewrites it when the app moves. The GlobalShortcuts portal refuses keybinds for an app it can't find there ("App info not found"). A package's own desktop file is left alone.
 - **Optional:** a compositor with ext-idle-notify-v1 (KDE, Hyprland, Sway), GNOME's Mutter, or X11, for AFK moves; without one, nobody is moved for being away.
 
 ### Flatpak

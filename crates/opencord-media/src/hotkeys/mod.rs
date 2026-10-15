@@ -18,6 +18,8 @@
 #[path = "linux.rs"]
 mod backend;
 #[cfg(target_os = "linux")]
+mod desktop_entry;
+#[cfg(target_os = "linux")]
 mod portal;
 #[cfg(target_os = "linux")]
 mod x11;
