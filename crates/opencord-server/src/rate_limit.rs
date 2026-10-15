@@ -26,8 +26,20 @@ pub struct RateLimits {
 
 impl Default for RateLimits {
     fn default() -> Self {
+        Self::with_identify_per_minute(IDENTIFY_RATE.burst)
+    }
+}
+
+impl RateLimits {
+    /// The usual limits, with this many sign-ins per address and minute
+    /// (`[gateway] identify_per_minute`).
+    pub fn with_identify_per_minute(identify: u32) -> Self {
+        let identify = RateLimit {
+            burst: identify.max(1),
+            ..IDENTIFY_RATE
+        };
         Self {
-            identify: DefaultKeyedRateLimiter::keyed(quota(IDENTIFY_RATE)),
+            identify: DefaultKeyedRateLimiter::keyed(quota(identify)),
             requests: DefaultKeyedRateLimiter::keyed(quota(REQUEST_RATE)),
             messages: DefaultKeyedRateLimiter::keyed(quota(MESSAGE_RATE)),
             voice_states: DefaultKeyedRateLimiter::keyed(quota(VOICE_STATE_RATE)),
@@ -37,9 +49,7 @@ impl Default for RateLimits {
             clock: DefaultClock::default(),
         }
     }
-}
 
-impl RateLimits {
     /// `Err` holds how long to wait.
     pub fn check_identify(&self, ip: IpAddr) -> Result<(), Duration> {
         self.identify

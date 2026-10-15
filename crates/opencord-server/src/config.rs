@@ -5,6 +5,7 @@ use std::net::SocketAddr;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 
+use opencord_common::limits::IDENTIFY_RATE;
 use serde::Deserialize;
 use serde::de::DeserializeOwned;
 
@@ -38,6 +39,9 @@ name = "Opencord"
 [gateway]
 # How often clients send a heartbeat. OPENCORD_HEARTBEAT_INTERVAL_MS
 heartbeat_interval_ms = 30000
+# Sign-ins allowed from one address per minute. Raise it when many people
+# share an address, at a LAN party say. OPENCORD_IDENTIFY_PER_MINUTE
+identify_per_minute = 5
 
 [log]
 # tracing filter, for example "info" or "opencord_server=debug". OPENCORD_LOG
@@ -99,6 +103,7 @@ pub struct TlsSection {
 #[serde(default, deny_unknown_fields)]
 pub struct GatewaySection {
     pub heartbeat_interval_ms: u32,
+    pub identify_per_minute: u32,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
@@ -161,6 +166,7 @@ impl Default for GatewaySection {
     fn default() -> Self {
         Self {
             heartbeat_interval_ms: 30_000,
+            identify_per_minute: IDENTIFY_RATE.burst,
         }
     }
 }
@@ -283,6 +289,9 @@ impl Config {
             config.gateway.heartbeat_interval_ms =
                 parse_env("OPENCORD_HEARTBEAT_INTERVAL_MS", value)?;
         }
+        if let Some(value) = env("OPENCORD_IDENTIFY_PER_MINUTE") {
+            config.gateway.identify_per_minute = parse_env("OPENCORD_IDENTIFY_PER_MINUTE", value)?;
+        }
         if let Some(value) = env("OPENCORD_LOG") {
             config.log.filter = value;
         }
@@ -399,6 +408,7 @@ mod tests {
             ("OPENCORD_TLS_CERT", cert_text.as_str()),
             ("OPENCORD_TLS_KEY", key_text.as_str()),
             ("OPENCORD_HEARTBEAT_INTERVAL_MS", "5000"),
+            ("OPENCORD_IDENTIFY_PER_MINUTE", "200"),
             ("OPENCORD_LOG", "debug"),
             ("OPENCORD_VOICE_ENABLED", "false"),
             ("OPENCORD_VOICE_UDP_PORT", "17711"),
@@ -417,6 +427,7 @@ mod tests {
         assert_eq!(config.tls.cert, Some(cert));
         assert_eq!(config.tls.key, Some(key));
         assert_eq!(config.gateway.heartbeat_interval_ms, 5000);
+        assert_eq!(config.gateway.identify_per_minute, 200);
         assert_eq!(config.log.filter, "debug");
         assert!(!config.voice.enabled);
         assert_eq!(config.voice.udp_port, 17711);

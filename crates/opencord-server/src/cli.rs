@@ -95,7 +95,12 @@ pub async fn reset_claim_token(config: &Config) -> anyhow::Result<String> {
 /// Logs to stderr with a tracing filter such as "info".
 pub fn init_tracing(filter: &str) {
     let filter = EnvFilter::try_new(filter).unwrap_or_else(|_| EnvFilter::new("info"));
-    tracing_subscriber::fmt().with_env_filter(filter).init();
+    // Colours only on a terminal: not in `docker compose logs` or journald.
+    let ansi = std::io::IsTerminal::is_terminal(&std::io::stdout());
+    tracing_subscriber::fmt()
+        .with_env_filter(filter)
+        .with_ansi(ansi)
+        .init();
 }
 
 /// Waits for Ctrl-C, or SIGTERM on Unix.

@@ -1,0 +1,30 @@
+# An Opencord server with voice. In this folder, put the name or address
+# people reach the server at in .env (it goes into invite links and the
+# certificate), then start it and read the owner claim token:
+#
+#   echo OPENCORD_PUBLIC_HOST=chat.example.com > .env
+#   docker compose up -d
+#   docker compose logs | grep claim_token
+#
+# Forward 7710/tcp and 7711/udp to this machine on your router
+# (docs/voice.md). An invite for others:
+#
+#   docker compose exec opencord opencord-server invite create
+services:
+  opencord:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    image: opencord-server
+    restart: unless-stopped
+    environment:
+      OPENCORD_PUBLIC_HOST: ${OPENCORD_PUBLIC_HOST:?set it to the name or address clients reach this server at}
+      OPENCORD_SERVER_NAME: ${OPENCORD_SERVER_NAME:-Opencord}
+    ports:
+      - "7710:7710/tcp"
+      - "7711:7711/udp"
+    volumes:
+      - opencord-data:/data
+
+volumes:
+  opencord-data:

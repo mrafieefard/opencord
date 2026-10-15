@@ -1,0 +1,30 @@
+# The Opencord server as a systemd service. Install the binary as
+# /usr/local/bin/opencord-server, copy this file to
+# /etc/systemd/system/, set OPENCORD_PUBLIC_HOST below, then:
+#
+#   systemctl enable --now opencord-server
+#   journalctl -u opencord-server | grep claim_token
+#
+# Its config, database, certificate and keys live in /var/lib/opencord.
+
+[Unit]
+Description=Opencord server
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+ExecStart=/usr/local/bin/opencord-server --config /var/lib/opencord/opencord.toml
+Environment=OPENCORD_DATA_DIR=/var/lib/opencord
+Environment=OPENCORD_PUBLIC_HOST=chat.example.com
+DynamicUser=yes
+StateDirectory=opencord
+WorkingDirectory=/var/lib/opencord
+Restart=on-failure
+# Its own data only.
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+NoNewPrivileges=yes
+
+[Install]
+WantedBy=multi-user.target

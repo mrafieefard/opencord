@@ -131,6 +131,18 @@ cargo run -p opencord-voicebot -- --server "opencord://chat.example.com:7710/inv
 cargo run -p opencord-voicebot -- --server "opencord://chat.example.com:7710/invite/CODE" --name Bot2 --tone 660 --seconds 10
 ```
 
+Ports, hosting behind a home router and what to check when a call does not work are in `docs/voice.md`.
+
+### Docker
+
+`deploy/` has a Dockerfile, a compose file and a systemd unit. In `deploy/`:
+
+```bash
+echo OPENCORD_PUBLIC_HOST=chat.example.com > .env
+docker compose up -d
+docker compose logs | grep claim_token
+```
+
 ### Voice on other machines
 
 A voice node carries voice for the main server from another machine. The main server sends each voice channel to the node with the fewest people. When a node stops, its calls move to another node, and clients reconnect on their own.
