@@ -48,7 +48,11 @@ abstract final class OcSize {
   static const double sidebarNarrowWidth = 264;
   static const double memberPanelWidth = 264;
   static const double header = 60;
-  static const double userPanel = 58;
+
+  /// The composer's resting height at the default text size, which the
+  /// user panel matches (until a composer has been measured).
+  static const double userPanel = 62;
+  static const double userPanelLeast = 48;
   static const double channelRow = 56;
   static const double pinnedBar = 46;
   static const double messageColumn = 880;

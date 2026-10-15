@@ -10,6 +10,7 @@ import 'package:opencord/core/model/user.dart';
 import 'package:opencord/core/model/video.dart';
 import 'package:opencord/core/providers/providers.dart';
 import 'package:opencord/core/settings/voice_view_prefs.dart';
+import 'package:opencord/features/chat/composer.dart';
 import 'package:opencord/features/members/member_actions.dart';
 import 'package:opencord/features/voice/voice_controls.dart';
 import 'package:opencord/features/voice/voice_focus.dart';
@@ -63,6 +64,9 @@ class VoiceView extends ConsumerWidget {
       ),
     );
     final bar = VoiceControlBar(channel: channel, chat: chat);
+    // Level with the user panel and any composer.
+    final resting =
+        ref.watch(restingComposerHeightProvider) ?? OcSize.userPanel;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -70,17 +74,13 @@ class VoiceView extends ConsumerWidget {
           child: _Stage(channel: channel, participants: participants),
         ),
         switch (composerHeight) {
+          // The composer beside, as it grows too.
           final composer? => ValueListenableBuilder(
             valueListenable: composer,
-            builder: (context, height, _) => _ControlStrip(
-              height: math.max(
-                height ?? _ControlStrip.resting,
-                _ControlStrip.least,
-              ),
-              child: bar,
-            ),
+            builder: (context, height, _) =>
+                _ControlStrip(height: height ?? resting, child: bar),
           ),
-          null => _ControlStrip(height: _ControlStrip.resting, child: bar),
+          null => _ControlStrip(height: resting, child: bar),
         },
       ],
     );
@@ -92,12 +92,6 @@ class VoiceView extends ConsumerWidget {
 class _ControlStrip extends StatelessWidget {
   const _ControlStrip({required this.height, required this.child});
 
-  /// The composer's own height, one line and nothing above it.
-  static const resting = 62.0;
-
-  /// The round buttons and a little room.
-  static const least = OcSize.hitVoice + 1 + 2 * OcSpace.s4;
-
   final double height;
   final Widget child;
 
@@ -106,7 +100,10 @@ class _ControlStrip extends StatelessWidget {
     final colors = context.oc;
     return Container(
       height: height,
-      padding: const EdgeInsets.symmetric(horizontal: OcSpace.s16),
+      padding: const EdgeInsets.symmetric(
+        horizontal: OcSpace.s16,
+        vertical: OcSpace.s4,
+      ),
       decoration: BoxDecoration(
         color: colors.sidebar,
         border: Border(top: BorderSide(color: colors.border)),

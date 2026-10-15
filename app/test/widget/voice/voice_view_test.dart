@@ -7,6 +7,8 @@ import 'package:opencord/core/providers/voice_cues.dart';
 import 'package:opencord/core/repository/repository.dart';
 import 'package:opencord/core/model/stream.dart';
 import 'package:opencord/core/model/voice.dart';
+import 'package:opencord/core/settings/app_settings.dart';
+import 'package:opencord/features/channels/user_panel.dart';
 import 'package:opencord/features/channels/voice_panel.dart';
 import 'package:opencord/features/chat/chat_header.dart';
 import 'package:opencord/features/chat/composer.dart';
@@ -205,6 +207,41 @@ void main() {
     expect(tester.getRect(strip).top, tester.getRect(composer).top);
     await app.dispose(tester);
   });
+
+  for (final fontSize in [
+    AppSettings.defaultFontSize,
+    AppSettings.maxFontSize,
+  ]) {
+    testWidgets('the user panel, the composer and the control bar share '
+        'their top line, text at $fontSize', (tester) async {
+      final app = await MockApp.pump(
+        tester,
+        settings: (settings) => settings.copyWith(fontSize: fontSize),
+      );
+      final panel = find.byType(UserPanel);
+      await tester.tap(
+        find.descendant(
+          of: find.byKey(DesktopShell.sidebarKey),
+          matching: find.text('general'),
+        ),
+      );
+      await _pumpFor(tester, const Duration(milliseconds: 300));
+      expect(
+        tester.getRect(panel).top,
+        tester.getRect(find.byType(Composer)).top,
+      );
+
+      await _joinGeneral(tester);
+      final strip = find
+          .ancestor(
+            of: find.byType(VoiceControlBar),
+            matching: find.byType(Container),
+          )
+          .first;
+      expect(tester.getRect(strip).top, tester.getRect(panel).top);
+      await app.dispose(tester);
+    });
+  }
 
   testWidgets('a window too narrow for both shows the chat alone, closed '
       'from the header', (tester) async {

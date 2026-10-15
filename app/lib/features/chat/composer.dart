@@ -21,6 +21,7 @@ import 'package:opencord/ui/theme/oc_colors.dart';
 import 'package:opencord/ui/theme/oc_icons.dart';
 import 'package:opencord/ui/theme/oc_metrics.dart';
 import 'package:opencord/ui/theme/oc_text.dart';
+import 'package:opencord/ui/widgets/measured_height.dart';
 import 'package:opencord/ui/widgets/oc_icon_button.dart';
 import 'package:opencord/ui/widgets/oc_text_field.dart';
 import 'package:opencord/ui/widgets/popover.dart';
@@ -30,6 +31,19 @@ import 'package:opencord/ui/widgets/toast.dart';
 const typingInterval = Duration(seconds: 8);
 
 /// The message box at the bottom of a text channel (§4.6).
+/// The composer's height at rest: empty, one line, nothing above it. The
+/// user panel and the call's control bar take it, so their top lines meet
+/// the composer's at any text size; null until a composer has shown.
+class RestingComposerHeight extends Notifier<double?> {
+  @override
+  double? build() => null;
+
+  void set(double height) => state = height;
+}
+
+final restingComposerHeightProvider =
+    NotifierProvider<RestingComposerHeight, double?>(RestingComposerHeight.new);
+
 class Composer extends ConsumerStatefulWidget {
   const Composer({super.key, required this.channel, required this.controller});
 
@@ -428,7 +442,7 @@ class _ComposerState extends ConsumerState<Composer> {
     final editing = state.editing;
     final replyTo = state.replyTo;
     final about = editing ?? replyTo;
-    return Container(
+    final composer = Container(
       decoration: decoration,
       child: Center(
         child: ConstrainedBox(
@@ -514,6 +528,16 @@ class _ComposerState extends ConsumerState<Composer> {
         ),
       ),
     );
+    // Always wrapped, or the field would be rebuilt as typing starts.
+    return MeasuredHeight(onChanged: _measured, child: composer);
+  }
+
+  /// Keeps the height only at rest: empty, and nothing above the field.
+  void _measured(double height) {
+    if (!mounted || _text.text.isNotEmpty) return;
+    final state = ref.read(composerProvider(_channel));
+    if (state.editing != null || state.replyTo != null) return;
+    ref.read(restingComposerHeightProvider.notifier).set(height);
   }
 
   Widget _input(BuildContext context, String channelName) {
