@@ -42,6 +42,7 @@ impl TestServer {
         config.server.data_dir = dir.path().join("data");
         config.server.name = "Test Server".to_owned();
         config.voice.udp_port = 0;
+        config.music.audio_udp_port = 0;
         customize(&mut config);
         let handle = server::start(config).await.unwrap();
         Self { handle, dir }

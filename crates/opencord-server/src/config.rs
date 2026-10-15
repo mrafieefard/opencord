@@ -70,6 +70,17 @@ max_egress_mbps = 0
 # [[voice.external_nodes]]
 # endpoint = "wss://voice1.example.com:7712"
 # secret_file = "voice1.secret"
+
+[music]
+# Music in voice channels, played by Lavalink nodes added in the app.
+# OPENCORD_MUSIC_ENABLED
+enabled = true
+# UDP port Lavalink sends music to; Lavalink nodes on other machines must
+# reach it. OPENCORD_MUSIC_UDP_PORT
+audio_udp_port = 7712
+# The domain Lavalink connects to: "primary", or another active domain with
+# a trusted certificate.
+bridge_domain = "primary"
 "#;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Deserialize)]
@@ -80,6 +91,7 @@ pub struct Config {
     pub gateway: GatewaySection,
     pub log: LogSection,
     pub voice: VoiceSection,
+    pub music: MusicSection,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
@@ -181,6 +193,25 @@ impl Default for VoiceSection {
             max_participants_per_channel: 99,
             max_egress_mbps: 0,
             external_nodes: Vec::new(),
+        }
+    }
+}
+
+/// Music in voice channels (Phase 3 plan §13.5).
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct MusicSection {
+    pub enabled: bool,
+    pub audio_udp_port: u16,
+    pub bridge_domain: String,
+}
+
+impl Default for MusicSection {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            audio_udp_port: 7712,
+            bridge_domain: "primary".to_owned(),
         }
     }
 }
@@ -300,6 +331,12 @@ impl Config {
         }
         if let Some(value) = env("OPENCORD_VOICE_UDP_PORT") {
             config.voice.udp_port = parse_env("OPENCORD_VOICE_UDP_PORT", value)?;
+        }
+        if let Some(value) = env("OPENCORD_MUSIC_ENABLED") {
+            config.music.enabled = parse_env("OPENCORD_MUSIC_ENABLED", value)?;
+        }
+        if let Some(value) = env("OPENCORD_MUSIC_UDP_PORT") {
+            config.music.audio_udp_port = parse_env("OPENCORD_MUSIC_UDP_PORT", value)?;
         }
         if let Some(value) = env("OPENCORD_VOICE_PUBLIC_ADDRESS") {
             config.voice.public_address = value;

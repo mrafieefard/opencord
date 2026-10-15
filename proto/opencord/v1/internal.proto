@@ -48,6 +48,7 @@ message ControlEnvelope {
     ChannelUpdate channel_update = 14;
     SettingsUpdate settings_update = 15;
     StreamViewers stream_viewers = 16;
+    CancelMusicBridge cancel_music_bridge = 17;
 
     // Node to main server.
     Register register = 30;
@@ -148,4 +149,10 @@ message SpeakingActivity {
     int64 channel_id = 3;
   }
   repeated Entry entries = 1;
+}
+
+// A channel's music stops (Phase 3 plan §18.4): its stream ends, and its
+// bridge connection with it.
+message CancelMusicBridge {
+  int64 channel_id = 1;
 }

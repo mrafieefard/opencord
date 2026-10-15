@@ -21,9 +21,10 @@ use voice::envelope::Payload;
 use super::session::{Connection, NewSession, VoiceSession};
 use super::tracks::Refusal;
 use super::{Counters, NodeCommand, NodeEvent};
-use crate::sfu::{PeerId, PeerSetup, PeerState, Sfu, SfuEvent, Transport};
+use crate::sfu::{MusicPacket, PeerId, PeerSetup, PeerState, Sfu, SfuEvent, Transport};
 use video::track_message;
 
+mod music;
 mod video;
 use crate::token::{self, Presenter, UsedTokens};
 
@@ -101,6 +102,11 @@ pub enum Command {
         connection_id: u64,
     },
     Node(NodeCommand),
+    /// A frame of a channel's music, from the audio bridge.
+    MusicFrame {
+        channel_id: i64,
+        packet: MusicPacket,
+    },
     VerifyingKey(VerifyingKey),
     Suspend,
     Shutdown,
@@ -242,6 +248,9 @@ impl Runtime {
                 }
             }
             Command::Node(command) => self.node_command(now, command),
+            Command::MusicFrame { channel_id, packet } => {
+                self.music_frame(now, channel_id, &packet);
+            }
             Command::VerifyingKey(key) => self.verifying_key = Some(key),
             Command::Suspend => {
                 self.end_all(now);
@@ -371,6 +380,7 @@ impl Runtime {
                 ],
                 limits,
                 participants: others,
+                music: self.music_stream(claims.channel_id),
             }),
             now,
         );
@@ -467,6 +477,7 @@ impl Runtime {
                     self.end_session(now, &id, Ending::Disconnected);
                 }
             }
+            NodeCommand::StopMusic { channel_id } => self.stop_music(now, channel_id),
             NodeCommand::StreamViewers {
                 channel_id,
                 user_id,

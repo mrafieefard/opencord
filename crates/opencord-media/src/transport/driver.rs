@@ -49,6 +49,9 @@ pub(super) struct Driver {
     /// Wants not sent yet, and when the last went out.
     wants_pending: Option<Vec<SinkWant>>,
     wants_sent: Option<Instant>,
+    /// What went out last, sent again when only the music changes.
+    wants_last: Vec<SinkWant>,
+    music_muted: bool,
 }
 
 impl Driver {
@@ -73,6 +76,8 @@ impl Driver {
             publishing: HashMap::new(),
             wants_pending: None,
             wants_sent: None,
+            wants_last: Vec::new(),
+            music_muted: false,
         }
     }
 
@@ -207,6 +212,15 @@ impl Driver {
                     let _ = gateway::send(open, unpublish).await;
                 }
             }
+            Some(Command::MusicMuted(muted)) => {
+                self.music_muted = muted;
+                self.wants_pending = Some(self.wants_last.clone());
+                if self.wants_due().is_some_and(|due| due <= Instant::now())
+                    && let Some(open) = socket.as_mut()
+                {
+                    self.send_wants(open).await;
+                }
+            }
             Some(Command::SinkWants(wants)) => {
                 self.wants_pending = Some(wants);
                 if self.wants_due().is_some_and(|due| due <= Instant::now())
@@ -295,7 +309,9 @@ impl Driver {
             return;
         };
         self.wants_sent = Some(Instant::now());
+        self.wants_last.clone_from(&wants);
         let message = voice::MediaSinkWants {
+            music_muted: self.music_muted,
             wants: wants
                 .into_iter()
                 .map(|want| voice::SinkWant {
@@ -356,6 +372,12 @@ impl Driver {
             Some(Payload::SenderLayerWants(wants)) => {
                 self.media
                     .set_wanted(&wants.track_id, &wants.active_layers, &self.events);
+            }
+            Some(Payload::MusicStream(music)) => {
+                self.media.set_music(music.active.then_some(music.ssrc));
+                let _ = self.events.send(VoiceEvent::Music {
+                    active: music.active,
+                });
             }
             Some(Payload::Resumed(_)) => {
                 let _ = self.events.send(VoiceEvent::Resumed);

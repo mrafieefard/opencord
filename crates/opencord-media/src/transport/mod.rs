@@ -176,6 +176,10 @@ pub struct RemoteTrack {
     pub available: Option<Vec<String>>,
 }
 
+/// The source key of the channel's music among received audio: never a
+/// user's id (Phase 3 plan §13.3).
+pub const MUSIC_SOURCE: i64 = 0;
+
 /// A video this client wants, at the height of its tile (plan §6).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SinkWant {
@@ -200,6 +204,12 @@ pub enum VoiceEvent {
     Audio(ReceivedAudio),
     /// The sound of someone's screen share, watched here (plan §10.5).
     StreamAudio(ReceivedAudio),
+    /// The channel's music started or stopped (Phase 3 plan §18.4).
+    Music {
+        active: bool,
+    },
+    /// A packet of the channel's music; its `user_id` is [`MUSIC_SOURCE`].
+    MusicAudio(ReceivedAudio),
     Speaking {
         user_id: i64,
         flags: u32,
@@ -270,6 +280,7 @@ pub enum TransportError {
 
 enum Command {
     Audio(AudioFrame),
+    MusicMuted(bool),
     ScreenAudio(EncodedScreenAudio),
     Video(VideoFrame),
     Speaking(u32),
@@ -366,6 +377,9 @@ impl VoiceConnection {
                 }
             }
         }
+        if ready.music.is_some_and(|music| music.active) {
+            let _ = events.send(VoiceEvent::Music { active: true });
+        }
         let (commands, command_receiver) = mpsc::unbounded_channel();
         let audio_ssrc = ready.audio_ssrc;
         let limits = ready.limits;
@@ -434,6 +448,12 @@ impl VoiceConnection {
 
     pub fn send_video(&self, frame: VideoFrame) {
         let _ = self.commands.send(Command::Video(frame));
+    }
+
+    /// Whether the channel's music is sent to this client (Phase 3 plan
+    /// §18.4): a client that muted it does not receive it.
+    pub fn set_music_muted(&self, muted: bool) {
+        let _ = self.commands.send(Command::MusicMuted(muted));
     }
 
     /// The videos this client wants and at what size; the rest are not

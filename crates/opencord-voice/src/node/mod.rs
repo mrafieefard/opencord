@@ -66,6 +66,8 @@ pub enum NodeCommand {
         user_id: i64,
         viewers: Vec<i64>,
     },
+    /// The channel's music stopped: its stream ends (Phase 3 plan §18.4).
+    StopMusic { channel_id: i64 },
 }
 
 /// To the main server.
@@ -241,6 +243,11 @@ impl VoiceNode {
     /// Applies a command from the main server.
     pub fn send(&self, command: NodeCommand) {
         self.command(Command::Node(command));
+    }
+
+    /// A frame of a channel's music, from the audio bridge.
+    pub fn music_frame(&self, channel_id: i64, packet: crate::sfu::MusicPacket) {
+        self.command(Command::MusicFrame { channel_id, packet });
     }
 
     /// The key voice tokens must be signed with, from the main server.

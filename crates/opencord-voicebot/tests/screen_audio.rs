@@ -26,6 +26,7 @@ impl TestServer {
         config.server.public_host = "127.0.0.1".to_owned();
         config.server.data_dir = dir.path().join("data");
         config.voice.udp_port = 0;
+        config.music.audio_udp_port = 0;
         let handle = server::start(config).await.unwrap();
         Self { handle, _dir: dir }
     }

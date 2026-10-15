@@ -18,7 +18,7 @@ use crate::gateway::session::CloseCode;
 use crate::guild::Guild;
 use crate::state::{AppState, now_ms};
 use crate::voice::nodes::VoiceNodes;
-use crate::{bootstrap, db, http, tls, voice};
+use crate::{bootstrap, db, http, music, tls, voice};
 use opencord_voice::node::{NodeConfig, NodeEvent, VoiceNode};
 use tokio::sync::mpsc::UnboundedReceiver;
 
@@ -58,18 +58,22 @@ pub async fn start(config: Config) -> anyhow::Result<ServerHandle> {
     let tls = tls::load_or_generate(&config.tls, &data_dir.join("tls"), &hostnames(&config))?;
     let voice_key = voice::keys::load_or_generate(&data_dir)?;
     let (embedded, node_events) = embedded_node(&config, &voice_key).await?;
+    let music_bridge = music::start_bridge(&config, embedded.as_ref()).await?;
     let guild = Guild::load(&mut *pool.acquire().await?, bootstrap.meta).await?;
     let invite_code = bootstrap::startup_invite(&pool, now_ms()).await?;
     let rustls = RustlsConfig::from_config(Arc::new(tls::server_config(&tls)?));
-    let state = Arc::new(AppState::new(
-        config.clone(),
-        pool,
-        ids,
-        tls.fingerprint,
-        guild,
-        voice_key,
-        VoiceNodes::new(embedded, tls.fingerprint),
-    ));
+    let state = Arc::new(
+        AppState::new(
+            config.clone(),
+            pool,
+            ids,
+            tls.fingerprint,
+            guild,
+            voice_key,
+            VoiceNodes::new(embedded, tls.fingerprint),
+        )
+        .with_music_bridge(music_bridge),
+    );
     if let Some(mut events) = node_events {
         let state = Arc::clone(&state);
         tokio::spawn(async move {
@@ -124,6 +128,9 @@ impl ServerHandle {
         if let Some(node) = self.state.voice_nodes.embedded() {
             node.shutdown();
         }
+        if let Some(bridge) = &self.state.music_bridge {
+            bridge.shutdown();
+        }
         self.state.shutdown.cancel();
         self.handle.graceful_shutdown(Some(SHUTDOWN_GRACE));
         let _ = self.serve.await;
@@ -153,6 +160,12 @@ impl ServerHandle {
             .voice()
             .activity(user_id)
             .map(|activity| (activity.active_at, activity.input_idle_since))
+    }
+
+    /// The audio bridge, when music is on. Intended for tests that stand in
+    /// for the music player.
+    pub fn music_bridge(&self) -> Option<&opencord_voice::bridge::MusicBridge> {
+        self.state.music_bridge.as_ref()
     }
 
     /// Like [`Self::drop_connections`], for one user only.

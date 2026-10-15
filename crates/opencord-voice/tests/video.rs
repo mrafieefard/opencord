@@ -380,8 +380,10 @@ async fn send_wants_burst(node: &Node, user_id: i64, wants: usize) -> Option<Opt
         panic!("no Ready");
     };
     for _ in 0..wants {
-        let payload =
-            voice::envelope::Payload::MediaSinkWants(voice::MediaSinkWants { wants: Vec::new() });
+        let payload = voice::envelope::Payload::MediaSinkWants(voice::MediaSinkWants {
+            wants: Vec::new(),
+            music_muted: false,
+        });
         gateway::send(&mut socket, payload).await.unwrap();
     }
     let deadline = tokio::time::Instant::now() + Duration::from_secs(1);

@@ -886,6 +886,13 @@ impl SessionTask {
                             audio.payload,
                             audio.arrived,
                         ),
+                        VoiceEvent::MusicAudio(audio) => self.engine.receive_music(
+                            audio.timestamp,
+                            audio.marker,
+                            audio.payload,
+                            audio.arrived,
+                        ),
+                        VoiceEvent::Music { active: false } => self.engine.remove_music(),
                         VoiceEvent::ClientDisconnected { user_id } => self.engine.remove_user(user_id),
                         VoiceEvent::Closed { code } => {
                             live = None;

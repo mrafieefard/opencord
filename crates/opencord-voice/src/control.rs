@@ -75,6 +75,11 @@ pub fn envelope_for(command: &NodeCommand) -> internal::ControlEnvelope {
             user_id: *user_id,
             viewer_ids: viewers.clone(),
         }),
+        NodeCommand::StopMusic { channel_id } => {
+            Payload::CancelMusicBridge(internal::CancelMusicBridge {
+                channel_id: *channel_id,
+            })
+        }
     };
     internal::ControlEnvelope {
         payload: Some(payload),
@@ -108,6 +113,9 @@ pub fn command_from(envelope: internal::ControlEnvelope) -> Option<NodeCommand> 
             channel_id: viewers.channel_id,
             user_id: viewers.user_id,
             viewers: viewers.viewer_ids,
+        },
+        Payload::CancelMusicBridge(cancel) => NodeCommand::StopMusic {
+            channel_id: cancel.channel_id,
         },
         _ => return None,
     })
@@ -245,6 +253,7 @@ mod tests {
                 user_id: 1,
                 viewers: vec![3, 4],
             },
+            NodeCommand::StopMusic { channel_id: 2 },
         ];
 
         for command in commands {

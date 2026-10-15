@@ -46,6 +46,8 @@ pub struct AppState {
     /// Signs voice and media tokens.
     pub voice_key: SigningKey,
     pub voice_nodes: VoiceNodes,
+    /// Where Lavalink plays into, when music is on (Phase 3 plan §13).
+    pub music_bridge: Option<opencord_voice::bridge::MusicBridge>,
     guild: RwLock<Guild>,
     /// Lock after the guild, never before it.
     voice: StdMutex<VoiceStates>,
@@ -74,10 +76,21 @@ impl AppState {
             shutdown: CancellationToken::new(),
             voice_key,
             voice_nodes,
+            music_bridge: None,
             guild: RwLock::new(guild),
             voice: StdMutex::new(VoiceStates::default()),
             writes: Mutex::new(()),
         }
+    }
+
+    /// With the audio bridge music plays into.
+    #[must_use]
+    pub fn with_music_bridge(
+        mut self,
+        bridge: Option<opencord_voice::bridge::MusicBridge>,
+    ) -> Self {
+        self.music_bridge = bridge;
+        self
     }
 
     pub fn guild(&self) -> RwLockReadGuard<'_, Guild> {
