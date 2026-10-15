@@ -109,6 +109,8 @@ message NetworkInfo {
   // D3: DNS providers connected, for the DNS challenge.
   repeated DnsProviderInfo dns_providers = 10;
   AcmeAccount acme = 11;
+  // D4: the Cloudflare Tunnel this server runs.
+  TunnelStatus tunnel = 12;
 }
 
 enum CertificateState {
@@ -187,6 +189,78 @@ message SetDnsProvider {
   string kind = 1;
   string token = 2;
 }
+
+// A free subdomain (plan §9.1): Opencord points it here, keeps it pointed
+// here, verifies it and gets its certificate. Owner only.
+message AddFreeSubdomain {
+  // duckdns or desec.
+  string provider = 1;
+  // `name` or `name.duckdns.org` / `name.dedyn.io`.
+  string name = 2;
+  // Connects or replaces the provider's token; empty keeps the one saved.
+  string token = 3;
+  // For the certificate's account, when none exists yet.
+  optional string email = 4;
+  bool agree_terms = 5;
+}
+
+enum TunnelKind {
+  TUNNEL_KIND_UNSPECIFIED = 0;
+  // A random *.trycloudflare.com address; for testing.
+  TUNNEL_KIND_QUICK = 1;
+  // The owner's tunnel, by its token.
+  TUNNEL_KIND_NAMED = 2;
+}
+
+enum TunnelState {
+  TUNNEL_STATE_UNSPECIFIED = 0;
+  TUNNEL_STATE_OFF = 1;
+  TUNNEL_STATE_STARTING = 2;
+  TUNNEL_STATE_RUNNING = 3;
+  // cloudflared stopped; started again after a pause.
+  TUNNEL_STATE_RESTARTING = 4;
+  // cloudflared cannot run: missing, or refused to start.
+  TUNNEL_STATE_FAILED = 5;
+}
+
+message TunnelStatus {
+  TunnelState state = 1;
+  TunnelKind kind = 2;
+  // The tunnel's domain: a quick tunnel's once Cloudflare gave it.
+  string hostname = 3;
+  int64 domain_id = 4;
+  string error = 5;
+  // Times cloudflared was started again since the tunnel started.
+  uint32 restarts = 6;
+  // The cloudflared found; empty when there is none.
+  string cloudflared_version = 7;
+  // Downloading cloudflared now.
+  bool installing = 8;
+}
+
+// Starts the tunnel, replacing any running one. Owner only.
+message StartTunnel {
+  TunnelKind kind = 1;
+  // Named: the tunnel token from Cloudflare's dashboard; empty keeps the
+  // one saved.
+  string token = 2;
+  // Named: the public hostname set up for it in Cloudflare.
+  string hostname = 3;
+}
+
+// Stops the tunnel; a quick tunnel's domain goes with it. Owner only.
+message StopTunnel {}
+
+// cloudflared's last lines of output. Owner only.
+message FetchTunnelLog {}
+
+message TunnelLog {
+  repeated string lines = 1;
+}
+
+// Downloads Cloudflare's cloudflared release for this machine and checks
+// its SHA-256 before using it. Owner only.
+message InstallCloudflared {}
 
 // Starts or stops NetworkStatus events for this session; answers with
 // NetworkInfo. Owner only.

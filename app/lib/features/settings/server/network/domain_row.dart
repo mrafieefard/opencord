@@ -192,6 +192,8 @@ class DomainRow extends ConsumerWidget {
       if (domain.status == DomainStatus.dnsProblem &&
           domain.problemSince != null)
         'DNS problem since ${rowTime(domain.problemSince!, now)}',
+      if (domain.kind.behindProxy)
+        'Voice and music still need UDP to reach this server directly.',
       if (domain.active)
         switch (domain.users24h) {
           1 => '1 person connected through it in the last 24 hours',

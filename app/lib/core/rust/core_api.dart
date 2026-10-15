@@ -329,6 +329,28 @@ abstract interface class CoreApi {
     String token,
   );
 
+  Future<core.NetworkInfo> addFreeSubdomain(
+    String serverKey,
+    String provider,
+    String name,
+    String token,
+    String? email,
+    bool agreeTerms,
+  );
+
+  Future<core.NetworkInfo> startTunnel(
+    String serverKey,
+    core.TunnelKind kind,
+    String token,
+    String hostname,
+  );
+
+  Future<core.NetworkInfo> stopTunnel(String serverKey);
+
+  Future<List<String>> tunnelLog(String serverKey);
+
+  Future<core.NetworkInfo> installCloudflared(String serverKey);
+
   /// Leaves any other voice channel first, on any server.
   Future<core.VoiceState> voiceJoin(String serverKey, int channelId);
 
@@ -918,6 +940,48 @@ class FrbCoreApi implements CoreApi {
     String kind,
     String token,
   ) => frb.setDnsProvider(serverKey: serverKey, kind: kind, token: token);
+
+  @override
+  Future<core.NetworkInfo> addFreeSubdomain(
+    String serverKey,
+    String provider,
+    String name,
+    String token,
+    String? email,
+    bool agreeTerms,
+  ) => frb.addFreeSubdomain(
+    serverKey: serverKey,
+    provider: provider,
+    name: name,
+    token: token,
+    email: email,
+    agreeTerms: agreeTerms,
+  );
+
+  @override
+  Future<core.NetworkInfo> startTunnel(
+    String serverKey,
+    core.TunnelKind kind,
+    String token,
+    String hostname,
+  ) => frb.startTunnel(
+    serverKey: serverKey,
+    kind: kind,
+    token: token,
+    hostname: hostname,
+  );
+
+  @override
+  Future<core.NetworkInfo> stopTunnel(String serverKey) =>
+      frb.stopTunnel(serverKey: serverKey);
+
+  @override
+  Future<List<String>> tunnelLog(String serverKey) =>
+      frb.tunnelLog(serverKey: serverKey);
+
+  @override
+  Future<core.NetworkInfo> installCloudflared(String serverKey) =>
+      frb.installCloudflared(serverKey: serverKey);
 
   @override
   Future<core.VoiceState> voiceJoin(String serverKey, int channelId) =>

@@ -76,6 +76,11 @@ message Request {
     RequestCertificate request_certificate = 109;
     UploadCertificate upload_certificate = 110;
     SetDnsProvider set_dns_provider = 111;
+    AddFreeSubdomain add_free_subdomain = 112;
+    StartTunnel start_tunnel = 113;
+    StopTunnel stop_tunnel = 114;
+    FetchTunnelLog fetch_tunnel_log = 115;
+    InstallCloudflared install_cloudflared = 116;
   }
 }
 
@@ -102,6 +107,7 @@ message Response {
     SoundboardSound soundboard_sound = 17;
     NetworkInfo network_info = 18;
     DomainChecks domain_checks = 19;
+    TunnelLog tunnel_log = 20;
   }
 }
 

@@ -99,6 +99,7 @@ class MockServer {
       ),
     ],
     acme: AcmeAccount(termsUrl: 'https://letsencrypt.org/repository/'),
+    tunnel: TunnelStatus(cloudflaredVersion: '2026.10.0'),
   );
 
   /// The soundboard, by id.

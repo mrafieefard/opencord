@@ -12,6 +12,9 @@ This guide grows with Phase 3. What is here so far:
 - [How apps use domains](#how-apps-use-domains)
 - [Certificates](#certificates)
 - [DNS providers](#dns-providers)
+- [Free subdomains](#free-subdomains)
+- [Cloudflare Tunnel](#cloudflare-tunnel)
+- [Reverse proxies](#reverse-proxies)
 - [Public address](#public-address)
 - [Ports](#ports)
 - [Opening ports on a home router](#opening-ports-on-a-home-router)
@@ -29,7 +32,7 @@ This guide grows with Phase 3. What is here so far:
 | **Free subdomain** | You have no domain: DuckDNS or deSEC | DNS | Straight to the server |
 | **Cloudflare Tunnel** | The server cannot accept incoming connections | HTTPS through the tunnel | Not through the tunnel |
 
-Free subdomains and Cloudflare Tunnel have their own buttons on the page, with what they need to set up.
+Free subdomains and Cloudflare Tunnel have their own buttons on the page, with what they need to set up: see [Free subdomains](#free-subdomains) and [Cloudflare Tunnel](#cloudflare-tunnel).
 
 ## Adding a domain
 
@@ -137,6 +140,84 @@ Connecting a DNS provider lets certificates use the DNS challenge, which needs n
 
 The token is checked when it is connected, kept encrypted on the server, and never shown again: the page shows its last four characters. **Replace** puts in a new one; **Disconnect** deletes it.
 
+## Free subdomains
+
+No domain? A free one from DuckDNS (`name.duckdns.org`) or deSEC (`name.dedyn.io`) works like your own, and Opencord does the DNS for it.
+
+1. Under **Domains**, choose **Get a free domain** and pick DuckDNS or deSEC.
+2. At the provider: on duckdns.org, sign in and add a subdomain; the token is at the top of the page. On desec.io, register, create a domain under dedyn.io, and make a token under Token Management.
+3. Paste the token and the name. The first time, agree to Let's Encrypt's subscriber agreement (and give an email if you like): the certificate comes by itself.
+
+Opencord then points the name at the server's public address, checks it until the records show (seconds for DuckDNS, up to a minute or so for deSEC), and gets a certificate through the DNS challenge, so no port needs to be open for it. When the public address changes, Opencord updates the record before it checks the domains again: the name keeps working on a home connection whose address changes (dynamic DNS).
+
+The token connects the provider under [DNS providers](#dns-providers) too, where it can be replaced. People still reach the server's ports directly, so forward them (or turn on UPnP) as for any domain.
+
+## Cloudflare Tunnel
+
+A tunnel reaches the server when its ports cannot be opened (no port forwarding, carrier-grade NAT). cloudflared, Cloudflare's connector, opens an outgoing connection to Cloudflare and forwards the tunnel's name to Opencord's [local listener](#reverse-proxies). Cloudflare provides the certificate, so apps trust the name without a fingerprint, and WebSockets pass through: chat, voice signalling, web invites and a Lavalink node's connection to the audio bridge all work.
+
+**Tunnels carry no UDP.** Voice and video (UDP 7711) and music from Lavalink (UDP 7712) still need to reach the server directly. Without any reachable UDP, text works fully; music works when Lavalink runs on the same machine or network, since its UDP stays local; voice needs a UDP path (a relay is planned for later).
+
+Under **Domains**, choose **Use a tunnel**:
+
+| Choice | Needs | What you get |
+|---|---|---|
+| Quick tunnel | Nothing | A random `*.trycloudflare.com` address. For testing only: the address changes every time the tunnel starts, Cloudflare allows at most 200 requests at once, and there is no uptime guarantee. |
+| My Cloudflare tunnel | A free Cloudflare account and a domain on Cloudflare | Your own name. In Cloudflare's dashboard (Zero Trust, then Networks, then Tunnels) create a tunnel, add a public hostname whose service is `http://localhost:7719`, and paste the tunnel's token (the long value in its install command) and that hostname into Opencord. |
+| I run cloudflared | cloudflared running elsewhere, such as a Docker sidecar | Add the hostname as a tunnel domain; Opencord checks it through the tunnel. |
+
+Opencord runs cloudflared itself for the first two: it starts it again when it stops (after a pause that grows to a minute), shows its state and restarts on the page, and keeps its last 200 lines of output (**Output**), with the token hidden. The tunnel starts again with the server. **Stop** ends it; a quick tunnel's address goes with it, a named tunnel's domain stays.
+
+**cloudflared.** Opencord uses `cloudflared` under `[tunnel]` in `opencord.toml` when it is set, else one it downloaded, else the one on the server's `PATH`. Without one, the page offers **Download**: Opencord fetches Cloudflare's latest release for the machine from GitHub and keeps it only when its SHA-256 matches the checksum Cloudflare lists in the release notes, and GitHub's own digest of the file. It is saved as `bin/cloudflared` in the data directory.
+
+**As a Docker sidecar.** The local listener answers only on the machine itself, so the sidecar shares the Opencord container's network. Add this service to `deploy/docker-compose.yml`, with the tunnel token in `.env` as `TUNNEL_TOKEN`, then add the hostname with "I run cloudflared":
+
+```yaml
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    restart: unless-stopped
+    network_mode: "service:opencord"
+    environment:
+      TUNNEL_TOKEN: ${TUNNEL_TOKEN}
+    command: tunnel --no-autoupdate run
+```
+
+## Reverse proxies
+
+Caddy, Nginx, Traefik, ngrok, Tailscale Funnel and the like handle TLS and forward to Opencord. **Add domain** with "Through a reverse proxy" shows the configuration for the name. For Caddy:
+
+```
+chat.example.com {
+    reverse_proxy 127.0.0.1:7719
+}
+```
+
+For Nginx, with its own certificate; WebSockets need the upgrade headers, and calls and chats keep connections open for long:
+
+```nginx
+server {
+    listen 443 ssl;
+    http2 on;
+    server_name chat.example.com;
+    ssl_certificate     /etc/letsencrypt/live/chat.example.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/chat.example.com/privkey.pem;
+
+    location / {
+        proxy_pass http://127.0.0.1:7719;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_read_timeout 1h;
+        proxy_send_timeout 1h;
+        client_max_body_size 50m;
+    }
+}
+```
+
+A proxy on another machine cannot reach the local listener: point it at the main port (`https://<server>:7710`) instead, and add its address to **Trusted proxies** under Advanced. Like tunnels, proxies carry no UDP: 7711 and 7712 must reach the server directly.
+
 ## Public address
 
 The server finds its public address by asking a lookup service what address its request came from: `https://api.ipify.org`, and `https://api6.ipify.org` when the machine has IPv6. It asks at start-up and every 6 hours. The address is what domains must point to, and where Lavalink nodes on other machines send music.
@@ -208,7 +289,7 @@ The main port can be changed in the app; it takes effect when the server restart
 
 ## Tunnels and reverse proxies: the local listener
 
-Tunnels (Cloudflare Tunnel, ngrok) and reverse proxies (Caddy, Nginx, Traefik) take care of TLS and forward plain HTTP to Opencord's local listener: `http://127.0.0.1:7719`. It serves the same things as the main port without TLS, and only programs on the same machine can reach it. It runs while a tunnel or reverse-proxy domain exists.
+Tunnels (Cloudflare Tunnel, ngrok) and reverse proxies (Caddy, Nginx, Traefik) take care of TLS and forward plain HTTP to Opencord's local listener: `http://127.0.0.1:7719`. It serves the same things as the main port without TLS, and only programs on the same machine can reach it. It runs while a tunnel or reverse-proxy domain exists, or a tunnel runs.
 
 Behind a proxy, every connection seems to come from the proxy. Opencord believes the client address in `X-Forwarded-For` only from **trusted proxies**: `127.0.0.1` and `::1` by default, which covers a proxy on the same machine. Add a proxy on another machine under Advanced.
 

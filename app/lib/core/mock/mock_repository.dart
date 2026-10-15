@@ -1480,6 +1480,7 @@ class MockRepository implements OpencordRepository {
         domains: old.domains,
         dnsProviders: old.dnsProviders,
         acme: old.acme,
+        tunnel: old.tunnel,
       ),
     );
   }
@@ -1514,6 +1515,7 @@ class MockRepository implements OpencordRepository {
         domains: old.domains,
         dnsProviders: old.dnsProviders,
         acme: old.acme,
+        tunnel: old.tunnel,
       ),
     );
   }
@@ -1564,6 +1566,7 @@ class MockRepository implements OpencordRepository {
         domains: domains,
         dnsProviders: old.dnsProviders,
         acme: old.acme,
+        tunnel: old.tunnel,
       ),
     );
   }
@@ -1826,6 +1829,7 @@ class MockRepository implements OpencordRepository {
             email: email ?? info.acme.email,
             termsUrl: info.acme.termsUrl,
           ),
+          tunnel: info.tunnel,
         ),
       );
       at(
@@ -1891,6 +1895,277 @@ class MockRepository implements OpencordRepository {
     ]);
   }
 
+  /// The network with the tunnel, providers or account replaced.
+  NetworkInfo _replaced(
+    MockServer server, {
+    TunnelStatus? tunnel,
+    List<DnsProvider>? dnsProviders,
+  }) {
+    final old = server.network;
+    return _network(
+      server,
+      NetworkInfo(
+        publicAddress: old.publicAddress,
+        ports: old.ports,
+        settings: old.settings,
+        listeningPort: old.listeningPort,
+        nextMainPort: old.nextMainPort,
+        upnpGateway: old.upnpGateway,
+        upnpExternalIp: old.upnpExternalIp,
+        upnpError: old.upnpError,
+        domains: old.domains,
+        dnsProviders: dnsProviders ?? old.dnsProviders,
+        acme: old.acme,
+        tunnel: tunnel ?? old.tunnel,
+      ),
+    );
+  }
+
+  TunnelStatus _tunnel(
+    TunnelStatus old, {
+    TunnelState? state,
+    TunnelKind? kind,
+    String? hostname,
+    int? domainId,
+    String? error,
+    int? restarts,
+    String? cloudflaredVersion,
+    bool? installing,
+  }) => TunnelStatus(
+    state: state ?? old.state,
+    kind: kind ?? old.kind,
+    hostname: hostname ?? old.hostname,
+    domainId: domainId ?? old.domainId,
+    error: error ?? old.error,
+    restarts: restarts ?? old.restarts,
+    cloudflaredVersion: cloudflaredVersion ?? old.cloudflaredVersion,
+    installing: installing ?? old.installing,
+  );
+
+  /// Names starting with "taken" are someone else's at the provider.
+  @override
+  Future<NetworkInfo> addFreeSubdomain(
+    String serverKey, {
+    required DnsProviderKind provider,
+    required String name,
+    String token = '',
+    String? email,
+    bool agreeTerms = false,
+  }) async {
+    final server = _server(serverKey);
+    _requireOwner(server);
+    await _latency();
+    final suffix = switch (provider) {
+      DnsProviderKind.duckdns => '.duckdns.org',
+      DnsProviderKind.desec => '.dedyn.io',
+      DnsProviderKind.cloudflare => throw const RepoException(
+        RepoErrorKind.invalidArgument,
+        'Free subdomains come from DuckDNS or deSEC.',
+      ),
+    };
+    final label = name.trim().toLowerCase().replaceAll(suffix, '');
+    if (!RegExp(r'^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$').hasMatch(label)) {
+      throw RepoException(
+        RepoErrorKind.invalidArgument,
+        '$label is not a ${provider.label} name: letters, digits and hyphens.',
+      );
+    }
+    final connected = server.network.provider(provider) != null;
+    if (token.trim().isEmpty && !connected) {
+      throw RepoException(
+        RepoErrorKind.invalidArgument,
+        'Paste your ${provider.label} token.',
+      );
+    }
+    if (!server.network.acme.exists && !agreeTerms) {
+      throw const RepoException(
+        RepoErrorKind.invalidArgument,
+        "Agree to Let's Encrypt's subscriber agreement first: the domain gets "
+        'its certificate by itself.',
+      );
+    }
+    if (label.startsWith('taken')) {
+      throw RepoException(
+        RepoErrorKind.invalidArgument,
+        '${provider.label}: $label$suffix is not one of your names.',
+      );
+    }
+    if (token.trim().isNotEmpty) {
+      await setDnsProvider(serverKey, provider, token);
+    }
+    final hostname = '$label$suffix';
+    await addDomain(
+      serverKey,
+      hostname: hostname,
+      kind: DomainKind.freeSubdomain,
+    );
+    final id = server.network.domains.last.id;
+    await checkDomain(serverKey, id);
+    _later(const Duration(milliseconds: 1000), () {
+      if (_domain(server, id).status == DomainStatus.verified) {
+        unawaited(
+          requestCertificate(
+            serverKey,
+            id,
+            email: email,
+            agreeTerms: true,
+          ).catchError((Object _) => server.network),
+        );
+      }
+    });
+    return server.network;
+  }
+
+  @override
+  Future<NetworkInfo> startTunnel(
+    String serverKey,
+    TunnelKind kind, {
+    String token = '',
+    String hostname = '',
+  }) async {
+    final server = _server(serverKey);
+    _requireOwner(server);
+    await _latency();
+    final old = server.network.tunnel;
+    if (!old.hasCloudflared) {
+      throw const RepoException(
+        RepoErrorKind.invalidArgument,
+        'cloudflared is not installed: install it, or let Opencord download '
+        'it.',
+      );
+    }
+    var host = hostname.trim().toLowerCase();
+    if (kind == TunnelKind.named) {
+      final saved = old.kind == TunnelKind.named;
+      if (token.trim().isEmpty && !saved) {
+        throw const RepoException(
+          RepoErrorKind.invalidArgument,
+          'Paste the tunnel token.',
+        );
+      }
+      if (token.trim().isNotEmpty && token.trim().length < 32) {
+        throw const RepoException(
+          RepoErrorKind.invalidArgument,
+          "That is not a tunnel token: copy the long one from the tunnel's "
+          "install command in Cloudflare's dashboard.",
+        );
+      }
+      if (!host.contains('.')) {
+        throw const RepoException(
+          RepoErrorKind.invalidArgument,
+          'Enter the public hostname you set up for the tunnel.',
+        );
+      }
+    } else {
+      host = 'mock-words-${_random.nextInt(900) + 100}.trycloudflare.com';
+    }
+    for (final domain in server.network.domains) {
+      if (domain.kind == DomainKind.tunnel &&
+          domain.hostname.endsWith('.trycloudflare.com')) {
+        _domains(server, [
+          for (final other in server.network.domains)
+            if (other.id != domain.id) other,
+        ]);
+      }
+    }
+    _replaced(
+      server,
+      tunnel: TunnelStatus(
+        state: TunnelState.starting,
+        kind: kind,
+        hostname: kind == TunnelKind.named ? host : '',
+        cloudflaredVersion: old.cloudflaredVersion,
+      ),
+    );
+    _later(const Duration(milliseconds: 600), () async {
+      if (server.network.tunnel.state != TunnelState.starting) return;
+      var id = server.network.domains
+          .where((domain) => domain.hostname == host)
+          .firstOrNull
+          ?.id;
+      if (id == null) {
+        await addDomain(serverKey, hostname: host, kind: DomainKind.tunnel);
+        id = server.network.domains.last.id;
+      }
+      _replaced(
+        server,
+        tunnel: _tunnel(
+          server.network.tunnel,
+          state: TunnelState.running,
+          hostname: host,
+          domainId: id,
+        ),
+      );
+      await checkDomain(serverKey, id);
+    });
+    return server.network;
+  }
+
+  @override
+  Future<NetworkInfo> stopTunnel(String serverKey) async {
+    final server = _server(serverKey);
+    _requireOwner(server);
+    await _latency();
+    final old = server.network.tunnel;
+    if (old.kind == TunnelKind.quick && old.domainId != 0) {
+      final remaining = [
+        for (final domain in server.network.domains)
+          if (domain.id != old.domainId) domain,
+      ];
+      final hasPrimary = remaining.any((d) => d.active && d.primary);
+      _domains(server, [
+        for (final (index, domain) in remaining.indexed)
+          !hasPrimary &&
+                  domain.active &&
+                  index == remaining.indexWhere((d) => d.active)
+              ? _with(domain, primary: true)
+              : domain,
+      ]);
+    }
+    return _replaced(
+      server,
+      tunnel: TunnelStatus(cloudflaredVersion: old.cloudflaredVersion),
+    );
+  }
+
+  @override
+  Future<List<String>> tunnelLog(String serverKey) async {
+    final server = _server(serverKey);
+    _requireOwner(server);
+    await _latency(60);
+    final tunnel = server.network.tunnel;
+    if (!tunnel.on) return const [];
+    return [
+      'INF Starting tunnel tunnelID=mock',
+      'INF Version ${tunnel.cloudflaredVersion}',
+      if (tunnel.kind == TunnelKind.quick)
+        'INF |  https://${tunnel.hostname}  |',
+      if (tunnel.state == TunnelState.running)
+        'INF Registered tunnel connection connIndex=0 location=ams01',
+    ];
+  }
+
+  @override
+  Future<NetworkInfo> installCloudflared(String serverKey) async {
+    final server = _server(serverKey);
+    _requireOwner(server);
+    await _latency();
+    _later(const Duration(milliseconds: 1200), () {
+      _replaced(
+        server,
+        tunnel: _tunnel(
+          server.network.tunnel,
+          installing: false,
+          cloudflaredVersion: '2026.10.0',
+        ),
+      );
+    });
+    return _replaced(
+      server,
+      tunnel: _tunnel(server.network.tunnel, installing: true, error: ''),
+    );
+  }
+
   @override
   Future<NetworkInfo> setDnsProvider(
     String serverKey,
@@ -1930,6 +2205,7 @@ class MockRepository implements OpencordRepository {
             ),
         ]..sort((a, b) => a.kind.index.compareTo(b.kind.index)),
         acme: old.acme,
+        tunnel: old.tunnel,
       ),
     );
   }
@@ -1995,6 +2271,7 @@ class MockRepository implements OpencordRepository {
         domains: old.domains,
         dnsProviders: old.dnsProviders,
         acme: old.acme,
+        tunnel: old.tunnel,
       ),
     );
   }

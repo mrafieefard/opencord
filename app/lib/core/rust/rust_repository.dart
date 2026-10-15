@@ -1079,6 +1079,59 @@ class RustRepository implements OpencordRepository {
   );
 
   @override
+  Future<NetworkInfo> addFreeSubdomain(
+    String serverKey, {
+    required DnsProviderKind provider,
+    required String name,
+    String token = '',
+    String? email,
+    bool agreeTerms = false,
+  }) async => networkInfoFrom(
+    await _call(
+      () => _core.addFreeSubdomain(
+        serverKey,
+        provider.wire,
+        name,
+        token,
+        email,
+        agreeTerms,
+      ),
+    ),
+  );
+
+  @override
+  Future<NetworkInfo> startTunnel(
+    String serverKey,
+    TunnelKind kind, {
+    String token = '',
+    String hostname = '',
+  }) async => networkInfoFrom(
+    await _call(
+      () => _core.startTunnel(
+        serverKey,
+        switch (kind) {
+          TunnelKind.quick => core.TunnelKind.quick,
+          TunnelKind.named => core.TunnelKind.named,
+        },
+        token,
+        hostname,
+      ),
+    ),
+  );
+
+  @override
+  Future<NetworkInfo> stopTunnel(String serverKey) async =>
+      networkInfoFrom(await _call(() => _core.stopTunnel(serverKey)));
+
+  @override
+  Future<List<String>> tunnelLog(String serverKey) =>
+      _call(() => _core.tunnelLog(serverKey));
+
+  @override
+  Future<NetworkInfo> installCloudflared(String serverKey) async =>
+      networkInfoFrom(await _call(() => _core.installCloudflared(serverKey)));
+
+  @override
   Future<NetworkInfo> setDnsProvider(
     String serverKey,
     DnsProviderKind kind,

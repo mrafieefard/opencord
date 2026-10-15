@@ -45,8 +45,30 @@ NetworkInfo networkInfoFrom(core.NetworkInfo info) {
       email: info.acme.email,
       termsUrl: info.acme.termsUrl,
     ),
+    tunnel: tunnelFrom(info.tunnel),
   );
 }
+
+TunnelStatus tunnelFrom(core.TunnelStatus tunnel) => TunnelStatus(
+  state: switch (tunnel.state) {
+    core.TunnelState.off => TunnelState.off,
+    core.TunnelState.starting => TunnelState.starting,
+    core.TunnelState.running => TunnelState.running,
+    core.TunnelState.restarting => TunnelState.restarting,
+    core.TunnelState.failed => TunnelState.failed,
+  },
+  kind: switch (tunnel.kind) {
+    core.TunnelKind.quick => TunnelKind.quick,
+    core.TunnelKind.named => TunnelKind.named,
+    null => null,
+  },
+  hostname: tunnel.hostname,
+  domainId: tunnel.domainId,
+  error: tunnel.error,
+  restarts: tunnel.restarts,
+  cloudflaredVersion: tunnel.cloudflaredVersion,
+  installing: tunnel.installing,
+);
 
 Domain domainFrom(core.Domain domain) => Domain(
   id: domain.id,

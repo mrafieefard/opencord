@@ -165,6 +165,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   TextureStats dco_decode_box_autoadd_texture_stats(dynamic raw);
 
   @protected
+  TunnelKind dco_decode_box_autoadd_tunnel_kind(dynamic raw);
+
+  @protected
   int dco_decode_box_autoadd_u_32(dynamic raw);
 
   @protected
@@ -453,6 +456,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   TextureStats? dco_decode_opt_box_autoadd_texture_stats(dynamic raw);
 
   @protected
+  TunnelKind? dco_decode_opt_box_autoadd_tunnel_kind(dynamic raw);
+
+  @protected
   int? dco_decode_opt_box_autoadd_u_32(dynamic raw);
 
   @protected
@@ -562,6 +568,15 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   TrustedFingerprint dco_decode_trusted_fingerprint(dynamic raw);
+
+  @protected
+  TunnelKind dco_decode_tunnel_kind(dynamic raw);
+
+  @protected
+  TunnelState dco_decode_tunnel_state(dynamic raw);
+
+  @protected
+  TunnelStatus dco_decode_tunnel_status(dynamic raw);
 
   @protected
   int dco_decode_u_16(dynamic raw);
@@ -791,6 +806,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   TextureStats sse_decode_box_autoadd_texture_stats(
     SseDeserializer deserializer,
   );
+
+  @protected
+  TunnelKind sse_decode_box_autoadd_tunnel_kind(SseDeserializer deserializer);
 
   @protected
   int sse_decode_box_autoadd_u_32(SseDeserializer deserializer);
@@ -1127,6 +1145,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  TunnelKind? sse_decode_opt_box_autoadd_tunnel_kind(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   int? sse_decode_opt_box_autoadd_u_32(SseDeserializer deserializer);
 
   @protected
@@ -1252,6 +1275,15 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   TrustedFingerprint sse_decode_trusted_fingerprint(
     SseDeserializer deserializer,
   );
+
+  @protected
+  TunnelKind sse_decode_tunnel_kind(SseDeserializer deserializer);
+
+  @protected
+  TunnelState sse_decode_tunnel_state(SseDeserializer deserializer);
+
+  @protected
+  TunnelStatus sse_decode_tunnel_status(SseDeserializer deserializer);
 
   @protected
   int sse_decode_u_16(SseDeserializer deserializer);
@@ -1530,6 +1562,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_box_autoadd_texture_stats(
     TextureStats self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_box_autoadd_tunnel_kind(
+    TunnelKind self,
     SseSerializer serializer,
   );
 
@@ -1963,6 +2001,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_opt_box_autoadd_tunnel_kind(
+    TunnelKind? self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_opt_box_autoadd_u_32(int? self, SseSerializer serializer);
 
   @protected
@@ -2120,6 +2164,15 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
     TrustedFingerprint self,
     SseSerializer serializer,
   );
+
+  @protected
+  void sse_encode_tunnel_kind(TunnelKind self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_tunnel_state(TunnelState self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_tunnel_status(TunnelStatus self, SseSerializer serializer);
 
   @protected
   void sse_encode_u_16(int self, SseSerializer serializer);

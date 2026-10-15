@@ -3,6 +3,7 @@
 #![allow(dead_code)]
 
 pub mod domains;
+pub mod pebble;
 
 use std::collections::VecDeque;
 use std::sync::Arc;
@@ -38,7 +39,16 @@ impl TestServer {
     }
 
     pub async fn start_with(customize: impl FnOnce(&mut Config)) -> Self {
-        let dir = tempfile::tempdir().unwrap();
+        Self::start_in(tempfile::tempdir().unwrap(), customize).await
+    }
+
+    /// Stops the server and starts it again on the same data.
+    pub async fn restart(self, customize: impl FnOnce(&mut Config)) -> Self {
+        self.handle.shutdown().await;
+        Self::start_in(self.dir, customize).await
+    }
+
+    async fn start_in(dir: tempfile::TempDir, customize: impl FnOnce(&mut Config)) -> Self {
         let mut config = Config::default();
         config.server.bind = "127.0.0.1:0".parse().unwrap();
         config.server.data_dir = dir.path().join("data");

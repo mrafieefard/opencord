@@ -9,7 +9,8 @@ use crate::api::types::{
     AcmeAccount, CertificateState, CertificateStatus, CertificateStep, CheckResult, CoreError,
     DnsProvider, Domain, DomainCheck, DomainKind, DomainStatus, DomainUpdate, MappingState,
     NetworkInfo, NetworkSettings, NetworkSettingsChanges, NoticeSeverity, PortProtocol,
-    PortPurpose, PortState, PortStatus, PublicAddress, ServerNotice,
+    PortPurpose, PortState, PortStatus, PublicAddress, ServerNotice, TunnelKind, TunnelState,
+    TunnelStatus,
 };
 use crate::client::{Client, unexpected};
 
@@ -151,6 +152,77 @@ impl Client {
             key_pem,
         });
         network_info(self.request(key, request).await?)
+    }
+
+    /// A free subdomain: DuckDNS or deSEC, pointed here and kept pointed
+    /// here by the server (plan §9.1).
+    pub async fn add_free_subdomain(
+        &self,
+        key: &str,
+        provider: String,
+        name: String,
+        token: String,
+        email: Option<String>,
+        agree_terms: bool,
+    ) -> Result<NetworkInfo, CoreError> {
+        let request = Request::AddFreeSubdomain(proto::AddFreeSubdomain {
+            provider,
+            name,
+            token,
+            email,
+            agree_terms,
+        });
+        network_info(self.request(key, request).await?)
+    }
+
+    /// Starts a Cloudflare Tunnel: quick, or named with its token and
+    /// hostname (plan §9.2).
+    pub async fn start_tunnel(
+        &self,
+        key: &str,
+        kind: TunnelKind,
+        token: String,
+        hostname: String,
+    ) -> Result<NetworkInfo, CoreError> {
+        let request = Request::StartTunnel(proto::StartTunnel {
+            kind: match kind {
+                TunnelKind::Quick => proto::TunnelKind::Quick,
+                TunnelKind::Named => proto::TunnelKind::Named,
+            } as i32,
+            token,
+            hostname,
+        });
+        network_info(self.request(key, request).await?)
+    }
+
+    pub async fn stop_tunnel(&self, key: &str) -> Result<NetworkInfo, CoreError> {
+        network_info(
+            self.request(key, Request::StopTunnel(proto::StopTunnel {}))
+                .await?,
+        )
+    }
+
+    /// cloudflared's last lines of output.
+    pub async fn tunnel_log(&self, key: &str) -> Result<Vec<String>, CoreError> {
+        match self
+            .request(key, Request::FetchTunnelLog(proto::FetchTunnelLog {}))
+            .await?
+        {
+            Response::TunnelLog(log) => Ok(log.lines),
+            other => Err(unexpected(&other)),
+        }
+    }
+
+    /// Has the server download cloudflared; progress comes as
+    /// `NetworkStatus`.
+    pub async fn install_cloudflared(&self, key: &str) -> Result<NetworkInfo, CoreError> {
+        network_info(
+            self.request(
+                key,
+                Request::InstallCloudflared(proto::InstallCloudflared {}),
+            )
+            .await?,
+        )
     }
 
     /// Connects a DNS provider; an empty token disconnects it.
@@ -308,6 +380,30 @@ pub fn info_from(info: proto::NetworkInfo) -> NetworkInfo {
                 email: acme.email,
                 terms_url: acme.terms_url,
             }),
+        tunnel: info.tunnel.map_or_else(TunnelStatus::default, tunnel_from),
+    }
+}
+
+fn tunnel_from(tunnel: proto::TunnelStatus) -> TunnelStatus {
+    TunnelStatus {
+        state: match proto::TunnelState::try_from(tunnel.state) {
+            Ok(proto::TunnelState::Starting) => TunnelState::Starting,
+            Ok(proto::TunnelState::Running) => TunnelState::Running,
+            Ok(proto::TunnelState::Restarting) => TunnelState::Restarting,
+            Ok(proto::TunnelState::Failed) => TunnelState::Failed,
+            _ => TunnelState::Off,
+        },
+        kind: match proto::TunnelKind::try_from(tunnel.kind) {
+            Ok(proto::TunnelKind::Quick) => Some(TunnelKind::Quick),
+            Ok(proto::TunnelKind::Named) => Some(TunnelKind::Named),
+            _ => None,
+        },
+        hostname: tunnel.hostname,
+        domain_id: tunnel.domain_id,
+        error: tunnel.error,
+        restarts: tunnel.restarts,
+        cloudflared_version: tunnel.cloudflared_version,
+        installing: tunnel.installing,
     }
 }
 

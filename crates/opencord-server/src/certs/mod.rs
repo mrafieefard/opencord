@@ -73,6 +73,9 @@ pub struct Certificates {
     providers: Mutex<Vec<Provider>>,
     /// ACME accounts by directory, with their email.
     accounts: Mutex<HashMap<String, Option<String>>>,
+    /// The owner agreed to the CA's terms for a certificate requested by
+    /// itself later (a free subdomain's), with this email.
+    agreed: Mutex<Option<Option<String>>>,
 }
 
 impl std::fmt::Debug for Certificates {
@@ -104,6 +107,45 @@ impl Certificates {
             failures: Mutex::default(),
             providers: Mutex::default(),
             accounts: Mutex::default(),
+            agreed: Mutex::default(),
+        }
+    }
+
+    /// The connected provider of a kind.
+    pub fn provider(&self, kind: ProviderKind) -> Option<Provider> {
+        lock(&self.providers)
+            .iter()
+            .find(|provider| provider.kind == kind)
+            .cloned()
+    }
+
+    /// Whether a certificate can be requested without asking the owner
+    /// to agree first: an account exists, or they agreed already.
+    pub fn may_request(&self, state: &AppState) -> bool {
+        lock(&self.accounts).contains_key(&directory(state)) || lock(&self.agreed).is_some()
+    }
+
+    /// Remembers the owner's agreement for a certificate the server
+    /// requests by itself.
+    pub fn agree(&self, email: Option<String>) {
+        *lock(&self.agreed) = Some(email);
+    }
+
+    /// Requests a free subdomain's certificate by itself, once it is
+    /// verified and has none (plan §7.1: "Free subdomains get one
+    /// automatically").
+    pub async fn request_by_itself(&self, state: &Arc<AppState>, domain: &Domain) {
+        let now = now_ms();
+        let held = lock(&self.held).contains_key(&domain.id);
+        let busy = lock(&self.progress)
+            .get(&domain.id)
+            .is_some_and(|progress| progress.step.is_some());
+        if held || busy || self.retry_at(domain.id, now).is_some() || !self.may_request(state) {
+            return;
+        }
+        let email = lock(&self.agreed).clone().flatten();
+        if let Err(error) = self.request(state, domain.id, email, true).await {
+            tracing::info!(hostname = %domain.hostname, error = %error.message, "a free subdomain's certificate could not be requested");
         }
     }
 
@@ -643,7 +685,7 @@ fn directory(state: &AppState) -> String {
     }
 }
 
-fn endpoints(state: &AppState) -> Endpoints {
+pub(crate) fn endpoints(state: &AppState) -> Endpoints {
     let config = &state.config.acme;
     Endpoints {
         cloudflare: config.cloudflare_api.clone(),

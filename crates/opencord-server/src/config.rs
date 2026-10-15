@@ -101,6 +101,28 @@ pub struct Config {
     pub music: MusicSection,
     pub network: NetworkSection,
     pub acme: AcmeSection,
+    pub tunnel: TunnelSection,
+}
+
+/// Cloudflare Tunnel (Phase 3 plan §9.2).
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct TunnelSection {
+    /// The cloudflared to run; empty: the one downloaded into the data
+    /// directory, else the one on the PATH.
+    pub cloudflared: Option<PathBuf>,
+    /// Where cloudflared's latest release is described, for downloading it.
+    pub releases_api: String,
+}
+
+impl Default for TunnelSection {
+    fn default() -> Self {
+        Self {
+            cloudflared: None,
+            releases_api: "https://api.github.com/repos/cloudflare/cloudflared/releases/latest"
+                .to_owned(),
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
@@ -440,6 +462,16 @@ impl Config {
             acme: AcmeSection {
                 root: self.acme.root.map(|root| base_dir.join(root)),
                 ..self.acme
+            },
+            tunnel: TunnelSection {
+                cloudflared: self.tunnel.cloudflared.map(|path| {
+                    if path.components().count() > 1 {
+                        base_dir.join(path)
+                    } else {
+                        path
+                    }
+                }),
+                ..self.tunnel
             },
             ..self
         }

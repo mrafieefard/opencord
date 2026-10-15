@@ -52,6 +52,8 @@ pub struct AppState {
     pub domains: crate::domains::Domains,
     /// Their certificates (Phase 3 plan §7).
     pub certificates: crate::certs::Certificates,
+    /// The Cloudflare Tunnel, when one runs (Phase 3 plan §9.2).
+    pub tunnel: crate::tunnel::Tunnel,
     /// Where Lavalink plays into, when music is on (Phase 3 plan §13).
     pub music_bridge: Option<opencord_voice::bridge::MusicBridge>,
     guild: RwLock<Guild>,
@@ -94,6 +96,7 @@ impl AppState {
             network,
             domains: crate::domains::Domains::default(),
             certificates: crate::certs::Certificates::throwaway(),
+            tunnel: crate::tunnel::Tunnel::default(),
             music_bridge: None,
             guild: RwLock::new(guild),
             voice: StdMutex::new(VoiceStates::default()),

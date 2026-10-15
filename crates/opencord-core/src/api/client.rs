@@ -19,8 +19,8 @@ use super::types::{
     OverwriteTargetKind, PermissionOverwrite, PresenceStatus, Role, RoleChanges, ScreenAudioApp,
     ScreenAudioSupport, ScreenShareRequest, ScreenShareStarted, ScreenSource, ScreenThumbnail,
     Server, ServerChanges, ServerInfo, SoundDraft, SoundSelection, SoundboardSound,
-    SoundboardSoundChanges, StreamSourceKind, TextureStats, TrustedFingerprint, User, VideoSupport,
-    VideoWant, VoiceCue, VoiceSettings, VoiceSettingsChanges, VoiceState,
+    SoundboardSoundChanges, StreamSourceKind, TextureStats, TrustedFingerprint, TunnelKind, User,
+    VideoSupport, VideoWant, VoiceCue, VoiceSettings, VoiceSettingsChanges, VoiceState,
 };
 use crate::client::Client;
 use crate::frb_generated::StreamSink;
@@ -591,6 +591,54 @@ pub async fn set_dns_provider(
 ) -> Result<NetworkInfo, CoreError> {
     on_runtime(move |client| async move { client.set_dns_provider(&server_key, kind, token).await })
         .await
+}
+
+/// Gets a free subdomain from DuckDNS or deSEC (`provider`: duckdns or
+/// desec); an empty token keeps the one connected.
+pub async fn add_free_subdomain(
+    server_key: String,
+    provider: String,
+    name: String,
+    token: String,
+    email: Option<String>,
+    agree_terms: bool,
+) -> Result<NetworkInfo, CoreError> {
+    on_runtime(move |client| async move {
+        client
+            .add_free_subdomain(&server_key, provider, name, token, email, agree_terms)
+            .await
+    })
+    .await
+}
+
+/// Starts a Cloudflare Tunnel; a named one needs its token (empty keeps the
+/// saved one) and hostname.
+pub async fn start_tunnel(
+    server_key: String,
+    kind: TunnelKind,
+    token: String,
+    hostname: String,
+) -> Result<NetworkInfo, CoreError> {
+    on_runtime(move |client| async move {
+        client
+            .start_tunnel(&server_key, kind, token, hostname)
+            .await
+    })
+    .await
+}
+
+pub async fn stop_tunnel(server_key: String) -> Result<NetworkInfo, CoreError> {
+    on_runtime(move |client| async move { client.stop_tunnel(&server_key).await }).await
+}
+
+/// cloudflared's last lines of output.
+pub async fn tunnel_log(server_key: String) -> Result<Vec<String>, CoreError> {
+    on_runtime(move |client| async move { client.tunnel_log(&server_key).await }).await
+}
+
+/// Has the server download cloudflared and check its checksum.
+pub async fn install_cloudflared(server_key: String) -> Result<NetworkInfo, CoreError> {
+    on_runtime(move |client| async move { client.install_cloudflared(&server_key).await }).await
 }
 
 /// Joins a voice channel. This device is in at most one voice channel

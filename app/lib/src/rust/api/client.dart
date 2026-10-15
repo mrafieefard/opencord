@@ -493,6 +493,49 @@ Future<NetworkInfo> setDnsProvider({
   token: token,
 );
 
+/// Gets a free subdomain from DuckDNS or deSEC (`provider`: duckdns or
+/// desec); an empty token keeps the one connected.
+Future<NetworkInfo> addFreeSubdomain({
+  required String serverKey,
+  required String provider,
+  required String name,
+  required String token,
+  String? email,
+  required bool agreeTerms,
+}) => RustLib.instance.api.crateApiClientAddFreeSubdomain(
+  serverKey: serverKey,
+  provider: provider,
+  name: name,
+  token: token,
+  email: email,
+  agreeTerms: agreeTerms,
+);
+
+/// Starts a Cloudflare Tunnel; a named one needs its token (empty keeps the
+/// saved one) and hostname.
+Future<NetworkInfo> startTunnel({
+  required String serverKey,
+  required TunnelKind kind,
+  required String token,
+  required String hostname,
+}) => RustLib.instance.api.crateApiClientStartTunnel(
+  serverKey: serverKey,
+  kind: kind,
+  token: token,
+  hostname: hostname,
+);
+
+Future<NetworkInfo> stopTunnel({required String serverKey}) =>
+    RustLib.instance.api.crateApiClientStopTunnel(serverKey: serverKey);
+
+/// cloudflared's last lines of output.
+Future<List<String>> tunnelLog({required String serverKey}) =>
+    RustLib.instance.api.crateApiClientTunnelLog(serverKey: serverKey);
+
+/// Has the server download cloudflared and check its checksum.
+Future<NetworkInfo> installCloudflared({required String serverKey}) =>
+    RustLib.instance.api.crateApiClientInstallCloudflared(serverKey: serverKey);
+
 /// Joins a voice channel. This device is in at most one voice channel
 /// across all servers, so any other one is left first.
 Future<VoiceState> voiceJoin({

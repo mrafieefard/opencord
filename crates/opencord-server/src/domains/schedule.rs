@@ -22,6 +22,7 @@ pub fn start(state: &Arc<AppState>) {
         loop {
             tokio::select! {
                 () = tokio::time::sleep_until(next) => {
+                    super::free::follow(&state).await;
                     check_all(&state);
                     next = tokio::time::Instant::now() + EVERY + jitter();
                 }
@@ -29,8 +30,9 @@ pub fn start(state: &Arc<AppState>) {
                     if changed.is_err() {
                         return;
                     }
-                    // Free subdomains follow first (D4); then everyone is
+                    // Free subdomains follow first; then everyone is
                     // checked against the new address.
+                    super::free::follow(&state).await;
                     check_all(&state);
                 }
                 () = state.shutdown.cancelled() => return,

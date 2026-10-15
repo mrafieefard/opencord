@@ -208,6 +208,7 @@ class NetworkInfo {
     this.domains = const [],
     this.dnsProviders = const [],
     this.acme = const AcmeAccount(),
+    this.tunnel = const TunnelStatus(),
   });
 
   final PublicAddress publicAddress;
@@ -229,6 +230,9 @@ class NetworkInfo {
   /// DNS providers connected, for the DNS challenge.
   final List<DnsProvider> dnsProviders;
   final AcmeAccount acme;
+
+  /// The Cloudflare Tunnel this server runs.
+  final TunnelStatus tunnel;
 
   DnsProvider? provider(DnsProviderKind kind) =>
       dnsProviders.where((provider) => provider.kind == kind).firstOrNull;
@@ -253,7 +257,8 @@ class NetworkInfo {
       other.upnpError == upnpError &&
       listEquals(other.domains, domains) &&
       listEquals(other.dnsProviders, dnsProviders) &&
-      other.acme == acme;
+      other.acme == acme &&
+      other.tunnel == tunnel;
 
   @override
   int get hashCode => Object.hash(
@@ -268,6 +273,86 @@ class NetworkInfo {
     Object.hashAll(domains),
     Object.hashAll(dnsProviders),
     acme,
+    tunnel,
+  );
+}
+
+enum TunnelKind {
+  /// A random *.trycloudflare.com address; for testing.
+  quick,
+
+  /// The owner's tunnel, by its token.
+  named,
+}
+
+enum TunnelState {
+  off('Off'),
+  starting('Starting'),
+  running('Running'),
+  restarting('Restarting'),
+  failed('Cannot run');
+
+  const TunnelState(this.label);
+
+  final String label;
+}
+
+/// The Cloudflare Tunnel (Phase 3 plan §9.2).
+@immutable
+class TunnelStatus {
+  const TunnelStatus({
+    this.state = TunnelState.off,
+    this.kind,
+    this.hostname = '',
+    this.domainId = 0,
+    this.error = '',
+    this.restarts = 0,
+    this.cloudflaredVersion = '',
+    this.installing = false,
+  });
+
+  final TunnelState state;
+  final TunnelKind? kind;
+
+  /// The tunnel's domain; a quick tunnel's once Cloudflare gave it.
+  final String hostname;
+  final int domainId;
+  final String error;
+
+  /// Times cloudflared was started again.
+  final int restarts;
+
+  /// The cloudflared found on the server; empty when there is none.
+  final String cloudflaredVersion;
+
+  /// Downloading cloudflared now.
+  final bool installing;
+
+  bool get on => state != TunnelState.off;
+  bool get hasCloudflared => cloudflaredVersion.isNotEmpty;
+
+  @override
+  bool operator ==(Object other) =>
+      other is TunnelStatus &&
+      other.state == state &&
+      other.kind == kind &&
+      other.hostname == hostname &&
+      other.domainId == domainId &&
+      other.error == error &&
+      other.restarts == restarts &&
+      other.cloudflaredVersion == cloudflaredVersion &&
+      other.installing == installing;
+
+  @override
+  int get hashCode => Object.hash(
+    state,
+    kind,
+    hostname,
+    domainId,
+    error,
+    restarts,
+    cloudflaredVersion,
+    installing,
   );
 }
 

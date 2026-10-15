@@ -71,6 +71,7 @@ pub fn client_address(
 pub struct LocalListener {
     pub port: u16,
     stop: CancellationToken,
+    serving: Option<tokio::task::JoinHandle<()>>,
 }
 
 impl LocalListener {
@@ -81,18 +82,30 @@ impl LocalListener {
         let app = crate::http::router(Arc::clone(&state))
             .into_make_service_with_connect_info::<SocketAddr>();
         let stopped = stop.clone();
-        tokio::spawn(async move {
+        let serving = tokio::spawn(async move {
             let serve = axum::serve(listener, app)
                 .with_graceful_shutdown(async move { stopped.cancelled().await });
             if let Err(error) = serve.await {
                 tracing::warn!(%error, "the local listener stopped");
             }
         });
-        Ok(Self { port, stop })
+        Ok(Self {
+            port,
+            stop,
+            serving: Some(serving),
+        })
     }
 
     pub fn stop(&self) {
         self.stop.cancel();
+    }
+
+    /// Stops it and waits, a moment at most, until its port is free.
+    pub async fn close(mut self) {
+        self.stop.cancel();
+        if let Some(serving) = self.serving.take() {
+            let _ = tokio::time::timeout(std::time::Duration::from_secs(2), serving).await;
+        }
     }
 }
 

@@ -3,22 +3,29 @@ import 'package:flutter/material.dart';
 import 'package:opencord/core/model/network.dart';
 import 'package:opencord/features/settings/server/network/add_domain_dialog.dart';
 import 'package:opencord/features/settings/server/network/domain_row.dart';
+import 'package:opencord/features/settings/server/network/free_domain_dialog.dart';
+import 'package:opencord/features/settings/server/network/tunnel_dialog.dart';
 import 'package:opencord/ui/theme/oc_icons.dart';
 import 'package:opencord/ui/widgets/oc_button.dart';
 import 'package:opencord/ui/widgets/oc_dialog.dart';
 import 'package:opencord/ui/widgets/settings.dart';
 
-/// The server's domains (Phase 3 plan §6, §8): each with its status, and
-/// a way to add one. Free subdomains and tunnels come with their own flows.
+/// The server's domains (Phase 3 plan §6, §8, §9): each with its status,
+/// and ways to add one: an own domain or a proxy's, a free subdomain, or a
+/// Cloudflare Tunnel.
 class DomainsSection extends StatelessWidget {
   const DomainsSection({
     super.key,
     required this.serverKey,
     required this.domains,
+    this.tunnelOn = false,
   });
 
   final String serverKey;
   final List<Domain> domains;
+
+  /// A tunnel runs: it is stopped before another starts.
+  final bool tunnelOn;
 
   static const maxDomains = 20;
 
@@ -52,6 +59,40 @@ class DomainsSection extends StatelessWidget {
                 : () => showOcDialog<void>(
                     context: context,
                     builder: (_) => AddDomainDialog(serverKey: serverKey),
+                  ),
+          ),
+        ),
+        SettingsRow(
+          icon: OcIcons.link,
+          title: 'No domain?',
+          subtitle:
+              'A free name from DuckDNS or deSEC, kept pointed at this '
+              'server, with its certificate',
+          trailing: OcButton(
+            label: 'Get a free domain',
+            dense: true,
+            onPressed: full
+                ? null
+                : () => showOcDialog<void>(
+                    context: context,
+                    builder: (_) => FreeDomainDialog(serverKey: serverKey),
+                  ),
+          ),
+        ),
+        SettingsRow(
+          icon: OcIcons.sync,
+          title: 'Ports cannot be opened?',
+          subtitle:
+              'A Cloudflare Tunnel reaches this server without open ports; '
+              'voice still needs UDP',
+          trailing: OcButton(
+            label: 'Use a tunnel',
+            dense: true,
+            onPressed: full || tunnelOn
+                ? null
+                : () => showOcDialog<void>(
+                    context: context,
+                    builder: (_) => TunnelDialog(serverKey: serverKey),
                   ),
           ),
         ),

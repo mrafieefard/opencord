@@ -9,6 +9,9 @@ import 'package:opencord/features/dialogs/invite_dialog.dart';
 import 'package:opencord/features/settings/server/network/add_domain_dialog.dart';
 import 'package:opencord/features/settings/server/network/certificate_dialogs.dart';
 import 'package:opencord/features/settings/server/network/domain_row.dart';
+import 'package:opencord/features/settings/server/network/free_domain_dialog.dart';
+import 'package:opencord/features/settings/server/network/tunnel_dialog.dart';
+import 'package:opencord/features/settings/server/network/tunnel_section.dart';
 import 'package:opencord/features/settings/server/network/network_dialogs.dart';
 import 'package:opencord/features/settings/server/network/network_page.dart';
 import 'package:opencord/features/settings/server_settings.dart';
@@ -83,6 +86,7 @@ Finder _changeOn(String title) => find.descendant(
 void main() {
   domainTests();
   certificateTests();
+  freeDomainAndTunnelTests();
 
   testWidgets('only the owner has Domains & network', (tester) async {
     final app = await MockApp.pump(tester);
@@ -578,6 +582,175 @@ void certificateTests() {
 
     expect(app.read(networkProvider(_dev)).value!.dnsProviders, isEmpty);
     await _pumpFor(tester, const Duration(seconds: 4));
+    await app.dispose(tester);
+  });
+}
+
+/// The text fields of the dialog of type [T].
+Finder _fieldsOf<T>() =>
+    find.descendant(of: find.byType(T), matching: find.byType(EditableText));
+
+void freeDomainAndTunnelTests() {
+  testWidgets('a free domain is pointed here, verified and certified by '
+      'itself', (tester) async {
+    final app = await MockApp.pump(tester);
+    await _openNetwork(tester);
+
+    await _tapVisible(
+      tester,
+      _inSettings(find.widgetWithText(OcButton, 'Get a free domain')),
+    );
+    await _pumpFor(tester, const Duration(milliseconds: 300));
+    expect(find.byType(FreeDomainDialog), findsOneWidget);
+    final get = find.widgetWithText(OcButton, 'Get domain');
+    await tester.enterText(
+      _fieldsOf<FreeDomainDialog>().at(0),
+      'duck-token-0123456789abcdef',
+    );
+    await tester.enterText(_fieldsOf<FreeDomainDialog>().at(1), 'MyChat');
+    await tester.pump();
+    expect(tester.widget<OcButton>(get).onPressed, isNull, reason: 'agree');
+    await tester.tap(
+      find.descendant(
+        of: find.byType(FreeDomainDialog),
+        matching: find.byType(OcSwitch),
+      ),
+    );
+    await tester.pump();
+    await tester.tap(get);
+    await _pumpFor(tester, const Duration(seconds: 2));
+
+    expect(find.byType(FreeDomainDialog), findsNothing);
+    expect(
+      _inSettings(find.textContaining('mychat.duckdns.org')),
+      findsWidgets,
+    );
+    await _pumpFor(tester, const Duration(seconds: 5));
+    final network = app.read(networkProvider(_dev)).value!;
+    final domain = network.domains.single;
+    expect(domain.kind, DomainKind.freeSubdomain);
+    expect(domain.status, DomainStatus.verified);
+    expect(domain.certificate.state, CertificateState.valid);
+    expect(network.provider(DnsProviderKind.duckdns)?.masked, '••••cdef');
+    await app.dispose(tester);
+  });
+
+  testWidgets('a quick tunnel shows its address, limits and UDP note, and '
+      'stops', (tester) async {
+    final app = await MockApp.pump(tester);
+    await _openNetwork(tester);
+
+    await _tapVisible(
+      tester,
+      _inSettings(find.widgetWithText(OcButton, 'Use a tunnel')),
+    );
+    await _pumpFor(tester, const Duration(milliseconds: 300));
+    expect(find.byType(TunnelDialog), findsOneWidget);
+    expect(find.textContaining('For testing only'), findsOneWidget);
+    expect(find.textContaining('carry no UDP'), findsOneWidget);
+    await tester.tap(find.widgetWithText(OcButton, 'Start tunnel'));
+    await _pumpFor(tester, const Duration(seconds: 3));
+
+    expect(find.byType(TunnelDialog), findsNothing);
+    final tunnel = app.read(networkProvider(_dev)).value!.tunnel;
+    expect(tunnel.state, TunnelState.running);
+    expect(tunnel.hostname, endsWith('.trycloudflare.com'));
+    expect(find.byType(TunnelSection), findsOneWidget);
+    expect(
+      _inSettings(find.textContaining('Quick tunnel · Running')),
+      findsOneWidget,
+    );
+    expect(
+      _inSettings(find.textContaining('still need UDP to reach')),
+      findsOneWidget,
+      reason: 'the tunnel domain says what it cannot carry',
+    );
+
+    await _tapVisible(
+      tester,
+      find.descendant(
+        of: find.byType(TunnelSection),
+        matching: find.widgetWithText(OcButton, 'Stop'),
+      ),
+    );
+    await _pumpFor(tester, const Duration(milliseconds: 300));
+    await tester.tap(find.widgetWithText(OcButton, 'Stop tunnel'));
+    await _pumpFor(tester, const Duration(milliseconds: 600));
+
+    expect(find.byType(TunnelSection), findsNothing);
+    expect(app.read(networkProvider(_dev)).value!.domains, isEmpty);
+    await app.dispose(tester);
+  });
+
+  testWidgets('a named tunnel needs a real token and a hostname', (
+    tester,
+  ) async {
+    final app = await MockApp.pump(tester);
+    await _openNetwork(tester);
+    await _tapVisible(
+      tester,
+      _inSettings(find.widgetWithText(OcButton, 'Use a tunnel')),
+    );
+    await _pumpFor(tester, const Duration(milliseconds: 300));
+
+    await tester.tap(find.text('My Cloudflare tunnel'));
+    await tester.pump();
+    final start = find.widgetWithText(OcButton, 'Start tunnel');
+    expect(tester.widget<OcButton>(start).onPressed, isNull);
+    expect(find.textContaining('http://localhost:7719'), findsOneWidget);
+    await tester.enterText(_fieldsOf<TunnelDialog>().at(0), 'short');
+    await tester.enterText(_fieldsOf<TunnelDialog>().at(1), 'chat.example.com');
+    await tester.pump();
+    await tester.tap(start);
+    await _pumpFor(tester, const Duration(milliseconds: 400));
+
+    expect(find.textContaining('not a tunnel token'), findsOneWidget);
+    await tester.enterText(
+      _fieldsOf<TunnelDialog>().at(0),
+      'eyJhIjoiZmFrZS10dW5uZWwtdG9rZW4tZm9yLXRlc3RzIn0',
+    );
+    await tester.pump();
+    await tester.tap(start);
+    await _pumpFor(tester, const Duration(seconds: 3));
+
+    final network = app.read(networkProvider(_dev)).value!;
+    expect(network.tunnel.kind, TunnelKind.named);
+    expect(network.tunnel.state, TunnelState.running);
+    expect(network.domains.single.hostname, 'chat.example.com');
+    expect(network.domains.single.kind, DomainKind.tunnel);
+    await app.dispose(tester);
+  });
+
+  testWidgets('a reverse proxy gets Caddy and Nginx configuration', (
+    tester,
+  ) async {
+    final app = await MockApp.pump(tester);
+    await _openNetwork(tester);
+    await _tapVisible(
+      tester,
+      _inSettings(find.widgetWithText(OcButton, 'Add domain')),
+    );
+    await _pumpFor(tester, const Duration(milliseconds: 300));
+    await tester.enterText(
+      _fieldsOf<AddDomainDialog>().first,
+      'proxy.example.com',
+    );
+    await tester.tap(find.text('Through a reverse proxy'));
+    await tester.pump();
+    await tester.tap(find.widgetWithText(OcButton, 'Next'));
+    await _pumpFor(tester, const Duration(milliseconds: 600));
+
+    expect(find.textContaining('reverse_proxy 127.0.0.1:7719'), findsOneWidget);
+    await tester.tap(find.text('Nginx'));
+    await tester.pump();
+    expect(
+      find.textContaining(r'proxy_set_header Upgrade $http_upgrade;'),
+      findsOneWidget,
+    );
+    expect(find.textContaining('proxy_read_timeout 1h;'), findsOneWidget);
+    expect(find.textContaining('carry no UDP'), findsOneWidget);
+    await tester.tap(find.widgetWithText(OcButton, 'Later'));
+    await _pumpFor(tester, const Duration(seconds: 2));
     await app.dispose(tester);
   });
 }

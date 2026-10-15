@@ -655,6 +655,56 @@ pub struct NetworkInfo {
     /// DNS providers connected, for the DNS challenge.
     pub dns_providers: Vec<DnsProvider>,
     pub acme: AcmeAccount,
+    pub tunnel: TunnelStatus,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TunnelKind {
+    /// A random *.trycloudflare.com address; for testing.
+    Quick,
+    /// The owner's tunnel, by its token.
+    Named,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TunnelState {
+    Off,
+    Starting,
+    Running,
+    /// cloudflared stopped; it starts again after a pause.
+    Restarting,
+    /// cloudflared cannot run.
+    Failed,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TunnelStatus {
+    pub state: TunnelState,
+    pub kind: Option<TunnelKind>,
+    /// The tunnel's domain; a quick tunnel's once Cloudflare gave it.
+    pub hostname: String,
+    pub domain_id: i64,
+    pub error: String,
+    pub restarts: u32,
+    /// The cloudflared found; empty when there is none.
+    pub cloudflared_version: String,
+    /// Downloading cloudflared now.
+    pub installing: bool,
+}
+
+impl Default for TunnelStatus {
+    fn default() -> Self {
+        Self {
+            state: TunnelState::Off,
+            kind: None,
+            hostname: String::new(),
+            domain_id: 0,
+            error: String::new(),
+            restarts: 0,
+            cloudflared_version: String::new(),
+            installing: false,
+        }
+    }
 }
 
 /// A connected DNS provider; its token never leaves the server.

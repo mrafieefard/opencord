@@ -25,6 +25,7 @@ pub mod state;
 #[doc(hidden)]
 pub mod testing;
 pub mod tls;
+pub mod tunnel;
 pub mod visibility;
 pub mod voice;
 pub mod voice_node;

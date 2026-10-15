@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:opencord/core/model/network.dart';
 import 'package:opencord/core/providers/providers.dart';
 import 'package:opencord/core/repository/repository.dart';
+import 'package:opencord/features/settings/server/network/tunnel_dialog.dart';
 import 'package:opencord/ui/theme/oc_colors.dart';
 import 'package:opencord/ui/theme/oc_icons.dart';
 import 'package:opencord/ui/theme/oc_metrics.dart';
@@ -21,9 +22,17 @@ import 'package:opencord/ui/widgets/toast.dart';
 /// Adding a domain (Phase 3 plan §6.1), in two steps: its name and kind,
 /// then what to set up for it: the DNS records, or the proxy.
 class AddDomainDialog extends ConsumerStatefulWidget {
-  const AddDomainDialog({super.key, required this.serverKey});
+  const AddDomainDialog({
+    super.key,
+    required this.serverKey,
+    this.initialKind = DomainKind.own,
+  });
 
   final String serverKey;
+
+  /// The kind chosen to begin with: own, a reverse proxy, or a tunnel the
+  /// owner runs.
+  final DomainKind initialKind;
 
   @override
   ConsumerState<AddDomainDialog> createState() => _AddDomainDialogState();
@@ -32,7 +41,8 @@ class AddDomainDialog extends ConsumerStatefulWidget {
 class _AddDomainDialogState extends ConsumerState<AddDomainDialog> {
   final _hostname = TextEditingController();
   final _port = TextEditingController();
-  var _kind = DomainKind.own;
+  late var _kind = widget.initialKind;
+  var _snippet = _Snippet.caddy;
   var _busy = false;
   String? _error;
 
@@ -152,19 +162,23 @@ class _AddDomainDialogState extends ConsumerState<AddDomainDialog> {
             options: const [
               (DomainKind.own, 'Its DNS points here'),
               (DomainKind.reverseProxy, 'Through a reverse proxy'),
+              (DomainKind.tunnel, 'Through my Cloudflare Tunnel'),
             ],
             value: _kind,
             onChanged: (kind) => setState(() => _kind = kind),
           ),
           const SizedBox(height: OcSpace.s8),
-          Text(
-            _kind == DomainKind.own
-                ? 'You create A and AAAA records pointing to this server; '
-                      'Opencord checks them.'
-                : 'Caddy, Nginx, Traefik or a tunnel such as ngrok handles '
-                      'the certificate and forwards to Opencord.',
-            style: OcText.small.copyWith(color: colors.textMuted),
-          ),
+          Text(switch (_kind) {
+            DomainKind.own =>
+              'You create A and AAAA records pointing to this server; '
+                  'Opencord checks them.',
+            DomainKind.tunnel =>
+              'cloudflared, run by you, forwards the hostname to Opencord; '
+                  'Cloudflare provides the certificate.',
+            _ =>
+              'Caddy, Nginx, Traefik or a tunnel such as ngrok handles '
+                  'the certificate and forwards to Opencord.',
+          }, style: OcText.small.copyWith(color: colors.textMuted)),
           const SizedBox(height: OcSpace.s16),
           const SectionLabel('Port people connect to'),
           const SizedBox(height: OcSpace.s8),
@@ -196,7 +210,11 @@ class _AddDomainDialogState extends ConsumerState<AddDomainDialog> {
     ];
     final own = !domain.kind.behindProxy;
     return OcDialog(
-      title: own ? 'Create the DNS records' : 'Point the proxy here',
+      title: switch (domain.kind) {
+        DomainKind.tunnel => 'Point the tunnel here',
+        _ when own => 'Create the DNS records',
+        _ => 'Point the proxy here',
+      },
       width: 560,
       actions: [
         OcButton(label: 'Later', onPressed: () => Navigator.pop(context)),
@@ -233,23 +251,49 @@ class _AddDomainDialogState extends ConsumerState<AddDomainDialog> {
               'UDP for voice.',
               style: OcText.small.copyWith(color: colors.textMuted),
             ),
-          ] else ...[
+          ] else if (domain.kind == DomainKind.tunnel) ...[
             Text(
-              'Have the proxy serve ${domain.hostname} with its certificate '
-              'and forward to Opencord on this machine, WebSockets included. '
-              'For Caddy:',
+              'In Cloudflare\'s dashboard, give the tunnel the public hostname '
+              '${domain.hostname} with this service, then check it:',
             ),
             const SizedBox(height: OcSpace.s12),
             _CopyLine(
-              label:
-                  '${domain.hostname} {\n    reverse_proxy 127.0.0.1:$local\n}',
-              copy:
-                  '${domain.hostname} {\n    reverse_proxy 127.0.0.1:$local\n}\n',
+              label: 'http://localhost:$local',
+              copy: 'http://localhost:$local',
             ),
             const SizedBox(height: OcSpace.s12),
             Text(
-              'Voice and music still need UDP 7711 and 7712 to reach this '
-              'server directly: proxies carry no UDP.',
+              udpNote(network),
+              style: OcText.small.copyWith(color: colors.textMuted),
+            ),
+          ] else ...[
+            Text(
+              'Have the proxy serve ${domain.hostname} with its certificate '
+              'and forward to Opencord on this machine, WebSockets included.',
+            ),
+            const SizedBox(height: OcSpace.s12),
+            ChoiceChips<_Snippet>(
+              options: const [
+                (_Snippet.caddy, 'Caddy'),
+                (_Snippet.nginx, 'Nginx'),
+              ],
+              value: _snippet,
+              onChanged: (snippet) => setState(() => _snippet = snippet),
+            ),
+            const SizedBox(height: OcSpace.s8),
+            _CopyLine(
+              label: _snippet.config(domain.hostname, local),
+              copy: '${_snippet.config(domain.hostname, local)}\n',
+            ),
+            const SizedBox(height: OcSpace.s8),
+            Text(
+              'A proxy on another machine forwards to this one\'s main port '
+              'instead; add its address to Trusted proxies under Advanced.',
+              style: OcText.small.copyWith(color: colors.textMuted),
+            ),
+            const SizedBox(height: OcSpace.s8),
+            Text(
+              udpNote(network),
               style: OcText.small.copyWith(color: colors.textMuted),
             ),
           ],
@@ -261,6 +305,37 @@ class _AddDomainDialogState extends ConsumerState<AddDomainDialog> {
       ),
     );
   }
+}
+
+/// Ready-made reverse-proxy configuration (plan §9.3): WebSockets pass
+/// through and long-lived connections stay open.
+enum _Snippet {
+  caddy,
+  nginx;
+
+  String config(String host, int local) => switch (this) {
+    caddy => '$host {\n    reverse_proxy 127.0.0.1:$local\n}',
+    nginx =>
+      'server {\n'
+          '    listen 443 ssl;\n'
+          '    http2 on;\n'
+          '    server_name $host;\n'
+          '    ssl_certificate     /etc/letsencrypt/live/$host/fullchain.pem;\n'
+          '    ssl_certificate_key /etc/letsencrypt/live/$host/privkey.pem;\n'
+          '\n'
+          '    location / {\n'
+          '        proxy_pass http://127.0.0.1:$local;\n'
+          '        proxy_http_version 1.1;\n'
+          '        proxy_set_header Upgrade \$http_upgrade;\n'
+          '        proxy_set_header Connection "upgrade";\n'
+          '        proxy_set_header Host \$host;\n'
+          '        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;\n'
+          '        proxy_read_timeout 1h;\n'
+          '        proxy_send_timeout 1h;\n'
+          '        client_max_body_size 50m;\n'
+          '    }\n'
+          '}',
+  };
 }
 
 /// A value in the mono face, with a button that copies it.

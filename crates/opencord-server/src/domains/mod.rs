@@ -17,6 +17,7 @@ use crate::state::{AppState, Audience, now_ms};
 
 pub mod check;
 pub mod dns;
+pub mod free;
 pub mod hostname;
 pub mod http_check;
 mod schedule;
@@ -517,6 +518,21 @@ impl Domains {
 
     /// Removes a domain, its checks and its invites.
     pub async fn delete(&self, state: &Arc<AppState>, id: i64) -> Result<(), ApiError> {
+        self.remove(state, id, false).await
+    }
+
+    /// Removes a domain the server made itself (a quick tunnel's), moving
+    /// the primary to another active domain when it was the primary.
+    pub async fn remove_own(&self, state: &Arc<AppState>, id: i64) -> Result<(), ApiError> {
+        self.remove(state, id, true).await
+    }
+
+    async fn remove(
+        &self,
+        state: &Arc<AppState>,
+        id: i64,
+        move_primary: bool,
+    ) -> Result<(), ApiError> {
         let changed = {
             let mut list = lock(&self.list);
             let domain = list
@@ -524,7 +540,7 @@ impl Domains {
                 .find(|domain| domain.id == id)
                 .cloned()
                 .ok_or_else(|| ApiError::not_found("domain"))?;
-            if domain.primary && list.iter().filter(|d| d.active).count() > 1 {
+            if domain.primary && !move_primary && list.iter().filter(|d| d.active).count() > 1 {
                 return Err(ApiError::conflict(
                     "make another domain the primary before deleting this one",
                 ));
@@ -608,14 +624,46 @@ impl Domains {
     }
 }
 
+/// Checks a new domain until it passes, while DNS catches up with it (a new
+/// free subdomain, a new tunnel): every 5 seconds for a minute, then every
+/// 30 seconds, for 10 minutes at most.
+pub fn check_until_verified(state: &Arc<AppState>, id: i64) {
+    const QUICKLY: Duration = Duration::from_secs(5);
+    const SLOWLY: Duration = Duration::from_secs(30);
+    const AT_FIRST: Duration = Duration::from_secs(60);
+    const AT_MOST: Duration = Duration::from_secs(600);
+    let state = Arc::clone(state);
+    tokio::spawn(async move {
+        let started = tokio::time::Instant::now();
+        while started.elapsed() < AT_MOST {
+            state.domains.start_check(&state, id);
+            let pause = if started.elapsed() < AT_FIRST {
+                QUICKLY
+            } else {
+                SLOWLY
+            };
+            tokio::select! {
+                () = tokio::time::sleep(pause) => {}
+                () = state.shutdown.cancelled() => return,
+            }
+            match state.domains.get(id) {
+                Some(domain) if domain.status == Status::Verified => return,
+                Some(_) => {}
+                None => return,
+            }
+        }
+    });
+}
+
 /// Runs the local listener while a tunnel or reverse-proxy domain exists
 /// (plan §5.2), and stops it when none does.
 pub async fn sync_local_listener(state: &Arc<AppState>) {
-    let wanted = state
-        .domains
-        .all()
-        .iter()
-        .any(|domain| domain.kind.behind_proxy());
+    let wanted = state.tunnel.wanted()
+        || state
+            .domains
+            .all()
+            .iter()
+            .any(|domain| domain.kind.behind_proxy());
     if let Err(error) = state.network.set_local_listener(state, wanted).await {
         tracing::warn!(%error, "the local listener for tunnels and proxies could not start");
     }
@@ -731,6 +779,9 @@ async fn apply_check(state: &Arc<AppState>, id: i64, outcome: CheckOutcome) {
     }
     state.network.changed(state);
     domains.announce(state);
+    if updated.kind == DomainKind::FreeSubdomain && updated.status == Status::Verified {
+        state.certificates.request_by_itself(state, &updated).await;
+    }
 }
 
 fn check_to_proto(check: &CheckOutcome) -> proto::DomainCheck {

@@ -249,6 +249,14 @@ impl Network {
         Ok(())
     }
 
+    /// Closes the local listener as the server stops.
+    pub async fn close_local_listener(&self) {
+        let local = lock(&self.local).take();
+        if let Some(local) = local {
+            local.close().await;
+        }
+    }
+
     /// The local listener's port, while it runs.
     pub fn local_listener_port(&self) -> Option<u16> {
         lock(&self.local).as_ref().map(|local| local.port)
@@ -345,6 +353,7 @@ impl Network {
             domains: state.domains.to_proto(state),
             dns_providers: state.certificates.providers(),
             acme: Some(state.certificates.account_info(state)),
+            tunnel: Some(state.tunnel.status()),
         }
     }
 

@@ -142,6 +142,7 @@ pub async fn start(config: Config) -> anyhow::Result<ServerHandle> {
     domains::start(&state);
     domains::sync_local_listener(&state).await;
     certs::start(&state);
+    crate::tunnel::restore(&state).await;
 
     let public_port = match (config.server.bind.port(), config.server.public_port) {
         (0, _) => local_addr.port(),
@@ -180,6 +181,7 @@ impl ServerHandle {
             bridge.shutdown();
         }
         self.state.shutdown.cancel();
+        self.state.network.close_local_listener().await;
         self.handle.graceful_shutdown(Some(SHUTDOWN_GRACE));
         let _ = self.serve.await;
         self.reaper.abort();
@@ -229,6 +231,11 @@ impl ServerHandle {
         settings.local_listener_port = 0;
         self.state.network.restore(settings);
         self.set_local_listener(on).await
+    }
+
+    /// The local listener's port, while it runs.
+    pub fn local_listener_port(&self) -> Option<u16> {
+        self.state.network.local_listener_port()
     }
 
     /// Starts or stops the local listener for tunnels and proxies; returns

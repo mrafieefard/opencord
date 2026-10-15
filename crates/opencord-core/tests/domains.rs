@@ -9,8 +9,9 @@ use std::sync::{Arc, OnceLock};
 use std::time::Duration;
 
 use opencord_core::api::types::{
-    AddServerOutcome, ChannelKind, ConnectionState, CoreEvent, CoreEventPayload, DomainKind,
-    DomainStatus, DomainUpdate, MediaEvent, NetworkSettingsChanges, VoiceConnectionState,
+    AddServerOutcome, ChannelKind, ConnectionState, CoreError, CoreEvent, CoreEventPayload,
+    DomainKind, DomainStatus, DomainUpdate, MediaEvent, NetworkSettingsChanges, TunnelKind,
+    VoiceConnectionState,
 };
 use opencord_core::client::Client;
 use opencord_core::identity::Identity;
@@ -405,4 +406,74 @@ async fn voice_through_a_proxy_is_checked_by_its_authority_too() {
     })
     .await
     .expect("voice connects through the proxy");
+}
+
+/// Plan §21.2 D4: a quick tunnel is a domain people join through, checked
+/// by Cloudflare's certificate with no fingerprint. Runs a real tunnel.
+#[tokio::test(flavor = "multi_thread")]
+#[ignore = "runs a real Cloudflare quick tunnel: needs cloudflared and the internet"]
+async fn a_quick_tunnel_is_a_domain_people_join_through() {
+    let server = start(None).await;
+    server
+        .handle
+        .set_local_listener_on_any_port(false)
+        .await
+        .unwrap();
+    let owner = TestClient::new("Owner");
+    let direct = format!("127.0.0.1:{}", server.handle.local_addr.port());
+    let key = owner.add(&direct, server.handle.claim_token.clone()).await;
+    owner
+        .client
+        .start_tunnel(&key, TunnelKind::Quick, String::new(), String::new())
+        .await
+        .unwrap();
+
+    let mut verified = None;
+    for _ in 0..60 {
+        let info = owner.client.watch_network(&key, true).await.unwrap();
+        if let Some(domain) = info.domains.iter().find(|domain| {
+            domain.kind == DomainKind::Tunnel && domain.status == DomainStatus::Verified
+        }) {
+            verified = Some(domain.clone());
+            break;
+        }
+        tokio::time::sleep(Duration::from_secs(2)).await;
+    }
+    let domain = verified.expect("the quick tunnel's domain checks out through Cloudflare");
+    assert!(domain.active, "the first verified domain is active");
+    let invite = owner
+        .client
+        .create_invite(&key, Some(1), None, Some(domain.id))
+        .await
+        .unwrap();
+    assert!(
+        !invite.link.contains("#fp="),
+        "Cloudflare's certificate needs no fingerprint: {}",
+        invite.link
+    );
+
+    let mut member = TestClient::new("Member");
+    // A brand-new name reaches this machine's resolver a little later.
+    let mut outcome = member.client.add_server(&invite.link, None).await;
+    for _ in 0..30 {
+        if !matches!(outcome, Err(CoreError::Connection { .. })) {
+            break;
+        }
+        tokio::time::sleep(Duration::from_secs(2)).await;
+        outcome = member.client.add_server(&invite.link, None).await;
+    }
+    let outcome = outcome.unwrap();
+
+    let AddServerOutcome::Added(added) = outcome else {
+        panic!("asked to trust Cloudflare's certificate: {outcome:?}");
+    };
+    assert_eq!(added.fingerprint, None);
+    let ready = member
+        .wait_for(|payload| match payload {
+            CoreEventPayload::Ready(ready) => Some(ready.clone()),
+            _ => None,
+        })
+        .await;
+    assert!(ready.self_user.id > 0, "joined through the tunnel");
+    owner.client.stop_tunnel(&key).await.unwrap();
 }

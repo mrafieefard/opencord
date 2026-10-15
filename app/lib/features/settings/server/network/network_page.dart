@@ -9,6 +9,7 @@ import 'package:opencord/features/settings/server/network/dns_providers_section.
 import 'package:opencord/features/settings/server/network/domains_section.dart';
 import 'package:opencord/features/settings/server/network/ports_section.dart';
 import 'package:opencord/features/settings/server/network/public_address_section.dart';
+import 'package:opencord/features/settings/server/network/tunnel_section.dart';
 import 'package:opencord/ui/theme/oc_metrics.dart';
 import 'package:opencord/ui/widgets/inline_error.dart';
 import 'package:opencord/ui/widgets/oc_button.dart';
@@ -63,8 +64,16 @@ class _Loaded extends StatelessWidget {
     children: [
       PublicAddressSection(serverKey: serverKey, address: info.publicAddress),
       const SizedBox(height: OcSpace.s24),
-      DomainsSection(serverKey: serverKey, domains: info.domains),
+      DomainsSection(
+        serverKey: serverKey,
+        domains: info.domains,
+        tunnelOn: info.tunnel.on,
+      ),
       const SizedBox(height: OcSpace.s24),
+      if (info.tunnel.on) ...[
+        TunnelSection(serverKey: serverKey, info: info),
+        const SizedBox(height: OcSpace.s24),
+      ],
       PortsSection(serverKey: serverKey, info: info),
       const SizedBox(height: OcSpace.s24),
       DnsProvidersSection(serverKey: serverKey, providers: info.dnsProviders),

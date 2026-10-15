@@ -460,6 +460,35 @@ abstract interface class OpencordRepository {
     required String keyPem,
   });
 
+  /// A free subdomain from DuckDNS or deSEC (plan §9.1): the server points
+  /// it here, keeps it pointed here, checks it and gets its certificate. An
+  /// empty [token] keeps the one connected.
+  Future<NetworkInfo> addFreeSubdomain(
+    String serverKey, {
+    required DnsProviderKind provider,
+    required String name,
+    String token = '',
+    String? email,
+    bool agreeTerms = false,
+  });
+
+  /// Starts a Cloudflare Tunnel (plan §9.2); a named one needs its [token]
+  /// (empty keeps the saved one) and [hostname].
+  Future<NetworkInfo> startTunnel(
+    String serverKey,
+    TunnelKind kind, {
+    String token = '',
+    String hostname = '',
+  });
+
+  Future<NetworkInfo> stopTunnel(String serverKey);
+
+  /// cloudflared's last lines of output.
+  Future<List<String>> tunnelLog(String serverKey);
+
+  /// Has the server download cloudflared, checked by its checksum.
+  Future<NetworkInfo> installCloudflared(String serverKey);
+
   /// Connects a DNS provider; an empty [token] disconnects it.
   Future<NetworkInfo> setDnsProvider(
     String serverKey,

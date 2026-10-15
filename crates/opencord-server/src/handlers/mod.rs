@@ -110,6 +110,11 @@ async fn dispatch(ctx: &Ctx<'_>, request: proto::Request) -> Result<Response, Ap
         Kind::RequestCertificate(request) => domains::request_certificate(ctx, request).await,
         Kind::UploadCertificate(request) => domains::upload_certificate(ctx, request).await,
         Kind::SetDnsProvider(request) => domains::set_dns_provider(ctx, request).await,
+        Kind::AddFreeSubdomain(request) => domains::add_free_subdomain(ctx, request).await,
+        Kind::StartTunnel(request) => domains::start_tunnel(ctx, request).await,
+        Kind::StopTunnel(_) => domains::stop_tunnel(ctx).await,
+        Kind::FetchTunnelLog(_) => domains::tunnel_log(ctx).await,
+        Kind::InstallCloudflared(_) => domains::install_cloudflared(ctx).await,
     }
 }
 

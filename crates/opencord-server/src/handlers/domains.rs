@@ -133,5 +133,51 @@ pub async fn set_dns_provider(
     Ok(info(ctx))
 }
 
+pub async fn add_free_subdomain(
+    ctx: &Ctx<'_>,
+    request: proto::AddFreeSubdomain,
+) -> Result<Response, ApiError> {
+    require_owner(ctx)?;
+    if request.token.len() > 512 || request.name.len() > 300 {
+        return Err(ApiError::invalid_argument("too long"));
+    }
+    crate::domains::free::add(ctx.state, request).await?;
+    ctx.state.network.changed(ctx.state);
+    Ok(info(ctx))
+}
+
+pub async fn start_tunnel(
+    ctx: &Ctx<'_>,
+    request: proto::StartTunnel,
+) -> Result<Response, ApiError> {
+    require_owner(ctx)?;
+    if request.token.len() > 4096 || request.hostname.len() > 300 {
+        return Err(ApiError::invalid_argument("too long"));
+    }
+    let kind = proto::TunnelKind::try_from(request.kind).unwrap_or_default();
+    crate::tunnel::start(ctx.state, kind, &request.token, &request.hostname).await?;
+    tracing::info!(user_id = ctx.user_id, kind = ?kind, "the owner started a tunnel");
+    Ok(info(ctx))
+}
+
+pub async fn stop_tunnel(ctx: &Ctx<'_>) -> Result<Response, ApiError> {
+    require_owner(ctx)?;
+    crate::tunnel::stop(ctx.state).await?;
+    Ok(info(ctx))
+}
+
+pub async fn tunnel_log(ctx: &Ctx<'_>) -> Result<Response, ApiError> {
+    require_owner(ctx)?;
+    Ok(Response::TunnelLog(proto::TunnelLog {
+        lines: ctx.state.tunnel.log(),
+    }))
+}
+
+pub async fn install_cloudflared(ctx: &Ctx<'_>) -> Result<Response, ApiError> {
+    require_owner(ctx)?;
+    crate::tunnel::install::start(ctx.state)?;
+    Ok(info(ctx))
+}
+
 /// A certificate chain or key larger than this is not one.
 const MAX_PEM: usize = 64 * 1024;
