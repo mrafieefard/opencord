@@ -297,14 +297,21 @@ impl MusicBridge {
         let Some((player, _)) = shared.expected.get(&channel_id) else {
             return refused;
         };
-        let matches = identify.user_id == player.user_id.to_string()
+        let signed_in = identify.user_id == player.user_id.to_string()
             && same(&identify.token, &player.token)
-            && same(&identify.session_id, &player.session_id)
-            && player
-                .allowed
-                .as_ref()
-                .is_none_or(|allowed| allowed.contains(&peer));
-        if !matches {
+            && same(&identify.session_id, &player.session_id);
+        let from_allowed = player
+            .allowed
+            .as_ref()
+            .is_none_or(|allowed| allowed.contains(&peer));
+        if !(signed_in && from_allowed) {
+            drop(shared);
+            if signed_in {
+                let _ = self
+                    .config
+                    .events
+                    .send(BridgeEvent::Refused { channel_id, peer });
+            }
             return refused;
         }
         // Single use: the token is spent.

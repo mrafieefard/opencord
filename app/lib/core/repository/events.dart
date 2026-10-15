@@ -1,4 +1,5 @@
 import 'package:opencord/core/model/channel.dart';
+import 'package:opencord/core/model/lavalink.dart';
 import 'package:opencord/core/model/message.dart';
 import 'package:opencord/core/model/misc.dart';
 import 'package:opencord/core/model/network.dart';
@@ -159,6 +160,35 @@ final class NetworkStatusChanged extends RepoEvent {
   const NetworkStatusChanged(super.serverKey, this.info);
 
   final NetworkInfo info;
+}
+
+/// A Lavalink node changed, or was removed ([node] null), while this
+/// device watches the nodes (Phase 3 plan §12.8).
+final class LavalinkNodeChanged extends RepoEvent {
+  const LavalinkNodeChanged(
+    super.serverKey, {
+    required this.nodeId,
+    required this.node,
+    required this.channelsPlaying,
+  });
+
+  final int nodeId;
+  final LavalinkNode? node;
+  final int channelsPlaying;
+}
+
+/// A line for the node events.
+final class LavalinkNodeEventReceived extends RepoEvent {
+  const LavalinkNodeEventReceived(super.serverKey, this.event);
+
+  final LavalinkNodeEvent event;
+}
+
+/// A connection test this device started moved on.
+final class LavalinkTestProgressed extends RepoEvent {
+  const LavalinkTestProgressed(super.serverKey, this.progress);
+
+  final LavalinkTestProgress progress;
 }
 
 /// Where the server is reached changed (Phase 3 plan §7.5).

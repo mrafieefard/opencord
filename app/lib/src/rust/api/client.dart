@@ -536,6 +536,55 @@ Future<List<String>> tunnelLog({required String serverKey}) =>
 Future<NetworkInfo> installCloudflared({required String serverKey}) =>
     RustLib.instance.api.crateApiClientInstallCloudflared(serverKey: serverKey);
 
+/// The server's Lavalink nodes; with `watch`, their changes arrive as
+/// events until called again with `watch` false. Needs Manage server.
+Future<LavalinkNodes> lavalinkNodes({
+  required String serverKey,
+  required bool watch,
+}) => RustLib.instance.api.crateApiClientLavalinkNodes(
+  serverKey: serverKey,
+  watch: watch,
+);
+
+Future<LavalinkNodes> createLavalinkNode({
+  required String serverKey,
+  required LavalinkNodeSettings settings,
+  required String password,
+}) => RustLib.instance.api.crateApiClientCreateLavalinkNode(
+  serverKey: serverKey,
+  settings: settings,
+  password: password,
+);
+
+/// Changes a node; `None` fields stay as they are.
+Future<LavalinkNodes> updateLavalinkNode({
+  required String serverKey,
+  required PlatformInt64 nodeId,
+  required LavalinkNodeChanges changes,
+}) => RustLib.instance.api.crateApiClientUpdateLavalinkNode(
+  serverKey: serverKey,
+  nodeId: nodeId,
+  changes: changes,
+);
+
+Future<LavalinkNodes> deleteLavalinkNode({
+  required String serverKey,
+  required PlatformInt64 nodeId,
+}) => RustLib.instance.api.crateApiClientDeleteLavalinkNode(
+  serverKey: serverKey,
+  nodeId: nodeId,
+);
+
+/// Starts a node's connection test; its steps arrive as
+/// `LavalinkTestProgress` events.
+Future<void> testLavalinkNode({
+  required String serverKey,
+  required PlatformInt64 nodeId,
+}) => RustLib.instance.api.crateApiClientTestLavalinkNode(
+  serverKey: serverKey,
+  nodeId: nodeId,
+);
+
 /// Joins a voice channel. This device is in at most one voice channel
 /// across all servers, so any other one is left first.
 Future<VoiceState> voiceJoin({

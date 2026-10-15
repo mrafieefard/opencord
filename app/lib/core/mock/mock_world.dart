@@ -1,5 +1,6 @@
 import 'package:opencord/core/model/stream.dart';
 import 'package:opencord/core/model/channel.dart';
+import 'package:opencord/core/model/lavalink.dart';
 import 'package:opencord/core/model/message.dart';
 import 'package:opencord/core/model/misc.dart';
 import 'package:opencord/core/model/network.dart';
@@ -58,6 +59,20 @@ class MockServer {
   /// Where the server is reached, and each domain's checks, newest first.
   ServerAddresses addresses = const ServerAddresses();
   final Map<int, List<DomainCheck>> domainChecks = {};
+
+  /// The Lavalink nodes (Phase 3 plan §12), and their passwords, which only
+  /// the mock server knows.
+  LavalinkNodes lavalink = const LavalinkNodes(
+    bridge: LavalinkBridge(
+      enabled: true,
+      url: 'wss://chat.example.com:7710',
+      trustedCertificate: true,
+      audioAddress: '203.0.113.10:7712',
+      audioPort: 7712,
+      audioListening: true,
+    ),
+  );
+  final Map<int, String> lavalinkPasswords = {};
 
   /// Domains & network, as the owner sees it (Phase 3).
   NetworkInfo network = const NetworkInfo(

@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO lavalink_nodes (id, name, host, port, secure, password_enc, priority,\n                                     max_players, strict_address, enabled, draining,\n                                     resume_session, created_at)\n         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)\n         ON CONFLICT (id) DO UPDATE SET\n             name = excluded.name, host = excluded.host, port = excluded.port,\n             secure = excluded.secure, password_enc = excluded.password_enc,\n             priority = excluded.priority, max_players = excluded.max_players,\n             strict_address = excluded.strict_address, enabled = excluded.enabled,\n             draining = excluded.draining, resume_session = excluded.resume_session",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 13
+    },
+    "nullable": []
+  },
+  "hash": "b6d6def1a0284f60315f102a1749123bea74911a1455c8edee7f7fab1e7e759c"
+}

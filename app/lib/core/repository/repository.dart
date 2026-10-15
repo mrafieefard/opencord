@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:opencord/core/model/channel.dart';
+import 'package:opencord/core/model/lavalink.dart';
 import 'package:opencord/core/model/message.dart';
 import 'package:opencord/core/model/misc.dart';
 import 'package:opencord/core/model/network.dart';
@@ -495,6 +496,29 @@ abstract interface class OpencordRepository {
     DnsProviderKind kind,
     String token,
   );
+
+  /// The Lavalink nodes (Phase 3 plan §12); needs Manage server. While
+  /// watched, changes arrive as [LavalinkNodeChanged] and
+  /// [LavalinkNodeEventReceived].
+  Future<LavalinkNodes> lavalinkNodes(String serverKey, {required bool watch});
+
+  Future<LavalinkNodes> createLavalinkNode(
+    String serverKey,
+    LavalinkNodeSettings settings,
+    String password,
+  );
+
+  Future<LavalinkNodes> updateLavalinkNode(
+    String serverKey,
+    int nodeId,
+    LavalinkNodeChanges changes,
+  );
+
+  Future<LavalinkNodes> deleteLavalinkNode(String serverKey, int nodeId);
+
+  /// Starts the connection test; its steps arrive as
+  /// [LavalinkTestProgressed].
+  Future<void> testLavalinkNode(String serverKey, int nodeId);
 
   Future<void> joinVoice(String serverKey, int channelId);
 

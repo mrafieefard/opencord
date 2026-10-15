@@ -13,6 +13,7 @@ use crate::state::AppState;
 mod channels;
 mod domains;
 mod invites;
+mod lavalink;
 mod members;
 mod messages;
 mod network;
@@ -115,6 +116,11 @@ async fn dispatch(ctx: &Ctx<'_>, request: proto::Request) -> Result<Response, Ap
         Kind::StopTunnel(_) => domains::stop_tunnel(ctx).await,
         Kind::FetchTunnelLog(_) => domains::tunnel_log(ctx).await,
         Kind::InstallCloudflared(_) => domains::install_cloudflared(ctx).await,
+        Kind::FetchLavalinkNodes(request) => lavalink::fetch(ctx, &request),
+        Kind::CreateLavalinkNode(request) => lavalink::create(ctx, request).await,
+        Kind::UpdateLavalinkNode(request) => lavalink::update(ctx, request).await,
+        Kind::DeleteLavalinkNode(request) => lavalink::delete(ctx, &request).await,
+        Kind::TestLavalinkNode(request) => lavalink::test(ctx, &request),
     }
 }
 

@@ -30,6 +30,8 @@ pub enum Audience {
     /// broadcast to it while holding the voice states.
     Voice(i64),
     User(i64),
+    /// Sessions whose user holds these server-wide permissions.
+    Holding(opencord_common::permissions::Permissions),
 }
 
 #[derive(Debug)]
@@ -56,6 +58,8 @@ pub struct AppState {
     pub tunnel: crate::tunnel::Tunnel,
     /// Where Lavalink plays into, when music is on (Phase 3 plan §13).
     pub music_bridge: Option<opencord_voice::bridge::MusicBridge>,
+    /// The Lavalink nodes music plays on (Phase 3 plan §12).
+    pub lavalink: crate::lavalink::Lavalink,
     guild: RwLock<Guild>,
     /// Lock after the guild, never before it.
     voice: StdMutex<VoiceStates>,
@@ -98,6 +102,7 @@ impl AppState {
             certificates: crate::certs::Certificates::throwaway(),
             tunnel: crate::tunnel::Tunnel::default(),
             music_bridge: None,
+            lavalink: crate::lavalink::Lavalink::default(),
             guild: RwLock::new(guild),
             voice: StdMutex::new(VoiceStates::default()),
             writes: Mutex::new(()),
@@ -165,6 +170,9 @@ impl AppState {
                 Audience::Channel(channel_id) => guild.can_view(session.user_id, channel_id),
                 Audience::Voice(_) => in_voice.contains(&session.user_id),
                 Audience::User(user_id) => session.user_id == user_id,
+                Audience::Holding(needed) => {
+                    guild.base_permissions(session.user_id).contains(needed)
+                }
             };
             if receives {
                 session.push_event(&event, now);

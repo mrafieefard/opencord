@@ -15,6 +15,7 @@ use axum::response::{IntoResponse, Response};
 use opencord_voice::bridge::{self, BridgeConfig, BridgeEvent, MusicBridge};
 use opencord_voice::node::VoiceNode;
 use serde::Deserialize;
+use tokio::sync::mpsc;
 
 use crate::config::Config;
 use crate::network::ClientAddr;
@@ -24,15 +25,16 @@ use crate::state::AppState;
 const BRIDGE_FRAME_BYTES: usize = 16 * 1024;
 
 /// Starts the audio bridge when music is on and this server carries voice
-/// itself. (External voice nodes run their own bridge: plan §13.1.)
+/// itself. (External voice nodes run their own bridge: plan §13.1.) Its
+/// events go to [`watch_bridge`] once the server's state exists.
 pub async fn start_bridge(
     config: &Config,
     node: Option<&VoiceNode>,
-) -> anyhow::Result<Option<MusicBridge>> {
+) -> anyhow::Result<Option<(MusicBridge, mpsc::UnboundedReceiver<BridgeEvent>)>> {
     let Some(node) = node.filter(|_| config.music.enabled) else {
         return Ok(None);
     };
-    let (bridge, mut frames, mut events) = MusicBridge::start(BridgeConfig {
+    let (bridge, mut frames, events) = MusicBridge::start(BridgeConfig {
         udp_port: config.music.audio_udp_port,
         public_ip: config.voice.public_address.parse::<IpAddr>().ok(),
         heartbeat: bridge::HEARTBEAT,
@@ -50,9 +52,15 @@ pub async fn start_bridge(
             node.music_frame(frame.channel_id, frame.packet);
         }
     });
+    Ok(Some((bridge, events)))
+}
+
+/// Logs what the bridge reports and hands it to whoever waits on it.
+pub fn watch_bridge(state: &Arc<AppState>, mut events: mpsc::UnboundedReceiver<BridgeEvent>) {
+    let state = Arc::clone(state);
     tokio::spawn(async move {
         while let Some(event) = events.recv().await {
-            match event {
+            match &event {
                 BridgeEvent::Connected {
                     channel_id,
                     connection,
@@ -60,10 +68,18 @@ pub async fn start_bridge(
                 BridgeEvent::Closed { channel_id, code } => {
                     tracing::info!(channel_id, code, "Lavalink's music connection ended");
                 }
+                BridgeEvent::Discovered { channel_id, from } => {
+                    tracing::debug!(channel_id, %from, "Lavalink's audio address is known");
+                }
+                BridgeEvent::Refused { channel_id, peer } => tracing::warn!(
+                    channel_id,
+                    %peer,
+                    "Lavalink signed in from an address its node does not have"
+                ),
             }
+            state.lavalink.bridge_event(event);
         }
     });
-    Ok(Some(bridge))
 }
 
 #[derive(Deserialize)]

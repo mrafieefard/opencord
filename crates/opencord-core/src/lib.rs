@@ -9,6 +9,7 @@ mod ducking;
 mod frb_generated;
 mod http;
 pub mod identity;
+mod lavalink;
 pub mod media;
 pub mod mirror;
 mod network;

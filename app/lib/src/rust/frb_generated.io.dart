@@ -90,6 +90,25 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   PlatformInt64 dco_decode_box_autoadd_i_64(dynamic raw);
 
   @protected
+  LavalinkNode dco_decode_box_autoadd_lavalink_node(dynamic raw);
+
+  @protected
+  LavalinkNodeChanges dco_decode_box_autoadd_lavalink_node_changes(dynamic raw);
+
+  @protected
+  LavalinkNodeEvent dco_decode_box_autoadd_lavalink_node_event(dynamic raw);
+
+  @protected
+  LavalinkNodeSettings dco_decode_box_autoadd_lavalink_node_settings(
+    dynamic raw,
+  );
+
+  @protected
+  LavalinkTestProgress dco_decode_box_autoadd_lavalink_test_progress(
+    dynamic raw,
+  );
+
+  @protected
   Member dco_decode_box_autoadd_member(dynamic raw);
 
   @protected
@@ -295,6 +314,45 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   Invite dco_decode_invite(dynamic raw);
 
   @protected
+  LavalinkBridge dco_decode_lavalink_bridge(dynamic raw);
+
+  @protected
+  LavalinkEventKind dco_decode_lavalink_event_kind(dynamic raw);
+
+  @protected
+  LavalinkHealth dco_decode_lavalink_health(dynamic raw);
+
+  @protected
+  LavalinkNode dco_decode_lavalink_node(dynamic raw);
+
+  @protected
+  LavalinkNodeChanges dco_decode_lavalink_node_changes(dynamic raw);
+
+  @protected
+  LavalinkNodeEvent dco_decode_lavalink_node_event(dynamic raw);
+
+  @protected
+  LavalinkNodeSettings dco_decode_lavalink_node_settings(dynamic raw);
+
+  @protected
+  LavalinkNodes dco_decode_lavalink_nodes(dynamic raw);
+
+  @protected
+  LavalinkPriority dco_decode_lavalink_priority(dynamic raw);
+
+  @protected
+  LavalinkTestProgress dco_decode_lavalink_test_progress(dynamic raw);
+
+  @protected
+  LavalinkTestStep dco_decode_lavalink_test_step(dynamic raw);
+
+  @protected
+  LavalinkTestStepKind dco_decode_lavalink_test_step_kind(dynamic raw);
+
+  @protected
+  LavalinkTestStepState dco_decode_lavalink_test_step_state(dynamic raw);
+
+  @protected
   List<String> dco_decode_list_String(dynamic raw);
 
   @protected
@@ -335,6 +393,15 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   List<Invite> dco_decode_list_invite(dynamic raw);
+
+  @protected
+  List<LavalinkNode> dco_decode_list_lavalink_node(dynamic raw);
+
+  @protected
+  List<LavalinkNodeEvent> dco_decode_list_lavalink_node_event(dynamic raw);
+
+  @protected
+  List<LavalinkTestStep> dco_decode_list_lavalink_test_step(dynamic raw);
 
   @protected
   List<Member> dco_decode_list_member(dynamic raw);
@@ -440,6 +507,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   PlatformInt64? dco_decode_opt_box_autoadd_i_64(dynamic raw);
+
+  @protected
+  LavalinkNodeSettings? dco_decode_opt_box_autoadd_lavalink_node_settings(
+    dynamic raw,
+  );
 
   @protected
   ScreenShareResolution? dco_decode_opt_box_autoadd_screen_share_resolution(
@@ -711,6 +783,31 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   PlatformInt64 sse_decode_box_autoadd_i_64(SseDeserializer deserializer);
 
   @protected
+  LavalinkNode sse_decode_box_autoadd_lavalink_node(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  LavalinkNodeChanges sse_decode_box_autoadd_lavalink_node_changes(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  LavalinkNodeEvent sse_decode_box_autoadd_lavalink_node_event(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  LavalinkNodeSettings sse_decode_box_autoadd_lavalink_node_settings(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  LavalinkTestProgress sse_decode_box_autoadd_lavalink_test_progress(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   Member sse_decode_box_autoadd_member(SseDeserializer deserializer);
 
   @protected
@@ -942,6 +1039,59 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   Invite sse_decode_invite(SseDeserializer deserializer);
 
   @protected
+  LavalinkBridge sse_decode_lavalink_bridge(SseDeserializer deserializer);
+
+  @protected
+  LavalinkEventKind sse_decode_lavalink_event_kind(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  LavalinkHealth sse_decode_lavalink_health(SseDeserializer deserializer);
+
+  @protected
+  LavalinkNode sse_decode_lavalink_node(SseDeserializer deserializer);
+
+  @protected
+  LavalinkNodeChanges sse_decode_lavalink_node_changes(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  LavalinkNodeEvent sse_decode_lavalink_node_event(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  LavalinkNodeSettings sse_decode_lavalink_node_settings(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  LavalinkNodes sse_decode_lavalink_nodes(SseDeserializer deserializer);
+
+  @protected
+  LavalinkPriority sse_decode_lavalink_priority(SseDeserializer deserializer);
+
+  @protected
+  LavalinkTestProgress sse_decode_lavalink_test_progress(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  LavalinkTestStep sse_decode_lavalink_test_step(SseDeserializer deserializer);
+
+  @protected
+  LavalinkTestStepKind sse_decode_lavalink_test_step_kind(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  LavalinkTestStepState sse_decode_lavalink_test_step_state(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   List<String> sse_decode_list_String(SseDeserializer deserializer);
 
   @protected
@@ -994,6 +1144,21 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   List<Invite> sse_decode_list_invite(SseDeserializer deserializer);
+
+  @protected
+  List<LavalinkNode> sse_decode_list_lavalink_node(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  List<LavalinkNodeEvent> sse_decode_list_lavalink_node_event(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  List<LavalinkTestStep> sse_decode_list_lavalink_test_step(
+    SseDeserializer deserializer,
+  );
 
   @protected
   List<Member> sse_decode_list_member(SseDeserializer deserializer);
@@ -1123,6 +1288,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   PlatformInt64? sse_decode_opt_box_autoadd_i_64(SseDeserializer deserializer);
+
+  @protected
+  LavalinkNodeSettings? sse_decode_opt_box_autoadd_lavalink_node_settings(
+    SseDeserializer deserializer,
+  );
 
   @protected
   ScreenShareResolution? sse_decode_opt_box_autoadd_screen_share_resolution(
@@ -1443,6 +1613,36 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_box_autoadd_lavalink_node(
+    LavalinkNode self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_box_autoadd_lavalink_node_changes(
+    LavalinkNodeChanges self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_box_autoadd_lavalink_node_event(
+    LavalinkNodeEvent self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_box_autoadd_lavalink_node_settings(
+    LavalinkNodeSettings self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_box_autoadd_lavalink_test_progress(
+    LavalinkTestProgress self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_box_autoadd_member(Member self, SseSerializer serializer);
 
   @protected
@@ -1740,6 +1940,78 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_invite(Invite self, SseSerializer serializer);
 
   @protected
+  void sse_encode_lavalink_bridge(
+    LavalinkBridge self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_lavalink_event_kind(
+    LavalinkEventKind self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_lavalink_health(
+    LavalinkHealth self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_lavalink_node(LavalinkNode self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_lavalink_node_changes(
+    LavalinkNodeChanges self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_lavalink_node_event(
+    LavalinkNodeEvent self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_lavalink_node_settings(
+    LavalinkNodeSettings self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_lavalink_nodes(LavalinkNodes self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_lavalink_priority(
+    LavalinkPriority self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_lavalink_test_progress(
+    LavalinkTestProgress self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_lavalink_test_step(
+    LavalinkTestStep self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_lavalink_test_step_kind(
+    LavalinkTestStepKind self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_lavalink_test_step_state(
+    LavalinkTestStepState self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_list_String(List<String> self, SseSerializer serializer);
 
   @protected
@@ -1807,6 +2079,24 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_list_invite(List<Invite> self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_list_lavalink_node(
+    List<LavalinkNode> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_lavalink_node_event(
+    List<LavalinkNodeEvent> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_lavalink_test_step(
+    List<LavalinkTestStep> self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_list_member(List<Member> self, SseSerializer serializer);
@@ -1973,6 +2263,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_opt_box_autoadd_i_64(
     PlatformInt64? self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_opt_box_autoadd_lavalink_node_settings(
+    LavalinkNodeSettings? self,
     SseSerializer serializer,
   );
 

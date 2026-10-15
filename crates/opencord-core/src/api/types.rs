@@ -551,6 +551,18 @@ pub enum CoreEventPayload {
     /// Domains & network changed, while this session watches it.
     NetworkStatus(NetworkInfo),
     ServerNotice(ServerNotice),
+    /// A Lavalink node changed, while this session watches them.
+    LavalinkNodeStatus {
+        node: LavalinkNode,
+        channels_playing: u32,
+    },
+    LavalinkNodeRemoved {
+        node_id: i64,
+        channels_playing: u32,
+    },
+    LavalinkNodeEvent(LavalinkNodeEvent),
+    /// A connection test this session started moved on.
+    LavalinkTestProgress(LavalinkTestProgress),
 }
 
 /// Where the server is reached from the internet (Phase 3 plan §5.1).
@@ -1305,4 +1317,152 @@ pub enum CoreError {
         problem: CameraProblem,
         message: String,
     },
+}
+
+/// Lavalink nodes (Phase 3 plan §12). Their passwords never reach clients.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LavalinkPriority {
+    Preferred,
+    Normal,
+    /// Used only when no Preferred or Normal node can play.
+    Backup,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LavalinkHealth {
+    /// The first connection is still being made.
+    Connecting,
+    Healthy,
+    /// Connected but struggling: see the reason.
+    Degraded,
+    Unavailable,
+    /// Gets no new channels and keeps its own until they move.
+    Draining,
+    Disabled,
+}
+
+/// What an admin sets for a node.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LavalinkNodeSettings {
+    pub name: String,
+    pub host: String,
+    pub port: u32,
+    /// https and wss.
+    pub secure: bool,
+    pub priority: LavalinkPriority,
+    /// At most this many channels at once; 0 for no cap.
+    pub max_players: u32,
+    /// The bridge accepts only this node's addresses.
+    pub strict_address: bool,
+    pub enabled: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LavalinkNode {
+    pub id: i64,
+    pub settings: LavalinkNodeSettings,
+    pub draining: bool,
+    pub health: LavalinkHealth,
+    /// Why it is degraded or unavailable, in plain words.
+    pub reason: String,
+    pub version: String,
+    pub sources: Vec<String>,
+    pub plugins: Vec<String>,
+    /// Opencord's channels on it, and every player it has.
+    pub channels: u32,
+    pub players: u32,
+    pub playing_players: u32,
+    /// System load in percent.
+    pub cpu_percent: u32,
+    pub ping_ms: u32,
+    /// The last thing that went wrong, kept after it recovers.
+    pub last_error: String,
+    pub connected_since_ms: i64,
+    /// Back after being unavailable: new channels wait a little.
+    pub recovering: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LavalinkEventKind {
+    Connected,
+    Disconnected,
+    Degraded,
+    Recovered,
+    Moved,
+}
+
+/// A line in the node events.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LavalinkNodeEvent {
+    pub node_id: i64,
+    pub kind: LavalinkEventKind,
+    pub text: String,
+    pub at_ms: i64,
+}
+
+/// What Lavalink needs from this server.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LavalinkBridge {
+    /// False when music is off on the server.
+    pub enabled: bool,
+    /// wss://host:port, where Lavalink connects.
+    pub url: String,
+    pub trusted_certificate: bool,
+    /// address:port, where Lavalink sends audio; empty while unknown.
+    pub audio_address: String,
+    pub audio_port: u32,
+    pub audio_listening: bool,
+    pub mapping: MappingState,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LavalinkNodes {
+    pub nodes: Vec<LavalinkNode>,
+    pub bridge: LavalinkBridge,
+    /// Newest first.
+    pub events: Vec<LavalinkNodeEvent>,
+    pub channels_playing: u32,
+}
+
+/// Changes to a node; what is `None` stays.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct LavalinkNodeChanges {
+    pub settings: Option<LavalinkNodeSettings>,
+    pub password: Option<String>,
+    pub draining: Option<bool>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LavalinkTestStepKind {
+    /// REST answers and takes the password.
+    Rest,
+    /// The WebSocket says ready.
+    Websocket,
+    /// A player reaches the audio bridge.
+    Bridge,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LavalinkTestStepState {
+    Waiting,
+    Running,
+    Passed,
+    Failed,
+    /// Not run: an earlier step failed.
+    Skipped,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LavalinkTestStep {
+    pub kind: LavalinkTestStepKind,
+    pub state: LavalinkTestStepState,
+    /// What passed, or what failed and how to fix it.
+    pub detail: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LavalinkTestProgress {
+    pub node_id: i64,
+    pub steps: Vec<LavalinkTestStep>,
+    pub done: bool,
 }

@@ -15,12 +15,13 @@ use super::types::{
     AddServerOutcome, AudioDevices, AudioSettings, Ban, CameraDevice, CameraStarted, Channel,
     ChannelChanges, ChannelKind, ChannelPosition, CoreError, CoreEvent, DefaultSound, DomainCheck,
     DomainKind, DomainUpdate, GeneratedIdentity, HotkeyBinding, HotkeySupport, IdentityInfo,
-    Invite, MediaEvent, Member, Message, NetworkInfo, NetworkSettingsChanges, NoiseSuppressionMode,
-    OverwriteTargetKind, PermissionOverwrite, PresenceStatus, Role, RoleChanges, ScreenAudioApp,
-    ScreenAudioSupport, ScreenShareRequest, ScreenShareStarted, ScreenSource, ScreenThumbnail,
-    Server, ServerChanges, ServerInfo, SoundDraft, SoundSelection, SoundboardSound,
-    SoundboardSoundChanges, StreamSourceKind, TextureStats, TrustedFingerprint, TunnelKind, User,
-    VideoSupport, VideoWant, VoiceCue, VoiceSettings, VoiceSettingsChanges, VoiceState,
+    Invite, LavalinkNodeChanges, LavalinkNodeSettings, LavalinkNodes, MediaEvent, Member, Message,
+    NetworkInfo, NetworkSettingsChanges, NoiseSuppressionMode, OverwriteTargetKind,
+    PermissionOverwrite, PresenceStatus, Role, RoleChanges, ScreenAudioApp, ScreenAudioSupport,
+    ScreenShareRequest, ScreenShareStarted, ScreenSource, ScreenThumbnail, Server, ServerChanges,
+    ServerInfo, SoundDraft, SoundSelection, SoundboardSound, SoundboardSoundChanges,
+    StreamSourceKind, TextureStats, TrustedFingerprint, TunnelKind, User, VideoSupport, VideoWant,
+    VoiceCue, VoiceSettings, VoiceSettingsChanges, VoiceState,
 };
 use crate::client::Client;
 use crate::frb_generated::StreamSink;
@@ -639,6 +640,54 @@ pub async fn tunnel_log(server_key: String) -> Result<Vec<String>, CoreError> {
 /// Has the server download cloudflared and check its checksum.
 pub async fn install_cloudflared(server_key: String) -> Result<NetworkInfo, CoreError> {
     on_runtime(move |client| async move { client.install_cloudflared(&server_key).await }).await
+}
+
+/// The server's Lavalink nodes; with `watch`, their changes arrive as
+/// events until called again with `watch` false. Needs Manage server.
+pub async fn lavalink_nodes(server_key: String, watch: bool) -> Result<LavalinkNodes, CoreError> {
+    on_runtime(move |client| async move { client.lavalink_nodes(&server_key, watch).await }).await
+}
+
+pub async fn create_lavalink_node(
+    server_key: String,
+    settings: LavalinkNodeSettings,
+    password: String,
+) -> Result<LavalinkNodes, CoreError> {
+    on_runtime(move |client| async move {
+        client
+            .create_lavalink_node(&server_key, settings, password)
+            .await
+    })
+    .await
+}
+
+/// Changes a node; `None` fields stay as they are.
+pub async fn update_lavalink_node(
+    server_key: String,
+    node_id: i64,
+    changes: LavalinkNodeChanges,
+) -> Result<LavalinkNodes, CoreError> {
+    on_runtime(move |client| async move {
+        client
+            .update_lavalink_node(&server_key, node_id, changes)
+            .await
+    })
+    .await
+}
+
+pub async fn delete_lavalink_node(
+    server_key: String,
+    node_id: i64,
+) -> Result<LavalinkNodes, CoreError> {
+    on_runtime(move |client| async move { client.delete_lavalink_node(&server_key, node_id).await })
+        .await
+}
+
+/// Starts a node's connection test; its steps arrive as
+/// `LavalinkTestProgress` events.
+pub async fn test_lavalink_node(server_key: String, node_id: i64) -> Result<(), CoreError> {
+    on_runtime(move |client| async move { client.test_lavalink_node(&server_key, node_id).await })
+        .await
 }
 
 /// Joins a voice channel. This device is in at most one voice channel

@@ -67,6 +67,7 @@ class OcTextField extends StatelessWidget {
     this.textInputAction,
     this.inputFormatters,
     this.semanticLabel,
+    this.obscure = false,
   });
 
   final TextEditingController? controller;
@@ -90,6 +91,9 @@ class OcTextField extends StatelessWidget {
   final List<TextInputFormatter>? inputFormatters;
   final String? semanticLabel;
 
+  /// Hides what is typed, for passwords.
+  final bool obscure;
+
   @override
   Widget build(BuildContext context) {
     final colors = context.oc;
@@ -103,6 +107,9 @@ class OcTextField extends StatelessWidget {
       minLines: minLines,
       maxLength: maxLength,
       maxLengthEnforcement: MaxLengthEnforcement.enforced,
+      obscureText: obscure,
+      enableSuggestions: !obscure,
+      autocorrect: !obscure,
       onChanged: onChanged,
       onSubmitted: onSubmitted,
       textInputAction: textInputAction,

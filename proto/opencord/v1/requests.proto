@@ -4,6 +4,7 @@ syntax = "proto3";
 package opencord.v1;
 
 import "opencord/v1/models.proto";
+import "opencord/v1/music.proto";
 import "opencord/v1/network.proto";
 
 message Request {
@@ -81,6 +82,13 @@ message Request {
     StopTunnel stop_tunnel = 114;
     FetchTunnelLog fetch_tunnel_log = 115;
     InstallCloudflared install_cloudflared = 116;
+
+    // Lavalink nodes (Phase 3 plan §12), MANAGE_SERVER.
+    FetchLavalinkNodes fetch_lavalink_nodes = 120;
+    CreateLavalinkNode create_lavalink_node = 121;
+    UpdateLavalinkNode update_lavalink_node = 122;
+    DeleteLavalinkNode delete_lavalink_node = 123;
+    TestLavalinkNode test_lavalink_node = 124;
   }
 }
 
@@ -108,6 +116,7 @@ message Response {
     NetworkInfo network_info = 18;
     DomainChecks domain_checks = 19;
     TunnelLog tunnel_log = 20;
+    LavalinkNodes lavalink_nodes = 21;
   }
 }
 

@@ -436,6 +436,26 @@ pub fn event(kind: proto::event::Kind, session_id: &str) -> Option<CoreEventPayl
         Kind::ServerAddressesUpdate(update) => {
             CoreEventPayload::ServerAddressesUpdate(server_addresses(update.addresses?))
         }
+        Kind::LavalinkNodeStatus(status) => {
+            let node = status.node?;
+            if status.removed {
+                CoreEventPayload::LavalinkNodeRemoved {
+                    node_id: node.id,
+                    channels_playing: status.channels_playing,
+                }
+            } else {
+                CoreEventPayload::LavalinkNodeStatus {
+                    node: crate::lavalink::node_from(node),
+                    channels_playing: status.channels_playing,
+                }
+            }
+        }
+        Kind::LavalinkNodeEvent(event) => {
+            CoreEventPayload::LavalinkNodeEvent(crate::lavalink::event_from(event))
+        }
+        Kind::LavalinkTestProgress(progress) => {
+            CoreEventPayload::LavalinkTestProgress(crate::lavalink::test_progress_from(progress))
+        }
     })
 }
 

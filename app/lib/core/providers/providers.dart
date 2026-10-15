@@ -16,6 +16,7 @@ import 'package:opencord/core/model/video.dart';
 import 'package:opencord/core/model/voice.dart';
 import 'package:opencord/core/providers/activity_state.dart';
 import 'package:opencord/core/providers/channel_audience.dart';
+import 'package:opencord/core/providers/lavalink_state.dart';
 import 'package:opencord/core/providers/messages_state.dart';
 import 'package:opencord/core/providers/network_state.dart';
 import 'package:opencord/core/providers/pins_state.dart';
@@ -31,6 +32,7 @@ import 'package:opencord/core/settings/key_value_store.dart';
 
 export 'package:opencord/core/providers/activity_state.dart';
 export 'package:opencord/core/providers/channel_audience.dart';
+export 'package:opencord/core/providers/lavalink_state.dart';
 export 'package:opencord/core/providers/messages_state.dart';
 export 'package:opencord/core/providers/network_state.dart';
 export 'package:opencord/core/providers/pins_state.dart';
@@ -289,6 +291,15 @@ void _route(Ref ref, RepoEvent event) {
     case NetworkStatusChanged(:final serverKey, :final info):
       final network = networkProvider(serverKey);
       if (ref.exists(network)) ref.read(network.notifier).set(info);
+      return;
+    case LavalinkNodeChanged(:final serverKey) ||
+        LavalinkNodeEventReceived(:final serverKey):
+      final nodes = lavalinkProvider(serverKey);
+      if (ref.exists(nodes)) ref.read(nodes.notifier).apply(event);
+      return;
+    case LavalinkTestProgressed(:final serverKey, :final progress):
+      final tests = lavalinkTestsProvider(serverKey);
+      if (ref.exists(tests)) ref.read(tests.notifier).progressed(progress);
       return;
     case ServerNoticeReceived(:final notice):
       ref

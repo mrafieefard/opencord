@@ -14,6 +14,7 @@ pub mod certificates;
 pub mod channels;
 pub mod domains;
 pub mod invites;
+pub mod lavalink;
 pub mod members;
 pub mod messages;
 pub mod meta;

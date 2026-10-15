@@ -4,6 +4,7 @@ syntax = "proto3";
 package opencord.v1;
 
 import "opencord/v1/models.proto";
+import "opencord/v1/music.proto";
 import "opencord/v1/network.proto";
 
 // Events about a channel are only sent to sessions that can view it.
@@ -55,6 +56,12 @@ message Event {
     ServerNotice server_notice = 81;
     // Where the server is reached changed: to everyone.
     ServerAddressesUpdate server_addresses_update = 82;
+
+    // Phase 3 music: to sessions watching the Lavalink nodes.
+    LavalinkNodeStatus lavalink_node_status = 90;
+    LavalinkNodeEvent lavalink_node_event = 91;
+    // To the session that started the test.
+    LavalinkTestProgress lavalink_test_progress = 92;
   }
 }
 

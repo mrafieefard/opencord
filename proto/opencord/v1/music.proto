@@ -1,0 +1,190 @@
+// SPDX-License-Identifier: MPL-2.0
+syntax = "proto3";
+
+package opencord.v1;
+
+import "opencord/v1/network.proto";
+
+// Music (Phase 3 plan Part B). Lavalink nodes play every voice channel's
+// music; members who manage the server add and watch them (§12). Clients
+// never talk to Lavalink, and its passwords never leave the server.
+
+enum LavalinkPriority {
+  LAVALINK_PRIORITY_UNSPECIFIED = 0;
+  LAVALINK_PRIORITY_PREFERRED = 1;
+  LAVALINK_PRIORITY_NORMAL = 2;
+  // Used only when no Preferred or Normal node can play.
+  LAVALINK_PRIORITY_BACKUP = 3;
+}
+
+// §12.5.
+enum LavalinkHealth {
+  LAVALINK_HEALTH_UNSPECIFIED = 0;
+  // Added or enabled, and the first connection is still being made.
+  LAVALINK_HEALTH_CONNECTING = 1;
+  LAVALINK_HEALTH_HEALTHY = 2;
+  // Connected but struggling: see reason.
+  LAVALINK_HEALTH_DEGRADED = 3;
+  LAVALINK_HEALTH_UNAVAILABLE = 4;
+  // Gets no new channels and keeps its own until they move.
+  LAVALINK_HEALTH_DRAINING = 5;
+  LAVALINK_HEALTH_DISABLED = 6;
+}
+
+// What the admin sets for a node (§12.1).
+message LavalinkNodeSettings {
+  string name = 1;
+  string host = 2;
+  uint32 port = 3;
+  // https and wss.
+  bool secure = 4;
+  LavalinkPriority priority = 5;
+  // At most this many Opencord channels at once; 0 for no cap.
+  uint32 max_players = 6;
+  // The bridge accepts only this node's addresses.
+  bool strict_address = 7;
+  bool enabled = 8;
+}
+
+message LavalinkNode {
+  int64 id = 1;
+  LavalinkNodeSettings settings = 2;
+  bool draining = 3;
+  LavalinkHealth health = 4;
+  // Why it is degraded or unavailable, in plain words.
+  string reason = 5;
+  // From the node, once connected.
+  string version = 6;
+  repeated string sources = 7;
+  repeated string plugins = 8;
+  // Opencord's channels on it, and every player it has.
+  uint32 channels = 9;
+  uint32 players = 10;
+  uint32 playing_players = 11;
+  // System load, 0 to 1.
+  float cpu = 12;
+  // The last REST round trip; 0 before the first.
+  uint32 ping_ms = 13;
+  // The last thing that went wrong, kept after it recovers.
+  string last_error = 14;
+  int64 connected_since_ms = 15;
+  // Back after being unavailable: new channels wait until it stays well.
+  bool recovering = 16;
+}
+
+enum LavalinkEventKind {
+  LAVALINK_EVENT_KIND_UNSPECIFIED = 0;
+  LAVALINK_EVENT_KIND_CONNECTED = 1;
+  LAVALINK_EVENT_KIND_DISCONNECTED = 2;
+  LAVALINK_EVENT_KIND_DEGRADED = 3;
+  LAVALINK_EVENT_KIND_RECOVERED = 4;
+  // Channels moved from one node to another.
+  LAVALINK_EVENT_KIND_MOVED = 5;
+}
+
+// A line in the node events (§12.8).
+message LavalinkNodeEvent {
+  int64 node_id = 1;
+  LavalinkEventKind kind = 2;
+  // In plain words, the node named.
+  string text = 3;
+  int64 at_ms = 4;
+}
+
+// What Lavalink needs from this server (§12.8's checklist).
+message LavalinkBridge {
+  // False when music is off in opencord.toml or voice runs on other
+  // nodes only.
+  bool enabled = 1;
+  // wss://<host>:<port>, where Lavalink connects.
+  string url = 2;
+  // Java checks it: an authority's, a tunnel's or a proxy's.
+  bool trusted_certificate = 3;
+  // <public address>:<port>, where Lavalink sends audio; empty while the
+  // public address is unknown.
+  string audio_address = 4;
+  uint32 audio_port = 5;
+  bool audio_listening = 6;
+  MappingState mapping = 7;
+}
+
+message LavalinkNodes {
+  repeated LavalinkNode nodes = 1;
+  LavalinkBridge bridge = 2;
+  // Newest first, at most 50.
+  repeated LavalinkNodeEvent events = 3;
+  uint32 channels_playing = 4;
+}
+
+// -> lavalink_nodes. watch starts LavalinkNodeStatus and LavalinkNodeEvent
+// events for this session; false stops them. MANAGE_SERVER.
+message FetchLavalinkNodes {
+  bool watch = 1;
+}
+
+// -> lavalink_nodes. MANAGE_SERVER; at most 20 nodes.
+message CreateLavalinkNode {
+  LavalinkNodeSettings settings = 1;
+  string password = 2;
+}
+
+// -> lavalink_nodes. Fields left out stay as they are.
+message UpdateLavalinkNode {
+  int64 node_id = 1;
+  optional LavalinkNodeSettings settings = 2;
+  optional string password = 3;
+  optional bool draining = 4;
+}
+
+// -> lavalink_nodes.
+message DeleteLavalinkNode {
+  int64 node_id = 1;
+}
+
+// -> ack. Runs the connection test (§12.9); its steps arrive as
+// LavalinkTestProgress to this session.
+message TestLavalinkNode {
+  int64 node_id = 1;
+}
+
+enum LavalinkTestStepKind {
+  LAVALINK_TEST_STEP_KIND_UNSPECIFIED = 0;
+  // REST answers and takes the password.
+  LAVALINK_TEST_STEP_KIND_REST = 1;
+  // The WebSocket says ready.
+  LAVALINK_TEST_STEP_KIND_WEBSOCKET = 2;
+  // A player reaches the audio bridge: sign-in and UDP IP discovery.
+  LAVALINK_TEST_STEP_KIND_BRIDGE = 3;
+}
+
+enum LavalinkTestStepState {
+  LAVALINK_TEST_STEP_STATE_UNSPECIFIED = 0;
+  LAVALINK_TEST_STEP_STATE_WAITING = 1;
+  LAVALINK_TEST_STEP_STATE_RUNNING = 2;
+  LAVALINK_TEST_STEP_STATE_PASSED = 3;
+  LAVALINK_TEST_STEP_STATE_FAILED = 4;
+  // Not run: an earlier step failed.
+  LAVALINK_TEST_STEP_STATE_SKIPPED = 5;
+}
+
+message LavalinkTestStep {
+  LavalinkTestStepKind kind = 1;
+  LavalinkTestStepState state = 2;
+  // What passed, or what failed and how to fix it.
+  string detail = 3;
+}
+
+// To the session that asked for the test, as each step changes.
+message LavalinkTestProgress {
+  int64 node_id = 1;
+  repeated LavalinkTestStep steps = 2;
+  bool done = 3;
+}
+
+// To sessions watching the nodes.
+message LavalinkNodeStatus {
+  LavalinkNode node = 1;
+  // The node was deleted; only node.id is set.
+  bool removed = 2;
+  uint32 channels_playing = 3;
+}

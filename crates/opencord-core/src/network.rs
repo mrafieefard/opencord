@@ -421,11 +421,7 @@ fn port(port: proto::PortStatus) -> Option<PortStatus> {
         proto::PortProtocol::Udp => PortProtocol::Udp,
         _ => PortProtocol::Tcp,
     };
-    let mapping = match proto::MappingState::try_from(port.mapping) {
-        Ok(proto::MappingState::Mapped) => MappingState::Mapped,
-        Ok(proto::MappingState::Failed) => MappingState::Failed,
-        _ => MappingState::NotUsed,
-    };
+    let mapping = mapping_state(port.mapping);
     Some(PortStatus {
         purpose,
         protocol,
@@ -444,6 +440,14 @@ fn port_state(state: i32) -> PortState {
         Ok(proto::PortState::InUse) => PortState::InUse,
         Ok(proto::PortState::NotPermitted) => PortState::NotPermitted,
         _ => PortState::Unknown,
+    }
+}
+
+pub(crate) fn mapping_state(mapping: i32) -> MappingState {
+    match proto::MappingState::try_from(mapping) {
+        Ok(proto::MappingState::Mapped) => MappingState::Mapped,
+        Ok(proto::MappingState::Failed) => MappingState::Failed,
+        _ => MappingState::NotUsed,
     }
 }
 

@@ -1,0 +1,170 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT id, name, host, port, secure, password_enc, priority, max_players,\n                strict_address, enabled, draining, resume_session, created_at\n         FROM lavalink_nodes ORDER BY id",
+  "describe": {
+    "columns": [
+      {
+        "name": "id",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "lavalink_nodes",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "name": "name",
+        "ordinal": 1,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "lavalink_nodes",
+            "name": "name"
+          }
+        }
+      },
+      {
+        "name": "host",
+        "ordinal": 2,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "lavalink_nodes",
+            "name": "host"
+          }
+        }
+      },
+      {
+        "name": "port",
+        "ordinal": 3,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "lavalink_nodes",
+            "name": "port"
+          }
+        }
+      },
+      {
+        "name": "secure",
+        "ordinal": 4,
+        "type_info": "Bool",
+        "origin": {
+          "Table": {
+            "table": "lavalink_nodes",
+            "name": "secure"
+          }
+        }
+      },
+      {
+        "name": "password_enc",
+        "ordinal": 5,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "lavalink_nodes",
+            "name": "password_enc"
+          }
+        }
+      },
+      {
+        "name": "priority",
+        "ordinal": 6,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "lavalink_nodes",
+            "name": "priority"
+          }
+        }
+      },
+      {
+        "name": "max_players",
+        "ordinal": 7,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "lavalink_nodes",
+            "name": "max_players"
+          }
+        }
+      },
+      {
+        "name": "strict_address",
+        "ordinal": 8,
+        "type_info": "Bool",
+        "origin": {
+          "Table": {
+            "table": "lavalink_nodes",
+            "name": "strict_address"
+          }
+        }
+      },
+      {
+        "name": "enabled",
+        "ordinal": 9,
+        "type_info": "Bool",
+        "origin": {
+          "Table": {
+            "table": "lavalink_nodes",
+            "name": "enabled"
+          }
+        }
+      },
+      {
+        "name": "draining",
+        "ordinal": 10,
+        "type_info": "Bool",
+        "origin": {
+          "Table": {
+            "table": "lavalink_nodes",
+            "name": "draining"
+          }
+        }
+      },
+      {
+        "name": "resume_session",
+        "ordinal": 11,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "lavalink_nodes",
+            "name": "resume_session"
+          }
+        }
+      },
+      {
+        "name": "created_at",
+        "ordinal": 12,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "lavalink_nodes",
+            "name": "created_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      false
+    ]
+  },
+  "hash": "16fe3c809e9dc783c95ad959ddc665a64991e8905ae76d97f592ced430cb1451"
+}

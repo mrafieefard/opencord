@@ -68,7 +68,7 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
   String get codegenVersion => '2.13.0';
 
   @override
-  int get rustContentHash => 976493397;
+  int get rustContentHash => -1998653378;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -156,6 +156,12 @@ abstract class RustLibApi extends BaseApi {
     PlatformInt64? domainId,
   });
 
+  Future<LavalinkNodes> crateApiClientCreateLavalinkNode({
+    required String serverKey,
+    required LavalinkNodeSettings settings,
+    required String password,
+  });
+
   Future<Role> crateApiClientCreateRole({
     required String serverKey,
     required String name,
@@ -180,6 +186,11 @@ abstract class RustLibApi extends BaseApi {
   Future<NetworkInfo> crateApiClientDeleteDomain({
     required String serverKey,
     required PlatformInt64 domainId,
+  });
+
+  Future<LavalinkNodes> crateApiClientDeleteLavalinkNode({
+    required String serverKey,
+    required PlatformInt64 nodeId,
   });
 
   Future<void> crateApiClientDeleteMessage({
@@ -254,6 +265,13 @@ abstract class RustLibApi extends BaseApi {
     required String serverKey,
     required PlatformInt64 userId,
     String? reason,
+  });
+
+  Future<LavalinkNodeChanges> crateApiTypesLavalinkNodeChangesDefault();
+
+  Future<LavalinkNodes> crateApiClientLavalinkNodes({
+    required String serverKey,
+    required bool watch,
   });
 
   Stream<MediaEvent> crateApiClientMediaEventStream();
@@ -433,6 +451,11 @@ abstract class RustLibApi extends BaseApi {
 
   Future<void> crateApiClientStreamWatch({required String streamKey});
 
+  Future<void> crateApiClientTestLavalinkNode({
+    required String serverKey,
+    required PlatformInt64 nodeId,
+  });
+
   List<TrustedFingerprint> crateApiClientTrustedFingerprints();
 
   Future<List<String>> crateApiClientTunnelLog({required String serverKey});
@@ -454,6 +477,12 @@ abstract class RustLibApi extends BaseApi {
     required String serverKey,
     required PlatformInt64 domainId,
     required DomainUpdate update,
+  });
+
+  Future<LavalinkNodes> crateApiClientUpdateLavalinkNode({
+    required String serverKey,
+    required PlatformInt64 nodeId,
+    required LavalinkNodeChanges changes,
   });
 
   Future<NetworkInfo> crateApiClientUpdateNetworkSettings({
@@ -1233,6 +1262,43 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   );
 
   @override
+  Future<LavalinkNodes> crateApiClientCreateLavalinkNode({
+    required String serverKey,
+    required LavalinkNodeSettings settings,
+    required String password,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(serverKey, serializer);
+          sse_encode_box_autoadd_lavalink_node_settings(settings, serializer);
+          sse_encode_String(password, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 22,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_lavalink_nodes,
+          decodeErrorData: sse_decode_core_error,
+        ),
+        constMeta: kCrateApiClientCreateLavalinkNodeConstMeta,
+        argValues: [serverKey, settings, password],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiClientCreateLavalinkNodeConstMeta =>
+      const TaskConstMeta(
+        debugName: "create_lavalink_node",
+        argNames: ["serverKey", "settings", "password"],
+      );
+
+  @override
   Future<Role> crateApiClientCreateRole({
     required String serverKey,
     required String name,
@@ -1254,7 +1320,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 22,
+            funcId: 23,
             port: port_,
           );
         },
@@ -1295,7 +1361,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 23,
+            funcId: 24,
             port: port_,
           );
         },
@@ -1334,7 +1400,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 24,
+            funcId: 25,
             port: port_,
           );
         },
@@ -1369,7 +1435,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 25,
+            funcId: 26,
             port: port_,
           );
         },
@@ -1390,6 +1456,41 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   );
 
   @override
+  Future<LavalinkNodes> crateApiClientDeleteLavalinkNode({
+    required String serverKey,
+    required PlatformInt64 nodeId,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(serverKey, serializer);
+          sse_encode_i_64(nodeId, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 27,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_lavalink_nodes,
+          decodeErrorData: sse_decode_core_error,
+        ),
+        constMeta: kCrateApiClientDeleteLavalinkNodeConstMeta,
+        argValues: [serverKey, nodeId],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiClientDeleteLavalinkNodeConstMeta =>
+      const TaskConstMeta(
+        debugName: "delete_lavalink_node",
+        argNames: ["serverKey", "nodeId"],
+      );
+
+  @override
   Future<void> crateApiClientDeleteMessage({
     required String serverKey,
     required PlatformInt64 messageId,
@@ -1403,7 +1504,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 26,
+            funcId: 28,
             port: port_,
           );
         },
@@ -1438,7 +1539,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 27,
+            funcId: 29,
             port: port_,
           );
         },
@@ -1470,7 +1571,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 28,
+            funcId: 30,
             port: port_,
           );
         },
@@ -1505,7 +1606,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 29,
+            funcId: 31,
             port: port_,
           );
         },
@@ -1534,7 +1635,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 30,
+            funcId: 32,
             port: port_,
           );
         },
@@ -1568,7 +1669,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 31,
+            funcId: 33,
             port: port_,
           );
         },
@@ -1600,7 +1701,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
             pdeCallFfi(
               generalizedFrbRustBinding,
               serializer,
-              funcId: 32,
+              funcId: 34,
               port: port_,
             );
           },
@@ -1630,7 +1731,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 33,
+            funcId: 35,
             port: port_,
           );
         },
@@ -1658,7 +1759,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 34,
+            funcId: 36,
             port: port_,
           );
         },
@@ -1694,7 +1795,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 35,
+            funcId: 37,
             port: port_,
           );
         },
@@ -1727,7 +1828,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 36,
+            funcId: 38,
             port: port_,
           );
         },
@@ -1752,7 +1853,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_String(backup, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 37)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 39)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_list_prim_u_8_strict,
@@ -1778,7 +1879,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_list_prim_u_8_loose(secret, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 38)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 40)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_String,
@@ -1808,7 +1909,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_list_prim_u_8_loose(secret, serializer);
           sse_encode_String(displayName, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 39)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 41)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_identity_info,
@@ -1833,7 +1934,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       SyncTask(
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 40)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 42)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_generated_identity,
@@ -1860,7 +1961,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_list_prim_u_8_loose(secret, serializer);
           sse_encode_String(displayName, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 41)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 43)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_identity_info,
@@ -1885,7 +1986,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_String(appDataDir, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 42)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 44)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_unit,
@@ -1910,7 +2011,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 43,
+            funcId: 45,
             port: port_,
           );
         },
@@ -1940,7 +2041,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 44,
+            funcId: 46,
             port: port_,
           );
         },
@@ -1977,7 +2078,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 45,
+            funcId: 47,
             port: port_,
           );
         },
@@ -1998,6 +2099,71 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   );
 
   @override
+  Future<LavalinkNodeChanges> crateApiTypesLavalinkNodeChangesDefault() {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 48,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_lavalink_node_changes,
+          decodeErrorData: null,
+        ),
+        constMeta: kCrateApiTypesLavalinkNodeChangesDefaultConstMeta,
+        argValues: [],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiTypesLavalinkNodeChangesDefaultConstMeta =>
+      const TaskConstMeta(
+        debugName: "lavalink_node_changes_default",
+        argNames: [],
+      );
+
+  @override
+  Future<LavalinkNodes> crateApiClientLavalinkNodes({
+    required String serverKey,
+    required bool watch,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(serverKey, serializer);
+          sse_encode_bool(watch, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 49,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_lavalink_nodes,
+          decodeErrorData: sse_decode_core_error,
+        ),
+        constMeta: kCrateApiClientLavalinkNodesConstMeta,
+        argValues: [serverKey, watch],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiClientLavalinkNodesConstMeta =>
+      const TaskConstMeta(
+        debugName: "lavalink_nodes",
+        argNames: ["serverKey", "watch"],
+      );
+
+  @override
   Stream<MediaEvent> crateApiClientMediaEventStream() {
     final sink = RustStreamSink<MediaEvent>();
     unawaited(
@@ -2009,7 +2175,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
             pdeCallFfi(
               generalizedFrbRustBinding,
               serializer,
-              funcId: 46,
+              funcId: 50,
               port: port_,
             );
           },
@@ -2038,7 +2204,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 47,
+            funcId: 51,
             port: port_,
           );
         },
@@ -2067,7 +2233,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_voice_cue(cue, serializer);
           sse_encode_f_32(volume, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 48)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 52)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_unit,
@@ -2099,7 +2265,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 49,
+            funcId: 53,
             port: port_,
           );
         },
@@ -2134,7 +2300,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 50,
+            funcId: 54,
             port: port_,
           );
         },
@@ -2169,7 +2335,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 51,
+            funcId: 55,
             port: port_,
           );
         },
@@ -2207,7 +2373,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 52,
+            funcId: 56,
             port: port_,
           );
         },
@@ -2242,7 +2408,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 53,
+            funcId: 57,
             port: port_,
           );
         },
@@ -2271,7 +2437,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 54,
+            funcId: 58,
             port: port_,
           );
         },
@@ -2298,7 +2464,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 55,
+            funcId: 59,
             port: port_,
           );
         },
@@ -2325,7 +2491,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 56,
+            funcId: 60,
             port: port_,
           );
         },
@@ -2350,7 +2516,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_opt_String(app, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 57)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 61)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_unit,
@@ -2383,7 +2549,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 58,
+            funcId: 62,
             port: port_,
           );
         },
@@ -2413,7 +2579,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 59,
+            funcId: 63,
             port: port_,
           );
         },
@@ -2443,7 +2609,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 60,
+            funcId: 64,
             port: port_,
           );
         },
@@ -2473,7 +2639,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 61,
+            funcId: 65,
             port: port_,
           );
         },
@@ -2509,7 +2675,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 62,
+            funcId: 66,
             port: port_,
           );
         },
@@ -2543,7 +2709,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 63,
+            funcId: 67,
             port: port_,
           );
         },
@@ -2572,7 +2738,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 64,
+            funcId: 68,
             port: port_,
           );
         },
@@ -2599,7 +2765,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 65,
+            funcId: 69,
             port: port_,
           );
         },
@@ -2627,7 +2793,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 66,
+            funcId: 70,
             port: port_,
           );
         },
@@ -2655,7 +2821,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 67,
+            funcId: 71,
             port: port_,
           );
         },
@@ -2687,7 +2853,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_String(address, serializer);
           sse_encode_String(fingerprint, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 68)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 72)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_unit,
@@ -2712,7 +2878,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       SyncTask(
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 69)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 73)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_list_server,
@@ -2744,7 +2910,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 70,
+            funcId: 74,
             port: port_,
           );
         },
@@ -2781,7 +2947,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 71,
+            funcId: 75,
             port: port_,
           );
         },
@@ -2820,7 +2986,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 72,
+            funcId: 76,
             port: port_,
           );
         },
@@ -2848,7 +3014,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_String(key, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 73)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 77)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_opt_String,
@@ -2872,7 +3038,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_String(key, serializer);
           sse_encode_opt_String(value, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 74)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 78)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_unit,
@@ -2897,7 +3063,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_u_64(draftId, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 75)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 79)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_unit,
@@ -2922,7 +3088,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       SyncTask(
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 76)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 80)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_list_default_sound,
@@ -2952,7 +3118,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 77,
+            funcId: 81,
             port: port_,
           );
         },
@@ -2986,7 +3152,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           sse_encode_String(serverKey, serializer);
           sse_encode_i_64(userId, serializer);
           sse_encode_bool(muted, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 78)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 82)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_unit,
@@ -3015,7 +3181,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 79,
+            funcId: 83,
             port: port_,
           );
         },
@@ -3059,7 +3225,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 80,
+            funcId: 84,
             port: port_,
           );
         },
@@ -3106,7 +3272,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 81,
+            funcId: 85,
             port: port_,
           );
         },
@@ -3139,7 +3305,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 82,
+            funcId: 86,
             port: port_,
           );
         },
@@ -3171,7 +3337,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_f_32(volume, serializer);
           sse_encode_bool(muted, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 83)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 87)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_unit,
@@ -3199,7 +3365,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 84,
+            funcId: 88,
             port: port_,
           );
         },
@@ -3236,7 +3402,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 85,
+            funcId: 89,
             port: port_,
           );
         },
@@ -3275,7 +3441,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 86,
+            funcId: 90,
             port: port_,
           );
         },
@@ -3314,7 +3480,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 87,
+            funcId: 91,
             port: port_,
           );
         },
@@ -3348,7 +3514,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 88,
+            funcId: 92,
             port: port_,
           );
         },
@@ -3378,7 +3544,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 89,
+            funcId: 93,
             port: port_,
           );
         },
@@ -3406,7 +3572,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 90,
+            funcId: 94,
             port: port_,
           );
         },
@@ -3434,7 +3600,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 91,
+            funcId: 95,
             port: port_,
           );
         },
@@ -3453,12 +3619,47 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       const TaskConstMeta(debugName: "stream_watch", argNames: ["streamKey"]);
 
   @override
+  Future<void> crateApiClientTestLavalinkNode({
+    required String serverKey,
+    required PlatformInt64 nodeId,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(serverKey, serializer);
+          sse_encode_i_64(nodeId, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 96,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: sse_decode_core_error,
+        ),
+        constMeta: kCrateApiClientTestLavalinkNodeConstMeta,
+        argValues: [serverKey, nodeId],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiClientTestLavalinkNodeConstMeta =>
+      const TaskConstMeta(
+        debugName: "test_lavalink_node",
+        argNames: ["serverKey", "nodeId"],
+      );
+
+  @override
   List<TrustedFingerprint> crateApiClientTrustedFingerprints() {
     return handler.executeSync(
       SyncTask(
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 92)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 97)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_list_trusted_fingerprint,
@@ -3484,7 +3685,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 93,
+            funcId: 98,
             port: port_,
           );
         },
@@ -3511,7 +3712,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 94,
+            funcId: 99,
             port: port_,
           );
         },
@@ -3543,7 +3744,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 95,
+            funcId: 100,
             port: port_,
           );
         },
@@ -3579,7 +3780,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 96,
+            funcId: 101,
             port: port_,
           );
         },
@@ -3616,7 +3817,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 97,
+            funcId: 102,
             port: port_,
           );
         },
@@ -3637,6 +3838,43 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   );
 
   @override
+  Future<LavalinkNodes> crateApiClientUpdateLavalinkNode({
+    required String serverKey,
+    required PlatformInt64 nodeId,
+    required LavalinkNodeChanges changes,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(serverKey, serializer);
+          sse_encode_i_64(nodeId, serializer);
+          sse_encode_box_autoadd_lavalink_node_changes(changes, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 103,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_lavalink_nodes,
+          decodeErrorData: sse_decode_core_error,
+        ),
+        constMeta: kCrateApiClientUpdateLavalinkNodeConstMeta,
+        argValues: [serverKey, nodeId, changes],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiClientUpdateLavalinkNodeConstMeta =>
+      const TaskConstMeta(
+        debugName: "update_lavalink_node",
+        argNames: ["serverKey", "nodeId", "changes"],
+      );
+
+  @override
   Future<NetworkInfo> crateApiClientUpdateNetworkSettings({
     required String serverKey,
     required NetworkSettingsChanges changes,
@@ -3650,7 +3888,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 98,
+            funcId: 104,
             port: port_,
           );
         },
@@ -3687,7 +3925,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 99,
+            funcId: 105,
             port: port_,
           );
         },
@@ -3722,7 +3960,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 100,
+            funcId: 106,
             port: port_,
           );
         },
@@ -3757,7 +3995,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 101,
+            funcId: 107,
             port: port_,
           );
         },
@@ -3794,7 +4032,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 102,
+            funcId: 108,
             port: port_,
           );
         },
@@ -3828,7 +4066,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 103,
+            funcId: 109,
             port: port_,
           );
         },
@@ -3862,7 +4100,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 104,
+            funcId: 110,
             port: port_,
           );
         },
@@ -3901,7 +4139,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 105,
+            funcId: 111,
             port: port_,
           );
         },
@@ -3932,7 +4170,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           return pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 106,
+            funcId: 112,
           )!;
         },
         codec: SseCodec(
@@ -3959,7 +4197,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           return pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 107,
+            funcId: 113,
           )!;
         },
         codec: SseCodec(
@@ -3985,7 +4223,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           return pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 108,
+            funcId: 114,
           )!;
         },
         codec: SseCodec(
@@ -4014,7 +4252,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           return pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 109,
+            funcId: 115,
           )!;
         },
         codec: SseCodec(
@@ -4048,7 +4286,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 110,
+            funcId: 116,
             port: port_,
           );
         },
@@ -4083,7 +4321,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 111,
+            funcId: 117,
             port: port_,
           );
         },
@@ -4112,7 +4350,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 112,
+            funcId: 118,
             port: port_,
           );
         },
@@ -4146,7 +4384,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 113,
+            funcId: 119,
             port: port_,
           );
         },
@@ -4183,7 +4421,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 114,
+            funcId: 120,
             port: port_,
           );
         },
@@ -4220,7 +4458,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 115,
+            funcId: 121,
             port: port_,
           );
         },
@@ -4251,7 +4489,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           return pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 116,
+            funcId: 122,
           )!;
         },
         codec: SseCodec(
@@ -4281,7 +4519,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           return pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 117,
+            funcId: 123,
           )!;
         },
         codec: SseCodec(
@@ -4311,7 +4549,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           return pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 118,
+            funcId: 124,
           )!;
         },
         codec: SseCodec(
@@ -4341,7 +4579,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           return pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 119,
+            funcId: 125,
           )!;
         },
         codec: SseCodec(
@@ -4377,7 +4615,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           return pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 120,
+            funcId: 126,
           )!;
         },
         codec: SseCodec(
@@ -4413,7 +4651,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           return pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 121,
+            funcId: 127,
           )!;
         },
         codec: SseCodec(
@@ -4449,7 +4687,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           return pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 122,
+            funcId: 128,
           )!;
         },
         codec: SseCodec(
@@ -4485,7 +4723,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           return pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 123,
+            funcId: 129,
           )!;
         },
         codec: SseCodec(
@@ -4514,7 +4752,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 124,
+            funcId: 130,
             port: port_,
           );
         },
@@ -4549,7 +4787,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 125,
+            funcId: 131,
             port: port_,
           );
         },
@@ -4764,6 +5002,42 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   PlatformInt64 dco_decode_box_autoadd_i_64(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return dco_decode_i_64(raw);
+  }
+
+  @protected
+  LavalinkNode dco_decode_box_autoadd_lavalink_node(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return dco_decode_lavalink_node(raw);
+  }
+
+  @protected
+  LavalinkNodeChanges dco_decode_box_autoadd_lavalink_node_changes(
+    dynamic raw,
+  ) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return dco_decode_lavalink_node_changes(raw);
+  }
+
+  @protected
+  LavalinkNodeEvent dco_decode_box_autoadd_lavalink_node_event(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return dco_decode_lavalink_node_event(raw);
+  }
+
+  @protected
+  LavalinkNodeSettings dco_decode_box_autoadd_lavalink_node_settings(
+    dynamic raw,
+  ) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return dco_decode_lavalink_node_settings(raw);
+  }
+
+  @protected
+  LavalinkTestProgress dco_decode_box_autoadd_lavalink_test_progress(
+    dynamic raw,
+  ) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return dco_decode_lavalink_test_progress(raw);
   }
 
   @protected
@@ -5317,6 +5591,24 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         return CoreEventPayload_ServerNotice(
           dco_decode_box_autoadd_server_notice(raw[1]),
         );
+      case 31:
+        return CoreEventPayload_LavalinkNodeStatus(
+          node: dco_decode_box_autoadd_lavalink_node(raw[1]),
+          channelsPlaying: dco_decode_u_32(raw[2]),
+        );
+      case 32:
+        return CoreEventPayload_LavalinkNodeRemoved(
+          nodeId: dco_decode_i_64(raw[1]),
+          channelsPlaying: dco_decode_u_32(raw[2]),
+        );
+      case 33:
+        return CoreEventPayload_LavalinkNodeEvent(
+          dco_decode_box_autoadd_lavalink_node_event(raw[1]),
+        );
+      case 34:
+        return CoreEventPayload_LavalinkTestProgress(
+          dco_decode_box_autoadd_lavalink_test_progress(raw[1]),
+        );
       default:
         throw Exception("unreachable");
     }
@@ -5522,6 +5814,164 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  LavalinkBridge dco_decode_lavalink_bridge(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 7)
+      throw Exception('unexpected arr length: expect 7 but see ${arr.length}');
+    return LavalinkBridge(
+      enabled: dco_decode_bool(arr[0]),
+      url: dco_decode_String(arr[1]),
+      trustedCertificate: dco_decode_bool(arr[2]),
+      audioAddress: dco_decode_String(arr[3]),
+      audioPort: dco_decode_u_32(arr[4]),
+      audioListening: dco_decode_bool(arr[5]),
+      mapping: dco_decode_mapping_state(arr[6]),
+    );
+  }
+
+  @protected
+  LavalinkEventKind dco_decode_lavalink_event_kind(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return LavalinkEventKind.values[raw as int];
+  }
+
+  @protected
+  LavalinkHealth dco_decode_lavalink_health(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return LavalinkHealth.values[raw as int];
+  }
+
+  @protected
+  LavalinkNode dco_decode_lavalink_node(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 16)
+      throw Exception('unexpected arr length: expect 16 but see ${arr.length}');
+    return LavalinkNode(
+      id: dco_decode_i_64(arr[0]),
+      settings: dco_decode_lavalink_node_settings(arr[1]),
+      draining: dco_decode_bool(arr[2]),
+      health: dco_decode_lavalink_health(arr[3]),
+      reason: dco_decode_String(arr[4]),
+      version: dco_decode_String(arr[5]),
+      sources: dco_decode_list_String(arr[6]),
+      plugins: dco_decode_list_String(arr[7]),
+      channels: dco_decode_u_32(arr[8]),
+      players: dco_decode_u_32(arr[9]),
+      playingPlayers: dco_decode_u_32(arr[10]),
+      cpuPercent: dco_decode_u_32(arr[11]),
+      pingMs: dco_decode_u_32(arr[12]),
+      lastError: dco_decode_String(arr[13]),
+      connectedSinceMs: dco_decode_i_64(arr[14]),
+      recovering: dco_decode_bool(arr[15]),
+    );
+  }
+
+  @protected
+  LavalinkNodeChanges dco_decode_lavalink_node_changes(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 3)
+      throw Exception('unexpected arr length: expect 3 but see ${arr.length}');
+    return LavalinkNodeChanges(
+      settings: dco_decode_opt_box_autoadd_lavalink_node_settings(arr[0]),
+      password: dco_decode_opt_String(arr[1]),
+      draining: dco_decode_opt_box_autoadd_bool(arr[2]),
+    );
+  }
+
+  @protected
+  LavalinkNodeEvent dco_decode_lavalink_node_event(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 4)
+      throw Exception('unexpected arr length: expect 4 but see ${arr.length}');
+    return LavalinkNodeEvent(
+      nodeId: dco_decode_i_64(arr[0]),
+      kind: dco_decode_lavalink_event_kind(arr[1]),
+      text: dco_decode_String(arr[2]),
+      atMs: dco_decode_i_64(arr[3]),
+    );
+  }
+
+  @protected
+  LavalinkNodeSettings dco_decode_lavalink_node_settings(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 8)
+      throw Exception('unexpected arr length: expect 8 but see ${arr.length}');
+    return LavalinkNodeSettings(
+      name: dco_decode_String(arr[0]),
+      host: dco_decode_String(arr[1]),
+      port: dco_decode_u_32(arr[2]),
+      secure: dco_decode_bool(arr[3]),
+      priority: dco_decode_lavalink_priority(arr[4]),
+      maxPlayers: dco_decode_u_32(arr[5]),
+      strictAddress: dco_decode_bool(arr[6]),
+      enabled: dco_decode_bool(arr[7]),
+    );
+  }
+
+  @protected
+  LavalinkNodes dco_decode_lavalink_nodes(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 4)
+      throw Exception('unexpected arr length: expect 4 but see ${arr.length}');
+    return LavalinkNodes(
+      nodes: dco_decode_list_lavalink_node(arr[0]),
+      bridge: dco_decode_lavalink_bridge(arr[1]),
+      events: dco_decode_list_lavalink_node_event(arr[2]),
+      channelsPlaying: dco_decode_u_32(arr[3]),
+    );
+  }
+
+  @protected
+  LavalinkPriority dco_decode_lavalink_priority(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return LavalinkPriority.values[raw as int];
+  }
+
+  @protected
+  LavalinkTestProgress dco_decode_lavalink_test_progress(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 3)
+      throw Exception('unexpected arr length: expect 3 but see ${arr.length}');
+    return LavalinkTestProgress(
+      nodeId: dco_decode_i_64(arr[0]),
+      steps: dco_decode_list_lavalink_test_step(arr[1]),
+      done: dco_decode_bool(arr[2]),
+    );
+  }
+
+  @protected
+  LavalinkTestStep dco_decode_lavalink_test_step(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 3)
+      throw Exception('unexpected arr length: expect 3 but see ${arr.length}');
+    return LavalinkTestStep(
+      kind: dco_decode_lavalink_test_step_kind(arr[0]),
+      state: dco_decode_lavalink_test_step_state(arr[1]),
+      detail: dco_decode_String(arr[2]),
+    );
+  }
+
+  @protected
+  LavalinkTestStepKind dco_decode_lavalink_test_step_kind(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return LavalinkTestStepKind.values[raw as int];
+  }
+
+  @protected
+  LavalinkTestStepState dco_decode_lavalink_test_step_state(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return LavalinkTestStepState.values[raw as int];
+  }
+
+  @protected
   List<String> dco_decode_list_String(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return (raw as List<dynamic>).map(dco_decode_String).toList();
@@ -5603,6 +6053,24 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   List<Invite> dco_decode_list_invite(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return (raw as List<dynamic>).map(dco_decode_invite).toList();
+  }
+
+  @protected
+  List<LavalinkNode> dco_decode_list_lavalink_node(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return (raw as List<dynamic>).map(dco_decode_lavalink_node).toList();
+  }
+
+  @protected
+  List<LavalinkNodeEvent> dco_decode_list_lavalink_node_event(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return (raw as List<dynamic>).map(dco_decode_lavalink_node_event).toList();
+  }
+
+  @protected
+  List<LavalinkTestStep> dco_decode_list_lavalink_test_step(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return (raw as List<dynamic>).map(dco_decode_lavalink_test_step).toList();
   }
 
   @protected
@@ -5937,6 +6405,16 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   PlatformInt64? dco_decode_opt_box_autoadd_i_64(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return raw == null ? null : dco_decode_box_autoadd_i_64(raw);
+  }
+
+  @protected
+  LavalinkNodeSettings? dco_decode_opt_box_autoadd_lavalink_node_settings(
+    dynamic raw,
+  ) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return raw == null
+        ? null
+        : dco_decode_box_autoadd_lavalink_node_settings(raw);
   }
 
   @protected
@@ -6895,6 +7373,46 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  LavalinkNode sse_decode_box_autoadd_lavalink_node(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return (sse_decode_lavalink_node(deserializer));
+  }
+
+  @protected
+  LavalinkNodeChanges sse_decode_box_autoadd_lavalink_node_changes(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return (sse_decode_lavalink_node_changes(deserializer));
+  }
+
+  @protected
+  LavalinkNodeEvent sse_decode_box_autoadd_lavalink_node_event(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return (sse_decode_lavalink_node_event(deserializer));
+  }
+
+  @protected
+  LavalinkNodeSettings sse_decode_box_autoadd_lavalink_node_settings(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return (sse_decode_lavalink_node_settings(deserializer));
+  }
+
+  @protected
+  LavalinkTestProgress sse_decode_box_autoadd_lavalink_test_progress(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return (sse_decode_lavalink_test_progress(deserializer));
+  }
+
+  @protected
   Member sse_decode_box_autoadd_member(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     return (sse_decode_member(deserializer));
@@ -7499,6 +8017,30 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       case 30:
         var var_field0 = sse_decode_box_autoadd_server_notice(deserializer);
         return CoreEventPayload_ServerNotice(var_field0);
+      case 31:
+        var var_node = sse_decode_box_autoadd_lavalink_node(deserializer);
+        var var_channelsPlaying = sse_decode_u_32(deserializer);
+        return CoreEventPayload_LavalinkNodeStatus(
+          node: var_node,
+          channelsPlaying: var_channelsPlaying,
+        );
+      case 32:
+        var var_nodeId = sse_decode_i_64(deserializer);
+        var var_channelsPlaying = sse_decode_u_32(deserializer);
+        return CoreEventPayload_LavalinkNodeRemoved(
+          nodeId: var_nodeId,
+          channelsPlaying: var_channelsPlaying,
+        );
+      case 33:
+        var var_field0 = sse_decode_box_autoadd_lavalink_node_event(
+          deserializer,
+        );
+        return CoreEventPayload_LavalinkNodeEvent(var_field0);
+      case 34:
+        var var_field0 = sse_decode_box_autoadd_lavalink_test_progress(
+          deserializer,
+        );
+        return CoreEventPayload_LavalinkTestProgress(var_field0);
       default:
         throw UnimplementedError('');
     }
@@ -7725,6 +8267,209 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  LavalinkBridge sse_decode_lavalink_bridge(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_enabled = sse_decode_bool(deserializer);
+    var var_url = sse_decode_String(deserializer);
+    var var_trustedCertificate = sse_decode_bool(deserializer);
+    var var_audioAddress = sse_decode_String(deserializer);
+    var var_audioPort = sse_decode_u_32(deserializer);
+    var var_audioListening = sse_decode_bool(deserializer);
+    var var_mapping = sse_decode_mapping_state(deserializer);
+    return LavalinkBridge(
+      enabled: var_enabled,
+      url: var_url,
+      trustedCertificate: var_trustedCertificate,
+      audioAddress: var_audioAddress,
+      audioPort: var_audioPort,
+      audioListening: var_audioListening,
+      mapping: var_mapping,
+    );
+  }
+
+  @protected
+  LavalinkEventKind sse_decode_lavalink_event_kind(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var inner = sse_decode_i_32(deserializer);
+    return LavalinkEventKind.values[inner];
+  }
+
+  @protected
+  LavalinkHealth sse_decode_lavalink_health(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var inner = sse_decode_i_32(deserializer);
+    return LavalinkHealth.values[inner];
+  }
+
+  @protected
+  LavalinkNode sse_decode_lavalink_node(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_id = sse_decode_i_64(deserializer);
+    var var_settings = sse_decode_lavalink_node_settings(deserializer);
+    var var_draining = sse_decode_bool(deserializer);
+    var var_health = sse_decode_lavalink_health(deserializer);
+    var var_reason = sse_decode_String(deserializer);
+    var var_version = sse_decode_String(deserializer);
+    var var_sources = sse_decode_list_String(deserializer);
+    var var_plugins = sse_decode_list_String(deserializer);
+    var var_channels = sse_decode_u_32(deserializer);
+    var var_players = sse_decode_u_32(deserializer);
+    var var_playingPlayers = sse_decode_u_32(deserializer);
+    var var_cpuPercent = sse_decode_u_32(deserializer);
+    var var_pingMs = sse_decode_u_32(deserializer);
+    var var_lastError = sse_decode_String(deserializer);
+    var var_connectedSinceMs = sse_decode_i_64(deserializer);
+    var var_recovering = sse_decode_bool(deserializer);
+    return LavalinkNode(
+      id: var_id,
+      settings: var_settings,
+      draining: var_draining,
+      health: var_health,
+      reason: var_reason,
+      version: var_version,
+      sources: var_sources,
+      plugins: var_plugins,
+      channels: var_channels,
+      players: var_players,
+      playingPlayers: var_playingPlayers,
+      cpuPercent: var_cpuPercent,
+      pingMs: var_pingMs,
+      lastError: var_lastError,
+      connectedSinceMs: var_connectedSinceMs,
+      recovering: var_recovering,
+    );
+  }
+
+  @protected
+  LavalinkNodeChanges sse_decode_lavalink_node_changes(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_settings = sse_decode_opt_box_autoadd_lavalink_node_settings(
+      deserializer,
+    );
+    var var_password = sse_decode_opt_String(deserializer);
+    var var_draining = sse_decode_opt_box_autoadd_bool(deserializer);
+    return LavalinkNodeChanges(
+      settings: var_settings,
+      password: var_password,
+      draining: var_draining,
+    );
+  }
+
+  @protected
+  LavalinkNodeEvent sse_decode_lavalink_node_event(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_nodeId = sse_decode_i_64(deserializer);
+    var var_kind = sse_decode_lavalink_event_kind(deserializer);
+    var var_text = sse_decode_String(deserializer);
+    var var_atMs = sse_decode_i_64(deserializer);
+    return LavalinkNodeEvent(
+      nodeId: var_nodeId,
+      kind: var_kind,
+      text: var_text,
+      atMs: var_atMs,
+    );
+  }
+
+  @protected
+  LavalinkNodeSettings sse_decode_lavalink_node_settings(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_name = sse_decode_String(deserializer);
+    var var_host = sse_decode_String(deserializer);
+    var var_port = sse_decode_u_32(deserializer);
+    var var_secure = sse_decode_bool(deserializer);
+    var var_priority = sse_decode_lavalink_priority(deserializer);
+    var var_maxPlayers = sse_decode_u_32(deserializer);
+    var var_strictAddress = sse_decode_bool(deserializer);
+    var var_enabled = sse_decode_bool(deserializer);
+    return LavalinkNodeSettings(
+      name: var_name,
+      host: var_host,
+      port: var_port,
+      secure: var_secure,
+      priority: var_priority,
+      maxPlayers: var_maxPlayers,
+      strictAddress: var_strictAddress,
+      enabled: var_enabled,
+    );
+  }
+
+  @protected
+  LavalinkNodes sse_decode_lavalink_nodes(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_nodes = sse_decode_list_lavalink_node(deserializer);
+    var var_bridge = sse_decode_lavalink_bridge(deserializer);
+    var var_events = sse_decode_list_lavalink_node_event(deserializer);
+    var var_channelsPlaying = sse_decode_u_32(deserializer);
+    return LavalinkNodes(
+      nodes: var_nodes,
+      bridge: var_bridge,
+      events: var_events,
+      channelsPlaying: var_channelsPlaying,
+    );
+  }
+
+  @protected
+  LavalinkPriority sse_decode_lavalink_priority(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var inner = sse_decode_i_32(deserializer);
+    return LavalinkPriority.values[inner];
+  }
+
+  @protected
+  LavalinkTestProgress sse_decode_lavalink_test_progress(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_nodeId = sse_decode_i_64(deserializer);
+    var var_steps = sse_decode_list_lavalink_test_step(deserializer);
+    var var_done = sse_decode_bool(deserializer);
+    return LavalinkTestProgress(
+      nodeId: var_nodeId,
+      steps: var_steps,
+      done: var_done,
+    );
+  }
+
+  @protected
+  LavalinkTestStep sse_decode_lavalink_test_step(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_kind = sse_decode_lavalink_test_step_kind(deserializer);
+    var var_state = sse_decode_lavalink_test_step_state(deserializer);
+    var var_detail = sse_decode_String(deserializer);
+    return LavalinkTestStep(
+      kind: var_kind,
+      state: var_state,
+      detail: var_detail,
+    );
+  }
+
+  @protected
+  LavalinkTestStepKind sse_decode_lavalink_test_step_kind(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var inner = sse_decode_i_32(deserializer);
+    return LavalinkTestStepKind.values[inner];
+  }
+
+  @protected
+  LavalinkTestStepState sse_decode_lavalink_test_step_state(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var inner = sse_decode_i_32(deserializer);
+    return LavalinkTestStepState.values[inner];
+  }
+
+  @protected
   List<String> sse_decode_list_String(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
 
@@ -7900,6 +8645,48 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     var ans_ = <Invite>[];
     for (var idx_ = 0; idx_ < len_; ++idx_) {
       ans_.add(sse_decode_invite(deserializer));
+    }
+    return ans_;
+  }
+
+  @protected
+  List<LavalinkNode> sse_decode_list_lavalink_node(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    var len_ = sse_decode_i_32(deserializer);
+    var ans_ = <LavalinkNode>[];
+    for (var idx_ = 0; idx_ < len_; ++idx_) {
+      ans_.add(sse_decode_lavalink_node(deserializer));
+    }
+    return ans_;
+  }
+
+  @protected
+  List<LavalinkNodeEvent> sse_decode_list_lavalink_node_event(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    var len_ = sse_decode_i_32(deserializer);
+    var ans_ = <LavalinkNodeEvent>[];
+    for (var idx_ = 0; idx_ < len_; ++idx_) {
+      ans_.add(sse_decode_lavalink_node_event(deserializer));
+    }
+    return ans_;
+  }
+
+  @protected
+  List<LavalinkTestStep> sse_decode_list_lavalink_test_step(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    var len_ = sse_decode_i_32(deserializer);
+    var ans_ = <LavalinkTestStep>[];
+    for (var idx_ = 0; idx_ < len_; ++idx_) {
+      ans_.add(sse_decode_lavalink_test_step(deserializer));
     }
     return ans_;
   }
@@ -8437,6 +9224,19 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
     if (sse_decode_bool(deserializer)) {
       return (sse_decode_box_autoadd_i_64(deserializer));
+    } else {
+      return null;
+    }
+  }
+
+  @protected
+  LavalinkNodeSettings? sse_decode_opt_box_autoadd_lavalink_node_settings(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    if (sse_decode_bool(deserializer)) {
+      return (sse_decode_box_autoadd_lavalink_node_settings(deserializer));
     } else {
       return null;
     }
@@ -9554,6 +10354,51 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_box_autoadd_lavalink_node(
+    LavalinkNode self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_lavalink_node(self, serializer);
+  }
+
+  @protected
+  void sse_encode_box_autoadd_lavalink_node_changes(
+    LavalinkNodeChanges self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_lavalink_node_changes(self, serializer);
+  }
+
+  @protected
+  void sse_encode_box_autoadd_lavalink_node_event(
+    LavalinkNodeEvent self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_lavalink_node_event(self, serializer);
+  }
+
+  @protected
+  void sse_encode_box_autoadd_lavalink_node_settings(
+    LavalinkNodeSettings self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_lavalink_node_settings(self, serializer);
+  }
+
+  @protected
+  void sse_encode_box_autoadd_lavalink_test_progress(
+    LavalinkTestProgress self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_lavalink_test_progress(self, serializer);
+  }
+
+  @protected
   void sse_encode_box_autoadd_member(Member self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_member(self, serializer);
@@ -10150,6 +10995,26 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       case CoreEventPayload_ServerNotice(field0: final field0):
         sse_encode_i_32(30, serializer);
         sse_encode_box_autoadd_server_notice(field0, serializer);
+      case CoreEventPayload_LavalinkNodeStatus(
+        node: final node,
+        channelsPlaying: final channelsPlaying,
+      ):
+        sse_encode_i_32(31, serializer);
+        sse_encode_box_autoadd_lavalink_node(node, serializer);
+        sse_encode_u_32(channelsPlaying, serializer);
+      case CoreEventPayload_LavalinkNodeRemoved(
+        nodeId: final nodeId,
+        channelsPlaying: final channelsPlaying,
+      ):
+        sse_encode_i_32(32, serializer);
+        sse_encode_i_64(nodeId, serializer);
+        sse_encode_u_32(channelsPlaying, serializer);
+      case CoreEventPayload_LavalinkNodeEvent(field0: final field0):
+        sse_encode_i_32(33, serializer);
+        sse_encode_box_autoadd_lavalink_node_event(field0, serializer);
+      case CoreEventPayload_LavalinkTestProgress(field0: final field0):
+        sse_encode_i_32(34, serializer);
+        sse_encode_box_autoadd_lavalink_test_progress(field0, serializer);
     }
   }
 
@@ -10312,6 +11177,160 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_lavalink_bridge(
+    LavalinkBridge self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_bool(self.enabled, serializer);
+    sse_encode_String(self.url, serializer);
+    sse_encode_bool(self.trustedCertificate, serializer);
+    sse_encode_String(self.audioAddress, serializer);
+    sse_encode_u_32(self.audioPort, serializer);
+    sse_encode_bool(self.audioListening, serializer);
+    sse_encode_mapping_state(self.mapping, serializer);
+  }
+
+  @protected
+  void sse_encode_lavalink_event_kind(
+    LavalinkEventKind self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.index, serializer);
+  }
+
+  @protected
+  void sse_encode_lavalink_health(
+    LavalinkHealth self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.index, serializer);
+  }
+
+  @protected
+  void sse_encode_lavalink_node(LavalinkNode self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_64(self.id, serializer);
+    sse_encode_lavalink_node_settings(self.settings, serializer);
+    sse_encode_bool(self.draining, serializer);
+    sse_encode_lavalink_health(self.health, serializer);
+    sse_encode_String(self.reason, serializer);
+    sse_encode_String(self.version, serializer);
+    sse_encode_list_String(self.sources, serializer);
+    sse_encode_list_String(self.plugins, serializer);
+    sse_encode_u_32(self.channels, serializer);
+    sse_encode_u_32(self.players, serializer);
+    sse_encode_u_32(self.playingPlayers, serializer);
+    sse_encode_u_32(self.cpuPercent, serializer);
+    sse_encode_u_32(self.pingMs, serializer);
+    sse_encode_String(self.lastError, serializer);
+    sse_encode_i_64(self.connectedSinceMs, serializer);
+    sse_encode_bool(self.recovering, serializer);
+  }
+
+  @protected
+  void sse_encode_lavalink_node_changes(
+    LavalinkNodeChanges self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_opt_box_autoadd_lavalink_node_settings(
+      self.settings,
+      serializer,
+    );
+    sse_encode_opt_String(self.password, serializer);
+    sse_encode_opt_box_autoadd_bool(self.draining, serializer);
+  }
+
+  @protected
+  void sse_encode_lavalink_node_event(
+    LavalinkNodeEvent self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_64(self.nodeId, serializer);
+    sse_encode_lavalink_event_kind(self.kind, serializer);
+    sse_encode_String(self.text, serializer);
+    sse_encode_i_64(self.atMs, serializer);
+  }
+
+  @protected
+  void sse_encode_lavalink_node_settings(
+    LavalinkNodeSettings self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_String(self.name, serializer);
+    sse_encode_String(self.host, serializer);
+    sse_encode_u_32(self.port, serializer);
+    sse_encode_bool(self.secure, serializer);
+    sse_encode_lavalink_priority(self.priority, serializer);
+    sse_encode_u_32(self.maxPlayers, serializer);
+    sse_encode_bool(self.strictAddress, serializer);
+    sse_encode_bool(self.enabled, serializer);
+  }
+
+  @protected
+  void sse_encode_lavalink_nodes(LavalinkNodes self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_list_lavalink_node(self.nodes, serializer);
+    sse_encode_lavalink_bridge(self.bridge, serializer);
+    sse_encode_list_lavalink_node_event(self.events, serializer);
+    sse_encode_u_32(self.channelsPlaying, serializer);
+  }
+
+  @protected
+  void sse_encode_lavalink_priority(
+    LavalinkPriority self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.index, serializer);
+  }
+
+  @protected
+  void sse_encode_lavalink_test_progress(
+    LavalinkTestProgress self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_64(self.nodeId, serializer);
+    sse_encode_list_lavalink_test_step(self.steps, serializer);
+    sse_encode_bool(self.done, serializer);
+  }
+
+  @protected
+  void sse_encode_lavalink_test_step(
+    LavalinkTestStep self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_lavalink_test_step_kind(self.kind, serializer);
+    sse_encode_lavalink_test_step_state(self.state, serializer);
+    sse_encode_String(self.detail, serializer);
+  }
+
+  @protected
+  void sse_encode_lavalink_test_step_kind(
+    LavalinkTestStepKind self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.index, serializer);
+  }
+
+  @protected
+  void sse_encode_lavalink_test_step_state(
+    LavalinkTestStepState self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.index, serializer);
+  }
+
+  @protected
   void sse_encode_list_String(List<String> self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_i_32(self.length, serializer);
@@ -10461,6 +11480,42 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_i_32(self.length, serializer);
     for (final item in self) {
       sse_encode_invite(item, serializer);
+    }
+  }
+
+  @protected
+  void sse_encode_list_lavalink_node(
+    List<LavalinkNode> self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.length, serializer);
+    for (final item in self) {
+      sse_encode_lavalink_node(item, serializer);
+    }
+  }
+
+  @protected
+  void sse_encode_list_lavalink_node_event(
+    List<LavalinkNodeEvent> self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.length, serializer);
+    for (final item in self) {
+      sse_encode_lavalink_node_event(item, serializer);
+    }
+  }
+
+  @protected
+  void sse_encode_list_lavalink_test_step(
+    List<LavalinkTestStep> self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.length, serializer);
+    for (final item in self) {
+      sse_encode_lavalink_test_step(item, serializer);
     }
   }
 
@@ -10937,6 +11992,19 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_bool(self != null, serializer);
     if (self != null) {
       sse_encode_box_autoadd_i_64(self, serializer);
+    }
+  }
+
+  @protected
+  void sse_encode_opt_box_autoadd_lavalink_node_settings(
+    LavalinkNodeSettings? self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    sse_encode_bool(self != null, serializer);
+    if (self != null) {
+      sse_encode_box_autoadd_lavalink_node_settings(self, serializer);
     }
   }
 

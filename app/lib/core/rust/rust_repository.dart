@@ -3,6 +3,7 @@ import 'dart:developer' as developer;
 import 'dart:typed_data';
 
 import 'package:opencord/core/model/channel.dart';
+import 'package:opencord/core/model/lavalink.dart';
 import 'package:opencord/core/model/message.dart';
 import 'package:opencord/core/model/misc.dart';
 import 'package:opencord/core/model/network.dart';
@@ -19,6 +20,7 @@ import 'package:opencord/core/repository/repository.dart';
 import 'package:opencord/core/rust/core_api.dart';
 import 'package:opencord/core/rust/core_mapping.dart';
 import 'package:opencord/core/rust/identity_store.dart';
+import 'package:opencord/core/rust/lavalink_mapping.dart';
 import 'package:opencord/core/rust/network_mapping.dart';
 import 'package:opencord/core/rust/read_positions.dart';
 import 'package:opencord/core/settings/key_value_store.dart';
@@ -544,6 +546,30 @@ class RustRepository implements OpencordRepository {
         server,
         serverNoticeFrom(field0),
       ),
+      core.CoreEventPayload_LavalinkNodeStatus(
+        :final node,
+        :final channelsPlaying,
+      ) =>
+        LavalinkNodeChanged(
+          server,
+          nodeId: node.id,
+          node: lavalinkNodeFrom(node),
+          channelsPlaying: channelsPlaying,
+        ),
+      core.CoreEventPayload_LavalinkNodeRemoved(
+        :final nodeId,
+        :final channelsPlaying,
+      ) =>
+        LavalinkNodeChanged(
+          server,
+          nodeId: nodeId,
+          node: null,
+          channelsPlaying: channelsPlaying,
+        ),
+      core.CoreEventPayload_LavalinkNodeEvent(:final field0) =>
+        LavalinkNodeEventReceived(server, lavalinkEventFrom(field0)),
+      core.CoreEventPayload_LavalinkTestProgress(:final field0) =>
+        LavalinkTestProgressed(server, lavalinkTestFrom(field0)),
     };
     if (event != null) _emit(event);
   }
@@ -1130,6 +1156,63 @@ class RustRepository implements OpencordRepository {
   @override
   Future<NetworkInfo> installCloudflared(String serverKey) async =>
       networkInfoFrom(await _call(() => _core.installCloudflared(serverKey)));
+
+  @override
+  Future<LavalinkNodes> lavalinkNodes(
+    String serverKey, {
+    required bool watch,
+  }) async => lavalinkNodesFrom(
+    await _call(() => _core.lavalinkNodes(serverKey, watch: watch)),
+  );
+
+  @override
+  Future<LavalinkNodes> createLavalinkNode(
+    String serverKey,
+    LavalinkNodeSettings settings,
+    String password,
+  ) async => lavalinkNodesFrom(
+    await _call(
+      () => _core.createLavalinkNode(
+        serverKey,
+        lavalinkSettingsToCore(settings),
+        password,
+      ),
+    ),
+  );
+
+  @override
+  Future<LavalinkNodes> updateLavalinkNode(
+    String serverKey,
+    int nodeId,
+    LavalinkNodeChanges changes,
+  ) async => lavalinkNodesFrom(
+    await _call(
+      () => _core.updateLavalinkNode(
+        serverKey,
+        nodeId,
+        core.LavalinkNodeChanges(
+          settings: switch (changes.settings) {
+            final settings? => lavalinkSettingsToCore(settings),
+            null => null,
+          },
+          password: changes.password,
+          draining: changes.draining,
+        ),
+      ),
+    ),
+  );
+
+  @override
+  Future<LavalinkNodes> deleteLavalinkNode(
+    String serverKey,
+    int nodeId,
+  ) async => lavalinkNodesFrom(
+    await _call(() => _core.deleteLavalinkNode(serverKey, nodeId)),
+  );
+
+  @override
+  Future<void> testLavalinkNode(String serverKey, int nodeId) =>
+      _call(() => _core.testLavalinkNode(serverKey, nodeId));
 
   @override
   Future<NetworkInfo> setDnsProvider(

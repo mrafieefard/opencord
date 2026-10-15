@@ -70,6 +70,12 @@ pub enum BridgeEvent {
     Connected { channel_id: i64, connection: u64 },
     /// Its connection ended for good: refused, closed or not resumed.
     Closed { channel_id: i64, code: u16 },
+    /// Lavalink's IP discovery for the channel reached the audio port, from
+    /// `from`: its audio can arrive.
+    Discovered { channel_id: i64, from: IpAddr },
+    /// A sign-in with the right token came from an address the node's
+    /// strict address check does not allow.
+    Refused { channel_id: i64, peer: IpAddr },
 }
 
 /// What the bridge counts (plan §13.3, metrics).

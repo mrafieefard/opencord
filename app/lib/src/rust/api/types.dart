@@ -8,7 +8,7 @@ import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 import 'package:freezed_annotation/freezed_annotation.dart' hide protected;
 part 'types.freezed.dart';
 
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `hash`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `hash`
 
 class AcmeAccount {
   /// An account exists with the CA in use.
@@ -751,6 +751,23 @@ sealed class CoreEventPayload with _$CoreEventPayload {
       CoreEventPayload_NetworkStatus;
   const factory CoreEventPayload.serverNotice(ServerNotice field0) =
       CoreEventPayload_ServerNotice;
+
+  /// A Lavalink node changed, while this session watches them.
+  const factory CoreEventPayload.lavalinkNodeStatus({
+    required LavalinkNode node,
+    required int channelsPlaying,
+  }) = CoreEventPayload_LavalinkNodeStatus;
+  const factory CoreEventPayload.lavalinkNodeRemoved({
+    required PlatformInt64 nodeId,
+    required int channelsPlaying,
+  }) = CoreEventPayload_LavalinkNodeRemoved;
+  const factory CoreEventPayload.lavalinkNodeEvent(LavalinkNodeEvent field0) =
+      CoreEventPayload_LavalinkNodeEvent;
+
+  /// A connection test this session started moved on.
+  const factory CoreEventPayload.lavalinkTestProgress(
+    LavalinkTestProgress field0,
+  ) = CoreEventPayload_LavalinkTestProgress;
 }
 
 /// A sound every client has (plan §11.8), played as `default:<id>`.
@@ -1169,6 +1186,380 @@ class Invite {
           maxUses == other.maxUses &&
           uses == other.uses &&
           expiresAtMs == other.expiresAtMs;
+}
+
+/// What Lavalink needs from this server.
+class LavalinkBridge {
+  /// False when music is off on the server.
+  final bool enabled;
+
+  /// wss://host:port, where Lavalink connects.
+  final String url;
+  final bool trustedCertificate;
+
+  /// address:port, where Lavalink sends audio; empty while unknown.
+  final String audioAddress;
+  final int audioPort;
+  final bool audioListening;
+  final MappingState mapping;
+
+  const LavalinkBridge({
+    required this.enabled,
+    required this.url,
+    required this.trustedCertificate,
+    required this.audioAddress,
+    required this.audioPort,
+    required this.audioListening,
+    required this.mapping,
+  });
+
+  @override
+  int get hashCode =>
+      enabled.hashCode ^
+      url.hashCode ^
+      trustedCertificate.hashCode ^
+      audioAddress.hashCode ^
+      audioPort.hashCode ^
+      audioListening.hashCode ^
+      mapping.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is LavalinkBridge &&
+          runtimeType == other.runtimeType &&
+          enabled == other.enabled &&
+          url == other.url &&
+          trustedCertificate == other.trustedCertificate &&
+          audioAddress == other.audioAddress &&
+          audioPort == other.audioPort &&
+          audioListening == other.audioListening &&
+          mapping == other.mapping;
+}
+
+enum LavalinkEventKind { connected, disconnected, degraded, recovered, moved }
+
+enum LavalinkHealth {
+  /// The first connection is still being made.
+  connecting,
+  healthy,
+
+  /// Connected but struggling: see the reason.
+  degraded,
+  unavailable,
+
+  /// Gets no new channels and keeps its own until they move.
+  draining,
+  disabled,
+}
+
+class LavalinkNode {
+  final PlatformInt64 id;
+  final LavalinkNodeSettings settings;
+  final bool draining;
+  final LavalinkHealth health;
+
+  /// Why it is degraded or unavailable, in plain words.
+  final String reason;
+  final String version;
+  final List<String> sources;
+  final List<String> plugins;
+
+  /// Opencord's channels on it, and every player it has.
+  final int channels;
+  final int players;
+  final int playingPlayers;
+
+  /// System load in percent.
+  final int cpuPercent;
+  final int pingMs;
+
+  /// The last thing that went wrong, kept after it recovers.
+  final String lastError;
+  final PlatformInt64 connectedSinceMs;
+
+  /// Back after being unavailable: new channels wait a little.
+  final bool recovering;
+
+  const LavalinkNode({
+    required this.id,
+    required this.settings,
+    required this.draining,
+    required this.health,
+    required this.reason,
+    required this.version,
+    required this.sources,
+    required this.plugins,
+    required this.channels,
+    required this.players,
+    required this.playingPlayers,
+    required this.cpuPercent,
+    required this.pingMs,
+    required this.lastError,
+    required this.connectedSinceMs,
+    required this.recovering,
+  });
+
+  @override
+  int get hashCode =>
+      id.hashCode ^
+      settings.hashCode ^
+      draining.hashCode ^
+      health.hashCode ^
+      reason.hashCode ^
+      version.hashCode ^
+      sources.hashCode ^
+      plugins.hashCode ^
+      channels.hashCode ^
+      players.hashCode ^
+      playingPlayers.hashCode ^
+      cpuPercent.hashCode ^
+      pingMs.hashCode ^
+      lastError.hashCode ^
+      connectedSinceMs.hashCode ^
+      recovering.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is LavalinkNode &&
+          runtimeType == other.runtimeType &&
+          id == other.id &&
+          settings == other.settings &&
+          draining == other.draining &&
+          health == other.health &&
+          reason == other.reason &&
+          version == other.version &&
+          sources == other.sources &&
+          plugins == other.plugins &&
+          channels == other.channels &&
+          players == other.players &&
+          playingPlayers == other.playingPlayers &&
+          cpuPercent == other.cpuPercent &&
+          pingMs == other.pingMs &&
+          lastError == other.lastError &&
+          connectedSinceMs == other.connectedSinceMs &&
+          recovering == other.recovering;
+}
+
+/// Changes to a node; what is `None` stays.
+class LavalinkNodeChanges {
+  final LavalinkNodeSettings? settings;
+  final String? password;
+  final bool? draining;
+
+  const LavalinkNodeChanges({this.settings, this.password, this.draining});
+
+  static Future<LavalinkNodeChanges> default_() =>
+      RustLib.instance.api.crateApiTypesLavalinkNodeChangesDefault();
+
+  @override
+  int get hashCode => settings.hashCode ^ password.hashCode ^ draining.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is LavalinkNodeChanges &&
+          runtimeType == other.runtimeType &&
+          settings == other.settings &&
+          password == other.password &&
+          draining == other.draining;
+}
+
+/// A line in the node events.
+class LavalinkNodeEvent {
+  final PlatformInt64 nodeId;
+  final LavalinkEventKind kind;
+  final String text;
+  final PlatformInt64 atMs;
+
+  const LavalinkNodeEvent({
+    required this.nodeId,
+    required this.kind,
+    required this.text,
+    required this.atMs,
+  });
+
+  @override
+  int get hashCode =>
+      nodeId.hashCode ^ kind.hashCode ^ text.hashCode ^ atMs.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is LavalinkNodeEvent &&
+          runtimeType == other.runtimeType &&
+          nodeId == other.nodeId &&
+          kind == other.kind &&
+          text == other.text &&
+          atMs == other.atMs;
+}
+
+/// What an admin sets for a node.
+class LavalinkNodeSettings {
+  final String name;
+  final String host;
+  final int port;
+
+  /// https and wss.
+  final bool secure;
+  final LavalinkPriority priority;
+
+  /// At most this many channels at once; 0 for no cap.
+  final int maxPlayers;
+
+  /// The bridge accepts only this node's addresses.
+  final bool strictAddress;
+  final bool enabled;
+
+  const LavalinkNodeSettings({
+    required this.name,
+    required this.host,
+    required this.port,
+    required this.secure,
+    required this.priority,
+    required this.maxPlayers,
+    required this.strictAddress,
+    required this.enabled,
+  });
+
+  @override
+  int get hashCode =>
+      name.hashCode ^
+      host.hashCode ^
+      port.hashCode ^
+      secure.hashCode ^
+      priority.hashCode ^
+      maxPlayers.hashCode ^
+      strictAddress.hashCode ^
+      enabled.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is LavalinkNodeSettings &&
+          runtimeType == other.runtimeType &&
+          name == other.name &&
+          host == other.host &&
+          port == other.port &&
+          secure == other.secure &&
+          priority == other.priority &&
+          maxPlayers == other.maxPlayers &&
+          strictAddress == other.strictAddress &&
+          enabled == other.enabled;
+}
+
+class LavalinkNodes {
+  final List<LavalinkNode> nodes;
+  final LavalinkBridge bridge;
+
+  /// Newest first.
+  final List<LavalinkNodeEvent> events;
+  final int channelsPlaying;
+
+  const LavalinkNodes({
+    required this.nodes,
+    required this.bridge,
+    required this.events,
+    required this.channelsPlaying,
+  });
+
+  @override
+  int get hashCode =>
+      nodes.hashCode ^
+      bridge.hashCode ^
+      events.hashCode ^
+      channelsPlaying.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is LavalinkNodes &&
+          runtimeType == other.runtimeType &&
+          nodes == other.nodes &&
+          bridge == other.bridge &&
+          events == other.events &&
+          channelsPlaying == other.channelsPlaying;
+}
+
+/// Lavalink nodes (Phase 3 plan §12). Their passwords never reach clients.
+enum LavalinkPriority {
+  preferred,
+  normal,
+
+  /// Used only when no Preferred or Normal node can play.
+  backup,
+}
+
+class LavalinkTestProgress {
+  final PlatformInt64 nodeId;
+  final List<LavalinkTestStep> steps;
+  final bool done;
+
+  const LavalinkTestProgress({
+    required this.nodeId,
+    required this.steps,
+    required this.done,
+  });
+
+  @override
+  int get hashCode => nodeId.hashCode ^ steps.hashCode ^ done.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is LavalinkTestProgress &&
+          runtimeType == other.runtimeType &&
+          nodeId == other.nodeId &&
+          steps == other.steps &&
+          done == other.done;
+}
+
+class LavalinkTestStep {
+  final LavalinkTestStepKind kind;
+  final LavalinkTestStepState state;
+
+  /// What passed, or what failed and how to fix it.
+  final String detail;
+
+  const LavalinkTestStep({
+    required this.kind,
+    required this.state,
+    required this.detail,
+  });
+
+  @override
+  int get hashCode => kind.hashCode ^ state.hashCode ^ detail.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is LavalinkTestStep &&
+          runtimeType == other.runtimeType &&
+          kind == other.kind &&
+          state == other.state &&
+          detail == other.detail;
+}
+
+enum LavalinkTestStepKind {
+  /// REST answers and takes the password.
+  rest,
+
+  /// The WebSocket says ready.
+  websocket,
+
+  /// A player reaches the audio bridge.
+  bridge,
+}
+
+enum LavalinkTestStepState {
+  waiting,
+  running,
+  passed,
+  failed,
+
+  /// Not run: an earlier step failed.
+  skipped,
 }
 
 enum MappingState { notUsed, mapped, failed }

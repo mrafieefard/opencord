@@ -7,6 +7,7 @@ This guide grows with Phase 3. What is here so far:
 - [How the bridge works](#how-the-bridge-works)
 - [Ports](#ports)
 - [Settings](#settings)
+- [Lavalink nodes](#lavalink-nodes)
 - [Testing with a local Lavalink](#testing-with-a-local-lavalink)
 
 ## How the bridge works
@@ -43,6 +44,45 @@ bridge_domain = "primary"
 | `enabled` | `OPENCORD_MUSIC_ENABLED` | Music in voice channels |
 | `audio_udp_port` | `OPENCORD_MUSIC_UDP_PORT` | UDP port Lavalink sends music to |
 | `bridge_domain` | | The domain Lavalink connects to: `primary`, or another active domain with a trusted certificate |
+
+## Lavalink nodes
+
+Music plays on Lavalink nodes that the server's admins add in **Server settings → Music** (needs Manage server). A node can be your own Lavalink, version 4 or newer, or a public one. Opencord connects to it; people's apps never do, and its password stays on the server.
+
+For each node you give:
+
+| Field | Meaning |
+|---|---|
+| Name | Shown in settings and node events |
+| Address and port | Where the server reaches Lavalink (`server.port` in its `application.yml`, 2333 by default) |
+| TLS | On when the node is reached over https and wss |
+| Password | Lavalink's `lavalink.server.password` |
+| Priority | Preferred, Normal or Backup; Backup nodes play only when no other node can |
+| Max players | How many voice channels it plays for at once; empty for no limit |
+| Strict address check | On: audio is accepted only from the node's own addresses. Turn it off for a public node whose address changes |
+
+At the top of the page, **What Lavalink needs** shows where Lavalink connects back to (`wss://<domain>:<port>`, and whether its certificate is one Lavalink trusts), where it sends audio, and whether the router has the music port mapped.
+
+Each node shows its state:
+
+| State | Meaning |
+|---|---|
+| Connecting | The first connection is being made |
+| Healthy | Connected and coping |
+| Degraded | Connected but struggling; the reason is shown (CPU load, missing audio frames, slow answers, failing tracks). New channels avoid it while a healthy node can take them |
+| Unavailable | Not reachable, or the password is wrong; the reason is shown. Opencord keeps retrying |
+| Draining | Set by you before maintenance: it gets no new channels |
+| Disabled | Turned off |
+
+A node that comes back from Unavailable waits 30 seconds before it gets new channels. New channels go to the healthy node with the best priority and the least load. Give every node the same sources, so a track can move to another node.
+
+**Test** runs three steps: Opencord reaches Lavalink and the password is accepted; Lavalink's WebSocket is ready; a temporary player in Lavalink reaches this server's audio bridge. A failed step says what to fix, for example:
+
+- *Lavalink refused the password*: copy `lavalink.server.password` again.
+- *Nothing is listening on …*: check the port, and that Lavalink is running.
+- *… does not use TLS: turn TLS off for this node*, or the other way round.
+- *Lavalink couldn't verify Opencord's certificate*: activate a domain with a certificate in Domains & network, or, for a Lavalink you run, import Opencord's certificate into its trust store.
+- *Lavalink signed in, but didn't send audio to UDP …*: open the music port for this node.
 
 ## Testing with a local Lavalink
 
@@ -109,3 +149,11 @@ cargo test -p opencord-voicebot --test lavalink -- --ignored --nocapture
 ```
 
 It prints what arrived: packets, losses, the longest wait between two packets, each channel's tone, and the bridge's counters.
+
+The same Lavalink also runs the server's node test, which adds it as a node and runs its connection test:
+
+```sh
+cargo test -p opencord-server --test lavalink a_real -- --ignored --nocapture
+```
+
+It needs `OPENCORD_TEST_LAVALINK`, `OPENCORD_TEST_LAVALINK_PASSWORD` and `OPENCORD_TEST_BRIDGE_TLS`, set as above.

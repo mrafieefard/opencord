@@ -351,6 +351,27 @@ abstract interface class CoreApi {
 
   Future<core.NetworkInfo> installCloudflared(String serverKey);
 
+  Future<core.LavalinkNodes> lavalinkNodes(
+    String serverKey, {
+    required bool watch,
+  });
+
+  Future<core.LavalinkNodes> createLavalinkNode(
+    String serverKey,
+    core.LavalinkNodeSettings settings,
+    String password,
+  );
+
+  Future<core.LavalinkNodes> updateLavalinkNode(
+    String serverKey,
+    int nodeId,
+    core.LavalinkNodeChanges changes,
+  );
+
+  Future<core.LavalinkNodes> deleteLavalinkNode(String serverKey, int nodeId);
+
+  Future<void> testLavalinkNode(String serverKey, int nodeId);
+
   /// Leaves any other voice channel first, on any server.
   Future<core.VoiceState> voiceJoin(String serverKey, int channelId);
 
@@ -982,6 +1003,42 @@ class FrbCoreApi implements CoreApi {
   @override
   Future<core.NetworkInfo> installCloudflared(String serverKey) =>
       frb.installCloudflared(serverKey: serverKey);
+
+  @override
+  Future<core.LavalinkNodes> lavalinkNodes(
+    String serverKey, {
+    required bool watch,
+  }) => frb.lavalinkNodes(serverKey: serverKey, watch: watch);
+
+  @override
+  Future<core.LavalinkNodes> createLavalinkNode(
+    String serverKey,
+    core.LavalinkNodeSettings settings,
+    String password,
+  ) => frb.createLavalinkNode(
+    serverKey: serverKey,
+    settings: settings,
+    password: password,
+  );
+
+  @override
+  Future<core.LavalinkNodes> updateLavalinkNode(
+    String serverKey,
+    int nodeId,
+    core.LavalinkNodeChanges changes,
+  ) => frb.updateLavalinkNode(
+    serverKey: serverKey,
+    nodeId: nodeId,
+    changes: changes,
+  );
+
+  @override
+  Future<core.LavalinkNodes> deleteLavalinkNode(String serverKey, int nodeId) =>
+      frb.deleteLavalinkNode(serverKey: serverKey, nodeId: nodeId);
+
+  @override
+  Future<void> testLavalinkNode(String serverKey, int nodeId) =>
+      frb.testLavalinkNode(serverKey: serverKey, nodeId: nodeId);
 
   @override
   Future<core.VoiceState> voiceJoin(String serverKey, int channelId) =>

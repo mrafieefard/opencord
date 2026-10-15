@@ -1,7 +1,8 @@
 const PROTO_ROOT: &str = "../../proto";
-const PROTO_FILES: [&str; 7] = [
+const PROTO_FILES: [&str; 8] = [
     "opencord/v1/gateway.proto",
     "opencord/v1/models.proto",
+    "opencord/v1/music.proto",
     "opencord/v1/network.proto",
     "opencord/v1/requests.proto",
     "opencord/v1/events.proto",
@@ -18,6 +19,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         // So is the network's description, the owner's alone.
         .boxed(".opencord.v1.Event.kind.network_status")
         .boxed(".opencord.v1.Response.result.network_info")
+        // And a Lavalink node's.
+        .boxed(".opencord.v1.Event.kind.lavalink_node_status")
+        .boxed(".opencord.v1.Response.result.lavalink_nodes")
         .compile_fds(descriptors)?;
     Ok(())
 }

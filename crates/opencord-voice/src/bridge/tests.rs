@@ -251,6 +251,13 @@ async fn lavalinks_audio_arrives_decrypted_in_either_mode() {
                 ..
             })
         ));
+        assert_eq!(
+            harness.events.recv().await,
+            Some(BridgeEvent::Discovered {
+                channel_id: CHANNEL,
+                from: "127.0.0.1".parse().unwrap(),
+            })
+        );
         assert_eq!(harness.bridge.stats().packets, 1);
     }
 }
@@ -452,7 +459,7 @@ async fn cancelling_disconnects_lavalink() {
 
 #[tokio::test]
 async fn a_strict_node_must_come_from_its_addresses() {
-    let harness = harness().await;
+    let mut harness = harness().await;
     harness.bridge.expect(ExpectedPlayer {
         allowed: Some(vec!["192.0.2.7".parse().unwrap()]),
         ..player("t1")
@@ -465,6 +472,13 @@ async fn a_strict_node_must_come_from_its_addresses() {
     send(&mut socket, identify("t1")).await;
 
     assert_eq!(closed(&mut socket).await, close::AUTHENTICATION_FAILED);
+    assert_eq!(
+        harness.events.recv().await,
+        Some(BridgeEvent::Refused {
+            channel_id: CHANNEL,
+            peer: "127.0.0.1".parse().unwrap(),
+        })
+    );
 }
 
 #[tokio::test]

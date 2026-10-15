@@ -39,7 +39,7 @@ flutter_rust_bridge::frb_generated_boilerplate!(
     default_rust_auto_opaque = RustAutoOpaqueMoi,
 );
 pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_VERSION: &str = "2.13.0";
-pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = 976493397;
+pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -1998653378;
 
 // Section: executor
 
@@ -807,6 +807,50 @@ fn wire__crate__api__client__create_invite_impl(
         },
     )
 }
+fn wire__crate__api__client__create_lavalink_node_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::SseCodec, _, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "create_lavalink_node",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_server_key = <String>::sse_decode(&mut deserializer);
+            let api_settings =
+                <crate::api::types::LavalinkNodeSettings>::sse_decode(&mut deserializer);
+            let api_password = <String>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| async move {
+                transform_result_sse::<_, crate::api::types::CoreError>(
+                    (move || async move {
+                        let output_ok = crate::api::client::create_lavalink_node(
+                            api_server_key,
+                            api_settings,
+                            api_password,
+                        )
+                        .await?;
+                        std::result::Result::Ok(output_ok)
+                    })()
+                    .await,
+                )
+            }
+        },
+    )
+}
 fn wire__crate__api__client__create_role_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
@@ -971,6 +1015,45 @@ fn wire__crate__api__client__delete_domain_impl(
                     (move || async move {
                         let output_ok =
                             crate::api::client::delete_domain(api_server_key, api_domain_id)
+                                .await?;
+                        std::result::Result::Ok(output_ok)
+                    })()
+                    .await,
+                )
+            }
+        },
+    )
+}
+fn wire__crate__api__client__delete_lavalink_node_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::SseCodec, _, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "delete_lavalink_node",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_server_key = <String>::sse_decode(&mut deserializer);
+            let api_node_id = <i64>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| async move {
+                transform_result_sse::<_, crate::api::types::CoreError>(
+                    (move || async move {
+                        let output_ok =
+                            crate::api::client::delete_lavalink_node(api_server_key, api_node_id)
                                 .await?;
                         std::result::Result::Ok(output_ok)
                     })()
@@ -1685,6 +1768,76 @@ fn wire__crate__api__client__kick_member_impl(
                             api_reason,
                         )
                         .await?;
+                        std::result::Result::Ok(output_ok)
+                    })()
+                    .await,
+                )
+            }
+        },
+    )
+}
+fn wire__crate__api__types__lavalink_node_changes_default_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "lavalink_node_changes_default",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            deserializer.end();
+            move |context| {
+                transform_result_sse::<_, ()>((move || {
+                    let output_ok = Ok::<_, ()>(crate::api::types::LavalinkNodeChanges::default())?;
+                    std::result::Result::Ok(output_ok)
+                })())
+            }
+        },
+    )
+}
+fn wire__crate__api__client__lavalink_nodes_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::SseCodec, _, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "lavalink_nodes",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_server_key = <String>::sse_decode(&mut deserializer);
+            let api_watch = <bool>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| async move {
+                transform_result_sse::<_, crate::api::types::CoreError>(
+                    (move || async move {
+                        let output_ok =
+                            crate::api::client::lavalink_nodes(api_server_key, api_watch).await?;
                         std::result::Result::Ok(output_ok)
                     })()
                     .await,
@@ -3395,6 +3548,45 @@ fn wire__crate__api__client__stream_watch_impl(
         },
     )
 }
+fn wire__crate__api__client__test_lavalink_node_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::SseCodec, _, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "test_lavalink_node",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_server_key = <String>::sse_decode(&mut deserializer);
+            let api_node_id = <i64>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| async move {
+                transform_result_sse::<_, crate::api::types::CoreError>(
+                    (move || async move {
+                        let output_ok =
+                            crate::api::client::test_lavalink_node(api_server_key, api_node_id)
+                                .await?;
+                        std::result::Result::Ok(output_ok)
+                    })()
+                    .await,
+                )
+            }
+        },
+    )
+}
 fn wire__crate__api__client__trusted_fingerprints_impl(
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -3606,6 +3798,50 @@ fn wire__crate__api__client__update_domain_impl(
                             api_server_key,
                             api_domain_id,
                             api_update,
+                        )
+                        .await?;
+                        std::result::Result::Ok(output_ok)
+                    })()
+                    .await,
+                )
+            }
+        },
+    )
+}
+fn wire__crate__api__client__update_lavalink_node_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::SseCodec, _, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "update_lavalink_node",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_server_key = <String>::sse_decode(&mut deserializer);
+            let api_node_id = <i64>::sse_decode(&mut deserializer);
+            let api_changes =
+                <crate::api::types::LavalinkNodeChanges>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| async move {
+                transform_result_sse::<_, crate::api::types::CoreError>(
+                    (move || async move {
+                        let output_ok = crate::api::client::update_lavalink_node(
+                            api_server_key,
+                            api_node_id,
+                            api_changes,
                         )
                         .await?;
                         std::result::Result::Ok(output_ok)
@@ -5321,6 +5557,32 @@ impl SseDecode for crate::api::types::CoreEventPayload {
                 let mut var_field0 = <crate::api::types::ServerNotice>::sse_decode(deserializer);
                 return crate::api::types::CoreEventPayload::ServerNotice(var_field0);
             }
+            31 => {
+                let mut var_node = <crate::api::types::LavalinkNode>::sse_decode(deserializer);
+                let mut var_channelsPlaying = <u32>::sse_decode(deserializer);
+                return crate::api::types::CoreEventPayload::LavalinkNodeStatus {
+                    node: var_node,
+                    channels_playing: var_channelsPlaying,
+                };
+            }
+            32 => {
+                let mut var_nodeId = <i64>::sse_decode(deserializer);
+                let mut var_channelsPlaying = <u32>::sse_decode(deserializer);
+                return crate::api::types::CoreEventPayload::LavalinkNodeRemoved {
+                    node_id: var_nodeId,
+                    channels_playing: var_channelsPlaying,
+                };
+            }
+            33 => {
+                let mut var_field0 =
+                    <crate::api::types::LavalinkNodeEvent>::sse_decode(deserializer);
+                return crate::api::types::CoreEventPayload::LavalinkNodeEvent(var_field0);
+            }
+            34 => {
+                let mut var_field0 =
+                    <crate::api::types::LavalinkTestProgress>::sse_decode(deserializer);
+                return crate::api::types::CoreEventPayload::LavalinkTestProgress(var_field0);
+            }
             _ => {
                 unimplemented!("");
             }
@@ -5628,6 +5890,239 @@ impl SseDecode for crate::api::types::Invite {
     }
 }
 
+impl SseDecode for crate::api::types::LavalinkBridge {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_enabled = <bool>::sse_decode(deserializer);
+        let mut var_url = <String>::sse_decode(deserializer);
+        let mut var_trustedCertificate = <bool>::sse_decode(deserializer);
+        let mut var_audioAddress = <String>::sse_decode(deserializer);
+        let mut var_audioPort = <u32>::sse_decode(deserializer);
+        let mut var_audioListening = <bool>::sse_decode(deserializer);
+        let mut var_mapping = <crate::api::types::MappingState>::sse_decode(deserializer);
+        return crate::api::types::LavalinkBridge {
+            enabled: var_enabled,
+            url: var_url,
+            trusted_certificate: var_trustedCertificate,
+            audio_address: var_audioAddress,
+            audio_port: var_audioPort,
+            audio_listening: var_audioListening,
+            mapping: var_mapping,
+        };
+    }
+}
+
+impl SseDecode for crate::api::types::LavalinkEventKind {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut inner = <i32>::sse_decode(deserializer);
+        return match inner {
+            0 => crate::api::types::LavalinkEventKind::Connected,
+            1 => crate::api::types::LavalinkEventKind::Disconnected,
+            2 => crate::api::types::LavalinkEventKind::Degraded,
+            3 => crate::api::types::LavalinkEventKind::Recovered,
+            4 => crate::api::types::LavalinkEventKind::Moved,
+            _ => unreachable!("Invalid variant for LavalinkEventKind: {}", inner),
+        };
+    }
+}
+
+impl SseDecode for crate::api::types::LavalinkHealth {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut inner = <i32>::sse_decode(deserializer);
+        return match inner {
+            0 => crate::api::types::LavalinkHealth::Connecting,
+            1 => crate::api::types::LavalinkHealth::Healthy,
+            2 => crate::api::types::LavalinkHealth::Degraded,
+            3 => crate::api::types::LavalinkHealth::Unavailable,
+            4 => crate::api::types::LavalinkHealth::Draining,
+            5 => crate::api::types::LavalinkHealth::Disabled,
+            _ => unreachable!("Invalid variant for LavalinkHealth: {}", inner),
+        };
+    }
+}
+
+impl SseDecode for crate::api::types::LavalinkNode {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_id = <i64>::sse_decode(deserializer);
+        let mut var_settings = <crate::api::types::LavalinkNodeSettings>::sse_decode(deserializer);
+        let mut var_draining = <bool>::sse_decode(deserializer);
+        let mut var_health = <crate::api::types::LavalinkHealth>::sse_decode(deserializer);
+        let mut var_reason = <String>::sse_decode(deserializer);
+        let mut var_version = <String>::sse_decode(deserializer);
+        let mut var_sources = <Vec<String>>::sse_decode(deserializer);
+        let mut var_plugins = <Vec<String>>::sse_decode(deserializer);
+        let mut var_channels = <u32>::sse_decode(deserializer);
+        let mut var_players = <u32>::sse_decode(deserializer);
+        let mut var_playingPlayers = <u32>::sse_decode(deserializer);
+        let mut var_cpuPercent = <u32>::sse_decode(deserializer);
+        let mut var_pingMs = <u32>::sse_decode(deserializer);
+        let mut var_lastError = <String>::sse_decode(deserializer);
+        let mut var_connectedSinceMs = <i64>::sse_decode(deserializer);
+        let mut var_recovering = <bool>::sse_decode(deserializer);
+        return crate::api::types::LavalinkNode {
+            id: var_id,
+            settings: var_settings,
+            draining: var_draining,
+            health: var_health,
+            reason: var_reason,
+            version: var_version,
+            sources: var_sources,
+            plugins: var_plugins,
+            channels: var_channels,
+            players: var_players,
+            playing_players: var_playingPlayers,
+            cpu_percent: var_cpuPercent,
+            ping_ms: var_pingMs,
+            last_error: var_lastError,
+            connected_since_ms: var_connectedSinceMs,
+            recovering: var_recovering,
+        };
+    }
+}
+
+impl SseDecode for crate::api::types::LavalinkNodeChanges {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_settings =
+            <Option<crate::api::types::LavalinkNodeSettings>>::sse_decode(deserializer);
+        let mut var_password = <Option<String>>::sse_decode(deserializer);
+        let mut var_draining = <Option<bool>>::sse_decode(deserializer);
+        return crate::api::types::LavalinkNodeChanges {
+            settings: var_settings,
+            password: var_password,
+            draining: var_draining,
+        };
+    }
+}
+
+impl SseDecode for crate::api::types::LavalinkNodeEvent {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_nodeId = <i64>::sse_decode(deserializer);
+        let mut var_kind = <crate::api::types::LavalinkEventKind>::sse_decode(deserializer);
+        let mut var_text = <String>::sse_decode(deserializer);
+        let mut var_atMs = <i64>::sse_decode(deserializer);
+        return crate::api::types::LavalinkNodeEvent {
+            node_id: var_nodeId,
+            kind: var_kind,
+            text: var_text,
+            at_ms: var_atMs,
+        };
+    }
+}
+
+impl SseDecode for crate::api::types::LavalinkNodeSettings {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_name = <String>::sse_decode(deserializer);
+        let mut var_host = <String>::sse_decode(deserializer);
+        let mut var_port = <u32>::sse_decode(deserializer);
+        let mut var_secure = <bool>::sse_decode(deserializer);
+        let mut var_priority = <crate::api::types::LavalinkPriority>::sse_decode(deserializer);
+        let mut var_maxPlayers = <u32>::sse_decode(deserializer);
+        let mut var_strictAddress = <bool>::sse_decode(deserializer);
+        let mut var_enabled = <bool>::sse_decode(deserializer);
+        return crate::api::types::LavalinkNodeSettings {
+            name: var_name,
+            host: var_host,
+            port: var_port,
+            secure: var_secure,
+            priority: var_priority,
+            max_players: var_maxPlayers,
+            strict_address: var_strictAddress,
+            enabled: var_enabled,
+        };
+    }
+}
+
+impl SseDecode for crate::api::types::LavalinkNodes {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_nodes = <Vec<crate::api::types::LavalinkNode>>::sse_decode(deserializer);
+        let mut var_bridge = <crate::api::types::LavalinkBridge>::sse_decode(deserializer);
+        let mut var_events = <Vec<crate::api::types::LavalinkNodeEvent>>::sse_decode(deserializer);
+        let mut var_channelsPlaying = <u32>::sse_decode(deserializer);
+        return crate::api::types::LavalinkNodes {
+            nodes: var_nodes,
+            bridge: var_bridge,
+            events: var_events,
+            channels_playing: var_channelsPlaying,
+        };
+    }
+}
+
+impl SseDecode for crate::api::types::LavalinkPriority {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut inner = <i32>::sse_decode(deserializer);
+        return match inner {
+            0 => crate::api::types::LavalinkPriority::Preferred,
+            1 => crate::api::types::LavalinkPriority::Normal,
+            2 => crate::api::types::LavalinkPriority::Backup,
+            _ => unreachable!("Invalid variant for LavalinkPriority: {}", inner),
+        };
+    }
+}
+
+impl SseDecode for crate::api::types::LavalinkTestProgress {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_nodeId = <i64>::sse_decode(deserializer);
+        let mut var_steps = <Vec<crate::api::types::LavalinkTestStep>>::sse_decode(deserializer);
+        let mut var_done = <bool>::sse_decode(deserializer);
+        return crate::api::types::LavalinkTestProgress {
+            node_id: var_nodeId,
+            steps: var_steps,
+            done: var_done,
+        };
+    }
+}
+
+impl SseDecode for crate::api::types::LavalinkTestStep {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_kind = <crate::api::types::LavalinkTestStepKind>::sse_decode(deserializer);
+        let mut var_state = <crate::api::types::LavalinkTestStepState>::sse_decode(deserializer);
+        let mut var_detail = <String>::sse_decode(deserializer);
+        return crate::api::types::LavalinkTestStep {
+            kind: var_kind,
+            state: var_state,
+            detail: var_detail,
+        };
+    }
+}
+
+impl SseDecode for crate::api::types::LavalinkTestStepKind {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut inner = <i32>::sse_decode(deserializer);
+        return match inner {
+            0 => crate::api::types::LavalinkTestStepKind::Rest,
+            1 => crate::api::types::LavalinkTestStepKind::Websocket,
+            2 => crate::api::types::LavalinkTestStepKind::Bridge,
+            _ => unreachable!("Invalid variant for LavalinkTestStepKind: {}", inner),
+        };
+    }
+}
+
+impl SseDecode for crate::api::types::LavalinkTestStepState {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut inner = <i32>::sse_decode(deserializer);
+        return match inner {
+            0 => crate::api::types::LavalinkTestStepState::Waiting,
+            1 => crate::api::types::LavalinkTestStepState::Running,
+            2 => crate::api::types::LavalinkTestStepState::Passed,
+            3 => crate::api::types::LavalinkTestStepState::Failed,
+            4 => crate::api::types::LavalinkTestStepState::Skipped,
+            _ => unreachable!("Invalid variant for LavalinkTestStepState: {}", inner),
+        };
+    }
+}
+
 impl SseDecode for Vec<String> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -5797,6 +6292,46 @@ impl SseDecode for Vec<crate::api::types::Invite> {
         let mut ans_ = Vec::with_capacity(len_ as usize);
         for idx_ in 0..len_ {
             ans_.push(<crate::api::types::Invite>::sse_decode(deserializer));
+        }
+        return ans_;
+    }
+}
+
+impl SseDecode for Vec<crate::api::types::LavalinkNode> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut len_ = <i32>::sse_decode(deserializer);
+        let mut ans_ = Vec::with_capacity(len_ as usize);
+        for idx_ in 0..len_ {
+            ans_.push(<crate::api::types::LavalinkNode>::sse_decode(deserializer));
+        }
+        return ans_;
+    }
+}
+
+impl SseDecode for Vec<crate::api::types::LavalinkNodeEvent> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut len_ = <i32>::sse_decode(deserializer);
+        let mut ans_ = Vec::with_capacity(len_ as usize);
+        for idx_ in 0..len_ {
+            ans_.push(<crate::api::types::LavalinkNodeEvent>::sse_decode(
+                deserializer,
+            ));
+        }
+        return ans_;
+    }
+}
+
+impl SseDecode for Vec<crate::api::types::LavalinkTestStep> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut len_ = <i32>::sse_decode(deserializer);
+        let mut ans_ = Vec::with_capacity(len_ as usize);
+        for idx_ in 0..len_ {
+            ans_.push(<crate::api::types::LavalinkTestStep>::sse_decode(
+                deserializer,
+            ));
         }
         return ans_;
     }
@@ -6373,6 +6908,19 @@ impl SseDecode for Option<i64> {
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         if (<bool>::sse_decode(deserializer)) {
             return Some(<i64>::sse_decode(deserializer));
+        } else {
+            return None;
+        }
+    }
+}
+
+impl SseDecode for Option<crate::api::types::LavalinkNodeSettings> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        if (<bool>::sse_decode(deserializer)) {
+            return Some(<crate::api::types::LavalinkNodeSettings>::sse_decode(
+                deserializer,
+            ));
         } else {
             return None;
         }
@@ -7422,149 +7970,166 @@ fn pde_ffi_dispatcher_primary_impl(
         18 => wire__crate__api__client__check_domain_impl(port, ptr, rust_vec_len, data_len),
         20 => wire__crate__api__client__create_channel_impl(port, ptr, rust_vec_len, data_len),
         21 => wire__crate__api__client__create_invite_impl(port, ptr, rust_vec_len, data_len),
-        22 => wire__crate__api__client__create_role_impl(port, ptr, rust_vec_len, data_len),
-        23 => wire__crate__api__client__delete_channel_impl(port, ptr, rust_vec_len, data_len),
-        24 => wire__crate__api__client__delete_channel_overwrite_impl(
+        22 => {
+            wire__crate__api__client__create_lavalink_node_impl(port, ptr, rust_vec_len, data_len)
+        }
+        23 => wire__crate__api__client__create_role_impl(port, ptr, rust_vec_len, data_len),
+        24 => wire__crate__api__client__delete_channel_impl(port, ptr, rust_vec_len, data_len),
+        25 => wire__crate__api__client__delete_channel_overwrite_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        25 => wire__crate__api__client__delete_domain_impl(port, ptr, rust_vec_len, data_len),
-        26 => wire__crate__api__client__delete_message_impl(port, ptr, rust_vec_len, data_len),
-        27 => wire__crate__api__client__delete_role_impl(port, ptr, rust_vec_len, data_len),
-        28 => {
+        26 => wire__crate__api__client__delete_domain_impl(port, ptr, rust_vec_len, data_len),
+        27 => {
+            wire__crate__api__client__delete_lavalink_node_impl(port, ptr, rust_vec_len, data_len)
+        }
+        28 => wire__crate__api__client__delete_message_impl(port, ptr, rust_vec_len, data_len),
+        29 => wire__crate__api__client__delete_role_impl(port, ptr, rust_vec_len, data_len),
+        30 => {
             wire__crate__api__client__detect_public_address_impl(port, ptr, rust_vec_len, data_len)
         }
-        29 => wire__crate__api__client__domain_checks_impl(port, ptr, rust_vec_len, data_len),
-        30 => {
+        31 => wire__crate__api__client__domain_checks_impl(port, ptr, rust_vec_len, data_len),
+        32 => {
             wire__crate__api__types__domain_update_default_impl(port, ptr, rust_vec_len, data_len)
         }
-        31 => wire__crate__api__client__edit_message_impl(port, ptr, rust_vec_len, data_len),
-        32 => wire__crate__api__client__event_stream_impl(port, ptr, rust_vec_len, data_len),
-        33 => wire__crate__api__client__fetch_bans_impl(port, ptr, rust_vec_len, data_len),
-        34 => wire__crate__api__client__fetch_invites_impl(port, ptr, rust_vec_len, data_len),
-        35 => wire__crate__api__client__fetch_messages_impl(port, ptr, rust_vec_len, data_len),
-        36 => wire__crate__api__client__hotkeys_set_impl(port, ptr, rust_vec_len, data_len),
-        43 => wire__crate__api__system__init_app_impl(port, ptr, rust_vec_len, data_len),
-        44 => wire__crate__api__client__install_cloudflared_impl(port, ptr, rust_vec_len, data_len),
-        45 => wire__crate__api__client__kick_member_impl(port, ptr, rust_vec_len, data_len),
-        46 => wire__crate__api__client__media_event_stream_impl(port, ptr, rust_vec_len, data_len),
-        47 => wire__crate__api__types__network_settings_changes_default_impl(
+        33 => wire__crate__api__client__edit_message_impl(port, ptr, rust_vec_len, data_len),
+        34 => wire__crate__api__client__event_stream_impl(port, ptr, rust_vec_len, data_len),
+        35 => wire__crate__api__client__fetch_bans_impl(port, ptr, rust_vec_len, data_len),
+        36 => wire__crate__api__client__fetch_invites_impl(port, ptr, rust_vec_len, data_len),
+        37 => wire__crate__api__client__fetch_messages_impl(port, ptr, rust_vec_len, data_len),
+        38 => wire__crate__api__client__hotkeys_set_impl(port, ptr, rust_vec_len, data_len),
+        45 => wire__crate__api__system__init_app_impl(port, ptr, rust_vec_len, data_len),
+        46 => wire__crate__api__client__install_cloudflared_impl(port, ptr, rust_vec_len, data_len),
+        47 => wire__crate__api__client__kick_member_impl(port, ptr, rust_vec_len, data_len),
+        48 => wire__crate__api__types__lavalink_node_changes_default_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        49 => wire__crate__api__client__remove_member_role_impl(port, ptr, rust_vec_len, data_len),
-        50 => wire__crate__api__client__reorder_channels_impl(port, ptr, rust_vec_len, data_len),
-        51 => wire__crate__api__client__reorder_roles_impl(port, ptr, rust_vec_len, data_len),
-        52 => wire__crate__api__client__request_certificate_impl(port, ptr, rust_vec_len, data_len),
-        53 => wire__crate__api__client__revoke_invite_impl(port, ptr, rust_vec_len, data_len),
-        54 => wire__crate__api__types__role_changes_default_impl(port, ptr, rust_vec_len, data_len),
-        55 => wire__crate__api__client__screen_audio_apps_impl(port, ptr, rust_vec_len, data_len),
-        56 => {
+        49 => wire__crate__api__client__lavalink_nodes_impl(port, ptr, rust_vec_len, data_len),
+        50 => wire__crate__api__client__media_event_stream_impl(port, ptr, rust_vec_len, data_len),
+        51 => wire__crate__api__types__network_settings_changes_default_impl(
+            port,
+            ptr,
+            rust_vec_len,
+            data_len,
+        ),
+        53 => wire__crate__api__client__remove_member_role_impl(port, ptr, rust_vec_len, data_len),
+        54 => wire__crate__api__client__reorder_channels_impl(port, ptr, rust_vec_len, data_len),
+        55 => wire__crate__api__client__reorder_roles_impl(port, ptr, rust_vec_len, data_len),
+        56 => wire__crate__api__client__request_certificate_impl(port, ptr, rust_vec_len, data_len),
+        57 => wire__crate__api__client__revoke_invite_impl(port, ptr, rust_vec_len, data_len),
+        58 => wire__crate__api__types__role_changes_default_impl(port, ptr, rust_vec_len, data_len),
+        59 => wire__crate__api__client__screen_audio_apps_impl(port, ptr, rust_vec_len, data_len),
+        60 => {
             wire__crate__api__client__screen_audio_support_impl(port, ptr, rust_vec_len, data_len)
         }
-        58 => wire__crate__api__client__screen_share_start_impl(port, ptr, rust_vec_len, data_len),
-        59 => wire__crate__api__client__screen_share_stop_impl(port, ptr, rust_vec_len, data_len),
-        60 => wire__crate__api__client__screen_share_update_impl(port, ptr, rust_vec_len, data_len),
-        61 => wire__crate__api__client__screen_sources_impl(port, ptr, rust_vec_len, data_len),
-        62 => wire__crate__api__client__send_message_impl(port, ptr, rust_vec_len, data_len),
-        63 => wire__crate__api__client__server_add_impl(port, ptr, rust_vec_len, data_len),
-        64 => wire__crate__api__types__server_addresses_default_impl(
+        62 => wire__crate__api__client__screen_share_start_impl(port, ptr, rust_vec_len, data_len),
+        63 => wire__crate__api__client__screen_share_stop_impl(port, ptr, rust_vec_len, data_len),
+        64 => wire__crate__api__client__screen_share_update_impl(port, ptr, rust_vec_len, data_len),
+        65 => wire__crate__api__client__screen_sources_impl(port, ptr, rust_vec_len, data_len),
+        66 => wire__crate__api__client__send_message_impl(port, ptr, rust_vec_len, data_len),
+        67 => wire__crate__api__client__server_add_impl(port, ptr, rust_vec_len, data_len),
+        68 => wire__crate__api__types__server_addresses_default_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        65 => {
+        69 => {
             wire__crate__api__types__server_changes_default_impl(port, ptr, rust_vec_len, data_len)
         }
-        66 => wire__crate__api__client__server_remove_impl(port, ptr, rust_vec_len, data_len),
-        67 => wire__crate__api__client__server_retry_now_impl(port, ptr, rust_vec_len, data_len),
-        70 => {
+        70 => wire__crate__api__client__server_remove_impl(port, ptr, rust_vec_len, data_len),
+        71 => wire__crate__api__client__server_retry_now_impl(port, ptr, rust_vec_len, data_len),
+        74 => {
             wire__crate__api__client__set_channel_overwrite_impl(port, ptr, rust_vec_len, data_len)
         }
-        71 => wire__crate__api__client__set_dns_provider_impl(port, ptr, rust_vec_len, data_len),
-        72 => wire__crate__api__client__set_public_address_impl(port, ptr, rust_vec_len, data_len),
-        77 => wire__crate__api__client__soundboard_delete_sound_impl(
+        75 => wire__crate__api__client__set_dns_provider_impl(port, ptr, rust_vec_len, data_len),
+        76 => wire__crate__api__client__set_public_address_impl(port, ptr, rust_vec_len, data_len),
+        81 => wire__crate__api__client__soundboard_delete_sound_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        79 => {
+        83 => {
             wire__crate__api__client__soundboard_open_draft_impl(port, ptr, rust_vec_len, data_len)
         }
-        80 => wire__crate__api__client__soundboard_play_impl(port, ptr, rust_vec_len, data_len),
-        81 => wire__crate__api__client__soundboard_preview_impl(port, ptr, rust_vec_len, data_len),
-        82 => wire__crate__api__client__soundboard_preview_draft_impl(
+        84 => wire__crate__api__client__soundboard_play_impl(port, ptr, rust_vec_len, data_len),
+        85 => wire__crate__api__client__soundboard_preview_impl(port, ptr, rust_vec_len, data_len),
+        86 => wire__crate__api__client__soundboard_preview_draft_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        84 => wire__crate__api__types__soundboard_sound_changes_default_impl(
+        88 => wire__crate__api__types__soundboard_sound_changes_default_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        85 => wire__crate__api__client__soundboard_update_sound_impl(
+        89 => wire__crate__api__client__soundboard_update_sound_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        86 => wire__crate__api__client__soundboard_upload_impl(port, ptr, rust_vec_len, data_len),
-        87 => wire__crate__api__client__start_tunnel_impl(port, ptr, rust_vec_len, data_len),
-        88 => wire__crate__api__client__start_typing_impl(port, ptr, rust_vec_len, data_len),
-        89 => wire__crate__api__client__stop_tunnel_impl(port, ptr, rust_vec_len, data_len),
-        90 => wire__crate__api__client__stream_unwatch_impl(port, ptr, rust_vec_len, data_len),
-        91 => wire__crate__api__client__stream_watch_impl(port, ptr, rust_vec_len, data_len),
-        93 => wire__crate__api__client__tunnel_log_impl(port, ptr, rust_vec_len, data_len),
-        94 => {
+        90 => wire__crate__api__client__soundboard_upload_impl(port, ptr, rust_vec_len, data_len),
+        91 => wire__crate__api__client__start_tunnel_impl(port, ptr, rust_vec_len, data_len),
+        92 => wire__crate__api__client__start_typing_impl(port, ptr, rust_vec_len, data_len),
+        93 => wire__crate__api__client__stop_tunnel_impl(port, ptr, rust_vec_len, data_len),
+        94 => wire__crate__api__client__stream_unwatch_impl(port, ptr, rust_vec_len, data_len),
+        95 => wire__crate__api__client__stream_watch_impl(port, ptr, rust_vec_len, data_len),
+        96 => wire__crate__api__client__test_lavalink_node_impl(port, ptr, rust_vec_len, data_len),
+        98 => wire__crate__api__client__tunnel_log_impl(port, ptr, rust_vec_len, data_len),
+        99 => {
             wire__crate__api__types__tunnel_status_default_impl(port, ptr, rust_vec_len, data_len)
         }
-        95 => wire__crate__api__client__unban_member_impl(port, ptr, rust_vec_len, data_len),
-        96 => wire__crate__api__client__update_channel_impl(port, ptr, rust_vec_len, data_len),
-        97 => wire__crate__api__client__update_domain_impl(port, ptr, rust_vec_len, data_len),
-        98 => wire__crate__api__client__update_network_settings_impl(
+        100 => wire__crate__api__client__unban_member_impl(port, ptr, rust_vec_len, data_len),
+        101 => wire__crate__api__client__update_channel_impl(port, ptr, rust_vec_len, data_len),
+        102 => wire__crate__api__client__update_domain_impl(port, ptr, rust_vec_len, data_len),
+        103 => {
+            wire__crate__api__client__update_lavalink_node_impl(port, ptr, rust_vec_len, data_len)
+        }
+        104 => wire__crate__api__client__update_network_settings_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        99 => wire__crate__api__client__update_nickname_impl(port, ptr, rust_vec_len, data_len),
-        100 => wire__crate__api__client__update_presence_impl(port, ptr, rust_vec_len, data_len),
-        101 => wire__crate__api__client__update_profile_impl(port, ptr, rust_vec_len, data_len),
-        102 => wire__crate__api__client__update_role_impl(port, ptr, rust_vec_len, data_len),
-        103 => wire__crate__api__client__update_server_impl(port, ptr, rust_vec_len, data_len),
-        104 => {
+        105 => wire__crate__api__client__update_nickname_impl(port, ptr, rust_vec_len, data_len),
+        106 => wire__crate__api__client__update_presence_impl(port, ptr, rust_vec_len, data_len),
+        107 => wire__crate__api__client__update_profile_impl(port, ptr, rust_vec_len, data_len),
+        108 => wire__crate__api__client__update_role_impl(port, ptr, rust_vec_len, data_len),
+        109 => wire__crate__api__client__update_server_impl(port, ptr, rust_vec_len, data_len),
+        110 => {
             wire__crate__api__client__update_voice_settings_impl(port, ptr, rust_vec_len, data_len)
         }
-        105 => wire__crate__api__client__upload_certificate_impl(port, ptr, rust_vec_len, data_len),
-        110 => wire__crate__api__client__voice_disconnect_member_impl(
+        111 => wire__crate__api__client__upload_certificate_impl(port, ptr, rust_vec_len, data_len),
+        116 => wire__crate__api__client__voice_disconnect_member_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        111 => wire__crate__api__client__voice_join_impl(port, ptr, rust_vec_len, data_len),
-        112 => wire__crate__api__client__voice_leave_impl(port, ptr, rust_vec_len, data_len),
-        113 => wire__crate__api__client__voice_move_member_impl(port, ptr, rust_vec_len, data_len),
-        114 => {
+        117 => wire__crate__api__client__voice_join_impl(port, ptr, rust_vec_len, data_len),
+        118 => wire__crate__api__client__voice_leave_impl(port, ptr, rust_vec_len, data_len),
+        119 => wire__crate__api__client__voice_move_member_impl(port, ptr, rust_vec_len, data_len),
+        120 => {
             wire__crate__api__client__voice_server_deafen_impl(port, ptr, rust_vec_len, data_len)
         }
-        115 => wire__crate__api__client__voice_server_mute_impl(port, ptr, rust_vec_len, data_len),
-        124 => wire__crate__api__types__voice_settings_changes_default_impl(
+        121 => wire__crate__api__client__voice_server_mute_impl(port, ptr, rust_vec_len, data_len),
+        130 => wire__crate__api__types__voice_settings_changes_default_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        125 => wire__crate__api__client__watch_network_impl(port, ptr, rust_vec_len, data_len),
+        131 => wire__crate__api__client__watch_network_impl(port, ptr, rust_vec_len, data_len),
         _ => unreachable!(),
     }
 }
@@ -7584,39 +8149,39 @@ fn pde_ffi_dispatcher_sync_impl(
         11 => wire__crate__api__client__audio_set_level_meter_impl(ptr, rust_vec_len, data_len),
         16 => wire__crate__api__client__camera_stop_impl(ptr, rust_vec_len, data_len),
         19 => wire__crate__api__system__core_version_impl(ptr, rust_vec_len, data_len),
-        37 => wire__crate__api__client__identity_backup_decode_impl(ptr, rust_vec_len, data_len),
-        38 => wire__crate__api__client__identity_backup_encode_impl(ptr, rust_vec_len, data_len),
-        39 => wire__crate__api__client__identity_check_impl(ptr, rust_vec_len, data_len),
-        40 => wire__crate__api__client__identity_generate_impl(ptr, rust_vec_len, data_len),
-        41 => wire__crate__api__client__identity_load_impl(ptr, rust_vec_len, data_len),
-        42 => wire__crate__api__client__init_impl(ptr, rust_vec_len, data_len),
-        48 => wire__crate__api__client__play_cue_impl(ptr, rust_vec_len, data_len),
-        57 => wire__crate__api__client__screen_share_audio_from_impl(ptr, rust_vec_len, data_len),
-        68 => wire__crate__api__client__server_trust_fingerprint_impl(ptr, rust_vec_len, data_len),
-        69 => wire__crate__api__client__servers_list_impl(ptr, rust_vec_len, data_len),
-        73 => wire__crate__api__client__settings_get_impl(ptr, rust_vec_len, data_len),
-        74 => wire__crate__api__client__settings_set_impl(ptr, rust_vec_len, data_len),
-        75 => wire__crate__api__client__soundboard_close_draft_impl(ptr, rust_vec_len, data_len),
-        76 => wire__crate__api__client__soundboard_default_sounds_impl(ptr, rust_vec_len, data_len),
-        78 => wire__crate__api__client__soundboard_mute_player_impl(ptr, rust_vec_len, data_len),
-        83 => wire__crate__api__client__soundboard_set_listening_impl(ptr, rust_vec_len, data_len),
-        92 => wire__crate__api__client__trusted_fingerprints_impl(ptr, rust_vec_len, data_len),
-        106 => wire__crate__api__client__video_init_impl(ptr, rust_vec_len, data_len),
-        107 => wire__crate__api__client__video_set_wants_impl(ptr, rust_vec_len, data_len),
-        108 => wire__crate__api__client__video_support_impl(ptr, rust_vec_len, data_len),
-        109 => wire__crate__api__client__video_texture_stats_impl(ptr, rust_vec_len, data_len),
-        116 => {
+        39 => wire__crate__api__client__identity_backup_decode_impl(ptr, rust_vec_len, data_len),
+        40 => wire__crate__api__client__identity_backup_encode_impl(ptr, rust_vec_len, data_len),
+        41 => wire__crate__api__client__identity_check_impl(ptr, rust_vec_len, data_len),
+        42 => wire__crate__api__client__identity_generate_impl(ptr, rust_vec_len, data_len),
+        43 => wire__crate__api__client__identity_load_impl(ptr, rust_vec_len, data_len),
+        44 => wire__crate__api__client__init_impl(ptr, rust_vec_len, data_len),
+        52 => wire__crate__api__client__play_cue_impl(ptr, rust_vec_len, data_len),
+        61 => wire__crate__api__client__screen_share_audio_from_impl(ptr, rust_vec_len, data_len),
+        72 => wire__crate__api__client__server_trust_fingerprint_impl(ptr, rust_vec_len, data_len),
+        73 => wire__crate__api__client__servers_list_impl(ptr, rust_vec_len, data_len),
+        77 => wire__crate__api__client__settings_get_impl(ptr, rust_vec_len, data_len),
+        78 => wire__crate__api__client__settings_set_impl(ptr, rust_vec_len, data_len),
+        79 => wire__crate__api__client__soundboard_close_draft_impl(ptr, rust_vec_len, data_len),
+        80 => wire__crate__api__client__soundboard_default_sounds_impl(ptr, rust_vec_len, data_len),
+        82 => wire__crate__api__client__soundboard_mute_player_impl(ptr, rust_vec_len, data_len),
+        87 => wire__crate__api__client__soundboard_set_listening_impl(ptr, rust_vec_len, data_len),
+        97 => wire__crate__api__client__trusted_fingerprints_impl(ptr, rust_vec_len, data_len),
+        112 => wire__crate__api__client__video_init_impl(ptr, rust_vec_len, data_len),
+        113 => wire__crate__api__client__video_set_wants_impl(ptr, rust_vec_len, data_len),
+        114 => wire__crate__api__client__video_support_impl(ptr, rust_vec_len, data_len),
+        115 => wire__crate__api__client__video_texture_stats_impl(ptr, rust_vec_len, data_len),
+        122 => {
             wire__crate__api__client__voice_set_priority_speaker_impl(ptr, rust_vec_len, data_len)
         }
-        117 => wire__crate__api__client__voice_set_push_to_talk_impl(ptr, rust_vec_len, data_len),
-        118 => wire__crate__api__client__voice_set_self_deaf_impl(ptr, rust_vec_len, data_len),
-        119 => wire__crate__api__client__voice_set_self_mute_impl(ptr, rust_vec_len, data_len),
-        120 => wire__crate__api__client__voice_set_stream_mute_impl(ptr, rust_vec_len, data_len),
-        121 => wire__crate__api__client__voice_set_stream_volume_impl(ptr, rust_vec_len, data_len),
-        122 => {
+        123 => wire__crate__api__client__voice_set_push_to_talk_impl(ptr, rust_vec_len, data_len),
+        124 => wire__crate__api__client__voice_set_self_deaf_impl(ptr, rust_vec_len, data_len),
+        125 => wire__crate__api__client__voice_set_self_mute_impl(ptr, rust_vec_len, data_len),
+        126 => wire__crate__api__client__voice_set_stream_mute_impl(ptr, rust_vec_len, data_len),
+        127 => wire__crate__api__client__voice_set_stream_volume_impl(ptr, rust_vec_len, data_len),
+        128 => {
             wire__crate__api__client__voice_set_user_local_mute_impl(ptr, rust_vec_len, data_len)
         }
-        123 => wire__crate__api__client__voice_set_user_volume_impl(ptr, rust_vec_len, data_len),
+        129 => wire__crate__api__client__voice_set_user_volume_impl(ptr, rust_vec_len, data_len),
         _ => unreachable!(),
     }
 }
@@ -8343,6 +8908,30 @@ impl flutter_rust_bridge::IntoDart for crate::api::types::CoreEventPayload {
             crate::api::types::CoreEventPayload::ServerNotice(field0) => {
                 [30.into_dart(), field0.into_into_dart().into_dart()].into_dart()
             }
+            crate::api::types::CoreEventPayload::LavalinkNodeStatus {
+                node,
+                channels_playing,
+            } => [
+                31.into_dart(),
+                node.into_into_dart().into_dart(),
+                channels_playing.into_into_dart().into_dart(),
+            ]
+            .into_dart(),
+            crate::api::types::CoreEventPayload::LavalinkNodeRemoved {
+                node_id,
+                channels_playing,
+            } => [
+                32.into_dart(),
+                node_id.into_into_dart().into_dart(),
+                channels_playing.into_into_dart().into_dart(),
+            ]
+            .into_dart(),
+            crate::api::types::CoreEventPayload::LavalinkNodeEvent(field0) => {
+                [33.into_dart(), field0.into_into_dart().into_dart()].into_dart()
+            }
+            crate::api::types::CoreEventPayload::LavalinkTestProgress(field0) => {
+                [34.into_dart(), field0.into_into_dart().into_dart()].into_dart()
+            }
             _ => {
                 unimplemented!("");
             }
@@ -8728,6 +9317,323 @@ impl flutter_rust_bridge::IntoDart for crate::api::types::Invite {
 impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive for crate::api::types::Invite {}
 impl flutter_rust_bridge::IntoIntoDart<crate::api::types::Invite> for crate::api::types::Invite {
     fn into_into_dart(self) -> crate::api::types::Invite {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::types::LavalinkBridge {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.enabled.into_into_dart().into_dart(),
+            self.url.into_into_dart().into_dart(),
+            self.trusted_certificate.into_into_dart().into_dart(),
+            self.audio_address.into_into_dart().into_dart(),
+            self.audio_port.into_into_dart().into_dart(),
+            self.audio_listening.into_into_dart().into_dart(),
+            self.mapping.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::api::types::LavalinkBridge
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::types::LavalinkBridge>
+    for crate::api::types::LavalinkBridge
+{
+    fn into_into_dart(self) -> crate::api::types::LavalinkBridge {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::types::LavalinkEventKind {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        match self {
+            Self::Connected => 0.into_dart(),
+            Self::Disconnected => 1.into_dart(),
+            Self::Degraded => 2.into_dart(),
+            Self::Recovered => 3.into_dart(),
+            Self::Moved => 4.into_dart(),
+            _ => unreachable!(),
+        }
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::api::types::LavalinkEventKind
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::types::LavalinkEventKind>
+    for crate::api::types::LavalinkEventKind
+{
+    fn into_into_dart(self) -> crate::api::types::LavalinkEventKind {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::types::LavalinkHealth {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        match self {
+            Self::Connecting => 0.into_dart(),
+            Self::Healthy => 1.into_dart(),
+            Self::Degraded => 2.into_dart(),
+            Self::Unavailable => 3.into_dart(),
+            Self::Draining => 4.into_dart(),
+            Self::Disabled => 5.into_dart(),
+            _ => unreachable!(),
+        }
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::api::types::LavalinkHealth
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::types::LavalinkHealth>
+    for crate::api::types::LavalinkHealth
+{
+    fn into_into_dart(self) -> crate::api::types::LavalinkHealth {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::types::LavalinkNode {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.id.into_into_dart().into_dart(),
+            self.settings.into_into_dart().into_dart(),
+            self.draining.into_into_dart().into_dart(),
+            self.health.into_into_dart().into_dart(),
+            self.reason.into_into_dart().into_dart(),
+            self.version.into_into_dart().into_dart(),
+            self.sources.into_into_dart().into_dart(),
+            self.plugins.into_into_dart().into_dart(),
+            self.channels.into_into_dart().into_dart(),
+            self.players.into_into_dart().into_dart(),
+            self.playing_players.into_into_dart().into_dart(),
+            self.cpu_percent.into_into_dart().into_dart(),
+            self.ping_ms.into_into_dart().into_dart(),
+            self.last_error.into_into_dart().into_dart(),
+            self.connected_since_ms.into_into_dart().into_dart(),
+            self.recovering.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::api::types::LavalinkNode
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::types::LavalinkNode>
+    for crate::api::types::LavalinkNode
+{
+    fn into_into_dart(self) -> crate::api::types::LavalinkNode {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::types::LavalinkNodeChanges {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.settings.into_into_dart().into_dart(),
+            self.password.into_into_dart().into_dart(),
+            self.draining.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::api::types::LavalinkNodeChanges
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::types::LavalinkNodeChanges>
+    for crate::api::types::LavalinkNodeChanges
+{
+    fn into_into_dart(self) -> crate::api::types::LavalinkNodeChanges {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::types::LavalinkNodeEvent {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.node_id.into_into_dart().into_dart(),
+            self.kind.into_into_dart().into_dart(),
+            self.text.into_into_dart().into_dart(),
+            self.at_ms.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::api::types::LavalinkNodeEvent
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::types::LavalinkNodeEvent>
+    for crate::api::types::LavalinkNodeEvent
+{
+    fn into_into_dart(self) -> crate::api::types::LavalinkNodeEvent {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::types::LavalinkNodeSettings {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.name.into_into_dart().into_dart(),
+            self.host.into_into_dart().into_dart(),
+            self.port.into_into_dart().into_dart(),
+            self.secure.into_into_dart().into_dart(),
+            self.priority.into_into_dart().into_dart(),
+            self.max_players.into_into_dart().into_dart(),
+            self.strict_address.into_into_dart().into_dart(),
+            self.enabled.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::api::types::LavalinkNodeSettings
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::types::LavalinkNodeSettings>
+    for crate::api::types::LavalinkNodeSettings
+{
+    fn into_into_dart(self) -> crate::api::types::LavalinkNodeSettings {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::types::LavalinkNodes {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.nodes.into_into_dart().into_dart(),
+            self.bridge.into_into_dart().into_dart(),
+            self.events.into_into_dart().into_dart(),
+            self.channels_playing.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::api::types::LavalinkNodes
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::types::LavalinkNodes>
+    for crate::api::types::LavalinkNodes
+{
+    fn into_into_dart(self) -> crate::api::types::LavalinkNodes {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::types::LavalinkPriority {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        match self {
+            Self::Preferred => 0.into_dart(),
+            Self::Normal => 1.into_dart(),
+            Self::Backup => 2.into_dart(),
+            _ => unreachable!(),
+        }
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::api::types::LavalinkPriority
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::types::LavalinkPriority>
+    for crate::api::types::LavalinkPriority
+{
+    fn into_into_dart(self) -> crate::api::types::LavalinkPriority {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::types::LavalinkTestProgress {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.node_id.into_into_dart().into_dart(),
+            self.steps.into_into_dart().into_dart(),
+            self.done.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::api::types::LavalinkTestProgress
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::types::LavalinkTestProgress>
+    for crate::api::types::LavalinkTestProgress
+{
+    fn into_into_dart(self) -> crate::api::types::LavalinkTestProgress {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::types::LavalinkTestStep {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.kind.into_into_dart().into_dart(),
+            self.state.into_into_dart().into_dart(),
+            self.detail.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::api::types::LavalinkTestStep
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::types::LavalinkTestStep>
+    for crate::api::types::LavalinkTestStep
+{
+    fn into_into_dart(self) -> crate::api::types::LavalinkTestStep {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::types::LavalinkTestStepKind {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        match self {
+            Self::Rest => 0.into_dart(),
+            Self::Websocket => 1.into_dart(),
+            Self::Bridge => 2.into_dart(),
+            _ => unreachable!(),
+        }
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::api::types::LavalinkTestStepKind
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::types::LavalinkTestStepKind>
+    for crate::api::types::LavalinkTestStepKind
+{
+    fn into_into_dart(self) -> crate::api::types::LavalinkTestStepKind {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::types::LavalinkTestStepState {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        match self {
+            Self::Waiting => 0.into_dart(),
+            Self::Running => 1.into_dart(),
+            Self::Passed => 2.into_dart(),
+            Self::Failed => 3.into_dart(),
+            Self::Skipped => 4.into_dart(),
+            _ => unreachable!(),
+        }
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::api::types::LavalinkTestStepState
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::types::LavalinkTestStepState>
+    for crate::api::types::LavalinkTestStepState
+{
+    fn into_into_dart(self) -> crate::api::types::LavalinkTestStepState {
         self
     }
 }
@@ -10735,6 +11641,30 @@ impl SseEncode for crate::api::types::CoreEventPayload {
                 <i32>::sse_encode(30, serializer);
                 <crate::api::types::ServerNotice>::sse_encode(field0, serializer);
             }
+            crate::api::types::CoreEventPayload::LavalinkNodeStatus {
+                node,
+                channels_playing,
+            } => {
+                <i32>::sse_encode(31, serializer);
+                <crate::api::types::LavalinkNode>::sse_encode(node, serializer);
+                <u32>::sse_encode(channels_playing, serializer);
+            }
+            crate::api::types::CoreEventPayload::LavalinkNodeRemoved {
+                node_id,
+                channels_playing,
+            } => {
+                <i32>::sse_encode(32, serializer);
+                <i64>::sse_encode(node_id, serializer);
+                <u32>::sse_encode(channels_playing, serializer);
+            }
+            crate::api::types::CoreEventPayload::LavalinkNodeEvent(field0) => {
+                <i32>::sse_encode(33, serializer);
+                <crate::api::types::LavalinkNodeEvent>::sse_encode(field0, serializer);
+            }
+            crate::api::types::CoreEventPayload::LavalinkTestProgress(field0) => {
+                <i32>::sse_encode(34, serializer);
+                <crate::api::types::LavalinkTestProgress>::sse_encode(field0, serializer);
+            }
             _ => {
                 unimplemented!("");
             }
@@ -10998,6 +11928,194 @@ impl SseEncode for crate::api::types::Invite {
     }
 }
 
+impl SseEncode for crate::api::types::LavalinkBridge {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <bool>::sse_encode(self.enabled, serializer);
+        <String>::sse_encode(self.url, serializer);
+        <bool>::sse_encode(self.trusted_certificate, serializer);
+        <String>::sse_encode(self.audio_address, serializer);
+        <u32>::sse_encode(self.audio_port, serializer);
+        <bool>::sse_encode(self.audio_listening, serializer);
+        <crate::api::types::MappingState>::sse_encode(self.mapping, serializer);
+    }
+}
+
+impl SseEncode for crate::api::types::LavalinkEventKind {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i32>::sse_encode(
+            match self {
+                crate::api::types::LavalinkEventKind::Connected => 0,
+                crate::api::types::LavalinkEventKind::Disconnected => 1,
+                crate::api::types::LavalinkEventKind::Degraded => 2,
+                crate::api::types::LavalinkEventKind::Recovered => 3,
+                crate::api::types::LavalinkEventKind::Moved => 4,
+                _ => {
+                    unimplemented!("");
+                }
+            },
+            serializer,
+        );
+    }
+}
+
+impl SseEncode for crate::api::types::LavalinkHealth {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i32>::sse_encode(
+            match self {
+                crate::api::types::LavalinkHealth::Connecting => 0,
+                crate::api::types::LavalinkHealth::Healthy => 1,
+                crate::api::types::LavalinkHealth::Degraded => 2,
+                crate::api::types::LavalinkHealth::Unavailable => 3,
+                crate::api::types::LavalinkHealth::Draining => 4,
+                crate::api::types::LavalinkHealth::Disabled => 5,
+                _ => {
+                    unimplemented!("");
+                }
+            },
+            serializer,
+        );
+    }
+}
+
+impl SseEncode for crate::api::types::LavalinkNode {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i64>::sse_encode(self.id, serializer);
+        <crate::api::types::LavalinkNodeSettings>::sse_encode(self.settings, serializer);
+        <bool>::sse_encode(self.draining, serializer);
+        <crate::api::types::LavalinkHealth>::sse_encode(self.health, serializer);
+        <String>::sse_encode(self.reason, serializer);
+        <String>::sse_encode(self.version, serializer);
+        <Vec<String>>::sse_encode(self.sources, serializer);
+        <Vec<String>>::sse_encode(self.plugins, serializer);
+        <u32>::sse_encode(self.channels, serializer);
+        <u32>::sse_encode(self.players, serializer);
+        <u32>::sse_encode(self.playing_players, serializer);
+        <u32>::sse_encode(self.cpu_percent, serializer);
+        <u32>::sse_encode(self.ping_ms, serializer);
+        <String>::sse_encode(self.last_error, serializer);
+        <i64>::sse_encode(self.connected_since_ms, serializer);
+        <bool>::sse_encode(self.recovering, serializer);
+    }
+}
+
+impl SseEncode for crate::api::types::LavalinkNodeChanges {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <Option<crate::api::types::LavalinkNodeSettings>>::sse_encode(self.settings, serializer);
+        <Option<String>>::sse_encode(self.password, serializer);
+        <Option<bool>>::sse_encode(self.draining, serializer);
+    }
+}
+
+impl SseEncode for crate::api::types::LavalinkNodeEvent {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i64>::sse_encode(self.node_id, serializer);
+        <crate::api::types::LavalinkEventKind>::sse_encode(self.kind, serializer);
+        <String>::sse_encode(self.text, serializer);
+        <i64>::sse_encode(self.at_ms, serializer);
+    }
+}
+
+impl SseEncode for crate::api::types::LavalinkNodeSettings {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <String>::sse_encode(self.name, serializer);
+        <String>::sse_encode(self.host, serializer);
+        <u32>::sse_encode(self.port, serializer);
+        <bool>::sse_encode(self.secure, serializer);
+        <crate::api::types::LavalinkPriority>::sse_encode(self.priority, serializer);
+        <u32>::sse_encode(self.max_players, serializer);
+        <bool>::sse_encode(self.strict_address, serializer);
+        <bool>::sse_encode(self.enabled, serializer);
+    }
+}
+
+impl SseEncode for crate::api::types::LavalinkNodes {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <Vec<crate::api::types::LavalinkNode>>::sse_encode(self.nodes, serializer);
+        <crate::api::types::LavalinkBridge>::sse_encode(self.bridge, serializer);
+        <Vec<crate::api::types::LavalinkNodeEvent>>::sse_encode(self.events, serializer);
+        <u32>::sse_encode(self.channels_playing, serializer);
+    }
+}
+
+impl SseEncode for crate::api::types::LavalinkPriority {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i32>::sse_encode(
+            match self {
+                crate::api::types::LavalinkPriority::Preferred => 0,
+                crate::api::types::LavalinkPriority::Normal => 1,
+                crate::api::types::LavalinkPriority::Backup => 2,
+                _ => {
+                    unimplemented!("");
+                }
+            },
+            serializer,
+        );
+    }
+}
+
+impl SseEncode for crate::api::types::LavalinkTestProgress {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i64>::sse_encode(self.node_id, serializer);
+        <Vec<crate::api::types::LavalinkTestStep>>::sse_encode(self.steps, serializer);
+        <bool>::sse_encode(self.done, serializer);
+    }
+}
+
+impl SseEncode for crate::api::types::LavalinkTestStep {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <crate::api::types::LavalinkTestStepKind>::sse_encode(self.kind, serializer);
+        <crate::api::types::LavalinkTestStepState>::sse_encode(self.state, serializer);
+        <String>::sse_encode(self.detail, serializer);
+    }
+}
+
+impl SseEncode for crate::api::types::LavalinkTestStepKind {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i32>::sse_encode(
+            match self {
+                crate::api::types::LavalinkTestStepKind::Rest => 0,
+                crate::api::types::LavalinkTestStepKind::Websocket => 1,
+                crate::api::types::LavalinkTestStepKind::Bridge => 2,
+                _ => {
+                    unimplemented!("");
+                }
+            },
+            serializer,
+        );
+    }
+}
+
+impl SseEncode for crate::api::types::LavalinkTestStepState {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i32>::sse_encode(
+            match self {
+                crate::api::types::LavalinkTestStepState::Waiting => 0,
+                crate::api::types::LavalinkTestStepState::Running => 1,
+                crate::api::types::LavalinkTestStepState::Passed => 2,
+                crate::api::types::LavalinkTestStepState::Failed => 3,
+                crate::api::types::LavalinkTestStepState::Skipped => 4,
+                _ => {
+                    unimplemented!("");
+                }
+            },
+            serializer,
+        );
+    }
+}
+
 impl SseEncode for Vec<String> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -11134,6 +12252,36 @@ impl SseEncode for Vec<crate::api::types::Invite> {
         <i32>::sse_encode(self.len() as _, serializer);
         for item in self {
             <crate::api::types::Invite>::sse_encode(item, serializer);
+        }
+    }
+}
+
+impl SseEncode for Vec<crate::api::types::LavalinkNode> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i32>::sse_encode(self.len() as _, serializer);
+        for item in self {
+            <crate::api::types::LavalinkNode>::sse_encode(item, serializer);
+        }
+    }
+}
+
+impl SseEncode for Vec<crate::api::types::LavalinkNodeEvent> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i32>::sse_encode(self.len() as _, serializer);
+        for item in self {
+            <crate::api::types::LavalinkNodeEvent>::sse_encode(item, serializer);
+        }
+    }
+}
+
+impl SseEncode for Vec<crate::api::types::LavalinkTestStep> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i32>::sse_encode(self.len() as _, serializer);
+        for item in self {
+            <crate::api::types::LavalinkTestStep>::sse_encode(item, serializer);
         }
     }
 }
@@ -11608,6 +12756,16 @@ impl SseEncode for Option<i64> {
         <bool>::sse_encode(self.is_some(), serializer);
         if let Some(value) = self {
             <i64>::sse_encode(value, serializer);
+        }
+    }
+}
+
+impl SseEncode for Option<crate::api::types::LavalinkNodeSettings> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <bool>::sse_encode(self.is_some(), serializer);
+        if let Some(value) = self {
+            <crate::api::types::LavalinkNodeSettings>::sse_encode(value, serializer);
         }
     }
 }

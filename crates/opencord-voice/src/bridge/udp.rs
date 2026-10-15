@@ -10,7 +10,7 @@ use std::time::{Duration, Instant};
 use tokio::net::UdpSocket;
 
 use super::rtp::{self, MAX_DATAGRAM};
-use super::{MusicBridge, MusicFrame, MusicPacket};
+use super::{BridgeEvent, MusicBridge, MusicFrame, MusicPacket};
 
 /// Housekeeping: expired players and connections not resumed.
 const TICK: Duration = Duration::from_secs(1);
@@ -145,8 +145,16 @@ impl MusicBridge {
             .allowed
             .as_ref()
             .is_none_or(|allowed| allowed.contains(&ip));
+        let first = allowed && live.discovered.is_none();
         if allowed {
             live.discovered = Some(ip);
+        }
+        drop(shared);
+        if first {
+            let _ = self.config.events.send(BridgeEvent::Discovered {
+                channel_id: channel,
+                from: ip,
+            });
         }
         allowed
     }

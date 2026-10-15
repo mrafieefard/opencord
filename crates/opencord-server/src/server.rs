@@ -6,7 +6,7 @@ use std::time::{Duration, Instant};
 
 use anyhow::Context as _;
 use axum_server::Handle;
-use axum_server::tls_rustls::RustlsConfig;
+use axum_server::tls_rustls::{RustlsAcceptor, RustlsConfig};
 use ed25519_dalek::VerifyingKey;
 use opencord_common::address::{Fingerprint, InviteLink, ServerAddress};
 use opencord_common::limits::SOUND_COOLDOWN_MAX_S;
@@ -19,6 +19,7 @@ use crate::config::{Config, VoiceMode};
 use crate::domains::{self, Domains};
 use crate::gateway::session::CloseCode;
 use crate::guild::Guild;
+use crate::handshakes::WatchedAcceptor;
 use crate::network::settings::NetworkSettings;
 use crate::network::{Listening, Network};
 use crate::secrets::Secrets;
@@ -65,7 +66,9 @@ pub async fn start(config: Config) -> anyhow::Result<ServerHandle> {
     let tls = tls::load_or_generate(&config.tls, &data_dir.join("tls"), &hostnames(&config))?;
     let voice_key = voice::keys::load_or_generate(&data_dir)?;
     let (embedded, node_events) = embedded_node(&config, &voice_key).await?;
-    let music_bridge = music::start_bridge(&config, embedded.as_ref()).await?;
+    let (music_bridge, bridge_events) = music::start_bridge(&config, embedded.as_ref())
+        .await?
+        .unzip();
     let guild = Guild::load(&mut *pool.acquire().await?, bootstrap.meta).await?;
     let invite_code = bootstrap::startup_invite(&pool, now_ms()).await?;
     let secrets = Secrets::load_or_generate(&data_dir)?;
@@ -109,6 +112,10 @@ pub async fn start(config: Config) -> anyhow::Result<ServerHandle> {
             }
         });
     }
+    if let Some(events) = bridge_events {
+        music::watch_bridge(&state, events);
+    }
+    crate::lavalink::start(&state).await?;
     if let Some(mut events) = node_events {
         let state = Arc::clone(&state);
         tokio::spawn(async move {
@@ -121,8 +128,10 @@ pub async fn start(config: Config) -> anyhow::Result<ServerHandle> {
     let handle = Handle::new();
     let app = http::router(Arc::clone(&state)).into_make_service_with_connect_info::<SocketAddr>();
     let bound = listener.local_addr()?;
+    let acceptor = WatchedAcceptor::new(RustlsAcceptor::new(rustls), state.lavalink.refusals());
     let serve = tokio::spawn(
-        axum_server::from_tcp_rustls(listener, rustls)?
+        axum_server::from_tcp(listener)?
+            .acceptor(acceptor)
             .handle(handle.clone())
             .serve(app),
     );
@@ -214,6 +223,11 @@ impl ServerHandle {
 
     /// The audio bridge, when music is on. Intended for tests that stand in
     /// for the music player.
+    /// The Lavalink nodes, for tests of choosing between them.
+    pub fn lavalink(&self) -> &crate::lavalink::Lavalink {
+        &self.state.lavalink
+    }
+
     pub fn music_bridge(&self) -> Option<&opencord_voice::bridge::MusicBridge> {
         self.state.music_bridge.as_ref()
     }

@@ -6,6 +6,7 @@ import 'package:clock/clock.dart';
 import 'package:opencord/core/mock/mock_world.dart';
 import 'package:opencord/core/model/stream.dart';
 import 'package:opencord/core/model/channel.dart';
+import 'package:opencord/core/model/lavalink.dart';
 import 'package:opencord/core/model/message.dart';
 import 'package:opencord/core/model/misc.dart';
 import 'package:opencord/core/model/network.dart';
@@ -1415,6 +1416,309 @@ class MockRepository implements OpencordRepository {
     await _latency();
     server.voiceSettings = settings;
     _emit(VoiceSettingsChanged(serverKey, settings));
+  }
+
+  // Lavalink nodes ----------------------------------------------------------------
+
+  LavalinkNodes _lavalink(MockServer server, LavalinkNodes nodes) {
+    server.lavalink = nodes;
+    return nodes;
+  }
+
+  /// Tells whoever watches, and keeps it.
+  void _lavalinkNode(MockServer server, LavalinkNode node) {
+    _lavalink(server, server.lavalink.withNode(node));
+    _emit(
+      LavalinkNodeChanged(
+        server.key,
+        nodeId: node.id,
+        node: node,
+        channelsPlaying: server.lavalink.channelsPlaying,
+      ),
+    );
+  }
+
+  void _lavalinkEvent(MockServer server, LavalinkEventKind kind, String text) {
+    final nodeEvent = LavalinkNodeEvent(
+      nodeId: 0,
+      kind: kind,
+      text: text,
+      at: _clock(),
+    );
+    _lavalink(server, server.lavalink.withEvent(nodeEvent));
+    _emit(LavalinkNodeEventReceived(server.key, nodeEvent));
+  }
+
+  /// Why a mock node cannot be reached: "unreachable" in the host, or the
+  /// password "wrong".
+  String? _lavalinkProblem(LavalinkNodeSettings settings, String password) {
+    if (settings.host.contains('unreachable')) {
+      return 'Nothing is listening on ${settings.address}: check the port, '
+          'and that Lavalink is running';
+    }
+    if (password == 'wrong') return 'Lavalink refused the password';
+    return null;
+  }
+
+  /// Connects a mock node a moment later.
+  void _connectLavalink(MockServer server, int id) {
+    _later(const Duration(milliseconds: 600), () {
+      final node = server.lavalink.node(id);
+      if (node == null || !node.settings.enabled) return;
+      final problem = _lavalinkProblem(
+        node.settings,
+        server.lavalinkPasswords[id] ?? '',
+      );
+      final name = node.settings.name;
+      if (problem != null) {
+        _lavalinkNode(
+          server,
+          LavalinkNode(
+            id: id,
+            settings: node.settings,
+            draining: node.draining,
+            health: LavalinkHealth.unavailable,
+            reason: problem,
+            lastError: problem,
+          ),
+        );
+        _lavalinkEvent(
+          server,
+          LavalinkEventKind.disconnected,
+          '$name is unavailable: $problem',
+        );
+        return;
+      }
+      _lavalinkNode(
+        server,
+        LavalinkNode(
+          id: id,
+          settings: node.settings,
+          draining: node.draining,
+          health: node.draining
+              ? LavalinkHealth.draining
+              : LavalinkHealth.healthy,
+          version: '4.2.2',
+          sources: const ['youtube', 'soundcloud', 'bandcamp'],
+          plugins: const ['youtube-plugin 1.13.3'],
+          cpuPercent: 6 + _random.nextInt(10),
+          pingMs: 18 + _random.nextInt(30),
+          connectedSince: _clock(),
+        ),
+      );
+      _lavalinkEvent(
+        server,
+        LavalinkEventKind.connected,
+        '$name connected (Lavalink 4.2.2)',
+      );
+    });
+  }
+
+  @override
+  Future<LavalinkNodes> lavalinkNodes(
+    String serverKey, {
+    required bool watch,
+  }) async {
+    final server = _server(serverKey);
+    _require(server, Permissions.manageServer);
+    if (watch) await _latency(60);
+    return server.lavalink;
+  }
+
+  @override
+  Future<LavalinkNodes> createLavalinkNode(
+    String serverKey,
+    LavalinkNodeSettings settings,
+    String password,
+  ) async {
+    final server = _server(serverKey);
+    _require(server, Permissions.manageServer);
+    await _latency();
+    _checkLavalink(settings);
+    if (password.isEmpty) {
+      throw const RepoException(
+        RepoErrorKind.invalidArgument,
+        "the password is Lavalink's server.password, up to 512 characters",
+      );
+    }
+    if (server.lavalink.nodes.length >= maxLavalinkNodes) {
+      throw const RepoException(
+        RepoErrorKind.invalidArgument,
+        'a server has at most 20 Lavalink nodes',
+      );
+    }
+    final id = _world.ids.at(_clock());
+    server.lavalinkPasswords[id] = password;
+    final node = LavalinkNode(
+      id: id,
+      settings: settings,
+      health: settings.enabled
+          ? LavalinkHealth.connecting
+          : LavalinkHealth.disabled,
+    );
+    _lavalinkNode(server, node);
+    if (settings.enabled) _connectLavalink(server, id);
+    return server.lavalink;
+  }
+
+  void _checkLavalink(LavalinkNodeSettings settings) {
+    final host = settings.host;
+    if (settings.name.trim().isEmpty) {
+      throw const RepoException(
+        RepoErrorKind.invalidArgument,
+        'a node needs a name of up to 64 characters',
+      );
+    }
+    if (host.isEmpty || host.contains('/') || host.contains(' ')) {
+      throw const RepoException(
+        RepoErrorKind.invalidArgument,
+        'the host is a name like lavalink.example.com or an IP address, '
+        'without http:// or a path',
+      );
+    }
+    if (settings.port < 1 || settings.port > 65535) {
+      throw const RepoException(
+        RepoErrorKind.invalidArgument,
+        'the port is a number from 1 to 65535',
+      );
+    }
+  }
+
+  @override
+  Future<LavalinkNodes> updateLavalinkNode(
+    String serverKey,
+    int nodeId,
+    LavalinkNodeChanges changes,
+  ) async {
+    final server = _server(serverKey);
+    _require(server, Permissions.manageServer);
+    await _latency();
+    final old = server.lavalink.node(nodeId);
+    if (old == null) {
+      throw const RepoException(RepoErrorKind.notFound, 'Unknown node.');
+    }
+    final settings = changes.settings ?? old.settings;
+    _checkLavalink(settings);
+    if (changes.password case final password?) {
+      server.lavalinkPasswords[nodeId] = password;
+    }
+    final draining = changes.draining ?? old.draining;
+    final reconnect =
+        changes.password != null ||
+        settings.host != old.settings.host ||
+        settings.port != old.settings.port ||
+        settings.secure != old.settings.secure ||
+        (settings.enabled && !old.settings.enabled);
+    final health = switch ((settings.enabled, draining, reconnect)) {
+      (false, _, _) => LavalinkHealth.disabled,
+      (true, _, true) => LavalinkHealth.connecting,
+      (true, true, false) when old.health.isUp => LavalinkHealth.draining,
+      (true, false, false) when old.health == LavalinkHealth.draining =>
+        LavalinkHealth.healthy,
+      _ => old.health,
+    };
+    _lavalinkNode(
+      server,
+      LavalinkNode(
+        id: nodeId,
+        settings: settings,
+        draining: draining,
+        health: health,
+        reason: reconnect ? '' : old.reason,
+        version: old.version,
+        sources: old.sources,
+        plugins: old.plugins,
+        channels: old.channels,
+        cpuPercent: old.cpuPercent,
+        pingMs: old.pingMs,
+        lastError: old.lastError,
+        connectedSince: health.isUp ? old.connectedSince : null,
+      ),
+    );
+    if (reconnect && settings.enabled) _connectLavalink(server, nodeId);
+    return server.lavalink;
+  }
+
+  @override
+  Future<LavalinkNodes> deleteLavalinkNode(String serverKey, int nodeId) async {
+    final server = _server(serverKey);
+    _require(server, Permissions.manageServer);
+    await _latency();
+    server.lavalinkPasswords.remove(nodeId);
+    _lavalink(server, server.lavalink.without(nodeId));
+    _emit(
+      LavalinkNodeChanged(
+        server.key,
+        nodeId: nodeId,
+        node: null,
+        channelsPlaying: server.lavalink.channelsPlaying,
+      ),
+    );
+    return server.lavalink;
+  }
+
+  @override
+  Future<void> testLavalinkNode(String serverKey, int nodeId) async {
+    final server = _server(serverKey);
+    _require(server, Permissions.manageServer);
+    final node = server.lavalink.node(nodeId);
+    if (node == null) {
+      throw const RepoException(RepoErrorKind.notFound, 'Unknown node.');
+    }
+    await _latency(40);
+    final problem = _lavalinkProblem(
+      node.settings,
+      server.lavalinkPasswords[nodeId] ?? '',
+    );
+    final bridge = server.lavalink.bridge;
+    final outcomes = <(LavalinkTestStepState, String)>[
+      if (problem != null)
+        (LavalinkTestStepState.failed, problem)
+      else ...[
+        (
+          LavalinkTestStepState.passed,
+          'Lavalink 4.2.2 · sources: youtube, soundcloud, bandcamp',
+        ),
+        (LavalinkTestStepState.passed, 'Lavalink is ready for players'),
+        (
+          LavalinkTestStepState.passed,
+          'Lavalink signed in at ${bridge.url} and reached the audio port '
+              'from ${node.settings.host}',
+        ),
+      ],
+    ];
+    var steps = LavalinkTestProgress.started(nodeId).steps;
+    void send({bool done = false}) => _emit(
+      LavalinkTestProgressed(
+        server.key,
+        LavalinkTestProgress(nodeId: nodeId, steps: steps, done: done),
+      ),
+    );
+    for (final (index, (state, detail)) in outcomes.indexed) {
+      _later(Duration(milliseconds: 300 + 500 * index), () {
+        steps = [
+          for (final (at, step) in steps.indexed)
+            at == index
+                ? LavalinkTestStep(
+                    kind: step.kind,
+                    state: state,
+                    detail: detail,
+                  )
+                : at > index && state == LavalinkTestStepState.failed
+                ? LavalinkTestStep(
+                    kind: step.kind,
+                    state: LavalinkTestStepState.skipped,
+                  )
+                : at == index + 1
+                ? LavalinkTestStep(
+                    kind: step.kind,
+                    state: LavalinkTestStepState.running,
+                  )
+                : step,
+        ];
+        send(done: index == outcomes.length - 1);
+      });
+    }
   }
 
   // Domains & network -------------------------------------------------------------

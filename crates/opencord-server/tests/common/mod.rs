@@ -3,6 +3,7 @@
 #![allow(dead_code)]
 
 pub mod domains;
+pub mod fake_lavalink;
 pub mod pebble;
 
 use std::collections::VecDeque;

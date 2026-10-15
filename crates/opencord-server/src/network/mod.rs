@@ -124,6 +124,16 @@ impl Network {
         self.public.subscribe()
     }
 
+    /// The public addresses in use now.
+    pub fn current_public_ips(&self) -> PublicIps {
+        *self.public.borrow()
+    }
+
+    /// The router's mapping of a port, with UPnP.
+    pub fn mapping(&self, protocol: PortProtocol, port: u16) -> proto::MappingState {
+        self.upnp.status().mapping(protocol, port).0
+    }
+
     /// What this server listens on, once it does.
     pub fn set_listening(&self, main_port: u16, listening: Listening) {
         self.main_port.store(main_port, Ordering::Relaxed);
