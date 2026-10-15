@@ -69,6 +69,9 @@ impl Decoder {
                 let raw = context.as_mut_ptr();
                 (*raw).hw_device_ctx = device.reference();
                 (*raw).get_format = Some(prefer_hardware);
+                // Pictures handed on as they are (zero-copy) keep their
+                // surfaces a while: room for them besides the references.
+                (*raw).extra_hw_frames = EXTRA_SURFACES;
             }
         }
         let decoder = context
@@ -115,6 +118,62 @@ impl Decoder {
         Ok(pictures)
     }
 }
+
+/// What [`Decoder::decode_gpu`] hands on: a picture in memory, or one
+/// left on the GPU.
+#[cfg(target_os = "linux")]
+pub enum Decoded {
+    Picture(Picture),
+    Gpu(super::dmabuf::DmaBufPicture),
+}
+
+#[cfg(target_os = "linux")]
+impl Decoder {
+    /// Like [`Self::decode`], but a hardware decoder's pictures stay on the
+    /// GPU as DMA-BUF planes, where this system can export them; those it
+    /// cannot come back in memory.
+    pub fn decode_gpu(
+        &mut self,
+        nal_units: &[impl AsRef<[u8]>],
+        captured: Instant,
+    ) -> Result<Vec<Decoded>, CodecError> {
+        let packet = ff::Packet::copy(&annexb::join(nal_units));
+        self.decoder.send_packet(&packet).map_err(ffmpeg::error)?;
+        let mut decoded = Vec::new();
+        loop {
+            match self.decoder.receive_frame(&mut self.frame) {
+                Ok(()) => {
+                    if self.frame.format() != Pixel::from(SURFACE) {
+                        decoded.extend(
+                            ffmpeg::from_frame(&self.frame, captured).map(Decoded::Picture),
+                        );
+                        continue;
+                    }
+                    let mut held = ff::frame::Video::empty();
+                    // SAFETY: `held` is empty; it takes a new reference to
+                    // the decoded frame and its surface.
+                    let referenced =
+                        unsafe { ffi::av_frame_ref(held.as_mut_ptr(), self.frame.as_ptr()) } >= 0;
+                    match referenced.then(|| super::dmabuf::export(held, captured)) {
+                        Some(Ok(gpu)) => decoded.push(Decoded::Gpu(gpu)),
+                        _ => decoded.extend(
+                            download(&self.frame)
+                                .and_then(|frame| ffmpeg::from_frame(&frame, captured))
+                                .map(Decoded::Picture),
+                        ),
+                    }
+                }
+                Err(ff::Error::Other { errno }) if errno == ff::error::EAGAIN => break,
+                Err(error) => return Err(ffmpeg::error(error)),
+            }
+        }
+        Ok(decoded)
+    }
+}
+
+/// Surfaces a hardware decoder holds besides its references, for pictures
+/// still being drawn.
+const EXTRA_SURFACES: i32 = 4;
 
 /// A hardware surface's picture in memory.
 fn download(surface: &ff::frame::Video) -> Option<ff::frame::Video> {

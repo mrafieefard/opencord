@@ -18,6 +18,8 @@ pub mod convert;
 mod d3d11va;
 #[cfg(any(target_os = "linux", windows))]
 pub mod decoder;
+#[cfg(target_os = "linux")]
+pub mod dmabuf;
 #[cfg(any(target_os = "linux", windows))]
 pub mod encoder;
 #[cfg(any(target_os = "linux", windows))]

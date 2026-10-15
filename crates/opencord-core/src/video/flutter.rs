@@ -38,6 +38,19 @@ static LIVE: Mutex<Option<HashMap<i64, Weak<Latest>>>> = Mutex::new(None);
 
 /// Pictures handed to a texture and pictures Flutter drew from it.
 pub fn stats(texture_id: i64) -> Option<(u64, u64)> {
+    #[cfg(target_os = "linux")]
+    {
+        let tiles = lock(&super::gl::TILES);
+        if let Some(tile) = tiles
+            .as_ref()
+            .and_then(|tiles| tiles.get(&texture_id)?.upgrade())
+        {
+            return Some((
+                tile.presented.load(Ordering::Relaxed),
+                tile.drawn.load(Ordering::Relaxed),
+            ));
+        }
+    }
     let live = lock(&LIVE);
     let latest = live.as_ref()?.get(&texture_id)?.upgrade()?;
     Some((
@@ -142,11 +155,91 @@ impl Drop for FlutterSink {
     }
 }
 
+/// A GL texture's sink (`gl.rs`): pictures in memory are uploaded, those
+/// on the GPU drawn from it.
+#[cfg(target_os = "linux")]
+struct GlSink {
+    id: i64,
+    tile: Arc<super::gl::Tile>,
+    texture: Option<Arc<SendableTexture<irondash_texture::BoxedGLTexture>>>,
+    main: RunLoopSender,
+}
+
+#[cfg(target_os = "linux")]
+impl FrameSink for GlSink {
+    fn id(&self) -> i64 {
+        self.id
+    }
+
+    fn present(&self, width: u32, height: u32, rgba: Vec<u8>) {
+        self.tile.present(width, height, rgba);
+    }
+
+    fn takes_gpu(&self) -> bool {
+        true
+    }
+
+    fn present_gpu(
+        &self,
+        picture: opencord_media::video::codec::dmabuf::DmaBufPicture,
+        size: (u32, u32),
+    ) -> bool {
+        self.tile.present_gpu(picture, size)
+    }
+}
+
+#[cfg(target_os = "linux")]
+impl Drop for GlSink {
+    fn drop(&mut self) {
+        if let Some(texture) = self.texture.take() {
+            self.main.send(move || drop(texture));
+        }
+    }
+}
+
+#[cfg(target_os = "linux")]
+impl FlutterTextures {
+    fn create_gl(&self, main: RunLoopSender) -> Option<Arc<dyn FrameSink>> {
+        let engine = self.engine;
+        let made = main.send_and_wait(move || {
+            let tile = super::gl::Tile::new();
+            let provider: Arc<dyn PayloadProvider<irondash_texture::BoxedGLTexture>> = tile.clone();
+            match Texture::new_with_provider(engine, provider) {
+                Ok(texture) => Ok((texture.id(), tile, texture.into_sendable_texture())),
+                Err(error) => Err(format!("{error:?}")),
+            }
+        });
+        match made {
+            Ok((id, tile, texture)) => {
+                tile.set_texture(Arc::clone(&texture));
+                let mut tiles = lock(&super::gl::TILES);
+                let tiles = tiles.get_or_insert_with(HashMap::new);
+                tiles.retain(|_, tile| tile.strong_count() > 0);
+                tiles.insert(id, Arc::downgrade(&tile));
+                Some(Arc::new(GlSink {
+                    id,
+                    tile,
+                    texture: Some(texture),
+                    main,
+                }))
+            }
+            Err(error) => {
+                tracing::warn!(%error, "a GL texture could not be made");
+                None
+            }
+        }
+    }
+}
+
 impl Textures for FlutterTextures {
     fn create(&self) -> Option<Arc<dyn FrameSink>> {
         let main = RunLoop::sender_for_main_thread()
             .inspect_err(|error| tracing::warn!(?error, "no Flutter main thread for textures"))
             .ok()?;
+        #[cfg(target_os = "linux")]
+        if super::gl::enabled() {
+            return self.create_gl(main);
+        }
         let engine = self.engine;
         let made = main.send_and_wait(move || {
             let latest = Arc::new(Latest::default());

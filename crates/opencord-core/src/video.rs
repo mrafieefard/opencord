@@ -13,6 +13,8 @@ use crate::api::types::{CameraProblem, CoreError, MediaEvent, VideoTrackKind, Vi
 
 #[cfg(any(target_os = "linux", target_os = "macos", target_os = "windows"))]
 pub mod flutter;
+#[cfg(target_os = "linux")]
+pub(crate) mod gl;
 pub(crate) mod screen;
 
 /// Where a track's pictures are drawn: one of the app's textures.
@@ -20,6 +22,21 @@ pub trait FrameSink: Send + Sync {
     fn id(&self) -> i64;
     /// Shows these RGBA rows from the next frame on.
     fn present(&self, width: u32, height: u32, rgba: Vec<u8>);
+    /// Takes pictures still on the GPU ([`Self::present_gpu`]).
+    #[cfg(target_os = "linux")]
+    fn takes_gpu(&self) -> bool {
+        false
+    }
+    /// Shows a picture the decoder left on the GPU, at `size`; `false`
+    /// when it cannot, and pictures come as RGBA from then on.
+    #[cfg(target_os = "linux")]
+    fn present_gpu(
+        &self,
+        _picture: opencord_media::video::codec::dmabuf::DmaBufPicture,
+        _size: (u32, u32),
+    ) -> bool {
+        false
+    }
 }
 
 /// Makes sinks for the app's engine.
@@ -338,13 +355,25 @@ impl Video {
                     let receiver = remote.receiver.get_or_insert_with(|| {
                         let outlet = Arc::clone(&self.outlet);
                         let track_id = track_id.clone();
+                        let lost = move || {
+                            if let Some(connection) = lock(&outlet).as_ref() {
+                                connection.request_keyframe(&track_id);
+                            }
+                        };
+                        // Pictures stay on the GPU where the texture takes
+                        // them (plan §7.11).
+                        #[cfg(target_os = "linux")]
+                        if texture.takes_gpu() {
+                            let gpu = Arc::clone(&texture);
+                            return opencord_media::video::receiver::VideoReceiver::start_with_gpu(
+                                move |rgba| texture.present(rgba.width, rgba.height, rgba.data),
+                                Box::new(move |picture, size| gpu.present_gpu(picture, size)),
+                                lost,
+                            );
+                        }
                         opencord_media::video::receiver::VideoReceiver::start(
                             move |rgba| texture.present(rgba.width, rgba.height, rgba.data),
-                            move || {
-                                if let Some(connection) = lock(&outlet).as_ref() {
-                                    connection.request_keyframe(&track_id);
-                                }
-                            },
+                            lost,
                         )
                     });
                     receiver.set_size(width, height);

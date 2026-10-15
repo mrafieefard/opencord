@@ -47,6 +47,12 @@ irondash_texture.workspace = true
 # One section per system (docs/plans/platforms.md): each session edits only
 # its own. A crate only one system needs goes here with its version, never
 # in [workspace.dependencies].
+[target.'cfg(target_os = "linux")'.dependencies]
+# Zero-copy video textures (plan §7.11): decoded pictures drawn from the
+# GPU into Flutter's GL textures. EGL loaded at run time, like Flutter's.
+glow = "0.18.0"
+khronos-egl = { version = "6.0.0", features = ["dynamic"] }
+
 [target.'cfg(target_os = "macos")'.dependencies]
 
 [target.'cfg(target_os = "windows")'.dependencies]
