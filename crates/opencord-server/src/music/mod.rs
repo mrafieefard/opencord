@@ -30,6 +30,7 @@ use crate::lavalink::{HealthChange, lock};
 use crate::network::ClientAddr;
 use crate::state::AppState;
 
+pub mod artwork;
 pub mod player;
 pub mod queue;
 pub mod search;
@@ -158,6 +159,8 @@ pub struct Music {
     preferred: Mutex<HashMap<i64, i64>>,
     /// Search results handed out.
     pub results: search::Results,
+    /// Artwork ids handed out, and the pictures kept.
+    pub artwork: artwork::Artwork,
 }
 
 impl Music {

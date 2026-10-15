@@ -597,6 +597,32 @@ Future<LavalinkNodes> moveLavalinkPlayers({
   toNodeId: toNodeId,
 );
 
+/// Searches, or loads a link, for a voice channel; `source` empty for the
+/// server's default (Phase 3 plan §15.1). Needs Add music.
+Future<MusicSearchResults> musicSearch({
+  required String serverKey,
+  required PlatformInt64 channelId,
+  required String query,
+  required String source,
+}) => RustLib.instance.api.crateApiClientMusicSearch(
+  serverKey: serverKey,
+  channelId: channelId,
+  query: query,
+  source: source,
+);
+
+/// A track's artwork through the server, at 128 or 512 px: the path of a
+/// file kept on this device (Phase 3 plan §15.4).
+Future<String> musicArtwork({
+  required String serverKey,
+  required String artworkId,
+  required int size,
+}) => RustLib.instance.api.crateApiClientMusicArtwork(
+  serverKey: serverKey,
+  artworkId: artworkId,
+  size: size,
+);
+
 /// The music settings, with the search sources available now.
 Future<MusicSettings> musicSettings({required String serverKey}) =>
     RustLib.instance.api.crateApiClientMusicSettings(serverKey: serverKey);

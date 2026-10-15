@@ -358,6 +358,8 @@ Requests need `Authorization: Bearer <media_token>`: the encoded `MediaTokenClai
 - `POST /media/sounds?name=…&emoji=…&volume=…`, with the Ogg Opus file as the body, adds a sound to this server's soundboard. It needs base `MANAGE_SOUNDBOARD` and room under `max_sounds`; the answer is 201 with the sound.
 - `POST /media/external-sounds`, with the file as the body, keeps another server's sound here so this server's listeners can fetch it. It needs `allow_external_sounds`; 10 per minute per user; the answer is 200 with an ack.
 
+- `GET /media/music/artwork/{artwork_id}?size=128|512` returns a track's artwork as JPEG (Phase 3 plan §15.4), cacheable for 7 days. `artwork_id` comes from a `MusicTrack` or `MusicNowPlaying`; it stands for an address Lavalink gave in a result, which the server fetches (https, public hosts, at most 5 MB in 5 s), resizes and encodes again without metadata. 404 for an id the server didn't hand out or another size; 502 when the picture can't be fetched (clients show their placeholder).
+
 Both uploads answer with a protobuf `Response` (`application/x-protobuf`), the same envelope as gateway requests: the result, or an `error` with its code and a matching status (400 `SOUND_TOO_LONG`, `SOUND_INVALID` or `INVALID_ARGUMENT`; 403 `FORBIDDEN`; 409 `SOUNDBOARD_FULL`; 429 `RATE_LIMITED`). The body is read up to 256 KB and no further, then parsed: the server trusts nothing the client says about the file.
 
 `GET /info` adds `voice_enabled` and `voice_udp_port` (the embedded node's media port; null without one).

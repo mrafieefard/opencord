@@ -1,6 +1,11 @@
-//! A certificate authority for tests: certificates an authority signed, for
-//! names like `chat.example.test`, without the internet. Clients told to
-//! trust [`TestCa::ca_pem`] check them as they would Let's Encrypt's.
+//! Stand-ins for tests, the server's and the core's: a certificate
+//! authority, and a fake Lavalink node ([`fake_lavalink`]).
+//!
+//! The certificate authority signs certificates for names like
+//! `chat.example.test`, without the internet. Clients told to trust
+//! [`TestCa::ca_pem`] check them as they would Let's Encrypt's.
+
+pub mod fake_lavalink;
 
 use rcgen::{
     BasicConstraints, CertificateParams, CertifiedIssuer, DnType, IsCa, Issuer, KeyPair,

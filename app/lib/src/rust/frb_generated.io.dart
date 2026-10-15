@@ -115,6 +115,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   Message dco_decode_box_autoadd_message(dynamic raw);
 
   @protected
+  MusicPlaylist dco_decode_box_autoadd_music_playlist(dynamic raw);
+
+  @protected
   MusicSettings dco_decode_box_autoadd_music_settings(dynamic raw);
 
   @protected
@@ -424,6 +427,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   List<MusicBlock> dco_decode_list_music_block(dynamic raw);
 
   @protected
+  List<MusicSearchResult> dco_decode_list_music_search_result(dynamic raw);
+
+  @protected
   List<PermissionOverwrite> dco_decode_list_permission_overwrite(dynamic raw);
 
   @protected
@@ -490,10 +496,22 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   MusicBlock dco_decode_music_block(dynamic raw);
 
   @protected
+  MusicPlaylist dco_decode_music_playlist(dynamic raw);
+
+  @protected
+  MusicSearchResult dco_decode_music_search_result(dynamic raw);
+
+  @protected
+  MusicSearchResults dco_decode_music_search_results(dynamic raw);
+
+  @protected
   MusicSettings dco_decode_music_settings(dynamic raw);
 
   @protected
   MusicSettingsChanges dco_decode_music_settings_changes(dynamic raw);
+
+  @protected
+  MusicTrack dco_decode_music_track(dynamic raw);
 
   @protected
   NetworkInfo dco_decode_network_info(dynamic raw);
@@ -535,6 +553,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   LavalinkNodeSettings? dco_decode_opt_box_autoadd_lavalink_node_settings(
     dynamic raw,
   );
+
+  @protected
+  MusicPlaylist? dco_decode_opt_box_autoadd_music_playlist(dynamic raw);
 
   @protected
   ScreenShareResolution? dco_decode_opt_box_autoadd_screen_share_resolution(
@@ -838,6 +859,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   Message sse_decode_box_autoadd_message(SseDeserializer deserializer);
+
+  @protected
+  MusicPlaylist sse_decode_box_autoadd_music_playlist(
+    SseDeserializer deserializer,
+  );
 
   @protected
   MusicSettings sse_decode_box_autoadd_music_settings(
@@ -1209,6 +1235,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   List<MusicBlock> sse_decode_list_music_block(SseDeserializer deserializer);
 
   @protected
+  List<MusicSearchResult> sse_decode_list_music_search_result(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   List<PermissionOverwrite> sse_decode_list_permission_overwrite(
     SseDeserializer deserializer,
   );
@@ -1289,12 +1320,28 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   MusicBlock sse_decode_music_block(SseDeserializer deserializer);
 
   @protected
+  MusicPlaylist sse_decode_music_playlist(SseDeserializer deserializer);
+
+  @protected
+  MusicSearchResult sse_decode_music_search_result(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  MusicSearchResults sse_decode_music_search_results(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   MusicSettings sse_decode_music_settings(SseDeserializer deserializer);
 
   @protected
   MusicSettingsChanges sse_decode_music_settings_changes(
     SseDeserializer deserializer,
   );
+
+  @protected
+  MusicTrack sse_decode_music_track(SseDeserializer deserializer);
 
   @protected
   NetworkInfo sse_decode_network_info(SseDeserializer deserializer);
@@ -1344,6 +1391,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   LavalinkNodeSettings? sse_decode_opt_box_autoadd_lavalink_node_settings(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  MusicPlaylist? sse_decode_opt_box_autoadd_music_playlist(
     SseDeserializer deserializer,
   );
 
@@ -1703,6 +1755,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_box_autoadd_message(Message self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_box_autoadd_music_playlist(
+    MusicPlaylist self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_box_autoadd_music_settings(
@@ -2182,6 +2240,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_list_music_search_result(
+    List<MusicSearchResult> self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_list_permission_overwrite(
     List<PermissionOverwrite> self,
     SseSerializer serializer,
@@ -2287,6 +2351,21 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_music_block(MusicBlock self, SseSerializer serializer);
 
   @protected
+  void sse_encode_music_playlist(MusicPlaylist self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_music_search_result(
+    MusicSearchResult self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_music_search_results(
+    MusicSearchResults self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_music_settings(MusicSettings self, SseSerializer serializer);
 
   @protected
@@ -2294,6 +2373,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
     MusicSettingsChanges self,
     SseSerializer serializer,
   );
+
+  @protected
+  void sse_encode_music_track(MusicTrack self, SseSerializer serializer);
 
   @protected
   void sse_encode_network_info(NetworkInfo self, SseSerializer serializer);
@@ -2358,6 +2440,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_opt_box_autoadd_lavalink_node_settings(
     LavalinkNodeSettings? self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_opt_box_autoadd_music_playlist(
+    MusicPlaylist? self,
     SseSerializer serializer,
   );
 

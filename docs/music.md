@@ -129,6 +129,37 @@ You choose, and are responsible for, the sources you enable.
 
 When everyone leaves a channel, its music pauses at once. After *Stop after everyone leaves* its Lavalink player is let go; the queue is kept for 30 minutes, and music carries on from the same place when someone comes back. When the queue ends, the player is let go after *Disconnect after the queue ends*.
 
+## Search, links and artwork
+
+Members search the sources turned on in the music settings that a node offers now: YouTube Music, YouTube, SoundCloud, Bandcamp, and Spotify, Apple Music and Deezer through the LavaSrc plugin. A search finds up to 15 tracks. Members get opaque result ids, good for 15 minutes and for them only. The app never sends Lavalink an encoded track or a raw identifier, so it can't make Lavalink play anything a search didn't find. 10 searches per 10 seconds per member; a search is at most 200 characters.
+
+**Links** work when *Allow links* is on: `https` only, to the sites of an enabled source (`youtube.com`, `youtu.be`, `music.youtube.com`, `soundcloud.com`, `open.spotify.com`, `music.apple.com`, `deezer.com`, `*.bandcamp.com` and a few more). Addresses, `localhost`, private names and links with a user name are refused, and so are tracks Lavalink would play from its `http` or `local` source, since those make Lavalink fetch any address or file. A playlist link shows as one card with Add all, up to the playlist limit.
+
+**Artwork** comes from Opencord, never straight from YouTube or other sites. Opencord fetches only the artwork addresses Lavalink gave in results: https, public hosts, at most 5 MB in 5 seconds. It makes a 128 px and a 512 px copy, encoded again without metadata, and keeps them for 7 days in `data/music-artwork` (200 MB at most, the least recently used going first). Artwork that can't be fetched shows a music-note placeholder, and isn't tried again for 10 minutes. The app keeps what it showed in its own 100 MB cache.
+
+YouTube needs the youtube-source plugin in Lavalink; Lavalink's own YouTube source no longer works. Its own SoundCloud source fails to search with Lavalink 4.2.2 ("Did not detect any supported formats"). With the plugin, add to `application.yml`:
+
+```yaml
+plugins:
+  youtube:
+    enabled: true
+    allowSearch: true
+    clients:
+      - MUSIC
+      - WEB
+      - WEBEMBEDDED
+      - ANDROID_VR
+lavalink:
+  plugins:
+    - dependency: "dev.lavalink.youtube:youtube-plugin:1.18.2"
+      snapshot: false
+  server:
+    sources:
+      youtube: false
+```
+
+The plugin's own documentation explains what YouTube needs from time to time, such as a refresh token or a different client.
+
 ## When a node goes down
 
 Each channel stays on its node while it plays. When that node becomes unavailable, its channels move to the best other node that offers the track's source, 5 at a time, each from where it was in the track, with a new token at the bridge so nothing more is accepted from the old node. The music panel says "Switched to another music server", and the node events say how many channels moved where. When no node can play, the music pauses with "Music server unavailable — retrying" and carries on once one can.
@@ -226,6 +257,16 @@ cargo test -p opencord-server --test lavalink a_real -- --ignored --nocapture
 ```
 
 It needs `OPENCORD_TEST_LAVALINK`, `OPENCORD_TEST_LAVALINK_PASSWORD` and `OPENCORD_TEST_BRIDGE_TLS`, set as above.
+
+### Search and artwork from the real sites
+
+With the youtube-source plugin set up as in [Search, links and artwork](#search-links-and-artwork), and the internet, this searches YouTube Music and YouTube through a real Lavalink, loads a found track's link again, and fetches its artwork through Opencord's proxy:
+
+```sh
+cargo test -p opencord-server --test music_search a_real -- --ignored --nocapture
+```
+
+It needs `OPENCORD_TEST_LAVALINK` and `OPENCORD_TEST_LAVALINK_PASSWORD`. `OPENCORD_TEST_SEARCH_SOURCES` changes the sources it tries, for example `youtube_music,youtube,spotify` with LavaSrc.
 
 ### Failover between two nodes
 

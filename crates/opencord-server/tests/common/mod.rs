@@ -3,7 +3,7 @@
 #![allow(dead_code)]
 
 pub mod domains;
-pub mod fake_lavalink;
+pub use opencord_server::testing::fake_lavalink;
 pub mod music;
 pub mod pebble;
 

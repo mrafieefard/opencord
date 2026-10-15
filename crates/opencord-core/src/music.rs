@@ -1,16 +1,61 @@
-//! Music (Phase 3 plan §16): its settings, members blocked from it, and
-//! moving players off a Lavalink node.
+//! Music (Phase 3 plan §15–16): its settings, members blocked from it,
+//! moving players off a Lavalink node, and artwork through the server.
 
 use opencord_proto::v1 as proto;
 use proto::request::Kind as Request;
 use proto::response::Result as Response;
 
 use crate::api::types::{
-    CoreError, LavalinkNodes, MusicBlock, MusicSettings, MusicSettingsChanges,
+    CoreError, LavalinkNodes, MusicBlock, MusicPlaylist, MusicSearchResult, MusicSearchResults,
+    MusicSettings, MusicSettingsChanges, MusicTrack,
 };
 use crate::client::{Client, unexpected};
 
 impl Client {
+    /// Searches, or loads a link, for the voice channel; `source` empty for
+    /// the server's default. Needs Add music.
+    pub async fn music_search(
+        &self,
+        key: &str,
+        channel_id: i64,
+        query: String,
+        source: String,
+    ) -> Result<MusicSearchResults, CoreError> {
+        let request = Request::MusicSearch(proto::MusicSearch {
+            channel_id,
+            query,
+            source,
+        });
+        match self.request(key, request).await? {
+            Response::MusicSearchResults(found) => Ok(MusicSearchResults {
+                results: found
+                    .results
+                    .into_iter()
+                    .map(|result| MusicSearchResult {
+                        result_id: result.result_id,
+                        track: track_from(result.track.unwrap_or_default()),
+                    })
+                    .collect(),
+                playlist: found.playlist.map(|playlist| MusicPlaylist {
+                    name: playlist.name,
+                    result_ids: playlist.result_ids,
+                }),
+            }),
+            other => Err(unexpected(&other)),
+        }
+    }
+
+    /// A track's artwork from the server's proxy, at 128 or 512 px: the
+    /// path of a file kept on this device.
+    pub async fn music_artwork(
+        &self,
+        key: &str,
+        artwork_id: &str,
+        size: u32,
+    ) -> Result<String, CoreError> {
+        self.artwork().get(self, key, artwork_id, size).await
+    }
+
     pub async fn music_settings(&self, key: &str) -> Result<MusicSettings, CoreError> {
         let request = Request::FetchMusicSettings(proto::FetchMusicSettings {});
         settings(self.request(key, request).await?)
@@ -125,5 +170,19 @@ pub(crate) fn settings_from(settings: proto::MusicSettings) -> MusicSettings {
         bridge_domain: settings.bridge_domain,
         available_sources: settings.available_sources,
         supported: settings.supported,
+    }
+}
+
+pub(crate) fn track_from(track: proto::MusicTrack) -> MusicTrack {
+    MusicTrack {
+        title: track.title,
+        artist: track.artist,
+        duration_ms: track.duration_ms,
+        is_stream: track.is_stream,
+        is_seekable: track.is_seekable,
+        source: track.source,
+        source_display_name: track.source_display_name,
+        uri: track.uri,
+        artwork_id: track.artwork_id,
     }
 }

@@ -343,6 +343,9 @@ fn results(
         .into_iter()
         .filter(|track| allow_unsafe || !track.is_unsafe_source())
         .collect();
+    for track in &tracks {
+        state.music.artwork.remember(track);
+    }
     let shown: Vec<proto::MusicTrack> = tracks.iter().map(Track::to_proto).collect();
     let ids = state.music.results.keep(user_id, tracks);
     let playlist = loaded.playlist.map(|name| proto::MusicPlaylist {

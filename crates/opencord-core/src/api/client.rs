@@ -16,13 +16,13 @@ use super::types::{
     ChannelChanges, ChannelKind, ChannelPosition, CoreError, CoreEvent, DefaultSound, DomainCheck,
     DomainKind, DomainUpdate, GeneratedIdentity, HotkeyBinding, HotkeySupport, IdentityInfo,
     Invite, LavalinkNodeChanges, LavalinkNodeSettings, LavalinkNodes, MediaEvent, Member, Message,
-    MusicBlock, MusicSettings, MusicSettingsChanges, NetworkInfo, NetworkSettingsChanges,
-    NoiseSuppressionMode, OverwriteTargetKind, PermissionOverwrite, PresenceStatus, Role,
-    RoleChanges, ScreenAudioApp, ScreenAudioSupport, ScreenShareRequest, ScreenShareStarted,
-    ScreenSource, ScreenThumbnail, Server, ServerChanges, ServerInfo, SoundDraft, SoundSelection,
-    SoundboardSound, SoundboardSoundChanges, StreamSourceKind, TextureStats, TrustedFingerprint,
-    TunnelKind, User, VideoSupport, VideoWant, VoiceCue, VoiceSettings, VoiceSettingsChanges,
-    VoiceState,
+    MusicBlock, MusicSearchResults, MusicSettings, MusicSettingsChanges, NetworkInfo,
+    NetworkSettingsChanges, NoiseSuppressionMode, OverwriteTargetKind, PermissionOverwrite,
+    PresenceStatus, Role, RoleChanges, ScreenAudioApp, ScreenAudioSupport, ScreenShareRequest,
+    ScreenShareStarted, ScreenSource, ScreenThumbnail, Server, ServerChanges, ServerInfo,
+    SoundDraft, SoundSelection, SoundboardSound, SoundboardSoundChanges, StreamSourceKind,
+    TextureStats, TrustedFingerprint, TunnelKind, User, VideoSupport, VideoWant, VoiceCue,
+    VoiceSettings, VoiceSettingsChanges, VoiceState,
 };
 use crate::client::Client;
 use crate::frb_generated::StreamSink;
@@ -703,6 +703,35 @@ pub async fn move_lavalink_players(
             .move_lavalink_players(&server_key, from_node_id, to_node_id)
             .await
     })
+    .await
+}
+
+/// Searches, or loads a link, for a voice channel; `source` empty for the
+/// server's default (Phase 3 plan §15.1). Needs Add music.
+pub async fn music_search(
+    server_key: String,
+    channel_id: i64,
+    query: String,
+    source: String,
+) -> Result<MusicSearchResults, CoreError> {
+    on_runtime(move |client| async move {
+        client
+            .music_search(&server_key, channel_id, query, source)
+            .await
+    })
+    .await
+}
+
+/// A track's artwork through the server, at 128 or 512 px: the path of a
+/// file kept on this device (Phase 3 plan §15.4).
+pub async fn music_artwork(
+    server_key: String,
+    artwork_id: String,
+    size: u32,
+) -> Result<String, CoreError> {
+    on_runtime(
+        move |client| async move { client.music_artwork(&server_key, &artwork_id, size).await },
+    )
     .await
 }
 

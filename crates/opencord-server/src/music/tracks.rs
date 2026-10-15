@@ -58,7 +58,7 @@ impl Track {
             source: info.source_name.clone(),
             source_display_name: source_display_name(&info.source_name),
             uri: info.uri.clone(),
-            artwork_id: String::new(),
+            artwork_id: super::artwork::id_of(&info.artwork_url),
         }
     }
 

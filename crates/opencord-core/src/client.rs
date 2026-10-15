@@ -24,11 +24,13 @@ use crate::api::types::{
     SoundSelection, SoundboardSound, SoundboardSoundChanges, StreamSourceKind, User, VideoWant,
     VoiceCue, VoiceSettings, VoiceSettingsChanges, VoiceState,
 };
+use crate::artwork::ArtworkCache;
 use crate::connection::{
     self, Command, Connection, Context, Credentials, Established, HandshakeError, MediaTokens,
     Route, Routes,
 };
 use crate::convert;
+use crate::http::MediaHttp;
 use crate::identity::Identity;
 use crate::media::{self, Media, MediaOptions, MediaTarget};
 use crate::soundboard::Soundboard;
@@ -78,6 +80,7 @@ struct Inner {
     /// How each server was last reached.
     routes: Routes,
     soundboard: Arc<Soundboard>,
+    artwork: Arc<ArtworkCache>,
 }
 
 /// The app's id, as its desktop file names it; the system's portals ask for
@@ -143,6 +146,10 @@ impl Client {
             Arc::clone(&routes),
             Arc::clone(&media_tokens),
         ));
+        let artwork = Arc::new(ArtworkCache::new(
+            data_dir,
+            MediaHttp::new(Arc::clone(&routes), Arc::clone(&media_tokens)),
+        ));
         let client = Self {
             inner: Arc::new(Inner {
                 runtime: runtime.clone(),
@@ -158,6 +165,7 @@ impl Client {
                 media_tokens,
                 routes,
                 soundboard,
+                artwork,
             }),
         };
         client.spawn_wake_watch();
@@ -1695,6 +1703,10 @@ impl Client {
 
     pub(crate) fn soundboard(&self) -> Arc<Soundboard> {
         Arc::clone(&self.inner.soundboard)
+    }
+
+    pub(crate) fn artwork(&self) -> Arc<ArtworkCache> {
+        Arc::clone(&self.inner.artwork)
     }
 
     /// A request answered with an ack.

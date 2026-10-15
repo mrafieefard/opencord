@@ -211,6 +211,7 @@ impl Session {
         let now = Instant::now();
         let restored = saved.is_some();
         let saved = saved.unwrap_or_default();
+        state.music.artwork.remember_queue(&saved.queue);
         let wants_to_play = saved.queue.now.is_some() && !saved.paused && !saved.paused_empty;
         Self {
             state: Arc::clone(state),
@@ -1159,7 +1160,7 @@ impl Session {
                 channel_id: self.channel_id,
                 title: item.track.info.title.clone(),
                 artist: item.track.info.author.clone(),
-                artwork_id: String::new(),
+                artwork_id: super::artwork::id_of(&item.track.info.artwork_url),
                 playing,
                 ended: false,
             },

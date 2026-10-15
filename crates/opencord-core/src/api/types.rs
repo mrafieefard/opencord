@@ -1542,3 +1542,42 @@ pub struct MusicBlock {
     pub blocked_by: i64,
     pub created_at_ms: i64,
 }
+
+/// A track as the server shows it (Phase 3 plan §18.3); never its encoded
+/// form, which stays on the server.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MusicTrack {
+    pub title: String,
+    pub artist: String,
+    /// 0 for streams.
+    pub duration_ms: u64,
+    pub is_stream: bool,
+    pub is_seekable: bool,
+    /// Lavalink's source name, like "youtube".
+    pub source: String,
+    /// "YouTube", "SoundCloud"…
+    pub source_display_name: String,
+    pub uri: String,
+    /// For `music_artwork`; empty without artwork.
+    pub artwork_id: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MusicSearchResult {
+    /// What to add; good for 15 minutes, for this user only.
+    pub result_id: String,
+    pub track: MusicTrack,
+}
+
+/// A playlist a link loaded, shown as one card with "Add all".
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MusicPlaylist {
+    pub name: String,
+    pub result_ids: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MusicSearchResults {
+    pub results: Vec<MusicSearchResult>,
+    pub playlist: Option<MusicPlaylist>,
+}

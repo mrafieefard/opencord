@@ -62,6 +62,8 @@ pub struct Fake {
     pub loads: Mutex<Vec<String>>,
     /// /v4/info never answers, as a stuck Lavalink's.
     pub info_hangs: AtomicBool,
+    /// The artworkUrl of the tracks it hands out.
+    pub artwork: Mutex<Option<String>>,
     /// To the WebSocket: events and player updates.
     events: broadcast::Sender<String>,
     sessions: AtomicU32,
@@ -174,7 +176,8 @@ impl Fake {
                 "length": if stream { 9_223_372_036_854_775_807u64 } else { 180_000 },
                 "isStream": stream, "position": 0, "title": name,
                 "uri": format!("https://example.com/{}", name.replace(' ', "-")),
-                "artworkUrl": null, "isrc": null, "sourceName": source,
+                "artworkUrl": *self.artwork.lock().unwrap(), "isrc": null,
+                "sourceName": source,
             },
             "pluginInfo": {},
             "userData": {},
@@ -212,6 +215,7 @@ impl FakeLavalink {
             live: Mutex::new(HashMap::new()),
             loads: Mutex::new(Vec::new()),
             info_hangs: AtomicBool::new(false),
+            artwork: Mutex::new(None),
             events: broadcast::channel(256).0,
             sessions: AtomicU32::new(0),
             current: Mutex::new(None),
@@ -461,15 +465,24 @@ async fn load_tracks(
     }
     let identifier = query.get("identifier").cloned().unwrap_or_default();
     fake.loads.lock().unwrap().push(identifier.clone());
-    let source = |prefix: &str| match prefix {
+    let source = |prefix: &str, words: &str| match prefix {
         "scsearch" => "soundcloud",
+        "bcsearch" => "bandcamp",
+        "spsearch" => "spotify",
+        "amsearch" => "applemusic",
+        "dzsearch" => "deezer",
+        "http" | "https" if words.contains("as-http") => "http",
+        "http" | "https" if words.contains("youtube.com/") || words.contains("youtu.be/") => {
+            "youtube"
+        }
+        "http" | "https" if words.contains("soundcloud.com/") => "soundcloud",
         "http" | "https" => "http",
         _ => "youtube",
     };
     let (prefix, words) = identifier
         .split_once(':')
         .unwrap_or(("ytsearch", identifier.as_str()));
-    let source = source(prefix);
+    let source = source(prefix, words);
     if prefix.starts_with("http") {
         let track = fake.make_track(&identifier, source, false);
         return axum::Json(json!({ "loadType": "track", "data": track })).into_response();
@@ -584,7 +597,7 @@ async fn voice_client(
     let Ok(tcp) = TcpStream::connect((host, port)).await else {
         return;
     };
-    let config = opencord_server::tls::client_config(Some(fingerprint)).unwrap();
+    let config = crate::tls::client_config(Some(fingerprint)).unwrap();
     let Ok(tls) = tokio_rustls::TlsConnector::from(Arc::new(config))
         .connect(ServerName::try_from(host.to_owned()).unwrap(), tcp)
         .await

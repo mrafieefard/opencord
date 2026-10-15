@@ -3,7 +3,7 @@
 //! files of at most 256 KB), so each opens its own connection: HTTP/1.1,
 //! `Connection: close`, the response read up to a limit.
 
-use std::sync::Arc;
+use std::sync::{Arc, PoisonError};
 use std::time::Duration;
 
 use opencord_common::address::{Fingerprint, ServerAddress};
@@ -13,6 +13,11 @@ use tokio::net::TcpStream;
 use tokio::time::timeout;
 use tokio_rustls::TlsConnector;
 
+use opencord_proto::v1 as proto;
+
+use crate::api::types::CoreError;
+use crate::client::Client;
+use crate::connection::{MediaTokens, Route, Routes};
 use crate::tofu::TlsTrust;
 
 const CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
@@ -35,6 +40,73 @@ pub enum HttpError {
 pub struct HttpResponse {
     pub status: u16,
     pub body: Vec<u8>,
+}
+
+/// Requests to a server's media endpoints (sounds, music artwork) with
+/// this device's media token, the way its connection reached the server
+/// and checked the same way. An expired token is renewed once.
+#[derive(Clone)]
+pub(crate) struct MediaHttp {
+    routes: Routes,
+    tokens: MediaTokens,
+}
+
+impl MediaHttp {
+    pub fn new(routes: Routes, tokens: MediaTokens) -> Self {
+        Self { routes, tokens }
+    }
+
+    /// Reads at most `limit` bytes of the answer's body.
+    pub async fn request(
+        &self,
+        client: &Client,
+        key: &str,
+        method: &str,
+        path: &str,
+        body: &[u8],
+        limit: usize,
+    ) -> Result<HttpResponse, CoreError> {
+        let Route { address, pin } = self
+            .routes
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .get(key)
+            .cloned()
+            .ok_or(CoreError::NotConnected)?;
+        let mut renewed = false;
+        loop {
+            let token = self.token(key).ok_or(CoreError::NotConnected)?;
+            let response = request(&address, pin, method, path, &token, body, limit)
+                .await
+                .map_err(|error| CoreError::Connection {
+                    message: error.to_string(),
+                })?;
+            if response.status != 401 || renewed {
+                return Ok(response);
+            }
+            let renewal = client
+                .request(
+                    key,
+                    proto::request::Kind::RefreshMediaToken(proto::RefreshMediaToken {}),
+                )
+                .await?;
+            if let proto::response::Result::MediaToken(token) = renewal {
+                self.tokens
+                    .lock()
+                    .unwrap_or_else(PoisonError::into_inner)
+                    .insert(key.to_owned(), token.token);
+            }
+            renewed = true;
+        }
+    }
+
+    fn token(&self, key: &str) -> Option<String> {
+        self.tokens
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .get(key)
+            .cloned()
+    }
 }
 
 /// One request to the server at `address`, whose certificate must match

@@ -27,6 +27,7 @@ use serde::Deserialize;
 use crate::db::sounds::{self, ExternalRow};
 use crate::error::ApiError;
 use crate::handlers::soundboard::check_volume;
+use crate::music::artwork::ArtworkError;
 use crate::permissions::require_base;
 use crate::soundboard::{self, Sound};
 use crate::state::{AppState, Audience, now_ms};
@@ -37,6 +38,49 @@ pub fn routes() -> Router<Arc<AppState>> {
         .route("/media/sounds/{sha256}", get(get_sound))
         .route("/media/sounds", post(upload_sound))
         .route("/media/external-sounds", post(upload_external_sound))
+        .route("/media/music/artwork/{artwork_id}", get(get_artwork))
+}
+
+#[derive(Debug, Deserialize)]
+struct ArtworkSize {
+    size: Option<u32>,
+}
+
+/// `GET /media/music/artwork/{artwork_id}?size=128|512` (Phase 3 plan
+/// §15.4): a track's artwork through this server, as JPEG. Unknown ids
+/// and sizes are not found; a picture that can't be fetched is a 502, and
+/// clients show their placeholder.
+async fn get_artwork(
+    State(state): State<Arc<AppState>>,
+    Path(artwork_id): Path<String>,
+    Query(query): Query<ArtworkSize>,
+    headers: HeaderMap,
+) -> Response {
+    if let Err(error) = authorize(&state, &headers) {
+        return reply_error(&error);
+    }
+    let picture = state
+        .music
+        .artwork
+        .get(
+            &state.config.server.data_dir,
+            &artwork_id,
+            query.size.unwrap_or(128),
+            state.config.music.allow_unsafe_sources,
+        )
+        .await;
+    match picture {
+        Ok(jpeg) => (
+            [
+                (CONTENT_TYPE, "image/jpeg"),
+                (CACHE_CONTROL, "private, max-age=604800"),
+            ],
+            jpeg,
+        )
+            .into_response(),
+        Err(ArtworkError::Unknown) => StatusCode::NOT_FOUND.into_response(),
+        Err(ArtworkError::Unavailable) => StatusCode::BAD_GATEWAY.into_response(),
+    }
 }
 
 async fn get_sound(

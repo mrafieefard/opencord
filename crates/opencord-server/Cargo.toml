@@ -21,6 +21,7 @@ futures-util.workspace = true
 getrandom.workspace = true
 governor.workspace = true
 hex.workspace = true
+image.workspace = true
 hickory-proto.workspace = true
 igd-next.workspace = true
 instant-acme.workspace = true

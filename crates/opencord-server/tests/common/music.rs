@@ -208,13 +208,20 @@ pub struct Room {
     pub everyone: i64,
     pub lavalink: FakeLavalink,
     pub node: i64,
+    /// The owner's, for the media endpoints.
+    pub media_token: String,
 }
 
 /// A server with one node, the owner in the voice channel, and a member
 /// who is not.
 pub async fn room() -> Room {
+    room_with(|_| {}).await
+}
+
+/// A room on a server configured by `customize`.
+pub async fn room_with(customize: impl FnOnce(&mut opencord_server::config::Config)) -> Room {
     let lavalink = FakeLavalink::start(PASSWORD).await;
-    let server = TestServer::start().await;
+    let server = TestServer::start_with(customize).await;
     let (mut owner, ready) = owner(&server).await;
     let node = add_node(&mut owner, "Home", &lavalink).await;
     let voice = channel_id(&ready, "General");
@@ -230,5 +237,6 @@ pub async fn room() -> Room {
         voice,
         lavalink,
         node,
+        media_token: ready.media_token.as_ref().unwrap().token.clone(),
     }
 }
