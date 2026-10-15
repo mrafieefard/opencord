@@ -132,16 +132,17 @@ void main() {
     await tester.tap(status);
     await _settle(tester);
 
+    Finder line(String text) => find.text(text, findRichText: true);
     expect(find.byType(ConnectionGraph), findsOneWidget);
-    expect(find.text('Ping'), findsOneWidget);
-    expect(find.text('42 ms'), findsOneWidget);
-    expect(find.text('Packet loss'), findsOneWidget);
-    expect(find.text('0.5 %'), findsOneWidget);
-    expect(find.text('Jitter'), findsOneWidget);
-    expect(find.text('3 ms'), findsOneWidget);
-    // Those three only.
+    expect(find.text('Connection'), findsOneWidget);
+    expect(find.text('opencord.example:7710'), findsOneWidget);
+    expect(line('Average ping: 42 ms'), findsOneWidget);
+    expect(line('Last ping: 42 ms'), findsOneWidget);
+    expect(line('Packet loss rate: 0.5%'), findsOneWidget);
+    expect(line('Jitter: 3 ms'), findsOneWidget);
+    // The scale: a round number over the highest ping.
+    expect(find.text('50'), findsOneWidget);
     expect(find.text('96 kbps'), findsNothing);
-    expect(find.text('opencord.example:7710'), findsNothing);
     expect(find.textContaining('VaApi'), findsNothing);
 
     // The graph follows the reports while it is open.
@@ -151,8 +152,10 @@ void main() {
       const VoiceStats(pingMs: 90, lossInPercent: 12, lossOutPercent: 1),
     );
     await _settle(tester);
-    expect(find.text('90 ms'), findsOneWidget);
-    expect(find.text('12.0 %'), findsOneWidget);
+    expect(line('Average ping: 66 ms'), findsOneWidget);
+    expect(line('Last ping: 90 ms'), findsOneWidget);
+    expect(line('Packet loss rate: 12.0%'), findsOneWidget);
+    expect(find.text('200'), findsOneWidget);
     await tester.sendKeyEvent(LogicalKeyboardKey.escape);
     await _settle(tester);
 
@@ -185,26 +188,27 @@ void main() {
     await app.dispose(tester);
   });
 
-  testWidgets('the graph keeps the last minute, and forgets it on leaving', (
+  testWidgets('the graph keeps five minutes, and forgets them on leaving', (
     tester,
   ) async {
     final app = await MockApp.pump(tester);
     await _joinGeneral(tester);
     final session = app.read(voiceSessionProvider);
 
-    for (var ping = 1; ping <= 65; ping++) {
+    final reports = VoiceStatsHistoryNotifier.length + 5;
+    for (var ping = 1; ping <= reports; ping++) {
       app.repository.debugVoiceStats(
         session.serverKey!,
         session.channelId!,
         // The same report twice in a row still counts as a second.
-        VoiceStats(pingMs: ping == 65 ? 64 : ping),
+        VoiceStats(pingMs: ping == reports ? ping - 1 : ping),
       );
       await _settle(tester);
     }
     final history = app.read(voiceStatsHistoryProvider);
     expect(history, hasLength(VoiceStatsHistoryNotifier.length));
-    expect(history.first.pingMs, 6);
-    expect(history.last.pingMs, 64);
+    expect(history.first.stats.pingMs, 6);
+    expect(history.last.stats.pingMs, reports - 1);
 
     await app.read(voiceSessionProvider.notifier).leave();
     await _settle(tester);

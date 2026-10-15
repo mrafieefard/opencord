@@ -54,7 +54,7 @@ The compose file publishes 7710/tcp and 7711/udp, and keeps the config, database
 
 ## When a call does not work
 
-- **The voice panel's bars.** In a call, the bars beside "Voice connected" show how the connection is doing; click "Voice connected" for the last minute of ping (the round trip to the node), packet loss and jitter.
+- **The voice panel's bars.** In a call, the bars beside "Voice connected" show how the connection is doing; click "Voice connected" for a graph of the last five minutes of ping (the round trip to the node), with the average and last ping, packet loss and jitter.
 - **No sound at all, "No route"**: UDP 7711 does not reach the node. Check the router's forwarding, the server machine's firewall, and that nothing else uses the port.
 - **Others hear you but you hear nothing, or the reverse**: check the devices under User settings → Voice & audio; the mic test plays back what is sent.
 - **Video stays blurry**: the receiver's downlink, or the sender's uplink, is too small for the top layer. The server's screen share cap (Server settings → Voice & video) also limits quality.

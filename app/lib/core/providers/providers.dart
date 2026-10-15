@@ -1012,14 +1012,17 @@ final voiceStatsProvider = NotifierProvider<VoiceStatsNotifier, VoiceStats?>(
   VoiceStatsNotifier.new,
 );
 
-/// The voice connection's last minute, a report a second, oldest first
-/// (Phase 2 §12, the connection graph); empty again after leaving. Fed
-/// every report, the same as the last included.
-class VoiceStatsHistoryNotifier extends Notifier<List<VoiceStats>> {
-  static const length = 60;
+/// The voice connection's last five minutes, a report a second, oldest
+/// first, each with when it came (Phase 2 §12, the connection graph);
+/// empty again after leaving. Fed every report, the same as the last
+/// included.
+class VoiceStatsHistoryNotifier
+    extends Notifier<List<({DateTime at, VoiceStats stats})>> {
+  static const span = Duration(minutes: 5);
+  static final length = span.inSeconds;
 
   @override
-  List<VoiceStats> build() {
+  List<({DateTime at, VoiceStats stats})> build() {
     ref.listen(
       voiceSessionProvider.select(
         (session) => (session.serverKey, session.channelId),
@@ -1029,14 +1032,17 @@ class VoiceStatsHistoryNotifier extends Notifier<List<VoiceStats>> {
     return const [];
   }
 
-  void add(VoiceStats stats) =>
-      state = [...state.skip(max(0, state.length + 1 - length)), stats];
+  void add(VoiceStats stats) => state = [
+    ...state.skip(max(0, state.length + 1 - length)),
+    (at: clock.now(), stats: stats),
+  ];
 }
 
 final voiceStatsHistoryProvider =
-    NotifierProvider<VoiceStatsHistoryNotifier, List<VoiceStats>>(
-      VoiceStatsHistoryNotifier.new,
-    );
+    NotifierProvider<
+      VoiceStatsHistoryNotifier,
+      List<({DateTime at, VoiceStats stats})>
+    >(VoiceStatsHistoryNotifier.new);
 
 final audioNoticeProvider = NotifierProvider<AudioNoticeNotifier, AudioNotice?>(
   AudioNoticeNotifier.new,

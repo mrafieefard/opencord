@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:opencord/core/format.dart';
 import 'package:opencord/core/model/voice.dart';
 import 'package:opencord/core/providers/providers.dart';
 import 'package:opencord/ui/theme/oc_colors.dart';
@@ -18,8 +19,9 @@ import 'package:opencord/ui/theme/oc_text.dart';
   _ => (OcIcons.signalCellularAlt1Bar, 'poor'),
 };
 
-/// The voice connection's last minute (Phase 2 §12): ping, packet loss and
-/// jitter, each a line with its latest value, as the reports come.
+/// The voice connection (Phase 2 §12): ping over the last five minutes,
+/// then the voice node, the average and last ping, packet loss and jitter,
+/// as the reports come.
 class ConnectionGraph extends ConsumerWidget {
   const ConnectionGraph({super.key});
 
@@ -29,194 +31,288 @@ class ConnectionGraph extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = context.oc;
     final history = ref.watch(voiceStatsHistoryProvider);
+    final title = Text(
+      'Connection',
+      style: OcText.bodyStrong.copyWith(color: colors.text),
+    );
     if (history.isEmpty) {
       return SizedBox(
         width: width,
-        child: Text(
-          'Waiting for the first measurement.',
-          style: OcText.small.copyWith(color: colors.textSecondary),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            title,
+            const SizedBox(height: OcSpace.s8),
+            Text(
+              'Waiting for the first measurement.',
+              style: OcText.small.copyWith(color: colors.textSecondary),
+            ),
+          ],
         ),
       );
     }
-    String ms(double? value) =>
-        value == null ? '–' : '${value.toStringAsFixed(0)} ms';
+    final last = history.last.stats;
+    final pings = [for (final entry in history) ?entry.stats.pingMs];
+    final average = pings.isEmpty
+        ? null
+        : (pings.reduce((a, b) => a + b) / pings.length).round();
+    String ms(num? value) => value == null ? '–' : '$value ms';
+    final rows = <(String, String)>[
+      ('Average ping', ms(average)),
+      ('Last ping', ms(last.pingMs)),
+      (
+        'Packet loss rate',
+        switch (last.lossPercent) {
+          null => '–',
+          final loss => '${loss.toStringAsFixed(1)}%',
+        },
+      ),
+      ('Jitter', ms(last.jitterMs?.round())),
+    ];
     return SizedBox(
       width: width,
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          _Chart(
-            label: 'Ping',
-            values: [for (final s in history) s.pingMs?.toDouble()],
-            shown: ms,
-            floor: 100,
-          ),
+          title,
+          const SizedBox(height: OcSpace.s8),
+          Divider(height: 1, color: colors.border),
           const SizedBox(height: OcSpace.s12),
-          _Chart(
-            label: 'Packet loss',
-            values: [for (final s in history) s.lossPercent],
-            shown: (value) =>
-                value == null ? '–' : '${value.toStringAsFixed(1)} %',
-            floor: 5,
-          ),
+          _PingChart(history: history),
           const SizedBox(height: OcSpace.s12),
-          _Chart(
-            label: 'Jitter',
-            values: [for (final s in history) s.jitterMs],
-            shown: ms,
-            floor: 20,
-          ),
+          if (last.voiceNode.isNotEmpty) ...[
+            Text(
+              last.voiceNode,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: OcText.bodyStrong.copyWith(color: colors.text),
+            ),
+            const SizedBox(height: OcSpace.s6),
+          ],
+          for (final (label, value) in rows)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 1),
+              child: Text.rich(
+                TextSpan(
+                  text: '$label: ',
+                  children: [
+                    TextSpan(
+                      text: value,
+                      style: const TextStyle(fontWeight: FontWeight.w700),
+                    ),
+                  ],
+                ),
+                style: OcText.small.copyWith(color: colors.textSecondary),
+              ),
+            ),
         ],
       ),
     );
   }
 }
 
-/// One measurement over the last minute, newest at the right, with its
-/// latest value. [floor] is the least the chart's top stands for, so a
-/// quiet line stays low instead of filling the chart.
-class _Chart extends StatelessWidget {
-  const _Chart({
-    required this.label,
-    required this.values,
-    required this.shown,
-    required this.floor,
-  });
+/// Ping over the last five minutes, newest at the right: a line on a dark
+/// panel, the minutes along the bottom and the scale up the right.
+class _PingChart extends StatelessWidget {
+  const _PingChart({required this.history});
 
-  final String label;
-  final List<double?> values;
-  final String Function(double?) shown;
-  final double floor;
+  final List<({DateTime at, VoiceStats stats})> history;
+
+  static const _plotHeight = 72.0;
+  static const _scaleWidth = 26.0;
 
   @override
   Widget build(BuildContext context) {
     final colors = context.oc;
-    final latest = shown(values.last);
+    final end = history.last.at;
+    final start = end.subtract(VoiceStatsHistoryNotifier.span);
+    final top = _niceTop(
+      history.map((entry) => entry.stats.pingMs ?? 0).fold(0, math.max),
+    );
+    // Whole minutes inside the window, where the gridlines and labels go.
+    final minutes = [
+      for (
+        var minute = DateTime(
+          start.year,
+          start.month,
+          start.day,
+          start.hour,
+          start.minute + 1,
+        );
+        !minute.isAfter(end);
+        minute = minute.add(const Duration(minutes: 1))
+      )
+        minute,
+    ];
+    double along(DateTime time, double width) =>
+        width *
+        time.difference(start).inMilliseconds /
+        VoiceStatsHistoryNotifier.span.inMilliseconds;
+    final label = OcText.meta.copyWith(color: colors.textMuted, fontSize: 10);
     return Semantics(
-      label: '$label, $latest',
+      label:
+          'Ping over the last five minutes, '
+          'last ${history.last.stats.pingMs ?? '–'} ms',
       excludeSemantics: true,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  label,
-                  style: OcText.small.copyWith(color: colors.textSecondary),
-                ),
-              ),
-              Text(
-                latest,
-                style: OcText.small.copyWith(
-                  color: colors.text,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ],
+          Expanded(
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final width = constraints.maxWidth;
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Container(
+                      height: _plotHeight,
+                      decoration: BoxDecoration(
+                        color: colors.rail,
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: CustomPaint(
+                        painter: _PingPainter(
+                          points: [
+                            for (final entry in history)
+                              (
+                                x: along(entry.at, width),
+                                ping: entry.stats.pingMs?.toDouble(),
+                              ),
+                          ],
+                          gridlines: [
+                            for (final minute in minutes) along(minute, width),
+                          ],
+                          top: top.toDouble(),
+                          line: colors.text,
+                          grid: colors.border,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    SizedBox(
+                      height: 14,
+                      child: Stack(
+                        clipBehavior: Clip.none,
+                        children: [
+                          for (final minute in minutes)
+                            if (along(minute, width) case final x
+                                when x > 14 && x < width - 14)
+                              Positioned(
+                                left: x - 20,
+                                width: 40,
+                                child: Text(
+                                  clockTime(minute),
+                                  textAlign: TextAlign.center,
+                                  style: label,
+                                ),
+                              ),
+                        ],
+                      ),
+                    ),
+                  ],
+                );
+              },
+            ),
           ),
-          const SizedBox(height: OcSpace.s4),
           SizedBox(
-            height: 40,
-            child: CustomPaint(
-              painter: _LinePainter(
-                values: values,
-                top: math.max(
-                  floor,
-                  values.whereType<double>().fold(0.0, math.max) * 1.25,
-                ),
-                line: colors.text,
-                grid: colors.border,
-              ),
+            width: _scaleWidth,
+            height: _plotHeight,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                for (final value in [top, top ~/ 2, 0])
+                  Text('$value', style: label),
+              ],
             ),
           ),
         ],
       ),
     );
   }
+
+  /// The chart's top: a round number a little above the highest ping, and
+  /// never under 10 ms.
+  static int _niceTop(int highest) {
+    final wanted = math.max(10, (highest * 1.2).ceil());
+    var step = 1;
+    while (true) {
+      for (final nice in [1, 2, 5]) {
+        if (nice * step >= wanted) return nice * step;
+      }
+      step *= 10;
+    }
+  }
 }
 
-class _LinePainter extends CustomPainter {
-  const _LinePainter({
-    required this.values,
+class _PingPainter extends CustomPainter {
+  const _PingPainter({
+    required this.points,
+    required this.gridlines,
     required this.top,
     required this.line,
     required this.grid,
   });
 
-  final List<double?> values;
+  final List<({double x, double? ping})> points;
+  final List<double> gridlines;
   final double top;
   final Color line;
   final Color grid;
+
+  /// Reports further apart than this were not one line: the call broke.
+  static const _gap = 3.0;
 
   @override
   void paint(Canvas canvas, Size size) {
     final gridPaint = Paint()
       ..color = grid
       ..strokeWidth = 1;
-    for (final y in [0.5, size.height / 2, size.height - 0.5]) {
-      canvas.drawLine(Offset(0, y), Offset(size.width, y), gridPaint);
+    for (final x in gridlines) {
+      canvas.drawLine(Offset(x, 0), Offset(x, size.height), gridPaint);
     }
-    // A minute across, newest at the right edge; a missing value breaks
-    // the line.
-    final step = size.width / (VoiceStatsHistoryNotifier.length - 1);
-    final start = VoiceStatsHistoryNotifier.length - values.length;
-    final stroke = Path();
-    final fill = Path();
-    Offset? previous;
-    Offset? runStart;
-    void closeRun() {
-      if (previous case final end? when runStart != null) {
-        fill
-          ..lineTo(end.dx, size.height)
-          ..lineTo(runStart!.dx, size.height)
-          ..close();
-      }
-      runStart = null;
-    }
-
-    for (var i = 0; i < values.length; i++) {
-      final value = values[i];
-      if (value == null) {
-        closeRun();
+    final secondWidth = size.width / VoiceStatsHistoryNotifier.span.inSeconds;
+    final path = Path();
+    ({double x, double y})? previous;
+    for (final point in points) {
+      final ping = point.ping;
+      if (ping == null) {
         previous = null;
         continue;
       }
-      final point = Offset(
-        (start + i) * step,
-        size.height - (value / top).clamp(0.0, 1.0) * (size.height - 1),
-      );
-      if (previous == null) {
-        stroke.moveTo(point.dx, point.dy);
-        fill.moveTo(point.dx, point.dy);
-        runStart = point;
+      final y =
+          size.height - 1 - (ping / top).clamp(0.0, 1.0) * (size.height - 2);
+      if (previous == null || point.x - previous.x > _gap * secondWidth) {
+        path.moveTo(point.x, y);
       } else {
-        stroke.lineTo(point.dx, point.dy);
-        fill.lineTo(point.dx, point.dy);
+        path.lineTo(point.x, y);
       }
-      previous = point;
+      previous = (x: point.x, y: y);
     }
-    closeRun();
     canvas
-      ..drawPath(fill, Paint()..color = line.withValues(alpha: 0.08))
+      ..clipRect(Offset.zero & size)
       ..drawPath(
-        stroke,
+        path,
         Paint()
           ..color = line
           ..style = PaintingStyle.stroke
           ..strokeWidth = 1.5
           ..strokeJoin = StrokeJoin.round,
       );
-    // A lone report is a dot.
-    if (values.length == 1 && previous != null) {
-      canvas.drawCircle(previous, 1.5, Paint()..color = line);
+    if (points.length == 1 && previous != null) {
+      canvas.drawCircle(
+        Offset(previous.x, previous.y),
+        1.5,
+        Paint()..color = line,
+      );
     }
   }
 
   @override
-  bool shouldRepaint(_LinePainter old) =>
-      old.values != values ||
+  bool shouldRepaint(_PingPainter old) =>
+      old.points != points ||
       old.top != top ||
       old.line != line ||
       old.grid != grid;
