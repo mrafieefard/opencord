@@ -454,6 +454,45 @@ Future<List<DomainCheck>> domainChecks({
   domainId: domainId,
 );
 
+/// Starts getting a Let's Encrypt certificate for a domain; progress
+/// arrives as `NetworkStatus`. `agree_terms` is needed for the first one.
+Future<NetworkInfo> requestCertificate({
+  required String serverKey,
+  required PlatformInt64 domainId,
+  String? email,
+  required bool agreeTerms,
+}) => RustLib.instance.api.crateApiClientRequestCertificate(
+  serverKey: serverKey,
+  domainId: domainId,
+  email: email,
+  agreeTerms: agreeTerms,
+);
+
+/// The owner's own certificate chain and key, in PEM.
+Future<NetworkInfo> uploadCertificate({
+  required String serverKey,
+  required PlatformInt64 domainId,
+  required String chainPem,
+  required String keyPem,
+}) => RustLib.instance.api.crateApiClientUploadCertificate(
+  serverKey: serverKey,
+  domainId: domainId,
+  chainPem: chainPem,
+  keyPem: keyPem,
+);
+
+/// Connects a DNS provider (cloudflare, duckdns or desec); an empty token
+/// disconnects it.
+Future<NetworkInfo> setDnsProvider({
+  required String serverKey,
+  required String kind,
+  required String token,
+}) => RustLib.instance.api.crateApiClientSetDnsProvider(
+  serverKey: serverKey,
+  kind: kind,
+  token: token,
+);
+
 /// Joins a voice channel. This device is in at most one voice channel
 /// across all servers, so any other one is left first.
 Future<VoiceState> voiceJoin({

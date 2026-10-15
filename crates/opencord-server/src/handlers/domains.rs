@@ -7,6 +7,7 @@ use proto::response::Result as Response;
 
 use super::Ctx;
 use super::network::{info, require_owner};
+use crate::certs::providers::ProviderKind;
 use crate::domains::DomainKind;
 use crate::error::ApiError;
 
@@ -70,3 +71,67 @@ pub async fn history(
         .await?;
     Ok(Response::DomainChecks(proto::DomainChecks { checks }))
 }
+
+pub async fn request_certificate(
+    ctx: &Ctx<'_>,
+    request: proto::RequestCertificate,
+) -> Result<Response, ApiError> {
+    require_owner(ctx)?;
+    ctx.state
+        .certificates
+        .request(
+            ctx.state,
+            request.domain_id,
+            request.email,
+            request.agree_terms,
+        )
+        .await?;
+    Ok(info(ctx))
+}
+
+pub async fn upload_certificate(
+    ctx: &Ctx<'_>,
+    request: proto::UploadCertificate,
+) -> Result<Response, ApiError> {
+    require_owner(ctx)?;
+    if request.chain_pem.len() > MAX_PEM || request.key_pem.len() > MAX_PEM {
+        return Err(ApiError::invalid_argument("the files are too large"));
+    }
+    ctx.state
+        .certificates
+        .upload(
+            ctx.state,
+            request.domain_id,
+            &request.chain_pem,
+            &request.key_pem,
+        )
+        .await?;
+    Ok(info(ctx))
+}
+
+pub async fn set_dns_provider(
+    ctx: &Ctx<'_>,
+    request: proto::SetDnsProvider,
+) -> Result<Response, ApiError> {
+    require_owner(ctx)?;
+    let kind = ProviderKind::parse(&request.kind)
+        .ok_or_else(|| ApiError::invalid_argument("Cloudflare, DuckDNS or deSEC"))?;
+    if request.token.len() > 512 {
+        return Err(ApiError::invalid_argument("the token is too long"));
+    }
+    ctx.state
+        .certificates
+        .set_provider(ctx.state, kind, &request.token)
+        .await?;
+    tracing::info!(
+        user_id = ctx.user_id,
+        kind = kind.as_str(),
+        connected = !request.token.trim().is_empty(),
+        "the owner changed a DNS provider"
+    );
+    ctx.state.network.changed(ctx.state);
+    Ok(info(ctx))
+}
+
+/// A certificate chain or key larger than this is not one.
+const MAX_PEM: usize = 64 * 1024;

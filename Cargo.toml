@@ -55,7 +55,7 @@ rubato = "5.0.1"
 rtrb = "0.4.0"
 rcgen = "0.14.10"
 realfft = "3.5.0"
-reqwest = { version = "0.13.5", default-features = false, features = ["rustls-no-provider"] }
+reqwest = { version = "0.13.5", default-features = false, features = ["rustls-no-provider", "json", "query"] }
 rustls-platform-verifier = "0.7.1"
 rustls = { version = "0.23.45", default-features = false, features = ["ring", "std", "tls12", "logging"] }
 serde = { version = "1.0.229", features = ["derive"] }
@@ -79,6 +79,7 @@ tract-pulse = "0.23.8"
 tracing = "0.1.44"
 tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
 v4l = "0.14.0"
+x509-parser = "0.18.1"
 webpki-roots = "1.0.9"
 x11rb = { version = "0.14.0", features = ["screensaver", "xinput", "xtest"] }
 

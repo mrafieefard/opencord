@@ -73,6 +73,9 @@ message Request {
     DeleteDomain delete_domain = 106;
     CheckDomain check_domain = 107;
     FetchDomainChecks fetch_domain_checks = 108;
+    RequestCertificate request_certificate = 109;
+    UploadCertificate upload_certificate = 110;
+    SetDnsProvider set_dns_provider = 111;
   }
 }
 

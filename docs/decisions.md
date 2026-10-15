@@ -439,3 +439,19 @@ The desktop UI plan's §17.5 never arrived, so where Phase 2 §12 says only what
   - The local listener runs while a tunnel or reverse-proxy domain exists.
   - Turning a domain off keeps it bindable for 7 days; serving its certificate stops after that in D3.
 - **Not done here.** Certificates (D3): until then own domains are checked by the pinned fingerprint, like the IP address. Free subdomains and tunnels (D4). The users-in-24-hours count lives in memory and starts over with the server.
+
+## D41: Certificates (Phase 3 D3, 2026-10-15)
+
+- **What the owner gets.** Let's Encrypt certificates for verified own domains, from the domain's menu, with the step shown on the row; uploading one's own certificate; DNS providers (Cloudflare, DuckDNS, deSEC) for the DNS challenge; renewal by itself, and notices before expiry. Apps then check those domains by the authority, with no fingerprint.
+- **Libraries.** instant-acme 0.8 (ring, hyper-rustls) for ACME, with its ARI support for renewal timing; rcgen for the TLS-ALPN-01 certificate (`acmeIdentifier` extension); x509-parser for reading chains; chacha20poly1305 for sealing secrets. No ACME code of our own beyond the flow.
+- **Tested against Pebble, Let's Encrypt's test CA.** `crates/opencord-server/tests/certificates.rs` gets a real certificate through each challenge (HTTP-01, TLS-ALPN-01, and DNS-01 through a fake Cloudflare API whose records land in Pebble's name server), checks that a TLS client trusting only Pebble's root accepts the served certificate for the name without a restart, and renews in place. Docker Desktop runs containers in a VM whose "host network" is not this machine's loopback, so the tests copy Pebble's and pebble-challtestsrv's binaries out of their images into `target/pebble` once and run them as local processes. They are `#[ignore]`d (they need Docker and the images) and run with `cargo test -p opencord-server --test certificates -- --ignored`; all pass.
+- **Rulings.**
+  - Challenge choice is automatic and in this order: DNS-01 when a connected provider holds the name (no ports needed), TLS-ALPN-01 when the main port is 443 (the TLS listener answers `acme-tls/1` with the challenge certificate, so nothing else has to listen), HTTP-01 on port 80 otherwise, with a listener that exists only while the CA checks and answers nothing but its token.
+  - Serving is by SNI through one `ResolvesServerCert` (`certs/store.rs`) swapped in place; IP and unknown names get the self-signed certificate, so the fingerprint path never changes.
+  - A domain's certificate is served while the domain is active or was turned off less than 7 days ago, matching host binding; test-environment certificates are kept for the owner to see but never served, and never count as trusted.
+  - Secrets (private keys, the ACME account, provider tokens) are sealed with XChaCha20-Poly1305 under a 32-byte `secrets.key` (0600) in the data directory, with the purpose as associated data so a sealed value cannot be moved to another row. Lavalink passwords will use the same.
+  - Renewal is looked at hourly rather than daily: the look is cheap, and an hour bounds how late an ARI window or a retry is noticed. Renewal runs at two thirds of the lifetime or when ARI's window opens.
+  - Failure limits are ours (5 per hour per domain) on top of the CA's: a `rateLimited` problem waits an hour. Errors are rewritten in plain words per challenge, from the ACME problem type.
+  - The ACME email is optional; the account is made once per directory, so turning the test environment on asks for agreement again.
+- **Also fixed.** A D2 core test checked two domains at once and expected the first to become primary; under a loaded machine either could finish first. It now checks them one after the other.
+- **Not done here.** Free subdomains, dynamic DNS and tunnels (D4).

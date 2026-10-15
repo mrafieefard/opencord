@@ -7,6 +7,7 @@ import 'package:opencord/core/model/network.dart';
 import 'package:opencord/core/providers/providers.dart';
 import 'package:opencord/features/dialogs/invite_dialog.dart';
 import 'package:opencord/features/settings/server/network/add_domain_dialog.dart';
+import 'package:opencord/features/settings/server/network/certificate_dialogs.dart';
 import 'package:opencord/features/settings/server/network/domain_row.dart';
 import 'package:opencord/features/settings/server/network/network_dialogs.dart';
 import 'package:opencord/features/settings/server/network/network_page.dart';
@@ -81,6 +82,7 @@ Finder _changeOn(String title) => find.descendant(
 
 void main() {
   domainTests();
+  certificateTests();
 
   testWidgets('only the owner has Domains & network', (tester) async {
     final app = await MockApp.pump(tester);
@@ -367,6 +369,215 @@ void domainTests() {
     );
     await invite.close();
     await settle();
+    await app.dispose(tester);
+  });
+}
+
+/// A verified domain, added and checked through the repository.
+Future<void> _verified(MockApp app, WidgetTester tester, String host) async {
+  final repository = app.repository;
+  unawaited(repository.addDomain(_dev, hostname: host, kind: DomainKind.own));
+  await _pumpFor(tester, const Duration(milliseconds: 400));
+  final id = app
+      .read(networkProvider(_dev))
+      .value!
+      .domains
+      .firstWhere((domain) => domain.hostname == host)
+      .id;
+  unawaited(repository.checkDomain(_dev, id));
+  await _pumpFor(tester, const Duration(milliseconds: 1600));
+}
+
+/// Opens the "⋯" menu of [host]'s row.
+Future<void> _domainMenu(WidgetTester tester, String host) async {
+  await _tapVisible(tester, find.byTooltip('More for $host'));
+  await _pumpFor(tester, const Duration(milliseconds: 200));
+}
+
+void certificateTests() {
+  testWidgets('the first certificate asks for the agreement, then shows each '
+      'step and the expiry', (tester) async {
+    final app = await MockApp.pump(tester);
+    await _openNetwork(tester);
+    await _verified(app, tester, 'chat.example.com');
+    expect(
+      _inSettings(find.textContaining('Verified · No certificate')),
+      findsOneWidget,
+    );
+
+    await _domainMenu(tester, 'chat.example.com');
+    await tester.tap(find.text('Get certificate'));
+    await _pumpFor(tester, const Duration(milliseconds: 300));
+
+    expect(find.byType(GetCertificateDialog), findsOneWidget);
+    final get = find.widgetWithText(OcButton, 'Get certificate');
+    expect(tester.widget<OcButton>(get).onPressed, isNull, reason: 'agree');
+    await tester.enterText(
+      find
+          .descendant(
+            of: find.byType(GetCertificateDialog),
+            matching: find.byType(EditableText),
+          )
+          .first,
+      'owner@example.com',
+    );
+    await tester.tap(
+      find.descendant(
+        of: find.byType(GetCertificateDialog),
+        matching: find.byType(OcSwitch),
+      ),
+    );
+    await tester.pump();
+    await tester.tap(get);
+    await _pumpFor(tester, const Duration(milliseconds: 450));
+
+    expect(find.byType(GetCertificateDialog), findsNothing);
+    expect(
+      _inSettings(find.textContaining('Certificate: Creating the account')),
+      findsOneWidget,
+    );
+    await _pumpFor(tester, const Duration(milliseconds: 1050));
+    expect(
+      _inSettings(find.textContaining('Certificate: Setting up the challenge')),
+      findsOneWidget,
+    );
+    await _pumpFor(tester, const Duration(seconds: 4));
+    expect(
+      _inSettings(find.textContaining('· renews automatically')),
+      findsOneWidget,
+    );
+    final network = app.read(networkProvider(_dev)).value!;
+    expect(network.acme.exists, isTrue);
+    expect(network.acme.email, 'owner@example.com');
+    expect(network.domains.single.trustedCertificate, isTrue);
+    await app.dispose(tester);
+  });
+
+  testWidgets('a failed request explains why, and renewing asks nothing '
+      'once the account exists', (tester) async {
+    final app = await MockApp.pump(tester);
+    await _openNetwork(tester);
+    await _verified(app, tester, 'nocert.example.com');
+    final id = app.read(networkProvider(_dev)).value!.domains.single.id;
+    unawaited(app.repository.requestCertificate(_dev, id, agreeTerms: true));
+    await _pumpFor(tester, const Duration(seconds: 4));
+
+    expect(
+      _inSettings(find.textContaining("Port 80 isn't reachable")),
+      findsOneWidget,
+    );
+    expect(_inSettings(find.textContaining('No certificate')), findsOneWidget);
+    await _domainMenu(tester, 'nocert.example.com');
+    await tester.tap(find.text('Get certificate'));
+    await _pumpFor(tester, const Duration(milliseconds: 450));
+
+    expect(find.byType(GetCertificateDialog), findsNothing);
+    expect(
+      _inSettings(find.textContaining('Certificate: Creating the account')),
+      findsOneWidget,
+    );
+    await _pumpFor(tester, const Duration(seconds: 4));
+    await app.dispose(tester);
+  });
+
+  testWidgets('test certificates are labelled and not trusted', (tester) async {
+    final app = await MockApp.pump(tester);
+    await _openNetwork(tester);
+    unawaited(
+      app.repository.updateNetworkSettings(
+        _dev,
+        const NetworkSettingsChanges(acmeStaging: true),
+      ),
+    );
+    await _verified(app, tester, 'chat.example.com');
+    final id = app.read(networkProvider(_dev)).value!.domains.single.id;
+    unawaited(app.repository.requestCertificate(_dev, id, agreeTerms: true));
+    await _pumpFor(tester, const Duration(seconds: 4));
+
+    expect(
+      _inSettings(find.textContaining('Test certificate, valid until')),
+      findsOneWidget,
+    );
+    expect(
+      app.read(networkProvider(_dev)).value!.domains.single.trustedCertificate,
+      isFalse,
+    );
+    await app.dispose(tester);
+  });
+
+  testWidgets('an uploaded certificate needs both parts', (tester) async {
+    final app = await MockApp.pump(tester);
+    await _openNetwork(tester);
+    await _verified(app, tester, 'chat.example.com');
+
+    await _domainMenu(tester, 'chat.example.com');
+    await tester.tap(find.text('Upload certificate'));
+    await _pumpFor(tester, const Duration(milliseconds: 300));
+    final fields = find.descendant(
+      of: find.byType(UploadCertificateDialog),
+      matching: find.byType(EditableText),
+    );
+    final upload = find.widgetWithText(OcButton, 'Upload');
+    await tester.enterText(
+      fields.at(0),
+      '-----BEGIN CERTIFICATE-----\nMIIB\n-----END CERTIFICATE-----',
+    );
+    await tester.pump();
+    expect(tester.widget<OcButton>(upload).onPressed, isNull);
+    await tester.enterText(
+      fields.at(1),
+      '-----BEGIN PRIVATE KEY-----\nMIIE\n-----END PRIVATE KEY-----',
+    );
+    await tester.pump();
+    await tester.tap(upload);
+    await _pumpFor(tester, const Duration(milliseconds: 400));
+
+    expect(find.byType(UploadCertificateDialog), findsNothing);
+    expect(
+      _inSettings(find.textContaining('Uploaded certificate, valid until')),
+      findsOneWidget,
+    );
+    await _pumpFor(tester, const Duration(seconds: 4));
+    await app.dispose(tester);
+  });
+
+  testWidgets('a DNS provider is connected, shown masked, and disconnected', (
+    tester,
+  ) async {
+    final app = await MockApp.pump(tester);
+    await _openNetwork(tester);
+    final row = _row('Cloudflare');
+
+    await _tapVisible(
+      tester,
+      find.descendant(
+        of: row,
+        matching: find.widgetWithText(OcButton, 'Connect'),
+      ),
+    );
+    await _pumpFor(tester, const Duration(milliseconds: 300));
+    await tester.enterText(_dialogField, 'cf-secret-token-wxyz');
+    await tester.tap(find.widgetWithText(OcButton, 'Connect').last);
+    await _pumpFor(tester, const Duration(milliseconds: 400));
+
+    expect(
+      _inSettings(find.text('Connected · token ••••wxyz')),
+      findsOneWidget,
+    );
+    expect(find.textContaining('cf-secret-token'), findsNothing);
+    await _tapVisible(
+      tester,
+      find.descendant(
+        of: _row('Cloudflare'),
+        matching: find.widgetWithText(OcButton, 'Disconnect'),
+      ),
+    );
+    await _pumpFor(tester, const Duration(milliseconds: 300));
+    await tester.tap(find.widgetWithText(OcButton, 'Disconnect').last);
+    await _pumpFor(tester, const Duration(milliseconds: 400));
+
+    expect(app.read(networkProvider(_dev)).value!.dnsProviders, isEmpty);
+    await _pumpFor(tester, const Duration(seconds: 4));
     await app.dispose(tester);
   });
 }

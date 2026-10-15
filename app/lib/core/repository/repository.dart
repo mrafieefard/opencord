@@ -443,6 +443,30 @@ abstract interface class OpencordRepository {
   /// A domain's last checks, newest first.
   Future<List<DomainCheck>> domainChecks(String serverKey, int domainId);
 
+  /// Starts getting a Let's Encrypt certificate; progress arrives as
+  /// [NetworkStatusChanged]. [agreeTerms] is needed for the first one.
+  Future<NetworkInfo> requestCertificate(
+    String serverKey,
+    int domainId, {
+    String? email,
+    bool agreeTerms = false,
+  });
+
+  /// The owner's own certificate chain and key, in PEM.
+  Future<NetworkInfo> uploadCertificate(
+    String serverKey,
+    int domainId, {
+    required String chainPem,
+    required String keyPem,
+  });
+
+  /// Connects a DNS provider; an empty [token] disconnects it.
+  Future<NetworkInfo> setDnsProvider(
+    String serverKey,
+    DnsProviderKind kind,
+    String token,
+  );
+
   Future<void> joinVoice(String serverKey, int channelId);
 
   Future<void> leaveVoice();

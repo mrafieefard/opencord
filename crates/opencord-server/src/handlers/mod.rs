@@ -107,6 +107,9 @@ async fn dispatch(ctx: &Ctx<'_>, request: proto::Request) -> Result<Response, Ap
         Kind::DeleteDomain(request) => domains::delete(ctx, request).await,
         Kind::CheckDomain(request) => domains::check(ctx, &request),
         Kind::FetchDomainChecks(request) => domains::history(ctx, request).await,
+        Kind::RequestCertificate(request) => domains::request_certificate(ctx, request).await,
+        Kind::UploadCertificate(request) => domains::upload_certificate(ctx, request).await,
+        Kind::SetDnsProvider(request) => domains::set_dns_provider(ctx, request).await,
     }
 }
 

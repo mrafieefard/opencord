@@ -13,12 +13,15 @@ use opencord_common::limits::SOUND_COOLDOWN_MAX_S;
 use opencord_common::snowflake::SnowflakeGenerator;
 use tokio::task::JoinHandle;
 
+use crate::certs::store::{CertStore, certified_key};
+use crate::certs::{self, Certificates};
 use crate::config::{Config, VoiceMode};
 use crate::domains::{self, Domains};
 use crate::gateway::session::CloseCode;
 use crate::guild::Guild;
 use crate::network::settings::NetworkSettings;
 use crate::network::{Listening, Network};
+use crate::secrets::Secrets;
 use crate::state::{AppState, now_ms};
 use crate::voice::nodes::VoiceNodes;
 use crate::{bootstrap, db, http, music, tls, voice};
@@ -65,7 +68,14 @@ pub async fn start(config: Config) -> anyhow::Result<ServerHandle> {
     let music_bridge = music::start_bridge(&config, embedded.as_ref()).await?;
     let guild = Guild::load(&mut *pool.acquire().await?, bootstrap.meta).await?;
     let invite_code = bootstrap::startup_invite(&pool, now_ms()).await?;
-    let rustls = RustlsConfig::from_config(Arc::new(tls::server_config(&tls)?));
+    let secrets = Secrets::load_or_generate(&data_dir)?;
+    let store = Arc::new(CertStore::new(certified_key(
+        tls.cert_chain.clone(),
+        &tls.key,
+    )?));
+    let certificates = Certificates::new(Arc::clone(&store), secrets);
+    certificates.load(&pool).await?;
+    let rustls = RustlsConfig::from_config(Arc::new(tls::server_config_with(store)?));
     let network_settings = NetworkSettings::load(&mut *pool.acquire().await?).await?;
     let domains = load_domains(&pool).await?;
     let listener = bind_main_port(&config, network_settings.main_port)?;
@@ -80,8 +90,12 @@ pub async fn start(config: Config) -> anyhow::Result<ServerHandle> {
             VoiceNodes::new(embedded, tls.fingerprint),
         )
         .with_music_bridge(music_bridge)
-        .with_domains(domains),
+        .with_domains(domains)
+        .with_certificates(certificates),
     );
+    state
+        .certificates
+        .serve(&state.domains.all(), crate::state::now_ms());
     state.network.restore(network_settings);
     if let Some(bridge) = state.music_bridge.clone() {
         let mut public = state.network.public_ips();
@@ -127,6 +141,7 @@ pub async fn start(config: Config) -> anyhow::Result<ServerHandle> {
     Network::start(&state);
     domains::start(&state);
     domains::sync_local_listener(&state).await;
+    certs::start(&state);
 
     let public_port = match (config.server.bind.port(), config.server.public_port) {
         (0, _) => local_addr.port(),
@@ -199,6 +214,12 @@ impl ServerHandle {
     /// for the music player.
     pub fn music_bridge(&self) -> Option<&opencord_voice::bridge::MusicBridge> {
         self.state.music_bridge.as_ref()
+    }
+
+    /// Renews every certificate now, as if it were due. Intended for tests
+    /// of renewal.
+    pub async fn renew_certificates_now(&self) {
+        crate::certs::renew_all_now(&self.state).await;
     }
 
     /// Starts or stops the local listener for tunnels and proxies; returns

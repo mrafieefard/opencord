@@ -62,7 +62,7 @@ fn to_proto(ctx: &Ctx<'_>, row: InviteRow) -> proto::Invite {
     let address = row
         .domain_id
         .and_then(|id| ctx.state.domains.get(id))
-        .map(|domain| domain.address());
+        .map(|domain| domain.address(ctx.state));
     proto::Invite {
         address,
         code: row.code,

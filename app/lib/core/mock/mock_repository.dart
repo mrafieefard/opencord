@@ -1478,6 +1478,8 @@ class MockRepository implements OpencordRepository {
         listeningPort: old.listeningPort,
         nextMainPort: old.nextMainPort,
         domains: old.domains,
+        dnsProviders: old.dnsProviders,
+        acme: old.acme,
       ),
     );
   }
@@ -1510,6 +1512,8 @@ class MockRepository implements OpencordRepository {
         listeningPort: old.listeningPort,
         nextMainPort: old.nextMainPort,
         domains: old.domains,
+        dnsProviders: old.dnsProviders,
+        acme: old.acme,
       ),
     );
   }
@@ -1558,6 +1562,8 @@ class MockRepository implements OpencordRepository {
         upnpExternalIp: old.upnpExternalIp,
         upnpError: old.upnpError,
         domains: domains,
+        dnsProviders: old.dnsProviders,
+        acme: old.acme,
       ),
     );
   }
@@ -1748,6 +1754,186 @@ class MockRepository implements OpencordRepository {
     return info;
   }
 
+  /// Steps through a request; names starting with "nocert" fail at
+  /// validation, as when port 80 is closed.
+  @override
+  Future<NetworkInfo> requestCertificate(
+    String serverKey,
+    int domainId, {
+    String? email,
+    bool agreeTerms = false,
+  }) async {
+    final server = _server(serverKey);
+    _requireOwner(server);
+    await _latency(60);
+    final domain = _domain(server, domainId);
+    if (domain.kind.behindProxy) {
+      throw const RepoException(
+        RepoErrorKind.invalidArgument,
+        "The tunnel or proxy provides this domain's certificate.",
+      );
+    }
+    if (domain.status != DomainStatus.verified) {
+      throw const RepoException(
+        RepoErrorKind.conflict,
+        'The domain must point to this server first: check it.',
+      );
+    }
+    if (!server.network.acme.exists && !agreeTerms) {
+      throw const RepoException(
+        RepoErrorKind.invalidArgument,
+        "Agree to Let's Encrypt's subscriber agreement first.",
+      );
+    }
+    final old = domain.certificate;
+    void at(CertificateStatus certificate) => _domains(server, [
+      for (final other in server.network.domains)
+        other.id == domainId ? _with(other, certificate: certificate) : other,
+    ]);
+    CertificateStatus stepping(CertificateStep step) => CertificateStatus(
+      state: CertificateState.requesting,
+      issuer: old.issuer,
+      notAfter: old.notAfter,
+      test: old.test,
+      step: step,
+    );
+    at(stepping(CertificateStep.account));
+    final steps = CertificateStep.values.skip(1).toList();
+    for (final (index, step) in steps.indexed) {
+      _later(
+        Duration(milliseconds: 600 * (index + 1)),
+        () => at(stepping(step)),
+      );
+    }
+    _later(Duration(milliseconds: 600 * (steps.length + 1)), () {
+      final staging = server.network.settings.acmeStaging;
+      final info = server.network;
+      _network(
+        server,
+        NetworkInfo(
+          publicAddress: info.publicAddress,
+          ports: info.ports,
+          settings: info.settings,
+          listeningPort: info.listeningPort,
+          nextMainPort: info.nextMainPort,
+          upnpGateway: info.upnpGateway,
+          upnpExternalIp: info.upnpExternalIp,
+          upnpError: info.upnpError,
+          domains: info.domains,
+          dnsProviders: info.dnsProviders,
+          acme: AcmeAccount(
+            exists: true,
+            email: email ?? info.acme.email,
+            termsUrl: info.acme.termsUrl,
+          ),
+        ),
+      );
+      at(
+        domain.hostname.startsWith('nocert')
+            ? CertificateStatus(
+                state: old.held
+                    ? CertificateState.renewalFailed
+                    : CertificateState.failed,
+                issuer: old.issuer,
+                notAfter: old.notAfter,
+                error:
+                    "Port 80 isn't reachable from the internet. Open or "
+                    'forward it, or connect your DNS provider to use the DNS '
+                    'challenge.',
+              )
+            : CertificateStatus(
+                state: CertificateState.valid,
+                issuer: staging ? '(STAGING) Ersatz Edamame E1' : 'E6',
+                notAfter: _clock().add(const Duration(days: 90)),
+                test: staging,
+              ),
+      );
+    });
+    return server.network;
+  }
+
+  @override
+  Future<NetworkInfo> uploadCertificate(
+    String serverKey,
+    int domainId, {
+    required String chainPem,
+    required String keyPem,
+  }) async {
+    final server = _server(serverKey);
+    _requireOwner(server);
+    await _latency();
+    _domain(server, domainId);
+    if (!chainPem.contains('-----BEGIN CERTIFICATE-----')) {
+      throw const RepoException(
+        RepoErrorKind.invalidArgument,
+        'The certificate is not in PEM form.',
+      );
+    }
+    if (!keyPem.contains('PRIVATE KEY-----')) {
+      throw const RepoException(
+        RepoErrorKind.invalidArgument,
+        'The private key is not in PEM form.',
+      );
+    }
+    return _domains(server, [
+      for (final other in server.network.domains)
+        other.id == domainId
+            ? _with(
+                other,
+                certificate: CertificateStatus(
+                  state: CertificateState.valid,
+                  issuer: 'Example CA',
+                  notAfter: _clock().add(const Duration(days: 365)),
+                  uploaded: true,
+                ),
+              )
+            : other,
+    ]);
+  }
+
+  @override
+  Future<NetworkInfo> setDnsProvider(
+    String serverKey,
+    DnsProviderKind kind,
+    String token,
+  ) async {
+    final server = _server(serverKey);
+    _requireOwner(server);
+    await _latency();
+    final trimmed = token.trim();
+    if (trimmed.isNotEmpty && trimmed.length < 8) {
+      throw RepoException(
+        RepoErrorKind.invalidArgument,
+        '${kind.label} refused the token.',
+      );
+    }
+    final old = server.network;
+    return _network(
+      server,
+      NetworkInfo(
+        publicAddress: old.publicAddress,
+        ports: old.ports,
+        settings: old.settings,
+        listeningPort: old.listeningPort,
+        nextMainPort: old.nextMainPort,
+        upnpGateway: old.upnpGateway,
+        upnpExternalIp: old.upnpExternalIp,
+        upnpError: old.upnpError,
+        domains: old.domains,
+        dnsProviders: [
+          for (final provider in old.dnsProviders)
+            if (provider.kind != kind) provider,
+          if (trimmed.isNotEmpty)
+            DnsProvider(
+              kind: kind,
+              masked: '••••${trimmed.substring(trimmed.length - 4)}',
+            ),
+        ]..sort((a, b) => a.kind.index.compareTo(b.kind.index)),
+        acme: old.acme,
+      ),
+    );
+  }
+
   @override
   Future<List<DomainCheck>> domainChecks(String serverKey, int domainId) async {
     final server = _server(serverKey);
@@ -1807,6 +1993,8 @@ class MockRepository implements OpencordRepository {
         upnpGateway: next.upnpEnabled ? '192.168.1.1' : '',
         upnpExternalIp: next.upnpEnabled ? old.publicAddress.ipv4 : '',
         domains: old.domains,
+        dnsProviders: old.dnsProviders,
+        acme: old.acme,
       ),
     );
   }
@@ -2574,6 +2762,7 @@ Domain _with(
   int? publicPort,
   DomainCheck? lastCheck,
   DateTime? deactivatedAt,
+  CertificateStatus? certificate,
 }) => Domain(
   id: domain.id,
   hostname: domain.hostname,
@@ -2587,5 +2776,10 @@ Domain _with(
   checking: checking ?? domain.checking,
   users24h: domain.users24h,
   deactivatedAt: active == true ? null : deactivatedAt ?? domain.deactivatedAt,
-  trustedCertificate: domain.trustedCertificate,
+  trustedCertificate: switch (certificate) {
+    final certificate? =>
+      certificate.state == CertificateState.valid && !certificate.test,
+    null => domain.trustedCertificate,
+  },
+  certificate: certificate ?? domain.certificate,
 );

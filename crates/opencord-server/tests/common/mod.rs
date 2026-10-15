@@ -2,6 +2,8 @@
 
 #![allow(dead_code)]
 
+pub mod domains;
+
 use std::collections::VecDeque;
 use std::sync::Arc;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};

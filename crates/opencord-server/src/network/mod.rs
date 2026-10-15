@@ -342,7 +342,9 @@ impl Network {
                 .unwrap_or_default(),
             upnp_external_ip: ip(status.external_ip),
             upnp_error: status.error.unwrap_or_default(),
-            domains: state.domains.to_proto(),
+            domains: state.domains.to_proto(state),
+            dns_providers: state.certificates.providers(),
+            acme: Some(state.certificates.account_info(state)),
         }
     }
 

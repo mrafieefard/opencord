@@ -10,6 +10,7 @@ use sqlx::SqlitePool;
 use sqlx::sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions, SqliteSynchronous};
 
 pub mod bans;
+pub mod certificates;
 pub mod channels;
 pub mod domains;
 pub mod invites;

@@ -98,6 +98,7 @@ class MockServer {
         state: PortState.off,
       ),
     ],
+    acme: AcmeAccount(termsUrl: 'https://letsencrypt.org/repository/'),
   );
 
   /// The soundboard, by id.

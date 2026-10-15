@@ -84,7 +84,7 @@ fn app_link(state: &AppState, host: &str, code: &str) -> Option<String> {
     let trusted = state
         .domains
         .active_named(&address.host)
-        .is_some_and(|domain| domain.trusted_certificate());
+        .is_some_and(|domain| domain.trusted_certificate(state));
     let link = InviteLink {
         address,
         code: code.to_owned(),

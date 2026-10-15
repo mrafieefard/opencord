@@ -206,6 +206,8 @@ class NetworkInfo {
     this.upnpExternalIp = '',
     this.upnpError = '',
     this.domains = const [],
+    this.dnsProviders = const [],
+    this.acme = const AcmeAccount(),
   });
 
   final PublicAddress publicAddress;
@@ -223,6 +225,13 @@ class NetworkInfo {
 
   /// The domains attached, in the order they were added.
   final List<Domain> domains;
+
+  /// DNS providers connected, for the DNS challenge.
+  final List<DnsProvider> dnsProviders;
+  final AcmeAccount acme;
+
+  DnsProvider? provider(DnsProviderKind kind) =>
+      dnsProviders.where((provider) => provider.kind == kind).firstOrNull;
 
   /// The main port changes on the next start.
   bool get restartPending =>
@@ -242,7 +251,9 @@ class NetworkInfo {
       other.upnpGateway == upnpGateway &&
       other.upnpExternalIp == upnpExternalIp &&
       other.upnpError == upnpError &&
-      listEquals(other.domains, domains);
+      listEquals(other.domains, domains) &&
+      listEquals(other.dnsProviders, dnsProviders) &&
+      other.acme == acme;
 
   @override
   int get hashCode => Object.hash(
@@ -255,6 +266,155 @@ class NetworkInfo {
     upnpExternalIp,
     upnpError,
     Object.hashAll(domains),
+    Object.hashAll(dnsProviders),
+    acme,
+  );
+}
+
+enum DnsProviderKind {
+  cloudflare('cloudflare', 'Cloudflare', 'API token with DNS edit permission'),
+  duckdns('duckdns', 'DuckDNS', 'Account token'),
+  desec('desec', 'deSEC', 'API token');
+
+  const DnsProviderKind(this.wire, this.label, this.tokenLabel);
+
+  /// The name the server knows it by.
+  final String wire;
+  final String label;
+  final String tokenLabel;
+
+  static DnsProviderKind? fromWire(String wire) =>
+      values.where((kind) => kind.wire == wire).firstOrNull;
+}
+
+/// A connected DNS provider; its token never leaves the server.
+@immutable
+class DnsProvider {
+  const DnsProvider({required this.kind, required this.masked});
+
+  final DnsProviderKind kind;
+
+  /// The token's last characters, like `••••abcd`.
+  final String masked;
+
+  @override
+  bool operator ==(Object other) =>
+      other is DnsProvider && other.kind == kind && other.masked == masked;
+
+  @override
+  int get hashCode => Object.hash(kind, masked);
+}
+
+/// The server's account with Let's Encrypt (or its test environment).
+@immutable
+class AcmeAccount {
+  const AcmeAccount({this.exists = false, this.email = '', this.termsUrl = ''});
+
+  final bool exists;
+  final String email;
+
+  /// The subscriber agreement to accept before the first certificate.
+  final String termsUrl;
+
+  @override
+  bool operator ==(Object other) =>
+      other is AcmeAccount &&
+      other.exists == exists &&
+      other.email == email &&
+      other.termsUrl == termsUrl;
+
+  @override
+  int get hashCode => Object.hash(exists, email, termsUrl);
+}
+
+enum CertificateState {
+  none,
+  requesting,
+  valid,
+
+  /// Valid, but renewing it fails.
+  renewalFailed,
+
+  /// None; the last request failed.
+  failed,
+
+  /// The tunnel's or the proxy's.
+  provided,
+  expired,
+}
+
+/// Getting a certificate, step by step (plan §7.1).
+enum CertificateStep {
+  account('Creating the account'),
+  order('Ordering'),
+  challenge('Setting up the challenge'),
+  validation('Validating'),
+  issuing('Issuing');
+
+  const CertificateStep(this.label);
+
+  final String label;
+}
+
+@immutable
+class CertificateStatus {
+  const CertificateStatus({
+    this.state = CertificateState.none,
+    this.issuer = '',
+    this.notAfter,
+    this.test = false,
+    this.uploaded = false,
+    this.step,
+    this.error = '',
+    this.retryAt,
+  });
+
+  final CertificateState state;
+  final String issuer;
+  final DateTime? notAfter;
+
+  /// From Let's Encrypt's test environment: kept, not served.
+  final bool test;
+
+  /// The owner's own: not renewed by the server.
+  final bool uploaded;
+
+  /// While requesting.
+  final CertificateStep? step;
+
+  /// Why the last request or renewal failed.
+  final String error;
+
+  /// After too many failures: when it may be tried again.
+  final DateTime? retryAt;
+
+  bool get held =>
+      state == CertificateState.valid ||
+      state == CertificateState.renewalFailed ||
+      state == CertificateState.expired;
+
+  @override
+  bool operator ==(Object other) =>
+      other is CertificateStatus &&
+      other.state == state &&
+      other.issuer == issuer &&
+      other.notAfter == notAfter &&
+      other.test == test &&
+      other.uploaded == uploaded &&
+      other.step == step &&
+      other.error == error &&
+      other.retryAt == retryAt;
+
+  @override
+  int get hashCode => Object.hash(
+    state,
+    issuer,
+    notAfter,
+    test,
+    uploaded,
+    step,
+    error,
+    retryAt,
   );
 }
 
@@ -423,6 +583,7 @@ class Domain {
     this.users24h = 0,
     this.deactivatedAt,
     this.trustedCertificate = false,
+    this.certificate = const CertificateStatus(),
   });
 
   final int id;
@@ -444,6 +605,7 @@ class Domain {
 
   /// Clients check it by its certificate authority.
   final bool trustedCertificate;
+  final CertificateStatus certificate;
 
   bool get wasVerified => status != DomainStatus.pending;
 
@@ -467,7 +629,8 @@ class Domain {
       other.checking == checking &&
       other.users24h == users24h &&
       other.deactivatedAt == deactivatedAt &&
-      other.trustedCertificate == trustedCertificate;
+      other.trustedCertificate == trustedCertificate &&
+      other.certificate == certificate;
 
   @override
   int get hashCode => Object.hash(
@@ -484,6 +647,7 @@ class Domain {
     users24h,
     deactivatedAt,
     trustedCertificate,
+    certificate,
   );
 }
 

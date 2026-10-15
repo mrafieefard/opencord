@@ -8,7 +8,37 @@ import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 import 'package:freezed_annotation/freezed_annotation.dart' hide protected;
 part 'types.freezed.dart';
 
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `hash`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `hash`
+
+class AcmeAccount {
+  /// An account exists with the CA in use.
+  final bool exists;
+  final String email;
+
+  /// The subscriber agreement to accept before the first certificate.
+  final String termsUrl;
+
+  const AcmeAccount({
+    required this.exists,
+    required this.email,
+    required this.termsUrl,
+  });
+
+  static Future<AcmeAccount> default_() =>
+      RustLib.instance.api.crateApiTypesAcmeAccountDefault();
+
+  @override
+  int get hashCode => exists.hashCode ^ email.hashCode ^ termsUrl.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is AcmeAccount &&
+          runtimeType == other.runtimeType &&
+          exists == other.exists &&
+          email == other.email &&
+          termsUrl == other.termsUrl;
+}
 
 @freezed
 sealed class AddServerOutcome with _$AddServerOutcome {
@@ -275,6 +305,81 @@ class CameraStarted {
           width == other.width &&
           height == other.height;
 }
+
+enum CertificateState {
+  none,
+  requesting,
+  valid,
+
+  /// Valid, but renewing it fails.
+  renewalFailed,
+
+  /// None; the last request failed.
+  failed,
+
+  /// The tunnel's or the proxy's.
+  provided,
+  expired,
+}
+
+class CertificateStatus {
+  final CertificateState state;
+  final String issuer;
+  final PlatformInt64 notAfterMs;
+
+  /// From Let's Encrypt's test environment: kept, not served.
+  final bool test;
+
+  /// The owner's own: not renewed by the server.
+  final bool uploaded;
+
+  /// While requesting.
+  final CertificateStep? step;
+
+  /// Why the last request or renewal failed.
+  final String error;
+
+  /// When it may be tried again, after too many failures; 0 when it may.
+  final PlatformInt64 retryAtMs;
+
+  const CertificateStatus({
+    required this.state,
+    required this.issuer,
+    required this.notAfterMs,
+    required this.test,
+    required this.uploaded,
+    this.step,
+    required this.error,
+    required this.retryAtMs,
+  });
+
+  @override
+  int get hashCode =>
+      state.hashCode ^
+      issuer.hashCode ^
+      notAfterMs.hashCode ^
+      test.hashCode ^
+      uploaded.hashCode ^
+      step.hashCode ^
+      error.hashCode ^
+      retryAtMs.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is CertificateStatus &&
+          runtimeType == other.runtimeType &&
+          state == other.state &&
+          issuer == other.issuer &&
+          notAfterMs == other.notAfterMs &&
+          test == other.test &&
+          uploaded == other.uploaded &&
+          step == other.step &&
+          error == other.error &&
+          retryAtMs == other.retryAtMs;
+}
+
+enum CertificateStep { account, order, challenge, validation, issuing }
 
 class Channel {
   final PlatformInt64 id;
@@ -677,6 +782,28 @@ class DefaultSound {
           durationMs == other.durationMs;
 }
 
+/// A connected DNS provider; its token never leaves the server.
+class DnsProvider {
+  /// cloudflare, duckdns or desec.
+  final String kind;
+
+  /// The token's last characters, like `••••abcd`.
+  final String masked;
+
+  const DnsProvider({required this.kind, required this.masked});
+
+  @override
+  int get hashCode => kind.hashCode ^ masked.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is DnsProvider &&
+          runtimeType == other.runtimeType &&
+          kind == other.kind &&
+          masked == other.masked;
+}
+
 class Domain {
   final PlatformInt64 id;
   final String hostname;
@@ -698,6 +825,7 @@ class Domain {
 
   /// Clients check it by its certificate authority.
   final bool trustedCertificate;
+  final CertificateStatus certificate;
 
   const Domain({
     required this.id,
@@ -714,6 +842,7 @@ class Domain {
     required this.createdAtMs,
     required this.deactivatedAtMs,
     required this.trustedCertificate,
+    required this.certificate,
   });
 
   @override
@@ -731,7 +860,8 @@ class Domain {
       users24H.hashCode ^
       createdAtMs.hashCode ^
       deactivatedAtMs.hashCode ^
-      trustedCertificate.hashCode;
+      trustedCertificate.hashCode ^
+      certificate.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -751,7 +881,8 @@ class Domain {
           users24H == other.users24H &&
           createdAtMs == other.createdAtMs &&
           deactivatedAtMs == other.deactivatedAtMs &&
-          trustedCertificate == other.trustedCertificate;
+          trustedCertificate == other.trustedCertificate &&
+          certificate == other.certificate;
 }
 
 class DomainCheck {
@@ -1231,6 +1362,10 @@ class NetworkInfo {
   /// The domains attached, in the order they were added.
   final List<Domain> domains;
 
+  /// DNS providers connected, for the DNS challenge.
+  final List<DnsProvider> dnsProviders;
+  final AcmeAccount acme;
+
   const NetworkInfo({
     required this.publicAddress,
     required this.ports,
@@ -1241,6 +1376,8 @@ class NetworkInfo {
     required this.upnpExternalIp,
     required this.upnpError,
     required this.domains,
+    required this.dnsProviders,
+    required this.acme,
   });
 
   @override
@@ -1253,7 +1390,9 @@ class NetworkInfo {
       upnpGateway.hashCode ^
       upnpExternalIp.hashCode ^
       upnpError.hashCode ^
-      domains.hashCode;
+      domains.hashCode ^
+      dnsProviders.hashCode ^
+      acme.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -1268,7 +1407,9 @@ class NetworkInfo {
           upnpGateway == other.upnpGateway &&
           upnpExternalIp == other.upnpExternalIp &&
           upnpError == other.upnpError &&
-          domains == other.domains;
+          domains == other.domains &&
+          dnsProviders == other.dnsProviders &&
+          acme == other.acme;
 }
 
 class NetworkSettings {

@@ -177,16 +177,16 @@ impl Domain {
     }
 
     /// Clients may check it like a website: the certificate is an
-    /// authority's (a tunnel's or proxy's now; Let's Encrypt's from D3).
-    pub fn trusted_certificate(&self) -> bool {
-        self.kind.behind_proxy()
+    /// authority's, a tunnel's or proxy's, or one this server holds.
+    pub fn trusted_certificate(&self, state: &AppState) -> bool {
+        self.kind.behind_proxy() || state.certificates.trusted(self.id, now_ms())
     }
 
-    pub fn address(&self) -> proto::ConnectAddress {
+    pub fn address(&self, state: &AppState) -> proto::ConnectAddress {
         proto::ConnectAddress {
             host: self.hostname.clone(),
             port: u32::from(self.public_port),
-            trusted_certificate: self.trusted_certificate(),
+            trusted_certificate: self.trusted_certificate(state),
             domain_id: self.id,
         }
     }
@@ -297,7 +297,7 @@ impl Domains {
         })
     }
 
-    pub fn to_proto(&self) -> Vec<proto::Domain> {
+    pub fn to_proto(&self, state: &AppState) -> Vec<proto::Domain> {
         let now = now_ms();
         let checking = lock(&self.checking).clone();
         self.all()
@@ -320,7 +320,8 @@ impl Domains {
                 users_24h: self.users_24h(domain.id, now),
                 created_at_ms: domain.created_at,
                 deactivated_at_ms: domain.deactivated_at.unwrap_or(0),
-                trusted_certificate: domain.trusted_certificate(),
+                trusted_certificate: domain.trusted_certificate(state),
+                certificate: Some(state.certificates.status(&domain, now)),
             })
             .collect()
     }
@@ -337,7 +338,7 @@ impl Domains {
         let primary = active
             .first()
             .filter(|domain| domain.primary)
-            .map(Domain::address);
+            .map(|domain| domain.address(state));
         let ip = state
             .network
             .public_ips()
@@ -351,7 +352,7 @@ impl Domains {
             });
         proto::ServerAddresses {
             primary,
-            domains: active.iter().map(Domain::address).collect(),
+            domains: active.iter().map(|domain| domain.address(state)).collect(),
             ip,
         }
     }
@@ -509,6 +510,7 @@ impl Domains {
             changed
         };
         self.save(state, &changed).await?;
+        state.certificates.serve(&self.all(), now);
         self.announce(state);
         Ok(())
     }
@@ -536,9 +538,11 @@ impl Domains {
                 changed.push(first.clone());
             }
             tracing::info!(hostname = %domain.hostname, "a domain was deleted");
-            changed
+            (changed, domain)
         };
+        let (changed, deleted) = changed;
         table::delete(&mut *state.db.acquire().await?, id).await?;
+        state.certificates.forget(&deleted);
         lock(&self.uses).remove(&id);
         self.save(state, &changed).await?;
         self.announce(state);

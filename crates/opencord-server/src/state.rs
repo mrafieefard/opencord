@@ -50,6 +50,8 @@ pub struct AppState {
     pub network: crate::network::Network,
     /// The domains attached (Phase 3 plan §6).
     pub domains: crate::domains::Domains,
+    /// Their certificates (Phase 3 plan §7).
+    pub certificates: crate::certs::Certificates,
     /// Where Lavalink plays into, when music is on (Phase 3 plan §13).
     pub music_bridge: Option<opencord_voice::bridge::MusicBridge>,
     guild: RwLock<Guild>,
@@ -91,11 +93,19 @@ impl AppState {
             voice_nodes,
             network,
             domains: crate::domains::Domains::default(),
+            certificates: crate::certs::Certificates::throwaway(),
             music_bridge: None,
             guild: RwLock::new(guild),
             voice: StdMutex::new(VoiceStates::default()),
             writes: Mutex::new(()),
         }
+    }
+
+    /// With the certificate store the TLS listener serves from.
+    #[must_use]
+    pub fn with_certificates(mut self, certificates: crate::certs::Certificates) -> Self {
+        self.certificates = certificates;
+        self
     }
 
     /// With the domains saved.

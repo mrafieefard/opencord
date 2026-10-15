@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO dns_providers (id, kind, token_enc, created_at) VALUES ($1, $2, $3, $4)\n         ON CONFLICT (kind) DO UPDATE SET token_enc = excluded.token_enc",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 4
+    },
+    "nullable": []
+  },
+  "hash": "42f8215982f1761cedfa01c9bfaf119ac5b2aa5deb3313f6dc24778f4291001d"
+}

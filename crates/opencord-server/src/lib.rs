@@ -1,6 +1,7 @@
 //! The Opencord server: one community per instance.
 
 pub mod bootstrap;
+pub mod certs;
 pub mod cli;
 pub mod config;
 pub mod db;
@@ -17,6 +18,7 @@ pub mod permissions;
 pub mod presence;
 pub mod random;
 pub mod rate_limit;
+pub mod secrets;
 pub mod server;
 pub mod soundboard;
 pub mod state;

@@ -35,6 +35,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   String dco_decode_String(dynamic raw);
 
   @protected
+  AcmeAccount dco_decode_acme_account(dynamic raw);
+
+  @protected
   AddServerOutcome dco_decode_add_server_outcome(dynamic raw);
 
   @protected
@@ -60,6 +63,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   bool dco_decode_box_autoadd_bool(dynamic raw);
+
+  @protected
+  CertificateStep dco_decode_box_autoadd_certificate_step(dynamic raw);
 
   @protected
   Channel dco_decode_box_autoadd_channel(dynamic raw);
@@ -192,6 +198,15 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   CameraStarted dco_decode_camera_started(dynamic raw);
 
   @protected
+  CertificateState dco_decode_certificate_state(dynamic raw);
+
+  @protected
+  CertificateStatus dco_decode_certificate_status(dynamic raw);
+
+  @protected
+  CertificateStep dco_decode_certificate_step(dynamic raw);
+
+  @protected
   Channel dco_decode_channel(dynamic raw);
 
   @protected
@@ -226,6 +241,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   DefaultSound dco_decode_default_sound(dynamic raw);
+
+  @protected
+  DnsProvider dco_decode_dns_provider(dynamic raw);
 
   @protected
   Domain dco_decode_domain(dynamic raw);
@@ -301,6 +319,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   List<DefaultSound> dco_decode_list_default_sound(dynamic raw);
+
+  @protected
+  List<DnsProvider> dco_decode_list_dns_provider(dynamic raw);
 
   @protected
   List<Domain> dco_decode_list_domain(dynamic raw);
@@ -403,6 +424,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   bool? dco_decode_opt_box_autoadd_bool(dynamic raw);
+
+  @protected
+  CertificateStep? dco_decode_opt_box_autoadd_certificate_step(dynamic raw);
 
   @protected
   ConnectAddress? dco_decode_opt_box_autoadd_connect_address(dynamic raw);
@@ -603,6 +627,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   String sse_decode_String(SseDeserializer deserializer);
 
   @protected
+  AcmeAccount sse_decode_acme_account(SseDeserializer deserializer);
+
+  @protected
   AddServerOutcome sse_decode_add_server_outcome(SseDeserializer deserializer);
 
   @protected
@@ -632,6 +659,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   bool sse_decode_box_autoadd_bool(SseDeserializer deserializer);
+
+  @protected
+  CertificateStep sse_decode_box_autoadd_certificate_step(
+    SseDeserializer deserializer,
+  );
 
   @protected
   Channel sse_decode_box_autoadd_channel(SseDeserializer deserializer);
@@ -796,6 +828,15 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   CameraStarted sse_decode_camera_started(SseDeserializer deserializer);
 
   @protected
+  CertificateState sse_decode_certificate_state(SseDeserializer deserializer);
+
+  @protected
+  CertificateStatus sse_decode_certificate_status(SseDeserializer deserializer);
+
+  @protected
+  CertificateStep sse_decode_certificate_step(SseDeserializer deserializer);
+
+  @protected
   Channel sse_decode_channel(SseDeserializer deserializer);
 
   @protected
@@ -832,6 +873,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   DefaultSound sse_decode_default_sound(SseDeserializer deserializer);
+
+  @protected
+  DnsProvider sse_decode_dns_provider(SseDeserializer deserializer);
 
   @protected
   Domain sse_decode_domain(SseDeserializer deserializer);
@@ -917,6 +961,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   List<DefaultSound> sse_decode_list_default_sound(
     SseDeserializer deserializer,
   );
+
+  @protected
+  List<DnsProvider> sse_decode_list_dns_provider(SseDeserializer deserializer);
 
   @protected
   List<Domain> sse_decode_list_domain(SseDeserializer deserializer);
@@ -1039,6 +1086,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   bool? sse_decode_opt_box_autoadd_bool(SseDeserializer deserializer);
+
+  @protected
+  CertificateStep? sse_decode_opt_box_autoadd_certificate_step(
+    SseDeserializer deserializer,
+  );
 
   @protected
   ConnectAddress? sse_decode_opt_box_autoadd_connect_address(
@@ -1274,6 +1326,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_String(String self, SseSerializer serializer);
 
   @protected
+  void sse_encode_acme_account(AcmeAccount self, SseSerializer serializer);
+
+  @protected
   void sse_encode_add_server_outcome(
     AddServerOutcome self,
     SseSerializer serializer,
@@ -1308,6 +1363,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_box_autoadd_bool(bool self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_box_autoadd_certificate_step(
+    CertificateStep self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_box_autoadd_channel(Channel self, SseSerializer serializer);
@@ -1517,6 +1578,24 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_camera_started(CameraStarted self, SseSerializer serializer);
 
   @protected
+  void sse_encode_certificate_state(
+    CertificateState self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_certificate_status(
+    CertificateStatus self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_certificate_step(
+    CertificateStep self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_channel(Channel self, SseSerializer serializer);
 
   @protected
@@ -1569,6 +1648,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_default_sound(DefaultSound self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_dns_provider(DnsProvider self, SseSerializer serializer);
 
   @protected
   void sse_encode_domain(Domain self, SseSerializer serializer);
@@ -1663,6 +1745,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_list_default_sound(
     List<DefaultSound> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_dns_provider(
+    List<DnsProvider> self,
     SseSerializer serializer,
   );
 
@@ -1824,6 +1912,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_opt_box_autoadd_bool(bool? self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_opt_box_autoadd_certificate_step(
+    CertificateStep? self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_opt_box_autoadd_connect_address(

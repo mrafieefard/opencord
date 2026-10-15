@@ -13,6 +13,7 @@ anyhow.workspace = true
 axum.workspace = true
 axum-server.workspace = true
 bytes.workspace = true
+chacha20poly1305.workspace = true
 clap.workspace = true
 data-encoding.workspace = true
 ed25519-dalek.workspace = true
@@ -43,6 +44,7 @@ opencord-proto.workspace = true
 opencord-voice.workspace = true
 prost.workspace = true
 webpki-roots.workspace = true
+x509-parser.workspace = true
 
 [dev-dependencies]
 tempfile.workspace = true

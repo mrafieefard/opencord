@@ -551,6 +551,48 @@ pub async fn domain_checks(
         .await
 }
 
+/// Starts getting a Let's Encrypt certificate for a domain; progress
+/// arrives as `NetworkStatus`. `agree_terms` is needed for the first one.
+pub async fn request_certificate(
+    server_key: String,
+    domain_id: i64,
+    email: Option<String>,
+    agree_terms: bool,
+) -> Result<NetworkInfo, CoreError> {
+    on_runtime(move |client| async move {
+        client
+            .request_certificate(&server_key, domain_id, email, agree_terms)
+            .await
+    })
+    .await
+}
+
+/// The owner's own certificate chain and key, in PEM.
+pub async fn upload_certificate(
+    server_key: String,
+    domain_id: i64,
+    chain_pem: String,
+    key_pem: String,
+) -> Result<NetworkInfo, CoreError> {
+    on_runtime(move |client| async move {
+        client
+            .upload_certificate(&server_key, domain_id, chain_pem, key_pem)
+            .await
+    })
+    .await
+}
+
+/// Connects a DNS provider (cloudflare, duckdns or desec); an empty token
+/// disconnects it.
+pub async fn set_dns_provider(
+    server_key: String,
+    kind: String,
+    token: String,
+) -> Result<NetworkInfo, CoreError> {
+    on_runtime(move |client| async move { client.set_dns_provider(&server_key, kind, token).await })
+        .await
+}
+
 /// Joins a voice channel. This device is in at most one voice channel
 /// across all servers, so any other one is left first.
 pub async fn voice_join(server_key: String, channel_id: i64) -> Result<VoiceState, CoreError> {

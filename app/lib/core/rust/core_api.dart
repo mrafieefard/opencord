@@ -309,6 +309,26 @@ abstract interface class CoreApi {
 
   Future<List<core.DomainCheck>> domainChecks(String serverKey, int domainId);
 
+  Future<core.NetworkInfo> requestCertificate(
+    String serverKey,
+    int domainId,
+    String? email,
+    bool agreeTerms,
+  );
+
+  Future<core.NetworkInfo> uploadCertificate(
+    String serverKey,
+    int domainId,
+    String chainPem,
+    String keyPem,
+  );
+
+  Future<core.NetworkInfo> setDnsProvider(
+    String serverKey,
+    String kind,
+    String token,
+  );
+
   /// Leaves any other voice channel first, on any server.
   Future<core.VoiceState> voiceJoin(String serverKey, int channelId);
 
@@ -865,6 +885,39 @@ class FrbCoreApi implements CoreApi {
   @override
   Future<List<core.DomainCheck>> domainChecks(String serverKey, int domainId) =>
       frb.domainChecks(serverKey: serverKey, domainId: domainId);
+
+  @override
+  Future<core.NetworkInfo> requestCertificate(
+    String serverKey,
+    int domainId,
+    String? email,
+    bool agreeTerms,
+  ) => frb.requestCertificate(
+    serverKey: serverKey,
+    domainId: domainId,
+    email: email,
+    agreeTerms: agreeTerms,
+  );
+
+  @override
+  Future<core.NetworkInfo> uploadCertificate(
+    String serverKey,
+    int domainId,
+    String chainPem,
+    String keyPem,
+  ) => frb.uploadCertificate(
+    serverKey: serverKey,
+    domainId: domainId,
+    chainPem: chainPem,
+    keyPem: keyPem,
+  );
+
+  @override
+  Future<core.NetworkInfo> setDnsProvider(
+    String serverKey,
+    String kind,
+    String token,
+  ) => frb.setDnsProvider(serverKey: serverKey, kind: kind, token: token);
 
   @override
   Future<core.VoiceState> voiceJoin(String serverKey, int channelId) =>

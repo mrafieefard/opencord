@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:opencord/core/format.dart';
 import 'package:opencord/core/model/network.dart';
 import 'package:opencord/core/repository/repository.dart';
+import 'package:opencord/features/settings/server/network/certificate_dialogs.dart';
 import 'package:opencord/features/settings/server/network/network_dialogs.dart';
 import 'package:opencord/ui/theme/oc_colors.dart';
 import 'package:opencord/ui/theme/oc_icons.dart';
@@ -86,6 +87,9 @@ class DomainRow extends ConsumerWidget {
   }
 
   void _menu(BuildContext anchor, WidgetRef ref) {
+    final certificate = domain.certificate;
+    final canRequest = canRequestCertificate(domain, clock.now());
+    final renewable = certificate.held && !certificate.uploaded;
     final failedProxy =
         domain.kind.behindProxy &&
         !domain.wasVerified &&
@@ -94,6 +98,22 @@ class DomainRow extends ConsumerWidget {
       context: anchor,
       position: globalRectOf(anchor).bottomLeft.translate(0, 4),
       entries: [
+        if (canRequest)
+          OcMenuItem(
+            label: renewable ? 'Renew now' : 'Get certificate',
+            icon: renewable ? OcIcons.refresh : OcIcons.lock,
+            onSelected: () => getCertificate(anchor, ref, serverKey, domain),
+          ),
+        if (!domain.kind.behindProxy)
+          OcMenuItem(
+            label: 'Upload certificate',
+            icon: OcIcons.upload,
+            onSelected: () => showOcDialog<void>(
+              context: anchor,
+              builder: (_) =>
+                  UploadCertificateDialog(serverKey: serverKey, domain: domain),
+            ),
+          ),
         if (domain.wasVerified && !domain.primary)
           OcMenuItem(
             label: 'Set as primary',
@@ -155,11 +175,8 @@ class DomainRow extends ConsumerWidget {
     final status = !domain.active && domain.wasVerified
         ? 'Inactive'
         : domain.status.label;
-    final certificate = switch (domain.kind) {
-      DomainKind.tunnel => 'Certificate provided by Cloudflare',
-      DomainKind.reverseProxy => 'Certificate provided by the proxy',
-      _ => domain.trustedCertificate ? 'Certificate valid' : 'No certificate',
-    };
+    final now = clock.now();
+    final certificate = certificateLabel(domain, now);
     final lines = <String>[
       [
         domain.kind.label,
@@ -171,9 +188,10 @@ class DomainRow extends ConsumerWidget {
         'Checking…'
       else if (domain.lastCheck case final check?)
         [check.message, if (check.note.isNotEmpty) check.note].join(' '),
+      ?certificateProgress(domain.certificate, now),
       if (domain.status == DomainStatus.dnsProblem &&
           domain.problemSince != null)
-        'DNS problem since ${rowTime(domain.problemSince!, clock.now())}',
+        'DNS problem since ${rowTime(domain.problemSince!, now)}',
       if (domain.active)
         switch (domain.users24h) {
           1 => '1 person connected through it in the last 24 hours',

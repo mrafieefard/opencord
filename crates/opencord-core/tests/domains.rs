@@ -10,7 +10,7 @@ use std::time::Duration;
 
 use opencord_core::api::types::{
     AddServerOutcome, ChannelKind, ConnectionState, CoreEvent, CoreEventPayload, DomainKind,
-    DomainUpdate, MediaEvent, NetworkSettingsChanges, VoiceConnectionState,
+    DomainStatus, DomainUpdate, MediaEvent, NetworkSettingsChanges, VoiceConnectionState,
 };
 use opencord_core::client::Client;
 use opencord_core::identity::Identity;
@@ -243,9 +243,8 @@ async fn a_primary_that_does_not_answer_falls_back_and_the_list_follows_the_serv
             .unwrap();
         ids.push(info.domains.last().unwrap().id);
     }
-    for id in &ids {
-        client.check_domain(&key, *id).await.unwrap();
-    }
+    // One after the other: the first verified becomes the primary.
+    client.check_domain(&key, ids[0]).await.unwrap();
     let addresses = owner
         .wait_for(|payload| match payload {
             CoreEventPayload::ServerAddressesUpdate(addresses) if addresses.primary.is_some() => {
@@ -254,6 +253,14 @@ async fn a_primary_that_does_not_answer_falls_back_and_the_list_follows_the_serv
             _ => None,
         })
         .await;
+    owner.client.check_domain(&key, ids[1]).await.unwrap();
+    for _ in 0..100 {
+        let info = owner.client.watch_network(&key, true).await.unwrap();
+        if info.domains[1].status == DomainStatus::Verified {
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(20)).await;
+    }
     let port = server.handle.local_addr.port();
     assert_eq!(
         addresses.primary.unwrap().host,

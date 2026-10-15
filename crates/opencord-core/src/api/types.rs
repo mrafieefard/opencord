@@ -652,6 +652,67 @@ pub struct NetworkInfo {
     pub upnp_error: String,
     /// The domains attached, in the order they were added.
     pub domains: Vec<Domain>,
+    /// DNS providers connected, for the DNS challenge.
+    pub dns_providers: Vec<DnsProvider>,
+    pub acme: AcmeAccount,
+}
+
+/// A connected DNS provider; its token never leaves the server.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DnsProvider {
+    /// cloudflare, duckdns or desec.
+    pub kind: String,
+    /// The token's last characters, like `••••abcd`.
+    pub masked: String,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct AcmeAccount {
+    /// An account exists with the CA in use.
+    pub exists: bool,
+    pub email: String,
+    /// The subscriber agreement to accept before the first certificate.
+    pub terms_url: String,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CertificateState {
+    None,
+    Requesting,
+    Valid,
+    /// Valid, but renewing it fails.
+    RenewalFailed,
+    /// None; the last request failed.
+    Failed,
+    /// The tunnel's or the proxy's.
+    Provided,
+    Expired,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CertificateStep {
+    Account,
+    Order,
+    Challenge,
+    Validation,
+    Issuing,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CertificateStatus {
+    pub state: CertificateState,
+    pub issuer: String,
+    pub not_after_ms: i64,
+    /// From Let's Encrypt's test environment: kept, not served.
+    pub test: bool,
+    /// The owner's own: not renewed by the server.
+    pub uploaded: bool,
+    /// While requesting.
+    pub step: Option<CertificateStep>,
+    /// Why the last request or renewal failed.
+    pub error: String,
+    /// When it may be tried again, after too many failures; 0 when it may.
+    pub retry_at_ms: i64,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -713,6 +774,7 @@ pub struct Domain {
     pub deactivated_at_ms: i64,
     /// Clients check it by its certificate authority.
     pub trusted_certificate: bool,
+    pub certificate: CertificateStatus,
 }
 
 /// What to change about a domain; absent fields stay.

@@ -110,6 +110,27 @@ impl DnsChecker {
         Err(DnsError::TooManyCnames)
     }
 
+    /// The TXT records `name`'s own name servers give: for waiting until a
+    /// DNS-01 challenge record is there.
+    pub async fn authoritative_txt(&self, name: &str) -> Result<Vec<String>, DnsError> {
+        let name = parse_name(name)?;
+        let servers = self.zone_servers(&name).await?;
+        let answer = self.ask(&servers, &name, RecordType::TXT, false).await?;
+        Ok(answer
+            .answers
+            .iter()
+            .filter_map(|record| match &record.data {
+                RData::TXT(txt) => Some(
+                    txt.txt_data
+                        .iter()
+                        .map(|part| String::from_utf8_lossy(part).into_owned())
+                        .collect::<String>(),
+                ),
+                _ => None,
+            })
+            .collect())
+    }
+
     /// What a public resolver answers for `host`, caches and all: compared
     /// with [`Self::authoritative`] to warn of stale caches.
     pub async fn recursive(&self, host: &str) -> Result<Resolved, DnsError> {

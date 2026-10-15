@@ -1055,6 +1055,39 @@ class RustRepository implements OpencordRepository {
       );
 
   @override
+  Future<NetworkInfo> requestCertificate(
+    String serverKey,
+    int domainId, {
+    String? email,
+    bool agreeTerms = false,
+  }) async => networkInfoFrom(
+    await _call(
+      () => _core.requestCertificate(serverKey, domainId, email, agreeTerms),
+    ),
+  );
+
+  @override
+  Future<NetworkInfo> uploadCertificate(
+    String serverKey,
+    int domainId, {
+    required String chainPem,
+    required String keyPem,
+  }) async => networkInfoFrom(
+    await _call(
+      () => _core.uploadCertificate(serverKey, domainId, chainPem, keyPem),
+    ),
+  );
+
+  @override
+  Future<NetworkInfo> setDnsProvider(
+    String serverKey,
+    DnsProviderKind kind,
+    String token,
+  ) async => networkInfoFrom(
+    await _call(() => _core.setDnsProvider(serverKey, kind.wire, token)),
+  );
+
+  @override
   Future<List<DomainCheck>> domainChecks(
     String serverKey,
     int domainId,

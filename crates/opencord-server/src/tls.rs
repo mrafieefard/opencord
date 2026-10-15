@@ -86,6 +86,23 @@ pub fn server_config(material: &TlsMaterial) -> Result<rustls::ServerConfig, Tls
     Ok(config)
 }
 
+/// The TLS listener's config with certificates chosen per connection
+/// (Phase 3 plan §7.3), ACME's TLS-ALPN-01 validators answered too.
+pub fn server_config_with(
+    resolver: Arc<dyn rustls::server::ResolvesServerCert>,
+) -> Result<rustls::ServerConfig, TlsError> {
+    let provider = Arc::new(rustls::crypto::ring::default_provider());
+    let mut config = rustls::ServerConfig::builder_with_provider(provider)
+        .with_safe_default_protocol_versions()?
+        .with_no_client_auth()
+        .with_cert_resolver(resolver);
+    config.alpn_protocols = vec![
+        b"http/1.1".to_vec(),
+        crate::certs::store::ACME_TLS_ALPN.to_vec(),
+    ];
+    Ok(config)
+}
+
 /// A client config that trusts exactly the certificate with `fingerprint`,
 /// or, without one, certificates from the public certificate authorities.
 pub fn client_config(fingerprint: Option<Fingerprint>) -> Result<rustls::ClientConfig, TlsError> {

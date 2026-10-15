@@ -10,6 +10,8 @@ This guide grows with Phase 3. What is here so far:
 - [Active, inactive and primary](#active-inactive-and-primary)
 - [Invites through a domain](#invites-through-a-domain)
 - [How apps use domains](#how-apps-use-domains)
+- [Certificates](#certificates)
+- [DNS providers](#dns-providers)
 - [Public address](#public-address)
 - [Ports](#ports)
 - [Opening ports on a home router](#opening-ports-on-a-home-router)
@@ -88,7 +90,52 @@ An invite through a domain stops working when the domain is turned off or delete
 
 ## How apps use domains
 
-Apps learn the active domains and the public address when they connect, and when they change. They connect to the primary first, then the other domains, then the address they added the server with, then the IP address, so a domain that stops answering costs nothing but a few seconds. A server added again at another address is recognised and stays one entry. Domains with a certificate from an authority are checked like a website, with no fingerprint to confirm.
+Apps learn the active domains and the public address when they connect, and when they change. They connect to the primary first, then the other domains, then the address they added the server with, then the IP address, so a domain that stops answering costs nothing but a few seconds. A server added again at another address is recognised and stays one entry. Domains with a certificate from an authority (Let's Encrypt, an uploaded one, Cloudflare's or a proxy's) are checked like a website, with no fingerprint to confirm.
+
+## Certificates
+
+A domain with a certificate from Let's Encrypt is checked by apps like a website: no fingerprint to confirm, and renewals cause no warnings. Tunnel and reverse-proxy domains already have one, from Cloudflare or the proxy.
+
+**Getting one.** Once an own domain is verified, open its **⋯** menu and choose **Get certificate**. The first time, Opencord asks for an email address (optional: Let's Encrypt only uses it for account recovery and important notices; it sends no expiry reminders) and for your agreement to Let's Encrypt's subscriber agreement. The row then shows each step: creating the account, ordering, setting up the challenge, validating, issuing. The certificate is used at once, without a restart.
+
+**How Let's Encrypt checks the domain.** Opencord picks the way that can work:
+
+| Way | Used when | Needs |
+|---|---|---|
+| DNS challenge | A [DNS provider](#dns-providers) is connected that holds the domain | No open ports |
+| TLS-ALPN challenge | Opencord's main port is 443 | Port 443 reachable from the internet |
+| HTTP challenge | Otherwise | Port 80 free on the machine and reachable from the internet; Opencord answers on it only while Let's Encrypt checks |
+
+When it fails, the row says why in plain words, for example that port 80 is not reachable, or that Let's Encrypt's limit was reached and when to try again. After 5 failures within an hour, the next try waits until an hour has passed since the first of them; the row says when. To try the setup without reaching Let's Encrypt's limits, turn on **Let's Encrypt test environment** under [Advanced settings](#advanced-settings): its certificates are labelled "Test", kept, and not used.
+
+**Renewal.** Opencord looks every hour and renews when a third of the certificate's life is left (about 30 days for Let's Encrypt's 90), or earlier when Let's Encrypt asks for it. The old certificate stays in use until the new one is in. If renewing keeps failing, the row says "Renewal failed", and you are told 7 days before it expires.
+
+**Your own certificate.** For a certificate from your own authority, or a wildcard one, choose **Upload certificate** in the domain's menu and paste or choose the certificate chain and the private key, both in PEM. Opencord checks that they belong together, cover the domain and have not expired. It does not renew uploaded certificates; you are told 14 days before one expires.
+
+**Where they are kept.** Certificates are in the server's database. Private keys and the Let's Encrypt account are encrypted with `secrets.key` in the data directory; back it up together with the database. Without it the keys cannot be read: certificates must be requested again and providers connected again.
+
+For Opencord on a machine Let's Encrypt cannot reach, such as a test network, `[acme]` in `opencord.toml` points it elsewhere:
+
+| Key | Default | Meaning |
+|---|---|---|
+| `directory` | Let's Encrypt | The ACME directory used for certificates |
+| `test_directory` | Let's Encrypt's staging | Used when the test environment is on |
+| `root` | none | A PEM file with the ACME server's own root, for a private CA such as step-ca |
+| `http_port` | 80 | Where the HTTP challenge is answered |
+| `tls_alpn_port` | 443 | The main port that makes the TLS-ALPN challenge possible |
+| `dns_propagation_s` | 120 | How long, at most, to wait for a DNS challenge record to appear |
+
+## DNS providers
+
+Connecting a DNS provider lets certificates use the DNS challenge, which needs no open ports at all: the server sets a temporary record and removes it afterwards. Under **DNS providers**, choose **Connect** and paste a token:
+
+| Provider | Token |
+|---|---|
+| Cloudflare | An API token with "Edit zone DNS" permission for the zone (My Profile → API Tokens → Create Token → Edit zone DNS) |
+| DuckDNS | The account token shown on duckdns.org |
+| deSEC | A token from desec.io (Token Management) |
+
+The token is checked when it is connected, kept encrypted on the server, and never shown again: the page shows its last four characters. **Replace** puts in a new one; **Disconnect** deletes it.
 
 ## Public address
 

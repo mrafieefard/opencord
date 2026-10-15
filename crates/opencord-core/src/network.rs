@@ -6,9 +6,10 @@ use proto::request::Kind as Request;
 use proto::response::Result as Response;
 
 use crate::api::types::{
-    CheckResult, CoreError, Domain, DomainCheck, DomainKind, DomainStatus, DomainUpdate,
-    MappingState, NetworkInfo, NetworkSettings, NetworkSettingsChanges, NoticeSeverity,
-    PortProtocol, PortPurpose, PortState, PortStatus, PublicAddress, ServerNotice,
+    AcmeAccount, CertificateState, CertificateStatus, CertificateStep, CheckResult, CoreError,
+    DnsProvider, Domain, DomainCheck, DomainKind, DomainStatus, DomainUpdate, MappingState,
+    NetworkInfo, NetworkSettings, NetworkSettingsChanges, NoticeSeverity, PortProtocol,
+    PortPurpose, PortState, PortStatus, PublicAddress, ServerNotice,
 };
 use crate::client::{Client, unexpected};
 
@@ -118,6 +119,52 @@ impl Client {
     }
 }
 
+impl Client {
+    /// Starts getting a Let's Encrypt certificate; progress comes as
+    /// `NetworkStatus` (plan §7).
+    pub async fn request_certificate(
+        &self,
+        key: &str,
+        domain_id: i64,
+        email: Option<String>,
+        agree_terms: bool,
+    ) -> Result<NetworkInfo, CoreError> {
+        let request = Request::RequestCertificate(proto::RequestCertificate {
+            domain_id,
+            email,
+            agree_terms,
+        });
+        network_info(self.request(key, request).await?)
+    }
+
+    /// The owner's own certificate and key, in PEM (plan §7.4).
+    pub async fn upload_certificate(
+        &self,
+        key: &str,
+        domain_id: i64,
+        chain_pem: String,
+        key_pem: String,
+    ) -> Result<NetworkInfo, CoreError> {
+        let request = Request::UploadCertificate(proto::UploadCertificate {
+            domain_id,
+            chain_pem,
+            key_pem,
+        });
+        network_info(self.request(key, request).await?)
+    }
+
+    /// Connects a DNS provider; an empty token disconnects it.
+    pub async fn set_dns_provider(
+        &self,
+        key: &str,
+        kind: String,
+        token: String,
+    ) -> Result<NetworkInfo, CoreError> {
+        let request = Request::SetDnsProvider(proto::SetDnsProvider { kind, token });
+        network_info(self.request(key, request).await?)
+    }
+}
+
 fn kind_to_proto(kind: DomainKind) -> proto::DomainKind {
     match kind {
         DomainKind::Own => proto::DomainKind::Own,
@@ -156,7 +203,38 @@ fn domain_from(domain: proto::Domain) -> Option<Domain> {
         created_at_ms: domain.created_at_ms,
         deactivated_at_ms: domain.deactivated_at_ms,
         trusted_certificate: domain.trusted_certificate,
+        certificate: certificate_from(domain.certificate.unwrap_or_default()),
     })
+}
+
+fn certificate_from(certificate: proto::CertificateStatus) -> CertificateStatus {
+    let state = match proto::CertificateState::try_from(certificate.state) {
+        Ok(proto::CertificateState::Requesting) => CertificateState::Requesting,
+        Ok(proto::CertificateState::Valid) => CertificateState::Valid,
+        Ok(proto::CertificateState::RenewalFailed) => CertificateState::RenewalFailed,
+        Ok(proto::CertificateState::Failed) => CertificateState::Failed,
+        Ok(proto::CertificateState::Provided) => CertificateState::Provided,
+        Ok(proto::CertificateState::Expired) => CertificateState::Expired,
+        _ => CertificateState::None,
+    };
+    let step = match proto::CertificateStep::try_from(certificate.step) {
+        Ok(proto::CertificateStep::Account) => Some(CertificateStep::Account),
+        Ok(proto::CertificateStep::Order) => Some(CertificateStep::Order),
+        Ok(proto::CertificateStep::Challenge) => Some(CertificateStep::Challenge),
+        Ok(proto::CertificateStep::Validation) => Some(CertificateStep::Validation),
+        Ok(proto::CertificateStep::Issuing) => Some(CertificateStep::Issuing),
+        _ => None,
+    };
+    CertificateStatus {
+        state,
+        issuer: certificate.issuer,
+        not_after_ms: certificate.not_after_ms,
+        test: certificate.test,
+        uploaded: certificate.uploaded,
+        step,
+        error: certificate.error,
+        retry_at_ms: certificate.retry_at_ms,
+    }
 }
 
 fn check_from(check: proto::DomainCheck) -> DomainCheck {
@@ -215,6 +293,21 @@ pub fn info_from(info: proto::NetworkInfo) -> NetworkInfo {
         upnp_external_ip: info.upnp_external_ip,
         upnp_error: info.upnp_error,
         domains: info.domains.into_iter().filter_map(domain_from).collect(),
+        dns_providers: info
+            .dns_providers
+            .into_iter()
+            .map(|provider| DnsProvider {
+                kind: provider.kind,
+                masked: provider.masked,
+            })
+            .collect(),
+        acme: info
+            .acme
+            .map_or_else(AcmeAccount::default, |acme| AcmeAccount {
+                exists: acme.exists,
+                email: acme.email,
+                terms_url: acme.terms_url,
+            }),
     }
 }
 

@@ -106,6 +106,86 @@ message NetworkInfo {
   string upnp_error = 8;
   // Phase 3 D2: the domains attached, in the order they were added.
   repeated Domain domains = 9;
+  // D3: DNS providers connected, for the DNS challenge.
+  repeated DnsProviderInfo dns_providers = 10;
+  AcmeAccount acme = 11;
+}
+
+enum CertificateState {
+  CERTIFICATE_STATE_UNSPECIFIED = 0;
+  CERTIFICATE_STATE_NONE = 1;
+  CERTIFICATE_STATE_REQUESTING = 2;
+  CERTIFICATE_STATE_VALID = 3;
+  // Valid, but renewing it fails.
+  CERTIFICATE_STATE_RENEWAL_FAILED = 4;
+  // None; the last request failed.
+  CERTIFICATE_STATE_FAILED = 5;
+  // Cloudflare's or the proxy's.
+  CERTIFICATE_STATE_PROVIDED = 6;
+  CERTIFICATE_STATE_EXPIRED = 7;
+}
+
+enum CertificateStep {
+  CERTIFICATE_STEP_UNSPECIFIED = 0;
+  CERTIFICATE_STEP_ACCOUNT = 1;
+  CERTIFICATE_STEP_ORDER = 2;
+  CERTIFICATE_STEP_CHALLENGE = 3;
+  CERTIFICATE_STEP_VALIDATION = 4;
+  CERTIFICATE_STEP_ISSUING = 5;
+}
+
+message CertificateStatus {
+  CertificateState state = 1;
+  string issuer = 2;
+  int64 not_after_ms = 3;
+  // From Let's Encrypt's test environment: kept, not served.
+  bool test = 4;
+  // Uploaded by the owner: not renewed here.
+  bool uploaded = 5;
+  // While requesting.
+  CertificateStep step = 6;
+  // Why the last request or renewal failed.
+  string error = 7;
+  // After too many failures, or the CA's limit: when it may be tried again.
+  int64 retry_at_ms = 8;
+}
+
+message DnsProviderInfo {
+  // cloudflare, duckdns or desec.
+  string kind = 1;
+  // The token's last characters.
+  string masked = 2;
+}
+
+message AcmeAccount {
+  // An account exists for the CA in use (the test environment's or not).
+  bool exists = 1;
+  string email = 2;
+  // The subscriber agreement to accept before the first certificate.
+  string terms_url = 3;
+}
+
+// Starts getting a Let's Encrypt certificate; progress follows as
+// NetworkStatus. Owner only.
+message RequestCertificate {
+  int64 domain_id = 1;
+  // For account recovery and notices; the first request, or to change it.
+  optional string email = 2;
+  // Needed when no account exists yet.
+  bool agree_terms = 3;
+}
+
+// The owner's own certificate (plan §7.4).
+message UploadCertificate {
+  int64 domain_id = 1;
+  string chain_pem = 2;
+  string key_pem = 3;
+}
+
+// An empty token disconnects the provider.
+message SetDnsProvider {
+  string kind = 1;
+  string token = 2;
 }
 
 // Starts or stops NetworkStatus events for this session; answers with
@@ -224,6 +304,7 @@ message Domain {
   int64 deactivated_at_ms = 13;
   // Clients check it like a website: a certificate from an authority.
   bool trusted_certificate = 14;
+  CertificateStatus certificate = 15;
 }
 
 // Answers with NetworkInfo. Owner only.

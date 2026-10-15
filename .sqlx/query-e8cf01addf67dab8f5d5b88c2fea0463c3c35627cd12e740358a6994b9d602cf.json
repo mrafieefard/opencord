@@ -1,0 +1,122 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT domain_id, chain_pem, key_enc, issuer, not_before, not_after, is_test, uploaded,\n                created_at\n         FROM domain_certificates",
+  "describe": {
+    "columns": [
+      {
+        "name": "domain_id",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "domain_certificates",
+            "name": "domain_id"
+          }
+        }
+      },
+      {
+        "name": "chain_pem",
+        "ordinal": 1,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "domain_certificates",
+            "name": "chain_pem"
+          }
+        }
+      },
+      {
+        "name": "key_enc",
+        "ordinal": 2,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "domain_certificates",
+            "name": "key_enc"
+          }
+        }
+      },
+      {
+        "name": "issuer",
+        "ordinal": 3,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "domain_certificates",
+            "name": "issuer"
+          }
+        }
+      },
+      {
+        "name": "not_before",
+        "ordinal": 4,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "domain_certificates",
+            "name": "not_before"
+          }
+        }
+      },
+      {
+        "name": "not_after",
+        "ordinal": 5,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "domain_certificates",
+            "name": "not_after"
+          }
+        }
+      },
+      {
+        "name": "is_test",
+        "ordinal": 6,
+        "type_info": "Bool",
+        "origin": {
+          "Table": {
+            "table": "domain_certificates",
+            "name": "is_test"
+          }
+        }
+      },
+      {
+        "name": "uploaded",
+        "ordinal": 7,
+        "type_info": "Bool",
+        "origin": {
+          "Table": {
+            "table": "domain_certificates",
+            "name": "uploaded"
+          }
+        }
+      },
+      {
+        "name": "created_at",
+        "ordinal": 8,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "domain_certificates",
+            "name": "created_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "e8cf01addf67dab8f5d5b88c2fea0463c3c35627cd12e740358a6994b9d602cf"
+}

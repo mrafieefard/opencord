@@ -35,6 +35,16 @@ NetworkInfo networkInfoFrom(core.NetworkInfo info) {
     upnpExternalIp: info.upnpExternalIp,
     upnpError: info.upnpError,
     domains: [for (final domain in info.domains) domainFrom(domain)],
+    dnsProviders: [
+      for (final provider in info.dnsProviders)
+        if (DnsProviderKind.fromWire(provider.kind) case final kind?)
+          DnsProvider(kind: kind, masked: provider.masked),
+    ],
+    acme: AcmeAccount(
+      exists: info.acme.exists,
+      email: info.acme.email,
+      termsUrl: info.acme.termsUrl,
+    ),
   );
 }
 
@@ -64,7 +74,35 @@ Domain domainFrom(core.Domain domain) => Domain(
   users24h: domain.users24H,
   deactivatedAt: _time(domain.deactivatedAtMs),
   trustedCertificate: domain.trustedCertificate,
+  certificate: certificateFrom(domain.certificate),
 );
+
+CertificateStatus certificateFrom(core.CertificateStatus certificate) =>
+    CertificateStatus(
+      state: switch (certificate.state) {
+        core.CertificateState.none => CertificateState.none,
+        core.CertificateState.requesting => CertificateState.requesting,
+        core.CertificateState.valid => CertificateState.valid,
+        core.CertificateState.renewalFailed => CertificateState.renewalFailed,
+        core.CertificateState.failed => CertificateState.failed,
+        core.CertificateState.provided => CertificateState.provided,
+        core.CertificateState.expired => CertificateState.expired,
+      },
+      issuer: certificate.issuer,
+      notAfter: _time(certificate.notAfterMs),
+      test: certificate.test,
+      uploaded: certificate.uploaded,
+      step: switch (certificate.step) {
+        core.CertificateStep.account => CertificateStep.account,
+        core.CertificateStep.order => CertificateStep.order,
+        core.CertificateStep.challenge => CertificateStep.challenge,
+        core.CertificateStep.validation => CertificateStep.validation,
+        core.CertificateStep.issuing => CertificateStep.issuing,
+        null => null,
+      },
+      error: certificate.error,
+      retryAt: _time(certificate.retryAtMs),
+    );
 
 DomainCheck domainCheckFrom(core.DomainCheck check) => DomainCheck(
   result: switch (check.result) {

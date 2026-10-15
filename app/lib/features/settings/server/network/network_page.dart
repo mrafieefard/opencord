@@ -5,6 +5,7 @@ import 'package:opencord/core/model/network.dart';
 import 'package:opencord/core/providers/providers.dart';
 import 'package:opencord/core/repository/repository.dart';
 import 'package:opencord/features/settings/server/network/advanced_section.dart';
+import 'package:opencord/features/settings/server/network/dns_providers_section.dart';
 import 'package:opencord/features/settings/server/network/domains_section.dart';
 import 'package:opencord/features/settings/server/network/ports_section.dart';
 import 'package:opencord/features/settings/server/network/public_address_section.dart';
@@ -65,6 +66,8 @@ class _Loaded extends StatelessWidget {
       DomainsSection(serverKey: serverKey, domains: info.domains),
       const SizedBox(height: OcSpace.s24),
       PortsSection(serverKey: serverKey, info: info),
+      const SizedBox(height: OcSpace.s24),
+      DnsProvidersSection(serverKey: serverKey, providers: info.dnsProviders),
       const SizedBox(height: OcSpace.s24),
       AdvancedNetworkSection(serverKey: serverKey, settings: info.settings),
     ],

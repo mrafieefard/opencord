@@ -100,6 +100,7 @@ pub struct Config {
     pub voice: VoiceSection,
     pub music: MusicSection,
     pub network: NetworkSection,
+    pub acme: AcmeSection,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
@@ -220,6 +221,44 @@ impl Default for MusicSection {
             enabled: true,
             audio_udp_port: 7712,
             bridge_domain: "primary".to_owned(),
+        }
+    }
+}
+
+/// Where certificates come from (Phase 3 plan §7). Let's Encrypt unless
+/// changed; not in the default file: private ACME servers (step-ca, for
+/// one) and tests change it.
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct AcmeSection {
+    pub directory: String,
+    /// Used when the owner turns on the test environment.
+    pub test_directory: String,
+    /// A PEM file of the ACME server's own root, when not a public one.
+    pub root: Option<PathBuf>,
+    /// The ports the ACME server checks HTTP-01 and TLS-ALPN-01 on.
+    pub http_port: u16,
+    pub tls_alpn_port: u16,
+    /// How long a DNS-01 record may take to appear, at most, in seconds.
+    pub dns_propagation_s: u32,
+    /// The DNS providers' APIs.
+    pub cloudflare_api: String,
+    pub duckdns_api: String,
+    pub desec_api: String,
+}
+
+impl Default for AcmeSection {
+    fn default() -> Self {
+        Self {
+            directory: "https://acme-v02.api.letsencrypt.org/directory".to_owned(),
+            test_directory: "https://acme-staging-v02.api.letsencrypt.org/directory".to_owned(),
+            root: None,
+            http_port: 80,
+            tls_alpn_port: 443,
+            dns_propagation_s: 120,
+            cloudflare_api: "https://api.cloudflare.com/client/v4".to_owned(),
+            duckdns_api: "https://www.duckdns.org".to_owned(),
+            desec_api: "https://desec.io/api/v1".to_owned(),
         }
     }
 }
@@ -397,6 +436,10 @@ impl Config {
                     })
                     .collect(),
                 ..self.voice
+            },
+            acme: AcmeSection {
+                root: self.acme.root.map(|root| base_dir.join(root)),
+                ..self.acme
             },
             ..self
         }
