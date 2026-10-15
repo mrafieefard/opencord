@@ -333,10 +333,7 @@ void main() {
     expect(_inPage(find.text('Off')), findsWidgets, reason: 'off at first');
     await tester.tap(_inPage(find.text('When I speak')));
     await tester.pump();
-    await tester.drag(
-      _inPage(find.byType(Slider)).last,
-      const Offset(400, 0),
-    );
+    await tester.drag(_inPage(find.byType(Slider)).last, const Offset(400, 0));
     await tester.pump();
 
     final sent = app.repository.audio!;

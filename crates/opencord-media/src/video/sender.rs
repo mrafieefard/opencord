@@ -26,6 +26,10 @@ const WAIT: Duration = Duration::from_millis(100);
 const BITRATE_CHANGE: f64 = 0.2;
 /// A screen that has not changed is sent again this often (plan §9.2).
 const KEEPALIVE: Duration = Duration::from_secs(1);
+/// A layer nobody has wanted for this long closes its encoder, which holds
+/// megabytes of buffers (a 720p one about 20 MB); wanted again, it opens a
+/// new one, which starts with the keyframe it needs anyway.
+const CLOSE_UNUSED_AFTER: Duration = Duration::from_secs(10);
 
 enum Command {
     Encode {
@@ -155,6 +159,8 @@ impl Drop for VideoSender {
 struct LayerState {
     layer: Layer,
     active: bool,
+    /// When it stopped being wanted.
+    inactive_since: Option<Instant>,
     bitrate: u32,
     encoder: Option<Encoder>,
     keyframe_due: bool,
@@ -261,6 +267,12 @@ impl<S: FnMut(VideoFrame), P: FnMut(&Picture)> Sending<S, P> {
                     if active && !state.active {
                         state.keyframe_due = true;
                         state.next_at = None;
+                    }
+                    if !active && state.active {
+                        state.inactive_since = Some(Instant::now());
+                    }
+                    if active {
+                        state.inactive_since = None;
                     }
                     state.active = active;
                     let bitrate = position
@@ -407,6 +419,7 @@ fn layer_states(layers: Vec<Layer>) -> Vec<LayerState> {
             bitrate: layer.max_bitrate,
             layer,
             active: true,
+            inactive_since: None,
             encoder: None,
             keyframe_due: true,
             next_at: None,
@@ -441,6 +454,13 @@ impl<S: FnMut(VideoFrame), P: FnMut(&Picture)> Sending<S, P> {
             .layers
             .iter_mut()
             .map(|state| {
+                let unused = state
+                    .inactive_since
+                    .is_some_and(|since| since.elapsed() >= CLOSE_UNUSED_AFTER);
+                if unused && state.encoder.is_some() {
+                    state.encoder = None;
+                    state.keyframe_due = true;
+                }
                 if state.active && due(state, picture.captured) {
                     Input::Camera
                 } else {
@@ -594,6 +614,7 @@ mod tests {
                 bitrate: layer.max_bitrate,
                 layer,
                 active: true,
+                inactive_since: None,
                 encoder: None,
                 keyframe_due: true,
                 next_at: None,
@@ -642,6 +663,41 @@ mod tests {
                 (width.into(), height.into())
             );
         }
+    }
+
+    #[test]
+    fn a_layer_nobody_wants_for_a_while_closes_its_encoder() {
+        crate::video::codec::needs_codec!();
+        let mut sending = Sending::new(
+            "camera".to_owned(),
+            camera_layers(1280, 720),
+            None,
+            |_: VideoFrame| {},
+            |_: &Picture| {},
+        );
+        let picture = || Picture::black(PixelFormat::Nv12, 1280, 720, Instant::now());
+        sending.encode_picture(picture());
+        assert!(sending.layers.iter().all(|state| state.encoder.is_some()));
+
+        sending.apply(Command::Encode {
+            rids: vec!["l".to_owned(), "m".to_owned()],
+            bitrates: vec![150_000, 500_000],
+            fps_scale: 1.0,
+            size_scale: 1.0,
+        });
+        std::thread::sleep(Duration::from_millis(40));
+        sending.encode_picture(picture());
+        assert!(sending.layers[2].encoder.is_some(), "not at once");
+
+        sending.layers[2].inactive_since = Some(Instant::now() - CLOSE_UNUSED_AFTER);
+        std::thread::sleep(Duration::from_millis(40));
+        sending.encode_picture(picture());
+        assert!(sending.layers[2].encoder.is_none(), "closed after a while");
+        assert!(
+            sending.layers[..2]
+                .iter()
+                .all(|state| state.encoder.is_some())
+        );
     }
 
     #[test]

@@ -82,14 +82,55 @@ static NETWORKS: OnceLock<Result<Networks, DeepFilterError>> = OnceLock::new();
 fn networks() -> Result<&'static Networks, DeepFilterError> {
     NETWORKS
         .get_or_init(|| {
-            Ok(Networks {
+            let networks = Networks {
                 encoder: encoder()?,
                 erb_decoder: erb_decoder()?,
                 df_decoder: df_decoder()?,
-            })
+            };
+            release_loading_memory();
+            Ok(networks)
         })
         .as_ref()
         .map_err(Clone::clone)
+}
+
+/// What loading left behind goes back to the system: the heap the parsing
+/// freed, and the model files' pages, which are never read again (they
+/// stay in the library, to be read from disk if they were). About 14 MB
+/// of the networks' 37 (V10, docs/performance.md).
+fn release_loading_memory() {
+    #[cfg(all(target_os = "linux", target_env = "gnu"))]
+    {
+        /// Linux's `MADV_DONTNEED`.
+        const MADV_DONTNEED: std::ffi::c_int = 4;
+        unsafe extern "C" {
+            fn malloc_trim(pad: usize) -> std::ffi::c_int;
+            fn madvise(
+                address: *mut std::ffi::c_void,
+                length: usize,
+                advice: std::ffi::c_int,
+            ) -> std::ffi::c_int;
+        }
+        const PAGE: usize = 4096;
+        for model in [ENCODER, ERB_DECODER, DF_DECODER] {
+            // Whole pages inside the file's bytes only.
+            let start = (model.as_ptr() as usize).div_ceil(PAGE) * PAGE;
+            let end = (model.as_ptr() as usize + model.len()) / PAGE * PAGE;
+            if end > start {
+                // SAFETY: the range is whole pages within the read-only
+                // constant `model`; dropping them only means a later read
+                // brings them back from the library's file.
+                unsafe {
+                    madvise(start as *mut std::ffi::c_void, end - start, MADV_DONTNEED);
+                }
+            }
+        }
+        // SAFETY: returns free heap memory to the system; no arguments to
+        // get wrong.
+        unsafe {
+            malloc_trim(0);
+        }
+    }
 }
 
 /// Loads the networks now, so the first [`DeepFilter::new`] is quick.

@@ -10,6 +10,7 @@ use anyhow::Context as _;
 use clap::Parser;
 use opencord_core::api::types::{
     CoreEventPayload, ScreenShareRequest, ScreenShareResolution, StreamSourceKind,
+    VoiceSettingsChanges,
 };
 use opencord_voicebot::{Heard, VoiceSession, Voicebot};
 
@@ -75,6 +76,10 @@ struct Args {
     /// Play --sound again this often, in seconds.
     #[arg(long, value_name = "SECONDS", requires = "sound")]
     sound_every: Option<u64>,
+    /// Allow screen shares up to this quality on the server first, such as
+    /// 1080p60; needs Manage server (the owner has it).
+    #[arg(long, value_name = "QUALITY", value_parser = screen_quality)]
+    server_screen_cap: Option<ScreenShareRequest>,
     /// Once joined, write this in the voice channel's chat (Phase 2 §12).
     #[arg(long, value_name = "TEXT")]
     say: Option<String>,
@@ -98,6 +103,23 @@ async fn main() -> ExitCode {
 
 async fn run(args: Args) -> anyhow::Result<()> {
     let mut bot = Voicebot::connect(&args.server, args.claim, &args.name).await?;
+    if let Some(cap) = args.server_screen_cap {
+        bot.client
+            .update_voice_settings(
+                &bot.server_key,
+                VoiceSettingsChanges {
+                    screen_share_max_resolution: Some(cap.resolution),
+                    screen_share_max_fps: Some(cap.fps),
+                    ..VoiceSettingsChanges::default()
+                },
+            )
+            .await
+            .context("raising the server's screen share cap")?;
+        println!(
+            "screen shares allowed up to {:?} at {} fps",
+            cap.resolution, cap.fps
+        );
+    }
     let uploaded = match &args.upload_sound {
         Some(path) => {
             let sound = bot.upload_sound(path, &args.sound_name).await?;

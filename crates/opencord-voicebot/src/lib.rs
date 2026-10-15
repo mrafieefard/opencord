@@ -342,6 +342,8 @@ struct Shared {
     /// The camera this bot publishes, if any, and whether a new connection
     /// still has to be told of it.
     pattern: Option<TestPattern>,
+    /// What the pattern is published as: a camera, or a screen share.
+    pattern_kind: Option<TrackKind>,
     encoded: Option<camera::EncodedVideo>,
     /// The screen this bot shares, if any.
     screen: Option<camera::EncodedVideo>,
@@ -361,7 +363,7 @@ impl Shared {
         }
         self.pattern
             .as_ref()
-            .map(|pattern| pattern.request(TrackKind::Camera))
+            .map(|pattern| pattern.request(self.pattern_kind.unwrap_or(TrackKind::Camera)))
     }
 
     /// Every track this bot publishes: its camera and its screen.
@@ -551,6 +553,31 @@ impl VoiceSession {
             .context("not connected")?;
         connection.publish_track(request).await?;
         lock(&self.shared).pattern = Some(pattern);
+        tokio::spawn(send_pattern(Arc::clone(&self.shared)));
+        Ok(())
+    }
+
+    /// Publishes a synthetic screen share in `layers` (the test pattern at
+    /// each layer's full bitrate), for load tests: the node forwards the
+    /// same packets a real share sends, and no encoder runs. Going live on
+    /// the main server is the caller's part.
+    pub async fn publish_screen_pattern(
+        &self,
+        track_id: &str,
+        layers: Vec<Layer>,
+    ) -> anyhow::Result<()> {
+        let pattern = TestPattern::new(track_id, layers, Instant::now());
+        let request = pattern.request(TrackKind::Screen);
+        let connection = lock(&self.shared)
+            .connection
+            .clone()
+            .context("not connected")?;
+        connection.publish_track(request).await?;
+        {
+            let mut shared = lock(&self.shared);
+            shared.pattern = Some(pattern);
+            shared.pattern_kind = Some(TrackKind::Screen);
+        }
         tokio::spawn(send_pattern(Arc::clone(&self.shared)));
         Ok(())
     }

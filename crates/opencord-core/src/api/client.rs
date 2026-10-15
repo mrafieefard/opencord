@@ -51,6 +51,7 @@ pub fn init(app_data_dir: String) -> Result<(), CoreError> {
     if CLIENT.get().is_some() {
         return Ok(());
     }
+    return_large_buffers();
     let runtime = match RUNTIME.get() {
         Some(runtime) => runtime,
         None => {
@@ -1009,6 +1010,28 @@ fn identity_info(identity: &Identity) -> IdentityInfo {
 fn invalid_input(error: impl std::fmt::Display) -> CoreError {
     CoreError::InvalidInput {
         message: error.to_string(),
+    }
+}
+
+/// Large allocations, video pictures above all, go straight back to the
+/// system when freed. glibc otherwise raises its mmap threshold after such
+/// frees, and later pictures come from heap arenas that stay resident: in a
+/// call of ten with four cameras and a stream the app sat about 30 MB
+/// higher (V10, docs/performance.md). Pictures are freed whole, so this
+/// costs no measurable CPU.
+fn return_large_buffers() {
+    #[cfg(all(target_os = "linux", target_env = "gnu"))]
+    {
+        /// glibc's `M_MMAP_THRESHOLD`.
+        const M_MMAP_THRESHOLD: std::ffi::c_int = -3;
+        unsafe extern "C" {
+            fn mallopt(param: std::ffi::c_int, value: std::ffi::c_int) -> std::ffi::c_int;
+        }
+        // SAFETY: mallopt only changes glibc's allocator settings; a fixed
+        // threshold also turns its dynamic adjustment off.
+        unsafe {
+            mallopt(M_MMAP_THRESHOLD, 128 * 1024);
+        }
     }
 }
 
