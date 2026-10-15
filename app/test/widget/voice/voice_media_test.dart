@@ -135,7 +135,8 @@ void main() {
     Finder line(String text) => find.text(text, findRichText: true);
     expect(find.byType(ConnectionGraph), findsOneWidget);
     expect(find.text('Connection'), findsOneWidget);
-    expect(find.text('opencord.example:7710'), findsOneWidget);
+    // Not where the voice node is.
+    expect(find.text('opencord.example:7710'), findsNothing);
     expect(line('Average ping: 42 ms'), findsOneWidget);
     expect(line('Last ping: 42 ms'), findsOneWidget);
     expect(line('Packet loss rate: 0.5%'), findsOneWidget);

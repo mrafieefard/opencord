@@ -20,7 +20,7 @@ import 'package:opencord/ui/theme/oc_text.dart';
 };
 
 /// The voice connection (Phase 2 §12): ping over the last five minutes,
-/// then the voice node, the average and last ping, packet loss and jitter,
+/// then the average and last ping, packet loss and jitter,
 /// as the reports come.
 class ConnectionGraph extends ConsumerWidget {
   const ConnectionGraph({super.key});
@@ -82,15 +82,6 @@ class ConnectionGraph extends ConsumerWidget {
           const SizedBox(height: OcSpace.s12),
           _PingChart(history: history),
           const SizedBox(height: OcSpace.s12),
-          if (last.voiceNode.isNotEmpty) ...[
-            Text(
-              last.voiceNode,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: OcText.bodyStrong.copyWith(color: colors.text),
-            ),
-            const SizedBox(height: OcSpace.s6),
-          ],
           for (final (label, value) in rows)
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 1),
