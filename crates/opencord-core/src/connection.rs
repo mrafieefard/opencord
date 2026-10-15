@@ -347,11 +347,33 @@ pub(crate) struct Context {
     pub voice_servers: broadcast::Sender<VoiceServer>,
     /// Each server's latest media token, for its HTTP endpoints.
     pub media_tokens: MediaTokens,
+    pub routes: Routes,
 }
 
 /// Media tokens by server key. They stay in Rust: the soundboard needs
 /// them, the app does not.
 pub(crate) type MediaTokens = Arc<Mutex<HashMap<String, String>>>;
+
+/// How a server was last reached: its address, and the certificate pinned
+/// there, or `None` when an authority vouched for it. Requests besides the
+/// gateway (files, voice) go the same way (Phase 3 plan §7.5).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct Route {
+    pub address: ServerAddress,
+    pub pin: Option<Fingerprint>,
+}
+
+impl Route {
+    pub fn of(opened: &Opened, address: &ServerAddress) -> Self {
+        Self {
+            address: address.clone(),
+            pin: (!opened.authority).then_some(opened.presented),
+        }
+    }
+}
+
+/// Routes by server key.
+pub(crate) type Routes = Arc<Mutex<HashMap<String, Route>>>;
 
 pub(crate) fn spawn(
     runtime: &Handle,
@@ -701,6 +723,11 @@ impl Task {
                         tracing::debug!(%address, "connected through another of the server's addresses");
                     }
                     self.remember_server_id(&id);
+                    self.context
+                        .routes
+                        .lock()
+                        .unwrap_or_else(PoisonError::into_inner)
+                        .insert(self.context.key.clone(), Route::of(&opened, &address));
                     return Ok(opened);
                 }
                 Err(error @ (HandshakeError::Untrusted(_) | HandshakeError::Mismatch { .. }))
@@ -816,13 +843,32 @@ impl Task {
         let (Some(session), Some(user_id)) = (&self.session, self.self_id) else {
             return;
         };
+        // The server's own node is at the address this connection uses,
+        // checked the same way.
+        let route = self
+            .context
+            .routes
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .get(&self.context.key)
+            .cloned();
+        let (endpoint, certificate_fingerprint) = match &route {
+            Some(route) if update.endpoint.is_empty() => (
+                format!("wss://{}/voice", route.address),
+                route.pin.map(|pin| pin.to_vec()).unwrap_or_default(),
+            ),
+            _ => (
+                update.endpoint.clone(),
+                update.certificate_fingerprint.clone(),
+            ),
+        };
         let _ = self.context.voice_servers.send(VoiceServer {
             server_key: self.context.key.clone(),
             user_id,
             session_id: session.session_id.clone(),
             channel_id: update.channel_id,
-            endpoint: update.endpoint.clone(),
-            certificate_fingerprint: update.certificate_fingerprint.clone(),
+            endpoint,
+            certificate_fingerprint,
             token: update.token.clone(),
         });
     }

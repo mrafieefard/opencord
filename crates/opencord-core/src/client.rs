@@ -26,6 +26,7 @@ use crate::api::types::{
 };
 use crate::connection::{
     self, Command, Connection, Context, Credentials, Established, HandshakeError, MediaTokens,
+    Route, Routes,
 };
 use crate::convert;
 use crate::identity::Identity;
@@ -74,6 +75,8 @@ struct Inner {
     hotkeys: tokio::sync::Mutex<Option<Hotkeys>>,
     /// Each server's media token, kept by its connection.
     media_tokens: MediaTokens,
+    /// How each server was last reached.
+    routes: Routes,
     soundboard: Arc<Soundboard>,
 }
 
@@ -133,10 +136,11 @@ impl Client {
         let (events, mut incoming) = mpsc::unbounded_channel();
         let (outward, receiver) = mpsc::unbounded_channel();
         let media_tokens = MediaTokens::default();
+        let routes = Routes::default();
         let soundboard = Arc::new(Soundboard::new(
             runtime.clone(),
             data_dir,
-            Arc::clone(&store),
+            Arc::clone(&routes),
             Arc::clone(&media_tokens),
         ));
         let client = Self {
@@ -152,6 +156,7 @@ impl Client {
                 media: OnceLock::new(),
                 hotkeys: tokio::sync::Mutex::new(None),
                 media_tokens,
+                routes,
                 soundboard,
             }),
         };
@@ -294,6 +299,11 @@ impl Client {
             store.upsert_server(saved.clone())?;
         }
         let pin = pin.or_else(|| self.lock_store().pin(&key));
+        self.inner
+            .routes
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .insert(key.clone(), Route::of(&opened, &target.address));
         let previous = self.lock_connections().remove(&key);
         if let Some(previous) = previous {
             stop(previous).await;
@@ -1578,6 +1588,7 @@ impl Client {
             events: self.inner.events.clone(),
             voice_servers: self.inner.voice_servers.clone(),
             media_tokens: Arc::clone(&self.inner.media_tokens),
+            routes: Arc::clone(&self.inner.routes),
         }
     }
 

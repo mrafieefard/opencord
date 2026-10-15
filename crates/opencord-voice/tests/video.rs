@@ -363,7 +363,7 @@ async fn someone_who_joins_later_sees_the_tracks_already_there() {
 /// burst; returns how the node closed, if it did within a second.
 async fn send_wants_burst(node: &Node, user_id: i64, wants: usize) -> Option<Option<u16>> {
     let url = GatewayUrl::parse(&node.gateway).unwrap();
-    let mut socket = gateway::open(&url, None).await.unwrap();
+    let mut socket = gateway::open(&url, None, None).await.unwrap();
     let Next::Envelope(_) = gateway::next(&mut socket).await else {
         panic!("no Hello");
     };

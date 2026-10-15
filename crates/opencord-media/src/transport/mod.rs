@@ -41,13 +41,20 @@ const NETWORK_CHECK: Duration = Duration::from_secs(1);
 pub struct VoiceTarget {
     /// The voice gateway, `wss://host:port/voice`.
     pub gateway_url: String,
-    /// SHA-256 of the node's certificate. Needed for `wss://`.
+    /// SHA-256 of the node's certificate, for `wss://`.
     pub certificate_fingerprint: Option<[u8; 32]>,
+    /// Without a fingerprint, the certificate authorities that vouch for
+    /// the gateway's name: behind a domain with an authority's certificate,
+    /// a tunnel or a proxy (Phase 3 plan §7.5).
+    pub authority: Option<Authority>,
     pub token: Vec<u8>,
     pub user_id: i64,
     pub session_id: String,
     pub channel_id: i64,
 }
+
+/// Certificate authorities to check a gateway's certificate with.
+pub type Authority = Arc<dyn rustls::client::danger::ServerCertVerifier>;
 
 /// How a connection treats frames; the defaults suit the app.
 #[derive(Default)]
@@ -322,7 +329,12 @@ impl VoiceConnection {
         options: ConnectOptions,
     ) -> Result<(Self, mpsc::UnboundedReceiver<VoiceEvent>), TransportError> {
         let url = GatewayUrl::parse(&target.gateway_url)?;
-        let mut socket = gateway::open(&url, target.certificate_fingerprint).await?;
+        let mut socket = gateway::open(
+            &url,
+            target.certificate_fingerprint,
+            target.authority.clone(),
+        )
+        .await?;
         let heartbeat = hello(&mut socket).await?;
         let support = |codec: voice::Codec| voice::CodecSupport {
             codec: codec as i32,
@@ -386,6 +398,7 @@ impl VoiceConnection {
         let driver = Driver::new(
             url,
             target.certificate_fingerprint,
+            target.authority.clone(),
             &ready,
             heartbeat,
             media,

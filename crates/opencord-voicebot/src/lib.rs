@@ -834,6 +834,7 @@ async fn connect(
     let (connection, events) = VoiceConnection::connect(VoiceTarget {
         gateway_url: gateway_url.clone(),
         certificate_fingerprint: fingerprint,
+        authority: None,
         token: server.token.clone(),
         user_id: server.user_id,
         session_id: server.session_id.clone(),

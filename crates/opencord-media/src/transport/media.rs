@@ -260,10 +260,16 @@ impl Media {
         };
         let port = u16::try_from(candidate.port)
             .map_err(|_| TransportError::Protocol("a media port out of range".to_owned()))?;
-        let remote_address = tokio::net::lookup_host((host, port))
+        // IPv4 first: more networks carry it, and a name with both may have
+        // a node that hears only IPv4.
+        let mut addresses: Vec<SocketAddr> = tokio::net::lookup_host((host, port))
             .await
             .map_err(|error| TransportError::Connect(error.to_string()))?
-            .next()
+            .collect();
+        addresses.sort_by_key(SocketAddr::is_ipv6);
+        let remote_address = addresses
+            .first()
+            .copied()
             .ok_or_else(|| TransportError::Connect(format!("{host} has no address")))?;
         let (socket, local_address) = connected_socket(remote_address).await?;
 

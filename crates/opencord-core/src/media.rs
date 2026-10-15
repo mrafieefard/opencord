@@ -1093,6 +1093,9 @@ fn voice_target(server: &VoiceServer) -> VoiceTarget {
     VoiceTarget {
         gateway_url: server.gateway_url(),
         certificate_fingerprint: server.certificate_fingerprint.as_slice().try_into().ok(),
+        // Without a fingerprint, the node's name is vouched for by an
+        // authority: a domain's certificate, a tunnel's or a proxy's.
+        authority: Some(crate::tofu::authority()),
         token: server.token.clone(),
         user_id: server.user_id,
         session_id: server.session_id.clone(),

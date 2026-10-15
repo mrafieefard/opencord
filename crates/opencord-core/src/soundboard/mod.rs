@@ -24,10 +24,9 @@ use crate::api::types::{
     CoreError, CoreEvent, CoreEventPayload, DefaultSound, ErrorCode, SoundEffect, SoundboardSound,
 };
 use crate::client::Client;
-use crate::connection::MediaTokens;
+use crate::connection::{MediaTokens, Route, Routes};
 use crate::convert;
 use crate::http::{self, HttpError, HttpResponse};
-use crate::store::Store;
 
 /// What this person chose for sounds (plan §11.7, User settings → Sounds).
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -62,22 +61,17 @@ struct State {
 
 pub(crate) struct Soundboard {
     runtime: Handle,
-    store: Arc<Mutex<Store>>,
+    routes: Routes,
     tokens: MediaTokens,
     cache: SoundCache,
     state: Mutex<State>,
 }
 
 impl Soundboard {
-    pub fn new(
-        runtime: Handle,
-        data_dir: &Path,
-        store: Arc<Mutex<Store>>,
-        tokens: MediaTokens,
-    ) -> Self {
+    pub fn new(runtime: Handle, data_dir: &Path, routes: Routes, tokens: MediaTokens) -> Self {
         Self {
             runtime,
-            store,
+            routes,
             tokens,
             cache: SoundCache::new(data_dir, CLIENT_CACHE_BYTES),
             state: Mutex::new(State::default()),
@@ -359,15 +353,14 @@ impl Soundboard {
         path: &str,
         body: &[u8],
     ) -> Result<HttpResponse, CoreError> {
-        let (address, pin) = {
-            let store = self.store.lock().unwrap_or_else(PoisonError::into_inner);
-            let server = store.server(key).ok_or(CoreError::UnknownServer)?;
-            let address = opencord_common::address::ServerAddress {
-                host: server.host.clone(),
-                port: server.port,
-            };
-            (address, store.pin(key).ok_or(CoreError::NotConnected)?)
-        };
+        // The way the connection reached the server, checked the same way.
+        let Route { address, pin } = self
+            .routes
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .get(key)
+            .cloned()
+            .ok_or(CoreError::NotConnected)?;
         let mut renewed = false;
         loop {
             let token = self.token(key).ok_or(CoreError::NotConnected)?;

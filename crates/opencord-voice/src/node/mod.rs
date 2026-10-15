@@ -194,9 +194,7 @@ impl VoiceNode {
         })?;
         let udp_port = udp_port.port();
         // IPv6 is a bonus: hosts without it still serve IPv4.
-        let v6 = UdpSocket::bind(SocketAddr::new(IpAddr::V6(Ipv6Addr::UNSPECIFIED), udp_port))
-            .await
-            .ok();
+        let v6 = crate::bind_v6_only(udp_port).ok();
         let sfu = Sfu::new(
             SocketAddr::new(LABEL_V4, udp_port),
             SocketAddr::new(LABEL_V6, udp_port),

@@ -4,7 +4,7 @@
 //! SSRC, and only if its key opens it. The port may differ from the one
 //! discovery came from: Lavalink sends audio from a socket of its own.
 
-use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr};
+use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::time::{Duration, Instant};
 
 use tokio::net::UdpSocket;
@@ -26,7 +26,7 @@ impl Sockets {
         let v4 = UdpSocket::bind((Ipv4Addr::UNSPECIFIED, port)).await?;
         let port = v4.local_addr()?.port();
         // IPv6 is a bonus: hosts without it still take audio over IPv4.
-        let v6 = UdpSocket::bind((Ipv6Addr::UNSPECIFIED, port)).await.ok();
+        let v6 = crate::bind_v6_only(port).ok();
         Ok(Self { v4, v6, port })
     }
 }

@@ -38,11 +38,11 @@ pub struct HttpResponse {
 }
 
 /// One request to the server at `address`, whose certificate must match
-/// `pin`. `bearer` goes in the Authorization header; at most `limit` bytes
+/// `pin`, or, without one, be vouched for by an authority. `bearer` goes in the Authorization header; at most `limit` bytes
 /// of body are read.
 pub async fn request(
     address: &ServerAddress,
-    pin: Fingerprint,
+    pin: Option<Fingerprint>,
     method: &str,
     path: &str,
     bearer: &str,
@@ -59,7 +59,7 @@ pub async fn request(
 
 async fn send(
     address: &ServerAddress,
-    pin: Fingerprint,
+    pin: Option<Fingerprint>,
     method: &str,
     path: &str,
     bearer: &str,
@@ -67,7 +67,7 @@ async fn send(
     limit: usize,
 ) -> Result<HttpResponse, HttpError> {
     let unreachable = |error: std::io::Error| HttpError::Unreachable(error.to_string());
-    let trust = TlsTrust::new(Some(pin));
+    let trust = TlsTrust::new(pin);
     let tcp = timeout(
         CONNECT_TIMEOUT,
         TcpStream::connect((address.host.as_str(), address.port)),
@@ -81,7 +81,9 @@ async fn send(
         .connect(server_name, tcp)
         .await
         .map_err(|error| match trust.verdict() {
-            Some(crate::tofu::Verdict::Pinned(_)) | None => unreachable(error),
+            Some(crate::tofu::Verdict::Pinned(_) | crate::tofu::Verdict::Authority(_)) | None => {
+                unreachable(error)
+            }
             Some(_) => HttpError::Certificate,
         })?;
     let head = format!(

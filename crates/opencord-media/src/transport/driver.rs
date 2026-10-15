@@ -36,6 +36,7 @@ enum Flow {
 pub(super) struct Driver {
     url: GatewayUrl,
     fingerprint: Option<[u8; 32]>,
+    authority: Option<super::Authority>,
     voice_session_id: String,
     resume_token: Vec<u8>,
     heartbeat: Duration,
@@ -58,6 +59,7 @@ impl Driver {
     pub fn new(
         url: GatewayUrl,
         fingerprint: Option<[u8; 32]>,
+        authority: Option<super::Authority>,
         ready: &voice::Ready,
         heartbeat: Duration,
         media: Media,
@@ -66,6 +68,7 @@ impl Driver {
         Self {
             url,
             fingerprint,
+            authority,
             voice_session_id: ready.voice_session_id.clone(),
             resume_token: ready.resume_token.clone(),
             heartbeat,
@@ -429,6 +432,7 @@ impl Driver {
     fn resume_later(&self) -> Reconnect {
         let url = self.url.clone();
         let fingerprint = self.fingerprint;
+        let authority = self.authority.clone();
         let resume = voice::Resume {
             voice_session_id: self.voice_session_id.clone(),
             resume_token: self.resume_token.clone(),
@@ -437,7 +441,7 @@ impl Driver {
         tokio::spawn(async move {
             let give_up = Instant::now() + RESUME_FOR;
             loop {
-                match resume_once(&url, fingerprint, resume.clone()).await {
+                match resume_once(&url, fingerprint, authority.clone(), resume.clone()).await {
                     Ok(socket) => return Ok(socket),
                     Err(Some(code)) if !close::is_resumable(Some(code)) => return Err(Some(code)),
                     Err(_) if Instant::now() >= give_up => return Err(None),
@@ -458,9 +462,12 @@ impl Driver {
 async fn resume_once(
     url: &GatewayUrl,
     fingerprint: Option<[u8; 32]>,
+    authority: Option<super::Authority>,
     resume: voice::Resume,
 ) -> Result<Socket, Option<u16>> {
-    let mut socket = gateway::open(url, fingerprint).await.map_err(|_| None)?;
+    let mut socket = gateway::open(url, fingerprint, authority)
+        .await
+        .map_err(|_| None)?;
     hello(&mut socket).await.map_err(|error| match error {
         TransportError::Refused(code) => code,
         _ => None,

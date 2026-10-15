@@ -39,6 +39,7 @@ governor = "0.10.4"
 hex = "0.4.3"
 hickory-proto = { version = "0.26.3", default-features = false, features = ["std"] }
 hmac = "0.13.0"
+instant-acme = { version = "0.8.5", default-features = false, features = ["ring", "hyper-rustls", "time", "x509-parser"] }
 igd-next = { version = "0.18.0", default-features = false, features = ["aio_tokio"] }
 irondash_run_loop = "0.5.0"
 irondash_texture = "0.5.0"
@@ -61,6 +62,7 @@ serde = { version = "1.0.229", features = ["derive"] }
 serde_json = "1.0.151"
 sha1 = "0.11.0"
 sha2 = "0.11.0"
+socket2 = "0.6.5"
 str0m = { version = "0.24.1", default-features = false, features = ["aws-lc-rs"] }
 str0m-netem = "0.4.0"
 symphonia = { version = "0.6.1", default-features = false, features = ["aac", "flac", "isomp4", "mp3", "ogg", "pcm", "vorbis", "wav"] }

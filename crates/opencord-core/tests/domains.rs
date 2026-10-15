@@ -9,11 +9,12 @@ use std::sync::{Arc, OnceLock};
 use std::time::Duration;
 
 use opencord_core::api::types::{
-    AddServerOutcome, ConnectionState, CoreEvent, CoreEventPayload, DomainKind, DomainUpdate,
-    NetworkSettingsChanges,
+    AddServerOutcome, ChannelKind, ConnectionState, CoreEvent, CoreEventPayload, DomainKind,
+    DomainUpdate, MediaEvent, NetworkSettingsChanges, VoiceConnectionState,
 };
 use opencord_core::client::Client;
 use opencord_core::identity::Identity;
+use opencord_core::media::MediaOptions;
 use opencord_server::config::Config;
 use opencord_server::domains::dns::fake::FakeDns;
 use opencord_server::server::{self, ServerHandle};
@@ -339,4 +340,62 @@ async fn a_primary_that_does_not_answer_falls_back_and_the_list_follows_the_serv
         format!("https://other.example.com:{port}/invite/{}", invite.code)
     );
     assert_eq!(invite.domain_id, Some(ids[1]));
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn voice_through_a_proxy_is_checked_by_its_authority_too() {
+    let server = start(None).await;
+    let port = proxy(&server).await;
+    let mut owner = TestClient::new("Owner");
+    let key = owner
+        .add(
+            &format!("localhost:{port}"),
+            server.handle.claim_token.clone(),
+        )
+        .await;
+    let ready = owner
+        .wait_for(|payload| match payload {
+            CoreEventPayload::Ready(ready) => Some(ready.clone()),
+            _ => None,
+        })
+        .await;
+    let voice = ready
+        .channels
+        .iter()
+        .find(|channel| channel.kind == ChannelKind::Voice)
+        .unwrap()
+        .id;
+    let mut media = owner
+        .client
+        .enable_media(MediaOptions {
+            open_devices: false,
+        })
+        .unwrap();
+    let mut voice_servers = owner.client.voice_servers();
+
+    owner.client.voice_join(&key, voice).await.unwrap();
+
+    let update = tokio::time::timeout(WAIT, voice_servers.recv())
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(
+        update.gateway_url(),
+        format!("wss://localhost:{port}/voice")
+    );
+    assert!(
+        update.certificate_fingerprint.is_empty(),
+        "no pin: an authority"
+    );
+    tokio::time::timeout(WAIT, async {
+        loop {
+            if let Some(MediaEvent::ConnectionState { state, .. }) = media.recv().await
+                && state == VoiceConnectionState::Connected
+            {
+                return;
+            }
+        }
+    })
+    .await
+    .expect("voice connects through the proxy");
 }
