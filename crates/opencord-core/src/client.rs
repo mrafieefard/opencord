@@ -7,7 +7,7 @@ use std::sync::{Arc, Mutex, MutexGuard, OnceLock, PoisonError, RwLock, Weak};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use opencord_common::address::{
-    Fingerprint, InviteLink, ServerAddress, format_fingerprint, parse_fingerprint,
+    DEFAULT_PORT, Fingerprint, InviteLink, ServerAddress, format_fingerprint, parse_fingerprint,
 };
 use opencord_proto::v1 as proto;
 use proto::request::Kind as Request;
@@ -250,22 +250,42 @@ impl Client {
             connection::identify(&mut opened, &credentials, target.invite_code, claim_token)
                 .await?;
 
+        // The same server at another address stays one entry (plan §7.5).
+        let server_id = hex::encode(&opened.hello.server_id);
+        let known = self.lock_store().server_with_id(&server_id).cloned();
+        let (key, address) = match &known {
+            Some(known) if known.key != key => (
+                known.key.clone(),
+                ServerAddress::parse(&known.key).unwrap_or_else(|_| target.address.clone()),
+            ),
+            _ => (key, target.address.clone()),
+        };
+        let earlier = self.lock_store().server(&key).cloned();
         let saved = SavedServer {
             key: key.clone(),
-            host: target.address.host.clone(),
-            port: target.address.port,
+            host: address.host.clone(),
+            port: address.port,
             name: ready
                 .server
                 .as_ref()
                 .map(|server| server.name.clone())
                 .unwrap_or_default(),
             user_id: ready.self_user.as_ref().map(|user| user.id),
-            added_at_ms: self
-                .lock_store()
-                .server(&key)
+            added_at_ms: earlier
+                .as_ref()
                 .map_or_else(unix_ms, |known| known.added_at_ms),
+            server_id: Some(server_id),
+            addresses: earlier
+                .as_ref()
+                .map(|known| known.addresses.clone())
+                .unwrap_or_default(),
+            ip: earlier.and_then(|known| known.ip),
         };
-        let pin = pinned.map(|_| opened.presented);
+        // A pin belongs to the address it was made for: an entry reached
+        // again by another address keeps its own.
+        let pin = pinned
+            .map(|_| opened.presented)
+            .filter(|_| address == target.address);
         {
             let mut store = self.lock_store();
             if let Some(pin) = &pin {
@@ -273,13 +293,14 @@ impl Client {
             }
             store.upsert_server(saved.clone())?;
         }
+        let pin = pin.or_else(|| self.lock_store().pin(&key));
         let previous = self.lock_connections().remove(&key);
         if let Some(previous) = previous {
             stop(previous).await;
         }
         let connection = connection::spawn(
             &self.inner.runtime,
-            self.context(key.clone(), target.address, credentials),
+            self.context(key.clone(), address, credentials),
             Some(Established::identified(opened, ready)),
         );
         self.lock_connections().insert(key, connection);
@@ -616,15 +637,19 @@ impl Client {
         expect_ack(self.request(key, request).await?)
     }
 
+    /// An invite, through `domain_id`'s domain, or the primary one when
+    /// there is one.
     pub async fn create_invite(
         &self,
         key: &str,
         max_uses: Option<u32>,
         expires_in_s: Option<u32>,
+        domain_id: Option<i64>,
     ) -> Result<Invite, CoreError> {
         let request = Request::CreateInvite(proto::CreateInvite {
             max_uses,
             expires_in_s,
+            domain_id,
         });
         match self.request(key, request).await? {
             Response::Invite(invite) => Ok(self.invite_view(key, invite)),
@@ -1505,18 +1530,43 @@ impl Client {
         }
     }
 
+    /// An invite's links: through its domain when it has one (no
+    /// fingerprint when an authority vouches for the domain), else through
+    /// the address the server was added with (plan §7.6).
     fn invite_view(&self, key: &str, invite: proto::Invite) -> Invite {
-        let link = ServerAddress::parse(key)
-            .map(|address| {
-                InviteLink {
-                    address,
+        let pin = self.lock_store().pin(key);
+        let (link, web_link) = match &invite.address {
+            Some(domain) => {
+                let port = u16::try_from(domain.port).unwrap_or(DEFAULT_PORT);
+                let link = InviteLink {
+                    address: ServerAddress {
+                        host: domain.host.clone(),
+                        port,
+                    },
                     code: invite.code.clone(),
-                    fingerprint: self.lock_store().pin(key),
-                }
-                .to_string()
-            })
-            .unwrap_or_default();
-        convert::invite(invite, link)
+                    fingerprint: pin.filter(|_| !domain.trusted_certificate),
+                };
+                let web = match port {
+                    443 => format!("https://{}/invite/{}", domain.host, invite.code),
+                    port => format!("https://{}:{port}/invite/{}", domain.host, invite.code),
+                };
+                (link.to_string(), Some(web))
+            }
+            None => {
+                let link = ServerAddress::parse(key)
+                    .map(|address| {
+                        InviteLink {
+                            address,
+                            code: invite.code.clone(),
+                            fingerprint: pin,
+                        }
+                        .to_string()
+                    })
+                    .unwrap_or_default();
+                (link, None)
+            }
+        };
+        convert::invite(invite, link, web_link)
     }
 
     fn context(&self, key: String, address: ServerAddress, credentials: Credentials) -> Context {
@@ -1596,6 +1646,17 @@ fn server_view(saved: &SavedServer, pin: Option<Fingerprint>) -> Server {
         port: saved.port,
         user_id: saved.user_id,
         fingerprint: pin.as_ref().map(format_fingerprint),
+        addresses: saved
+            .addresses
+            .iter()
+            .map(|address| {
+                ServerAddress {
+                    host: address.host.clone(),
+                    port: address.port,
+                }
+                .to_string()
+            })
+            .collect(),
     }
 }
 

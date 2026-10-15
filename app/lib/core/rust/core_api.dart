@@ -257,6 +257,7 @@ abstract interface class CoreApi {
     String serverKey, {
     int? maxUses,
     int? expiresInS,
+    int? domainId,
   });
 
   Future<List<core.Invite>> fetchInvites(String serverKey);
@@ -288,6 +289,25 @@ abstract interface class CoreApi {
     String serverKey,
     core.NetworkSettingsChanges changes,
   );
+
+  Future<core.NetworkInfo> addDomain(
+    String serverKey, {
+    required String hostname,
+    required core.DomainKind kind,
+    int? publicPort,
+  });
+
+  Future<core.NetworkInfo> updateDomain(
+    String serverKey,
+    int domainId,
+    core.DomainUpdate update,
+  );
+
+  Future<core.NetworkInfo> deleteDomain(String serverKey, int domainId);
+
+  Future<core.NetworkInfo> checkDomain(String serverKey, int domainId);
+
+  Future<List<core.DomainCheck>> domainChecks(String serverKey, int domainId);
 
   /// Leaves any other voice channel first, on any server.
   Future<core.VoiceState> voiceJoin(String serverKey, int channelId);
@@ -755,10 +775,12 @@ class FrbCoreApi implements CoreApi {
     String serverKey, {
     int? maxUses,
     int? expiresInS,
+    int? domainId,
   }) => frb.createInvite(
     serverKey: serverKey,
     maxUses: maxUses,
     expiresInS: expiresInS,
+    domainId: domainId,
   );
 
   @override
@@ -807,6 +829,42 @@ class FrbCoreApi implements CoreApi {
     String serverKey,
     core.NetworkSettingsChanges changes,
   ) => frb.updateNetworkSettings(serverKey: serverKey, changes: changes);
+
+  @override
+  Future<core.NetworkInfo> addDomain(
+    String serverKey, {
+    required String hostname,
+    required core.DomainKind kind,
+    int? publicPort,
+  }) => frb.addDomain(
+    serverKey: serverKey,
+    hostname: hostname,
+    kind: kind,
+    publicPort: publicPort,
+  );
+
+  @override
+  Future<core.NetworkInfo> updateDomain(
+    String serverKey,
+    int domainId,
+    core.DomainUpdate update,
+  ) => frb.updateDomain(
+    serverKey: serverKey,
+    domainId: domainId,
+    update: update,
+  );
+
+  @override
+  Future<core.NetworkInfo> deleteDomain(String serverKey, int domainId) =>
+      frb.deleteDomain(serverKey: serverKey, domainId: domainId);
+
+  @override
+  Future<core.NetworkInfo> checkDomain(String serverKey, int domainId) =>
+      frb.checkDomain(serverKey: serverKey, domainId: domainId);
+
+  @override
+  Future<List<core.DomainCheck>> domainChecks(String serverKey, int domainId) =>
+      frb.domainChecks(serverKey: serverKey, domainId: domainId);
 
   @override
   Future<core.VoiceState> voiceJoin(String serverKey, int channelId) =>

@@ -4,6 +4,12 @@ Only the server's owner sees this, in the app under **Server settings → Domain
 
 This guide grows with Phase 3. What is here so far:
 
+- [Kinds of domain](#kinds-of-domain)
+- [Adding a domain](#adding-a-domain)
+- [What a check says](#what-a-check-says)
+- [Active, inactive and primary](#active-inactive-and-primary)
+- [Invites through a domain](#invites-through-a-domain)
+- [How apps use domains](#how-apps-use-domains)
 - [Public address](#public-address)
 - [Ports](#ports)
 - [Opening ports on a home router](#opening-ports-on-a-home-router)
@@ -11,6 +17,78 @@ This guide grows with Phase 3. What is here so far:
 - [The main port](#the-main-port)
 - [Tunnels and reverse proxies: the local listener](#tunnels-and-reverse-proxies-the-local-listener)
 - [Advanced settings](#advanced-settings)
+
+## Kinds of domain
+
+| Kind | Use it when | How it is checked | Voice and music (UDP) |
+|---|---|---|---|
+| **Own domain** | You have a domain and can point it at this server | DNS: its A and AAAA records must point here | Straight to the server |
+| **Reverse proxy** | Caddy, Nginx, Traefik, or a tunnel such as ngrok or Tailscale Funnel, handles TLS | HTTPS: the proxy must lead to this server | Straight to the server: proxies carry no UDP |
+| **Free subdomain** | You have no domain: DuckDNS or deSEC | DNS | Straight to the server |
+| **Cloudflare Tunnel** | The server cannot accept incoming connections | HTTPS through the tunnel | Not through the tunnel |
+
+Free subdomains and Cloudflare Tunnel have their own buttons on the page, with what they need to set up.
+
+## Adding a domain
+
+**Add domain** asks for the name (for example `chat.example.com`; names in other scripts are turned into punycode), how it reaches the server, and the port people connect to (the main port for own domains, 443 behind a proxy). A server has at most 20 domains.
+
+For an own domain, the next step shows the DNS records to create at your DNS provider, with copy buttons:
+
+```text
+A     chat.example.com  →  203.0.113.10
+AAAA  chat.example.com  →  2001:db8::10
+```
+
+The AAAA record appears only when the server has IPv6. If the domain's DNS is at Cloudflare, set the records to **DNS only** (grey cloud): Cloudflare's proxy forwards only web traffic on a few ports, and no UDP, so voice would not work through it.
+
+Behind a reverse proxy, the next step shows how to point the proxy at Opencord's local listener. For Caddy:
+
+```text
+chat.example.com {
+    reverse_proxy 127.0.0.1:7719
+}
+```
+
+Then press **Check now**, or **Check** on the domain's row later; records can take a few minutes to appear.
+
+## What a check says
+
+Own domains are checked by asking the domain's own name servers directly, so caches cannot hide a mistake. A public resolver is asked too, and when it still has an old answer the row says so: it catches up within the record's time to live.
+
+| Result | Meaning | What to do |
+|---|---|---|
+| Verified | It points to this server | Nothing |
+| Points to another address | Its records give another address, shown on the row | Change the A/AAAA records to the server's address |
+| No record | The name has no A or AAAA record, or does not exist | Create the records |
+| Proxied by Cloudflare | It points to Cloudflare's proxy | Set the record to DNS only (grey cloud) |
+| Partly correct | Some records are right, others not: an old AAAA record, or a second address | Remove or fix the wrong records |
+| Check failed | No name server answered, or the server's public address is unknown | Try again; set the public address if needed |
+
+Behind a proxy, the check asks `https://chat.example.com/.well-known/opencord/verify` through the proxy for a token only this server knows. If the router cannot reach its own public address (no "hairpin NAT"), the check cannot get out and back in; open the address from another network, and if the page loads, use **Confirm it works** from the domain's menu.
+
+A domain may be checked by hand once every 10 seconds. Every domain is checked again at start-up, every 12 hours, and right after the public address changes; each keeps its last 10 checks under **Check history**.
+
+## Active, inactive and primary
+
+- Only a domain that passed a check can be active. The first one to pass becomes active and the **primary** by itself.
+- The primary is what people connect to first, what invites use, and where Lavalink connects for music.
+- A domain whose check fails after it passed is marked **DNS problem** with the time it started, and the owner is told. It stays active, so a short DNS hiccup breaks nothing.
+- Turning a domain off takes it out of invites and tells apps to stop using it; connections through it keep working for 7 days. The primary can only be turned off, or deleted, once another domain is the primary.
+- Each row shows how many people connected through the domain in the last 24 hours, to help decide what can go.
+
+## Invites through a domain
+
+With one active domain, every new invite goes through it. With more than one, the invite dialog offers the choice, the primary first. An invite through a domain gives two links:
+
+- `opencord://chat.example.com/invite/CODE` for the app (the port is added when it is not 7710). It carries the server's fingerprint unless the domain has a certificate from an authority (behind a proxy or tunnel; with Let's Encrypt from the certificates milestone on).
+- `https://chat.example.com/invite/CODE`, a small page with the server's name, its member count, an **Open in Opencord** button and a download link.
+
+An invite through a domain stops working when the domain is turned off or deleted.
+
+## How apps use domains
+
+Apps learn the active domains and the public address when they connect, and when they change. They connect to the primary first, then the other domains, then the address they added the server with, then the IP address, so a domain that stops answering costs nothing but a few seconds. A server added again at another address is recognised and stays one entry. Domains with a certificate from an authority are checked like a website, with no fingerprint to confirm.
 
 ## Public address
 

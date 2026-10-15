@@ -31,6 +31,8 @@ pub struct Server {
     pub user_id: Option<i64>,
     /// Pinned certificate fingerprint (lowercase hex), if any.
     pub fingerprint: Option<String>,
+    /// Its domains as `host:port`, the primary first (Phase 3 plan §7.5).
+    pub addresses: Vec<String>,
 }
 
 /// A pinned certificate.
@@ -163,8 +165,13 @@ pub struct Message {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Invite {
     pub code: String,
-    /// `opencord://host:port/invite/CODE#fp=...`, ready to share.
+    /// `opencord://host:port/invite/CODE#fp=...`, ready to share; without
+    /// the fingerprint through a domain with an authority's certificate.
     pub link: String,
+    /// `https://host[:port]/invite/CODE`, for a browser, through a domain.
+    pub web_link: Option<String>,
+    /// The domain the links use, if one does.
+    pub domain_id: Option<i64>,
     pub created_by: Option<i64>,
     pub created_at_ms: i64,
     pub max_uses: Option<u32>,
@@ -340,6 +347,28 @@ pub struct ReadySnapshot {
     pub voice_settings: VoiceSettings,
     /// This server's soundboard.
     pub soundboard_sounds: Vec<SoundboardSound>,
+    /// Where the server is reached (Phase 3 plan §7.5).
+    pub addresses: ServerAddresses,
+}
+
+/// One address a server is reached at.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ConnectAddress {
+    pub host: String,
+    pub port: u32,
+    /// Checked like a website, by its certificate authority.
+    pub trusted_certificate: bool,
+    /// The domain's id; 0 for the IP address.
+    pub domain_id: i64,
+}
+
+/// Where a server is reached: its active domains (the primary first) and
+/// its public IP address.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct ServerAddresses {
+    pub primary: Option<ConnectAddress>,
+    pub domains: Vec<ConnectAddress>,
+    pub ip: Option<ConnectAddress>,
 }
 
 /// One of a server's soundboard sounds (Phase 2 plan §11).
@@ -517,6 +546,8 @@ pub enum CoreEventPayload {
     /// A sound played in a voice channel this device is connected to on
     /// that server.
     VoiceChannelEffect(SoundEffect),
+    /// Where the server is reached changed.
+    ServerAddressesUpdate(ServerAddresses),
     /// Domains & network changed, while this session watches it.
     NetworkStatus(NetworkInfo),
     ServerNotice(ServerNotice),
@@ -619,6 +650,80 @@ pub struct NetworkInfo {
     pub upnp_gateway: String,
     pub upnp_external_ip: String,
     pub upnp_error: String,
+    /// The domains attached, in the order they were added.
+    pub domains: Vec<Domain>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DomainKind {
+    /// The owner's own domain, pointed here with A/AAAA records.
+    Own,
+    /// A DuckDNS or deSEC name Opencord keeps pointed here.
+    FreeSubdomain,
+    /// Cloudflare Tunnel.
+    Tunnel,
+    /// Caddy, Nginx, Traefik, ngrok and the like.
+    ReverseProxy,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DomainStatus {
+    Pending,
+    Verified,
+    /// Verified once; its checks fail since `problem_since_ms`.
+    DnsProblem,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CheckResult {
+    Verified,
+    PointsElsewhere,
+    NoRecord,
+    CloudflareProxied,
+    PartlyCorrect,
+    Failed,
+    ConfirmedByOwner,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DomainCheck {
+    pub result: CheckResult,
+    pub message: String,
+    pub note: String,
+    pub found: Vec<String>,
+    pub checked_at_ms: i64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Domain {
+    pub id: i64,
+    pub hostname: String,
+    pub kind: DomainKind,
+    pub public_port: u32,
+    pub status: DomainStatus,
+    pub active: bool,
+    pub primary: bool,
+    pub problem_since_ms: i64,
+    pub last_check: Option<DomainCheck>,
+    /// A check is running now.
+    pub checking: bool,
+    /// People who connected through it in the last 24 hours.
+    pub users_24h: u32,
+    pub created_at_ms: i64,
+    pub deactivated_at_ms: i64,
+    /// Clients check it by its certificate authority.
+    pub trusted_certificate: bool,
+}
+
+/// What to change about a domain; absent fields stay.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct DomainUpdate {
+    pub active: Option<bool>,
+    /// Only `Some(true)`: makes it the primary.
+    pub primary: Option<bool>,
+    pub public_port: Option<u32>,
+    /// Vouches for a tunnel or proxy domain whose check could not reach it.
+    pub confirm: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -657,6 +762,14 @@ pub enum ErrorCode {
     SoundTooLong,
     SoundInvalid,
     SoundboardFull,
+    DomainInvalid,
+    DomainExists,
+    DomainLimit,
+    DomainNotVerified,
+    DnsMismatch,
+    AcmeFailed,
+    AcmeRateLimited,
+    PortUnreachable,
     Unknown,
 }
 

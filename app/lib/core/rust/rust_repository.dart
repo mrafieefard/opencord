@@ -538,6 +538,8 @@ class RustRepository implements OpencordRepository {
       ),
       core.CoreEventPayload_NetworkStatus(:final field0) =>
         NetworkStatusChanged(server, networkInfoFrom(field0)),
+      core.CoreEventPayload_ServerAddressesUpdate(:final field0) =>
+        ServerAddressesChanged(server, serverAddressesFrom(field0)),
       core.CoreEventPayload_ServerNotice(:final field0) => ServerNoticeReceived(
         server,
         serverNoticeFrom(field0),
@@ -944,12 +946,14 @@ class RustRepository implements OpencordRepository {
     String serverKey, {
     Duration? expiresIn,
     int? maxUses,
+    int? domainId,
   }) async => inviteFrom(
     await _call(
       () => _core.createInvite(
         serverKey,
         maxUses: maxUses,
         expiresInS: expiresIn?.inSeconds,
+        domainId: domainId,
       ),
     ),
   );
@@ -1009,6 +1013,57 @@ class RustRepository implements OpencordRepository {
       () => _core.updateNetworkSettings(serverKey, networkChangesTo(changes)),
     ),
   );
+
+  @override
+  Future<NetworkInfo> addDomain(
+    String serverKey, {
+    required String hostname,
+    required DomainKind kind,
+    int? publicPort,
+  }) async => networkInfoFrom(
+    await _call(
+      () => _core.addDomain(
+        serverKey,
+        hostname: hostname,
+        kind: domainKindTo(kind),
+        publicPort: publicPort,
+      ),
+    ),
+  );
+
+  @override
+  Future<NetworkInfo> updateDomain(
+    String serverKey,
+    int domainId,
+    DomainUpdate update,
+  ) async => networkInfoFrom(
+    await _call(
+      () => _core.updateDomain(serverKey, domainId, domainUpdateTo(update)),
+    ),
+  );
+
+  @override
+  Future<NetworkInfo> deleteDomain(String serverKey, int domainId) async =>
+      networkInfoFrom(
+        await _call(() => _core.deleteDomain(serverKey, domainId)),
+      );
+
+  @override
+  Future<NetworkInfo> checkDomain(String serverKey, int domainId) async =>
+      networkInfoFrom(
+        await _call(() => _core.checkDomain(serverKey, domainId)),
+      );
+
+  @override
+  Future<List<DomainCheck>> domainChecks(
+    String serverKey,
+    int domainId,
+  ) async => [
+    for (final check in await _call(
+      () => _core.domainChecks(serverKey, domainId),
+    ))
+      domainCheckFrom(check),
+  ];
 
   // Voice ---------------------------------------------------------------------
 

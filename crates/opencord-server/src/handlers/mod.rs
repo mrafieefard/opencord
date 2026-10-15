@@ -11,6 +11,7 @@ use crate::gateway::session::Session;
 use crate::state::AppState;
 
 mod channels;
+mod domains;
 mod invites;
 mod members;
 mod messages;
@@ -101,6 +102,11 @@ async fn dispatch(ctx: &Ctx<'_>, request: proto::Request) -> Result<Response, Ap
         Kind::SetPublicAddress(request) => network::set_public_address(ctx, request).await,
         Kind::DetectPublicAddress(_) => network::detect_public_address(ctx).await,
         Kind::UpdateNetworkSettings(request) => network::update_settings(ctx, request).await,
+        Kind::AddDomain(request) => domains::add(ctx, request).await,
+        Kind::UpdateDomain(request) => domains::update(ctx, request).await,
+        Kind::DeleteDomain(request) => domains::delete(ctx, request).await,
+        Kind::CheckDomain(request) => domains::check(ctx, &request),
+        Kind::FetchDomainChecks(request) => domains::history(ctx, request).await,
     }
 }
 

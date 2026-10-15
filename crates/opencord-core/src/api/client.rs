@@ -13,14 +13,14 @@ use tokio::runtime::Runtime;
 
 use super::types::{
     AddServerOutcome, AudioDevices, AudioSettings, Ban, CameraDevice, CameraStarted, Channel,
-    ChannelChanges, ChannelKind, ChannelPosition, CoreError, CoreEvent, DefaultSound,
-    GeneratedIdentity, HotkeyBinding, HotkeySupport, IdentityInfo, Invite, MediaEvent, Member,
-    Message, NetworkInfo, NetworkSettingsChanges, NoiseSuppressionMode, OverwriteTargetKind,
-    PermissionOverwrite, PresenceStatus, Role, RoleChanges, ScreenAudioApp, ScreenAudioSupport,
-    ScreenShareRequest, ScreenShareStarted, ScreenSource, ScreenThumbnail, Server, ServerChanges,
-    ServerInfo, SoundDraft, SoundSelection, SoundboardSound, SoundboardSoundChanges,
-    StreamSourceKind, TextureStats, TrustedFingerprint, User, VideoSupport, VideoWant, VoiceCue,
-    VoiceSettings, VoiceSettingsChanges, VoiceState,
+    ChannelChanges, ChannelKind, ChannelPosition, CoreError, CoreEvent, DefaultSound, DomainCheck,
+    DomainKind, DomainUpdate, GeneratedIdentity, HotkeyBinding, HotkeySupport, IdentityInfo,
+    Invite, MediaEvent, Member, Message, NetworkInfo, NetworkSettingsChanges, NoiseSuppressionMode,
+    OverwriteTargetKind, PermissionOverwrite, PresenceStatus, Role, RoleChanges, ScreenAudioApp,
+    ScreenAudioSupport, ScreenShareRequest, ScreenShareStarted, ScreenSource, ScreenThumbnail,
+    Server, ServerChanges, ServerInfo, SoundDraft, SoundSelection, SoundboardSound,
+    SoundboardSoundChanges, StreamSourceKind, TextureStats, TrustedFingerprint, User, VideoSupport,
+    VideoWant, VoiceCue, VoiceSettings, VoiceSettingsChanges, VoiceState,
 };
 use crate::client::Client;
 use crate::frb_generated::StreamSink;
@@ -428,14 +428,17 @@ pub async fn update_presence(server_key: String, status: PresenceStatus) -> Resu
     on_runtime(move |client| async move { client.update_presence(&server_key, status).await }).await
 }
 
+/// An invite, through `domain_id`'s domain, or the server's primary
+/// domain when it has one (Phase 3 plan §7.6).
 pub async fn create_invite(
     server_key: String,
     max_uses: Option<u32>,
     expires_in_s: Option<u32>,
+    domain_id: Option<i64>,
 ) -> Result<Invite, CoreError> {
     on_runtime(move |client| async move {
         client
-            .create_invite(&server_key, max_uses, expires_in_s)
+            .create_invite(&server_key, max_uses, expires_in_s, domain_id)
             .await
     })
     .await
@@ -501,6 +504,51 @@ pub async fn update_network_settings(
         move |client| async move { client.update_network_settings(&server_key, changes).await },
     )
     .await
+}
+
+/// Attaches a domain to the server, pending its check (Phase 3 plan §6).
+pub async fn add_domain(
+    server_key: String,
+    hostname: String,
+    kind: DomainKind,
+    public_port: Option<u32>,
+) -> Result<NetworkInfo, CoreError> {
+    on_runtime(move |client| async move {
+        client
+            .add_domain(&server_key, hostname, kind, public_port)
+            .await
+    })
+    .await
+}
+
+pub async fn update_domain(
+    server_key: String,
+    domain_id: i64,
+    update: DomainUpdate,
+) -> Result<NetworkInfo, CoreError> {
+    on_runtime(
+        move |client| async move { client.update_domain(&server_key, domain_id, update).await },
+    )
+    .await
+}
+
+pub async fn delete_domain(server_key: String, domain_id: i64) -> Result<NetworkInfo, CoreError> {
+    on_runtime(move |client| async move { client.delete_domain(&server_key, domain_id).await })
+        .await
+}
+
+/// Starts a check of a domain; the result arrives as `NetworkStatus`.
+pub async fn check_domain(server_key: String, domain_id: i64) -> Result<NetworkInfo, CoreError> {
+    on_runtime(move |client| async move { client.check_domain(&server_key, domain_id).await }).await
+}
+
+/// A domain's last checks, newest first.
+pub async fn domain_checks(
+    server_key: String,
+    domain_id: i64,
+) -> Result<Vec<DomainCheck>, CoreError> {
+    on_runtime(move |client| async move { client.domain_checks(&server_key, domain_id).await })
+        .await
 }
 
 /// Joins a voice channel. This device is in at most one voice channel

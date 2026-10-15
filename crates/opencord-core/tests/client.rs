@@ -145,7 +145,7 @@ async fn owner_and_member(
     let owner_ready = owner.ready().await;
     let invite = owner
         .client
-        .create_invite(&server.address(), None, None)
+        .create_invite(&server.address(), None, None, None)
         .await
         .unwrap();
     let mut member = TestClient::new("Member");
@@ -473,7 +473,11 @@ async fn a_kicked_member_can_rejoin_with_a_new_invite() {
             _ => None,
         })
         .await;
-    let invite = owner.client.create_invite(&key, None, None).await.unwrap();
+    let invite = owner
+        .client
+        .create_invite(&key, None, None, None)
+        .await
+        .unwrap();
 
     let client = member.client.clone();
     let outcome = tokio::time::timeout(
@@ -1262,7 +1266,7 @@ async fn after_the_computer_sleeps_the_call_comes_back_within_seconds() {
         .unwrap();
     let invite = owner
         .client
-        .create_invite(&relay.address, None, None)
+        .create_invite(&relay.address, None, None, None)
         .await
         .unwrap();
     let link = invite.link.replace(&relay.address, &server.address());

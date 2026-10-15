@@ -20,6 +20,7 @@ futures-util.workspace = true
 getrandom.workspace = true
 governor.workspace = true
 hex.workspace = true
+hickory-proto.workspace = true
 igd-next.workspace = true
 rcgen.workspace = true
 reqwest.workspace = true

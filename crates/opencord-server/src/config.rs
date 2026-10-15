@@ -230,6 +230,9 @@ impl Default for MusicSection {
 pub struct NetworkSection {
     pub ip_lookup_v4: String,
     pub ip_lookup_v6: String,
+    /// The port domain checks ask name servers on. Not in the default
+    /// file: only tests change it.
+    pub dns_name_server_port: u16,
 }
 
 impl Default for NetworkSection {
@@ -237,6 +240,7 @@ impl Default for NetworkSection {
         Self {
             ip_lookup_v4: "https://api.ipify.org".to_owned(),
             ip_lookup_v6: "https://api6.ipify.org".to_owned(),
+            dns_name_server_port: 53,
         }
     }
 }

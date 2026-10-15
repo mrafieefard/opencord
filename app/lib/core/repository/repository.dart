@@ -376,10 +376,13 @@ abstract interface class OpencordRepository {
 
   Future<void> updatePresence(SelfPresence presence);
 
+  /// Through [domainId]'s domain, or the primary one when the server has
+  /// one (Phase 3 plan §7.6).
   Future<Invite> createInvite(
     String serverKey, {
     Duration? expiresIn,
     int? maxUses,
+    int? domainId,
   });
 
   Future<List<Invite>> fetchInvites(String serverKey);
@@ -417,6 +420,28 @@ abstract interface class OpencordRepository {
     String serverKey,
     NetworkSettingsChanges changes,
   );
+
+  /// Attaches a domain, pending its check (Phase 3 plan §6).
+  Future<NetworkInfo> addDomain(
+    String serverKey, {
+    required String hostname,
+    required DomainKind kind,
+    int? publicPort,
+  });
+
+  Future<NetworkInfo> updateDomain(
+    String serverKey,
+    int domainId,
+    DomainUpdate update,
+  );
+
+  Future<NetworkInfo> deleteDomain(String serverKey, int domainId);
+
+  /// Starts a check; its result arrives as [NetworkStatusChanged].
+  Future<NetworkInfo> checkDomain(String serverKey, int domainId);
+
+  /// A domain's last checks, newest first.
+  Future<List<DomainCheck>> domainChecks(String serverKey, int domainId);
 
   Future<void> joinVoice(String serverKey, int channelId);
 

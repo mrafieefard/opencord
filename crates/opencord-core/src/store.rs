@@ -21,6 +21,26 @@ pub struct SavedServer {
     /// The user's id on that server, once known.
     pub user_id: Option<i64>,
     pub added_at_ms: i64,
+    /// The server's id from `Hello`, hex: the same server reached at
+    /// another address is still this one.
+    #[serde(default)]
+    pub server_id: Option<String>,
+    /// Its active domains, the primary first (Phase 3 plan §7.5).
+    #[serde(default)]
+    pub addresses: Vec<SavedAddress>,
+    /// Its public IP address.
+    #[serde(default)]
+    pub ip: Option<SavedAddress>,
+}
+
+/// Somewhere a saved server is reached.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SavedAddress {
+    pub host: String,
+    pub port: u16,
+    /// Checked by its certificate authority, not the pinned fingerprint.
+    #[serde(default)]
+    pub trusted: bool,
 }
 
 #[derive(Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -92,6 +112,14 @@ impl Store {
             None => self.data.servers.push(server),
         }
         self.save()
+    }
+
+    /// The saved server with this id from `Hello`, if any.
+    pub fn server_with_id(&self, server_id: &str) -> Option<&SavedServer> {
+        self.data
+            .servers
+            .iter()
+            .find(|known| known.server_id.as_deref() == Some(server_id))
     }
 
     /// Returns whether the server was known.
@@ -181,7 +209,26 @@ mod tests {
             name: name.to_owned(),
             user_id: None,
             added_at_ms: 0,
+            server_id: None,
+            addresses: Vec::new(),
+            ip: None,
         }
+    }
+
+    #[test]
+    fn a_store_from_before_domains_still_opens() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(
+            dir.path().join(STORE_FILE),
+            r#"{"version":1,"servers":[{"key":"a.example:7710","host":"a.example","port":7710,"name":"A","user_id":null,"added_at_ms":5}]}"#,
+        )
+        .unwrap();
+
+        let store = Store::open(dir.path()).unwrap();
+
+        let saved = store.server("a.example:7710").unwrap();
+        assert_eq!(saved.server_id, None);
+        assert!(saved.addresses.is_empty());
     }
 
     #[test]

@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT code, created_by, created_at, max_uses, uses, expires_at\n         FROM invites ORDER BY created_at",
+  "query": "SELECT code, created_by, created_at, max_uses, uses, expires_at, domain_id\n         FROM invites ORDER BY created_at",
   "describe": {
     "columns": [
       {
@@ -68,6 +68,17 @@
             "name": "expires_at"
           }
         }
+      },
+      {
+        "name": "domain_id",
+        "ordinal": 6,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "invites",
+            "name": "domain_id"
+          }
+        }
       }
     ],
     "parameters": {
@@ -79,8 +90,9 @@
       false,
       true,
       false,
+      true,
       true
     ]
   },
-  "hash": "15b7069e47b14f56359d4b320b021bdc7c518ba749e6740062e843bedfc347e3"
+  "hash": "be526a02d9fbedc090fce6d45c4e66dd420b8b1500e536372bee41141b5bfa5c"
 }

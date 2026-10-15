@@ -74,6 +74,7 @@ final _readyPayload = core.CoreEventPayload.ready(
       core.ChannelPermissions(channelId: _general, permissions: 0x7),
       core.ChannelPermissions(channelId: _random, permissions: 0x7),
     ],
+    addresses: const core.ServerAddresses(domains: []),
   ),
 );
 

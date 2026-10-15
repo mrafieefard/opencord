@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 
 import 'package:opencord/core/model/channel.dart';
+import 'package:opencord/core/model/network.dart';
 import 'package:opencord/core/model/permissions.dart';
 import 'package:opencord/core/model/server.dart';
 import 'package:opencord/core/model/snapshot.dart';
@@ -21,6 +22,7 @@ class ServerData {
     required this.channelPermissions,
     this.voiceEnabled = true,
     this.voiceSettings = const VoiceSettings(),
+    this.addresses = const ServerAddresses(),
   });
 
   factory ServerData.fromSnapshot(ReadySnapshot snapshot) => ServerData(
@@ -33,6 +35,7 @@ class ServerData {
     channelPermissions: snapshot.channelPermissions,
     voiceEnabled: snapshot.voiceEnabled,
     voiceSettings: snapshot.voiceSettings,
+    addresses: snapshot.addresses,
   );
 
   final User self;
@@ -46,6 +49,9 @@ class ServerData {
   /// Whether the server has voice at all.
   final bool voiceEnabled;
   final VoiceSettings voiceSettings;
+
+  /// Where the server is reached: its active domains and IP address.
+  final ServerAddresses addresses;
 
   bool get isOwner => info.ownerId == self.id;
 
@@ -101,6 +107,7 @@ class ServerData {
     Permissions? serverPermissions,
     Map<int, Permissions>? channelPermissions,
     VoiceSettings? voiceSettings,
+    ServerAddresses? addresses,
   }) => ServerData(
     self: self,
     info: info ?? this.info,
@@ -111,6 +118,7 @@ class ServerData {
     channelPermissions: channelPermissions ?? this.channelPermissions,
     voiceEnabled: voiceEnabled,
     voiceSettings: voiceSettings ?? this.voiceSettings,
+    addresses: addresses ?? this.addresses,
   );
 }
 
@@ -195,6 +203,9 @@ ServerState reduceServer(ServerState state, RepoEvent event) {
     ServerInfoChanged(:final info) => data.copyWith(info: info),
     VoiceSettingsChanged(:final settings) => data.copyWith(
       voiceSettings: settings,
+    ),
+    ServerAddressesChanged(:final addresses) => data.copyWith(
+      addresses: addresses,
     ),
     PermissionsChanged(:final server, :final channels) => data.copyWith(
       serverPermissions: server,

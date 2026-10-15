@@ -77,20 +77,33 @@ pub async fn identify(
         ))
         .into());
     }
-    let challenge = auth::Challenge {
-        server_id: state.guild().meta.server_id,
-        certificate: state.fingerprint,
-        nonce: *nonce,
-        timestamp_ms: identify.timestamp_ms,
-    };
+    let server_id = state.guild().meta.server_id;
     let now = now_ms();
-    auth::verify(
-        &identify.public_key,
-        &identify.signature,
-        &challenge,
-        u64::try_from(now).unwrap_or_default(),
-    )
-    .map_err(|error| Rejection::unauthorized(error.to_string()))?;
+    let check = |signature: &[u8], certificate| {
+        auth::verify(
+            &identify.public_key,
+            signature,
+            &auth::Challenge {
+                server_id,
+                certificate,
+                nonce: *nonce,
+                timestamp_ms: identify.timestamp_ms,
+            },
+            u64::try_from(now).unwrap_or_default(),
+        )
+    };
+    let mut verified = check(&identify.signature, state.fingerprint);
+    // Bound to a name an authority vouched for: one this server answers to.
+    if matches!(verified, Err(auth::AuthError::InvalidSignature)) && !identify.host.is_empty() {
+        let host = identify.host.trim_end_matches('.').to_ascii_lowercase();
+        let names = state
+            .domains
+            .bindable_names(&state.config.server.public_host, now);
+        if names.contains(&host) {
+            verified = check(&identify.host_signature, auth::host_binding(&host));
+        }
+    }
+    verified.map_err(|error| Rejection::unauthorized(error.to_string()))?;
 
     let _writes = state.write_lock().await;
     let joined = admit(state, &identify, now).await?;
@@ -182,6 +195,12 @@ async fn admit(
             invites::find(&mut tx, code)
                 .await?
                 .filter(|invite| invite.is_usable(now))
+                // An invite for a domain no longer active is no longer valid.
+                .filter(|invite| {
+                    invite
+                        .domain_id
+                        .is_none_or(|id| state.domains.get(id).is_some_and(|d| d.active))
+                })
                 .ok_or_else(|| Rejection::unauthorized("the invite is invalid or has expired"))?,
         ),
         (None, false) if meta.open_join => None,
@@ -278,6 +297,8 @@ fn ready(
     session_id: String,
     resume_token: Vec<u8>,
 ) -> proto::Ready {
+    let server_addresses = state.domains.addresses(state);
+    state.domains.mark_announced(&server_addresses);
     let mut presences = state.presences();
     if !presences.iter().any(|presence| presence.user_id == user_id) {
         let status = state.presence.chosen(user_id);
@@ -339,5 +360,6 @@ fn ready(
             &guild.meta.server_id,
             now_ms(),
         )),
+        server_addresses: Some(server_addresses),
     }
 }

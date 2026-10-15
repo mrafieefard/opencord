@@ -104,6 +104,8 @@ message NetworkInfo {
   string upnp_gateway = 6;
   string upnp_external_ip = 7;
   string upnp_error = 8;
+  // Phase 3 D2: the domains attached, in the order they were added.
+  repeated Domain domains = 9;
 }
 
 // Starts or stops NetworkStatus events for this session; answers with
@@ -155,4 +157,132 @@ message ServerNotice {
   NoticeSeverity severity = 2;
   string title = 3;
   string body = 4;
+}
+
+// Domains (Phase 3 plan §4, §6).
+enum DomainKind {
+  DOMAIN_KIND_UNSPECIFIED = 0;
+  // A domain of the owner's, pointed at this server with A/AAAA records.
+  DOMAIN_KIND_OWN = 1;
+  // A DuckDNS or deSEC name that Opencord keeps pointed at this server.
+  DOMAIN_KIND_FREE_SUBDOMAIN = 2;
+  // Cloudflare Tunnel: Cloudflare's certificate, no UDP.
+  DOMAIN_KIND_TUNNEL = 3;
+  // Caddy, Nginx, Traefik, ngrok and the like: the proxy's certificate.
+  DOMAIN_KIND_REVERSE_PROXY = 4;
+}
+
+enum DomainStatus {
+  DOMAIN_STATUS_UNSPECIFIED = 0;
+  // Not verified yet.
+  DOMAIN_STATUS_PENDING = 1;
+  DOMAIN_STATUS_VERIFIED = 2;
+  // Verified once; its checks fail since `problem_since_ms`. It stays active.
+  DOMAIN_STATUS_DNS_PROBLEM = 3;
+}
+
+enum CheckResult {
+  CHECK_RESULT_UNSPECIFIED = 0;
+  CHECK_RESULT_VERIFIED = 1;
+  CHECK_RESULT_POINTS_ELSEWHERE = 2;
+  CHECK_RESULT_NO_RECORD = 3;
+  CHECK_RESULT_CLOUDFLARE_PROXIED = 4;
+  CHECK_RESULT_PARTLY_CORRECT = 5;
+  // The check could not be made.
+  CHECK_RESULT_FAILED = 6;
+  CHECK_RESULT_CONFIRMED_BY_OWNER = 7;
+}
+
+message DomainCheck {
+  CheckResult result = 1;
+  // What happened, in plain words.
+  string message = 2;
+  // Worth knowing even when it passed.
+  string note = 3;
+  // The addresses its records gave.
+  repeated string found = 4;
+  int64 checked_at_ms = 5;
+}
+
+message Domain {
+  int64 id = 1;
+  string hostname = 2;
+  DomainKind kind = 3;
+  // Where clients connect: the main port, or 443 behind a tunnel or proxy.
+  uint32 public_port = 4;
+  DomainStatus status = 5;
+  bool active = 6;
+  bool primary = 7;
+  int64 problem_since_ms = 8;
+  optional DomainCheck last_check = 9;
+  // A check is running now.
+  bool checking = 10;
+  // People who connected through it in the last 24 hours.
+  uint32 users_24h = 11;
+  int64 created_at_ms = 12;
+  // When it was turned off; connections through it work for 7 days after.
+  int64 deactivated_at_ms = 13;
+  // Clients check it like a website: a certificate from an authority.
+  bool trusted_certificate = 14;
+}
+
+// Answers with NetworkInfo. Owner only.
+message AddDomain {
+  // Internationalised names are turned into punycode.
+  string hostname = 1;
+  DomainKind kind = 2;
+  // Absent: the main port, or 443 for tunnels and proxies.
+  optional uint32 public_port = 3;
+}
+
+message UpdateDomain {
+  int64 domain_id = 1;
+  optional bool active = 2;
+  // Only true: makes it the primary.
+  optional bool primary = 3;
+  optional uint32 public_port = 4;
+  // For a tunnel or proxy whose HTTP check cannot loop back to this
+  // server's own address: the owner vouches for it.
+  bool confirm = 5;
+}
+
+message DeleteDomain {
+  int64 domain_id = 1;
+}
+
+// Starts a check; the result arrives as NetworkStatus.
+message CheckDomain {
+  int64 domain_id = 1;
+}
+
+message FetchDomainChecks {
+  int64 domain_id = 1;
+}
+
+message DomainChecks {
+  // Newest first, up to 10.
+  repeated DomainCheck checks = 1;
+}
+
+// Where clients reach the server (Phase 3 plan §7.5).
+message ConnectAddress {
+  string host = 1;
+  uint32 port = 2;
+  // Check it like a website (no fingerprint), not by the pinned one.
+  bool trusted_certificate = 3;
+  // The domain's id; 0 for the IP address.
+  int64 domain_id = 4;
+}
+
+message ServerAddresses {
+  // The primary domain, when one is active.
+  optional ConnectAddress primary = 1;
+  // Every active domain, the primary first.
+  repeated ConnectAddress domains = 2;
+  // The server's public IP address, when known.
+  optional ConnectAddress ip = 3;
+}
+
+message ServerAddressesUpdate {
+  ServerAddresses addresses = 1;
 }

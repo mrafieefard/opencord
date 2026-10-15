@@ -9,7 +9,7 @@ use super::Ctx;
 use crate::error::ApiError;
 use crate::network::settings;
 
-fn require_owner(ctx: &Ctx<'_>) -> Result<(), ApiError> {
+pub(super) fn require_owner(ctx: &Ctx<'_>) -> Result<(), ApiError> {
     if ctx.state.guild().is_owner(ctx.user_id) {
         Ok(())
     } else {
@@ -19,8 +19,8 @@ fn require_owner(ctx: &Ctx<'_>) -> Result<(), ApiError> {
     }
 }
 
-fn info(ctx: &Ctx<'_>) -> Response {
-    Response::NetworkInfo(Box::new(ctx.state.network.info()))
+pub(super) fn info(ctx: &Ctx<'_>) -> Response {
+    Response::NetworkInfo(Box::new(ctx.state.network.info(ctx.state)))
 }
 
 pub fn watch(ctx: &Ctx<'_>, request: &proto::WatchNetwork) -> Result<Response, ApiError> {

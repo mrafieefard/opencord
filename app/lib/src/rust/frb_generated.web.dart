@@ -68,7 +68,16 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   ChannelChanges dco_decode_box_autoadd_channel_changes(dynamic raw);
 
   @protected
+  ConnectAddress dco_decode_box_autoadd_connect_address(dynamic raw);
+
+  @protected
   ConnectionState dco_decode_box_autoadd_connection_state(dynamic raw);
+
+  @protected
+  DomainCheck dco_decode_box_autoadd_domain_check(dynamic raw);
+
+  @protected
+  DomainUpdate dco_decode_box_autoadd_domain_update(dynamic raw);
 
   @protected
   double dco_decode_box_autoadd_f_32(dynamic raw);
@@ -121,6 +130,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   Server dco_decode_box_autoadd_server(dynamic raw);
+
+  @protected
+  ServerAddresses dco_decode_box_autoadd_server_addresses(dynamic raw);
 
   @protected
   ServerChanges dco_decode_box_autoadd_server_changes(dynamic raw);
@@ -195,6 +207,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   ChannelPosition dco_decode_channel_position(dynamic raw);
 
   @protected
+  CheckResult dco_decode_check_result(dynamic raw);
+
+  @protected
+  ConnectAddress dco_decode_connect_address(dynamic raw);
+
+  @protected
   ConnectionState dco_decode_connection_state(dynamic raw);
 
   @protected
@@ -208,6 +226,21 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   DefaultSound dco_decode_default_sound(dynamic raw);
+
+  @protected
+  Domain dco_decode_domain(dynamic raw);
+
+  @protected
+  DomainCheck dco_decode_domain_check(dynamic raw);
+
+  @protected
+  DomainKind dco_decode_domain_kind(dynamic raw);
+
+  @protected
+  DomainStatus dco_decode_domain_status(dynamic raw);
+
+  @protected
+  DomainUpdate dco_decode_domain_update(dynamic raw);
 
   @protected
   ErrorCode dco_decode_error_code(dynamic raw);
@@ -264,7 +297,16 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   List<ChannelPosition> dco_decode_list_channel_position(dynamic raw);
 
   @protected
+  List<ConnectAddress> dco_decode_list_connect_address(dynamic raw);
+
+  @protected
   List<DefaultSound> dco_decode_list_default_sound(dynamic raw);
+
+  @protected
+  List<Domain> dco_decode_list_domain(dynamic raw);
+
+  @protected
+  List<DomainCheck> dco_decode_list_domain_check(dynamic raw);
 
   @protected
   List<HotkeyBinding> dco_decode_list_hotkey_binding(dynamic raw);
@@ -363,6 +405,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   bool? dco_decode_opt_box_autoadd_bool(dynamic raw);
 
   @protected
+  ConnectAddress? dco_decode_opt_box_autoadd_connect_address(dynamic raw);
+
+  @protected
+  DomainCheck? dco_decode_opt_box_autoadd_domain_check(dynamic raw);
+
+  @protected
   double? dco_decode_opt_box_autoadd_f_32(dynamic raw);
 
   @protected
@@ -453,6 +501,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   Server dco_decode_server(dynamic raw);
+
+  @protected
+  ServerAddresses dco_decode_server_addresses(dynamic raw);
 
   @protected
   ServerChanges dco_decode_server_changes(dynamic raw);
@@ -591,7 +642,20 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  ConnectAddress sse_decode_box_autoadd_connect_address(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   ConnectionState sse_decode_box_autoadd_connection_state(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  DomainCheck sse_decode_box_autoadd_domain_check(SseDeserializer deserializer);
+
+  @protected
+  DomainUpdate sse_decode_box_autoadd_domain_update(
     SseDeserializer deserializer,
   );
 
@@ -656,6 +720,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   Server sse_decode_box_autoadd_server(SseDeserializer deserializer);
+
+  @protected
+  ServerAddresses sse_decode_box_autoadd_server_addresses(
+    SseDeserializer deserializer,
+  );
 
   @protected
   ServerChanges sse_decode_box_autoadd_server_changes(
@@ -744,6 +813,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   ChannelPosition sse_decode_channel_position(SseDeserializer deserializer);
 
   @protected
+  CheckResult sse_decode_check_result(SseDeserializer deserializer);
+
+  @protected
+  ConnectAddress sse_decode_connect_address(SseDeserializer deserializer);
+
+  @protected
   ConnectionState sse_decode_connection_state(SseDeserializer deserializer);
 
   @protected
@@ -757,6 +832,21 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   DefaultSound sse_decode_default_sound(SseDeserializer deserializer);
+
+  @protected
+  Domain sse_decode_domain(SseDeserializer deserializer);
+
+  @protected
+  DomainCheck sse_decode_domain_check(SseDeserializer deserializer);
+
+  @protected
+  DomainKind sse_decode_domain_kind(SseDeserializer deserializer);
+
+  @protected
+  DomainStatus sse_decode_domain_status(SseDeserializer deserializer);
+
+  @protected
+  DomainUpdate sse_decode_domain_update(SseDeserializer deserializer);
 
   @protected
   ErrorCode sse_decode_error_code(SseDeserializer deserializer);
@@ -819,9 +909,20 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  List<ConnectAddress> sse_decode_list_connect_address(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   List<DefaultSound> sse_decode_list_default_sound(
     SseDeserializer deserializer,
   );
+
+  @protected
+  List<Domain> sse_decode_list_domain(SseDeserializer deserializer);
+
+  @protected
+  List<DomainCheck> sse_decode_list_domain_check(SseDeserializer deserializer);
 
   @protected
   List<HotkeyBinding> sse_decode_list_hotkey_binding(
@@ -940,6 +1041,16 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   bool? sse_decode_opt_box_autoadd_bool(SseDeserializer deserializer);
 
   @protected
+  ConnectAddress? sse_decode_opt_box_autoadd_connect_address(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  DomainCheck? sse_decode_opt_box_autoadd_domain_check(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   double? sse_decode_opt_box_autoadd_f_32(SseDeserializer deserializer);
 
   @protected
@@ -1048,6 +1159,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   Server sse_decode_server(SseDeserializer deserializer);
+
+  @protected
+  ServerAddresses sse_decode_server_addresses(SseDeserializer deserializer);
 
   @protected
   ServerChanges sse_decode_server_changes(SseDeserializer deserializer);
@@ -1205,8 +1319,26 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_box_autoadd_connect_address(
+    ConnectAddress self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_box_autoadd_connection_state(
     ConnectionState self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_box_autoadd_domain_check(
+    DomainCheck self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_box_autoadd_domain_update(
+    DomainUpdate self,
     SseSerializer serializer,
   );
 
@@ -1287,6 +1419,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_box_autoadd_server(Server self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_box_autoadd_server_addresses(
+    ServerAddresses self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_box_autoadd_server_changes(
@@ -1403,6 +1541,15 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_check_result(CheckResult self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_connect_address(
+    ConnectAddress self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_connection_state(
     ConnectionState self,
     SseSerializer serializer,
@@ -1422,6 +1569,21 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_default_sound(DefaultSound self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_domain(Domain self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_domain_check(DomainCheck self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_domain_kind(DomainKind self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_domain_status(DomainStatus self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_domain_update(DomainUpdate self, SseSerializer serializer);
 
   @protected
   void sse_encode_error_code(ErrorCode self, SseSerializer serializer);
@@ -1493,8 +1655,23 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_list_connect_address(
+    List<ConnectAddress> self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_list_default_sound(
     List<DefaultSound> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_domain(List<Domain> self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_list_domain_check(
+    List<DomainCheck> self,
     SseSerializer serializer,
   );
 
@@ -1649,6 +1826,18 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_opt_box_autoadd_bool(bool? self, SseSerializer serializer);
 
   @protected
+  void sse_encode_opt_box_autoadd_connect_address(
+    ConnectAddress? self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_opt_box_autoadd_domain_check(
+    DomainCheck? self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_opt_box_autoadd_f_32(double? self, SseSerializer serializer);
 
   @protected
@@ -1779,6 +1968,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_server(Server self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_server_addresses(
+    ServerAddresses self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_server_changes(ServerChanges self, SseSerializer serializer);

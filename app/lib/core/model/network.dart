@@ -205,6 +205,7 @@ class NetworkInfo {
     this.upnpGateway = '',
     this.upnpExternalIp = '',
     this.upnpError = '',
+    this.domains = const [],
   });
 
   final PublicAddress publicAddress;
@@ -219,6 +220,9 @@ class NetworkInfo {
   final String upnpGateway;
   final String upnpExternalIp;
   final String upnpError;
+
+  /// The domains attached, in the order they were added.
+  final List<Domain> domains;
 
   /// The main port changes on the next start.
   bool get restartPending =>
@@ -237,7 +241,8 @@ class NetworkInfo {
       other.nextMainPort == nextMainPort &&
       other.upnpGateway == upnpGateway &&
       other.upnpExternalIp == upnpExternalIp &&
-      other.upnpError == upnpError;
+      other.upnpError == upnpError &&
+      listEquals(other.domains, domains);
 
   @override
   int get hashCode => Object.hash(
@@ -249,6 +254,7 @@ class NetworkInfo {
     upnpGateway,
     upnpExternalIp,
     upnpError,
+    Object.hashAll(domains),
   );
 }
 
@@ -270,4 +276,233 @@ class ServerNotice {
   final NoticeSeverity severity;
   final String title;
   final String body;
+}
+
+/// Where people reach a server (Phase 3 plan §7.5).
+@immutable
+class ConnectAddress {
+  const ConnectAddress({
+    required this.host,
+    required this.port,
+    this.trustedCertificate = false,
+    this.domainId = 0,
+  });
+
+  final String host;
+  final int port;
+
+  /// Checked like a website, by its certificate authority.
+  final bool trustedCertificate;
+
+  /// The domain's id; 0 for the IP address.
+  final int domainId;
+
+  /// `host:port`, with brackets around an IPv6 address.
+  String get display => host.contains(':') ? '[$host]:$port' : '$host:$port';
+
+  @override
+  bool operator ==(Object other) =>
+      other is ConnectAddress &&
+      other.host == host &&
+      other.port == port &&
+      other.trustedCertificate == trustedCertificate &&
+      other.domainId == domainId;
+
+  @override
+  int get hashCode => Object.hash(host, port, trustedCertificate, domainId);
+}
+
+@immutable
+class ServerAddresses {
+  const ServerAddresses({this.primary, this.domains = const [], this.ip});
+
+  final ConnectAddress? primary;
+
+  /// Every active domain, the primary first.
+  final List<ConnectAddress> domains;
+  final ConnectAddress? ip;
+
+  @override
+  bool operator ==(Object other) =>
+      other is ServerAddresses &&
+      other.primary == primary &&
+      listEquals(other.domains, domains) &&
+      other.ip == ip;
+
+  @override
+  int get hashCode => Object.hash(primary, Object.hashAll(domains), ip);
+}
+
+enum DomainKind {
+  own('Own domain'),
+  freeSubdomain('Free subdomain'),
+  tunnel('Cloudflare Tunnel'),
+  reverseProxy('Reverse proxy');
+
+  const DomainKind(this.label);
+
+  final String label;
+
+  /// Behind a tunnel or proxy: its certificate, its HTTP check.
+  bool get behindProxy => this == tunnel || this == reverseProxy;
+}
+
+enum DomainStatus {
+  pending('Pending verification'),
+  verified('Verified'),
+  dnsProblem('DNS problem');
+
+  const DomainStatus(this.label);
+
+  final String label;
+}
+
+enum CheckResult {
+  verified('Verified'),
+  pointsElsewhere('Points to another address'),
+  noRecord('No record'),
+  cloudflareProxied('Proxied by Cloudflare'),
+  partlyCorrect('Partly correct'),
+  failed('Check failed'),
+  confirmedByOwner('Confirmed by you');
+
+  const CheckResult(this.label);
+
+  final String label;
+
+  bool get passed => this == verified || this == confirmedByOwner;
+}
+
+@immutable
+class DomainCheck {
+  const DomainCheck({
+    required this.result,
+    required this.message,
+    required this.checkedAt,
+    this.note = '',
+    this.found = const [],
+  });
+
+  final CheckResult result;
+
+  /// What happened, in plain words.
+  final String message;
+
+  /// Worth knowing even when it passed.
+  final String note;
+  final List<String> found;
+  final DateTime checkedAt;
+
+  @override
+  bool operator ==(Object other) =>
+      other is DomainCheck &&
+      other.result == result &&
+      other.message == message &&
+      other.note == note &&
+      listEquals(other.found, found) &&
+      other.checkedAt == checkedAt;
+
+  @override
+  int get hashCode =>
+      Object.hash(result, message, note, Object.hashAll(found), checkedAt);
+}
+
+@immutable
+class Domain {
+  const Domain({
+    required this.id,
+    required this.hostname,
+    required this.kind,
+    required this.publicPort,
+    this.status = DomainStatus.pending,
+    this.active = false,
+    this.primary = false,
+    this.problemSince,
+    this.lastCheck,
+    this.checking = false,
+    this.users24h = 0,
+    this.deactivatedAt,
+    this.trustedCertificate = false,
+  });
+
+  final int id;
+  final String hostname;
+  final DomainKind kind;
+  final int publicPort;
+  final DomainStatus status;
+  final bool active;
+  final bool primary;
+  final DateTime? problemSince;
+  final DomainCheck? lastCheck;
+
+  /// A check is running now.
+  final bool checking;
+
+  /// People who connected through it in the last 24 hours.
+  final int users24h;
+  final DateTime? deactivatedAt;
+
+  /// Clients check it by its certificate authority.
+  final bool trustedCertificate;
+
+  bool get wasVerified => status != DomainStatus.pending;
+
+  /// `host:port`, as people add the server by it.
+  String get address => publicPort == 7710 || publicPort == 0
+      ? hostname
+      : '$hostname:$publicPort';
+
+  @override
+  bool operator ==(Object other) =>
+      other is Domain &&
+      other.id == id &&
+      other.hostname == hostname &&
+      other.kind == kind &&
+      other.publicPort == publicPort &&
+      other.status == status &&
+      other.active == active &&
+      other.primary == primary &&
+      other.problemSince == problemSince &&
+      other.lastCheck == lastCheck &&
+      other.checking == checking &&
+      other.users24h == users24h &&
+      other.deactivatedAt == deactivatedAt &&
+      other.trustedCertificate == trustedCertificate;
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    hostname,
+    kind,
+    publicPort,
+    status,
+    active,
+    primary,
+    problemSince,
+    lastCheck,
+    checking,
+    users24h,
+    deactivatedAt,
+    trustedCertificate,
+  );
+}
+
+/// What to change about a domain; absent fields stay.
+@immutable
+class DomainUpdate {
+  const DomainUpdate({
+    this.active,
+    this.primary,
+    this.publicPort,
+    this.confirm = false,
+  });
+
+  final bool? active;
+
+  /// Only true: makes it the primary.
+  final bool? primary;
+  final int? publicPort;
+
+  /// Vouches for a tunnel or proxy domain whose check could not reach it.
+  final bool confirm;
 }

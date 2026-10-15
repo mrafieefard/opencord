@@ -4,6 +4,7 @@ pub mod bootstrap;
 pub mod cli;
 pub mod config;
 pub mod db;
+pub mod domains;
 pub mod error;
 pub mod gateway;
 pub mod guild;
@@ -19,6 +20,8 @@ pub mod rate_limit;
 pub mod server;
 pub mod soundboard;
 pub mod state;
+#[doc(hidden)]
+pub mod testing;
 pub mod tls;
 pub mod visibility;
 pub mod voice;

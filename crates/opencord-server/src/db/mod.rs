@@ -11,6 +11,7 @@ use sqlx::sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions, S
 
 pub mod bans;
 pub mod channels;
+pub mod domains;
 pub mod invites;
 pub mod members;
 pub mod messages;

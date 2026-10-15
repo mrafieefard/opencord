@@ -68,6 +68,11 @@ message Request {
     SetPublicAddress set_public_address = 101;
     DetectPublicAddress detect_public_address = 102;
     UpdateNetworkSettings update_network_settings = 103;
+    AddDomain add_domain = 104;
+    UpdateDomain update_domain = 105;
+    DeleteDomain delete_domain = 106;
+    CheckDomain check_domain = 107;
+    FetchDomainChecks fetch_domain_checks = 108;
   }
 }
 
@@ -93,6 +98,7 @@ message Response {
     Stream stream = 16;
     SoundboardSound soundboard_sound = 17;
     NetworkInfo network_info = 18;
+    DomainChecks domain_checks = 19;
   }
 }
 
@@ -278,6 +284,8 @@ message CreateInvite {
   optional uint32 max_uses = 1;
   // Absent or 0 means it never expires.
   optional uint32 expires_in_s = 2;
+  // The active domain the link uses. Absent: the primary, if there is one.
+  optional int64 domain_id = 3;
 }
 
 // -> invites

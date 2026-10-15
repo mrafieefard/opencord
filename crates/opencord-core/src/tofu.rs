@@ -1,17 +1,16 @@
 //! TLS trust. Certificates are pinned by SHA-256 fingerprint on first use,
 //! like SSH host keys; certificates from a public CA are accepted without a
-//! pin.
+//! pin. Authorities are the operating system's (Phase 3 plan §7.5), plus any
+//! in the PEM file `OPENCORD_EXTRA_CA_CERTS` names: a private CA's, or a
+//! test's.
 
-use std::sync::{Arc, Mutex, PoisonError};
+use std::sync::{Arc, Mutex, OnceLock, PoisonError};
 
 use opencord_common::address::Fingerprint;
-use rustls::client::WebPkiServerVerifier;
 use rustls::client::danger::{HandshakeSignatureValid, ServerCertVerified, ServerCertVerifier};
 use rustls::crypto::{WebPkiSupportedAlgorithms, verify_tls12_signature, verify_tls13_signature};
 use rustls::pki_types::{CertificateDer, ServerName, UnixTime};
-use rustls::{
-    CertificateError, ClientConfig, DigitallySignedStruct, RootCertStore, SignatureScheme,
-};
+use rustls::{CertificateError, ClientConfig, DigitallySignedStruct, SignatureScheme};
 use sha2::{Digest, Sha256};
 
 /// What the verifier concluded about the server's certificate.
@@ -67,15 +66,10 @@ pub struct TlsTrust {
 impl TlsTrust {
     pub fn new(expected: Option<Fingerprint>) -> Self {
         let provider = Arc::new(rustls::crypto::ring::default_provider());
-        let roots = RootCertStore::from_iter(webpki_roots::TLS_SERVER_ROOTS.iter().cloned());
-        let authority =
-            WebPkiServerVerifier::builder_with_provider(Arc::new(roots), Arc::clone(&provider))
-                .build()
-                .expect("the bundled root certificates are valid");
         let verdict = Arc::new(Mutex::new(None));
         let verifier = Arc::new(TofuVerifier {
             expected,
-            authority,
+            authority: authority(),
             algorithms: provider.signature_verification_algorithms,
             verdict: Arc::clone(&verdict),
         });
@@ -97,10 +91,74 @@ impl TlsTrust {
     }
 }
 
+/// The certificate authorities, loaded once.
+pub fn authority() -> Arc<dyn ServerCertVerifier> {
+    static AUTHORITY: OnceLock<Arc<dyn ServerCertVerifier>> = OnceLock::new();
+    Arc::clone(AUTHORITY.get_or_init(load_authority))
+}
+
+#[cfg(not(target_os = "android"))]
+fn load_authority() -> Arc<dyn ServerCertVerifier> {
+    let provider = Arc::new(rustls::crypto::ring::default_provider());
+    let extra = extra_roots();
+    match rustls_platform_verifier::Verifier::new_with_extra_roots(extra, Arc::clone(&provider)) {
+        Ok(verifier) => Arc::new(verifier),
+        Err(error) => {
+            tracing::warn!(%error, "the system's certificate authorities could not be loaded");
+            bundled(&provider)
+        }
+    }
+}
+
+/// Android needs the app's JVM to ask the system; until then, the bundled
+/// authorities.
+#[cfg(target_os = "android")]
+fn load_authority() -> Arc<dyn ServerCertVerifier> {
+    bundled(&Arc::new(rustls::crypto::ring::default_provider()))
+}
+
+fn bundled(provider: &Arc<rustls::crypto::CryptoProvider>) -> Arc<dyn ServerCertVerifier> {
+    let mut roots =
+        rustls::RootCertStore::from_iter(webpki_roots::TLS_SERVER_ROOTS.iter().cloned());
+    for root in extra_roots() {
+        let _ = roots.add(root);
+    }
+    rustls::client::WebPkiServerVerifier::builder_with_provider(
+        Arc::new(roots),
+        Arc::clone(provider),
+    )
+    .build()
+    .expect("the bundled root certificates are valid")
+}
+
+static TEST_ROOTS: OnceLock<Vec<CertificateDer<'static>>> = OnceLock::new();
+
+/// Trusts `roots` as authorities too, for tests. It takes effect only
+/// before the first connection of the process; returns whether it did.
+#[doc(hidden)]
+pub fn trust_test_roots(roots: Vec<CertificateDer<'static>>) -> bool {
+    TEST_ROOTS.set(roots).is_ok()
+}
+
+/// The certificates in `OPENCORD_EXTRA_CA_CERTS`, a PEM file, and a
+/// test's.
+fn extra_roots() -> Vec<CertificateDer<'static>> {
+    use rustls::pki_types::pem::PemObject;
+    let mut roots = TEST_ROOTS.get().cloned().unwrap_or_default();
+    let Some(path) = std::env::var_os("OPENCORD_EXTRA_CA_CERTS") else {
+        return roots;
+    };
+    match CertificateDer::pem_file_iter(&path) {
+        Ok(certificates) => roots.extend(certificates.filter_map(Result::ok)),
+        Err(error) => tracing::warn!(%error, "OPENCORD_EXTRA_CA_CERTS could not be read"),
+    }
+    roots
+}
+
 #[derive(Debug)]
 struct TofuVerifier {
     expected: Option<Fingerprint>,
-    authority: Arc<WebPkiServerVerifier>,
+    authority: Arc<dyn ServerCertVerifier>,
     algorithms: WebPkiSupportedAlgorithms,
     verdict: Arc<Mutex<Option<Verdict>>>,
 }

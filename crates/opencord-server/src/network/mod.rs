@@ -62,10 +62,17 @@ pub struct Network {
     local: Mutex<Option<proxy::LocalListener>>,
     main_port: AtomicU16,
     listening: Mutex<Listening>,
+    /// Where domain checks ask name servers: 53, but for tests.
+    name_server_port: u16,
 }
 
 impl Network {
-    pub fn new(settings: NetworkSettings, lookup: Lookup, http: reqwest::Client) -> Self {
+    pub fn new(
+        settings: NetworkSettings,
+        lookup: Lookup,
+        http: reqwest::Client,
+        name_server_port: u16,
+    ) -> Self {
         let public = watch::channel(effective(&settings)).0;
         Self {
             settings: Mutex::new(settings),
@@ -80,6 +87,7 @@ impl Network {
             local: Mutex::new(None),
             main_port: AtomicU16::new(0),
             listening: Mutex::new(Listening::default()),
+            name_server_port,
         }
     }
 
@@ -92,6 +100,23 @@ impl Network {
 
     pub fn settings(&self) -> NetworkSettings {
         lock(&self.settings).clone()
+    }
+
+    /// The main port in use now.
+    pub fn main_port(&self) -> u16 {
+        self.main_port.load(Ordering::Relaxed)
+    }
+
+    /// The server's own HTTPS client.
+    pub fn http(&self) -> &reqwest::Client {
+        &self.http
+    }
+
+    /// A DNS checker with the owner's resolvers (plan §6.2).
+    pub fn dns_checker(&self) -> crate::domains::dns::DnsChecker {
+        let mut checker = crate::domains::dns::DnsChecker::new(self.settings().dns_resolvers);
+        checker.name_server_port = self.name_server_port;
+        checker
     }
 
     /// The public addresses in use, as they change.
@@ -187,7 +212,7 @@ impl Network {
         }
         let event = proto::Event {
             kind: Some(Event::NetworkStatus(Box::new(proto::NetworkStatus {
-                info: Some(self.info()),
+                info: Some(self.info(state)),
             }))),
         };
         let now = std::time::Instant::now();
@@ -229,7 +254,7 @@ impl Network {
         lock(&self.local).as_ref().map(|local| local.port)
     }
 
-    pub fn info(&self) -> proto::NetworkInfo {
+    pub fn info(&self, state: &AppState) -> proto::NetworkInfo {
         let settings = self.settings();
         let used = effective(&settings);
         let status = self.upnp.status();
@@ -317,6 +342,7 @@ impl Network {
                 .unwrap_or_default(),
             upnp_external_ip: ip(status.external_ip),
             upnp_error: status.error.unwrap_or_default(),
+            domains: state.domains.to_proto(),
         }
     }
 

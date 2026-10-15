@@ -328,14 +328,18 @@ Future<void> updatePresence({
   status: status,
 );
 
+/// An invite, through `domain_id`'s domain, or the server's primary
+/// domain when it has one (Phase 3 plan §7.6).
 Future<Invite> createInvite({
   required String serverKey,
   int? maxUses,
   int? expiresInS,
+  PlatformInt64? domainId,
 }) => RustLib.instance.api.crateApiClientCreateInvite(
   serverKey: serverKey,
   maxUses: maxUses,
   expiresInS: expiresInS,
+  domainId: domainId,
 );
 
 Future<List<Invite>> fetchInvites({required String serverKey}) =>
@@ -399,6 +403,55 @@ Future<NetworkInfo> updateNetworkSettings({
 }) => RustLib.instance.api.crateApiClientUpdateNetworkSettings(
   serverKey: serverKey,
   changes: changes,
+);
+
+/// Attaches a domain to the server, pending its check (Phase 3 plan §6).
+Future<NetworkInfo> addDomain({
+  required String serverKey,
+  required String hostname,
+  required DomainKind kind,
+  int? publicPort,
+}) => RustLib.instance.api.crateApiClientAddDomain(
+  serverKey: serverKey,
+  hostname: hostname,
+  kind: kind,
+  publicPort: publicPort,
+);
+
+Future<NetworkInfo> updateDomain({
+  required String serverKey,
+  required PlatformInt64 domainId,
+  required DomainUpdate update,
+}) => RustLib.instance.api.crateApiClientUpdateDomain(
+  serverKey: serverKey,
+  domainId: domainId,
+  update: update,
+);
+
+Future<NetworkInfo> deleteDomain({
+  required String serverKey,
+  required PlatformInt64 domainId,
+}) => RustLib.instance.api.crateApiClientDeleteDomain(
+  serverKey: serverKey,
+  domainId: domainId,
+);
+
+/// Starts a check of a domain; the result arrives as `NetworkStatus`.
+Future<NetworkInfo> checkDomain({
+  required String serverKey,
+  required PlatformInt64 domainId,
+}) => RustLib.instance.api.crateApiClientCheckDomain(
+  serverKey: serverKey,
+  domainId: domainId,
+);
+
+/// A domain's last checks, newest first.
+Future<List<DomainCheck>> domainChecks({
+  required String serverKey,
+  required PlatformInt64 domainId,
+}) => RustLib.instance.api.crateApiClientDomainChecks(
+  serverKey: serverKey,
+  domainId: domainId,
 );
 
 /// Joins a voice channel. This device is in at most one voice channel

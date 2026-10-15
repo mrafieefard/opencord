@@ -8,7 +8,7 @@ import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 import 'package:freezed_annotation/freezed_annotation.dart' hide protected;
 part 'types.freezed.dart';
 
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `hash`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `hash`
 
 @freezed
 sealed class AddServerOutcome with _$AddServerOutcome {
@@ -423,6 +423,52 @@ class ChannelPosition {
           position == other.position;
 }
 
+enum CheckResult {
+  verified,
+  pointsElsewhere,
+  noRecord,
+  cloudflareProxied,
+  partlyCorrect,
+  failed,
+  confirmedByOwner,
+}
+
+/// One address a server is reached at.
+class ConnectAddress {
+  final String host;
+  final int port;
+
+  /// Checked like a website, by its certificate authority.
+  final bool trustedCertificate;
+
+  /// The domain's id; 0 for the IP address.
+  final PlatformInt64 domainId;
+
+  const ConnectAddress({
+    required this.host,
+    required this.port,
+    required this.trustedCertificate,
+    required this.domainId,
+  });
+
+  @override
+  int get hashCode =>
+      host.hashCode ^
+      port.hashCode ^
+      trustedCertificate.hashCode ^
+      domainId.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is ConnectAddress &&
+          runtimeType == other.runtimeType &&
+          host == other.host &&
+          port == other.port &&
+          trustedCertificate == other.trustedCertificate &&
+          domainId == other.domainId;
+}
+
 @freezed
 sealed class ConnectionState with _$ConnectionState {
   const ConnectionState._();
@@ -591,6 +637,10 @@ sealed class CoreEventPayload with _$CoreEventPayload {
   const factory CoreEventPayload.voiceChannelEffect(SoundEffect field0) =
       CoreEventPayload_VoiceChannelEffect;
 
+  /// Where the server is reached changed.
+  const factory CoreEventPayload.serverAddressesUpdate(ServerAddresses field0) =
+      CoreEventPayload_ServerAddressesUpdate;
+
   /// Domains & network changed, while this session watches it.
   const factory CoreEventPayload.networkStatus(NetworkInfo field0) =
       CoreEventPayload_NetworkStatus;
@@ -627,6 +677,179 @@ class DefaultSound {
           durationMs == other.durationMs;
 }
 
+class Domain {
+  final PlatformInt64 id;
+  final String hostname;
+  final DomainKind kind;
+  final int publicPort;
+  final DomainStatus status;
+  final bool active;
+  final bool primary;
+  final PlatformInt64 problemSinceMs;
+  final DomainCheck? lastCheck;
+
+  /// A check is running now.
+  final bool checking;
+
+  /// People who connected through it in the last 24 hours.
+  final int users24H;
+  final PlatformInt64 createdAtMs;
+  final PlatformInt64 deactivatedAtMs;
+
+  /// Clients check it by its certificate authority.
+  final bool trustedCertificate;
+
+  const Domain({
+    required this.id,
+    required this.hostname,
+    required this.kind,
+    required this.publicPort,
+    required this.status,
+    required this.active,
+    required this.primary,
+    required this.problemSinceMs,
+    this.lastCheck,
+    required this.checking,
+    required this.users24H,
+    required this.createdAtMs,
+    required this.deactivatedAtMs,
+    required this.trustedCertificate,
+  });
+
+  @override
+  int get hashCode =>
+      id.hashCode ^
+      hostname.hashCode ^
+      kind.hashCode ^
+      publicPort.hashCode ^
+      status.hashCode ^
+      active.hashCode ^
+      primary.hashCode ^
+      problemSinceMs.hashCode ^
+      lastCheck.hashCode ^
+      checking.hashCode ^
+      users24H.hashCode ^
+      createdAtMs.hashCode ^
+      deactivatedAtMs.hashCode ^
+      trustedCertificate.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is Domain &&
+          runtimeType == other.runtimeType &&
+          id == other.id &&
+          hostname == other.hostname &&
+          kind == other.kind &&
+          publicPort == other.publicPort &&
+          status == other.status &&
+          active == other.active &&
+          primary == other.primary &&
+          problemSinceMs == other.problemSinceMs &&
+          lastCheck == other.lastCheck &&
+          checking == other.checking &&
+          users24H == other.users24H &&
+          createdAtMs == other.createdAtMs &&
+          deactivatedAtMs == other.deactivatedAtMs &&
+          trustedCertificate == other.trustedCertificate;
+}
+
+class DomainCheck {
+  final CheckResult result;
+  final String message;
+  final String note;
+  final List<String> found;
+  final PlatformInt64 checkedAtMs;
+
+  const DomainCheck({
+    required this.result,
+    required this.message,
+    required this.note,
+    required this.found,
+    required this.checkedAtMs,
+  });
+
+  @override
+  int get hashCode =>
+      result.hashCode ^
+      message.hashCode ^
+      note.hashCode ^
+      found.hashCode ^
+      checkedAtMs.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is DomainCheck &&
+          runtimeType == other.runtimeType &&
+          result == other.result &&
+          message == other.message &&
+          note == other.note &&
+          found == other.found &&
+          checkedAtMs == other.checkedAtMs;
+}
+
+enum DomainKind {
+  /// The owner's own domain, pointed here with A/AAAA records.
+  own,
+
+  /// A DuckDNS or deSEC name Opencord keeps pointed here.
+  freeSubdomain,
+
+  /// Cloudflare Tunnel.
+  tunnel,
+
+  /// Caddy, Nginx, Traefik, ngrok and the like.
+  reverseProxy,
+}
+
+enum DomainStatus {
+  pending,
+  verified,
+
+  /// Verified once; its checks fail since `problem_since_ms`.
+  dnsProblem,
+}
+
+/// What to change about a domain; absent fields stay.
+class DomainUpdate {
+  final bool? active;
+
+  /// Only `Some(true)`: makes it the primary.
+  final bool? primary;
+  final int? publicPort;
+
+  /// Vouches for a tunnel or proxy domain whose check could not reach it.
+  final bool confirm;
+
+  const DomainUpdate({
+    this.active,
+    this.primary,
+    this.publicPort,
+    required this.confirm,
+  });
+
+  static Future<DomainUpdate> default_() =>
+      RustLib.instance.api.crateApiTypesDomainUpdateDefault();
+
+  @override
+  int get hashCode =>
+      active.hashCode ^
+      primary.hashCode ^
+      publicPort.hashCode ^
+      confirm.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is DomainUpdate &&
+          runtimeType == other.runtimeType &&
+          active == other.active &&
+          primary == other.primary &&
+          publicPort == other.publicPort &&
+          confirm == other.confirm;
+}
+
 enum ErrorCode {
   unauthorized,
   forbidden,
@@ -645,6 +868,14 @@ enum ErrorCode {
   soundTooLong,
   soundInvalid,
   soundboardFull,
+  domainInvalid,
+  domainExists,
+  domainLimit,
+  domainNotVerified,
+  dnsMismatch,
+  acmeFailed,
+  acmeRateLimited,
+  portUnreachable,
   unknown,
 }
 
@@ -754,8 +985,15 @@ class IdentityInfo {
 class Invite {
   final String code;
 
-  /// `opencord://host:port/invite/CODE#fp=...`, ready to share.
+  /// `opencord://host:port/invite/CODE#fp=...`, ready to share; without
+  /// the fingerprint through a domain with an authority's certificate.
   final String link;
+
+  /// `https://host[:port]/invite/CODE`, for a browser, through a domain.
+  final String? webLink;
+
+  /// The domain the links use, if one does.
+  final PlatformInt64? domainId;
   final PlatformInt64? createdBy;
   final PlatformInt64 createdAtMs;
   final int? maxUses;
@@ -765,6 +1003,8 @@ class Invite {
   const Invite({
     required this.code,
     required this.link,
+    this.webLink,
+    this.domainId,
     this.createdBy,
     required this.createdAtMs,
     this.maxUses,
@@ -776,6 +1016,8 @@ class Invite {
   int get hashCode =>
       code.hashCode ^
       link.hashCode ^
+      webLink.hashCode ^
+      domainId.hashCode ^
       createdBy.hashCode ^
       createdAtMs.hashCode ^
       maxUses.hashCode ^
@@ -789,6 +1031,8 @@ class Invite {
           runtimeType == other.runtimeType &&
           code == other.code &&
           link == other.link &&
+          webLink == other.webLink &&
+          domainId == other.domainId &&
           createdBy == other.createdBy &&
           createdAtMs == other.createdAtMs &&
           maxUses == other.maxUses &&
@@ -984,6 +1228,9 @@ class NetworkInfo {
   final String upnpExternalIp;
   final String upnpError;
 
+  /// The domains attached, in the order they were added.
+  final List<Domain> domains;
+
   const NetworkInfo({
     required this.publicAddress,
     required this.ports,
@@ -993,6 +1240,7 @@ class NetworkInfo {
     required this.upnpGateway,
     required this.upnpExternalIp,
     required this.upnpError,
+    required this.domains,
   });
 
   @override
@@ -1004,7 +1252,8 @@ class NetworkInfo {
       nextMainPort.hashCode ^
       upnpGateway.hashCode ^
       upnpExternalIp.hashCode ^
-      upnpError.hashCode;
+      upnpError.hashCode ^
+      domains.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -1018,7 +1267,8 @@ class NetworkInfo {
           nextMainPort == other.nextMainPort &&
           upnpGateway == other.upnpGateway &&
           upnpExternalIp == other.upnpExternalIp &&
-          upnpError == other.upnpError;
+          upnpError == other.upnpError &&
+          domains == other.domains;
 }
 
 class NetworkSettings {
@@ -1301,6 +1551,9 @@ class ReadySnapshot {
   /// This server's soundboard.
   final List<SoundboardSound> soundboardSounds;
 
+  /// Where the server is reached (Phase 3 plan §7.5).
+  final ServerAddresses addresses;
+
   const ReadySnapshot({
     required this.selfUser,
     required this.server,
@@ -1315,6 +1568,7 @@ class ReadySnapshot {
     required this.streams,
     required this.voiceSettings,
     required this.soundboardSounds,
+    required this.addresses,
   });
 
   @override
@@ -1331,7 +1585,8 @@ class ReadySnapshot {
       voiceStates.hashCode ^
       streams.hashCode ^
       voiceSettings.hashCode ^
-      soundboardSounds.hashCode;
+      soundboardSounds.hashCode ^
+      addresses.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -1350,7 +1605,8 @@ class ReadySnapshot {
           voiceStates == other.voiceStates &&
           streams == other.streams &&
           voiceSettings == other.voiceSettings &&
-          soundboardSounds == other.soundboardSounds;
+          soundboardSounds == other.soundboardSounds &&
+          addresses == other.addresses;
 }
 
 class Role {
@@ -1705,6 +1961,9 @@ class Server {
   /// Pinned certificate fingerprint (lowercase hex), if any.
   final String? fingerprint;
 
+  /// Its domains as `host:port`, the primary first (Phase 3 plan §7.5).
+  final List<String> addresses;
+
   const Server({
     required this.key,
     required this.name,
@@ -1712,6 +1971,7 @@ class Server {
     required this.port,
     this.userId,
     this.fingerprint,
+    required this.addresses,
   });
 
   @override
@@ -1721,7 +1981,8 @@ class Server {
       host.hashCode ^
       port.hashCode ^
       userId.hashCode ^
-      fingerprint.hashCode;
+      fingerprint.hashCode ^
+      addresses.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -1733,7 +1994,33 @@ class Server {
           host == other.host &&
           port == other.port &&
           userId == other.userId &&
-          fingerprint == other.fingerprint;
+          fingerprint == other.fingerprint &&
+          addresses == other.addresses;
+}
+
+/// Where a server is reached: its active domains (the primary first) and
+/// its public IP address.
+class ServerAddresses {
+  final ConnectAddress? primary;
+  final List<ConnectAddress> domains;
+  final ConnectAddress? ip;
+
+  const ServerAddresses({this.primary, required this.domains, this.ip});
+
+  static Future<ServerAddresses> default_() =>
+      RustLib.instance.api.crateApiTypesServerAddressesDefault();
+
+  @override
+  int get hashCode => primary.hashCode ^ domains.hashCode ^ ip.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is ServerAddresses &&
+          runtimeType == other.runtimeType &&
+          primary == other.primary &&
+          domains == other.domains &&
+          ip == other.ip;
 }
 
 class ServerChanges {

@@ -157,7 +157,7 @@ async fn two_bots_in_general(
     .unwrap();
     let invite = owner
         .client
-        .create_invite(&owner.server_key, None, None)
+        .create_invite(&owner.server_key, None, None, None)
         .await
         .unwrap();
     let member = Voicebot::connect(&invite.link, None, "Member")
@@ -355,7 +355,7 @@ async fn the_app_learns_who_starts_and_stops_speaking() {
     .unwrap();
     let invite = owner
         .client
-        .create_invite(&owner.server_key, None, None)
+        .create_invite(&owner.server_key, None, None, None)
         .await
         .unwrap();
     // The member runs the app's voice media, without devices.

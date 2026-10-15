@@ -5,6 +5,7 @@ import 'package:opencord/core/model/network.dart';
 import 'package:opencord/core/providers/providers.dart';
 import 'package:opencord/core/repository/repository.dart';
 import 'package:opencord/features/settings/server/network/advanced_section.dart';
+import 'package:opencord/features/settings/server/network/domains_section.dart';
 import 'package:opencord/features/settings/server/network/ports_section.dart';
 import 'package:opencord/features/settings/server/network/public_address_section.dart';
 import 'package:opencord/ui/theme/oc_metrics.dart';
@@ -60,6 +61,8 @@ class _Loaded extends StatelessWidget {
     crossAxisAlignment: CrossAxisAlignment.stretch,
     children: [
       PublicAddressSection(serverKey: serverKey, address: info.publicAddress),
+      const SizedBox(height: OcSpace.s24),
+      DomainsSection(serverKey: serverKey, domains: info.domains),
       const SizedBox(height: OcSpace.s24),
       PortsSection(serverKey: serverKey, info: info),
       const SizedBox(height: OcSpace.s24),

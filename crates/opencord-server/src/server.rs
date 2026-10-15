@@ -14,6 +14,7 @@ use opencord_common::snowflake::SnowflakeGenerator;
 use tokio::task::JoinHandle;
 
 use crate::config::{Config, VoiceMode};
+use crate::domains::{self, Domains};
 use crate::gateway::session::CloseCode;
 use crate::guild::Guild;
 use crate::network::settings::NetworkSettings;
@@ -66,6 +67,7 @@ pub async fn start(config: Config) -> anyhow::Result<ServerHandle> {
     let invite_code = bootstrap::startup_invite(&pool, now_ms()).await?;
     let rustls = RustlsConfig::from_config(Arc::new(tls::server_config(&tls)?));
     let network_settings = NetworkSettings::load(&mut *pool.acquire().await?).await?;
+    let domains = load_domains(&pool).await?;
     let listener = bind_main_port(&config, network_settings.main_port)?;
     let state = Arc::new(
         AppState::new(
@@ -77,7 +79,8 @@ pub async fn start(config: Config) -> anyhow::Result<ServerHandle> {
             voice_key,
             VoiceNodes::new(embedded, tls.fingerprint),
         )
-        .with_music_bridge(music_bridge),
+        .with_music_bridge(music_bridge)
+        .with_domains(domains),
     );
     state.network.restore(network_settings);
     if let Some(bridge) = state.music_bridge.clone() {
@@ -122,6 +125,8 @@ pub async fn start(config: Config) -> anyhow::Result<ServerHandle> {
         },
     );
     Network::start(&state);
+    domains::start(&state);
+    domains::sync_local_listener(&state).await;
 
     let public_port = match (config.server.bind.port(), config.server.public_port) {
         (0, _) => local_addr.port(),
@@ -197,6 +202,15 @@ impl ServerHandle {
     }
 
     /// Starts or stops the local listener for tunnels and proxies; returns
+    /// its port, which the system picks, so tests may run at once.
+    pub async fn set_local_listener_on_any_port(&self, on: bool) -> std::io::Result<Option<u16>> {
+        let mut settings = self.state.network.settings();
+        settings.local_listener_port = 0;
+        self.state.network.restore(settings);
+        self.set_local_listener(on).await
+    }
+
+    /// Starts or stops the local listener for tunnels and proxies; returns
     /// its port. Intended for tests until tunnel domains turn it on.
     pub async fn set_local_listener(&self, on: bool) -> std::io::Result<Option<u16>> {
         self.state
@@ -241,6 +255,24 @@ async fn embedded_node(
         )
     })?;
     Ok((Some(node), Some(events)))
+}
+
+/// The saved domains, and the token their HTTP checks look for, made on
+/// first start.
+async fn load_domains(pool: &sqlx::SqlitePool) -> anyhow::Result<Domains> {
+    const VERIFY_TOKEN: &str = "domains.verify_token";
+    let mut conn = pool.acquire().await?;
+    let rows = db::domains::list(&mut conn).await?;
+    let saved = db::meta::load_prefixed(&mut conn, VERIFY_TOKEN).await?;
+    let token = match saved.get(VERIFY_TOKEN) {
+        Some(token) => token.clone(),
+        None => {
+            let token = crate::random::code(32);
+            db::meta::put(&mut conn, VERIFY_TOKEN, Some(&token)).await?;
+            token
+        }
+    };
+    Ok(Domains::load(rows, token))
 }
 
 /// The main port: the owner's choice from the app when there is one,

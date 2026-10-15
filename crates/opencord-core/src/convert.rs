@@ -3,10 +3,11 @@
 use opencord_proto::v1 as proto;
 
 use crate::api::types::{
-    Ban, Channel, ChannelKind, ChannelPermissions, CoreError, CoreEventPayload, ErrorCode, Invite,
-    Member, Message, OverwriteTargetKind, PermissionOverwrite, Presence, PresenceStatus,
-    ReadySnapshot, Role, ScreenShareResolution, ScreenStream, ServerInfo, SoundEffect,
-    SoundboardSound, StreamSourceKind, User, VoiceSettings, VoiceSettingsChanges, VoiceState,
+    Ban, Channel, ChannelKind, ChannelPermissions, ConnectAddress, CoreError, CoreEventPayload,
+    ErrorCode, Invite, Member, Message, OverwriteTargetKind, PermissionOverwrite, Presence,
+    PresenceStatus, ReadySnapshot, Role, ScreenShareResolution, ScreenStream, ServerAddresses,
+    ServerInfo, SoundEffect, SoundboardSound, StreamSourceKind, User, VoiceSettings,
+    VoiceSettingsChanges, VoiceState,
 };
 use crate::identity::public_key_fingerprint;
 
@@ -259,10 +260,16 @@ pub fn ban(ban: proto::Ban) -> Ban {
     }
 }
 
-pub fn invite(invite: proto::Invite, link: String) -> Invite {
+pub fn invite(invite: proto::Invite, link: String, web_link: Option<String>) -> Invite {
     Invite {
+        domain_id: invite
+            .address
+            .as_ref()
+            .map(|address| address.domain_id)
+            .filter(|id| *id != 0),
         code: invite.code,
         link,
+        web_link,
         created_by: invite.created_by,
         created_at_ms: invite.created_at_ms,
         max_uses: invite.max_uses,
@@ -309,6 +316,24 @@ pub fn ready(ready: proto::Ready) -> ReadySnapshot {
             .into_iter()
             .map(soundboard_sound)
             .collect(),
+        addresses: server_addresses(ready.server_addresses.unwrap_or_default()),
+    }
+}
+
+pub fn server_addresses(addresses: proto::ServerAddresses) -> ServerAddresses {
+    ServerAddresses {
+        primary: addresses.primary.map(connect_address),
+        domains: addresses.domains.into_iter().map(connect_address).collect(),
+        ip: addresses.ip.map(connect_address),
+    }
+}
+
+pub fn connect_address(address: proto::ConnectAddress) -> ConnectAddress {
+    ConnectAddress {
+        host: address.host,
+        port: address.port,
+        trusted_certificate: address.trusted_certificate,
+        domain_id: address.domain_id,
     }
 }
 
@@ -408,6 +433,9 @@ pub fn event(kind: proto::event::Kind, session_id: &str) -> Option<CoreEventPayl
         Kind::ServerNotice(notice) => {
             CoreEventPayload::ServerNotice(crate::network::notice(notice))
         }
+        Kind::ServerAddressesUpdate(update) => {
+            CoreEventPayload::ServerAddressesUpdate(server_addresses(update.addresses?))
+        }
     })
 }
 
@@ -430,6 +458,14 @@ pub fn error_code(code: i32) -> ErrorCode {
         Ok(proto::ErrorCode::SoundTooLong) => ErrorCode::SoundTooLong,
         Ok(proto::ErrorCode::SoundInvalid) => ErrorCode::SoundInvalid,
         Ok(proto::ErrorCode::SoundboardFull) => ErrorCode::SoundboardFull,
+        Ok(proto::ErrorCode::DomainInvalid) => ErrorCode::DomainInvalid,
+        Ok(proto::ErrorCode::DomainExists) => ErrorCode::DomainExists,
+        Ok(proto::ErrorCode::DomainLimit) => ErrorCode::DomainLimit,
+        Ok(proto::ErrorCode::DomainNotVerified) => ErrorCode::DomainNotVerified,
+        Ok(proto::ErrorCode::DnsMismatch) => ErrorCode::DnsMismatch,
+        Ok(proto::ErrorCode::AcmeFailed) => ErrorCode::AcmeFailed,
+        Ok(proto::ErrorCode::AcmeRateLimited) => ErrorCode::AcmeRateLimited,
+        Ok(proto::ErrorCode::PortUnreachable) => ErrorCode::PortUnreachable,
         _ => ErrorCode::Unknown,
     }
 }

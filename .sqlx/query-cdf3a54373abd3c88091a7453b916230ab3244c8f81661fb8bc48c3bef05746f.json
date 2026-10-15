@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO domains (id, hostname, kind, public_port, status, active, is_primary,\n                              problem_since, deactivated_at, last_checked_at, last_result,\n                              created_at)\n         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 12
+    },
+    "nullable": []
+  },
+  "hash": "cdf3a54373abd3c88091a7453b916230ab3244c8f81661fb8bc48c3bef05746f"
+}

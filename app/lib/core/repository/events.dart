@@ -161,6 +161,13 @@ final class NetworkStatusChanged extends RepoEvent {
   final NetworkInfo info;
 }
 
+/// Where the server is reached changed (Phase 3 plan §7.5).
+final class ServerAddressesChanged extends RepoEvent {
+  const ServerAddressesChanged(super.serverKey, this.addresses);
+
+  final ServerAddresses addresses;
+}
+
 /// Something the owner or admins should know (Phase 3).
 final class ServerNoticeReceived extends RepoEvent {
   const ServerNoticeReceived(super.serverKey, this.notice);

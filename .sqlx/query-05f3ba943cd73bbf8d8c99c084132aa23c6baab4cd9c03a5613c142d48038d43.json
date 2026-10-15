@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT details FROM domain_checks WHERE domain_id = $1\n         ORDER BY checked_at DESC, id DESC",
+  "describe": {
+    "columns": [
+      {
+        "name": "details",
+        "ordinal": 0,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "domain_checks",
+            "name": "details"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "05f3ba943cd73bbf8d8c99c084132aa23c6baab4cd9c03a5613c142d48038d43"
+}

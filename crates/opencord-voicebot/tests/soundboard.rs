@@ -75,7 +75,7 @@ async fn every_listener_has_a_played_sound_ready_within_150_ms_of_the_others() {
     .unwrap();
     let invite = owner
         .client
-        .create_invite(&owner.server_key, None, None)
+        .create_invite(&owner.server_key, None, None, None)
         .await
         .unwrap();
     let mut listeners = Vec::new();

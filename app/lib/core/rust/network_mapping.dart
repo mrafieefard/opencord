@@ -34,8 +34,90 @@ NetworkInfo networkInfoFrom(core.NetworkInfo info) {
     upnpGateway: info.upnpGateway,
     upnpExternalIp: info.upnpExternalIp,
     upnpError: info.upnpError,
+    domains: [for (final domain in info.domains) domainFrom(domain)],
   );
 }
+
+Domain domainFrom(core.Domain domain) => Domain(
+  id: domain.id,
+  hostname: domain.hostname,
+  kind: switch (domain.kind) {
+    core.DomainKind.own => DomainKind.own,
+    core.DomainKind.freeSubdomain => DomainKind.freeSubdomain,
+    core.DomainKind.tunnel => DomainKind.tunnel,
+    core.DomainKind.reverseProxy => DomainKind.reverseProxy,
+  },
+  publicPort: domain.publicPort,
+  status: switch (domain.status) {
+    core.DomainStatus.pending => DomainStatus.pending,
+    core.DomainStatus.verified => DomainStatus.verified,
+    core.DomainStatus.dnsProblem => DomainStatus.dnsProblem,
+  },
+  active: domain.active,
+  primary: domain.primary,
+  problemSince: _time(domain.problemSinceMs),
+  lastCheck: switch (domain.lastCheck) {
+    final check? => domainCheckFrom(check),
+    null => null,
+  },
+  checking: domain.checking,
+  users24h: domain.users24H,
+  deactivatedAt: _time(domain.deactivatedAtMs),
+  trustedCertificate: domain.trustedCertificate,
+);
+
+DomainCheck domainCheckFrom(core.DomainCheck check) => DomainCheck(
+  result: switch (check.result) {
+    core.CheckResult.verified => CheckResult.verified,
+    core.CheckResult.pointsElsewhere => CheckResult.pointsElsewhere,
+    core.CheckResult.noRecord => CheckResult.noRecord,
+    core.CheckResult.cloudflareProxied => CheckResult.cloudflareProxied,
+    core.CheckResult.partlyCorrect => CheckResult.partlyCorrect,
+    core.CheckResult.failed => CheckResult.failed,
+    core.CheckResult.confirmedByOwner => CheckResult.confirmedByOwner,
+  },
+  message: check.message,
+  note: check.note,
+  found: check.found,
+  checkedAt: DateTime.fromMillisecondsSinceEpoch(check.checkedAtMs),
+);
+
+DateTime? _time(int ms) =>
+    ms == 0 ? null : DateTime.fromMillisecondsSinceEpoch(ms);
+
+core.DomainKind domainKindTo(DomainKind kind) => switch (kind) {
+  DomainKind.own => core.DomainKind.own,
+  DomainKind.freeSubdomain => core.DomainKind.freeSubdomain,
+  DomainKind.tunnel => core.DomainKind.tunnel,
+  DomainKind.reverseProxy => core.DomainKind.reverseProxy,
+};
+
+core.DomainUpdate domainUpdateTo(DomainUpdate update) => core.DomainUpdate(
+  active: update.active,
+  primary: update.primary,
+  publicPort: update.publicPort,
+  confirm: update.confirm,
+);
+
+ServerAddresses serverAddressesFrom(core.ServerAddresses addresses) =>
+    ServerAddresses(
+      primary: switch (addresses.primary) {
+        final primary? => _addressFrom(primary),
+        null => null,
+      },
+      domains: [for (final domain in addresses.domains) _addressFrom(domain)],
+      ip: switch (addresses.ip) {
+        final ip? => _addressFrom(ip),
+        null => null,
+      },
+    );
+
+ConnectAddress _addressFrom(core.ConnectAddress address) => ConnectAddress(
+  host: address.host,
+  port: address.port,
+  trustedCertificate: address.trustedCertificate,
+  domainId: address.domainId,
+);
 
 PortStatus _portFrom(core.PortStatus port) => PortStatus(
   purpose: switch (port.purpose) {

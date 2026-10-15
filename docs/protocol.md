@@ -123,6 +123,11 @@ Each `Request` gets exactly one `Response`, which is either an `error` or the pa
 | `SetPublicAddress { auto_detect, override_ipv4, override_ipv6 }` | `network_info` | The owner |
 | `DetectPublicAddress {}` | `network_info` | The owner |
 | `UpdateNetworkSettings { main_port?, upnp_enabled?, local_listener_port?, trusted_proxies?, dns_resolvers?, acme_staging? }` | `network_info` | The owner |
+| `AddDomain { hostname, kind, public_port? }` | `network_info` | The owner; at most 20 domains |
+| `UpdateDomain { domain_id, active?, primary?, public_port?, confirm }` | `network_info` | The owner |
+| `DeleteDomain { domain_id }` | `network_info` | The owner |
+| `CheckDomain { domain_id }` | `network_info`; the result follows as `NetworkStatus` | The owner; once per 10 s per domain |
+| `FetchDomainChecks { domain_id }` | `domain_checks`, newest first, up to 10 | The owner |
 
 Details:
 - **Messages:** the content is trimmed and must be 1–4 000 characters. Only text channels accept messages.
@@ -153,6 +158,7 @@ Every event goes to every session of the server, with these exceptions:
 | `StreamViewersUpdate` | The streamer's sessions |
 | `VoiceChannelEffect` | Sessions whose user is connected to that voice channel, the player included |
 | `NetworkStatus` | The owner's sessions that sent `WatchNetwork { watch: true }`, until they stop or end |
+| `ServerAddressesUpdate` | Everyone, when the active domains, the primary or the public address change |
 | `ServerNotice` | Whom it concerns: the owner for the network, domains and certificates |
 
 Other events:
@@ -378,7 +384,11 @@ Phase 3 (`network.proto`). The owner's settings page asks for `NetworkInfo` with
 - **Public address.** The server asks `[network] ip_lookup_v4` and `ip_lookup_v6` in `opencord.toml` (ipify by default; IPv6 only when the machine has a global IPv6 address) at start-up and every 6 hours while `auto_detect` is on. An override replaces what was detected; an empty one is none. Overrides must be addresses of their family that the internet can reach (not loopback, unspecified or multicast). When the address in use changes, the owner gets a `ServerNotice` with the key `network.public_address`.
 - **Ports.** Each one's state: `LISTENING`, `OFF` (its feature is off), `FREE`, `IN_USE` by another program, or `NOT_PERMITTED` (below 1024 without the capability). With UPnP on, the server maps the main port and the voice and music UDP ports on the router for an hour and renews the mappings every half hour; it removes them when UPnP is turned off and on shutdown. Each port reports `MAPPED` or `FAILED` with the router's reason.
 - **Main port.** `main_port` takes effect at the next start. A port that cannot be had then falls back to the one in `opencord.toml`, so the owner is never locked out.
-- **Local listener.** Plain HTTP on `127.0.0.1` only, serving the same routes as the main port, for tunnels and reverse proxies on the machine. Behind it, and behind any address in `trusted_proxies`, the client's address is the last `X-Forwarded-For` entry that is not itself a trusted proxy.
+- **Local listener.** Plain HTTP on `127.0.0.1` only, serving the same routes as the main port, for tunnels and reverse proxies on the machine. It runs while a tunnel or reverse-proxy domain exists. Behind it, and behind any address in `trusted_proxies`, the client's address is the last `X-Forwarded-For` entry that is not itself a trusted proxy.
+- **Domains.** Names are trimmed, lowercased and turned into punycode; IP addresses, single labels and local names (`localhost`, `.local`, `.lan`, ...) are refused (`DOMAIN_INVALID`); a name added twice is `DOMAIN_EXISTS`, a 21st `DOMAIN_LIMIT`. Own domains and free subdomains are checked with DNS: the zone's name servers, found through `dns_resolvers`, are asked directly without recursion, CNAMEs followed (8 at most); one public resolver is asked too, and a different answer is noted as a stale cache. Tunnel and reverse-proxy domains are checked over HTTPS: `https://<domain>/.well-known/opencord/verify` must answer the server's own token. A domain passes when its records include the public address and nothing else. The first domain to pass becomes active and the primary. Only domains that passed once can be active (`DOMAIN_NOT_VERIFIED`); the primary moves before it is turned off or deleted (`CONFLICT`). A domain that fails after passing is marked `DNS_PROBLEM` and stays active; the owner gets a `ServerNotice` keyed `domain.<id>.dns`. Domains are checked at start-up, every 12 hours (plus up to 30 minutes), and when the public address changes; each keeps its last 10 checks.
+- **Addresses.** `Ready.server_addresses` and `ServerAddressesUpdate` give the primary, every active domain (the primary first), and the public IPv4 address, each with `trusted_certificate` (checked by a certificate authority rather than the pinned fingerprint) and its `domain_id`. Clients keep them and connect to the domains first, then the address they added the server with, then the IP address. A server reached at another address is the same server when `Hello.server_id` matches.
+- **Identify through a domain.** A client that verified a domain by a certificate authority signs the challenge twice: with the certificate it saw, and with `host_binding(host)` in its place (`auth.rs`), sending `host` and `host_signature`. Behind a tunnel or proxy the certificate is the proxy's, which the server never holds; it accepts the second signature for a name it answers to: its configured `public_host`, an active domain, or one turned off less than 7 days ago.
+- **Invites.** `CreateInvite.domain_id` makes the invite for that active domain; without it, for the primary when there is one. `Invite.address` is its domain. An invite whose domain is turned off or deleted stops working. `GET /invite/<code>` is a small page (no JavaScript) with the server's name, member count, an `opencord://` link for the address the page was opened on (with the fingerprint unless an authority vouches for that domain) and a download link; a dead invite answers 404.
 
 ### Voice limits
 

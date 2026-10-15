@@ -58,7 +58,7 @@ async fn a_screens_sound_reaches_its_watchers_in_stereo_apart_from_the_voice() {
     .unwrap();
     let invite = streamer
         .client
-        .create_invite(&streamer.server_key, None, None)
+        .create_invite(&streamer.server_key, None, None, None)
         .await
         .unwrap();
     let watcher = Voicebot::connect(&invite.link, None, "Watcher")

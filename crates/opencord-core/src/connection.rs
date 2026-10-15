@@ -102,6 +102,10 @@ pub(crate) struct Opened {
     pub socket: Socket,
     pub hello: proto::Hello,
     pub presented: Fingerprint,
+    /// The name connected to, and whether an authority vouched for it (no
+    /// pin was needed).
+    pub host: String,
+    pub authority: bool,
 }
 
 /// Connects and reads `Hello`. With `pinned`, the certificate must match it.
@@ -145,6 +149,8 @@ pub(crate) async fn open(
         (Ok(Err(error)), _) => return Err(HandshakeError::Transient(error.to_string())),
         (Err(error), _) => return Err(error),
     };
+    let authority = matches!(trust.verdict(), Some(Verdict::Authority(_)))
+        && address.host.parse::<std::net::IpAddr>().is_err();
     let presented = match trust.verdict() {
         Some(Verdict::Pinned(fingerprint) | Verdict::Authority(fingerprint)) => fingerprint,
         _ => {
@@ -163,6 +169,8 @@ pub(crate) async fn open(
             socket,
             hello,
             presented,
+            host: address.host.clone(),
+            authority,
         }),
         _ => Err(HandshakeError::Transient(
             "the server did not say hello".to_owned(),
@@ -203,6 +211,20 @@ pub(crate) async fn identify(
         nonce,
         timestamp_ms: unix_ms(),
     };
+    // Checked by an authority under a name: bound to the name too, for a
+    // server behind a tunnel or proxy whose certificate it never sees.
+    let (host, host_signature) = if opened.authority {
+        let bound = Challenge {
+            certificate: opencord_common::auth::host_binding(&opened.host),
+            ..challenge
+        };
+        (
+            opened.host.clone(),
+            credentials.identity.sign_identify(&bound).to_vec(),
+        )
+    } else {
+        (String::new(), Vec::new())
+    };
     let identify = proto::Identify {
         public_key: credentials.identity.public_key().to_vec(),
         signature: credentials.identity.sign_identify(&challenge).to_vec(),
@@ -211,6 +233,8 @@ pub(crate) async fn identify(
         invite_code,
         claim_token,
         protocol_version: opencord_common::PROTOCOL_VERSION,
+        host,
+        host_signature,
     };
     let socket = &mut opened.socket;
     send_payload(socket, 0, Payload::Identify(identify)).await?;
@@ -479,8 +503,7 @@ impl Task {
     }
 
     async fn establish(&mut self) -> Result<Established, HandshakeError> {
-        let pinned = self.lock_store().pin(&self.context.key);
-        let mut opened = open(&self.context.address, pinned).await?;
+        let mut opened = self.open_any().await?;
         if let Some(session) = &self.session {
             match resume(&mut opened.socket, session).await? {
                 ResumeOutcome::Resumed(replayed) => {
@@ -620,7 +643,122 @@ impl Task {
         ended
     }
 
+    /// Connects to the first of the server's addresses that answers as
+    /// this server: its domains, the primary first, then the address it
+    /// was added with, then its IP address (Phase 3 plan §7.5). Only the
+    /// address it was added with can fail with a certificate the user must
+    /// look at; the others are skipped.
+    async fn open_any(&mut self) -> Result<Opened, HandshakeError> {
+        let (pinned, saved) = {
+            let store = self.lock_store();
+            (
+                store.pin(&self.context.key),
+                store.server(&self.context.key).cloned(),
+            )
+        };
+        let own = &self.context.address;
+        let mut candidates: Vec<(ServerAddress, bool)> = Vec::new();
+        if let Some(saved) = &saved {
+            for address in saved.addresses.iter().chain(&saved.ip) {
+                let candidate = ServerAddress {
+                    host: address.host.to_ascii_lowercase(),
+                    port: address.port,
+                };
+                if candidate != *own && !candidates.iter().any(|(known, _)| *known == candidate) {
+                    candidates.push((candidate, address.trusted));
+                }
+            }
+        }
+        let ip = saved
+            .as_ref()
+            .and_then(|saved| saved.ip.as_ref())
+            .map(|ip| ServerAddress {
+                host: ip.host.clone(),
+                port: ip.port,
+            });
+        // The domains, then the address it was added with, then the IP.
+        let (mut ordered, ips): (Vec<_>, Vec<_>) = candidates
+            .into_iter()
+            .partition(|(address, _)| Some(address) != ip.as_ref());
+        ordered.push((own.clone(), false));
+        ordered.extend(ips);
+        let server_id = saved.as_ref().and_then(|saved| saved.server_id.clone());
+        let mut last = None;
+        for (address, trusted) in ordered {
+            let own_address = address == *own;
+            let pin = if trusted { None } else { pinned };
+            match open(&address, pin).await {
+                Ok(opened) => {
+                    // Another server at a domain that moved on: not ours.
+                    let id = hex::encode(&opened.hello.server_id);
+                    if server_id.as_ref().is_some_and(|known| *known != id) {
+                        last = Some(HandshakeError::Transient(format!(
+                            "{address} is another server now"
+                        )));
+                        continue;
+                    }
+                    if !own_address {
+                        tracing::debug!(%address, "connected through another of the server's addresses");
+                    }
+                    self.remember_server_id(&id);
+                    return Ok(opened);
+                }
+                Err(error @ (HandshakeError::Untrusted(_) | HandshakeError::Mismatch { .. }))
+                    if own_address =>
+                {
+                    return Err(error);
+                }
+                Err(error) => last = Some(error),
+            }
+        }
+        Err(last.unwrap_or_else(|| {
+            HandshakeError::Transient("the server has no address to connect to".to_owned())
+        }))
+    }
+
+    fn remember_server_id(&self, id: &str) {
+        let mut store = self.lock_store();
+        let Some(saved) = store.server(&self.context.key).cloned() else {
+            return;
+        };
+        if saved.server_id.as_deref() != Some(id) {
+            let _ = store.upsert_server(crate::store::SavedServer {
+                server_id: Some(id.to_owned()),
+                ..saved
+            });
+        }
+    }
+
+    /// Keeps where the server is reached, for the next connection.
+    fn save_addresses(&self, addresses: &proto::ServerAddresses) {
+        let saved_address = |address: &proto::ConnectAddress| crate::store::SavedAddress {
+            host: address.host.to_ascii_lowercase(),
+            port: u16::try_from(address.port).unwrap_or(0),
+            trusted: address.trusted_certificate,
+        };
+        let mut store = self.lock_store();
+        let Some(saved) = store.server(&self.context.key).cloned() else {
+            return;
+        };
+        let updated = crate::store::SavedServer {
+            addresses: addresses
+                .domains
+                .iter()
+                .filter(|address| address.port != 0)
+                .map(saved_address)
+                .collect(),
+            ip: addresses.ip.as_ref().map(saved_address),
+            ..saved.clone()
+        };
+        if updated != saved {
+            let _ = store.upsert_server(updated);
+        }
+    }
+
     fn on_ready(&mut self, ready: proto::Ready) {
+        if let Some(addresses) = &ready.server_addresses {
+            self.save_addresses(addresses);
+        }
         if let Some(token) = &ready.media_token {
             self.context
                 .media_tokens
@@ -655,6 +793,11 @@ impl Task {
         }
         if let proto::event::Kind::VoiceServerUpdate(update) = &kind {
             self.on_voice_server(update);
+        }
+        if let proto::event::Kind::ServerAddressesUpdate(update) = &kind
+            && let Some(addresses) = &update.addresses
+        {
+            self.save_addresses(addresses);
         }
         let session_id = self
             .session

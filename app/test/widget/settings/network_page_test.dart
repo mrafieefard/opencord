@@ -5,6 +5,9 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:opencord/core/model/network.dart';
 import 'package:opencord/core/providers/providers.dart';
+import 'package:opencord/features/dialogs/invite_dialog.dart';
+import 'package:opencord/features/settings/server/network/add_domain_dialog.dart';
+import 'package:opencord/features/settings/server/network/domain_row.dart';
 import 'package:opencord/features/settings/server/network/network_dialogs.dart';
 import 'package:opencord/features/settings/server/network/network_page.dart';
 import 'package:opencord/features/settings/server_settings.dart';
@@ -77,6 +80,8 @@ Finder _changeOn(String title) => find.descendant(
 );
 
 void main() {
+  domainTests();
+
   testWidgets('only the owner has Domains & network', (tester) async {
     final app = await MockApp.pump(tester);
     app.read(navigationProvider.notifier).openServer(_berlin);
@@ -238,4 +243,158 @@ void main() {
     await _pumpFor(tester, const Duration(seconds: 6));
     await app.dispose(tester);
   });
+}
+
+Future<void> _addDomain(WidgetTester tester, String host) async {
+  await _tapVisible(
+    tester,
+    _inSettings(find.widgetWithText(OcButton, 'Add domain')),
+  );
+  await _pumpFor(tester, const Duration(milliseconds: 300));
+  await tester.enterText(
+    find
+        .descendant(
+          of: find.byType(AddDomainDialog),
+          matching: find.byType(EditableText),
+        )
+        .first,
+    host,
+  );
+  await tester.tap(find.widgetWithText(OcButton, 'Next'));
+  await _pumpFor(tester, const Duration(milliseconds: 600));
+}
+
+void domainTests() {
+  testWidgets('a domain is added, shows its records, and is checked', (
+    tester,
+  ) async {
+    final app = await MockApp.pump(tester);
+    await _openNetwork(tester);
+
+    await _addDomain(tester, 'Chat.Example.com');
+
+    expect(find.text('Create the DNS records'), findsOneWidget);
+    expect(find.text('A  chat.example.com  →  203.0.113.10'), findsOneWidget);
+    await tester.tap(find.widgetWithText(OcButton, 'Check now'));
+    await _pumpFor(tester, const Duration(milliseconds: 1600));
+
+    expect(find.byType(AddDomainDialog), findsNothing);
+    expect(_inSettings(find.text('chat.example.com:7710')), findsOneWidget);
+    expect(
+      _inSettings(
+        find.textContaining('Own domain · Verified · No certificate · Primary'),
+      ),
+      findsOneWidget,
+      reason: 'the first verified domain is the primary',
+    );
+    final addresses = app.read(serverProvider(_dev)).data!.addresses;
+    expect(addresses.primary?.host, 'chat.example.com');
+    await _pumpFor(tester, const Duration(seconds: 2));
+    await app.dispose(tester);
+  });
+
+  testWidgets('a domain that points elsewhere says so and cannot be '
+      'turned on', (tester) async {
+    final app = await MockApp.pump(tester);
+    await _openNetwork(tester);
+
+    await _addDomain(tester, 'wrong.example.com');
+    await tester.tap(find.widgetWithText(OcButton, 'Check now'));
+    await _pumpFor(tester, const Duration(milliseconds: 1600));
+
+    expect(
+      _inSettings(find.textContaining('It points to 198.51.100.1')),
+      findsOneWidget,
+    );
+    final row = find.ancestor(
+      of: _inSettings(find.text('wrong.example.com:7710')),
+      matching: find.byType(DomainRow),
+    );
+    final toggle = tester.widget<OcSwitch>(
+      find.descendant(of: row, matching: find.byType(OcSwitch)),
+    );
+    expect(toggle.onChanged, isNull);
+    await _pumpFor(tester, const Duration(seconds: 2));
+    await app.dispose(tester);
+  });
+
+  testWidgets('invites offer a choice of domain only with more than one', (
+    tester,
+  ) async {
+    final app = await MockApp.pump(tester);
+    final repository = app.repository;
+    Future<void> settle() => _pumpFor(tester, const Duration(seconds: 2));
+    for (final host in ['one.example.com', 'two.example.com']) {
+      unawaited(
+        repository.addDomain(_dev, hostname: host, kind: DomainKind.own),
+      );
+      await settle();
+    }
+    final ids = [
+      for (final domain in repository.debugNetwork(_dev).domains) domain.id,
+    ];
+    for (final id in ids) {
+      unawaited(repository.checkDomain(_dev, id));
+      await settle();
+    }
+    var invite = InviteDialogProbe(tester);
+
+    await invite.open(_dev);
+    expect(find.text('THROUGH'), findsNothing, reason: 'one active domain');
+    expect(invite.link, startsWith('opencord://one.example.com:7710/invite/'));
+    await invite.close();
+
+    unawaited(
+      repository.updateDomain(_dev, ids[1], const DomainUpdate(active: true)),
+    );
+    await settle();
+    invite = InviteDialogProbe(tester);
+    await invite.open(_dev);
+    expect(find.text('THROUGH'), findsOneWidget);
+    await tester.tap(find.widgetWithText(OcButton, 'one.example.com'));
+    await _pumpFor(tester, const Duration(milliseconds: 300));
+    await tester.tap(find.text('two.example.com').last);
+    await _pumpFor(tester, const Duration(milliseconds: 300));
+    await tester.tap(find.widgetWithText(OcButton, 'Make a new link'));
+    await _pumpFor(tester, const Duration(milliseconds: 600));
+
+    expect(invite.link, startsWith('opencord://two.example.com:7710/invite/'));
+    expect(
+      find.textContaining(
+        'For a browser: https://two.example.com:7710/invite/',
+      ),
+      findsOneWidget,
+    );
+    await invite.close();
+    await settle();
+    await app.dispose(tester);
+  });
+}
+
+/// The invite dialog, opened from code.
+class InviteDialogProbe {
+  InviteDialogProbe(this.tester);
+
+  final WidgetTester tester;
+
+  Future<void> open(String serverKey) async {
+    final context = tester.element(find.byType(DesktopShell));
+    unawaited(showInvitePeople(context, serverKey: serverKey));
+    await _pumpFor(tester, const Duration(milliseconds: 600));
+  }
+
+  String get link => tester
+      .widgetList<Text>(
+        find.descendant(
+          of: find.byType(InviteDialog),
+          matching: find.byType(Text),
+        ),
+      )
+      .map((text) => text.data ?? '')
+      .firstWhere((text) => text.startsWith('opencord://'));
+
+  Future<void> close() async {
+    await tester.tap(find.widgetWithText(OcButton, 'Done'));
+    await _pumpFor(tester, const Duration(milliseconds: 400));
+  }
 }

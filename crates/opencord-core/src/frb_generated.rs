@@ -39,7 +39,7 @@ flutter_rust_bridge::frb_generated_boilerplate!(
     default_rust_auto_opaque = RustAutoOpaqueMoi,
 );
 pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_VERSION: &str = "2.13.0";
-pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -1273243125;
+pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = 1533241027;
 
 // Section: executor
 
@@ -47,6 +47,51 @@ flutter_rust_bridge::frb_generated_default_handler!();
 
 // Section: wire_funcs
 
+fn wire__crate__api__client__add_domain_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::SseCodec, _, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "add_domain",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_server_key = <String>::sse_decode(&mut deserializer);
+            let api_hostname = <String>::sse_decode(&mut deserializer);
+            let api_kind = <crate::api::types::DomainKind>::sse_decode(&mut deserializer);
+            let api_public_port = <Option<u32>>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| async move {
+                transform_result_sse::<_, crate::api::types::CoreError>(
+                    (move || async move {
+                        let output_ok = crate::api::client::add_domain(
+                            api_server_key,
+                            api_hostname,
+                            api_kind,
+                            api_public_port,
+                        )
+                        .await?;
+                        std::result::Result::Ok(output_ok)
+                    })()
+                    .await,
+                )
+            }
+        },
+    )
+}
 fn wire__crate__api__client__add_member_role_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
@@ -522,6 +567,44 @@ fn wire__crate__api__types__channel_changes_default_impl(
         },
     )
 }
+fn wire__crate__api__client__check_domain_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::SseCodec, _, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "check_domain",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_server_key = <String>::sse_decode(&mut deserializer);
+            let api_domain_id = <i64>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| async move {
+                transform_result_sse::<_, crate::api::types::CoreError>(
+                    (move || async move {
+                        let output_ok =
+                            crate::api::client::check_domain(api_server_key, api_domain_id).await?;
+                        std::result::Result::Ok(output_ok)
+                    })()
+                    .await,
+                )
+            }
+        },
+    )
+}
 fn wire__crate__api__system__core_version_impl(
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -623,6 +706,7 @@ fn wire__crate__api__client__create_invite_impl(
             let api_server_key = <String>::sse_decode(&mut deserializer);
             let api_max_uses = <Option<u32>>::sse_decode(&mut deserializer);
             let api_expires_in_s = <Option<u32>>::sse_decode(&mut deserializer);
+            let api_domain_id = <Option<i64>>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| async move {
                 transform_result_sse::<_, crate::api::types::CoreError>(
@@ -631,6 +715,7 @@ fn wire__crate__api__client__create_invite_impl(
                             api_server_key,
                             api_max_uses,
                             api_expires_in_s,
+                            api_domain_id,
                         )
                         .await?;
                         std::result::Result::Ok(output_ok)
@@ -775,6 +860,45 @@ fn wire__crate__api__client__delete_channel_overwrite_impl(
         },
     )
 }
+fn wire__crate__api__client__delete_domain_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::SseCodec, _, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "delete_domain",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_server_key = <String>::sse_decode(&mut deserializer);
+            let api_domain_id = <i64>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| async move {
+                transform_result_sse::<_, crate::api::types::CoreError>(
+                    (move || async move {
+                        let output_ok =
+                            crate::api::client::delete_domain(api_server_key, api_domain_id)
+                                .await?;
+                        std::result::Result::Ok(output_ok)
+                    })()
+                    .await,
+                )
+            }
+        },
+    )
+}
 fn wire__crate__api__client__delete_message_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
@@ -885,6 +1009,77 @@ fn wire__crate__api__client__detect_public_address_impl(
                     })()
                     .await,
                 )
+            }
+        },
+    )
+}
+fn wire__crate__api__client__domain_checks_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::SseCodec, _, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "domain_checks",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_server_key = <String>::sse_decode(&mut deserializer);
+            let api_domain_id = <i64>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| async move {
+                transform_result_sse::<_, crate::api::types::CoreError>(
+                    (move || async move {
+                        let output_ok =
+                            crate::api::client::domain_checks(api_server_key, api_domain_id)
+                                .await?;
+                        std::result::Result::Ok(output_ok)
+                    })()
+                    .await,
+                )
+            }
+        },
+    )
+}
+fn wire__crate__api__types__domain_update_default_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "domain_update_default",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            deserializer.end();
+            move |context| {
+                transform_result_sse::<_, ()>((move || {
+                    let output_ok = Ok::<_, ()>(crate::api::types::DomainUpdate::default())?;
+                    std::result::Result::Ok(output_ok)
+                })())
             }
         },
     )
@@ -2004,6 +2199,38 @@ fn wire__crate__api__client__server_add_impl(
         },
     )
 }
+fn wire__crate__api__types__server_addresses_default_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "server_addresses_default",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            deserializer.end();
+            move |context| {
+                transform_result_sse::<_, ()>((move || {
+                    let output_ok = Ok::<_, ()>(crate::api::types::ServerAddresses::default())?;
+                    std::result::Result::Ok(output_ok)
+                })())
+            }
+        },
+    )
+}
 fn wire__crate__api__types__server_changes_default_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
@@ -2981,6 +3208,49 @@ fn wire__crate__api__client__update_channel_impl(
                             api_server_key,
                             api_channel_id,
                             api_changes,
+                        )
+                        .await?;
+                        std::result::Result::Ok(output_ok)
+                    })()
+                    .await,
+                )
+            }
+        },
+    )
+}
+fn wire__crate__api__client__update_domain_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::SseCodec, _, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "update_domain",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_server_key = <String>::sse_decode(&mut deserializer);
+            let api_domain_id = <i64>::sse_decode(&mut deserializer);
+            let api_update = <crate::api::types::DomainUpdate>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| async move {
+                transform_result_sse::<_, crate::api::types::CoreError>(
+                    (move || async move {
+                        let output_ok = crate::api::client::update_domain(
+                            api_server_key,
+                            api_domain_id,
+                            api_update,
                         )
                         .await?;
                         std::result::Result::Ok(output_ok)
@@ -4253,6 +4523,39 @@ impl SseDecode for crate::api::types::ChannelPosition {
     }
 }
 
+impl SseDecode for crate::api::types::CheckResult {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut inner = <i32>::sse_decode(deserializer);
+        return match inner {
+            0 => crate::api::types::CheckResult::Verified,
+            1 => crate::api::types::CheckResult::PointsElsewhere,
+            2 => crate::api::types::CheckResult::NoRecord,
+            3 => crate::api::types::CheckResult::CloudflareProxied,
+            4 => crate::api::types::CheckResult::PartlyCorrect,
+            5 => crate::api::types::CheckResult::Failed,
+            6 => crate::api::types::CheckResult::ConfirmedByOwner,
+            _ => unreachable!("Invalid variant for CheckResult: {}", inner),
+        };
+    }
+}
+
+impl SseDecode for crate::api::types::ConnectAddress {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_host = <String>::sse_decode(deserializer);
+        let mut var_port = <u32>::sse_decode(deserializer);
+        let mut var_trustedCertificate = <bool>::sse_decode(deserializer);
+        let mut var_domainId = <i64>::sse_decode(deserializer);
+        return crate::api::types::ConnectAddress {
+            host: var_host,
+            port: var_port,
+            trusted_certificate: var_trustedCertificate,
+            domain_id: var_domainId,
+        };
+    }
+}
+
 impl SseDecode for crate::api::types::ConnectionState {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -4537,10 +4840,14 @@ impl SseDecode for crate::api::types::CoreEventPayload {
                 return crate::api::types::CoreEventPayload::VoiceChannelEffect(var_field0);
             }
             28 => {
+                let mut var_field0 = <crate::api::types::ServerAddresses>::sse_decode(deserializer);
+                return crate::api::types::CoreEventPayload::ServerAddressesUpdate(var_field0);
+            }
+            29 => {
                 let mut var_field0 = <crate::api::types::NetworkInfo>::sse_decode(deserializer);
                 return crate::api::types::CoreEventPayload::NetworkStatus(var_field0);
             }
-            29 => {
+            30 => {
                 let mut var_field0 = <crate::api::types::ServerNotice>::sse_decode(deserializer);
                 return crate::api::types::CoreEventPayload::ServerNotice(var_field0);
             }
@@ -4567,6 +4874,103 @@ impl SseDecode for crate::api::types::DefaultSound {
     }
 }
 
+impl SseDecode for crate::api::types::Domain {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_id = <i64>::sse_decode(deserializer);
+        let mut var_hostname = <String>::sse_decode(deserializer);
+        let mut var_kind = <crate::api::types::DomainKind>::sse_decode(deserializer);
+        let mut var_publicPort = <u32>::sse_decode(deserializer);
+        let mut var_status = <crate::api::types::DomainStatus>::sse_decode(deserializer);
+        let mut var_active = <bool>::sse_decode(deserializer);
+        let mut var_primary = <bool>::sse_decode(deserializer);
+        let mut var_problemSinceMs = <i64>::sse_decode(deserializer);
+        let mut var_lastCheck = <Option<crate::api::types::DomainCheck>>::sse_decode(deserializer);
+        let mut var_checking = <bool>::sse_decode(deserializer);
+        let mut var_users24H = <u32>::sse_decode(deserializer);
+        let mut var_createdAtMs = <i64>::sse_decode(deserializer);
+        let mut var_deactivatedAtMs = <i64>::sse_decode(deserializer);
+        let mut var_trustedCertificate = <bool>::sse_decode(deserializer);
+        return crate::api::types::Domain {
+            id: var_id,
+            hostname: var_hostname,
+            kind: var_kind,
+            public_port: var_publicPort,
+            status: var_status,
+            active: var_active,
+            primary: var_primary,
+            problem_since_ms: var_problemSinceMs,
+            last_check: var_lastCheck,
+            checking: var_checking,
+            users_24h: var_users24H,
+            created_at_ms: var_createdAtMs,
+            deactivated_at_ms: var_deactivatedAtMs,
+            trusted_certificate: var_trustedCertificate,
+        };
+    }
+}
+
+impl SseDecode for crate::api::types::DomainCheck {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_result = <crate::api::types::CheckResult>::sse_decode(deserializer);
+        let mut var_message = <String>::sse_decode(deserializer);
+        let mut var_note = <String>::sse_decode(deserializer);
+        let mut var_found = <Vec<String>>::sse_decode(deserializer);
+        let mut var_checkedAtMs = <i64>::sse_decode(deserializer);
+        return crate::api::types::DomainCheck {
+            result: var_result,
+            message: var_message,
+            note: var_note,
+            found: var_found,
+            checked_at_ms: var_checkedAtMs,
+        };
+    }
+}
+
+impl SseDecode for crate::api::types::DomainKind {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut inner = <i32>::sse_decode(deserializer);
+        return match inner {
+            0 => crate::api::types::DomainKind::Own,
+            1 => crate::api::types::DomainKind::FreeSubdomain,
+            2 => crate::api::types::DomainKind::Tunnel,
+            3 => crate::api::types::DomainKind::ReverseProxy,
+            _ => unreachable!("Invalid variant for DomainKind: {}", inner),
+        };
+    }
+}
+
+impl SseDecode for crate::api::types::DomainStatus {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut inner = <i32>::sse_decode(deserializer);
+        return match inner {
+            0 => crate::api::types::DomainStatus::Pending,
+            1 => crate::api::types::DomainStatus::Verified,
+            2 => crate::api::types::DomainStatus::DnsProblem,
+            _ => unreachable!("Invalid variant for DomainStatus: {}", inner),
+        };
+    }
+}
+
+impl SseDecode for crate::api::types::DomainUpdate {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_active = <Option<bool>>::sse_decode(deserializer);
+        let mut var_primary = <Option<bool>>::sse_decode(deserializer);
+        let mut var_publicPort = <Option<u32>>::sse_decode(deserializer);
+        let mut var_confirm = <bool>::sse_decode(deserializer);
+        return crate::api::types::DomainUpdate {
+            active: var_active,
+            primary: var_primary,
+            public_port: var_publicPort,
+            confirm: var_confirm,
+        };
+    }
+}
+
 impl SseDecode for crate::api::types::ErrorCode {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -4589,7 +4993,15 @@ impl SseDecode for crate::api::types::ErrorCode {
             14 => crate::api::types::ErrorCode::SoundTooLong,
             15 => crate::api::types::ErrorCode::SoundInvalid,
             16 => crate::api::types::ErrorCode::SoundboardFull,
-            17 => crate::api::types::ErrorCode::Unknown,
+            17 => crate::api::types::ErrorCode::DomainInvalid,
+            18 => crate::api::types::ErrorCode::DomainExists,
+            19 => crate::api::types::ErrorCode::DomainLimit,
+            20 => crate::api::types::ErrorCode::DomainNotVerified,
+            21 => crate::api::types::ErrorCode::DnsMismatch,
+            22 => crate::api::types::ErrorCode::AcmeFailed,
+            23 => crate::api::types::ErrorCode::AcmeRateLimited,
+            24 => crate::api::types::ErrorCode::PortUnreachable,
+            25 => crate::api::types::ErrorCode::Unknown,
             _ => unreachable!("Invalid variant for ErrorCode: {}", inner),
         };
     }
@@ -4711,6 +5123,8 @@ impl SseDecode for crate::api::types::Invite {
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut var_code = <String>::sse_decode(deserializer);
         let mut var_link = <String>::sse_decode(deserializer);
+        let mut var_webLink = <Option<String>>::sse_decode(deserializer);
+        let mut var_domainId = <Option<i64>>::sse_decode(deserializer);
         let mut var_createdBy = <Option<i64>>::sse_decode(deserializer);
         let mut var_createdAtMs = <i64>::sse_decode(deserializer);
         let mut var_maxUses = <Option<u32>>::sse_decode(deserializer);
@@ -4719,6 +5133,8 @@ impl SseDecode for crate::api::types::Invite {
         return crate::api::types::Invite {
             code: var_code,
             link: var_link,
+            web_link: var_webLink,
+            domain_id: var_domainId,
             created_by: var_createdBy,
             created_at_ms: var_createdAtMs,
             max_uses: var_maxUses,
@@ -4816,6 +5232,20 @@ impl SseDecode for Vec<crate::api::types::ChannelPosition> {
     }
 }
 
+impl SseDecode for Vec<crate::api::types::ConnectAddress> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut len_ = <i32>::sse_decode(deserializer);
+        let mut ans_ = Vec::with_capacity(len_ as usize);
+        for idx_ in 0..len_ {
+            ans_.push(<crate::api::types::ConnectAddress>::sse_decode(
+                deserializer,
+            ));
+        }
+        return ans_;
+    }
+}
+
 impl SseDecode for Vec<crate::api::types::DefaultSound> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -4823,6 +5253,30 @@ impl SseDecode for Vec<crate::api::types::DefaultSound> {
         let mut ans_ = Vec::with_capacity(len_ as usize);
         for idx_ in 0..len_ {
             ans_.push(<crate::api::types::DefaultSound>::sse_decode(deserializer));
+        }
+        return ans_;
+    }
+}
+
+impl SseDecode for Vec<crate::api::types::Domain> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut len_ = <i32>::sse_decode(deserializer);
+        let mut ans_ = Vec::with_capacity(len_ as usize);
+        for idx_ in 0..len_ {
+            ans_.push(<crate::api::types::Domain>::sse_decode(deserializer));
+        }
+        return ans_;
+    }
+}
+
+impl SseDecode for Vec<crate::api::types::DomainCheck> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut len_ = <i32>::sse_decode(deserializer);
+        let mut ans_ = Vec::with_capacity(len_ as usize);
+        for idx_ in 0..len_ {
+            ans_.push(<crate::api::types::DomainCheck>::sse_decode(deserializer));
         }
         return ans_;
     }
@@ -5262,6 +5716,7 @@ impl SseDecode for crate::api::types::NetworkInfo {
         let mut var_upnpGateway = <String>::sse_decode(deserializer);
         let mut var_upnpExternalIp = <String>::sse_decode(deserializer);
         let mut var_upnpError = <String>::sse_decode(deserializer);
+        let mut var_domains = <Vec<crate::api::types::Domain>>::sse_decode(deserializer);
         return crate::api::types::NetworkInfo {
             public_address: var_publicAddress,
             ports: var_ports,
@@ -5271,6 +5726,7 @@ impl SseDecode for crate::api::types::NetworkInfo {
             upnp_gateway: var_upnpGateway,
             upnp_external_ip: var_upnpExternalIp,
             upnp_error: var_upnpError,
+            domains: var_domains,
         };
     }
 }
@@ -5356,6 +5812,30 @@ impl SseDecode for Option<bool> {
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         if (<bool>::sse_decode(deserializer)) {
             return Some(<bool>::sse_decode(deserializer));
+        } else {
+            return None;
+        }
+    }
+}
+
+impl SseDecode for Option<crate::api::types::ConnectAddress> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        if (<bool>::sse_decode(deserializer)) {
+            return Some(<crate::api::types::ConnectAddress>::sse_decode(
+                deserializer,
+            ));
+        } else {
+            return None;
+        }
+    }
+}
+
+impl SseDecode for Option<crate::api::types::DomainCheck> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        if (<bool>::sse_decode(deserializer)) {
+            return Some(<crate::api::types::DomainCheck>::sse_decode(deserializer));
         } else {
             return None;
         }
@@ -5619,6 +6099,7 @@ impl SseDecode for crate::api::types::ReadySnapshot {
         let mut var_voiceSettings = <crate::api::types::VoiceSettings>::sse_decode(deserializer);
         let mut var_soundboardSounds =
             <Vec<crate::api::types::SoundboardSound>>::sse_decode(deserializer);
+        let mut var_addresses = <crate::api::types::ServerAddresses>::sse_decode(deserializer);
         return crate::api::types::ReadySnapshot {
             self_user: var_selfUser,
             server: var_server,
@@ -5633,6 +6114,7 @@ impl SseDecode for crate::api::types::ReadySnapshot {
             streams: var_streams,
             voice_settings: var_voiceSettings,
             soundboard_sounds: var_soundboardSounds,
+            addresses: var_addresses,
         };
     }
 }
@@ -5835,6 +6317,7 @@ impl SseDecode for crate::api::types::Server {
         let mut var_port = <u16>::sse_decode(deserializer);
         let mut var_userId = <Option<i64>>::sse_decode(deserializer);
         let mut var_fingerprint = <Option<String>>::sse_decode(deserializer);
+        let mut var_addresses = <Vec<String>>::sse_decode(deserializer);
         return crate::api::types::Server {
             key: var_key,
             name: var_name,
@@ -5842,6 +6325,21 @@ impl SseDecode for crate::api::types::Server {
             port: var_port,
             user_id: var_userId,
             fingerprint: var_fingerprint,
+            addresses: var_addresses,
+        };
+    }
+}
+
+impl SseDecode for crate::api::types::ServerAddresses {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_primary = <Option<crate::api::types::ConnectAddress>>::sse_decode(deserializer);
+        let mut var_domains = <Vec<crate::api::types::ConnectAddress>>::sse_decode(deserializer);
+        let mut var_ip = <Option<crate::api::types::ConnectAddress>>::sse_decode(deserializer);
+        return crate::api::types::ServerAddresses {
+            primary: var_primary,
+            domains: var_domains,
+            ip: var_ip,
         };
     }
 }
@@ -6322,146 +6820,162 @@ fn pde_ffi_dispatcher_primary_impl(
 ) {
     // Codec=Pde (Serialization + dispatch), see doc to use other codecs
     match func_id {
-        1 => wire__crate__api__client__add_member_role_impl(port, ptr, rust_vec_len, data_len),
-        4 => wire__crate__api__client__audio_devices_impl(port, ptr, rust_vec_len, data_len),
-        5 => wire__crate__api__types__audio_devices_default_impl(port, ptr, rust_vec_len, data_len),
-        6 => wire__crate__api__client__audio_mic_test_impl(port, ptr, rust_vec_len, data_len),
-        7 => wire__crate__api__client__audio_recommended_noise_suppression_impl(
+        1 => wire__crate__api__client__add_domain_impl(port, ptr, rust_vec_len, data_len),
+        2 => wire__crate__api__client__add_member_role_impl(port, ptr, rust_vec_len, data_len),
+        5 => wire__crate__api__client__audio_devices_impl(port, ptr, rust_vec_len, data_len),
+        6 => wire__crate__api__types__audio_devices_default_impl(port, ptr, rust_vec_len, data_len),
+        7 => wire__crate__api__client__audio_mic_test_impl(port, ptr, rust_vec_len, data_len),
+        8 => wire__crate__api__client__audio_recommended_noise_suppression_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        9 => {
+        10 => {
             wire__crate__api__types__audio_settings_default_impl(port, ptr, rust_vec_len, data_len)
         }
-        10 => wire__crate__api__client__ban_member_impl(port, ptr, rust_vec_len, data_len),
-        11 => wire__crate__api__client__camera_devices_impl(port, ptr, rust_vec_len, data_len),
-        12 => wire__crate__api__client__camera_start_impl(port, ptr, rust_vec_len, data_len),
-        14 => {
+        11 => wire__crate__api__client__ban_member_impl(port, ptr, rust_vec_len, data_len),
+        12 => wire__crate__api__client__camera_devices_impl(port, ptr, rust_vec_len, data_len),
+        13 => wire__crate__api__client__camera_start_impl(port, ptr, rust_vec_len, data_len),
+        15 => {
             wire__crate__api__types__channel_changes_default_impl(port, ptr, rust_vec_len, data_len)
         }
-        16 => wire__crate__api__client__create_channel_impl(port, ptr, rust_vec_len, data_len),
-        17 => wire__crate__api__client__create_invite_impl(port, ptr, rust_vec_len, data_len),
-        18 => wire__crate__api__client__create_role_impl(port, ptr, rust_vec_len, data_len),
-        19 => wire__crate__api__client__delete_channel_impl(port, ptr, rust_vec_len, data_len),
-        20 => wire__crate__api__client__delete_channel_overwrite_impl(
+        16 => wire__crate__api__client__check_domain_impl(port, ptr, rust_vec_len, data_len),
+        18 => wire__crate__api__client__create_channel_impl(port, ptr, rust_vec_len, data_len),
+        19 => wire__crate__api__client__create_invite_impl(port, ptr, rust_vec_len, data_len),
+        20 => wire__crate__api__client__create_role_impl(port, ptr, rust_vec_len, data_len),
+        21 => wire__crate__api__client__delete_channel_impl(port, ptr, rust_vec_len, data_len),
+        22 => wire__crate__api__client__delete_channel_overwrite_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        21 => wire__crate__api__client__delete_message_impl(port, ptr, rust_vec_len, data_len),
-        22 => wire__crate__api__client__delete_role_impl(port, ptr, rust_vec_len, data_len),
-        23 => {
+        23 => wire__crate__api__client__delete_domain_impl(port, ptr, rust_vec_len, data_len),
+        24 => wire__crate__api__client__delete_message_impl(port, ptr, rust_vec_len, data_len),
+        25 => wire__crate__api__client__delete_role_impl(port, ptr, rust_vec_len, data_len),
+        26 => {
             wire__crate__api__client__detect_public_address_impl(port, ptr, rust_vec_len, data_len)
         }
-        24 => wire__crate__api__client__edit_message_impl(port, ptr, rust_vec_len, data_len),
-        25 => wire__crate__api__client__event_stream_impl(port, ptr, rust_vec_len, data_len),
-        26 => wire__crate__api__client__fetch_bans_impl(port, ptr, rust_vec_len, data_len),
-        27 => wire__crate__api__client__fetch_invites_impl(port, ptr, rust_vec_len, data_len),
-        28 => wire__crate__api__client__fetch_messages_impl(port, ptr, rust_vec_len, data_len),
-        29 => wire__crate__api__client__hotkeys_set_impl(port, ptr, rust_vec_len, data_len),
-        36 => wire__crate__api__system__init_app_impl(port, ptr, rust_vec_len, data_len),
-        37 => wire__crate__api__client__kick_member_impl(port, ptr, rust_vec_len, data_len),
-        38 => wire__crate__api__client__media_event_stream_impl(port, ptr, rust_vec_len, data_len),
-        39 => wire__crate__api__types__network_settings_changes_default_impl(
+        27 => wire__crate__api__client__domain_checks_impl(port, ptr, rust_vec_len, data_len),
+        28 => {
+            wire__crate__api__types__domain_update_default_impl(port, ptr, rust_vec_len, data_len)
+        }
+        29 => wire__crate__api__client__edit_message_impl(port, ptr, rust_vec_len, data_len),
+        30 => wire__crate__api__client__event_stream_impl(port, ptr, rust_vec_len, data_len),
+        31 => wire__crate__api__client__fetch_bans_impl(port, ptr, rust_vec_len, data_len),
+        32 => wire__crate__api__client__fetch_invites_impl(port, ptr, rust_vec_len, data_len),
+        33 => wire__crate__api__client__fetch_messages_impl(port, ptr, rust_vec_len, data_len),
+        34 => wire__crate__api__client__hotkeys_set_impl(port, ptr, rust_vec_len, data_len),
+        41 => wire__crate__api__system__init_app_impl(port, ptr, rust_vec_len, data_len),
+        42 => wire__crate__api__client__kick_member_impl(port, ptr, rust_vec_len, data_len),
+        43 => wire__crate__api__client__media_event_stream_impl(port, ptr, rust_vec_len, data_len),
+        44 => wire__crate__api__types__network_settings_changes_default_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        41 => wire__crate__api__client__remove_member_role_impl(port, ptr, rust_vec_len, data_len),
-        42 => wire__crate__api__client__reorder_channels_impl(port, ptr, rust_vec_len, data_len),
-        43 => wire__crate__api__client__reorder_roles_impl(port, ptr, rust_vec_len, data_len),
-        44 => wire__crate__api__client__revoke_invite_impl(port, ptr, rust_vec_len, data_len),
-        45 => wire__crate__api__types__role_changes_default_impl(port, ptr, rust_vec_len, data_len),
-        46 => wire__crate__api__client__screen_audio_apps_impl(port, ptr, rust_vec_len, data_len),
-        47 => {
+        46 => wire__crate__api__client__remove_member_role_impl(port, ptr, rust_vec_len, data_len),
+        47 => wire__crate__api__client__reorder_channels_impl(port, ptr, rust_vec_len, data_len),
+        48 => wire__crate__api__client__reorder_roles_impl(port, ptr, rust_vec_len, data_len),
+        49 => wire__crate__api__client__revoke_invite_impl(port, ptr, rust_vec_len, data_len),
+        50 => wire__crate__api__types__role_changes_default_impl(port, ptr, rust_vec_len, data_len),
+        51 => wire__crate__api__client__screen_audio_apps_impl(port, ptr, rust_vec_len, data_len),
+        52 => {
             wire__crate__api__client__screen_audio_support_impl(port, ptr, rust_vec_len, data_len)
         }
-        49 => wire__crate__api__client__screen_share_start_impl(port, ptr, rust_vec_len, data_len),
-        50 => wire__crate__api__client__screen_share_stop_impl(port, ptr, rust_vec_len, data_len),
-        51 => wire__crate__api__client__screen_share_update_impl(port, ptr, rust_vec_len, data_len),
-        52 => wire__crate__api__client__screen_sources_impl(port, ptr, rust_vec_len, data_len),
-        53 => wire__crate__api__client__send_message_impl(port, ptr, rust_vec_len, data_len),
-        54 => wire__crate__api__client__server_add_impl(port, ptr, rust_vec_len, data_len),
-        55 => {
+        54 => wire__crate__api__client__screen_share_start_impl(port, ptr, rust_vec_len, data_len),
+        55 => wire__crate__api__client__screen_share_stop_impl(port, ptr, rust_vec_len, data_len),
+        56 => wire__crate__api__client__screen_share_update_impl(port, ptr, rust_vec_len, data_len),
+        57 => wire__crate__api__client__screen_sources_impl(port, ptr, rust_vec_len, data_len),
+        58 => wire__crate__api__client__send_message_impl(port, ptr, rust_vec_len, data_len),
+        59 => wire__crate__api__client__server_add_impl(port, ptr, rust_vec_len, data_len),
+        60 => wire__crate__api__types__server_addresses_default_impl(
+            port,
+            ptr,
+            rust_vec_len,
+            data_len,
+        ),
+        61 => {
             wire__crate__api__types__server_changes_default_impl(port, ptr, rust_vec_len, data_len)
         }
-        56 => wire__crate__api__client__server_remove_impl(port, ptr, rust_vec_len, data_len),
-        57 => wire__crate__api__client__server_retry_now_impl(port, ptr, rust_vec_len, data_len),
-        60 => {
+        62 => wire__crate__api__client__server_remove_impl(port, ptr, rust_vec_len, data_len),
+        63 => wire__crate__api__client__server_retry_now_impl(port, ptr, rust_vec_len, data_len),
+        66 => {
             wire__crate__api__client__set_channel_overwrite_impl(port, ptr, rust_vec_len, data_len)
         }
-        61 => wire__crate__api__client__set_public_address_impl(port, ptr, rust_vec_len, data_len),
-        66 => wire__crate__api__client__soundboard_delete_sound_impl(
+        67 => wire__crate__api__client__set_public_address_impl(port, ptr, rust_vec_len, data_len),
+        72 => wire__crate__api__client__soundboard_delete_sound_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        68 => {
+        74 => {
             wire__crate__api__client__soundboard_open_draft_impl(port, ptr, rust_vec_len, data_len)
         }
-        69 => wire__crate__api__client__soundboard_play_impl(port, ptr, rust_vec_len, data_len),
-        70 => wire__crate__api__client__soundboard_preview_impl(port, ptr, rust_vec_len, data_len),
-        71 => wire__crate__api__client__soundboard_preview_draft_impl(
+        75 => wire__crate__api__client__soundboard_play_impl(port, ptr, rust_vec_len, data_len),
+        76 => wire__crate__api__client__soundboard_preview_impl(port, ptr, rust_vec_len, data_len),
+        77 => wire__crate__api__client__soundboard_preview_draft_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        73 => wire__crate__api__types__soundboard_sound_changes_default_impl(
+        79 => wire__crate__api__types__soundboard_sound_changes_default_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        74 => wire__crate__api__client__soundboard_update_sound_impl(
+        80 => wire__crate__api__client__soundboard_update_sound_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        75 => wire__crate__api__client__soundboard_upload_impl(port, ptr, rust_vec_len, data_len),
-        76 => wire__crate__api__client__start_typing_impl(port, ptr, rust_vec_len, data_len),
-        77 => wire__crate__api__client__stream_unwatch_impl(port, ptr, rust_vec_len, data_len),
-        78 => wire__crate__api__client__stream_watch_impl(port, ptr, rust_vec_len, data_len),
-        80 => wire__crate__api__client__unban_member_impl(port, ptr, rust_vec_len, data_len),
-        81 => wire__crate__api__client__update_channel_impl(port, ptr, rust_vec_len, data_len),
-        82 => wire__crate__api__client__update_network_settings_impl(
+        81 => wire__crate__api__client__soundboard_upload_impl(port, ptr, rust_vec_len, data_len),
+        82 => wire__crate__api__client__start_typing_impl(port, ptr, rust_vec_len, data_len),
+        83 => wire__crate__api__client__stream_unwatch_impl(port, ptr, rust_vec_len, data_len),
+        84 => wire__crate__api__client__stream_watch_impl(port, ptr, rust_vec_len, data_len),
+        86 => wire__crate__api__client__unban_member_impl(port, ptr, rust_vec_len, data_len),
+        87 => wire__crate__api__client__update_channel_impl(port, ptr, rust_vec_len, data_len),
+        88 => wire__crate__api__client__update_domain_impl(port, ptr, rust_vec_len, data_len),
+        89 => wire__crate__api__client__update_network_settings_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        83 => wire__crate__api__client__update_nickname_impl(port, ptr, rust_vec_len, data_len),
-        84 => wire__crate__api__client__update_presence_impl(port, ptr, rust_vec_len, data_len),
-        85 => wire__crate__api__client__update_profile_impl(port, ptr, rust_vec_len, data_len),
-        86 => wire__crate__api__client__update_role_impl(port, ptr, rust_vec_len, data_len),
-        87 => wire__crate__api__client__update_server_impl(port, ptr, rust_vec_len, data_len),
-        88 => {
+        90 => wire__crate__api__client__update_nickname_impl(port, ptr, rust_vec_len, data_len),
+        91 => wire__crate__api__client__update_presence_impl(port, ptr, rust_vec_len, data_len),
+        92 => wire__crate__api__client__update_profile_impl(port, ptr, rust_vec_len, data_len),
+        93 => wire__crate__api__client__update_role_impl(port, ptr, rust_vec_len, data_len),
+        94 => wire__crate__api__client__update_server_impl(port, ptr, rust_vec_len, data_len),
+        95 => {
             wire__crate__api__client__update_voice_settings_impl(port, ptr, rust_vec_len, data_len)
         }
-        93 => wire__crate__api__client__voice_disconnect_member_impl(
+        100 => wire__crate__api__client__voice_disconnect_member_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        94 => wire__crate__api__client__voice_join_impl(port, ptr, rust_vec_len, data_len),
-        95 => wire__crate__api__client__voice_leave_impl(port, ptr, rust_vec_len, data_len),
-        96 => wire__crate__api__client__voice_move_member_impl(port, ptr, rust_vec_len, data_len),
-        97 => wire__crate__api__client__voice_server_deafen_impl(port, ptr, rust_vec_len, data_len),
-        98 => wire__crate__api__client__voice_server_mute_impl(port, ptr, rust_vec_len, data_len),
-        107 => wire__crate__api__types__voice_settings_changes_default_impl(
+        101 => wire__crate__api__client__voice_join_impl(port, ptr, rust_vec_len, data_len),
+        102 => wire__crate__api__client__voice_leave_impl(port, ptr, rust_vec_len, data_len),
+        103 => wire__crate__api__client__voice_move_member_impl(port, ptr, rust_vec_len, data_len),
+        104 => {
+            wire__crate__api__client__voice_server_deafen_impl(port, ptr, rust_vec_len, data_len)
+        }
+        105 => wire__crate__api__client__voice_server_mute_impl(port, ptr, rust_vec_len, data_len),
+        114 => wire__crate__api__types__voice_settings_changes_default_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        108 => wire__crate__api__client__watch_network_impl(port, ptr, rust_vec_len, data_len),
+        115 => wire__crate__api__client__watch_network_impl(port, ptr, rust_vec_len, data_len),
         _ => unreachable!(),
     }
 }
@@ -6474,46 +6988,46 @@ fn pde_ffi_dispatcher_sync_impl(
 ) -> flutter_rust_bridge::for_generated::WireSyncRust2DartSse {
     // Codec=Pde (Serialization + dispatch), see doc to use other codecs
     match func_id {
-        2 => wire__crate__api__client__audio_apply_settings_impl(ptr, rust_vec_len, data_len),
-        3 => {
+        3 => wire__crate__api__client__audio_apply_settings_impl(ptr, rust_vec_len, data_len),
+        4 => {
             wire__crate__api__client__audio_attenuation_supported_impl(ptr, rust_vec_len, data_len)
         }
-        8 => wire__crate__api__client__audio_set_level_meter_impl(ptr, rust_vec_len, data_len),
-        13 => wire__crate__api__client__camera_stop_impl(ptr, rust_vec_len, data_len),
-        15 => wire__crate__api__system__core_version_impl(ptr, rust_vec_len, data_len),
-        30 => wire__crate__api__client__identity_backup_decode_impl(ptr, rust_vec_len, data_len),
-        31 => wire__crate__api__client__identity_backup_encode_impl(ptr, rust_vec_len, data_len),
-        32 => wire__crate__api__client__identity_check_impl(ptr, rust_vec_len, data_len),
-        33 => wire__crate__api__client__identity_generate_impl(ptr, rust_vec_len, data_len),
-        34 => wire__crate__api__client__identity_load_impl(ptr, rust_vec_len, data_len),
-        35 => wire__crate__api__client__init_impl(ptr, rust_vec_len, data_len),
-        40 => wire__crate__api__client__play_cue_impl(ptr, rust_vec_len, data_len),
-        48 => wire__crate__api__client__screen_share_audio_from_impl(ptr, rust_vec_len, data_len),
-        58 => wire__crate__api__client__server_trust_fingerprint_impl(ptr, rust_vec_len, data_len),
-        59 => wire__crate__api__client__servers_list_impl(ptr, rust_vec_len, data_len),
-        62 => wire__crate__api__client__settings_get_impl(ptr, rust_vec_len, data_len),
-        63 => wire__crate__api__client__settings_set_impl(ptr, rust_vec_len, data_len),
-        64 => wire__crate__api__client__soundboard_close_draft_impl(ptr, rust_vec_len, data_len),
-        65 => wire__crate__api__client__soundboard_default_sounds_impl(ptr, rust_vec_len, data_len),
-        67 => wire__crate__api__client__soundboard_mute_player_impl(ptr, rust_vec_len, data_len),
-        72 => wire__crate__api__client__soundboard_set_listening_impl(ptr, rust_vec_len, data_len),
-        79 => wire__crate__api__client__trusted_fingerprints_impl(ptr, rust_vec_len, data_len),
-        89 => wire__crate__api__client__video_init_impl(ptr, rust_vec_len, data_len),
-        90 => wire__crate__api__client__video_set_wants_impl(ptr, rust_vec_len, data_len),
-        91 => wire__crate__api__client__video_support_impl(ptr, rust_vec_len, data_len),
-        92 => wire__crate__api__client__video_texture_stats_impl(ptr, rust_vec_len, data_len),
-        99 => {
+        9 => wire__crate__api__client__audio_set_level_meter_impl(ptr, rust_vec_len, data_len),
+        14 => wire__crate__api__client__camera_stop_impl(ptr, rust_vec_len, data_len),
+        17 => wire__crate__api__system__core_version_impl(ptr, rust_vec_len, data_len),
+        35 => wire__crate__api__client__identity_backup_decode_impl(ptr, rust_vec_len, data_len),
+        36 => wire__crate__api__client__identity_backup_encode_impl(ptr, rust_vec_len, data_len),
+        37 => wire__crate__api__client__identity_check_impl(ptr, rust_vec_len, data_len),
+        38 => wire__crate__api__client__identity_generate_impl(ptr, rust_vec_len, data_len),
+        39 => wire__crate__api__client__identity_load_impl(ptr, rust_vec_len, data_len),
+        40 => wire__crate__api__client__init_impl(ptr, rust_vec_len, data_len),
+        45 => wire__crate__api__client__play_cue_impl(ptr, rust_vec_len, data_len),
+        53 => wire__crate__api__client__screen_share_audio_from_impl(ptr, rust_vec_len, data_len),
+        64 => wire__crate__api__client__server_trust_fingerprint_impl(ptr, rust_vec_len, data_len),
+        65 => wire__crate__api__client__servers_list_impl(ptr, rust_vec_len, data_len),
+        68 => wire__crate__api__client__settings_get_impl(ptr, rust_vec_len, data_len),
+        69 => wire__crate__api__client__settings_set_impl(ptr, rust_vec_len, data_len),
+        70 => wire__crate__api__client__soundboard_close_draft_impl(ptr, rust_vec_len, data_len),
+        71 => wire__crate__api__client__soundboard_default_sounds_impl(ptr, rust_vec_len, data_len),
+        73 => wire__crate__api__client__soundboard_mute_player_impl(ptr, rust_vec_len, data_len),
+        78 => wire__crate__api__client__soundboard_set_listening_impl(ptr, rust_vec_len, data_len),
+        85 => wire__crate__api__client__trusted_fingerprints_impl(ptr, rust_vec_len, data_len),
+        96 => wire__crate__api__client__video_init_impl(ptr, rust_vec_len, data_len),
+        97 => wire__crate__api__client__video_set_wants_impl(ptr, rust_vec_len, data_len),
+        98 => wire__crate__api__client__video_support_impl(ptr, rust_vec_len, data_len),
+        99 => wire__crate__api__client__video_texture_stats_impl(ptr, rust_vec_len, data_len),
+        106 => {
             wire__crate__api__client__voice_set_priority_speaker_impl(ptr, rust_vec_len, data_len)
         }
-        100 => wire__crate__api__client__voice_set_push_to_talk_impl(ptr, rust_vec_len, data_len),
-        101 => wire__crate__api__client__voice_set_self_deaf_impl(ptr, rust_vec_len, data_len),
-        102 => wire__crate__api__client__voice_set_self_mute_impl(ptr, rust_vec_len, data_len),
-        103 => wire__crate__api__client__voice_set_stream_mute_impl(ptr, rust_vec_len, data_len),
-        104 => wire__crate__api__client__voice_set_stream_volume_impl(ptr, rust_vec_len, data_len),
-        105 => {
+        107 => wire__crate__api__client__voice_set_push_to_talk_impl(ptr, rust_vec_len, data_len),
+        108 => wire__crate__api__client__voice_set_self_deaf_impl(ptr, rust_vec_len, data_len),
+        109 => wire__crate__api__client__voice_set_self_mute_impl(ptr, rust_vec_len, data_len),
+        110 => wire__crate__api__client__voice_set_stream_mute_impl(ptr, rust_vec_len, data_len),
+        111 => wire__crate__api__client__voice_set_stream_volume_impl(ptr, rust_vec_len, data_len),
+        112 => {
             wire__crate__api__client__voice_set_user_local_mute_impl(ptr, rust_vec_len, data_len)
         }
-        106 => wire__crate__api__client__voice_set_user_volume_impl(ptr, rust_vec_len, data_len),
+        113 => wire__crate__api__client__voice_set_user_volume_impl(ptr, rust_vec_len, data_len),
         _ => unreachable!(),
     }
 }
@@ -6833,6 +7347,55 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::types::ChannelPosition>
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::types::CheckResult {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        match self {
+            Self::Verified => 0.into_dart(),
+            Self::PointsElsewhere => 1.into_dart(),
+            Self::NoRecord => 2.into_dart(),
+            Self::CloudflareProxied => 3.into_dart(),
+            Self::PartlyCorrect => 4.into_dart(),
+            Self::Failed => 5.into_dart(),
+            Self::ConfirmedByOwner => 6.into_dart(),
+            _ => unreachable!(),
+        }
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::api::types::CheckResult
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::types::CheckResult>
+    for crate::api::types::CheckResult
+{
+    fn into_into_dart(self) -> crate::api::types::CheckResult {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::types::ConnectAddress {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.host.into_into_dart().into_dart(),
+            self.port.into_into_dart().into_dart(),
+            self.trusted_certificate.into_into_dart().into_dart(),
+            self.domain_id.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::api::types::ConnectAddress
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::types::ConnectAddress>
+    for crate::api::types::ConnectAddress
+{
+    fn into_into_dart(self) -> crate::api::types::ConnectAddress {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
 impl flutter_rust_bridge::IntoDart for crate::api::types::ConnectionState {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         match self {
@@ -7083,11 +7646,14 @@ impl flutter_rust_bridge::IntoDart for crate::api::types::CoreEventPayload {
             crate::api::types::CoreEventPayload::VoiceChannelEffect(field0) => {
                 [27.into_dart(), field0.into_into_dart().into_dart()].into_dart()
             }
-            crate::api::types::CoreEventPayload::NetworkStatus(field0) => {
+            crate::api::types::CoreEventPayload::ServerAddressesUpdate(field0) => {
                 [28.into_dart(), field0.into_into_dart().into_dart()].into_dart()
             }
-            crate::api::types::CoreEventPayload::ServerNotice(field0) => {
+            crate::api::types::CoreEventPayload::NetworkStatus(field0) => {
                 [29.into_dart(), field0.into_into_dart().into_dart()].into_dart()
+            }
+            crate::api::types::CoreEventPayload::ServerNotice(field0) => {
+                [30.into_dart(), field0.into_into_dart().into_dart()].into_dart()
             }
             _ => {
                 unimplemented!("");
@@ -7130,6 +7696,123 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::types::DefaultSound>
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::types::Domain {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.id.into_into_dart().into_dart(),
+            self.hostname.into_into_dart().into_dart(),
+            self.kind.into_into_dart().into_dart(),
+            self.public_port.into_into_dart().into_dart(),
+            self.status.into_into_dart().into_dart(),
+            self.active.into_into_dart().into_dart(),
+            self.primary.into_into_dart().into_dart(),
+            self.problem_since_ms.into_into_dart().into_dart(),
+            self.last_check.into_into_dart().into_dart(),
+            self.checking.into_into_dart().into_dart(),
+            self.users_24h.into_into_dart().into_dart(),
+            self.created_at_ms.into_into_dart().into_dart(),
+            self.deactivated_at_ms.into_into_dart().into_dart(),
+            self.trusted_certificate.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive for crate::api::types::Domain {}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::types::Domain> for crate::api::types::Domain {
+    fn into_into_dart(self) -> crate::api::types::Domain {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::types::DomainCheck {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.result.into_into_dart().into_dart(),
+            self.message.into_into_dart().into_dart(),
+            self.note.into_into_dart().into_dart(),
+            self.found.into_into_dart().into_dart(),
+            self.checked_at_ms.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::api::types::DomainCheck
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::types::DomainCheck>
+    for crate::api::types::DomainCheck
+{
+    fn into_into_dart(self) -> crate::api::types::DomainCheck {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::types::DomainKind {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        match self {
+            Self::Own => 0.into_dart(),
+            Self::FreeSubdomain => 1.into_dart(),
+            Self::Tunnel => 2.into_dart(),
+            Self::ReverseProxy => 3.into_dart(),
+            _ => unreachable!(),
+        }
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive for crate::api::types::DomainKind {}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::types::DomainKind>
+    for crate::api::types::DomainKind
+{
+    fn into_into_dart(self) -> crate::api::types::DomainKind {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::types::DomainStatus {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        match self {
+            Self::Pending => 0.into_dart(),
+            Self::Verified => 1.into_dart(),
+            Self::DnsProblem => 2.into_dart(),
+            _ => unreachable!(),
+        }
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::api::types::DomainStatus
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::types::DomainStatus>
+    for crate::api::types::DomainStatus
+{
+    fn into_into_dart(self) -> crate::api::types::DomainStatus {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::types::DomainUpdate {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.active.into_into_dart().into_dart(),
+            self.primary.into_into_dart().into_dart(),
+            self.public_port.into_into_dart().into_dart(),
+            self.confirm.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::api::types::DomainUpdate
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::types::DomainUpdate>
+    for crate::api::types::DomainUpdate
+{
+    fn into_into_dart(self) -> crate::api::types::DomainUpdate {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
 impl flutter_rust_bridge::IntoDart for crate::api::types::ErrorCode {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         match self {
@@ -7150,7 +7833,15 @@ impl flutter_rust_bridge::IntoDart for crate::api::types::ErrorCode {
             Self::SoundTooLong => 14.into_dart(),
             Self::SoundInvalid => 15.into_dart(),
             Self::SoundboardFull => 16.into_dart(),
-            Self::Unknown => 17.into_dart(),
+            Self::DomainInvalid => 17.into_dart(),
+            Self::DomainExists => 18.into_dart(),
+            Self::DomainLimit => 19.into_dart(),
+            Self::DomainNotVerified => 20.into_dart(),
+            Self::DnsMismatch => 21.into_dart(),
+            Self::AcmeFailed => 22.into_dart(),
+            Self::AcmeRateLimited => 23.into_dart(),
+            Self::PortUnreachable => 24.into_dart(),
+            Self::Unknown => 25.into_dart(),
             _ => unreachable!(),
         }
     }
@@ -7313,6 +8004,8 @@ impl flutter_rust_bridge::IntoDart for crate::api::types::Invite {
         [
             self.code.into_into_dart().into_dart(),
             self.link.into_into_dart().into_dart(),
+            self.web_link.into_into_dart().into_dart(),
+            self.domain_id.into_into_dart().into_dart(),
             self.created_by.into_into_dart().into_dart(),
             self.created_at_ms.into_into_dart().into_dart(),
             self.max_uses.into_into_dart().into_dart(),
@@ -7515,6 +8208,7 @@ impl flutter_rust_bridge::IntoDart for crate::api::types::NetworkInfo {
             self.upnp_gateway.into_into_dart().into_dart(),
             self.upnp_external_ip.into_into_dart().into_dart(),
             self.upnp_error.into_into_dart().into_dart(),
+            self.domains.into_into_dart().into_dart(),
         ]
         .into_dart()
     }
@@ -7843,6 +8537,7 @@ impl flutter_rust_bridge::IntoDart for crate::api::types::ReadySnapshot {
             self.streams.into_into_dart().into_dart(),
             self.voice_settings.into_into_dart().into_dart(),
             self.soundboard_sounds.into_into_dart().into_dart(),
+            self.addresses.into_into_dart().into_dart(),
         ]
         .into_dart()
     }
@@ -8124,6 +8819,7 @@ impl flutter_rust_bridge::IntoDart for crate::api::types::Server {
             self.port.into_into_dart().into_dart(),
             self.user_id.into_into_dart().into_dart(),
             self.fingerprint.into_into_dart().into_dart(),
+            self.addresses.into_into_dart().into_dart(),
         ]
         .into_dart()
     }
@@ -8131,6 +8827,28 @@ impl flutter_rust_bridge::IntoDart for crate::api::types::Server {
 impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive for crate::api::types::Server {}
 impl flutter_rust_bridge::IntoIntoDart<crate::api::types::Server> for crate::api::types::Server {
     fn into_into_dart(self) -> crate::api::types::Server {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::types::ServerAddresses {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.primary.into_into_dart().into_dart(),
+            self.domains.into_into_dart().into_dart(),
+            self.ip.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::api::types::ServerAddresses
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::types::ServerAddresses>
+    for crate::api::types::ServerAddresses
+{
+    fn into_into_dart(self) -> crate::api::types::ServerAddresses {
         self
     }
 }
@@ -8874,6 +9592,37 @@ impl SseEncode for crate::api::types::ChannelPosition {
     }
 }
 
+impl SseEncode for crate::api::types::CheckResult {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i32>::sse_encode(
+            match self {
+                crate::api::types::CheckResult::Verified => 0,
+                crate::api::types::CheckResult::PointsElsewhere => 1,
+                crate::api::types::CheckResult::NoRecord => 2,
+                crate::api::types::CheckResult::CloudflareProxied => 3,
+                crate::api::types::CheckResult::PartlyCorrect => 4,
+                crate::api::types::CheckResult::Failed => 5,
+                crate::api::types::CheckResult::ConfirmedByOwner => 6,
+                _ => {
+                    unimplemented!("");
+                }
+            },
+            serializer,
+        );
+    }
+}
+
+impl SseEncode for crate::api::types::ConnectAddress {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <String>::sse_encode(self.host, serializer);
+        <u32>::sse_encode(self.port, serializer);
+        <bool>::sse_encode(self.trusted_certificate, serializer);
+        <i64>::sse_encode(self.domain_id, serializer);
+    }
+}
+
 impl SseEncode for crate::api::types::ConnectionState {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -9129,12 +9878,16 @@ impl SseEncode for crate::api::types::CoreEventPayload {
                 <i32>::sse_encode(27, serializer);
                 <crate::api::types::SoundEffect>::sse_encode(field0, serializer);
             }
-            crate::api::types::CoreEventPayload::NetworkStatus(field0) => {
+            crate::api::types::CoreEventPayload::ServerAddressesUpdate(field0) => {
                 <i32>::sse_encode(28, serializer);
+                <crate::api::types::ServerAddresses>::sse_encode(field0, serializer);
+            }
+            crate::api::types::CoreEventPayload::NetworkStatus(field0) => {
+                <i32>::sse_encode(29, serializer);
                 <crate::api::types::NetworkInfo>::sse_encode(field0, serializer);
             }
             crate::api::types::CoreEventPayload::ServerNotice(field0) => {
-                <i32>::sse_encode(29, serializer);
+                <i32>::sse_encode(30, serializer);
                 <crate::api::types::ServerNotice>::sse_encode(field0, serializer);
             }
             _ => {
@@ -9151,6 +9904,82 @@ impl SseEncode for crate::api::types::DefaultSound {
         <String>::sse_encode(self.name, serializer);
         <String>::sse_encode(self.emoji, serializer);
         <u32>::sse_encode(self.duration_ms, serializer);
+    }
+}
+
+impl SseEncode for crate::api::types::Domain {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i64>::sse_encode(self.id, serializer);
+        <String>::sse_encode(self.hostname, serializer);
+        <crate::api::types::DomainKind>::sse_encode(self.kind, serializer);
+        <u32>::sse_encode(self.public_port, serializer);
+        <crate::api::types::DomainStatus>::sse_encode(self.status, serializer);
+        <bool>::sse_encode(self.active, serializer);
+        <bool>::sse_encode(self.primary, serializer);
+        <i64>::sse_encode(self.problem_since_ms, serializer);
+        <Option<crate::api::types::DomainCheck>>::sse_encode(self.last_check, serializer);
+        <bool>::sse_encode(self.checking, serializer);
+        <u32>::sse_encode(self.users_24h, serializer);
+        <i64>::sse_encode(self.created_at_ms, serializer);
+        <i64>::sse_encode(self.deactivated_at_ms, serializer);
+        <bool>::sse_encode(self.trusted_certificate, serializer);
+    }
+}
+
+impl SseEncode for crate::api::types::DomainCheck {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <crate::api::types::CheckResult>::sse_encode(self.result, serializer);
+        <String>::sse_encode(self.message, serializer);
+        <String>::sse_encode(self.note, serializer);
+        <Vec<String>>::sse_encode(self.found, serializer);
+        <i64>::sse_encode(self.checked_at_ms, serializer);
+    }
+}
+
+impl SseEncode for crate::api::types::DomainKind {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i32>::sse_encode(
+            match self {
+                crate::api::types::DomainKind::Own => 0,
+                crate::api::types::DomainKind::FreeSubdomain => 1,
+                crate::api::types::DomainKind::Tunnel => 2,
+                crate::api::types::DomainKind::ReverseProxy => 3,
+                _ => {
+                    unimplemented!("");
+                }
+            },
+            serializer,
+        );
+    }
+}
+
+impl SseEncode for crate::api::types::DomainStatus {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i32>::sse_encode(
+            match self {
+                crate::api::types::DomainStatus::Pending => 0,
+                crate::api::types::DomainStatus::Verified => 1,
+                crate::api::types::DomainStatus::DnsProblem => 2,
+                _ => {
+                    unimplemented!("");
+                }
+            },
+            serializer,
+        );
+    }
+}
+
+impl SseEncode for crate::api::types::DomainUpdate {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <Option<bool>>::sse_encode(self.active, serializer);
+        <Option<bool>>::sse_encode(self.primary, serializer);
+        <Option<u32>>::sse_encode(self.public_port, serializer);
+        <bool>::sse_encode(self.confirm, serializer);
     }
 }
 
@@ -9176,7 +10005,15 @@ impl SseEncode for crate::api::types::ErrorCode {
                 crate::api::types::ErrorCode::SoundTooLong => 14,
                 crate::api::types::ErrorCode::SoundInvalid => 15,
                 crate::api::types::ErrorCode::SoundboardFull => 16,
-                crate::api::types::ErrorCode::Unknown => 17,
+                crate::api::types::ErrorCode::DomainInvalid => 17,
+                crate::api::types::ErrorCode::DomainExists => 18,
+                crate::api::types::ErrorCode::DomainLimit => 19,
+                crate::api::types::ErrorCode::DomainNotVerified => 20,
+                crate::api::types::ErrorCode::DnsMismatch => 21,
+                crate::api::types::ErrorCode::AcmeFailed => 22,
+                crate::api::types::ErrorCode::AcmeRateLimited => 23,
+                crate::api::types::ErrorCode::PortUnreachable => 24,
+                crate::api::types::ErrorCode::Unknown => 25,
                 _ => {
                     unimplemented!("");
                 }
@@ -9297,6 +10134,8 @@ impl SseEncode for crate::api::types::Invite {
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <String>::sse_encode(self.code, serializer);
         <String>::sse_encode(self.link, serializer);
+        <Option<String>>::sse_encode(self.web_link, serializer);
+        <Option<i64>>::sse_encode(self.domain_id, serializer);
         <Option<i64>>::sse_encode(self.created_by, serializer);
         <i64>::sse_encode(self.created_at_ms, serializer);
         <Option<u32>>::sse_encode(self.max_uses, serializer);
@@ -9375,12 +10214,42 @@ impl SseEncode for Vec<crate::api::types::ChannelPosition> {
     }
 }
 
+impl SseEncode for Vec<crate::api::types::ConnectAddress> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i32>::sse_encode(self.len() as _, serializer);
+        for item in self {
+            <crate::api::types::ConnectAddress>::sse_encode(item, serializer);
+        }
+    }
+}
+
 impl SseEncode for Vec<crate::api::types::DefaultSound> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <i32>::sse_encode(self.len() as _, serializer);
         for item in self {
             <crate::api::types::DefaultSound>::sse_encode(item, serializer);
+        }
+    }
+}
+
+impl SseEncode for Vec<crate::api::types::Domain> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i32>::sse_encode(self.len() as _, serializer);
+        for item in self {
+            <crate::api::types::Domain>::sse_encode(item, serializer);
+        }
+    }
+}
+
+impl SseEncode for Vec<crate::api::types::DomainCheck> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i32>::sse_encode(self.len() as _, serializer);
+        for item in self {
+            <crate::api::types::DomainCheck>::sse_encode(item, serializer);
         }
     }
 }
@@ -9745,6 +10614,7 @@ impl SseEncode for crate::api::types::NetworkInfo {
         <String>::sse_encode(self.upnp_gateway, serializer);
         <String>::sse_encode(self.upnp_external_ip, serializer);
         <String>::sse_encode(self.upnp_error, serializer);
+        <Vec<crate::api::types::Domain>>::sse_encode(self.domains, serializer);
     }
 }
 
@@ -9821,6 +10691,26 @@ impl SseEncode for Option<bool> {
         <bool>::sse_encode(self.is_some(), serializer);
         if let Some(value) = self {
             <bool>::sse_encode(value, serializer);
+        }
+    }
+}
+
+impl SseEncode for Option<crate::api::types::ConnectAddress> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <bool>::sse_encode(self.is_some(), serializer);
+        if let Some(value) = self {
+            <crate::api::types::ConnectAddress>::sse_encode(value, serializer);
+        }
+    }
+}
+
+impl SseEncode for Option<crate::api::types::DomainCheck> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <bool>::sse_encode(self.is_some(), serializer);
+        if let Some(value) = self {
+            <crate::api::types::DomainCheck>::sse_encode(value, serializer);
         }
     }
 }
@@ -10059,6 +10949,7 @@ impl SseEncode for crate::api::types::ReadySnapshot {
         <Vec<crate::api::types::ScreenStream>>::sse_encode(self.streams, serializer);
         <crate::api::types::VoiceSettings>::sse_encode(self.voice_settings, serializer);
         <Vec<crate::api::types::SoundboardSound>>::sse_encode(self.soundboard_sounds, serializer);
+        <crate::api::types::ServerAddresses>::sse_encode(self.addresses, serializer);
     }
 }
 
@@ -10205,6 +11096,16 @@ impl SseEncode for crate::api::types::Server {
         <u16>::sse_encode(self.port, serializer);
         <Option<i64>>::sse_encode(self.user_id, serializer);
         <Option<String>>::sse_encode(self.fingerprint, serializer);
+        <Vec<String>>::sse_encode(self.addresses, serializer);
+    }
+}
+
+impl SseEncode for crate::api::types::ServerAddresses {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <Option<crate::api::types::ConnectAddress>>::sse_encode(self.primary, serializer);
+        <Vec<crate::api::types::ConnectAddress>>::sse_encode(self.domains, serializer);
+        <Option<crate::api::types::ConnectAddress>>::sse_encode(self.ip, serializer);
     }
 }
 

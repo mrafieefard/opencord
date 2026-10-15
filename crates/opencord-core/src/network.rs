@@ -6,7 +6,8 @@ use proto::request::Kind as Request;
 use proto::response::Result as Response;
 
 use crate::api::types::{
-    CoreError, MappingState, NetworkInfo, NetworkSettings, NetworkSettingsChanges, NoticeSeverity,
+    CheckResult, CoreError, Domain, DomainCheck, DomainKind, DomainStatus, DomainUpdate,
+    MappingState, NetworkInfo, NetworkSettings, NetworkSettingsChanges, NoticeSeverity,
     PortProtocol, PortPurpose, PortState, PortStatus, PublicAddress, ServerNotice,
 };
 use crate::client::{Client, unexpected};
@@ -59,6 +60,123 @@ impl Client {
     }
 }
 
+impl Client {
+    /// Attaches a domain, pending its check (plan §6.1).
+    pub async fn add_domain(
+        &self,
+        key: &str,
+        hostname: String,
+        kind: DomainKind,
+        public_port: Option<u32>,
+    ) -> Result<NetworkInfo, CoreError> {
+        let request = Request::AddDomain(proto::AddDomain {
+            hostname,
+            kind: kind_to_proto(kind) as i32,
+            public_port,
+        });
+        network_info(self.request(key, request).await?)
+    }
+
+    pub async fn update_domain(
+        &self,
+        key: &str,
+        domain_id: i64,
+        update: DomainUpdate,
+    ) -> Result<NetworkInfo, CoreError> {
+        let request = Request::UpdateDomain(proto::UpdateDomain {
+            domain_id,
+            active: update.active,
+            primary: update.primary,
+            public_port: update.public_port,
+            confirm: update.confirm,
+        });
+        network_info(self.request(key, request).await?)
+    }
+
+    pub async fn delete_domain(&self, key: &str, domain_id: i64) -> Result<NetworkInfo, CoreError> {
+        let request = Request::DeleteDomain(proto::DeleteDomain { domain_id });
+        network_info(self.request(key, request).await?)
+    }
+
+    /// Starts a check; its result comes as `NetworkStatus`.
+    pub async fn check_domain(&self, key: &str, domain_id: i64) -> Result<NetworkInfo, CoreError> {
+        let request = Request::CheckDomain(proto::CheckDomain { domain_id });
+        network_info(self.request(key, request).await?)
+    }
+
+    /// A domain's last checks, newest first.
+    pub async fn domain_checks(
+        &self,
+        key: &str,
+        domain_id: i64,
+    ) -> Result<Vec<DomainCheck>, CoreError> {
+        let request = Request::FetchDomainChecks(proto::FetchDomainChecks { domain_id });
+        match self.request(key, request).await? {
+            Response::DomainChecks(list) => Ok(list.checks.into_iter().map(check_from).collect()),
+            other => Err(unexpected(&other)),
+        }
+    }
+}
+
+fn kind_to_proto(kind: DomainKind) -> proto::DomainKind {
+    match kind {
+        DomainKind::Own => proto::DomainKind::Own,
+        DomainKind::FreeSubdomain => proto::DomainKind::FreeSubdomain,
+        DomainKind::Tunnel => proto::DomainKind::Tunnel,
+        DomainKind::ReverseProxy => proto::DomainKind::ReverseProxy,
+    }
+}
+
+/// A domain this client understands; newer kinds are left out.
+fn domain_from(domain: proto::Domain) -> Option<Domain> {
+    let kind = match proto::DomainKind::try_from(domain.kind).ok()? {
+        proto::DomainKind::Own => DomainKind::Own,
+        proto::DomainKind::FreeSubdomain => DomainKind::FreeSubdomain,
+        proto::DomainKind::Tunnel => DomainKind::Tunnel,
+        proto::DomainKind::ReverseProxy => DomainKind::ReverseProxy,
+        proto::DomainKind::Unspecified => return None,
+    };
+    let status = match proto::DomainStatus::try_from(domain.status) {
+        Ok(proto::DomainStatus::Verified) => DomainStatus::Verified,
+        Ok(proto::DomainStatus::DnsProblem) => DomainStatus::DnsProblem,
+        _ => DomainStatus::Pending,
+    };
+    Some(Domain {
+        id: domain.id,
+        hostname: domain.hostname,
+        kind,
+        public_port: domain.public_port,
+        status,
+        active: domain.active,
+        primary: domain.primary,
+        problem_since_ms: domain.problem_since_ms,
+        last_check: domain.last_check.map(check_from),
+        checking: domain.checking,
+        users_24h: domain.users_24h,
+        created_at_ms: domain.created_at_ms,
+        deactivated_at_ms: domain.deactivated_at_ms,
+        trusted_certificate: domain.trusted_certificate,
+    })
+}
+
+fn check_from(check: proto::DomainCheck) -> DomainCheck {
+    DomainCheck {
+        result: match proto::CheckResult::try_from(check.result) {
+            Ok(proto::CheckResult::Verified) => CheckResult::Verified,
+            Ok(proto::CheckResult::PointsElsewhere) => CheckResult::PointsElsewhere,
+            Ok(proto::CheckResult::NoRecord) => CheckResult::NoRecord,
+            Ok(proto::CheckResult::CloudflareProxied) => CheckResult::CloudflareProxied,
+            Ok(proto::CheckResult::PartlyCorrect) => CheckResult::PartlyCorrect,
+            Ok(proto::CheckResult::ConfirmedByOwner) => CheckResult::ConfirmedByOwner,
+            _ => CheckResult::Failed,
+        },
+        message: check.message,
+        note: check.note,
+        found: check.found,
+        checked_at_ms: check.checked_at_ms,
+    }
+}
+
 fn network_info(response: Response) -> Result<NetworkInfo, CoreError> {
     match response {
         Response::NetworkInfo(info) => Ok(info_from(*info)),
@@ -96,6 +214,7 @@ pub fn info_from(info: proto::NetworkInfo) -> NetworkInfo {
         upnp_gateway: info.upnp_gateway,
         upnp_external_ip: info.upnp_external_ip,
         upnp_error: info.upnp_error,
+        domains: info.domains.into_iter().filter_map(domain_from).collect(),
     }
 }
 

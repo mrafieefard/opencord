@@ -48,6 +48,8 @@ pub struct AppState {
     pub voice_nodes: VoiceNodes,
     /// Domains & network (Phase 3 plan §5).
     pub network: crate::network::Network,
+    /// The domains attached (Phase 3 plan §6).
+    pub domains: crate::domains::Domains,
     /// Where Lavalink plays into, when music is on (Phase 3 plan §13).
     pub music_bridge: Option<opencord_voice::bridge::MusicBridge>,
     guild: RwLock<Guild>,
@@ -74,6 +76,7 @@ impl AppState {
                 v6: config.network.ip_lookup_v6.clone(),
             },
             crate::tls::http_client().expect("the HTTPS client builds with the ring provider"),
+            config.network.dns_name_server_port,
         );
         Self {
             config,
@@ -87,11 +90,19 @@ impl AppState {
             voice_key,
             voice_nodes,
             network,
+            domains: crate::domains::Domains::default(),
             music_bridge: None,
             guild: RwLock::new(guild),
             voice: StdMutex::new(VoiceStates::default()),
             writes: Mutex::new(()),
         }
+    }
+
+    /// With the domains saved.
+    #[must_use]
+    pub fn with_domains(mut self, domains: crate::domains::Domains) -> Self {
+        self.domains = domains;
+        self
     }
 
     /// With the audio bridge music plays into.

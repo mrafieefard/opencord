@@ -3,6 +3,8 @@ syntax = "proto3";
 
 package opencord.v1;
 
+import "opencord/v1/network.proto";
+
 // All ids are 64-bit Snowflakes. All timestamps are Unix milliseconds.
 
 message User {
@@ -93,6 +95,8 @@ message Invite {
   uint32 uses = 5;
   // Absent means the invite never expires.
   optional int64 expires_at_ms = 6;
+  // The domain its link uses (Phase 3); absent for links by IP address.
+  optional ConnectAddress address = 7;
 }
 
 message Ban {
@@ -148,6 +152,15 @@ enum ErrorCode {
   ERROR_CODE_SOUND_TOO_LONG = 15;
   ERROR_CODE_SOUND_INVALID = 16;
   ERROR_CODE_SOUNDBOARD_FULL = 17;
+  // Phase 3, domains and certificates.
+  ERROR_CODE_DOMAIN_INVALID = 18;
+  ERROR_CODE_DOMAIN_EXISTS = 19;
+  ERROR_CODE_DOMAIN_LIMIT = 20;
+  ERROR_CODE_DOMAIN_NOT_VERIFIED = 21;
+  ERROR_CODE_DNS_MISMATCH = 22;
+  ERROR_CODE_ACME_FAILED = 23;
+  ERROR_CODE_ACME_RATE_LIMITED = 24;
+  ERROR_CODE_PORT_UNREACHABLE = 25;
 }
 
 message Error {

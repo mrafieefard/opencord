@@ -53,6 +53,8 @@ message Event {
     NetworkStatus network_status = 80;
     // To those it concerns: the owner, or members who manage the server.
     ServerNotice server_notice = 81;
+    // Where the server is reached changed: to everyone.
+    ServerAddressesUpdate server_addresses_update = 82;
   }
 }
 

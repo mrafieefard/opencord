@@ -25,7 +25,8 @@ use crate::state::AppState;
 
 static NEXT_CONNECTION_ID: AtomicU64 = AtomicU64::new(1);
 
-pub async fn run(state: Arc<AppState>, socket: WebSocket, ip: IpAddr) {
+/// `host` is the `Host` the client asked for: the domain it came through.
+pub async fn run(state: Arc<AppState>, socket: WebSocket, ip: IpAddr, host: Option<String>) {
     let (sink, stream) = socket.split();
     let (outbound, frames) = mpsc::channel(OUTBOUND_CAPACITY);
     let closer = CloseHandle::new(state.shutdown.child_token());
@@ -36,7 +37,7 @@ pub async fn run(state: Arc<AppState>, socket: WebSocket, ip: IpAddr) {
     };
     let writer = tokio::spawn(write_frames(sink, frames, closer.clone()));
 
-    if let Some(session) = drive(&state, stream, &connection, ip).await {
+    if let Some(session) = drive(&state, stream, &connection, ip, host.as_deref()).await {
         session.detach(connection.id, std::time::Instant::now());
     }
     closer.close(CloseCode::GOING_AWAY);
@@ -83,6 +84,7 @@ async fn drive(
     mut stream: SplitStream<WebSocket>,
     connection: &Connection,
     ip: IpAddr,
+    host: Option<&str>,
 ) -> Option<Arc<Session>> {
     let nonce: Nonce = random::bytes();
     let hello = {
@@ -97,6 +99,7 @@ async fn drive(
     };
     send(connection, frames::encode(Payload::Hello(hello)));
     let session = handshake(state, &mut stream, connection, &nonce, ip).await?;
+    state.domains.used(host, session.user_id);
     serve(state, &mut stream, connection, &session).await;
     Some(session)
 }

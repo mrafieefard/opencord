@@ -195,6 +195,9 @@ class MockRepository implements OpencordRepository {
 
   // Debug triggers (plan §11) ------------------------------------------
 
+  /// The network as the server keeps it.
+  NetworkInfo debugNetwork(String serverKey) => _server(serverKey).network;
+
   /// A notice from the server, as the owner would get one.
   void debugNotice(String serverKey, ServerNotice notice) =>
       _emit(ServerNoticeReceived(serverKey, notice));
@@ -1320,10 +1323,22 @@ class MockRepository implements OpencordRepository {
     String serverKey, {
     Duration? expiresIn,
     int? maxUses,
+    int? domainId,
   }) async {
     final server = _server(serverKey);
     _require(server, Permissions.createInvite);
     await _latency();
+    final domain = domainId == null
+        ? server.addresses.primary
+        : server.addresses.domains
+              .where((address) => address.domainId == domainId)
+              .firstOrNull;
+    if (domainId != null && domain == null) {
+      throw const RepoException(
+        RepoErrorKind.conflict,
+        'That domain is not active.',
+      );
+    }
     const alphabet = 'abcdefghjkmnpqrstuvwxyz23456789';
     final code = List.generate(
       8,
@@ -1332,7 +1347,21 @@ class MockRepository implements OpencordRepository {
     final now = _clock();
     final invite = Invite(
       code: code,
-      link: 'opencord://${server.key}/invite/$code#fp=${server.fingerprint}',
+      link: switch (domain) {
+        final domain? when domain.trustedCertificate =>
+          'opencord://${domain.display}/invite/$code',
+        final domain? =>
+          'opencord://${domain.display}/invite/$code#fp=${server.fingerprint}',
+        null =>
+          'opencord://${server.key}/invite/$code#fp=${server.fingerprint}',
+      },
+      webLink: switch (domain) {
+        final domain? when domain.port == 443 =>
+          'https://${domain.host}/invite/$code',
+        final domain? => 'https://${domain.display}/invite/$code',
+        null => null,
+      },
+      domainId: domain?.domainId,
       createdBy: server.selfId,
       createdAt: now,
       maxUses: maxUses,
@@ -1448,6 +1477,7 @@ class MockRepository implements OpencordRepository {
         settings: old.settings,
         listeningPort: old.listeningPort,
         nextMainPort: old.nextMainPort,
+        domains: old.domains,
       ),
     );
   }
@@ -1479,8 +1509,252 @@ class MockRepository implements OpencordRepository {
         settings: old.settings,
         listeningPort: old.listeningPort,
         nextMainPort: old.nextMainPort,
+        domains: old.domains,
       ),
     );
+  }
+
+  /// Replaces the domains, keeps the addresses in step, and tells whom it
+  /// concerns.
+  NetworkInfo _domains(MockServer server, List<Domain> domains) {
+    final old = server.network;
+    final active = [
+      for (final domain in domains)
+        if (domain.primary && domain.active) domain,
+      for (final domain in domains)
+        if (domain.active && !domain.primary) domain,
+    ];
+    ConnectAddress address(Domain domain) => ConnectAddress(
+      host: domain.hostname,
+      port: domain.publicPort,
+      trustedCertificate: domain.trustedCertificate,
+      domainId: domain.id,
+    );
+    final addresses = ServerAddresses(
+      primary: active.isNotEmpty && active.first.primary
+          ? address(active.first)
+          : null,
+      domains: [for (final domain in active) address(domain)],
+      ip: old.publicAddress.ipv4.isEmpty
+          ? null
+          : ConnectAddress(
+              host: old.publicAddress.ipv4,
+              port: old.listeningPort,
+            ),
+    );
+    if (addresses != server.addresses) {
+      server.addresses = addresses;
+      _emit(ServerAddressesChanged(server.key, addresses));
+    }
+    return _network(
+      server,
+      NetworkInfo(
+        publicAddress: old.publicAddress,
+        ports: old.ports,
+        settings: old.settings,
+        listeningPort: old.listeningPort,
+        nextMainPort: old.nextMainPort,
+        upnpGateway: old.upnpGateway,
+        upnpExternalIp: old.upnpExternalIp,
+        upnpError: old.upnpError,
+        domains: domains,
+      ),
+    );
+  }
+
+  Domain _domain(MockServer server, int id) =>
+      server.network.domains.where((domain) => domain.id == id).firstOrNull ??
+      (throw const RepoException(RepoErrorKind.notFound, 'No such domain.'));
+
+  @override
+  Future<NetworkInfo> addDomain(
+    String serverKey, {
+    required String hostname,
+    required DomainKind kind,
+    int? publicPort,
+  }) async {
+    final server = _server(serverKey);
+    _requireOwner(server);
+    await _latency();
+    final name = hostname.trim().toLowerCase();
+    if (!RegExp(r'^([a-z0-9-]+\.)+[a-z]{2,}$').hasMatch(name)) {
+      throw RepoException(
+        RepoErrorKind.invalidArgument,
+        '${hostname.trim()} is not a domain name on the internet.',
+      );
+    }
+    final domains = server.network.domains;
+    if (domains.any((domain) => domain.hostname == name)) {
+      throw RepoException(RepoErrorKind.conflict, '$name is already added.');
+    }
+    if (domains.length >= 20) {
+      throw const RepoException(
+        RepoErrorKind.conflict,
+        'A server has at most 20 domains.',
+      );
+    }
+    final domain = Domain(
+      id: _random.nextInt(1 << 30) + 1,
+      hostname: name,
+      kind: kind,
+      publicPort:
+          publicPort ?? (kind.behindProxy ? 443 : server.network.listeningPort),
+      trustedCertificate: kind.behindProxy,
+    );
+    return _domains(server, [...domains, domain]);
+  }
+
+  @override
+  Future<NetworkInfo> updateDomain(
+    String serverKey,
+    int domainId,
+    DomainUpdate update,
+  ) async {
+    final server = _server(serverKey);
+    _requireOwner(server);
+    await _latency();
+    var domain = _domain(server, domainId);
+    var domains = server.network.domains;
+    if (update.confirm) {
+      domain = _with(
+        domain,
+        status: DomainStatus.verified,
+        lastCheck: DomainCheck(
+          result: CheckResult.confirmedByOwner,
+          message: 'Confirmed by the owner.',
+          checkedAt: _clock(),
+        ),
+      );
+    }
+    final primary = update.primary ?? false;
+    if ((update.active ?? false) || primary) {
+      if (!domain.wasVerified) {
+        throw const RepoException(
+          RepoErrorKind.conflict,
+          'Check the domain first: only verified domains can be used.',
+        );
+      }
+      domain = _with(domain, active: true);
+    }
+    if (update.active == false) {
+      if (domain.primary && domains.where((d) => d.active).length > 1) {
+        throw const RepoException(
+          RepoErrorKind.conflict,
+          'Make another domain the primary before turning this one off.',
+        );
+      }
+      domain = _with(
+        domain,
+        active: false,
+        primary: false,
+        deactivatedAt: _clock(),
+      );
+    }
+    if (update.publicPort case final port?) {
+      domain = _with(domain, publicPort: port);
+    }
+    domains = [
+      for (final other in domains)
+        if (other.id == domain.id)
+          primary ? _with(domain, primary: true) : domain
+        else if (primary)
+          _with(other, primary: false)
+        else
+          other,
+    ];
+    return _domains(server, _withPrimary(domains));
+  }
+
+  /// One active domain is the primary, while any is active.
+  List<Domain> _withPrimary(List<Domain> domains) {
+    if (domains.any((d) => d.active && d.primary)) return domains;
+    final first = domains.where((d) => d.active).firstOrNull;
+    return [
+      for (final domain in domains)
+        domain == first ? _with(domain, primary: true) : domain,
+    ];
+  }
+
+  @override
+  Future<NetworkInfo> deleteDomain(String serverKey, int domainId) async {
+    final server = _server(serverKey);
+    _requireOwner(server);
+    await _latency();
+    final domain = _domain(server, domainId);
+    final domains = server.network.domains;
+    if (domain.primary && domains.where((d) => d.active).length > 1) {
+      throw const RepoException(
+        RepoErrorKind.conflict,
+        'Make another domain the primary before deleting this one.',
+      );
+    }
+    server.domainChecks.remove(domainId);
+    return _domains(
+      server,
+      _withPrimary([
+        for (final other in domains)
+          if (other.id != domainId) other,
+      ]),
+    );
+  }
+
+  /// Names starting with "wrong" point elsewhere; the rest pass.
+  @override
+  Future<NetworkInfo> checkDomain(String serverKey, int domainId) async {
+    final server = _server(serverKey);
+    _requireOwner(server);
+    await _latency(60);
+    final domain = _domain(server, domainId);
+    final info = _domains(server, [
+      for (final other in server.network.domains)
+        other.id == domainId ? _with(other, checking: true) : other,
+    ]);
+    _later(const Duration(milliseconds: 900), () {
+      final passed = !domain.hostname.startsWith('wrong');
+      final check = DomainCheck(
+        result: passed ? CheckResult.verified : CheckResult.pointsElsewhere,
+        message: passed
+            ? 'It points to this server.'
+            : 'It points to 198.51.100.1, not this server '
+                  '(${server.network.publicAddress.ipv4}).',
+        found: [passed ? server.network.publicAddress.ipv4 : '198.51.100.1'],
+        checkedAt: _clock(),
+      );
+      server.domainChecks[domainId] = [
+        check,
+        ...?server.domainChecks[domainId],
+      ].take(10).toList();
+      final first = passed && !server.network.domains.any((d) => d.active);
+      final current = _domain(server, domainId);
+      _domains(server, [
+        for (final other in server.network.domains)
+          if (other.id == domainId)
+            _with(
+              current,
+              checking: false,
+              lastCheck: check,
+              status: passed
+                  ? DomainStatus.verified
+                  : current.wasVerified
+                  ? DomainStatus.dnsProblem
+                  : DomainStatus.pending,
+              active: first ? true : null,
+              primary: first ? true : null,
+            )
+          else
+            other,
+      ]);
+    });
+    return info;
+  }
+
+  @override
+  Future<List<DomainCheck>> domainChecks(String serverKey, int domainId) async {
+    final server = _server(serverKey);
+    _requireOwner(server);
+    _domain(server, domainId);
+    await _latency(60);
+    return server.domainChecks[domainId] ?? const [];
   }
 
   @override
@@ -1532,6 +1806,7 @@ class MockRepository implements OpencordRepository {
             : PortState.free,
         upnpGateway: next.upnpEnabled ? '192.168.1.1' : '',
         upnpExternalIp: next.upnpEnabled ? old.publicAddress.ipv4 : '',
+        domains: old.domains,
       ),
     );
   }
@@ -2288,3 +2563,29 @@ class MockRepository implements OpencordRepository {
     _emit(VoiceChanged(session.server, session.channel, List.of(participants)));
   }
 }
+
+/// [domain] with some fields changed.
+Domain _with(
+  Domain domain, {
+  DomainStatus? status,
+  bool? active,
+  bool? primary,
+  bool? checking,
+  int? publicPort,
+  DomainCheck? lastCheck,
+  DateTime? deactivatedAt,
+}) => Domain(
+  id: domain.id,
+  hostname: domain.hostname,
+  kind: domain.kind,
+  publicPort: publicPort ?? domain.publicPort,
+  status: status ?? domain.status,
+  active: active ?? domain.active,
+  primary: primary ?? domain.primary,
+  problemSince: domain.problemSince,
+  lastCheck: lastCheck ?? domain.lastCheck,
+  checking: checking ?? domain.checking,
+  users24h: domain.users24h,
+  deactivatedAt: active == true ? null : deactivatedAt ?? domain.deactivatedAt,
+  trustedCertificate: domain.trustedCertificate,
+);

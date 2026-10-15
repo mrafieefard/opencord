@@ -55,6 +55,10 @@ class MockServer {
   final List<Ban> bans = [];
   VoiceSettings voiceSettings = const VoiceSettings();
 
+  /// Where the server is reached, and each domain's checks, newest first.
+  ServerAddresses addresses = const ServerAddresses();
+  final Map<int, List<DomainCheck>> domainChecks = {};
+
   /// Domains & network, as the owner sees it (Phase 3).
   NetworkInfo network = const NetworkInfo(
     publicAddress: PublicAddress(
@@ -183,6 +187,7 @@ class MockServer {
         for (final MapEntry(:key, :value) in readStates.entries)
           if (visible.containsKey(key)) key: value,
       },
+      addresses: addresses,
     );
   }
 }
