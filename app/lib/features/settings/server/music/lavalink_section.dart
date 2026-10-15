@@ -123,16 +123,27 @@ class BridgeChecklist extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (!bridge.enabled) {
-      return const SettingsSection(
+      return SettingsSection(
         title: 'What Lavalink needs',
         children: [
-          SettingsRow(
-            icon: OcIcons.warning,
-            title: 'Music is off on this server',
-            subtitle:
-                'Turn it on with [music] enabled in opencord.toml; voice must '
-                'run on this server.',
-          ),
+          if (bridge.nodeBridges.isEmpty)
+            const SettingsRow(
+              icon: OcIcons.warning,
+              title: 'Music is off on this server',
+              subtitle:
+                  'Turn it on with [music] enabled in opencord.toml, and in '
+                  'the [music] section of each voice node.',
+            )
+          else
+            for (final node in bridge.nodeBridges)
+              SettingsRow(
+                icon: OcIcons.check,
+                title: 'Lavalink connects to wss://$node',
+                mono: true,
+                subtitle:
+                    "A voice node's bridge. Its certificate must be one "
+                    'Lavalink trusts, and its music port reachable.',
+              ),
         ],
       );
     }
@@ -179,6 +190,30 @@ class BridgeChecklist extends StatelessWidget {
             MappingState.failed => 'UPnP could not open the port',
             MappingState.notUsed => 'Not used',
           },
+        ),
+        for (final node in bridge.nodeBridges)
+          SettingsRow(
+            icon: OcIcons.check,
+            title: 'Voice node: wss://$node',
+            mono: true,
+            subtitle:
+                'Channels on that node take their music there. Its '
+                'certificate must be one Lavalink trusts.',
+          ),
+        SettingsRow(
+          icon: OcIcons.graphicEq,
+          title: switch (bridge.connections) {
+            0 => 'No Lavalink connected now',
+            1 => '1 Lavalink connection',
+            final count => '$count Lavalink connections',
+          },
+          subtitle: [
+            '${bridge.packets} packets',
+            if (bridge.connections > 0) 'jitter ${bridge.jitterMs} ms',
+            if (bridge.decryptFailures > 0)
+              '${bridge.decryptFailures} failed to decrypt',
+            if (bridge.dropped > 0) '${bridge.dropped} dropped',
+          ].join(' · '),
         ),
       ],
     );

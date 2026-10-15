@@ -262,6 +262,68 @@ async fn lavalinks_audio_arrives_decrypted_in_either_mode() {
     }
 }
 
+/// Skips events until one matches, for at most `within`.
+async fn event_matching(
+    events: &mut mpsc::UnboundedReceiver<BridgeEvent>,
+    within: Duration,
+    wanted: impl Fn(&BridgeEvent) -> bool,
+) -> Option<BridgeEvent> {
+    tokio::time::timeout(within, async {
+        loop {
+            let event = events.recv().await?;
+            if wanted(&event) {
+                return Some(event);
+            }
+        }
+    })
+    .await
+    .ok()
+    .flatten()
+}
+
+#[tokio::test]
+async fn audio_that_starts_and_stops_is_reported_with_its_jitter() {
+    let mut harness = harness().await;
+    harness.bridge.expect(player("t1"));
+    let mut lavalink = Lavalink::connect(&harness.url, "t1", Mode::Aes256Gcm).await;
+
+    for _ in 0..25 {
+        lavalink.play(Mode::Aes256Gcm).await;
+        next_frame(&mut harness.frames).await;
+        tokio::time::sleep(Duration::from_millis(20)).await;
+    }
+    let audio = |event: &BridgeEvent| matches!(event, BridgeEvent::Audio { .. });
+    let silent = |event: &BridgeEvent| matches!(event, BridgeEvent::Silent { .. });
+    assert_eq!(
+        event_matching(&mut harness.events, Duration::from_secs(1), audio).await,
+        Some(BridgeEvent::Audio {
+            channel_id: CHANNEL
+        })
+    );
+    let jitter = harness.bridge.stats().jitter_ms;
+    assert!(jitter < 20, "packets 20 ms apart, as stamped: {jitter} ms");
+
+    // Lavalink pauses: silent after 2 s, flowing again with the next packet.
+    assert_eq!(
+        event_matching(&mut harness.events, Duration::from_secs(4), silent).await,
+        Some(BridgeEvent::Silent {
+            channel_id: CHANNEL
+        })
+    );
+    lavalink.play(Mode::Aes256Gcm).await;
+    next_frame(&mut harness.frames).await;
+    assert_eq!(
+        event_matching(&mut harness.events, Duration::from_secs(1), audio).await,
+        Some(BridgeEvent::Audio {
+            channel_id: CHANNEL
+        })
+    );
+    assert!(
+        harness.bridge.stats().jitter_ms < 20,
+        "a pause is not jitter"
+    );
+}
+
 #[tokio::test]
 async fn heartbeats_are_acknowledged() {
     let harness = harness().await;

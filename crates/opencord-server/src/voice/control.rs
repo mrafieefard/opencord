@@ -140,6 +140,7 @@ async fn register(
     let link = NodeLink {
         endpoint: node.endpoint.clone(),
         fingerprint,
+        music: register.music,
     };
     let registration =
         state
@@ -267,6 +268,14 @@ async fn handle(
             }
         }
         Some(Payload::ParticipantConnected(_)) => {}
+        Some(Payload::MusicBridgeStatus(status)) => {
+            // A node speaks only for the channels it serves.
+            if state.voice_nodes.serves(registration, status.channel_id)
+                && let Some(event) = control::bridge_event_from(status)
+            {
+                crate::music::bridge_event(state, event);
+            }
+        }
         Some(Payload::Error(error)) => {
             tracing::warn!(node = registration.id(), message = ?error.message, "a voice node reported an error");
         }

@@ -3,18 +3,21 @@
 //! embedded node, and takes its orders from the main server over the
 //! control channel.
 
-use std::net::SocketAddr;
+use std::net::{IpAddr, SocketAddr};
 use std::path::Path;
 use std::sync::Arc;
 
 use anyhow::{Context as _, anyhow};
 use axum::Router;
-use axum::extract::{State, WebSocketUpgrade};
-use axum::response::Response;
+use axum::extract::ws::rejection::WebSocketUpgradeRejection;
+use axum::extract::{ConnectInfo, Query, State, WebSocketUpgrade};
+use axum::http::StatusCode;
+use axum::response::{IntoResponse, Response};
 use axum::routing::get;
 use axum_server::Handle;
 use axum_server::tls_rustls::RustlsConfig;
 use opencord_common::address::Fingerprint;
+use opencord_voice::bridge::{self, BridgeConfig, MusicBridge};
 use opencord_voice::node::{NodeConfig, VoiceNode};
 use tokio::sync::watch;
 use tokio::task::JoinHandle;
@@ -31,6 +34,7 @@ pub use config::{DEFAULT_VOICE_NODE_TOML, NodeSection, VoiceNodeConfig};
 #[derive(Debug)]
 pub struct VoiceNodeHandle {
     endpoint: String,
+    music: Option<MusicBridge>,
     /// Where the voice gateway listens.
     pub local_addr: SocketAddr,
     pub fingerprint: Fingerprint,
@@ -73,19 +77,52 @@ pub async fn start_on(
     .await
     .with_context(|| format!("could not start voice on UDP port {}", config.node.udp_port))?;
 
+    let (music, bridge_events) = if config.music.enabled {
+        let public_ip = match &checked.public_address {
+            Some(address) => resolve(address).await,
+            None => resolve(&checked.endpoint_host).await,
+        };
+        let (music, mut frames, events) = MusicBridge::start(BridgeConfig {
+            udp_port: config.music.audio_udp_port,
+            public_ip,
+            heartbeat: bridge::HEARTBEAT,
+        })
+        .await
+        .with_context(|| {
+            format!(
+                "could not start music on UDP port {}",
+                config.music.audio_udp_port
+            )
+        })?;
+        let to_node = node.clone();
+        tokio::spawn(async move {
+            while let Some(frame) = frames.recv().await {
+                to_node.music_frame(frame.channel_id, frame.packet);
+            }
+        });
+        (Some(music), Some(events))
+    } else {
+        (None, None)
+    };
+
     listener
         .set_nonblocking(true)
         .context("could not set up the listener")?;
     let rustls = RustlsConfig::from_config(Arc::new(tls::server_config(&tls)?));
     let app = Router::new()
         .route("/voice", get(voice_gateway))
-        .with_state(node.clone());
+        .with_state(node.clone())
+        .merge(
+            Router::new()
+                .route("/", get(music_bridge))
+                .with_state(music.clone()),
+        );
     let handle = Handle::new();
     let serve = tokio::spawn(
         axum_server::from_tcp_rustls(listener, rustls)
             .context("could not set up the listener")?
             .handle(handle.clone())
-            .serve(app.into_make_service()),
+            .serve(app.into_make_service_with_connect_info::<SocketAddr>()),
     );
     let local_addr = handle
         .listening()
@@ -101,10 +138,18 @@ pub async fn start_on(
         certificate_fingerprint: tls.fingerprint,
         public_address: checked.public_address.unwrap_or_default(),
         udp_port: node.udp_port(),
+        music: music.clone(),
     };
-    let uplink = tokio::spawn(uplink::run(uplink, node.clone(), events, registered_tx));
+    let uplink = tokio::spawn(uplink::run(
+        uplink,
+        node.clone(),
+        events,
+        bridge_events,
+        registered_tx,
+    ));
     Ok(VoiceNodeHandle {
         endpoint: config.node.endpoint,
+        music,
         local_addr,
         fingerprint: tls.fingerprint,
         node,
@@ -125,6 +170,11 @@ impl VoiceNodeHandle {
         self.node.udp_port()
     }
 
+    /// The audio bridge, when music is on here.
+    pub fn music_bridge(&self) -> Option<&MusicBridge> {
+        self.music.as_ref()
+    }
+
     /// Waits until the node is registered with the main server.
     pub async fn registered(&self) {
         let mut registered = self.registered.clone();
@@ -137,6 +187,9 @@ impl VoiceNodeHandle {
         self.uplink.abort();
         let _ = self.uplink.await;
         self.node.shutdown();
+        if let Some(music) = &self.music {
+            music.shutdown();
+        }
         self.handle.shutdown();
         let _ = self.serve.await;
     }
@@ -144,6 +197,41 @@ impl VoiceNodeHandle {
 
 async fn voice_gateway(State(node): State<VoiceNode>, upgrade: WebSocketUpgrade) -> Response {
     http::voice_gateway_upgrade(node, upgrade)
+}
+
+#[derive(serde::Deserialize)]
+struct BridgeQuery {
+    v: Option<u8>,
+}
+
+/// `wss://<endpoint>/?v=8`: Lavalink's voice connection for a channel on
+/// this node (Phase 3 plan §13.1). Nodes are reached directly, so the
+/// connection's own address is Lavalink's.
+async fn music_bridge(
+    State(music): State<Option<MusicBridge>>,
+    ConnectInfo(peer): ConnectInfo<SocketAddr>,
+    Query(query): Query<BridgeQuery>,
+    upgrade: Result<WebSocketUpgrade, WebSocketUpgradeRejection>,
+) -> Response {
+    let (Some(music), Some(4 | 8), Ok(upgrade)) = (music, query.v, upgrade) else {
+        return StatusCode::NOT_FOUND.into_response();
+    };
+    upgrade
+        .max_message_size(crate::music::BRIDGE_FRAME_BYTES)
+        .max_frame_size(crate::music::BRIDGE_FRAME_BYTES)
+        .on_upgrade(move |socket| async move { music.serve(socket, peer).await })
+}
+
+/// An IP, or a host name's first address.
+async fn resolve(host: &str) -> Option<IpAddr> {
+    if let Ok(ip) = host.parse::<IpAddr>() {
+        return Some(ip);
+    }
+    tokio::net::lookup_host((host, 0))
+        .await
+        .ok()?
+        .map(|address| address.ip())
+        .next()
 }
 
 async fn read_secret(path: &Path) -> anyhow::Result<Vec<u8>> {

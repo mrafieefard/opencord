@@ -6,6 +6,7 @@
 use std::sync::Arc;
 
 use opencord_voice::bridge::ExpectedPlayer;
+use opencord_voice::node::NodeCommand;
 use serde_json::{Value, json};
 
 use super::queue::Item;
@@ -13,6 +14,7 @@ use crate::lavalink::bridge;
 use crate::lavalink::client::{Failure, Rest};
 use crate::lavalink::{Node, health::Health};
 use crate::state::AppState;
+use crate::voice::nodes::{MusicTarget, NodeId};
 
 /// Lavalink's player for a channel, on one node.
 #[derive(Debug, Clone)]
@@ -24,6 +26,8 @@ pub struct Player {
     /// The bridge has not been told about it yet: the next update carries
     /// a voice state.
     needs_voice: bool,
+    /// The voice node whose bridge the voice state points at.
+    pub bridge_at: Option<NodeId>,
 }
 
 /// What Lavalink reports a channel's player plays.
@@ -43,6 +47,7 @@ impl Player {
             rest,
             session,
             needs_voice: true,
+            bridge_at: None,
         })
     }
 
@@ -65,26 +70,54 @@ impl Player {
             .is_none_or(|node| matches!(node.health(), Health::Degraded | Health::Draining))
     }
 
-    /// The voice state Lavalink connects to the bridge with; the bridge
-    /// expects it from now on, and no longer the previous one.
-    fn voice(&self, state: &AppState, channel_id: i64) -> Option<Value> {
-        let music_bridge = state.music_bridge.as_ref()?;
+    /// The voice state Lavalink connects to the bridge with, at the voice
+    /// node serving the channel (plan §13.1); that bridge expects it from
+    /// now on, and no longer the previous one.
+    fn voice(&mut self, state: &AppState, channel_id: i64) -> Option<Value> {
         let node = state.lavalink.node(self.node_id)?;
-        let token = crate::random::code(32);
-        let session_id = crate::random::code(32);
-        music_bridge.expect(ExpectedPlayer {
+        let player = ExpectedPlayer {
             channel_id,
             user_id: state.lavalink.user_id(),
-            token: token.clone(),
-            session_id: session_id.clone(),
+            token: crate::random::code(32),
+            session_id: crate::random::code(32),
             allowed: node.allowed_addresses(),
-        });
+        };
+        let (endpoint, at) = match state.voice_nodes.music_target(channel_id)? {
+            MusicTarget::Embedded => {
+                state.music_bridge.as_ref()?.expect(player.clone());
+                (bridge::address(state).endpoint(), NodeId::Embedded)
+            }
+            MusicTarget::External {
+                id,
+                bridge: Some(bridge),
+            } => {
+                state
+                    .voice_nodes
+                    .send(channel_id, NodeCommand::ExpectMusic(player.clone()));
+                (bridge, NodeId::External(id))
+            }
+            MusicTarget::External { id, bridge: None } => {
+                tracing::warn!(
+                    channel_id,
+                    node = id,
+                    "the channel's voice node runs no audio bridge: turn on [music] there"
+                );
+                return None;
+            }
+        };
+        self.bridge_at = Some(at);
         Some(json!({
-            "token": token,
-            "endpoint": bridge::address(state).endpoint(),
-            "sessionId": session_id,
+            "token": player.token,
+            "endpoint": endpoint,
+            "sessionId": player.session_id,
             "channelId": channel_id.to_string(),
         }))
+    }
+
+    /// Whether the channel's voice node changed since the voice state was
+    /// given: everyone left and came back on another node.
+    pub fn bridge_moved(&self, state: &AppState, channel_id: i64) -> bool {
+        self.bridge_at.is_some() && state.voice_nodes.node_of(channel_id) != self.bridge_at
     }
 
     /// Sends `body`, with a voice state when the bridge has none for it.
@@ -152,6 +185,11 @@ impl Player {
             .await
     }
 
+    /// The next update carries a new voice state.
+    pub fn renew_voice(&mut self) {
+        self.needs_voice = true;
+    }
+
     /// Gives the bridge a new voice state: after a restart, or when
     /// Lavalink lost its voice connection.
     pub async fn reconnect_voice(
@@ -186,9 +224,7 @@ impl Player {
     /// channel. A node that cannot be reached is cleaned up when it is back
     /// (plan §12.7).
     pub fn destroy(self, state: &Arc<AppState>, channel_id: i64) {
-        if let Some(music_bridge) = &state.music_bridge {
-            music_bridge.cancel(channel_id);
-        }
+        stop_stream(state, channel_id);
         tokio::spawn(async move {
             if let Err(failure) = self.rest.destroy_player(&self.session, channel_id).await {
                 tracing::debug!(
@@ -207,5 +243,22 @@ impl Player {
         tokio::spawn(async move {
             let _ = self.rest.destroy_player(&self.session, channel_id).await;
         });
+    }
+}
+
+/// Ends the channel's music stream and bridge connection, where the
+/// channel's node is and on this server (plan §18.4).
+pub fn stop_stream(state: &AppState, channel_id: i64) {
+    if let Some(music_bridge) = &state.music_bridge {
+        music_bridge.cancel(channel_id);
+    }
+    let command = NodeCommand::StopMusic { channel_id };
+    match state.voice_nodes.node_of(channel_id) {
+        Some(NodeId::External(_)) => state.voice_nodes.send(channel_id, command),
+        _ => {
+            if let Some(node) = state.voice_nodes.embedded() {
+                node.send(command);
+            }
+        }
     }
 }

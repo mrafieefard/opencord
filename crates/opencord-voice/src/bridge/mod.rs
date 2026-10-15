@@ -26,6 +26,11 @@ use rtp::Opener;
 pub const EXPECT_FOR: Duration = Duration::from_secs(60);
 /// How long a connection whose WebSocket dropped can resume.
 pub const RESUME_FOR: Duration = Duration::from_secs(60);
+/// Audio that stops this long counts as silent (plan §12.5, the audio
+/// watchdog).
+pub const SILENT_AFTER: Duration = Duration::from_secs(2);
+/// Opus over RTP counts its timestamp at 48 kHz.
+const CLOCK_RATE: f64 = 48_000.0;
 /// What Lavalink is told to heartbeat at (Discord's value is similar).
 pub const HEARTBEAT: Duration = Duration::from_millis(13_750);
 /// Connection attempts allowed from one address per [`ATTEMPT_PERIOD`].
@@ -76,6 +81,24 @@ pub enum BridgeEvent {
     /// A sign-in with the right token came from an address the node's
     /// strict address check does not allow.
     Refused { channel_id: i64, peer: IpAddr },
+    /// Audio for the channel started arriving, first or after a silence.
+    Audio { channel_id: i64 },
+    /// Audio for the channel stopped for [`SILENT_AFTER`]: Lavalink paused,
+    /// or its node is stuck.
+    Silent { channel_id: i64 },
+}
+
+impl BridgeEvent {
+    pub fn channel_id(&self) -> i64 {
+        match self {
+            Self::Connected { channel_id, .. }
+            | Self::Closed { channel_id, .. }
+            | Self::Discovered { channel_id, .. }
+            | Self::Refused { channel_id, .. }
+            | Self::Audio { channel_id }
+            | Self::Silent { channel_id } => *channel_id,
+        }
+    }
 }
 
 /// What the bridge counts (plan §13.3, metrics).
@@ -85,6 +108,9 @@ pub struct BridgeStats {
     pub packets: u64,
     pub decrypt_failures: u64,
     pub dropped: u64,
+    /// The highest interarrival jitter of the connections now (RFC 3550),
+    /// in milliseconds.
+    pub jitter_ms: u32,
 }
 
 /// Discord's voice close codes, as Lavalink reports them.
@@ -146,6 +172,13 @@ struct Live {
     discovered: Option<IpAddr>,
     /// Whether audio came yet, to log where from once.
     heard: bool,
+    /// When audio last came, and whether it flows now.
+    last_audio: Option<Instant>,
+    flowing: bool,
+    /// RFC 3550 interarrival jitter, in timestamp units, and the last
+    /// packet's arrival and RTP timestamp for it.
+    jitter: f64,
+    last_packet: Option<(Instant, u32)>,
     /// The WebSocket now attached; `None` while it is away.
     socket: Option<Attached>,
     detached_at: Option<Instant>,
@@ -263,8 +296,15 @@ impl MusicBridge {
 
     pub fn stats(&self) -> BridgeStats {
         let shared = self.lock();
+        let jitter = shared
+            .live
+            .values()
+            .map(|live| live.jitter)
+            .fold(0.0, f64::max);
         BridgeStats {
             connections: u32::try_from(shared.live.len()).unwrap_or(u32::MAX),
+            // Whole milliseconds: what the settings show.
+            jitter_ms: (jitter / CLOCK_RATE * 1000.0).round() as u32,
             ..shared.stats
         }
     }
@@ -313,9 +353,19 @@ impl MusicBridge {
         shared
             .attempts
             .retain(|_, (since, _)| now - *since < ATTEMPT_PERIOD);
+        let mut silent = Vec::new();
+        for (channel, live) in &mut shared.live {
+            if live.flowing && live.last_audio.is_some_and(|at| now - at >= SILENT_AFTER) {
+                live.flowing = false;
+                silent.push(*channel);
+            }
+        }
         drop(shared);
         for (channel, live) in ended {
             self.ended(channel, live, close::SESSION_TIMEOUT);
+        }
+        for channel_id in silent {
+            let _ = self.config.events.send(BridgeEvent::Silent { channel_id });
         }
     }
 
@@ -329,6 +379,21 @@ impl MusicBridge {
         }
         entry.1 += 1;
         entry.1 <= ATTEMPTS
+    }
+}
+
+impl Live {
+    /// RFC 3550's interarrival jitter, after a packet with RTP `timestamp`
+    /// arrived at `at`. A silence (Lavalink paused) starts it over.
+    fn jitter_after(&mut self, at: Instant, timestamp: u32, after_silence: bool) {
+        if let Some((last_at, last_timestamp)) = self.last_packet.filter(|_| !after_silence) {
+            let arrived = at.saturating_duration_since(last_at).as_secs_f64() * CLOCK_RATE;
+            // RTP timestamps wrap: their difference is a signed 32-bit one.
+            let stamped = f64::from(timestamp.wrapping_sub(last_timestamp).cast_signed());
+            let difference = (arrived - stamped).abs();
+            self.jitter += (difference - self.jitter) / 16.0;
+        }
+        self.last_packet = Some((at, timestamp));
     }
 }
 

@@ -6074,8 +6074,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   LavalinkBridge dco_decode_lavalink_bridge(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 7)
-      throw Exception('unexpected arr length: expect 7 but see ${arr.length}');
+    if (arr.length != 13)
+      throw Exception('unexpected arr length: expect 13 but see ${arr.length}');
     return LavalinkBridge(
       enabled: dco_decode_bool(arr[0]),
       url: dco_decode_String(arr[1]),
@@ -6084,6 +6084,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       audioPort: dco_decode_u_32(arr[4]),
       audioListening: dco_decode_bool(arr[5]),
       mapping: dco_decode_mapping_state(arr[6]),
+      connections: dco_decode_u_32(arr[7]),
+      packets: dco_decode_u_64(arr[8]),
+      decryptFailures: dco_decode_u_64(arr[9]),
+      dropped: dco_decode_u_64(arr[10]),
+      jitterMs: dco_decode_u_32(arr[11]),
+      nodeBridges: dco_decode_list_String(arr[12]),
     );
   }
 
@@ -8634,6 +8640,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     var var_audioPort = sse_decode_u_32(deserializer);
     var var_audioListening = sse_decode_bool(deserializer);
     var var_mapping = sse_decode_mapping_state(deserializer);
+    var var_connections = sse_decode_u_32(deserializer);
+    var var_packets = sse_decode_u_64(deserializer);
+    var var_decryptFailures = sse_decode_u_64(deserializer);
+    var var_dropped = sse_decode_u_64(deserializer);
+    var var_jitterMs = sse_decode_u_32(deserializer);
+    var var_nodeBridges = sse_decode_list_String(deserializer);
     return LavalinkBridge(
       enabled: var_enabled,
       url: var_url,
@@ -8642,6 +8654,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       audioPort: var_audioPort,
       audioListening: var_audioListening,
       mapping: var_mapping,
+      connections: var_connections,
+      packets: var_packets,
+      decryptFailures: var_decryptFailures,
+      dropped: var_dropped,
+      jitterMs: var_jitterMs,
+      nodeBridges: var_nodeBridges,
     );
   }
 
@@ -11690,6 +11708,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_u_32(self.audioPort, serializer);
     sse_encode_bool(self.audioListening, serializer);
     sse_encode_mapping_state(self.mapping, serializer);
+    sse_encode_u_32(self.connections, serializer);
+    sse_encode_u_64(self.packets, serializer);
+    sse_encode_u_64(self.decryptFailures, serializer);
+    sse_encode_u_64(self.dropped, serializer);
+    sse_encode_u_32(self.jitterMs, serializer);
+    sse_encode_list_String(self.nodeBridges, serializer);
   }
 
   @protected

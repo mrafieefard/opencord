@@ -9,7 +9,7 @@
 
 use std::collections::HashMap;
 use std::net::SocketAddr;
-use std::sync::atomic::{AtomicU32, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use std::sync::{Arc, LazyLock, Mutex};
 use std::time::Duration;
 
@@ -60,6 +60,8 @@ pub struct Fake {
     pub live: Mutex<HashMap<i64, LivePlayer>>,
     /// Identifiers of every /v4/loadtracks.
     pub loads: Mutex<Vec<String>>,
+    /// /v4/info never answers, as a stuck Lavalink's.
+    pub info_hangs: AtomicBool,
     /// To the WebSocket: events and player updates.
     events: broadcast::Sender<String>,
     sessions: AtomicU32,
@@ -209,6 +211,7 @@ impl FakeLavalink {
             destroyed: Mutex::new(Vec::new()),
             live: Mutex::new(HashMap::new()),
             loads: Mutex::new(Vec::new()),
+            info_hangs: AtomicBool::new(false),
             events: broadcast::channel(256).0,
             sessions: AtomicU32::new(0),
             current: Mutex::new(None),
@@ -274,6 +277,9 @@ fn unauthorized() -> Response {
 async fn info(State(fake): State<Arc<Fake>>, headers: HeaderMap) -> Response {
     if !fake.authorized(&headers) {
         return unauthorized();
+    }
+    if fake.info_hangs.load(Ordering::Relaxed) {
+        std::future::pending::<()>().await;
     }
     axum::Json(json!({
         "version": { "semver": fake.version, "major": 4, "minor": 2, "patch": 2 },

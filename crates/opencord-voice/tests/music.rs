@@ -71,6 +71,43 @@ async fn everyone_in_the_channel_hears_the_music() {
     }
 }
 
+/// Plan §21.2, L3: a 10-person channel hears each frame within 150 ms of
+/// each other (here on one machine; a LAN adds little).
+#[tokio::test]
+async fn ten_listeners_hear_each_frame_together() {
+    let _machine = shared_machine().await;
+    let node = node().await;
+    let mut listeners = Vec::new();
+    for user_id in 1..=10 {
+        listeners.push(join(&node, user_id).await);
+    }
+
+    let playing = play(&node, 1, 0, 100);
+    let hearing = futures_util::future::join_all(
+        listeners
+            .iter_mut()
+            .map(|(_, events)| music(events, Duration::from_millis(2500))),
+    );
+    let (_, heard) = tokio::join!(playing, hearing);
+
+    let mut widest = Duration::ZERO;
+    for seq in 10..90 {
+        let arrivals: Vec<Instant> = heard
+            .iter()
+            .filter_map(|frames| frames.iter().find(|frame| frame.seq == seq))
+            .map(|frame| frame.arrived)
+            .collect();
+        assert_eq!(arrivals.len(), 10, "frame {seq} reached everyone");
+        let first = arrivals.iter().min().unwrap();
+        let last = arrivals.iter().max().unwrap();
+        widest = widest.max(*last - *first);
+    }
+    assert!(
+        widest < Duration::from_millis(150),
+        "the widest spread of a frame was {widest:?}"
+    );
+}
+
 #[tokio::test]
 async fn music_is_announced_not_a_participant() {
     let _machine = shared_machine().await;

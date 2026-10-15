@@ -51,6 +51,8 @@ const VOICE_RETRY_WINDOW: Duration = Duration::from_secs(60);
 /// connection with: a newer voice state, or the player ended.
 const OWN_CLOSES: [i64; 2] = [4006, 4014];
 
+mod watchdog;
+
 pub type Reply = oneshot::Sender<Result<proto::MusicSession, ApiError>>;
 
 /// Who asks, and what they may do in the channel.
@@ -129,6 +131,8 @@ pub enum Command {
     Save {
         done: oneshot::Sender<()>,
     },
+    /// What the channel's bridge saw.
+    Bridge(opencord_voice::bridge::BridgeEvent),
 }
 
 /// What survives a restart.
@@ -186,6 +190,8 @@ struct Session {
     grace_until: Option<Instant>,
     save_at: Option<Instant>,
     voice_retries: VecDeque<Instant>,
+    /// The audio watchdog's view of the bridge.
+    watch: watchdog::Watch,
     /// The now-playing card as last sent: item and whether it plays.
     card: Option<(String, bool)>,
     /// The item "Now playing" was said for.
@@ -228,6 +234,7 @@ impl Session {
             grace_until: restored.then_some(now + RECONNECT_GRACE),
             save_at: None,
             voice_retries: VecDeque::new(),
+            watch: watchdog::Watch::default(),
             card: None,
             announced: saved.queue.now.as_ref().map(|item| item.id.clone()),
             queue: saved.queue,
@@ -341,6 +348,7 @@ impl Session {
                 self.save().await;
                 let _ = done.send(());
             }
+            Command::Bridge(event) => self.bridge(&event),
         }
     }
 
@@ -722,6 +730,7 @@ impl Session {
             .is_some_and(|player| player.usable(&self.state));
         if usable && self.started && !self.waiting_for_node {
             self.tell_paused().await;
+            self.expect_audio();
         } else {
             self.start_current(position, &[]).await;
         }
@@ -868,6 +877,7 @@ impl Session {
                 self.started = true;
                 self.failures = 0;
                 self.set_position(self.position_ms);
+                self.expect_audio();
                 if self.announced != current {
                     self.announced.clone_from(&current);
                     if let Some(item) = &self.queue.now {
@@ -1005,6 +1015,17 @@ impl Session {
             return;
         }
         self.empty_since = None;
+        // Back on another voice node: the bridge there takes the music.
+        let channel_id = self.channel_id;
+        if let Some(player) = self.player.as_mut()
+            && player.bridge_moved(&self.state, channel_id)
+            && player
+                .reconnect_voice(&self.state, channel_id)
+                .await
+                .is_err()
+        {
+            self.drop_player();
+        }
         if self.paused_empty {
             self.paused_empty = false;
             if !self.paused {
@@ -1023,6 +1044,7 @@ impl Session {
         let seconds = |s: u32| Duration::from_secs(u64::from(s));
         [
             self.save_at,
+            self.watchdog_due(),
             self.retry_at.filter(|_| self.waiting_for_node),
             self.grace_until,
             self.empty_since
@@ -1045,6 +1067,7 @@ impl Session {
         if self.save_at.is_some_and(|at| at <= now) {
             self.save().await;
         }
+        self.watchdog(now).await;
         if self.grace_until.is_some_and(|until| until <= now) {
             self.grace_until = None;
             self.listeners().await;

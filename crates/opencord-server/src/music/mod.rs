@@ -45,7 +45,7 @@ use settings::MusicSettings;
 const FAILOVER_BATCH: usize = 5;
 
 /// Lavalink's voice messages are small.
-const BRIDGE_FRAME_BYTES: usize = 16 * 1024;
+pub(crate) const BRIDGE_FRAME_BYTES: usize = 16 * 1024;
 
 /// Starts the audio bridge when music is on and this server carries voice
 /// itself. (External voice nodes run their own bridge: plan §13.1.) Its
@@ -83,26 +83,41 @@ pub fn watch_bridge(state: &Arc<AppState>, mut events: mpsc::UnboundedReceiver<B
     let state = Arc::clone(state);
     tokio::spawn(async move {
         while let Some(event) = events.recv().await {
-            match &event {
-                BridgeEvent::Connected {
-                    channel_id,
-                    connection,
-                } => tracing::info!(channel_id, connection, "Lavalink connected for music"),
-                BridgeEvent::Closed { channel_id, code } => {
-                    tracing::info!(channel_id, code, "Lavalink's music connection ended");
-                }
-                BridgeEvent::Discovered { channel_id, from } => {
-                    tracing::debug!(channel_id, %from, "Lavalink's audio address is known");
-                }
-                BridgeEvent::Refused { channel_id, peer } => tracing::warn!(
-                    channel_id,
-                    %peer,
-                    "Lavalink signed in from an address its node does not have"
-                ),
-            }
-            state.lavalink.bridge_event(event);
+            bridge_event(&state, event);
         }
     });
+}
+
+/// What a bridge reported, this server's or an external node's: logged,
+/// and given to the connection test or the channel's music.
+pub fn bridge_event(state: &AppState, event: BridgeEvent) {
+    match &event {
+        BridgeEvent::Connected {
+            channel_id,
+            connection,
+        } => tracing::info!(channel_id, connection, "Lavalink connected for music"),
+        BridgeEvent::Closed { channel_id, code } => {
+            tracing::info!(channel_id, code, "Lavalink's music connection ended");
+        }
+        BridgeEvent::Discovered { channel_id, from } => {
+            tracing::debug!(channel_id, %from, "Lavalink's audio address is known");
+        }
+        BridgeEvent::Refused { channel_id, peer } => tracing::warn!(
+            channel_id,
+            %peer,
+            "Lavalink signed in from an address its node does not have"
+        ),
+        BridgeEvent::Audio { channel_id } => {
+            tracing::debug!(channel_id, "music audio flows");
+        }
+        BridgeEvent::Silent { channel_id } => {
+            tracing::debug!(channel_id, "music audio stopped");
+        }
+    }
+    state
+        .music
+        .send_existing(event.channel_id(), Command::Bridge(event.clone()));
+    state.lavalink.bridge_event(event);
 }
 
 #[derive(Deserialize)]
@@ -327,12 +342,19 @@ pub fn display_name(state: &AppState, user_id: i64) -> String {
         .unwrap_or_else(|| "Someone".to_owned())
 }
 
-/// Whether music can play here: on in `opencord.toml` with the bridge
-/// running, on in the settings, with a node added.
+/// Whether this server runs music: on in `opencord.toml`, with a bridge
+/// of its own or voice on external nodes (whose bridges take the music,
+/// plan §13.1).
+pub fn supported(state: &AppState) -> bool {
+    state.config.music.enabled
+        && (state.music_bridge.is_some()
+            || state.config.voice.mode == crate::config::VoiceMode::External)
+}
+
+/// Whether music can play here: supported, on in the settings, with a
+/// node added.
 pub fn configured(state: &AppState) -> bool {
-    state.music_bridge.is_some()
-        && state.music.settings().enabled
-        && !state.lavalink.nodes().is_empty()
+    supported(state) && state.music.settings().enabled && !state.lavalink.nodes().is_empty()
 }
 
 /// Loads the music settings, the blocked members and the saved sessions,
@@ -347,7 +369,7 @@ pub async fn start(state: &Arc<AppState>) -> anyhow::Result<()> {
     }
     let saved = db::music::sessions(&mut conn).await?;
     drop(conn);
-    if state.music_bridge.is_some() {
+    if supported(state) {
         let mut sessions = lock(&state.music.sessions);
         for row in saved {
             let Ok(saved) = serde_json::from_str::<session::Saved>(&row.state_json) else {

@@ -1220,6 +1220,16 @@ class LavalinkBridge {
   final bool audioListening;
   final MappingState mapping;
 
+  /// Lavalink connections now, and what came since the server started.
+  final int connections;
+  final BigInt packets;
+  final BigInt decryptFailures;
+  final BigInt dropped;
+  final int jitterMs;
+
+  /// External voice nodes' bridges, as host:port.
+  final List<String> nodeBridges;
+
   const LavalinkBridge({
     required this.enabled,
     required this.url,
@@ -1228,6 +1238,12 @@ class LavalinkBridge {
     required this.audioPort,
     required this.audioListening,
     required this.mapping,
+    required this.connections,
+    required this.packets,
+    required this.decryptFailures,
+    required this.dropped,
+    required this.jitterMs,
+    required this.nodeBridges,
   });
 
   @override
@@ -1238,7 +1254,13 @@ class LavalinkBridge {
       audioAddress.hashCode ^
       audioPort.hashCode ^
       audioListening.hashCode ^
-      mapping.hashCode;
+      mapping.hashCode ^
+      connections.hashCode ^
+      packets.hashCode ^
+      decryptFailures.hashCode ^
+      dropped.hashCode ^
+      jitterMs.hashCode ^
+      nodeBridges.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -1251,7 +1273,13 @@ class LavalinkBridge {
           audioAddress == other.audioAddress &&
           audioPort == other.audioPort &&
           audioListening == other.audioListening &&
-          mapping == other.mapping;
+          mapping == other.mapping &&
+          connections == other.connections &&
+          packets == other.packets &&
+          decryptFailures == other.decryptFailures &&
+          dropped == other.dropped &&
+          jitterMs == other.jitterMs &&
+          nodeBridges == other.nodeBridges;
 }
 
 enum LavalinkEventKind { connected, disconnected, degraded, recovered, moved }

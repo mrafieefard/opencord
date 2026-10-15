@@ -4,6 +4,7 @@
 
 pub mod domains;
 pub mod fake_lavalink;
+pub mod music;
 pub mod pebble;
 
 use std::collections::VecDeque;

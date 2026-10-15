@@ -77,7 +77,10 @@ pub fn audio_address(state: &AppState) -> Option<(String, u16)> {
 
 pub fn checklist(state: &AppState) -> proto::LavalinkBridge {
     let Some(bridge) = &state.music_bridge else {
-        return proto::LavalinkBridge::default();
+        return proto::LavalinkBridge {
+            node_bridges: state.voice_nodes.music_bridges(),
+            ..proto::LavalinkBridge::default()
+        };
     };
     let address = address(state);
     let port = bridge.udp_port();
@@ -91,5 +94,16 @@ pub fn checklist(state: &AppState) -> proto::LavalinkBridge {
         audio_port: u32::from(port),
         audio_listening: true,
         mapping: state.network.mapping(PortProtocol::Udp, port) as i32,
+        stats: Some({
+            let stats = bridge.stats();
+            proto::LavalinkBridgeStats {
+                connections: stats.connections,
+                packets: stats.packets,
+                decrypt_failures: stats.decrypt_failures,
+                dropped: stats.dropped,
+                jitter_ms: stats.jitter_ms,
+            }
+        }),
+        node_bridges: state.voice_nodes.music_bridges(),
     }
 }

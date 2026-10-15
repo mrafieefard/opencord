@@ -49,6 +49,7 @@ message ControlEnvelope {
     SettingsUpdate settings_update = 15;
     StreamViewers stream_viewers = 16;
     CancelMusicBridge cancel_music_bridge = 17;
+    ExpectMusicBridge expect_music_bridge = 18;
 
     // Node to main server.
     Register register = 30;
@@ -56,6 +57,7 @@ message ControlEnvelope {
     ParticipantConnected participant_connected = 32;
     ParticipantDisconnected participant_disconnected = 33;
     SpeakingActivity speaking_activity = 34;
+    MusicBridgeStatus music_bridge_status = 35;
 
     opencord.v1.Error error = 50;
   }
@@ -76,6 +78,10 @@ message Register {
   // Where clients send media: host or IP, and UDP port.
   string public_address = 4;
   uint32 udp_port = 5;
+  // The node runs an audio bridge (Phase 3 plan §13.1): Lavalink connects
+  // to the endpoint's host and port, and sends audio to music_udp_port.
+  bool music = 6;
+  uint32 music_udp_port = 7;
 }
 
 message Registered {
@@ -155,4 +161,39 @@ message SpeakingActivity {
 // bridge connection with it.
 message CancelMusicBridge {
   int64 channel_id = 1;
+}
+
+// A Lavalink player for a channel the node serves (Phase 3 plan §13.4):
+// the node's bridge lets it in once, within 60 s, and ends the channel's
+// previous connection.
+message ExpectMusicBridge {
+  int64 channel_id = 1;
+  // The internal Lavalink user id.
+  int64 user_id = 2;
+  string token = 3;
+  string session_id = 4;
+  // With the Lavalink node's strict address check: the only addresses it
+  // may connect and send from.
+  bool strict = 5;
+  repeated string lavalink_addresses = 6;
+}
+
+// What the node's bridge saw for a channel.
+message MusicBridgeStatus {
+  enum Kind {
+    KIND_UNSPECIFIED = 0;
+    KIND_CONNECTED = 1;
+    KIND_CLOSED = 2;
+    KIND_DISCOVERED = 3;
+    KIND_REFUSED = 4;
+    KIND_AUDIO = 5;
+    KIND_SILENT = 6;
+  }
+  int64 channel_id = 1;
+  Kind kind = 2;
+  uint64 connection = 3;
+  // A close code, for CLOSED.
+  uint32 code = 4;
+  // Where Lavalink came from, for DISCOVERED and REFUSED.
+  string address = 5;
 }

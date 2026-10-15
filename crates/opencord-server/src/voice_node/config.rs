@@ -40,6 +40,13 @@ public_address = "auto"
 # Where the TLS certificate is kept, relative to this file.
 data_dir = "data"
 
+[music]
+# Music for the channels on this node (Phase 3): Lavalink connects to this
+# node's endpoint, so its certificate must be one Lavalink trusts, and
+# sends audio to this UDP port.
+enabled = false
+audio_udp_port = 7713
+
 [tls]
 # Leave both unset to use a self-signed certificate generated on first start.
 # The main server tells clients its fingerprint.
@@ -55,6 +62,7 @@ filter = "info"
 #[serde(default, deny_unknown_fields)]
 pub struct VoiceNodeConfig {
     pub node: NodeSection,
+    pub music: NodeMusicSection,
     pub tls: TlsSection,
     pub log: LogSection,
 }
@@ -88,6 +96,23 @@ impl Default for NodeSection {
             udp_port: 7711,
             public_address: "auto".to_owned(),
             data_dir: PathBuf::from("data"),
+        }
+    }
+}
+
+/// The node's audio bridge (Phase 3 plan §13.1).
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct NodeMusicSection {
+    pub enabled: bool,
+    pub audio_udp_port: u16,
+}
+
+impl Default for NodeMusicSection {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            audio_udp_port: 7713,
         }
     }
 }

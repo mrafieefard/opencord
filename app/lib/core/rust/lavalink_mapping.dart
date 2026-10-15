@@ -100,6 +100,12 @@ LavalinkBridge _bridgeFrom(core.LavalinkBridge bridge) => LavalinkBridge(
     core.MappingState.mapped => MappingState.mapped,
     core.MappingState.failed => MappingState.failed,
   },
+  connections: bridge.connections,
+  packets: bridge.packets.toInt(),
+  decryptFailures: bridge.decryptFailures.toInt(),
+  dropped: bridge.dropped.toInt(),
+  jitterMs: bridge.jitterMs,
+  nodeBridges: bridge.nodeBridges,
 );
 
 LavalinkTestProgress lavalinkTestFrom(

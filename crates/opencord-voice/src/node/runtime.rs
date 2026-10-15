@@ -478,6 +478,7 @@ impl Runtime {
                 }
             }
             NodeCommand::StopMusic { channel_id } => self.stop_music(now, channel_id),
+            NodeCommand::ExpectMusic(_) => {}
             NodeCommand::StreamViewers {
                 channel_id,
                 user_id,

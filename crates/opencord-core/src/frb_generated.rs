@@ -6148,6 +6148,12 @@ impl SseDecode for crate::api::types::LavalinkBridge {
         let mut var_audioPort = <u32>::sse_decode(deserializer);
         let mut var_audioListening = <bool>::sse_decode(deserializer);
         let mut var_mapping = <crate::api::types::MappingState>::sse_decode(deserializer);
+        let mut var_connections = <u32>::sse_decode(deserializer);
+        let mut var_packets = <u64>::sse_decode(deserializer);
+        let mut var_decryptFailures = <u64>::sse_decode(deserializer);
+        let mut var_dropped = <u64>::sse_decode(deserializer);
+        let mut var_jitterMs = <u32>::sse_decode(deserializer);
+        let mut var_nodeBridges = <Vec<String>>::sse_decode(deserializer);
         return crate::api::types::LavalinkBridge {
             enabled: var_enabled,
             url: var_url,
@@ -6156,6 +6162,12 @@ impl SseDecode for crate::api::types::LavalinkBridge {
             audio_port: var_audioPort,
             audio_listening: var_audioListening,
             mapping: var_mapping,
+            connections: var_connections,
+            packets: var_packets,
+            decrypt_failures: var_decryptFailures,
+            dropped: var_dropped,
+            jitter_ms: var_jitterMs,
+            node_bridges: var_nodeBridges,
         };
     }
 }
@@ -9723,6 +9735,12 @@ impl flutter_rust_bridge::IntoDart for crate::api::types::LavalinkBridge {
             self.audio_port.into_into_dart().into_dart(),
             self.audio_listening.into_into_dart().into_dart(),
             self.mapping.into_into_dart().into_dart(),
+            self.connections.into_into_dart().into_dart(),
+            self.packets.into_into_dart().into_dart(),
+            self.decrypt_failures.into_into_dart().into_dart(),
+            self.dropped.into_into_dart().into_dart(),
+            self.jitter_ms.into_into_dart().into_dart(),
+            self.node_bridges.into_into_dart().into_dart(),
         ]
         .into_dart()
     }
@@ -12433,6 +12451,12 @@ impl SseEncode for crate::api::types::LavalinkBridge {
         <u32>::sse_encode(self.audio_port, serializer);
         <bool>::sse_encode(self.audio_listening, serializer);
         <crate::api::types::MappingState>::sse_encode(self.mapping, serializer);
+        <u32>::sse_encode(self.connections, serializer);
+        <u64>::sse_encode(self.packets, serializer);
+        <u64>::sse_encode(self.decrypt_failures, serializer);
+        <u64>::sse_encode(self.dropped, serializer);
+        <u32>::sse_encode(self.jitter_ms, serializer);
+        <Vec<String>>::sse_encode(self.node_bridges, serializer);
     }
 }
 

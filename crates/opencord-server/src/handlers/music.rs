@@ -102,7 +102,7 @@ pub async fn subscribe(
     ctx: &Ctx<'_>,
     request: proto::MusicSubscribe,
 ) -> Result<Response, ApiError> {
-    if ctx.state.music_bridge.is_none() {
+    if !music::supported(ctx.state) {
         return Err(not_configured());
     }
     voice_channel(ctx, request.channel_id)?;
@@ -319,7 +319,7 @@ fn settings_proto(ctx: &Ctx<'_>) -> proto::MusicSettings {
     ctx.state
         .music
         .settings()
-        .to_proto(available, ctx.state.music_bridge.is_some())
+        .to_proto(available, music::supported(ctx.state))
 }
 
 pub fn fetch_settings(ctx: &Ctx<'_>) -> Response {

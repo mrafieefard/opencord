@@ -11,6 +11,7 @@ This guide grows with Phase 3. What is here so far:
 - [Permissions](#permissions)
 - [Music settings](#music-settings)
 - [When a node goes down](#when-a-node-goes-down)
+- [Voice on other machines](#voice-on-other-machines)
 - [Testing with a local Lavalink](#testing-with-a-local-lavalink)
 
 ## How the bridge works
@@ -134,7 +135,23 @@ Each channel stays on its node while it plays. When that node becomes unavailabl
 
 A node that comes back has its old players destroyed, so nothing plays twice. A channel whose node starts struggling or is drained moves at its next track change.
 
+**Silent players.** While a track plays, the bridge expects audio. When none comes for 2 seconds although Lavalink is connected, Opencord asks the node for `/v4/info` and gives it 2 seconds. If it answers, only that player is started again, at most once every 30 seconds. If it doesn't, the node is marked unavailable ("Lavalink stopped sending audio and doesn't answer") and the channel moves at once.
+
+At the top of the node list, the bridge shows how many Lavalinks are connected, the packets it took, its jitter, and packets it dropped or could not decrypt.
+
 Opencord's own restarts keep the music playing: the queue is saved every few seconds, Lavalink keeps its players while Opencord is away, and each channel goes back to its node and carries on.
+
+## Voice on other machines
+
+When voice runs on external voice nodes, the music for a channel enters at the node serving it, so the listeners get it straight from there. Turn the bridge on in each node's `opencord-voice-node.toml`:
+
+```toml
+[music]
+enabled = true
+audio_udp_port = 7713
+```
+
+Lavalink connects to the node's own endpoint (`wss://<node>:<port>/?v=8`), so the node's certificate must be one Lavalink trusts, and it sends audio to the node's music port. The main server tells the node which player to let in, and the node reports back what its bridge sees. The node list in Server settings → Music lists each node's bridge.
 
 ## Testing with a local Lavalink
 

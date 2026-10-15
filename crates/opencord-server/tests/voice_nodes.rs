@@ -99,6 +99,7 @@ impl FakeNode {
                 certificate_fingerprint: fingerprint.clone(),
                 public_address: "203.0.113.9".to_owned(),
                 udp_port: 7711,
+                ..Default::default()
             }),
         )
         .await;

@@ -17,6 +17,7 @@ import 'package:opencord/ui/widgets/oc_switch.dart';
 import 'package:opencord/ui/widgets/settings.dart';
 
 import '../../support/app.dart';
+import '../../support/pump.dart';
 
 const _dev = 'opencord.example:7710';
 const _berlin = 'rust-berlin.example:7710';
@@ -576,5 +577,34 @@ void main() {
       _inSettings(find.text('Moved 3 channels from One to Two')),
     );
     await app.dispose(tester);
+  });
+
+  testWidgets('the checklist shows what the bridges carry', (tester) async {
+    await pumpThemed(
+      tester,
+      const SingleChildScrollView(
+        child: BridgeChecklist(
+          bridge: LavalinkBridge(
+            enabled: true,
+            url: 'wss://chat.example.com:7710',
+            trustedCertificate: true,
+            audioAddress: '203.0.113.10:7712',
+            audioPort: 7712,
+            audioListening: true,
+            connections: 2,
+            packets: 3002,
+            jitterMs: 4,
+            dropped: 3,
+            nodeBridges: ['voice1.example.com:7712'],
+          ),
+        ),
+      ),
+    );
+    expect(find.text('2 Lavalink connections'), findsOneWidget);
+    expect(find.text('3002 packets · jitter 4 ms · 3 dropped'), findsOneWidget);
+    expect(
+      find.text('Voice node: wss://voice1.example.com:7712'),
+      findsOneWidget,
+    );
   });
 }

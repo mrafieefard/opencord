@@ -68,6 +68,10 @@ pub enum NodeCommand {
     },
     /// The channel's music stopped: its stream ends (Phase 3 plan §18.4).
     StopMusic { channel_id: i64 },
+    /// A Lavalink player for the channel: the bridge where the node runs
+    /// lets it in (Phase 3 plan §13.4). The embedded node leaves this to
+    /// the main server, which runs that bridge itself.
+    ExpectMusic(crate::bridge::ExpectedPlayer),
 }
 
 /// To the main server.

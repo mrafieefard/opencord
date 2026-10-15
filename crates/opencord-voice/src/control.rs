@@ -9,6 +9,7 @@ use internal::control_envelope::Payload;
 use opencord_proto::internal::v1 as internal;
 use sha2::Sha256;
 
+use crate::bridge::{BridgeEvent, ExpectedPlayer};
 use crate::node::{NodeCommand, NodeEvent};
 use crate::sfu::PeerState;
 
@@ -80,6 +81,21 @@ pub fn envelope_for(command: &NodeCommand) -> internal::ControlEnvelope {
                 channel_id: *channel_id,
             })
         }
+        NodeCommand::ExpectMusic(player) => {
+            Payload::ExpectMusicBridge(internal::ExpectMusicBridge {
+                channel_id: player.channel_id,
+                user_id: player.user_id,
+                token: player.token.clone(),
+                session_id: player.session_id.clone(),
+                strict: player.allowed.is_some(),
+                lavalink_addresses: player
+                    .allowed
+                    .iter()
+                    .flatten()
+                    .map(ToString::to_string)
+                    .collect(),
+            })
+        }
     };
     internal::ControlEnvelope {
         payload: Some(payload),
@@ -117,6 +133,19 @@ pub fn command_from(envelope: internal::ControlEnvelope) -> Option<NodeCommand> 
         Payload::CancelMusicBridge(cancel) => NodeCommand::StopMusic {
             channel_id: cancel.channel_id,
         },
+        Payload::ExpectMusicBridge(expect) => NodeCommand::ExpectMusic(ExpectedPlayer {
+            channel_id: expect.channel_id,
+            user_id: expect.user_id,
+            token: expect.token,
+            session_id: expect.session_id,
+            allowed: expect.strict.then(|| {
+                expect
+                    .lavalink_addresses
+                    .iter()
+                    .filter_map(|address| address.parse().ok())
+                    .collect()
+            }),
+        }),
         _ => return None,
     })
 }
@@ -190,6 +219,67 @@ fn unix_ms() -> i64 {
         })
 }
 
+/// What a node's bridge saw, as it travels to the main server.
+pub fn envelope_for_bridge_event(event: &BridgeEvent) -> internal::ControlEnvelope {
+    use internal::music_bridge_status::Kind;
+    let mut status = internal::MusicBridgeStatus {
+        channel_id: event.channel_id(),
+        ..Default::default()
+    };
+    let kind = match event {
+        BridgeEvent::Connected { connection, .. } => {
+            status.connection = *connection;
+            Kind::Connected
+        }
+        BridgeEvent::Closed { code, .. } => {
+            status.code = u32::from(*code);
+            Kind::Closed
+        }
+        BridgeEvent::Discovered { from, .. } => {
+            status.address = from.to_string();
+            Kind::Discovered
+        }
+        BridgeEvent::Refused { peer, .. } => {
+            status.address = peer.to_string();
+            Kind::Refused
+        }
+        BridgeEvent::Audio { .. } => Kind::Audio,
+        BridgeEvent::Silent { .. } => Kind::Silent,
+    };
+    status.kind = kind as i32;
+    internal::ControlEnvelope {
+        payload: Some(Payload::MusicBridgeStatus(status)),
+    }
+}
+
+/// The bridge event a node reported, if it reads as one.
+pub fn bridge_event_from(status: &internal::MusicBridgeStatus) -> Option<BridgeEvent> {
+    use internal::music_bridge_status::Kind;
+    let channel_id = status.channel_id;
+    let address = || status.address.parse().ok();
+    Some(match Kind::try_from(status.kind).ok()? {
+        Kind::Connected => BridgeEvent::Connected {
+            channel_id,
+            connection: status.connection,
+        },
+        Kind::Closed => BridgeEvent::Closed {
+            channel_id,
+            code: u16::try_from(status.code).ok()?,
+        },
+        Kind::Discovered => BridgeEvent::Discovered {
+            channel_id,
+            from: address()?,
+        },
+        Kind::Refused => BridgeEvent::Refused {
+            channel_id,
+            peer: address()?,
+        },
+        Kind::Audio => BridgeEvent::Audio { channel_id },
+        Kind::Silent => BridgeEvent::Silent { channel_id },
+        Kind::Unspecified => return None,
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use opencord_proto::voice::v1 as voice;
@@ -254,6 +344,20 @@ mod tests {
                 viewers: vec![3, 4],
             },
             NodeCommand::StopMusic { channel_id: 2 },
+            NodeCommand::ExpectMusic(ExpectedPlayer {
+                channel_id: 2,
+                user_id: 77,
+                token: "t".to_owned(),
+                session_id: "s".to_owned(),
+                allowed: Some(vec!["203.0.113.5".parse().unwrap()]),
+            }),
+            NodeCommand::ExpectMusic(ExpectedPlayer {
+                channel_id: 2,
+                user_id: 77,
+                token: "t".to_owned(),
+                session_id: "s".to_owned(),
+                allowed: None,
+            }),
         ];
 
         for command in commands {
@@ -278,6 +382,38 @@ mod tests {
 
         for event in events {
             assert_eq!(event_from(&envelope_for_event(&event)), Some(event));
+        }
+    }
+
+    #[test]
+    fn bridge_events_survive_the_trip() {
+        let ip: std::net::IpAddr = "198.51.100.7".parse().unwrap();
+        for event in [
+            BridgeEvent::Connected {
+                channel_id: 2,
+                connection: 9,
+            },
+            BridgeEvent::Closed {
+                channel_id: 2,
+                code: 4006,
+            },
+            BridgeEvent::Discovered {
+                channel_id: 2,
+                from: ip,
+            },
+            BridgeEvent::Refused {
+                channel_id: 2,
+                peer: ip,
+            },
+            BridgeEvent::Audio { channel_id: 2 },
+            BridgeEvent::Silent { channel_id: 2 },
+        ] {
+            let Some(Payload::MusicBridgeStatus(status)) =
+                envelope_for_bridge_event(&event).payload
+            else {
+                panic!("not a bridge status");
+            };
+            assert_eq!(bridge_event_from(&status), Some(event));
         }
     }
 }

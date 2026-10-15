@@ -258,7 +258,23 @@ class LavalinkBridge {
     this.audioPort = 0,
     this.audioListening = false,
     this.mapping = MappingState.notUsed,
+    this.connections = 0,
+    this.packets = 0,
+    this.decryptFailures = 0,
+    this.dropped = 0,
+    this.jitterMs = 0,
+    this.nodeBridges = const [],
   });
+
+  /// Lavalink connections now, and what came since the server started.
+  final int connections;
+  final int packets;
+  final int decryptFailures;
+  final int dropped;
+  final int jitterMs;
+
+  /// External voice nodes' bridges, as host:port.
+  final List<String> nodeBridges;
 
   /// False when music is off on the server.
   final bool enabled;
@@ -282,7 +298,13 @@ class LavalinkBridge {
       other.audioAddress == audioAddress &&
       other.audioPort == audioPort &&
       other.audioListening == audioListening &&
-      other.mapping == mapping;
+      other.mapping == mapping &&
+      other.connections == connections &&
+      other.packets == packets &&
+      other.decryptFailures == decryptFailures &&
+      other.dropped == dropped &&
+      other.jitterMs == jitterMs &&
+      listEquals(other.nodeBridges, nodeBridges);
 
   @override
   int get hashCode => Object.hash(
@@ -293,6 +315,12 @@ class LavalinkBridge {
     audioPort,
     audioListening,
     mapping,
+    connections,
+    packets,
+    decryptFailures,
+    dropped,
+    jitterMs,
+    Object.hashAll(nodeBridges),
   );
 }
 

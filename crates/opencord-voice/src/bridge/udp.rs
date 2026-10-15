@@ -116,16 +116,28 @@ impl MusicBridge {
                 received_at: at,
             },
         };
+        let timestamp = frame.packet.timestamp;
         let sent = self.config.frames.try_send(frame).is_ok();
         let mut shared = self.lock();
-        if let Some(live) = shared.live.get_mut(&channel_id).filter(|live| !live.heard) {
-            live.heard = true;
-            tracing::debug!(channel_id, %from, "music audio from Lavalink");
+        let mut started = false;
+        if let Some(live) = shared.live.get_mut(&channel_id) {
+            if !live.heard {
+                live.heard = true;
+                tracing::debug!(channel_id, %from, "music audio from Lavalink");
+            }
+            started = !live.flowing;
+            live.flowing = true;
+            live.last_audio = Some(at);
+            live.jitter_after(at, timestamp, started);
         }
         if sent {
             shared.stats.packets += 1;
         } else {
             shared.stats.dropped += 1;
+        }
+        drop(shared);
+        if started {
+            let _ = self.config.events.send(BridgeEvent::Audio { channel_id });
         }
     }
 

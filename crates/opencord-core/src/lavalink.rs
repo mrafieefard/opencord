@@ -150,7 +150,14 @@ pub(crate) fn node_from(node: proto::LavalinkNode) -> LavalinkNode {
 }
 
 fn bridge_from(bridge: proto::LavalinkBridge) -> LavalinkBridge {
+    let stats = bridge.stats.unwrap_or_default();
     LavalinkBridge {
+        connections: stats.connections,
+        packets: stats.packets,
+        decrypt_failures: stats.decrypt_failures,
+        dropped: stats.dropped,
+        jitter_ms: stats.jitter_ms,
+        node_bridges: bridge.node_bridges,
         enabled: bridge.enabled,
         url: bridge.url,
         trusted_certificate: bridge.trusted_certificate,

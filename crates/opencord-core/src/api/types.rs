@@ -1427,6 +1427,14 @@ pub struct LavalinkBridge {
     pub audio_port: u32,
     pub audio_listening: bool,
     pub mapping: MappingState,
+    /// Lavalink connections now, and what came since the server started.
+    pub connections: u32,
+    pub packets: u64,
+    pub decrypt_failures: u64,
+    pub dropped: u64,
+    pub jitter_ms: u32,
+    /// External voice nodes' bridges, as host:port.
+    pub node_bridges: Vec<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

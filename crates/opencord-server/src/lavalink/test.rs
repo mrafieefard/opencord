@@ -202,7 +202,7 @@ async fn bridge_step(
                 Some(BridgeEvent::Connected { .. }) => seen.signed_in = true,
                 Some(BridgeEvent::Discovered { from, .. }) => seen.discovered_from = Some(from),
                 Some(BridgeEvent::Refused { peer, .. }) => seen.refused_from = Some(peer),
-                Some(BridgeEvent::Closed { .. }) | None => {}
+                Some(_) | None => {}
             },
             message = socket.next() => match message {
                 Some(Ok(Message::Text(text))) => {

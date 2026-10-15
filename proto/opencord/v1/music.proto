@@ -106,6 +106,21 @@ message LavalinkBridge {
   uint32 audio_port = 5;
   bool audio_listening = 6;
   MappingState mapping = 7;
+  // What the bridge counted since the server started (§13.3).
+  LavalinkBridgeStats stats = 8;
+  // External voice nodes that run a bridge of their own.
+  repeated string node_bridges = 9;
+}
+
+message LavalinkBridgeStats {
+  // Lavalink connections now.
+  uint32 connections = 1;
+  uint64 packets = 2;
+  uint64 decrypt_failures = 3;
+  // From unknown addresses or sources, too large, or past a full queue.
+  uint64 dropped = 4;
+  // The highest interarrival jitter of the connections now.
+  uint32 jitter_ms = 5;
 }
 
 message LavalinkNodes {

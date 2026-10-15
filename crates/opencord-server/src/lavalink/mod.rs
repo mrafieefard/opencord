@@ -523,6 +523,20 @@ impl Lavalink {
         self.health_changes.set(sender).ok().map(|()| receiver)
     }
 
+    /// The audio watchdog found a node silent and not answering (plan
+    /// §12.5): it is unavailable now, as two failed REST calls make it.
+    pub fn unresponsive(&self, state: &AppState, node_id: i64, reason: &str) {
+        let Some(node) = self.node(node_id) else {
+            return;
+        };
+        {
+            let mut status = lock(&node.status);
+            status.observed.rest_failures = status.observed.rest_failures.max(2);
+            status.observed.last_error = Some(reason.to_owned());
+        }
+        self.judge(state, &node, Instant::now());
+    }
+
     /// Records channels moved between nodes (plan §12.8).
     pub fn moved(&self, state: &AppState, from: i64, to: i64, count: usize) {
         let (Some(from), Some(to)) = (self.node(from), self.node(to)) else {
@@ -618,12 +632,7 @@ impl Lavalink {
 
     /// The bridge reported something: to the test waiting on that channel.
     pub fn bridge_event(&self, event: BridgeEvent) {
-        let channel_id = match &event {
-            BridgeEvent::Connected { channel_id, .. }
-            | BridgeEvent::Closed { channel_id, .. }
-            | BridgeEvent::Discovered { channel_id, .. }
-            | BridgeEvent::Refused { channel_id, .. } => *channel_id,
-        };
+        let channel_id = event.channel_id();
         let waiter = lock(&self.bridge_waiters).get(&channel_id).cloned();
         if let Some(waiter) = waiter {
             let _ = waiter.send(event);
