@@ -75,6 +75,12 @@ struct Args {
     /// Play --sound again this often, in seconds.
     #[arg(long, value_name = "SECONDS", requires = "sound")]
     sound_every: Option<u64>,
+    /// Once joined, write this in the voice channel's chat (Phase 2 §12).
+    #[arg(long, value_name = "TEXT")]
+    say: Option<String>,
+    /// Write --say again this often, in seconds.
+    #[arg(long, value_name = "SECONDS", requires = "say")]
+    say_every: Option<u64>,
     #[arg(long, default_value_t = 10)]
     seconds: u64,
 }
@@ -107,6 +113,25 @@ async fn run(args: Args) -> anyhow::Result<()> {
     let channel = bot.voice_channel(&args.channel)?;
     let session = bot.join(channel).await?;
     println!("joined {} as user {}", args.channel, bot.user_id());
+    if let Some(text) = args.say.clone() {
+        let (client, key) = (bot.client.clone(), bot.server_key.clone());
+        let every = args.say_every.map(Duration::from_secs);
+        let name = args.channel.clone();
+        tokio::spawn(async move {
+            for said in 0u32.. {
+                let nonce = format!("say-{said}-{}", std::process::id());
+                match client
+                    .send_message(&key, channel, text.clone(), nonce)
+                    .await
+                {
+                    Ok(_) => println!("said {text:?} in {name}"),
+                    Err(error) => eprintln!("could not write in {name}: {error}"),
+                }
+                let Some(every) = every else { return };
+                tokio::time::sleep(every).await;
+            }
+        });
+    }
     let duration = Duration::from_secs(args.seconds);
     if args.tone > 0.0 {
         session.play_tone(args.tone, duration);

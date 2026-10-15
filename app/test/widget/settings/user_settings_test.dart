@@ -280,14 +280,16 @@ void main() {
     await _openSettings(tester);
     await _page(tester, 'Voice & audio');
 
-    await tester.ensureVisible(_inPage(find.text('Off')));
-    await tester.tap(_inPage(find.text('Off')));
+    // Noise suppression's Off; Attenuation further down says Off too.
+    final off = _inPage(find.text('Off')).first;
+    await tester.ensureVisible(off);
+    await tester.tap(off);
     await tester.pump();
-    final off = app.repository.audio?.noiseSuppression;
+    final switchedOff = app.repository.audio?.noiseSuppression;
     await tester.tap(_inPage(find.text('Standard')));
     await tester.pump();
 
-    expect(off, NoiseSuppression.off);
+    expect(switchedOff, NoiseSuppression.off);
     expect(app.repository.audio?.noiseSuppression, NoiseSuppression.standard);
     expect(
       app.container.read(audioSettingsProvider).noiseSuppression,
