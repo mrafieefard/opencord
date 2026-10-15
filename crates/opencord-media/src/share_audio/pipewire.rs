@@ -26,7 +26,8 @@ use spa::pod::serialize::PodSerializer;
 use spa::pod::{Object, Pod, Property, Value, ValueArray};
 use spa::utils::{Direction, Id, SpaTypes};
 
-use super::CaptureError;
+pub use super::{AppInfo, Captured, Source};
+use super::{CaptureError, ShareAudioSupport};
 
 /// The capture sample rate.
 pub const SAMPLE_RATE: u32 = 48_000;
@@ -37,42 +38,6 @@ const NODE_NAME: &str = "opencord-screen-audio";
 
 /// How long we wait for PipeWire to answer.
 const ROUNDTRIP: Duration = Duration::from_secs(5);
-
-/// What is shared.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum Source {
-    /// Every app's sound but Opencord's: an entire screen.
-    Everything,
-    /// One app's: every playback stream it names itself by
-    /// (`application.name`), from any of its processes.
-    App(String),
-    /// Every playback stream of a process and its children: a window
-    /// whose process is known (X11's `_NET_WM_PID`).
-    Process(u32),
-    /// Nothing yet: a window share before its app is chosen.
-    Nothing,
-}
-
-/// An app with a playback stream open, which a window share can share.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct AppInfo {
-    /// As it names itself (`application.name`).
-    pub name: String,
-    /// Its icon's name in the desktop's icon theme, when it gives one.
-    pub icon: Option<String>,
-    pub pid: Option<u32>,
-}
-
-/// What was captured.
-#[derive(Debug, Clone)]
-pub struct Captured {
-    /// Interleaved stereo at 48 kHz.
-    pub samples: Vec<f32>,
-    /// The first frame's position on this capture's 48 kHz clock.
-    pub position: u64,
-    /// When the first frame was captured.
-    pub captured: Instant,
-}
 
 /// A running capture; stops when dropped.
 pub struct Capture {
@@ -599,7 +564,7 @@ fn format_pod() -> Vec<u8> {
 }
 
 /// Whether `pid` descends from `ancestor`, by the parent chain in /proc.
-fn is_descendant(pid: u32, ancestor: u32) -> bool {
+pub(crate) fn is_descendant(pid: u32, ancestor: u32) -> bool {
     let mut current = pid;
     for _ in 0..64 {
         let Some(parent) = parent_of(current) else {
@@ -625,6 +590,15 @@ fn parent_of(pid: u32) -> Option<u32> {
         .nth(1)?
         .parse()
         .ok()
+}
+
+/// Whether screen sound can be shared here: it needs PipeWire.
+pub fn support() -> ShareAudioSupport {
+    let running = available();
+    ShareAudioSupport {
+        supported: running,
+        reason: (!running).then(|| "Sharing sound needs PipeWire".to_owned()),
+    }
 }
 
 /// Whether the session has PipeWire: screen sound needs it.

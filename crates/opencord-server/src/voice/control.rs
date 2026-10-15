@@ -257,8 +257,16 @@ async fn handle(
                 super::on_node_event(state, event).await;
             }
         }
-        // AFK moves use speaking activity (V9).
-        Some(Payload::ParticipantConnected(_) | Payload::SpeakingActivity(_)) => {}
+        Some(Payload::SpeakingActivity(activity)) => {
+            let served = activity
+                .entries
+                .first()
+                .is_some_and(|entry| state.voice_nodes.serves(registration, entry.channel_id));
+            if served && let Some(event) = control::event_from(&envelope) {
+                super::on_node_event(state, event).await;
+            }
+        }
+        Some(Payload::ParticipantConnected(_)) => {}
         Some(Payload::Error(error)) => {
             tracing::warn!(node = registration.id(), message = ?error.message, "a voice node reported an error");
         }

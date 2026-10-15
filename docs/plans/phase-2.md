@@ -4,6 +4,8 @@
 >
 > **Goal:** Discord-quality voice, camera and screen share, using Discord's voice architecture, a Rust media engine in the client for performance, and Discord's soundboard.
 
+**Status (2026-10-15).** V0 to V10 are done on `phase2-remaining`: V0 to V8 on Linux, macOS (M0–M8, D34) and Windows (W0–W8, D35), V9 (D36) and V10 (D37) on Linux, with the macOS and Windows parts of V9's idle time and attenuation written and type-checked but not yet run there. Every §16.1 target is measured in `docs/performance.md`. What still needs a person or another machine is listed at the end of D36 and D37; the ledger (`.superpowers/sdd/phase-2/progress.md`) has each milestone's details.
+
 ---
 
 ## 0. Instructions for Claude Code

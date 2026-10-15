@@ -2,9 +2,10 @@
 //! connects to a voice node and moves Opus packets and H.264 frames, the
 //! audio engine around it, video's sending policy, and global hotkeys.
 
+pub mod attenuation;
 pub mod audio;
 pub mod hotkeys;
-#[cfg(target_os = "linux")]
+pub mod idle;
 pub mod share_audio;
 pub mod soundboard;
 pub mod transport;

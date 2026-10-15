@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/painting.dart';
@@ -13,6 +12,7 @@ import 'package:opencord/src/rust/api/client.dart' as core;
 import 'package:opencord/ui/widgets/oc_button.dart';
 
 import 'support/e2e.dart';
+import 'support/measure.dart';
 
 // Phase 2 V5's acceptance against a real server: nine people in a call
 // with every camera on (plan §16 V5). Eight voicebots send cameras of real
@@ -77,10 +77,10 @@ void main() {
             'user $key': value.textureId!,
         };
         final drawn = Stopwatch()..start();
-        while (!textures.values.every((texture) => _presented(texture) >= 30)) {
+        while (!textures.values.every((texture) => presented(texture) >= 30)) {
           if (drawn.elapsed > const Duration(seconds: 30)) {
             final counts = textures.map(
-              (name, texture) => MapEntry(name, _presented(texture)),
+              (name, texture) => MapEntry(name, presented(texture)),
             );
             final wants = container
                 .read(videoWantsProvider)
@@ -106,7 +106,7 @@ void main() {
             .timeout(const Duration(seconds: 10));
         await _timeUntil(tester, on, () {
           final own = container.read(videoFeedsProvider).own?.textureId;
-          return own != null && _presented(own) >= 1;
+          return own != null && presented(own) >= 1;
         }, reason: "the camera's first picture in its preview");
         on.stop();
         final ownTexture = container.read(videoFeedsProvider).own!.textureId!;
@@ -114,7 +114,7 @@ void main() {
         // Others start watching it; its layers settle.
         await Future<void>.delayed(const Duration(seconds: 3));
 
-        final measured = await _measure(tester, textures);
+        final measured = await measure(tester, textures, _measured);
 
         final off = Stopwatch()..start();
         await container
@@ -162,12 +162,6 @@ void main() {
   );
 }
 
-int _presented(int texture) =>
-    core.videoTextureStats(textureId: texture)?.presented.toInt() ?? 0;
-
-int _drawn(int texture) =>
-    core.videoTextureStats(textureId: texture)?.drawn.toInt() ?? 0;
-
 /// Waits, pumping frames, until [done]; the stopwatch keeps running.
 Future<void> _timeUntil(
   WidgetTester tester,
@@ -180,97 +174,4 @@ Future<void> _timeUntil(
     await tester.pump();
     await Future<void>.delayed(const Duration(milliseconds: 5));
   }
-}
-
-/// Pictures each texture got a second, the CPU this process used (by
-/// thread, too) and its memory, over [_measured].
-Future<Map<String, Object>> _measure(
-  WidgetTester tester,
-  Map<String, int> textures,
-) async {
-  final seconds = {for (final name in textures.keys) name: <int>[]};
-  final firstPresented = textures.map(
-    (name, id) => MapEntry(name, _presented(id)),
-  );
-  final firstDrawn = textures.map((name, id) => MapEntry(name, _drawn(id)));
-  var last = Map.of(firstPresented);
-  final cpuBefore = _cpu();
-  final threadsBefore = _threads();
-  final clock = Stopwatch()..start();
-  for (var second = 0; second < _measured.inSeconds; second++) {
-    final next = Duration(seconds: second + 1);
-    while (clock.elapsed < next) {
-      await tester.pump();
-      await Future<void>.delayed(const Duration(milliseconds: 50));
-    }
-    for (final MapEntry(:key, :value) in textures.entries) {
-      final presented = _presented(value);
-      seconds[key]!.add(presented - last[key]!);
-      last[key] = presented;
-    }
-  }
-  final elapsed = clock.elapsed.inMicroseconds / 1e6;
-  final cpu = (_cpu() - cpuBefore).inMicroseconds / 1e6 / elapsed * 100;
-  final threads = _threads();
-  final byThread = {
-    for (final MapEntry(:key, :value) in threads.entries)
-      key:
-          ((value - (threadsBefore[key] ?? Duration.zero)).inMicroseconds /
-                  1e6 /
-                  elapsed *
-                  100)
-              .clamp(0, double.infinity),
-  };
-  final busiest = byThread.entries.toList()
-    ..sort((a, b) => b.value.compareTo(a.value));
-  num round(num value) => (value * 10).round() / 10;
-  return {
-    'seconds': elapsed,
-    'cpu_percent_of_a_core': round(cpu),
-    'cpu_percent_of_the_machine': round(cpu / Platform.numberOfProcessors),
-    'rss_mb': _rssMegabytes(),
-    'busiest_threads': {
-      for (final entry in busiest.take(10)) entry.key: round(entry.value),
-    },
-    'tiles': {
-      for (final MapEntry(:key, :value) in textures.entries)
-        key: <String, num>{
-          'fps': round((last[key]! - firstPresented[key]!) / elapsed),
-          'drawn_fps': round((_drawn(value) - firstDrawn[key]!) / elapsed),
-          'worst_second': seconds[key]!.reduce((a, b) => a < b ? a : b),
-        },
-    },
-  };
-}
-
-/// CPU time from a /proc stat line: utime and stime, the 14th and 15th
-/// fields, in hundredths of a second.
-Duration _ticks(String stat) {
-  final fields = stat.substring(stat.lastIndexOf(')') + 2).split(' ');
-  final ticks = int.parse(fields[11]) + int.parse(fields[12]);
-  return Duration(milliseconds: ticks * 10);
-}
-
-Duration _cpu() => _ticks(File('/proc/self/stat').readAsStringSync());
-
-/// CPU time so far by thread name.
-Map<String, Duration> _threads() {
-  final times = <String, Duration>{};
-  for (final task in Directory('/proc/self/task').listSync()) {
-    try {
-      final name = File('${task.path}/comm').readAsStringSync().trim();
-      final used = _ticks(File('${task.path}/stat').readAsStringSync());
-      times[name] = (times[name] ?? Duration.zero) + used;
-    } on FileSystemException {
-      // The thread ended.
-    }
-  }
-  return times;
-}
-
-int _rssMegabytes() {
-  final line = File(
-    '/proc/self/status',
-  ).readAsLinesSync().firstWhere((line) => line.startsWith('VmRSS:'));
-  return int.parse(line.split(RegExp(r'\s+'))[1]) ~/ 1024;
 }

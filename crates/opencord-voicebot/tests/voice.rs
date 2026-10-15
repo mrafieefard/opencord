@@ -478,6 +478,10 @@ async fn a_voicebots_camera_comes_back_when_its_call_moves_to_another_node() {
 
 #[tokio::test]
 async fn a_voicebots_encoded_camera_is_decoded_by_another_voicebot() {
+    if !opencord_media::video::codec::supported() {
+        eprintln!("skipped: no video codec on this system yet");
+        return;
+    }
     let call = call().await;
     let owner = call.owner.user_id();
 

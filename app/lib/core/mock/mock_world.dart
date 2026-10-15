@@ -367,7 +367,8 @@ class _Builder {
       overwrites: overwrites,
       userLimit: userLimit,
     );
-    if (kind.isTextLike) server.messages[id] = [];
+    // Voice channels hold a chat too (Phase 2 §12).
+    if (kind.isTextLike || kind == ChannelKind.voice) server.messages[id] = [];
     if (kind == ChannelKind.voice) server.voice[id] = [];
     return id;
   }
@@ -684,7 +685,7 @@ MockServer _opencordDev(DateTime now, MockIds ids) {
     general,
     lena,
     b.daysAgo(1, 15, 2),
-    'Mockups are up. Rows have two lines now, Telegram style, with the last message under the name.',
+    'Mockups are up. Rows have two lines now, with the last message under the name.',
   );
   b.say(
     general,

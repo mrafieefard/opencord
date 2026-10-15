@@ -25,6 +25,13 @@ pub struct Rgba {
     pub arrived: Instant,
 }
 
+/// Takes a hardware-decoded picture still on the GPU, to be drawn at the
+/// size given; `false` when it cannot, and pictures come as RGBA from then
+/// on (plan §7.11, zero-copy).
+#[cfg(target_os = "linux")]
+pub type GpuSink =
+    Box<dyn FnMut(crate::video::codec::dmabuf::DmaBufPicture, (u32, u32)) -> bool + Send>;
+
 enum Command {
     Video(ReceivedVideo),
     Size(u32, u32),
@@ -45,10 +52,31 @@ impl VideoReceiver {
         show: impl FnMut(Rgba) + Send + 'static,
         lost: impl FnMut() + Send + 'static,
     ) -> Self {
+        Self::spawn(Receiving::new(show, lost))
+    }
+
+    /// Like [`Self::start`], with hardware-decoded pictures handed to `gpu`
+    /// as they are, without copying them back from the GPU.
+    #[cfg(target_os = "linux")]
+    pub fn start_with_gpu(
+        show: impl FnMut(Rgba) + Send + 'static,
+        gpu: GpuSink,
+        lost: impl FnMut() + Send + 'static,
+    ) -> Self {
+        let mut receiving = Receiving::new(show, lost);
+        receiving.gpu = Some(gpu);
+        Self::spawn(receiving)
+    }
+
+    fn spawn<S, L>(mut receiving: Receiving<S, L>) -> Self
+    where
+        S: FnMut(Rgba) + Send + 'static,
+        L: FnMut() + Send + 'static,
+    {
         let (commands, received) = mpsc::channel();
         let thread = std::thread::Builder::new()
             .name("opencord-video-receive".to_owned())
-            .spawn(move || Receiving::new(show, lost).run(&received))
+            .spawn(move || receiving.run(&received))
             .ok();
         Self { commands, thread }
     }
@@ -91,6 +119,8 @@ struct Receiving<S, L> {
     awaiting_keyframe: bool,
     scaler: Scaler,
     hold: Duration,
+    #[cfg(target_os = "linux")]
+    gpu: Option<GpuSink>,
 }
 
 /// The most a picture waits for its sound.
@@ -108,6 +138,8 @@ impl<S: FnMut(Rgba), L: FnMut()> Receiving<S, L> {
             awaiting_keyframe: true,
             scaler: Scaler::new(),
             hold: Duration::ZERO,
+            #[cfg(target_os = "linux")]
+            gpu: None,
         }
     }
 
@@ -163,6 +195,27 @@ impl<S: FnMut(Rgba), L: FnMut()> Receiving<S, L> {
         let Some(decoder) = slot.as_mut() else {
             return;
         };
+        #[cfg(target_os = "linux")]
+        if large && self.gpu.is_some() && decoder.is_hardware() {
+            use crate::video::codec::decoder::Decoded;
+            match decoder.decode_gpu(&video.nal_units, video.arrived) {
+                Ok(decoded) => {
+                    for decoded in decoded {
+                        match decoded {
+                            Decoded::Gpu(picture) => self.present_gpu(picture, video.arrived),
+                            Decoded::Picture(picture) => self.present(&picture, video.arrived),
+                        }
+                    }
+                }
+                Err(error) => {
+                    tracing::debug!(%error, "a picture could not be decoded");
+                    *slot = None;
+                    self.awaiting_keyframe = true;
+                    (self.lost)();
+                }
+            }
+            return;
+        }
         match decoder.decode(&video.nal_units, video.arrived) {
             Ok(pictures) => {
                 for picture in pictures {
@@ -178,15 +231,36 @@ impl<S: FnMut(Rgba), L: FnMut()> Receiving<S, L> {
         }
     }
 
-    fn present(&mut self, picture: &Picture, arrived: Instant) {
-        let (width, height) = fit(picture.width, picture.height, self.size.0, self.size.1);
-        let data = self.scaler.rgba(picture, width, height);
-        // Its sound plays this long after arriving; it waits as long.
+    /// Hands a picture still on the GPU on; one the sink refuses turns the
+    /// GPU path off.
+    #[cfg(target_os = "linux")]
+    fn present_gpu(
+        &mut self,
+        picture: crate::video::codec::dmabuf::DmaBufPicture,
+        arrived: Instant,
+    ) {
+        let size = fit(picture.width, picture.height, self.size.0, self.size.1);
+        self.wait_for_sound(arrived);
+        let taken = self.gpu.as_mut().is_some_and(|gpu| gpu(picture, size));
+        if !taken {
+            tracing::info!("pictures come back from the GPU from now on");
+            self.gpu = None;
+        }
+    }
+
+    /// Its sound plays this long after arriving; a picture waits as long.
+    fn wait_for_sound(&self, arrived: Instant) {
         let due = arrived + self.hold;
         let now = Instant::now();
         if due > now {
             std::thread::sleep(due - now);
         }
+    }
+
+    fn present(&mut self, picture: &Picture, arrived: Instant) {
+        let (width, height) = fit(picture.width, picture.height, self.size.0, self.size.1);
+        let data = self.scaler.rgba(picture, width, height);
+        self.wait_for_sound(arrived);
         match data {
             Ok(data) => (self.show)(Rgba {
                 width,
@@ -281,6 +355,7 @@ mod tests {
 
     #[test]
     fn pictures_wait_as_long_as_their_sound_does() {
+        crate::video::codec::needs_codec!();
         let (receiver, frames, _) = started(320, 180);
         receiver.set_hold(Duration::from_millis(120));
 
@@ -299,6 +374,7 @@ mod tests {
 
     #[test]
     fn a_picture_is_fitted_into_its_tile() {
+        crate::video::codec::needs_codec!();
         assert_eq!(fit(1280, 720, 640, 360), (640, 360));
         assert_eq!(fit(1280, 720, 400, 400), (400, 224));
         assert_eq!(fit(640, 360, 1920, 1080), (640, 360));
@@ -307,6 +383,7 @@ mod tests {
 
     #[test]
     fn pictures_come_out_as_rgba_at_the_tile_size() {
+        crate::video::codec::needs_codec!();
         let (receiver, frames, _) = started(320, 180);
 
         for video in stream(640, 360, 10) {
@@ -323,6 +400,7 @@ mod tests {
 
     #[test]
     fn a_tile_larger_than_the_picture_gets_the_picture_size_and_its_shape() {
+        crate::video::codec::needs_codec!();
         let (receiver, frames, _) = started(1920, 1440);
 
         for video in stream(640, 360, 3) {
@@ -336,6 +414,7 @@ mod tests {
 
     #[test]
     fn a_receiver_that_missed_the_keyframe_asks_for_one() {
+        crate::video::codec::needs_codec!();
         let (receiver, frames, losses) = started(320, 180);
         let mut videos = stream(640, 360, 4);
 
@@ -351,6 +430,7 @@ mod tests {
 
     #[test]
     fn a_hidden_tile_decodes_nothing() {
+        crate::video::codec::needs_codec!();
         let (receiver, frames, _) = started(320, 180);
         receiver.set_size(0, 0);
 
@@ -363,6 +443,7 @@ mod tests {
 
     #[test]
     fn large_layers_decode_like_small_ones() {
+        crate::video::codec::needs_codec!();
         let (receiver, frames, _) = started(1280, 720);
 
         for video in stream(1280, 720, 5) {
@@ -374,8 +455,51 @@ mod tests {
         assert_eq!((shown[0].width, shown[0].height), (1280, 720));
     }
 
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn large_hardware_pictures_stay_on_the_gpu_until_the_sink_refuses_one() {
+        crate::video::codec::needs_codec!();
+        if !Decoder::open(true).is_ok_and(|decoder| decoder.is_hardware()) {
+            eprintln!("skipped: no hardware decoder here");
+            return;
+        }
+        let (rgba, frames) = mpsc::channel();
+        let (gpu_sizes, on_gpu) = mpsc::channel();
+        let mut taken = 0;
+        let receiver = VideoReceiver::start_with_gpu(
+            move |picture| {
+                let _ = rgba.send(picture);
+            },
+            Box::new(move |picture, size| {
+                let _ = gpu_sizes.send((picture.width, picture.height, size));
+                taken += 1;
+                taken <= 3
+            }),
+            || {},
+        );
+        receiver.set_size(640, 360);
+
+        for video in stream(1280, 720, 8) {
+            receiver.push(video);
+        }
+        let on_gpu: Vec<_> = (0..4)
+            .filter_map(|_| on_gpu.recv_timeout(Duration::from_secs(5)).ok())
+            .collect();
+        let back = collect(&frames, 4);
+
+        assert_eq!(on_gpu.len(), 4, "three taken, the fourth refused");
+        assert_eq!(
+            on_gpu[0],
+            (1280, 720, (640, 360)),
+            "drawn at the tile's size"
+        );
+        assert_eq!(back.len(), 4, "then in memory, as RGBA");
+        assert_eq!((back[0].width, back[0].height), (640, 360));
+    }
+
     #[test]
     fn damage_asks_for_a_keyframe() {
+        crate::video::codec::needs_codec!();
         let (receiver, _frames, losses) = started(320, 180);
         let mut pictures = stream(320, 180, 4);
         for unit in &mut pictures[2].nal_units {

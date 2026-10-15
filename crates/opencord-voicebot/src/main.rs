@@ -10,6 +10,7 @@ use anyhow::Context as _;
 use clap::Parser;
 use opencord_core::api::types::{
     CoreEventPayload, ScreenShareRequest, ScreenShareResolution, StreamSourceKind,
+    VoiceSettingsChanges,
 };
 use opencord_voicebot::{Heard, VoiceSession, Voicebot};
 
@@ -30,6 +31,11 @@ struct Args {
     /// Tone to play, in Hz; 0 stays silent.
     #[arg(long, default_value_t = 440.0)]
     tone: f32,
+    /// Instead of a tone, a 100 ms beep at this frequency every second,
+    /// timed when it comes back in someone else's audio: a round trip
+    /// through their devices (plan §16.1).
+    #[arg(long, value_name = "HZ")]
+    ping: Option<f32>,
     /// Send a camera of real H.264 (a moving test scene in 180p, 360p and
     /// 720p layers), as the app's camera would.
     #[arg(long)]
@@ -75,6 +81,16 @@ struct Args {
     /// Play --sound again this often, in seconds.
     #[arg(long, value_name = "SECONDS", requires = "sound")]
     sound_every: Option<u64>,
+    /// Allow screen shares up to this quality on the server first, such as
+    /// 1080p60; needs Manage server (the owner has it).
+    #[arg(long, value_name = "QUALITY", value_parser = screen_quality)]
+    server_screen_cap: Option<ScreenShareRequest>,
+    /// Once joined, write this in the voice channel's chat (Phase 2 §12).
+    #[arg(long, value_name = "TEXT")]
+    say: Option<String>,
+    /// Write --say again this often, in seconds.
+    #[arg(long, value_name = "SECONDS", requires = "say")]
+    say_every: Option<u64>,
     #[arg(long, default_value_t = 10)]
     seconds: u64,
 }
@@ -92,6 +108,23 @@ async fn main() -> ExitCode {
 
 async fn run(args: Args) -> anyhow::Result<()> {
     let mut bot = Voicebot::connect(&args.server, args.claim, &args.name).await?;
+    if let Some(cap) = args.server_screen_cap {
+        bot.client
+            .update_voice_settings(
+                &bot.server_key,
+                VoiceSettingsChanges {
+                    screen_share_max_resolution: Some(cap.resolution),
+                    screen_share_max_fps: Some(cap.fps),
+                    ..VoiceSettingsChanges::default()
+                },
+            )
+            .await
+            .context("raising the server's screen share cap")?;
+        println!(
+            "screen shares allowed up to {:?} at {} fps",
+            cap.resolution, cap.fps
+        );
+    }
     let uploaded = match &args.upload_sound {
         Some(path) => {
             let sound = bot.upload_sound(path, &args.sound_name).await?;
@@ -107,8 +140,34 @@ async fn run(args: Args) -> anyhow::Result<()> {
     let channel = bot.voice_channel(&args.channel)?;
     let session = bot.join(channel).await?;
     println!("joined {} as user {}", args.channel, bot.user_id());
+    if let Some(text) = args.say.clone() {
+        let (client, key) = (bot.client.clone(), bot.server_key.clone());
+        let every = args.say_every.map(Duration::from_secs);
+        let name = args.channel.clone();
+        tokio::spawn(async move {
+            for said in 0u32.. {
+                let nonce = format!("say-{said}-{}", std::process::id());
+                match client
+                    .send_message(&key, channel, text.clone(), nonce)
+                    .await
+                {
+                    Ok(_) => println!("said {text:?} in {name}"),
+                    Err(error) => eprintln!("could not write in {name}: {error}"),
+                }
+                let Some(every) = every else { return };
+                tokio::time::sleep(every).await;
+            }
+        });
+    }
     let duration = Duration::from_secs(args.seconds);
-    if args.tone > 0.0 {
+    if let Some(frequency) = args.ping {
+        session.play_pings(
+            frequency,
+            Duration::from_secs(1),
+            Duration::from_millis(100),
+            duration,
+        );
+    } else if args.tone > 0.0 {
         session.play_tone(args.tone, duration);
     }
     // Track ids are unique in a channel.
@@ -233,6 +292,18 @@ async fn run(args: Args) -> anyhow::Result<()> {
             tones(&heard)
         );
     }
+    let mut echoes = session.echoes();
+    if !echoes.is_empty() {
+        echoes.sort_unstable();
+        let at = |share: f64| echoes[((echoes.len() - 1) as f64 * share) as usize].as_millis();
+        println!(
+            "round trip: {} ms (median), {} ms (95th), {} ms (most), over {} beeps",
+            at(0.5),
+            at(0.95),
+            at(1.0),
+            echoes.len()
+        );
+    }
     for (user, seen) in session.seen() {
         let [low, middle, high] = seen.layers;
         println!(
@@ -243,6 +314,18 @@ async fn run(args: Args) -> anyhow::Result<()> {
             seen.keyframes,
             seen.bytes as f64 * 8.0 / duration.as_secs_f64() / 1000.0,
         );
+        let mut latencies = seen.latencies_ms.clone();
+        if !latencies.is_empty() {
+            latencies.sort_unstable();
+            let at = |share: f64| latencies[((latencies.len() - 1) as f64 * share) as usize];
+            println!(
+                "user {user}: made to decoded in {} ms (median), {} ms (95th), {} ms (most), over {} stamped pictures",
+                at(0.5),
+                at(0.95),
+                at(1.0),
+                latencies.len()
+            );
+        }
     }
     Ok(())
 }
@@ -267,13 +350,9 @@ fn tone_pair(text: &str) -> Result<(f32, f32), String> {
     Ok((parse(left)?, parse(right)?))
 }
 
-#[cfg(target_os = "linux")]
 fn share_tone(session: &VoiceSession, left: f32, right: f32, duration: Duration) {
     session.share_tone(left, right, duration);
 }
-
-#[cfg(not(target_os = "linux"))]
-fn share_tone(_session: &VoiceSession, _left: f32, _right: f32, _duration: Duration) {}
 
 /// "720p30", "1080p60", "source60"...: a preset and a frame rate.
 fn screen_quality(text: &str) -> Result<ScreenShareRequest, String> {
@@ -299,7 +378,6 @@ fn screen_quality(text: &str) -> Result<ScreenShareRequest, String> {
 }
 
 /// Goes live on the server, then sends the screen.
-#[cfg(target_os = "linux")]
 async fn go_live(
     bot: &Voicebot,
     session: &VoiceSession,
@@ -330,22 +408,6 @@ async fn go_live(
     Ok(())
 }
 
-#[cfg(not(target_os = "linux"))]
-async fn go_live(
-    _bot: &Voicebot,
-    _session: &VoiceSession,
-    _channel: i64,
-    _request: ScreenShareRequest,
-) -> anyhow::Result<()> {
-    anyhow::bail!("an encoded screen needs Linux for now")
-}
-
-#[cfg(target_os = "linux")]
 async fn publish_camera(session: &VoiceSession, track_id: &str) -> anyhow::Result<()> {
     session.publish_encoded_camera(track_id).await
-}
-
-#[cfg(not(target_os = "linux"))]
-async fn publish_camera(_session: &VoiceSession, _track_id: &str) -> anyhow::Result<()> {
-    anyhow::bail!("an encoded camera needs Linux for now; try --test-pattern")
 }

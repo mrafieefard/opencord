@@ -28,6 +28,7 @@ import 'package:opencord/features/desktop/login_item.dart';
 import 'package:opencord/features/desktop/notification_binding.dart';
 import 'package:opencord/features/desktop/notifications.dart';
 import 'package:opencord/features/desktop/tray.dart';
+import 'package:opencord/features/desktop/hotkey_binding.dart';
 import 'package:opencord/features/desktop/tray_binding.dart';
 import 'package:opencord/features/links/app_links.dart';
 import 'package:opencord/features/onboarding/startup_failed_app.dart';
@@ -120,6 +121,7 @@ Future<ProviderContainer> startApp({
   );
   container.read(eventPumpProvider);
   container.read(trayBindingProvider);
+  container.read(hotkeyBindingProvider);
   container.read(notificationBindingProvider);
   container.read(loginItemBindingProvider);
   // Links the app was started with (§15); later launches pass theirs on
@@ -166,7 +168,7 @@ Future<Widget> startupWidget(
 /// Lets the core draw video into this engine's textures (Phase 2 plan
 /// §7.11). Without it, video still flows but nothing is drawn.
 Future<void> _startVideo() async {
-  if (!core.videoSupported()) return;
+  if (!core.videoSupport().receive) return;
   try {
     final engine = await EngineContext.instance.getEngineHandle();
     core.videoInit(engineHandle: engine);

@@ -4,7 +4,7 @@
 use std::collections::HashMap;
 use std::path::Path;
 use std::sync::{Arc, Mutex, MutexGuard, OnceLock, PoisonError, RwLock, Weak};
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use opencord_common::address::{
     Fingerprint, InviteLink, ServerAddress, format_fingerprint, parse_fingerprint,
@@ -22,7 +22,7 @@ use crate::api::types::{
     PermissionOverwrite, PresenceStatus, Role, RoleChanges, ScreenProblem, ScreenShareRequest,
     ScreenShareStarted, ScreenStream, Server, ServerChanges, ServerInfo, SoundDraft,
     SoundSelection, SoundboardSound, SoundboardSoundChanges, StreamSourceKind, User, VideoWant,
-    VoiceSettings, VoiceSettingsChanges, VoiceState,
+    VoiceCue, VoiceSettings, VoiceSettingsChanges, VoiceState,
 };
 use crate::connection::{
     self, Command, Connection, Context, Credentials, Established, HandshakeError, MediaTokens,
@@ -38,6 +38,18 @@ use opencord_media::hotkeys::Hotkeys;
 const INVITE_SCHEME: &str = "opencord://";
 /// Voice server updates kept for a slow listener.
 const VOICE_SERVER_BACKLOG: usize = 16;
+/// A rejoin told to slow down tries this many times in all, waiting at
+/// least [`REJOIN_WAIT`] between tries.
+const REJOIN_TRIES: u32 = 5;
+const REJOIN_WAIT: Duration = Duration::from_secs(1);
+/// How often this device's idle time is looked at while in voice, and how
+/// often the server hears it again while away (§12, AFK moves).
+const IDLE_CHECK_EVERY: Duration = Duration::from_secs(5);
+const IDLE_REPEAT_EVERY: Duration = Duration::from_secs(60);
+/// How often the wall clock is compared with a timer, and how far it must
+/// run ahead to mean the computer slept (§12: rejoin after sleep).
+const WAKE_CHECK_EVERY: Duration = Duration::from_secs(2);
+const SLEEP_GAP: Duration = Duration::from_secs(5);
 
 #[derive(Clone)]
 pub struct Client {
@@ -143,6 +155,7 @@ impl Client {
                 soundboard,
             }),
         };
+        client.spawn_wake_watch();
         let watcher: Weak<Inner> = Arc::downgrade(&client.inner);
         runtime.spawn(async move {
             while let Some(event) = incoming.recv().await {
@@ -711,7 +724,83 @@ impl Client {
             }
         });
         self.sync_media();
+        self.spawn_idle_reports();
         Some(receiver)
+    }
+
+    /// Notices the computer waking up: the wall clock runs on while it
+    /// sleeps, but a timer here does not. Then every connection is checked
+    /// at once instead of at its next heartbeat, so the call comes back in
+    /// seconds (Phase 2 §12).
+    fn spawn_wake_watch(&self) {
+        let watcher = Arc::downgrade(&self.inner);
+        self.inner.runtime.spawn(async move {
+            let mut before = SystemTime::now();
+            loop {
+                tokio::time::sleep(WAKE_CHECK_EVERY).await;
+                let now = SystemTime::now();
+                let woke = slept(before, now, WAKE_CHECK_EVERY);
+                before = now;
+                let Some(inner) = watcher.upgrade() else {
+                    return;
+                };
+                if woke {
+                    tracing::info!("the computer woke up; checking the connections");
+                    Self { inner }.check_connections().await;
+                }
+            }
+        });
+    }
+
+    /// Checks every server connection now: a heartbeat answered within a
+    /// few seconds, or a reconnect.
+    pub async fn check_connections(&self) {
+        let commands: Vec<mpsc::Sender<Command>> = self
+            .lock_connections()
+            .values()
+            .map(|connection| connection.commands.clone())
+            .collect();
+        for commands in commands {
+            let _ = commands.send(Command::Probe).await;
+        }
+    }
+
+    /// While in voice, tells the server when this device has been idle
+    /// past [`opencord_media::idle::THRESHOLD`] and when it is in use
+    /// again, so it can move the user to the AFK channel (§12).
+    fn spawn_idle_reports(&self) {
+        let watcher = Arc::downgrade(&self.inner);
+        self.inner.runtime.spawn(async move {
+            let mut every = tokio::time::interval(IDLE_CHECK_EVERY);
+            let mut sent: Option<IdleReport> = None;
+            loop {
+                every.tick().await;
+                let Some(inner) = watcher.upgrade() else {
+                    return;
+                };
+                let client = Self { inner };
+                let target = client.lock_voice().target.clone();
+                let Some(target) = target else {
+                    sent = None;
+                    continue;
+                };
+                let Some(idle) = opencord_media::idle::idle_time().await else {
+                    continue;
+                };
+                let Some(input_idle_ms) = idle_report(sent.as_ref(), &target, idle) else {
+                    continue;
+                };
+                let request =
+                    Request::UpdateVoiceActivity(proto::UpdateVoiceActivity { input_idle_ms });
+                if client.request(&target.0, request).await.is_ok() {
+                    sent = Some(IdleReport {
+                        target,
+                        away: input_idle_ms.is_some(),
+                        at: std::time::Instant::now(),
+                    });
+                }
+            }
+        });
     }
 
     /// Audio devices, volumes and input mode, for voice media.
@@ -844,7 +933,13 @@ impl Client {
 
     /// Leaves voice, wherever this device is.
     pub async fn voice_leave(&self) -> Result<(), CoreError> {
-        let target = self.lock_voice().target.take();
+        // Leaving stops the camera (the media session does), so the next
+        // join must not say it's on.
+        let target = {
+            let mut voice = self.lock_voice();
+            voice.video = false;
+            voice.target.take()
+        };
         self.sync_media();
         match target {
             Some((key, _)) => self.request(&key, leave_voice()).await.map(|_| ()),
@@ -855,13 +950,19 @@ impl Client {
     /// Self mute and deafen. They hold outside voice too, for the next
     /// join; in voice, the server hears about them in the background.
     pub fn set_voice_self(&self, mute: Option<bool>, deaf: Option<bool>) {
-        let target = {
+        let (changed, target) = {
             let mut voice = self.lock_voice();
+            let before = (voice.mute, voice.deaf);
             voice.mute = mute.unwrap_or(voice.mute);
             voice.deaf = deaf.unwrap_or(voice.deaf);
-            voice.target.clone()
+            (before != (voice.mute, voice.deaf), voice.target.clone())
         };
         self.sync_media();
+        // Unchanged, nothing to tell: each update counts against the
+        // server's voice state limit (10 in 10 s).
+        if !changed {
+            return;
+        }
         if let Some((key, channel_id)) = target {
             let client = self.clone();
             self.inner.runtime.spawn(async move {
@@ -892,7 +993,7 @@ impl Client {
 
     /// Video draws into this Flutter engine's textures from now on.
     pub fn video_init(&self, engine_handle: i64) {
-        #[cfg(target_os = "linux")]
+        #[cfg(any(target_os = "linux", target_os = "macos", target_os = "windows"))]
         if let Some(media) = self.inner.media.get() {
             media
                 .video()
@@ -900,7 +1001,7 @@ impl Client {
                     engine_handle,
                 )));
         }
-        #[cfg(not(target_os = "linux"))]
+        #[cfg(not(any(target_os = "linux", target_os = "macos", target_os = "windows")))]
         let _ = engine_handle;
     }
 
@@ -922,13 +1023,14 @@ impl Client {
         self.set_voice_video(false);
     }
 
-    /// Goes live: picks the source, creates the stream on the server, then
+    /// Goes live: picks the source (the system's picker, or `source_id`
+    /// from Opencord's own), creates the stream on the server, then
     /// publishes and sends the screen. Live already, it changes the source
     /// and keeps the stream and its viewers.
-    #[cfg(target_os = "linux")]
     pub async fn screen_share_start(
         &self,
         request: ScreenShareRequest,
+        source_id: Option<String>,
     ) -> Result<ScreenShareStarted, CoreError> {
         use crate::video::screen;
 
@@ -937,7 +1039,7 @@ impl Client {
             || screen::screen_error(ScreenProblem::NotInVoice, "not in a voice channel");
         let (server_key, channel_id) = self.lock_voice().target.clone().ok_or_else(not_in_voice)?;
         let token = self.lock_voice().screen_restore_token.clone();
-        let pending = screen::pick(request.fps, token).await?;
+        let pending = screen::pick(screen::shape(&request), token, source_id).await?;
         if pending.restore_token.is_some() {
             self.lock_voice().screen_restore_token = pending.restore_token.clone();
         }
@@ -961,15 +1063,6 @@ impl Client {
         started
     }
 
-    #[cfg(not(target_os = "linux"))]
-    pub async fn screen_share_start(
-        &self,
-        request: ScreenShareRequest,
-    ) -> Result<ScreenShareStarted, CoreError> {
-        let _ = request;
-        Err(crate::video::screen_unsupported())
-    }
-
     /// A new quality: the server checks it against its maximum first.
     pub async fn screen_share_update(&self, request: ScreenShareRequest) -> Result<(), CoreError> {
         let media = self.inner.media.get().ok_or(CoreError::NotInitialized)?;
@@ -988,12 +1081,7 @@ impl Client {
             Response::Stream(_) => {}
             other => return Err(unexpected(&other)),
         }
-        #[cfg(target_os = "linux")]
-        {
-            media.video().reshape_screen(request).await
-        }
-        #[cfg(not(target_os = "linux"))]
-        Ok(())
+        media.video().reshape_screen(request).await
     }
 
     pub async fn screen_share_stop(&self) -> Result<(), CoreError> {
@@ -1083,15 +1171,7 @@ impl Client {
     /// [`crate::api::client::screen_audio_apps`]), or none.
     pub fn screen_share_audio_from(&self, app: Option<String>) -> Result<(), CoreError> {
         let media = self.inner.media.get().ok_or(CoreError::NotInitialized)?;
-        #[cfg(target_os = "linux")]
-        {
-            media.video().share_audio_from(app)
-        }
-        #[cfg(not(target_os = "linux"))]
-        {
-            let _ = (media, app);
-            Err(crate::video::screen_unsupported())
-        }
+        media.video().share_audio_from(app)
     }
 
     /// The tiles the app shows video in, and their sizes.
@@ -1164,6 +1244,18 @@ impl Client {
     /// Plays a sound on this device only.
     pub async fn soundboard_preview(&self, key: &str, sound_ref: &str) -> Result<(), CoreError> {
         self.inner.soundboard.preview(self, key, sound_ref).await
+    }
+
+    /// Plays a voice event's sound here only, at `volume` (0–1): in the
+    /// call when there is one, else through an engine started for it.
+    pub fn play_cue(&self, cue: VoiceCue, volume: f32) {
+        let Some(media) = self.media() else {
+            return;
+        };
+        match cue_samples(cue) {
+            Ok(samples) => media.preview(samples, volume.clamp(0.0, 1.0)),
+            Err(error) => tracing::warn!(%error, ?cue, "a voice cue could not be decoded"),
+        }
     }
 
     /// The soundboard's volume (0–1) and "Mute all soundboards".
@@ -1313,11 +1405,32 @@ impl Client {
     }
 
     /// Gets back into `channel_id` after a fresh session. If the server says
-    /// no, this device has left, and the app hears so.
+    /// no, this device has left, and the app hears so. Told to slow down, it
+    /// tries again once the server's wait is over, while it still wants that
+    /// channel.
     async fn rejoin(&self, key: &str, channel_id: i64) {
-        let request = self.voice_update(channel_id);
-        let Err(CoreError::Server { code, .. }) = self.request(key, request).await else {
-            return;
+        let mut tries = 0;
+        let code = loop {
+            let request = self.voice_update(channel_id);
+            let Err(CoreError::Server {
+                code,
+                retry_after_ms,
+                ..
+            }) = self.request(key, request).await
+            else {
+                return;
+            };
+            tries += 1;
+            if code != ErrorCode::RateLimited || tries == REJOIN_TRIES {
+                break code;
+            }
+            let wait = retry_after_ms.map_or(REJOIN_WAIT, |ms| {
+                Duration::from_millis(u64::from(ms)).max(REJOIN_WAIT)
+            });
+            tokio::time::sleep(wait).await;
+            if self.lock_voice().target != Some((key.to_owned(), channel_id)) {
+                return;
+            }
         };
         if matches!(code, ErrorCode::RateLimited | ErrorCode::Internal) {
             return;
@@ -1555,7 +1668,6 @@ fn expect_member(response: Response) -> Result<Member, CoreError> {
 
 /// A picked screen that will not go live: its capture stops off the async
 /// runtime.
-#[cfg(target_os = "linux")]
 fn drop_pending(pending: crate::video::screen::Pending) {
     std::thread::spawn(move || drop(pending));
 }
@@ -1571,6 +1683,73 @@ fn unix_ms() -> i64 {
         .duration_since(UNIX_EPOCH)
         .unwrap_or_default();
     i64::try_from(since_epoch.as_millis()).unwrap_or(i64::MAX)
+}
+
+/// Whether the wall clock ran well past `expected` between `before` and
+/// `now`: the computer slept. A clock set back is not sleep.
+fn slept(before: SystemTime, now: SystemTime, expected: Duration) -> bool {
+    now.duration_since(before)
+        .is_ok_and(|elapsed| elapsed > expected + SLEEP_GAP)
+}
+
+/// What the server last heard about this device's idle time.
+struct IdleReport {
+    target: (String, i64),
+    away: bool,
+    at: std::time::Instant,
+}
+
+/// What to tell the server, if anything, with `idle` measured now in
+/// `target`: `Some(Some(ms))` away, `Some(None)` back, `None` nothing new.
+fn idle_report(
+    sent: Option<&IdleReport>,
+    target: &(String, i64),
+    idle: Duration,
+) -> Option<Option<u64>> {
+    let away = idle >= opencord_media::idle::THRESHOLD;
+    let due = match sent {
+        None => away,
+        Some(sent) => {
+            sent.target != *target
+                || sent.away != away
+                || (away && sent.at.elapsed() >= IDLE_REPEAT_EVERY)
+        }
+    };
+    due.then(|| away.then(|| u64::try_from(idle.as_millis()).unwrap_or(u64::MAX)))
+}
+
+/// A cue's samples, decoded once.
+fn cue_samples(cue: VoiceCue) -> Result<Arc<[f32]>, opencord_media::soundboard::SoundError> {
+    use opencord_media::soundboard::cues::Cue;
+
+    static DECODED: OnceLock<Mutex<HashMap<VoiceCue, Arc<[f32]>>>> = OnceLock::new();
+    let decoded = DECODED.get_or_init(Mutex::default);
+    if let Some(samples) = decoded
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .get(&cue)
+    {
+        return Ok(Arc::clone(samples));
+    }
+    let file = match cue {
+        VoiceCue::Join => Cue::Join,
+        VoiceCue::Leave => Cue::Leave,
+        VoiceCue::UserJoin => Cue::UserJoin,
+        VoiceCue::UserLeave => Cue::UserLeave,
+        VoiceCue::Mute => Cue::Mute,
+        VoiceCue::Unmute => Cue::Unmute,
+        VoiceCue::Deafen => Cue::Deafen,
+        VoiceCue::Undeafen => Cue::Undeafen,
+        VoiceCue::StreamStart => Cue::StreamStart,
+        VoiceCue::StreamStop => Cue::StreamStop,
+    }
+    .file();
+    let samples: Arc<[f32]> = Arc::from(opencord_media::soundboard::decode_mono(file)?);
+    decoded
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .insert(cue, Arc::clone(&samples));
+    Ok(samples)
 }
 
 #[cfg(test)]
@@ -1595,5 +1774,68 @@ mod tests {
             parse_target("opencord://host/join/x"),
             Err(CoreError::InvalidInput { .. })
         ));
+    }
+
+    #[test]
+    fn every_voice_cue_decodes_once_and_is_kept() {
+        for cue in [
+            VoiceCue::Join,
+            VoiceCue::Leave,
+            VoiceCue::UserJoin,
+            VoiceCue::UserLeave,
+            VoiceCue::Mute,
+            VoiceCue::Unmute,
+            VoiceCue::Deafen,
+            VoiceCue::Undeafen,
+            VoiceCue::StreamStart,
+            VoiceCue::StreamStop,
+        ] {
+            let first = cue_samples(cue).unwrap();
+            assert!(first.len() > 48_000 / 20, "{cue:?} is too short");
+            assert!(Arc::ptr_eq(&first, &cue_samples(cue).unwrap()));
+        }
+    }
+
+    #[test]
+    fn the_server_hears_of_idle_time_once_it_crosses_a_minute_and_when_it_ends() {
+        let general = ("server".to_owned(), 1);
+        let minute = opencord_media::idle::THRESHOLD;
+        let report = |away, target: &(String, i64)| IdleReport {
+            target: target.clone(),
+            away,
+            at: std::time::Instant::now(),
+        };
+
+        // In use, and nothing said yet: nothing to say.
+        assert_eq!(idle_report(None, &general, Duration::ZERO), None);
+        assert_eq!(
+            idle_report(None, &general, minute),
+            Some(Some(60_000)),
+            "away"
+        );
+        let away = report(true, &general);
+        assert_eq!(idle_report(Some(&away), &general, minute * 2), None);
+        assert_eq!(
+            idle_report(Some(&away), &general, Duration::ZERO),
+            Some(None),
+            "back"
+        );
+        // Moved elsewhere while away: the new channel hears it too.
+        let other = ("server".to_owned(), 2);
+        assert_eq!(idle_report(Some(&away), &other, minute), Some(Some(60_000)));
+        let back = report(false, &general);
+        assert_eq!(idle_report(Some(&back), &general, Duration::ZERO), None);
+    }
+
+    #[test]
+    fn a_wall_clock_far_ahead_of_the_timer_means_the_computer_slept() {
+        let before = SystemTime::UNIX_EPOCH + Duration::from_secs(1_000_000);
+        let every = Duration::from_secs(2);
+
+        assert!(!slept(before, before + every, every));
+        assert!(!slept(before, before + Duration::from_secs(6), every));
+        assert!(slept(before, before + Duration::from_secs(90), every));
+        // Set back: not sleep.
+        assert!(!slept(before, before - Duration::from_secs(90), every));
     }
 }

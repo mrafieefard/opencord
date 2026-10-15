@@ -453,3 +453,113 @@ async fn a_silent_participant_sends_almost_nothing() {
     let bits_per_second = (after.bytes_in - before.bytes_in) * 8 / 3 / 2;
     assert!(bits_per_second < 3_000, "{bits_per_second} bit/s each");
 }
+
+#[tokio::test]
+async fn speaking_reaches_the_main_server_at_most_every_ten_seconds() {
+    let mut node = node().await;
+    let (alice, _alice_events) = join(&node, 1).await;
+    let _ = node_events(&mut node, Duration::from_millis(300)).await;
+
+    alice.set_speaking(1);
+    alice.set_speaking(0);
+    alice.set_speaking(1);
+    let events = node_events(&mut node, Duration::from_millis(500)).await;
+
+    let spoke: Vec<_> = events
+        .iter()
+        .filter(|event| matches!(event, NodeEvent::Spoke { .. }))
+        .collect();
+    assert_eq!(spoke.len(), 1, "{events:?}");
+    assert!(matches!(
+        spoke[0],
+        NodeEvent::Spoke {
+            user_id: 1,
+            channel_id: CHANNEL
+        }
+    ));
+}
+
+#[tokio::test]
+async fn the_connection_stats_match_what_arrives() {
+    use opencord_media::transport::impairment::Impairment;
+
+    let _machine = whole_machine().await;
+    let node = node().await;
+    let (alice, _alice_events) = join(&node, 1).await;
+    let (bob, mut bob_events) = join(&node, 2).await;
+    let delay = Duration::from_millis(50);
+    bob.set_impairment(
+        Impairment {
+            loss: 0.2,
+            latency: delay,
+            jitter: Duration::from_millis(15),
+            ..Impairment::default()
+        },
+        Impairment {
+            latency: delay,
+            ..Impairment::default()
+        },
+    );
+
+    // Five seconds of Alice talking, 250 frames.
+    let talking = tokio::spawn(async move {
+        let mut every = tokio::time::interval(Duration::from_millis(20));
+        for index in 0..250u32 {
+            every.tick().await;
+            alice.send_audio(AudioFrame {
+                payload: vec![0xf8, 1, 0xff, 0xfe],
+                position: u64::from(index) * 960,
+                marker: index == 0,
+                audio_level: -30,
+                voice_activity: true,
+            });
+        }
+        alice
+    });
+    let mut arrived = 0u32;
+    let mut stats = Vec::new();
+    let end = tokio::time::Instant::now() + Duration::from_secs(6);
+    while let Ok(Some(event)) = tokio::time::timeout_at(end, bob_events.recv()).await {
+        match event {
+            VoiceEvent::Audio(_) => arrived += 1,
+            VoiceEvent::Stats(report) => stats.push(report),
+            _ => {}
+        }
+    }
+    let _alice = talking.await.unwrap();
+
+    let measured = 1.0 - f64::from(arrived) / 250.0;
+    let last = stats.last().copied().expect("no statistics");
+    println!(
+        "measured loss {measured:.3}, {} reports, last {last:?}",
+        stats.len()
+    );
+    assert!(stats.len() >= 4, "{} reports in 6 s", stats.len());
+    let reported: Vec<f32> = stats.iter().filter_map(|report| report.loss_in).collect();
+    let mean = reported.iter().sum::<f32>() / reported.len().max(1) as f32;
+    assert!(
+        (f64::from(mean) - measured).abs() < 0.08,
+        "reported {mean:.3} lost, measured {measured:.3}"
+    );
+    let rtt = stats
+        .iter()
+        .filter_map(|report| report.rtt)
+        .max()
+        .expect("no round trip");
+    // RTCP counts its delay in 1/65536 s and the shim's timers are not
+    // exact: within 10 % below.
+    assert!(
+        rtt >= 2 * delay * 9 / 10 && rtt < 2 * delay + Duration::from_millis(100),
+        "round trip {rtt:?}"
+    );
+    let jitter = stats
+        .iter()
+        .filter_map(|report| report.jitter)
+        .max()
+        .expect("no jitter");
+    assert!(
+        jitter > Duration::from_millis(2) && jitter < Duration::from_millis(40),
+        "jitter {jitter:?}"
+    );
+    assert!(last.bitrate_in > 0 && last.bitrate_out > 0, "{last:?}");
+}

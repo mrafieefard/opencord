@@ -29,10 +29,12 @@ abstract final class OcIcons {
   static const IconData attachFile = IconData(0xe226, fontFamily: fontFamily);
   static const IconData audioFile = IconData(0xeb82, fontFamily: fontFamily);
   static const IconData badge = IconData(0xea67, fontFamily: fontFamily);
+  static const IconData bedtime = IconData(0xf159, fontFamily: fontFamily);
   static const IconData block = IconData(0xf08c, fontFamily: fontFamily);
   static const IconData bugReport = IconData(0xe868, fontFamily: fontFamily);
   static const IconData callEnd = IconData(0xf0bc, fontFamily: fontFamily);
   static const IconData campaign = IconData(0xef49, fontFamily: fontFamily);
+  static const IconData chat = IconData(0xe0c9, fontFamily: fontFamily);
   static const IconData check = IconData(0xe668, fontFamily: fontFamily);
   static const IconData checkBox = IconData(0xe9de, fontFamily: fontFamily);
   static const IconData checkBoxOutlineBlank = IconData(
@@ -120,6 +122,7 @@ abstract final class OcIcons {
   static const IconData moreVert = IconData(0xe5d4, fontFamily: fontFamily);
   static const IconData moveDown = IconData(0xeb61, fontFamily: fontFamily);
   static const IconData musicNote = IconData(0xe405, fontFamily: fontFamily);
+  static const IconData networkCheck = IconData(0xe640, fontFamily: fontFamily);
   static const IconData notifications = IconData(
     0xe7f5,
     fontFamily: fontFamily,
@@ -145,6 +148,18 @@ abstract final class OcIcons {
   static const IconData send = IconData(0xe163, fontFamily: fontFamily);
   static const IconData settings = IconData(0xe8b8, fontFamily: fontFamily);
   static const IconData shieldPerson = IconData(0xf650, fontFamily: fontFamily);
+  static const IconData signalCellularAlt = IconData(
+    0xe202,
+    fontFamily: fontFamily,
+  );
+  static const IconData signalCellularAlt1Bar = IconData(
+    0xebdf,
+    fontFamily: fontFamily,
+  );
+  static const IconData signalCellularAlt2Bar = IconData(
+    0xebe3,
+    fontFamily: fontFamily,
+  );
   static const IconData star = IconData(0xf09a, fontFamily: fontFamily);
   static const IconData stopScreenShare = IconData(
     0xe0e3,

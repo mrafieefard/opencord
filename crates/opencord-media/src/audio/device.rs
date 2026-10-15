@@ -244,12 +244,15 @@ fn name_of(device: &Device) -> String {
 }
 
 /// The device's default configuration, at 48 kHz if it can do that, which
-/// saves resampling.
+/// saves resampling. Not on macOS, where a device's rate is the whole
+/// system's: asking for 48 kHz changes it for every app, and AirPods with
+/// their microphone open (16 kHz) refuse, so their speaker could not be
+/// opened at all. There the device's own rate is resampled.
 fn choose(
     default: SupportedStreamConfig,
     supported: impl Iterator<Item = cpal::SupportedStreamConfigRange>,
 ) -> SupportedStreamConfig {
-    if default.sample_rate() == SAMPLE_RATE {
+    if cfg!(target_os = "macos") || default.sample_rate() == SAMPLE_RATE {
         return default;
     }
     supported

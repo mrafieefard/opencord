@@ -44,3 +44,6 @@ app.*.map.json
 /android/app/profile
 /android/app/release
 /data
+# Written by golden tests that fail, as on a system other than the one
+# the goldens were rendered on.
+/test/golden/failures/

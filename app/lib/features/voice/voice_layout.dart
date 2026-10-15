@@ -7,10 +7,15 @@ import 'package:opencord/core/model/misc.dart';
 typedef VoiceTileId = ({int userId, bool screen});
 
 /// One tile per participant, and each screenshare right after the person
-/// sharing it (§4.10).
-List<VoiceTileId> voiceTiles(List<VoiceParticipant> participants) => [
+/// sharing it (§4.10). With [videoOnly] (Phase 2 §12, "Hide non-video
+/// participants"), only cameras and screenshares.
+List<VoiceTileId> voiceTiles(
+  List<VoiceParticipant> participants, {
+  bool videoOnly = false,
+}) => [
   for (final participant in participants) ...[
-    (userId: participant.userId, screen: false),
+    if (!videoOnly || participant.camera)
+      (userId: participant.userId, screen: false),
     if (participant.screensharing) (userId: participant.userId, screen: true),
   ],
 ];

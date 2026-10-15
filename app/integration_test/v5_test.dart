@@ -47,24 +47,21 @@ void main() {
         );
         final feed = container.read(videoFeedsProvider).cameras.values.single;
         final texture = feed.textureId;
-        expect(texture, isNotNull, reason: 'the app gave the core its engine');
+        if (texture == null) fail('the app gave the core no engine');
         await waitFor(
           tester,
           find.byWidgetPredicate(
             (widget) => widget is Texture && widget.textureId == texture,
           ),
         );
-        await waitUntil(
-          tester,
-          () =>
-              (core.videoTextureStats(textureId: texture!)?.drawn ??
-                  BigInt.zero) >=
-              BigInt.from(30),
-          reason: 'Flutter drawing the camera',
-        );
+        // Presented and drawn are counted apart, and either can lead.
+        await waitUntil(tester, () {
+          final stats = core.videoTextureStats(textureId: texture);
+          return stats != null &&
+              stats.presented >= BigInt.from(30) &&
+              stats.drawn >= BigInt.from(30);
+        }, reason: 'Flutter drawing the camera');
 
-        final stats = core.videoTextureStats(textureId: texture!)!;
-        expect(stats.presented, greaterThanOrEqualTo(BigInt.from(30)));
         expect(container.read(videoWantsProvider), isNotEmpty);
 
         await container.read(voiceSessionProvider.notifier).leave();

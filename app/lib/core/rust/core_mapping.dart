@@ -540,6 +540,9 @@ core.AudioSettings audioSettingsTo(AudioConfig config) => core.AudioSettings(
   automaticGain: config.automaticGain,
   inputVolume: config.inputVolume / 100,
   outputVolume: config.outputVolume / 100,
+  attenuationPercent: config.attenuationPercent,
+  attenuateWhenOthersSpeak: config.attenuateWhenOthersSpeak,
+  attenuateWhenISpeak: config.attenuateWhenISpeak,
 );
 
 NoiseSuppression noiseSuppressionFrom(core.NoiseSuppressionMode mode) =>
@@ -568,6 +571,6 @@ HotkeyAction hotkeyActionFrom(core.HotkeyAction action) => switch (action) {
 HotkeySupport hotkeySupportFrom(core.HotkeySupport support) =>
     switch (support) {
       core.HotkeySupport_Global(:final method) => HotkeySupport.global(method),
-      core.HotkeySupport_FocusedOnly(:final reason) =>
-        HotkeySupport.focusedOnly(reason),
+      core.HotkeySupport_FocusedOnly(:final reason, :final settingsUrl) =>
+        HotkeySupport.focusedOnly(reason, settingsUrl: settingsUrl),
     };

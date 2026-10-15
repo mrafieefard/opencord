@@ -31,6 +31,8 @@ class RepoCapabilities {
     this.readStates = false,
     this.replies = false,
     this.soundboard = false,
+    this.ownScreenPicker = false,
+    this.lowerOtherApps = false,
   });
 
   static const everything = RepoCapabilities(
@@ -43,6 +45,7 @@ class RepoCapabilities {
     readStates: true,
     replies: true,
     soundboard: true,
+    lowerOtherApps: true,
   );
 
   final bool reactions;
@@ -60,6 +63,15 @@ class RepoCapabilities {
 
   /// Soundboard sounds play and can be uploaded (Phase 2 V8).
   final bool soundboard;
+
+  /// The share dialog lists the screens and windows itself
+  /// ([OpencordRepository.screenSources]); otherwise the system's picker
+  /// opens after it (Phase 2 plan §9.1).
+  final bool ownScreenPicker;
+
+  /// Other apps can be lowered while people talk (Phase 2 §12); not on
+  /// macOS.
+  final bool lowerOtherApps;
 }
 
 /// The current user as far as the UI is concerned.
@@ -389,8 +401,14 @@ abstract interface class OpencordRepository {
   Future<void> leaveVoice();
 
   /// The camera that turning the camera on starts from now on, by its
-  /// device id; `null` for the system's first.
-  void chooseCamera(String? deviceId);
+  /// device id; `null` for the system's. With the camera on, it switches
+  /// to it at once; if that one cannot start, the camera goes off and a
+  /// [RepoException] says why.
+  Future<void> chooseCamera(String? deviceId);
+
+  /// The cameras there are, as (device id, name). On Linux listing them
+  /// may ask for camera access first (the Camera portal).
+  Future<List<(String, String)>> cameras();
 
   /// Turning the camera on may fail (a [RepoException] says why); it then
   /// stays off.
@@ -405,12 +423,22 @@ abstract interface class OpencordRepository {
   /// not named is neither received nor decoded (Phase 2 plan §6, §7.11).
   void setVideoWants(List<VideoWant> wants);
 
-  /// Goes live in this device's voice channel (Phase 2 plan §9.1): on Linux
-  /// the system's picker chooses a screen or a window first. Sharing again
-  /// while live changes the source and keeps the viewers. The share comes
-  /// as [OwnScreenShareChanged]; a [RepoException] says why it could not
-  /// start (the picker closed: [RepoErrorKind.screenCancelled]).
-  Future<void> startScreenShare(ScreenShareQuality quality, {bool audio});
+  /// Goes live in this device's voice channel (Phase 2 plan §9.1): where
+  /// the system has a picker it chooses a screen or a window first;
+  /// otherwise [sourceId] is one of [screenSources]
+  /// ([RepoCapabilities.ownScreenPicker]). Sharing again while live changes
+  /// the source and keeps the viewers. The share comes as
+  /// [OwnScreenShareChanged]; a [RepoException] says why it could not start
+  /// (the picker closed: [RepoErrorKind.screenCancelled]).
+  Future<void> startScreenShare(
+    ScreenShareQuality quality, {
+    bool audio,
+    String? sourceId,
+  });
+
+  /// The screens and windows the share dialog lists where Opencord has its
+  /// own picker; empty where the system picks.
+  Future<List<ScreenSource>> screenSources();
 
   /// A new quality while live, within the server's maximum.
   Future<void> updateScreenShare(ScreenShareQuality quality, {bool audio});
@@ -508,6 +536,9 @@ abstract interface class OpencordRepository {
 
   /// The soundboard volume (0–100 %) and "Mute all soundboards".
   void setSoundboardListening({required int volume, required bool muted});
+
+  /// Plays a voice event's sound on this device only (Phase 2 §12).
+  void playCue(VoiceCue cue);
 
   /// "Mute their soundboard": their sounds are not played here.
   void setUserSoundboardMute(String serverKey, int userId, bool muted);

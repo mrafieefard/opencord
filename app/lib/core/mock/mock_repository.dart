@@ -799,7 +799,7 @@ class MockRepository implements OpencordRepository {
       ],
     );
     server.channels[id] = channel;
-    if (kind.isTextLike) {
+    if (kind.isTextLike || kind == ChannelKind.voice) {
       server.messages[id] = [];
       server.readStates[id] = ReadState.empty;
     }
@@ -1554,6 +1554,10 @@ class MockRepository implements OpencordRepository {
   /// What the system's picker chooses, for tests.
   StreamSource debugShareSource = StreamSource.screen;
 
+  /// The app a shared window belongs to, where the system says (Windows),
+  /// for tests; `null`: the app asks ("Sound from").
+  String? debugShareSound;
+
   /// Whether sharing sound works here, and the apps playing, for tests.
   ScreenAudioSupport screenAudio = (supported: true, reason: null);
   List<ScreenAudioApp> appsPlaying = [
@@ -1600,9 +1604,14 @@ class MockRepository implements OpencordRepository {
   /// The mock paints its own camera; the one chosen is only kept, for
   /// tests.
   @override
-  void chooseCamera(String? deviceId) => cameraDevice = deviceId;
+  Future<void> chooseCamera(String? deviceId) async => cameraDevice = deviceId;
 
   String? cameraDevice;
+
+  @override
+  Future<List<(String, String)>> cameras() async => const [
+    ('mock-camera', 'Mock camera'),
+  ];
 
   /// Thrown when the camera is turned on, for tests.
   RepoException? cameraError;
@@ -1616,12 +1625,37 @@ class MockRepository implements OpencordRepository {
 
   OwnScreenShare? _screen;
 
+  /// The sources the share dialog lists where Opencord picks, for tests;
+  /// the id last asked to share.
+  List<ScreenSource> debugScreenSources = [
+    (
+      id: 'screen:1',
+      kind: StreamSource.screen,
+      title: 'Screen 1 · 2560×1440',
+      app: null,
+      thumbnail: null,
+    ),
+    (
+      id: 'window:42',
+      kind: StreamSource.window,
+      title: 'Notes — Opencord plan',
+      app: 'Notes',
+      thumbnail: null,
+    ),
+  ];
+  String? lastScreenSourceId;
+
+  @override
+  Future<List<ScreenSource>> screenSources() async => debugScreenSources;
+
   @override
   Future<void> startScreenShare(
     ScreenShareQuality quality, {
     bool audio = true,
+    String? sourceId,
   }) async {
     if (screenError case final error?) throw error;
+    lastScreenSourceId = sourceId;
     final session = _voice;
     if (session == null) {
       throw const RepoException(
@@ -1649,6 +1683,9 @@ class MockRepository implements OpencordRepository {
       source: debugShareSource,
       quality: quality,
       audio: audio && screenAudio.supported,
+      audioFrom: debugShareSource == StreamSource.window
+          ? debugShareSound
+          : null,
       preview: const VideoFeed(
         trackId: 'mock-screen',
         textureId: null,
@@ -1800,6 +1837,10 @@ class MockRepository implements OpencordRepository {
   /// As voice media would report: the microphone's level.
   void debugInputLevel(double dbfs) => _emit(InputLevelChanged(dbfs));
 
+  /// Connection statistics for the channel this device is in.
+  void debugVoiceStats(String serverKey, int channelId, VoiceStats stats) =>
+      _emit(VoiceStatsChanged(serverKey, channelId, stats));
+
   /// Someone else plays a sound in the call (Phase 2 V8).
   void debugSoundPlayed(String serverKey, SoundPlay play) =>
       _emit(SoundPlayed(serverKey, play));
@@ -1824,12 +1865,16 @@ class MockRepository implements OpencordRepository {
     'the mock has no system hotkeys',
   );
 
+  /// How many times [setHotkeys] was called.
+  var hotkeyBinds = 0;
+
   /// What [setHotkeys] was last given.
   List<HotkeyBinding> hotkeys = const [];
 
   @override
   Future<HotkeySupport> setHotkeys(List<HotkeyBinding> bindings) async {
     hotkeys = bindings;
+    hotkeyBinds++;
     return hotkeySupport;
   }
 
@@ -1952,6 +1997,12 @@ class MockRepository implements OpencordRepository {
   @override
   void setSoundboardListening({required int volume, required bool muted}) =>
       soundboardListening = (volume: volume, muted: muted);
+
+  /// Every voice cue played, oldest first.
+  final cuesPlayed = <VoiceCue>[];
+
+  @override
+  void playCue(VoiceCue cue) => cuesPlayed.add(cue);
 
   @override
   void setUserSoundboardMute(String serverKey, int userId, bool muted) {

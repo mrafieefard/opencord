@@ -23,7 +23,9 @@ use tokio_rustls::client::TlsStream;
 use tokio_tungstenite::WebSocketStream;
 use tokio_tungstenite::tungstenite::Message as Frame;
 
-use crate::api::types::{ConnectionState, CoreError, CoreEvent, CoreEventPayload, FailureReason};
+use crate::api::types::{
+    ConnectionState, CoreError, CoreEvent, CoreEventPayload, ErrorCode, FailureReason,
+};
 use crate::convert;
 use crate::identity::Identity;
 use crate::mirror::{GuildMirror, PermissionSnapshot};
@@ -56,8 +58,13 @@ pub(crate) enum HandshakeError {
         reason: FailureReason,
         message: String,
     },
-    /// Worth retrying: network trouble, timeouts, rate limits.
+    /// Worth retrying: network trouble, timeouts.
     Transient(String),
+    /// Worth retrying once the server's wait is over.
+    RateLimited {
+        message: String,
+        retry_after: Duration,
+    },
 }
 
 impl From<HandshakeError> for CoreError {
@@ -78,6 +85,14 @@ impl From<HandshakeError> for CoreError {
             },
             HandshakeError::Rejected { reason, message } => Self::Rejected { reason, message },
             HandshakeError::Transient(message) => Self::Connection { message },
+            HandshakeError::RateLimited {
+                message,
+                retry_after,
+            } => Self::Server {
+                code: ErrorCode::RateLimited,
+                message,
+                retry_after_ms: Some(u32::try_from(retry_after.as_millis()).unwrap_or(u32::MAX)),
+            },
         }
     }
 }
@@ -283,8 +298,15 @@ pub(crate) enum Command {
     /// Skip the wait before the next attempt, or start over after a
     /// failure.
     RetryNow,
+    /// The computer woke up: check the connection now with a heartbeat,
+    /// and reconnect if it goes unanswered for [`PROBE_TIMEOUT`]; waiting,
+    /// try again at once.
+    Probe,
     Shutdown,
 }
+
+/// How long a probe's heartbeat may go unanswered.
+pub(crate) const PROBE_TIMEOUT: Duration = Duration::from_secs(5);
 
 /// Handle to a running server task.
 pub(crate) struct Connection {
@@ -392,6 +414,9 @@ impl Task {
     async fn run(mut self, mut initial: Option<Established>) {
         let mut attempt = 0;
         loop {
+            // The server's own wait, when it refused a sign-in for coming
+            // too often: retrying sooner is refused again.
+            let mut not_before = Duration::ZERO;
             let established = match initial.take() {
                 Some(established) => Ok(established),
                 None => {
@@ -408,6 +433,10 @@ impl Task {
                     self.serve(established).await
                 }
                 Err(HandshakeError::Transient(_)) => Ended::Lost,
+                Err(HandshakeError::RateLimited { retry_after, .. }) => {
+                    not_before = retry_after;
+                    Ended::Lost
+                }
                 Err(HandshakeError::Rejected { reason, message }) => Ended::fatal(reason, &message),
                 Err(HandshakeError::Untrusted(presented)) => {
                     Ended::changed_certificate(None, presented)
@@ -443,7 +472,7 @@ impl Task {
                 Ended::Lost => {}
             }
             attempt += 1;
-            if !self.back_off(attempt).await {
+            if !self.back_off(attempt, not_before).await {
                 return;
             }
         }
@@ -495,6 +524,8 @@ impl Task {
         heartbeat.set_missed_tick_behavior(MissedTickBehavior::Delay);
         let mut sweep = interval(Duration::from_secs(1));
         let mut awaiting_ack = false;
+        // A probe's deadline for its heartbeat's ack.
+        let mut probe: Option<Instant> = None;
         let ended = loop {
             tokio::select! {
                 frame = socket.next() => match frame {
@@ -512,7 +543,10 @@ impl Task {
                                     let _ = waiting.reply.send(result);
                                 }
                             }
-                            Some(Payload::HeartbeatAck(_)) => awaiting_ack = false,
+                            Some(Payload::HeartbeatAck(_)) => {
+                                awaiting_ack = false;
+                                probe = None;
+                            }
                             _ => {}
                         }
                     }
@@ -532,6 +566,9 @@ impl Task {
                         break Ended::Lost;
                     }
                     awaiting_ack = true;
+                }
+                () = sleep_until(probe.unwrap_or_else(Instant::now)), if probe.is_some() => {
+                    break Ended::Lost;
                 }
                 _ = sweep.tick() => {
                     let now = Instant::now();
@@ -561,6 +598,15 @@ impl Task {
                         });
                     }
                     Some(Command::RetryNow) => {}
+                    Some(Command::Probe) => {
+                        let last_seq = self.session.as_ref().map_or(0, |session| session.last_seq);
+                        let beat = Payload::Heartbeat(proto::Heartbeat { last_seq });
+                        if send_payload(&mut socket, 0, beat).await.is_err() {
+                            break Ended::Lost;
+                        }
+                        awaiting_ack = true;
+                        probe = Some(Instant::now() + PROBE_TIMEOUT);
+                    }
                     Some(Command::Shutdown) | None => {
                         let _ = socket.close(None).await;
                         break Ended::Shutdown;
@@ -667,10 +713,10 @@ impl Task {
         }
     }
 
-    /// Waits before the next attempt, refusing requests meanwhile. Returns
-    /// `false` when asked to shut down.
-    async fn back_off(&mut self, attempt: u32) -> bool {
-        let delay = backoff_delay(attempt, jitter());
+    /// Waits before the next attempt, at least `not_before`, refusing
+    /// requests meanwhile. Returns `false` when asked to shut down.
+    async fn back_off(&mut self, attempt: u32, not_before: Duration) -> bool {
+        let delay = backoff_delay(attempt, jitter()).max(not_before);
         self.emit_state(ConnectionState::Reconnecting {
             attempt,
             retry_in_ms: u32::try_from(delay.as_millis()).unwrap_or(u32::MAX),
@@ -683,7 +729,7 @@ impl Task {
                     Some(Command::Request { reply, .. }) => {
                         let _ = reply.send(Err(CoreError::NotConnected));
                     }
-                    Some(Command::RetryNow) => {
+                    Some(Command::RetryNow | Command::Probe) => {
                         // No more waiting: says so, so a countdown stops.
                         self.emit_state(ConnectionState::Reconnecting {
                             attempt,
@@ -706,6 +752,8 @@ impl Task {
                     let _ = reply.send(Err(CoreError::NotConnected));
                 }
                 Command::RetryNow => return true,
+                // A failure that needs the user, not the network.
+                Command::Probe => {}
                 Command::Shutdown => return false,
             }
         }
@@ -744,6 +792,10 @@ fn closed(code: Option<u16>) -> Ended {
 
 fn handshake_error(error: proto::Error) -> HandshakeError {
     match proto::ErrorCode::try_from(error.code) {
+        Ok(proto::ErrorCode::RateLimited) => HandshakeError::RateLimited {
+            message: error.message,
+            retry_after: Duration::from_millis(error.retry_after_ms.unwrap_or_default()),
+        },
         Ok(proto::ErrorCode::Unauthorized | proto::ErrorCode::InvalidArgument) => {
             HandshakeError::Rejected {
                 reason: FailureReason::Rejected,
@@ -839,6 +891,33 @@ mod tests {
         assert_eq!(backoff_delay(6, 0.5), Duration::from_secs(30));
         assert_eq!(backoff_delay(60, 1.0), Duration::from_secs(30));
         assert!(backoff_delay(60, 0.0) >= Duration::from_millis(22_500));
+    }
+
+    #[test]
+    fn a_refused_sign_in_waits_as_long_as_the_server_says() {
+        let refused = handshake_error(proto::Error {
+            code: proto::ErrorCode::RateLimited as i32,
+            message: "slow down".to_owned(),
+            retry_after_ms: Some(40_000),
+        });
+        let HandshakeError::RateLimited { retry_after, .. } = refused else {
+            panic!("a rate limit is retried later, got {refused:?}");
+        };
+        assert_eq!(retry_after, Duration::from_secs(40));
+        // Longer than the first backoff, so that is what the retry waits.
+        assert!(backoff_delay(1, 1.0).max(retry_after) == retry_after);
+        // The app's join flow hears the wait too.
+        assert!(matches!(
+            CoreError::from(HandshakeError::RateLimited {
+                message: "slow down".to_owned(),
+                retry_after,
+            }),
+            CoreError::Server {
+                code: ErrorCode::RateLimited,
+                retry_after_ms: Some(40_000),
+                ..
+            }
+        ));
     }
 
     #[test]

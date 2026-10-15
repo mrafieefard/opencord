@@ -81,6 +81,14 @@ final eventPumpProvider = Provider<void>((ref) {
   ref.onDispose(() => HardwareKeyboard.instance.removeHandler(inApp.handle));
 });
 
+/// Binds the hotkeys again as they are: after the user allowed global
+/// hotkeys in the system's settings ([HotkeysFocusedOnly.settingsUrl]).
+void rebindHotkeys(Ref ref) => _applyHotkeys(
+  ref,
+  ref.read(repositoryProvider),
+  ref.read(keybindsProvider).bound,
+);
+
 /// Binds the hotkeys system-wide where the system allows (Phase 2 plan
 /// §7.13); otherwise they act only while Opencord is focused.
 void _applyHotkeys(
@@ -230,10 +238,9 @@ void _route(Ref ref, RepoEvent event) {
       ref.read(audioDeviceListProvider.notifier).set(devices);
       return;
     case AudioDeviceFellBack(:final output, :final device):
-      final which = output ? 'Speaker' : 'Microphone';
       ref
           .read(audioNoticeProvider.notifier)
-          .show('$which unavailable. Using $device.');
+          .fellBack(output: output, device: device);
       return;
     case AudioDeviceFailed(:final output):
       final which = output ? 'speaker' : 'microphone';
@@ -241,6 +248,13 @@ void _route(Ref ref, RepoEvent event) {
       return;
     case InputLevelChanged(:final dbfs):
       ref.read(inputLevelProvider.notifier).set(dbfs);
+      return;
+    case VoiceStatsChanged(:final serverKey, :final channelId, :final stats):
+      final session = ref.read(voiceSessionProvider);
+      if (session.serverKey == serverKey && session.channelId == channelId) {
+        ref.read(voiceStatsProvider.notifier).set(stats);
+        ref.read(voiceStatsHistoryProvider.notifier).add(stats);
+      }
       return;
     case SpokeWhileMuted():
       _remindMuted(ref);
@@ -911,8 +925,37 @@ class AudioNotice {
 }
 
 class AudioNoticeNotifier extends Notifier<AudioNotice?> {
+  /// A headset's microphone and speaker go at once, a moment apart.
+  static const _together = Duration(seconds: 2);
+
+  ({bool output, String device, DateTime at})? _fellBack;
+
   @override
   AudioNotice? build() => null;
+
+  /// A device went away and [device] stands in. When the other half of a
+  /// headset went just before, one notice tells of both, since a second
+  /// would hide the first.
+  void fellBack({required bool output, required String device}) {
+    final now = clock.now();
+    final last = _fellBack;
+    _fellBack = (output: output, device: device, at: now);
+    if (last == null ||
+        last.output == output ||
+        now.difference(last.at) > _together) {
+      show('${output ? 'Speaker' : 'Microphone'} unavailable. Using $device.');
+      return;
+    }
+    _fellBack = null;
+    final microphone = output ? last.device : device;
+    final speaker = output ? device : last.device;
+    show(
+      microphone == speaker
+          ? 'Microphone and speaker unavailable. Using $speaker.'
+          : 'Microphone unavailable. Using $microphone. '
+                'Speaker unavailable. Using $speaker.',
+    );
+  }
 
   void show(String message, {String? actionLabel, VoidCallback? onAction}) =>
       state = AudioNotice(
@@ -947,6 +990,59 @@ class InputLevelNotifier extends Notifier<double?> {
 final inputLevelProvider = NotifierProvider<InputLevelNotifier, double?>(
   InputLevelNotifier.new,
 );
+
+/// This device's voice connection over the last second (Phase 2 §12);
+/// null until the first report, and again after leaving.
+class VoiceStatsNotifier extends Notifier<VoiceStats?> {
+  @override
+  VoiceStats? build() {
+    ref.listen(
+      voiceSessionProvider.select(
+        (session) => (session.serverKey, session.channelId),
+      ),
+      (_, _) => state = null,
+    );
+    return null;
+  }
+
+  void set(VoiceStats stats) => state = stats;
+}
+
+final voiceStatsProvider = NotifierProvider<VoiceStatsNotifier, VoiceStats?>(
+  VoiceStatsNotifier.new,
+);
+
+/// The voice connection's last five minutes, a report a second, oldest
+/// first, each with when it came (Phase 2 §12, the connection graph);
+/// empty again after leaving. Fed every report, the same as the last
+/// included.
+class VoiceStatsHistoryNotifier
+    extends Notifier<List<({DateTime at, VoiceStats stats})>> {
+  static const span = Duration(minutes: 5);
+  static final length = span.inSeconds;
+
+  @override
+  List<({DateTime at, VoiceStats stats})> build() {
+    ref.listen(
+      voiceSessionProvider.select(
+        (session) => (session.serverKey, session.channelId),
+      ),
+      (_, _) => state = const [],
+    );
+    return const [];
+  }
+
+  void add(VoiceStats stats) => state = [
+    ...state.skip(max(0, state.length + 1 - length)),
+    (at: clock.now(), stats: stats),
+  ];
+}
+
+final voiceStatsHistoryProvider =
+    NotifierProvider<
+      VoiceStatsHistoryNotifier,
+      List<({DateTime at, VoiceStats stats})>
+    >(VoiceStatsHistoryNotifier.new);
 
 final audioNoticeProvider = NotifierProvider<AudioNoticeNotifier, AudioNotice?>(
   AudioNoticeNotifier.new,

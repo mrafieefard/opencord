@@ -255,6 +255,15 @@ fn serve(
                         for pixel in bytes.as_chunks_mut::<4>().0 {
                             *pixel = [shade, 255 - shade, 128, 0];
                         }
+                        // When it was made, for latency checks.
+                        let (width, height) = dims.get();
+                        crate::video::stamp::draw_bgrx(
+                            bytes,
+                            width,
+                            height,
+                            stride as usize,
+                            crate::video::stamp::now_ms(),
+                        );
                         size
                     }
                 };

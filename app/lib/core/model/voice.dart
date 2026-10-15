@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/foundation.dart';
 
 /// A screen share preset: a maximum pixel count (Phase 2 plan §9.2).
@@ -260,8 +262,12 @@ sealed class HotkeySupport {
   /// System-wide, through [HotkeysGlobal.method].
   const factory HotkeySupport.global(String method) = HotkeysGlobal;
 
-  /// Only while Opencord is focused, because of [HotkeysFocusedOnly.reason].
-  const factory HotkeySupport.focusedOnly(String reason) = HotkeysFocusedOnly;
+  /// Only while Opencord is focused, because of [HotkeysFocusedOnly.reason];
+  /// [HotkeysFocusedOnly.settingsUrl] opens where the user can allow them.
+  const factory HotkeySupport.focusedOnly(
+    String reason, {
+    String? settingsUrl,
+  }) = HotkeysFocusedOnly;
 }
 
 final class HotkeysGlobal extends HotkeySupport {
@@ -278,16 +284,23 @@ final class HotkeysGlobal extends HotkeySupport {
 }
 
 final class HotkeysFocusedOnly extends HotkeySupport {
-  const HotkeysFocusedOnly(this.reason);
+  const HotkeysFocusedOnly(this.reason, {this.settingsUrl});
 
   final String reason;
 
-  @override
-  bool operator ==(Object other) =>
-      other is HotkeysFocusedOnly && other.reason == reason;
+  /// The system settings where the user can allow global hotkeys, when
+  /// that is what's missing (macOS's Input Monitoring). Opencord binds them
+  /// again when its window is focused, so a grant takes effect.
+  final String? settingsUrl;
 
   @override
-  int get hashCode => reason.hashCode;
+  bool operator ==(Object other) =>
+      other is HotkeysFocusedOnly &&
+      other.reason == reason &&
+      other.settingsUrl == settingsUrl;
+
+  @override
+  int get hashCode => Object.hash(reason, settingsUrl);
 }
 
 /// Noise suppression on the microphone (Phase 2 plan §7.3).
@@ -316,6 +329,9 @@ class AudioConfig {
     this.automaticGain = true,
     this.inputVolume = 100,
     this.outputVolume = 100,
+    this.attenuationPercent = 0,
+    this.attenuateWhenOthersSpeak = true,
+    this.attenuateWhenISpeak = false,
   });
 
   /// A device id; null follows the system's default.
@@ -338,9 +354,18 @@ class AudioConfig {
   final int inputVolume;
   final int outputVolume;
 
+  /// How much other apps are lowered while people talk, 0–100 %; 0 is
+  /// off (Phase 2 §12).
+  final int attenuationPercent;
+  final bool attenuateWhenOthersSpeak;
+  final bool attenuateWhenISpeak;
+
   @override
   bool operator ==(Object other) =>
       other is AudioConfig &&
+      other.attenuationPercent == attenuationPercent &&
+      other.attenuateWhenOthersSpeak == attenuateWhenOthersSpeak &&
+      other.attenuateWhenISpeak == attenuateWhenISpeak &&
       other.inputDevice == inputDevice &&
       other.outputDevice == outputDevice &&
       other.pushToTalk == pushToTalk &&
@@ -366,6 +391,9 @@ class AudioConfig {
     automaticGain,
     inputVolume,
     outputVolume,
+    attenuationPercent,
+    attenuateWhenOthersSpeak,
+    attenuateWhenISpeak,
   );
 
   @override
@@ -374,5 +402,101 @@ class AudioConfig {
       '(${pushToTalkRelease.inMilliseconds} ms), automatic sensitivity: '
       '$automaticSensitivity ($sensitivityDbfs dBFS), echo cancellation: '
       '$echoCancellation, noise suppression: ${noiseSuppression.name}, '
-      'automatic gain: $automaticGain, $inputVolume %, $outputVolume %)';
+      'automatic gain: $automaticGain, $inputVolume %, $outputVolume %, '
+      'others lowered $attenuationPercent % (others: '
+      '$attenuateWhenOthersSpeak, me: $attenuateWhenISpeak))';
+}
+
+/// A voice event's sound on this device (Phase 2 §12).
+enum VoiceCue {
+  /// This device joined a voice channel, or was moved to another.
+  join,
+
+  /// This device left, or was disconnected.
+  leave,
+
+  /// Someone else joined the channel this device is in.
+  userJoin,
+
+  /// Someone else left it.
+  userLeave,
+  mute,
+  unmute,
+  deafen,
+  undeafen,
+
+  /// Someone in the channel went live, this device included.
+  streamStart,
+  streamStop,
+}
+
+/// A voice connection over the last second (Phase 2 §12, connection
+/// diagnostics).
+@immutable
+class VoiceStats {
+  const VoiceStats({
+    this.pingMs,
+    this.jitterMs,
+    this.lossInPercent,
+    this.lossOutPercent,
+    this.bitrateIn = 0,
+    this.bitrateOut = 0,
+    this.voiceNode = '',
+    this.cameraEncoder,
+    this.screenEncoder,
+  });
+
+  final int? pingMs;
+  final double? jitterMs;
+  final double? lossInPercent;
+  final double? lossOutPercent;
+
+  /// Bits per second, everything included.
+  final int bitrateIn;
+  final int bitrateOut;
+  final String voiceNode;
+  final String? cameraEncoder;
+  final String? screenEncoder;
+
+  /// Packet loss, the worse of the two ways; null before either is known.
+  double? get lossPercent => switch ((lossInPercent, lossOutPercent)) {
+    (null, null) => null,
+    (final lossIn, final lossOut) => math.max(lossIn ?? 0, lossOut ?? 0),
+  };
+
+  /// Signal bars, 1–3: three for a call that sounds right, one for one
+  /// that breaks up. Without a ping yet, three.
+  int get bars {
+    final ping = pingMs ?? 0;
+    final loss = lossPercent ?? 0;
+    if (ping >= 300 || loss >= 8) return 1;
+    if (ping >= 150 || loss >= 2) return 2;
+    return 3;
+  }
+
+  @override
+  bool operator ==(Object other) =>
+      other is VoiceStats &&
+      other.pingMs == pingMs &&
+      other.jitterMs == jitterMs &&
+      other.lossInPercent == lossInPercent &&
+      other.lossOutPercent == lossOutPercent &&
+      other.bitrateIn == bitrateIn &&
+      other.bitrateOut == bitrateOut &&
+      other.voiceNode == voiceNode &&
+      other.cameraEncoder == cameraEncoder &&
+      other.screenEncoder == screenEncoder;
+
+  @override
+  int get hashCode => Object.hash(
+    pingMs,
+    jitterMs,
+    lossInPercent,
+    lossOutPercent,
+    bitrateIn,
+    bitrateOut,
+    voiceNode,
+    cameraEncoder,
+    screenEncoder,
+  );
 }

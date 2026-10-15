@@ -16,7 +16,7 @@ use opencord_media::audio::processing::{NoiseSuppression, ProcessingSettings};
 use opencord_media::audio::processor::ProcessorSettings;
 use opencord_media::audio::{deep_filter, device};
 use opencord_media::transport::{
-    AudioFrame, TransportError, VoiceConnection, VoiceEvent, VoiceTarget,
+    AudioFrame, ConnectionStats, TransportError, VoiceConnection, VoiceEvent, VoiceTarget,
 };
 use tokio::runtime::Handle;
 use tokio::sync::mpsc;
@@ -28,6 +28,7 @@ use opencord_media::hotkeys::{self, HotkeyEvent};
 use crate::api::types::{
     AudioDevice, AudioDevices, AudioSettings, CoreError, HotkeyAction, HotkeyBinding,
     HotkeySupport, MediaEvent, NoiseSuppressionMode, SpeakingChange, VoiceConnectionState,
+    VoiceStats,
 };
 use crate::client::Client;
 use crate::video::Video;
@@ -712,7 +713,13 @@ fn hotkey_action_from(action: hotkeys::HotkeyAction) -> HotkeyAction {
 pub(crate) fn hotkey_support_from(support: hotkeys::HotkeySupport) -> HotkeySupport {
     match support {
         hotkeys::HotkeySupport::Global { method } => HotkeySupport::Global { method },
-        hotkeys::HotkeySupport::FocusedOnly { reason } => HotkeySupport::FocusedOnly { reason },
+        hotkeys::HotkeySupport::FocusedOnly {
+            reason,
+            settings_url,
+        } => HotkeySupport::FocusedOnly {
+            reason,
+            settings_url,
+        },
     }
 }
 
@@ -785,6 +792,8 @@ impl SessionTask {
         let mut fell_back = (false, false);
         // This device talking, and as the priority speaker.
         let mut talking = (false, false);
+        // Other apps lowered while people talk; put back when this ends.
+        let mut ducking = crate::ducking::Ducking::default();
         let mut camera_check = tokio::time::interval(CAMERA_CHECK);
         loop {
             tokio::select! {
@@ -800,7 +809,10 @@ impl SessionTask {
                         let target = voice_target(&server);
                         connecting = Some((server, tokio::spawn(VoiceConnection::connect(target))));
                     }
-                    Some(SessionCommand::Settings(settings)) => self.settings = settings,
+                    Some(SessionCommand::Settings(settings)) => {
+                        self.settings = settings;
+                        ducking.update(&self.settings, Instant::now());
+                    }
                     Some(SessionCommand::Stop) | None => {
                         if let Some((_, handle)) = connecting.take() {
                             handle.abort();
@@ -877,6 +889,8 @@ impl SessionTask {
                         VoiceEvent::ClientDisconnected { user_id } => self.engine.remove_user(user_id),
                         VoiceEvent::Closed { code } => {
                             live = None;
+                            ducking.clear();
+                            ducking.update(&self.settings, Instant::now());
                             self.video.disconnected();
                             no_route_at = None;
                             match code {
@@ -896,6 +910,11 @@ impl SessionTask {
                         VoiceEvent::Speaking { user_id, flags } => {
                             self.engine.set_priority(user_id, flags & speaking::PRIORITY != 0);
                         }
+                        VoiceEvent::Stats(stats) => {
+                            if let Some(live) = &live {
+                                self.stats(&live.server, &stats);
+                            }
+                        }
                         VoiceEvent::ClientConnected { .. }
                         | VoiceEvent::Resumed
                         | VoiceEvent::UplinkEstimate(_) => {}
@@ -914,6 +933,8 @@ impl SessionTask {
                 Some(event) = engine_events.recv() => match event {
                     EngineEvent::Talking { talking: now, priority } => {
                         talking = (now, priority);
+                        ducking.talking(now);
+                        ducking.update(&self.settings, Instant::now());
                         if let Some(live) = &live {
                             live.connection.set_speaking(speaking_flags(now, priority));
                             self.speaking(&live.server, vec![SpeakingChange {
@@ -923,6 +944,10 @@ impl SessionTask {
                         }
                     }
                     EngineEvent::Speaking(changes) => {
+                        for &(user_id, speaking) in &changes {
+                            ducking.others_speaking(user_id, speaking);
+                        }
+                        ducking.update(&self.settings, Instant::now());
                         if let Some(live) = &live {
                             let changes = changes
                                 .into_iter()
@@ -972,6 +997,9 @@ impl SessionTask {
                     let key = self.server_key.clone();
                     tokio::spawn(async move { client.refresh_voice_server(&key).await });
                 }
+                () = sleep_until(ducking.release_at()) => {
+                    ducking.update(&self.settings, Instant::now());
+                }
                 () = sleep_until(no_route_at) => {
                     no_route_at = None;
                     let channel_id = live.as_ref().map_or(0, |live| live.server.channel_id);
@@ -1013,6 +1041,28 @@ impl SessionTask {
                 self.settings.output_device.as_deref(),
             ));
         }
+    }
+
+    fn stats(&self, server: &VoiceServer, stats: &ConnectionStats) {
+        let (camera_encoder, screen_encoder) = self.video.encoders();
+        let percent = |loss: Option<f32>| loss.map(|loss| loss * 100.0);
+        let _ = self.events.send(MediaEvent::ConnectionStats {
+            server_key: server.server_key.clone(),
+            channel_id: server.channel_id,
+            stats: VoiceStats {
+                ping_ms: stats
+                    .rtt
+                    .map(|rtt| u32::try_from(rtt.as_millis()).unwrap_or(u32::MAX)),
+                jitter_ms: stats.jitter.map(|jitter| jitter.as_secs_f32() * 1000.0),
+                loss_in_percent: percent(stats.loss_in),
+                loss_out_percent: percent(stats.loss_out),
+                bitrate_in: stats.bitrate_in,
+                bitrate_out: stats.bitrate_out,
+                voice_node: voice_node(server),
+                camera_encoder,
+                screen_encoder,
+            },
+        });
     }
 
     fn speaking(&self, server: &VoiceServer, changes: Vec<SpeakingChange>) {
@@ -1091,8 +1141,34 @@ async fn sleep_until(at: Option<Instant>) {
     }
 }
 
+/// The voice node's host and port, for diagnostics: the endpoint's, or the
+/// main server's own.
+fn voice_node(server: &VoiceServer) -> String {
+    let url = server.gateway_url();
+    let rest = url.split_once("://").map_or(url.as_str(), |(_, rest)| rest);
+    rest.split('/').next().unwrap_or(rest).to_owned()
+}
+
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn the_voice_node_is_named_by_its_host_and_port() {
+        let server = |endpoint: &str| super::VoiceServer {
+            server_key: "chat.example:7710".to_owned(),
+            user_id: 1,
+            session_id: String::new(),
+            channel_id: 2,
+            endpoint: endpoint.to_owned(),
+            certificate_fingerprint: Vec::new(),
+            token: Vec::new(),
+        };
+        assert_eq!(super::voice_node(&server("")), "chat.example:7710");
+        assert_eq!(
+            super::voice_node(&server("wss://node-2.example:7711/voice")),
+            "node-2.example:7711"
+        );
+    }
+
     use super::*;
 
     fn server(key: &str, channel_id: i64) -> VoiceServer {

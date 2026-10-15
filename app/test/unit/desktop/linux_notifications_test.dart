@@ -1,3 +1,7 @@
+// They need a Linux session bus.
+@TestOn('linux')
+library;
+
 import 'dart:io';
 
 import 'package:dbus/dbus.dart';

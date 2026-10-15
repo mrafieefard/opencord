@@ -26,8 +26,8 @@ use super::assembler::{Assembled, FrameAssembler, VideoPacket};
 use super::h264::packetize;
 use super::transform::FrameTransform;
 use super::{
-    AudioFrame, EncodedScreenAudio, Layer, ReceivedAudio, ReceivedVideo, RemoteTrack, TrackKind,
-    TrackRequest, TransportError, VideoFrame, VoiceEvent, random,
+    AudioFrame, ConnectionStats, EncodedScreenAudio, Layer, ReceivedAudio, ReceivedVideo,
+    RemoteTrack, TrackKind, TrackRequest, TransportError, VideoFrame, VoiceEvent, random,
 };
 use crate::video::priorities::{Planner, Sending, TrackPlan};
 
@@ -46,12 +46,23 @@ const VOICE_BITRATE: u64 = 64_000;
 /// estimate at 1.5 times what is sent and seldom probes on its own.
 const PROBE_EVERY: Duration = Duration::from_secs(5);
 const CALM: Duration = Duration::from_secs(2);
+/// While a screen is shared, an uplink with no congestion for this long is
+/// taken to have room for what is wanted: its estimate starts again above
+/// that ([`TRUST_MARGIN`]). A still screen sends almost nothing, so the
+/// estimate would otherwise grow only a quarter a second, and the share
+/// started at a third of its frame rate. If the room is not there, the
+/// estimate falls and the plan cuts, and it is not trusted again for this
+/// long. The plan keeps a still screen on what it sends meanwhile.
+const TRUST_AFTER: Duration = Duration::from_secs(30);
+const TRUST_MARGIN: f64 = 1.5;
 /// An estimate below this share of the last one means congestion.
 const ESTIMATE_DROP: f64 = 0.9;
 /// Room for voice is kept for someone who sent audio this recently: a
 /// talker's voice is never starved, and a silent participant's video does
 /// not give way to voice that is not there.
 const TALKING: Duration = Duration::from_secs(10);
+/// How often the connection's statistics are reported.
+const STATS_EVERY: Duration = Duration::from_secs(1);
 
 /// The client's str0m connection and its UDP socket.
 pub(super) struct Media {
@@ -86,8 +97,40 @@ pub(super) struct Media {
     video_start: Instant,
     uplink: Uplink,
     planner: Planner,
+    stats: StatsWindow,
     #[cfg(any(test, feature = "testing"))]
     shims: Option<Shims>,
+}
+
+/// What the connection's statistics are made from between two reports.
+#[derive(Default)]
+struct StatsWindow {
+    /// The last report's time and byte counts, received and sent.
+    last: Option<(Instant, u64, u64)>,
+    /// Each received voice's interarrival jitter, by SSRC.
+    jitter: HashMap<u32, Jitter>,
+}
+
+/// RFC 3550's interarrival jitter (§6.4.1, A.8) of one stream of 48 kHz
+/// RTP: how much its packets' spacing on arrival differs from their spacing
+/// when sent, smoothed over 16 packets.
+#[derive(Debug, Default, Clone, Copy)]
+struct Jitter {
+    /// The previous packet's arrival and RTP timestamp.
+    last: Option<(Instant, u32)>,
+    /// In seconds.
+    value: f64,
+}
+
+impl Jitter {
+    fn arrived(&mut self, at: Instant, timestamp: u32) {
+        if let Some((last_at, last_timestamp)) = self.last {
+            let arrival = at.saturating_duration_since(last_at).as_secs_f64();
+            let sent = f64::from(timestamp.wrapping_sub(last_timestamp) as i32) / 48_000.0;
+            self.value += ((arrival - sent).abs() - self.value) / 16.0;
+        }
+        self.last = Some((at, timestamp));
+    }
 }
 
 struct Outgoing {
@@ -226,6 +269,7 @@ impl Media {
         let mut rtc = rtc_config()
             .set_local_ice_credentials(local.clone())
             .enable_bwe(Some(Bitrate::bps(INITIAL_UPLINK)))
+            .set_stats_interval(Some(STATS_EVERY))
             .build(now);
         rtc.add_local_candidate(Candidate::host(local_address, "udp").map_err(candidate_error)?);
         rtc.add_remote_candidate(Candidate::host(remote_address, "udp").map_err(candidate_error)?);
@@ -304,6 +348,7 @@ impl Media {
                 probed: None,
             },
             planner: Planner::new(),
+            stats: StatsWindow::default(),
             #[cfg(any(test, feature = "testing"))]
             shims: None,
         };
@@ -339,6 +384,7 @@ impl Media {
         for ssrc in gone {
             self.users_by_ssrc.remove(&ssrc);
             self.streams_by_ssrc.remove(&ssrc);
+            self.stats.jitter.remove(&ssrc);
             self.rtc
                 .direct_api()
                 .remove_media(receive_mid(ssrc).as_str().into());
@@ -569,8 +615,23 @@ impl Media {
         let due = uplink
             .probed
             .is_none_or(|at| now.saturating_duration_since(at) >= PROBE_EVERY);
+        let sharing = self
+            .outgoing
+            .iter()
+            .any(|track| track.kind == TrackKind::Screen);
+        let trusted = sharing
+            && uplink
+                .congested
+                .is_none_or(|at| now.saturating_duration_since(at) >= TRUST_AFTER);
         if limited && calm && due {
             self.uplink.probed = Some(now);
+            if trusted {
+                let start = (self.uplink.desired as f64 * TRUST_MARGIN) as u64;
+                self.rtc.bwe().reset(Bitrate::bps(start));
+                // The plan made in the same tick uses it.
+                self.uplink.estimate = start;
+                return;
+            }
             // From half the target at least: one probe passes it.
             let start = self.uplink.estimate.max(self.uplink.desired / 2);
             self.rtc.bwe().reset(Bitrate::bps(start));
@@ -776,6 +837,42 @@ impl Media {
         }
     }
 
+    /// The last second of the connection, from str0m's peer statistics
+    /// and the voices' jitter; `None` for the first report, which has
+    /// nothing to measure the bitrates against.
+    fn summarize(&mut self, stats: &str0m::stats::PeerStats) -> Option<ConnectionStats> {
+        let (rx, tx) = (stats.peer_bytes_rx, stats.peer_bytes_tx);
+        let last = self.stats.last.replace((stats.timestamp, rx, tx));
+        let (at, last_rx, last_tx) = last?;
+        let seconds = stats.timestamp.saturating_duration_since(at).as_secs_f64();
+        if seconds <= 0.0 {
+            return None;
+        }
+        let rate =
+            |now: u64, before: u64| (now.saturating_sub(before) as f64 * 8.0 / seconds) as u64;
+        let rtt = stats.rtt.or_else(|| {
+            stats
+                .selected_candidate_pair
+                .as_ref()
+                .and_then(|pair| pair.current_round_trip_time)
+        });
+        let jitter = self
+            .stats
+            .jitter
+            .values()
+            .map(|jitter| jitter.value)
+            .reduce(f64::max)
+            .map(Duration::from_secs_f64);
+        Some(ConnectionStats {
+            rtt,
+            jitter,
+            loss_in: stats.ingress_loss_fraction,
+            loss_out: stats.egress_loss_fraction,
+            bitrate_in: rate(rx, last_rx),
+            bitrate_out: rate(tx, last_tx),
+        })
+    }
+
     /// Everything str0m has now; false when the connection failed.
     fn poll(&mut self, events: &mpsc::UnboundedSender<VoiceEvent>) -> bool {
         loop {
@@ -807,6 +904,11 @@ impl Media {
                     self.uplink.estimate = estimate;
                     let _ = events.send(VoiceEvent::UplinkEstimate(estimate));
                     self.replan(Instant::now(), events);
+                }
+                Ok(Output::Event(Event::PeerStats(stats))) => {
+                    if let Some(summary) = self.summarize(&stats) {
+                        let _ = events.send(VoiceEvent::Stats(summary));
+                    }
                 }
                 Ok(Output::Event(_)) => {}
                 Err(error) => {
@@ -860,6 +962,11 @@ impl Media {
                 None => return,
             },
         };
+        self.stats
+            .jitter
+            .entry(ssrc)
+            .or_default()
+            .arrived(packet.timestamp, packet.header.timestamp);
         let Some(payload) = self.transform.inbound_audio(user_id, packet.payload) else {
             return;
         };

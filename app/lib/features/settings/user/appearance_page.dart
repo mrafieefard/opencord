@@ -71,7 +71,7 @@ class AppearancePage extends ConsumerWidget {
                   ChoiceCardOption(
                     value: MessageDensity.comfortable,
                     label: 'Comfortable',
-                    description: 'Bubbles, like Telegram',
+                    description: 'Bubbles, with room to breathe',
                     preview: DensityMiniature(compact: false),
                   ),
                   ChoiceCardOption(

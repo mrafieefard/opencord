@@ -280,14 +280,16 @@ void main() {
     await _openSettings(tester);
     await _page(tester, 'Voice & audio');
 
-    await tester.ensureVisible(_inPage(find.text('Off')));
-    await tester.tap(_inPage(find.text('Off')));
+    // Noise suppression's Off; Attenuation further down says Off too.
+    final off = _inPage(find.text('Off')).first;
+    await tester.ensureVisible(off);
+    await tester.tap(off);
     await tester.pump();
-    final off = app.repository.audio?.noiseSuppression;
+    final switchedOff = app.repository.audio?.noiseSuppression;
     await tester.tap(_inPage(find.text('Standard')));
     await tester.pump();
 
-    expect(off, NoiseSuppression.off);
+    expect(switchedOff, NoiseSuppression.off);
     expect(app.repository.audio?.noiseSuppression, NoiseSuppression.standard);
     expect(
       app.container.read(audioSettingsProvider).noiseSuppression,
@@ -316,6 +318,28 @@ void main() {
       isFalse,
       reason: 'closed with the page',
     );
+    await app.dispose(tester);
+  });
+
+  testWidgets('attenuation lowers other apps by the share chosen, for whom', (
+    tester,
+  ) async {
+    final app = await MockApp.pump(tester);
+    await _openSettings(tester);
+    await _page(tester, 'Voice & audio');
+
+    await tester.ensureVisible(_inPage(find.text('When I speak')));
+    await tester.pump();
+    expect(_inPage(find.text('Off')), findsWidgets, reason: 'off at first');
+    await tester.tap(_inPage(find.text('When I speak')));
+    await tester.pump();
+    await tester.drag(_inPage(find.byType(Slider)).last, const Offset(400, 0));
+    await tester.pump();
+
+    final sent = app.repository.audio!;
+    expect(sent.attenuationPercent, greaterThan(0));
+    expect(sent.attenuateWhenISpeak, isTrue);
+    expect(sent.attenuateWhenOthersSpeak, isTrue);
     await app.dispose(tester);
   });
 }

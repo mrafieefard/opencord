@@ -20,7 +20,22 @@ use crate::video::picture::{Picture, PixelFormat};
 /// The version the bindings were made for.
 const VERSION: (u32, u32) = (2, 6);
 /// What a system copy is called.
+#[cfg(not(windows))]
 const SYSTEM_LIBRARIES: [&str; 2] = ["libopenh264.so.8", "libopenh264.so.7"];
+/// On Windows nothing installs OpenH264, so there is no system copy to
+/// find; these are the names a loose one beside the exe would have. Media
+/// Foundation's software encoder is what actually covers the no-Cisco case
+/// here (docs/plans/windows.md W3 step 4).
+#[cfg(windows)]
+const SYSTEM_LIBRARIES: [&str; 2] = ["openh264-2.6.0-win64.dll", "openh264.dll"];
+
+/// What Cisco's own build is called — the build its patent licence covers.
+/// Cisco names the Windows one `openh264-2.6.0-win64.dll`, without the
+/// `lib`.
+#[cfg(not(windows))]
+const CISCO_PREFIX: &str = "libopenh264-";
+#[cfg(windows)]
+const CISCO_PREFIX: &str = "openh264-";
 
 static LIBRARY_DIR: OnceLock<PathBuf> = OnceLock::new();
 
@@ -37,7 +52,7 @@ fn api() -> Result<OpenH264API, CodecError> {
             let cisco = path
                 .file_name()
                 .and_then(|name| name.to_str())
-                .is_some_and(|name| name.starts_with("libopenh264-"));
+                .is_some_and(|name| name.starts_with(CISCO_PREFIX));
             if cisco && let Ok(api) = OpenH264API::from_blob_path(&path) {
                 return Ok(api);
             }

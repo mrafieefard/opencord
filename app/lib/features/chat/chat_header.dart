@@ -7,9 +7,11 @@ import 'package:opencord/core/model/channel.dart';
 import 'package:opencord/core/providers/providers.dart';
 import 'package:opencord/core/repository/repository.dart';
 import 'package:opencord/core/settings/local_prefs.dart';
+import 'package:opencord/core/settings/voice_view_prefs.dart';
 import 'package:opencord/features/channels/channel_row.dart';
 import 'package:opencord/features/chat/pinned_bar.dart';
 import 'package:opencord/features/chat/typing_dots.dart';
+import 'package:opencord/features/voice/voice_controls.dart';
 import 'package:opencord/features/window/header_bar.dart';
 import 'package:opencord/ui/theme/oc_colors.dart';
 import 'package:opencord/ui/theme/oc_icons.dart';
@@ -35,10 +37,15 @@ class ChatHeader extends ConsumerWidget {
     this.onOpenSidebar,
     this.leadingControls = false,
     this.trailingControls = false,
+    this.voiceChatAlone = false,
   });
 
   /// Null while no channel is open.
   final ChannelRef? channel;
+
+  /// A voice channel's chat shows without its tiles, the window being too
+  /// narrow for both (Phase 2 §12).
+  final bool voiceChatAlone;
 
   /// Off when there is no server, and so no members.
   final bool memberToggle;
@@ -107,6 +114,15 @@ class ChatHeader extends ConsumerWidget {
                 ),
               ),
           ],
+          if (open != null &&
+              target != null &&
+              target.kind == ChannelKind.voice &&
+              ref.read(repositoryProvider).capabilities.voice)
+            _VoiceViewButtons(
+              channel: open,
+              chat: target.textInVoice,
+              chatAlone: voiceChatAlone,
+            ),
           if (memberToggle)
             OcIconButton(
               icon: OcIcons.group,
@@ -234,6 +250,51 @@ class _Title extends ConsumerWidget {
             overflow: TextOverflow.ellipsis,
             style: style,
           ),
+      ],
+    );
+  }
+}
+
+/// A voice channel's view choices (Phase 2 §12): tiles only for people
+/// with video, and its chat while the call's control bar, which has the
+/// chat's button, is not on screen: before joining, or with the chat shown
+/// alone in a narrow window.
+class _VoiceViewButtons extends ConsumerWidget {
+  const _VoiceViewButtons({
+    required this.channel,
+    required this.chat,
+    required this.chatAlone,
+  });
+
+  final ChannelRef channel;
+
+  /// The channel's text chat is on (§5.3).
+  final bool chat;
+  final bool chatAlone;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final prefs = ref.watch(voiceViewPrefsProvider);
+    final notifier = ref.read(voiceViewPrefsProvider.notifier);
+    final inCall = ref.watch(
+      voiceSessionProvider.select(
+        (voice) =>
+            voice.serverKey == channel.server &&
+            voice.channelId == channel.channel,
+      ),
+    );
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        OcIconButton(
+          icon: prefs.hideNonVideo ? OcIcons.videocamOff : OcIcons.videocam,
+          tooltip: prefs.hideNonVideo
+              ? 'Show non-video participants'
+              : 'Hide non-video participants',
+          active: prefs.hideNonVideo,
+          onPressed: notifier.toggleHideNonVideo,
+        ),
+        if (chat && (chatAlone || !inCall)) VoiceChatButton(channel: channel),
       ],
     );
   }

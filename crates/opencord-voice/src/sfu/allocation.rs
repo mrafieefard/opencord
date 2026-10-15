@@ -1,5 +1,6 @@
 //! Which layer of each video a receiver gets (plan §6): no taller than it
-//! asked for, only layers the sender is producing, and within its downlink.
+//! asked for (a screen: no smaller), only layers the sender is producing,
+//! and within its downlink.
 //! Everyone gets their lowest layer before anyone gets more; upgrades then
 //! go in priority order: screen shares, then the largest tiles.
 
@@ -17,8 +18,11 @@ pub(crate) struct LayerOption {
     /// 0 for the lowest; taller layers have higher indexes.
     pub index: u8,
     pub height: u32,
-    /// Bits per second it may take: its declared maximum.
+    /// Bits per second taking it is counted at: its declared maximum, or
+    /// for a screen what it is likely to send.
     pub cost: u64,
+    /// Bits per second it may send: what the downlink is probed for.
+    pub maximum: u64,
     /// The sender is producing it.
     pub available: bool,
     /// Bits per second it sent over the last second; 0 when unknown.
@@ -37,14 +41,26 @@ pub(crate) struct Candidate<'a> {
 }
 
 /// The layer a receiver asked for, bandwidth aside: the tallest no taller
-/// than its tile, or the smallest when every layer is taller.
-pub(crate) fn desired(want_height: u32, layers: &[LayerOption]) -> Option<u8> {
-    layers
-        .iter()
-        .filter(|layer| layer.height <= want_height)
-        .max_by_key(|layer| layer.height)
-        .or_else(|| layers.iter().min_by_key(|layer| layer.height))
-        .map(|layer| layer.index)
+/// than its tile, or the smallest when every layer is taller. A screen is
+/// never scaled up, since scaled-up text cannot be read: the smallest
+/// layer at least as tall as its tile, or the tallest when none is.
+pub(crate) fn desired(want_height: u32, layers: &[LayerOption], screen: bool) -> Option<u8> {
+    let tallest = || layers.iter().max_by_key(|layer| layer.height);
+    let smallest = || layers.iter().min_by_key(|layer| layer.height);
+    let chosen = if screen {
+        layers
+            .iter()
+            .filter(|layer| layer.height >= want_height)
+            .min_by_key(|layer| layer.height)
+            .or_else(tallest)
+    } else {
+        layers
+            .iter()
+            .filter(|layer| layer.height <= want_height)
+            .max_by_key(|layer| layer.height)
+            .or_else(smallest)
+    };
+    chosen.map(|layer| layer.index)
 }
 
 /// The layer each candidate gets within `budget` bits per second, in the
@@ -92,7 +108,7 @@ pub(crate) fn allocate(budget: u64, candidates: &[Candidate<'_>]) -> Vec<Option<
 /// Layers the sender produces, no taller than the desired one, lowest
 /// first.
 fn usable_layers(candidate: &Candidate<'_>) -> Vec<LayerOption> {
-    let Some(top) = desired(candidate.want_height, candidate.layers) else {
+    let Some(top) = desired(candidate.want_height, candidate.layers, candidate.screen) else {
         return Vec::new();
     };
     let mut layers: Vec<LayerOption> = candidate
@@ -143,6 +159,7 @@ mod tests {
                 index: 0,
                 height: 180,
                 cost: 150_000,
+                maximum: 150_000,
                 available: true,
                 sent: 0,
             },
@@ -150,6 +167,7 @@ mod tests {
                 index: 1,
                 height: 360,
                 cost: 500_000,
+                maximum: 500_000,
                 available: true,
                 sent: 0,
             },
@@ -157,6 +175,7 @@ mod tests {
                 index: 2,
                 height: 720,
                 cost: 1_500_000,
+                maximum: 1_500_000,
                 available: true,
                 sent: 0,
             },
@@ -193,13 +212,27 @@ mod tests {
     fn the_desired_layer_is_the_tallest_within_the_want() {
         let layers = camera();
 
-        assert_eq!(desired(720, &layers), Some(2));
-        assert_eq!(desired(1080, &layers), Some(2));
-        assert_eq!(desired(500, &layers), Some(1));
-        assert_eq!(desired(360, &layers), Some(1));
+        assert_eq!(desired(720, &layers, false), Some(2));
+        assert_eq!(desired(1080, &layers, false), Some(2));
+        assert_eq!(desired(500, &layers, false), Some(1));
+        assert_eq!(desired(360, &layers, false), Some(1));
         // Smaller than every layer: the smallest.
-        assert_eq!(desired(90, &layers), Some(0));
-        assert_eq!(desired(720, &[]), None);
+        assert_eq!(desired(90, &layers, false), Some(0));
+        assert_eq!(desired(720, &[], false), None);
+    }
+
+    #[test]
+    fn a_screen_is_never_scaled_up() {
+        let layers = camera();
+
+        // A 676 px tile of a 720 px share gets the 720 px layer, not 360.
+        assert_eq!(desired(676, &layers, true), Some(2));
+        assert_eq!(desired(360, &layers, true), Some(1));
+        assert_eq!(desired(200, &layers, true), Some(1));
+        assert_eq!(desired(90, &layers, true), Some(0));
+        // Taller than every layer: the tallest.
+        assert_eq!(desired(1080, &layers, true), Some(2));
+        assert_eq!(desired(720, &[], true), None);
     }
 
     #[test]

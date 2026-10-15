@@ -9,6 +9,7 @@ import 'package:opencord/core/repository/repository.dart';
 import 'package:opencord/core/settings/app_settings.dart';
 import 'package:opencord/core/settings/local_prefs.dart';
 import 'package:opencord/features/settings/user/keybind_recorder.dart';
+import 'package:opencord/features/voice/camera_menu.dart';
 import 'package:opencord/features/voice/input_level_meter.dart';
 import 'package:opencord/ui/theme/oc_colors.dart';
 import 'package:opencord/ui/theme/oc_icons.dart';
@@ -141,6 +142,22 @@ class _VoicePageState extends ConsumerState<VoicePage> {
                 audio.withOutput,
               ),
             ),
+            SettingsRow(
+              title: 'Camera',
+              icon: OcIcons.videocam,
+              trailing: Builder(
+                builder: (context) => OcButton(
+                  label: ref.watch(chosenCameraProvider)?.$2 ?? 'Default',
+                  dense: true,
+                  icon: OcIcons.expandMore,
+                  onPressed: () => showCameraMenu(
+                    context,
+                    ref,
+                    globalRectOf(context).bottomLeft.translate(0, 4),
+                  ),
+                ),
+              ),
+            ),
           ],
         ),
         const SizedBox(height: OcSpace.s24),
@@ -233,6 +250,42 @@ class _VoicePageState extends ConsumerState<VoicePage> {
             ),
           ],
         ),
+        // Lowering other apps while people talk (Phase 2 §12); macOS has
+        // no way to.
+        if (ref.read(repositoryProvider).capabilities.lowerOtherApps) ...[
+          const SizedBox(height: OcSpace.s24),
+          SettingsSection(
+            title: 'Attenuation',
+            footer:
+                "Lowers other apps' sound while people talk in a call, and "
+                'brings it back a second after.',
+            children: [
+              SettingsSliderRow(
+                title: 'Lower other apps by',
+                value: audio.attenuationPercent,
+                min: 0,
+                max: 100,
+                shown: audio.attenuationPercent == 0
+                    ? 'Off'
+                    : '${audio.attenuationPercent} %',
+                onChanged: (value) =>
+                    update((a) => a.copyWith(attenuationPercent: value)),
+              ),
+              SettingsSwitchRow(
+                title: 'When others speak',
+                value: audio.attenuateWhenOthersSpeak,
+                onChanged: (value) =>
+                    update((a) => a.copyWith(attenuateWhenOthersSpeak: value)),
+              ),
+              SettingsSwitchRow(
+                title: 'When I speak',
+                value: audio.attenuateWhenISpeak,
+                onChanged: (value) =>
+                    update((a) => a.copyWith(attenuateWhenISpeak: value)),
+              ),
+            ],
+          ),
+        ],
       ],
     );
   }
@@ -440,8 +493,7 @@ class AboutPage extends ConsumerWidget {
         Text('Opencord', style: OcText.title.copyWith(color: colors.text)),
         const SizedBox(height: OcSpace.s4),
         Text(
-          'Self-hosted chat and voice, with Telegram’s calm and '
-          'Discord’s servers.',
+          'Self-hosted chat and voice.',
           style: OcText.body.copyWith(color: colors.textSecondary),
         ),
         const SizedBox(height: OcSpace.s20),

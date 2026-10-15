@@ -2,13 +2,17 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:opencord/core/model/voice.dart';
+import 'package:opencord/core/providers/providers.dart';
 import 'package:opencord/core/settings/local_prefs.dart';
+import 'package:opencord/features/chat/links.dart';
 import 'package:opencord/features/settings/settings_dialog.dart';
 import 'package:opencord/features/settings/user/keybind_recorder.dart';
+import 'package:opencord/features/window/native_window.dart';
 import 'package:opencord/ui/widgets/oc_icon_button.dart';
 import 'package:opencord/ui/widgets/oc_menu.dart';
 
 import '../../support/app.dart';
+import '../../support/fake_window.dart';
 
 Future<void> _pumpFor(WidgetTester tester, Duration total) async {
   const step = Duration(milliseconds: 50);
@@ -191,4 +195,56 @@ void main() {
     );
     await app.dispose(tester);
   });
+
+  testWidgets(
+    'keybinds waiting for a permission open its settings, and bind again when '
+    'the window comes back',
+    (tester) async {
+      const url =
+          'x-apple.systempreferences:com.apple.preference.security'
+          '?Privacy_ListenEvent';
+      const waiting = HotkeySupport.focusedOnly(
+        'allow Opencord under Input Monitoring',
+        settingsUrl: url,
+      );
+      final window = FakeNativeWindow();
+      final opened = <Uri>[];
+      final app = await MockApp.pump(
+        tester,
+        platform: TargetPlatform.macOS,
+        window: window,
+        overrides: [
+          linkLauncherProvider.overrideWithValue((uri) async {
+            opened.add(uri);
+            return true;
+          }),
+        ],
+      );
+      app.repository.hotkeySupport = waiting;
+      app.read(hotkeySupportProvider.notifier).set(waiting);
+      await _openPage(tester, 'Keybinds');
+
+      await tester.tap(_inPage(find.text('Open settings')));
+      await tester.pump();
+      expect(opened, [Uri.parse(url)]);
+
+      // Allowed there, then back: the hotkeys are bound again, globally now.
+      app.repository.hotkeySupport = const HotkeySupport.global('an event tap');
+      final binds = app.repository.hotkeyBinds;
+      window.statusEvents.add(const WindowStatus(focused: false));
+      await tester.pump();
+      window.statusEvents.add(const WindowStatus());
+      await _pumpFor(tester, const Duration(milliseconds: 100));
+      expect(app.repository.hotkeyBinds, binds + 1);
+      expect(_inPage(find.text('Open settings')), findsNothing);
+
+      // Bound: focus no longer binds them again.
+      window.statusEvents.add(const WindowStatus(focused: false));
+      await tester.pump();
+      window.statusEvents.add(const WindowStatus());
+      await _pumpFor(tester, const Duration(milliseconds: 100));
+      expect(app.repository.hotkeyBinds, binds + 1);
+      await app.dispose(tester);
+    },
+  );
 }

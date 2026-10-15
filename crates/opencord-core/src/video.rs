@@ -11,9 +11,10 @@ use tokio::sync::mpsc;
 
 use crate::api::types::{CameraProblem, CoreError, MediaEvent, VideoTrackKind, VideoWant};
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", target_os = "macos", target_os = "windows"))]
 pub mod flutter;
 #[cfg(target_os = "linux")]
+pub(crate) mod gl;
 pub(crate) mod screen;
 
 /// Where a track's pictures are drawn: one of the app's textures.
@@ -21,6 +22,21 @@ pub trait FrameSink: Send + Sync {
     fn id(&self) -> i64;
     /// Shows these RGBA rows from the next frame on.
     fn present(&self, width: u32, height: u32, rgba: Vec<u8>);
+    /// Takes pictures still on the GPU ([`Self::present_gpu`]).
+    #[cfg(target_os = "linux")]
+    fn takes_gpu(&self) -> bool {
+        false
+    }
+    /// Shows a picture the decoder left on the GPU, at `size`; `false`
+    /// when it cannot, and pictures come as RGBA from then on.
+    #[cfg(target_os = "linux")]
+    fn present_gpu(
+        &self,
+        _picture: opencord_media::video::codec::dmabuf::DmaBufPicture,
+        _size: (u32, u32),
+    ) -> bool {
+        false
+    }
 }
 
 /// Makes sinks for the app's engine.
@@ -53,10 +69,25 @@ struct Hub {
     tracks: HashMap<String, Remote>,
     /// Tile sizes the app asked for, by track.
     wants: HashMap<String, (u32, u32)>,
-    #[cfg(target_os = "linux")]
     camera: Option<camera::Camera>,
-    #[cfg(target_os = "linux")]
     screen: Option<screen::Share>,
+}
+
+impl Hub {
+    /// The sender of this device's camera or screen share with `track_id`.
+    fn sender_of(&self, track_id: &str) -> Option<&opencord_media::video::sender::VideoSender> {
+        let camera = self
+            .camera
+            .as_ref()
+            .filter(|camera| camera.request.track_id == track_id)
+            .map(|camera| &camera.sender);
+        let screen = self
+            .screen
+            .as_ref()
+            .filter(|share| share.request.track_id == track_id)
+            .map(|share| &share.sender);
+        camera.or(screen)
+    }
 }
 
 struct Remote {
@@ -64,7 +95,6 @@ struct Remote {
     /// A screen share: its pictures wait for its sound.
     screen: bool,
     texture: Option<Arc<dyn FrameSink>>,
-    #[cfg(target_os = "linux")]
     receiver: Option<opencord_media::video::receiver::VideoReceiver>,
 }
 
@@ -95,7 +125,6 @@ impl Video {
     pub fn set_stream_delay(&self, user_id: i64, delay: std::time::Duration) {
         let mut hub = lock(&self.hub);
         hub.stream_delays.insert(user_id, delay);
-        #[cfg(target_os = "linux")]
         for remote in hub.tracks.values() {
             if remote.screen
                 && remote.user_id == user_id
@@ -136,21 +165,18 @@ impl Video {
         *lock(&self.outlet) = Some(Arc::clone(&connection));
         let mut hub = lock(&self.hub);
         hub.place = Some((server_key.to_owned(), channel_id));
-        #[cfg(target_os = "linux")]
-        {
-            let requests = hub
-                .camera
-                .iter()
-                .map(|camera| camera.request.clone())
-                .chain(hub.screen.iter().map(|share| share.request.clone()));
-            for request in requests {
-                let connection = Arc::clone(&connection);
-                self.runtime.spawn(async move {
-                    if let Err(error) = connection.publish_track(request).await {
-                        tracing::warn!(%error, "a track could not be published again");
-                    }
-                });
-            }
+        let requests = hub
+            .camera
+            .iter()
+            .map(|camera| camera.request.clone())
+            .chain(hub.screen.iter().map(|share| share.request.clone()));
+        for request in requests {
+            let connection = Arc::clone(&connection);
+            self.runtime.spawn(async move {
+                if let Err(error) = connection.publish_track(request).await {
+                    tracing::warn!(%error, "a track could not be published again");
+                }
+            });
         }
     }
 
@@ -182,7 +208,6 @@ impl Video {
                 self.track_removed(*user_id, track_id)
             }
             VoiceEvent::Video(video) => {
-                #[cfg(target_os = "linux")]
                 if let Some(receiver) = lock(&self.hub)
                     .tracks
                     .get(&video.track_id)
@@ -190,8 +215,6 @@ impl Video {
                 {
                     receiver.push(video.clone());
                 }
-                #[cfg(not(target_os = "linux"))]
-                let _ = video;
             }
             VoiceEvent::Encode {
                 track_id,
@@ -200,31 +223,22 @@ impl Video {
                 fps_scale,
                 size_scale,
             } => {
-                #[cfg(target_os = "linux")]
-                if let Some(camera) = lock(&self.hub).camera.as_ref()
-                    && camera.request.track_id == *track_id
-                {
-                    camera
-                        .sender
-                        .encode(layers, bitrates, *fps_scale, *size_scale);
+                // The camera's or the screen share's: only the layers
+                // someone watches, within the uplink.
+                if let Some(sender) = lock(&self.hub).sender_of(track_id) {
+                    sender.encode(layers, bitrates, *fps_scale, *size_scale);
                 }
-                #[cfg(not(target_os = "linux"))]
-                let _ = (track_id, layers, bitrates, fps_scale, size_scale);
             }
+            // A viewer that starts watching asks for a keyframe: without
+            // one the node sends it nothing.
             VoiceEvent::KeyframeRequested { track_id, layer } => {
-                #[cfg(target_os = "linux")]
-                if let Some(camera) = lock(&self.hub).camera.as_ref()
-                    && camera.request.track_id == *track_id
-                {
-                    camera.sender.keyframe(*layer);
+                if let Some(sender) = lock(&self.hub).sender_of(track_id) {
+                    sender.keyframe(*layer);
                 }
-                #[cfg(not(target_os = "linux"))]
-                let _ = (track_id, layer);
             }
             VoiceEvent::TrackStopped {
                 track_id, message, ..
             } => {
-                #[cfg(target_os = "linux")]
                 if let Some(share) = lock(&self.hub)
                     .screen
                     .as_mut()
@@ -259,7 +273,6 @@ impl Video {
                 user_id,
                 screen: track.kind == TrackKind::Screen,
                 texture,
-                #[cfg(target_os = "linux")]
                 receiver: None,
             },
         );
@@ -306,12 +319,10 @@ impl Video {
             .into_iter()
             .map(|want| (want.track_id, (want.width, want.height)))
             .collect();
-        #[cfg(target_os = "linux")]
         if let Some(camera) = &hub.camera {
             let size = hub.wants.get(&camera.request.track_id).copied();
             *lock(&camera.preview_size) = size.unwrap_or_default();
         }
-        #[cfg(target_os = "linux")]
         if let Some(share) = &hub.screen {
             let size = hub.wants.get(&share.request.track_id).copied();
             *lock(&share.preview_size) = size.unwrap_or_default();
@@ -339,19 +350,30 @@ impl Video {
                     max_height: height,
                 });
             }
-            #[cfg(target_os = "linux")]
             match (size, remote.texture.clone()) {
                 (Some((width, height)), Some(texture)) => {
                     let receiver = remote.receiver.get_or_insert_with(|| {
                         let outlet = Arc::clone(&self.outlet);
                         let track_id = track_id.clone();
+                        let lost = move || {
+                            if let Some(connection) = lock(&outlet).as_ref() {
+                                connection.request_keyframe(&track_id);
+                            }
+                        };
+                        // Pictures stay on the GPU where the texture takes
+                        // them (plan §7.11).
+                        #[cfg(target_os = "linux")]
+                        if texture.takes_gpu() {
+                            let gpu = Arc::clone(&texture);
+                            return opencord_media::video::receiver::VideoReceiver::start_with_gpu(
+                                move |rgba| texture.present(rgba.width, rgba.height, rgba.data),
+                                Box::new(move |picture, size| gpu.present_gpu(picture, size)),
+                                lost,
+                            );
+                        }
                         opencord_media::video::receiver::VideoReceiver::start(
                             move |rgba| texture.present(rgba.width, rgba.height, rgba.data),
-                            move || {
-                                if let Some(connection) = lock(&outlet).as_ref() {
-                                    connection.request_keyframe(&track_id);
-                                }
-                            },
+                            lost,
                         )
                     });
                     receiver.set_size(width, height);
@@ -363,8 +385,6 @@ impl Video {
                 }
                 _ => remote.receiver = None,
             }
-            #[cfg(not(target_os = "linux"))]
-            let _ = remote;
         }
         if let Some(connection) = lock(&self.outlet).as_ref() {
             connection.set_sink_wants(sink_wants);
@@ -373,25 +393,19 @@ impl Video {
 
     /// Turns the camera off; whether it was on.
     pub fn stop_camera(&self) -> bool {
-        #[cfg(target_os = "linux")]
-        {
-            let camera = lock(&self.hub).camera.take();
-            let Some(camera) = camera else {
-                return false;
-            };
-            if let Some(connection) = lock(&self.outlet).as_ref() {
-                connection.unpublish_track(&camera.request.track_id);
-            }
-            // Joins its threads: off the async runtime.
-            std::thread::spawn(move || drop(camera));
-            true
+        let camera = lock(&self.hub).camera.take();
+        let Some(camera) = camera else {
+            return false;
+        };
+        if let Some(connection) = lock(&self.outlet).as_ref() {
+            connection.unpublish_track(&camera.request.track_id);
         }
-        #[cfg(not(target_os = "linux"))]
-        false
+        // Joins its threads: off the async runtime.
+        std::thread::spawn(move || drop(camera));
+        true
     }
 
     /// Publishes a picked screen and sends it, replacing any other share.
-    #[cfg(target_os = "linux")]
     pub(crate) async fn publish_screen(
         &self,
         pending: screen::Pending,
@@ -403,7 +417,6 @@ impl Video {
     }
 
     /// A new quality for the screen share.
-    #[cfg(target_os = "linux")]
     pub(crate) async fn reshape_screen(
         &self,
         request: crate::api::types::ScreenShareRequest,
@@ -412,7 +425,6 @@ impl Video {
     }
 
     /// Whose sound a window share sends: an app by name, or none.
-    #[cfg(target_os = "linux")]
     pub fn share_audio_from(&self, app: Option<String>) -> Result<(), CoreError> {
         let mut hub = lock(&self.hub);
         let share = hub.screen.as_mut().ok_or_else(|| CoreError::InvalidInput {
@@ -424,48 +436,33 @@ impl Video {
 
     /// Ends the screen share here; its server and stream key, if it was on.
     pub fn stop_screen(&self) -> Option<(String, String)> {
-        #[cfg(target_os = "linux")]
-        {
-            let share = lock(&self.hub).screen.take()?;
-            if let Some(connection) = lock(&self.outlet).as_ref() {
-                connection.unpublish_track(&share.request.track_id);
-            }
-            let keys = (share.server_key.clone(), share.stream_key.clone());
-            screen::drop_later(share);
-            Some(keys)
+        let share = lock(&self.hub).screen.take()?;
+        if let Some(connection) = lock(&self.outlet).as_ref() {
+            connection.unpublish_track(&share.request.track_id);
         }
-        #[cfg(not(target_os = "linux"))]
-        None
+        let keys = (share.server_key.clone(), share.stream_key.clone());
+        screen::drop_later(share);
+        Some(keys)
     }
 
     /// The live screen share's server and stream key.
     pub fn screen_share(&self) -> Option<(String, String)> {
-        #[cfg(target_os = "linux")]
-        {
-            lock(&self.hub)
-                .screen
-                .as_ref()
-                .map(|share| (share.server_key.clone(), share.stream_key.clone()))
-        }
-        #[cfg(not(target_os = "linux"))]
-        None
+        lock(&self.hub)
+            .screen
+            .as_ref()
+            .map(|share| (share.server_key.clone(), share.stream_key.clone()))
     }
 
     /// A screen share that ended by itself (its window closed, its screen
     /// went, the node stopped it) is stopped here and reported; returns its
     /// server and stream key, for the server.
     pub fn screen_ended(&self) -> Option<(String, String)> {
-        #[cfg(target_os = "linux")]
-        {
-            let message = lock(&self.hub).screen.as_ref().and_then(screen::ended)?;
-            let keys = self.stop_screen()?;
-            let _ = self.events.send(MediaEvent::ScreenShareStopped {
-                message: message.to_owned(),
-            });
-            Some(keys)
-        }
-        #[cfg(not(target_os = "linux"))]
-        None
+        let message = lock(&self.hub).screen.as_ref().and_then(screen::ended)?;
+        let keys = self.stop_screen()?;
+        let _ = self.events.send(MediaEvent::ScreenShareStopped {
+            message: message.to_owned(),
+        });
+        Some(keys)
     }
 
     /// The server ended this device's stream (a permission or the server's
@@ -482,25 +479,26 @@ impl Video {
     }
 
     pub fn camera_on(&self) -> bool {
-        #[cfg(target_os = "linux")]
-        {
-            lock(&self.hub).camera.is_some()
-        }
-        #[cfg(not(target_os = "linux"))]
-        false
+        lock(&self.hub).camera.is_some()
+    }
+
+    /// The encoders of this device's camera and screen share, while on.
+    pub fn encoders(&self) -> (Option<String>, Option<String>) {
+        let hub = lock(&self.hub);
+        (
+            hub.camera
+                .as_ref()
+                .and_then(|camera| camera.sender.encoder()),
+            hub.screen.as_ref().and_then(|share| share.sender.encoder()),
+        )
     }
 
     /// Whether the camera is on but has stopped by itself (unplugged).
     pub fn camera_ended(&self) -> bool {
-        #[cfg(target_os = "linux")]
-        {
-            lock(&self.hub)
-                .camera
-                .as_ref()
-                .is_some_and(|camera| camera.sender.finished())
-        }
-        #[cfg(not(target_os = "linux"))]
-        false
+        lock(&self.hub)
+            .camera
+            .as_ref()
+            .is_some_and(|camera| camera.sender.finished())
     }
 
     /// Turns the camera on and publishes it.
@@ -508,27 +506,7 @@ impl Video {
         &self,
         device_id: Option<String>,
     ) -> Result<crate::api::types::CameraStarted, CoreError> {
-        #[cfg(target_os = "linux")]
-        {
-            camera::start(self, device_id).await
-        }
-        #[cfg(not(target_os = "linux"))]
-        {
-            let _ = device_id;
-            Err(camera_error(
-                CameraProblem::NotSupported,
-                "cameras need Linux for now",
-            ))
-        }
-    }
-}
-
-/// Screen sharing needs Linux for now.
-#[cfg(not(target_os = "linux"))]
-pub(crate) fn screen_unsupported() -> CoreError {
-    CoreError::Screen {
-        problem: crate::api::types::ScreenProblem::NotSupported,
-        message: "screen sharing needs Linux for now".to_owned(),
+        camera::start(self, device_id).await
     }
 }
 
@@ -541,34 +519,26 @@ pub(crate) fn camera_error(problem: CameraProblem, message: impl Into<String>) -
 
 /// The cameras there are.
 pub async fn cameras() -> Result<Vec<crate::api::types::CameraDevice>, CoreError> {
-    #[cfg(target_os = "linux")]
-    {
-        opencord_media::video::camera::cameras()
-            .await
-            .map(|cameras| {
-                cameras
-                    .into_iter()
-                    .map(|camera| crate::api::types::CameraDevice {
-                        id: camera.id,
-                        name: camera.name,
-                    })
-                    .collect()
-            })
-            .map_err(camera::problem)
-    }
-    #[cfg(not(target_os = "linux"))]
-    Err(camera_error(
-        CameraProblem::NotSupported,
-        "cameras need Linux for now",
-    ))
+    opencord_media::video::camera::cameras()
+        .await
+        .map(|cameras| {
+            cameras
+                .into_iter()
+                .map(|camera| crate::api::types::CameraDevice {
+                    id: camera.id,
+                    name: camera.name,
+                })
+                .collect()
+        })
+        .map_err(camera::problem)
 }
 
-#[cfg(target_os = "linux")]
 mod camera {
     use std::sync::{Arc, Mutex};
+    use std::time::{Duration, Instant};
 
     use opencord_media::transport::{TrackError, TrackKind, TrackRequest};
-    use opencord_media::video::camera::{CameraError, Capture};
+    use opencord_media::video::camera::{CameraError, Capture, RawFrame};
     use opencord_media::video::codec::scale::Scaler;
     use opencord_media::video::layers::camera_layers;
     use opencord_media::video::sender::VideoSender;
@@ -597,6 +567,34 @@ mod camera {
         camera_error(problem, error.to_string())
     }
 
+    /// A camera switched from may still be closing on its own thread for
+    /// a moment (V4L2 and Media Foundation then say it is busy), so a
+    /// switch tries again for up to this long.
+    const SWITCH_WAIT: Duration = Duration::from_secs(1);
+    const SWITCH_RETRY: Duration = Duration::from_millis(100);
+
+    async fn open(
+        device_id: Option<String>,
+        frames: std::sync::mpsc::SyncSender<RawFrame>,
+        switching: bool,
+    ) -> Result<Capture, CoreError> {
+        let wait = if switching {
+            SWITCH_WAIT
+        } else {
+            Duration::ZERO
+        };
+        let give_up = Instant::now() + wait;
+        loop {
+            match Capture::start(device_id.clone(), frames.clone()).await {
+                Ok(capture) => return Ok(capture),
+                Err(CameraError::Failed(_)) if Instant::now() < give_up => {
+                    tokio::time::sleep(SWITCH_RETRY).await;
+                }
+                Err(error) => return Err(problem(error)),
+            }
+        }
+    }
+
     pub(super) async fn start(
         video: &Video,
         device_id: Option<String>,
@@ -607,9 +605,9 @@ mod camera {
                 "not in a voice channel",
             ));
         };
-        video.stop_camera();
+        let switching = video.stop_camera();
         let (frames, captured) = std::sync::mpsc::sync_channel(4);
-        let capture = Capture::start(device_id, frames).await.map_err(problem)?;
+        let capture = open(device_id, frames, switching).await?;
         let mode = capture.mode();
         let layers = camera_layers(mode.width, mode.height);
         let track_id = format!("camera-{:016x}", rand_id());

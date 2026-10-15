@@ -50,6 +50,7 @@ message Request {
     MoveMember move_member = 73;
     DisconnectMember disconnect_member = 74;
     RefreshVoiceServer refresh_voice_server = 75;
+    UpdateVoiceActivity update_voice_activity = 76;
 
     CreateStream create_stream = 80;
     UpdateStream update_stream = 81;
@@ -316,6 +317,14 @@ message UpdateVoiceState {
   bool self_deaf = 3;
   bool self_video = 4;
   bool self_stream = 5;
+}
+
+// -> ack. How long this device's keyboard and mouse have been idle, for
+// AFK moves (Phase 2 §12): sent once it passes a minute, and again,
+// without input_idle_ms, when input comes back. Ignored unless this
+// session holds the user's voice state.
+message UpdateVoiceActivity {
+  optional uint64 input_idle_ms = 1;
 }
 
 // -> voice_state

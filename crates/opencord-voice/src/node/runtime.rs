@@ -393,9 +393,19 @@ impl Runtime {
     }
 
     fn speaking(&mut self, now: Instant, session_id: &str, flags: u32) {
-        let Some(session) = self.sessions.get(session_id) else {
+        let Some(session) = self.sessions.get_mut(session_id) else {
             return;
         };
+        let due = session
+            .spoke_reported_at
+            .is_none_or(|at| now.duration_since(at) >= super::SPOKE_REPORT_EVERY);
+        if flags != 0 && due {
+            session.spoke_reported_at = Some(now);
+            let _ = self.events.send(NodeEvent::Spoke {
+                user_id: session.user_id,
+                channel_id: session.channel_id,
+            });
+        }
         let may_priority = Permissions::from_bits_truncate(session.permissions)
             .contains(Permissions::PRIORITY_SPEAKER);
         let flags = if may_priority {

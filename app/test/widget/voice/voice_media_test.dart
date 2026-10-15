@@ -7,6 +7,8 @@ import 'package:opencord/core/providers/providers.dart';
 import 'package:opencord/core/settings/local_prefs.dart';
 import 'package:opencord/features/channels/voice_panel.dart';
 import 'package:opencord/features/shell/desktop_shell.dart';
+import 'package:opencord/features/shell/navigation.dart';
+import 'package:opencord/features/voice/connection_info.dart';
 import 'package:opencord/features/voice/input_level_meter.dart';
 
 import '../../support/app.dart';
@@ -89,6 +91,144 @@ void main() {
 
     expect(
       find.text('Microphone unavailable. Using Built-in microphone.'),
+      findsOneWidget,
+    );
+    await _pumpFor(tester, const Duration(seconds: 3));
+    await app.dispose(tester);
+  });
+
+  testWidgets('the voice panel shows the connection as bars, and a click '
+      'graphs its ping, loss and jitter', (tester) async {
+    final app = await MockApp.pump(tester);
+    await _joinGeneral(tester);
+    final session = app.read(voiceSessionProvider);
+    final status = _inPanel(
+      find.bySemanticsLabel(RegExp('Show the connection graph')),
+    );
+    expect(
+      _inPanel(find.bySemanticsLabel(RegExp('Connection good'))),
+      findsNothing,
+    );
+
+    app.repository.debugVoiceStats(
+      session.serverKey!,
+      session.channelId!,
+      const VoiceStats(
+        pingMs: 42,
+        jitterMs: 3.25,
+        lossInPercent: 0.5,
+        lossOutPercent: 0,
+        bitrateIn: 96000,
+        bitrateOut: 1500000,
+        voiceNode: 'opencord.example:7710',
+        cameraEncoder: 'VaApi (hardware)',
+      ),
+    );
+    await _settle(tester);
+    expect(
+      _inPanel(find.bySemanticsLabel(RegExp('Connection good'))),
+      findsOneWidget,
+    );
+    await tester.tap(status);
+    await _settle(tester);
+
+    Finder line(String text) => find.text(text, findRichText: true);
+    expect(find.byType(ConnectionGraph), findsOneWidget);
+    expect(find.text('Connection'), findsOneWidget);
+    // Not where the voice node is.
+    expect(find.text('opencord.example:7710'), findsNothing);
+    expect(line('Average ping: 42 ms'), findsOneWidget);
+    expect(line('Last ping: 42 ms'), findsOneWidget);
+    expect(line('Packet loss rate: 0.5%'), findsOneWidget);
+    expect(line('Jitter: 3 ms'), findsOneWidget);
+    // The scale: a round number over the highest ping.
+    expect(find.text('50'), findsOneWidget);
+    expect(find.text('96 kbps'), findsNothing);
+    expect(find.textContaining('VaApi'), findsNothing);
+
+    // The graph follows the reports while it is open.
+    app.repository.debugVoiceStats(
+      session.serverKey!,
+      session.channelId!,
+      const VoiceStats(pingMs: 90, lossInPercent: 12, lossOutPercent: 1),
+    );
+    await _settle(tester);
+    expect(line('Average ping: 66 ms'), findsOneWidget);
+    expect(line('Last ping: 90 ms'), findsOneWidget);
+    expect(line('Packet loss rate: 12.0%'), findsOneWidget);
+    expect(find.text('200'), findsOneWidget);
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await _settle(tester);
+
+    expect(
+      _inPanel(find.bySemanticsLabel(RegExp('Connection poor'))),
+      findsOneWidget,
+    );
+    await app.dispose(tester);
+  });
+
+  testWidgets("the voice panel's channel line opens the call", (tester) async {
+    final app = await MockApp.pump(tester);
+    await _joinGeneral(tester);
+    final voiceChannel = app.read(voiceSessionProvider).channelId;
+    await tester.tap(
+      find.descendant(
+        of: find.byKey(DesktopShell.sidebarKey),
+        matching: find.text('general'),
+      ),
+    );
+    await _settle(tester);
+    expect(app.read(currentChannelProvider), isNot(voiceChannel));
+
+    await tester.tap(
+      _inPanel(find.bySemanticsLabel(RegExp('Open the voice view'))),
+    );
+    await _settle(tester);
+
+    expect(app.read(currentChannelProvider), voiceChannel);
+    await app.dispose(tester);
+  });
+
+  testWidgets('the graph keeps five minutes, and forgets them on leaving', (
+    tester,
+  ) async {
+    final app = await MockApp.pump(tester);
+    await _joinGeneral(tester);
+    final session = app.read(voiceSessionProvider);
+
+    final reports = VoiceStatsHistoryNotifier.length + 5;
+    for (var ping = 1; ping <= reports; ping++) {
+      app.repository.debugVoiceStats(
+        session.serverKey!,
+        session.channelId!,
+        // The same report twice in a row still counts as a second.
+        VoiceStats(pingMs: ping == reports ? ping - 1 : ping),
+      );
+      await _settle(tester);
+    }
+    final history = app.read(voiceStatsHistoryProvider);
+    expect(history, hasLength(VoiceStatsHistoryNotifier.length));
+    expect(history.first.stats.pingMs, 6);
+    expect(history.last.stats.pingMs, reports - 1);
+
+    await app.read(voiceSessionProvider.notifier).leave();
+    await _settle(tester);
+    expect(app.read(voiceStatsHistoryProvider), isEmpty);
+    await app.dispose(tester);
+  });
+
+  testWidgets("a headset's two halves going at once make one toast", (
+    tester,
+  ) async {
+    final app = await MockApp.pump(tester);
+
+    app.repository.debugDeviceFellBack(output: false, device: 'Built-in');
+    await tester.pump(const Duration(milliseconds: 100));
+    app.repository.debugDeviceFellBack(output: true, device: 'Built-in');
+    await _settle(tester);
+
+    expect(
+      find.text('Microphone and speaker unavailable. Using Built-in.'),
       findsOneWidget,
     );
     await _pumpFor(tester, const Duration(seconds: 3));
@@ -192,7 +332,7 @@ void main() {
     tester,
   ) async {
     final app = await MockApp.pump(tester);
-    await tester.tap(find.bySemanticsLabel('Audio options').first);
+    await tester.tap(find.bySemanticsLabel('Input options'));
     await tester.pumpAndSettle();
     final opened = app.repository.levelMeterOn;
 
@@ -213,7 +353,7 @@ void main() {
     await app.dispose(tester);
   });
 
-  testWidgets('the quick audio menu scrolls when there are many devices', (
+  testWidgets('device lists show four at a time and scroll the rest', (
     tester,
   ) async {
     final app = await MockApp.pump(tester, size: const Size(1280, 640));
@@ -228,16 +368,27 @@ void main() {
       ],
     );
 
-    await tester.tap(find.bySemanticsLabel('Audio options').first);
-    await tester.pumpAndSettle();
-    final overflow = tester.takeException();
-    await tester.drag(find.text('Microphone 0'), const Offset(0, -2000));
-    await tester.pumpAndSettle();
+    for (final (side, first, last) in [
+      ('Input options', 'Microphone 0', 'Microphone 11'),
+      ('Output options', 'Speaker 0', 'Speaker 11'),
+    ]) {
+      await tester.tap(find.bySemanticsLabel(side));
+      await tester.pumpAndSettle();
+      final list = find.ancestor(
+        of: find.text(first),
+        matching: find.byType(ListView),
+      );
+      final overflow = tester.takeException();
 
-    expect(overflow, isNull);
-    expect(find.text('Speaker 11').hitTestable(), findsOneWidget);
-    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
-    await tester.pumpAndSettle();
+      expect(overflow, isNull);
+      expect(tester.getSize(list).height, 4 * 30, reason: side);
+      expect(find.text(last).hitTestable(), findsNothing, reason: side);
+      await tester.drag(find.text(first), const Offset(0, -2000));
+      await tester.pumpAndSettle();
+      expect(find.text(last).hitTestable(), findsOneWidget, reason: side);
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pumpAndSettle();
+    }
     await app.dispose(tester);
   });
 }

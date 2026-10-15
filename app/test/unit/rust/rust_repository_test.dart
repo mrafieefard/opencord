@@ -111,8 +111,12 @@ class _Harness {
   static Future<_Harness> start({
     SavedIdentity? saved,
     MemoryIdentityStore? keyring,
+    bool video = false,
+    bool ownScreenPicker = false,
   }) async {
-    final fake = FakeCoreApi();
+    final fake = FakeCoreApi()
+      ..video = video
+      ..ownScreenPicker = ownScreenPicker;
     final store = MemoryKeyValueStore();
     final identities = keyring ?? MemoryIdentityStore(saved);
     final repository = await RustRepository.open(
@@ -1088,6 +1092,59 @@ void main() {
         const ScreenShareQuality(ScreenShareResolution.p720, 30),
       );
       expect(shares[2], isNull);
+    });
+
+    test('where Opencord picks, the chosen source goes to the core and a '
+        "window's app comes back as its sound", () async {
+      final harness = await _Harness.start(video: true, ownScreenPicker: true);
+      harness.core
+        ..screenSourceList = const [
+          core.ScreenSource(
+            id: 'window:42',
+            kind: core.StreamSourceKind.window,
+            title: 'Notes',
+            app: 'Notes',
+            thumbnail: null,
+          ),
+        ]
+        ..screen = const core.ScreenShareStarted(
+          streamKey: 'stream:5:1',
+          trackId: 'screen-1',
+          textureId: null,
+          width: 1280,
+          height: 720,
+          sourceKind: core.StreamSourceKind.window,
+          audioApp: 'Notes',
+        );
+
+      expect(harness.repository.capabilities.screenShare, isTrue);
+      expect(harness.repository.capabilities.ownScreenPicker, isTrue);
+      final sources = await harness.repository.screenSources();
+      expect(sources.single.id, 'window:42');
+      expect(sources.single.kind, StreamSource.window);
+      await harness.repository.startScreenShare(
+        const ScreenShareQuality(ScreenShareResolution.p720, 30),
+        sourceId: sources.single.id,
+      );
+      await harness.settle();
+
+      expect(
+        harness.core.calls,
+        contains('screenShareStart:p720:30:true:window:42'),
+      );
+      final share = harness.events
+          .whereType<OwnScreenShareChanged>()
+          .single
+          .share;
+      expect(share?.audioFrom, 'Notes');
+    });
+
+    test('without video, the controls are left out', () async {
+      final harness = await _Harness.start();
+
+      expect(harness.repository.capabilities.camera, isFalse);
+      expect(harness.repository.capabilities.screenShare, isFalse);
+      expect(harness.repository.capabilities.ownScreenPicker, isFalse);
     });
 
     test('a closed picker says so and nothing goes live', () async {

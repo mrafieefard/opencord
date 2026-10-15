@@ -7,6 +7,7 @@
 //! every second, so the stream stays alive.
 
 use std::sync::mpsc::{self, Receiver, RecvTimeoutError};
+use std::sync::{Arc, Mutex, PoisonError};
 use std::thread::JoinHandle;
 use std::time::{Duration, Instant};
 
@@ -25,6 +26,10 @@ const WAIT: Duration = Duration::from_millis(100);
 const BITRATE_CHANGE: f64 = 0.2;
 /// A screen that has not changed is sent again this often (plan §9.2).
 const KEEPALIVE: Duration = Duration::from_secs(1);
+/// A layer nobody has wanted for this long closes its encoder, which holds
+/// megabytes of buffers (a 720p one about 20 MB); wanted again, it opens a
+/// new one, which starts with the keyframe it needs anyway.
+const CLOSE_UNUSED_AFTER: Duration = Duration::from_secs(10);
 
 enum Command {
     Encode {
@@ -46,6 +51,7 @@ enum Command {
 pub struct VideoSender {
     commands: mpsc::Sender<Command>,
     thread: Option<JoinHandle<()>>,
+    encoder: Arc<Mutex<Option<String>>>,
 }
 
 impl VideoSender {
@@ -84,11 +90,25 @@ impl VideoSender {
         P: FnMut(&Picture) + Send + 'static,
     {
         let (commands, received) = mpsc::channel();
+        let encoder = Arc::clone(&sending.encoder);
         let thread = std::thread::Builder::new()
             .name("opencord-video-send".to_owned())
             .spawn(move || sending.run(&frames, &received))
             .ok();
-        Self { commands, thread }
+        Self {
+            commands,
+            thread,
+            encoder,
+        }
+    }
+
+    /// The encoder its last layer opened, for diagnostics: "NVENC
+    /// (hardware)", say; `None` before any.
+    pub fn encoder(&self) -> Option<String> {
+        self.encoder
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .clone()
     }
 
     /// What to encode: the layers named, at these bitrates, and of a
@@ -139,6 +159,8 @@ impl Drop for VideoSender {
 struct LayerState {
     layer: Layer,
     active: bool,
+    /// When it stopped being wanted.
+    inactive_since: Option<Instant>,
     bitrate: u32,
     encoder: Option<Encoder>,
     keyframe_due: bool,
@@ -159,6 +181,8 @@ struct Sending<S, P> {
     scaler: Scaler,
     send: S,
     preview: P,
+    /// See [`VideoSender::encoder`].
+    encoder: Arc<Mutex<Option<String>>>,
 }
 
 impl<S: FnMut(VideoFrame), P: FnMut(&Picture)> Sending<S, P> {
@@ -179,6 +203,7 @@ impl<S: FnMut(VideoFrame), P: FnMut(&Picture)> Sending<S, P> {
             scaler: Scaler::new(),
             send,
             preview,
+            encoder: Arc::default(),
         }
     }
 
@@ -242,6 +267,12 @@ impl<S: FnMut(VideoFrame), P: FnMut(&Picture)> Sending<S, P> {
                     if active && !state.active {
                         state.keyframe_due = true;
                         state.next_at = None;
+                    }
+                    if !active && state.active {
+                        state.inactive_since = Some(Instant::now());
+                    }
+                    if active {
+                        state.inactive_since = None;
                     }
                     state.active = active;
                     let bitrate = position
@@ -333,6 +364,16 @@ impl<S: FnMut(VideoFrame), P: FnMut(&Picture)> Sending<S, P> {
                 match Encoder::open(config, &Backend::ALL) {
                     Ok(encoder) => {
                         tracing::debug!(layer = %layer.rid, backend = ?encoder.backend(), "encoding");
+                        let backend = encoder.backend();
+                        *self.encoder.lock().unwrap_or_else(PoisonError::into_inner) =
+                            Some(format!(
+                                "{backend:?} ({})",
+                                if backend.is_hardware() {
+                                    "hardware"
+                                } else {
+                                    "software"
+                                }
+                            ));
                         state.encoder = Some(encoder);
                         state.keyframe_due = true;
                     }
@@ -378,6 +419,7 @@ fn layer_states(layers: Vec<Layer>) -> Vec<LayerState> {
             bitrate: layer.max_bitrate,
             layer,
             active: true,
+            inactive_since: None,
             encoder: None,
             keyframe_due: true,
             next_at: None,
@@ -412,6 +454,13 @@ impl<S: FnMut(VideoFrame), P: FnMut(&Picture)> Sending<S, P> {
             .layers
             .iter_mut()
             .map(|state| {
+                let unused = state
+                    .inactive_since
+                    .is_some_and(|since| since.elapsed() >= CLOSE_UNUSED_AFTER);
+                if unused && state.encoder.is_some() {
+                    state.encoder = None;
+                    state.keyframe_due = true;
+                }
                 if state.active && due(state, picture.captured) {
                     Input::Camera
                 } else {
@@ -555,6 +604,7 @@ mod tests {
 
     #[test]
     fn each_layer_takes_pictures_at_its_own_frame_rate() {
+        crate::video::codec::needs_codec!();
         let layers = camera_layers(1280, 720);
         let start = Instant::now();
         let mut taken = [0; 3];
@@ -564,6 +614,7 @@ mod tests {
                 bitrate: layer.max_bitrate,
                 layer,
                 active: true,
+                inactive_since: None,
                 encoder: None,
                 keyframe_due: true,
                 next_at: None,
@@ -584,6 +635,7 @@ mod tests {
 
     #[test]
     fn every_layer_comes_out_at_its_size_starting_with_a_keyframe() {
+        crate::video::codec::needs_codec!();
         let (_sender, frames, received) = started();
 
         feed(&frames, 0, 30);
@@ -614,7 +666,43 @@ mod tests {
     }
 
     #[test]
+    fn a_layer_nobody_wants_for_a_while_closes_its_encoder() {
+        crate::video::codec::needs_codec!();
+        let mut sending = Sending::new(
+            "camera".to_owned(),
+            camera_layers(1280, 720),
+            None,
+            |_: VideoFrame| {},
+            |_: &Picture| {},
+        );
+        let picture = || Picture::black(PixelFormat::Nv12, 1280, 720, Instant::now());
+        sending.encode_picture(picture());
+        assert!(sending.layers.iter().all(|state| state.encoder.is_some()));
+
+        sending.apply(Command::Encode {
+            rids: vec!["l".to_owned(), "m".to_owned()],
+            bitrates: vec![150_000, 500_000],
+            fps_scale: 1.0,
+            size_scale: 1.0,
+        });
+        std::thread::sleep(Duration::from_millis(40));
+        sending.encode_picture(picture());
+        assert!(sending.layers[2].encoder.is_some(), "not at once");
+
+        sending.layers[2].inactive_since = Some(Instant::now() - CLOSE_UNUSED_AFTER);
+        std::thread::sleep(Duration::from_millis(40));
+        sending.encode_picture(picture());
+        assert!(sending.layers[2].encoder.is_none(), "closed after a while");
+        assert!(
+            sending.layers[..2]
+                .iter()
+                .all(|state| state.encoder.is_some())
+        );
+    }
+
+    #[test]
     fn only_the_layers_asked_for_are_encoded_and_a_returning_one_starts_with_a_keyframe() {
+        crate::video::codec::needs_codec!();
         let (sender, frames, received) = started();
         feed(&frames, 0, 10);
         drain(&received);
@@ -643,6 +731,7 @@ mod tests {
 
     #[test]
     fn a_keyframe_comes_when_asked_for() {
+        crate::video::codec::needs_codec!();
         let (sender, frames, received) = started();
         feed(&frames, 0, 10);
         drain(&received);
@@ -662,6 +751,7 @@ mod tests {
 
     #[test]
     fn a_new_bitrate_restarts_the_layer_with_a_keyframe() {
+        crate::video::codec::needs_codec!();
         let (sender, frames, received) = started();
         feed(&frames, 0, 10);
         drain(&received);
@@ -688,6 +778,7 @@ mod tests {
 
     #[test]
     fn the_sender_ends_when_the_camera_does() {
+        crate::video::codec::needs_codec!();
         let (sender, frames, _received) = started();
         feed(&frames, 0, 3);
 
@@ -735,6 +826,7 @@ mod tests {
 
     #[test]
     fn a_screen_sends_its_main_and_low_layers_and_follows_a_resized_window() {
+        crate::video::codec::needs_codec!();
         let (_sender, frames, received) = started_screen();
 
         feed_sized(&frames, 0, 10, (1280, 720));
@@ -763,6 +855,7 @@ mod tests {
 
     #[test]
     fn a_screen_that_does_not_change_is_sent_again_every_second() {
+        crate::video::codec::needs_codec!();
         let (_sender, frames, received) = started_screen();
         feed_sized(&frames, 0, 3, (1280, 720));
         drain(&received);
@@ -779,6 +872,7 @@ mod tests {
 
     #[test]
     fn the_planners_cuts_shrink_and_slow_a_screens_main_layer() {
+        crate::video::codec::needs_codec!();
         let (sender, frames, received) = started_screen();
         feed_sized(&frames, 0, 5, (1280, 720));
         drain(&received);
@@ -806,6 +900,7 @@ mod tests {
 
     #[test]
     fn a_reshaped_screen_goes_out_as_its_new_track_and_layers() {
+        crate::video::codec::needs_codec!();
         let (sender, frames, received) = started_screen();
         feed_sized(&frames, 0, 5, (1280, 720));
         drain(&received);

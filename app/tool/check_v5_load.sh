@@ -47,7 +47,7 @@ if [[ "$joined" -lt 8 ]]; then
 fi
 sleep 13
 
-"$repo/target/release/examples/virtual_camera" mjpeg >"$work/virtual_camera.log" 2>&1 &
+"$repo/target/release/examples/virtual_camera" camera mjpeg >"$work/virtual_camera.log" 2>&1 &
 background+=("$!")
 camera=""
 for _ in $(seq 1 50); do

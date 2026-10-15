@@ -56,6 +56,10 @@ struct Publishing {
     held: Vec<bool>,
     /// Bits per second each layer sends.
     rate: Vec<u32>,
+    /// Time between frames when the picture does not change (a still
+    /// screen, sent again as a keepalive); each layer's frame rate when
+    /// `None`.
+    still: Option<Duration>,
 }
 
 impl Publishing {
@@ -70,6 +74,7 @@ impl Publishing {
             active: vec![true; layers],
             held: vec![false; layers],
             rate: setup.layers.iter().map(|layer| layer.max_bitrate).collect(),
+            still: None,
             setup,
         }
     }
@@ -508,7 +513,8 @@ impl Net {
                         continue;
                     }
                     let fps = publishing.setup.layers[layer].fps;
-                    publishing.next_frame[layer] += Duration::from_secs(1) / fps;
+                    publishing.next_frame[layer] +=
+                        publishing.still.unwrap_or(Duration::from_secs(1) / fps);
                     client.send_frame(now, track, layer);
                 }
             }
@@ -633,6 +639,17 @@ impl Net {
             publishing.next_frame[layer] = now;
         }
         publishing.held[layer] = held;
+    }
+
+    /// `index` sends a frame of `track_id` only every `interval`, as a
+    /// sender does with a screen that does not change.
+    fn still(&mut self, index: usize, track_id: &str, interval: Duration) {
+        let publishing = self.clients[index]
+            .publishing
+            .iter_mut()
+            .find(|p| p.setup.track_id == track_id)
+            .unwrap();
+        publishing.still = Some(interval);
     }
 
     /// `index` says one 20 ms frame per step of `run`.

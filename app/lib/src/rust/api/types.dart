@@ -8,7 +8,7 @@ import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 import 'package:freezed_annotation/freezed_annotation.dart' hide protected;
 part 'types.freezed.dart';
 
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `hash`
 
 @freezed
 sealed class AddServerOutcome with _$AddServerOutcome {
@@ -110,6 +110,12 @@ class AudioSettings {
   /// Everything heard, 0–2 (200 %).
   final double outputVolume;
 
+  /// How much other apps are lowered while people talk, 0–100 %; 0 is
+  /// off (Phase 2 §12, attenuation).
+  final int attenuationPercent;
+  final bool attenuateWhenOthersSpeak;
+  final bool attenuateWhenISpeak;
+
   const AudioSettings({
     this.inputDevice,
     this.outputDevice,
@@ -122,6 +128,9 @@ class AudioSettings {
     required this.automaticGain,
     required this.inputVolume,
     required this.outputVolume,
+    required this.attenuationPercent,
+    required this.attenuateWhenOthersSpeak,
+    required this.attenuateWhenISpeak,
   });
 
   static Future<AudioSettings> default_() =>
@@ -139,7 +148,10 @@ class AudioSettings {
       noiseSuppression.hashCode ^
       automaticGain.hashCode ^
       inputVolume.hashCode ^
-      outputVolume.hashCode;
+      outputVolume.hashCode ^
+      attenuationPercent.hashCode ^
+      attenuateWhenOthersSpeak.hashCode ^
+      attenuateWhenISpeak.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -156,7 +168,10 @@ class AudioSettings {
           noiseSuppression == other.noiseSuppression &&
           automaticGain == other.automaticGain &&
           inputVolume == other.inputVolume &&
-          outputVolume == other.outputVolume;
+          outputVolume == other.outputVolume &&
+          attenuationPercent == other.attenuationPercent &&
+          attenuateWhenOthersSpeak == other.attenuateWhenOthersSpeak &&
+          attenuateWhenISpeak == other.attenuateWhenISpeak;
 }
 
 class Ban {
@@ -700,9 +715,13 @@ sealed class HotkeySupport with _$HotkeySupport {
   const factory HotkeySupport.global({required String method}) =
       HotkeySupport_Global;
 
-  /// Only while Opencord is focused, because of `reason`.
-  const factory HotkeySupport.focusedOnly({required String reason}) =
-      HotkeySupport_FocusedOnly;
+  /// Only while Opencord is focused, because of `reason`. `settings_url`
+  /// opens the system settings where the user can allow them, when that
+  /// is what's missing; the app binds again when its window is focused.
+  const factory HotkeySupport.focusedOnly({
+    required String reason,
+    String? settingsUrl,
+  }) = HotkeySupport_FocusedOnly;
 }
 
 /// A key pair's public half, ready to show.
@@ -854,6 +873,14 @@ sealed class MediaEvent with _$MediaEvent {
   /// screen went, or the server or voice node stopped it.
   const factory MediaEvent.screenShareStopped({required String message}) =
       MediaEvent_ScreenShareStopped;
+
+  /// How this device's voice connection is doing, once a second while
+  /// connected (Phase 2 §12, connection diagnostics).
+  const factory MediaEvent.connectionStats({
+    required String serverKey,
+    required PlatformInt64 channelId,
+    required VoiceStats stats,
+  }) = MediaEvent_ConnectionStats;
 }
 
 class Member {
@@ -1202,7 +1229,7 @@ class ScreenAudioSupport {
 
 /// Why a screen share could not start.
 enum ScreenProblem {
-  /// Not on this system yet (only Linux shares screens for now).
+  /// Not on this system (yet).
   notSupported,
 
   /// The user closed the system picker.
@@ -1260,6 +1287,10 @@ class ScreenShareStarted {
   final int height;
   final StreamSourceKind sourceKind;
 
+  /// The app whose sound a window share sends, when the system said which
+  /// app the window is; `None` and a window: the app asks ("Sound from").
+  final String? audioApp;
+
   const ScreenShareStarted({
     required this.streamKey,
     required this.trackId,
@@ -1267,6 +1298,7 @@ class ScreenShareStarted {
     required this.width,
     required this.height,
     required this.sourceKind,
+    this.audioApp,
   });
 
   @override
@@ -1276,7 +1308,8 @@ class ScreenShareStarted {
       textureId.hashCode ^
       width.hashCode ^
       height.hashCode ^
-      sourceKind.hashCode;
+      sourceKind.hashCode ^
+      audioApp.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -1288,7 +1321,49 @@ class ScreenShareStarted {
           textureId == other.textureId &&
           width == other.width &&
           height == other.height &&
-          sourceKind == other.sourceKind;
+          sourceKind == other.sourceKind &&
+          audioApp == other.audioApp;
+}
+
+/// A screen or window Opencord's own picker offers (plan §9.1).
+class ScreenSource {
+  /// What `screen_share_start` takes as `source_id`.
+  final String id;
+  final StreamSourceKind kind;
+
+  /// "Screen 1 · 2560×1440", or the window's title.
+  final String title;
+
+  /// The app a window belongs to.
+  final String? app;
+  final ScreenThumbnail? thumbnail;
+
+  const ScreenSource({
+    required this.id,
+    required this.kind,
+    required this.title,
+    this.app,
+    this.thumbnail,
+  });
+
+  @override
+  int get hashCode =>
+      id.hashCode ^
+      kind.hashCode ^
+      title.hashCode ^
+      app.hashCode ^
+      thumbnail.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is ScreenSource &&
+          runtimeType == other.runtimeType &&
+          id == other.id &&
+          kind == other.kind &&
+          title == other.title &&
+          app == other.app &&
+          thumbnail == other.thumbnail;
 }
 
 /// A screen share in progress (Phase 2 plan §9).
@@ -1338,6 +1413,31 @@ class ScreenStream {
           fps == other.fps &&
           hasAudio == other.hasAudio &&
           viewerCount == other.viewerCount;
+}
+
+/// A small picture of a screen or window, as RGBA rows.
+class ScreenThumbnail {
+  final int width;
+  final int height;
+  final Uint8List rgba;
+
+  const ScreenThumbnail({
+    required this.width,
+    required this.height,
+    required this.rgba,
+  });
+
+  @override
+  int get hashCode => width.hashCode ^ height.hashCode ^ rgba.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is ScreenThumbnail &&
+          runtimeType == other.runtimeType &&
+          width == other.width &&
+          height == other.height &&
+          rgba == other.rgba;
 }
 
 /// A server in the local list.
@@ -1748,6 +1848,48 @@ class User {
           displayName == other.displayName;
 }
 
+/// What this system can do with video (Phase 2 plan §7.11, §8, §9).
+class VideoSupport {
+  /// Others' cameras and screens can be decoded and shown.
+  final bool receive;
+  final bool camera;
+  final bool screen;
+
+  /// Why screens can't be shared, when not.
+  final String? screenReason;
+
+  /// The share dialog lists the screens and windows itself
+  /// (`screen_sources`); otherwise the system's picker opens after it.
+  final bool ownScreenPicker;
+
+  const VideoSupport({
+    required this.receive,
+    required this.camera,
+    required this.screen,
+    this.screenReason,
+    required this.ownScreenPicker,
+  });
+
+  @override
+  int get hashCode =>
+      receive.hashCode ^
+      camera.hashCode ^
+      screen.hashCode ^
+      screenReason.hashCode ^
+      ownScreenPicker.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is VideoSupport &&
+          runtimeType == other.runtimeType &&
+          receive == other.receive &&
+          camera == other.camera &&
+          screen == other.screen &&
+          screenReason == other.screenReason &&
+          ownScreenPicker == other.ownScreenPicker;
+}
+
 enum VideoTrackKind { camera, screen }
 
 /// A tile showing a track, in physical pixels; tracks not named are not
@@ -1802,6 +1944,20 @@ sealed class VoiceConnectionState with _$VoiceConnectionState {
   const factory VoiceConnectionState.noRoute() = VoiceConnectionState_NoRoute;
   const factory VoiceConnectionState.disconnected({required String reason}) =
       VoiceConnectionState_Disconnected;
+}
+
+/// A voice event's sound on this device (Phase 2 §12).
+enum VoiceCue {
+  join,
+  leave,
+  userJoin,
+  userLeave,
+  mute,
+  unmute,
+  deafen,
+  undeafen,
+  streamStart,
+  streamStop,
 }
 
 /// Server-wide voice, video and soundboard settings.
@@ -2006,4 +2162,68 @@ class VoiceState {
           suppress == other.suppress &&
           selfVideo == other.selfVideo &&
           selfStream == other.selfStream;
+}
+
+/// A voice connection over the last second (Phase 2 §12).
+class VoiceStats {
+  /// Round trip to the voice node.
+  final int? pingMs;
+
+  /// How unevenly the voices heard arrive.
+  final double? jitterMs;
+
+  /// Packets lost on the way here and on the way out, 0–100.
+  final double? lossInPercent;
+  final double? lossOutPercent;
+
+  /// Bits per second, everything included.
+  final BigInt bitrateIn;
+  final BigInt bitrateOut;
+
+  /// The voice node's host and port.
+  final String voiceNode;
+
+  /// This device's camera and screen share encoders, while on: "NVENC
+  /// (hardware)", say.
+  final String? cameraEncoder;
+  final String? screenEncoder;
+
+  const VoiceStats({
+    this.pingMs,
+    this.jitterMs,
+    this.lossInPercent,
+    this.lossOutPercent,
+    required this.bitrateIn,
+    required this.bitrateOut,
+    required this.voiceNode,
+    this.cameraEncoder,
+    this.screenEncoder,
+  });
+
+  @override
+  int get hashCode =>
+      pingMs.hashCode ^
+      jitterMs.hashCode ^
+      lossInPercent.hashCode ^
+      lossOutPercent.hashCode ^
+      bitrateIn.hashCode ^
+      bitrateOut.hashCode ^
+      voiceNode.hashCode ^
+      cameraEncoder.hashCode ^
+      screenEncoder.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is VoiceStats &&
+          runtimeType == other.runtimeType &&
+          pingMs == other.pingMs &&
+          jitterMs == other.jitterMs &&
+          lossInPercent == other.lossInPercent &&
+          lossOutPercent == other.lossOutPercent &&
+          bitrateIn == other.bitrateIn &&
+          bitrateOut == other.bitrateOut &&
+          voiceNode == other.voiceNode &&
+          cameraEncoder == other.cameraEncoder &&
+          screenEncoder == other.screenEncoder;
 }

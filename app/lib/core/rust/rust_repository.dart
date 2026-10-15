@@ -39,12 +39,14 @@ class RustRepository implements OpencordRepository {
     // Listed now: the tray and the server rail read them before start, and
     // they show while offline too.
     _servers = _listServers();
-    final video = _core.videoSupported();
+    final video = _core.videoSupport();
     _capabilities = RepoCapabilities(
       voice: true,
-      camera: video,
-      screenShare: video,
+      camera: video.camera,
+      screenShare: video.screen,
       soundboard: true,
+      ownScreenPicker: video.ownScreenPicker,
+      lowerOtherApps: _core.audioAttenuationSupported(),
     );
   }
 
@@ -373,7 +375,9 @@ class RustRepository implements OpencordRepository {
     };
     final pending = [
       for (final channel in ready.channels)
-        if (channel.kind == core.ChannelKind.text &&
+        // Voice channels hold a chat too (Phase 2 §12).
+        if ((channel.kind == core.ChannelKind.text ||
+                channel.kind == core.ChannelKind.voice) &&
             allowed.contains(channel.id))
           channel.id,
     ];
@@ -428,9 +432,9 @@ class RustRepository implements OpencordRepository {
   }
 
   void _forward(String server, core.CoreEventPayload payload) {
-    if (payload case core.CoreEventPayload_ChannelCreate(
-      :final field0,
-    ) when field0.kind == core.ChannelKind.text) {
+    if (payload case core.CoreEventPayload_ChannelCreate(:final field0)
+        when field0.kind == core.ChannelKind.text ||
+            field0.kind == core.ChannelKind.voice) {
       _positions.start(server, field0.id);
     }
     final RepoEvent? event = switch (payload) {
@@ -1045,15 +1049,18 @@ class RustRepository implements OpencordRepository {
   Future<void> startScreenShare(
     ScreenShareQuality quality, {
     bool audio = true,
+    String? sourceId,
   }) async {
     final started = await _call(
-      () => _core.screenShareStart(_screenRequest(quality, audio)),
+      () => _core.screenShareStart(_screenRequest(quality, audio), sourceId),
     );
     _screen = OwnScreenShare(
       key: started.streamKey,
       source: streamSourceFrom(started.sourceKind),
       quality: quality,
       audio: audio,
+      // Known when the system says which app the window is.
+      audioFrom: started.audioApp,
       preview: VideoFeed(
         trackId: started.trackId,
         textureId: started.textureId,
@@ -1085,6 +1092,25 @@ class RustRepository implements OpencordRepository {
       return (supported: false, reason: error.toString());
     }
   }
+
+  @override
+  Future<List<ScreenSource>> screenSources() async => [
+    for (final source in await _call(_core.screenSources))
+      (
+        id: source.id,
+        kind: streamSourceFrom(source.kind),
+        title: source.title,
+        app: source.app,
+        thumbnail: switch (source.thumbnail) {
+          final thumbnail? => (
+            width: thumbnail.width,
+            height: thumbnail.height,
+            rgba: thumbnail.rgba,
+          ),
+          null => null,
+        },
+      ),
+  ];
 
   @override
   Future<List<ScreenAudioApp>> screenAudioApps() async => [
@@ -1152,6 +1178,22 @@ class RustRepository implements OpencordRepository {
       _now(
         () => _core.soundboardSetListening(volume.clamp(0, 100) / 100, muted),
       );
+
+  @override
+  void playCue(VoiceCue cue) => _now(
+    () => _core.playCue(switch (cue) {
+      VoiceCue.join => core.VoiceCue.join,
+      VoiceCue.leave => core.VoiceCue.leave,
+      VoiceCue.userJoin => core.VoiceCue.userJoin,
+      VoiceCue.userLeave => core.VoiceCue.userLeave,
+      VoiceCue.mute => core.VoiceCue.mute,
+      VoiceCue.unmute => core.VoiceCue.unmute,
+      VoiceCue.deafen => core.VoiceCue.deafen,
+      VoiceCue.undeafen => core.VoiceCue.undeafen,
+      VoiceCue.streamStart => core.VoiceCue.streamStart,
+      VoiceCue.streamStop => core.VoiceCue.streamStop,
+    }, 1),
+  );
 
   @override
   void setUserSoundboardMute(String serverKey, int userId, bool muted) =>
@@ -1292,6 +1334,26 @@ class RustRepository implements OpencordRepository {
       VideoTrackRemoved(serverKey, channelId, userId, trackId),
     core.MediaEvent_CameraStopped() => null,
     core.MediaEvent_ScreenShareStopped() => null,
+    core.MediaEvent_ConnectionStats(
+      :final serverKey,
+      :final channelId,
+      :final stats,
+    ) =>
+      VoiceStatsChanged(
+        serverKey,
+        channelId,
+        VoiceStats(
+          pingMs: stats.pingMs,
+          jitterMs: stats.jitterMs,
+          lossInPercent: stats.lossInPercent,
+          lossOutPercent: stats.lossOutPercent,
+          bitrateIn: stats.bitrateIn.toInt(),
+          bitrateOut: stats.bitrateOut.toInt(),
+          voiceNode: stats.voiceNode,
+          cameraEncoder: stats.cameraEncoder,
+          screenEncoder: stats.screenEncoder,
+        ),
+      ),
   };
 
   @override
@@ -1378,21 +1440,43 @@ class RustRepository implements OpencordRepository {
     }
     final started = await _call(() => _core.cameraStart(_cameraDevice));
     _cameraOn = true;
-    _emit(
-      OwnCameraChanged(
-        VideoFeed(
-          trackId: started.trackId,
-          textureId: started.textureId,
-          width: started.width,
-          height: started.height,
-          mirrored: true,
-        ),
+    _cameraStarted(started);
+  }
+
+  void _cameraStarted(core.CameraStarted started) => _emit(
+    OwnCameraChanged(
+      VideoFeed(
+        trackId: started.trackId,
+        textureId: started.textureId,
+        width: started.width,
+        height: started.height,
+        mirrored: true,
       ),
-    );
+    ),
+  );
+
+  @override
+  Future<void> chooseCamera(String? deviceId) async {
+    // The camera that's on already: reopening it could find it still busy
+    // (V4L2, Media Foundation) while the old capture closes.
+    if (deviceId == _cameraDevice) return;
+    _cameraDevice = deviceId;
+    if (!_cameraOn) return;
+    // Starting again replaces the camera that's on (a new track).
+    try {
+      _cameraStarted(await _call(() => _core.cameraStart(deviceId)));
+    } on RepoException {
+      _now(_core.cameraStop);
+      _cameraOff();
+      rethrow;
+    }
   }
 
   @override
-  void chooseCamera(String? deviceId) => _cameraDevice = deviceId;
+  Future<List<(String, String)>> cameras() async => [
+    for (final camera in await _call(_core.cameraDevices))
+      (camera.id, camera.name),
+  ];
 
   @override
   void setVideoWants(List<VideoWant> wants) => _now(

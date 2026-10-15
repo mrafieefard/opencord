@@ -3,7 +3,9 @@
 //! desktop decides, and may ask the user (KDE and GNOME show a dialog;
 //! Hyprland binds them in its own configuration).
 
+use std::path::Path;
 use std::sync::Arc;
+use std::time::Duration;
 
 use ashpd::AppID;
 use ashpd::desktop::Session;
@@ -12,7 +14,7 @@ use futures_util::StreamExt;
 use tokio::sync::{OnceCell, mpsc};
 use tokio::task::JoinHandle;
 
-use super::{Held, HotkeyBinding, HotkeyEvent, action_of, shortcut_ids};
+use super::{Held, HotkeyBinding, HotkeyEvent, action_of, desktop_entry, shortcut_ids};
 
 /// Whether this process told the portal who it is; once, before any other
 /// portal call (an app outside a sandbox has no app id otherwise).
@@ -21,13 +23,55 @@ static REGISTERED: OnceCell<Result<(), String>> = OnceCell::const_new();
 async fn register(app_id: &str) -> Result<(), String> {
     REGISTERED
         .get_or_init(|| async {
-            let app_id: AppID = app_id.parse().map_err(|error| format!("{error}"))?;
-            ashpd::register_host_app(app_id)
-                .await
-                .map_err(|error| error.to_string())
+            let id: AppID = app_id.parse().map_err(|error| format!("{error}"))?;
+            // The portal knows an app by its desktop file; a tarball has
+            // none until Opencord writes one.
+            let written = ensure_desktop_entry(app_id);
+            let mut tries = 0;
+            loop {
+                match ashpd::register_host_app(id.clone()).await {
+                    Ok(()) => return Ok(()),
+                    // The desktop notices a new file a moment after.
+                    Err(error) if written && tries < REGISTER_TRIES && unknown_app(&error) => {
+                        tries += 1;
+                        tokio::time::sleep(REGISTER_WAIT).await;
+                    }
+                    Err(error) => return Err(error.to_string()),
+                }
+            }
         })
         .await
         .clone()
+}
+
+/// How long the desktop gets to find a desktop file just written.
+const REGISTER_TRIES: u32 = 10;
+const REGISTER_WAIT: Duration = Duration::from_millis(300);
+
+/// Writes the app's own desktop file where no package installed one;
+/// whether one was written just now. Inside a Flatpak, the sandbox says
+/// who the app is.
+fn ensure_desktop_entry(app_id: &str) -> bool {
+    // A test's binary is not the app to launch.
+    if cfg!(test) || Path::new("/.flatpak-info").exists() {
+        return false;
+    }
+    let entry = std::env::current_exe().and_then(|exe| desktop_entry::ensure(app_id, &exe));
+    match entry {
+        Ok(entry) => {
+            tracing::debug!(?entry, "desktop file");
+            entry == desktop_entry::Entry::Written
+        }
+        Err(error) => {
+            tracing::warn!(%error, "could not write the desktop file global shortcuts need");
+            false
+        }
+    }
+}
+
+/// The portal could not find the app's desktop file.
+fn unknown_app(error: &ashpd::Error) -> bool {
+    error.to_string().contains("App info not found")
 }
 
 /// A global shortcuts session, open while kept.
@@ -140,8 +184,9 @@ mod tests {
     use crate::hotkeys::{HotkeyAction, HotkeySupport, Hotkeys};
 
     /// Needs a Wayland desktop with the GlobalShortcuts portal, and
-    /// Opencord's desktop file installed (the portal looks the app id up);
-    /// run with `--ignored` there. It opens a shortcuts session and closes
+    /// Opencord's desktop file installed (the portal looks the app id up;
+    /// the app writes it on its first run, a test does not); run with
+    /// `--ignored` there. It opens a shortcuts session and closes
     /// it.
     #[tokio::test]
     #[ignore = "needs the GlobalShortcuts portal and Opencord's desktop file installed"]

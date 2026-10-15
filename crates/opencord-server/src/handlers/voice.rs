@@ -1,5 +1,7 @@
 //! Joining and leaving voice, and moderating people in voice channels.
 
+use std::time::{Duration, Instant};
+
 use opencord_common::channel::ChannelKind;
 use opencord_common::permissions::Permissions;
 use opencord_proto::v1 as proto;
@@ -220,6 +222,30 @@ pub async fn disconnect_member(
         states::left(removed.user_id, &removed.session_id),
         &[removed.channel_id],
     );
+    Ok(ack())
+}
+
+/// How long the caller's device has had no input (§12). Only the session
+/// holding the voice state counts.
+pub async fn update_voice_activity(
+    ctx: &Ctx<'_>,
+    request: proto::UpdateVoiceActivity,
+) -> Result<Response, ApiError> {
+    ctx.state
+        .rate_limits
+        .check_voice_state(ctx.user_id)
+        .map_err(ApiError::rate_limited)?;
+    let mut voice_states = ctx.state.voice();
+    let holds = voice_states
+        .get(ctx.user_id)
+        .is_some_and(|current| current.session_id == ctx.session_id);
+    if holds {
+        let now = Instant::now();
+        let since = request
+            .input_idle_ms
+            .map(|idle| now.checked_sub(Duration::from_millis(idle)).unwrap_or(now));
+        voice_states.set_input_idle(ctx.user_id, since);
+    }
     Ok(ack())
 }
 

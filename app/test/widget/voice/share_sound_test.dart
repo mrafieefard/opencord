@@ -144,6 +144,27 @@ void main() {
     await app.dispose(tester);
   });
 
+  testWidgets("a window whose app the system names shares it without asking", (
+    tester,
+  ) async {
+    final app = await MockApp.pump(tester, platform: TargetPlatform.windows);
+    app.repository
+      ..debugShareSource = StreamSource.window
+      ..debugShareSound = 'Notes';
+    await _joinGeneral(tester);
+    await _openShareDialog(tester);
+    await tester.tap(find.widgetWithText(OcButton, 'Go live'));
+    await _pumpFor(tester, const Duration(milliseconds: 300));
+
+    expect(_inDialog(find.text('Sound from')), findsNothing);
+    expect(app.read(ownScreenShareProvider)?.audioFrom, 'Notes');
+    // Another app can still be chosen.
+    await tester.tap(_control('Screen share options'));
+    await _pumpFor(tester, const Duration(milliseconds: 300));
+    expect(_inMenu(find.text('Sound from Notes…')), findsOneWidget);
+    await app.dispose(tester);
+  });
+
   test('the app a window sound starts from', () {
     const firefox = (name: 'Firefox', icon: null);
     const spotify = (name: 'Spotify', icon: null);

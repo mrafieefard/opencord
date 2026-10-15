@@ -72,7 +72,7 @@ tracing = "0.1.44"
 tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
 v4l = "0.14.0"
 webpki-roots = "1.0.9"
-x11rb = { version = "0.14.0", features = ["xinput", "xtest"] }
+x11rb = { version = "0.14.0", features = ["screensaver", "xinput", "xtest"] }
 
 # DeepFilterNet (High noise suppression) runs a network every 10 ms. Even
 # debug builds optimize its inference and FFT crates, so it keeps up and
@@ -92,4 +92,15 @@ opt-level = 3
 [profile.dev.package.rustfft]
 opt-level = 3
 [profile.dev.package.realfft]
+opt-level = 3
+# The echo canceller (aec3) and Standard noise suppression (nnnoiseless) run
+# every 10 ms too: unoptimized, a debug app's audio thread spent 79 % of its
+# time in them on a throttled Mac and the call cut out (D34).
+[profile.dev.package.aec3]
+opt-level = 3
+[profile.dev.package.nnnoiseless]
+opt-level = 3
+[profile.dev.package.pic-scale]
+opt-level = 3
+[profile.dev.package.yuv]
 opt-level = 3

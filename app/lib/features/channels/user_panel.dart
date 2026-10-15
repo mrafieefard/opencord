@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -6,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:opencord/core/providers/providers.dart';
 import 'package:opencord/core/repository/repository.dart';
 import 'package:opencord/core/settings/local_prefs.dart';
+import 'package:opencord/features/chat/composer.dart';
 import 'package:opencord/features/settings/user_settings.dart';
 import 'package:opencord/features/shell/navigation.dart';
 import 'package:opencord/features/voice/input_level_meter.dart';
@@ -40,7 +42,11 @@ class UserPanel extends ConsumerWidget {
     final voice = ref.watch(voiceSessionProvider);
     final session = ref.read(voiceSessionProvider.notifier);
     return Container(
-      height: OcSize.userPanel,
+      // As tall as the composer, so the two top lines meet.
+      height: math.max(
+        ref.watch(restingComposerHeightProvider) ?? OcSize.userPanel,
+        OcSize.userPanelLeast,
+      ),
       padding: const EdgeInsets.symmetric(horizontal: OcSpace.s8),
       decoration: BoxDecoration(
         color: colors.sidebar,
@@ -100,6 +106,7 @@ class UserPanel extends ConsumerWidget {
             ),
           ),
           _SplitButton(
+            side: AudioSide.input,
             button: OcIconButton(
               icon: OcIcons.mic,
               activeIcon: OcIcons.micOff,
@@ -110,6 +117,7 @@ class UserPanel extends ConsumerWidget {
             ),
           ),
           _SplitButton(
+            side: AudioSide.output,
             button: OcIconButton(
               icon: OcIcons.headphones,
               activeIcon: OcIcons.headsetOff,
@@ -152,10 +160,12 @@ class UserPanel extends ConsumerWidget {
   }
 }
 
-/// A button with a small chevron that opens the quick audio menu (§4.2).
+/// A button with a small chevron that opens its side's quick audio menu
+/// (§4.2): the microphone's, or the speakers'.
 class _SplitButton extends StatelessWidget {
-  const _SplitButton({required this.button});
+  const _SplitButton({required this.side, required this.button});
 
+  final AudioSide side;
   final Widget button;
 
   @override
@@ -166,8 +176,11 @@ class _SplitButton extends StatelessWidget {
         button,
         Builder(
           builder: (context) => Hoverable(
-            onTap: () => showQuickAudioMenu(context),
-            semanticLabel: 'Audio options',
+            onTap: () => showQuickAudioMenu(context, side),
+            semanticLabel: switch (side) {
+              AudioSide.input => 'Input options',
+              AudioSide.output => 'Output options',
+            },
             focusRadius: BorderRadius.circular(6),
             builder: (context, state) => Container(
               width: 14,
@@ -190,9 +203,12 @@ class _SplitButton extends StatelessWidget {
   }
 }
 
-/// The quick audio menu (§4.2, §17.1): devices, input mode and volumes,
-/// without opening settings.
-Future<void> showQuickAudioMenu(BuildContext context) {
+/// Which quick audio menu: the microphone's or the speakers'.
+enum AudioSide { input, output }
+
+/// The quick audio menu (§4.2, §17.1): one side's devices and volume, and
+/// for the microphone its input mode, without opening settings.
+Future<void> showQuickAudioMenu(BuildContext context, AudioSide side) {
   // Devices plugged in since voice last looked.
   ProviderScope.containerOf(
     context,
@@ -203,75 +219,150 @@ Future<void> showQuickAudioMenu(BuildContext context) {
     anchor: globalRectOf(context),
     side: PopoverSide.above,
     padding: const EdgeInsets.all(OcSpace.s12),
-    builder: (context) => const SizedBox(width: 280, child: _QuickAudioMenu()),
+    builder: (context) => SizedBox(
+      width: 280,
+      child: switch (side) {
+        AudioSide.input => const _InputMenu(),
+        AudioSide.output => const _OutputMenu(),
+      },
+    ),
   );
 }
 
-class _QuickAudioMenu extends ConsumerWidget {
-  const _QuickAudioMenu();
+class _InputMenu extends ConsumerWidget {
+  const _InputMenu();
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final audio = ref.watch(audioSettingsProvider);
     final devices = ref.watch(audioDeviceListProvider);
     final update = ref.read(audioSettingsProvider.notifier).update;
-    // A system can list many devices: the menu scrolls when it does not
-    // fit.
-    return SingleChildScrollView(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          const SectionLabel('Input device'),
-          for (final (device, label) in deviceChoices(devices.inputs))
-            _Choice(
-              label: label,
-              chosen: audio.inputDevice == device?.id,
-              onTap: () => update((a) => a.withInput(device)),
-            ),
-          const SizedBox(height: OcSpace.s10),
-          const SectionLabel('Input mode'),
-          const SizedBox(height: OcSpace.s4),
-          Row(
-            children: [
-              for (final mode in InputMode.values)
-                Expanded(
-                  child: Padding(
-                    padding: EdgeInsets.only(
-                      right: mode == InputMode.values.first ? OcSpace.s6 : 0,
-                    ),
-                    child: _ModeButton(
-                      label: mode.label,
-                      active: audio.inputMode == mode,
-                      onTap: () => update((a) => a.copyWith(inputMode: mode)),
-                    ),
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const SectionLabel('Input device'),
+        _DeviceList(
+          choices: [
+            for (final (device, label) in deviceChoices(devices.inputs))
+              (
+                label: label,
+                chosen: audio.inputDevice == device?.id,
+                choose: () => update((a) => a.withInput(device)),
+              ),
+          ],
+        ),
+        const SizedBox(height: OcSpace.s10),
+        const SectionLabel('Input mode'),
+        const SizedBox(height: OcSpace.s4),
+        Row(
+          children: [
+            for (final mode in InputMode.values)
+              Expanded(
+                child: Padding(
+                  padding: EdgeInsets.only(
+                    right: mode == InputMode.values.first ? OcSpace.s6 : 0,
+                  ),
+                  child: _ModeButton(
+                    label: mode.label,
+                    active: audio.inputMode == mode,
+                    onTap: () => update((a) => a.copyWith(inputMode: mode)),
                   ),
                 ),
-            ],
-          ),
-          const SizedBox(height: OcSpace.s10),
-          _Volume(
-            label: 'Input volume',
-            value: audio.inputVolume,
-            onChanged: (value) => update((a) => a.copyWith(inputVolume: value)),
-          ),
-          const InputLevelMeter(),
-          const SizedBox(height: OcSpace.s10),
-          const SectionLabel('Output device'),
-          for (final (device, label) in deviceChoices(devices.outputs))
-            _Choice(
-              label: label,
-              chosen: audio.outputDevice == device?.id,
-              onTap: () => update((a) => a.withOutput(device)),
-            ),
-          const SizedBox(height: OcSpace.s10),
-          _Volume(
-            label: 'Output volume',
-            value: audio.outputVolume,
-            onChanged: (value) =>
-                update((a) => a.copyWith(outputVolume: value)),
-          ),
-        ],
+              ),
+          ],
+        ),
+        const SizedBox(height: OcSpace.s10),
+        _Volume(
+          label: 'Input volume',
+          value: audio.inputVolume,
+          onChanged: (value) => update((a) => a.copyWith(inputVolume: value)),
+        ),
+        const InputLevelMeter(),
+      ],
+    );
+  }
+}
+
+class _OutputMenu extends ConsumerWidget {
+  const _OutputMenu();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final audio = ref.watch(audioSettingsProvider);
+    final devices = ref.watch(audioDeviceListProvider);
+    final update = ref.read(audioSettingsProvider.notifier).update;
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const SectionLabel('Output device'),
+        _DeviceList(
+          choices: [
+            for (final (device, label) in deviceChoices(devices.outputs))
+              (
+                label: label,
+                chosen: audio.outputDevice == device?.id,
+                choose: () => update((a) => a.withOutput(device)),
+              ),
+          ],
+        ),
+        const SizedBox(height: OcSpace.s10),
+        _Volume(
+          label: 'Output volume',
+          value: audio.outputVolume,
+          onChanged: (value) => update((a) => a.copyWith(outputVolume: value)),
+        ),
+      ],
+    );
+  }
+}
+
+/// A device list four rows tall at most; a system with more scrolls it.
+class _DeviceList extends StatefulWidget {
+  const _DeviceList({required this.choices});
+
+  final List<({String label, bool chosen, VoidCallback choose})> choices;
+
+  static const rowHeight = 30.0;
+  static const rowsShown = 4;
+
+  @override
+  State<_DeviceList> createState() => _DeviceListState();
+}
+
+class _DeviceListState extends State<_DeviceList> {
+  final _scroll = ScrollController();
+
+  @override
+  void dispose() {
+    _scroll.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final choices = widget.choices;
+    return SizedBox(
+      height:
+          _DeviceList.rowHeight *
+          choices.length.clamp(1, _DeviceList.rowsShown),
+      child: Scrollbar(
+        controller: _scroll,
+        thumbVisibility: choices.length > _DeviceList.rowsShown,
+        child: ListView(
+          controller: _scroll,
+          padding: EdgeInsets.zero,
+          itemExtent: _DeviceList.rowHeight,
+          children: [
+            for (final choice in choices)
+              _Choice(
+                label: choice.label,
+                chosen: choice.chosen,
+                onTap: choice.choose,
+              ),
+          ],
+        ),
       ),
     );
   }

@@ -67,7 +67,7 @@ void main() {
         await tester.tap(inSidebar('General'));
         await waitFor(tester, find.text('Voice connected'));
 
-        await tester.tap(find.bySemanticsLabel('Audio options').first);
+        await tester.tap(find.bySemanticsLabel('Input options'));
         await waitFor(tester, find.byType(InputLevelMeter));
         await waitUntil(
           tester,

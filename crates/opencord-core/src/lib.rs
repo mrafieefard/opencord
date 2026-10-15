@@ -4,6 +4,7 @@ pub mod api;
 pub mod client;
 mod connection;
 mod convert;
+mod ducking;
 #[rustfmt::skip]
 mod frb_generated;
 mod http;

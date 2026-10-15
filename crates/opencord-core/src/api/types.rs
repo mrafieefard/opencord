@@ -240,6 +240,21 @@ pub enum ScreenShareResolution {
     Source,
 }
 
+/// A voice event's sound on this device (Phase 2 §12).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum VoiceCue {
+    Join,
+    Leave,
+    UserJoin,
+    UserLeave,
+    Mute,
+    Unmute,
+    Deafen,
+    Undeafen,
+    StreamStart,
+    StreamStop,
+}
+
 /// What a screen share shows.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum StreamSourceKind {
@@ -551,6 +566,11 @@ pub struct AudioSettings {
     pub input_volume: f32,
     /// Everything heard, 0–2 (200 %).
     pub output_volume: f32,
+    /// How much other apps are lowered while people talk, 0–100 %; 0 is
+    /// off (Phase 2 §12, attenuation).
+    pub attenuation_percent: u32,
+    pub attenuate_when_others_speak: bool,
+    pub attenuate_when_i_speak: bool,
 }
 
 impl Default for AudioSettings {
@@ -567,6 +587,9 @@ impl Default for AudioSettings {
             automatic_gain: true,
             input_volume: 1.0,
             output_volume: 1.0,
+            attenuation_percent: 0,
+            attenuate_when_others_speak: true,
+            attenuate_when_i_speak: false,
         }
     }
 }
@@ -606,8 +629,13 @@ pub struct HotkeyBinding {
 pub enum HotkeySupport {
     /// System-wide, through `method`.
     Global { method: String },
-    /// Only while Opencord is focused, because of `reason`.
-    FocusedOnly { reason: String },
+    /// Only while Opencord is focused, because of `reason`. `settings_url`
+    /// opens the system settings where the user can allow them, when that
+    /// is what's missing; the app binds again when its window is focused.
+    FocusedOnly {
+        reason: String,
+        settings_url: Option<String>,
+    },
 }
 
 /// Someone started or stopped speaking.
@@ -693,12 +721,50 @@ pub struct ScreenShareStarted {
     pub width: u32,
     pub height: u32,
     pub source_kind: StreamSourceKind,
+    /// The app whose sound a window share sends, when the system said which
+    /// app the window is; `None` and a window: the app asks ("Sound from").
+    pub audio_app: Option<String>,
+}
+
+/// What this system can do with video (Phase 2 plan §7.11, §8, §9).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct VideoSupport {
+    /// Others' cameras and screens can be decoded and shown.
+    pub receive: bool,
+    pub camera: bool,
+    pub screen: bool,
+    /// Why screens can't be shared, when not.
+    pub screen_reason: Option<String>,
+    /// The share dialog lists the screens and windows itself
+    /// (`screen_sources`); otherwise the system's picker opens after it.
+    pub own_screen_picker: bool,
+}
+
+/// A screen or window Opencord's own picker offers (plan §9.1).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ScreenSource {
+    /// What `screen_share_start` takes as `source_id`.
+    pub id: String,
+    pub kind: StreamSourceKind,
+    /// "Screen 1 · 2560×1440", or the window's title.
+    pub title: String,
+    /// The app a window belongs to.
+    pub app: Option<String>,
+    pub thumbnail: Option<ScreenThumbnail>,
+}
+
+/// A small picture of a screen or window, as RGBA rows.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ScreenThumbnail {
+    pub width: u32,
+    pub height: u32,
+    pub rgba: Vec<u8>,
 }
 
 /// Why a screen share could not start.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ScreenProblem {
-    /// Not on this system yet (only Linux shares screens for now).
+    /// Not on this system (yet).
     NotSupported,
     /// The user closed the system picker.
     Cancelled,
@@ -824,6 +890,34 @@ pub enum MediaEvent {
     /// This device's screen share ended by itself: the window closed, the
     /// screen went, or the server or voice node stopped it.
     ScreenShareStopped { message: String },
+    /// How this device's voice connection is doing, once a second while
+    /// connected (Phase 2 §12, connection diagnostics).
+    ConnectionStats {
+        server_key: String,
+        channel_id: i64,
+        stats: VoiceStats,
+    },
+}
+
+/// A voice connection over the last second (Phase 2 §12).
+#[derive(Debug, Clone, PartialEq)]
+pub struct VoiceStats {
+    /// Round trip to the voice node.
+    pub ping_ms: Option<u32>,
+    /// How unevenly the voices heard arrive.
+    pub jitter_ms: Option<f32>,
+    /// Packets lost on the way here and on the way out, 0–100.
+    pub loss_in_percent: Option<f32>,
+    pub loss_out_percent: Option<f32>,
+    /// Bits per second, everything included.
+    pub bitrate_in: u64,
+    pub bitrate_out: u64,
+    /// The voice node's host and port.
+    pub voice_node: String,
+    /// This device's camera and screen share encoders, while on: "NVENC
+    /// (hardware)", say.
+    pub camera_encoder: Option<String>,
+    pub screen_encoder: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]

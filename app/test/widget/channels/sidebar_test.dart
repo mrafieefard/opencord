@@ -234,17 +234,34 @@ void main() {
     ) async {
       final app = await MockApp.pump(tester);
 
-      await tester.tap(find.bySemanticsLabel('Audio options').first);
+      await tester.tap(find.bySemanticsLabel('Input options'));
       await tester.pumpAndSettle();
       await tester.tap(find.text('USB headset microphone'));
       await tester.pump();
 
       expect(find.text('INPUT DEVICE'), findsOneWidget);
-      expect(find.text('OUTPUT VOLUME'), findsOneWidget);
+      expect(find.text('INPUT VOLUME'), findsOneWidget);
+      expect(find.text('OUTPUT DEVICE'), findsNothing);
+      expect(find.text('OUTPUT VOLUME'), findsNothing);
       expect(
         app.read(audioSettingsProvider).inputDevice,
         'mock:usb-microphone',
       );
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pumpAndSettle();
+      await app.dispose(tester);
+    });
+
+    testWidgets("deafen's menu has the output side only", (tester) async {
+      final app = await MockApp.pump(tester);
+
+      await tester.tap(find.bySemanticsLabel('Output options'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('OUTPUT DEVICE'), findsOneWidget);
+      expect(find.text('OUTPUT VOLUME'), findsOneWidget);
+      expect(find.text('INPUT DEVICE'), findsNothing);
+      expect(find.text('INPUT MODE'), findsNothing);
       await tester.sendKeyEvent(LogicalKeyboardKey.escape);
       await tester.pumpAndSettle();
       await app.dispose(tester);

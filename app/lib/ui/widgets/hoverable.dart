@@ -165,7 +165,9 @@ class _HoverableState extends State<Hoverable> {
                 ? null
                 : (details) => onSecondaryTap(details.globalPosition),
             child: _showFocusRing
+                // The content sized as it is without the ring.
                 ? Stack(
+                    fit: StackFit.passthrough,
                     children: [
                       _content(context, state),
                       Positioned.fill(

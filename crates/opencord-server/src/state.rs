@@ -62,6 +62,7 @@ impl AppState {
         voice_key: SigningKey,
         voice_nodes: VoiceNodes,
     ) -> Self {
+        let rate_limits = RateLimits::with_identify_per_minute(config.gateway.identify_per_minute);
         Self {
             config,
             db,
@@ -69,7 +70,7 @@ impl AppState {
             fingerprint,
             sessions: SessionRegistry::default(),
             presence: Presence::default(),
-            rate_limits: RateLimits::default(),
+            rate_limits,
             shutdown: CancellationToken::new(),
             voice_key,
             voice_nodes,

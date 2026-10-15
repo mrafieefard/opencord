@@ -54,11 +54,14 @@ abstract interface class CoreApi {
 
   void voiceSetStreamMute(String serverKey, int userId, bool muted);
 
-  /// Whether this system has cameras and video (Linux only for now).
-  bool videoSupported();
+  /// What this system can do with video: receive, camera, screen, and
+  /// whether the share dialog picks the source itself.
+  core.VideoSupport videoSupport();
 
   /// Video draws into this engine's textures from now on.
   void videoInit(int engineHandle);
+
+  Future<List<core.CameraDevice>> cameraDevices();
 
   Future<core.CameraStarted> cameraStart(String? deviceId);
 
@@ -66,7 +69,10 @@ abstract interface class CoreApi {
 
   Future<core.ScreenShareStarted> screenShareStart(
     core.ScreenShareRequest request,
+    String? sourceId,
   );
+
+  Future<List<core.ScreenSource>> screenSources();
 
   Future<void> screenShareUpdate(core.ScreenShareRequest request);
 
@@ -91,6 +97,8 @@ abstract interface class CoreApi {
   Future<void> soundboardPreview(String serverKey, String soundRef);
 
   void soundboardSetListening(double volume, bool muted);
+  void playCue(core.VoiceCue cue, double volume);
+  bool audioAttenuationSupported();
 
   void soundboardMutePlayer(String serverKey, int userId, bool muted);
 
@@ -366,10 +374,13 @@ class FrbCoreApi implements CoreApi {
       .voiceSetStreamMute(serverKey: serverKey, userId: userId, muted: muted);
 
   @override
-  bool videoSupported() => frb.videoSupported();
+  core.VideoSupport videoSupport() => frb.videoSupport();
 
   @override
   void videoInit(int engineHandle) => frb.videoInit(engineHandle: engineHandle);
+
+  @override
+  Future<List<core.CameraDevice>> cameraDevices() => frb.cameraDevices();
 
   @override
   Future<core.CameraStarted> cameraStart(String? deviceId) =>
@@ -381,7 +392,11 @@ class FrbCoreApi implements CoreApi {
   @override
   Future<core.ScreenShareStarted> screenShareStart(
     core.ScreenShareRequest request,
-  ) => frb.screenShareStart(request: request);
+    String? sourceId,
+  ) => frb.screenShareStart(request: request, sourceId: sourceId);
+
+  @override
+  Future<List<core.ScreenSource>> screenSources() => frb.screenSources();
 
   @override
   Future<void> screenShareUpdate(core.ScreenShareRequest request) =>
@@ -428,6 +443,13 @@ class FrbCoreApi implements CoreApi {
   @override
   void soundboardSetListening(double volume, bool muted) =>
       frb.soundboardSetListening(volume: volume, muted: muted);
+
+  @override
+  void playCue(core.VoiceCue cue, double volume) =>
+      frb.playCue(cue: cue, volume: volume);
+
+  @override
+  bool audioAttenuationSupported() => frb.audioAttenuationSupported();
 
   @override
   void soundboardMutePlayer(String serverKey, int userId, bool muted) => frb

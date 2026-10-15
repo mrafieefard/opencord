@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -8,6 +9,8 @@ import 'package:opencord/core/model/permissions.dart';
 import 'package:opencord/core/model/user.dart';
 import 'package:opencord/core/model/video.dart';
 import 'package:opencord/core/providers/providers.dart';
+import 'package:opencord/core/settings/voice_view_prefs.dart';
+import 'package:opencord/features/chat/composer.dart';
 import 'package:opencord/features/members/member_actions.dart';
 import 'package:opencord/features/voice/voice_controls.dart';
 import 'package:opencord/features/voice/voice_focus.dart';
@@ -27,9 +30,13 @@ import 'package:opencord/ui/theme/oc_icons.dart';
 /// The main area for a voice channel (§4.10): its tiles and controls once
 /// connected, a prompt to join before. Runs on mock data in Phase 1.
 class VoiceView extends ConsumerWidget {
-  const VoiceView({super.key, required this.channel});
+  const VoiceView({super.key, required this.channel, this.composerHeight});
 
   final ChannelRef channel;
+
+  /// The chat's composer beside the tiles, whose top edge the control
+  /// bar's lines up with (Phase 2 §12); null without the chat beside.
+  final ValueListenable<double?>? composerHeight;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -51,22 +58,59 @@ class VoiceView extends ConsumerWidget {
     if (!connected) {
       return _JoinPrompt(channel: channel, participants: participants);
     }
+    final chat = ref.watch(
+      serverProvider(channel.server).select(
+        (state) => state.data?.channels[channel.channel]?.textInVoice ?? false,
+      ),
+    );
+    final bar = VoiceControlBar(channel: channel, chat: chat);
+    // Level with the user panel and any composer.
+    final resting =
+        ref.watch(restingComposerHeightProvider) ?? OcSize.userPanel;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Expanded(
           child: _Stage(channel: channel, participants: participants),
         ),
-        const Padding(
-          padding: EdgeInsets.fromLTRB(
-            OcSpace.s16,
-            OcSpace.s4,
-            OcSpace.s16,
-            OcSpace.s20,
+        switch (composerHeight) {
+          // The composer beside, as it grows too.
+          final composer? => ValueListenableBuilder(
+            valueListenable: composer,
+            builder: (context, height, _) =>
+                _ControlStrip(height: height ?? resting, child: bar),
           ),
-          child: Center(child: VoiceControlBar()),
-        ),
+          null => _ControlStrip(height: resting, child: bar),
+        },
       ],
+    );
+  }
+}
+
+/// The control bar's strip under the tiles, edged like the composer's, and
+/// as tall as it when the chat is beside.
+class _ControlStrip extends StatelessWidget {
+  const _ControlStrip({required this.height, required this.child});
+
+  final double height;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.oc;
+    return Container(
+      height: height,
+      padding: const EdgeInsets.symmetric(
+        horizontal: OcSpace.s16,
+        vertical: OcSpace.s4,
+      ),
+      decoration: BoxDecoration(
+        color: colors.sidebar,
+        border: Border(top: BorderSide(color: colors.border)),
+      ),
+      child: Center(
+        child: FittedBox(fit: BoxFit.scaleDown, child: child),
+      ),
     );
   }
 }
@@ -138,7 +182,10 @@ class _StageState extends ConsumerState<_Stage> {
           if (audio.streamMuted) userId,
     };
     final focus = voiceFocusProvider(channel);
-    final tiles = voiceTiles(participants);
+    final videoOnly = ref.watch(
+      voiceViewPrefsProvider.select((prefs) => prefs.hideNonVideo),
+    );
+    final tiles = voiceTiles(participants, videoOnly: videoOnly);
     final focused = switch (ref.watch(focus)) {
       final tile? when tiles.contains(tile) => tile,
       _ => null,
@@ -258,6 +305,10 @@ class _StageState extends ConsumerState<_Stage> {
       );
     }
 
+    if (tiles.isEmpty && videoOnly) {
+      _report(const []);
+      return const _NoVideo();
+    }
     return Padding(
       padding: const EdgeInsets.all(OcSpace.s16),
       child: LayoutBuilder(
@@ -384,6 +435,33 @@ class _StageState extends ConsumerState<_Stage> {
           ),
         ],
       ],
+    );
+  }
+}
+
+/// Everyone without video hidden, and nobody has any.
+class _NoVideo extends ConsumerWidget {
+  const _NoVideo();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final colors = context.oc;
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            'No one has video on',
+            style: OcText.body.copyWith(color: colors.textSecondary),
+          ),
+          const SizedBox(height: OcSpace.s12),
+          OcButton(
+            label: 'Show everyone',
+            onPressed: () =>
+                ref.read(voiceViewPrefsProvider.notifier).toggleHideNonVideo(),
+          ),
+        ],
+      ),
     );
   }
 }

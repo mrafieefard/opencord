@@ -61,11 +61,11 @@ Two environment variables help while developing:
   `OPENCORD_PROFILE=friend flutter run -d linux` in another.
 
 Only one Opencord runs at a time: launching it again brings the running
-window forward and hands over any `opencord://` link it was given. To let
-the browser open invite links in a local build on Linux, install
-`app/linux/packaging/dev.opencord.opencord.desktop` into
-`~/.local/share/applications/` with `Exec=` pointing at
-`app/build/linux/x64/debug/bundle/opencord`, then run
+window forward and hands over any `opencord://` link it was given. On
+Linux, an Opencord without a packaged desktop file writes its own to
+`~/.local/share/applications/dev.opencord.opencord.desktop`, pointing at
+wherever it runs from: Wayland desktops bind global keybinds only for an
+app they find there. To let the browser open invite links too, run
 `xdg-mime default dev.opencord.opencord.desktop x-scheme-handler/opencord`.
 
 ## Checks
@@ -129,6 +129,18 @@ To check a server's voice, run two voicebots in the same channel. Each plays a t
 ```bash
 cargo run -p opencord-voicebot -- --server "opencord://chat.example.com:7710/invite/CODE" --name Bot1 --tone 440 --seconds 10
 cargo run -p opencord-voicebot -- --server "opencord://chat.example.com:7710/invite/CODE" --name Bot2 --tone 660 --seconds 10
+```
+
+Ports, hosting behind a home router and what to check when a call does not work are in `docs/voice.md`.
+
+### Docker
+
+`deploy/` has a Dockerfile, a compose file and a systemd unit. In `deploy/`:
+
+```bash
+echo OPENCORD_PUBLIC_HOST=chat.example.com > .env
+docker compose up -d
+docker compose logs | grep claim_token
 ```
 
 ### Voice on other machines

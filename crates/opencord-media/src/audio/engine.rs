@@ -33,6 +33,10 @@ const CAPTURE_PER_WAKE: Duration = Duration::from_millis(40);
 const REPORT_EVERY: Duration = Duration::from_millis(50);
 /// A stream's sound delay is reported again once it moved this much.
 const DELAY_STEP: Duration = Duration::from_millis(10);
+/// A device that would not open is tried again after this, the wait
+/// doubling up to [`RETRY_FAILED_MOST`]. Only the first failure is reported.
+const RETRY_FAILED: Duration = Duration::from_secs(1);
+const RETRY_FAILED_MOST: Duration = Duration::from_secs(10);
 
 /// Which device to use.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
@@ -169,6 +173,8 @@ impl AudioEngine {
                     talking: (false, false),
                     unplayed_since: Instant::now(),
                     scratch: Vec::new(),
+                    microphone_retry: Retry::default(),
+                    speaker_retry: Retry::default(),
                 };
                 engine.open_microphone();
                 engine.open_speaker();
@@ -367,6 +373,40 @@ struct Engine {
     /// Without a speaker, playing follows the clock from here.
     unplayed_since: Instant,
     scratch: Vec<f32>,
+    /// When to try a device again that would not open: a device busy or
+    /// changing its rate for a moment would otherwise stay silent for the
+    /// rest of the call.
+    microphone_retry: Retry,
+    speaker_retry: Retry,
+}
+
+/// Retries of a device that would not open.
+#[derive(Debug, Default)]
+struct Retry {
+    at: Option<Instant>,
+    wait: Duration,
+}
+
+impl Retry {
+    /// It failed again at `now`. True the first time, which is reported.
+    fn failed(&mut self, now: Instant) -> bool {
+        let first = self.at.is_none();
+        self.wait = if first {
+            RETRY_FAILED
+        } else {
+            (self.wait * 2).min(RETRY_FAILED_MOST)
+        };
+        self.at = Some(now + self.wait);
+        first
+    }
+
+    fn due(&self, now: Instant) -> bool {
+        self.at.is_some_and(|at| now >= at)
+    }
+
+    fn clear(&mut self) {
+        self.at = None;
+    }
 }
 
 impl Engine {
@@ -449,11 +489,13 @@ impl Engine {
             Command::InputDevice(choice) => {
                 self.input_device = choice;
                 self.microphone = None;
+                self.microphone_retry.clear();
                 self.open_microphone();
             }
             Command::OutputDevice(choice) => {
                 self.output_device = choice;
                 self.speaker = None;
+                self.speaker_retry.clear();
                 self.unplayed_since = Instant::now();
                 self.open_speaker();
             }
@@ -508,6 +550,13 @@ impl Engine {
     }
 
     fn replace_lost_devices(&mut self) {
+        let now = Instant::now();
+        if self.microphone.is_none() && self.microphone_retry.due(now) {
+            self.open_microphone();
+        }
+        if self.speaker.is_none() && self.speaker_retry.due(now) {
+            self.open_speaker();
+        }
         if self
             .microphone
             .as_ref()
@@ -546,12 +595,17 @@ impl Engine {
                         device: microphone.name.clone(),
                     });
                 }
+                self.microphone_retry.clear();
                 self.microphone = Some(microphone);
             }
-            Err(error) => (self.events)(EngineEvent::DeviceFailed {
-                output: false,
-                message: error.to_string(),
-            }),
+            Err(error) => {
+                if self.microphone_retry.failed(Instant::now()) {
+                    (self.events)(EngineEvent::DeviceFailed {
+                        output: false,
+                        message: error.to_string(),
+                    });
+                }
+            }
         }
     }
 
@@ -574,14 +628,20 @@ impl Engine {
                         device: speaker.name.clone(),
                     });
                 }
+                self.speaker_retry.clear();
                 self.speaker = Some(speaker);
             }
             Err(error) => {
-                self.unplayed_since = Instant::now();
-                (self.events)(EngineEvent::DeviceFailed {
-                    output: true,
-                    message: error.to_string(),
-                });
+                let now = Instant::now();
+                if self.speaker_retry.at.is_none() {
+                    self.unplayed_since = now;
+                }
+                if self.speaker_retry.failed(now) {
+                    (self.events)(EngineEvent::DeviceFailed {
+                        output: true,
+                        message: error.to_string(),
+                    });
+                }
             }
         }
     }
@@ -661,6 +721,35 @@ mod tests {
     use super::*;
     use crate::audio::capture::Sensitivity;
     use crate::audio::processing::ProcessingSettings;
+
+    #[test]
+    fn a_device_that_would_not_open_is_tried_again_more_and_more_slowly() {
+        let start = Instant::now();
+        let mut retry = Retry::default();
+        assert!(!retry.due(start), "nothing failed yet");
+
+        assert!(retry.failed(start), "the first failure is reported");
+        assert!(!retry.due(start + Duration::from_millis(999)));
+        assert!(retry.due(start + Duration::from_secs(1)));
+        let waits: Vec<Duration> = (0..5)
+            .map(|_| {
+                assert!(!retry.failed(start), "later ones are not");
+                retry.wait
+            })
+            .collect();
+        assert_eq!(
+            waits,
+            [2, 4, 8, 10, 10].map(Duration::from_secs),
+            "doubling up to 10 s"
+        );
+
+        retry.clear();
+        assert!(!retry.due(start + Duration::from_secs(60)));
+        assert!(
+            retry.failed(start),
+            "after it opened, a failure is news again"
+        );
+    }
 
     /// Needs a microphone and a speaker; run with `--ignored` on a machine
     /// that has them.
