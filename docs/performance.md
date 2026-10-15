@@ -1,8 +1,32 @@
 # Performance
 
-Measurements against the Phase 2 targets (plan §16.1), with the test that produces each one. Areas without a number yet belong to later milestones.
+Measurements against the Phase 2 targets (plan §16.1), with the test that produces each one. The summary below is where each target stands; the sections after it have the detail by milestone and system.
 
 The machine is the development laptop: an Intel Core i7-13620H (10 cores, 16 threads) on Arch Linux. Times are per 10 ms audio tick on one thread, from release builds. "Of a core" is that time divided by 10 ms. The plan's reference machine is a mid-range 4–8 core laptop, so expect somewhat higher shares there.
+
+## Every target (V10, 2026-10-15)
+
+| §16.1 target | Measured on the development laptop | Where |
+|---|---|---|
+| Voice end-to-end latency on a LAN, devices included, ≤ 150 ms | A round trip through a playback and a capture device, the app's processing and the node twice: **92 ms** median, 100 ms at the 95th percentile. One way is less | `app/tool/check_voice_latency.sh` |
+| 5 % loss + 40 ms jitter: no gaps | No gaps | `speech_survives_5_percent_loss_and_40_ms_of_jitter` |
+| Silent participant upload < 3 kbps | About 620 bit/s | `a_silent_participant_sends_almost_nothing` |
+| Noise suppression ≤ 2 % / ≤ 10 % of a core | 1.8 % / 6.1 % | `processing_time_per_tick` |
+| Camera on, 720p30 with layers, ≤ 6 % CPU | 2.0 % of the machine (32.7 % of a core) | Camera (V5) below |
+| Screen share 720p30 / 1080p60 ≤ 8 % / ≤ 15 % CPU | 1.1 % / 2.0 % of the machine | Screen share (V6) below |
+| Screen share capture to display ≤ 250 ms | Capture to the viewer's decoded picture: **72 ms** median, 88 ms at the 95th percentile, at 1080 px; drawing adds a frame | `app/tool/check_screen_latency.sh` |
+| Watching 1080p60, hardware decoding, ≤ 8 % CPU | **5.5 %** of the machine (87 % of a core); on a 4-core, 8-thread laptop that would be about 11 % | `app/tool/check_v10_load.sh watch` |
+| Client memory, 10 people, 4 cameras and a stream, ≤ 350 MB | **344 MB** steady (305–355 over 30 s), with NVIDIA's EGL libraries loaded besides Intel's on this hybrid laptop; **298 MB** with only the integrated GPU's | `app/tool/check_v10_load.sh call` |
+| Voice node on 4 vCPUs, 10 channels × 10 people, 2 cameras + 1 stream each, < 50 % CPU | **15.6 %** with everyone in 360 px tiles (127 Mbit/s); **20.2 %** with everyone watching everything at 1080 px (593 Mbit/s) | `opencord-voice-load` |
+
+### V10 measurements
+
+- **The node.** `opencord-voice-load` claims a release server pinned to CPUs 0–3 (`taskset`) and fills it from the other twelve: 10 channels of 10 bots, two talking in each, two with cameras (the test pattern at each layer's full bitrate: 150 kbit/s, 500 kbit/s, 1.5 Mbit/s) and one sharing a 1080p30 screen (its layers at full bitrate), everyone watching every video. Over 30 s once everyone was in: 0.62 cores (15.6 % of the 4) at 127 Mbit/s with 360 px tiles, 0.81 cores (20.2 %) at 593 Mbit/s with 1080 px tiles; 125 MB and 242 MB of memory. The bots used 2.6 of their 12 cores, so they were not what limited it.
+- **The client in a call of ten.** A profile build (`flutter drive --profile`) in a 1920×1080 window joins a call with three bots sending real H.264 cameras, one sharing a 1080p30 screen, four sitting and one talking; it watches the stream large and turns its own camera on (a virtual camera). Memory at each step: 225 MB launched, 260 in voice, 260 watching, 325–336 with the camera, then a steady 344 (sampled every second for 30 s: 336–355). With Mesa's EGL only (`__EGL_VENDOR_LIBRARY_FILENAMES`), as a laptop with only an integrated GPU loads it: 189 launched, 298 steady (286–310). CPU 108–120 % of a core (7 % of the machine). Every camera tile kept 15 fps, the stream 30.
+  - Before V10's changes it sat at 371–380 MB. Three things brought it down: large allocations go straight back to the system (a fixed glibc mmap threshold; decoded and converted pictures had stayed resident in heap arenas), about 30 MB; DeepFilterNet gives back what loading its networks left (37 MB to 23); and a layer nobody has wanted for 10 s closes its encoder (a 720p VA-API encoder holds about 20 MB). Fewer malloc arenas and smaller VA-API surface pools changed nothing (the surfaces live in GPU memory).
+- **Watching 1080p60.** One bot shares 1080p60; the app watches it large: 87 % of a core (5.5 % of the machine), 59.8 pictures a second presented, 55.9 drawn. The video thread takes 39 % of a core: decoding on the GPU, copying each picture back, converting and scaling it on the CPU. Zero-copy textures would take most of that away (below).
+- **Screen share latency.** The virtual screen draws the wall-clock time into every frame (`video/stamp.rs`); the app shares it at 720p30 from a 1920×1080 screen, and a bot watching in a 1080 px tile decodes each picture and reads the time back: 72 ms median, 88 ms at the 95th percentile, 144 ms at most, over 634 pictures. That covers PipeWire capture, the app's conversion and encoding, the node and decoding; the app was a debug build.
+- **Voice latency.** The app plays into a PipeWire null sink and records its monitor as the microphone, echo cancellation, noise suppression and gain control off; a bot beeps every second and times each beep coming back: 92 ms median, 100 ms at the 95th percentile, over 28 beeps (the first, before the jitter buffer settled, took 857 ms). The round trip holds both devices and two trips through the node, so one way, mouth to ear, is less.
 
 ## Voice
 
@@ -81,7 +105,7 @@ The screen share numbers are well within their targets. A screen's source is rea
 Not measured yet:
 
 - **A real screen.** The numbers come from the virtual screen at a fixed 1920×1080.
-- **Screen share audio, decoding, and watching.** These arrive with V7.
+- **Watching** is measured in V10 above.
 
 ## macOS (D34)
 
