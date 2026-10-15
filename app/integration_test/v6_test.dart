@@ -14,6 +14,7 @@ import 'support/e2e.dart';
 // or the app shares a screen (test: shares) and a bot watches it. Without the
 // script this test skips.
 const _invite = String.fromEnvironment('OPENCORD_E2E_INVITE');
+const _holdSeconds = int.fromEnvironment('OPENCORD_E2E_HOLD_SECONDS');
 const _test = String.fromEnvironment('OPENCORD_E2E_TEST');
 const _profile = 'e2e_screen';
 
@@ -133,6 +134,8 @@ void main() {
             final streams = container.read(streamsProvider(serverKey));
             return streams.isNotEmpty && streams.values.first.viewerCount > 0;
           }, reason: 'the bot watching');
+          // Keeps sharing while the bot measures (check_screen_latency.sh).
+          await Future<void>.delayed(const Duration(seconds: _holdSeconds));
 
           await container.read(voiceSessionProvider.notifier).leave();
         } finally {

@@ -31,6 +31,11 @@ struct Args {
     /// Tone to play, in Hz; 0 stays silent.
     #[arg(long, default_value_t = 440.0)]
     tone: f32,
+    /// Instead of a tone, a 100 ms beep at this frequency every second,
+    /// timed when it comes back in someone else's audio: a round trip
+    /// through their devices (plan §16.1).
+    #[arg(long, value_name = "HZ")]
+    ping: Option<f32>,
     /// Send a camera of real H.264 (a moving test scene in 180p, 360p and
     /// 720p layers), as the app's camera would.
     #[arg(long)]
@@ -155,7 +160,14 @@ async fn run(args: Args) -> anyhow::Result<()> {
         });
     }
     let duration = Duration::from_secs(args.seconds);
-    if args.tone > 0.0 {
+    if let Some(frequency) = args.ping {
+        session.play_pings(
+            frequency,
+            Duration::from_secs(1),
+            Duration::from_millis(100),
+            duration,
+        );
+    } else if args.tone > 0.0 {
         session.play_tone(args.tone, duration);
     }
     // Track ids are unique in a channel.
@@ -280,6 +292,18 @@ async fn run(args: Args) -> anyhow::Result<()> {
             tones(&heard)
         );
     }
+    let mut echoes = session.echoes();
+    if !echoes.is_empty() {
+        echoes.sort_unstable();
+        let at = |share: f64| echoes[((echoes.len() - 1) as f64 * share) as usize].as_millis();
+        println!(
+            "round trip: {} ms (median), {} ms (95th), {} ms (most), over {} beeps",
+            at(0.5),
+            at(0.95),
+            at(1.0),
+            echoes.len()
+        );
+    }
     for (user, seen) in session.seen() {
         let [low, middle, high] = seen.layers;
         println!(
@@ -290,6 +314,18 @@ async fn run(args: Args) -> anyhow::Result<()> {
             seen.keyframes,
             seen.bytes as f64 * 8.0 / duration.as_secs_f64() / 1000.0,
         );
+        let mut latencies = seen.latencies_ms.clone();
+        if !latencies.is_empty() {
+            latencies.sort_unstable();
+            let at = |share: f64| latencies[((latencies.len() - 1) as f64 * share) as usize];
+            println!(
+                "user {user}: made to decoded in {} ms (median), {} ms (95th), {} ms (most), over {} stamped pictures",
+                at(0.5),
+                at(0.95),
+                at(1.0),
+                latencies.len()
+            );
+        }
     }
     Ok(())
 }

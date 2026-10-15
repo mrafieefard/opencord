@@ -254,6 +254,9 @@ pub struct Seen {
     pub bytes: u64,
     /// Pictures by layer, lowest first.
     pub layers: [u64; 3],
+    /// For each decoded picture that carried a time stamp (the virtual
+    /// screen's), how long ago it was made, in milliseconds.
+    pub latencies_ms: Vec<u32>,
 }
 
 /// What a bot heard from one person: their voice, or their screen share's
@@ -325,8 +328,22 @@ pub fn tone_dbfs(samples: &[f32], frequency: f32) -> f32 {
         .log10()
 }
 
+/// A beep sent every so often and timed when it comes back in someone
+/// else's audio: a round trip through their devices (plan §16.1).
+#[derive(Default)]
+struct Pings {
+    frequency: f32,
+    /// When each beep went out.
+    sent: Vec<Instant>,
+    /// How long each one took to come back.
+    echoes: Vec<Duration>,
+    /// A beep is coming back now.
+    hearing: bool,
+}
+
 #[derive(Default)]
 struct Shared {
+    pings: Option<Pings>,
     heard: HashMap<i64, Heard>,
     /// Others' screen share sound, by user.
     stream_heard: HashMap<i64, Heard>,
@@ -470,6 +487,81 @@ impl VoiceSession {
                 position += FRAME_SAMPLES as u64;
             }
         })
+    }
+
+    /// Sends a `frequency` beep of `length` every `every` for `duration`,
+    /// silence between, and times each one when it comes back in someone
+    /// else's audio ([`Self::echoes`]).
+    pub fn play_pings(
+        &self,
+        frequency: f32,
+        every: Duration,
+        length: Duration,
+        duration: Duration,
+    ) -> tokio::task::JoinHandle<()> {
+        let shared = Arc::clone(&self.shared);
+        lock(&shared).pings = Some(Pings {
+            frequency,
+            ..Pings::default()
+        });
+        tokio::spawn(async move {
+            let Ok(mut encoder) =
+                opus::Encoder::new(SAMPLE_RATE, opus::Channels::Mono, opus::Application::Voip)
+            else {
+                return;
+            };
+            let frames = (duration.as_millis() / FRAME.as_millis()).max(1) as u64;
+            let per_ping = (every.as_millis() / FRAME.as_millis()).max(1) as u64;
+            let beep = (length.as_millis() / FRAME.as_millis()).max(1) as u64;
+            let mut ticker = tokio::time::interval(FRAME);
+            let step = TAU * frequency / SAMPLE_RATE as f32;
+            let mut phase = 0.0f32;
+            let mut pcm = vec![0i16; FRAME_SAMPLES];
+            let mut position = lock(&shared).position;
+            for frame in 0..frames {
+                ticker.tick().await;
+                let in_beep = frame % per_ping < beep;
+                for sample in &mut pcm {
+                    *sample = if in_beep {
+                        (phase.sin() * 8_000.0) as i16
+                    } else {
+                        0
+                    };
+                    phase = (phase + step) % TAU;
+                }
+                let Ok(payload) = encoder.encode_vec(&pcm, 1_500) else {
+                    continue;
+                };
+                let mut guard = lock(&shared);
+                if frame % per_ping == 0
+                    && let Some(pings) = guard.pings.as_mut()
+                {
+                    pings.sent.push(Instant::now());
+                }
+                let connection = guard.connection.clone();
+                guard.position = position + FRAME_SAMPLES as u64;
+                drop(guard);
+                if let Some(connection) = connection {
+                    connection.send_audio(AudioFrame {
+                        payload,
+                        position,
+                        marker: frame == 0,
+                        audio_level: level_dbov(&pcm),
+                        voice_activity: in_beep,
+                    });
+                }
+                position += FRAME_SAMPLES as u64;
+            }
+        })
+    }
+
+    /// How long each beep from [`Self::play_pings`] took to come back.
+    pub fn echoes(&self) -> Vec<Duration> {
+        lock(&self.shared)
+            .pings
+            .as_ref()
+            .map(|pings| pings.echoes.clone())
+            .unwrap_or_default()
     }
 
     /// What has been heard so far, by user id.
@@ -783,15 +875,27 @@ fn record_video(shared: &Mutex<Shared>, video: &opencord_media::transport::Recei
     let intact = check(&video.nal_units).is_some();
     let bytes: usize = video.nal_units.iter().map(Vec::len).sum();
     let mut shared = lock(shared);
+    let mut stamps = Vec::new();
     let decoded = shared.decoders.as_mut().map(|decoders| {
         let decoder = decoders
             .entry(video.track_id.clone())
             .or_insert_with(|| Decoder::open(false).expect("FFmpeg's decoder opens"));
-        decoder
+        let pictures = decoder
             .decode(&video.nal_units, video.arrived)
-            .map_or(0, |pictures| pictures.len() as u64)
+            .unwrap_or_default();
+        let now = opencord_media::video::stamp::now_ms();
+        for picture in &pictures {
+            let luma = (picture.width * picture.height) as usize;
+            if let Some(made) = picture.data.get(..luma).and_then(|luma| {
+                opencord_media::video::stamp::read_luma(luma, picture.width, picture.height)
+            }) {
+                stamps.push(now.wrapping_sub(made));
+            }
+        }
+        pictures.len() as u64
     });
     let seen = shared.seen.entry(video.user_id).or_default();
+    seen.latencies_ms.extend(stamps);
     seen.frames += 1;
     seen.intact += u64::from(intact);
     seen.decoded += decoded.unwrap_or(0);
@@ -891,6 +995,9 @@ async fn follow(
                     });
                     let decoded = decoder.decode(&audio.payload, &mut pcm, false).ok();
                     let mut shared = lock(&shared);
+                    if let (Some(pings), Some(samples)) = (shared.pings.as_mut(), decoded) {
+                        hear_pings(pings, &pcm[..samples], audio.arrived);
+                    }
                     let heard = shared.heard.entry(audio.user_id).or_insert_with(|| Heard {
                         peak_dbfs: -120.0,
                         channels: 1,
@@ -1113,5 +1220,25 @@ mod camera {
             let due = start + frame_time * u32::try_from(number).unwrap_or(u32::MAX);
             std::thread::sleep(due.saturating_duration_since(Instant::now()));
         }
+    }
+}
+
+/// A beep coming back: its start, timed against the last beep sent.
+fn hear_pings(pings: &mut Pings, samples: &[i16], arrived: Instant) {
+    let floats: Vec<f32> = samples
+        .iter()
+        .map(|&sample| f32::from(sample) / 32_768.0)
+        .collect();
+    let level = tone_dbfs(&floats, pings.frequency);
+    if level < -50.0 {
+        pings.hearing = false;
+        return;
+    }
+    if level < -35.0 || pings.hearing {
+        return;
+    }
+    pings.hearing = true;
+    if let Some(sent) = pings.sent.iter().rev().find(|&&sent| sent <= arrived) {
+        pings.echoes.push(arrived.duration_since(*sent));
     }
 }

@@ -10,3 +10,4 @@ pub mod priorities;
 pub mod receiver;
 pub mod screen;
 pub mod sender;
+pub mod stamp;
