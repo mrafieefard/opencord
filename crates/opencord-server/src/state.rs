@@ -60,6 +60,8 @@ pub struct AppState {
     pub music_bridge: Option<opencord_voice::bridge::MusicBridge>,
     /// The Lavalink nodes music plays on (Phase 3 plan §12).
     pub lavalink: crate::lavalink::Lavalink,
+    /// Music in voice channels (Phase 3 plan §14).
+    pub music: crate::music::Music,
     guild: RwLock<Guild>,
     /// Lock after the guild, never before it.
     voice: StdMutex<VoiceStates>,
@@ -103,6 +105,7 @@ impl AppState {
             tunnel: crate::tunnel::Tunnel::default(),
             music_bridge: None,
             lavalink: crate::lavalink::Lavalink::default(),
+            music: crate::music::Music::default(),
             guild: RwLock::new(guild),
             voice: StdMutex::new(VoiceStates::default()),
             writes: Mutex::new(()),

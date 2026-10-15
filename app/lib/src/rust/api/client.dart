@@ -585,6 +585,48 @@ Future<void> testLavalinkNode({
   nodeId: nodeId,
 );
 
+/// Moves the channels on a node now: to `to_node_id`, or each to the best
+/// other node. Needs Manage server.
+Future<LavalinkNodes> moveLavalinkPlayers({
+  required String serverKey,
+  required PlatformInt64 fromNodeId,
+  PlatformInt64? toNodeId,
+}) => RustLib.instance.api.crateApiClientMoveLavalinkPlayers(
+  serverKey: serverKey,
+  fromNodeId: fromNodeId,
+  toNodeId: toNodeId,
+);
+
+/// The music settings, with the search sources available now.
+Future<MusicSettings> musicSettings({required String serverKey}) =>
+    RustLib.instance.api.crateApiClientMusicSettings(serverKey: serverKey);
+
+/// Changes the music settings; `None` fields stay. Needs Manage music.
+Future<MusicSettings> updateMusicSettings({
+  required String serverKey,
+  required MusicSettingsChanges changes,
+}) => RustLib.instance.api.crateApiClientUpdateMusicSettings(
+  serverKey: serverKey,
+  changes: changes,
+);
+
+/// Members blocked from music. Needs Manage music.
+Future<List<MusicBlock>> musicBlocks({required String serverKey}) =>
+    RustLib.instance.api.crateApiClientMusicBlocks(serverKey: serverKey);
+
+/// Blocks a member from music, or unblocks them. Needs Manage music.
+Future<List<MusicBlock>> blockFromMusic({
+  required String serverKey,
+  required PlatformInt64 userId,
+  required bool blocked,
+  required String reason,
+}) => RustLib.instance.api.crateApiClientBlockFromMusic(
+  serverKey: serverKey,
+  userId: userId,
+  blocked: blocked,
+  reason: reason,
+);
+
 /// Joins a voice channel. This device is in at most one voice channel
 /// across all servers, so any other one is left first.
 Future<VoiceState> voiceJoin({

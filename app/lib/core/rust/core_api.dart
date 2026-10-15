@@ -372,6 +372,28 @@ abstract interface class CoreApi {
 
   Future<void> testLavalinkNode(String serverKey, int nodeId);
 
+  Future<core.LavalinkNodes> moveLavalinkPlayers(
+    String serverKey,
+    int fromNodeId,
+    int? toNodeId,
+  );
+
+  Future<core.MusicSettings> musicSettings(String serverKey);
+
+  Future<core.MusicSettings> updateMusicSettings(
+    String serverKey,
+    core.MusicSettingsChanges changes,
+  );
+
+  Future<List<core.MusicBlock>> musicBlocks(String serverKey);
+
+  Future<List<core.MusicBlock>> blockFromMusic(
+    String serverKey,
+    int userId,
+    bool blocked,
+    String reason,
+  );
+
   /// Leaves any other voice channel first, on any server.
   Future<core.VoiceState> voiceJoin(String serverKey, int channelId);
 
@@ -1039,6 +1061,44 @@ class FrbCoreApi implements CoreApi {
   @override
   Future<void> testLavalinkNode(String serverKey, int nodeId) =>
       frb.testLavalinkNode(serverKey: serverKey, nodeId: nodeId);
+
+  @override
+  Future<core.LavalinkNodes> moveLavalinkPlayers(
+    String serverKey,
+    int fromNodeId,
+    int? toNodeId,
+  ) => frb.moveLavalinkPlayers(
+    serverKey: serverKey,
+    fromNodeId: fromNodeId,
+    toNodeId: toNodeId,
+  );
+
+  @override
+  Future<core.MusicSettings> musicSettings(String serverKey) =>
+      frb.musicSettings(serverKey: serverKey);
+
+  @override
+  Future<core.MusicSettings> updateMusicSettings(
+    String serverKey,
+    core.MusicSettingsChanges changes,
+  ) => frb.updateMusicSettings(serverKey: serverKey, changes: changes);
+
+  @override
+  Future<List<core.MusicBlock>> musicBlocks(String serverKey) =>
+      frb.musicBlocks(serverKey: serverKey);
+
+  @override
+  Future<List<core.MusicBlock>> blockFromMusic(
+    String serverKey,
+    int userId,
+    bool blocked,
+    String reason,
+  ) => frb.blockFromMusic(
+    serverKey: serverKey,
+    userId: userId,
+    blocked: blocked,
+    reason: reason,
+  );
 
   @override
   Future<core.VoiceState> voiceJoin(String serverKey, int channelId) =>

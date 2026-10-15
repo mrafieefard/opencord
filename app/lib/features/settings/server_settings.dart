@@ -47,8 +47,10 @@ List<SettingsPage> serverSettingsPages(
       group: 'Server',
       builder: (_) => ServerVoicePage(serverKey: serverKey),
     ),
-  // Lavalink nodes need Manage server (Phase 3 plan §16.2).
-  if (data.voiceEnabled && data.can(Permissions.manageServer))
+  // Music settings need Manage music, Lavalink nodes Manage server (Phase
+  // 3 plan §16.2).
+  if (data.voiceEnabled &&
+      (data.can(Permissions.manageServer) || data.can(Permissions.musicManage)))
     SettingsPage(
       id: 'music',
       label: 'Music',

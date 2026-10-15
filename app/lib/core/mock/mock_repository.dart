@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math';
 
 import 'package:clock/clock.dart';
+import 'package:flutter/foundation.dart';
 
 import 'package:opencord/core/mock/mock_world.dart';
 import 'package:opencord/core/model/stream.dart';
@@ -9,6 +10,7 @@ import 'package:opencord/core/model/channel.dart';
 import 'package:opencord/core/model/lavalink.dart';
 import 'package:opencord/core/model/message.dart';
 import 'package:opencord/core/model/misc.dart';
+import 'package:opencord/core/model/music.dart';
 import 'package:opencord/core/model/network.dart';
 import 'package:opencord/core/model/permissions.dart';
 import 'package:opencord/core/model/presence.dart';
@@ -1719,6 +1721,116 @@ class MockRepository implements OpencordRepository {
         send(done: index == outcomes.length - 1);
       });
     }
+  }
+
+  @override
+  Future<LavalinkNodes> moveLavalinkPlayers(
+    String serverKey,
+    int fromNodeId, {
+    int? toNodeId,
+  }) async {
+    final server = _server(serverKey);
+    _require(server, Permissions.manageServer);
+    await _latency();
+    final from = server.lavalink.node(fromNodeId);
+    if (from == null) {
+      throw const RepoException(RepoErrorKind.notFound, 'Unknown node.');
+    }
+    final targets = server.lavalink.nodes
+        .where(
+          (node) =>
+              node.id != fromNodeId &&
+              node.health == LavalinkHealth.healthy &&
+              (toNodeId == null || node.id == toNodeId),
+        )
+        .toList();
+    if (from.channels == 0 || targets.isEmpty) return server.lavalink;
+    final to = targets.first;
+    final count = from.channels;
+    _lavalinkNode(server, from.copyWithChannels(0));
+    _lavalinkNode(server, to.copyWithChannels(to.channels + count));
+    _lavalinkEvent(
+      server,
+      LavalinkEventKind.moved,
+      'Moved ${count == 1 ? '1 channel' : '$count channels'} from '
+      '${from.settings.name} to ${to.settings.name}',
+    );
+    return server.lavalink;
+  }
+
+  /// Has a mock node play for [channels] channels, as if members played
+  /// music there.
+  @visibleForTesting
+  void debugSetLavalinkChannels(String serverKey, int nodeId, int channels) {
+    final server = _server(serverKey);
+    final node = server.lavalink.node(nodeId);
+    if (node != null) _lavalinkNode(server, node.copyWithChannels(channels));
+  }
+
+  // Music --------------------------------------------------------------------------
+
+  @override
+  Future<MusicSettings> musicSettings(String serverKey) async {
+    final server = _server(serverKey);
+    await _latency(40);
+    return server.music;
+  }
+
+  @override
+  Future<MusicSettings> updateMusicSettings(
+    String serverKey,
+    MusicSettings before,
+    MusicSettings after,
+  ) async {
+    final server = _server(serverKey);
+    _require(server, Permissions.musicManage);
+    await _latency();
+    if (!after.allows(after.defaultSource)) {
+      throw const RepoException(
+        RepoErrorKind.invalidArgument,
+        'the default source must be one of the enabled sources',
+      );
+    }
+    server.music = after;
+    _emit(MusicSettingsChanged(server.key, after));
+    return after;
+  }
+
+  List<MusicBlock> _blocks(MockServer server) =>
+      server.musicBlocks.values.toList()..sort((a, b) => a.at.compareTo(b.at));
+
+  @override
+  Future<List<MusicBlock>> musicBlocks(String serverKey) async {
+    final server = _server(serverKey);
+    _require(server, Permissions.musicManage);
+    await _latency(40);
+    return _blocks(server);
+  }
+
+  @override
+  Future<List<MusicBlock>> blockFromMusic(
+    String serverKey,
+    int userId, {
+    required bool blocked,
+    String reason = '',
+  }) async {
+    final server = _server(serverKey);
+    _require(server, Permissions.musicManage);
+    await _latency();
+    if (!server.members.containsKey(userId)) {
+      throw const RepoException(RepoErrorKind.notFound, 'Unknown member.');
+    }
+    if (blocked) {
+      server.musicBlocks[userId] = MusicBlock(
+        userId: userId,
+        reason: reason.trim(),
+        blockedBy: server.selfId,
+        at: _clock(),
+      );
+    } else {
+      server.musicBlocks.remove(userId);
+    }
+    return _blocks(server);
   }
 
   // Domains & network -------------------------------------------------------------

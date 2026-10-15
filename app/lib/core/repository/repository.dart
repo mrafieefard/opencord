@@ -5,6 +5,7 @@ import 'package:opencord/core/model/channel.dart';
 import 'package:opencord/core/model/lavalink.dart';
 import 'package:opencord/core/model/message.dart';
 import 'package:opencord/core/model/misc.dart';
+import 'package:opencord/core/model/music.dart';
 import 'package:opencord/core/model/network.dart';
 import 'package:opencord/core/model/permissions.dart';
 import 'package:opencord/core/model/presence.dart';
@@ -519,6 +520,36 @@ abstract interface class OpencordRepository {
   /// Starts the connection test; its steps arrive as
   /// [LavalinkTestProgressed].
   Future<void> testLavalinkNode(String serverKey, int nodeId);
+
+  /// Moves the channels on a node now: to [toNodeId], or each to the best
+  /// other node. Needs Manage server.
+  Future<LavalinkNodes> moveLavalinkPlayers(
+    String serverKey,
+    int fromNodeId, {
+    int? toNodeId,
+  });
+
+  /// The music settings (Phase 3 plan §16.2). Changes arrive as
+  /// [MusicSettingsChanged].
+  Future<MusicSettings> musicSettings(String serverKey);
+
+  /// Saves what differs from [before] in [after]. Needs Manage music.
+  Future<MusicSettings> updateMusicSettings(
+    String serverKey,
+    MusicSettings before,
+    MusicSettings after,
+  );
+
+  /// Members blocked from music. Needs Manage music.
+  Future<List<MusicBlock>> musicBlocks(String serverKey);
+
+  /// Blocks a member from music, or unblocks them. Needs Manage music.
+  Future<List<MusicBlock>> blockFromMusic(
+    String serverKey,
+    int userId, {
+    required bool blocked,
+    String reason = '',
+  });
 
   Future<void> joinVoice(String serverKey, int channelId);
 

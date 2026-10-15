@@ -148,9 +148,15 @@ async fn session(
         tokio::select! {
             message = stream.next() => match message {
                 Some(Ok(Message::Text(text))) => {
-                    if let Op::Stats(load) = client::parse_op(text.as_str()) {
-                        lock(&node.status).observed.load = Some(load);
-                        state.lavalink.node_changed(state, node);
+                    match client::parse_op(text.as_str()) {
+                        Op::Stats(load) => {
+                            lock(&node.status).observed.load = Some(load);
+                            state.lavalink.node_changed(state, node);
+                        }
+                        Op::Player { guild_id, value } => {
+                            crate::music::lavalink_event(state, node.id, guild_id, value);
+                        }
+                        Op::Other => {}
                     }
                 }
                 Some(Ok(Message::Pong(_))) => pong_at = Instant::now(),

@@ -81,6 +81,9 @@ audio_udp_port = 7712
 # The domain Lavalink connects to: "primary", or another active domain with
 # a trusted certificate.
 bridge_domain = "primary"
+# Tracks from Lavalink's http and local sources let members make Lavalink
+# fetch any address or file; refused unless this is on.
+allow_unsafe_sources = false
 
 [network]
 # Services that answer with the address a request came from, used to find
@@ -235,6 +238,8 @@ pub struct MusicSection {
     pub enabled: bool,
     pub audio_udp_port: u16,
     pub bridge_domain: String,
+    /// Tracks from Lavalink's `http` and `local` sources (plan §15.2).
+    pub allow_unsafe_sources: bool,
 }
 
 impl Default for MusicSection {
@@ -243,6 +248,7 @@ impl Default for MusicSection {
             enabled: true,
             audio_udp_port: 7712,
             bridge_domain: "primary".to_owned(),
+            allow_unsafe_sources: false,
         }
     }
 }

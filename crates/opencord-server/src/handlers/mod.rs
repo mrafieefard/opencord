@@ -16,6 +16,7 @@ mod invites;
 mod lavalink;
 mod members;
 mod messages;
+mod music;
 mod network;
 mod profile;
 mod roles;
@@ -121,6 +122,19 @@ async fn dispatch(ctx: &Ctx<'_>, request: proto::Request) -> Result<Response, Ap
         Kind::UpdateLavalinkNode(request) => lavalink::update(ctx, request).await,
         Kind::DeleteLavalinkNode(request) => lavalink::delete(ctx, &request).await,
         Kind::TestLavalinkNode(request) => lavalink::test(ctx, &request),
+        Kind::MoveLavalinkPlayers(request) => lavalink::move_players(ctx, &request).await,
+        Kind::MusicSubscribe(request) => music::subscribe(ctx, request).await,
+        Kind::MusicSearch(request) => music::search(ctx, request).await,
+        Kind::MusicEnqueue(request) => music::enqueue(ctx, request).await,
+        Kind::MusicPlayback(request) => music::playback(ctx, request).await,
+        Kind::MusicSetMode(request) => music::set_mode(ctx, request).await,
+        Kind::MusicQueueMove(request) => music::queue_move(ctx, request).await,
+        Kind::MusicQueueRemove(request) => music::queue_remove(ctx, request).await,
+        Kind::MusicQueueClear(request) => music::queue_clear(ctx, &request).await,
+        Kind::FetchMusicSettings(_) => Ok(music::fetch_settings(ctx)),
+        Kind::UpdateMusicSettings(request) => music::update_settings(ctx, request).await,
+        Kind::FetchMusicBlocks(_) => music::fetch_blocks(ctx),
+        Kind::MusicBlockMember(request) => music::block_member(ctx, request).await,
     }
 }
 

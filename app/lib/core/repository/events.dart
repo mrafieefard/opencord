@@ -2,6 +2,7 @@ import 'package:opencord/core/model/channel.dart';
 import 'package:opencord/core/model/lavalink.dart';
 import 'package:opencord/core/model/message.dart';
 import 'package:opencord/core/model/misc.dart';
+import 'package:opencord/core/model/music.dart';
 import 'package:opencord/core/model/network.dart';
 import 'package:opencord/core/model/permissions.dart';
 import 'package:opencord/core/model/presence.dart';
@@ -189,6 +190,13 @@ final class LavalinkTestProgressed extends RepoEvent {
   const LavalinkTestProgressed(super.serverKey, this.progress);
 
   final LavalinkTestProgress progress;
+}
+
+/// The music settings changed (Phase 3 plan §16.2).
+final class MusicSettingsChanged extends RepoEvent {
+  const MusicSettingsChanged(super.serverKey, this.settings);
+
+  final MusicSettings settings;
 }
 
 /// Where the server is reached changed (Phase 3 plan §7.5).

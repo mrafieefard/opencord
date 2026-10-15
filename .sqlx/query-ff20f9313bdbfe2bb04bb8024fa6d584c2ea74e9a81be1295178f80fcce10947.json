@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO music_sessions (channel_id, state_json, updated_at) VALUES ($1, $2, $3)\n         ON CONFLICT (channel_id) DO UPDATE SET\n             state_json = excluded.state_json, updated_at = excluded.updated_at",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": []
+  },
+  "hash": "ff20f9313bdbfe2bb04bb8024fa6d584c2ea74e9a81be1295178f80fcce10947"
+}

@@ -188,3 +188,267 @@ message LavalinkNodeStatus {
   bool removed = 2;
   uint32 channels_playing = 3;
 }
+
+// -> ack. Moves the channels on a node now (§12.7, maintenance): to
+// to_node_id, or each to the best other node. MANAGE_SERVER.
+message MoveLavalinkPlayers {
+  int64 from_node_id = 1;
+  optional int64 to_node_id = 2;
+}
+
+// A track as clients see it (§18.3). Lavalink's encoded track never
+// leaves the server.
+message MusicTrack {
+  string title = 1;
+  // Lavalink's author.
+  string artist = 2;
+  uint64 duration_ms = 3;
+  bool is_stream = 4;
+  bool is_seekable = 5;
+  // Lavalink's sourceName, like "youtube".
+  string source = 6;
+  // "YouTube", "SoundCloud"…
+  string source_display_name = 7;
+  string uri = 8;
+  // For the artwork proxy (L4); empty without artwork.
+  string artwork_id = 9;
+}
+
+message MusicQueueItem {
+  string item_id = 1;
+  MusicTrack track = 2;
+  int64 requester_id = 3;
+  int64 added_at_ms = 4;
+}
+
+enum MusicPlayState {
+  MUSIC_PLAY_STATE_UNSPECIFIED = 0;
+  MUSIC_PLAY_STATE_IDLE = 1;
+  MUSIC_PLAY_STATE_LOADING = 2;
+  MUSIC_PLAY_STATE_PLAYING = 3;
+  MUSIC_PLAY_STATE_PAUSED = 4;
+}
+
+enum MusicRepeat {
+  MUSIC_REPEAT_UNSPECIFIED = 0;
+  MUSIC_REPEAT_OFF = 1;
+  MUSIC_REPEAT_QUEUE = 2;
+  MUSIC_REPEAT_TRACK = 3;
+}
+
+// A voice channel's player (§14.1).
+message MusicSession {
+  int64 channel_id = 1;
+  // Increases with every change.
+  uint64 version = 2;
+  MusicPlayState state = 3;
+  optional MusicQueueItem now_playing = 4;
+  // Upcoming, in play order.
+  repeated MusicQueueItem queue = 5;
+  // Most recent first, at most 50.
+  repeated MusicQueueItem history = 6;
+  // The position was position_ms at server_time_ms; it moves on while
+  // playing.
+  uint64 position_ms = 7;
+  int64 server_time_ms = 8;
+  MusicRepeat repeat = 9;
+  bool shuffle = 10;
+  // Every node is unavailable: paused, the queue kept, retrying.
+  bool waiting_for_node = 11;
+  // Everyone left: paused until someone comes back.
+  bool paused_empty = 12;
+}
+
+// To the session's subscribers on every change.
+message MusicSnapshot {
+  MusicSession session = 1;
+}
+
+// What everyone who can see a channel hears about its music, for the
+// now-playing card (§14.3).
+message MusicNowPlaying {
+  int64 channel_id = 1;
+  string title = 2;
+  string artist = 3;
+  string artwork_id = 4;
+  bool playing = 5;
+  // Nothing plays any more.
+  bool ended = 6;
+}
+
+// A short activity line for the music panel (§14.4).
+message MusicNotice {
+  int64 channel_id = 1;
+  string text = 2;
+  int64 at_ms = 3;
+}
+
+// -> music_session. Starts or stops snapshots for this session; users
+// connected to the channel get them anyway. Can see the channel.
+message MusicSubscribe {
+  int64 channel_id = 1;
+  bool subscribe = 2;
+}
+
+message MusicSearchResult {
+  // Opaque; good for 15 minutes, for this user only.
+  string result_id = 1;
+  MusicTrack track = 2;
+}
+
+message MusicPlaylist {
+  string name = 1;
+  // Its tracks' results, up to the playlist limit.
+  repeated string result_ids = 2;
+}
+
+// -> music_search_results. MUSIC_ADD.
+message MusicSearch {
+  int64 channel_id = 1;
+  // Words, or a link.
+  string query = 2;
+  // youtube_music, youtube, soundcloud…; empty for the default.
+  string source = 3;
+}
+
+message MusicSearchResults {
+  repeated MusicSearchResult results = 1;
+  optional MusicPlaylist playlist = 2;
+}
+
+enum MusicPlacement {
+  MUSIC_PLACEMENT_UNSPECIFIED = 0;
+  // At the end, or before before_item_id.
+  MUSIC_PLACEMENT_END = 1;
+  MUSIC_PLACEMENT_NEXT = 2;
+  // Replaces what plays.
+  MUSIC_PLACEMENT_NOW = 3;
+}
+
+// -> music_session. MUSIC_ADD; a position, NEXT or NOW need
+// MUSIC_MANAGE_QUEUE.
+message MusicEnqueue {
+  int64 channel_id = 1;
+  repeated string result_ids = 2;
+  optional string before_item_id = 3;
+  MusicPlacement placement = 4;
+}
+
+enum MusicAction {
+  MUSIC_ACTION_UNSPECIFIED = 0;
+  MUSIC_ACTION_PAUSE = 1;
+  MUSIC_ACTION_RESUME = 2;
+  MUSIC_ACTION_NEXT = 3;
+  MUSIC_ACTION_PREVIOUS = 4;
+  MUSIC_ACTION_SEEK = 5;
+  MUSIC_ACTION_STOP = 6;
+}
+
+// -> music_session. MUSIC_CONTROL; NEXT on one's own track needs only
+// MUSIC_ADD; STOP needs MUSIC_MANAGE. With expected_item_id, nothing
+// happens when another item plays now (MUSIC_STALE).
+message MusicPlayback {
+  int64 channel_id = 1;
+  MusicAction action = 2;
+  optional uint64 position_ms = 3;
+  optional string expected_item_id = 4;
+}
+
+// -> music_session. MUSIC_CONTROL.
+message MusicSetMode {
+  int64 channel_id = 1;
+  optional MusicRepeat repeat = 2;
+  optional bool shuffle = 3;
+}
+
+// -> music_session. Puts the item before another, or at the end.
+// MUSIC_MANAGE_QUEUE.
+message MusicQueueMove {
+  int64 channel_id = 1;
+  string item_id = 2;
+  optional string before_item_id = 3;
+}
+
+// -> music_session. Own items with MUSIC_ADD; others need
+// MUSIC_MANAGE_QUEUE.
+message MusicQueueRemove {
+  int64 channel_id = 1;
+  repeated string item_ids = 2;
+}
+
+// -> music_session. MUSIC_MANAGE_QUEUE.
+message MusicQueueClear {
+  int64 channel_id = 1;
+}
+
+// Server settings → Music (§16.2).
+message MusicSettings {
+  bool enabled = 1;
+  // Search sources members may use; empty for every available one.
+  repeated string enabled_sources = 2;
+  string default_source = 3;
+  bool allow_links = 4;
+  bool allow_streams = 5;
+  // 0 for no limit.
+  uint64 max_track_ms = 6;
+  uint32 max_tracks_per_member = 7;
+  uint32 max_playlist_tracks = 8;
+  uint32 queue_limit = 9;
+  bool vote_skip = 10;
+  uint32 vote_skip_percent = 11;
+  uint32 stop_after_empty_s = 12;
+  uint32 disconnect_after_idle_s = 13;
+  // "primary", or an active domain with a trusted certificate.
+  string bridge_domain = 14;
+  // Search sources at least one healthy node offers now.
+  repeated string available_sources = 15;
+  // Music is on in opencord.toml and runs on this server.
+  bool supported = 16;
+}
+
+// -> music_settings. Anyone.
+message FetchMusicSettings {}
+
+// -> music_settings. MUSIC_MANAGE. Fields left out stay as they are.
+message UpdateMusicSettings {
+  optional bool enabled = 1;
+  optional StringList enabled_sources = 2;
+  optional string default_source = 3;
+  optional bool allow_links = 4;
+  optional bool allow_streams = 5;
+  optional uint64 max_track_ms = 6;
+  optional uint32 max_tracks_per_member = 7;
+  optional uint32 max_playlist_tracks = 8;
+  optional uint32 queue_limit = 9;
+  optional bool vote_skip = 10;
+  optional uint32 vote_skip_percent = 11;
+  optional uint32 stop_after_empty_s = 12;
+  optional uint32 disconnect_after_idle_s = 13;
+  optional string bridge_domain = 14;
+}
+
+// To everyone.
+message MusicSettingsUpdate {
+  MusicSettings settings = 1;
+}
+
+message MusicBlock {
+  int64 user_id = 1;
+  string reason = 2;
+  int64 blocked_by = 3;
+  int64 created_at_ms = 4;
+}
+
+message MusicBlocks {
+  repeated MusicBlock blocks = 1;
+}
+
+// -> music_blocks. MUSIC_MANAGE.
+message FetchMusicBlocks {}
+
+// -> music_blocks. MUSIC_MANAGE.
+message MusicBlockMember {
+  int64 user_id = 1;
+  bool blocked = 2;
+  string reason = 3;
+}

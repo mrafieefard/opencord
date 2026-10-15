@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:opencord/core/model/lavalink.dart';
@@ -42,6 +44,33 @@ Future<void> _openMusic(WidgetTester tester) async {
   await tester.tap(_inSettings(find.text('Music')).first);
   await _pumpFor(tester, const Duration(milliseconds: 400));
   expect(find.byType(ServerMusicPage), findsOneWidget);
+}
+
+/// [future]'s value; the mock's latency only passes while the test pumps.
+Future<T> _settle<T>(WidgetTester tester, Future<T> future) async {
+  late T value;
+  var done = false;
+  unawaited(
+    future.then((result) {
+      value = result;
+      done = true;
+    }),
+  );
+  for (var i = 0; i < 40 && !done; i++) {
+    await tester.pump(const Duration(milliseconds: 50));
+  }
+  expect(done, isTrue, reason: 'the mock never answered');
+  return value;
+}
+
+/// Scrolls the settings page until [finder] is built and on screen.
+Future<void> _scrollTo(WidgetTester tester, Finder finder) async {
+  await tester.scrollUntilVisible(
+    finder,
+    300,
+    scrollable: _inSettings(find.byType(Scrollable)).first,
+  );
+  await tester.pump();
 }
 
 Future<void> _tapVisible(WidgetTester tester, Finder finder) async {
@@ -131,9 +160,9 @@ void main() {
     expect(subtitle, contains('lavalink.example.com:2333'));
     expect(subtitle, contains('Lavalink 4.2.2 · Healthy'));
     expect(subtitle, contains('Sources: youtube, soundcloud, bandcamp'));
-    expect(
+    await _scrollTo(
+      tester,
       _inSettings(find.text('Home connected (Lavalink 4.2.2)')),
-      findsOneWidget,
     );
     expect(
       _inSettings(find.textContaining('1 node · 1 healthy · 0 channels')),
@@ -309,7 +338,12 @@ void main() {
           .widget<Semantics>(
             find
                 .ancestor(
-                  of: find.byType(OcSwitch).first,
+                  of: find
+                      .descendant(
+                        of: find.byType(LavalinkNodeDialog),
+                        matching: find.byType(OcSwitch),
+                      )
+                      .first,
                   matching: find.byType(Semantics),
                 )
                 .first,
@@ -418,6 +452,129 @@ void main() {
     expect(_subtitleOf(tester, 'Two'), contains('CPU load is 90 %'));
     expect(tester.element(_row('One')), same(before));
     expect(find.byType(LavalinkNodeRow), findsNWidgets(2));
+    await app.dispose(tester);
+  });
+
+  testWidgets('the music settings are saved together', (tester) async {
+    final app = await MockApp.pump(tester);
+    await _openMusic(tester);
+
+    expect(_inSettings(find.text('Music enabled')), findsOneWidget);
+    expect(
+      tester
+          .widget<OcButton>(find.widgetWithText(OcButton, 'Save changes'))
+          .onPressed,
+      isNull,
+      reason: 'nothing changed yet',
+    );
+    // Off: only YouTube Music; the default moves to the next source on.
+    await _tapVisible(tester, _row('YouTube Music'));
+    await _tapVisible(tester, _row('Allow live streams'));
+    await _tapVisible(
+      tester,
+      _inSettings(find.widgetWithText(OcButton, 'Save changes')),
+    );
+    await _pumpFor(tester, const Duration(milliseconds: 400));
+
+    final saved = await _settle(tester, app.repository.musicSettings(_dev));
+    expect(saved.enabledSources, ['youtube', 'soundcloud', 'bandcamp']);
+    expect(saved.defaultSource, 'youtube');
+    expect(saved.allowStreams, isFalse);
+    expect(find.text('Changes saved'), findsOneWidget);
+
+    // Every source on again is kept as "every source".
+    await _tapVisible(tester, _row('YouTube Music'));
+    await _tapVisible(
+      tester,
+      _inSettings(find.widgetWithText(OcButton, 'Save changes')),
+    );
+    await _pumpFor(tester, const Duration(milliseconds: 400));
+    expect(
+      (await _settle(
+        tester,
+        app.repository.musicSettings(_dev),
+      )).enabledSources,
+      isEmpty,
+    );
+    await app.dispose(tester);
+  });
+
+  testWidgets('a blocked member is listed and can be unblocked', (
+    tester,
+  ) async {
+    final app = await MockApp.pump(tester);
+    final kai = app
+        .read(serverProvider(_dev))
+        .data!
+        .members
+        .values
+        .firstWhere((member) => member.displayName == 'Kai Nakamura')
+        .id;
+    await _settle(
+      tester,
+      app.repository.blockFromMusic(
+        _dev,
+        kai,
+        blocked: true,
+        reason: 'Queue spam',
+      ),
+    );
+    await _openMusic(tester);
+
+    await _scrollTo(tester, _inSettings(find.text('Kai Nakamura')));
+    expect(_inSettings(find.textContaining('Queue spam')), findsOneWidget);
+    await _tapVisible(
+      tester,
+      _inSettings(find.widgetWithText(OcButton, 'Unblock')),
+    );
+    await _pumpFor(tester, const Duration(milliseconds: 200));
+    expect(find.text('Unblock Kai Nakamura?'), findsOneWidget);
+    await tester.tap(find.widgetWithText(OcButton, 'Unblock').last);
+    await _pumpFor(tester, const Duration(milliseconds: 400));
+
+    expect(
+      _inSettings(find.text('No one is blocked from music.')),
+      findsOneWidget,
+    );
+    expect(await _settle(tester, app.repository.musicBlocks(_dev)), isEmpty);
+    await app.dispose(tester);
+  });
+
+  testWidgets('Move players now moves a node\'s channels to another', (
+    tester,
+  ) async {
+    final app = await MockApp.pump(tester);
+    await _openMusic(tester);
+    await _addNode(tester, name: 'One', host: 'one.example.com');
+    await _addNode(tester, name: 'Two', host: 'two.example.com');
+    await _pumpFor(tester, const Duration(milliseconds: 800));
+    final one = app
+        .read(lavalinkProvider(_dev))
+        .value!
+        .nodes
+        .firstWhere((node) => node.settings.name == 'One');
+
+    // Without channels there is nothing to move.
+    await _tapVisible(tester, find.byTooltip('More for One'));
+    await _pumpFor(tester, const Duration(milliseconds: 200));
+    expect(find.text('Move players now'), findsNothing);
+    await tester.tapAt(const Offset(4, 4));
+    await _pumpFor(tester, const Duration(milliseconds: 200));
+
+    app.repository.debugSetLavalinkChannels(_dev, one.id, 3);
+    await _pumpFor(tester, const Duration(milliseconds: 100));
+    expect(_subtitleOf(tester, 'One'), contains('3 channels'));
+    await _tapVisible(tester, find.byTooltip('More for One'));
+    await _pumpFor(tester, const Duration(milliseconds: 200));
+    await tester.tap(find.text('Move players now'));
+    await _pumpFor(tester, const Duration(milliseconds: 400));
+
+    expect(_subtitleOf(tester, 'One'), contains('0 channels'));
+    expect(_subtitleOf(tester, 'Two'), contains('3 channels'));
+    await _scrollTo(
+      tester,
+      _inSettings(find.text('Moved 3 channels from One to Two')),
+    );
     await app.dispose(tester);
   });
 }

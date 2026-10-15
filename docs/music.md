@@ -8,6 +8,9 @@ This guide grows with Phase 3. What is here so far:
 - [Ports](#ports)
 - [Settings](#settings)
 - [Lavalink nodes](#lavalink-nodes)
+- [Permissions](#permissions)
+- [Music settings](#music-settings)
+- [When a node goes down](#when-a-node-goes-down)
 - [Testing with a local Lavalink](#testing-with-a-local-lavalink)
 
 ## How the bridge works
@@ -37,13 +40,15 @@ In `opencord.toml`:
 enabled = true
 audio_udp_port = 7712
 bridge_domain = "primary"
+allow_unsafe_sources = false
 ```
 
 | Key | Environment variable | Meaning |
 |---|---|---|
 | `enabled` | `OPENCORD_MUSIC_ENABLED` | Music in voice channels |
 | `audio_udp_port` | `OPENCORD_MUSIC_UDP_PORT` | UDP port Lavalink sends music to |
-| `bridge_domain` | | The domain Lavalink connects to: `primary`, or another active domain with a trusted certificate |
+| `bridge_domain` | | The domain Lavalink connects to at first: `primary`, or another active domain with a trusted certificate. Music settings can change it later |
+| `allow_unsafe_sources` | | Lets members play any `http` or `https` address and, by its path, any file on the Lavalink's machine (Lavalink's `http` and `local` sources). Off unless you trust everyone who can add music |
 
 ## Lavalink nodes
 
@@ -83,6 +88,53 @@ A node that comes back from Unavailable waits 30 seconds before it gets new chan
 - *… does not use TLS: turn TLS off for this node*, or the other way round.
 - *Lavalink couldn't verify Opencord's certificate*: activate a domain with a certificate in Domains & network, or, for a Lavalink you run, import Opencord's certificate into its trust store.
 - *Lavalink signed in, but didn't send audio to UDP …*: open the music port for this node.
+
+A row's menu also has **Move players now**, while the node plays for any channel: each channel moves to the best other node at once, keeping its place in the track. **Drain** moves them more gently, at their next track change. Deleting a node moves its channels first.
+
+## Permissions
+
+| Permission | Allows | `@everyone` by default |
+|---|---|---|
+| Add music | Search and add tracks (playing at once when nothing plays); remove your own queued tracks; skip your own track | On |
+| Control playback | Pause, resume, seek, next, previous, repeat, shuffle | On |
+| Manage the queue | Reorder, remove anyone's tracks, clear the queue, Play next and Play now | Off |
+| Manage music | Stop the player, block members from music, go past the track length and per-member limits, control music without being in the channel, music settings | Off |
+
+Adding and controlling music needs being connected to that voice channel, except with Manage music. Channel permission overwrites apply, so music can be kept to one channel. The server checks all of it; the app only hides what you can't do.
+
+**Blocking from music** is in a member's menu (Manage music, and a higher role than theirs). Blocked members still hear the music but can't add tracks or control it. Server settings → Music lists them with the reason and an Unblock button.
+
+## Music settings
+
+Server settings → Music, for members with Manage music. Lavalink nodes on the same page need Manage server.
+
+| Setting | Default |
+|---|---|
+| Music enabled | On. Turning it off ends the music in every channel |
+| Search sources | Every source a node offers. Only the sources turned on can be searched or linked |
+| Default source | YouTube Music |
+| Allow links | On: `https` links to an enabled source's sites. Addresses, `localhost` and private names are always refused |
+| Allow live streams | On |
+| Longest track | No limit (10 min, 30 min, 1 h or 3 h) |
+| Tracks per member in the queue | 20 |
+| Tracks added from one playlist | 100 |
+| Queue limit | 500 |
+| Vote skip | Off, 50 % of those listening |
+| Stop after everyone leaves | 2 min |
+| Disconnect after the queue ends | 5 min |
+| Bridge domain | The primary domain |
+
+You choose, and are responsible for, the sources you enable.
+
+When everyone leaves a channel, its music pauses at once. After *Stop after everyone leaves* its Lavalink player is let go; the queue is kept for 30 minutes, and music carries on from the same place when someone comes back. When the queue ends, the player is let go after *Disconnect after the queue ends*.
+
+## When a node goes down
+
+Each channel stays on its node while it plays. When that node becomes unavailable, its channels move to the best other node that offers the track's source, 5 at a time, each from where it was in the track, with a new token at the bridge so nothing more is accepted from the old node. The music panel says "Switched to another music server", and the node events say how many channels moved where. When no node can play, the music pauses with "Music server unavailable — retrying" and carries on once one can.
+
+A node that comes back has its old players destroyed, so nothing plays twice. A channel whose node starts struggling or is drained moves at its next track change.
+
+Opencord's own restarts keep the music playing: the queue is saved every few seconds, Lavalink keeps its players while Opencord is away, and each channel goes back to its node and carries on.
 
 ## Testing with a local Lavalink
 
@@ -157,3 +209,29 @@ cargo test -p opencord-server --test lavalink a_real -- --ignored --nocapture
 ```
 
 It needs `OPENCORD_TEST_LAVALINK`, `OPENCORD_TEST_LAVALINK_PASSWORD` and `OPENCORD_TEST_BRIDGE_TLS`, set as above.
+
+### Failover between two nodes
+
+Start a second Lavalink from another directory with the same `application.yml`, its `server.port` changed to 2334:
+
+```sh
+mkdir second && cp application.yml second/ && cd second
+sed -i 's/port: 2333/port: 2334/' application.yml
+java -Djavax.net.ssl.trustStore=../truststore.jks -Djavax.net.ssl.trustStorePassword=changeit -jar ../Lavalink.jar
+```
+
+Lavalink can't seek in Ogg files, so make an MP3 track for this test:
+
+```sh
+ffmpeg -f lavfi -i sine=frequency=330:duration=80 -ac 2 -ar 48000 -c:a libmp3lame -b:a 128k track.mp3
+```
+
+Then, from the repository, with the variables above:
+
+```sh
+export OPENCORD_TEST_LAVALINK_2=http://127.0.0.1:2334
+export OPENCORD_TEST_SEEKABLE_TRACK=/path/to/lavalink/track.mp3
+cargo test -p opencord-server --test music two_real -- --ignored --nocapture
+```
+
+It plays the track on the first node, turns that node off, checks that the channel plays on the second within 5 seconds from where it was, then restarts the server and checks that the music carries on there.

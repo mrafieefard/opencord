@@ -89,6 +89,21 @@ message Request {
     UpdateLavalinkNode update_lavalink_node = 122;
     DeleteLavalinkNode delete_lavalink_node = 123;
     TestLavalinkNode test_lavalink_node = 124;
+    MoveLavalinkPlayers move_lavalink_players = 125;
+
+    // Music sessions (Phase 3 plan §14, §18.1).
+    MusicSubscribe music_subscribe = 130;
+    MusicSearch music_search = 131;
+    MusicEnqueue music_enqueue = 132;
+    MusicPlayback music_playback = 133;
+    MusicSetMode music_set_mode = 134;
+    MusicQueueMove music_queue_move = 135;
+    MusicQueueRemove music_queue_remove = 136;
+    MusicQueueClear music_queue_clear = 137;
+    FetchMusicSettings fetch_music_settings = 138;
+    UpdateMusicSettings update_music_settings = 139;
+    FetchMusicBlocks fetch_music_blocks = 140;
+    MusicBlockMember music_block_member = 141;
   }
 }
 
@@ -117,6 +132,10 @@ message Response {
     DomainChecks domain_checks = 19;
     TunnelLog tunnel_log = 20;
     LavalinkNodes lavalink_nodes = 21;
+    MusicSession music_session = 22;
+    MusicSearchResults music_search_results = 23;
+    MusicSettings music_settings = 24;
+    MusicBlocks music_blocks = 25;
   }
 }
 

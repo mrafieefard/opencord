@@ -264,6 +264,19 @@ class LavalinkNodeRow extends ConsumerWidget {
                   : '$name gets no new channels',
             ),
           ),
+        if (node.channels > 0)
+          OcMenuItem(
+            label: 'Move players now',
+            icon: OcIcons.sync,
+            onSelected: () => changeLavalink(
+              anchor,
+              ref,
+              serverKey,
+              (repository, server) =>
+                  repository.moveLavalinkPlayers(server, nodeId),
+              done: 'Moving the channels on $name',
+            ),
+          ),
         const OcMenuDivider(),
         OcMenuItem(
           label: 'Delete',

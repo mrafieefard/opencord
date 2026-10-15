@@ -404,6 +404,17 @@ RepoErrorKind _kindFrom(core.ErrorCode code) => switch (code) {
   core.ErrorCode.acmeRateLimited => RepoErrorKind.rateLimited,
   core.ErrorCode.acmeFailed ||
   core.ErrorCode.portUnreachable => RepoErrorKind.other,
+  core.ErrorCode.musicBlocked ||
+  core.ErrorCode.musicNotInChannel => RepoErrorKind.forbidden,
+  core.ErrorCode.musicStale ||
+  core.ErrorCode.musicQueueFull ||
+  core.ErrorCode.musicMemberLimit => RepoErrorKind.conflict,
+  core.ErrorCode.musicTrackTooLong ||
+  core.ErrorCode.musicStreamsNotAllowed ||
+  core.ErrorCode.musicSourceNotAllowed ||
+  core.ErrorCode.musicLinkNotAllowed => RepoErrorKind.invalidArgument,
+  core.ErrorCode.musicNotConfigured ||
+  core.ErrorCode.musicNodeUnavailable => RepoErrorKind.other,
   core.ErrorCode.qualityLimit => RepoErrorKind.qualityLimit,
   core.ErrorCode.streamViewerLimit => RepoErrorKind.streamFull,
   core.ErrorCode.voiceChannelFull => RepoErrorKind.voiceChannelFull,

@@ -117,6 +117,14 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   Message dco_decode_box_autoadd_message(dynamic raw);
 
   @protected
+  MusicSettings dco_decode_box_autoadd_music_settings(dynamic raw);
+
+  @protected
+  MusicSettingsChanges dco_decode_box_autoadd_music_settings_changes(
+    dynamic raw,
+  );
+
+  @protected
   NetworkInfo dco_decode_box_autoadd_network_info(dynamic raw);
 
   @protected
@@ -190,6 +198,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   int dco_decode_box_autoadd_u_32(dynamic raw);
+
+  @protected
+  BigInt dco_decode_box_autoadd_u_64(dynamic raw);
 
   @protected
   VoiceConnectionState dco_decode_box_autoadd_voice_connection_state(
@@ -412,6 +423,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   List<Message> dco_decode_list_message(dynamic raw);
 
   @protected
+  List<MusicBlock> dco_decode_list_music_block(dynamic raw);
+
+  @protected
   List<PermissionOverwrite> dco_decode_list_permission_overwrite(dynamic raw);
 
   @protected
@@ -475,6 +489,15 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   Message dco_decode_message(dynamic raw);
 
   @protected
+  MusicBlock dco_decode_music_block(dynamic raw);
+
+  @protected
+  MusicSettings dco_decode_music_settings(dynamic raw);
+
+  @protected
+  MusicSettingsChanges dco_decode_music_settings_changes(dynamic raw);
+
+  @protected
   NetworkInfo dco_decode_network_info(dynamic raw);
 
   @protected
@@ -534,6 +557,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   int? dco_decode_opt_box_autoadd_u_32(dynamic raw);
+
+  @protected
+  BigInt? dco_decode_opt_box_autoadd_u_64(dynamic raw);
 
   @protected
   List<String>? dco_decode_opt_list_String(dynamic raw);
@@ -816,6 +842,16 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   Message sse_decode_box_autoadd_message(SseDeserializer deserializer);
 
   @protected
+  MusicSettings sse_decode_box_autoadd_music_settings(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  MusicSettingsChanges sse_decode_box_autoadd_music_settings_changes(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   NetworkInfo sse_decode_box_autoadd_network_info(SseDeserializer deserializer);
 
   @protected
@@ -911,6 +947,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   int sse_decode_box_autoadd_u_32(SseDeserializer deserializer);
+
+  @protected
+  BigInt sse_decode_box_autoadd_u_64(SseDeserializer deserializer);
 
   @protected
   VoiceConnectionState sse_decode_box_autoadd_voice_connection_state(
@@ -1169,6 +1208,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   List<Message> sse_decode_list_message(SseDeserializer deserializer);
 
   @protected
+  List<MusicBlock> sse_decode_list_music_block(SseDeserializer deserializer);
+
+  @protected
   List<PermissionOverwrite> sse_decode_list_permission_overwrite(
     SseDeserializer deserializer,
   );
@@ -1244,6 +1286,17 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   Message sse_decode_message(SseDeserializer deserializer);
+
+  @protected
+  MusicBlock sse_decode_music_block(SseDeserializer deserializer);
+
+  @protected
+  MusicSettings sse_decode_music_settings(SseDeserializer deserializer);
+
+  @protected
+  MusicSettingsChanges sse_decode_music_settings_changes(
+    SseDeserializer deserializer,
+  );
 
   @protected
   NetworkInfo sse_decode_network_info(SseDeserializer deserializer);
@@ -1323,6 +1376,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   int? sse_decode_opt_box_autoadd_u_32(SseDeserializer deserializer);
+
+  @protected
+  BigInt? sse_decode_opt_box_autoadd_u_64(SseDeserializer deserializer);
 
   @protected
   List<String>? sse_decode_opt_list_String(SseDeserializer deserializer);
@@ -1651,6 +1707,18 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_box_autoadd_message(Message self, SseSerializer serializer);
 
   @protected
+  void sse_encode_box_autoadd_music_settings(
+    MusicSettings self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_box_autoadd_music_settings_changes(
+    MusicSettingsChanges self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_box_autoadd_network_info(
     NetworkInfo self,
     SseSerializer serializer,
@@ -1775,6 +1843,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_box_autoadd_u_32(int self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_box_autoadd_u_64(BigInt self, SseSerializer serializer);
 
   @protected
   void sse_encode_box_autoadd_voice_connection_state(
@@ -2107,6 +2178,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_list_message(List<Message> self, SseSerializer serializer);
 
   @protected
+  void sse_encode_list_music_block(
+    List<MusicBlock> self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_list_permission_overwrite(
     List<PermissionOverwrite> self,
     SseSerializer serializer,
@@ -2209,6 +2286,18 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_message(Message self, SseSerializer serializer);
 
   @protected
+  void sse_encode_music_block(MusicBlock self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_music_settings(MusicSettings self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_music_settings_changes(
+    MusicSettingsChanges self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_network_info(NetworkInfo self, SseSerializer serializer);
 
   @protected
@@ -2306,6 +2395,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_opt_box_autoadd_u_32(int? self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_opt_box_autoadd_u_64(BigInt? self, SseSerializer serializer);
 
   @protected
   void sse_encode_opt_list_String(List<String>? self, SseSerializer serializer);

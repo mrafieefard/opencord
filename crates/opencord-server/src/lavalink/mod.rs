@@ -205,6 +205,48 @@ impl Node {
         }
     }
 
+    /// Its REST API and session, while connected.
+    pub fn rest(&self, state: &AppState) -> Option<(client::Rest, String)> {
+        let session = {
+            let status = lock(&self.status);
+            if !status.observed.connected {
+                return None;
+            }
+            status.session_id.clone()?
+        };
+        let rest = client::Rest::new(
+            state.network.http().clone(),
+            self.endpoint(state.lavalink.user_id()),
+        );
+        Some((rest, session))
+    }
+
+    pub fn health(&self) -> Health {
+        lock(&self.status).health.unwrap_or(Health::Connecting)
+    }
+
+    /// Whether the node offers a source manager (from `/v4/info`).
+    pub fn has_source(&self, source: &str) -> bool {
+        lock(&self.status)
+            .info
+            .as_ref()
+            .is_some_and(|info| info.sources.iter().any(|known| known == source))
+    }
+
+    /// The channels it plays for.
+    pub fn channels(&self) -> Vec<i64> {
+        lock(&self.channels).iter().copied().collect()
+    }
+
+    /// A track failed to load on it (counts toward its health, §12.5).
+    pub fn load_failed(&self) {
+        let now = Instant::now();
+        let mut status = lock(&self.status);
+        let failures = &mut status.observed.load_failures;
+        failures.retain(|at| now.duration_since(*at) < health::FAILURE_WINDOW);
+        failures.push(now);
+    }
+
     /// The addresses the bridge accepts it from, with the strict check.
     pub fn allowed_addresses(&self) -> Option<Vec<IpAddr>> {
         self.settings()
@@ -292,6 +334,16 @@ pub struct Lavalink {
     refusals: Arc<Refusals>,
     /// Every node is down and the admins were told.
     all_down: AtomicBool,
+    /// Where health changes go: to music, for failover.
+    health_changes: std::sync::OnceLock<mpsc::UnboundedSender<HealthChange>>,
+}
+
+/// A node's health changed.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct HealthChange {
+    pub node_id: i64,
+    pub before: Option<Health>,
+    pub after: Health,
 }
 
 impl Lavalink {
@@ -454,6 +506,44 @@ impl Lavalink {
         }
         self.node_changed(state, node);
         self.notice_if_all_down(state);
+        if before != Some(after)
+            && let Some(changes) = self.health_changes.get()
+        {
+            let _ = changes.send(HealthChange {
+                node_id: node.id,
+                before,
+                after,
+            });
+        }
+    }
+
+    /// Health changes from now on; music takes them, once.
+    pub fn health_changes(&self) -> Option<mpsc::UnboundedReceiver<HealthChange>> {
+        let (sender, receiver) = mpsc::unbounded_channel();
+        self.health_changes.set(sender).ok().map(|()| receiver)
+    }
+
+    /// Records channels moved between nodes (plan §12.8).
+    pub fn moved(&self, state: &AppState, from: i64, to: i64, count: usize) {
+        let (Some(from), Some(to)) = (self.node(from), self.node(to)) else {
+            return;
+        };
+        let channels = if count == 1 {
+            "1 channel".to_owned()
+        } else {
+            format!("{count} channels")
+        };
+        let text = format!(
+            "Moved {channels} from {} to {}",
+            from.settings().name,
+            to.settings().name
+        );
+        self.record(state, &to, proto::LavalinkEventKind::Moved, text);
+    }
+
+    /// The nodes in order of id.
+    pub fn nodes(&self) -> Vec<Arc<Node>> {
+        self.all()
     }
 
     /// Tells members who manage the server once, when every enabled node is

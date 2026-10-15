@@ -4,6 +4,7 @@ import 'dart:typed_data';
 
 import 'package:opencord/core/model/channel.dart';
 import 'package:opencord/core/model/lavalink.dart';
+import 'package:opencord/core/model/music.dart';
 import 'package:opencord/core/model/message.dart';
 import 'package:opencord/core/model/misc.dart';
 import 'package:opencord/core/model/network.dart';
@@ -21,6 +22,7 @@ import 'package:opencord/core/rust/core_api.dart';
 import 'package:opencord/core/rust/core_mapping.dart';
 import 'package:opencord/core/rust/identity_store.dart';
 import 'package:opencord/core/rust/lavalink_mapping.dart';
+import 'package:opencord/core/rust/music_mapping.dart';
 import 'package:opencord/core/rust/network_mapping.dart';
 import 'package:opencord/core/rust/read_positions.dart';
 import 'package:opencord/core/settings/key_value_store.dart';
@@ -570,6 +572,8 @@ class RustRepository implements OpencordRepository {
         LavalinkNodeEventReceived(server, lavalinkEventFrom(field0)),
       core.CoreEventPayload_LavalinkTestProgress(:final field0) =>
         LavalinkTestProgressed(server, lavalinkTestFrom(field0)),
+      core.CoreEventPayload_MusicSettingsUpdate(:final field0) =>
+        MusicSettingsChanged(server, musicSettingsFrom(field0)),
     };
     if (event != null) _emit(event);
   }
@@ -1213,6 +1217,54 @@ class RustRepository implements OpencordRepository {
   @override
   Future<void> testLavalinkNode(String serverKey, int nodeId) =>
       _call(() => _core.testLavalinkNode(serverKey, nodeId));
+
+  @override
+  Future<LavalinkNodes> moveLavalinkPlayers(
+    String serverKey,
+    int fromNodeId, {
+    int? toNodeId,
+  }) async => lavalinkNodesFrom(
+    await _call(
+      () => _core.moveLavalinkPlayers(serverKey, fromNodeId, toNodeId),
+    ),
+  );
+
+  @override
+  Future<MusicSettings> musicSettings(String serverKey) async =>
+      musicSettingsFrom(await _call(() => _core.musicSettings(serverKey)));
+
+  @override
+  Future<MusicSettings> updateMusicSettings(
+    String serverKey,
+    MusicSettings before,
+    MusicSettings after,
+  ) async => musicSettingsFrom(
+    await _call(
+      () => _core.updateMusicSettings(
+        serverKey,
+        musicSettingsChanges(before, after),
+      ),
+    ),
+  );
+
+  @override
+  Future<List<MusicBlock>> musicBlocks(String serverKey) async => [
+    for (final block in await _call(() => _core.musicBlocks(serverKey)))
+      musicBlockFrom(block),
+  ];
+
+  @override
+  Future<List<MusicBlock>> blockFromMusic(
+    String serverKey,
+    int userId, {
+    required bool blocked,
+    String reason = '',
+  }) async => [
+    for (final block in await _call(
+      () => _core.blockFromMusic(serverKey, userId, blocked, reason),
+    ))
+      musicBlockFrom(block),
+  ];
 
   @override
   Future<NetworkInfo> setDnsProvider(

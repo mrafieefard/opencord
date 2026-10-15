@@ -1,16 +1,21 @@
 //! A stand-in Lavalink 4 node: its REST API and WebSocket as far as Opencord
-//! uses them (sessions, resuming, stats, players), and, for a player with a
-//! voice state, Lavalink's voice client: it signs in at the audio bridge and
-//! does UDP IP discovery, as Koe does.
+//! uses them (sessions, resuming, stats, track loading, players and their
+//! events), and, for a player with a voice state, Lavalink's voice client:
+//! it signs in at the audio bridge and does UDP IP discovery, as Koe does.
+//!
+//! Searches find three tracks named after the query; a query with
+//! "playlist" loads a playlist of 30, "live" a stream, and "broken" tracks
+//! that fail to play.
 
+use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::sync::atomic::{AtomicU32, Ordering};
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, LazyLock, Mutex};
 use std::time::Duration;
 
 use axum::Router;
 use axum::extract::ws::{Message, WebSocket, WebSocketUpgrade};
-use axum::extract::{Path, State};
+use axum::extract::{Path, Query, State};
 use axum::http::{HeaderMap, StatusCode};
 use axum::response::{IntoResponse, Response};
 use axum::routing::{get, patch};
@@ -20,6 +25,7 @@ use rustls::pki_types::ServerName;
 use serde_json::{Value, json};
 use tokio::net::{TcpListener, TcpStream, UdpSocket};
 use tokio::sync::Notify;
+use tokio::sync::broadcast;
 use tokio::task::JoinHandle;
 use tokio_tungstenite::tungstenite::client::IntoClientRequest;
 
@@ -50,10 +56,40 @@ pub struct Fake {
     /// Bodies of player updates, by guild.
     pub players: Mutex<Vec<(i64, Value)>>,
     pub destroyed: Mutex<Vec<i64>>,
+    /// Each guild's player now.
+    pub live: Mutex<HashMap<i64, LivePlayer>>,
+    /// Identifiers of every /v4/loadtracks.
+    pub loads: Mutex<Vec<String>>,
+    /// To the WebSocket: events and player updates.
+    events: broadcast::Sender<String>,
     sessions: AtomicU32,
     current: Mutex<Option<String>>,
     /// Closes every WebSocket.
     kick: Notify,
+}
+
+/// Tracks every fake handed out, by their encoding: like Lavalink's,
+/// encoded tracks play on any node.
+static TRACKS: LazyLock<Mutex<HashMap<String, Value>>> = LazyLock::new(Mutex::default);
+
+/// A player as the fake keeps it.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct LivePlayer {
+    /// The track playing, as Lavalink sends it with its userData.
+    pub track: Option<Value>,
+    pub paused: bool,
+    pub position: u64,
+    pub voice: Option<Value>,
+}
+
+impl LivePlayer {
+    pub fn encoded(&self) -> Option<String> {
+        Some(self.track.as_ref()?["encoded"].as_str()?.to_owned())
+    }
+
+    pub fn title(&self) -> Option<String> {
+        Some(self.track.as_ref()?["info"]["title"].as_str()?.to_owned())
+    }
 }
 
 impl Fake {
@@ -74,6 +110,75 @@ impl Fake {
 
     pub fn set_load(&self, playing: u32, system_load: f64) {
         *self.load.lock().unwrap() = (playing, system_load);
+    }
+
+    fn send(&self, value: &Value) {
+        let _ = self.events.send(value.to_string());
+    }
+
+    fn event(&self, guild: i64, kind: &str, track: &Value, extra: &Value) {
+        let mut event =
+            json!({ "op": "event", "type": kind, "guildId": guild.to_string(), "track": track });
+        if let Some(extra) = extra.as_object() {
+            event.as_object_mut().unwrap().extend(extra.clone());
+        }
+        self.send(&event);
+    }
+
+    pub fn player(&self, guild: i64) -> Option<LivePlayer> {
+        self.live.lock().unwrap().get(&guild).cloned()
+    }
+
+    /// The guild's track plays to its end.
+    pub fn finish(&self, guild: i64) {
+        let track = self
+            .live
+            .lock()
+            .unwrap()
+            .get_mut(&guild)
+            .and_then(|player| player.track.take());
+        if let Some(track) = track {
+            self.event(
+                guild,
+                "TrackEndEvent",
+                &track,
+                &json!({ "reason": "finished" }),
+            );
+        }
+    }
+
+    /// Reports the guild's position, as Lavalink does every few seconds.
+    pub fn report_position(&self, guild: i64, position: u64) {
+        if let Some(player) = self.live.lock().unwrap().get_mut(&guild) {
+            player.position = position;
+        }
+        self.send(&json!({ "op": "playerUpdate", "guildId": guild.to_string(),
+            "state": { "time": 0, "position": position, "connected": true, "ping": 1 } }));
+    }
+
+    fn player_json(&self, guild: i64, player: &LivePlayer) -> Value {
+        json!({ "guildId": guild.to_string(), "track": player.track, "volume": 100,
+            "paused": player.paused,
+            "state": { "time": 0, "position": player.position, "connected": true, "ping": 1 },
+            "voice": player.voice, "filters": {} })
+    }
+
+    fn make_track(&self, name: &str, source: &str, stream: bool) -> Value {
+        let encoded = format!("enc:{source}:{name}");
+        let track = json!({
+            "encoded": encoded,
+            "info": {
+                "identifier": name, "isSeekable": !stream, "author": "Fake Artist",
+                "length": if stream { 9_223_372_036_854_775_807u64 } else { 180_000 },
+                "isStream": stream, "position": 0, "title": name,
+                "uri": format!("https://example.com/{}", name.replace(' ', "-")),
+                "artworkUrl": null, "isrc": null, "sourceName": source,
+            },
+            "pluginInfo": {},
+            "userData": {},
+        });
+        TRACKS.lock().unwrap().insert(encoded, track.clone());
+        track
     }
 }
 
@@ -102,6 +207,9 @@ impl FakeLavalink {
             session_updates: Mutex::new(Vec::new()),
             players: Mutex::new(Vec::new()),
             destroyed: Mutex::new(Vec::new()),
+            live: Mutex::new(HashMap::new()),
+            loads: Mutex::new(Vec::new()),
+            events: broadcast::channel(256).0,
             sessions: AtomicU32::new(0),
             current: Mutex::new(None),
             kick: Notify::new(),
@@ -116,10 +224,12 @@ impl FakeLavalink {
             .route("/v4/info", get(info))
             .route("/v4/stats", get(stats))
             .route("/v4/websocket", get(websocket))
+            .route("/v4/loadtracks", get(load_tracks))
             .route("/v4/sessions/{session}", patch(update_session))
+            .route("/v4/sessions/{session}/players", get(list_players))
             .route(
                 "/v4/sessions/{session}/players/{guild}",
-                patch(update_player).delete(destroy_player),
+                get(get_player).patch(update_player).delete(destroy_player),
             )
             .with_state(Arc::clone(&fake));
         let task = tokio::spawn(async move {
@@ -219,6 +329,7 @@ async fn update_player(
         return unauthorized();
     }
     fake.players.lock().unwrap().push((guild, body.clone()));
+    let shown = apply_update(&fake, guild, &body);
     let voice = *fake.voice.lock().unwrap();
     let fingerprint = *fake.bridge_fingerprint.lock().unwrap();
     let user_id = fake
@@ -239,12 +350,140 @@ async fn update_player(
             voice == Voice::Discover,
         ));
     }
-    axum::Json(
-        json!({ "guildId": guild.to_string(), "track": null, "volume": 100,
-        "paused": false, "state": { "time": 0, "position": 0, "connected": false, "ping": -1 },
-        "voice": body.get("voice"), "filters": {} }),
-    )
-    .into_response()
+    axum::Json(shown).into_response()
+}
+
+/// A player update: what plays, paused, position, voice; with the events
+/// Lavalink sends for it.
+fn apply_update(fake: &Fake, guild: i64, body: &Value) -> Value {
+    let mut live = fake.live.lock().unwrap();
+    let player = live.entry(guild).or_default();
+    if let Some(voice) = body.get("voice") {
+        player.voice = Some(voice.clone());
+    }
+    if let Some(paused) = body["paused"].as_bool() {
+        player.paused = paused;
+    }
+    if let Some(position) = body["position"].as_u64() {
+        player.position = position;
+    }
+    let mut events = Vec::new();
+    if let Some(track) = body.get("track") {
+        let encoded = track["encoded"].as_str();
+        if let Some(old) = player.track.take() {
+            let reason = if encoded.is_some() {
+                "replaced"
+            } else {
+                "stopped"
+            };
+            events.push(("TrackEndEvent", old, json!({ "reason": reason })));
+        }
+        if let Some(encoded) = encoded {
+            let mut full = TRACKS
+                .lock()
+                .unwrap()
+                .get(encoded)
+                .cloned()
+                .unwrap_or_else(|| json!({ "encoded": encoded, "info": {} }));
+            full["userData"] = track["userData"].clone();
+            if encoded.contains("broken") {
+                events.push((
+                    "TrackExceptionEvent",
+                    full.clone(),
+                    json!({ "exception": { "message": "This video is unavailable",
+                        "severity": "common", "cause": "x" } }),
+                ));
+                events.push(("TrackEndEvent", full, json!({ "reason": "loadFailed" })));
+            } else {
+                player.track = Some(full.clone());
+                events.push(("TrackStartEvent", full, json!({})));
+            }
+        }
+    }
+    let shown = fake.player_json(guild, player);
+    drop(live);
+    for (kind, track, extra) in events {
+        fake.event(guild, kind, &track, &extra);
+    }
+    shown
+}
+
+async fn get_player(
+    State(fake): State<Arc<Fake>>,
+    headers: HeaderMap,
+    Path((_session, guild)): Path<(String, i64)>,
+) -> Response {
+    if !fake.authorized(&headers) {
+        return unauthorized();
+    }
+    match fake.player(guild) {
+        Some(player) => axum::Json(fake.player_json(guild, &player)).into_response(),
+        None => (
+            StatusCode::NOT_FOUND,
+            axum::Json(json!({ "status": 404, "error": "Not Found",
+                "message": "Player not found", "path": "/" })),
+        )
+            .into_response(),
+    }
+}
+
+async fn list_players(
+    State(fake): State<Arc<Fake>>,
+    headers: HeaderMap,
+    Path(_session): Path<String>,
+) -> Response {
+    if !fake.authorized(&headers) {
+        return unauthorized();
+    }
+    let players: Vec<Value> = fake
+        .live
+        .lock()
+        .unwrap()
+        .iter()
+        .map(|(guild, player)| fake.player_json(*guild, player))
+        .collect();
+    axum::Json(players).into_response()
+}
+
+async fn load_tracks(
+    State(fake): State<Arc<Fake>>,
+    headers: HeaderMap,
+    Query(query): Query<HashMap<String, String>>,
+) -> Response {
+    if !fake.authorized(&headers) {
+        return unauthorized();
+    }
+    let identifier = query.get("identifier").cloned().unwrap_or_default();
+    fake.loads.lock().unwrap().push(identifier.clone());
+    let source = |prefix: &str| match prefix {
+        "scsearch" => "soundcloud",
+        "http" | "https" => "http",
+        _ => "youtube",
+    };
+    let (prefix, words) = identifier
+        .split_once(':')
+        .unwrap_or(("ytsearch", identifier.as_str()));
+    let source = source(prefix);
+    if prefix.starts_with("http") {
+        let track = fake.make_track(&identifier, source, false);
+        return axum::Json(json!({ "loadType": "track", "data": track })).into_response();
+    }
+    if words.contains("nothing") {
+        return axum::Json(json!({ "loadType": "empty", "data": {} })).into_response();
+    }
+    if words.contains("playlist") {
+        let tracks: Vec<Value> = (1..=30)
+            .map(|n| fake.make_track(&format!("{words} {n}"), source, false))
+            .collect();
+        return axum::Json(json!({ "loadType": "playlist", "data": {
+            "info": { "name": words, "selectedTrack": -1 }, "pluginInfo": {}, "tracks": tracks } }))
+        .into_response();
+    }
+    let stream = words.contains("live");
+    let tracks: Vec<Value> = (1..=3)
+        .map(|n| fake.make_track(&format!("{words} {n}"), source, stream))
+        .collect();
+    axum::Json(json!({ "loadType": "search", "data": tracks })).into_response()
 }
 
 async fn destroy_player(
@@ -256,6 +495,7 @@ async fn destroy_player(
         return unauthorized();
     }
     fake.destroyed.lock().unwrap().push(guild);
+    fake.live.lock().unwrap().remove(&guild);
     StatusCode::NO_CONTENT.into_response()
 }
 
@@ -299,11 +539,21 @@ async fn serve_socket(fake: Arc<Fake>, mut socket: WebSocket, wanted: Option<Str
         .unwrap()
         .extend(stats_json(&fake).as_object().unwrap().clone());
     let _ = socket.send(Message::Text(stats.to_string().into())).await;
+    let mut events = fake.events.subscribe();
     let kicked = fake.kick.notified();
     tokio::pin!(kicked);
     loop {
         tokio::select! {
             () = &mut kicked => return,
+            event = events.recv() => match event {
+                Ok(text) => {
+                    if socket.send(Message::Text(text.into())).await.is_err() {
+                        return;
+                    }
+                }
+                Err(broadcast::error::RecvError::Lagged(_)) => {}
+                Err(broadcast::error::RecvError::Closed) => return,
+            },
             message = socket.recv() => match message {
                 Some(Ok(Message::Close(_))) | None | Some(Err(_)) => return,
                 Some(Ok(_)) => {}

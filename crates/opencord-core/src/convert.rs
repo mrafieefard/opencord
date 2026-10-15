@@ -456,6 +456,11 @@ pub fn event(kind: proto::event::Kind, session_id: &str) -> Option<CoreEventPayl
         Kind::LavalinkTestProgress(progress) => {
             CoreEventPayload::LavalinkTestProgress(crate::lavalink::test_progress_from(progress))
         }
+        Kind::MusicSettingsUpdate(update) => {
+            CoreEventPayload::MusicSettingsUpdate(crate::music::settings_from(update.settings?))
+        }
+        // The music panel's (Phase 3 L5).
+        Kind::MusicSnapshot(_) | Kind::MusicNotice(_) | Kind::MusicNowPlaying(_) => return None,
     })
 }
 
@@ -486,6 +491,17 @@ pub fn error_code(code: i32) -> ErrorCode {
         Ok(proto::ErrorCode::AcmeFailed) => ErrorCode::AcmeFailed,
         Ok(proto::ErrorCode::AcmeRateLimited) => ErrorCode::AcmeRateLimited,
         Ok(proto::ErrorCode::PortUnreachable) => ErrorCode::PortUnreachable,
+        Ok(proto::ErrorCode::MusicNotConfigured) => ErrorCode::MusicNotConfigured,
+        Ok(proto::ErrorCode::MusicNodeUnavailable) => ErrorCode::MusicNodeUnavailable,
+        Ok(proto::ErrorCode::MusicNotInChannel) => ErrorCode::MusicNotInChannel,
+        Ok(proto::ErrorCode::MusicBlocked) => ErrorCode::MusicBlocked,
+        Ok(proto::ErrorCode::MusicQueueFull) => ErrorCode::MusicQueueFull,
+        Ok(proto::ErrorCode::MusicMemberLimit) => ErrorCode::MusicMemberLimit,
+        Ok(proto::ErrorCode::MusicTrackTooLong) => ErrorCode::MusicTrackTooLong,
+        Ok(proto::ErrorCode::MusicStreamsNotAllowed) => ErrorCode::MusicStreamsNotAllowed,
+        Ok(proto::ErrorCode::MusicSourceNotAllowed) => ErrorCode::MusicSourceNotAllowed,
+        Ok(proto::ErrorCode::MusicLinkNotAllowed) => ErrorCode::MusicLinkNotAllowed,
+        Ok(proto::ErrorCode::MusicStale) => ErrorCode::MusicStale,
         _ => ErrorCode::Unknown,
     }
 }

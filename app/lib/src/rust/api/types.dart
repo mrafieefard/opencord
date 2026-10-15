@@ -8,7 +8,7 @@ import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 import 'package:freezed_annotation/freezed_annotation.dart' hide protected;
 part 'types.freezed.dart';
 
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `hash`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `hash`
 
 class AcmeAccount {
   /// An account exists with the CA in use.
@@ -768,6 +768,10 @@ sealed class CoreEventPayload with _$CoreEventPayload {
   const factory CoreEventPayload.lavalinkTestProgress(
     LavalinkTestProgress field0,
   ) = CoreEventPayload_LavalinkTestProgress;
+
+  /// The music settings changed.
+  const factory CoreEventPayload.musicSettingsUpdate(MusicSettings field0) =
+      CoreEventPayload_MusicSettingsUpdate;
 }
 
 /// A sound every client has (plan §11.8), played as `default:<id>`.
@@ -1024,6 +1028,19 @@ enum ErrorCode {
   acmeFailed,
   acmeRateLimited,
   portUnreachable,
+  musicNotConfigured,
+  musicNodeUnavailable,
+  musicNotInChannel,
+  musicBlocked,
+  musicQueueFull,
+  musicMemberLimit,
+  musicTrackTooLong,
+  musicStreamsNotAllowed,
+  musicSourceNotAllowed,
+  musicLinkNotAllowed,
+
+  /// Another track plays now than the action expected.
+  musicStale,
   unknown,
 }
 
@@ -1733,6 +1750,203 @@ class Message {
           createdAtMs == other.createdAtMs &&
           editedAtMs == other.editedAtMs &&
           nonce == other.nonce;
+}
+
+/// A member blocked from music.
+class MusicBlock {
+  final PlatformInt64 userId;
+  final String reason;
+  final PlatformInt64 blockedBy;
+  final PlatformInt64 createdAtMs;
+
+  const MusicBlock({
+    required this.userId,
+    required this.reason,
+    required this.blockedBy,
+    required this.createdAtMs,
+  });
+
+  @override
+  int get hashCode =>
+      userId.hashCode ^
+      reason.hashCode ^
+      blockedBy.hashCode ^
+      createdAtMs.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is MusicBlock &&
+          runtimeType == other.runtimeType &&
+          userId == other.userId &&
+          reason == other.reason &&
+          blockedBy == other.blockedBy &&
+          createdAtMs == other.createdAtMs;
+}
+
+/// Server settings → Music (Phase 3 plan §16.2).
+class MusicSettings {
+  final bool enabled;
+
+  /// Search sources members may use; empty for every available one.
+  final List<String> enabledSources;
+  final String defaultSource;
+  final bool allowLinks;
+  final bool allowStreams;
+
+  /// 0 for no limit.
+  final BigInt maxTrackMs;
+  final int maxTracksPerMember;
+  final int maxPlaylistTracks;
+  final int queueLimit;
+  final bool voteSkip;
+  final int voteSkipPercent;
+  final int stopAfterEmptyS;
+  final int disconnectAfterIdleS;
+
+  /// "primary", or an active domain with a trusted certificate.
+  final String bridgeDomain;
+
+  /// Search sources at least one healthy node offers now.
+  final List<String> availableSources;
+
+  /// Music is on in the server's configuration file and runs there.
+  final bool supported;
+
+  const MusicSettings({
+    required this.enabled,
+    required this.enabledSources,
+    required this.defaultSource,
+    required this.allowLinks,
+    required this.allowStreams,
+    required this.maxTrackMs,
+    required this.maxTracksPerMember,
+    required this.maxPlaylistTracks,
+    required this.queueLimit,
+    required this.voteSkip,
+    required this.voteSkipPercent,
+    required this.stopAfterEmptyS,
+    required this.disconnectAfterIdleS,
+    required this.bridgeDomain,
+    required this.availableSources,
+    required this.supported,
+  });
+
+  @override
+  int get hashCode =>
+      enabled.hashCode ^
+      enabledSources.hashCode ^
+      defaultSource.hashCode ^
+      allowLinks.hashCode ^
+      allowStreams.hashCode ^
+      maxTrackMs.hashCode ^
+      maxTracksPerMember.hashCode ^
+      maxPlaylistTracks.hashCode ^
+      queueLimit.hashCode ^
+      voteSkip.hashCode ^
+      voteSkipPercent.hashCode ^
+      stopAfterEmptyS.hashCode ^
+      disconnectAfterIdleS.hashCode ^
+      bridgeDomain.hashCode ^
+      availableSources.hashCode ^
+      supported.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is MusicSettings &&
+          runtimeType == other.runtimeType &&
+          enabled == other.enabled &&
+          enabledSources == other.enabledSources &&
+          defaultSource == other.defaultSource &&
+          allowLinks == other.allowLinks &&
+          allowStreams == other.allowStreams &&
+          maxTrackMs == other.maxTrackMs &&
+          maxTracksPerMember == other.maxTracksPerMember &&
+          maxPlaylistTracks == other.maxPlaylistTracks &&
+          queueLimit == other.queueLimit &&
+          voteSkip == other.voteSkip &&
+          voteSkipPercent == other.voteSkipPercent &&
+          stopAfterEmptyS == other.stopAfterEmptyS &&
+          disconnectAfterIdleS == other.disconnectAfterIdleS &&
+          bridgeDomain == other.bridgeDomain &&
+          availableSources == other.availableSources &&
+          supported == other.supported;
+}
+
+/// Changes to the music settings; what is `None` stays.
+class MusicSettingsChanges {
+  final bool? enabled;
+  final List<String>? enabledSources;
+  final String? defaultSource;
+  final bool? allowLinks;
+  final bool? allowStreams;
+  final BigInt? maxTrackMs;
+  final int? maxTracksPerMember;
+  final int? maxPlaylistTracks;
+  final int? queueLimit;
+  final bool? voteSkip;
+  final int? voteSkipPercent;
+  final int? stopAfterEmptyS;
+  final int? disconnectAfterIdleS;
+  final String? bridgeDomain;
+
+  const MusicSettingsChanges({
+    this.enabled,
+    this.enabledSources,
+    this.defaultSource,
+    this.allowLinks,
+    this.allowStreams,
+    this.maxTrackMs,
+    this.maxTracksPerMember,
+    this.maxPlaylistTracks,
+    this.queueLimit,
+    this.voteSkip,
+    this.voteSkipPercent,
+    this.stopAfterEmptyS,
+    this.disconnectAfterIdleS,
+    this.bridgeDomain,
+  });
+
+  static Future<MusicSettingsChanges> default_() =>
+      RustLib.instance.api.crateApiTypesMusicSettingsChangesDefault();
+
+  @override
+  int get hashCode =>
+      enabled.hashCode ^
+      enabledSources.hashCode ^
+      defaultSource.hashCode ^
+      allowLinks.hashCode ^
+      allowStreams.hashCode ^
+      maxTrackMs.hashCode ^
+      maxTracksPerMember.hashCode ^
+      maxPlaylistTracks.hashCode ^
+      queueLimit.hashCode ^
+      voteSkip.hashCode ^
+      voteSkipPercent.hashCode ^
+      stopAfterEmptyS.hashCode ^
+      disconnectAfterIdleS.hashCode ^
+      bridgeDomain.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is MusicSettingsChanges &&
+          runtimeType == other.runtimeType &&
+          enabled == other.enabled &&
+          enabledSources == other.enabledSources &&
+          defaultSource == other.defaultSource &&
+          allowLinks == other.allowLinks &&
+          allowStreams == other.allowStreams &&
+          maxTrackMs == other.maxTrackMs &&
+          maxTracksPerMember == other.maxTracksPerMember &&
+          maxPlaylistTracks == other.maxPlaylistTracks &&
+          queueLimit == other.queueLimit &&
+          voteSkip == other.voteSkip &&
+          voteSkipPercent == other.voteSkipPercent &&
+          stopAfterEmptyS == other.stopAfterEmptyS &&
+          disconnectAfterIdleS == other.disconnectAfterIdleS &&
+          bridgeDomain == other.bridgeDomain;
 }
 
 /// Domains & network, as the owner sees it (Phase 3 plan §8).

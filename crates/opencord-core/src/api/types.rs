@@ -563,6 +563,8 @@ pub enum CoreEventPayload {
     LavalinkNodeEvent(LavalinkNodeEvent),
     /// A connection test this session started moved on.
     LavalinkTestProgress(LavalinkTestProgress),
+    /// The music settings changed.
+    MusicSettingsUpdate(MusicSettings),
 }
 
 /// Where the server is reached from the internet (Phase 3 plan §5.1).
@@ -894,6 +896,18 @@ pub enum ErrorCode {
     AcmeFailed,
     AcmeRateLimited,
     PortUnreachable,
+    MusicNotConfigured,
+    MusicNodeUnavailable,
+    MusicNotInChannel,
+    MusicBlocked,
+    MusicQueueFull,
+    MusicMemberLimit,
+    MusicTrackTooLong,
+    MusicStreamsNotAllowed,
+    MusicSourceNotAllowed,
+    MusicLinkNotAllowed,
+    /// Another track plays now than the action expected.
+    MusicStale,
     Unknown,
 }
 
@@ -1465,4 +1479,58 @@ pub struct LavalinkTestProgress {
     pub node_id: i64,
     pub steps: Vec<LavalinkTestStep>,
     pub done: bool,
+}
+
+/// Server settings → Music (Phase 3 plan §16.2).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MusicSettings {
+    pub enabled: bool,
+    /// Search sources members may use; empty for every available one.
+    pub enabled_sources: Vec<String>,
+    pub default_source: String,
+    pub allow_links: bool,
+    pub allow_streams: bool,
+    /// 0 for no limit.
+    pub max_track_ms: u64,
+    pub max_tracks_per_member: u32,
+    pub max_playlist_tracks: u32,
+    pub queue_limit: u32,
+    pub vote_skip: bool,
+    pub vote_skip_percent: u32,
+    pub stop_after_empty_s: u32,
+    pub disconnect_after_idle_s: u32,
+    /// "primary", or an active domain with a trusted certificate.
+    pub bridge_domain: String,
+    /// Search sources at least one healthy node offers now.
+    pub available_sources: Vec<String>,
+    /// Music is on in the server's configuration file and runs there.
+    pub supported: bool,
+}
+
+/// Changes to the music settings; what is `None` stays.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct MusicSettingsChanges {
+    pub enabled: Option<bool>,
+    pub enabled_sources: Option<Vec<String>>,
+    pub default_source: Option<String>,
+    pub allow_links: Option<bool>,
+    pub allow_streams: Option<bool>,
+    pub max_track_ms: Option<u64>,
+    pub max_tracks_per_member: Option<u32>,
+    pub max_playlist_tracks: Option<u32>,
+    pub queue_limit: Option<u32>,
+    pub vote_skip: Option<bool>,
+    pub vote_skip_percent: Option<u32>,
+    pub stop_after_empty_s: Option<u32>,
+    pub disconnect_after_idle_s: Option<u32>,
+    pub bridge_domain: Option<String>,
+}
+
+/// A member blocked from music.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MusicBlock {
+    pub user_id: i64,
+    pub reason: String,
+    pub blocked_by: i64,
+    pub created_at_ms: i64,
 }

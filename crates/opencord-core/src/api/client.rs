@@ -16,12 +16,13 @@ use super::types::{
     ChannelChanges, ChannelKind, ChannelPosition, CoreError, CoreEvent, DefaultSound, DomainCheck,
     DomainKind, DomainUpdate, GeneratedIdentity, HotkeyBinding, HotkeySupport, IdentityInfo,
     Invite, LavalinkNodeChanges, LavalinkNodeSettings, LavalinkNodes, MediaEvent, Member, Message,
-    NetworkInfo, NetworkSettingsChanges, NoiseSuppressionMode, OverwriteTargetKind,
-    PermissionOverwrite, PresenceStatus, Role, RoleChanges, ScreenAudioApp, ScreenAudioSupport,
-    ScreenShareRequest, ScreenShareStarted, ScreenSource, ScreenThumbnail, Server, ServerChanges,
-    ServerInfo, SoundDraft, SoundSelection, SoundboardSound, SoundboardSoundChanges,
-    StreamSourceKind, TextureStats, TrustedFingerprint, TunnelKind, User, VideoSupport, VideoWant,
-    VoiceCue, VoiceSettings, VoiceSettingsChanges, VoiceState,
+    MusicBlock, MusicSettings, MusicSettingsChanges, NetworkInfo, NetworkSettingsChanges,
+    NoiseSuppressionMode, OverwriteTargetKind, PermissionOverwrite, PresenceStatus, Role,
+    RoleChanges, ScreenAudioApp, ScreenAudioSupport, ScreenShareRequest, ScreenShareStarted,
+    ScreenSource, ScreenThumbnail, Server, ServerChanges, ServerInfo, SoundDraft, SoundSelection,
+    SoundboardSound, SoundboardSoundChanges, StreamSourceKind, TextureStats, TrustedFingerprint,
+    TunnelKind, User, VideoSupport, VideoWant, VoiceCue, VoiceSettings, VoiceSettingsChanges,
+    VoiceState,
 };
 use crate::client::Client;
 use crate::frb_generated::StreamSink;
@@ -688,6 +689,57 @@ pub async fn delete_lavalink_node(
 pub async fn test_lavalink_node(server_key: String, node_id: i64) -> Result<(), CoreError> {
     on_runtime(move |client| async move { client.test_lavalink_node(&server_key, node_id).await })
         .await
+}
+
+/// Moves the channels on a node now: to `to_node_id`, or each to the best
+/// other node. Needs Manage server.
+pub async fn move_lavalink_players(
+    server_key: String,
+    from_node_id: i64,
+    to_node_id: Option<i64>,
+) -> Result<LavalinkNodes, CoreError> {
+    on_runtime(move |client| async move {
+        client
+            .move_lavalink_players(&server_key, from_node_id, to_node_id)
+            .await
+    })
+    .await
+}
+
+/// The music settings, with the search sources available now.
+pub async fn music_settings(server_key: String) -> Result<MusicSettings, CoreError> {
+    on_runtime(move |client| async move { client.music_settings(&server_key).await }).await
+}
+
+/// Changes the music settings; `None` fields stay. Needs Manage music.
+pub async fn update_music_settings(
+    server_key: String,
+    changes: MusicSettingsChanges,
+) -> Result<MusicSettings, CoreError> {
+    on_runtime(
+        move |client| async move { client.update_music_settings(&server_key, changes).await },
+    )
+    .await
+}
+
+/// Members blocked from music. Needs Manage music.
+pub async fn music_blocks(server_key: String) -> Result<Vec<MusicBlock>, CoreError> {
+    on_runtime(move |client| async move { client.music_blocks(&server_key).await }).await
+}
+
+/// Blocks a member from music, or unblocks them. Needs Manage music.
+pub async fn block_from_music(
+    server_key: String,
+    user_id: i64,
+    blocked: bool,
+    reason: String,
+) -> Result<Vec<MusicBlock>, CoreError> {
+    on_runtime(move |client| async move {
+        client
+            .block_from_music(&server_key, user_id, blocked, reason)
+            .await
+    })
+    .await
 }
 
 /// Joins a voice channel. This device is in at most one voice channel

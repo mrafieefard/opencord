@@ -12,6 +12,7 @@ pub mod identity;
 mod lavalink;
 pub mod media;
 pub mod mirror;
+mod music;
 mod network;
 mod soundboard;
 pub mod store;

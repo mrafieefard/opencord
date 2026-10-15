@@ -3,6 +3,7 @@ import 'package:opencord/core/model/channel.dart';
 import 'package:opencord/core/model/lavalink.dart';
 import 'package:opencord/core/model/message.dart';
 import 'package:opencord/core/model/misc.dart';
+import 'package:opencord/core/model/music.dart';
 import 'package:opencord/core/model/network.dart';
 import 'package:opencord/core/model/permissions.dart';
 import 'package:opencord/core/model/presence.dart';
@@ -73,6 +74,12 @@ class MockServer {
     ),
   );
   final Map<int, String> lavalinkPasswords = {};
+
+  /// Music settings and members blocked from music (Phase 3 plan §16.2).
+  MusicSettings music = const MusicSettings(
+    availableSources: ['youtube_music', 'youtube', 'soundcloud', 'bandcamp'],
+  );
+  final Map<int, MusicBlock> musicBlocks = {};
 
   /// Domains & network, as the owner sees it (Phase 3).
   NetworkInfo network = const NetworkInfo(

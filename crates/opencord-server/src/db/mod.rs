@@ -18,6 +18,7 @@ pub mod lavalink;
 pub mod members;
 pub mod messages;
 pub mod meta;
+pub mod music;
 pub mod roles;
 pub mod sounds;
 pub mod users;

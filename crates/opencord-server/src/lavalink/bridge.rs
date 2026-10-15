@@ -26,11 +26,17 @@ impl BridgeAddress {
     }
 }
 
-/// The bridge domain (`[music] bridge_domain`): the primary domain, or the
-/// one named; without domains, the configured host on the main port, whose
-/// self-signed certificate only a Lavalink that imported it trusts.
+/// The bridge domain (Music settings, first from `[music] bridge_domain`):
+/// the primary domain, or the one named; without domains, the configured
+/// host on the main port, whose self-signed certificate only a Lavalink
+/// that imported it trusts.
 pub fn address(state: &AppState) -> BridgeAddress {
-    let wanted = state.config.music.bridge_domain.trim().to_ascii_lowercase();
+    let wanted = state
+        .music
+        .settings()
+        .bridge_domain
+        .trim()
+        .to_ascii_lowercase();
     let domain = if wanted.is_empty() || wanted == "primary" {
         state.domains.primary()
     } else {

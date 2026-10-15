@@ -22,6 +22,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         // And a Lavalink node's.
         .boxed(".opencord.v1.Event.kind.lavalink_node_status")
         .boxed(".opencord.v1.Response.result.lavalink_nodes")
+        // And music's players and settings.
+        .boxed(".opencord.v1.Event.kind.music_snapshot")
+        .boxed(".opencord.v1.Event.kind.music_settings_update")
+        .boxed(".opencord.v1.Response.result.music_session")
+        .boxed(".opencord.v1.Response.result.music_settings")
         .compile_fds(descriptors)?;
     Ok(())
 }

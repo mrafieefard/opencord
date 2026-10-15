@@ -168,6 +168,7 @@ pub async fn delete(ctx: &Ctx<'_>, request: proto::DeleteChannel) -> Result<Resp
         }
     }
     before.announce(ctx.state, &children);
+    crate::music::end(ctx.state, Some(request.channel_id));
     let afk_cleared = {
         let guild = ctx.state.guild();
         (guild.voice_settings.afk_channel_id == Some(request.channel_id)).then(|| VoiceSettings {

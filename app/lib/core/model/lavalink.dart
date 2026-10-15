@@ -157,6 +157,26 @@ class LavalinkNode {
 
   bool get connected => connectedSince != null;
 
+  /// The same node, playing for [channels] Opencord channels.
+  LavalinkNode copyWithChannels(int channels) => LavalinkNode(
+    id: id,
+    settings: settings,
+    draining: draining,
+    health: health,
+    reason: reason,
+    version: version,
+    sources: sources,
+    plugins: plugins,
+    channels: channels,
+    players: players,
+    playingPlayers: playingPlayers,
+    cpuPercent: cpuPercent,
+    pingMs: pingMs,
+    lastError: lastError,
+    connectedSince: connectedSince,
+    recovering: recovering,
+  );
+
   @override
   bool operator ==(Object other) =>
       other is LavalinkNode &&
@@ -348,12 +368,16 @@ class LavalinkNodes {
     channelsPlaying: channelsPlaying ?? this.channelsPlaying,
   );
 
-  LavalinkNodes withEvent(LavalinkNodeEvent event) => LavalinkNodes(
-    nodes: nodes,
-    bridge: bridge,
-    events: [event, ...events].take(lavalinkEventsKept).toList(),
-    channelsPlaying: channelsPlaying,
-  );
+  /// With [event] first; an event a reply already brought is not added
+  /// twice when it also arrives on its own.
+  LavalinkNodes withEvent(LavalinkNodeEvent event) => events.contains(event)
+      ? this
+      : LavalinkNodes(
+          nodes: nodes,
+          bridge: bridge,
+          events: [event, ...events].take(lavalinkEventsKept).toList(),
+          channelsPlaying: channelsPlaying,
+        );
 
   @override
   bool operator ==(Object other) =>

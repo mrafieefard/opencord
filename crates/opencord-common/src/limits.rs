@@ -67,6 +67,26 @@ pub const STREAM_CREATE_RATE: RateLimit = RateLimit {
     period: Duration::from_secs(60),
 };
 
+// Music (Phase 3 plan §18.1).
+
+/// Music searches per user.
+pub const MUSIC_SEARCH_RATE: RateLimit = RateLimit {
+    burst: 10,
+    period: Duration::from_secs(10),
+};
+
+/// Tracks added to queues, per user.
+pub const MUSIC_ENQUEUE_RATE: RateLimit = RateLimit {
+    burst: 10,
+    period: Duration::from_secs(10),
+};
+
+/// Playback and queue changes per user.
+pub const MUSIC_CONTROL_RATE: RateLimit = RateLimit {
+    burst: 20,
+    period: Duration::from_secs(10),
+};
+
 /// How long a voice state outlives a dropped gateway connection.
 pub const VOICE_GRACE_PERIOD: Duration = Duration::from_secs(30);
 pub const VOICE_TOKEN_LIFETIME: Duration = Duration::from_secs(60);

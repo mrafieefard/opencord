@@ -206,7 +206,7 @@ async fn bridge_step(
             },
             message = socket.next() => match message {
                 Some(Ok(Message::Text(text))) => {
-                    if let Op::Event { guild_id, value } = client::parse_op(text.as_str())
+                    if let Op::Player { guild_id, value } = client::parse_op(text.as_str())
                         && guild_id == channel_id
                         && value["type"] == "WebSocketClosedEvent"
                     {

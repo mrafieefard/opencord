@@ -287,6 +287,63 @@ impl Rest {
         .await
         .map(drop)
     }
+
+    /// A player, or `None` when the session has none for that guild.
+    pub async fn player(&self, session_id: &str, guild_id: i64) -> Result<Option<Value>, Failure> {
+        match self
+            .call(
+                reqwest::Method::GET,
+                &format!("/v4/sessions/{session_id}/players/{guild_id}"),
+                None,
+            )
+            .await
+        {
+            Ok(player) => Ok(Some(player)),
+            Err(Failure::Other(text)) if text.contains("Player not found") => Ok(None),
+            Err(failure) => Err(failure),
+        }
+    }
+
+    /// The guilds the session has players for.
+    pub async fn player_guilds(&self, session_id: &str) -> Result<Vec<i64>, Failure> {
+        let players = self
+            .call(
+                reqwest::Method::GET,
+                &format!("/v4/sessions/{session_id}/players"),
+                None,
+            )
+            .await?;
+        Ok(players
+            .as_array()
+            .map(|players| {
+                players
+                    .iter()
+                    .filter_map(|player| player["guildId"].as_str()?.parse().ok())
+                    .collect()
+            })
+            .unwrap_or_default())
+    }
+
+    /// `GET /v4/loadtracks`: a track, a playlist, search results, nothing,
+    /// or Lavalink's error.
+    pub async fn load_tracks(&self, identifier: &str) -> Result<Value, Failure> {
+        let mut query = url_encode(identifier);
+        query.insert_str(0, "/v4/loadtracks?identifier=");
+        self.call(reqwest::Method::GET, &query, None).await
+    }
+}
+
+/// Percent-encodes a query value.
+fn url_encode(text: &str) -> String {
+    let mut out = String::with_capacity(text.len());
+    for byte in text.bytes() {
+        if byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_' | b'.' | b'~') {
+            out.push(char::from(byte));
+        } else {
+            out.push_str(&format!("%{byte:02X}"));
+        }
+    }
+    out
 }
 
 /// A request that never got an answer, in words.
@@ -465,7 +522,11 @@ async fn connect_inner(endpoint: &Endpoint, resume: Option<&str>) -> Result<Conn
 #[derive(Debug, Clone, PartialEq)]
 pub enum Op {
     Stats(Load),
-    Event { guild_id: i64, value: Value },
+    /// A player's event or position.
+    Player {
+        guild_id: i64,
+        value: Value,
+    },
     Other,
 }
 
@@ -482,8 +543,8 @@ pub fn parse_op(text: &str) -> Op {
         Some("stats") => serde_json::from_value::<RawStats>(value.clone())
             .map(|raw| Op::Stats(raw.into()))
             .unwrap_or(Op::Other),
-        Some("event") => match guild_id() {
-            Some(guild_id) => Op::Event { guild_id, value },
+        Some("event" | "playerUpdate") => match guild_id() {
+            Some(guild_id) => Op::Player { guild_id, value },
             None => Op::Other,
         },
         _ => Op::Other,
@@ -567,7 +628,7 @@ mod tests {
         assert!((load.system_load - 0.5).abs() < f64::EPSILON);
         assert_eq!(load.frames.unwrap().deficit, -5);
         let event = r#"{"op":"event","type":"WebSocketClosedEvent","guildId":"42","code":4006}"#;
-        assert!(matches!(parse_op(event), Op::Event { guild_id: 42, .. }));
+        assert!(matches!(parse_op(event), Op::Player { guild_id: 42, .. }));
         assert_eq!(parse_op(r#"{"op":"ready"}"#), Op::Other);
     }
 }

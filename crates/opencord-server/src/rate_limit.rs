@@ -7,8 +7,8 @@ use std::time::Duration;
 use governor::clock::{Clock, DefaultClock};
 use governor::{DefaultKeyedRateLimiter, Quota};
 use opencord_common::limits::{
-    IDENTIFY_RATE, MESSAGE_RATE, REQUEST_RATE, RateLimit, STREAM_CREATE_RATE, VOICE_NODE_RATE,
-    VOICE_STATE_RATE,
+    IDENTIFY_RATE, MESSAGE_RATE, MUSIC_CONTROL_RATE, MUSIC_ENQUEUE_RATE, MUSIC_SEARCH_RATE,
+    REQUEST_RATE, RateLimit, STREAM_CREATE_RATE, VOICE_NODE_RATE, VOICE_STATE_RATE,
 };
 use opencord_common::sound::EXTERNAL_UPLOAD_RATE;
 
@@ -21,6 +21,7 @@ pub struct RateLimits {
     voice_nodes: DefaultKeyedRateLimiter<IpAddr>,
     streams: DefaultKeyedRateLimiter<i64>,
     external_sounds: DefaultKeyedRateLimiter<i64>,
+    music: [DefaultKeyedRateLimiter<i64>; 3],
     clock: DefaultClock,
 }
 
@@ -46,6 +47,8 @@ impl RateLimits {
             voice_nodes: DefaultKeyedRateLimiter::keyed(quota(VOICE_NODE_RATE)),
             streams: DefaultKeyedRateLimiter::keyed(quota(STREAM_CREATE_RATE)),
             external_sounds: DefaultKeyedRateLimiter::keyed(quota(EXTERNAL_UPLOAD_RATE)),
+            music: [MUSIC_SEARCH_RATE, MUSIC_ENQUEUE_RATE, MUSIC_CONTROL_RATE]
+                .map(|limit| DefaultKeyedRateLimiter::keyed(quota(limit))),
             clock: DefaultClock::default(),
         }
     }
@@ -94,6 +97,14 @@ impl RateLimits {
             .map_err(|not_until| not_until.wait_time_from(self.clock.now()))
     }
 
+    /// Music searches, additions, and playback and queue changes (plan
+    /// §18.1).
+    pub fn check_music(&self, kind: MusicLimit, user_id: i64) -> Result<(), Duration> {
+        self.music[kind as usize]
+            .check_key(&user_id)
+            .map_err(|not_until| not_until.wait_time_from(self.clock.now()))
+    }
+
     /// Forgets keys whose limits have fully recovered.
     pub fn prune(&self) {
         self.identify.retain_recent();
@@ -103,7 +114,18 @@ impl RateLimits {
         self.voice_nodes.retain_recent();
         self.streams.retain_recent();
         self.external_sounds.retain_recent();
+        for limiter in &self.music {
+            limiter.retain_recent();
+        }
     }
+}
+
+/// Which music limit a request counts toward.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MusicLimit {
+    Search = 0,
+    Enqueue = 1,
+    Control = 2,
 }
 
 fn quota(limit: RateLimit) -> Quota {

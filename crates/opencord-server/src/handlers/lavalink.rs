@@ -51,10 +51,32 @@ pub async fn delete(
     request: &proto::DeleteLavalinkNode,
 ) -> Result<Response, ApiError> {
     require_manage_server(ctx)?;
+    if ctx.state.lavalink.node(request.node_id).is_none() {
+        return Err(ApiError::not_found("Lavalink node"));
+    }
+    // Its channels play elsewhere first (plan §12.7).
+    crate::music::move_players(ctx.state, request.node_id, None).await;
     ctx.state
         .lavalink
         .delete(ctx.state, request.node_id)
         .await?;
+    Ok(nodes(ctx))
+}
+
+/// Moves the channels on a node now (plan §12.7, maintenance).
+pub async fn move_players(
+    ctx: &Ctx<'_>,
+    request: &proto::MoveLavalinkPlayers,
+) -> Result<Response, ApiError> {
+    require_manage_server(ctx)?;
+    let known = |id: i64| ctx.state.lavalink.node(id).is_some();
+    if !known(request.from_node_id) || request.to_node_id.is_some_and(|to| !known(to)) {
+        return Err(ApiError::not_found("Lavalink node"));
+    }
+    if request.to_node_id == Some(request.from_node_id) {
+        return Err(ApiError::invalid_argument("pick another node to move to"));
+    }
+    crate::music::move_players(ctx.state, request.from_node_id, request.to_node_id).await;
     Ok(nodes(ctx))
 }
 

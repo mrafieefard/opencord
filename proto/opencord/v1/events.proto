@@ -62,6 +62,14 @@ message Event {
     LavalinkNodeEvent lavalink_node_event = 91;
     // To the session that started the test.
     LavalinkTestProgress lavalink_test_progress = 92;
+    // To a channel's subscribers: users connected to it, and sessions that
+    // subscribed.
+    MusicSnapshot music_snapshot = 93;
+    MusicNotice music_notice = 94;
+    // To everyone who can see the channel.
+    MusicNowPlaying music_now_playing = 95;
+    // To everyone.
+    MusicSettingsUpdate music_settings_update = 96;
   }
 }
 

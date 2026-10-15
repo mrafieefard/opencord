@@ -115,6 +115,7 @@ pub async fn start(config: Config) -> anyhow::Result<ServerHandle> {
     if let Some(events) = bridge_events {
         music::watch_bridge(&state, events);
     }
+    music::start(&state).await?;
     crate::lavalink::start(&state).await?;
     if let Some(mut events) = node_events {
         let state = Arc::clone(&state);
@@ -186,6 +187,7 @@ impl ServerHandle {
         if let Some(node) = self.state.voice_nodes.embedded() {
             node.shutdown();
         }
+        self.state.music.save_all().await;
         if let Some(bridge) = &self.state.music_bridge {
             bridge.shutdown();
         }
