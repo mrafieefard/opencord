@@ -39,7 +39,7 @@ flutter_rust_bridge::frb_generated_boilerplate!(
     default_rust_auto_opaque = RustAutoOpaqueMoi,
 );
 pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_VERSION: &str = "2.13.0";
-pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -89563116;
+pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -1273243125;
 
 // Section: executor
 
@@ -852,6 +852,43 @@ fn wire__crate__api__client__delete_role_impl(
         },
     )
 }
+fn wire__crate__api__client__detect_public_address_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::SseCodec, _, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "detect_public_address",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_server_key = <String>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| async move {
+                transform_result_sse::<_, crate::api::types::CoreError>(
+                    (move || async move {
+                        let output_ok =
+                            crate::api::client::detect_public_address(api_server_key).await?;
+                        std::result::Result::Ok(output_ok)
+                    })()
+                    .await,
+                )
+            }
+        },
+    )
+}
 fn wire__crate__api__client__edit_message_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
@@ -1373,6 +1410,39 @@ fn wire__crate__api__client__media_event_stream_impl(
             move |context| {
                 transform_result_sse::<_, crate::api::types::CoreError>((move || {
                     let output_ok = crate::api::client::media_event_stream(api_sink)?;
+                    std::result::Result::Ok(output_ok)
+                })())
+            }
+        },
+    )
+}
+fn wire__crate__api__types__network_settings_changes_default_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "network_settings_changes_default",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            deserializer.end();
+            move |context| {
+                transform_result_sse::<_, ()>((move || {
+                    let output_ok =
+                        Ok::<_, ()>(crate::api::types::NetworkSettingsChanges::default())?;
                     std::result::Result::Ok(output_ok)
                 })())
             }
@@ -2144,6 +2214,51 @@ fn wire__crate__api__client__set_channel_overwrite_impl(
         },
     )
 }
+fn wire__crate__api__client__set_public_address_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::SseCodec, _, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "set_public_address",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_server_key = <String>::sse_decode(&mut deserializer);
+            let api_auto_detect = <bool>::sse_decode(&mut deserializer);
+            let api_override_ipv4 = <String>::sse_decode(&mut deserializer);
+            let api_override_ipv6 = <String>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| async move {
+                transform_result_sse::<_, crate::api::types::CoreError>(
+                    (move || async move {
+                        let output_ok = crate::api::client::set_public_address(
+                            api_server_key,
+                            api_auto_detect,
+                            api_override_ipv4,
+                            api_override_ipv6,
+                        )
+                        .await?;
+                        std::result::Result::Ok(output_ok)
+                    })()
+                    .await,
+                )
+            }
+        },
+    )
+}
 fn wire__crate__api__client__settings_get_impl(
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -2865,6 +2980,48 @@ fn wire__crate__api__client__update_channel_impl(
                         let output_ok = crate::api::client::update_channel(
                             api_server_key,
                             api_channel_id,
+                            api_changes,
+                        )
+                        .await?;
+                        std::result::Result::Ok(output_ok)
+                    })()
+                    .await,
+                )
+            }
+        },
+    )
+}
+fn wire__crate__api__client__update_network_settings_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::SseCodec, _, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "update_network_settings",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_server_key = <String>::sse_decode(&mut deserializer);
+            let api_changes =
+                <crate::api::types::NetworkSettingsChanges>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| async move {
+                transform_result_sse::<_, crate::api::types::CoreError>(
+                    (move || async move {
+                        let output_ok = crate::api::client::update_network_settings(
+                            api_server_key,
                             api_changes,
                         )
                         .await?;
@@ -3777,6 +3934,44 @@ fn wire__crate__api__types__voice_settings_changes_default_impl(
         },
     )
 }
+fn wire__crate__api__client__watch_network_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::SseCodec, _, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "watch_network",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_server_key = <String>::sse_decode(&mut deserializer);
+            let api_watch = <bool>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| async move {
+                transform_result_sse::<_, crate::api::types::CoreError>(
+                    (move || async move {
+                        let output_ok =
+                            crate::api::client::watch_network(api_server_key, api_watch).await?;
+                        std::result::Result::Ok(output_ok)
+                    })()
+                    .await,
+                )
+            }
+        },
+    )
+}
 
 // Section: dart2rust
 
@@ -4341,6 +4536,14 @@ impl SseDecode for crate::api::types::CoreEventPayload {
                 let mut var_field0 = <crate::api::types::SoundEffect>::sse_decode(deserializer);
                 return crate::api::types::CoreEventPayload::VoiceChannelEffect(var_field0);
             }
+            28 => {
+                let mut var_field0 = <crate::api::types::NetworkInfo>::sse_decode(deserializer);
+                return crate::api::types::CoreEventPayload::NetworkStatus(var_field0);
+            }
+            29 => {
+                let mut var_field0 = <crate::api::types::ServerNotice>::sse_decode(deserializer);
+                return crate::api::types::CoreEventPayload::ServerNotice(var_field0);
+            }
             _ => {
                 unimplemented!("");
             }
@@ -4525,6 +4728,18 @@ impl SseDecode for crate::api::types::Invite {
     }
 }
 
+impl SseDecode for Vec<String> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut len_ = <i32>::sse_decode(deserializer);
+        let mut ans_ = Vec::with_capacity(len_ as usize);
+        for idx_ in 0..len_ {
+            ans_.push(<String>::sse_decode(deserializer));
+        }
+        return ans_;
+    }
+}
+
 impl SseDecode for Vec<crate::api::types::AudioDevice> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -4670,6 +4885,18 @@ impl SseDecode for Vec<crate::api::types::PermissionOverwrite> {
             ans_.push(<crate::api::types::PermissionOverwrite>::sse_decode(
                 deserializer,
             ));
+        }
+        return ans_;
+    }
+}
+
+impl SseDecode for Vec<crate::api::types::PortStatus> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut len_ = <i32>::sse_decode(deserializer);
+        let mut ans_ = Vec::with_capacity(len_ as usize);
+        for idx_ in 0..len_ {
+            ans_.push(<crate::api::types::PortStatus>::sse_decode(deserializer));
         }
         return ans_;
     }
@@ -4851,6 +5078,19 @@ impl SseDecode for Vec<crate::api::types::VoiceState> {
     }
 }
 
+impl SseDecode for crate::api::types::MappingState {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut inner = <i32>::sse_decode(deserializer);
+        return match inner {
+            0 => crate::api::types::MappingState::NotUsed,
+            1 => crate::api::types::MappingState::Mapped,
+            2 => crate::api::types::MappingState::Failed,
+            _ => unreachable!("Invalid variant for MappingState: {}", inner),
+        };
+    }
+}
+
 impl SseDecode for crate::api::types::MediaEvent {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -5011,6 +5251,70 @@ impl SseDecode for crate::api::types::Message {
     }
 }
 
+impl SseDecode for crate::api::types::NetworkInfo {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_publicAddress = <crate::api::types::PublicAddress>::sse_decode(deserializer);
+        let mut var_ports = <Vec<crate::api::types::PortStatus>>::sse_decode(deserializer);
+        let mut var_settings = <crate::api::types::NetworkSettings>::sse_decode(deserializer);
+        let mut var_listeningPort = <u32>::sse_decode(deserializer);
+        let mut var_nextMainPort = <crate::api::types::PortState>::sse_decode(deserializer);
+        let mut var_upnpGateway = <String>::sse_decode(deserializer);
+        let mut var_upnpExternalIp = <String>::sse_decode(deserializer);
+        let mut var_upnpError = <String>::sse_decode(deserializer);
+        return crate::api::types::NetworkInfo {
+            public_address: var_publicAddress,
+            ports: var_ports,
+            settings: var_settings,
+            listening_port: var_listeningPort,
+            next_main_port: var_nextMainPort,
+            upnp_gateway: var_upnpGateway,
+            upnp_external_ip: var_upnpExternalIp,
+            upnp_error: var_upnpError,
+        };
+    }
+}
+
+impl SseDecode for crate::api::types::NetworkSettings {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_mainPort = <u32>::sse_decode(deserializer);
+        let mut var_upnpEnabled = <bool>::sse_decode(deserializer);
+        let mut var_localListenerPort = <u32>::sse_decode(deserializer);
+        let mut var_trustedProxies = <Vec<String>>::sse_decode(deserializer);
+        let mut var_dnsResolvers = <Vec<String>>::sse_decode(deserializer);
+        let mut var_acmeStaging = <bool>::sse_decode(deserializer);
+        return crate::api::types::NetworkSettings {
+            main_port: var_mainPort,
+            upnp_enabled: var_upnpEnabled,
+            local_listener_port: var_localListenerPort,
+            trusted_proxies: var_trustedProxies,
+            dns_resolvers: var_dnsResolvers,
+            acme_staging: var_acmeStaging,
+        };
+    }
+}
+
+impl SseDecode for crate::api::types::NetworkSettingsChanges {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_mainPort = <Option<u32>>::sse_decode(deserializer);
+        let mut var_upnpEnabled = <Option<bool>>::sse_decode(deserializer);
+        let mut var_localListenerPort = <Option<u32>>::sse_decode(deserializer);
+        let mut var_trustedProxies = <Option<Vec<String>>>::sse_decode(deserializer);
+        let mut var_dnsResolvers = <Option<Vec<String>>>::sse_decode(deserializer);
+        let mut var_acmeStaging = <Option<bool>>::sse_decode(deserializer);
+        return crate::api::types::NetworkSettingsChanges {
+            main_port: var_mainPort,
+            upnp_enabled: var_upnpEnabled,
+            local_listener_port: var_localListenerPort,
+            trusted_proxies: var_trustedProxies,
+            dns_resolvers: var_dnsResolvers,
+            acme_staging: var_acmeStaging,
+        };
+    }
+}
+
 impl SseDecode for crate::api::types::NoiseSuppressionMode {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -5020,6 +5324,18 @@ impl SseDecode for crate::api::types::NoiseSuppressionMode {
             1 => crate::api::types::NoiseSuppressionMode::Standard,
             2 => crate::api::types::NoiseSuppressionMode::High,
             _ => unreachable!("Invalid variant for NoiseSuppressionMode: {}", inner),
+        };
+    }
+}
+
+impl SseDecode for crate::api::types::NoticeSeverity {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut inner = <i32>::sse_decode(deserializer);
+        return match inner {
+            0 => crate::api::types::NoticeSeverity::Info,
+            1 => crate::api::types::NoticeSeverity::Warning,
+            _ => unreachable!("Invalid variant for NoticeSeverity: {}", inner),
         };
     }
 }
@@ -5129,6 +5445,17 @@ impl SseDecode for Option<u32> {
     }
 }
 
+impl SseDecode for Option<Vec<String>> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        if (<bool>::sse_decode(deserializer)) {
+            return Some(<Vec<String>>::sse_decode(deserializer));
+        } else {
+            return None;
+        }
+    }
+}
+
 impl SseDecode for crate::api::types::OverwriteTargetKind {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -5157,6 +5484,69 @@ impl SseDecode for crate::api::types::PermissionOverwrite {
     }
 }
 
+impl SseDecode for crate::api::types::PortProtocol {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut inner = <i32>::sse_decode(deserializer);
+        return match inner {
+            0 => crate::api::types::PortProtocol::Tcp,
+            1 => crate::api::types::PortProtocol::Udp,
+            _ => unreachable!("Invalid variant for PortProtocol: {}", inner),
+        };
+    }
+}
+
+impl SseDecode for crate::api::types::PortPurpose {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut inner = <i32>::sse_decode(deserializer);
+        return match inner {
+            0 => crate::api::types::PortPurpose::Main,
+            1 => crate::api::types::PortPurpose::Voice,
+            2 => crate::api::types::PortPurpose::Music,
+            3 => crate::api::types::PortPurpose::AcmeHttp,
+            4 => crate::api::types::PortPurpose::LocalProxy,
+            _ => unreachable!("Invalid variant for PortPurpose: {}", inner),
+        };
+    }
+}
+
+impl SseDecode for crate::api::types::PortState {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut inner = <i32>::sse_decode(deserializer);
+        return match inner {
+            0 => crate::api::types::PortState::Unknown,
+            1 => crate::api::types::PortState::Listening,
+            2 => crate::api::types::PortState::Off,
+            3 => crate::api::types::PortState::Free,
+            4 => crate::api::types::PortState::InUse,
+            5 => crate::api::types::PortState::NotPermitted,
+            _ => unreachable!("Invalid variant for PortState: {}", inner),
+        };
+    }
+}
+
+impl SseDecode for crate::api::types::PortStatus {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_purpose = <crate::api::types::PortPurpose>::sse_decode(deserializer);
+        let mut var_protocol = <crate::api::types::PortProtocol>::sse_decode(deserializer);
+        let mut var_port = <u32>::sse_decode(deserializer);
+        let mut var_state = <crate::api::types::PortState>::sse_decode(deserializer);
+        let mut var_mapping = <crate::api::types::MappingState>::sse_decode(deserializer);
+        let mut var_mappingError = <String>::sse_decode(deserializer);
+        return crate::api::types::PortStatus {
+            purpose: var_purpose,
+            protocol: var_protocol,
+            port: var_port,
+            state: var_state,
+            mapping: var_mapping,
+            mapping_error: var_mappingError,
+        };
+    }
+}
+
 impl SseDecode for crate::api::types::Presence {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -5179,6 +5569,34 @@ impl SseDecode for crate::api::types::PresenceStatus {
             2 => crate::api::types::PresenceStatus::Dnd,
             3 => crate::api::types::PresenceStatus::Offline,
             _ => unreachable!("Invalid variant for PresenceStatus: {}", inner),
+        };
+    }
+}
+
+impl SseDecode for crate::api::types::PublicAddress {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_ipv4 = <String>::sse_decode(deserializer);
+        let mut var_ipv6 = <String>::sse_decode(deserializer);
+        let mut var_detectedIpv4 = <String>::sse_decode(deserializer);
+        let mut var_detectedIpv6 = <String>::sse_decode(deserializer);
+        let mut var_overrideIpv4 = <String>::sse_decode(deserializer);
+        let mut var_overrideIpv6 = <String>::sse_decode(deserializer);
+        let mut var_autoDetect = <bool>::sse_decode(deserializer);
+        let mut var_detectedAtMs = <i64>::sse_decode(deserializer);
+        let mut var_detectError = <String>::sse_decode(deserializer);
+        let mut var_hasIpv6 = <bool>::sse_decode(deserializer);
+        return crate::api::types::PublicAddress {
+            ipv4: var_ipv4,
+            ipv6: var_ipv6,
+            detected_ipv4: var_detectedIpv4,
+            detected_ipv6: var_detectedIpv6,
+            override_ipv4: var_overrideIpv4,
+            override_ipv6: var_overrideIpv6,
+            auto_detect: var_autoDetect,
+            detected_at_ms: var_detectedAtMs,
+            detect_error: var_detectError,
+            has_ipv6: var_hasIpv6,
         };
     }
 }
@@ -5458,6 +5876,22 @@ impl SseDecode for crate::api::types::ServerInfo {
             owner_id: var_ownerId,
             open_join: var_openJoin,
             everyone_role_id: var_everyoneRoleId,
+        };
+    }
+}
+
+impl SseDecode for crate::api::types::ServerNotice {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_key = <String>::sse_decode(deserializer);
+        let mut var_severity = <crate::api::types::NoticeSeverity>::sse_decode(deserializer);
+        let mut var_title = <String>::sse_decode(deserializer);
+        let mut var_body = <String>::sse_decode(deserializer);
+        return crate::api::types::ServerNotice {
+            key: var_key,
+            severity: var_severity,
+            title: var_title,
+            body: var_body,
         };
     }
 }
@@ -5919,98 +6353,115 @@ fn pde_ffi_dispatcher_primary_impl(
         ),
         21 => wire__crate__api__client__delete_message_impl(port, ptr, rust_vec_len, data_len),
         22 => wire__crate__api__client__delete_role_impl(port, ptr, rust_vec_len, data_len),
-        23 => wire__crate__api__client__edit_message_impl(port, ptr, rust_vec_len, data_len),
-        24 => wire__crate__api__client__event_stream_impl(port, ptr, rust_vec_len, data_len),
-        25 => wire__crate__api__client__fetch_bans_impl(port, ptr, rust_vec_len, data_len),
-        26 => wire__crate__api__client__fetch_invites_impl(port, ptr, rust_vec_len, data_len),
-        27 => wire__crate__api__client__fetch_messages_impl(port, ptr, rust_vec_len, data_len),
-        28 => wire__crate__api__client__hotkeys_set_impl(port, ptr, rust_vec_len, data_len),
-        35 => wire__crate__api__system__init_app_impl(port, ptr, rust_vec_len, data_len),
-        36 => wire__crate__api__client__kick_member_impl(port, ptr, rust_vec_len, data_len),
-        37 => wire__crate__api__client__media_event_stream_impl(port, ptr, rust_vec_len, data_len),
-        39 => wire__crate__api__client__remove_member_role_impl(port, ptr, rust_vec_len, data_len),
-        40 => wire__crate__api__client__reorder_channels_impl(port, ptr, rust_vec_len, data_len),
-        41 => wire__crate__api__client__reorder_roles_impl(port, ptr, rust_vec_len, data_len),
-        42 => wire__crate__api__client__revoke_invite_impl(port, ptr, rust_vec_len, data_len),
-        43 => wire__crate__api__types__role_changes_default_impl(port, ptr, rust_vec_len, data_len),
-        44 => wire__crate__api__client__screen_audio_apps_impl(port, ptr, rust_vec_len, data_len),
-        45 => {
+        23 => {
+            wire__crate__api__client__detect_public_address_impl(port, ptr, rust_vec_len, data_len)
+        }
+        24 => wire__crate__api__client__edit_message_impl(port, ptr, rust_vec_len, data_len),
+        25 => wire__crate__api__client__event_stream_impl(port, ptr, rust_vec_len, data_len),
+        26 => wire__crate__api__client__fetch_bans_impl(port, ptr, rust_vec_len, data_len),
+        27 => wire__crate__api__client__fetch_invites_impl(port, ptr, rust_vec_len, data_len),
+        28 => wire__crate__api__client__fetch_messages_impl(port, ptr, rust_vec_len, data_len),
+        29 => wire__crate__api__client__hotkeys_set_impl(port, ptr, rust_vec_len, data_len),
+        36 => wire__crate__api__system__init_app_impl(port, ptr, rust_vec_len, data_len),
+        37 => wire__crate__api__client__kick_member_impl(port, ptr, rust_vec_len, data_len),
+        38 => wire__crate__api__client__media_event_stream_impl(port, ptr, rust_vec_len, data_len),
+        39 => wire__crate__api__types__network_settings_changes_default_impl(
+            port,
+            ptr,
+            rust_vec_len,
+            data_len,
+        ),
+        41 => wire__crate__api__client__remove_member_role_impl(port, ptr, rust_vec_len, data_len),
+        42 => wire__crate__api__client__reorder_channels_impl(port, ptr, rust_vec_len, data_len),
+        43 => wire__crate__api__client__reorder_roles_impl(port, ptr, rust_vec_len, data_len),
+        44 => wire__crate__api__client__revoke_invite_impl(port, ptr, rust_vec_len, data_len),
+        45 => wire__crate__api__types__role_changes_default_impl(port, ptr, rust_vec_len, data_len),
+        46 => wire__crate__api__client__screen_audio_apps_impl(port, ptr, rust_vec_len, data_len),
+        47 => {
             wire__crate__api__client__screen_audio_support_impl(port, ptr, rust_vec_len, data_len)
         }
-        47 => wire__crate__api__client__screen_share_start_impl(port, ptr, rust_vec_len, data_len),
-        48 => wire__crate__api__client__screen_share_stop_impl(port, ptr, rust_vec_len, data_len),
-        49 => wire__crate__api__client__screen_share_update_impl(port, ptr, rust_vec_len, data_len),
-        50 => wire__crate__api__client__screen_sources_impl(port, ptr, rust_vec_len, data_len),
-        51 => wire__crate__api__client__send_message_impl(port, ptr, rust_vec_len, data_len),
-        52 => wire__crate__api__client__server_add_impl(port, ptr, rust_vec_len, data_len),
-        53 => {
+        49 => wire__crate__api__client__screen_share_start_impl(port, ptr, rust_vec_len, data_len),
+        50 => wire__crate__api__client__screen_share_stop_impl(port, ptr, rust_vec_len, data_len),
+        51 => wire__crate__api__client__screen_share_update_impl(port, ptr, rust_vec_len, data_len),
+        52 => wire__crate__api__client__screen_sources_impl(port, ptr, rust_vec_len, data_len),
+        53 => wire__crate__api__client__send_message_impl(port, ptr, rust_vec_len, data_len),
+        54 => wire__crate__api__client__server_add_impl(port, ptr, rust_vec_len, data_len),
+        55 => {
             wire__crate__api__types__server_changes_default_impl(port, ptr, rust_vec_len, data_len)
         }
-        54 => wire__crate__api__client__server_remove_impl(port, ptr, rust_vec_len, data_len),
-        55 => wire__crate__api__client__server_retry_now_impl(port, ptr, rust_vec_len, data_len),
-        58 => {
+        56 => wire__crate__api__client__server_remove_impl(port, ptr, rust_vec_len, data_len),
+        57 => wire__crate__api__client__server_retry_now_impl(port, ptr, rust_vec_len, data_len),
+        60 => {
             wire__crate__api__client__set_channel_overwrite_impl(port, ptr, rust_vec_len, data_len)
         }
-        63 => wire__crate__api__client__soundboard_delete_sound_impl(
+        61 => wire__crate__api__client__set_public_address_impl(port, ptr, rust_vec_len, data_len),
+        66 => wire__crate__api__client__soundboard_delete_sound_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        65 => {
+        68 => {
             wire__crate__api__client__soundboard_open_draft_impl(port, ptr, rust_vec_len, data_len)
         }
-        66 => wire__crate__api__client__soundboard_play_impl(port, ptr, rust_vec_len, data_len),
-        67 => wire__crate__api__client__soundboard_preview_impl(port, ptr, rust_vec_len, data_len),
-        68 => wire__crate__api__client__soundboard_preview_draft_impl(
+        69 => wire__crate__api__client__soundboard_play_impl(port, ptr, rust_vec_len, data_len),
+        70 => wire__crate__api__client__soundboard_preview_impl(port, ptr, rust_vec_len, data_len),
+        71 => wire__crate__api__client__soundboard_preview_draft_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        70 => wire__crate__api__types__soundboard_sound_changes_default_impl(
+        73 => wire__crate__api__types__soundboard_sound_changes_default_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        71 => wire__crate__api__client__soundboard_update_sound_impl(
+        74 => wire__crate__api__client__soundboard_update_sound_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        72 => wire__crate__api__client__soundboard_upload_impl(port, ptr, rust_vec_len, data_len),
-        73 => wire__crate__api__client__start_typing_impl(port, ptr, rust_vec_len, data_len),
-        74 => wire__crate__api__client__stream_unwatch_impl(port, ptr, rust_vec_len, data_len),
-        75 => wire__crate__api__client__stream_watch_impl(port, ptr, rust_vec_len, data_len),
-        77 => wire__crate__api__client__unban_member_impl(port, ptr, rust_vec_len, data_len),
-        78 => wire__crate__api__client__update_channel_impl(port, ptr, rust_vec_len, data_len),
-        79 => wire__crate__api__client__update_nickname_impl(port, ptr, rust_vec_len, data_len),
-        80 => wire__crate__api__client__update_presence_impl(port, ptr, rust_vec_len, data_len),
-        81 => wire__crate__api__client__update_profile_impl(port, ptr, rust_vec_len, data_len),
-        82 => wire__crate__api__client__update_role_impl(port, ptr, rust_vec_len, data_len),
-        83 => wire__crate__api__client__update_server_impl(port, ptr, rust_vec_len, data_len),
-        84 => {
+        75 => wire__crate__api__client__soundboard_upload_impl(port, ptr, rust_vec_len, data_len),
+        76 => wire__crate__api__client__start_typing_impl(port, ptr, rust_vec_len, data_len),
+        77 => wire__crate__api__client__stream_unwatch_impl(port, ptr, rust_vec_len, data_len),
+        78 => wire__crate__api__client__stream_watch_impl(port, ptr, rust_vec_len, data_len),
+        80 => wire__crate__api__client__unban_member_impl(port, ptr, rust_vec_len, data_len),
+        81 => wire__crate__api__client__update_channel_impl(port, ptr, rust_vec_len, data_len),
+        82 => wire__crate__api__client__update_network_settings_impl(
+            port,
+            ptr,
+            rust_vec_len,
+            data_len,
+        ),
+        83 => wire__crate__api__client__update_nickname_impl(port, ptr, rust_vec_len, data_len),
+        84 => wire__crate__api__client__update_presence_impl(port, ptr, rust_vec_len, data_len),
+        85 => wire__crate__api__client__update_profile_impl(port, ptr, rust_vec_len, data_len),
+        86 => wire__crate__api__client__update_role_impl(port, ptr, rust_vec_len, data_len),
+        87 => wire__crate__api__client__update_server_impl(port, ptr, rust_vec_len, data_len),
+        88 => {
             wire__crate__api__client__update_voice_settings_impl(port, ptr, rust_vec_len, data_len)
         }
-        89 => wire__crate__api__client__voice_disconnect_member_impl(
+        93 => wire__crate__api__client__voice_disconnect_member_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        90 => wire__crate__api__client__voice_join_impl(port, ptr, rust_vec_len, data_len),
-        91 => wire__crate__api__client__voice_leave_impl(port, ptr, rust_vec_len, data_len),
-        92 => wire__crate__api__client__voice_move_member_impl(port, ptr, rust_vec_len, data_len),
-        93 => wire__crate__api__client__voice_server_deafen_impl(port, ptr, rust_vec_len, data_len),
-        94 => wire__crate__api__client__voice_server_mute_impl(port, ptr, rust_vec_len, data_len),
-        103 => wire__crate__api__types__voice_settings_changes_default_impl(
+        94 => wire__crate__api__client__voice_join_impl(port, ptr, rust_vec_len, data_len),
+        95 => wire__crate__api__client__voice_leave_impl(port, ptr, rust_vec_len, data_len),
+        96 => wire__crate__api__client__voice_move_member_impl(port, ptr, rust_vec_len, data_len),
+        97 => wire__crate__api__client__voice_server_deafen_impl(port, ptr, rust_vec_len, data_len),
+        98 => wire__crate__api__client__voice_server_mute_impl(port, ptr, rust_vec_len, data_len),
+        107 => wire__crate__api__types__voice_settings_changes_default_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
+        108 => wire__crate__api__client__watch_network_impl(port, ptr, rust_vec_len, data_len),
         _ => unreachable!(),
     }
 }
@@ -6030,39 +6481,39 @@ fn pde_ffi_dispatcher_sync_impl(
         8 => wire__crate__api__client__audio_set_level_meter_impl(ptr, rust_vec_len, data_len),
         13 => wire__crate__api__client__camera_stop_impl(ptr, rust_vec_len, data_len),
         15 => wire__crate__api__system__core_version_impl(ptr, rust_vec_len, data_len),
-        29 => wire__crate__api__client__identity_backup_decode_impl(ptr, rust_vec_len, data_len),
-        30 => wire__crate__api__client__identity_backup_encode_impl(ptr, rust_vec_len, data_len),
-        31 => wire__crate__api__client__identity_check_impl(ptr, rust_vec_len, data_len),
-        32 => wire__crate__api__client__identity_generate_impl(ptr, rust_vec_len, data_len),
-        33 => wire__crate__api__client__identity_load_impl(ptr, rust_vec_len, data_len),
-        34 => wire__crate__api__client__init_impl(ptr, rust_vec_len, data_len),
-        38 => wire__crate__api__client__play_cue_impl(ptr, rust_vec_len, data_len),
-        46 => wire__crate__api__client__screen_share_audio_from_impl(ptr, rust_vec_len, data_len),
-        56 => wire__crate__api__client__server_trust_fingerprint_impl(ptr, rust_vec_len, data_len),
-        57 => wire__crate__api__client__servers_list_impl(ptr, rust_vec_len, data_len),
-        59 => wire__crate__api__client__settings_get_impl(ptr, rust_vec_len, data_len),
-        60 => wire__crate__api__client__settings_set_impl(ptr, rust_vec_len, data_len),
-        61 => wire__crate__api__client__soundboard_close_draft_impl(ptr, rust_vec_len, data_len),
-        62 => wire__crate__api__client__soundboard_default_sounds_impl(ptr, rust_vec_len, data_len),
-        64 => wire__crate__api__client__soundboard_mute_player_impl(ptr, rust_vec_len, data_len),
-        69 => wire__crate__api__client__soundboard_set_listening_impl(ptr, rust_vec_len, data_len),
-        76 => wire__crate__api__client__trusted_fingerprints_impl(ptr, rust_vec_len, data_len),
-        85 => wire__crate__api__client__video_init_impl(ptr, rust_vec_len, data_len),
-        86 => wire__crate__api__client__video_set_wants_impl(ptr, rust_vec_len, data_len),
-        87 => wire__crate__api__client__video_support_impl(ptr, rust_vec_len, data_len),
-        88 => wire__crate__api__client__video_texture_stats_impl(ptr, rust_vec_len, data_len),
-        95 => {
+        30 => wire__crate__api__client__identity_backup_decode_impl(ptr, rust_vec_len, data_len),
+        31 => wire__crate__api__client__identity_backup_encode_impl(ptr, rust_vec_len, data_len),
+        32 => wire__crate__api__client__identity_check_impl(ptr, rust_vec_len, data_len),
+        33 => wire__crate__api__client__identity_generate_impl(ptr, rust_vec_len, data_len),
+        34 => wire__crate__api__client__identity_load_impl(ptr, rust_vec_len, data_len),
+        35 => wire__crate__api__client__init_impl(ptr, rust_vec_len, data_len),
+        40 => wire__crate__api__client__play_cue_impl(ptr, rust_vec_len, data_len),
+        48 => wire__crate__api__client__screen_share_audio_from_impl(ptr, rust_vec_len, data_len),
+        58 => wire__crate__api__client__server_trust_fingerprint_impl(ptr, rust_vec_len, data_len),
+        59 => wire__crate__api__client__servers_list_impl(ptr, rust_vec_len, data_len),
+        62 => wire__crate__api__client__settings_get_impl(ptr, rust_vec_len, data_len),
+        63 => wire__crate__api__client__settings_set_impl(ptr, rust_vec_len, data_len),
+        64 => wire__crate__api__client__soundboard_close_draft_impl(ptr, rust_vec_len, data_len),
+        65 => wire__crate__api__client__soundboard_default_sounds_impl(ptr, rust_vec_len, data_len),
+        67 => wire__crate__api__client__soundboard_mute_player_impl(ptr, rust_vec_len, data_len),
+        72 => wire__crate__api__client__soundboard_set_listening_impl(ptr, rust_vec_len, data_len),
+        79 => wire__crate__api__client__trusted_fingerprints_impl(ptr, rust_vec_len, data_len),
+        89 => wire__crate__api__client__video_init_impl(ptr, rust_vec_len, data_len),
+        90 => wire__crate__api__client__video_set_wants_impl(ptr, rust_vec_len, data_len),
+        91 => wire__crate__api__client__video_support_impl(ptr, rust_vec_len, data_len),
+        92 => wire__crate__api__client__video_texture_stats_impl(ptr, rust_vec_len, data_len),
+        99 => {
             wire__crate__api__client__voice_set_priority_speaker_impl(ptr, rust_vec_len, data_len)
         }
-        96 => wire__crate__api__client__voice_set_push_to_talk_impl(ptr, rust_vec_len, data_len),
-        97 => wire__crate__api__client__voice_set_self_deaf_impl(ptr, rust_vec_len, data_len),
-        98 => wire__crate__api__client__voice_set_self_mute_impl(ptr, rust_vec_len, data_len),
-        99 => wire__crate__api__client__voice_set_stream_mute_impl(ptr, rust_vec_len, data_len),
-        100 => wire__crate__api__client__voice_set_stream_volume_impl(ptr, rust_vec_len, data_len),
-        101 => {
+        100 => wire__crate__api__client__voice_set_push_to_talk_impl(ptr, rust_vec_len, data_len),
+        101 => wire__crate__api__client__voice_set_self_deaf_impl(ptr, rust_vec_len, data_len),
+        102 => wire__crate__api__client__voice_set_self_mute_impl(ptr, rust_vec_len, data_len),
+        103 => wire__crate__api__client__voice_set_stream_mute_impl(ptr, rust_vec_len, data_len),
+        104 => wire__crate__api__client__voice_set_stream_volume_impl(ptr, rust_vec_len, data_len),
+        105 => {
             wire__crate__api__client__voice_set_user_local_mute_impl(ptr, rust_vec_len, data_len)
         }
-        102 => wire__crate__api__client__voice_set_user_volume_impl(ptr, rust_vec_len, data_len),
+        106 => wire__crate__api__client__voice_set_user_volume_impl(ptr, rust_vec_len, data_len),
         _ => unreachable!(),
     }
 }
@@ -6632,6 +7083,12 @@ impl flutter_rust_bridge::IntoDart for crate::api::types::CoreEventPayload {
             crate::api::types::CoreEventPayload::VoiceChannelEffect(field0) => {
                 [27.into_dart(), field0.into_into_dart().into_dart()].into_dart()
             }
+            crate::api::types::CoreEventPayload::NetworkStatus(field0) => {
+                [28.into_dart(), field0.into_into_dart().into_dart()].into_dart()
+            }
+            crate::api::types::CoreEventPayload::ServerNotice(field0) => {
+                [29.into_dart(), field0.into_into_dart().into_dart()].into_dart()
+            }
             _ => {
                 unimplemented!("");
             }
@@ -6872,6 +7329,28 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::types::Invite> for crate::api
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::types::MappingState {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        match self {
+            Self::NotUsed => 0.into_dart(),
+            Self::Mapped => 1.into_dart(),
+            Self::Failed => 2.into_dart(),
+            _ => unreachable!(),
+        }
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::api::types::MappingState
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::types::MappingState>
+    for crate::api::types::MappingState
+{
+    fn into_into_dart(self) -> crate::api::types::MappingState {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
 impl flutter_rust_bridge::IntoDart for crate::api::types::MediaEvent {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         match self {
@@ -7025,6 +7504,83 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::types::Message> for crate::ap
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::types::NetworkInfo {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.public_address.into_into_dart().into_dart(),
+            self.ports.into_into_dart().into_dart(),
+            self.settings.into_into_dart().into_dart(),
+            self.listening_port.into_into_dart().into_dart(),
+            self.next_main_port.into_into_dart().into_dart(),
+            self.upnp_gateway.into_into_dart().into_dart(),
+            self.upnp_external_ip.into_into_dart().into_dart(),
+            self.upnp_error.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::api::types::NetworkInfo
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::types::NetworkInfo>
+    for crate::api::types::NetworkInfo
+{
+    fn into_into_dart(self) -> crate::api::types::NetworkInfo {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::types::NetworkSettings {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.main_port.into_into_dart().into_dart(),
+            self.upnp_enabled.into_into_dart().into_dart(),
+            self.local_listener_port.into_into_dart().into_dart(),
+            self.trusted_proxies.into_into_dart().into_dart(),
+            self.dns_resolvers.into_into_dart().into_dart(),
+            self.acme_staging.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::api::types::NetworkSettings
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::types::NetworkSettings>
+    for crate::api::types::NetworkSettings
+{
+    fn into_into_dart(self) -> crate::api::types::NetworkSettings {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::types::NetworkSettingsChanges {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.main_port.into_into_dart().into_dart(),
+            self.upnp_enabled.into_into_dart().into_dart(),
+            self.local_listener_port.into_into_dart().into_dart(),
+            self.trusted_proxies.into_into_dart().into_dart(),
+            self.dns_resolvers.into_into_dart().into_dart(),
+            self.acme_staging.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::api::types::NetworkSettingsChanges
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::types::NetworkSettingsChanges>
+    for crate::api::types::NetworkSettingsChanges
+{
+    fn into_into_dart(self) -> crate::api::types::NetworkSettingsChanges {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
 impl flutter_rust_bridge::IntoDart for crate::api::types::NoiseSuppressionMode {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         match self {
@@ -7043,6 +7599,27 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::types::NoiseSuppressionMode>
     for crate::api::types::NoiseSuppressionMode
 {
     fn into_into_dart(self) -> crate::api::types::NoiseSuppressionMode {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::types::NoticeSeverity {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        match self {
+            Self::Info => 0.into_dart(),
+            Self::Warning => 1.into_dart(),
+            _ => unreachable!(),
+        }
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::api::types::NoticeSeverity
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::types::NoticeSeverity>
+    for crate::api::types::NoticeSeverity
+{
+    fn into_into_dart(self) -> crate::api::types::NoticeSeverity {
         self
     }
 }
@@ -7091,6 +7668,95 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::types::PermissionOverwrite>
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::types::PortProtocol {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        match self {
+            Self::Tcp => 0.into_dart(),
+            Self::Udp => 1.into_dart(),
+            _ => unreachable!(),
+        }
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::api::types::PortProtocol
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::types::PortProtocol>
+    for crate::api::types::PortProtocol
+{
+    fn into_into_dart(self) -> crate::api::types::PortProtocol {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::types::PortPurpose {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        match self {
+            Self::Main => 0.into_dart(),
+            Self::Voice => 1.into_dart(),
+            Self::Music => 2.into_dart(),
+            Self::AcmeHttp => 3.into_dart(),
+            Self::LocalProxy => 4.into_dart(),
+            _ => unreachable!(),
+        }
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::api::types::PortPurpose
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::types::PortPurpose>
+    for crate::api::types::PortPurpose
+{
+    fn into_into_dart(self) -> crate::api::types::PortPurpose {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::types::PortState {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        match self {
+            Self::Unknown => 0.into_dart(),
+            Self::Listening => 1.into_dart(),
+            Self::Off => 2.into_dart(),
+            Self::Free => 3.into_dart(),
+            Self::InUse => 4.into_dart(),
+            Self::NotPermitted => 5.into_dart(),
+            _ => unreachable!(),
+        }
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive for crate::api::types::PortState {}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::types::PortState>
+    for crate::api::types::PortState
+{
+    fn into_into_dart(self) -> crate::api::types::PortState {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::types::PortStatus {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.purpose.into_into_dart().into_dart(),
+            self.protocol.into_into_dart().into_dart(),
+            self.port.into_into_dart().into_dart(),
+            self.state.into_into_dart().into_dart(),
+            self.mapping.into_into_dart().into_dart(),
+            self.mapping_error.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive for crate::api::types::PortStatus {}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::types::PortStatus>
+    for crate::api::types::PortStatus
+{
+    fn into_into_dart(self) -> crate::api::types::PortStatus {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
 impl flutter_rust_bridge::IntoDart for crate::api::types::Presence {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
@@ -7128,6 +7794,35 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::types::PresenceStatus>
     for crate::api::types::PresenceStatus
 {
     fn into_into_dart(self) -> crate::api::types::PresenceStatus {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::types::PublicAddress {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.ipv4.into_into_dart().into_dart(),
+            self.ipv6.into_into_dart().into_dart(),
+            self.detected_ipv4.into_into_dart().into_dart(),
+            self.detected_ipv6.into_into_dart().into_dart(),
+            self.override_ipv4.into_into_dart().into_dart(),
+            self.override_ipv6.into_into_dart().into_dart(),
+            self.auto_detect.into_into_dart().into_dart(),
+            self.detected_at_ms.into_into_dart().into_dart(),
+            self.detect_error.into_into_dart().into_dart(),
+            self.has_ipv6.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::api::types::PublicAddress
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::types::PublicAddress>
+    for crate::api::types::PublicAddress
+{
+    fn into_into_dart(self) -> crate::api::types::PublicAddress {
         self
     }
 }
@@ -7480,6 +8175,29 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::types::ServerInfo>
     for crate::api::types::ServerInfo
 {
     fn into_into_dart(self) -> crate::api::types::ServerInfo {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::types::ServerNotice {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.key.into_into_dart().into_dart(),
+            self.severity.into_into_dart().into_dart(),
+            self.title.into_into_dart().into_dart(),
+            self.body.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::api::types::ServerNotice
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::types::ServerNotice>
+    for crate::api::types::ServerNotice
+{
+    fn into_into_dart(self) -> crate::api::types::ServerNotice {
         self
     }
 }
@@ -8411,6 +9129,14 @@ impl SseEncode for crate::api::types::CoreEventPayload {
                 <i32>::sse_encode(27, serializer);
                 <crate::api::types::SoundEffect>::sse_encode(field0, serializer);
             }
+            crate::api::types::CoreEventPayload::NetworkStatus(field0) => {
+                <i32>::sse_encode(28, serializer);
+                <crate::api::types::NetworkInfo>::sse_encode(field0, serializer);
+            }
+            crate::api::types::CoreEventPayload::ServerNotice(field0) => {
+                <i32>::sse_encode(29, serializer);
+                <crate::api::types::ServerNotice>::sse_encode(field0, serializer);
+            }
             _ => {
                 unimplemented!("");
             }
@@ -8579,6 +9305,16 @@ impl SseEncode for crate::api::types::Invite {
     }
 }
 
+impl SseEncode for Vec<String> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i32>::sse_encode(self.len() as _, serializer);
+        for item in self {
+            <String>::sse_encode(item, serializer);
+        }
+    }
+}
+
 impl SseEncode for Vec<crate::api::types::AudioDevice> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -8695,6 +9431,16 @@ impl SseEncode for Vec<crate::api::types::PermissionOverwrite> {
         <i32>::sse_encode(self.len() as _, serializer);
         for item in self {
             <crate::api::types::PermissionOverwrite>::sse_encode(item, serializer);
+        }
+    }
+}
+
+impl SseEncode for Vec<crate::api::types::PortStatus> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i32>::sse_encode(self.len() as _, serializer);
+        for item in self {
+            <crate::api::types::PortStatus>::sse_encode(item, serializer);
         }
     }
 }
@@ -8839,6 +9585,23 @@ impl SseEncode for Vec<crate::api::types::VoiceState> {
     }
 }
 
+impl SseEncode for crate::api::types::MappingState {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i32>::sse_encode(
+            match self {
+                crate::api::types::MappingState::NotUsed => 0,
+                crate::api::types::MappingState::Mapped => 1,
+                crate::api::types::MappingState::Failed => 2,
+                _ => {
+                    unimplemented!("");
+                }
+            },
+            serializer,
+        );
+    }
+}
+
 impl SseEncode for crate::api::types::MediaEvent {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -8971,6 +9734,44 @@ impl SseEncode for crate::api::types::Message {
     }
 }
 
+impl SseEncode for crate::api::types::NetworkInfo {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <crate::api::types::PublicAddress>::sse_encode(self.public_address, serializer);
+        <Vec<crate::api::types::PortStatus>>::sse_encode(self.ports, serializer);
+        <crate::api::types::NetworkSettings>::sse_encode(self.settings, serializer);
+        <u32>::sse_encode(self.listening_port, serializer);
+        <crate::api::types::PortState>::sse_encode(self.next_main_port, serializer);
+        <String>::sse_encode(self.upnp_gateway, serializer);
+        <String>::sse_encode(self.upnp_external_ip, serializer);
+        <String>::sse_encode(self.upnp_error, serializer);
+    }
+}
+
+impl SseEncode for crate::api::types::NetworkSettings {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <u32>::sse_encode(self.main_port, serializer);
+        <bool>::sse_encode(self.upnp_enabled, serializer);
+        <u32>::sse_encode(self.local_listener_port, serializer);
+        <Vec<String>>::sse_encode(self.trusted_proxies, serializer);
+        <Vec<String>>::sse_encode(self.dns_resolvers, serializer);
+        <bool>::sse_encode(self.acme_staging, serializer);
+    }
+}
+
+impl SseEncode for crate::api::types::NetworkSettingsChanges {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <Option<u32>>::sse_encode(self.main_port, serializer);
+        <Option<bool>>::sse_encode(self.upnp_enabled, serializer);
+        <Option<u32>>::sse_encode(self.local_listener_port, serializer);
+        <Option<Vec<String>>>::sse_encode(self.trusted_proxies, serializer);
+        <Option<Vec<String>>>::sse_encode(self.dns_resolvers, serializer);
+        <Option<bool>>::sse_encode(self.acme_staging, serializer);
+    }
+}
+
 impl SseEncode for crate::api::types::NoiseSuppressionMode {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -8979,6 +9780,22 @@ impl SseEncode for crate::api::types::NoiseSuppressionMode {
                 crate::api::types::NoiseSuppressionMode::Off => 0,
                 crate::api::types::NoiseSuppressionMode::Standard => 1,
                 crate::api::types::NoiseSuppressionMode::High => 2,
+                _ => {
+                    unimplemented!("");
+                }
+            },
+            serializer,
+        );
+    }
+}
+
+impl SseEncode for crate::api::types::NoticeSeverity {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i32>::sse_encode(
+            match self {
+                crate::api::types::NoticeSeverity::Info => 0,
+                crate::api::types::NoticeSeverity::Warning => 1,
                 _ => {
                     unimplemented!("");
                 }
@@ -9078,6 +9895,16 @@ impl SseEncode for Option<u32> {
     }
 }
 
+impl SseEncode for Option<Vec<String>> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <bool>::sse_encode(self.is_some(), serializer);
+        if let Some(value) = self {
+            <Vec<String>>::sse_encode(value, serializer);
+        }
+    }
+}
+
 impl SseEncode for crate::api::types::OverwriteTargetKind {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -9104,6 +9931,73 @@ impl SseEncode for crate::api::types::PermissionOverwrite {
     }
 }
 
+impl SseEncode for crate::api::types::PortProtocol {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i32>::sse_encode(
+            match self {
+                crate::api::types::PortProtocol::Tcp => 0,
+                crate::api::types::PortProtocol::Udp => 1,
+                _ => {
+                    unimplemented!("");
+                }
+            },
+            serializer,
+        );
+    }
+}
+
+impl SseEncode for crate::api::types::PortPurpose {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i32>::sse_encode(
+            match self {
+                crate::api::types::PortPurpose::Main => 0,
+                crate::api::types::PortPurpose::Voice => 1,
+                crate::api::types::PortPurpose::Music => 2,
+                crate::api::types::PortPurpose::AcmeHttp => 3,
+                crate::api::types::PortPurpose::LocalProxy => 4,
+                _ => {
+                    unimplemented!("");
+                }
+            },
+            serializer,
+        );
+    }
+}
+
+impl SseEncode for crate::api::types::PortState {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i32>::sse_encode(
+            match self {
+                crate::api::types::PortState::Unknown => 0,
+                crate::api::types::PortState::Listening => 1,
+                crate::api::types::PortState::Off => 2,
+                crate::api::types::PortState::Free => 3,
+                crate::api::types::PortState::InUse => 4,
+                crate::api::types::PortState::NotPermitted => 5,
+                _ => {
+                    unimplemented!("");
+                }
+            },
+            serializer,
+        );
+    }
+}
+
+impl SseEncode for crate::api::types::PortStatus {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <crate::api::types::PortPurpose>::sse_encode(self.purpose, serializer);
+        <crate::api::types::PortProtocol>::sse_encode(self.protocol, serializer);
+        <u32>::sse_encode(self.port, serializer);
+        <crate::api::types::PortState>::sse_encode(self.state, serializer);
+        <crate::api::types::MappingState>::sse_encode(self.mapping, serializer);
+        <String>::sse_encode(self.mapping_error, serializer);
+    }
+}
+
 impl SseEncode for crate::api::types::Presence {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -9127,6 +10021,22 @@ impl SseEncode for crate::api::types::PresenceStatus {
             },
             serializer,
         );
+    }
+}
+
+impl SseEncode for crate::api::types::PublicAddress {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <String>::sse_encode(self.ipv4, serializer);
+        <String>::sse_encode(self.ipv6, serializer);
+        <String>::sse_encode(self.detected_ipv4, serializer);
+        <String>::sse_encode(self.detected_ipv6, serializer);
+        <String>::sse_encode(self.override_ipv4, serializer);
+        <String>::sse_encode(self.override_ipv6, serializer);
+        <bool>::sse_encode(self.auto_detect, serializer);
+        <i64>::sse_encode(self.detected_at_ms, serializer);
+        <String>::sse_encode(self.detect_error, serializer);
+        <bool>::sse_encode(self.has_ipv6, serializer);
     }
 }
 
@@ -9316,6 +10226,16 @@ impl SseEncode for crate::api::types::ServerInfo {
         <Option<i64>>::sse_encode(self.owner_id, serializer);
         <bool>::sse_encode(self.open_join, serializer);
         <i64>::sse_encode(self.everyone_role_id, serializer);
+    }
+}
+
+impl SseEncode for crate::api::types::ServerNotice {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <String>::sse_encode(self.key, serializer);
+        <crate::api::types::NoticeSeverity>::sse_encode(self.severity, serializer);
+        <String>::sse_encode(self.title, serializer);
+        <String>::sse_encode(self.body, serializer);
     }
 }
 

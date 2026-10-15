@@ -2,6 +2,7 @@ import 'package:opencord/core/model/stream.dart';
 import 'package:opencord/core/model/channel.dart';
 import 'package:opencord/core/model/message.dart';
 import 'package:opencord/core/model/misc.dart';
+import 'package:opencord/core/model/network.dart';
 import 'package:opencord/core/model/permissions.dart';
 import 'package:opencord/core/model/presence.dart';
 import 'package:opencord/core/model/server.dart';
@@ -53,6 +54,47 @@ class MockServer {
   final List<Invite> invites = [];
   final List<Ban> bans = [];
   VoiceSettings voiceSettings = const VoiceSettings();
+
+  /// Domains & network, as the owner sees it (Phase 3).
+  NetworkInfo network = const NetworkInfo(
+    publicAddress: PublicAddress(
+      ipv4: '203.0.113.10',
+      detectedIpv4: '203.0.113.10',
+    ),
+    listeningPort: 7710,
+    ports: [
+      PortStatus(
+        purpose: PortPurpose.main,
+        protocol: PortProtocol.tcp,
+        port: 7710,
+        state: PortState.listening,
+      ),
+      PortStatus(
+        purpose: PortPurpose.voice,
+        protocol: PortProtocol.udp,
+        port: 7711,
+        state: PortState.listening,
+      ),
+      PortStatus(
+        purpose: PortPurpose.music,
+        protocol: PortProtocol.udp,
+        port: 7712,
+        state: PortState.listening,
+      ),
+      PortStatus(
+        purpose: PortPurpose.acmeHttp,
+        protocol: PortProtocol.tcp,
+        port: 80,
+        state: PortState.notPermitted,
+      ),
+      PortStatus(
+        purpose: PortPurpose.localProxy,
+        protocol: PortProtocol.tcp,
+        port: 7719,
+        state: PortState.off,
+      ),
+    ],
+  );
 
   /// The soundboard, by id.
   final Map<int, Sound> sounds = {};

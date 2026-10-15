@@ -17,6 +17,7 @@ import 'package:opencord/core/model/voice.dart';
 import 'package:opencord/core/providers/activity_state.dart';
 import 'package:opencord/core/providers/channel_audience.dart';
 import 'package:opencord/core/providers/messages_state.dart';
+import 'package:opencord/core/providers/network_state.dart';
 import 'package:opencord/core/providers/pins_state.dart';
 import 'package:opencord/core/providers/presence_state.dart';
 import 'package:opencord/core/providers/server_state.dart';
@@ -31,6 +32,7 @@ import 'package:opencord/core/settings/key_value_store.dart';
 export 'package:opencord/core/providers/activity_state.dart';
 export 'package:opencord/core/providers/channel_audience.dart';
 export 'package:opencord/core/providers/messages_state.dart';
+export 'package:opencord/core/providers/network_state.dart';
 export 'package:opencord/core/providers/pins_state.dart';
 export 'package:opencord/core/providers/presence_state.dart';
 export 'package:opencord/core/providers/server_state.dart';
@@ -283,6 +285,15 @@ void _route(Ref ref, RepoEvent event) {
       return;
     case StreamViewersChanged():
       ref.read(ownStreamViewersProvider.notifier).apply(event);
+      return;
+    case NetworkStatusChanged(:final serverKey, :final info):
+      final network = networkProvider(serverKey);
+      if (ref.exists(network)) ref.read(network.notifier).set(info);
+      return;
+    case ServerNoticeReceived(:final notice):
+      ref
+          .read(audioNoticeProvider.notifier)
+          .show('${notice.title}. ${notice.body}');
       return;
     case StreamEnded(:final key):
       ref.read(watchingProvider.notifier).ended(key);

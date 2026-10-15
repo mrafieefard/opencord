@@ -1,6 +1,7 @@
 import 'package:opencord/core/model/channel.dart';
 import 'package:opencord/core/model/message.dart';
 import 'package:opencord/core/model/misc.dart';
+import 'package:opencord/core/model/network.dart';
 import 'package:opencord/core/model/permissions.dart';
 import 'package:opencord/core/model/presence.dart';
 import 'package:opencord/core/model/server.dart';
@@ -151,6 +152,20 @@ final class OwnVoiceChanged extends RepoEvent {
   const OwnVoiceChanged(super.serverKey, this.channelId);
 
   final int? channelId;
+}
+
+/// Domains & network changed, while this device watches it.
+final class NetworkStatusChanged extends RepoEvent {
+  const NetworkStatusChanged(super.serverKey, this.info);
+
+  final NetworkInfo info;
+}
+
+/// Something the owner or admins should know (Phase 3).
+final class ServerNoticeReceived extends RepoEvent {
+  const ServerNoticeReceived(super.serverKey, this.notice);
+
+  final ServerNotice notice;
 }
 
 final class VoiceSettingsChanged extends RepoEvent {

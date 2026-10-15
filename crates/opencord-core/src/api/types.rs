@@ -517,6 +517,125 @@ pub enum CoreEventPayload {
     /// A sound played in a voice channel this device is connected to on
     /// that server.
     VoiceChannelEffect(SoundEffect),
+    /// Domains & network changed, while this session watches it.
+    NetworkStatus(NetworkInfo),
+    ServerNotice(ServerNotice),
+}
+
+/// Where the server is reached from the internet (Phase 3 plan §5.1).
+/// Addresses are empty when unknown.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PublicAddress {
+    /// In use: the override when there is one, else what was detected.
+    pub ipv4: String,
+    pub ipv6: String,
+    pub detected_ipv4: String,
+    pub detected_ipv6: String,
+    pub override_ipv4: String,
+    pub override_ipv6: String,
+    pub auto_detect: bool,
+    /// When detection last succeeded; 0 for never.
+    pub detected_at_ms: i64,
+    /// Why the last detection failed, if it did.
+    pub detect_error: String,
+    pub has_ipv6: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PortPurpose {
+    Main,
+    Voice,
+    Music,
+    AcmeHttp,
+    LocalProxy,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PortProtocol {
+    Tcp,
+    Udp,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PortState {
+    Unknown,
+    Listening,
+    Off,
+    Free,
+    InUse,
+    NotPermitted,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MappingState {
+    NotUsed,
+    Mapped,
+    Failed,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PortStatus {
+    pub purpose: PortPurpose,
+    pub protocol: PortProtocol,
+    pub port: u32,
+    pub state: PortState,
+    pub mapping: MappingState,
+    pub mapping_error: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NetworkSettings {
+    /// The main port from the next start; 0 keeps the configured one.
+    pub main_port: u32,
+    pub upnp_enabled: bool,
+    pub local_listener_port: u32,
+    pub trusted_proxies: Vec<String>,
+    pub dns_resolvers: Vec<String>,
+    pub acme_staging: bool,
+}
+
+/// Absent fields stay unchanged; `main_port` 0 goes back to the configured
+/// port.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct NetworkSettingsChanges {
+    pub main_port: Option<u32>,
+    pub upnp_enabled: Option<bool>,
+    pub local_listener_port: Option<u32>,
+    pub trusted_proxies: Option<Vec<String>>,
+    pub dns_resolvers: Option<Vec<String>>,
+    pub acme_staging: Option<bool>,
+}
+
+/// Domains & network, as the owner sees it (Phase 3 plan §8).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NetworkInfo {
+    pub public_address: PublicAddress,
+    pub ports: Vec<PortStatus>,
+    pub settings: NetworkSettings,
+    /// The main port in use now.
+    pub listening_port: u32,
+    /// Whether `settings.main_port` can be used, when it differs.
+    pub next_main_port: PortState,
+    pub upnp_gateway: String,
+    pub upnp_external_ip: String,
+    pub upnp_error: String,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum NoticeSeverity {
+    Info,
+    Warning,
+}
+
+/// Something the owner or admins should know: the public address changed,
+/// a domain's DNS broke, a certificate is about to expire.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ServerNotice {
+    /// One per subject: a newer notice replaces an older one.
+    pub key: String,
+    pub severity: NoticeSeverity,
+    pub title: String,
+    pub body: String,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

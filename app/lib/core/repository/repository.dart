@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:opencord/core/model/channel.dart';
 import 'package:opencord/core/model/message.dart';
 import 'package:opencord/core/model/misc.dart';
+import 'package:opencord/core/model/network.dart';
 import 'package:opencord/core/model/permissions.dart';
 import 'package:opencord/core/model/presence.dart';
 import 'package:opencord/core/model/server.dart';
@@ -395,6 +396,27 @@ abstract interface class OpencordRepository {
   /// Saves the server's voice, video and soundboard settings (Phase 2
   /// plan §5.2); needs Manage server.
   Future<void> updateVoiceSettings(String serverKey, VoiceSettings settings);
+
+  /// Domains & network (Phase 3 plan §8), the owner's only. While watched,
+  /// changes arrive as [NetworkStatusChanged].
+  Future<NetworkInfo> watchNetwork(String serverKey, {required bool watch});
+
+  /// How the public address is found: detected, or set by hand (an empty
+  /// override is none).
+  Future<NetworkInfo> setPublicAddress(
+    String serverKey, {
+    required bool autoDetect,
+    String overrideIpv4 = '',
+    String overrideIpv6 = '',
+  });
+
+  /// Looks the public address up now.
+  Future<NetworkInfo> detectPublicAddress(String serverKey);
+
+  Future<NetworkInfo> updateNetworkSettings(
+    String serverKey,
+    NetworkSettingsChanges changes,
+  );
 
   Future<void> joinVoice(String serverKey, int channelId);
 

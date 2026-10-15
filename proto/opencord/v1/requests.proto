@@ -4,6 +4,7 @@ syntax = "proto3";
 package opencord.v1;
 
 import "opencord/v1/models.proto";
+import "opencord/v1/network.proto";
 
 message Request {
   oneof kind {
@@ -61,6 +62,12 @@ message Request {
     PlaySoundboardSound play_soundboard_sound = 90;
     UpdateSoundboardSound update_soundboard_sound = 91;
     DeleteSoundboardSound delete_soundboard_sound = 92;
+
+    // Domains & network (Phase 3), owner only.
+    WatchNetwork watch_network = 100;
+    SetPublicAddress set_public_address = 101;
+    DetectPublicAddress detect_public_address = 102;
+    UpdateNetworkSettings update_network_settings = 103;
   }
 }
 
@@ -85,6 +92,7 @@ message Response {
     MediaToken media_token = 15;
     Stream stream = 16;
     SoundboardSound soundboard_sound = 17;
+    NetworkInfo network_info = 18;
   }
 }
 

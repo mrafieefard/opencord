@@ -8,7 +8,7 @@ import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 import 'package:freezed_annotation/freezed_annotation.dart' hide protected;
 part 'types.freezed.dart';
 
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `hash`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `hash`
 
 @freezed
 sealed class AddServerOutcome with _$AddServerOutcome {
@@ -590,6 +590,12 @@ sealed class CoreEventPayload with _$CoreEventPayload {
   /// that server.
   const factory CoreEventPayload.voiceChannelEffect(SoundEffect field0) =
       CoreEventPayload_VoiceChannelEffect;
+
+  /// Domains & network changed, while this session watches it.
+  const factory CoreEventPayload.networkStatus(NetworkInfo field0) =
+      CoreEventPayload_NetworkStatus;
+  const factory CoreEventPayload.serverNotice(ServerNotice field0) =
+      CoreEventPayload_ServerNotice;
 }
 
 /// A sound every client has (plan §11.8), played as `default:<id>`.
@@ -790,6 +796,8 @@ class Invite {
           expiresAtMs == other.expiresAtMs;
 }
 
+enum MappingState { notUsed, mapped, failed }
+
 @freezed
 sealed class MediaEvent with _$MediaEvent {
   const MediaEvent._();
@@ -961,6 +969,142 @@ class Message {
           nonce == other.nonce;
 }
 
+/// Domains & network, as the owner sees it (Phase 3 plan §8).
+class NetworkInfo {
+  final PublicAddress publicAddress;
+  final List<PortStatus> ports;
+  final NetworkSettings settings;
+
+  /// The main port in use now.
+  final int listeningPort;
+
+  /// Whether `settings.main_port` can be used, when it differs.
+  final PortState nextMainPort;
+  final String upnpGateway;
+  final String upnpExternalIp;
+  final String upnpError;
+
+  const NetworkInfo({
+    required this.publicAddress,
+    required this.ports,
+    required this.settings,
+    required this.listeningPort,
+    required this.nextMainPort,
+    required this.upnpGateway,
+    required this.upnpExternalIp,
+    required this.upnpError,
+  });
+
+  @override
+  int get hashCode =>
+      publicAddress.hashCode ^
+      ports.hashCode ^
+      settings.hashCode ^
+      listeningPort.hashCode ^
+      nextMainPort.hashCode ^
+      upnpGateway.hashCode ^
+      upnpExternalIp.hashCode ^
+      upnpError.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is NetworkInfo &&
+          runtimeType == other.runtimeType &&
+          publicAddress == other.publicAddress &&
+          ports == other.ports &&
+          settings == other.settings &&
+          listeningPort == other.listeningPort &&
+          nextMainPort == other.nextMainPort &&
+          upnpGateway == other.upnpGateway &&
+          upnpExternalIp == other.upnpExternalIp &&
+          upnpError == other.upnpError;
+}
+
+class NetworkSettings {
+  /// The main port from the next start; 0 keeps the configured one.
+  final int mainPort;
+  final bool upnpEnabled;
+  final int localListenerPort;
+  final List<String> trustedProxies;
+  final List<String> dnsResolvers;
+  final bool acmeStaging;
+
+  const NetworkSettings({
+    required this.mainPort,
+    required this.upnpEnabled,
+    required this.localListenerPort,
+    required this.trustedProxies,
+    required this.dnsResolvers,
+    required this.acmeStaging,
+  });
+
+  @override
+  int get hashCode =>
+      mainPort.hashCode ^
+      upnpEnabled.hashCode ^
+      localListenerPort.hashCode ^
+      trustedProxies.hashCode ^
+      dnsResolvers.hashCode ^
+      acmeStaging.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is NetworkSettings &&
+          runtimeType == other.runtimeType &&
+          mainPort == other.mainPort &&
+          upnpEnabled == other.upnpEnabled &&
+          localListenerPort == other.localListenerPort &&
+          trustedProxies == other.trustedProxies &&
+          dnsResolvers == other.dnsResolvers &&
+          acmeStaging == other.acmeStaging;
+}
+
+/// Absent fields stay unchanged; `main_port` 0 goes back to the configured
+/// port.
+class NetworkSettingsChanges {
+  final int? mainPort;
+  final bool? upnpEnabled;
+  final int? localListenerPort;
+  final List<String>? trustedProxies;
+  final List<String>? dnsResolvers;
+  final bool? acmeStaging;
+
+  const NetworkSettingsChanges({
+    this.mainPort,
+    this.upnpEnabled,
+    this.localListenerPort,
+    this.trustedProxies,
+    this.dnsResolvers,
+    this.acmeStaging,
+  });
+
+  static Future<NetworkSettingsChanges> default_() =>
+      RustLib.instance.api.crateApiTypesNetworkSettingsChangesDefault();
+
+  @override
+  int get hashCode =>
+      mainPort.hashCode ^
+      upnpEnabled.hashCode ^
+      localListenerPort.hashCode ^
+      trustedProxies.hashCode ^
+      dnsResolvers.hashCode ^
+      acmeStaging.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is NetworkSettingsChanges &&
+          runtimeType == other.runtimeType &&
+          mainPort == other.mainPort &&
+          upnpEnabled == other.upnpEnabled &&
+          localListenerPort == other.localListenerPort &&
+          trustedProxies == other.trustedProxies &&
+          dnsResolvers == other.dnsResolvers &&
+          acmeStaging == other.acmeStaging;
+}
+
 /// Noise suppression on the microphone (Phase 2 plan §7.3).
 enum NoiseSuppressionMode {
   off,
@@ -971,6 +1115,8 @@ enum NoiseSuppressionMode {
   /// DeepFilterNet: much better on keyboards, dogs and fans, heavier.
   high,
 }
+
+enum NoticeSeverity { info, warning }
 
 enum OverwriteTargetKind { role, member }
 
@@ -1002,6 +1148,51 @@ class PermissionOverwrite {
           deny == other.deny;
 }
 
+enum PortProtocol { tcp, udp }
+
+enum PortPurpose { main, voice, music, acmeHttp, localProxy }
+
+enum PortState { unknown, listening, off, free, inUse, notPermitted }
+
+class PortStatus {
+  final PortPurpose purpose;
+  final PortProtocol protocol;
+  final int port;
+  final PortState state;
+  final MappingState mapping;
+  final String mappingError;
+
+  const PortStatus({
+    required this.purpose,
+    required this.protocol,
+    required this.port,
+    required this.state,
+    required this.mapping,
+    required this.mappingError,
+  });
+
+  @override
+  int get hashCode =>
+      purpose.hashCode ^
+      protocol.hashCode ^
+      port.hashCode ^
+      state.hashCode ^
+      mapping.hashCode ^
+      mappingError.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is PortStatus &&
+          runtimeType == other.runtimeType &&
+          purpose == other.purpose &&
+          protocol == other.protocol &&
+          port == other.port &&
+          state == other.state &&
+          mapping == other.mapping &&
+          mappingError == other.mappingError;
+}
+
 class Presence {
   final PlatformInt64 userId;
   final PresenceStatus status;
@@ -1021,6 +1212,68 @@ class Presence {
 }
 
 enum PresenceStatus { online, idle, dnd, offline }
+
+/// Where the server is reached from the internet (Phase 3 plan §5.1).
+/// Addresses are empty when unknown.
+class PublicAddress {
+  /// In use: the override when there is one, else what was detected.
+  final String ipv4;
+  final String ipv6;
+  final String detectedIpv4;
+  final String detectedIpv6;
+  final String overrideIpv4;
+  final String overrideIpv6;
+  final bool autoDetect;
+
+  /// When detection last succeeded; 0 for never.
+  final PlatformInt64 detectedAtMs;
+
+  /// Why the last detection failed, if it did.
+  final String detectError;
+  final bool hasIpv6;
+
+  const PublicAddress({
+    required this.ipv4,
+    required this.ipv6,
+    required this.detectedIpv4,
+    required this.detectedIpv6,
+    required this.overrideIpv4,
+    required this.overrideIpv6,
+    required this.autoDetect,
+    required this.detectedAtMs,
+    required this.detectError,
+    required this.hasIpv6,
+  });
+
+  @override
+  int get hashCode =>
+      ipv4.hashCode ^
+      ipv6.hashCode ^
+      detectedIpv4.hashCode ^
+      detectedIpv6.hashCode ^
+      overrideIpv4.hashCode ^
+      overrideIpv6.hashCode ^
+      autoDetect.hashCode ^
+      detectedAtMs.hashCode ^
+      detectError.hashCode ^
+      hasIpv6.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is PublicAddress &&
+          runtimeType == other.runtimeType &&
+          ipv4 == other.ipv4 &&
+          ipv6 == other.ipv6 &&
+          detectedIpv4 == other.detectedIpv4 &&
+          detectedIpv6 == other.detectedIpv6 &&
+          overrideIpv4 == other.overrideIpv4 &&
+          overrideIpv6 == other.overrideIpv6 &&
+          autoDetect == other.autoDetect &&
+          detectedAtMs == other.detectedAtMs &&
+          detectError == other.detectError &&
+          hasIpv6 == other.hasIpv6;
+}
 
 /// Everything about a server right after connecting.
 class ReadySnapshot {
@@ -1543,6 +1796,37 @@ class ServerInfo {
           ownerId == other.ownerId &&
           openJoin == other.openJoin &&
           everyoneRoleId == other.everyoneRoleId;
+}
+
+/// Something the owner or admins should know: the public address changed,
+/// a domain's DNS broke, a certificate is about to expire.
+class ServerNotice {
+  /// One per subject: a newer notice replaces an older one.
+  final String key;
+  final NoticeSeverity severity;
+  final String title;
+  final String body;
+
+  const ServerNotice({
+    required this.key,
+    required this.severity,
+    required this.title,
+    required this.body,
+  });
+
+  @override
+  int get hashCode =>
+      key.hashCode ^ severity.hashCode ^ title.hashCode ^ body.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is ServerNotice &&
+          runtimeType == other.runtimeType &&
+          key == other.key &&
+          severity == other.severity &&
+          title == other.title &&
+          body == other.body;
 }
 
 /// A file opened for the trim editor (plan §11.3), decoded to 48 kHz mono.

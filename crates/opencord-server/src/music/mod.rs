@@ -3,13 +3,13 @@
 //! Lavalink's WebSocket comes in on the main TLS port, its audio on the
 //! music UDP port, and the frames go to the node as the channel's music.
 
-use std::net::{IpAddr, SocketAddr};
+use std::net::IpAddr;
 use std::sync::Arc;
 
 use anyhow::Context as _;
 use axum::extract::ws::WebSocketUpgrade;
 use axum::extract::ws::rejection::WebSocketUpgradeRejection;
-use axum::extract::{ConnectInfo, Query, State};
+use axum::extract::{Query, State};
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use opencord_voice::bridge::{self, BridgeConfig, BridgeEvent, MusicBridge};
@@ -17,6 +17,7 @@ use opencord_voice::node::VoiceNode;
 use serde::Deserialize;
 
 use crate::config::Config;
+use crate::network::ClientAddr;
 use crate::state::AppState;
 
 /// Lavalink's voice messages are small.
@@ -75,7 +76,7 @@ pub struct BridgeQuery {
 /// (plan §13.2). Everything else on `/` is not found.
 pub async fn upgrade(
     State(state): State<Arc<AppState>>,
-    ConnectInfo(peer): ConnectInfo<SocketAddr>,
+    ClientAddr(peer): ClientAddr,
     Query(query): Query<BridgeQuery>,
     upgrade: Result<WebSocketUpgrade, WebSocketUpgradeRejection>,
 ) -> Response {

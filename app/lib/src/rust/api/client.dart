@@ -7,7 +7,7 @@ import '../frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 import 'types.dart';
 
-// These functions are ignored because they are not marked as `pub`: `checked_identity`, `client`, `deliver`, `identity_info`, `invalid_input`, `lock_events`, `on_runtime`
+// These functions are ignored because they are not marked as `pub`: `checked_identity`, `client`, `deliver`, `identity_info`, `invalid_input`, `lock_events`, `on_runtime`, `return_large_buffers`
 // These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `Events`
 
 /// Opens local data in `app_data_dir`. Safe to call again (for example
@@ -359,6 +359,44 @@ Future<VoiceSettings> updateVoiceSettings({
   required String serverKey,
   required VoiceSettingsChanges changes,
 }) => RustLib.instance.api.crateApiClientUpdateVoiceSettings(
+  serverKey: serverKey,
+  changes: changes,
+);
+
+/// Starts or stops `NetworkStatus` events for this session; returns the
+/// network as it is. Owner only (Phase 3 plan §8).
+Future<NetworkInfo> watchNetwork({
+  required String serverKey,
+  required bool watch,
+}) => RustLib.instance.api.crateApiClientWatchNetwork(
+  serverKey: serverKey,
+  watch: watch,
+);
+
+/// How the server finds its public address: detected, or overridden (an
+/// empty override is none).
+Future<NetworkInfo> setPublicAddress({
+  required String serverKey,
+  required bool autoDetect,
+  required String overrideIpv4,
+  required String overrideIpv6,
+}) => RustLib.instance.api.crateApiClientSetPublicAddress(
+  serverKey: serverKey,
+  autoDetect: autoDetect,
+  overrideIpv4: overrideIpv4,
+  overrideIpv6: overrideIpv6,
+);
+
+/// Looks the public address up now.
+Future<NetworkInfo> detectPublicAddress({required String serverKey}) => RustLib
+    .instance
+    .api
+    .crateApiClientDetectPublicAddress(serverKey: serverKey);
+
+Future<NetworkInfo> updateNetworkSettings({
+  required String serverKey,
+  required NetworkSettingsChanges changes,
+}) => RustLib.instance.api.crateApiClientUpdateNetworkSettings(
   serverKey: serverKey,
   changes: changes,
 );

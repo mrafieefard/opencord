@@ -483,7 +483,7 @@ impl MusicBridge {
         if super::is_local(peer) {
             return local.unwrap_or(peer);
         }
-        self.config.public_ip.or(local).unwrap_or(peer)
+        self.public_ip().or(local).unwrap_or(peer)
     }
 }
 

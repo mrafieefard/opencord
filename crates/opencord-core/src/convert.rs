@@ -402,6 +402,12 @@ pub fn event(kind: proto::event::Kind, session_id: &str) -> Option<CoreEventPayl
         Kind::SoundboardSoundDelete(event) => CoreEventPayload::SoundboardSoundDelete {
             sound_id: event.sound_id,
         },
+        Kind::NetworkStatus(event) => {
+            CoreEventPayload::NetworkStatus(crate::network::info_from(event.info?))
+        }
+        Kind::ServerNotice(notice) => {
+            CoreEventPayload::ServerNotice(crate::network::notice(notice))
+        }
     })
 }
 

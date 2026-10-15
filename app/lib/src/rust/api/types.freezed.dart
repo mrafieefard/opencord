@@ -1653,7 +1653,7 @@ extension CoreEventPayloadPatterns on CoreEventPayload {
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeMap<TResult extends Object?>({TResult Function( CoreEventPayload_ConnectionState value)?  connectionState,TResult Function( CoreEventPayload_Ready value)?  ready,TResult Function( CoreEventPayload_MessageCreate value)?  messageCreate,TResult Function( CoreEventPayload_MessageUpdate value)?  messageUpdate,TResult Function( CoreEventPayload_MessageDelete value)?  messageDelete,TResult Function( CoreEventPayload_ChannelCreate value)?  channelCreate,TResult Function( CoreEventPayload_ChannelUpdate value)?  channelUpdate,TResult Function( CoreEventPayload_ChannelDelete value)?  channelDelete,TResult Function( CoreEventPayload_RoleCreate value)?  roleCreate,TResult Function( CoreEventPayload_RoleUpdate value)?  roleUpdate,TResult Function( CoreEventPayload_RoleDelete value)?  roleDelete,TResult Function( CoreEventPayload_MemberJoin value)?  memberJoin,TResult Function( CoreEventPayload_MemberLeave value)?  memberLeave,TResult Function( CoreEventPayload_MemberUpdate value)?  memberUpdate,TResult Function( CoreEventPayload_PresenceUpdate value)?  presenceUpdate,TResult Function( CoreEventPayload_TypingStart value)?  typingStart,TResult Function( CoreEventPayload_ServerUpdate value)?  serverUpdate,TResult Function( CoreEventPayload_PermissionsUpdate value)?  permissionsUpdate,TResult Function( CoreEventPayload_VoiceStateUpdate value)?  voiceStateUpdate,TResult Function( CoreEventPayload_VoiceSettingsUpdate value)?  voiceSettingsUpdate,TResult Function( CoreEventPayload_StreamCreate value)?  streamCreate,TResult Function( CoreEventPayload_StreamUpdate value)?  streamUpdate,TResult Function( CoreEventPayload_StreamDelete value)?  streamDelete,TResult Function( CoreEventPayload_StreamViewersUpdate value)?  streamViewersUpdate,TResult Function( CoreEventPayload_SoundboardSoundCreate value)?  soundboardSoundCreate,TResult Function( CoreEventPayload_SoundboardSoundUpdate value)?  soundboardSoundUpdate,TResult Function( CoreEventPayload_SoundboardSoundDelete value)?  soundboardSoundDelete,TResult Function( CoreEventPayload_VoiceChannelEffect value)?  voiceChannelEffect,required TResult orElse(),}){
+@optionalTypeArgs TResult maybeMap<TResult extends Object?>({TResult Function( CoreEventPayload_ConnectionState value)?  connectionState,TResult Function( CoreEventPayload_Ready value)?  ready,TResult Function( CoreEventPayload_MessageCreate value)?  messageCreate,TResult Function( CoreEventPayload_MessageUpdate value)?  messageUpdate,TResult Function( CoreEventPayload_MessageDelete value)?  messageDelete,TResult Function( CoreEventPayload_ChannelCreate value)?  channelCreate,TResult Function( CoreEventPayload_ChannelUpdate value)?  channelUpdate,TResult Function( CoreEventPayload_ChannelDelete value)?  channelDelete,TResult Function( CoreEventPayload_RoleCreate value)?  roleCreate,TResult Function( CoreEventPayload_RoleUpdate value)?  roleUpdate,TResult Function( CoreEventPayload_RoleDelete value)?  roleDelete,TResult Function( CoreEventPayload_MemberJoin value)?  memberJoin,TResult Function( CoreEventPayload_MemberLeave value)?  memberLeave,TResult Function( CoreEventPayload_MemberUpdate value)?  memberUpdate,TResult Function( CoreEventPayload_PresenceUpdate value)?  presenceUpdate,TResult Function( CoreEventPayload_TypingStart value)?  typingStart,TResult Function( CoreEventPayload_ServerUpdate value)?  serverUpdate,TResult Function( CoreEventPayload_PermissionsUpdate value)?  permissionsUpdate,TResult Function( CoreEventPayload_VoiceStateUpdate value)?  voiceStateUpdate,TResult Function( CoreEventPayload_VoiceSettingsUpdate value)?  voiceSettingsUpdate,TResult Function( CoreEventPayload_StreamCreate value)?  streamCreate,TResult Function( CoreEventPayload_StreamUpdate value)?  streamUpdate,TResult Function( CoreEventPayload_StreamDelete value)?  streamDelete,TResult Function( CoreEventPayload_StreamViewersUpdate value)?  streamViewersUpdate,TResult Function( CoreEventPayload_SoundboardSoundCreate value)?  soundboardSoundCreate,TResult Function( CoreEventPayload_SoundboardSoundUpdate value)?  soundboardSoundUpdate,TResult Function( CoreEventPayload_SoundboardSoundDelete value)?  soundboardSoundDelete,TResult Function( CoreEventPayload_VoiceChannelEffect value)?  voiceChannelEffect,TResult Function( CoreEventPayload_NetworkStatus value)?  networkStatus,TResult Function( CoreEventPayload_ServerNotice value)?  serverNotice,required TResult orElse(),}){
 final _that = this;
 switch (_that) {
 case CoreEventPayload_ConnectionState() when connectionState != null:
@@ -1684,7 +1684,9 @@ return streamViewersUpdate(_that);case CoreEventPayload_SoundboardSoundCreate() 
 return soundboardSoundCreate(_that);case CoreEventPayload_SoundboardSoundUpdate() when soundboardSoundUpdate != null:
 return soundboardSoundUpdate(_that);case CoreEventPayload_SoundboardSoundDelete() when soundboardSoundDelete != null:
 return soundboardSoundDelete(_that);case CoreEventPayload_VoiceChannelEffect() when voiceChannelEffect != null:
-return voiceChannelEffect(_that);case _:
+return voiceChannelEffect(_that);case CoreEventPayload_NetworkStatus() when networkStatus != null:
+return networkStatus(_that);case CoreEventPayload_ServerNotice() when serverNotice != null:
+return serverNotice(_that);case _:
   return orElse();
 
 }
@@ -1702,7 +1704,7 @@ return voiceChannelEffect(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult map<TResult extends Object?>({required TResult Function( CoreEventPayload_ConnectionState value)  connectionState,required TResult Function( CoreEventPayload_Ready value)  ready,required TResult Function( CoreEventPayload_MessageCreate value)  messageCreate,required TResult Function( CoreEventPayload_MessageUpdate value)  messageUpdate,required TResult Function( CoreEventPayload_MessageDelete value)  messageDelete,required TResult Function( CoreEventPayload_ChannelCreate value)  channelCreate,required TResult Function( CoreEventPayload_ChannelUpdate value)  channelUpdate,required TResult Function( CoreEventPayload_ChannelDelete value)  channelDelete,required TResult Function( CoreEventPayload_RoleCreate value)  roleCreate,required TResult Function( CoreEventPayload_RoleUpdate value)  roleUpdate,required TResult Function( CoreEventPayload_RoleDelete value)  roleDelete,required TResult Function( CoreEventPayload_MemberJoin value)  memberJoin,required TResult Function( CoreEventPayload_MemberLeave value)  memberLeave,required TResult Function( CoreEventPayload_MemberUpdate value)  memberUpdate,required TResult Function( CoreEventPayload_PresenceUpdate value)  presenceUpdate,required TResult Function( CoreEventPayload_TypingStart value)  typingStart,required TResult Function( CoreEventPayload_ServerUpdate value)  serverUpdate,required TResult Function( CoreEventPayload_PermissionsUpdate value)  permissionsUpdate,required TResult Function( CoreEventPayload_VoiceStateUpdate value)  voiceStateUpdate,required TResult Function( CoreEventPayload_VoiceSettingsUpdate value)  voiceSettingsUpdate,required TResult Function( CoreEventPayload_StreamCreate value)  streamCreate,required TResult Function( CoreEventPayload_StreamUpdate value)  streamUpdate,required TResult Function( CoreEventPayload_StreamDelete value)  streamDelete,required TResult Function( CoreEventPayload_StreamViewersUpdate value)  streamViewersUpdate,required TResult Function( CoreEventPayload_SoundboardSoundCreate value)  soundboardSoundCreate,required TResult Function( CoreEventPayload_SoundboardSoundUpdate value)  soundboardSoundUpdate,required TResult Function( CoreEventPayload_SoundboardSoundDelete value)  soundboardSoundDelete,required TResult Function( CoreEventPayload_VoiceChannelEffect value)  voiceChannelEffect,}){
+@optionalTypeArgs TResult map<TResult extends Object?>({required TResult Function( CoreEventPayload_ConnectionState value)  connectionState,required TResult Function( CoreEventPayload_Ready value)  ready,required TResult Function( CoreEventPayload_MessageCreate value)  messageCreate,required TResult Function( CoreEventPayload_MessageUpdate value)  messageUpdate,required TResult Function( CoreEventPayload_MessageDelete value)  messageDelete,required TResult Function( CoreEventPayload_ChannelCreate value)  channelCreate,required TResult Function( CoreEventPayload_ChannelUpdate value)  channelUpdate,required TResult Function( CoreEventPayload_ChannelDelete value)  channelDelete,required TResult Function( CoreEventPayload_RoleCreate value)  roleCreate,required TResult Function( CoreEventPayload_RoleUpdate value)  roleUpdate,required TResult Function( CoreEventPayload_RoleDelete value)  roleDelete,required TResult Function( CoreEventPayload_MemberJoin value)  memberJoin,required TResult Function( CoreEventPayload_MemberLeave value)  memberLeave,required TResult Function( CoreEventPayload_MemberUpdate value)  memberUpdate,required TResult Function( CoreEventPayload_PresenceUpdate value)  presenceUpdate,required TResult Function( CoreEventPayload_TypingStart value)  typingStart,required TResult Function( CoreEventPayload_ServerUpdate value)  serverUpdate,required TResult Function( CoreEventPayload_PermissionsUpdate value)  permissionsUpdate,required TResult Function( CoreEventPayload_VoiceStateUpdate value)  voiceStateUpdate,required TResult Function( CoreEventPayload_VoiceSettingsUpdate value)  voiceSettingsUpdate,required TResult Function( CoreEventPayload_StreamCreate value)  streamCreate,required TResult Function( CoreEventPayload_StreamUpdate value)  streamUpdate,required TResult Function( CoreEventPayload_StreamDelete value)  streamDelete,required TResult Function( CoreEventPayload_StreamViewersUpdate value)  streamViewersUpdate,required TResult Function( CoreEventPayload_SoundboardSoundCreate value)  soundboardSoundCreate,required TResult Function( CoreEventPayload_SoundboardSoundUpdate value)  soundboardSoundUpdate,required TResult Function( CoreEventPayload_SoundboardSoundDelete value)  soundboardSoundDelete,required TResult Function( CoreEventPayload_VoiceChannelEffect value)  voiceChannelEffect,required TResult Function( CoreEventPayload_NetworkStatus value)  networkStatus,required TResult Function( CoreEventPayload_ServerNotice value)  serverNotice,}){
 final _that = this;
 switch (_that) {
 case CoreEventPayload_ConnectionState():
@@ -1733,7 +1735,9 @@ return streamViewersUpdate(_that);case CoreEventPayload_SoundboardSoundCreate():
 return soundboardSoundCreate(_that);case CoreEventPayload_SoundboardSoundUpdate():
 return soundboardSoundUpdate(_that);case CoreEventPayload_SoundboardSoundDelete():
 return soundboardSoundDelete(_that);case CoreEventPayload_VoiceChannelEffect():
-return voiceChannelEffect(_that);}
+return voiceChannelEffect(_that);case CoreEventPayload_NetworkStatus():
+return networkStatus(_that);case CoreEventPayload_ServerNotice():
+return serverNotice(_that);}
 }
 /// A variant of `map` that fallback to returning `null`.
 ///
@@ -1747,7 +1751,7 @@ return voiceChannelEffect(_that);}
 /// }
 /// ```
 
-@optionalTypeArgs TResult? mapOrNull<TResult extends Object?>({TResult? Function( CoreEventPayload_ConnectionState value)?  connectionState,TResult? Function( CoreEventPayload_Ready value)?  ready,TResult? Function( CoreEventPayload_MessageCreate value)?  messageCreate,TResult? Function( CoreEventPayload_MessageUpdate value)?  messageUpdate,TResult? Function( CoreEventPayload_MessageDelete value)?  messageDelete,TResult? Function( CoreEventPayload_ChannelCreate value)?  channelCreate,TResult? Function( CoreEventPayload_ChannelUpdate value)?  channelUpdate,TResult? Function( CoreEventPayload_ChannelDelete value)?  channelDelete,TResult? Function( CoreEventPayload_RoleCreate value)?  roleCreate,TResult? Function( CoreEventPayload_RoleUpdate value)?  roleUpdate,TResult? Function( CoreEventPayload_RoleDelete value)?  roleDelete,TResult? Function( CoreEventPayload_MemberJoin value)?  memberJoin,TResult? Function( CoreEventPayload_MemberLeave value)?  memberLeave,TResult? Function( CoreEventPayload_MemberUpdate value)?  memberUpdate,TResult? Function( CoreEventPayload_PresenceUpdate value)?  presenceUpdate,TResult? Function( CoreEventPayload_TypingStart value)?  typingStart,TResult? Function( CoreEventPayload_ServerUpdate value)?  serverUpdate,TResult? Function( CoreEventPayload_PermissionsUpdate value)?  permissionsUpdate,TResult? Function( CoreEventPayload_VoiceStateUpdate value)?  voiceStateUpdate,TResult? Function( CoreEventPayload_VoiceSettingsUpdate value)?  voiceSettingsUpdate,TResult? Function( CoreEventPayload_StreamCreate value)?  streamCreate,TResult? Function( CoreEventPayload_StreamUpdate value)?  streamUpdate,TResult? Function( CoreEventPayload_StreamDelete value)?  streamDelete,TResult? Function( CoreEventPayload_StreamViewersUpdate value)?  streamViewersUpdate,TResult? Function( CoreEventPayload_SoundboardSoundCreate value)?  soundboardSoundCreate,TResult? Function( CoreEventPayload_SoundboardSoundUpdate value)?  soundboardSoundUpdate,TResult? Function( CoreEventPayload_SoundboardSoundDelete value)?  soundboardSoundDelete,TResult? Function( CoreEventPayload_VoiceChannelEffect value)?  voiceChannelEffect,}){
+@optionalTypeArgs TResult? mapOrNull<TResult extends Object?>({TResult? Function( CoreEventPayload_ConnectionState value)?  connectionState,TResult? Function( CoreEventPayload_Ready value)?  ready,TResult? Function( CoreEventPayload_MessageCreate value)?  messageCreate,TResult? Function( CoreEventPayload_MessageUpdate value)?  messageUpdate,TResult? Function( CoreEventPayload_MessageDelete value)?  messageDelete,TResult? Function( CoreEventPayload_ChannelCreate value)?  channelCreate,TResult? Function( CoreEventPayload_ChannelUpdate value)?  channelUpdate,TResult? Function( CoreEventPayload_ChannelDelete value)?  channelDelete,TResult? Function( CoreEventPayload_RoleCreate value)?  roleCreate,TResult? Function( CoreEventPayload_RoleUpdate value)?  roleUpdate,TResult? Function( CoreEventPayload_RoleDelete value)?  roleDelete,TResult? Function( CoreEventPayload_MemberJoin value)?  memberJoin,TResult? Function( CoreEventPayload_MemberLeave value)?  memberLeave,TResult? Function( CoreEventPayload_MemberUpdate value)?  memberUpdate,TResult? Function( CoreEventPayload_PresenceUpdate value)?  presenceUpdate,TResult? Function( CoreEventPayload_TypingStart value)?  typingStart,TResult? Function( CoreEventPayload_ServerUpdate value)?  serverUpdate,TResult? Function( CoreEventPayload_PermissionsUpdate value)?  permissionsUpdate,TResult? Function( CoreEventPayload_VoiceStateUpdate value)?  voiceStateUpdate,TResult? Function( CoreEventPayload_VoiceSettingsUpdate value)?  voiceSettingsUpdate,TResult? Function( CoreEventPayload_StreamCreate value)?  streamCreate,TResult? Function( CoreEventPayload_StreamUpdate value)?  streamUpdate,TResult? Function( CoreEventPayload_StreamDelete value)?  streamDelete,TResult? Function( CoreEventPayload_StreamViewersUpdate value)?  streamViewersUpdate,TResult? Function( CoreEventPayload_SoundboardSoundCreate value)?  soundboardSoundCreate,TResult? Function( CoreEventPayload_SoundboardSoundUpdate value)?  soundboardSoundUpdate,TResult? Function( CoreEventPayload_SoundboardSoundDelete value)?  soundboardSoundDelete,TResult? Function( CoreEventPayload_VoiceChannelEffect value)?  voiceChannelEffect,TResult? Function( CoreEventPayload_NetworkStatus value)?  networkStatus,TResult? Function( CoreEventPayload_ServerNotice value)?  serverNotice,}){
 final _that = this;
 switch (_that) {
 case CoreEventPayload_ConnectionState() when connectionState != null:
@@ -1778,7 +1782,9 @@ return streamViewersUpdate(_that);case CoreEventPayload_SoundboardSoundCreate() 
 return soundboardSoundCreate(_that);case CoreEventPayload_SoundboardSoundUpdate() when soundboardSoundUpdate != null:
 return soundboardSoundUpdate(_that);case CoreEventPayload_SoundboardSoundDelete() when soundboardSoundDelete != null:
 return soundboardSoundDelete(_that);case CoreEventPayload_VoiceChannelEffect() when voiceChannelEffect != null:
-return voiceChannelEffect(_that);case _:
+return voiceChannelEffect(_that);case CoreEventPayload_NetworkStatus() when networkStatus != null:
+return networkStatus(_that);case CoreEventPayload_ServerNotice() when serverNotice != null:
+return serverNotice(_that);case _:
   return null;
 
 }
@@ -1795,7 +1801,7 @@ return voiceChannelEffect(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>({TResult Function( ConnectionState field0)?  connectionState,TResult Function( ReadySnapshot field0)?  ready,TResult Function( Message field0)?  messageCreate,TResult Function( Message field0)?  messageUpdate,TResult Function( PlatformInt64 channelId,  PlatformInt64 messageId)?  messageDelete,TResult Function( Channel field0)?  channelCreate,TResult Function( Channel field0)?  channelUpdate,TResult Function( PlatformInt64 channelId)?  channelDelete,TResult Function( Role field0)?  roleCreate,TResult Function( Role field0)?  roleUpdate,TResult Function( PlatformInt64 roleId)?  roleDelete,TResult Function( Member field0)?  memberJoin,TResult Function( PlatformInt64 userId)?  memberLeave,TResult Function( Member field0)?  memberUpdate,TResult Function( Presence field0)?  presenceUpdate,TResult Function( PlatformInt64 channelId,  PlatformInt64 userId)?  typingStart,TResult Function( ServerInfo field0)?  serverUpdate,TResult Function( PlatformInt64 serverPermissions,  List<ChannelPermissions> channelPermissions)?  permissionsUpdate,TResult Function( VoiceState field0)?  voiceStateUpdate,TResult Function( VoiceSettings field0)?  voiceSettingsUpdate,TResult Function( ScreenStream field0)?  streamCreate,TResult Function( ScreenStream field0)?  streamUpdate,TResult Function( String streamKey,  PlatformInt64 channelId)?  streamDelete,TResult Function( String streamKey,  Int64List viewerIds)?  streamViewersUpdate,TResult Function( SoundboardSound field0)?  soundboardSoundCreate,TResult Function( SoundboardSound field0)?  soundboardSoundUpdate,TResult Function( PlatformInt64 soundId)?  soundboardSoundDelete,TResult Function( SoundEffect field0)?  voiceChannelEffect,required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>({TResult Function( ConnectionState field0)?  connectionState,TResult Function( ReadySnapshot field0)?  ready,TResult Function( Message field0)?  messageCreate,TResult Function( Message field0)?  messageUpdate,TResult Function( PlatformInt64 channelId,  PlatformInt64 messageId)?  messageDelete,TResult Function( Channel field0)?  channelCreate,TResult Function( Channel field0)?  channelUpdate,TResult Function( PlatformInt64 channelId)?  channelDelete,TResult Function( Role field0)?  roleCreate,TResult Function( Role field0)?  roleUpdate,TResult Function( PlatformInt64 roleId)?  roleDelete,TResult Function( Member field0)?  memberJoin,TResult Function( PlatformInt64 userId)?  memberLeave,TResult Function( Member field0)?  memberUpdate,TResult Function( Presence field0)?  presenceUpdate,TResult Function( PlatformInt64 channelId,  PlatformInt64 userId)?  typingStart,TResult Function( ServerInfo field0)?  serverUpdate,TResult Function( PlatformInt64 serverPermissions,  List<ChannelPermissions> channelPermissions)?  permissionsUpdate,TResult Function( VoiceState field0)?  voiceStateUpdate,TResult Function( VoiceSettings field0)?  voiceSettingsUpdate,TResult Function( ScreenStream field0)?  streamCreate,TResult Function( ScreenStream field0)?  streamUpdate,TResult Function( String streamKey,  PlatformInt64 channelId)?  streamDelete,TResult Function( String streamKey,  Int64List viewerIds)?  streamViewersUpdate,TResult Function( SoundboardSound field0)?  soundboardSoundCreate,TResult Function( SoundboardSound field0)?  soundboardSoundUpdate,TResult Function( PlatformInt64 soundId)?  soundboardSoundDelete,TResult Function( SoundEffect field0)?  voiceChannelEffect,TResult Function( NetworkInfo field0)?  networkStatus,TResult Function( ServerNotice field0)?  serverNotice,required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case CoreEventPayload_ConnectionState() when connectionState != null:
 return connectionState(_that.field0);case CoreEventPayload_Ready() when ready != null:
@@ -1825,7 +1831,9 @@ return streamViewersUpdate(_that.streamKey,_that.viewerIds);case CoreEventPayloa
 return soundboardSoundCreate(_that.field0);case CoreEventPayload_SoundboardSoundUpdate() when soundboardSoundUpdate != null:
 return soundboardSoundUpdate(_that.field0);case CoreEventPayload_SoundboardSoundDelete() when soundboardSoundDelete != null:
 return soundboardSoundDelete(_that.soundId);case CoreEventPayload_VoiceChannelEffect() when voiceChannelEffect != null:
-return voiceChannelEffect(_that.field0);case _:
+return voiceChannelEffect(_that.field0);case CoreEventPayload_NetworkStatus() when networkStatus != null:
+return networkStatus(_that.field0);case CoreEventPayload_ServerNotice() when serverNotice != null:
+return serverNotice(_that.field0);case _:
   return orElse();
 
 }
@@ -1843,7 +1851,7 @@ return voiceChannelEffect(_that.field0);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>({required TResult Function( ConnectionState field0)  connectionState,required TResult Function( ReadySnapshot field0)  ready,required TResult Function( Message field0)  messageCreate,required TResult Function( Message field0)  messageUpdate,required TResult Function( PlatformInt64 channelId,  PlatformInt64 messageId)  messageDelete,required TResult Function( Channel field0)  channelCreate,required TResult Function( Channel field0)  channelUpdate,required TResult Function( PlatformInt64 channelId)  channelDelete,required TResult Function( Role field0)  roleCreate,required TResult Function( Role field0)  roleUpdate,required TResult Function( PlatformInt64 roleId)  roleDelete,required TResult Function( Member field0)  memberJoin,required TResult Function( PlatformInt64 userId)  memberLeave,required TResult Function( Member field0)  memberUpdate,required TResult Function( Presence field0)  presenceUpdate,required TResult Function( PlatformInt64 channelId,  PlatformInt64 userId)  typingStart,required TResult Function( ServerInfo field0)  serverUpdate,required TResult Function( PlatformInt64 serverPermissions,  List<ChannelPermissions> channelPermissions)  permissionsUpdate,required TResult Function( VoiceState field0)  voiceStateUpdate,required TResult Function( VoiceSettings field0)  voiceSettingsUpdate,required TResult Function( ScreenStream field0)  streamCreate,required TResult Function( ScreenStream field0)  streamUpdate,required TResult Function( String streamKey,  PlatformInt64 channelId)  streamDelete,required TResult Function( String streamKey,  Int64List viewerIds)  streamViewersUpdate,required TResult Function( SoundboardSound field0)  soundboardSoundCreate,required TResult Function( SoundboardSound field0)  soundboardSoundUpdate,required TResult Function( PlatformInt64 soundId)  soundboardSoundDelete,required TResult Function( SoundEffect field0)  voiceChannelEffect,}) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>({required TResult Function( ConnectionState field0)  connectionState,required TResult Function( ReadySnapshot field0)  ready,required TResult Function( Message field0)  messageCreate,required TResult Function( Message field0)  messageUpdate,required TResult Function( PlatformInt64 channelId,  PlatformInt64 messageId)  messageDelete,required TResult Function( Channel field0)  channelCreate,required TResult Function( Channel field0)  channelUpdate,required TResult Function( PlatformInt64 channelId)  channelDelete,required TResult Function( Role field0)  roleCreate,required TResult Function( Role field0)  roleUpdate,required TResult Function( PlatformInt64 roleId)  roleDelete,required TResult Function( Member field0)  memberJoin,required TResult Function( PlatformInt64 userId)  memberLeave,required TResult Function( Member field0)  memberUpdate,required TResult Function( Presence field0)  presenceUpdate,required TResult Function( PlatformInt64 channelId,  PlatformInt64 userId)  typingStart,required TResult Function( ServerInfo field0)  serverUpdate,required TResult Function( PlatformInt64 serverPermissions,  List<ChannelPermissions> channelPermissions)  permissionsUpdate,required TResult Function( VoiceState field0)  voiceStateUpdate,required TResult Function( VoiceSettings field0)  voiceSettingsUpdate,required TResult Function( ScreenStream field0)  streamCreate,required TResult Function( ScreenStream field0)  streamUpdate,required TResult Function( String streamKey,  PlatformInt64 channelId)  streamDelete,required TResult Function( String streamKey,  Int64List viewerIds)  streamViewersUpdate,required TResult Function( SoundboardSound field0)  soundboardSoundCreate,required TResult Function( SoundboardSound field0)  soundboardSoundUpdate,required TResult Function( PlatformInt64 soundId)  soundboardSoundDelete,required TResult Function( SoundEffect field0)  voiceChannelEffect,required TResult Function( NetworkInfo field0)  networkStatus,required TResult Function( ServerNotice field0)  serverNotice,}) {final _that = this;
 switch (_that) {
 case CoreEventPayload_ConnectionState():
 return connectionState(_that.field0);case CoreEventPayload_Ready():
@@ -1873,7 +1881,9 @@ return streamViewersUpdate(_that.streamKey,_that.viewerIds);case CoreEventPayloa
 return soundboardSoundCreate(_that.field0);case CoreEventPayload_SoundboardSoundUpdate():
 return soundboardSoundUpdate(_that.field0);case CoreEventPayload_SoundboardSoundDelete():
 return soundboardSoundDelete(_that.soundId);case CoreEventPayload_VoiceChannelEffect():
-return voiceChannelEffect(_that.field0);}
+return voiceChannelEffect(_that.field0);case CoreEventPayload_NetworkStatus():
+return networkStatus(_that.field0);case CoreEventPayload_ServerNotice():
+return serverNotice(_that.field0);}
 }
 /// A variant of `when` that fallback to returning `null`
 ///
@@ -1887,7 +1897,7 @@ return voiceChannelEffect(_that.field0);}
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>({TResult? Function( ConnectionState field0)?  connectionState,TResult? Function( ReadySnapshot field0)?  ready,TResult? Function( Message field0)?  messageCreate,TResult? Function( Message field0)?  messageUpdate,TResult? Function( PlatformInt64 channelId,  PlatformInt64 messageId)?  messageDelete,TResult? Function( Channel field0)?  channelCreate,TResult? Function( Channel field0)?  channelUpdate,TResult? Function( PlatformInt64 channelId)?  channelDelete,TResult? Function( Role field0)?  roleCreate,TResult? Function( Role field0)?  roleUpdate,TResult? Function( PlatformInt64 roleId)?  roleDelete,TResult? Function( Member field0)?  memberJoin,TResult? Function( PlatformInt64 userId)?  memberLeave,TResult? Function( Member field0)?  memberUpdate,TResult? Function( Presence field0)?  presenceUpdate,TResult? Function( PlatformInt64 channelId,  PlatformInt64 userId)?  typingStart,TResult? Function( ServerInfo field0)?  serverUpdate,TResult? Function( PlatformInt64 serverPermissions,  List<ChannelPermissions> channelPermissions)?  permissionsUpdate,TResult? Function( VoiceState field0)?  voiceStateUpdate,TResult? Function( VoiceSettings field0)?  voiceSettingsUpdate,TResult? Function( ScreenStream field0)?  streamCreate,TResult? Function( ScreenStream field0)?  streamUpdate,TResult? Function( String streamKey,  PlatformInt64 channelId)?  streamDelete,TResult? Function( String streamKey,  Int64List viewerIds)?  streamViewersUpdate,TResult? Function( SoundboardSound field0)?  soundboardSoundCreate,TResult? Function( SoundboardSound field0)?  soundboardSoundUpdate,TResult? Function( PlatformInt64 soundId)?  soundboardSoundDelete,TResult? Function( SoundEffect field0)?  voiceChannelEffect,}) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>({TResult? Function( ConnectionState field0)?  connectionState,TResult? Function( ReadySnapshot field0)?  ready,TResult? Function( Message field0)?  messageCreate,TResult? Function( Message field0)?  messageUpdate,TResult? Function( PlatformInt64 channelId,  PlatformInt64 messageId)?  messageDelete,TResult? Function( Channel field0)?  channelCreate,TResult? Function( Channel field0)?  channelUpdate,TResult? Function( PlatformInt64 channelId)?  channelDelete,TResult? Function( Role field0)?  roleCreate,TResult? Function( Role field0)?  roleUpdate,TResult? Function( PlatformInt64 roleId)?  roleDelete,TResult? Function( Member field0)?  memberJoin,TResult? Function( PlatformInt64 userId)?  memberLeave,TResult? Function( Member field0)?  memberUpdate,TResult? Function( Presence field0)?  presenceUpdate,TResult? Function( PlatformInt64 channelId,  PlatformInt64 userId)?  typingStart,TResult? Function( ServerInfo field0)?  serverUpdate,TResult? Function( PlatformInt64 serverPermissions,  List<ChannelPermissions> channelPermissions)?  permissionsUpdate,TResult? Function( VoiceState field0)?  voiceStateUpdate,TResult? Function( VoiceSettings field0)?  voiceSettingsUpdate,TResult? Function( ScreenStream field0)?  streamCreate,TResult? Function( ScreenStream field0)?  streamUpdate,TResult? Function( String streamKey,  PlatformInt64 channelId)?  streamDelete,TResult? Function( String streamKey,  Int64List viewerIds)?  streamViewersUpdate,TResult? Function( SoundboardSound field0)?  soundboardSoundCreate,TResult? Function( SoundboardSound field0)?  soundboardSoundUpdate,TResult? Function( PlatformInt64 soundId)?  soundboardSoundDelete,TResult? Function( SoundEffect field0)?  voiceChannelEffect,TResult? Function( NetworkInfo field0)?  networkStatus,TResult? Function( ServerNotice field0)?  serverNotice,}) {final _that = this;
 switch (_that) {
 case CoreEventPayload_ConnectionState() when connectionState != null:
 return connectionState(_that.field0);case CoreEventPayload_Ready() when ready != null:
@@ -1917,7 +1927,9 @@ return streamViewersUpdate(_that.streamKey,_that.viewerIds);case CoreEventPayloa
 return soundboardSoundCreate(_that.field0);case CoreEventPayload_SoundboardSoundUpdate() when soundboardSoundUpdate != null:
 return soundboardSoundUpdate(_that.field0);case CoreEventPayload_SoundboardSoundDelete() when soundboardSoundDelete != null:
 return soundboardSoundDelete(_that.soundId);case CoreEventPayload_VoiceChannelEffect() when voiceChannelEffect != null:
-return voiceChannelEffect(_that.field0);case _:
+return voiceChannelEffect(_that.field0);case CoreEventPayload_NetworkStatus() when networkStatus != null:
+return networkStatus(_that.field0);case CoreEventPayload_ServerNotice() when serverNotice != null:
+return serverNotice(_that.field0);case _:
   return null;
 
 }
@@ -3792,6 +3804,138 @@ class _$CoreEventPayload_VoiceChannelEffectCopyWithImpl<$Res>
   return _then(CoreEventPayload_VoiceChannelEffect(
 null == field0 ? _self.field0 : field0 // ignore: cast_nullable_to_non_nullable
 as SoundEffect,
+  ));
+}
+
+
+}
+
+/// @nodoc
+
+
+class CoreEventPayload_NetworkStatus extends CoreEventPayload {
+  const CoreEventPayload_NetworkStatus(this.field0): super._();
+  
+
+ final  NetworkInfo field0;
+
+/// Create a copy of CoreEventPayload
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$CoreEventPayload_NetworkStatusCopyWith<CoreEventPayload_NetworkStatus> get copyWith => _$CoreEventPayload_NetworkStatusCopyWithImpl<CoreEventPayload_NetworkStatus>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is CoreEventPayload_NetworkStatus&&(identical(other.field0, field0) || other.field0 == field0));
+}
+
+
+@override
+int get hashCode => Object.hash(runtimeType,field0);
+
+@override
+String toString() {
+  return 'CoreEventPayload.networkStatus(field0: $field0)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $CoreEventPayload_NetworkStatusCopyWith<$Res> implements $CoreEventPayloadCopyWith<$Res> {
+  factory $CoreEventPayload_NetworkStatusCopyWith(CoreEventPayload_NetworkStatus value, $Res Function(CoreEventPayload_NetworkStatus) _then) = _$CoreEventPayload_NetworkStatusCopyWithImpl;
+@useResult
+$Res call({
+ NetworkInfo field0
+});
+
+
+
+
+}
+/// @nodoc
+class _$CoreEventPayload_NetworkStatusCopyWithImpl<$Res>
+    implements $CoreEventPayload_NetworkStatusCopyWith<$Res> {
+  _$CoreEventPayload_NetworkStatusCopyWithImpl(this._self, this._then);
+
+  final CoreEventPayload_NetworkStatus _self;
+  final $Res Function(CoreEventPayload_NetworkStatus) _then;
+
+/// Create a copy of CoreEventPayload
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? field0 = null,}) {
+  return _then(CoreEventPayload_NetworkStatus(
+null == field0 ? _self.field0 : field0 // ignore: cast_nullable_to_non_nullable
+as NetworkInfo,
+  ));
+}
+
+
+}
+
+/// @nodoc
+
+
+class CoreEventPayload_ServerNotice extends CoreEventPayload {
+  const CoreEventPayload_ServerNotice(this.field0): super._();
+  
+
+ final  ServerNotice field0;
+
+/// Create a copy of CoreEventPayload
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$CoreEventPayload_ServerNoticeCopyWith<CoreEventPayload_ServerNotice> get copyWith => _$CoreEventPayload_ServerNoticeCopyWithImpl<CoreEventPayload_ServerNotice>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is CoreEventPayload_ServerNotice&&(identical(other.field0, field0) || other.field0 == field0));
+}
+
+
+@override
+int get hashCode => Object.hash(runtimeType,field0);
+
+@override
+String toString() {
+  return 'CoreEventPayload.serverNotice(field0: $field0)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $CoreEventPayload_ServerNoticeCopyWith<$Res> implements $CoreEventPayloadCopyWith<$Res> {
+  factory $CoreEventPayload_ServerNoticeCopyWith(CoreEventPayload_ServerNotice value, $Res Function(CoreEventPayload_ServerNotice) _then) = _$CoreEventPayload_ServerNoticeCopyWithImpl;
+@useResult
+$Res call({
+ ServerNotice field0
+});
+
+
+
+
+}
+/// @nodoc
+class _$CoreEventPayload_ServerNoticeCopyWithImpl<$Res>
+    implements $CoreEventPayload_ServerNoticeCopyWith<$Res> {
+  _$CoreEventPayload_ServerNoticeCopyWithImpl(this._self, this._then);
+
+  final CoreEventPayload_ServerNotice _self;
+  final $Res Function(CoreEventPayload_ServerNotice) _then;
+
+/// Create a copy of CoreEventPayload
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? field0 = null,}) {
+  return _then(CoreEventPayload_ServerNotice(
+null == field0 ? _self.field0 : field0 // ignore: cast_nullable_to_non_nullable
+as ServerNotice,
   ));
 }
 

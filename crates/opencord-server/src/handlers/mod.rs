@@ -14,6 +14,7 @@ mod channels;
 mod invites;
 mod members;
 mod messages;
+mod network;
 mod profile;
 mod roles;
 pub(crate) mod settings;
@@ -96,6 +97,10 @@ async fn dispatch(ctx: &Ctx<'_>, request: proto::Request) -> Result<Response, Ap
         Kind::PlaySoundboardSound(request) => soundboard::play(ctx, request).await,
         Kind::UpdateSoundboardSound(request) => soundboard::update(ctx, request).await,
         Kind::DeleteSoundboardSound(request) => soundboard::delete(ctx, request).await,
+        Kind::WatchNetwork(request) => network::watch(ctx, &request),
+        Kind::SetPublicAddress(request) => network::set_public_address(ctx, request).await,
+        Kind::DetectPublicAddress(_) => network::detect_public_address(ctx).await,
+        Kind::UpdateNetworkSettings(request) => network::update_settings(ctx, request).await,
     }
 }
 

@@ -8,6 +8,7 @@ import 'package:opencord/core/model/stream.dart';
 import 'package:opencord/core/model/channel.dart';
 import 'package:opencord/core/model/message.dart';
 import 'package:opencord/core/model/misc.dart';
+import 'package:opencord/core/model/network.dart';
 import 'package:opencord/core/model/permissions.dart';
 import 'package:opencord/core/model/presence.dart';
 import 'package:opencord/core/model/server.dart';
@@ -193,6 +194,10 @@ class MockRepository implements OpencordRepository {
   }
 
   // Debug triggers (plan §11) ------------------------------------------
+
+  /// A notice from the server, as the owner would get one.
+  void debugNotice(String serverKey, ServerNotice notice) =>
+      _emit(ServerNoticeReceived(serverKey, notice));
 
   void debugDisconnect(String serverKey) {
     final server = _server(serverKey);
@@ -1381,6 +1386,154 @@ class MockRepository implements OpencordRepository {
     await _latency();
     server.voiceSettings = settings;
     _emit(VoiceSettingsChanged(serverKey, settings));
+  }
+
+  // Domains & network -------------------------------------------------------------
+
+  void _requireOwner(MockServer server) {
+    if (server.info.ownerId != server.selfId) {
+      throw const RepoException(
+        RepoErrorKind.forbidden,
+        "Only the server's owner manages its domains and network.",
+      );
+    }
+  }
+
+  /// Saves the network and tells whoever watches it.
+  NetworkInfo _network(MockServer server, NetworkInfo network) {
+    server.network = network;
+    _emit(NetworkStatusChanged(server.key, network));
+    return network;
+  }
+
+  @override
+  Future<NetworkInfo> watchNetwork(
+    String serverKey, {
+    required bool watch,
+  }) async {
+    final server = _server(serverKey);
+    _requireOwner(server);
+    // Stopping is fire and forget: nobody waits on it.
+    if (watch) await _latency(60);
+    return server.network;
+  }
+
+  @override
+  Future<NetworkInfo> setPublicAddress(
+    String serverKey, {
+    required bool autoDetect,
+    String overrideIpv4 = '',
+    String overrideIpv6 = '',
+  }) async {
+    final server = _server(serverKey);
+    _requireOwner(server);
+    await _latency();
+    final old = server.network;
+    final address = old.publicAddress;
+    return _network(
+      server,
+      NetworkInfo(
+        publicAddress: PublicAddress(
+          ipv4: overrideIpv4.isNotEmpty ? overrideIpv4 : address.detectedIpv4,
+          ipv6: overrideIpv6.isNotEmpty ? overrideIpv6 : address.detectedIpv6,
+          detectedIpv4: address.detectedIpv4,
+          detectedIpv6: address.detectedIpv6,
+          overrideIpv4: overrideIpv4,
+          overrideIpv6: overrideIpv6,
+          autoDetect: autoDetect,
+          detectedAt: address.detectedAt,
+          hasIpv6: address.hasIpv6,
+        ),
+        ports: old.ports,
+        settings: old.settings,
+        listeningPort: old.listeningPort,
+        nextMainPort: old.nextMainPort,
+      ),
+    );
+  }
+
+  @override
+  Future<NetworkInfo> detectPublicAddress(String serverKey) async {
+    final server = _server(serverKey);
+    _requireOwner(server);
+    await _latency(600);
+    final old = server.network;
+    final address = old.publicAddress;
+    return _network(
+      server,
+      NetworkInfo(
+        publicAddress: PublicAddress(
+          ipv4: address.overrideIpv4.isNotEmpty
+              ? address.overrideIpv4
+              : address.detectedIpv4,
+          ipv6: address.ipv6,
+          detectedIpv4: address.detectedIpv4,
+          detectedIpv6: address.detectedIpv6,
+          overrideIpv4: address.overrideIpv4,
+          overrideIpv6: address.overrideIpv6,
+          autoDetect: address.autoDetect,
+          detectedAt: clock.now(),
+          hasIpv6: address.hasIpv6,
+        ),
+        ports: old.ports,
+        settings: old.settings,
+        listeningPort: old.listeningPort,
+        nextMainPort: old.nextMainPort,
+      ),
+    );
+  }
+
+  @override
+  Future<NetworkInfo> updateNetworkSettings(
+    String serverKey,
+    NetworkSettingsChanges changes,
+  ) async {
+    final server = _server(serverKey);
+    _requireOwner(server);
+    await _latency();
+    final old = server.network;
+    final settings = old.settings;
+    final next = NetworkSettings(
+      mainPort: changes.mainPort ?? settings.mainPort,
+      upnpEnabled: changes.upnpEnabled ?? settings.upnpEnabled,
+      localListenerPort:
+          changes.localListenerPort ?? settings.localListenerPort,
+      trustedProxies: changes.trustedProxies ?? settings.trustedProxies,
+      dnsResolvers: changes.dnsResolvers ?? settings.dnsResolvers,
+      acmeStaging: changes.acmeStaging ?? settings.acmeStaging,
+    );
+    return _network(
+      server,
+      NetworkInfo(
+        publicAddress: old.publicAddress,
+        ports: [
+          for (final port in old.ports)
+            next.upnpEnabled && port.purpose != PortPurpose.acmeHttp
+                ? PortStatus(
+                    purpose: port.purpose,
+                    protocol: port.protocol,
+                    port: port.port,
+                    state: port.state,
+                    mapping: port.state == PortState.listening
+                        ? MappingState.mapped
+                        : MappingState.notUsed,
+                  )
+                : PortStatus(
+                    purpose: port.purpose,
+                    protocol: port.protocol,
+                    port: port.port,
+                    state: port.state,
+                  ),
+        ],
+        settings: next,
+        listeningPort: old.listeningPort,
+        nextMainPort: next.mainPort == 0 || next.mainPort == old.listeningPort
+            ? PortState.unknown
+            : PortState.free,
+        upnpGateway: next.upnpEnabled ? '192.168.1.1' : '',
+        upnpExternalIp: next.upnpEnabled ? old.publicAddress.ipv4 : '',
+      ),
+    );
   }
 
   // Voice -------------------------------------------------------------------------

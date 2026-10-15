@@ -408,3 +408,17 @@ The desktop UI plan's §17.5 never arrived, so where Phase 2 §12 says only what
   - Lavalink's Opus payload type (120) is rewritten to Opencord's (111).
   - The stream starts with a channel's first frame and stops when the main server says (`NodeCommand::StopMusic`, `CancelMusicBridge` for external nodes); a Lavalink connection ending does not end it, since a failover follows.
 - **Not done here.** A public Lavalink node: it needs a domain with a trusted certificate and UDP 7712 reachable from it, which arrive with D2–D3 and are part of L3's acceptance.
+
+## D39: Public address and ports (Phase 3 D1, 2026-10-15)
+
+- **What the owner gets.** Server settings → Domains & network, the owner's alone: the public address (detected or set by hand), every port with its state and the router's mapping, UPnP, the main port, and the advanced settings (DNS resolvers for checks, Let's Encrypt's test environment, the local listener's port, trusted proxies). The page watches the network while it is open (`WatchNetwork`); the server sends `NetworkStatus` only to sessions watching, and the whole description each time, since it is small and seldom changes.
+- **Seen on this network.** ipify answered 80.115.244.136, and the router answered UPnP (192.168.0.1) with the same public address. Its mapping table is full, so it refused the test mapping ("501: Port mapping table id full"): the page shows that reason against each port. UPnP's map-and-remove acceptance needs a router with room; the test is `network::upnp::tests::a_real_router_maps_and_unmaps`, ignored by default.
+- **Rulings.**
+  - Settings live in `server_meta` under `network.`; no new tables yet. The last detected address is kept, so a restart without the internet still knows it.
+  - The address lookup is a setting in `opencord.toml` (`[network] ip_lookup_v4`, `ip_lookup_v6`), ipify by default: tests point it at a local stand-in, and an owner who never wants ipify contacted empties it before the first start.
+  - The main port chosen in the app is taken at the next start; if it cannot be had, the server falls back to the configured port and logs why, so a bad choice never locks the owner out. Port 0 in the config (tests) keeps asking for a free port.
+  - Port states come from trying to bind each port for a moment: Free, In use, or Not allowed (below 1024 without the capability).
+  - Behind the local listener or a trusted proxy, the client's address is the last `X-Forwarded-For` entry that is not itself a trusted proxy, so an address a client wrote itself into the header is never believed. The voice gateway, the voice nodes' control channel and the music bridge all use it.
+  - `NetworkStatus` and `NetworkInfo` are boxed in the protocol, as `Ready` is: they are far larger than the other events and responses.
+  - Server notices (`ServerNotice`) show as the app's toast. The public address changing is the first one.
+- **Not done here.** The page's Domains section and DNS providers arrive with D2–D4. Dynamic DNS for free subdomains and re-checking domains when the address changes hook into `Network::public_ips`, which already announces each change.

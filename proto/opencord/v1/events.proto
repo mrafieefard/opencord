@@ -4,6 +4,7 @@ syntax = "proto3";
 package opencord.v1;
 
 import "opencord/v1/models.proto";
+import "opencord/v1/network.proto";
 
 // Events about a channel are only sent to sessions that can view it.
 message Event {
@@ -47,6 +48,11 @@ message Event {
     SoundboardSoundCreate soundboard_sound_create = 71;
     SoundboardSoundUpdate soundboard_sound_update = 72;
     SoundboardSoundDelete soundboard_sound_delete = 73;
+
+    // Phase 3: to sessions watching the network (WatchNetwork).
+    NetworkStatus network_status = 80;
+    // To those it concerns: the owner, or members who manage the server.
+    ServerNotice server_notice = 81;
   }
 }
 

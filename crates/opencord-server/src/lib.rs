@@ -11,6 +11,7 @@ pub mod handlers;
 pub mod http;
 pub mod media;
 pub mod music;
+pub mod network;
 pub mod permissions;
 pub mod presence;
 pub mod random;

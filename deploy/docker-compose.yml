@@ -7,7 +7,9 @@
 #   docker compose logs | grep claim_token
 #
 # Forward 7710/tcp and 7711/udp to this machine on your router
-# (docs/voice.md). An invite for others:
+# (docs/voice.md), and 7712/udp when Lavalink nodes on other machines play
+# music (docs/music.md). UPnP from the app cannot reach the router from a
+# container's own network. An invite for others:
 #
 #   docker compose exec opencord opencord-server invite create
 services:
@@ -23,6 +25,7 @@ services:
     ports:
       - "7710:7710/tcp"
       - "7711:7711/udp"
+      - "7712:7712/udp"
     volumes:
       - opencord-data:/data
 

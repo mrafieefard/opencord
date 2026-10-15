@@ -1,0 +1,158 @@
+// SPDX-License-Identifier: MPL-2.0
+syntax = "proto3";
+
+package opencord.v1;
+
+// Domains & network (Phase 3 plan §5, §8): the server's public address,
+// its ports and how they are reached. Only the owner sees or changes it.
+
+// Where the server is reached from the internet (§5.1).
+message PublicAddress {
+  // In use: the override when there is one, else what was detected. Empty
+  // when unknown.
+  string ipv4 = 1;
+  string ipv6 = 2;
+  string detected_ipv4 = 3;
+  string detected_ipv6 = 4;
+  string override_ipv4 = 5;
+  string override_ipv6 = 6;
+  // Asks api.ipify.org at start-up and every 6 hours.
+  bool auto_detect = 7;
+  // When detection last succeeded; 0 for never.
+  int64 detected_at_ms = 8;
+  // Why the last detection failed, if it did.
+  string detect_error = 9;
+  // Whether this machine has a global IPv6 address.
+  bool has_ipv6 = 10;
+}
+
+enum PortPurpose {
+  PORT_PURPOSE_UNSPECIFIED = 0;
+  // Everything over TLS: chat, voice signalling, media, invites, Lavalink.
+  PORT_PURPOSE_MAIN = 1;
+  PORT_PURPOSE_VOICE = 2;
+  PORT_PURPOSE_MUSIC = 3;
+  // Let's Encrypt's HTTP challenge, only while a certificate is requested.
+  PORT_PURPOSE_ACME_HTTP = 4;
+  // Plain, on this machine only, for tunnels and reverse proxies.
+  PORT_PURPOSE_LOCAL_PROXY = 5;
+}
+
+enum PortProtocol {
+  PORT_PROTOCOL_UNSPECIFIED = 0;
+  PORT_PROTOCOL_TCP = 1;
+  PORT_PROTOCOL_UDP = 2;
+}
+
+enum PortState {
+  PORT_STATE_UNSPECIFIED = 0;
+  // Opencord listens on it.
+  PORT_STATE_LISTENING = 1;
+  // Not used: the feature is off.
+  PORT_STATE_OFF = 2;
+  // Not in use now; Opencord can take it when needed.
+  PORT_STATE_FREE = 3;
+  // Another program has it.
+  PORT_STATE_IN_USE = 4;
+  // The system does not let Opencord use it (ports below 1024 on Linux).
+  PORT_STATE_NOT_PERMITTED = 5;
+}
+
+enum MappingState {
+  MAPPING_STATE_UNSPECIFIED = 0;
+  // UPnP is off, or the port needs no mapping.
+  MAPPING_STATE_NOT_USED = 1;
+  MAPPING_STATE_MAPPED = 2;
+  MAPPING_STATE_FAILED = 3;
+}
+
+message PortStatus {
+  PortPurpose purpose = 1;
+  PortProtocol protocol = 2;
+  uint32 port = 3;
+  PortState state = 4;
+  // The router's mapping, with UPnP.
+  MappingState mapping = 5;
+  string mapping_error = 6;
+}
+
+message NetworkSettings {
+  // The main port from the next start; 0 keeps the configured one.
+  uint32 main_port = 1;
+  // Open the ports on the router with UPnP (§5.2).
+  bool upnp_enabled = 2;
+  // The plain local listener for tunnels and reverse proxies.
+  uint32 local_listener_port = 3;
+  // Addresses or CIDR ranges whose X-Forwarded-For is believed.
+  repeated string trusted_proxies = 4;
+  // Resolvers domain checks find name servers with (§6.2).
+  repeated string dns_resolvers = 5;
+  // Certificates from Let's Encrypt's test environment (§7.2).
+  bool acme_staging = 6;
+}
+
+message NetworkInfo {
+  PublicAddress public_address = 1;
+  repeated PortStatus ports = 2;
+  NetworkSettings settings = 3;
+  // The main port in use now; it differs from settings.main_port until the
+  // next start.
+  uint32 listening_port = 4;
+  // Whether settings.main_port can be used, when it differs.
+  PortState next_main_port = 5;
+  // The router UPnP found: its address, and the public address it reports.
+  string upnp_gateway = 6;
+  string upnp_external_ip = 7;
+  string upnp_error = 8;
+}
+
+// Starts or stops NetworkStatus events for this session; answers with
+// NetworkInfo. Owner only.
+message WatchNetwork {
+  bool watch = 1;
+}
+
+message SetPublicAddress {
+  bool auto_detect = 1;
+  // Empty clears the override.
+  string override_ipv4 = 2;
+  string override_ipv6 = 3;
+}
+
+// Asks ipify now; answers with NetworkInfo.
+message DetectPublicAddress {}
+
+// Each field set changes that setting; answers with NetworkInfo.
+message UpdateNetworkSettings {
+  optional uint32 main_port = 1;
+  optional bool upnp_enabled = 2;
+  optional uint32 local_listener_port = 3;
+  optional StringList trusted_proxies = 4;
+  optional StringList dns_resolvers = 5;
+  optional bool acme_staging = 6;
+}
+
+message StringList {
+  repeated string values = 1;
+}
+
+// The network changed, to sessions watching it.
+message NetworkStatus {
+  NetworkInfo info = 1;
+}
+
+enum NoticeSeverity {
+  NOTICE_SEVERITY_UNSPECIFIED = 0;
+  NOTICE_SEVERITY_INFO = 1;
+  NOTICE_SEVERITY_WARNING = 2;
+}
+
+// Something the owner or admins should know (Phase 3): the public address
+// changed, a domain's DNS broke, a certificate is about to expire.
+message ServerNotice {
+  // Stable for one subject, so a newer notice replaces an older one.
+  string key = 1;
+  NoticeSeverity severity = 2;
+  string title = 3;
+  string body = 4;
+}

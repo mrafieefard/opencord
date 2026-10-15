@@ -112,7 +112,7 @@ impl std::fmt::Debug for MusicBridge {
 
 struct Settings {
     udp_port: u16,
-    public_ip: Option<IpAddr>,
+    public_ip: Mutex<Option<IpAddr>>,
     heartbeat: Duration,
     frames: mpsc::Sender<MusicFrame>,
     events: mpsc::UnboundedSender<BridgeEvent>,
@@ -174,7 +174,7 @@ impl MusicBridge {
             shared: Arc::default(),
             config: Arc::new(Settings {
                 udp_port: sockets.port,
-                public_ip: config.public_ip,
+                public_ip: Mutex::new(config.public_ip),
                 heartbeat: config.heartbeat,
                 frames: frames_tx,
                 events: events_tx,
@@ -210,6 +210,24 @@ impl MusicBridge {
         let ended = shared.remove_live(channel_id);
         drop(shared);
         self.ended(channel_id, ended, close::DISCONNECTED);
+    }
+
+    /// Where Lavalink nodes outside this machine and its network send
+    /// audio, as the server's public address changes.
+    pub fn set_public_ip(&self, ip: Option<IpAddr>) {
+        *self
+            .config
+            .public_ip
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner) = ip;
+    }
+
+    pub fn public_ip(&self) -> Option<IpAddr> {
+        *self
+            .config
+            .public_ip
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
     }
 
     /// Stops listening and ends every connection.

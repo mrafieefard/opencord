@@ -81,6 +81,13 @@ audio_udp_port = 7712
 # The domain Lavalink connects to: "primary", or another active domain with
 # a trusted certificate.
 bridge_domain = "primary"
+
+[network]
+# Services that answer with the address a request came from, used to find
+# the server's public address. Empty turns detection off; the owner can
+# also turn it off in the app. OPENCORD_IP_LOOKUP_V4, OPENCORD_IP_LOOKUP_V6
+ip_lookup_v4 = "https://api.ipify.org"
+ip_lookup_v6 = "https://api6.ipify.org"
 "#;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Deserialize)]
@@ -92,6 +99,7 @@ pub struct Config {
     pub log: LogSection,
     pub voice: VoiceSection,
     pub music: MusicSection,
+    pub network: NetworkSection,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
@@ -212,6 +220,23 @@ impl Default for MusicSection {
             enabled: true,
             audio_udp_port: 7712,
             bridge_domain: "primary".to_owned(),
+        }
+    }
+}
+
+/// How the server finds its public address (Phase 3 plan §5.1).
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct NetworkSection {
+    pub ip_lookup_v4: String,
+    pub ip_lookup_v6: String,
+}
+
+impl Default for NetworkSection {
+    fn default() -> Self {
+        Self {
+            ip_lookup_v4: "https://api.ipify.org".to_owned(),
+            ip_lookup_v6: "https://api6.ipify.org".to_owned(),
         }
     }
 }
@@ -337,6 +362,12 @@ impl Config {
         }
         if let Some(value) = env("OPENCORD_MUSIC_UDP_PORT") {
             config.music.audio_udp_port = parse_env("OPENCORD_MUSIC_UDP_PORT", value)?;
+        }
+        if let Some(value) = env("OPENCORD_IP_LOOKUP_V4") {
+            config.network.ip_lookup_v4 = value;
+        }
+        if let Some(value) = env("OPENCORD_IP_LOOKUP_V6") {
+            config.network.ip_lookup_v6 = value;
         }
         if let Some(value) = env("OPENCORD_VOICE_PUBLIC_ADDRESS") {
             config.voice.public_address = value;

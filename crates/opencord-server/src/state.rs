@@ -46,6 +46,8 @@ pub struct AppState {
     /// Signs voice and media tokens.
     pub voice_key: SigningKey,
     pub voice_nodes: VoiceNodes,
+    /// Domains & network (Phase 3 plan §5).
+    pub network: crate::network::Network,
     /// Where Lavalink plays into, when music is on (Phase 3 plan §13).
     pub music_bridge: Option<opencord_voice::bridge::MusicBridge>,
     guild: RwLock<Guild>,
@@ -65,6 +67,14 @@ impl AppState {
         voice_nodes: VoiceNodes,
     ) -> Self {
         let rate_limits = RateLimits::with_identify_per_minute(config.gateway.identify_per_minute);
+        let network = crate::network::Network::new(
+            crate::network::settings::NetworkSettings::default(),
+            crate::network::Lookup {
+                v4: config.network.ip_lookup_v4.clone(),
+                v6: config.network.ip_lookup_v6.clone(),
+            },
+            crate::tls::http_client().expect("the HTTPS client builds with the ring provider"),
+        );
         Self {
             config,
             db,
@@ -76,6 +86,7 @@ impl AppState {
             shutdown: CancellationToken::new(),
             voice_key,
             voice_nodes,
+            network,
             music_bridge: None,
             guild: RwLock::new(guild),
             voice: StdMutex::new(VoiceStates::default()),

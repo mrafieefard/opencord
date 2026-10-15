@@ -1672,7 +1672,7 @@ fn drop_pending(pending: crate::video::screen::Pending) {
     std::thread::spawn(move || drop(pending));
 }
 
-fn unexpected(response: &Response) -> CoreError {
+pub(crate) fn unexpected(response: &Response) -> CoreError {
     CoreError::Connection {
         message: format!("the server sent an unexpected response: {response:?}"),
     }

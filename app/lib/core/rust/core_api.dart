@@ -273,6 +273,22 @@ abstract interface class CoreApi {
     core.VoiceSettingsChanges changes,
   );
 
+  Future<core.NetworkInfo> watchNetwork(String serverKey, bool watch);
+
+  Future<core.NetworkInfo> setPublicAddress(
+    String serverKey, {
+    required bool autoDetect,
+    required String overrideIpv4,
+    required String overrideIpv6,
+  });
+
+  Future<core.NetworkInfo> detectPublicAddress(String serverKey);
+
+  Future<core.NetworkInfo> updateNetworkSettings(
+    String serverKey,
+    core.NetworkSettingsChanges changes,
+  );
+
   /// Leaves any other voice channel first, on any server.
   Future<core.VoiceState> voiceJoin(String serverKey, int channelId);
 
@@ -764,6 +780,33 @@ class FrbCoreApi implements CoreApi {
     String serverKey,
     core.VoiceSettingsChanges changes,
   ) => frb.updateVoiceSettings(serverKey: serverKey, changes: changes);
+
+  @override
+  Future<core.NetworkInfo> watchNetwork(String serverKey, bool watch) =>
+      frb.watchNetwork(serverKey: serverKey, watch: watch);
+
+  @override
+  Future<core.NetworkInfo> setPublicAddress(
+    String serverKey, {
+    required bool autoDetect,
+    required String overrideIpv4,
+    required String overrideIpv6,
+  }) => frb.setPublicAddress(
+    serverKey: serverKey,
+    autoDetect: autoDetect,
+    overrideIpv4: overrideIpv4,
+    overrideIpv6: overrideIpv6,
+  );
+
+  @override
+  Future<core.NetworkInfo> detectPublicAddress(String serverKey) =>
+      frb.detectPublicAddress(serverKey: serverKey);
+
+  @override
+  Future<core.NetworkInfo> updateNetworkSettings(
+    String serverKey,
+    core.NetworkSettingsChanges changes,
+  ) => frb.updateNetworkSettings(serverKey: serverKey, changes: changes);
 
   @override
   Future<core.VoiceState> voiceJoin(String serverKey, int channelId) =>

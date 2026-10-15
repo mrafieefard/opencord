@@ -15,11 +15,12 @@ use super::types::{
     AddServerOutcome, AudioDevices, AudioSettings, Ban, CameraDevice, CameraStarted, Channel,
     ChannelChanges, ChannelKind, ChannelPosition, CoreError, CoreEvent, DefaultSound,
     GeneratedIdentity, HotkeyBinding, HotkeySupport, IdentityInfo, Invite, MediaEvent, Member,
-    Message, NoiseSuppressionMode, OverwriteTargetKind, PermissionOverwrite, PresenceStatus, Role,
-    RoleChanges, ScreenAudioApp, ScreenAudioSupport, ScreenShareRequest, ScreenShareStarted,
-    ScreenSource, ScreenThumbnail, Server, ServerChanges, ServerInfo, SoundDraft, SoundSelection,
-    SoundboardSound, SoundboardSoundChanges, StreamSourceKind, TextureStats, TrustedFingerprint,
-    User, VideoSupport, VideoWant, VoiceCue, VoiceSettings, VoiceSettingsChanges, VoiceState,
+    Message, NetworkInfo, NetworkSettingsChanges, NoiseSuppressionMode, OverwriteTargetKind,
+    PermissionOverwrite, PresenceStatus, Role, RoleChanges, ScreenAudioApp, ScreenAudioSupport,
+    ScreenShareRequest, ScreenShareStarted, ScreenSource, ScreenThumbnail, Server, ServerChanges,
+    ServerInfo, SoundDraft, SoundSelection, SoundboardSound, SoundboardSoundChanges,
+    StreamSourceKind, TextureStats, TrustedFingerprint, User, VideoSupport, VideoWant, VoiceCue,
+    VoiceSettings, VoiceSettingsChanges, VoiceState,
 };
 use crate::client::Client;
 use crate::frb_generated::StreamSink;
@@ -461,6 +462,43 @@ pub async fn update_voice_settings(
 ) -> Result<VoiceSettings, CoreError> {
     on_runtime(
         move |client| async move { client.update_voice_settings(&server_key, changes).await },
+    )
+    .await
+}
+
+/// Starts or stops `NetworkStatus` events for this session; returns the
+/// network as it is. Owner only (Phase 3 plan §8).
+pub async fn watch_network(server_key: String, watch: bool) -> Result<NetworkInfo, CoreError> {
+    on_runtime(move |client| async move { client.watch_network(&server_key, watch).await }).await
+}
+
+/// How the server finds its public address: detected, or overridden (an
+/// empty override is none).
+pub async fn set_public_address(
+    server_key: String,
+    auto_detect: bool,
+    override_ipv4: String,
+    override_ipv6: String,
+) -> Result<NetworkInfo, CoreError> {
+    on_runtime(move |client| async move {
+        client
+            .set_public_address(&server_key, auto_detect, override_ipv4, override_ipv6)
+            .await
+    })
+    .await
+}
+
+/// Looks the public address up now.
+pub async fn detect_public_address(server_key: String) -> Result<NetworkInfo, CoreError> {
+    on_runtime(move |client| async move { client.detect_public_address(&server_key).await }).await
+}
+
+pub async fn update_network_settings(
+    server_key: String,
+    changes: NetworkSettingsChanges,
+) -> Result<NetworkInfo, CoreError> {
+    on_runtime(
+        move |client| async move { client.update_network_settings(&server_key, changes).await },
     )
     .await
 }

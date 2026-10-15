@@ -110,6 +110,16 @@ pub fn client_config(fingerprint: Option<Fingerprint>) -> Result<rustls::ClientC
     Ok(config)
 }
 
+/// The client for the server's own HTTPS requests (address lookups, DNS
+/// providers, Lavalink): public certificate authorities only.
+pub fn http_client() -> Result<reqwest::Client, TlsError> {
+    reqwest::Client::builder()
+        .tls_backend_preconfigured(client_config(None)?)
+        .user_agent(concat!("Opencord/", env!("CARGO_PKG_VERSION")))
+        .build()
+        .map_err(|error| TlsError::Rustls(rustls::Error::General(error.to_string())))
+}
+
 /// Accepts exactly the certificate with this fingerprint.
 #[derive(Debug)]
 struct Pinned {

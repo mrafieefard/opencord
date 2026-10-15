@@ -5,6 +5,7 @@ import 'dart:typed_data';
 import 'package:opencord/core/model/channel.dart';
 import 'package:opencord/core/model/message.dart';
 import 'package:opencord/core/model/misc.dart';
+import 'package:opencord/core/model/network.dart';
 import 'package:opencord/core/model/permissions.dart';
 import 'package:opencord/core/model/server.dart';
 import 'package:opencord/core/model/snapshot.dart';
@@ -18,6 +19,7 @@ import 'package:opencord/core/repository/repository.dart';
 import 'package:opencord/core/rust/core_api.dart';
 import 'package:opencord/core/rust/core_mapping.dart';
 import 'package:opencord/core/rust/identity_store.dart';
+import 'package:opencord/core/rust/network_mapping.dart';
 import 'package:opencord/core/rust/read_positions.dart';
 import 'package:opencord/core/settings/key_value_store.dart';
 import 'package:opencord/src/rust/api/types.dart' as core;
@@ -534,6 +536,12 @@ class RustRepository implements OpencordRepository {
         server,
         soundPlayFrom(field0),
       ),
+      core.CoreEventPayload_NetworkStatus(:final field0) =>
+        NetworkStatusChanged(server, networkInfoFrom(field0)),
+      core.CoreEventPayload_ServerNotice(:final field0) => ServerNoticeReceived(
+        server,
+        serverNoticeFrom(field0),
+      ),
     };
     if (event != null) _emit(event);
   }
@@ -961,6 +969,46 @@ class RustRepository implements OpencordRepository {
       _call(
         () => _core.updateVoiceSettings(serverKey, voiceSettingsTo(settings)),
       );
+
+  // Domains & network ---------------------------------------------------------
+
+  @override
+  Future<NetworkInfo> watchNetwork(
+    String serverKey, {
+    required bool watch,
+  }) async =>
+      networkInfoFrom(await _call(() => _core.watchNetwork(serverKey, watch)));
+
+  @override
+  Future<NetworkInfo> setPublicAddress(
+    String serverKey, {
+    required bool autoDetect,
+    String overrideIpv4 = '',
+    String overrideIpv6 = '',
+  }) async => networkInfoFrom(
+    await _call(
+      () => _core.setPublicAddress(
+        serverKey,
+        autoDetect: autoDetect,
+        overrideIpv4: overrideIpv4,
+        overrideIpv6: overrideIpv6,
+      ),
+    ),
+  );
+
+  @override
+  Future<NetworkInfo> detectPublicAddress(String serverKey) async =>
+      networkInfoFrom(await _call(() => _core.detectPublicAddress(serverKey)));
+
+  @override
+  Future<NetworkInfo> updateNetworkSettings(
+    String serverKey,
+    NetworkSettingsChanges changes,
+  ) async => networkInfoFrom(
+    await _call(
+      () => _core.updateNetworkSettings(serverKey, networkChangesTo(changes)),
+    ),
+  );
 
   // Voice ---------------------------------------------------------------------
 

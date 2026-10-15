@@ -1,6 +1,6 @@
 //! Starting and stopping the server.
 
-use std::net::SocketAddr;
+use std::net::{IpAddr, SocketAddr};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
@@ -16,9 +16,12 @@ use tokio::task::JoinHandle;
 use crate::config::{Config, VoiceMode};
 use crate::gateway::session::CloseCode;
 use crate::guild::Guild;
+use crate::network::settings::NetworkSettings;
+use crate::network::{Listening, Network};
 use crate::state::{AppState, now_ms};
 use crate::voice::nodes::VoiceNodes;
 use crate::{bootstrap, db, http, music, tls, voice};
+use opencord_voice::bridge::MusicBridge;
 use opencord_voice::node::{NodeConfig, NodeEvent, VoiceNode};
 use tokio::sync::mpsc::UnboundedReceiver;
 
@@ -62,6 +65,8 @@ pub async fn start(config: Config) -> anyhow::Result<ServerHandle> {
     let guild = Guild::load(&mut *pool.acquire().await?, bootstrap.meta).await?;
     let invite_code = bootstrap::startup_invite(&pool, now_ms()).await?;
     let rustls = RustlsConfig::from_config(Arc::new(tls::server_config(&tls)?));
+    let network_settings = NetworkSettings::load(&mut *pool.acquire().await?).await?;
+    let listener = bind_main_port(&config, network_settings.main_port)?;
     let state = Arc::new(
         AppState::new(
             config.clone(),
@@ -74,6 +79,19 @@ pub async fn start(config: Config) -> anyhow::Result<ServerHandle> {
         )
         .with_music_bridge(music_bridge),
     );
+    state.network.restore(network_settings);
+    if let Some(bridge) = state.music_bridge.clone() {
+        let mut public = state.network.public_ips();
+        bridge.set_public_ip(public.borrow().v4.map(IpAddr::V4).or(bridge.public_ip()));
+        tokio::spawn(async move {
+            while public.changed().await.is_ok() {
+                let v4 = public.borrow().v4;
+                if let Some(v4) = v4 {
+                    bridge.set_public_ip(Some(IpAddr::V4(v4)));
+                }
+            }
+        });
+    }
     if let Some(mut events) = node_events {
         let state = Arc::clone(&state);
         tokio::spawn(async move {
@@ -85,20 +103,30 @@ pub async fn start(config: Config) -> anyhow::Result<ServerHandle> {
 
     let handle = Handle::new();
     let app = http::router(Arc::clone(&state)).into_make_service_with_connect_info::<SocketAddr>();
+    let bound = listener.local_addr()?;
     let serve = tokio::spawn(
-        axum_server::bind_rustls(config.server.bind, rustls)
+        axum_server::from_tcp_rustls(listener, rustls)?
             .handle(handle.clone())
             .serve(app),
     );
     let local_addr = handle
         .listening()
         .await
-        .with_context(|| format!("could not listen on {}", config.server.bind))?;
+        .with_context(|| format!("could not listen on {bound}"))?;
     let reaper = tokio::spawn(reap_sessions(Arc::clone(&state)));
+    state.network.set_listening(
+        local_addr.port(),
+        Listening {
+            voice: state.voice_nodes.embedded().map(VoiceNode::udp_port),
+            music: state.music_bridge.as_ref().map(MusicBridge::udp_port),
+        },
+    );
+    Network::start(&state);
 
-    let public_port = match config.server.bind.port() {
-        0 => local_addr.port(),
-        _ => config.public_port(),
+    let public_port = match (config.server.bind.port(), config.server.public_port) {
+        (0, _) => local_addr.port(),
+        (_, Some(port)) => port,
+        (_, None) => local_addr.port(),
     };
     let invite_link = invite_code.map(|code| InviteLink {
         address: ServerAddress {
@@ -168,6 +196,16 @@ impl ServerHandle {
         self.state.music_bridge.as_ref()
     }
 
+    /// Starts or stops the local listener for tunnels and proxies; returns
+    /// its port. Intended for tests until tunnel domains turn it on.
+    pub async fn set_local_listener(&self, on: bool) -> std::io::Result<Option<u16>> {
+        self.state
+            .network
+            .set_local_listener(&self.state, on)
+            .await?;
+        Ok(self.state.network.local_listener_port())
+    }
+
     /// Like [`Self::drop_connections`], for one user only.
     pub fn drop_user_connections(&self, user_id: i64) {
         for session in self.state.sessions.for_user(user_id) {
@@ -203,6 +241,35 @@ async fn embedded_node(
         )
     })?;
     Ok((Some(node), Some(events)))
+}
+
+/// The main port: the owner's choice from the app when there is one,
+/// else the configured one. A port that cannot be had falls back to the
+/// configured one, so a bad choice never locks the owner out.
+fn bind_main_port(config: &Config, chosen: Option<u16>) -> anyhow::Result<std::net::TcpListener> {
+    let configured = config.server.bind;
+    let wanted = match chosen {
+        // Tests and anything asking for a free port keep doing so.
+        Some(port) if configured.port() != 0 => SocketAddr::new(configured.ip(), port),
+        _ => configured,
+    };
+    let listener = match std::net::TcpListener::bind(wanted) {
+        Ok(listener) => listener,
+        Err(error) if wanted != configured => {
+            tracing::error!(
+                %error,
+                port = wanted.port(),
+                "could not listen on the main port chosen in the app; using {configured}"
+            );
+            std::net::TcpListener::bind(configured)
+                .with_context(|| format!("could not listen on {configured}"))?
+        }
+        Err(error) => {
+            return Err(error).with_context(|| format!("could not listen on {configured}"));
+        }
+    };
+    listener.set_nonblocking(true)?;
+    Ok(listener)
 }
 
 fn hostnames(config: &Config) -> Vec<String> {

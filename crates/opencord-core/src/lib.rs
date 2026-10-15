@@ -11,6 +11,7 @@ mod http;
 pub mod identity;
 pub mod media;
 pub mod mirror;
+mod network;
 mod soundboard;
 pub mod store;
 pub mod tofu;
