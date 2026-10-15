@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:opencord/core/model/stream.dart';
 import 'package:opencord/core/providers/providers.dart';
 import 'package:opencord/core/repository/repository.dart';
+import 'package:opencord/core/settings/voice_view_prefs.dart';
 import 'package:opencord/features/soundboard/soundboard_picker.dart';
 import 'package:opencord/features/voice/camera_menu.dart';
 import 'package:opencord/features/voice/screenshare_picker.dart';
@@ -14,6 +15,7 @@ import 'package:opencord/ui/theme/oc_icons.dart';
 import 'package:opencord/ui/theme/oc_metrics.dart';
 import 'package:opencord/ui/theme/oc_motion.dart';
 import 'package:opencord/ui/theme/oc_text.dart';
+import 'package:opencord/ui/widgets/badges.dart';
 import 'package:opencord/ui/widgets/hoverable.dart';
 import 'package:opencord/ui/widgets/key_hint.dart';
 import 'package:opencord/ui/widgets/oc_icon_button.dart';
@@ -270,10 +272,16 @@ Future<void> leaveVoice(BuildContext context, WidgetRef ref) async {
   await session.leave();
 }
 
-/// The voice view's control bar (§4.10): Mute · Camera · Screenshare ·
-/// Deafen, then Disconnect.
+/// The voice view's control bar (§4.10): the channel's chat when it has
+/// one, then Mute · Camera · Screenshare · Soundboard · Deafen, then
+/// Disconnect.
 class VoiceControlBar extends ConsumerWidget {
-  const VoiceControlBar({super.key});
+  const VoiceControlBar({super.key, required this.channel, this.chat = false});
+
+  final ChannelRef channel;
+
+  /// The channel's text chat is on (§5.3).
+  final bool chat;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -284,6 +292,12 @@ class VoiceControlBar extends ConsumerWidget {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
+        if (chat) ...[
+          VoiceChatButton(channel: channel, round: true),
+          const SizedBox(width: OcSpace.s12),
+          Container(width: 1, height: 28, color: context.oc.border),
+          const SizedBox(width: OcSpace.s12),
+        ],
         _RoundToggle(
           icon: OcIcons.mic,
           activeIcon: OcIcons.micOff,
@@ -354,6 +368,60 @@ class VoiceControlBar extends ConsumerWidget {
         ),
         const SizedBox(width: OcSpace.s24),
         _DisconnectPill(onPressed: () => leaveVoice(context, ref)),
+      ],
+    );
+  }
+}
+
+/// A voice channel's chat beside its tiles, on or off (Phase 2 §12), with
+/// how much is unread there while it is off. [round] is the control bar's
+/// circle; otherwise a header button.
+class VoiceChatButton extends ConsumerWidget {
+  const VoiceChatButton({super.key, required this.channel, this.round = false});
+
+  final ChannelRef channel;
+  final bool round;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final open = ref.watch(
+      voiceViewPrefsProvider.select((prefs) => prefs.chatOpen),
+    );
+    final unread = ref.watch(
+      activityProvider(
+        channel.server,
+      ).select((activity) => activity.of(channel.channel).read.unread),
+    );
+    final toggle = ref.read(voiceViewPrefsProvider.notifier).toggleChat;
+    final tooltip = switch ((open, unread)) {
+      (true, _) => 'Hide chat',
+      (false, 0) => 'Show chat',
+      (false, final count) => 'Show chat, $count unread',
+    };
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        if (round)
+          _RoundToggle(
+            icon: OcIcons.chat,
+            activeIcon: OcIcons.chat,
+            tooltip: tooltip,
+            active: open,
+            onPressed: toggle,
+          )
+        else
+          OcIconButton(
+            icon: OcIcons.chat,
+            tooltip: tooltip,
+            active: open,
+            onPressed: toggle,
+          ),
+        if (!open && unread > 0)
+          Positioned(
+            right: 0,
+            top: 0,
+            child: IgnorePointer(child: UnreadBadge(count: unread)),
+          ),
       ],
     );
   }

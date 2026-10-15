@@ -685,7 +685,7 @@ MockServer _opencordDev(DateTime now, MockIds ids) {
     general,
     lena,
     b.daysAgo(1, 15, 2),
-    'Mockups are up. Rows have two lines now, Telegram style, with the last message under the name.',
+    'Mockups are up. Rows have two lines now, with the last message under the name.',
   );
   b.say(
     general,

@@ -9,6 +9,7 @@ import 'package:opencord/core/model/stream.dart';
 import 'package:opencord/core/model/voice.dart';
 import 'package:opencord/features/channels/voice_panel.dart';
 import 'package:opencord/features/chat/chat_header.dart';
+import 'package:opencord/features/chat/composer.dart';
 import 'package:opencord/features/shell/desktop_shell.dart';
 import 'package:opencord/features/shell/navigation.dart';
 import 'package:opencord/features/voice/voice_controls.dart';
@@ -133,6 +134,94 @@ void main() {
     await _pumpFor(tester, const Duration(milliseconds: 300));
     expect(find.textContaining('anyone hear the echo?'), findsNothing);
     await _pumpFor(tester, const Duration(seconds: 5));
+    await app.dispose(tester);
+  });
+
+  testWidgets("in a call, the chat's button leads the control bar, past a "
+      'divider; before joining it is in the header', (tester) async {
+    final app = await MockApp.pump(tester);
+    final voice = _voiceChannel(app);
+    final header = find.byType(ChatHeader);
+    app.read(navigationProvider.notifier).openChannel(_dev, voice);
+    await _pumpFor(tester, const Duration(milliseconds: 300));
+    expect(
+      find.descendant(of: header, matching: find.byTooltip('Show chat')),
+      findsOneWidget,
+    );
+
+    await _joinGeneral(tester);
+
+    expect(
+      find.descendant(of: header, matching: find.byType(VoiceChatButton)),
+      findsNothing,
+    );
+    final chat = find.descendant(
+      of: find.byType(VoiceControlBar),
+      matching: find.byType(VoiceChatButton),
+    );
+    expect(chat, findsOneWidget);
+    expect(
+      tester.getCenter(chat).dx,
+      lessThan(tester.getCenter(_control('Mute')).dx),
+    );
+    final divider = find.descendant(
+      of: find.byType(VoiceControlBar),
+      matching: find.byWidgetPredicate(
+        (widget) => widget is Container && widget.constraints?.maxWidth == 1,
+      ),
+    );
+    expect(divider, findsOneWidget);
+    expect(
+      tester.getCenter(divider).dx,
+      greaterThan(tester.getCenter(chat).dx),
+    );
+    expect(
+      tester.getCenter(divider).dx,
+      lessThan(tester.getCenter(_control('Mute')).dx),
+    );
+    await app.dispose(tester);
+  });
+
+  testWidgets("the control bar's top edge meets the composer's, as the "
+      'composer grows too', (tester) async {
+    final app = await MockApp.pump(tester);
+    await _joinGeneral(tester);
+    await tester.tap(find.byTooltip('Show chat'));
+    await _pumpFor(tester, const Duration(milliseconds: 300));
+    final strip = find
+        .ancestor(
+          of: find.byType(VoiceControlBar),
+          matching: find.byType(Container),
+        )
+        .first;
+    final composer = find.byType(Composer);
+
+    expect(tester.getRect(strip).top, tester.getRect(composer).top);
+    expect(tester.getRect(strip).bottom, tester.getRect(composer).bottom);
+
+    await tester.enterText(find.byType(EditableText).last, 'one\ntwo\nthree');
+    await _pumpFor(tester, const Duration(milliseconds: 200));
+    expect(tester.getSize(composer).height, greaterThan(70));
+    expect(tester.getRect(strip).top, tester.getRect(composer).top);
+    await app.dispose(tester);
+  });
+
+  testWidgets('a window too narrow for both shows the chat alone, closed '
+      'from the header', (tester) async {
+    final app = await MockApp.pump(tester, size: const Size(1100, 800));
+    await _joinGeneral(tester);
+    await tester.tap(find.byTooltip('Show chat'));
+    await _pumpFor(tester, const Duration(milliseconds: 300));
+
+    expect(find.byType(VoiceControlBar), findsNothing);
+    final hide = find.descendant(
+      of: find.byType(ChatHeader),
+      matching: find.byTooltip('Hide chat'),
+    );
+    expect(hide, findsOneWidget);
+    await tester.tap(hide);
+    await _pumpFor(tester, const Duration(milliseconds: 300));
+    expect(find.byType(VoiceControlBar), findsOneWidget);
     await app.dispose(tester);
   });
 
@@ -323,7 +412,7 @@ void main() {
       await tester.tap(
         find.descendant(
           of: find.byType(VoiceConnectedPanel),
-          matching: find.text('Screen'),
+          matching: find.bySemanticsLabel('Screen'),
         ),
       );
       await _pumpFor(tester, const Duration(milliseconds: 300));
@@ -432,11 +521,11 @@ void main() {
     expect(_control('Share your screen'), findsNothing);
     final panel = find.byType(VoiceConnectedPanel);
     expect(
-      find.descendant(of: panel, matching: find.text('Camera')),
+      find.descendant(of: panel, matching: find.bySemanticsLabel('Camera')),
       findsNothing,
     );
     expect(
-      find.descendant(of: panel, matching: find.text('Screen')),
+      find.descendant(of: panel, matching: find.bySemanticsLabel('Screen')),
       findsNothing,
     );
     await app.dispose(tester);

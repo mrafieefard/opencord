@@ -225,83 +225,86 @@ class SettingsChoiceCards<T> extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = context.oc;
     final motion = OcMotion.of(context);
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        for (var i = 0; i < options.length; i++) ...[
-          if (i > 0) const SizedBox(width: OcSpace.s12),
-          Expanded(
-            child: Semantics(
-              inMutuallyExclusiveGroup: true,
-              checked: options[i].value == value,
-              child: Hoverable(
-                onTap: onChanged == null
-                    ? null
-                    : () => onChanged!(options[i].value),
-                focusRadius: BorderRadius.circular(OcRadius.section),
-                semanticLabel: options[i].label,
-                builder: (context, state) {
-                  final option = options[i];
-                  final chosen = option.value == value;
-                  return AnimatedContainer(
-                    duration: motion.hover,
-                    padding: const EdgeInsets.all(OcSpace.s12),
-                    decoration: BoxDecoration(
-                      color: state.active ? colors.hover : colors.surface,
-                      borderRadius: BorderRadius.circular(OcRadius.section),
-                      border: Border.all(
-                        color: chosen ? colors.text : colors.border,
-                        width: chosen ? 1.5 : 1,
+    // Every card as tall as the tallest, whatever its text.
+    return IntrinsicHeight(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          for (var i = 0; i < options.length; i++) ...[
+            if (i > 0) const SizedBox(width: OcSpace.s12),
+            Expanded(
+              child: Semantics(
+                inMutuallyExclusiveGroup: true,
+                checked: options[i].value == value,
+                child: Hoverable(
+                  onTap: onChanged == null
+                      ? null
+                      : () => onChanged!(options[i].value),
+                  focusRadius: BorderRadius.circular(OcRadius.section),
+                  semanticLabel: options[i].label,
+                  builder: (context, state) {
+                    final option = options[i];
+                    final chosen = option.value == value;
+                    return AnimatedContainer(
+                      duration: motion.hover,
+                      padding: const EdgeInsets.all(OcSpace.s12),
+                      decoration: BoxDecoration(
+                        color: state.active ? colors.hover : colors.surface,
+                        borderRadius: BorderRadius.circular(OcRadius.section),
+                        border: Border.all(
+                          color: chosen ? colors.text : colors.border,
+                          width: chosen ? 1.5 : 1,
+                        ),
                       ),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        if (option.preview != null) ...[
-                          option.preview!,
-                          const SizedBox(height: OcSpace.s10),
-                        ],
-                        Row(
-                          children: [
-                            if (option.icon != null) ...[
-                              Icon(
-                                option.icon,
-                                size: OcSize.iconRow,
-                                color: chosen
-                                    ? colors.text
-                                    : colors.textSecondary,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (option.preview != null) ...[
+                            option.preview!,
+                            const SizedBox(height: OcSpace.s10),
+                          ],
+                          Row(
+                            children: [
+                              if (option.icon != null) ...[
+                                Icon(
+                                  option.icon,
+                                  size: OcSize.iconRow,
+                                  color: chosen
+                                      ? colors.text
+                                      : colors.textSecondary,
+                                ),
+                                const SizedBox(width: OcSpace.s8),
+                              ],
+                              Expanded(
+                                child: Text(
+                                  option.label,
+                                  style:
+                                      (chosen ? OcText.bodyStrong : OcText.body)
+                                          .copyWith(color: colors.text),
+                                ),
                               ),
-                              const SizedBox(width: OcSpace.s8),
                             ],
-                            Expanded(
-                              child: Text(
-                                option.label,
-                                style:
-                                    (chosen ? OcText.bodyStrong : OcText.body)
-                                        .copyWith(color: colors.text),
+                          ),
+                          if (option.description != null) ...[
+                            const SizedBox(height: 2),
+                            Text(
+                              option.description!,
+                              style: OcText.small.copyWith(
+                                color: colors.textMuted,
                               ),
                             ),
                           ],
-                        ),
-                        if (option.description != null) ...[
-                          const SizedBox(height: 2),
-                          Text(
-                            option.description!,
-                            style: OcText.small.copyWith(
-                              color: colors.textMuted,
-                            ),
-                          ),
                         ],
-                      ],
-                    ),
-                  );
-                },
+                      ),
+                    );
+                  },
+                ),
               ),
             ),
-          ),
+          ],
         ],
-      ],
+      ),
     );
   }
 }

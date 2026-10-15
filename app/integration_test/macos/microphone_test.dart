@@ -92,7 +92,7 @@ void main() {
         );
 
         // The level meter, which the app feeds while it's on screen.
-        await tester.tap(find.bySemanticsLabel('Audio options').first);
+        await tester.tap(find.bySemanticsLabel('Input options'));
         await waitFor(tester, find.byType(InputLevelMeter));
 
         await hold('voice activity');

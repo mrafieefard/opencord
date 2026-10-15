@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -28,9 +29,13 @@ import 'package:opencord/ui/theme/oc_icons.dart';
 /// The main area for a voice channel (§4.10): its tiles and controls once
 /// connected, a prompt to join before. Runs on mock data in Phase 1.
 class VoiceView extends ConsumerWidget {
-  const VoiceView({super.key, required this.channel});
+  const VoiceView({super.key, required this.channel, this.composerHeight});
 
   final ChannelRef channel;
+
+  /// The chat's composer beside the tiles, whose top edge the control
+  /// bar's lines up with (Phase 2 §12); null without the chat beside.
+  final ValueListenable<double?>? composerHeight;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -52,22 +57,63 @@ class VoiceView extends ConsumerWidget {
     if (!connected) {
       return _JoinPrompt(channel: channel, participants: participants);
     }
+    final chat = ref.watch(
+      serverProvider(channel.server).select(
+        (state) => state.data?.channels[channel.channel]?.textInVoice ?? false,
+      ),
+    );
+    final bar = VoiceControlBar(channel: channel, chat: chat);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Expanded(
           child: _Stage(channel: channel, participants: participants),
         ),
-        const Padding(
-          padding: EdgeInsets.fromLTRB(
-            OcSpace.s16,
-            OcSpace.s4,
-            OcSpace.s16,
-            OcSpace.s20,
+        switch (composerHeight) {
+          final composer? => ValueListenableBuilder(
+            valueListenable: composer,
+            builder: (context, height, _) => _ControlStrip(
+              height: math.max(
+                height ?? _ControlStrip.resting,
+                _ControlStrip.least,
+              ),
+              child: bar,
+            ),
           ),
-          child: Center(child: VoiceControlBar()),
-        ),
+          null => _ControlStrip(height: _ControlStrip.resting, child: bar),
+        },
       ],
+    );
+  }
+}
+
+/// The control bar's strip under the tiles, edged like the composer's, and
+/// as tall as it when the chat is beside.
+class _ControlStrip extends StatelessWidget {
+  const _ControlStrip({required this.height, required this.child});
+
+  /// The composer's own height, one line and nothing above it.
+  static const resting = 62.0;
+
+  /// The round buttons and a little room.
+  static const least = OcSize.hitVoice + 1 + 2 * OcSpace.s4;
+
+  final double height;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.oc;
+    return Container(
+      height: height,
+      padding: const EdgeInsets.symmetric(horizontal: OcSpace.s16),
+      decoration: BoxDecoration(
+        color: colors.sidebar,
+        border: Border(top: BorderSide(color: colors.border)),
+      ),
+      child: Center(
+        child: FittedBox(fit: BoxFit.scaleDown, child: child),
+      ),
     );
   }
 }

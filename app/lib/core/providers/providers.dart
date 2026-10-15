@@ -253,6 +253,7 @@ void _route(Ref ref, RepoEvent event) {
       final session = ref.read(voiceSessionProvider);
       if (session.serverKey == serverKey && session.channelId == channelId) {
         ref.read(voiceStatsProvider.notifier).set(stats);
+        ref.read(voiceStatsHistoryProvider.notifier).add(stats);
       }
       return;
     case SpokeWhileMuted():
@@ -1010,6 +1011,32 @@ class VoiceStatsNotifier extends Notifier<VoiceStats?> {
 final voiceStatsProvider = NotifierProvider<VoiceStatsNotifier, VoiceStats?>(
   VoiceStatsNotifier.new,
 );
+
+/// The voice connection's last minute, a report a second, oldest first
+/// (Phase 2 §12, the connection graph); empty again after leaving. Fed
+/// every report, the same as the last included.
+class VoiceStatsHistoryNotifier extends Notifier<List<VoiceStats>> {
+  static const length = 60;
+
+  @override
+  List<VoiceStats> build() {
+    ref.listen(
+      voiceSessionProvider.select(
+        (session) => (session.serverKey, session.channelId),
+      ),
+      (_, _) => state = const [],
+    );
+    return const [];
+  }
+
+  void add(VoiceStats stats) =>
+      state = [...state.skip(max(0, state.length + 1 - length)), stats];
+}
+
+final voiceStatsHistoryProvider =
+    NotifierProvider<VoiceStatsHistoryNotifier, List<VoiceStats>>(
+      VoiceStatsHistoryNotifier.new,
+    );
 
 final audioNoticeProvider = NotifierProvider<AudioNoticeNotifier, AudioNotice?>(
   AudioNoticeNotifier.new,

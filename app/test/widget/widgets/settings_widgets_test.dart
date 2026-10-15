@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:opencord/core/model/channel_kind.dart';
 import 'package:opencord/ui/theme/oc_colors.dart';
 import 'package:opencord/ui/theme/oc_icons.dart';
 import 'package:opencord/ui/widgets/channel_glyph.dart';
+import 'package:opencord/ui/widgets/hoverable.dart';
 import 'package:opencord/ui/widgets/section_label.dart';
 import 'package:opencord/ui/widgets/settings.dart';
 
@@ -44,6 +46,52 @@ void main() {
     expect(picked, 'light');
     expect(border.top.width, 1.5);
     expect(border.top.color, OcColors.dark.text);
+  });
+
+  testWidgets('choice cards are as tall as the tallest, focused or not', (
+    tester,
+  ) async {
+    await pumpThemed(
+      tester,
+      Center(
+        child: SizedBox(
+          width: 600,
+          child: SettingsChoiceCards<String>(
+            value: 'off',
+            onChanged: (_) {},
+            options: const [
+              ChoiceCardOption(
+                value: 'off',
+                label: 'Off',
+                description: 'Short',
+              ),
+              ChoiceCardOption(
+                value: 'high',
+                label: 'High',
+                description:
+                    'A description long enough to take three lines or '
+                    'more in a card a third of six hundred wide',
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    Size card(String label) => tester.getSize(
+      find.ancestor(
+        of: find.text(label),
+        matching: find.byType(AnimatedContainer),
+      ),
+    );
+
+    expect(card('High').height, greaterThan(80));
+    expect(card('Off').height, card('High').height);
+
+    // The keyboard's focus ring leaves the card its size.
+    await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+    await tester.pump();
+    expect(find.byKey(Hoverable.focusRingKey), findsOneWidget);
+    expect(card('Off').height, card('High').height);
   });
 
   testWidgets('a switch row toggles from anywhere on the row', (tester) async {

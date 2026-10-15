@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/foundation.dart';
 
 /// A screen share preset: a maximum pixel count (Phase 2 plan §9.2).
@@ -456,14 +458,17 @@ class VoiceStats {
   final String? cameraEncoder;
   final String? screenEncoder;
 
+  /// Packet loss, the worse of the two ways; null before either is known.
+  double? get lossPercent => switch ((lossInPercent, lossOutPercent)) {
+    (null, null) => null,
+    (final lossIn, final lossOut) => math.max(lossIn ?? 0, lossOut ?? 0),
+  };
+
   /// Signal bars, 1–3: three for a call that sounds right, one for one
   /// that breaks up. Without a ping yet, three.
   int get bars {
     final ping = pingMs ?? 0;
-    final loss = [
-      lossInPercent ?? 0,
-      lossOutPercent ?? 0,
-    ].reduce((a, b) => a > b ? a : b);
+    final loss = lossPercent ?? 0;
     if (ping >= 300 || loss >= 8) return 1;
     if (ping >= 150 || loss >= 2) return 2;
     return 3;

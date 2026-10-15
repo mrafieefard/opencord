@@ -493,8 +493,7 @@ class AboutPage extends ConsumerWidget {
         Text('Opencord', style: OcText.title.copyWith(color: colors.text)),
         const SizedBox(height: OcSpace.s4),
         Text(
-          'Self-hosted chat and voice, with Telegram’s calm and '
-          'Discord’s servers.',
+          'Self-hosted chat and voice.',
           style: OcText.body.copyWith(color: colors.textSecondary),
         ),
         const SizedBox(height: OcSpace.s20),

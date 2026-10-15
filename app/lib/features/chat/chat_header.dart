@@ -11,12 +11,12 @@ import 'package:opencord/core/settings/voice_view_prefs.dart';
 import 'package:opencord/features/channels/channel_row.dart';
 import 'package:opencord/features/chat/pinned_bar.dart';
 import 'package:opencord/features/chat/typing_dots.dart';
+import 'package:opencord/features/voice/voice_controls.dart';
 import 'package:opencord/features/window/header_bar.dart';
 import 'package:opencord/ui/theme/oc_colors.dart';
 import 'package:opencord/ui/theme/oc_icons.dart';
 import 'package:opencord/ui/theme/oc_metrics.dart';
 import 'package:opencord/ui/theme/oc_text.dart';
-import 'package:opencord/ui/widgets/badges.dart';
 import 'package:opencord/ui/widgets/oc_icon_button.dart';
 import 'package:opencord/ui/widgets/oc_menu.dart';
 import 'package:opencord/ui/widgets/popover.dart';
@@ -37,10 +37,15 @@ class ChatHeader extends ConsumerWidget {
     this.onOpenSidebar,
     this.leadingControls = false,
     this.trailingControls = false,
+    this.voiceChatAlone = false,
   });
 
   /// Null while no channel is open.
   final ChannelRef? channel;
+
+  /// A voice channel's chat shows without its tiles, the window being too
+  /// narrow for both (Phase 2 §12).
+  final bool voiceChatAlone;
 
   /// Off when there is no server, and so no members.
   final bool memberToggle;
@@ -113,7 +118,11 @@ class ChatHeader extends ConsumerWidget {
               target != null &&
               target.kind == ChannelKind.voice &&
               ref.read(repositoryProvider).capabilities.voice)
-            _VoiceViewButtons(channel: open, chat: target.textInVoice),
+            _VoiceViewButtons(
+              channel: open,
+              chat: target.textInVoice,
+              chatAlone: voiceChatAlone,
+            ),
           if (memberToggle)
             OcIconButton(
               icon: OcIcons.group,
@@ -246,25 +255,34 @@ class _Title extends ConsumerWidget {
   }
 }
 
-/// A voice channel's view choices (Phase 2 §12): its chat beside the tiles,
-/// with how much is unread there, and tiles only for people with video.
+/// A voice channel's view choices (Phase 2 §12): tiles only for people
+/// with video, and its chat while the call's control bar, which has the
+/// chat's button, is not on screen: before joining, or with the chat shown
+/// alone in a narrow window.
 class _VoiceViewButtons extends ConsumerWidget {
-  const _VoiceViewButtons({required this.channel, required this.chat});
+  const _VoiceViewButtons({
+    required this.channel,
+    required this.chat,
+    required this.chatAlone,
+  });
 
   final ChannelRef channel;
 
   /// The channel's text chat is on (§5.3).
   final bool chat;
+  final bool chatAlone;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final prefs = ref.watch(voiceViewPrefsProvider);
-    final unread = ref.watch(
-      activityProvider(
-        channel.server,
-      ).select((activity) => activity.of(channel.channel).read.unread),
-    );
     final notifier = ref.read(voiceViewPrefsProvider.notifier);
+    final inCall = ref.watch(
+      voiceSessionProvider.select(
+        (voice) =>
+            voice.serverKey == channel.server &&
+            voice.channelId == channel.channel,
+      ),
+    );
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -276,28 +294,7 @@ class _VoiceViewButtons extends ConsumerWidget {
           active: prefs.hideNonVideo,
           onPressed: notifier.toggleHideNonVideo,
         ),
-        if (chat)
-          Stack(
-            clipBehavior: Clip.none,
-            children: [
-              OcIconButton(
-                icon: OcIcons.chat,
-                tooltip: switch ((prefs.chatOpen, unread)) {
-                  (true, _) => 'Hide chat',
-                  (false, 0) => 'Show chat',
-                  (false, final count) => 'Show chat, $count unread',
-                },
-                active: prefs.chatOpen,
-                onPressed: notifier.toggleChat,
-              ),
-              if (!prefs.chatOpen && unread > 0)
-                Positioned(
-                  right: 0,
-                  top: 0,
-                  child: IgnorePointer(child: UnreadBadge(count: unread)),
-                ),
-            ],
-          ),
+        if (chat && (chatAlone || !inCall)) VoiceChatButton(channel: channel),
       ],
     );
   }
