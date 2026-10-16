@@ -160,6 +160,8 @@ pub struct Message {
     pub edited_at_ms: Option<i64>,
     /// Set on messages this client sent, to match pending ones.
     pub nonce: Option<String>,
+    /// A command's public result: the command run, by the author.
+    pub command: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -349,6 +351,8 @@ pub struct ReadySnapshot {
     pub soundboard_sounds: Vec<SoundboardSound>,
     /// Where the server is reached (Phase 3 plan §7.5).
     pub addresses: ServerAddresses,
+    /// The chat commands this user may see (Phase 3 plan §17.1).
+    pub commands: CommandList,
 }
 
 /// One address a server is reached at.
@@ -565,6 +569,16 @@ pub enum CoreEventPayload {
     LavalinkTestProgress(LavalinkTestProgress),
     /// The music settings changed.
     MusicSettingsUpdate(MusicSettings),
+    /// A voice channel's player changed: to those connected to it and
+    /// those who subscribed.
+    MusicSession(MusicSession),
+    /// What plays in a channel, to everyone who can see it.
+    MusicNowPlaying(MusicNowPlaying),
+    MusicNotice(MusicNotice),
+    /// The commands members can use changed.
+    CommandsUpdate(CommandList),
+    /// A command's reply only this device sees.
+    EphemeralMessage(EphemeralMessage),
 }
 
 /// Where the server is reached from the internet (Phase 3 plan §5.1).
@@ -908,6 +922,10 @@ pub enum ErrorCode {
     MusicLinkNotAllowed,
     /// Another track plays now than the action expected.
     MusicStale,
+    CommandUnknown,
+    CommandDisabled,
+    CommandNotAllowedHere,
+    CommandInvalidOptions,
     Unknown,
 }
 
@@ -1513,6 +1531,8 @@ pub struct MusicSettings {
     pub available_sources: Vec<String>,
     /// Music is on in the server's configuration file and runs there.
     pub supported: bool,
+    /// Supported, enabled, and with a Lavalink node: members see music.
+    pub configured: bool,
 }
 
 /// Changes to the music settings; what is `None` stays.
@@ -1580,4 +1600,189 @@ pub struct MusicPlaylist {
 pub struct MusicSearchResults {
     pub results: Vec<MusicSearchResult>,
     pub playlist: Option<MusicPlaylist>,
+}
+
+/// A track in a channel's queue.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MusicQueueItem {
+    pub item_id: String,
+    pub track: MusicTrack,
+    pub requester_id: i64,
+    pub added_at_ms: i64,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MusicPlayState {
+    Idle,
+    Loading,
+    Playing,
+    Paused,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MusicRepeat {
+    Off,
+    Queue,
+    Track,
+}
+
+/// A voice channel's player (Phase 3 plan §14.1).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MusicSession {
+    pub channel_id: i64,
+    /// Increases with every change.
+    pub version: u64,
+    pub state: MusicPlayState,
+    pub now_playing: Option<MusicQueueItem>,
+    /// Upcoming, in play order.
+    pub queue: Vec<MusicQueueItem>,
+    /// Most recent first.
+    pub history: Vec<MusicQueueItem>,
+    /// What is heard was `position_ms` at `anchor_ms` on this device's
+    /// clock (Unix ms), the server's clock offset and the music's playout
+    /// delay taken into account; it moves on while playing.
+    pub position_ms: u64,
+    pub anchor_ms: i64,
+    pub repeat: MusicRepeat,
+    pub shuffle: bool,
+    /// Every node is unavailable: paused, the queue kept, retrying.
+    pub waiting_for_node: bool,
+    /// Everyone left: paused until someone comes back.
+    pub paused_empty: bool,
+}
+
+/// What everyone who can see a channel learns about its music, for the
+/// now-playing card.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MusicNowPlaying {
+    pub channel_id: i64,
+    pub title: String,
+    pub artist: String,
+    pub artwork_id: String,
+    pub playing: bool,
+    /// Nothing plays any more.
+    pub ended: bool,
+    /// "YouTube", "SoundCloud"…
+    pub source_display_name: String,
+}
+
+/// A short activity line for the music panel.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MusicNotice {
+    pub channel_id: i64,
+    pub text: String,
+    pub at_ms: i64,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MusicPlacement {
+    /// At the end, or before `before_item_id`.
+    End,
+    Next,
+    /// Replaces what plays.
+    Now,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MusicAction {
+    Pause,
+    Resume,
+    Next,
+    Previous,
+    Seek,
+    Stop,
+}
+
+/// The kind of value a command option takes (Phase 3 plan §17.1).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CommandOptionKind {
+    Text,
+    Integer,
+    Boolean,
+    Choice,
+    User,
+    Channel,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CommandChoice {
+    /// What the user sees.
+    pub name: String,
+    /// What is sent.
+    pub value: String,
+    /// A track's artwork, for /play's suggestions; empty otherwise.
+    pub artwork_id: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CommandOptionSpec {
+    pub name: String,
+    pub description: String,
+    pub kind: CommandOptionKind,
+    pub required: bool,
+    pub autocomplete: bool,
+    pub choices: Vec<CommandChoice>,
+    /// For integers; both 0 for no bounds.
+    pub min: i64,
+    pub max: i64,
+}
+
+/// A chat command, as the server describes it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CommandSpec {
+    pub name: String,
+    pub description: String,
+    pub options: Vec<CommandOptionSpec>,
+    /// "music".
+    pub feature: String,
+    /// "Control playback".
+    pub permission_summary: String,
+    pub aliases: Vec<String>,
+    /// The permission bits it needs at the least.
+    pub permissions: i64,
+    pub enabled: bool,
+    /// Empty: every channel.
+    pub channel_ids: Vec<i64>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct CommandList {
+    pub commands: Vec<CommandSpec>,
+    /// Results go to the channel, or only to who ran the command.
+    pub results_public: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CommandOptionValue {
+    pub name: String,
+    pub value: String,
+}
+
+/// What running a command did.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CommandOutcome {
+    /// The public result's message.
+    pub message_id: Option<i64>,
+    /// The reply came only to this device, as an `EphemeralMessage`.
+    pub ephemeral: bool,
+}
+
+/// A reply only this device sees; never stored.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct EphemeralMessage {
+    pub channel_id: i64,
+    /// The nonce `command_execute` was given.
+    pub nonce: String,
+    pub content: String,
+}
+
+/// Changes to a command on the Commands page; `None` stays.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct CommandSettingsChanges {
+    /// Empty to change only `results_public`.
+    pub name: String,
+    pub enabled: Option<bool>,
+    /// An empty list for every channel.
+    pub channel_ids: Option<Vec<i64>>,
+    pub results_public: Option<bool>,
 }

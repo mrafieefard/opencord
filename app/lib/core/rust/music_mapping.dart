@@ -1,4 +1,5 @@
 import 'package:opencord/core/model/music.dart';
+import 'package:opencord/core/model/music_session.dart';
 import 'package:opencord/src/rust/api/types.dart' as core;
 
 /// The core's music settings as the app's model.
@@ -19,6 +20,7 @@ MusicSettings musicSettingsFrom(core.MusicSettings settings) => MusicSettings(
   bridgeDomain: settings.bridgeDomain,
   availableSources: settings.availableSources,
   supported: settings.supported,
+  configured: settings.configured,
 );
 
 /// Only what differs from [before]; the rest stays as the server has it.
@@ -56,3 +58,75 @@ MusicBlock musicBlockFrom(core.MusicBlock block) => MusicBlock(
   blockedBy: block.blockedBy,
   at: DateTime.fromMillisecondsSinceEpoch(block.createdAtMs),
 );
+
+MusicTrack musicTrackFrom(core.MusicTrack track) => MusicTrack(
+  title: track.title,
+  artist: track.artist,
+  duration: Duration(milliseconds: track.durationMs.toInt()),
+  isStream: track.isStream,
+  isSeekable: track.isSeekable,
+  source: track.source,
+  sourceName: track.sourceDisplayName,
+  uri: track.uri,
+  artworkId: track.artworkId,
+);
+
+MusicQueueItem musicItemFrom(core.MusicQueueItem item) => MusicQueueItem(
+  id: item.itemId,
+  track: musicTrackFrom(item.track),
+  requesterId: item.requesterId,
+  addedAt: DateTime.fromMillisecondsSinceEpoch(item.addedAtMs),
+);
+
+MusicSession musicSessionFrom(core.MusicSession session) => MusicSession(
+  channelId: session.channelId,
+  version: session.version.toInt(),
+  state: switch (session.state) {
+    core.MusicPlayState.idle => MusicPlayState.idle,
+    core.MusicPlayState.loading => MusicPlayState.loading,
+    core.MusicPlayState.playing => MusicPlayState.playing,
+    core.MusicPlayState.paused => MusicPlayState.paused,
+  },
+  nowPlaying: session.nowPlaying == null
+      ? null
+      : musicItemFrom(session.nowPlaying!),
+  queue: [for (final item in session.queue) musicItemFrom(item)],
+  history: [for (final item in session.history) musicItemFrom(item)],
+  position: Duration(milliseconds: session.positionMs.toInt()),
+  anchor: DateTime.fromMillisecondsSinceEpoch(session.anchorMs),
+  repeat: switch (session.repeat) {
+    core.MusicRepeat.off => MusicRepeat.off,
+    core.MusicRepeat.queue => MusicRepeat.queue,
+    core.MusicRepeat.track => MusicRepeat.track,
+  },
+  shuffle: session.shuffle,
+  waitingForNode: session.waitingForNode,
+  pausedEmpty: session.pausedEmpty,
+);
+
+MusicSearchResults musicSearchResultsFrom(core.MusicSearchResults found) =>
+    MusicSearchResults(
+      results: [
+        for (final result in found.results)
+          MusicSearchResult(
+            id: result.resultId,
+            track: musicTrackFrom(result.track),
+          ),
+      ],
+      playlist: found.playlist == null
+          ? null
+          : (name: found.playlist!.name, resultIds: found.playlist!.resultIds),
+    );
+
+core.MusicRepeat musicRepeatTo(MusicRepeat repeat) => switch (repeat) {
+  MusicRepeat.off => core.MusicRepeat.off,
+  MusicRepeat.queue => core.MusicRepeat.queue,
+  MusicRepeat.track => core.MusicRepeat.track,
+};
+
+core.MusicPlacement musicPlacementTo(MusicPlacement placement) =>
+    switch (placement) {
+      MusicPlacement.end => core.MusicPlacement.end,
+      MusicPlacement.next => core.MusicPlacement.next,
+      MusicPlacement.now => core.MusicPlacement.now,
+    };

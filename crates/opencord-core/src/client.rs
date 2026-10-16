@@ -26,13 +26,14 @@ use crate::api::types::{
 };
 use crate::artwork::ArtworkCache;
 use crate::connection::{
-    self, Command, Connection, Context, Credentials, Established, HandshakeError, MediaTokens,
-    Route, Routes,
+    self, Clocks, Command, Connection, Context, Credentials, Established, HandshakeError,
+    MediaTokens, Route, Routes,
 };
 use crate::convert;
 use crate::http::MediaHttp;
 use crate::identity::Identity;
 use crate::media::{self, Media, MediaOptions, MediaTarget};
+use crate::music_listening::MusicListening;
 use crate::soundboard::Soundboard;
 use crate::store::{SavedServer, Store, StoreError};
 use crate::voice::VoiceServer;
@@ -81,6 +82,9 @@ struct Inner {
     routes: Routes,
     soundboard: Arc<Soundboard>,
     artwork: Arc<ArtworkCache>,
+    clocks: Clocks,
+    /// How this person hears music, kept for media that starts later.
+    music_listening: Mutex<MusicListening>,
 }
 
 /// The app's id, as its desktop file names it; the system's portals ask for
@@ -166,6 +170,8 @@ impl Client {
                 routes,
                 soundboard,
                 artwork,
+                clocks: Clocks::default(),
+                music_listening: Mutex::default(),
             }),
         };
         client.spawn_wake_watch();
@@ -746,6 +752,13 @@ impl Client {
     ) -> Option<mpsc::UnboundedReceiver<MediaEvent>> {
         let (events, receiver) = mpsc::unbounded_channel();
         let media = Media::new(self.inner.runtime.clone(), options, events);
+        media.set_music_listening(
+            *self
+                .inner
+                .music_listening
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner),
+        );
         self.inner.media.set(media).ok()?;
         let mut servers = self.inner.voice_servers.subscribe();
         let watcher = Arc::downgrade(&self.inner);
@@ -1597,7 +1610,32 @@ impl Client {
             voice_servers: self.inner.voice_servers.clone(),
             media_tokens: Arc::clone(&self.inner.media_tokens),
             routes: Arc::clone(&self.inner.routes),
+            clocks: Arc::clone(&self.inner.clocks),
         }
+    }
+
+    /// This person's music volume (0–2), mute and "Lower music while people
+    /// talk", for every server (Phase 3 plan §19.8). Kept on this device.
+    pub fn music_set_listening(&self, volume: f32, muted: bool, duck: bool) {
+        let listening = MusicListening::clamped(volume, muted, duck);
+        *self
+            .inner
+            .music_listening
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner) = listening;
+        if let Some(media) = self.media() {
+            media.set_music_listening(listening);
+        }
+    }
+
+    /// The server's clock minus this device's, in ms; 0 until known.
+    pub(crate) fn server_clock_offset(&self, key: &str) -> i64 {
+        self.inner
+            .clocks
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .get(key)
+            .map_or(0, crate::server_clock::ServerClock::offset_ms)
     }
 
     fn credentials(&self) -> Option<Credentials> {

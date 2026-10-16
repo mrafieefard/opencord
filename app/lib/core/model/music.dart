@@ -43,6 +43,7 @@ class MusicSettings {
     this.bridgeDomain = 'primary',
     this.availableSources = const [],
     this.supported = true,
+    this.configured = true,
   });
 
   final bool enabled;
@@ -71,6 +72,10 @@ class MusicSettings {
 
   /// Music is on in the server's configuration file and runs there.
   final bool supported;
+
+  /// Supported, enabled, and with a Lavalink node: members see music
+  /// (Phase 3 plan §19.1); the server sets it.
+  final bool configured;
 
   /// The longest track choices (plan §16.2); zero for no limit.
   static const maxTrackChoices = [
@@ -115,6 +120,7 @@ class MusicSettings {
     Duration? stopAfterEmpty,
     Duration? disconnectAfterIdle,
     String? bridgeDomain,
+    bool? configured,
   }) => MusicSettings(
     enabled: enabled ?? this.enabled,
     enabledSources: enabledSources ?? this.enabledSources,
@@ -132,6 +138,7 @@ class MusicSettings {
     bridgeDomain: bridgeDomain ?? this.bridgeDomain,
     availableSources: availableSources,
     supported: supported,
+    configured: configured ?? this.configured,
   );
 
   @override
@@ -152,7 +159,8 @@ class MusicSettings {
       other.disconnectAfterIdle == disconnectAfterIdle &&
       other.bridgeDomain == bridgeDomain &&
       listEquals(other.availableSources, availableSources) &&
-      other.supported == supported;
+      other.supported == supported &&
+      other.configured == configured;
 
   @override
   int get hashCode => Object.hash(
@@ -172,6 +180,7 @@ class MusicSettings {
     bridgeDomain,
     Object.hashAll(availableSources),
     supported,
+    configured,
   );
 }
 

@@ -177,6 +177,7 @@ impl MusicSettings {
         &self,
         available_sources: Vec<String>,
         supported: bool,
+        has_nodes: bool,
     ) -> proto::MusicSettings {
         proto::MusicSettings {
             enabled: self.enabled,
@@ -195,6 +196,7 @@ impl MusicSettings {
             bridge_domain: self.bridge_domain.clone(),
             available_sources,
             supported,
+            configured: supported && self.enabled && has_nodes,
         }
     }
 }

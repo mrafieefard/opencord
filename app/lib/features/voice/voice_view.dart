@@ -13,6 +13,7 @@ import 'package:opencord/core/settings/voice_view_prefs.dart';
 import 'package:opencord/features/chat/composer.dart';
 import 'package:opencord/features/members/member_actions.dart';
 import 'package:opencord/features/voice/voice_controls.dart';
+import 'package:opencord/features/music/music_stage.dart';
 import 'package:opencord/features/voice/voice_focus.dart';
 import 'package:opencord/features/voice/voice_layout.dart';
 import 'package:opencord/features/voice/user_audio_controls.dart';
@@ -190,6 +191,12 @@ class _StageState extends ConsumerState<_Stage> {
       final tile? when tiles.contains(tile) => tile,
       _ => null,
     };
+    // Expand (Phase 3 §19.7): the music in the middle, the tiles below.
+    final music =
+        ref.watch(musicExpandedProvider) &&
+            ref.watch(musicConfiguredProvider(channel.server))
+        ? MusicStage(channel: channel)
+        : null;
     final byUser = {
       for (final participant in participants) participant.userId: participant,
     };
@@ -305,7 +312,7 @@ class _StageState extends ConsumerState<_Stage> {
       );
     }
 
-    if (tiles.isEmpty && videoOnly) {
+    if (tiles.isEmpty && videoOnly && music == null) {
       _report(const []);
       return const _NoVideo();
     }
@@ -314,7 +321,13 @@ class _StageState extends ConsumerState<_Stage> {
       child: LayoutBuilder(
         builder: (context, constraints) {
           wants.clear();
-          final layout = _layout(constraints.biggest, tiles, focused, tile);
+          final layout = _layout(
+            constraints.biggest,
+            tiles,
+            focused,
+            tile,
+            music: music,
+          );
           _report(List.of(wants));
           return layout;
         },
@@ -373,14 +386,15 @@ class _StageState extends ConsumerState<_Stage> {
     Size area,
     List<VoiceTileId> tiles,
     VoiceTileId? focused,
-    Widget Function(VoiceTileId id, Size size, {bool small}) tile,
-  ) {
+    Widget Function(VoiceTileId id, Size size, {bool small}) tile, {
+    Widget? music,
+  }) {
     const gap = _Stage._gap;
     const strip = _Stage._strip;
-    if (focused != null) {
+    if (focused != null || music != null) {
       final others = [
         for (final id in tiles)
-          if (id != focused) id,
+          if (id != focused || music != null) id,
       ];
       final stripHeight = others.isEmpty ? 0.0 : strip.height + gap;
       final large = fitTiles(
@@ -389,7 +403,7 @@ class _StageState extends ConsumerState<_Stage> {
       );
       return Column(
         children: [
-          Expanded(child: Center(child: tile(focused, large))),
+          Expanded(child: music ?? Center(child: tile(focused!, large))),
           if (others.isNotEmpty) ...[
             const SizedBox(height: gap),
             SizedBox(

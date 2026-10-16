@@ -34,6 +34,7 @@ pub async fn create(
         .lavalink
         .create(ctx.state, &settings, &request.password)
         .await?;
+    crate::music::announce_settings(ctx.state);
     Ok(nodes(ctx))
 }
 
@@ -60,6 +61,7 @@ pub async fn delete(
         .lavalink
         .delete(ctx.state, request.node_id)
         .await?;
+    crate::music::announce_settings(ctx.state);
     Ok(nodes(ctx))
 }
 

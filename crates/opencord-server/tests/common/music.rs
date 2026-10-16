@@ -109,6 +109,7 @@ pub async fn search(client: &mut TestClient, channel_id: i64, query: &str) -> Ve
 
 pub fn enqueue(channel_id: i64, result_ids: Vec<String>) -> Kind {
     Kind::MusicEnqueue(proto::MusicEnqueue {
+        history_item_ids: Vec::new(),
         channel_id,
         result_ids,
         before_item_id: None,

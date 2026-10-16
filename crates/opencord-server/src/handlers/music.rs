@@ -4,7 +4,6 @@
 use opencord_common::channel::ChannelKind;
 use opencord_common::permissions::Permissions;
 use opencord_proto::v1 as proto;
-use proto::event::Kind as Event;
 use proto::response::Result as Response;
 
 use super::Ctx;
@@ -13,11 +12,10 @@ use crate::error::ApiError;
 use crate::music::queue::{Item, Placement, Repeat};
 use crate::music::session::{Caller, Command};
 use crate::music::settings::QUEUE_MAX;
-use crate::music::tracks::SEARCH_SOURCES;
 use crate::music::{self, search};
 use crate::permissions::{missing, require_base, require_channel, require_outranks_member};
 use crate::rate_limit::MusicLimit;
-use crate::state::{Audience, now_ms};
+use crate::state::now_ms;
 
 const REASON_MAX: usize = 200;
 
@@ -51,6 +49,16 @@ fn act(
         .rate_limits
         .check_music(limit, ctx.user_id)
         .map_err(ApiError::rate_limited)?;
+    may_act(ctx, channel_id, needed)
+}
+
+/// [`act`] without counting it: music set up, not blocked, connected (or
+/// `MUSIC_MANAGE`) and holding `needed`.
+pub(crate) fn may_act(
+    ctx: &Ctx<'_>,
+    channel_id: i64,
+    needed: Permissions,
+) -> Result<Caller, ApiError> {
     if !music::configured(ctx.state) {
         return Err(not_configured());
     }
@@ -152,17 +160,33 @@ pub async fn enqueue(ctx: &Ctx<'_>, request: proto::MusicEnqueue) -> Result<Resp
             Permissions::MUSIC_MANAGE_QUEUE - caller.permissions,
         ));
     }
-    let count = request.result_ids.len();
+    let count = request.result_ids.len() + request.history_item_ids.len();
     if count == 0 || count > QUEUE_MAX as usize {
         return Err(ApiError::invalid_argument(
             "add 1 to 500 search results at once",
         ));
     }
-    let tracks = ctx
+    let mut tracks = ctx
         .state
         .music
         .results
         .tracks(ctx.user_id, &request.result_ids)?;
+    if !request.history_item_ids.is_empty() {
+        let again = ctx
+            .state
+            .music
+            .ask(ctx.state, request.channel_id, |reply| Command::History {
+                item_ids: request.history_item_ids.clone(),
+                reply,
+            })
+            .await?;
+        if again.len() != request.history_item_ids.len() {
+            return Err(ApiError::not_found(
+                "recently played track (it's no longer in the history)",
+            ));
+        }
+        tracks.extend(again);
+    }
     let settings = ctx.state.music.settings();
     let manage = caller.permissions.contains(Permissions::MUSIC_MANAGE);
     for track in &tracks {
@@ -306,20 +330,7 @@ pub async fn queue_clear(
 /// The settings with what is available now: search sources at least one
 /// connected node offers, and whether this server runs music at all.
 fn settings_proto(ctx: &Ctx<'_>) -> proto::MusicSettings {
-    let nodes = ctx.state.lavalink.nodes();
-    let available = SEARCH_SOURCES
-        .iter()
-        .filter(|(_, _, manager)| {
-            nodes
-                .iter()
-                .any(|node| node.health().is_up() && node.has_source(manager))
-        })
-        .map(|(key, _, _)| (*key).to_owned())
-        .collect();
-    ctx.state
-        .music
-        .settings()
-        .to_proto(available, music::supported(ctx.state))
+    music::settings_proto(ctx.state)
 }
 
 pub fn fetch_settings(ctx: &Ctx<'_>) -> Response {
@@ -349,14 +360,9 @@ pub async fn update_settings(
     if before.enabled && !after.enabled {
         music::end(ctx.state, None);
     }
-    let settings = settings_proto(ctx);
-    ctx.state.broadcast(
-        Event::MusicSettingsUpdate(Box::new(proto::MusicSettingsUpdate {
-            settings: Some(settings.clone()),
-        })),
-        Audience::Everyone,
-    );
-    Ok(Response::MusicSettings(Box::new(settings)))
+    Ok(Response::MusicSettings(Box::new(music::announce_settings(
+        ctx.state,
+    ))))
 }
 
 pub fn fetch_blocks(ctx: &Ctx<'_>) -> Result<Response, ApiError> {

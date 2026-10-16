@@ -1,8 +1,10 @@
 import 'package:opencord/core/model/channel.dart';
+import 'package:opencord/core/model/commands.dart';
 import 'package:opencord/core/model/lavalink.dart';
 import 'package:opencord/core/model/message.dart';
 import 'package:opencord/core/model/misc.dart';
 import 'package:opencord/core/model/music.dart';
+import 'package:opencord/core/model/music_session.dart';
 import 'package:opencord/core/model/network.dart';
 import 'package:opencord/core/model/permissions.dart';
 import 'package:opencord/core/model/presence.dart';
@@ -197,6 +199,34 @@ final class MusicSettingsChanged extends RepoEvent {
   const MusicSettingsChanged(super.serverKey, this.settings);
 
   final MusicSettings settings;
+}
+
+/// A voice channel's player changed (§14.3): to those connected to it and
+/// those who subscribed.
+final class MusicSessionChanged extends RepoEvent {
+  const MusicSessionChanged(super.serverKey, this.session);
+
+  final MusicSession session;
+}
+
+/// What plays in a channel changed, or stopped ([nowPlaying] null), for
+/// everyone who can see it (§19.3).
+final class MusicNowPlayingChanged extends RepoEvent {
+  const MusicNowPlayingChanged(
+    super.serverKey, {
+    required this.channelId,
+    required this.nowPlaying,
+  });
+
+  final int channelId;
+  final MusicNowPlaying? nowPlaying;
+}
+
+/// A line for a channel's music panel (§14.4).
+final class MusicNoticeReceived extends RepoEvent {
+  const MusicNoticeReceived(super.serverKey, this.notice);
+
+  final MusicNotice notice;
 }
 
 /// Where the server is reached changed (Phase 3 plan §7.5).
@@ -408,4 +438,18 @@ final class SoundPlayed extends RepoEvent {
   const SoundPlayed(super.serverKey, this.play);
 
   final SoundPlay play;
+}
+
+/// The chat commands members can use changed (Phase 3 plan §17.1).
+final class CommandsChanged extends RepoEvent {
+  const CommandsChanged(super.serverKey, this.commands);
+
+  final CommandList commands;
+}
+
+/// A command's reply only this device sees (§17.3).
+final class EphemeralMessageReceived extends RepoEvent {
+  const EphemeralMessageReceived(super.serverKey, this.note);
+
+  final EphemeralNote note;
 }

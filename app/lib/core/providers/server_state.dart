@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 
 import 'package:opencord/core/model/channel.dart';
+import 'package:opencord/core/model/commands.dart';
 import 'package:opencord/core/model/network.dart';
 import 'package:opencord/core/model/permissions.dart';
 import 'package:opencord/core/model/server.dart';
@@ -23,6 +24,7 @@ class ServerData {
     this.voiceEnabled = true,
     this.voiceSettings = const VoiceSettings(),
     this.addresses = const ServerAddresses(),
+    this.commands = const CommandList(),
   });
 
   factory ServerData.fromSnapshot(ReadySnapshot snapshot) => ServerData(
@@ -36,6 +38,7 @@ class ServerData {
     voiceEnabled: snapshot.voiceEnabled,
     voiceSettings: snapshot.voiceSettings,
     addresses: snapshot.addresses,
+    commands: snapshot.commands,
   );
 
   final User self;
@@ -52,6 +55,9 @@ class ServerData {
 
   /// Where the server is reached: its active domains and IP address.
   final ServerAddresses addresses;
+
+  /// The chat commands members can use (Phase 3 plan §17.1).
+  final CommandList commands;
 
   bool get isOwner => info.ownerId == self.id;
 
@@ -108,6 +114,7 @@ class ServerData {
     Map<int, Permissions>? channelPermissions,
     VoiceSettings? voiceSettings,
     ServerAddresses? addresses,
+    CommandList? commands,
   }) => ServerData(
     self: self,
     info: info ?? this.info,
@@ -119,6 +126,7 @@ class ServerData {
     voiceEnabled: voiceEnabled,
     voiceSettings: voiceSettings ?? this.voiceSettings,
     addresses: addresses ?? this.addresses,
+    commands: commands ?? this.commands,
   );
 }
 
@@ -207,6 +215,7 @@ ServerState reduceServer(ServerState state, RepoEvent event) {
     ServerAddressesChanged(:final addresses) => data.copyWith(
       addresses: addresses,
     ),
+    CommandsChanged(:final commands) => data.copyWith(commands: commands),
     PermissionsChanged(:final server, :final channels) => data.copyWith(
       serverPermissions: server,
       channelPermissions: channels,

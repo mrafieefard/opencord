@@ -62,6 +62,8 @@ pub struct AppState {
     pub lavalink: crate::lavalink::Lavalink,
     /// Music in voice channels (Phase 3 plan §14).
     pub music: crate::music::Music,
+    /// The chat commands' settings (Phase 3 plan §17).
+    pub commands: crate::commands::Commands,
     guild: RwLock<Guild>,
     /// Lock after the guild, never before it.
     voice: StdMutex<VoiceStates>,
@@ -106,6 +108,7 @@ impl AppState {
             music_bridge: None,
             lavalink: crate::lavalink::Lavalink::default(),
             music: crate::music::Music::default(),
+            commands: crate::commands::Commands::default(),
             guild: RwLock::new(guild),
             voice: StdMutex::new(VoiceStates::default()),
             writes: Mutex::new(()),

@@ -29,6 +29,7 @@ use crate::api::types::{
 use crate::convert;
 use crate::identity::Identity;
 use crate::mirror::{GuildMirror, PermissionSnapshot};
+use crate::server_clock::ServerClock;
 use crate::store::Store;
 use crate::tofu::{TlsTrust, Verdict};
 use crate::voice::VoiceServer;
@@ -348,7 +349,11 @@ pub(crate) struct Context {
     /// Each server's latest media token, for its HTTP endpoints.
     pub media_tokens: MediaTokens,
     pub routes: Routes,
+    pub clocks: Clocks,
 }
+
+/// Each server's clock against this device's, by server key.
+pub(crate) type Clocks = Arc<Mutex<HashMap<String, ServerClock>>>;
 
 /// Media tokens by server key. They stay in Rust: the soundboard needs
 /// them, the app does not.
@@ -569,6 +574,8 @@ impl Task {
         heartbeat.set_missed_tick_behavior(MissedTickBehavior::Delay);
         let mut sweep = interval(Duration::from_secs(1));
         let mut awaiting_ack = false;
+        // When the last heartbeat left, for the server's clock.
+        let mut beat_sent: Option<i64> = None;
         // A probe's deadline for its heartbeat's ack.
         let mut probe: Option<Instant> = None;
         let ended = loop {
@@ -588,9 +595,12 @@ impl Task {
                                     let _ = waiting.reply.send(result);
                                 }
                             }
-                            Some(Payload::HeartbeatAck(_)) => {
+                            Some(Payload::HeartbeatAck(ack)) => {
                                 awaiting_ack = false;
                                 probe = None;
+                                if let Some(sent) = beat_sent.take() {
+                                    self.clock_sample(ack.server_time_ms, sent, unix_ms_signed());
+                                }
                             }
                             _ => {}
                         }
@@ -607,6 +617,7 @@ impl Task {
                     }
                     let last_seq = self.session.as_ref().map_or(0, |session| session.last_seq);
                     let beat = Payload::Heartbeat(proto::Heartbeat { last_seq });
+                    beat_sent = Some(unix_ms_signed());
                     if send_payload(&mut socket, 0, beat).await.is_err() {
                         break Ended::Lost;
                     }
@@ -783,6 +794,8 @@ impl Task {
     }
 
     fn on_ready(&mut self, ready: proto::Ready) {
+        let now = unix_ms_signed();
+        self.clock_sample(ready.server_time_ms, now, now);
         if let Some(addresses) = &ready.server_addresses {
             self.save_addresses(addresses);
         }
@@ -801,6 +814,25 @@ impl Task {
         self.self_id = user_id;
         self.update_saved_server(name, user_id);
         self.emit(CoreEventPayload::Ready(convert::ready(ready)));
+    }
+
+    fn clock_sample(&self, server_ms: i64, sent_ms: i64, received_ms: i64) {
+        self.context
+            .clocks
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .entry(self.context.key.clone())
+            .or_default()
+            .sample(server_ms, sent_ms, received_ms);
+    }
+
+    fn clock_offset(&self) -> i64 {
+        self.context
+            .clocks
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .get(&self.context.key)
+            .map_or(0, ServerClock::offset_ms)
     }
 
     fn on_event(&mut self, seq: u64, event: proto::Event) {
@@ -830,7 +862,13 @@ impl Task {
             .session
             .as_ref()
             .map_or("", |session| session.session_id.as_str());
-        if let Some(payload) = convert::event(kind, session_id) {
+        let payload = match kind {
+            proto::event::Kind::MusicSnapshot(_)
+            | proto::event::Kind::MusicNowPlaying(_)
+            | proto::event::Kind::MusicNotice(_) => crate::music::event(kind, self.clock_offset()),
+            kind => convert::event(kind, session_id),
+        };
+        if let Some(payload) = payload {
             self.emit(payload);
         }
         if affects_permissions {
@@ -1056,6 +1094,10 @@ fn unix_ms() -> u64 {
         .duration_since(UNIX_EPOCH)
         .unwrap_or_default();
     u64::try_from(since_epoch.as_millis()).unwrap_or(u64::MAX)
+}
+
+fn unix_ms_signed() -> i64 {
+    i64::try_from(unix_ms()).unwrap_or(i64::MAX)
 }
 
 /// A random number between 0 and 1.

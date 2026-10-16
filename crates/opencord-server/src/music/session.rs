@@ -17,6 +17,7 @@ use tokio::sync::{mpsc, oneshot};
 
 use super::player::Player;
 use super::queue::{Ended, Item, Placement, Previous, Queue, Repeat};
+use super::tracks::Track;
 use crate::db;
 use crate::error::ApiError;
 use crate::lavalink::Node;
@@ -107,6 +108,12 @@ pub enum Command {
     },
     Snapshot {
         reply: oneshot::Sender<proto::MusicSession>,
+    },
+    /// The tracks of history items, to add again; unknown ids are left
+    /// out.
+    History {
+        item_ids: Vec<String>,
+        reply: oneshot::Sender<Vec<Track>>,
     },
     /// Someone joined or left the channel.
     Listeners,
@@ -329,6 +336,14 @@ impl Session {
             }
             Command::Snapshot { reply } => {
                 let _ = reply.send(self.to_proto());
+            }
+            Command::History { item_ids, reply } => {
+                let tracks = item_ids
+                    .iter()
+                    .filter_map(|id| self.queue.history.iter().find(|item| &item.id == id))
+                    .map(|item| item.track.clone())
+                    .collect();
+                let _ = reply.send(tracks);
             }
             Command::Listeners => self.listeners().await,
             Command::Lavalink { node_id, value } => self.lavalink(node_id, &value).await,
@@ -1163,6 +1178,9 @@ impl Session {
                 artwork_id: super::artwork::id_of(&item.track.info.artwork_url),
                 playing,
                 ended: false,
+                source_display_name: super::tracks::source_display_name(
+                    &item.track.info.source_name,
+                ),
             },
             None => proto::MusicNowPlaying {
                 channel_id: self.channel_id,

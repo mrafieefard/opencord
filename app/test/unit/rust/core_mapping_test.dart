@@ -186,6 +186,7 @@ void main() {
           core.ChannelPermissions(channelId: 2, permissions: 1),
         ],
         addresses: const core.ServerAddresses(domains: []),
+        commands: const core.CommandList(commands: [], resultsPublic: true),
       ),
     );
 

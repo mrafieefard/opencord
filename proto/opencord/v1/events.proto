@@ -3,6 +3,7 @@ syntax = "proto3";
 
 package opencord.v1;
 
+import "opencord/v1/commands.proto";
 import "opencord/v1/models.proto";
 import "opencord/v1/music.proto";
 import "opencord/v1/network.proto";
@@ -70,6 +71,11 @@ message Event {
     MusicNowPlaying music_now_playing = 95;
     // To everyone.
     MusicSettingsUpdate music_settings_update = 96;
+
+    // Chat commands (Phase 3 plan §17).
+    CommandsUpdate commands_update = 100;
+    // Only to the session that ran the command.
+    EphemeralMessage ephemeral_message = 101;
   }
 }
 

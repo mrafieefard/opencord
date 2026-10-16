@@ -8,6 +8,8 @@ pub struct MessageRow {
     pub content: String,
     pub edited_at: Option<i64>,
     pub deleted: bool,
+    /// For a command's public result: the command run.
+    pub interaction_command: Option<String>,
 }
 
 pub async fn insert(
@@ -17,12 +19,26 @@ pub async fn insert(
     author_id: i64,
     content: &str,
 ) -> Result<(), sqlx::Error> {
+    insert_result(conn, id, channel_id, author_id, content, None).await
+}
+
+/// A message, or a command's public result with the command run.
+pub async fn insert_result(
+    conn: &mut SqliteConnection,
+    id: i64,
+    channel_id: i64,
+    author_id: i64,
+    content: &str,
+    command: Option<&str>,
+) -> Result<(), sqlx::Error> {
     sqlx::query!(
-        "INSERT INTO messages (id, channel_id, author_id, content) VALUES ($1, $2, $3, $4)",
+        "INSERT INTO messages (id, channel_id, author_id, content, interaction_command)
+         VALUES ($1, $2, $3, $4, $5)",
         id,
         channel_id,
         author_id,
-        content
+        content,
+        command
     )
     .execute(conn)
     .await?;
@@ -33,7 +49,8 @@ pub async fn insert(
 pub async fn find(conn: &mut SqliteConnection, id: i64) -> Result<Option<MessageRow>, sqlx::Error> {
     sqlx::query_as!(
         MessageRow,
-        r#"SELECT id, channel_id, author_id, content, edited_at, deleted AS "deleted: bool"
+        r#"SELECT id, channel_id, author_id, content, edited_at, deleted AS "deleted: bool",
+                  interaction_command
            FROM messages WHERE id = $1 AND deleted = FALSE"#,
         id
     )
@@ -74,7 +91,8 @@ pub async fn list(
 ) -> Result<Vec<MessageRow>, sqlx::Error> {
     sqlx::query_as!(
         MessageRow,
-        r#"SELECT id, channel_id, author_id, content, edited_at, deleted AS "deleted: bool"
+        r#"SELECT id, channel_id, author_id, content, edited_at, deleted AS "deleted: bool",
+                  interaction_command
            FROM messages
            WHERE channel_id = $1 AND id < $2 AND deleted = FALSE
            ORDER BY id DESC

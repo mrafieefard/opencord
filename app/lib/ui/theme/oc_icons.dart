@@ -26,6 +26,7 @@ abstract final class OcIcons {
     0xe5c5,
     fontFamily: fontFamily,
   );
+  static const IconData arrowUpward = IconData(0xe5d8, fontFamily: fontFamily);
   static const IconData attachFile = IconData(0xe226, fontFamily: fontFamily);
   static const IconData audioFile = IconData(0xeb82, fontFamily: fontFamily);
   static const IconData badge = IconData(0xea67, fontFamily: fontFamily);
@@ -107,6 +108,7 @@ abstract final class OcIcons {
     0xe313,
     fontFamily: fontFamily,
   );
+  static const IconData libraryMusic = IconData(0xe030, fontFamily: fontFamily);
   static const IconData lightMode = IconData(0xe518, fontFamily: fontFamily);
   static const IconData link = IconData(0xe250, fontFamily: fontFamily);
   static const IconData lock = IconData(0xe899, fontFamily: fontFamily);
@@ -134,13 +136,17 @@ abstract final class OcIcons {
   static const IconData openInFull = IconData(0xf1ce, fontFamily: fontFamily);
   static const IconData openInNew = IconData(0xe89e, fontFamily: fontFamily);
   static const IconData palette = IconData(0xe40a, fontFamily: fontFamily);
+  static const IconData pause = IconData(0xe034, fontFamily: fontFamily);
   static const IconData person = IconData(0xf0d3, fontFamily: fontFamily);
   static const IconData personAdd = IconData(0xea4d, fontFamily: fontFamily);
   static const IconData personRemove = IconData(0xef66, fontFamily: fontFamily);
   static const IconData playArrow = IconData(0xe037, fontFamily: fontFamily);
   static const IconData pushPin = IconData(0xf10d, fontFamily: fontFamily);
+  static const IconData queueMusic = IconData(0xe03d, fontFamily: fontFamily);
   static const IconData refresh = IconData(0xe5d5, fontFamily: fontFamily);
   static const IconData remove = IconData(0xe15b, fontFamily: fontFamily);
+  static const IconData repeat = IconData(0xe040, fontFamily: fontFamily);
+  static const IconData repeatOne = IconData(0xe041, fontFamily: fontFamily);
   static const IconData reply = IconData(0xe15e, fontFamily: fontFamily);
   static const IconData schedule = IconData(0xefd6, fontFamily: fontFamily);
   static const IconData screenShare = IconData(0xe0e2, fontFamily: fontFamily);
@@ -148,6 +154,7 @@ abstract final class OcIcons {
   static const IconData send = IconData(0xe163, fontFamily: fontFamily);
   static const IconData settings = IconData(0xe8b8, fontFamily: fontFamily);
   static const IconData shieldPerson = IconData(0xf650, fontFamily: fontFamily);
+  static const IconData shuffle = IconData(0xe043, fontFamily: fontFamily);
   static const IconData signalCellularAlt = IconData(
     0xe202,
     fontFamily: fontFamily,
@@ -160,7 +167,10 @@ abstract final class OcIcons {
     0xebe3,
     fontFamily: fontFamily,
   );
+  static const IconData skipNext = IconData(0xe044, fontFamily: fontFamily);
+  static const IconData skipPrevious = IconData(0xe045, fontFamily: fontFamily);
   static const IconData star = IconData(0xf09a, fontFamily: fontFamily);
+  static const IconData stop = IconData(0xe047, fontFamily: fontFamily);
   static const IconData stopScreenShare = IconData(
     0xe0e3,
     fontFamily: fontFamily,
@@ -170,6 +180,10 @@ abstract final class OcIcons {
   static const IconData tune = IconData(0xe429, fontFamily: fontFamily);
   static const IconData upload = IconData(0xf09b, fontFamily: fontFamily);
   static const IconData verifiedUser = IconData(0xf013, fontFamily: fontFamily);
+  static const IconData verticalAlignTop = IconData(
+    0xe25a,
+    fontFamily: fontFamily,
+  );
   static const IconData videocam = IconData(0xe04b, fontFamily: fontFamily);
   static const IconData videocamOff = IconData(0xe04c, fontFamily: fontFamily);
   static const IconData visibility = IconData(0xe8f4, fontFamily: fontFamily);

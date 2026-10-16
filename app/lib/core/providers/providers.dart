@@ -18,6 +18,8 @@ import 'package:opencord/core/providers/activity_state.dart';
 import 'package:opencord/core/providers/channel_audience.dart';
 import 'package:opencord/core/providers/lavalink_state.dart';
 import 'package:opencord/core/providers/messages_state.dart';
+import 'package:opencord/core/providers/commands_state.dart';
+import 'package:opencord/core/providers/music_session_state.dart';
 import 'package:opencord/core/providers/music_state.dart';
 import 'package:opencord/core/providers/network_state.dart';
 import 'package:opencord/core/providers/pins_state.dart';
@@ -35,6 +37,8 @@ export 'package:opencord/core/providers/activity_state.dart';
 export 'package:opencord/core/providers/channel_audience.dart';
 export 'package:opencord/core/providers/lavalink_state.dart';
 export 'package:opencord/core/providers/messages_state.dart';
+export 'package:opencord/core/providers/commands_state.dart';
+export 'package:opencord/core/providers/music_session_state.dart';
 export 'package:opencord/core/providers/music_state.dart';
 export 'package:opencord/core/providers/network_state.dart';
 export 'package:opencord/core/providers/pins_state.dart';
@@ -72,6 +76,11 @@ final eventPumpProvider = Provider<void>((ref) {
     fireImmediately: true,
   );
   applyUserAudio(ref, repository);
+  ref.listen(
+    musicListeningProvider,
+    (_, listening) => repository.setMusicListening(listening),
+    fireImmediately: true,
+  );
   ref.listen(keybindsProvider.select((keybinds) => keybinds.bound), (
     before,
     bound,
@@ -302,6 +311,14 @@ void _route(Ref ref, RepoEvent event) {
     case MusicSettingsChanged(:final serverKey, :final settings):
       final music = musicSettingsProvider(serverKey);
       if (ref.exists(music)) ref.read(music.notifier).set(settings);
+      return;
+    case MusicSessionChanged() ||
+        MusicNowPlayingChanged() ||
+        MusicNoticeReceived():
+      routeMusicEvent(ref, event);
+      return;
+    case EphemeralMessageReceived():
+      routeCommandEvent(ref, event);
       return;
     case LavalinkTestProgressed(:final serverKey, :final progress):
       final tests = lavalinkTestsProvider(serverKey);

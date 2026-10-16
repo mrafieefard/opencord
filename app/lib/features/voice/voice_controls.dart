@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:opencord/core/model/stream.dart';
 import 'package:opencord/core/providers/providers.dart';
+import 'package:opencord/features/music/music_panel.dart';
 import 'package:opencord/core/repository/repository.dart';
 import 'package:opencord/core/settings/voice_view_prefs.dart';
 import 'package:opencord/features/soundboard/soundboard_picker.dart';
@@ -289,6 +290,8 @@ class VoiceControlBar extends ConsumerWidget {
     final session = ref.read(voiceSessionProvider.notifier);
     final capabilities = ref.read(repositoryProvider).capabilities;
     final platform = Theme.of(context).platform;
+    final music = ref.watch(musicOfferedProvider(channel));
+    final musicOpen = ref.watch(rightPanelModeProvider) == RightPanelMode.music;
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -337,6 +340,17 @@ class VoiceControlBar extends ConsumerWidget {
                 anchor: globalRectOf(button),
               ),
             ),
+          ),
+        ],
+        if (music) ...[
+          const SizedBox(width: OcSpace.s12),
+          _RoundToggle(
+            icon: OcIcons.libraryMusic,
+            activeIcon: OcIcons.libraryMusic,
+            tooltip: musicOpen ? 'Close music' : 'Music',
+            active: musicOpen,
+            onPressed: () =>
+                ref.read(rightPanelModeProvider.notifier).toggleMusic(),
           ),
         ],
         if (capabilities.soundboard) ...[

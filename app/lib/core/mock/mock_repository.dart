@@ -4,13 +4,16 @@ import 'dart:math';
 import 'package:clock/clock.dart';
 import 'package:flutter/foundation.dart';
 
+import 'package:opencord/core/mock/mock_music.dart';
 import 'package:opencord/core/mock/mock_world.dart';
 import 'package:opencord/core/model/stream.dart';
 import 'package:opencord/core/model/channel.dart';
+import 'package:opencord/core/model/commands.dart';
 import 'package:opencord/core/model/lavalink.dart';
 import 'package:opencord/core/model/message.dart';
 import 'package:opencord/core/model/misc.dart';
 import 'package:opencord/core/model/music.dart';
+import 'package:opencord/core/model/music_session.dart';
 import 'package:opencord/core/model/network.dart';
 import 'package:opencord/core/model/permissions.dart';
 import 'package:opencord/core/model/presence.dart';
@@ -72,6 +75,9 @@ class MockRepository implements OpencordRepository {
   final _retryTimers = <String, Timer>{};
   final _trusted = <String>{};
   Timer? _speaking;
+  Timer? _musicTick;
+  final _music = <String, MockMusic>{};
+  final _nowPlaying = <(String, int), MusicNowPlaying?>{};
   ({String server, int channel})? _voice;
   var _selfVoice = const VoiceParticipant(userId: 0);
   LocalIdentity? _identity;
@@ -140,6 +146,7 @@ class MockRepository implements OpencordRepository {
     for (final timer in [..._timers, ..._retryTimers.values]) {
       timer.cancel();
     }
+    _musicTick?.cancel();
     _speaking?.cancel();
     _levels?.cancel();
     _events.close();
@@ -1769,6 +1776,26 @@ class MockRepository implements OpencordRepository {
 
   // Music --------------------------------------------------------------------------
 
+  /// Fills a channel's queue with [count] tracks at once, for load checks.
+  @visibleForTesting
+  void debugFillQueue(String serverKey, int channelId, int count) {
+    final server = _server(serverKey);
+    final music = _musicOf(server);
+    _musicChanged(
+      server,
+      music.enqueue(channelId, server.selfId, music.debugResults(count)),
+    );
+  }
+
+  /// As if the server's music were set up or not (a node added).
+  @visibleForTesting
+  void debugSetMusicConfigured(String serverKey, {required bool configured}) {
+    final server = _server(serverKey);
+    server.music = server.music.copyWith(configured: configured);
+    _emit(MusicSettingsChanged(server.key, server.music));
+    _emit(CommandsChanged(server.key, server.availableCommands));
+  }
+
   @override
   Future<MusicSettings> musicSettings(String serverKey) async {
     final server = _server(serverKey);
@@ -1798,6 +1825,448 @@ class MockRepository implements OpencordRepository {
 
   List<MusicBlock> _blocks(MockServer server) =>
       server.musicBlocks.values.toList()..sort((a, b) => a.at.compareTo(b.at));
+
+  MockMusic _musicOf(MockServer server) =>
+      _music.putIfAbsent(server.key, () => MockMusic(_clock));
+
+  /// As the server checks a member acting on a channel's music.
+  void _musicAct(MockServer server, int channelId, Permissions needed) {
+    if (!server.music.configured || !server.music.enabled) {
+      throw const RepoException(
+        RepoErrorKind.musicUnavailable,
+        "Music isn't set up on this server",
+      );
+    }
+    if (server.musicBlocks.containsKey(server.selfId)) {
+      throw const RepoException(
+        RepoErrorKind.forbidden,
+        "You're blocked from music on this server",
+      );
+    }
+    final held = server.selfChannelPermissions[channelId] ?? Permissions.none;
+    final connected = _voice == (server: server.key, channel: channelId);
+    if (!connected && !held.has(Permissions.musicManage)) {
+      throw const RepoException(
+        RepoErrorKind.forbidden,
+        'Join the voice channel to control its music',
+      );
+    }
+    _require(server, needed, channelId);
+  }
+
+  /// Tells the channel's listeners, and everyone the now-playing card.
+  MusicSession _musicChanged(
+    MockServer server,
+    MusicSession session, {
+    String? notice,
+  }) {
+    _emit(MusicSessionChanged(server.key, session));
+    final now = session.nowPlaying;
+    final card = now == null
+        ? null
+        : MusicNowPlaying(
+            channelId: session.channelId,
+            title: now.track.title,
+            artist: now.track.artist,
+            artworkId: now.track.artworkId,
+            playing: session.playing,
+            sourceName: now.track.sourceName,
+          );
+    if (_nowPlaying[(server.key, session.channelId)] != card) {
+      _nowPlaying[(server.key, session.channelId)] = card;
+      _emit(
+        MusicNowPlayingChanged(
+          server.key,
+          channelId: session.channelId,
+          nowPlaying: card,
+        ),
+      );
+    }
+    if (notice != null) {
+      _emit(
+        MusicNoticeReceived(
+          server.key,
+          MusicNotice(channelId: session.channelId, text: notice, at: _clock()),
+        ),
+      );
+    }
+    _musicTicking();
+    return session;
+  }
+
+  /// Plays on to the next track when one ends, while something plays.
+  void _musicTicking() {
+    if (!simulateLife || _musicTick != null) return;
+    _musicTick = Timer.periodic(const Duration(seconds: 1), (_) {
+      for (final MapEntry(key: serverKey, value: music) in _music.entries) {
+        final server = _world.servers.where((s) => s.key == serverKey);
+        for (final session in music.finishEnded()) {
+          if (server.isNotEmpty) _musicChanged(server.first, session);
+        }
+      }
+    });
+  }
+
+  String _selfName(MockServer server) =>
+      server.members[server.selfId]?.displayName ?? 'You';
+
+  @override
+  Future<MusicSearchResults> musicSearch(
+    String serverKey,
+    int channelId,
+    String query, {
+    String source = '',
+  }) async {
+    final server = _server(serverKey);
+    _musicAct(server, channelId, Permissions.musicAdd);
+    await _latency(200);
+    if (query.trim().isEmpty || query.length > 200) {
+      throw const RepoException(
+        RepoErrorKind.invalidArgument,
+        'a search is 1 to 200 characters',
+      );
+    }
+    return _musicOf(
+      server,
+    ).search(query, source.isEmpty ? server.music.defaultSource : source);
+  }
+
+  @override
+  Future<MusicSession> musicSubscribe(String serverKey, int channelId) async {
+    final server = _server(serverKey);
+    await _latency(40);
+    return _musicOf(server).session(channelId);
+  }
+
+  @override
+  Future<void> musicUnsubscribe(String serverKey, int channelId) async {}
+
+  @override
+  Future<MusicSession> musicEnqueue(
+    String serverKey,
+    int channelId,
+    List<String> resultIds, {
+    List<String> historyItemIds = const [],
+    String? beforeItemId,
+    MusicPlacement placement = MusicPlacement.end,
+  }) async {
+    final server = _server(serverKey);
+    _musicAct(server, channelId, Permissions.musicAdd);
+    if (placement != MusicPlacement.end || beforeItemId != null) {
+      _require(server, Permissions.musicManageQueue, channelId);
+    }
+    await _latency();
+    final session = _musicOf(server).enqueue(
+      channelId,
+      server.selfId,
+      resultIds,
+      historyItemIds: historyItemIds,
+      beforeItemId: beforeItemId,
+      placement: placement,
+    );
+    final count = resultIds.length + historyItemIds.length;
+    return _musicChanged(
+      server,
+      session,
+      notice: count == 1
+          ? '${_selfName(server)} added '
+                "'${session.queue.lastOrNull?.track.title ?? session.nowPlaying?.track.title}'"
+          : '${_selfName(server)} added $count tracks',
+    );
+  }
+
+  Future<MusicSession> _musicControl(
+    String serverKey,
+    int channelId,
+    Permissions needed,
+    void Function(MockPlayer player) change,
+  ) async {
+    final server = _server(serverKey);
+    _musicAct(server, channelId, needed);
+    await _latency(60);
+    return _musicChanged(server, _musicOf(server).update(channelId, change));
+  }
+
+  @override
+  Future<MusicSession> musicPause(
+    String serverKey,
+    int channelId, {
+    required bool paused,
+  }) => _musicControl(
+    serverKey,
+    channelId,
+    Permissions.musicControl,
+    (player) => player.setPaused(paused),
+  );
+
+  @override
+  Future<MusicSession> musicSkip(
+    String serverKey,
+    int channelId, {
+    required bool forward,
+    String? expectedItemId,
+  }) => _musicControl(serverKey, channelId, Permissions.musicControl, (player) {
+    player.expect(expectedItemId);
+    forward ? player.next() : player.previous();
+  });
+
+  @override
+  Future<MusicSession> musicSeek(
+    String serverKey,
+    int channelId,
+    Duration position, {
+    String? expectedItemId,
+  }) => _musicControl(serverKey, channelId, Permissions.musicControl, (player) {
+    player.expect(expectedItemId);
+    player.seek(position);
+  });
+
+  @override
+  Future<MusicSession> musicStop(String serverKey, int channelId) =>
+      _musicControl(
+        serverKey,
+        channelId,
+        Permissions.musicManage,
+        (player) => player.stop(),
+      );
+
+  @override
+  Future<MusicSession> musicSetMode(
+    String serverKey,
+    int channelId, {
+    MusicRepeat? repeat,
+    bool? shuffle,
+  }) => _musicControl(
+    serverKey,
+    channelId,
+    Permissions.musicControl,
+    (player) => player.setMode(repeat: repeat, shuffle: shuffle),
+  );
+
+  @override
+  Future<MusicSession> musicMove(
+    String serverKey,
+    int channelId,
+    String itemId, {
+    String? beforeItemId,
+  }) => _musicControl(
+    serverKey,
+    channelId,
+    Permissions.musicManageQueue,
+    (player) => player.move(itemId, beforeItemId),
+  );
+
+  @override
+  Future<MusicSession> musicRemove(
+    String serverKey,
+    int channelId,
+    List<String> itemIds,
+  ) => _musicControl(
+    serverKey,
+    channelId,
+    Permissions.musicAdd,
+    (player) => player.remove(itemIds),
+  );
+
+  @override
+  Future<MusicSession> musicClear(String serverKey, int channelId) =>
+      _musicControl(
+        serverKey,
+        channelId,
+        Permissions.musicManageQueue,
+        (player) => player.clear(),
+      );
+
+  // Commands -------------------------------------------------------------------
+
+  /// Commands the mock ran, by name, for tests.
+  final List<String> commandsRun = [];
+
+  @override
+  Future<CommandOutcome> executeCommand(
+    String serverKey,
+    int channelId,
+    String name,
+    Map<String, String> options, {
+    required String nonce,
+  }) async {
+    final server = _server(serverKey);
+    _require(server, Permissions.sendMessages, channelId);
+    final spec = server.availableCommands.find(name);
+    if (spec == null) {
+      throw RepoException(
+        RepoErrorKind.notFound,
+        '/$name isn\'t a command here',
+      );
+    }
+    if (!spec.allowedIn(channelId)) {
+      throw RepoException(
+        RepoErrorKind.forbidden,
+        '/${spec.name} can\'t be used in this channel',
+      );
+    }
+    commandsRun.add(spec.name);
+    final voice = _voice;
+    final reply = voice == null || voice.server != serverKey
+        ? (false, 'Join a voice channel to use music commands')
+        : await _runMusicCommand(server, voice.channel, spec.name, options);
+    final (public, text) = reply;
+    if (public && server.commands.resultsPublic) {
+      final now = _clock();
+      final message = Message(
+        id: _world.ids.at(now),
+        channelId: channelId,
+        authorId: server.selfId,
+        content: text,
+        createdAt: now,
+        command: spec.name,
+      );
+      _history(server, channelId).add(message);
+      _emit(MessageCreated(serverKey, message));
+      return (messageId: message.id, ephemeral: false);
+    }
+    _emit(
+      EphemeralMessageReceived(
+        serverKey,
+        EphemeralNote(
+          channelId: channelId,
+          nonce: nonce,
+          content: text,
+          at: _clock(),
+        ),
+      ),
+    );
+    return (messageId: null, ephemeral: true);
+  }
+
+  /// (public, what it says).
+  Future<(bool, String)> _runMusicCommand(
+    MockServer server,
+    int channelId,
+    String name,
+    Map<String, String> options,
+  ) async {
+    final where = server.channels[channelId]?.name ?? 'the channel';
+    final key = server.key;
+    String line(MusicQueueItem item) =>
+        '*${item.track.title}* — ${item.track.artist}';
+    switch (name) {
+      case 'play':
+        final query = options['query'] ?? '';
+        final found = await musicSearch(key, channelId, query);
+        if (found.results.isEmpty) return (false, 'Nothing found for “$query”');
+        final next = options['next'] == 'yes';
+        final session = await musicEnqueue(key, channelId, [
+          found.results.first.id,
+        ], placement: next ? MusicPlacement.next : MusicPlacement.end);
+        final added = [?session.nowPlaying, ...session.queue].lastWhere(
+          (item) => item.track.title == found.results.first.track.title,
+        );
+        return (true, 'Added ${line(added)} to the queue in $where');
+      case 'pause' || 'resume':
+        await musicPause(key, channelId, paused: name == 'pause');
+        return (
+          true,
+          '${name == 'pause' ? 'Paused' : 'Resumed'} the music in $where',
+        );
+      case 'skip':
+        await musicSkip(key, channelId, forward: true);
+        return (true, 'Skipped in $where');
+      case 'stop':
+        await musicStop(key, channelId);
+        return (true, 'Stopped the music in $where');
+      case 'clear':
+        await musicClear(key, channelId);
+        return (true, 'Cleared the queue in $where');
+      case 'nowplaying' || 'queue':
+        final session = _musicOf(server).session(channelId);
+        final now = session.nowPlaying;
+        return (
+          false,
+          now == null
+              ? 'Nothing is playing in $where'
+              : 'Now playing in $where: ${line(now)}',
+        );
+      default:
+        return (false, '/$name did nothing here');
+    }
+  }
+
+  @override
+  Future<List<CommandChoice>> autocompleteCommand(
+    String serverKey,
+    int channelId,
+    String name,
+    String option,
+    String value,
+  ) async {
+    final server = _server(serverKey);
+    final voice = _voice;
+    if (name != 'play' ||
+        option != 'query' ||
+        value.trim().length < 2 ||
+        voice == null) {
+      return const [];
+    }
+    final found = _musicOf(server).search(value, server.music.defaultSource);
+    await _latency(60);
+    return [
+      for (final result in found.results)
+        CommandChoice(
+          name:
+              '${result.track.title} — ${result.track.artist} · '
+              '${formatTrackTime(result.track.duration)}',
+          value: result.id,
+          artworkId: result.track.artworkId,
+        ),
+    ];
+  }
+
+  @override
+  Future<CommandList> commandSettings(String serverKey) async {
+    final server = _server(serverKey);
+    _require(server, Permissions.manageServer);
+    await _latency(40);
+    return server.commands;
+  }
+
+  @override
+  Future<CommandList> updateCommandSettings(
+    String serverKey, {
+    String name = '',
+    bool? enabled,
+    List<int>? channelIds,
+    bool? resultsPublic,
+  }) async {
+    final server = _server(serverKey);
+    _require(server, Permissions.manageServer);
+    await _latency();
+    server.commands = CommandList(
+      commands: [
+        for (final spec in server.commands.commands)
+          spec.name == name
+              ? spec.copyWith(enabled: enabled, channelIds: channelIds)
+              : spec,
+      ],
+      resultsPublic: resultsPublic ?? server.commands.resultsPublic,
+    );
+    _emit(CommandsChanged(serverKey, server.availableCommands));
+    return server.commands;
+  }
+
+  /// What the app last set, for tests.
+  MusicListening musicListening = const MusicListening();
+
+  @override
+  void setMusicListening(MusicListening listening) =>
+      musicListening = listening;
+
+  @override
+  Future<String?> musicArtwork(
+    String serverKey,
+    String artworkId,
+    int size,
+  ) async => null;
 
   @override
   Future<List<MusicBlock>> musicBlocks(String serverKey) async {

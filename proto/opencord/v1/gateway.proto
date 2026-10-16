@@ -3,6 +3,7 @@ syntax = "proto3";
 
 package opencord.v1;
 
+import "opencord/v1/commands.proto";
 import "opencord/v1/events.proto";
 import "opencord/v1/models.proto";
 import "opencord/v1/network.proto";
@@ -95,6 +96,11 @@ message Ready {
   MediaToken media_token = 16;
   // Where the server is reached (Phase 3 plan §7.5).
   ServerAddresses server_addresses = 17;
+  // The server's clock, Unix ms, as Ready was sent: a first estimate of
+  // the offset that music progress needs (Phase 3 plan §14.3).
+  int64 server_time_ms = 18;
+  // The chat commands this user may see (Phase 3 plan §17.1).
+  Commands commands = 19;
 }
 
 // Sent after the missed events have been replayed.
@@ -106,4 +112,8 @@ message Heartbeat {
   uint64 last_seq = 1;
 }
 
-message HeartbeatAck {}
+message HeartbeatAck {
+  // The server's clock, Unix ms, as the ack was sent: with the round trip,
+  // the client's offset from the server's clock (Phase 3 plan §14.3).
+  int64 server_time_ms = 1;
+}

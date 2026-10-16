@@ -93,6 +93,7 @@ async fn music_needs_a_node_the_channel_and_the_permissions() {
     let more = search(&mut member, voice, "more").await;
     let error = member
         .error(Kind::MusicEnqueue(proto::MusicEnqueue {
+            history_item_ids: Vec::new(),
             channel_id: voice,
             result_ids: more.clone(),
             before_item_id: None,
@@ -283,6 +284,7 @@ async fn the_queue_follows_lavalinks_events_and_the_playback_rules() {
     let broken = search(&mut owner, voice, "broken").await;
     owner
         .ok(Kind::MusicEnqueue(proto::MusicEnqueue {
+            history_item_ids: Vec::new(),
             channel_id: voice,
             result_ids: broken,
             before_item_id: None,
@@ -792,4 +794,46 @@ async fn two_real_lavalinks_fail_over() {
     println!("bridge after 6 s: {stats:?}");
     assert!(stats.packets - before > 250, "{stats:?}");
     assert_eq!(stats.connections, 1);
+}
+
+#[tokio::test]
+async fn recently_played_tracks_can_be_added_again() {
+    let Room {
+        mut owner,
+        voice,
+        lavalink,
+        ..
+    } = room().await;
+    let found = search(&mut owner, voice, "song").await;
+    owner.ok(enqueue(voice, found[..1].to_vec())).await;
+    fake_plays(&lavalink, voice, "song 1").await;
+    lavalink.fake.finish(voice);
+    let played = until(&mut owner, voice, "song 1 played", |session| {
+        !session.history.is_empty()
+    })
+    .await;
+    let item = played.history[0].item_id.clone();
+
+    let again = session(
+        owner
+            .ok(Kind::MusicEnqueue(proto::MusicEnqueue {
+                channel_id: voice,
+                result_ids: Vec::new(),
+                history_item_ids: vec![item],
+                before_item_id: None,
+                placement: proto::MusicPlacement::End as i32,
+            }))
+            .await,
+    );
+    assert_eq!(title(again.now_playing.as_ref()), "song 1");
+    let error = owner
+        .error(Kind::MusicEnqueue(proto::MusicEnqueue {
+            channel_id: voice,
+            result_ids: Vec::new(),
+            history_item_ids: vec!["not-in-history".to_owned()],
+            before_item_id: None,
+            placement: proto::MusicPlacement::End as i32,
+        }))
+        .await;
+    assert_eq!(code(&error), proto::ErrorCode::NotFound);
 }

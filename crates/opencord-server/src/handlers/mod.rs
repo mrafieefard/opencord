@@ -11,12 +11,13 @@ use crate::gateway::session::Session;
 use crate::state::AppState;
 
 mod channels;
+mod commands;
 mod domains;
 mod invites;
 mod lavalink;
 mod members;
 mod messages;
-mod music;
+pub(crate) mod music;
 mod network;
 mod profile;
 mod roles;
@@ -135,6 +136,10 @@ async fn dispatch(ctx: &Ctx<'_>, request: proto::Request) -> Result<Response, Ap
         Kind::UpdateMusicSettings(request) => music::update_settings(ctx, request).await,
         Kind::FetchMusicBlocks(_) => music::fetch_blocks(ctx),
         Kind::MusicBlockMember(request) => music::block_member(ctx, request).await,
+        Kind::ExecuteCommand(request) => commands::execute(ctx, request).await,
+        Kind::AutocompleteCommand(request) => commands::autocomplete(ctx, request).await,
+        Kind::FetchCommandSettings(_) => commands::fetch_settings(ctx),
+        Kind::UpdateCommandSettings(request) => commands::update_settings(ctx, request).await,
     }
 }
 

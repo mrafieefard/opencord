@@ -4,10 +4,10 @@ use opencord_proto::v1 as proto;
 
 use crate::api::types::{
     Ban, Channel, ChannelKind, ChannelPermissions, ConnectAddress, CoreError, CoreEventPayload,
-    ErrorCode, Invite, Member, Message, OverwriteTargetKind, PermissionOverwrite, Presence,
-    PresenceStatus, ReadySnapshot, Role, ScreenShareResolution, ScreenStream, ServerAddresses,
-    ServerInfo, SoundEffect, SoundboardSound, StreamSourceKind, User, VoiceSettings,
-    VoiceSettingsChanges, VoiceState,
+    EphemeralMessage, ErrorCode, Invite, Member, Message, OverwriteTargetKind, PermissionOverwrite,
+    Presence, PresenceStatus, ReadySnapshot, Role, ScreenShareResolution, ScreenStream,
+    ServerAddresses, ServerInfo, SoundEffect, SoundboardSound, StreamSourceKind, User,
+    VoiceSettings, VoiceSettingsChanges, VoiceState,
 };
 use crate::identity::public_key_fingerprint;
 
@@ -212,6 +212,7 @@ pub fn message(message: proto::Message) -> Message {
         created_at_ms: message.created_at_ms,
         edited_at_ms: message.edited_at_ms,
         nonce: message.nonce,
+        command: message.interaction.map(|interaction| interaction.command),
     }
 }
 
@@ -317,6 +318,7 @@ pub fn ready(ready: proto::Ready) -> ReadySnapshot {
             .map(soundboard_sound)
             .collect(),
         addresses: server_addresses(ready.server_addresses.unwrap_or_default()),
+        commands: crate::commands::list_from(ready.commands.unwrap_or_default()),
     }
 }
 
@@ -459,7 +461,15 @@ pub fn event(kind: proto::event::Kind, session_id: &str) -> Option<CoreEventPayl
         Kind::MusicSettingsUpdate(update) => {
             CoreEventPayload::MusicSettingsUpdate(crate::music::settings_from(update.settings?))
         }
-        // The music panel's (Phase 3 L5).
+        Kind::CommandsUpdate(update) => CoreEventPayload::CommandsUpdate(
+            crate::commands::list_from(update.commands.unwrap_or_default()),
+        ),
+        Kind::EphemeralMessage(message) => CoreEventPayload::EphemeralMessage(EphemeralMessage {
+            channel_id: message.channel_id,
+            nonce: message.nonce,
+            content: message.content,
+        }),
+        // With the server's clock: `music::event`.
         Kind::MusicSnapshot(_) | Kind::MusicNotice(_) | Kind::MusicNowPlaying(_) => return None,
     })
 }
@@ -502,6 +512,10 @@ pub fn error_code(code: i32) -> ErrorCode {
         Ok(proto::ErrorCode::MusicSourceNotAllowed) => ErrorCode::MusicSourceNotAllowed,
         Ok(proto::ErrorCode::MusicLinkNotAllowed) => ErrorCode::MusicLinkNotAllowed,
         Ok(proto::ErrorCode::MusicStale) => ErrorCode::MusicStale,
+        Ok(proto::ErrorCode::CommandUnknown) => ErrorCode::CommandUnknown,
+        Ok(proto::ErrorCode::CommandDisabled) => ErrorCode::CommandDisabled,
+        Ok(proto::ErrorCode::CommandNotAllowedHere) => ErrorCode::CommandNotAllowedHere,
+        Ok(proto::ErrorCode::CommandInvalidOptions) => ErrorCode::CommandInvalidOptions,
         _ => ErrorCode::Unknown,
     }
 }

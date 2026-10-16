@@ -82,6 +82,7 @@ core.ReadySnapshot _ready({
       core.ChannelPermissions(channelId: channel, permissions: 0x5),
   ],
   addresses: const core.ServerAddresses(domains: []),
+  commands: const core.CommandList(commands: [], resultsPublic: true),
 );
 
 /// A keychain that can be locked, refusing to save, or out of reach.

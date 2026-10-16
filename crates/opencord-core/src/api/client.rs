@@ -13,16 +13,17 @@ use tokio::runtime::Runtime;
 
 use super::types::{
     AddServerOutcome, AudioDevices, AudioSettings, Ban, CameraDevice, CameraStarted, Channel,
-    ChannelChanges, ChannelKind, ChannelPosition, CoreError, CoreEvent, DefaultSound, DomainCheck,
+    ChannelChanges, ChannelKind, ChannelPosition, CommandChoice, CommandList, CommandOptionValue,
+    CommandOutcome, CommandSettingsChanges, CoreError, CoreEvent, DefaultSound, DomainCheck,
     DomainKind, DomainUpdate, GeneratedIdentity, HotkeyBinding, HotkeySupport, IdentityInfo,
     Invite, LavalinkNodeChanges, LavalinkNodeSettings, LavalinkNodes, MediaEvent, Member, Message,
-    MusicBlock, MusicSearchResults, MusicSettings, MusicSettingsChanges, NetworkInfo,
-    NetworkSettingsChanges, NoiseSuppressionMode, OverwriteTargetKind, PermissionOverwrite,
-    PresenceStatus, Role, RoleChanges, ScreenAudioApp, ScreenAudioSupport, ScreenShareRequest,
-    ScreenShareStarted, ScreenSource, ScreenThumbnail, Server, ServerChanges, ServerInfo,
-    SoundDraft, SoundSelection, SoundboardSound, SoundboardSoundChanges, StreamSourceKind,
-    TextureStats, TrustedFingerprint, TunnelKind, User, VideoSupport, VideoWant, VoiceCue,
-    VoiceSettings, VoiceSettingsChanges, VoiceState,
+    MusicAction, MusicBlock, MusicPlacement, MusicRepeat, MusicSearchResults, MusicSession,
+    MusicSettings, MusicSettingsChanges, NetworkInfo, NetworkSettingsChanges, NoiseSuppressionMode,
+    OverwriteTargetKind, PermissionOverwrite, PresenceStatus, Role, RoleChanges, ScreenAudioApp,
+    ScreenAudioSupport, ScreenShareRequest, ScreenShareStarted, ScreenSource, ScreenThumbnail,
+    Server, ServerChanges, ServerInfo, SoundDraft, SoundSelection, SoundboardSound,
+    SoundboardSoundChanges, StreamSourceKind, TextureStats, TrustedFingerprint, TunnelKind, User,
+    VideoSupport, VideoWant, VoiceCue, VoiceSettings, VoiceSettingsChanges, VoiceState,
 };
 use crate::client::Client;
 use crate::frb_generated::StreamSink;
@@ -706,6 +707,56 @@ pub async fn move_lavalink_players(
     .await
 }
 
+/// Runs a chat command typed in `channel_id` (Phase 3 plan §17). An
+/// "only you" reply arrives as an `EphemeralMessage` with `nonce`.
+pub async fn command_execute(
+    server_key: String,
+    channel_id: i64,
+    name: String,
+    options: Vec<CommandOptionValue>,
+    nonce: String,
+) -> Result<CommandOutcome, CoreError> {
+    on_runtime(move |client| async move {
+        client
+            .command_execute(&server_key, channel_id, name, options, nonce)
+            .await
+    })
+    .await
+}
+
+/// Up to 10 suggestions for a command's option as typed so far.
+pub async fn command_autocomplete(
+    server_key: String,
+    channel_id: i64,
+    name: String,
+    option: String,
+    value: String,
+) -> Result<Vec<CommandChoice>, CoreError> {
+    on_runtime(move |client| async move {
+        client
+            .command_autocomplete(&server_key, channel_id, name, option, value)
+            .await
+    })
+    .await
+}
+
+/// Every command, on or off, for the Commands page. Needs Manage server.
+pub async fn command_settings(server_key: String) -> Result<CommandList, CoreError> {
+    on_runtime(move |client| async move { client.command_settings(&server_key).await }).await
+}
+
+/// Turns a command on or off, chooses where it works, or where results go.
+/// Needs Manage server.
+pub async fn update_command_settings(
+    server_key: String,
+    changes: CommandSettingsChanges,
+) -> Result<CommandList, CoreError> {
+    on_runtime(
+        move |client| async move { client.update_command_settings(&server_key, changes).await },
+    )
+    .await
+}
+
 /// Searches, or loads a link, for a voice channel; `source` empty for the
 /// server's default (Phase 3 plan §15.1). Needs Add music.
 pub async fn music_search(
@@ -720,6 +771,146 @@ pub async fn music_search(
             .await
     })
     .await
+}
+
+/// The channel's player; from now on its changes arrive as
+/// `MusicSession` events even when not connected to it (Phase 3 plan
+/// §14.3). Needs only to see the channel.
+pub async fn music_subscribe(
+    server_key: String,
+    channel_id: i64,
+) -> Result<MusicSession, CoreError> {
+    on_runtime(
+        move |client| async move { client.music_subscribe(&server_key, channel_id, true).await },
+    )
+    .await
+}
+
+/// Stops the changes `music_subscribe` started; those connected to the
+/// channel keep getting them.
+pub async fn music_unsubscribe(server_key: String, channel_id: i64) -> Result<(), CoreError> {
+    on_runtime(move |client| async move {
+        client
+            .music_subscribe(&server_key, channel_id, false)
+            .await
+            .map(|_| ())
+    })
+    .await
+}
+
+/// Adds search results, or tracks from the channel's history by their item
+/// ids ("Add again"): at the end, before `before_item_id`, next or now.
+/// Needs Add music; a position, next and now need Manage the queue.
+pub async fn music_enqueue(
+    server_key: String,
+    channel_id: i64,
+    result_ids: Vec<String>,
+    history_item_ids: Vec<String>,
+    before_item_id: Option<String>,
+    placement: MusicPlacement,
+) -> Result<MusicSession, CoreError> {
+    on_runtime(move |client| async move {
+        client
+            .music_enqueue(
+                &server_key,
+                channel_id,
+                result_ids,
+                history_item_ids,
+                before_item_id,
+                placement,
+            )
+            .await
+    })
+    .await
+}
+
+/// Pause, resume, next, previous, seek (to `position_ms`) or stop. With
+/// `expected_item_id`, nothing happens when another item plays by then.
+pub async fn music_playback(
+    server_key: String,
+    channel_id: i64,
+    action: MusicAction,
+    position_ms: Option<u64>,
+    expected_item_id: Option<String>,
+) -> Result<MusicSession, CoreError> {
+    on_runtime(move |client| async move {
+        client
+            .music_playback(
+                &server_key,
+                channel_id,
+                action,
+                position_ms,
+                expected_item_id,
+            )
+            .await
+    })
+    .await
+}
+
+/// Repeat and shuffle, shared by everyone in the channel.
+pub async fn music_set_mode(
+    server_key: String,
+    channel_id: i64,
+    repeat: Option<MusicRepeat>,
+    shuffle: Option<bool>,
+) -> Result<MusicSession, CoreError> {
+    on_runtime(move |client| async move {
+        client
+            .music_set_mode(&server_key, channel_id, repeat, shuffle)
+            .await
+    })
+    .await
+}
+
+/// Puts an item before another, or at the end. Needs Manage the queue.
+pub async fn music_queue_move(
+    server_key: String,
+    channel_id: i64,
+    item_id: String,
+    before_item_id: Option<String>,
+) -> Result<MusicSession, CoreError> {
+    on_runtime(move |client| async move {
+        client
+            .music_queue_move(&server_key, channel_id, item_id, before_item_id)
+            .await
+    })
+    .await
+}
+
+/// Removes items: one's own with Add music, others' with Manage the queue.
+pub async fn music_queue_remove(
+    server_key: String,
+    channel_id: i64,
+    item_ids: Vec<String>,
+) -> Result<MusicSession, CoreError> {
+    on_runtime(move |client| async move {
+        client
+            .music_queue_remove(&server_key, channel_id, item_ids)
+            .await
+    })
+    .await
+}
+
+/// Needs Manage the queue.
+pub async fn music_queue_clear(
+    server_key: String,
+    channel_id: i64,
+) -> Result<MusicSession, CoreError> {
+    on_runtime(move |client| async move { client.music_queue_clear(&server_key, channel_id).await })
+        .await
+}
+
+/// This person's music volume (0–2, 200 %), mute, and "Lower music while
+/// people talk", for every server; kept on this device and never sent.
+/// Muted, the voice node stops sending the music (Phase 3 plan §19.8).
+#[frb(sync)]
+pub fn music_set_listening(
+    volume: f32,
+    muted: bool,
+    duck_while_talking: bool,
+) -> Result<(), CoreError> {
+    client()?.music_set_listening(volume, muted, duck_while_talking);
+    Ok(())
 }
 
 /// A track's artwork through the server, at 128 or 512 px: the path of a

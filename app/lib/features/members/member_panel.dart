@@ -8,6 +8,9 @@ import 'package:opencord/core/model/user.dart';
 import 'package:opencord/core/providers/providers.dart';
 import 'package:opencord/features/members/member_actions.dart';
 import 'package:opencord/features/members/member_sections.dart';
+import 'package:opencord/features/music/music_access.dart';
+import 'package:opencord/features/music/music_panel.dart';
+import 'package:opencord/features/music/now_playing_card.dart';
 import 'package:opencord/features/shell/navigation.dart';
 import 'package:opencord/features/window/header_bar.dart';
 import 'package:opencord/ui/theme/oc_colors.dart';
@@ -66,6 +69,9 @@ class _MemberPanelState extends ConsumerState<MemberPanel> {
         ? const <int, List<VoiceParticipant>>{}
         : ref.watch(voiceProvider(server));
     final channel = data?.channels[channelId];
+    final musicChannel = ref.watch(musicChannelProvider);
+    final musicOffered =
+        musicChannel != null && ref.watch(musicOfferedProvider(musicChannel));
     final members = data == null
         ? const <Member>[]
         : channel != null && channel.kind.isTextLike
@@ -89,6 +95,14 @@ class _MemberPanelState extends ConsumerState<MemberPanel> {
             query: _query,
             voiceChannelOf: voiceChannelOf,
             offlineExpanded: _offlineExpanded,
+            inVoice: musicChannel != null && musicChannel.server == server
+                ? [
+                    for (final participant
+                        in voice[musicChannel.channel] ??
+                            const <VoiceParticipant>[])
+                      participant.userId,
+                  ]
+                : const [],
           );
     return ColoredBox(
       color: colors.sidebar,
@@ -136,6 +150,8 @@ class _MemberPanelState extends ConsumerState<MemberPanel> {
               ],
             ),
           ),
+          if (musicOffered) const RightPanelModeBar(),
+          const NowPlayingCard(),
           Padding(
             padding: const EdgeInsets.fromLTRB(
               OcSpace.s12,

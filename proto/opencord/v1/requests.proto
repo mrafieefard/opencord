@@ -3,6 +3,7 @@ syntax = "proto3";
 
 package opencord.v1;
 
+import "opencord/v1/commands.proto";
 import "opencord/v1/models.proto";
 import "opencord/v1/music.proto";
 import "opencord/v1/network.proto";
@@ -104,6 +105,12 @@ message Request {
     UpdateMusicSettings update_music_settings = 139;
     FetchMusicBlocks fetch_music_blocks = 140;
     MusicBlockMember music_block_member = 141;
+
+    // Chat commands (Phase 3 plan §17).
+    ExecuteCommand execute_command = 150;
+    AutocompleteCommand autocomplete_command = 151;
+    FetchCommandSettings fetch_command_settings = 152;
+    UpdateCommandSettings update_command_settings = 153;
   }
 }
 
@@ -136,6 +143,9 @@ message Response {
     MusicSearchResults music_search_results = 23;
     MusicSettings music_settings = 24;
     MusicBlocks music_blocks = 25;
+    CommandResult command_result = 26;
+    CommandChoices command_choices = 27;
+    Commands commands = 28;
   }
 }
 

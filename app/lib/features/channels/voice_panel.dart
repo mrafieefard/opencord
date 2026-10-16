@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:opencord/core/providers/providers.dart';
 import 'package:opencord/core/repository/repository.dart';
+import 'package:opencord/features/music/music_panel.dart';
 import 'package:opencord/features/shell/navigation.dart';
 import 'package:opencord/features/soundboard/soundboard_picker.dart';
 import 'package:opencord/features/voice/camera_menu.dart';
@@ -35,6 +36,10 @@ class VoiceConnectedPanel extends ConsumerWidget {
       serverProvider(server).select((s) => s.data?.info.name),
     );
     final capabilities = ref.read(repositoryProvider).capabilities;
+    final music = ref.watch(
+      musicOfferedProvider((server: server, channel: channelId)),
+    );
+    final musicOpen = ref.watch(rightPanelModeProvider) == RightPanelMode.music;
     final connection = ref.watch(voiceConnectionProvider);
     final status = connection?.phase.label ?? 'Voice connected';
     final detail = connection?.detail;
@@ -123,6 +128,7 @@ class VoiceConnectedPanel extends ConsumerWidget {
           ),
           if (capabilities.camera ||
               capabilities.screenShare ||
+              music ||
               capabilities.soundboard) ...[
             const SizedBox(height: OcSpace.s8),
             Row(
@@ -151,6 +157,15 @@ class VoiceConnectedPanel extends ConsumerWidget {
                           anchor: globalRectOf(button),
                         ),
                       ),
+                    ),
+                  if (music)
+                    _Toggle(
+                      icon: OcIcons.libraryMusic,
+                      label: musicOpen ? 'Close music' : 'Music',
+                      active: musicOpen,
+                      onTap: () => ref
+                          .read(rightPanelModeProvider.notifier)
+                          .toggleMusic(),
                     ),
                   if (capabilities.soundboard)
                     Builder(

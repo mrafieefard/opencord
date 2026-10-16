@@ -83,6 +83,13 @@ message Message {
   // Echoed from SendMessage so the sender can match its pending message.
   // Never stored, so it is absent from fetched history.
   optional string nonce = 7;
+  // A command's public result (Phase 3 plan §17.3): who ran which.
+  optional MessageInteraction interaction = 8;
+}
+
+message MessageInteraction {
+  int64 user_id = 1;
+  string command = 2;
 }
 
 message Invite {
@@ -174,6 +181,11 @@ enum ErrorCode {
   ERROR_CODE_MUSIC_LINK_NOT_ALLOWED = 35;
   // Another item plays now than the action expected.
   ERROR_CODE_MUSIC_STALE = 36;
+  // Chat commands (Phase 3 plan §17.5).
+  ERROR_CODE_COMMAND_UNKNOWN = 37;
+  ERROR_CODE_COMMAND_DISABLED = 38;
+  ERROR_CODE_COMMAND_NOT_ALLOWED_HERE = 39;
+  ERROR_CODE_COMMAND_INVALID_OPTIONS = 40;
 }
 
 message Error {

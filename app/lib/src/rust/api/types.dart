@@ -8,7 +8,7 @@ import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 import 'package:freezed_annotation/freezed_annotation.dart' hide protected;
 part 'types.freezed.dart';
 
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `hash`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `hash`
 
 class AcmeAccount {
   /// An account exists with the CA in use.
@@ -538,6 +538,248 @@ enum CheckResult {
   confirmedByOwner,
 }
 
+class CommandChoice {
+  /// What the user sees.
+  final String name;
+
+  /// What is sent.
+  final String value;
+
+  /// A track's artwork, for /play's suggestions; empty otherwise.
+  final String artworkId;
+
+  const CommandChoice({
+    required this.name,
+    required this.value,
+    required this.artworkId,
+  });
+
+  @override
+  int get hashCode => name.hashCode ^ value.hashCode ^ artworkId.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is CommandChoice &&
+          runtimeType == other.runtimeType &&
+          name == other.name &&
+          value == other.value &&
+          artworkId == other.artworkId;
+}
+
+class CommandList {
+  final List<CommandSpec> commands;
+
+  /// Results go to the channel, or only to who ran the command.
+  final bool resultsPublic;
+
+  const CommandList({required this.commands, required this.resultsPublic});
+
+  static Future<CommandList> default_() =>
+      RustLib.instance.api.crateApiTypesCommandListDefault();
+
+  @override
+  int get hashCode => commands.hashCode ^ resultsPublic.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is CommandList &&
+          runtimeType == other.runtimeType &&
+          commands == other.commands &&
+          resultsPublic == other.resultsPublic;
+}
+
+/// The kind of value a command option takes (Phase 3 plan §17.1).
+enum CommandOptionKind { text, integer, boolean, choice, user, channel }
+
+class CommandOptionSpec {
+  final String name;
+  final String description;
+  final CommandOptionKind kind;
+  final bool required_;
+  final bool autocomplete;
+  final List<CommandChoice> choices;
+
+  /// For integers; both 0 for no bounds.
+  final PlatformInt64 min;
+  final PlatformInt64 max;
+
+  const CommandOptionSpec({
+    required this.name,
+    required this.description,
+    required this.kind,
+    required this.required_,
+    required this.autocomplete,
+    required this.choices,
+    required this.min,
+    required this.max,
+  });
+
+  @override
+  int get hashCode =>
+      name.hashCode ^
+      description.hashCode ^
+      kind.hashCode ^
+      required_.hashCode ^
+      autocomplete.hashCode ^
+      choices.hashCode ^
+      min.hashCode ^
+      max.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is CommandOptionSpec &&
+          runtimeType == other.runtimeType &&
+          name == other.name &&
+          description == other.description &&
+          kind == other.kind &&
+          required_ == other.required_ &&
+          autocomplete == other.autocomplete &&
+          choices == other.choices &&
+          min == other.min &&
+          max == other.max;
+}
+
+class CommandOptionValue {
+  final String name;
+  final String value;
+
+  const CommandOptionValue({required this.name, required this.value});
+
+  @override
+  int get hashCode => name.hashCode ^ value.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is CommandOptionValue &&
+          runtimeType == other.runtimeType &&
+          name == other.name &&
+          value == other.value;
+}
+
+/// What running a command did.
+class CommandOutcome {
+  /// The public result's message.
+  final PlatformInt64? messageId;
+
+  /// The reply came only to this device, as an `EphemeralMessage`.
+  final bool ephemeral;
+
+  const CommandOutcome({this.messageId, required this.ephemeral});
+
+  @override
+  int get hashCode => messageId.hashCode ^ ephemeral.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is CommandOutcome &&
+          runtimeType == other.runtimeType &&
+          messageId == other.messageId &&
+          ephemeral == other.ephemeral;
+}
+
+/// Changes to a command on the Commands page; `None` stays.
+class CommandSettingsChanges {
+  /// Empty to change only `results_public`.
+  final String name;
+  final bool? enabled;
+
+  /// An empty list for every channel.
+  final Int64List? channelIds;
+  final bool? resultsPublic;
+
+  const CommandSettingsChanges({
+    required this.name,
+    this.enabled,
+    this.channelIds,
+    this.resultsPublic,
+  });
+
+  static Future<CommandSettingsChanges> default_() =>
+      RustLib.instance.api.crateApiTypesCommandSettingsChangesDefault();
+
+  @override
+  int get hashCode =>
+      name.hashCode ^
+      enabled.hashCode ^
+      channelIds.hashCode ^
+      resultsPublic.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is CommandSettingsChanges &&
+          runtimeType == other.runtimeType &&
+          name == other.name &&
+          enabled == other.enabled &&
+          channelIds == other.channelIds &&
+          resultsPublic == other.resultsPublic;
+}
+
+/// A chat command, as the server describes it.
+class CommandSpec {
+  final String name;
+  final String description;
+  final List<CommandOptionSpec> options;
+
+  /// "music".
+  final String feature;
+
+  /// "Control playback".
+  final String permissionSummary;
+  final List<String> aliases;
+
+  /// The permission bits it needs at the least.
+  final PlatformInt64 permissions;
+  final bool enabled;
+
+  /// Empty: every channel.
+  final Int64List channelIds;
+
+  const CommandSpec({
+    required this.name,
+    required this.description,
+    required this.options,
+    required this.feature,
+    required this.permissionSummary,
+    required this.aliases,
+    required this.permissions,
+    required this.enabled,
+    required this.channelIds,
+  });
+
+  @override
+  int get hashCode =>
+      name.hashCode ^
+      description.hashCode ^
+      options.hashCode ^
+      feature.hashCode ^
+      permissionSummary.hashCode ^
+      aliases.hashCode ^
+      permissions.hashCode ^
+      enabled.hashCode ^
+      channelIds.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is CommandSpec &&
+          runtimeType == other.runtimeType &&
+          name == other.name &&
+          description == other.description &&
+          options == other.options &&
+          feature == other.feature &&
+          permissionSummary == other.permissionSummary &&
+          aliases == other.aliases &&
+          permissions == other.permissions &&
+          enabled == other.enabled &&
+          channelIds == other.channelIds;
+}
+
 /// One address a server is reached at.
 class ConnectAddress {
   final String host;
@@ -772,6 +1014,25 @@ sealed class CoreEventPayload with _$CoreEventPayload {
   /// The music settings changed.
   const factory CoreEventPayload.musicSettingsUpdate(MusicSettings field0) =
       CoreEventPayload_MusicSettingsUpdate;
+
+  /// A voice channel's player changed: to those connected to it and
+  /// those who subscribed.
+  const factory CoreEventPayload.musicSession(MusicSession field0) =
+      CoreEventPayload_MusicSession;
+
+  /// What plays in a channel, to everyone who can see it.
+  const factory CoreEventPayload.musicNowPlaying(MusicNowPlaying field0) =
+      CoreEventPayload_MusicNowPlaying;
+  const factory CoreEventPayload.musicNotice(MusicNotice field0) =
+      CoreEventPayload_MusicNotice;
+
+  /// The commands members can use changed.
+  const factory CoreEventPayload.commandsUpdate(CommandList field0) =
+      CoreEventPayload_CommandsUpdate;
+
+  /// A command's reply only this device sees.
+  const factory CoreEventPayload.ephemeralMessage(EphemeralMessage field0) =
+      CoreEventPayload_EphemeralMessage;
 }
 
 /// A sound every client has (plan §11.8), played as `default:<id>`.
@@ -1002,6 +1263,33 @@ class DomainUpdate {
           confirm == other.confirm;
 }
 
+/// A reply only this device sees; never stored.
+class EphemeralMessage {
+  final PlatformInt64 channelId;
+
+  /// The nonce `command_execute` was given.
+  final String nonce;
+  final String content;
+
+  const EphemeralMessage({
+    required this.channelId,
+    required this.nonce,
+    required this.content,
+  });
+
+  @override
+  int get hashCode => channelId.hashCode ^ nonce.hashCode ^ content.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is EphemeralMessage &&
+          runtimeType == other.runtimeType &&
+          channelId == other.channelId &&
+          nonce == other.nonce &&
+          content == other.content;
+}
+
 enum ErrorCode {
   unauthorized,
   forbidden,
@@ -1041,6 +1329,10 @@ enum ErrorCode {
 
   /// Another track plays now than the action expected.
   musicStale,
+  commandUnknown,
+  commandDisabled,
+  commandNotAllowedHere,
+  commandInvalidOptions,
   unknown,
 }
 
@@ -1746,6 +2038,9 @@ class Message {
   /// Set on messages this client sent, to match pending ones.
   final String? nonce;
 
+  /// A command's public result: the command run, by the author.
+  final String? command;
+
   const Message({
     required this.id,
     required this.channelId,
@@ -1754,6 +2049,7 @@ class Message {
     required this.createdAtMs,
     this.editedAtMs,
     this.nonce,
+    this.command,
   });
 
   @override
@@ -1764,7 +2060,8 @@ class Message {
       content.hashCode ^
       createdAtMs.hashCode ^
       editedAtMs.hashCode ^
-      nonce.hashCode;
+      nonce.hashCode ^
+      command.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -1777,8 +2074,11 @@ class Message {
           content == other.content &&
           createdAtMs == other.createdAtMs &&
           editedAtMs == other.editedAtMs &&
-          nonce == other.nonce;
+          nonce == other.nonce &&
+          command == other.command;
 }
+
+enum MusicAction { pause, resume, next, previous, seek, stop }
 
 /// A member blocked from music.
 class MusicBlock {
@@ -1812,6 +2112,91 @@ class MusicBlock {
           createdAtMs == other.createdAtMs;
 }
 
+/// A short activity line for the music panel.
+class MusicNotice {
+  final PlatformInt64 channelId;
+  final String text;
+  final PlatformInt64 atMs;
+
+  const MusicNotice({
+    required this.channelId,
+    required this.text,
+    required this.atMs,
+  });
+
+  @override
+  int get hashCode => channelId.hashCode ^ text.hashCode ^ atMs.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is MusicNotice &&
+          runtimeType == other.runtimeType &&
+          channelId == other.channelId &&
+          text == other.text &&
+          atMs == other.atMs;
+}
+
+/// What everyone who can see a channel learns about its music, for the
+/// now-playing card.
+class MusicNowPlaying {
+  final PlatformInt64 channelId;
+  final String title;
+  final String artist;
+  final String artworkId;
+  final bool playing;
+
+  /// Nothing plays any more.
+  final bool ended;
+
+  /// "YouTube", "SoundCloud"…
+  final String sourceDisplayName;
+
+  const MusicNowPlaying({
+    required this.channelId,
+    required this.title,
+    required this.artist,
+    required this.artworkId,
+    required this.playing,
+    required this.ended,
+    required this.sourceDisplayName,
+  });
+
+  @override
+  int get hashCode =>
+      channelId.hashCode ^
+      title.hashCode ^
+      artist.hashCode ^
+      artworkId.hashCode ^
+      playing.hashCode ^
+      ended.hashCode ^
+      sourceDisplayName.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is MusicNowPlaying &&
+          runtimeType == other.runtimeType &&
+          channelId == other.channelId &&
+          title == other.title &&
+          artist == other.artist &&
+          artworkId == other.artworkId &&
+          playing == other.playing &&
+          ended == other.ended &&
+          sourceDisplayName == other.sourceDisplayName;
+}
+
+enum MusicPlacement {
+  /// At the end, or before `before_item_id`.
+  end,
+  next,
+
+  /// Replaces what plays.
+  now,
+}
+
+enum MusicPlayState { idle, loading, playing, paused }
+
 /// A playlist a link loaded, shown as one card with "Add all".
 class MusicPlaylist {
   final String name;
@@ -1830,6 +2215,40 @@ class MusicPlaylist {
           name == other.name &&
           resultIds == other.resultIds;
 }
+
+/// A track in a channel's queue.
+class MusicQueueItem {
+  final String itemId;
+  final MusicTrack track;
+  final PlatformInt64 requesterId;
+  final PlatformInt64 addedAtMs;
+
+  const MusicQueueItem({
+    required this.itemId,
+    required this.track,
+    required this.requesterId,
+    required this.addedAtMs,
+  });
+
+  @override
+  int get hashCode =>
+      itemId.hashCode ^
+      track.hashCode ^
+      requesterId.hashCode ^
+      addedAtMs.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is MusicQueueItem &&
+          runtimeType == other.runtimeType &&
+          itemId == other.itemId &&
+          track == other.track &&
+          requesterId == other.requesterId &&
+          addedAtMs == other.addedAtMs;
+}
+
+enum MusicRepeat { off, queue, track }
 
 class MusicSearchResult {
   /// What to add; good for 15 minutes, for this user only.
@@ -1868,6 +2287,84 @@ class MusicSearchResults {
           playlist == other.playlist;
 }
 
+/// A voice channel's player (Phase 3 plan §14.1).
+class MusicSession {
+  final PlatformInt64 channelId;
+
+  /// Increases with every change.
+  final BigInt version;
+  final MusicPlayState state;
+  final MusicQueueItem? nowPlaying;
+
+  /// Upcoming, in play order.
+  final List<MusicQueueItem> queue;
+
+  /// Most recent first.
+  final List<MusicQueueItem> history;
+
+  /// What is heard was `position_ms` at `anchor_ms` on this device's
+  /// clock (Unix ms), the server's clock offset and the music's playout
+  /// delay taken into account; it moves on while playing.
+  final BigInt positionMs;
+  final PlatformInt64 anchorMs;
+  final MusicRepeat repeat;
+  final bool shuffle;
+
+  /// Every node is unavailable: paused, the queue kept, retrying.
+  final bool waitingForNode;
+
+  /// Everyone left: paused until someone comes back.
+  final bool pausedEmpty;
+
+  const MusicSession({
+    required this.channelId,
+    required this.version,
+    required this.state,
+    this.nowPlaying,
+    required this.queue,
+    required this.history,
+    required this.positionMs,
+    required this.anchorMs,
+    required this.repeat,
+    required this.shuffle,
+    required this.waitingForNode,
+    required this.pausedEmpty,
+  });
+
+  @override
+  int get hashCode =>
+      channelId.hashCode ^
+      version.hashCode ^
+      state.hashCode ^
+      nowPlaying.hashCode ^
+      queue.hashCode ^
+      history.hashCode ^
+      positionMs.hashCode ^
+      anchorMs.hashCode ^
+      repeat.hashCode ^
+      shuffle.hashCode ^
+      waitingForNode.hashCode ^
+      pausedEmpty.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is MusicSession &&
+          runtimeType == other.runtimeType &&
+          channelId == other.channelId &&
+          version == other.version &&
+          state == other.state &&
+          nowPlaying == other.nowPlaying &&
+          queue == other.queue &&
+          history == other.history &&
+          positionMs == other.positionMs &&
+          anchorMs == other.anchorMs &&
+          repeat == other.repeat &&
+          shuffle == other.shuffle &&
+          waitingForNode == other.waitingForNode &&
+          pausedEmpty == other.pausedEmpty;
+}
+
 /// Server settings → Music (Phase 3 plan §16.2).
 class MusicSettings {
   final bool enabled;
@@ -1897,6 +2394,9 @@ class MusicSettings {
   /// Music is on in the server's configuration file and runs there.
   final bool supported;
 
+  /// Supported, enabled, and with a Lavalink node: members see music.
+  final bool configured;
+
   const MusicSettings({
     required this.enabled,
     required this.enabledSources,
@@ -1914,6 +2414,7 @@ class MusicSettings {
     required this.bridgeDomain,
     required this.availableSources,
     required this.supported,
+    required this.configured,
   });
 
   @override
@@ -1933,7 +2434,8 @@ class MusicSettings {
       disconnectAfterIdleS.hashCode ^
       bridgeDomain.hashCode ^
       availableSources.hashCode ^
-      supported.hashCode;
+      supported.hashCode ^
+      configured.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -1955,7 +2457,8 @@ class MusicSettings {
           disconnectAfterIdleS == other.disconnectAfterIdleS &&
           bridgeDomain == other.bridgeDomain &&
           availableSources == other.availableSources &&
-          supported == other.supported;
+          supported == other.supported &&
+          configured == other.configured;
 }
 
 /// Changes to the music settings; what is `None` stays.
@@ -2449,6 +2952,9 @@ class ReadySnapshot {
   /// Where the server is reached (Phase 3 plan §7.5).
   final ServerAddresses addresses;
 
+  /// The chat commands this user may see (Phase 3 plan §17.1).
+  final CommandList commands;
+
   const ReadySnapshot({
     required this.selfUser,
     required this.server,
@@ -2464,6 +2970,7 @@ class ReadySnapshot {
     required this.voiceSettings,
     required this.soundboardSounds,
     required this.addresses,
+    required this.commands,
   });
 
   @override
@@ -2481,7 +2988,8 @@ class ReadySnapshot {
       streams.hashCode ^
       voiceSettings.hashCode ^
       soundboardSounds.hashCode ^
-      addresses.hashCode;
+      addresses.hashCode ^
+      commands.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -2501,7 +3009,8 @@ class ReadySnapshot {
           streams == other.streams &&
           voiceSettings == other.voiceSettings &&
           soundboardSounds == other.soundboardSounds &&
-          addresses == other.addresses;
+          addresses == other.addresses &&
+          commands == other.commands;
 }
 
 class Role {

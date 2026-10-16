@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:opencord/ui/widgets/settings.dart';
 import 'package:opencord/core/app_info.dart';
 import 'package:opencord/core/model/voice.dart';
 import 'package:opencord/core/providers/providers.dart';
@@ -333,7 +334,14 @@ void main() {
     expect(_inPage(find.text('Off')), findsWidgets, reason: 'off at first');
     await tester.tap(_inPage(find.text('When I speak')));
     await tester.pump();
-    await tester.drag(_inPage(find.byType(Slider)).last, const Offset(400, 0));
+    final lowerBy = find.descendant(
+      of: find.ancestor(
+        of: find.text('Lower other apps by'),
+        matching: find.byType(SettingsSliderRow),
+      ),
+      matching: find.byType(Slider),
+    );
+    await tester.drag(lowerBy, const Offset(400, 0));
     await tester.pump();
 
     final sent = app.repository.audio!;

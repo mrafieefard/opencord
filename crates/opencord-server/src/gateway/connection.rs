@@ -233,6 +233,8 @@ fn send_error(connection: &Connection, error: &ApiError) {
 fn send_heartbeat_ack(connection: &Connection) {
     send(
         connection,
-        frames::encode(Payload::HeartbeatAck(proto::HeartbeatAck {})),
+        frames::encode(Payload::HeartbeatAck(proto::HeartbeatAck {
+            server_time_ms: crate::state::now_ms(),
+        })),
     );
 }

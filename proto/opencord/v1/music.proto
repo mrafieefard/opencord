@@ -289,6 +289,8 @@ message MusicNowPlaying {
   bool playing = 5;
   // Nothing plays any more.
   bool ended = 6;
+  // "YouTube", "SoundCloud"…
+  string source_display_name = 7;
 }
 
 // A short activity line for the music panel (§14.4).
@@ -341,12 +343,14 @@ enum MusicPlacement {
 }
 
 // -> music_session. MUSIC_ADD; a position, NEXT or NOW need
-// MUSIC_MANAGE_QUEUE.
+// MUSIC_MANAGE_QUEUE. Search results, or tracks from the channel's
+// history ("Add again"), by their item ids.
 message MusicEnqueue {
   int64 channel_id = 1;
   repeated string result_ids = 2;
   optional string before_item_id = 3;
   MusicPlacement placement = 4;
+  repeated string history_item_ids = 5;
 }
 
 enum MusicAction {
@@ -419,6 +423,9 @@ message MusicSettings {
   repeated string available_sources = 15;
   // Music is on in opencord.toml and runs on this server.
   bool supported = 16;
+  // Supported, enabled, and with a Lavalink node added: members see the
+  // music buttons (§19.1).
+  bool configured = 17;
 }
 
 // -> music_settings. Anyone.

@@ -1,0 +1,130 @@
+// SPDX-License-Identifier: MPL-2.0
+syntax = "proto3";
+
+package opencord.v1;
+
+// Chat commands (Phase 3 plan §17): built into the server, not bots. The
+// server parses and checks everything; clients use the specs only to
+// build the input.
+
+enum CommandOptionKind {
+  COMMAND_OPTION_KIND_UNSPECIFIED = 0;
+  COMMAND_OPTION_KIND_TEXT = 1;
+  COMMAND_OPTION_KIND_INTEGER = 2;
+  COMMAND_OPTION_KIND_BOOLEAN = 3;
+  COMMAND_OPTION_KIND_CHOICE = 4;
+  COMMAND_OPTION_KIND_USER = 5;
+  COMMAND_OPTION_KIND_CHANNEL = 6;
+}
+
+message CommandChoice {
+  // What the user sees.
+  string name = 1;
+  // What is sent.
+  string value = 2;
+  // A music track's artwork, for /play's suggestions; empty otherwise.
+  string artwork_id = 3;
+}
+
+message CommandOptionSpec {
+  string name = 1;
+  string description = 2;
+  CommandOptionKind kind = 3;
+  bool required = 4;
+  // AutocompleteCommand gives suggestions for it.
+  bool autocomplete = 5;
+  // For CHOICE.
+  repeated CommandChoice choices = 6;
+  // For INTEGER; both 0 for no bounds.
+  int64 min = 7;
+  int64 max = 8;
+}
+
+message CommandSpec {
+  string name = 1;
+  string description = 2;
+  repeated CommandOptionSpec options = 3;
+  // "music".
+  string feature = 4;
+  // The permissions it needs, in words, like "Control playback".
+  string permission_summary = 5;
+  // Other names that run it, like "np".
+  repeated string aliases = 6;
+  // The permission bits it needs at the least; the server checks more.
+  uint64 permissions = 7;
+  // Off on the Commands page.
+  bool enabled = 8;
+  // Empty: every channel.
+  repeated int64 channel_ids = 9;
+}
+
+message Commands {
+  // Commands of features that are set up.
+  repeated CommandSpec commands = 1;
+  // Results go to the channel, or only to who ran the command.
+  bool results_public = 2;
+}
+
+message CommandOptionValue {
+  string name = 1;
+  // As typed; numbers and yes/no as text.
+  string value = 2;
+}
+
+// -> command_result. SEND_MESSAGES in the channel, and what the command
+// needs.
+message ExecuteCommand {
+  int64 channel_id = 1;
+  string name = 2;
+  repeated CommandOptionValue options = 3;
+  // Matched by the EphemeralMessage of an "only you" reply.
+  string nonce = 4;
+}
+
+message CommandResult {
+  // The public result, stored as a message.
+  optional int64 message_id = 1;
+  // The reply went only to this session, as an EphemeralMessage.
+  bool ephemeral = 2;
+}
+
+// -> command_choices. Up to 10; 5 a second per user.
+message AutocompleteCommand {
+  int64 channel_id = 1;
+  string name = 2;
+  string option = 3;
+  string value = 4;
+}
+
+message CommandChoices {
+  repeated CommandChoice choices = 1;
+}
+
+// -> commands. MANAGE_SERVER: every command, on or off.
+message FetchCommandSettings {}
+
+// -> commands. MANAGE_SERVER. Fields left out stay.
+message UpdateCommandSettings {
+  // The command to change; empty to change only results_public.
+  string name = 1;
+  optional bool enabled = 2;
+  // Where it may be used; an empty list for every channel.
+  optional CommandChannels channel_ids = 3;
+  optional bool results_public = 4;
+}
+
+message CommandChannels {
+  repeated int64 ids = 1;
+}
+
+// To everyone, when the commands they can use changed.
+message CommandsUpdate {
+  Commands commands = 1;
+}
+
+// Only to the session that ran the command; never stored.
+message EphemeralMessage {
+  int64 channel_id = 1;
+  string nonce = 2;
+  string content = 3;
+}

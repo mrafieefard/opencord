@@ -34,7 +34,17 @@ impl TestServer {
     async fn restart(self) -> Self {
         let port = self.handle.local_addr.port();
         self.handle.shutdown().await;
-        let handle = server::start(Self::config(&self._dir, port)).await.unwrap();
+        let mut attempts = 0;
+        let handle = loop {
+            match server::start(Self::config(&self._dir, port)).await {
+                Ok(handle) => break handle,
+                Err(_err) if attempts < 10 => {
+                    attempts += 1;
+                    tokio::time::sleep(Duration::from_millis(20)).await;
+                }
+                Err(err) => panic!("could not restart test server: {err:?}"),
+            }
+        };
         Self {
             handle,
             _dir: self._dir,

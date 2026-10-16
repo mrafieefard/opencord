@@ -9,8 +9,9 @@ use std::time::Duration;
 
 use opencord_common::address::format_fingerprint;
 use opencord_core::api::types::{
-    ChannelKind, CoreError, CoreEvent, CoreEventPayload, LavalinkHealth, LavalinkNodeSettings,
-    LavalinkPriority, ReadySnapshot,
+    ChannelKind, CoreError, CoreEvent, CoreEventPayload, ErrorCode, LavalinkHealth,
+    LavalinkNodeSettings, LavalinkPriority, MusicAction, MusicPlacement, MusicPlayState,
+    MusicRepeat, ReadySnapshot,
 };
 use opencord_core::client::Client;
 use opencord_core::identity::Identity;
@@ -219,4 +220,128 @@ async fn search_results_bring_artwork_that_comes_through_the_server_and_stays() 
         .music_artwork(&key, "0123456789abcdef0123456789abcdef", 128)
         .await;
     assert!(matches!(unknown, Err(CoreError::Server { .. })));
+}
+
+impl Owner {
+    /// Skips events until `pick` returns something.
+    async fn wait_for<T>(&mut self, mut pick: impl FnMut(&CoreEventPayload) -> Option<T>) -> T {
+        tokio::time::timeout(WAIT, async {
+            loop {
+                let event = self.events.recv().await.expect("the event stream ended");
+                if let Some(found) = pick(&event.payload) {
+                    return found;
+                }
+            }
+        })
+        .await
+        .expect("timed out waiting for an event")
+    }
+}
+
+fn now_ms() -> i64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_millis() as i64
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn the_player_comes_with_its_changes_on_this_devices_clock() {
+    let lavalink = FakeLavalink::start(PASSWORD).await;
+    let server = TestServer::start().await;
+    let key = server.address();
+    let (mut owner, ready) = Owner::of(&server).await;
+    add_node(&owner, &key, &lavalink).await;
+    let voice = ready
+        .channels
+        .iter()
+        .find(|channel| channel.kind == ChannelKind::Voice)
+        .unwrap()
+        .id;
+    owner.client.voice_join(&key, voice).await.unwrap();
+
+    let empty = owner
+        .client
+        .music_subscribe(&key, voice, true)
+        .await
+        .unwrap();
+    assert_eq!(empty.state, MusicPlayState::Idle);
+    let found = owner
+        .client
+        .music_search(&key, voice, "song".to_owned(), String::new())
+        .await
+        .unwrap();
+    let ids = found.results.iter().map(|r| r.result_id.clone()).collect();
+    let added = owner
+        .client
+        .music_enqueue(&key, voice, ids, Vec::new(), None, MusicPlacement::End)
+        .await
+        .unwrap();
+    assert_eq!(added.now_playing.as_ref().unwrap().track.title, "song 1");
+    assert_eq!(added.queue.len(), 2);
+
+    // The card comes as the track loads, the session once it plays.
+    let mut card = None;
+    let playing = owner
+        .wait_for(|payload| match payload {
+            CoreEventPayload::MusicNowPlaying(now) => {
+                card = Some(now.clone());
+                None
+            }
+            CoreEventPayload::MusicSession(session) if session.state == MusicPlayState::Playing => {
+                Some(session.clone())
+            }
+            _ => None,
+        })
+        .await;
+    // The server and this device share a clock here: the anchor is now,
+    // and later by the playout delay.
+    let late = playing.anchor_ms - now_ms();
+    assert!((0..=500).contains(&late), "anchor {late} ms from now");
+    let card = card.expect("no now-playing card");
+    assert_eq!((card.title.as_str(), card.ended), ("song 1", false));
+
+    let item = playing.now_playing.unwrap().item_id;
+    let paused = owner
+        .client
+        .music_playback(&key, voice, MusicAction::Pause, None, Some(item.clone()))
+        .await
+        .unwrap();
+    assert_eq!(paused.state, MusicPlayState::Paused);
+    let moved = owner
+        .client
+        .music_queue_move(&key, voice, paused.queue[0].item_id.clone(), None)
+        .await
+        .map(|session| session.queue[0].track.title.clone())
+        .unwrap();
+    assert_eq!(moved, "song 3");
+    let shuffled = owner
+        .client
+        .music_set_mode(&key, voice, Some(MusicRepeat::Queue), None)
+        .await
+        .unwrap();
+    assert_eq!(shuffled.repeat, MusicRepeat::Queue);
+    let stale = owner
+        .client
+        .music_playback(
+            &key,
+            voice,
+            MusicAction::Next,
+            None,
+            Some("gone".to_owned()),
+        )
+        .await;
+    assert!(
+        matches!(
+            stale,
+            Err(CoreError::Server {
+                code: ErrorCode::MusicStale,
+                ..
+            })
+        ),
+        "{stale:?}"
+    );
+    let cleared = owner.client.music_queue_clear(&key, voice).await.unwrap();
+    assert!(cleared.queue.is_empty());
+    owner.client.music_set_listening(1.5, true, true);
 }

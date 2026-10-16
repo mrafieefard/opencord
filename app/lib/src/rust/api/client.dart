@@ -597,6 +597,51 @@ Future<LavalinkNodes> moveLavalinkPlayers({
   toNodeId: toNodeId,
 );
 
+/// Runs a chat command typed in `channel_id` (Phase 3 plan §17). An
+/// "only you" reply arrives as an `EphemeralMessage` with `nonce`.
+Future<CommandOutcome> commandExecute({
+  required String serverKey,
+  required PlatformInt64 channelId,
+  required String name,
+  required List<CommandOptionValue> options,
+  required String nonce,
+}) => RustLib.instance.api.crateApiClientCommandExecute(
+  serverKey: serverKey,
+  channelId: channelId,
+  name: name,
+  options: options,
+  nonce: nonce,
+);
+
+/// Up to 10 suggestions for a command's option as typed so far.
+Future<List<CommandChoice>> commandAutocomplete({
+  required String serverKey,
+  required PlatformInt64 channelId,
+  required String name,
+  required String option,
+  required String value,
+}) => RustLib.instance.api.crateApiClientCommandAutocomplete(
+  serverKey: serverKey,
+  channelId: channelId,
+  name: name,
+  option: option,
+  value: value,
+);
+
+/// Every command, on or off, for the Commands page. Needs Manage server.
+Future<CommandList> commandSettings({required String serverKey}) =>
+    RustLib.instance.api.crateApiClientCommandSettings(serverKey: serverKey);
+
+/// Turns a command on or off, chooses where it works, or where results go.
+/// Needs Manage server.
+Future<CommandList> updateCommandSettings({
+  required String serverKey,
+  required CommandSettingsChanges changes,
+}) => RustLib.instance.api.crateApiClientUpdateCommandSettings(
+  serverKey: serverKey,
+  changes: changes,
+);
+
 /// Searches, or loads a link, for a voice channel; `source` empty for the
 /// server's default (Phase 3 plan §15.1). Needs Add music.
 Future<MusicSearchResults> musicSearch({
@@ -609,6 +654,121 @@ Future<MusicSearchResults> musicSearch({
   channelId: channelId,
   query: query,
   source: source,
+);
+
+/// The channel's player; from now on its changes arrive as
+/// `MusicSession` events even when not connected to it (Phase 3 plan
+/// §14.3). Needs only to see the channel.
+Future<MusicSession> musicSubscribe({
+  required String serverKey,
+  required PlatformInt64 channelId,
+}) => RustLib.instance.api.crateApiClientMusicSubscribe(
+  serverKey: serverKey,
+  channelId: channelId,
+);
+
+/// Stops the changes `music_subscribe` started; those connected to the
+/// channel keep getting them.
+Future<void> musicUnsubscribe({
+  required String serverKey,
+  required PlatformInt64 channelId,
+}) => RustLib.instance.api.crateApiClientMusicUnsubscribe(
+  serverKey: serverKey,
+  channelId: channelId,
+);
+
+/// Adds search results, or tracks from the channel's history by their item
+/// ids ("Add again"): at the end, before `before_item_id`, next or now.
+/// Needs Add music; a position, next and now need Manage the queue.
+Future<MusicSession> musicEnqueue({
+  required String serverKey,
+  required PlatformInt64 channelId,
+  required List<String> resultIds,
+  required List<String> historyItemIds,
+  String? beforeItemId,
+  required MusicPlacement placement,
+}) => RustLib.instance.api.crateApiClientMusicEnqueue(
+  serverKey: serverKey,
+  channelId: channelId,
+  resultIds: resultIds,
+  historyItemIds: historyItemIds,
+  beforeItemId: beforeItemId,
+  placement: placement,
+);
+
+/// Pause, resume, next, previous, seek (to `position_ms`) or stop. With
+/// `expected_item_id`, nothing happens when another item plays by then.
+Future<MusicSession> musicPlayback({
+  required String serverKey,
+  required PlatformInt64 channelId,
+  required MusicAction action,
+  BigInt? positionMs,
+  String? expectedItemId,
+}) => RustLib.instance.api.crateApiClientMusicPlayback(
+  serverKey: serverKey,
+  channelId: channelId,
+  action: action,
+  positionMs: positionMs,
+  expectedItemId: expectedItemId,
+);
+
+/// Repeat and shuffle, shared by everyone in the channel.
+Future<MusicSession> musicSetMode({
+  required String serverKey,
+  required PlatformInt64 channelId,
+  MusicRepeat? repeat,
+  bool? shuffle,
+}) => RustLib.instance.api.crateApiClientMusicSetMode(
+  serverKey: serverKey,
+  channelId: channelId,
+  repeat: repeat,
+  shuffle: shuffle,
+);
+
+/// Puts an item before another, or at the end. Needs Manage the queue.
+Future<MusicSession> musicQueueMove({
+  required String serverKey,
+  required PlatformInt64 channelId,
+  required String itemId,
+  String? beforeItemId,
+}) => RustLib.instance.api.crateApiClientMusicQueueMove(
+  serverKey: serverKey,
+  channelId: channelId,
+  itemId: itemId,
+  beforeItemId: beforeItemId,
+);
+
+/// Removes items: one's own with Add music, others' with Manage the queue.
+Future<MusicSession> musicQueueRemove({
+  required String serverKey,
+  required PlatformInt64 channelId,
+  required List<String> itemIds,
+}) => RustLib.instance.api.crateApiClientMusicQueueRemove(
+  serverKey: serverKey,
+  channelId: channelId,
+  itemIds: itemIds,
+);
+
+/// Needs Manage the queue.
+Future<MusicSession> musicQueueClear({
+  required String serverKey,
+  required PlatformInt64 channelId,
+}) => RustLib.instance.api.crateApiClientMusicQueueClear(
+  serverKey: serverKey,
+  channelId: channelId,
+);
+
+/// This person's music volume (0–2, 200 %), mute, and "Lower music while
+/// people talk", for every server; kept on this device and never sent.
+/// Muted, the voice node stops sending the music (Phase 3 plan §19.8).
+void musicSetListening({
+  required double volume,
+  required bool muted,
+  required bool duckWhileTalking,
+}) => RustLib.instance.api.crateApiClientMusicSetListening(
+  volume: volume,
+  muted: muted,
+  duckWhileTalking: duckWhileTalking,
 );
 
 /// A track's artwork through the server, at 128 or 512 px: the path of a

@@ -394,6 +394,85 @@ abstract interface class CoreApi {
     String reason,
   );
 
+  Future<core.MusicSearchResults> musicSearch(
+    String serverKey,
+    int channelId,
+    String query,
+    String source,
+  );
+
+  Future<core.MusicSession> musicSubscribe(String serverKey, int channelId);
+
+  Future<void> musicUnsubscribe(String serverKey, int channelId);
+
+  Future<core.MusicSession> musicEnqueue(
+    String serverKey,
+    int channelId,
+    List<String> resultIds,
+    List<String> historyItemIds,
+    String? beforeItemId,
+    core.MusicPlacement placement,
+  );
+
+  Future<core.MusicSession> musicPlayback(
+    String serverKey,
+    int channelId,
+    core.MusicAction action, {
+    int? positionMs,
+    String? expectedItemId,
+  });
+
+  Future<core.MusicSession> musicSetMode(
+    String serverKey,
+    int channelId, {
+    core.MusicRepeat? repeat,
+    bool? shuffle,
+  });
+
+  Future<core.MusicSession> musicQueueMove(
+    String serverKey,
+    int channelId,
+    String itemId,
+    String? beforeItemId,
+  );
+
+  Future<core.MusicSession> musicQueueRemove(
+    String serverKey,
+    int channelId,
+    List<String> itemIds,
+  );
+
+  Future<core.MusicSession> musicQueueClear(String serverKey, int channelId);
+
+  /// 0–2 (200 %).
+  void musicSetListening(double volume, bool muted, bool duckWhileTalking);
+
+  /// The path of the artwork's file on this device.
+  Future<String> musicArtwork(String serverKey, String artworkId, int size);
+
+  Future<core.CommandOutcome> commandExecute(
+    String serverKey,
+    int channelId,
+    String name,
+    List<core.CommandOptionValue> options,
+    String nonce,
+  );
+
+  Future<List<core.CommandChoice>> commandAutocomplete(
+    String serverKey,
+    int channelId,
+    String name,
+    String option,
+    String value,
+  );
+
+  Future<core.CommandList> commandSettings(String serverKey);
+
+  Future<core.CommandList> updateCommandSettings(
+    String serverKey,
+    core.CommandSettingsChanges changes,
+  );
+
   /// Leaves any other voice channel first, on any server.
   Future<core.VoiceState> voiceJoin(String serverKey, int channelId);
 
@@ -1099,6 +1178,152 @@ class FrbCoreApi implements CoreApi {
     blocked: blocked,
     reason: reason,
   );
+
+  @override
+  Future<core.MusicSearchResults> musicSearch(
+    String serverKey,
+    int channelId,
+    String query,
+    String source,
+  ) => frb.musicSearch(
+    serverKey: serverKey,
+    channelId: channelId,
+    query: query,
+    source: source,
+  );
+
+  @override
+  Future<core.MusicSession> musicSubscribe(String serverKey, int channelId) =>
+      frb.musicSubscribe(serverKey: serverKey, channelId: channelId);
+
+  @override
+  Future<void> musicUnsubscribe(String serverKey, int channelId) =>
+      frb.musicUnsubscribe(serverKey: serverKey, channelId: channelId);
+
+  @override
+  Future<core.MusicSession> musicEnqueue(
+    String serverKey,
+    int channelId,
+    List<String> resultIds,
+    List<String> historyItemIds,
+    String? beforeItemId,
+    core.MusicPlacement placement,
+  ) => frb.musicEnqueue(
+    serverKey: serverKey,
+    channelId: channelId,
+    resultIds: resultIds,
+    historyItemIds: historyItemIds,
+    beforeItemId: beforeItemId,
+    placement: placement,
+  );
+
+  @override
+  Future<core.MusicSession> musicPlayback(
+    String serverKey,
+    int channelId,
+    core.MusicAction action, {
+    int? positionMs,
+    String? expectedItemId,
+  }) => frb.musicPlayback(
+    serverKey: serverKey,
+    channelId: channelId,
+    action: action,
+    positionMs: positionMs == null ? null : BigInt.from(positionMs),
+    expectedItemId: expectedItemId,
+  );
+
+  @override
+  Future<core.MusicSession> musicSetMode(
+    String serverKey,
+    int channelId, {
+    core.MusicRepeat? repeat,
+    bool? shuffle,
+  }) => frb.musicSetMode(
+    serverKey: serverKey,
+    channelId: channelId,
+    repeat: repeat,
+    shuffle: shuffle,
+  );
+
+  @override
+  Future<core.MusicSession> musicQueueMove(
+    String serverKey,
+    int channelId,
+    String itemId,
+    String? beforeItemId,
+  ) => frb.musicQueueMove(
+    serverKey: serverKey,
+    channelId: channelId,
+    itemId: itemId,
+    beforeItemId: beforeItemId,
+  );
+
+  @override
+  Future<core.MusicSession> musicQueueRemove(
+    String serverKey,
+    int channelId,
+    List<String> itemIds,
+  ) => frb.musicQueueRemove(
+    serverKey: serverKey,
+    channelId: channelId,
+    itemIds: itemIds,
+  );
+
+  @override
+  Future<core.MusicSession> musicQueueClear(String serverKey, int channelId) =>
+      frb.musicQueueClear(serverKey: serverKey, channelId: channelId);
+
+  @override
+  void musicSetListening(double volume, bool muted, bool duckWhileTalking) =>
+      frb.musicSetListening(
+        volume: volume,
+        muted: muted,
+        duckWhileTalking: duckWhileTalking,
+      );
+
+  @override
+  Future<String> musicArtwork(String serverKey, String artworkId, int size) =>
+      frb.musicArtwork(serverKey: serverKey, artworkId: artworkId, size: size);
+
+  @override
+  Future<core.CommandOutcome> commandExecute(
+    String serverKey,
+    int channelId,
+    String name,
+    List<core.CommandOptionValue> options,
+    String nonce,
+  ) => frb.commandExecute(
+    serverKey: serverKey,
+    channelId: channelId,
+    name: name,
+    options: options,
+    nonce: nonce,
+  );
+
+  @override
+  Future<List<core.CommandChoice>> commandAutocomplete(
+    String serverKey,
+    int channelId,
+    String name,
+    String option,
+    String value,
+  ) => frb.commandAutocomplete(
+    serverKey: serverKey,
+    channelId: channelId,
+    name: name,
+    option: option,
+    value: value,
+  );
+
+  @override
+  Future<core.CommandList> commandSettings(String serverKey) =>
+      frb.commandSettings(serverKey: serverKey);
+
+  @override
+  Future<core.CommandList> updateCommandSettings(
+    String serverKey,
+    core.CommandSettingsChanges changes,
+  ) => frb.updateCommandSettings(serverKey: serverKey, changes: changes);
 
   @override
   Future<core.VoiceState> voiceJoin(String serverKey, int channelId) =>

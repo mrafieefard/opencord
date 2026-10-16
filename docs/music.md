@@ -160,6 +160,16 @@ lavalink:
 
 The plugin's own documentation explains what YouTube needs from time to time, such as a refresh token or a different client.
 
+## Music in the app
+
+In a voice channel, the **Music** button (in the voice panel at the bottom left, and in the call's control bar) opens the music panel where the users list is; press it again for the people. The right-side panel switches between **People** and **Music** while a voice channel is open or you are in one. People lists who is in the channel first, under a card of what plays; a click on the card opens the music panel, and a right-click has your music volume and mute.
+
+The music panel shows the cover, the track, who added it and its progress, with shuffle, previous, play or pause, next and repeat (off, the queue, the track). Under them, **Add a song** searches the source chosen beside it, or takes a link; results replace Up next until **Back to queue**. Up next can be reordered by dragging with Manage the queue, and each row's menu has Play next, Move up, Move down, Remove, Copy link and Open link. **Recently played** lists the last 50 tracks, each with Add again. Dropping a result or a recently played track on the cover plays it now. **Expand** in the panel's menu shows the music in the middle of the call, with the people in a strip below.
+
+Members not in the channel see the panel read-only, with a Join button; controls a member may not use are off, and say why. Music isn't a participant: it has no tile and no speaking ring. Where music isn't set up, the button shows only for members who manage the server, with **Set up music**.
+
+**Your music volume** (0–200 %) and **Mute music** are the same on every server and stay on this device: in the panel, on the card, and in User settings → Voice & audio → Music, with **Lower music while people talk** (10 dB, back 300 ms after the last voice). Muted, the voice node stops sending you the music.
+
 ## When a node goes down
 
 Each channel stays on its node while it plays. When that node becomes unavailable, its channels move to the best other node that offers the track's source, 5 at a time, each from where it was in the track, with a new token at the bridge so nothing more is accepted from the old node. The music panel says "Switched to another music server", and the node events say how many channels moved where. When no node can play, the music pauses with "Music server unavailable — retrying" and carries on once one can.

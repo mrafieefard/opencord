@@ -1,3 +1,5 @@
+import 'package:opencord/core/mock/mock_commands.dart';
+import 'package:opencord/core/model/commands.dart';
 import 'package:opencord/core/model/stream.dart';
 import 'package:opencord/core/model/channel.dart';
 import 'package:opencord/core/model/lavalink.dart';
@@ -80,6 +82,18 @@ class MockServer {
     availableSources: ['youtube_music', 'youtube', 'soundcloud', 'bandcamp'],
   );
   final Map<int, MusicBlock> musicBlocks = {};
+
+  /// Every chat command, on or off (Phase 3 plan §17).
+  CommandList commands = CommandList(commands: mockCommandSpecs);
+
+  /// What members can use: enabled, with music set up.
+  CommandList get availableCommands => CommandList(
+    commands: [
+      for (final spec in commands.commands)
+        if (spec.enabled && (spec.feature != 'music' || music.configured)) spec,
+    ],
+    resultsPublic: commands.resultsPublic,
+  );
 
   /// Domains & network, as the owner sees it (Phase 3).
   NetworkInfo network = const NetworkInfo(
@@ -212,6 +226,7 @@ class MockServer {
           if (visible.containsKey(key)) key: value,
       },
       addresses: addresses,
+      commands: availableCommands,
     );
   }
 }

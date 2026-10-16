@@ -6,6 +6,7 @@ import 'package:opencord/core/providers/providers.dart';
 import 'package:opencord/features/settings/server/channels_page.dart';
 import 'package:opencord/features/settings/server/invites_bans_pages.dart';
 import 'package:opencord/features/settings/server/members_page.dart';
+import 'package:opencord/features/settings/server/commands_page.dart';
 import 'package:opencord/features/settings/server/music/music_page.dart';
 import 'package:opencord/features/settings/server/network/network_page.dart';
 import 'package:opencord/features/settings/server/overview_page.dart';
@@ -57,6 +58,14 @@ List<SettingsPage> serverSettingsPages(
       icon: OcIcons.headphones,
       group: 'Server',
       builder: (_) => ServerMusicPage(serverKey: serverKey),
+    ),
+  if (data.can(Permissions.manageServer))
+    SettingsPage(
+      id: 'commands',
+      label: 'Commands',
+      icon: OcIcons.code,
+      group: 'Server',
+      builder: (_) => ServerCommandsPage(serverKey: serverKey),
     ),
   if (data.voiceEnabled &&
       (data.can(Permissions.manageServer) ||

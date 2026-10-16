@@ -10,6 +10,8 @@ import 'package:opencord/features/channels/channel_sidebar.dart';
 import 'package:opencord/features/chat/chat_area.dart';
 import 'package:opencord/features/dialogs/identity_changed_dialog.dart';
 import 'package:opencord/features/members/member_panel.dart';
+import 'package:opencord/features/music/music_access.dart';
+import 'package:opencord/features/music/music_panel.dart';
 import 'package:opencord/features/servers/server_rail.dart';
 import 'package:opencord/features/shell/debug_menu.dart';
 import 'package:opencord/features/shell/navigation.dart';
@@ -79,6 +81,12 @@ class _DesktopShellState extends ConsumerState<DesktopShell> {
     }, fireImmediately: true);
     // Voice sounds play while the shell is up (Phase 2 §12).
     ref.listenManual(voiceCuesProvider, (_, _) {});
+    // The Music buttons open the overlay where the panel is one (§19.2).
+    ref.listenManual(rightPanelModeProvider, (_, mode) {
+      if (mode == RightPanelMode.music && !_layout.membersInline && mounted) {
+        setState(() => _membersDrawer = true);
+      }
+    });
     ref.listenManual(audioNoticeProvider, (_, notice) {
       if (notice != null && mounted) {
         showOcToast(
@@ -111,6 +119,37 @@ class _DesktopShellState extends ConsumerState<DesktopShell> {
   void _toggleFullscreen() {
     final fullscreen = ref.read(windowStatusProvider).fullscreen;
     ref.read(nativeWindowProvider).setFullscreen(!fullscreen);
+  }
+
+  /// Closes the music panel: the users list again, if it was open.
+  void _closeMusic() {
+    ref.read(rightPanelModeProvider.notifier).set(RightPanelMode.people);
+    if (!_layout.membersInline && !ref.read(memberPanelProvider)) {
+      setState(() => _membersDrawer = false);
+    }
+  }
+
+  /// The users list, or the music panel in its place (§19.2), 340 px wide
+  /// after one 120 ms resize.
+  Widget _rightPanel({
+    required bool music,
+    required VoidCallback onClose,
+    bool trailingControls = false,
+  }) {
+    final channel = ref.read(musicChannelProvider);
+    return AnimatedContainer(
+      key: DesktopShell.membersKey,
+      duration: OcMotion.of(context).panel,
+      curve: OcMotion.curve,
+      width: music ? OcSize.musicPanelWidth : OcSize.memberPanelWidth,
+      child: music && channel != null
+          ? MusicPanel(
+              channel: channel,
+              onClose: _closeMusic,
+              trailingControls: trailingControls,
+            )
+          : MemberPanel(onClose: onClose, trailingControls: trailingControls),
+    );
   }
 
   void _toggleMembers() {
@@ -222,10 +261,18 @@ class _DesktopShellState extends ConsumerState<DesktopShell> {
     final colors = context.oc;
     // No servers, no members to list (§4.13).
     // A voice channel's chat takes the member list's place (Phase 2 §12).
+    final musicChannel = ref.watch(musicChannelProvider);
+    final musicShown =
+        musicChannel != null &&
+        ref.watch(rightPanelModeProvider) == RightPanelMode.music &&
+        ref.watch(musicOfferedProvider(musicChannel));
     final membersShown =
+        musicShown ||
         ref.watch(memberPanelProvider) &&
-        ref.watch(serverListProvider.select((servers) => servers.isNotEmpty)) &&
-        !ref.watch(voiceChatShownProvider);
+            ref.watch(
+              serverListProvider.select((servers) => servers.isNotEmpty),
+            ) &&
+            !ref.watch(voiceChatShownProvider);
     // Text fields (the composer, searches) need Material underneath.
     return Material(
       type: MaterialType.transparency,
@@ -286,13 +333,10 @@ class _DesktopShellState extends ConsumerState<DesktopShell> {
                           ),
                           if (membersInline) ...[
                             border,
-                            SizedBox(
-                              key: DesktopShell.membersKey,
-                              width: OcSize.memberPanelWidth,
-                              child: MemberPanel(
-                                onClose: _toggleMembers,
-                                trailingControls: true,
-                              ),
+                            _rightPanel(
+                              music: musicShown,
+                              onClose: _toggleMembers,
+                              trailingControls: true,
                             ),
                           ],
                         ],
@@ -312,13 +356,10 @@ class _DesktopShellState extends ConsumerState<DesktopShell> {
                         _Drawer(
                           fromRight: true,
                           onClose: () => setState(() => _membersDrawer = false),
-                          child: SizedBox(
-                            key: DesktopShell.membersKey,
-                            width: OcSize.memberPanelWidth,
-                            child: MemberPanel(
-                              onClose: () =>
-                                  setState(() => _membersDrawer = false),
-                            ),
+                          child: _rightPanel(
+                            music: musicShown,
+                            onClose: () =>
+                                setState(() => _membersDrawer = false),
                           ),
                         ),
                     ],

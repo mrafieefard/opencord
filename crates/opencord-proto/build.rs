@@ -1,5 +1,6 @@
 const PROTO_ROOT: &str = "../../proto";
-const PROTO_FILES: [&str; 8] = [
+const PROTO_FILES: [&str; 9] = [
+    "opencord/v1/commands.proto",
     "opencord/v1/gateway.proto",
     "opencord/v1/models.proto",
     "opencord/v1/music.proto",

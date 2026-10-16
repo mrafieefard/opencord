@@ -6,12 +6,148 @@ use proto::request::Kind as Request;
 use proto::response::Result as Response;
 
 use crate::api::types::{
-    CoreError, LavalinkNodes, MusicBlock, MusicPlaylist, MusicSearchResult, MusicSearchResults,
-    MusicSettings, MusicSettingsChanges, MusicTrack,
+    CoreError, CoreEventPayload, LavalinkNodes, MusicAction, MusicBlock, MusicNotice,
+    MusicNowPlaying, MusicPlacement, MusicPlayState, MusicPlaylist, MusicQueueItem, MusicRepeat,
+    MusicSearchResult, MusicSearchResults, MusicSession, MusicSettings, MusicSettingsChanges,
+    MusicTrack,
 };
 use crate::client::{Client, unexpected};
 
+/// How long the music takes from the voice node to the speakers: the
+/// network and the jitter buffer. Progress shows what is heard.
+const PLAYOUT_DELAY_MS: i64 = 80;
+
 impl Client {
+    /// The channel's player, and its changes from now on even when not
+    /// connected to the channel. Needs only to see the channel.
+    pub async fn music_subscribe(
+        &self,
+        key: &str,
+        channel_id: i64,
+        subscribe: bool,
+    ) -> Result<MusicSession, CoreError> {
+        let request = Request::MusicSubscribe(proto::MusicSubscribe {
+            channel_id,
+            subscribe,
+        });
+        self.music_request(key, request).await
+    }
+
+    /// Adds search results, or tracks from the channel's history by their
+    /// item ids: at the end, before an item, next or now.
+    pub async fn music_enqueue(
+        &self,
+        key: &str,
+        channel_id: i64,
+        result_ids: Vec<String>,
+        history_item_ids: Vec<String>,
+        before_item_id: Option<String>,
+        placement: MusicPlacement,
+    ) -> Result<MusicSession, CoreError> {
+        let placement = match placement {
+            MusicPlacement::End => proto::MusicPlacement::End,
+            MusicPlacement::Next => proto::MusicPlacement::Next,
+            MusicPlacement::Now => proto::MusicPlacement::Now,
+        };
+        let request = Request::MusicEnqueue(proto::MusicEnqueue {
+            channel_id,
+            result_ids,
+            before_item_id,
+            placement: placement as i32,
+            history_item_ids,
+        });
+        self.music_request(key, request).await
+    }
+
+    /// With `expected_item_id`, nothing happens when another item plays
+    /// by now (an error with code `MusicStale`).
+    pub async fn music_playback(
+        &self,
+        key: &str,
+        channel_id: i64,
+        action: MusicAction,
+        position_ms: Option<u64>,
+        expected_item_id: Option<String>,
+    ) -> Result<MusicSession, CoreError> {
+        let action = match action {
+            MusicAction::Pause => proto::MusicAction::Pause,
+            MusicAction::Resume => proto::MusicAction::Resume,
+            MusicAction::Next => proto::MusicAction::Next,
+            MusicAction::Previous => proto::MusicAction::Previous,
+            MusicAction::Seek => proto::MusicAction::Seek,
+            MusicAction::Stop => proto::MusicAction::Stop,
+        };
+        let request = Request::MusicPlayback(proto::MusicPlayback {
+            channel_id,
+            action: action as i32,
+            position_ms,
+            expected_item_id,
+        });
+        self.music_request(key, request).await
+    }
+
+    pub async fn music_set_mode(
+        &self,
+        key: &str,
+        channel_id: i64,
+        repeat: Option<MusicRepeat>,
+        shuffle: Option<bool>,
+    ) -> Result<MusicSession, CoreError> {
+        let request = Request::MusicSetMode(proto::MusicSetMode {
+            channel_id,
+            repeat: repeat.map(|repeat| repeat_to_proto(repeat) as i32),
+            shuffle,
+        });
+        self.music_request(key, request).await
+    }
+
+    /// Puts an item before another, or at the end.
+    pub async fn music_queue_move(
+        &self,
+        key: &str,
+        channel_id: i64,
+        item_id: String,
+        before_item_id: Option<String>,
+    ) -> Result<MusicSession, CoreError> {
+        let request = Request::MusicQueueMove(proto::MusicQueueMove {
+            channel_id,
+            item_id,
+            before_item_id,
+        });
+        self.music_request(key, request).await
+    }
+
+    pub async fn music_queue_remove(
+        &self,
+        key: &str,
+        channel_id: i64,
+        item_ids: Vec<String>,
+    ) -> Result<MusicSession, CoreError> {
+        let request = Request::MusicQueueRemove(proto::MusicQueueRemove {
+            channel_id,
+            item_ids,
+        });
+        self.music_request(key, request).await
+    }
+
+    pub async fn music_queue_clear(
+        &self,
+        key: &str,
+        channel_id: i64,
+    ) -> Result<MusicSession, CoreError> {
+        let request = Request::MusicQueueClear(proto::MusicQueueClear { channel_id });
+        self.music_request(key, request).await
+    }
+
+    async fn music_request(&self, key: &str, request: Request) -> Result<MusicSession, CoreError> {
+        match self.request(key, request).await? {
+            Response::MusicSession(session) => {
+                Ok(session_from(*session, self.server_clock_offset(key)))
+            }
+            other => Err(unexpected(&other)),
+        }
+    }
+
     /// Searches, or loads a link, for the voice channel; `source` empty for
     /// the server's default. Needs Add music.
     pub async fn music_search(
@@ -170,6 +306,7 @@ pub(crate) fn settings_from(settings: proto::MusicSettings) -> MusicSettings {
         bridge_domain: settings.bridge_domain,
         available_sources: settings.available_sources,
         supported: settings.supported,
+        configured: settings.configured,
     }
 }
 
@@ -185,4 +322,76 @@ pub(crate) fn track_from(track: proto::MusicTrack) -> MusicTrack {
         uri: track.uri,
         artwork_id: track.artwork_id,
     }
+}
+
+fn repeat_to_proto(repeat: MusicRepeat) -> proto::MusicRepeat {
+    match repeat {
+        MusicRepeat::Off => proto::MusicRepeat::Off,
+        MusicRepeat::Queue => proto::MusicRepeat::Queue,
+        MusicRepeat::Track => proto::MusicRepeat::Track,
+    }
+}
+
+fn item_from(item: proto::MusicQueueItem) -> MusicQueueItem {
+    MusicQueueItem {
+        item_id: item.item_id,
+        track: track_from(item.track.unwrap_or_default()),
+        requester_id: item.requester_id,
+        added_at_ms: item.added_at_ms,
+    }
+}
+
+/// A session as the app sees it: its anchor on this device's clock, when
+/// the server's is `offset_ms` ahead, and later by the playout delay.
+pub(crate) fn session_from(session: proto::MusicSession, offset_ms: i64) -> MusicSession {
+    let state = match proto::MusicPlayState::try_from(session.state).unwrap_or_default() {
+        proto::MusicPlayState::Loading => MusicPlayState::Loading,
+        proto::MusicPlayState::Playing => MusicPlayState::Playing,
+        proto::MusicPlayState::Paused => MusicPlayState::Paused,
+        proto::MusicPlayState::Idle | proto::MusicPlayState::Unspecified => MusicPlayState::Idle,
+    };
+    let repeat = match proto::MusicRepeat::try_from(session.repeat).unwrap_or_default() {
+        proto::MusicRepeat::Queue => MusicRepeat::Queue,
+        proto::MusicRepeat::Track => MusicRepeat::Track,
+        proto::MusicRepeat::Off | proto::MusicRepeat::Unspecified => MusicRepeat::Off,
+    };
+    MusicSession {
+        channel_id: session.channel_id,
+        version: session.version,
+        state,
+        now_playing: session.now_playing.map(item_from),
+        queue: session.queue.into_iter().map(item_from).collect(),
+        history: session.history.into_iter().map(item_from).collect(),
+        position_ms: session.position_ms,
+        anchor_ms: session.server_time_ms - offset_ms + PLAYOUT_DELAY_MS,
+        repeat,
+        shuffle: session.shuffle,
+        waiting_for_node: session.waiting_for_node,
+        paused_empty: session.paused_empty,
+    }
+}
+
+/// The music events, which need the server's clock offset.
+pub(crate) fn event(kind: proto::event::Kind, offset_ms: i64) -> Option<CoreEventPayload> {
+    use proto::event::Kind;
+    Some(match kind {
+        Kind::MusicSnapshot(snapshot) => {
+            CoreEventPayload::MusicSession(session_from(snapshot.session?, offset_ms))
+        }
+        Kind::MusicNowPlaying(card) => CoreEventPayload::MusicNowPlaying(MusicNowPlaying {
+            channel_id: card.channel_id,
+            title: card.title,
+            artist: card.artist,
+            artwork_id: card.artwork_id,
+            playing: card.playing,
+            ended: card.ended,
+            source_display_name: card.source_display_name,
+        }),
+        Kind::MusicNotice(notice) => CoreEventPayload::MusicNotice(MusicNotice {
+            channel_id: notice.channel_id,
+            text: notice.text,
+            at_ms: notice.at_ms,
+        }),
+        _ => return None,
+    })
 }

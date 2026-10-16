@@ -116,6 +116,7 @@ pub async fn start(config: Config) -> anyhow::Result<ServerHandle> {
         music::watch_bridge(&state, events);
     }
     music::start(&state).await?;
+    state.commands.load(&mut *state.db.acquire().await?).await?;
     crate::lavalink::start(&state).await?;
     if let Some(mut events) = node_events {
         let state = Arc::clone(&state);
@@ -136,10 +137,13 @@ pub async fn start(config: Config) -> anyhow::Result<ServerHandle> {
             .handle(handle.clone())
             .serve(app),
     );
-    let local_addr = handle
-        .listening()
-        .await
-        .with_context(|| format!("could not listen on {bound}"))?;
+    let local_addr = match handle.listening().await {
+        Some(addr) => addr,
+        None => {
+            let res = serve.await;
+            anyhow::bail!("could not listen on {bound}: serve result: {res:?}");
+        }
+    };
     let reaper = tokio::spawn(reap_sessions(Arc::clone(&state)));
     state.network.set_listening(
         local_addr.port(),
@@ -319,6 +323,21 @@ async fn load_domains(pool: &sqlx::SqlitePool) -> anyhow::Result<Domains> {
     Ok(Domains::load(rows, token))
 }
 
+fn bind_listener(addr: SocketAddr) -> std::io::Result<std::net::TcpListener> {
+    let domain = if addr.is_ipv6() {
+        socket2::Domain::IPV6
+    } else {
+        socket2::Domain::IPV4
+    };
+    let socket = socket2::Socket::new(domain, socket2::Type::STREAM, None)?;
+    socket.set_reuse_address(true)?;
+    #[cfg(all(unix, not(target_os = "solaris"), not(target_os = "illumos")))]
+    socket.set_reuse_port(true)?;
+    socket.bind(&addr.into())?;
+    socket.listen(1024)?;
+    Ok(socket.into())
+}
+
 /// The main port: the owner's choice from the app when there is one,
 /// else the configured one. A port that cannot be had falls back to the
 /// configured one, so a bad choice never locks the owner out.
@@ -329,7 +348,7 @@ fn bind_main_port(config: &Config, chosen: Option<u16>) -> anyhow::Result<std::n
         Some(port) if configured.port() != 0 => SocketAddr::new(configured.ip(), port),
         _ => configured,
     };
-    let listener = match std::net::TcpListener::bind(wanted) {
+    let listener = match bind_listener(wanted) {
         Ok(listener) => listener,
         Err(error) if wanted != configured => {
             tracing::error!(
@@ -337,7 +356,7 @@ fn bind_main_port(config: &Config, chosen: Option<u16>) -> anyhow::Result<std::n
                 port = wanted.port(),
                 "could not listen on the main port chosen in the app; using {configured}"
             );
-            std::net::TcpListener::bind(configured)
+            bind_listener(configured)
                 .with_context(|| format!("could not listen on {configured}"))?
         }
         Err(error) => {

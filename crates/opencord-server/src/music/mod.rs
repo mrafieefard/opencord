@@ -360,6 +360,41 @@ pub fn configured(state: &AppState) -> bool {
     supported(state) && state.music.settings().enabled && !state.lavalink.nodes().is_empty()
 }
 
+/// The settings with what is available now: search sources at least one
+/// connected node offers, whether this server runs music at all, and
+/// whether it is set up.
+pub fn settings_proto(state: &AppState) -> proto::MusicSettings {
+    let nodes = state.lavalink.nodes();
+    let available = tracks::SEARCH_SOURCES
+        .iter()
+        .filter(|(_, _, manager)| {
+            nodes
+                .iter()
+                .any(|node| node.health().is_up() && node.has_source(manager))
+        })
+        .map(|(key, _, _)| (*key).to_owned())
+        .collect();
+    state
+        .music
+        .settings()
+        .to_proto(available, supported(state), !nodes.is_empty())
+}
+
+/// Tells everyone the settings as they are now: they changed, or a node
+/// was added or removed. Returns them.
+pub fn announce_settings(state: &AppState) -> proto::MusicSettings {
+    let settings = settings_proto(state);
+    state.broadcast(
+        Event::MusicSettingsUpdate(Box::new(proto::MusicSettingsUpdate {
+            settings: Some(settings.clone()),
+        })),
+        crate::state::Audience::Everyone,
+    );
+    // Music commands come and go with music being set up.
+    crate::commands::announce(state);
+    settings
+}
+
 /// Loads the music settings, the blocked members and the saved sessions,
 /// and follows the nodes' health for failover. Runs before the nodes
 /// connect, so channels find their old nodes again.

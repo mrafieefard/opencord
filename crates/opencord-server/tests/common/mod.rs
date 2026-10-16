@@ -356,6 +356,16 @@ impl TestClient {
         }
     }
 
+    /// Every event that arrives within `wait`.
+    pub async fn collect_for(&mut self, wait: Duration) -> Vec<proto::event::Kind> {
+        let deadline = tokio::time::Instant::now() + wait;
+        let mut seen = Vec::new();
+        while let Ok(event) = tokio::time::timeout_at(deadline, self.next_event()).await {
+            seen.push(event);
+        }
+        seen
+    }
+
     /// Asserts nothing arrives within `wait`.
     pub async fn expect_silence(&mut self, wait: Duration) {
         if let Some((_, event)) = self.events.pop_front() {

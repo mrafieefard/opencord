@@ -2,9 +2,15 @@ import 'dart:async';
 import 'dart:developer' as developer;
 import 'dart:typed_data';
 
+import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart'
+    as frb_types
+    show Int64List;
+
 import 'package:opencord/core/model/channel.dart';
+import 'package:opencord/core/model/commands.dart';
 import 'package:opencord/core/model/lavalink.dart';
 import 'package:opencord/core/model/music.dart';
+import 'package:opencord/core/model/music_session.dart';
 import 'package:opencord/core/model/message.dart';
 import 'package:opencord/core/model/misc.dart';
 import 'package:opencord/core/model/network.dart';
@@ -18,6 +24,7 @@ import 'package:opencord/core/model/video.dart';
 import 'package:opencord/core/model/voice.dart';
 import 'package:opencord/core/providers/activity_state.dart';
 import 'package:opencord/core/repository/repository.dart';
+import 'package:opencord/core/rust/command_mapping.dart';
 import 'package:opencord/core/rust/core_api.dart';
 import 'package:opencord/core/rust/core_mapping.dart';
 import 'package:opencord/core/rust/identity_store.dart';
@@ -574,6 +581,47 @@ class RustRepository implements OpencordRepository {
         LavalinkTestProgressed(server, lavalinkTestFrom(field0)),
       core.CoreEventPayload_MusicSettingsUpdate(:final field0) =>
         MusicSettingsChanged(server, musicSettingsFrom(field0)),
+      core.CoreEventPayload_MusicSession(:final field0) => MusicSessionChanged(
+        server,
+        musicSessionFrom(field0),
+      ),
+      core.CoreEventPayload_MusicNowPlaying(:final field0) =>
+        MusicNowPlayingChanged(
+          server,
+          channelId: field0.channelId,
+          nowPlaying: field0.ended
+              ? null
+              : MusicNowPlaying(
+                  channelId: field0.channelId,
+                  title: field0.title,
+                  artist: field0.artist,
+                  artworkId: field0.artworkId,
+                  playing: field0.playing,
+                  sourceName: field0.sourceDisplayName,
+                ),
+        ),
+      core.CoreEventPayload_CommandsUpdate(:final field0) => CommandsChanged(
+        server,
+        commandListFrom(field0),
+      ),
+      core.CoreEventPayload_EphemeralMessage(:final field0) =>
+        EphemeralMessageReceived(
+          server,
+          EphemeralNote(
+            channelId: field0.channelId,
+            nonce: field0.nonce,
+            content: field0.content,
+            at: DateTime.now(),
+          ),
+        ),
+      core.CoreEventPayload_MusicNotice(:final field0) => MusicNoticeReceived(
+        server,
+        MusicNotice(
+          channelId: field0.channelId,
+          text: field0.text,
+          at: DateTime.fromMillisecondsSinceEpoch(field0.atMs),
+        ),
+      ),
     };
     if (event != null) _emit(event);
   }
@@ -1265,6 +1313,233 @@ class RustRepository implements OpencordRepository {
     ))
       musicBlockFrom(block),
   ];
+
+  @override
+  Future<CommandOutcome> executeCommand(
+    String serverKey,
+    int channelId,
+    String name,
+    Map<String, String> options, {
+    required String nonce,
+  }) async {
+    final outcome = await _call(
+      () => _core.commandExecute(serverKey, channelId, name, [
+        for (final MapEntry(:key, :value) in options.entries)
+          core.CommandOptionValue(name: key, value: value),
+      ], nonce),
+    );
+    return (messageId: outcome.messageId, ephemeral: outcome.ephemeral);
+  }
+
+  @override
+  Future<List<CommandChoice>> autocompleteCommand(
+    String serverKey,
+    int channelId,
+    String name,
+    String option,
+    String value,
+  ) async => [
+    for (final choice in await _call(
+      () =>
+          _core.commandAutocomplete(serverKey, channelId, name, option, value),
+    ))
+      commandChoiceFrom(choice),
+  ];
+
+  @override
+  Future<CommandList> commandSettings(String serverKey) async =>
+      commandListFrom(await _call(() => _core.commandSettings(serverKey)));
+
+  @override
+  Future<CommandList> updateCommandSettings(
+    String serverKey, {
+    String name = '',
+    bool? enabled,
+    List<int>? channelIds,
+    bool? resultsPublic,
+  }) async => commandListFrom(
+    await _call(
+      () => _core.updateCommandSettings(
+        serverKey,
+        core.CommandSettingsChanges(
+          name: name,
+          enabled: enabled,
+          channelIds: channelIds == null
+              ? null
+              : frb_types.Int64List.fromList(channelIds),
+          resultsPublic: resultsPublic,
+        ),
+      ),
+    ),
+  );
+
+  @override
+  Future<MusicSearchResults> musicSearch(
+    String serverKey,
+    int channelId,
+    String query, {
+    String source = '',
+  }) async => musicSearchResultsFrom(
+    await _call(() => _core.musicSearch(serverKey, channelId, query, source)),
+  );
+
+  @override
+  Future<MusicSession> musicSubscribe(String serverKey, int channelId) async =>
+      musicSessionFrom(
+        await _call(() => _core.musicSubscribe(serverKey, channelId)),
+      );
+
+  @override
+  Future<void> musicUnsubscribe(String serverKey, int channelId) =>
+      _call(() => _core.musicUnsubscribe(serverKey, channelId));
+
+  @override
+  Future<MusicSession> musicEnqueue(
+    String serverKey,
+    int channelId,
+    List<String> resultIds, {
+    List<String> historyItemIds = const [],
+    String? beforeItemId,
+    MusicPlacement placement = MusicPlacement.end,
+  }) async => musicSessionFrom(
+    await _call(
+      () => _core.musicEnqueue(
+        serverKey,
+        channelId,
+        resultIds,
+        historyItemIds,
+        beforeItemId,
+        musicPlacementTo(placement),
+      ),
+    ),
+  );
+
+  Future<MusicSession> _playback(
+    String serverKey,
+    int channelId,
+    core.MusicAction action, {
+    int? positionMs,
+    String? expectedItemId,
+  }) async => musicSessionFrom(
+    await _call(
+      () => _core.musicPlayback(
+        serverKey,
+        channelId,
+        action,
+        positionMs: positionMs,
+        expectedItemId: expectedItemId,
+      ),
+    ),
+  );
+
+  @override
+  Future<MusicSession> musicPause(
+    String serverKey,
+    int channelId, {
+    required bool paused,
+  }) => _playback(
+    serverKey,
+    channelId,
+    paused ? core.MusicAction.pause : core.MusicAction.resume,
+  );
+
+  @override
+  Future<MusicSession> musicSkip(
+    String serverKey,
+    int channelId, {
+    required bool forward,
+    String? expectedItemId,
+  }) => _playback(
+    serverKey,
+    channelId,
+    forward ? core.MusicAction.next : core.MusicAction.previous,
+    expectedItemId: expectedItemId,
+  );
+
+  @override
+  Future<MusicSession> musicSeek(
+    String serverKey,
+    int channelId,
+    Duration position, {
+    String? expectedItemId,
+  }) => _playback(
+    serverKey,
+    channelId,
+    core.MusicAction.seek,
+    positionMs: position.inMilliseconds,
+    expectedItemId: expectedItemId,
+  );
+
+  @override
+  Future<MusicSession> musicStop(String serverKey, int channelId) =>
+      _playback(serverKey, channelId, core.MusicAction.stop);
+
+  @override
+  Future<MusicSession> musicSetMode(
+    String serverKey,
+    int channelId, {
+    MusicRepeat? repeat,
+    bool? shuffle,
+  }) async => musicSessionFrom(
+    await _call(
+      () => _core.musicSetMode(
+        serverKey,
+        channelId,
+        repeat: repeat == null ? null : musicRepeatTo(repeat),
+        shuffle: shuffle,
+      ),
+    ),
+  );
+
+  @override
+  Future<MusicSession> musicMove(
+    String serverKey,
+    int channelId,
+    String itemId, {
+    String? beforeItemId,
+  }) async => musicSessionFrom(
+    await _call(
+      () => _core.musicQueueMove(serverKey, channelId, itemId, beforeItemId),
+    ),
+  );
+
+  @override
+  Future<MusicSession> musicRemove(
+    String serverKey,
+    int channelId,
+    List<String> itemIds,
+  ) async => musicSessionFrom(
+    await _call(() => _core.musicQueueRemove(serverKey, channelId, itemIds)),
+  );
+
+  @override
+  Future<MusicSession> musicClear(String serverKey, int channelId) async =>
+      musicSessionFrom(
+        await _call(() => _core.musicQueueClear(serverKey, channelId)),
+      );
+
+  @override
+  void setMusicListening(MusicListening listening) => _now(
+    () => _core.musicSetListening(
+      listening.volume.clamp(0, 200) / 100,
+      listening.muted,
+      listening.duckWhileTalking,
+    ),
+  );
+
+  @override
+  Future<String?> musicArtwork(
+    String serverKey,
+    String artworkId,
+    int size,
+  ) async {
+    if (artworkId.isEmpty) return null;
+    try {
+      return await _call(() => _core.musicArtwork(serverKey, artworkId, size));
+    } on RepoException {
+      return null;
+    }
+  }
 
   @override
   Future<NetworkInfo> setDnsProvider(

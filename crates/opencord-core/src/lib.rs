@@ -3,6 +3,7 @@
 pub mod api;
 mod artwork;
 pub mod client;
+mod commands;
 mod connection;
 mod convert;
 mod ducking;
@@ -14,7 +15,9 @@ mod lavalink;
 pub mod media;
 pub mod mirror;
 mod music;
+pub(crate) mod music_listening;
 mod network;
+mod server_clock;
 mod soundboard;
 pub mod store;
 pub mod tofu;

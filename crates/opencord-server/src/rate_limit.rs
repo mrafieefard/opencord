@@ -7,8 +7,9 @@ use std::time::Duration;
 use governor::clock::{Clock, DefaultClock};
 use governor::{DefaultKeyedRateLimiter, Quota};
 use opencord_common::limits::{
-    IDENTIFY_RATE, MESSAGE_RATE, MUSIC_CONTROL_RATE, MUSIC_ENQUEUE_RATE, MUSIC_SEARCH_RATE,
-    REQUEST_RATE, RateLimit, STREAM_CREATE_RATE, VOICE_NODE_RATE, VOICE_STATE_RATE,
+    COMMAND_AUTOCOMPLETE_RATE, IDENTIFY_RATE, MESSAGE_RATE, MUSIC_CONTROL_RATE, MUSIC_ENQUEUE_RATE,
+    MUSIC_SEARCH_RATE, REQUEST_RATE, RateLimit, STREAM_CREATE_RATE, VOICE_NODE_RATE,
+    VOICE_STATE_RATE,
 };
 use opencord_common::sound::EXTERNAL_UPLOAD_RATE;
 
@@ -22,6 +23,7 @@ pub struct RateLimits {
     streams: DefaultKeyedRateLimiter<i64>,
     external_sounds: DefaultKeyedRateLimiter<i64>,
     music: [DefaultKeyedRateLimiter<i64>; 3],
+    autocomplete: DefaultKeyedRateLimiter<i64>,
     clock: DefaultClock,
 }
 
@@ -49,6 +51,7 @@ impl RateLimits {
             external_sounds: DefaultKeyedRateLimiter::keyed(quota(EXTERNAL_UPLOAD_RATE)),
             music: [MUSIC_SEARCH_RATE, MUSIC_ENQUEUE_RATE, MUSIC_CONTROL_RATE]
                 .map(|limit| DefaultKeyedRateLimiter::keyed(quota(limit))),
+            autocomplete: DefaultKeyedRateLimiter::keyed(quota(COMMAND_AUTOCOMPLETE_RATE)),
             clock: DefaultClock::default(),
         }
     }
@@ -105,6 +108,12 @@ impl RateLimits {
             .map_err(|not_until| not_until.wait_time_from(self.clock.now()))
     }
 
+    pub fn check_autocomplete(&self, user_id: i64) -> Result<(), Duration> {
+        self.autocomplete
+            .check_key(&user_id)
+            .map_err(|not_until| not_until.wait_time_from(self.clock.now()))
+    }
+
     /// Forgets keys whose limits have fully recovered.
     pub fn prune(&self) {
         self.identify.retain_recent();
@@ -117,6 +126,7 @@ impl RateLimits {
         for limiter in &self.music {
             limiter.retain_recent();
         }
+        self.autocomplete.retain_recent();
     }
 }
 

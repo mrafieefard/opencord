@@ -87,6 +87,12 @@ pub const MUSIC_CONTROL_RATE: RateLimit = RateLimit {
     period: Duration::from_secs(10),
 };
 
+/// Command autocomplete requests per user (Phase 3 plan §17.5).
+pub const COMMAND_AUTOCOMPLETE_RATE: RateLimit = RateLimit {
+    burst: 5,
+    period: Duration::from_secs(1),
+};
+
 /// How long a voice state outlives a dropped gateway connection.
 pub const VOICE_GRACE_PERIOD: Duration = Duration::from_secs(30);
 pub const VOICE_TOKEN_LIFETIME: Duration = Duration::from_secs(60);
