@@ -601,6 +601,13 @@ abstract interface class OpencordRepository {
     String? expectedItemId,
   });
 
+  /// Votes to skip the current track when vote skip is enabled (Phase 3 plan §18.1).
+  Future<MusicSession> musicVoteSkip(
+    String serverKey,
+    int channelId, {
+    required String expectedItemId,
+  });
+
   Future<MusicSession> musicSeek(
     String serverKey,
     int channelId,

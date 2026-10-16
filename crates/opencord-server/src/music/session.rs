@@ -106,6 +106,11 @@ pub enum Command {
     Clear {
         reply: Reply,
     },
+    VoteSkip {
+        caller: Caller,
+        expected_item_id: String,
+        reply: Reply,
+    },
     Snapshot {
         reply: oneshot::Sender<proto::MusicSession>,
     },
@@ -203,6 +208,8 @@ struct Session {
     card: Option<(String, bool)>,
     /// The item "Now playing" was said for.
     announced: Option<String>,
+    /// Users who voted to skip the current item (§14.1).
+    skip_votes: std::collections::BTreeSet<i64>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -246,6 +253,7 @@ impl Session {
             card: None,
             announced: saved.queue.now.as_ref().map(|item| item.id.clone()),
             queue: saved.queue,
+            skip_votes: std::collections::BTreeSet::new(),
         }
     }
 
@@ -333,6 +341,14 @@ impl Session {
             Command::Clear { reply } => {
                 self.queue.clear();
                 self.reply(reply, Ok(()));
+            }
+            Command::VoteSkip {
+                caller,
+                expected_item_id,
+                reply,
+            } => {
+                let result = self.vote_skip(caller, &expected_item_id).await;
+                self.reply(reply, result);
             }
             Command::Snapshot { reply } => {
                 let _ = reply.send(self.to_proto());
@@ -435,7 +451,7 @@ impl Session {
         let current = self.queue.now.clone();
         let stale = expected_item_id
             .is_some_and(|expected| current.as_ref().is_none_or(|item| item.id != expected));
-        if stale && matches!(action, Action::Next | Action::Previous | Action::Seek) {
+        if stale {
             return Err(ApiError::new(
                 proto::ErrorCode::MusicStale,
                 "Another track plays now",
@@ -518,6 +534,59 @@ impl Session {
         Ok(())
     }
 
+    fn skip_votes_needed(&self) -> usize {
+        let listeners = self.state.voice().in_channel(self.channel_id).count();
+        let percent = self.state.music.settings().vote_skip_percent.clamp(1, 100) as usize;
+        ((listeners * percent + 99) / 100).max(1)
+    }
+
+    async fn vote_skip(&mut self, caller: Caller, expected_item_id: &str) -> Result<(), ApiError> {
+        let settings = self.state.music.settings();
+        if !settings.vote_skip {
+            return Err(ApiError::invalid_argument(
+                "Vote skip is turned off on this server",
+            ));
+        }
+        let Some(current) = self.queue.now.clone() else {
+            return Err(ApiError::invalid_argument("nothing is playing"));
+        };
+        if current.id != expected_item_id {
+            return Err(ApiError::new(
+                proto::ErrorCode::MusicStale,
+                "Another track plays now",
+            ));
+        }
+        let own = current.requester_id == caller.user_id
+            && caller.permissions.contains(Permissions::MUSIC_ADD);
+        let control = caller.permissions.contains(Permissions::MUSIC_CONTROL);
+        if own || control {
+            self.advance(Ended::Skipped).await;
+            let name = super::display_name(&self.state, caller.user_id);
+            self.notice(format!("{name} skipped the music"));
+            self.changed();
+            return Ok(());
+        }
+
+        if !self.skip_votes.insert(caller.user_id) {
+            return Err(ApiError::invalid_argument(
+                "You have already voted to skip this track",
+            ));
+        }
+        let votes = self.skip_votes.len();
+        let needed = self.skip_votes_needed();
+        let name = super::display_name(&self.state, caller.user_id);
+        if votes >= needed {
+            self.notice(format!(
+                "{name} voted to skip ({votes}/{needed}). Skipping track..."
+            ));
+            self.advance(Ended::Skipped).await;
+        } else {
+            self.notice(format!("{name} voted to skip ({votes}/{needed})"));
+        }
+        self.changed();
+        Ok(())
+    }
+
     // Playback.
 
     /// Whether the music moves on now.
@@ -562,6 +631,7 @@ impl Session {
     /// the best one but those in `except`; waits for a node when none can.
     async fn start_current(&mut self, position_ms: u64, except: &[i64]) {
         self.started = false;
+        self.skip_votes.clear();
         self.set_position(position_ms);
         self.settled_at = Instant::now() + SETTLE;
         let Some(item) = self.queue.now.clone() else {
@@ -770,6 +840,7 @@ impl Session {
 
     /// The current item ends; the next one plays, if there is one.
     async fn advance(&mut self, ended: Ended) {
+        self.skip_votes.clear();
         match ended {
             Ended::Failed => self.failures += 1,
             Ended::Finished => self.failures = 0,
@@ -823,6 +894,7 @@ impl Session {
 
     async fn queue_ended(&mut self) {
         self.started = false;
+        self.skip_votes.clear();
         self.set_position(0);
         self.idle_since = Some(Instant::now());
         self.waiting_for_node = false;
@@ -838,6 +910,7 @@ impl Session {
     /// Nothing plays and nothing is queued; the player goes.
     fn end(&mut self) {
         self.queue.clear();
+        self.skip_votes.clear();
         self.queue.advance(Ended::Failed);
         self.destroy_player();
         self.paused = false;
@@ -1018,6 +1091,7 @@ impl Session {
         }
         self.grace_until = None;
         if count == 0 {
+            self.skip_votes.clear();
             if self.empty_since.is_none() {
                 self.empty_since = Some(now);
                 if self.queue.now.is_some() && !self.paused && !self.paused_empty {
@@ -1031,6 +1105,30 @@ impl Session {
             return;
         }
         self.empty_since = None;
+
+        let active_users: std::collections::BTreeSet<i64> = self
+            .state
+            .voice()
+            .in_channel(self.channel_id)
+            .map(|s| s.user_id)
+            .collect();
+        let votes_before = self.skip_votes.len();
+        self.skip_votes.retain(|id| active_users.contains(id));
+        let votes_pruned = self.skip_votes.len() != votes_before;
+
+        if !self.skip_votes.is_empty() && self.queue.now.is_some() {
+            let votes = self.skip_votes.len();
+            let needed = self.skip_votes_needed();
+            if votes >= needed {
+                self.notice(format!(
+                    "Vote skip threshold reached ({votes}/{needed}). Skipping track..."
+                ));
+                self.advance(Ended::Skipped).await;
+                self.changed();
+                return;
+            }
+        }
+
         // Back on another voice node: the bridge there takes the music.
         let channel_id = self.channel_id;
         if let Some(player) = self.player.as_mut()
@@ -1047,6 +1145,8 @@ impl Session {
             if !self.paused {
                 self.resume().await;
             }
+            self.changed();
+        } else if votes_pruned {
             self.changed();
         } else {
             // Whoever joined gets the snapshot.
@@ -1214,6 +1314,8 @@ impl Session {
             shuffle: self.queue.shuffle,
             waiting_for_node: self.waiting_for_node,
             paused_empty: self.paused_empty,
+            skip_votes: self.skip_votes.iter().copied().collect(),
+            skip_votes_needed: self.skip_votes_needed() as u32,
         }
     }
 

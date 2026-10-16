@@ -102,6 +102,8 @@ MusicSession musicSessionFrom(core.MusicSession session) => MusicSession(
   shuffle: session.shuffle,
   waitingForNode: session.waitingForNode,
   pausedEmpty: session.pausedEmpty,
+  skipVotes: [for (final id in session.skipVotes) id.toInt()],
+  skipVotesNeeded: session.skipVotesNeeded,
 );
 
 MusicSearchResults musicSearchResultsFrom(core.MusicSearchResults found) =>

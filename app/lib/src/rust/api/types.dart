@@ -2316,6 +2316,10 @@ class MusicSession {
   /// Everyone left: paused until someone comes back.
   final bool pausedEmpty;
 
+  /// Users who voted to skip the current track.
+  final Int64List skipVotes;
+  final int skipVotesNeeded;
+
   const MusicSession({
     required this.channelId,
     required this.version,
@@ -2329,6 +2333,8 @@ class MusicSession {
     required this.shuffle,
     required this.waitingForNode,
     required this.pausedEmpty,
+    required this.skipVotes,
+    required this.skipVotesNeeded,
   });
 
   @override
@@ -2344,7 +2350,9 @@ class MusicSession {
       repeat.hashCode ^
       shuffle.hashCode ^
       waitingForNode.hashCode ^
-      pausedEmpty.hashCode;
+      pausedEmpty.hashCode ^
+      skipVotes.hashCode ^
+      skipVotesNeeded.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -2362,7 +2370,9 @@ class MusicSession {
           repeat == other.repeat &&
           shuffle == other.shuffle &&
           waitingForNode == other.waitingForNode &&
-          pausedEmpty == other.pausedEmpty;
+          pausedEmpty == other.pausedEmpty &&
+          skipVotes == other.skipVotes &&
+          skipVotesNeeded == other.skipVotesNeeded;
 }
 
 /// Server settings → Music (Phase 3 plan §16.2).

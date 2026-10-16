@@ -1457,6 +1457,17 @@ class RustRepository implements OpencordRepository {
   );
 
   @override
+  Future<MusicSession> musicVoteSkip(
+    String serverKey,
+    int channelId, {
+    required String expectedItemId,
+  }) async => musicSessionFrom(
+    await _call(
+      () => _core.musicVoteSkip(serverKey, channelId, expectedItemId),
+    ),
+  );
+
+  @override
   Future<MusicSession> musicSeek(
     String serverKey,
     int channelId,

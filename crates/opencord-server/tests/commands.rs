@@ -377,3 +377,59 @@ async fn play_suggestions_are_results_that_play_exactly_that_track() {
     }
     assert!(limited);
 }
+
+#[tokio::test]
+async fn skip_command_acts_as_vote_skip_when_missing_control_and_vote_skip_enabled() {
+    let Room {
+        mut owner,
+        mut member,
+        everyone,
+        voice,
+        lavalink,
+        server,
+        ..
+    } = room().await;
+    let (_, owner_ready) = owner_again(&server).await;
+    let text = general_text(&owner_ready);
+
+    member.ok(join_voice(voice)).await;
+
+    // Remove MUSIC_CONTROL from everyone.
+    owner
+        .ok(Kind::UpdateRole(proto::UpdateRole {
+            role_id: everyone,
+            permissions: Some(
+                (opencord_common::permissions::Permissions::DEFAULT_EVERYONE
+                    - opencord_common::permissions::Permissions::MUSIC_CONTROL)
+                    .bits(),
+            ),
+            ..Default::default()
+        }))
+        .await;
+
+    owner.ok(run(text, "play", &[("query", "song 1")])).await;
+    fake_plays(&lavalink, voice, "song 1 1").await;
+    owner.ok(run(text, "play", &[("query", "song 2")])).await;
+
+    // 1. Vote skip is off -> member running /skip gets error.
+    let error = member.error(run(text, "skip", &[])).await;
+    assert_eq!(code(&error), proto::ErrorCode::InvalidArgument);
+
+    // 2. Enable vote skip.
+    owner
+        .ok(Kind::UpdateMusicSettings(proto::UpdateMusicSettings {
+            vote_skip: Some(true),
+            vote_skip_percent: Some(50),
+            ..Default::default()
+        }))
+        .await;
+
+    // 3. Member runs /skip -> votes to skip!
+    let done = result(member.ok(run(text, "skip", &[])).await);
+    assert!(done.message_id.is_some() && !done.ephemeral);
+
+    // Track advances!
+    fake_plays(&lavalink, voice, "song 2 1").await;
+    let now = until(&mut owner, voice, "advanced to song 2", |s| playing(s, "song 2 1")).await;
+    assert_eq!(title(now.now_playing.as_ref()), "song 2 1");
+}

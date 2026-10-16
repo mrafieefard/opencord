@@ -100,5 +100,13 @@ void main() {
       placement: MusicPlacement.now,
     );
     expect(again.nowPlaying?.track.title, 'song 1');
+
+    session = music.update(7, (player) => player.voteSkip(10, again.nowPlaying!.id));
+    expect(session.skipVotes, [10]);
+    expect(session.nowPlaying?.track.title, 'song 1');
+
+    session = music.update(7, (player) => player.voteSkip(11, session.nowPlaying!.id));
+    expect(session.skipVotes, isEmpty);
+    expect(session.nowPlaying?.track.title, 'song 3');
   });
 }

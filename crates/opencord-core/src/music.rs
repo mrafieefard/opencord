@@ -139,6 +139,19 @@ impl Client {
         self.music_request(key, request).await
     }
 
+    pub async fn music_vote_skip(
+        &self,
+        key: &str,
+        channel_id: i64,
+        expected_item_id: String,
+    ) -> Result<MusicSession, CoreError> {
+        let request = Request::MusicVoteSkip(proto::MusicVoteSkip {
+            channel_id,
+            expected_item_id,
+        });
+        self.music_request(key, request).await
+    }
+
     async fn music_request(&self, key: &str, request: Request) -> Result<MusicSession, CoreError> {
         match self.request(key, request).await? {
             Response::MusicSession(session) => {
@@ -368,6 +381,8 @@ pub(crate) fn session_from(session: proto::MusicSession, offset_ms: i64) -> Musi
         shuffle: session.shuffle,
         waiting_for_node: session.waiting_for_node,
         paused_empty: session.paused_empty,
+        skip_votes: session.skip_votes,
+        skip_votes_needed: session.skip_votes_needed,
     }
 }
 

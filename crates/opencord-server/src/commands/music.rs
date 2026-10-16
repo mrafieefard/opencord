@@ -85,8 +85,8 @@ pub const SPECS: &[Spec] = &[
         "skip",
         "Skip the track that plays",
         &[CHANNEL],
-        Permissions::MUSIC_ADD,
-        "Control playback, or Add music for your own track",
+        Permissions::empty(),
+        "Control playback, Add music for your own track, or vote to skip",
     ),
     spec(
         "previous",
@@ -254,23 +254,46 @@ pub async fn run(ctx: &Ctx<'_>, spec: &Spec, options: &Options) -> Result<Reply,
                 if pause { "Paused" } else { "Resumed" }
             )))
         }
-        "skip" | "previous" => {
-            let now = snapshot(ctx, channel_id).await?.now_playing;
-            let Some(item) = now else {
+        "skip" => {
+            let session = snapshot(ctx, channel_id).await?;
+            let Some(item) = session.now_playing else {
                 return private("Nothing is playing");
             };
-            let skip = spec.name == "skip";
-            let mut request = playback(
-                channel_id,
-                if skip { Action::Next } else { Action::Previous },
-            );
+            let perms = ctx.state.guild().channel_permissions(ctx.user_id, channel_id);
+            let can_control = perms.contains(Permissions::MUSIC_CONTROL);
+            let can_own_skip = item.requester_id == ctx.user_id && perms.contains(Permissions::MUSIC_ADD);
+            if can_control || can_own_skip {
+                let mut request = playback(channel_id, Action::Next);
+                request.expected_item_id = Some(item.item_id.clone());
+                handlers::playback(ctx, request).await?;
+                Ok(Reply::Public(format!(
+                    "Skipped {} in {name}",
+                    track_line(&item)
+                )))
+            } else {
+                handlers::vote_skip(
+                    ctx,
+                    proto::MusicVoteSkip {
+                        channel_id,
+                        expected_item_id: item.item_id.clone(),
+                    },
+                )
+                .await?;
+                Ok(Reply::Public(format!(
+                    "Voted to skip {} in {name}",
+                    track_line(&item)
+                )))
+            }
+        }
+        "previous" => {
+            let session = snapshot(ctx, channel_id).await?;
+            let Some(item) = session.now_playing else {
+                return private("Nothing is playing");
+            };
+            let mut request = playback(channel_id, Action::Previous);
             request.expected_item_id = Some(item.item_id.clone());
             handlers::playback(ctx, request).await?;
-            Ok(Reply::Public(if skip {
-                format!("Skipped {} in {name}", track_line(&item))
-            } else {
-                format!("Went back in {name}")
-            }))
+            Ok(Reply::Public(format!("Went back in {name}")))
         }
         "seek" => {
             let time = options.text("time").unwrap_or_default();

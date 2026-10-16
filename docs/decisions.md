@@ -543,3 +543,11 @@ The desktop UI plan's §17.5 never arrived, so where Phase 2 §12 says only what
 - **Server side.** `commands.proto`, registry in `crates/opencord-server/src/commands/`, rate limits (5 autocompletes per second per user, shared music limits for executions), permissions enforcement, channel filtering. Server Settings → Commands page (`MANAGE_SERVER`) allows toggling commands, restricting to specific channels, and setting default public vs private results.
 - **Verified.** Server integration tests in `crates/opencord-server/tests/commands.rs` (5 tests); Flutter widget tests in `app/test/widget/chat/commands_test.dart` (7 tests).
 
+## D49: Sync, stale actions and vote skip (Phase 3 L7, 2026-10-16)
+
+- **What members get.** Vote skip: when vote skip is enabled in Server settings → Music, listeners without `MUSIC_CONTROL` see the Next button become "Vote to skip (X/Y)" with a vote counter badge and voted indicator. Voting registers immediately; when enough listeners vote, the track skips and a notice is emitted. Skipping with `MUSIC_CONTROL` or on your own track skips immediately without counting votes. When listeners leave the voice channel, votes are pruned and the threshold recalculated; if remaining votes meet the new threshold, the track advances automatically.
+- **Sync and stale-action handling.** `expected_item_id` in `MusicPlayback` and `MusicVoteSkip`: operations targeting a track that has already ended or advanced fail with `ErrorCode::MusicStale`, avoiding accidental skips or seeks on the subsequent song. Relative moves and server versioning prevent out-of-order state overwrites.
+- **Accessibility and polish.** Focus order and semantic labels for screen readers across all music controls (Play/Pause, Next/Vote Skip, Shuffle, Repeat, Volume slider with `semanticFormatterCallback`), queue items, action menus, and command chips in the composer.
+- **Verified.** Server integration tests in `crates/opencord-server/tests/music.rs` (`vote_skip_mechanism_advances_when_votes_reach_needed`) and `tests/commands.rs` (`skip_command_acts_as_vote_skip_when_missing_control_and_vote_skip_enabled`). Core integration and unit tests in `crates/opencord-core/tests/music.rs`. Flutter unit tests in `app/test/unit/music/music_session_test.dart` (4 tests) and widget tests in `app/test/widget/music/music_panel_test.dart` (8 tests).
+
+

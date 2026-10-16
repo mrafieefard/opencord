@@ -758,6 +758,17 @@ Future<MusicSession> musicQueueClear({
   channelId: channelId,
 );
 
+/// Votes to skip the current track when vote skip is enabled (Phase 3 plan §18.1).
+Future<MusicSession> musicVoteSkip({
+  required String serverKey,
+  required PlatformInt64 channelId,
+  required String expectedItemId,
+}) => RustLib.instance.api.crateApiClientMusicVoteSkip(
+  serverKey: serverKey,
+  channelId: channelId,
+  expectedItemId: expectedItemId,
+);
+
 /// This person's music volume (0–2, 200 %), mute, and "Lower music while
 /// people talk", for every server; kept on this device and never sent.
 /// Muted, the voice node stops sending the music (Phase 3 plan §19.8).

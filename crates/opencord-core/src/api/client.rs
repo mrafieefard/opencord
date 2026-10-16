@@ -900,6 +900,20 @@ pub async fn music_queue_clear(
         .await
 }
 
+/// Votes to skip the current track when vote skip is enabled (Phase 3 plan §18.1).
+pub async fn music_vote_skip(
+    server_key: String,
+    channel_id: i64,
+    expected_item_id: String,
+) -> Result<MusicSession, CoreError> {
+    on_runtime(move |client| async move {
+        client
+            .music_vote_skip(&server_key, channel_id, expected_item_id)
+            .await
+    })
+    .await
+}
+
 /// This person's music volume (0–2, 200 %), mute, and "Lower music while
 /// people talk", for every server; kept on this device and never sent.
 /// Muted, the voice node stops sending the music (Phase 3 plan §19.8).

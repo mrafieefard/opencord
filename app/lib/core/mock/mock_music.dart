@@ -175,6 +175,9 @@ class MockPlayer {
         _at >= now.track.duration;
   }
 
+  final _skipVotes = <int>{};
+  int get _skipVotesNeeded => 2;
+
   MusicSession get session => MusicSession(
     channelId: channelId,
     version: _version,
@@ -190,7 +193,20 @@ class MockPlayer {
     anchor: _clock(),
     repeat: _repeat,
     shuffle: _shuffle,
+    skipVotes: _skipVotes.toList(),
+    skipVotesNeeded: _skipVotesNeeded,
   );
+
+  void voteSkip(int userId, String expectedItemId) {
+    expect(expectedItemId);
+    _skipVotes.add(userId);
+    if (_skipVotes.length >= _skipVotesNeeded) {
+      _skipVotes.clear();
+      next();
+    } else {
+      _changed();
+    }
+  }
 
   void _changed() => _version++;
 
@@ -198,6 +214,7 @@ class MockPlayer {
     _now = item;
     _position = from;
     _anchor = _clock();
+    _skipVotes.clear();
     if (item == null) _paused = false;
   }
 

@@ -444,6 +444,12 @@ abstract interface class CoreApi {
 
   Future<core.MusicSession> musicQueueClear(String serverKey, int channelId);
 
+  Future<core.MusicSession> musicVoteSkip(
+    String serverKey,
+    int channelId,
+    String expectedItemId,
+  );
+
   /// 0–2 (200 %).
   void musicSetListening(double volume, bool muted, bool duckWhileTalking);
 
@@ -1272,6 +1278,17 @@ class FrbCoreApi implements CoreApi {
   @override
   Future<core.MusicSession> musicQueueClear(String serverKey, int channelId) =>
       frb.musicQueueClear(serverKey: serverKey, channelId: channelId);
+
+  @override
+  Future<core.MusicSession> musicVoteSkip(
+    String serverKey,
+    int channelId,
+    String expectedItemId,
+  ) => frb.musicVoteSkip(
+    serverKey: serverKey,
+    channelId: channelId,
+    expectedItemId: expectedItemId,
+  );
 
   @override
   void musicSetListening(double volume, bool muted, bool duckWhileTalking) =>

@@ -837,3 +837,72 @@ async fn recently_played_tracks_can_be_added_again() {
         .await;
     assert_eq!(code(&error), proto::ErrorCode::NotFound);
 }
+
+#[tokio::test]
+async fn vote_skip_mechanism_advances_when_votes_reach_needed() {
+    let Room {
+        mut owner,
+        mut member,
+        everyone,
+        voice,
+        lavalink,
+        ..
+    } = room().await;
+    member.ok(join_voice(voice)).await;
+
+    // Remove MUSIC_CONTROL from everyone so member cannot direct-skip.
+    owner
+        .ok(Kind::UpdateRole(proto::UpdateRole {
+            role_id: everyone,
+            permissions: Some((Permissions::DEFAULT_EVERYONE - Permissions::MUSIC_CONTROL).bits()),
+            ..Default::default()
+        }))
+        .await;
+
+    let found = search(&mut owner, voice, "song").await;
+    owner.ok(enqueue(voice, found.clone())).await;
+    fake_plays(&lavalink, voice, "song 1").await;
+    let playing_session = until(&mut owner, voice, "playing song 1", |s| playing(s, "song 1")).await;
+    let track_id = playing_session.now_playing.as_ref().unwrap().item_id.clone();
+
+    // 1. Vote skip is off by default -> returns InvalidArgument.
+    let error = member
+        .error(Kind::MusicVoteSkip(proto::MusicVoteSkip {
+            channel_id: voice,
+            expected_item_id: track_id.clone(),
+        }))
+        .await;
+    assert_eq!(code(&error), proto::ErrorCode::InvalidArgument);
+
+    // 2. Enable vote skip in settings (threshold 50%).
+    owner
+        .ok(Kind::UpdateMusicSettings(proto::UpdateMusicSettings {
+            vote_skip: Some(true),
+            vote_skip_percent: Some(50),
+            ..Default::default()
+        }))
+        .await;
+
+    // 3. Stale track id is rejected with MusicStale.
+    let error = member
+        .error(Kind::MusicVoteSkip(proto::MusicVoteSkip {
+            channel_id: voice,
+            expected_item_id: "wrong-id".to_owned(),
+        }))
+        .await;
+    assert_eq!(code(&error), proto::ErrorCode::MusicStale);
+
+    // 4. Two listeners (owner + member). 50% of 2 is 1. Member votes to skip.
+    member
+        .ok(Kind::MusicVoteSkip(proto::MusicVoteSkip {
+            channel_id: voice,
+            expected_item_id: track_id.clone(),
+        }))
+        .await;
+
+    // Track advances!
+    fake_plays(&lavalink, voice, "song 2").await;
+    let now = until(&mut owner, voice, "advanced to song 2", |s| playing(s, "song 2")).await;
+    assert_eq!(title(now.now_playing.as_ref()), "song 2");
+    assert!(now.skip_votes.is_empty());
+}

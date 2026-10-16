@@ -272,6 +272,9 @@ message MusicSession {
   bool waiting_for_node = 11;
   // Everyone left: paused until someone comes back.
   bool paused_empty = 12;
+  // Members who voted to skip the current track (Phase 3 plan §14.1, L7).
+  repeated int64 skip_votes = 13;
+  uint32 skip_votes_needed = 14;
 }
 
 // To the session's subscribers on every change.
@@ -398,6 +401,12 @@ message MusicQueueRemove {
 // -> music_session. MUSIC_MANAGE_QUEUE.
 message MusicQueueClear {
   int64 channel_id = 1;
+}
+
+// -> music_session. Connected, vote skip enabled (Phase 3 plan §18.1).
+message MusicVoteSkip {
+  int64 channel_id = 1;
+  string expected_item_id = 2;
 }
 
 // Server settings → Music (§16.2).

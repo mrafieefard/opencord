@@ -2011,6 +2011,15 @@ class MockRepository implements OpencordRepository {
   });
 
   @override
+  Future<MusicSession> musicVoteSkip(
+    String serverKey,
+    int channelId, {
+    required String expectedItemId,
+  }) => _musicControl(serverKey, channelId, Permissions.none, (player) {
+    player.voteSkip(_server(serverKey).selfId, expectedItemId);
+  });
+
+  @override
   Future<MusicSession> musicSeek(
     String serverKey,
     int channelId,

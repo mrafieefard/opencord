@@ -327,6 +327,24 @@ pub async fn queue_clear(
     ask(ctx, request.channel_id, |reply| Command::Clear { reply }).await
 }
 
+pub async fn vote_skip(
+    ctx: &Ctx<'_>,
+    request: proto::MusicVoteSkip,
+) -> Result<Response, ApiError> {
+    let caller = act(
+        ctx,
+        request.channel_id,
+        Permissions::empty(),
+        MusicLimit::Control,
+    )?;
+    ask(ctx, request.channel_id, |reply| Command::VoteSkip {
+        caller,
+        expected_item_id: request.expected_item_id,
+        reply,
+    })
+    .await
+}
+
 /// The settings with what is available now: search sources at least one
 /// connected node offers, and whether this server runs music at all.
 fn settings_proto(ctx: &Ctx<'_>) -> proto::MusicSettings {

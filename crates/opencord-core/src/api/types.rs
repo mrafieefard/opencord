@@ -1649,6 +1649,9 @@ pub struct MusicSession {
     pub waiting_for_node: bool,
     /// Everyone left: paused until someone comes back.
     pub paused_empty: bool,
+    /// Users who voted to skip the current track.
+    pub skip_votes: Vec<i64>,
+    pub skip_votes_needed: u32,
 }
 
 /// What everyone who can see a channel learns about its music, for the

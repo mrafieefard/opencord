@@ -76,6 +76,8 @@ void moveQueueItem(
           shuffle: session.shuffle,
           waitingForNode: session.waitingForNode,
           pausedEmpty: session.pausedEmpty,
+          skipVotes: session.skipVotes,
+          skipVotesNeeded: session.skipVotesNeeded,
         ),
       );
   musicAction(

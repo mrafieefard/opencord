@@ -232,10 +232,28 @@ class MusicTransport extends ConsumerWidget {
               : null,
         ),
         const SizedBox(width: OcSpace.s12),
-        _TransportButton(
-          icon: OcIcons.skipNext,
-          tooltip: access.canSkip(item?.requesterId) ? 'Next' : why ?? 'Next',
-          onPressed: item != null && access.canSkip(item.requesterId)
+        () {
+          final canDirectSkip =
+              item != null && access.canSkip(item.requesterId);
+          final musicSettings =
+              ref.watch(musicSettingsProvider(channel.server)).value;
+          final voteSkipOn =
+              !canDirectSkip && (musicSettings?.voteSkip ?? false);
+          final hasVoted = session?.hasVotedToSkip(access.selfId) ?? false;
+          final votes = session?.skipVotes.length ?? 0;
+          final needed = session?.skipVotesNeeded ?? 1;
+
+          final nextTooltip = canDirectSkip
+              ? 'Next'
+              : voteSkipOn
+              ? (hasVoted
+                  ? 'Voted to skip ($votes/$needed)'
+                  : 'Vote to skip ($votes/$needed)')
+              : why ?? 'Next';
+
+          final nextOnPressed = item == null
+              ? null
+              : canDirectSkip
               ? () => act(
                   (repository) => repository.musicSkip(
                     server,
@@ -244,8 +262,24 @@ class MusicTransport extends ConsumerWidget {
                     expectedItemId: item.id,
                   ),
                 )
-              : null,
-        ),
+              : voteSkipOn && access.connected && !hasVoted
+              ? () => act(
+                  (repository) => repository.musicVoteSkip(
+                    server,
+                    channelId,
+                    expectedItemId: item.id,
+                  ),
+                )
+              : null;
+
+          return _TransportButton(
+            icon: OcIcons.skipNext,
+            tooltip: nextTooltip,
+            active: voteSkipOn ? hasVoted : null,
+            badge: voteSkipOn && votes > 0 ? '$votes/$needed' : null,
+            onPressed: nextOnPressed,
+          );
+        }(),
         const SizedBox(width: OcSpace.s8),
         _ModeButton(
           icon: repeat == MusicRepeat.track
@@ -325,11 +359,15 @@ class _TransportButton extends StatelessWidget {
     required this.icon,
     required this.tooltip,
     required this.onPressed,
+    this.active,
+    this.badge,
   });
 
   final IconData icon;
   final String tooltip;
   final VoidCallback? onPressed;
+  final bool? active;
+  final String? badge;
 
   @override
   Widget build(BuildContext context) => _RoundIcon(
@@ -337,6 +375,8 @@ class _TransportButton extends StatelessWidget {
     tooltip: tooltip,
     onPressed: onPressed,
     iconSize: 26,
+    active: active,
+    badge: badge,
   );
 }
 
@@ -371,6 +411,7 @@ class _RoundIcon extends StatelessWidget {
     required this.onPressed,
     required this.iconSize,
     this.active,
+    this.badge,
   });
 
   final IconData icon;
@@ -380,6 +421,9 @@ class _RoundIcon extends StatelessWidget {
 
   /// Null for buttons without a mode.
   final bool? active;
+
+  /// Small counter badge, e.g. for vote skip.
+  final String? badge;
 
   @override
   Widget build(BuildContext context) {
@@ -419,6 +463,26 @@ class _RoundIcon extends StatelessWidget {
                     decoration: BoxDecoration(
                       color: colors.text,
                       shape: BoxShape.circle,
+                    ),
+                  ),
+                ),
+              if (badge != null)
+                Positioned(
+                  top: 0,
+                  right: 0,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 1),
+                    decoration: BoxDecoration(
+                      color: colors.accent,
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Text(
+                      badge!,
+                      style: TextStyle(
+                        fontSize: 8,
+                        fontWeight: FontWeight.bold,
+                        color: colors.onAccent,
+                      ),
                     ),
                   ),
                 ),

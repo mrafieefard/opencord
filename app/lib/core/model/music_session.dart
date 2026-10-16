@@ -122,6 +122,8 @@ class MusicSession {
     this.shuffle = false,
     this.waitingForNode = false,
     this.pausedEmpty = false,
+    this.skipVotes = const [],
+    this.skipVotesNeeded = 1,
   });
 
   final int channelId;
@@ -147,6 +149,12 @@ class MusicSession {
 
   /// Everyone left: paused until someone comes back.
   final bool pausedEmpty;
+
+  /// Users who voted to skip the current track (§14.1).
+  final List<int> skipVotes;
+  final int skipVotesNeeded;
+
+  bool hasVotedToSkip(int userId) => skipVotes.contains(userId);
 
   bool get playing => state == MusicPlayState.playing;
 
@@ -180,7 +188,9 @@ class MusicSession {
       other.repeat == repeat &&
       other.shuffle == shuffle &&
       other.waitingForNode == waitingForNode &&
-      other.pausedEmpty == pausedEmpty;
+      other.pausedEmpty == pausedEmpty &&
+      listEquals(other.skipVotes, skipVotes) &&
+      other.skipVotesNeeded == skipVotesNeeded;
 
   @override
   int get hashCode => Object.hash(
@@ -196,6 +206,8 @@ class MusicSession {
     shuffle,
     waitingForNode,
     pausedEmpty,
+    Object.hashAll(skipVotes),
+    skipVotesNeeded,
   );
 }
 
