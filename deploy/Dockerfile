@@ -33,5 +33,5 @@ ENV OPENCORD_CONFIG=/data/opencord.toml \
     OPENCORD_VOICE_UDP_PORT=7711 \
     OPENCORD_MUSIC_UDP_PORT=7712
 VOLUME ["/data"]
-EXPOSE 7710/tcp 7711/udp 7712/udp
+EXPOSE 7710/tcp 7711/udp 7712/udp 80/tcp
 ENTRYPOINT ["opencord-server"]

@@ -8,11 +8,17 @@ This guide grows with Phase 3. What is here so far:
 - [Ports](#ports)
 - [Settings](#settings)
 - [Lavalink nodes](#lavalink-nodes)
+- [Running Lavalink with Docker Compose](#running-lavalink-with-docker-compose)
 - [Permissions](#permissions)
 - [Music settings](#music-settings)
+- [Vote skip](#vote-skip)
+- [Search, links and artwork](#search-links-and-artwork)
+- [Music in the app](#music-in-the-app)
+- [Chat commands](#chat-commands)
 - [When a node goes down](#when-a-node-goes-down)
 - [Voice on other machines](#voice-on-other-machines)
 - [Testing with a local Lavalink](#testing-with-a-local-lavalink)
+- [Troubleshooting](#troubleshooting)
 
 ## How the bridge works
 
@@ -92,6 +98,60 @@ A node that comes back from Unavailable waits 30 seconds before it gets new chan
 
 A row's menu also has **Move players now**, while the node plays for any channel: each channel moves to the best other node at once, keeping its place in the track. **Drain** moves them more gently, at their next track change. Deleting a node moves its channels first.
 
+**Using public Lavalink nodes.** You can connect to public Lavalink nodes hosted by the community. Public nodes require:
+- An active domain with a certificate trusted by standard CAs (such as Let's Encrypt). Self-signed certificates will be rejected by public nodes.
+- UDP port 7712 reachable from the public internet so the node can deliver Opus audio to Opencord's audio bridge.
+- Turn off **Strict address check** for any public node whose outgoing RTP audio IP address differs from its HTTP API hostname.
+
+## Running Lavalink with Docker Compose
+
+Running Lavalink alongside Opencord in Docker is recommended for self-hosted instances. Use the official `ghcr.io/lavalink-devs/lavalink:4` image.
+
+In `deploy/docker-compose.yml`, add a `lavalink` service:
+
+```yaml
+services:
+  opencord:
+    # ...
+    networks:
+      default:
+        aliases:
+          # Network alias trick: resolves your bridge domain to Opencord inside Docker
+          - chat.example.com
+
+  lavalink:
+    image: ghcr.io/lavalink-devs/lavalink:4
+    restart: unless-stopped
+    environment:
+      - _JAVA_OPTIONS=-Xmx1G
+    volumes:
+      - ./lavalink/application.yml:/opt/Lavalink/application.yml
+      - ./lavalink/plugins:/opt/Lavalink/plugins
+    ports:
+      - "2333:2333"
+```
+
+**The network alias trick:** Lavalink verifies the server's TLS certificate against the domain name Opencord gives it (your bridge domain, e.g. `chat.example.com`). Giving the `opencord` container a network alias matching that domain ensures that Lavalink's DNS inside Docker resolves the domain directly to Opencord's container IP, while TLS certificate verification succeeds without hair-pinning through the router.
+
+Write `application.yml` for Lavalink:
+
+```yaml
+server:
+  port: 2333
+  address: 0.0.0.0
+lavalink:
+  server:
+    password: "your-strong-password"
+    sources:
+      youtube: false     # Use the youtube-source plugin instead
+      bandcamp: true
+      soundcloud: true
+      twitch: false
+      vimeo: false
+      http: false        # Keep false: prevents arbitrary URL fetching
+      local: false       # Keep false: prevents accessing files on the server
+```
+
 ## Permissions
 
 | Permission | Allows | `@everyone` by default |
@@ -128,6 +188,16 @@ Server settings → Music, for members with Manage music. Lavalink nodes on the 
 You choose, and are responsible for, the sources you enable.
 
 When everyone leaves a channel, its music pauses at once. After *Stop after everyone leaves* its Lavalink player is let go; the queue is kept for 30 minutes, and music carries on from the same place when someone comes back. When the queue ends, the player is let go after *Disconnect after the queue ends*.
+
+## Vote skip
+
+When vote skip is enabled in Server settings → Music:
+- Members without `Control playback` permission see the Next button change to **Vote to skip (X/Y)**, where Y is the required number of votes and X is the current count.
+- The threshold Y is calculated as `ceil(listeners * vote_skip_percent / 100)`, minimum 1 vote.
+- Members with `Control playback` (or members skipping their own added track with `Add music`) skip immediately without voting.
+- When members disconnect from the voice channel, their votes are pruned and the required threshold is recalculated. If remaining votes meet the new threshold, the track advances automatically.
+- Once the threshold is met, the player advances to the next queued track and announces the skip in a music notice.
+- `/skip` in chat acts as a vote skip for members without `Control playback`.
 
 ## Search, links and artwork
 
@@ -169,6 +239,35 @@ The music panel shows the cover, the track, who added it and its progress, with 
 Members not in the channel see the panel read-only, with a Join button; controls a member may not use are off, and say why. Music isn't a participant: it has no tile and no speaking ring. Where music isn't set up, the button shows only for members who manage the server, with **Set up music**.
 
 **Your music volume** (0–200 %) and **Mute music** are the same on every server and stay on this device: in the panel, on the card, and in User settings → Voice & audio → Music, with **Lower music while people talk** (10 dB, back 300 ms after the last voice). Muted, the voice node stops sending you the music.
+
+## Chat commands
+
+Opencord includes built-in chat commands (Phase 3 §17) in the message composer. Typing `/` opens the command list with descriptions and option hints.
+
+| Command | Options | Permission | Scope / Notes |
+|---|---|---|---|
+| `/play` | `query:` (track name or URL) | Add music | Search autocomplete suggests up to 5 tracks with artwork |
+| `/pause` | — | Control playback | Pauses playback |
+| `/resume` | — | Control playback | Resumes playback |
+| `/skip` | — | Control playback / Add music | Skips current track, or votes to skip if lacking control permission |
+| `/queue` | `page?:` (number) | View channel | Lists upcoming queued tracks |
+| `/nowplaying` (or `/np`) | — | View channel | Shows track, artist, elapsed time and requester |
+| `/shuffle` | — | Control playback | Toggles queue shuffle |
+| `/repeat` | `mode:` (`off`, `all`, `one`) | Control playback | Sets repeat mode |
+| `/seek` | `position:` (e.g. `1:30`) | Control playback | Seeks within the current track |
+| `/replay` | — | Control playback | Replays the current track from 0:00 |
+| `/clear` | — | Manage the queue | Clears the upcoming queue |
+| `/remove` | `position:` (index) | Manage the queue / Add music | Removes a specific track (own with Add music, others with Manage queue) |
+| `/stop` | — | Manage music | Stops playback and releases the player |
+| `/volume` | `level:` (0–200) | Everyone | Client-only: adjusts your local music volume |
+| `/music` | — | Everyone | Client-only: opens or toggles the right-side music panel |
+
+**Public vs ephemeral results.** By default, commands post a compact result card into the text channel visible to all members. Private failures, missing permissions, and informational commands (like `/nowplaying` or autocomplete suggestions) appear as ephemeral messages visible only to you, with a "Dismiss" button.
+
+**Commands page.** Admins (`Manage server`) can configure commands under **Server settings → Commands**:
+- Enable or disable individual commands server-wide.
+- Restrict commands to specific text channels.
+- Configure whether command results default to public messages or ephemeral private responses.
 
 ## When a node goes down
 
@@ -303,3 +402,40 @@ cargo test -p opencord-server --test music two_real -- --ignored --nocapture
 ```
 
 It plays the track on the first node, turns that node off, checks that the channel plays on the second within 5 seconds from where it was, then restarts the server and checks that the music carries on there.
+
+## Troubleshooting
+
+### Node states
+
+| State | Meaning | What to do |
+|---|---|---|
+| **Connecting** | Initial connection to Lavalink's REST and WebSocket API in progress | Allow a few seconds for handshake to complete |
+| **Healthy** | Connected and streaming normally | Ready for playback |
+| **Degraded** | Connected but struggling: CPU load high, slow API answers, or audio frame drops | Add another node or move channels; check system resources on the Lavalink host |
+| **Unavailable** | Unreachable, wrong password, or crashed | Verify Lavalink is running, check password and host in settings; inspect Lavalink logs |
+| **Draining** | Marked by admin for maintenance; existing tracks finish, new channels go elsewhere | Remove node or finish maintenance |
+| **Disabled** | Turned off in node settings | Toggle on when ready |
+
+### Connection test failures
+
+| Failure | Cause | What to do |
+|---|---|---|
+| **Lavalink refused the password** | Password mismatch | Verify `lavalink.server.password` in Lavalink's `application.yml` and copy it into node settings |
+| **Nothing is listening on ...** | Port unreachable or Lavalink down | Check that Lavalink is running and `server.port` matches; verify firewall rules |
+| **... does not use TLS** | TLS setting mismatch | Toggle TLS on or off in node settings to match Lavalink's configuration |
+| **Lavalink couldn't verify Opencord's certificate** | TLS trust failure | Activate an active domain with Let's Encrypt in Domains & network, or import Opencord's certificate into Lavalink's trust store |
+| **Lavalink signed in, but didn't send audio to UDP ...** | UDP port blocked | Open UDP port 7712 on your router and firewall, and forward it to Opencord |
+
+### Voice gateway close codes
+
+| Code | Name | Meaning | Resolution |
+|---|---|---|---|
+| **4001** | `Unknown opcode` | Lavalink sent an unsupported voice gateway opcode | Ensure Lavalink version is 4.0.8 or newer |
+| **4003** | `Not authenticated` | Lavalink attempted commands before completing Identify | Check for connection drops or network proxies interfering with WebSockets |
+| **4004** | `Authentication failed` | Bridge token was invalid, expired, or rejected | Ensure clocks are synchronized; single-use tokens expire in 60s |
+| **4006** | `Session no longer valid` | Voice session closed or replaced by another player | Normal when moving players or switching tracks |
+| **4009** | `Session timeout` | Heartbeat was not received in time | Check network latency between Lavalink and Opencord |
+| **4011** | `Server not found` | Lavalink was given an unreachable bridge endpoint | Verify `bridge_domain` in Music settings points to a valid, reachable domain |
+| **4014** | `Channel deleted` | The voice channel was deleted while music was playing | Expected behavior when deleting channels |
+| **4015** | `Voice server crashed / moved` | Voice server restarted or channel moved to another node | Channel automatically reconnects to healthy node |
+

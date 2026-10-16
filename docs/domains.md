@@ -22,6 +22,7 @@ This guide grows with Phase 3. What is here so far:
 - [The main port](#the-main-port)
 - [Tunnels and reverse proxies: the local listener](#tunnels-and-reverse-proxies-the-local-listener)
 - [Advanced settings](#advanced-settings)
+- [Troubleshooting](#troubleshooting)
 
 ## Kinds of domain
 
@@ -301,3 +302,29 @@ Behind a proxy, every connection seems to come from the proxy. Opencord believes
 | Let's Encrypt test environment | Off | Certificates from Let's Encrypt's staging environment, for trying the setup without reaching its limits. They are not trusted by browsers or apps. |
 | Local listener port | 7719 | Where tunnels and proxies forward to. |
 | Trusted proxies | 127.0.0.1, ::1 | Addresses or ranges (`10.0.0.0/8`) whose `X-Forwarded-For` is believed. |
+
+## Troubleshooting
+
+### Check results
+
+| Result | Meaning | What to do |
+|---|---|---|
+| **Points to another address** | The domain's A or AAAA records point to a different IP than Opencord's public address | Update your DNS records at your domain registrar or DNS provider to match the server's public IP |
+| **No record** | The hostname has no DNS records, or newly created records haven't propagated | Create the A/AAAA records at your provider and wait a few minutes |
+| **Proxied by Cloudflare** | Cloudflare's proxy (orange cloud) is turned on, blocking UDP voice and music traffic | Set the DNS record to **DNS only** (grey cloud) in Cloudflare's DNS dashboard |
+| **Partly correct** | Some records match the server, but extra or stale records exist (e.g. an old AAAA record) | Remove the outdated or conflicting DNS records |
+| **Check failed** | Name servers did not answer, or the server's public IP could not be detected | Verify your network connection and DNS resolvers; set your public address manually under Public address if auto-detection fails |
+| **Wrong verify token** | A reverse proxy or tunnel answered, but didn't return the server's verification token | Ensure the proxy forwards traffic to the local listener port (`http://127.0.0.1:7719`) and preserves `/.well-known/opencord/verify` |
+| **Hairpin NAT failure** | Behind a home router without NAT loopback, proxy checks from inside the network fail | Test reaching the address from a mobile or external network; if it works, click **Confirm it works** in the domain's menu |
+
+### Certificates
+
+| Error | Meaning | What to do |
+|---|---|---|
+| **Port 80 not reachable** | Let's Encrypt could not connect on port 80 for the HTTP challenge | Forward port 80/tcp on your router, check your firewall, or connect a [DNS provider](#dns-providers) to use the DNS challenge instead |
+| **Rate limit reached** | Too many failed attempts (5 per hour) or too many certificates for this domain | Wait until the retry time shown on the row; enable **Let's Encrypt test environment** under Advanced settings while testing |
+| **DNS propagation timeout** | The DNS-01 challenge record was not seen by Let's Encrypt within 120 seconds | Verify the DNS provider token has "Edit zone DNS" permissions and that the zone name matches |
+| **CAA record prohibits issuance** | The domain's CAA records do not allow Let's Encrypt to issue certificates | Add `0 issue "letsencrypt.org"` to your domain's DNS records, or remove the restricting CAA record |
+| **Permission denied / Low port** | Opencord cannot bind port 80 or 443 on Linux without privileges | Grant `CAP_NET_BIND_SERVICE` (see [Ports below 1024](#ports-below-1024)) or use Docker port forwarding |
+| **Renewal failed** | Automatic renewal failed before expiration | The row shows the exact cause (e.g. port 80 unreachable or expired provider token); resolve it before the 7-day grace period ends |
+

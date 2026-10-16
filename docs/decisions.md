@@ -550,4 +550,14 @@ The desktop UI plan's §17.5 never arrived, so where Phase 2 §12 says only what
 - **Accessibility and polish.** Focus order and semantic labels for screen readers across all music controls (Play/Pause, Next/Vote Skip, Shuffle, Repeat, Volume slider with `semanticFormatterCallback`), queue items, action menus, and command chips in the composer.
 - **Verified.** Server integration tests in `crates/opencord-server/tests/music.rs` (`vote_skip_mechanism_advances_when_votes_reach_needed`) and `tests/commands.rs` (`skip_command_acts_as_vote_skip_when_missing_control_and_vote_skip_enabled`). Core integration and unit tests in `crates/opencord-core/tests/music.rs`. Flutter unit tests in `app/test/unit/music/music_session_test.dart` (4 tests) and widget tests in `app/test/widget/music/music_panel_test.dart` (8 tests).
 
+## D50: Hardening and docs (Phase 3 L8, 2026-10-16)
+
+- **What admins get.** Comprehensive documentation across all Phase 3 capabilities:
+  - `docs/domains.md`: Full guide for domain kinds, DNS records, Let's Encrypt certificates (DNS-01, TLS-ALPN-01, HTTP-01), DuckDNS and deSEC free subdomains, Cloudflare quick and named tunnels, Caddy/Nginx reverse proxies, ports and low-port capabilities (`CAP_NET_BIND_SERVICE`), and a complete troubleshooting matrix for check results and certificate errors.
+  - `docs/music.md`: Complete guide for running Lavalink next to Opencord with Docker Compose using the network alias trick, using public Lavalink nodes, IP-only self-signed certificate imports, sources and plugins (youtube-source, LavaSrc), vote skip rules, chat slash commands (`/play`, `/pause`, `/skip`, etc.), and a troubleshooting matrix covering node states, connection test failures, and voice gateway close codes (4001–4015).
+  - Deploy updates: `deploy/docker-compose.yml` and `deploy/Dockerfile` updated with optional port 80/tcp mappings for Let's Encrypt HTTP-01 challenges alongside 7710/tcp, 7711/udp, and 7712/udp.
+- **Load and resilience verification.** `twenty_channels_play_together_under_load` in `crates/opencord-server/tests/music.rs`: concurrently manages 20 active voice channels playing tracks under distributed user load; verifies all 20 players track state in Lavalink, `FetchLavalinkNodes` correctly reports 20 channels, empty channels pause without leaks (`paused_empty`), and listener arrival immediately resumes playback.
+- **Phase 3 acceptance complete.** Every milestone from D1–D4, L0–L8 specified in `docs/plans/phase-3.md` is implemented, documented, and covered by automated test suites.
+
+
 

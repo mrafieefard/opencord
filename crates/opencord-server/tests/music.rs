@@ -906,3 +906,121 @@ async fn vote_skip_mechanism_advances_when_votes_reach_needed() {
     assert_eq!(title(now.now_playing.as_ref()), "song 2");
     assert!(now.skip_votes.is_empty());
 }
+
+#[tokio::test]
+async fn twenty_channels_play_together_under_load() {
+    let Room {
+        server,
+        mut owner,
+        mut member,
+        everyone,
+        voice,
+        lavalink,
+        node,
+        ..
+    } = room().await;
+
+    // Grant everyone MUSIC_MANAGE so all members can add and control music in any voice channel.
+    owner
+        .ok(Kind::UpdateRole(proto::UpdateRole {
+            role_id: everyone,
+            permissions: Some(
+                (Permissions::DEFAULT_EVERYONE
+                    | Permissions::MUSIC_MANAGE
+                    | Permissions::MUSIC_MANAGE_QUEUE
+                    | Permissions::MUSIC_ADD
+                    | Permissions::MUSIC_CONTROL)
+                    .bits(),
+            ),
+            ..Default::default()
+        }))
+        .await;
+
+    // Create 19 more voice channels (total 20 voice channels).
+    let mut channels = vec![voice];
+    for i in 1..20 {
+        let channel = match owner
+            .ok(Kind::CreateChannel(proto::CreateChannel {
+                kind: proto::ChannelKind::Voice as i32,
+                name: format!("Voice {i}"),
+                topic: None,
+                parent_id: None,
+            }))
+            .await
+        {
+            Response::Channel(c) => c.id,
+            other => panic!("expected channel, got {other:?}"),
+        };
+        channels.push(channel);
+    }
+    assert_eq!(channels.len(), 20);
+
+    // Join two more users so we have 4 clients, each handling 5 channels (5 searches & 5 enqueues each).
+    let code = invite(&mut owner, None).await;
+    let (mut user3, _) = join(&server, 3, &code).await;
+    let (mut user4, _) = join(&server, 4, &code).await;
+
+    // Distribute channels across 4 clients to respect per-user rate limits (10 / 10 s).
+    for (i, channel) in channels.iter().enumerate() {
+        let client = match i / 5 {
+            0 => &mut owner,
+            1 => &mut member,
+            2 => &mut user3,
+            _ => &mut user4,
+        };
+        let found = search(client, *channel, &format!("track-{i}")).await;
+        client.ok(enqueue(*channel, found[..1].to_vec())).await;
+    }
+
+    // Verify all 20 channels have active players in FakeLavalink.
+    let deadline = Instant::now() + Duration::from_secs(10);
+    loop {
+        let active = lavalink.fake.players.lock().unwrap().len();
+        if active >= 20 {
+            break;
+        }
+        assert!(Instant::now() < deadline, "expected 20 players, got {active}");
+        tokio::time::sleep(Duration::from_millis(50)).await;
+    }
+
+    // Simulate playback for all 20 channels.
+    for (i, channel) in channels.iter().enumerate() {
+        fake_plays(&lavalink, *channel, &format!("track-{i} 1")).await;
+    }
+
+    // Verify node channels count in FetchLavalinkNodes.
+    let list = nodes(
+        owner
+            .ok(Kind::FetchLavalinkNodes(proto::FetchLavalinkNodes {
+                watch: false,
+            }))
+            .await,
+    );
+    let n = list.nodes.iter().find(|n| n.id == node).unwrap();
+    assert_eq!(n.channels, 20, "node reports 20 playing channels");
+
+    // Check each channel's session:
+    // Channel 0 has the owner listening -> Playing.
+    // Channels 1..19 have no listeners -> Paused (paused_empty), ready with track loaded.
+    for (i, channel) in channels.iter().enumerate() {
+        let s = session(owner.ok(snapshot_request(*channel)).await);
+        assert_eq!(title(s.now_playing.as_ref()), format!("track-{i} 1"));
+        if i == 0 {
+            assert_eq!(s.state, Play::Playing as i32);
+            assert!(!s.paused_empty);
+        } else {
+            assert_eq!(s.state, Play::Paused as i32);
+            assert!(s.paused_empty);
+        }
+    }
+
+    // When a listener joins an empty channel, it immediately unpauses.
+    user3.ok(join_voice(channels[1])).await;
+    let s = until(&mut user3, channels[1], "unpaused when listener joins", |s| {
+        s.state == Play::Playing as i32 && !s.paused_empty
+    })
+    .await;
+    assert_eq!(title(s.now_playing.as_ref()), "track-1 1");
+}
+
+
