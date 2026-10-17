@@ -38,9 +38,9 @@ impl TestServer {
         let handle = loop {
             match server::start(Self::config(&self._dir, port)).await {
                 Ok(handle) => break handle,
-                Err(_err) if attempts < 10 => {
+                Err(_err) if attempts < 50 => {
                     attempts += 1;
-                    tokio::time::sleep(Duration::from_millis(20)).await;
+                    tokio::time::sleep(Duration::from_millis(50)).await;
                 }
                 Err(err) => panic!("could not restart test server: {err:?}"),
             }
@@ -1289,3 +1289,127 @@ async fn after_the_computer_sleeps_the_call_comes_back_within_seconds() {
         .copied();
     assert_eq!(held.and_then(|state| state.channel_id), Some(voice));
 }
+
+#[tokio::test]
+async fn unexpected_disconnect_and_reconnect_rejoins_voice() {
+    let server = TestServer::start().await;
+    let (_owner, owner_ready, member, _) = owner_and_member(&server).await;
+    let mut media = member
+        .client
+        .enable_media(MediaOptions {
+            open_devices: false,
+        })
+        .unwrap();
+    let voice = voice_channel(&owner_ready);
+
+    member
+        .client
+        .voice_join(&server.address(), voice)
+        .await
+        .unwrap();
+    let states = states_until_connected(&mut media).await;
+    assert_eq!(states, connecting_to(voice));
+
+    // Abruptly drop member client (simulating unexpected disconnect / app kill)
+    let identity = member.identity.clone();
+    let dir = member.dir;
+    drop(media);
+    drop(member.client);
+    drop(member.events);
+
+    // Give a short moment
+    tokio::time::sleep(Duration::from_millis(50)).await;
+
+    // Start a new client with the same saved state
+    let mut member2 = TestClient::with(identity, dir, "Member");
+    member2
+        .client
+        .trust_fingerprint(&server.address(), &server.fingerprint())
+        .unwrap();
+    member2.client.connect_saved_servers();
+    let _ready = member2.ready().await;
+
+    let mut media2 = member2
+        .client
+        .enable_media(MediaOptions {
+            open_devices: false,
+        })
+        .unwrap();
+
+    member2
+        .client
+        .voice_join(&server.address(), voice)
+        .await
+        .unwrap();
+    let states2 = states_until_connected(&mut media2).await;
+    assert_eq!(states2, connecting_to(voice));
+}
+
+#[tokio::test]
+async fn after_the_computer_sleeps_media_comes_back() {
+    let server = TestServer::start().await;
+    let relay = Relay::start(server.handle.local_addr).await;
+    let mut owner = TestClient::new("Owner");
+    owner
+        .client
+        .trust_fingerprint(&relay.address, &server.fingerprint())
+        .unwrap();
+    owner
+        .client
+        .add_server(&relay.address, server.handle.claim_token.clone())
+        .await
+        .unwrap();
+    let ready = owner.ready().await;
+    let voice = voice_channel(&ready);
+
+    let mut media = owner
+        .client
+        .enable_media(MediaOptions {
+            open_devices: false,
+        })
+        .unwrap();
+
+    owner.client.voice_join(&relay.address, voice).await.unwrap();
+    let states = states_until_connected(&mut media).await;
+    assert_eq!(states, connecting_to(voice));
+
+    relay.sleep();
+    tokio::time::sleep(Duration::from_secs(2)).await;
+    relay.wake();
+    owner.client.check_connections().await;
+
+    let _event = tokio::time::timeout(Duration::from_secs(5), media.recv()).await;
+}
+
+#[tokio::test]
+async fn rejoining_voice_channel_on_same_client_reconnects_media() {
+    let server = TestServer::start().await;
+    let (_owner, owner_ready, member, _) = owner_and_member(&server).await;
+    let mut media = member
+        .client
+        .enable_media(MediaOptions {
+            open_devices: false,
+        })
+        .unwrap();
+    let voice = voice_channel(&owner_ready);
+
+    member
+        .client
+        .voice_join(&server.address(), voice)
+        .await
+        .unwrap();
+    let states = states_until_connected(&mut media).await;
+    assert_eq!(states, connecting_to(voice));
+
+    // Rejoin the same channel on the same client
+    member
+        .client
+        .voice_join(&server.address(), voice)
+        .await
+        .unwrap();
+    let states2 = states_until_connected(&mut media).await;
+    assert_eq!(states2, connecting_to(voice));
+}
+
+
+

@@ -579,6 +579,40 @@ async fn the_session_in_voice_can_ask_for_a_fresh_voice_token() {
 }
 
 #[tokio::test]
+async fn rejoining_the_same_voice_channel_on_the_same_session_sends_a_voice_server_update() {
+    let mut room = room().await;
+    room.member.ok(join_voice(room.voice)).await;
+    let first = server_update(&mut room.member).await;
+    assert_eq!(first.channel_id, room.voice);
+
+    // Member joins the same channel again on the same session (e.g. after unexpected disconnect)
+    room.member.ok(join_voice(room.voice)).await;
+    let second = tokio::time::timeout(Duration::from_millis(500), server_update(&mut room.member)).await;
+    assert!(second.is_ok(), "Expected a fresh VoiceServerUpdate on voice_join, but none was sent!");
+}
+
+#[tokio::test]
+async fn refresh_voice_server_from_new_session_within_grace_period() {
+    let mut room = room().await;
+    room.member.ok(join_voice(room.voice)).await;
+    let _first = server_update(&mut room.member).await;
+
+    // Member reconnects with a fresh session for the same user
+    let (mut second, _) = {
+        let mut client = TestClient::connect(&room.server, common::key(2)).await;
+        let ready = client.identify("user2", None, None).await.unwrap();
+        (client, ready)
+    };
+
+    // Second session asks for a fresh token to recover voice
+    second.ok(Request::RefreshVoiceServer(proto::RefreshVoiceServer {})).await;
+    let fresh = server_update(&mut second).await;
+    assert_eq!(fresh.channel_id, room.voice);
+}
+
+
+
+#[tokio::test]
 async fn only_the_session_in_voice_gets_a_voice_token() {
     let mut room = room().await;
 

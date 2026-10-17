@@ -900,6 +900,8 @@ impl SessionTask {
                     match event {
                         VoiceEvent::MediaConnected => {
                             no_route_at = None;
+                            refresh_at = None;
+                            retry_pause = RETRY_MIN;
                             self.report(channel_id, VoiceConnectionState::Connected);
                             if let Some(live) = &live {
                                 live.connection.set_speaking(speaking_flags(talking.0, talking.1));
@@ -907,6 +909,9 @@ impl SessionTask {
                         }
                         VoiceEvent::MediaDisconnected => {
                             self.report(channel_id, VoiceConnectionState::Reconnecting);
+                            if refresh_at.is_none() {
+                                refresh_at = Some(Instant::now() + Duration::from_secs(5));
+                            }
                         }
                         VoiceEvent::Audio(audio) => self.engine.receive(
                             audio.user_id,
@@ -1056,6 +1061,8 @@ impl SessionTask {
                     no_route_at = None;
                     let channel_id = live.as_ref().map_or(0, |live| live.server.channel_id);
                     self.report(channel_id, VoiceConnectionState::NoRoute);
+                    refresh_at = Some(Instant::now() + retry_pause);
+                    retry_pause = (retry_pause * 2).min(RETRY_MAX);
                 }
                 () = tokio::time::sleep_until(devices_at), if self.open_devices => {
                     devices_at = Instant::now() + DEVICE_POLL;
