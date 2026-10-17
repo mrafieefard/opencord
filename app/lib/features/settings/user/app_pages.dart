@@ -313,7 +313,7 @@ class _MusicListening extends ConsumerWidget {
           value: listening.volume,
           min: 0,
           max: 200,
-          step: 5,
+          step: 1,
           shown: '${listening.volume} %',
           onChanged: (value) =>
               notifier.update((l) => l.copyWith(volume: value)),
@@ -413,7 +413,7 @@ class _VolumeRow extends StatelessWidget {
           Slider(
             value: value.toDouble(),
             max: AudioSettings.maxVolume.toDouble(),
-            divisions: AudioSettings.maxVolume ~/ 5,
+            divisions: AudioSettings.maxVolume,
             semanticFormatterCallback: (value) => '${value.round()}%',
             onChanged: (value) => onChanged(value.round()),
           ),

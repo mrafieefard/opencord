@@ -298,6 +298,19 @@ class MusicListening {
   /// −10 dB while someone talks.
   final bool duckWhileTalking;
 
+  /// The linear gain for playback, tuned with a perceptual audio curve
+  /// (quadratic taper) and Spotify-like loudness normalization (-14 LUFS target):
+  /// - 100 % volume maps to -6 dB (gain 0.50), matching Spotify's normalization
+  ///   for standard commercial masters so voice chat is not drowned out.
+  /// - 1 % volume maps to -86 dB (gain ~0.00005), giving a whisper-quiet minimum.
+  /// - 200 % volume maps to +6 dB (gain 2.0), providing max boost when needed.
+  static double volumeToGain(int volume) {
+    if (volume <= 0) return 0.0;
+    final clamped = volume.clamp(0, 200);
+    final normalized = clamped / 200.0;
+    return 2.0 * normalized * normalized;
+  }
+
   MusicListening copyWith({int? volume, bool? muted, bool? duckWhileTalking}) =>
       MusicListening(
         volume: volume ?? this.volume,

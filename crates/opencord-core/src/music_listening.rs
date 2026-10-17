@@ -25,7 +25,7 @@ pub struct MusicListening {
 impl Default for MusicListening {
     fn default() -> Self {
         Self {
-            volume: 1.0,
+            volume: 0.5,
             muted: false,
             duck: false,
         }
@@ -38,7 +38,7 @@ impl MusicListening {
             volume: if volume.is_finite() {
                 volume.clamp(0.0, 2.0)
             } else {
-                1.0
+                0.5
             },
             muted,
             duck,
@@ -121,6 +121,6 @@ mod tests {
         let mut duck = MusicDuck::default();
         duck.talking(true);
         assert_eq!(duck.update(listening, Instant::now()).0, 2.0);
-        assert_eq!(MusicListening::clamped(f32::NAN, true, false).volume, 1.0);
+        assert_eq!(MusicListening::clamped(f32::NAN, true, false).volume, 0.5);
     }
 }

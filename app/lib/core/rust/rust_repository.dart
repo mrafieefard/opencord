@@ -1532,7 +1532,7 @@ class RustRepository implements OpencordRepository {
   @override
   void setMusicListening(MusicListening listening) => _now(
     () => _core.musicSetListening(
-      listening.volume.clamp(0, 200) / 100,
+      MusicListening.volumeToGain(listening.volume),
       listening.muted,
       listening.duckWhileTalking,
     ),

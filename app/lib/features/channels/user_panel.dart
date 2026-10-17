@@ -493,7 +493,7 @@ class _Volume extends StatelessWidget {
           child: Slider(
             value: value.toDouble(),
             max: AudioSettings.maxVolume.toDouble(),
-            divisions: AudioSettings.maxVolume ~/ 5,
+            divisions: AudioSettings.maxVolume,
             semanticFormatterCallback: (value) => '${value.round()}%',
             onChanged: (value) => onChanged(value.round()),
           ),

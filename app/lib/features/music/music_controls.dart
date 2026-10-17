@@ -499,7 +499,7 @@ class _RoundIcon extends StatelessWidget {
 class MusicVolumeControls extends ConsumerWidget {
   const MusicVolumeControls({super.key});
 
-  static const step = 5;
+  static const step = 1;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
