@@ -66,6 +66,12 @@ pub enum NodeCommand {
         user_id: i64,
         viewers: Vec<i64>,
     },
+    /// The channel's music stopped: its stream ends (Phase 3 plan §18.4).
+    StopMusic { channel_id: i64 },
+    /// A Lavalink player for the channel: the bridge where the node runs
+    /// lets it in (Phase 3 plan §13.4). The embedded node leaves this to
+    /// the main server, which runs that bridge itself.
+    ExpectMusic(crate::bridge::ExpectedPlayer),
 }
 
 /// To the main server.
@@ -192,9 +198,7 @@ impl VoiceNode {
         })?;
         let udp_port = udp_port.port();
         // IPv6 is a bonus: hosts without it still serve IPv4.
-        let v6 = UdpSocket::bind(SocketAddr::new(IpAddr::V6(Ipv6Addr::UNSPECIFIED), udp_port))
-            .await
-            .ok();
+        let v6 = crate::bind_v6_only(udp_port).ok();
         let sfu = Sfu::new(
             SocketAddr::new(LABEL_V4, udp_port),
             SocketAddr::new(LABEL_V6, udp_port),
@@ -241,6 +245,11 @@ impl VoiceNode {
     /// Applies a command from the main server.
     pub fn send(&self, command: NodeCommand) {
         self.command(Command::Node(command));
+    }
+
+    /// A frame of a channel's music, from the audio bridge.
+    pub fn music_frame(&self, channel_id: i64, packet: crate::sfu::MusicPacket) {
+        self.command(Command::MusicFrame { channel_id, packet });
     }
 
     /// The key voice tokens must be signed with, from the main server.

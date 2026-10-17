@@ -1653,7 +1653,7 @@ extension CoreEventPayloadPatterns on CoreEventPayload {
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeMap<TResult extends Object?>({TResult Function( CoreEventPayload_ConnectionState value)?  connectionState,TResult Function( CoreEventPayload_Ready value)?  ready,TResult Function( CoreEventPayload_MessageCreate value)?  messageCreate,TResult Function( CoreEventPayload_MessageUpdate value)?  messageUpdate,TResult Function( CoreEventPayload_MessageDelete value)?  messageDelete,TResult Function( CoreEventPayload_ChannelCreate value)?  channelCreate,TResult Function( CoreEventPayload_ChannelUpdate value)?  channelUpdate,TResult Function( CoreEventPayload_ChannelDelete value)?  channelDelete,TResult Function( CoreEventPayload_RoleCreate value)?  roleCreate,TResult Function( CoreEventPayload_RoleUpdate value)?  roleUpdate,TResult Function( CoreEventPayload_RoleDelete value)?  roleDelete,TResult Function( CoreEventPayload_MemberJoin value)?  memberJoin,TResult Function( CoreEventPayload_MemberLeave value)?  memberLeave,TResult Function( CoreEventPayload_MemberUpdate value)?  memberUpdate,TResult Function( CoreEventPayload_PresenceUpdate value)?  presenceUpdate,TResult Function( CoreEventPayload_TypingStart value)?  typingStart,TResult Function( CoreEventPayload_ServerUpdate value)?  serverUpdate,TResult Function( CoreEventPayload_PermissionsUpdate value)?  permissionsUpdate,TResult Function( CoreEventPayload_VoiceStateUpdate value)?  voiceStateUpdate,TResult Function( CoreEventPayload_VoiceSettingsUpdate value)?  voiceSettingsUpdate,TResult Function( CoreEventPayload_StreamCreate value)?  streamCreate,TResult Function( CoreEventPayload_StreamUpdate value)?  streamUpdate,TResult Function( CoreEventPayload_StreamDelete value)?  streamDelete,TResult Function( CoreEventPayload_StreamViewersUpdate value)?  streamViewersUpdate,TResult Function( CoreEventPayload_SoundboardSoundCreate value)?  soundboardSoundCreate,TResult Function( CoreEventPayload_SoundboardSoundUpdate value)?  soundboardSoundUpdate,TResult Function( CoreEventPayload_SoundboardSoundDelete value)?  soundboardSoundDelete,TResult Function( CoreEventPayload_VoiceChannelEffect value)?  voiceChannelEffect,required TResult orElse(),}){
+@optionalTypeArgs TResult maybeMap<TResult extends Object?>({TResult Function( CoreEventPayload_ConnectionState value)?  connectionState,TResult Function( CoreEventPayload_Ready value)?  ready,TResult Function( CoreEventPayload_MessageCreate value)?  messageCreate,TResult Function( CoreEventPayload_MessageUpdate value)?  messageUpdate,TResult Function( CoreEventPayload_MessageDelete value)?  messageDelete,TResult Function( CoreEventPayload_ChannelCreate value)?  channelCreate,TResult Function( CoreEventPayload_ChannelUpdate value)?  channelUpdate,TResult Function( CoreEventPayload_ChannelDelete value)?  channelDelete,TResult Function( CoreEventPayload_RoleCreate value)?  roleCreate,TResult Function( CoreEventPayload_RoleUpdate value)?  roleUpdate,TResult Function( CoreEventPayload_RoleDelete value)?  roleDelete,TResult Function( CoreEventPayload_MemberJoin value)?  memberJoin,TResult Function( CoreEventPayload_MemberLeave value)?  memberLeave,TResult Function( CoreEventPayload_MemberUpdate value)?  memberUpdate,TResult Function( CoreEventPayload_PresenceUpdate value)?  presenceUpdate,TResult Function( CoreEventPayload_TypingStart value)?  typingStart,TResult Function( CoreEventPayload_ServerUpdate value)?  serverUpdate,TResult Function( CoreEventPayload_PermissionsUpdate value)?  permissionsUpdate,TResult Function( CoreEventPayload_VoiceStateUpdate value)?  voiceStateUpdate,TResult Function( CoreEventPayload_VoiceSettingsUpdate value)?  voiceSettingsUpdate,TResult Function( CoreEventPayload_StreamCreate value)?  streamCreate,TResult Function( CoreEventPayload_StreamUpdate value)?  streamUpdate,TResult Function( CoreEventPayload_StreamDelete value)?  streamDelete,TResult Function( CoreEventPayload_StreamViewersUpdate value)?  streamViewersUpdate,TResult Function( CoreEventPayload_SoundboardSoundCreate value)?  soundboardSoundCreate,TResult Function( CoreEventPayload_SoundboardSoundUpdate value)?  soundboardSoundUpdate,TResult Function( CoreEventPayload_SoundboardSoundDelete value)?  soundboardSoundDelete,TResult Function( CoreEventPayload_VoiceChannelEffect value)?  voiceChannelEffect,TResult Function( CoreEventPayload_ServerAddressesUpdate value)?  serverAddressesUpdate,TResult Function( CoreEventPayload_NetworkStatus value)?  networkStatus,TResult Function( CoreEventPayload_ServerNotice value)?  serverNotice,TResult Function( CoreEventPayload_LavalinkNodeStatus value)?  lavalinkNodeStatus,TResult Function( CoreEventPayload_LavalinkNodeRemoved value)?  lavalinkNodeRemoved,TResult Function( CoreEventPayload_LavalinkNodeEvent value)?  lavalinkNodeEvent,TResult Function( CoreEventPayload_LavalinkTestProgress value)?  lavalinkTestProgress,TResult Function( CoreEventPayload_MusicSettingsUpdate value)?  musicSettingsUpdate,TResult Function( CoreEventPayload_MusicSession value)?  musicSession,TResult Function( CoreEventPayload_MusicNowPlaying value)?  musicNowPlaying,TResult Function( CoreEventPayload_MusicNotice value)?  musicNotice,TResult Function( CoreEventPayload_CommandsUpdate value)?  commandsUpdate,TResult Function( CoreEventPayload_EphemeralMessage value)?  ephemeralMessage,required TResult orElse(),}){
 final _that = this;
 switch (_that) {
 case CoreEventPayload_ConnectionState() when connectionState != null:
@@ -1684,7 +1684,20 @@ return streamViewersUpdate(_that);case CoreEventPayload_SoundboardSoundCreate() 
 return soundboardSoundCreate(_that);case CoreEventPayload_SoundboardSoundUpdate() when soundboardSoundUpdate != null:
 return soundboardSoundUpdate(_that);case CoreEventPayload_SoundboardSoundDelete() when soundboardSoundDelete != null:
 return soundboardSoundDelete(_that);case CoreEventPayload_VoiceChannelEffect() when voiceChannelEffect != null:
-return voiceChannelEffect(_that);case _:
+return voiceChannelEffect(_that);case CoreEventPayload_ServerAddressesUpdate() when serverAddressesUpdate != null:
+return serverAddressesUpdate(_that);case CoreEventPayload_NetworkStatus() when networkStatus != null:
+return networkStatus(_that);case CoreEventPayload_ServerNotice() when serverNotice != null:
+return serverNotice(_that);case CoreEventPayload_LavalinkNodeStatus() when lavalinkNodeStatus != null:
+return lavalinkNodeStatus(_that);case CoreEventPayload_LavalinkNodeRemoved() when lavalinkNodeRemoved != null:
+return lavalinkNodeRemoved(_that);case CoreEventPayload_LavalinkNodeEvent() when lavalinkNodeEvent != null:
+return lavalinkNodeEvent(_that);case CoreEventPayload_LavalinkTestProgress() when lavalinkTestProgress != null:
+return lavalinkTestProgress(_that);case CoreEventPayload_MusicSettingsUpdate() when musicSettingsUpdate != null:
+return musicSettingsUpdate(_that);case CoreEventPayload_MusicSession() when musicSession != null:
+return musicSession(_that);case CoreEventPayload_MusicNowPlaying() when musicNowPlaying != null:
+return musicNowPlaying(_that);case CoreEventPayload_MusicNotice() when musicNotice != null:
+return musicNotice(_that);case CoreEventPayload_CommandsUpdate() when commandsUpdate != null:
+return commandsUpdate(_that);case CoreEventPayload_EphemeralMessage() when ephemeralMessage != null:
+return ephemeralMessage(_that);case _:
   return orElse();
 
 }
@@ -1702,7 +1715,7 @@ return voiceChannelEffect(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult map<TResult extends Object?>({required TResult Function( CoreEventPayload_ConnectionState value)  connectionState,required TResult Function( CoreEventPayload_Ready value)  ready,required TResult Function( CoreEventPayload_MessageCreate value)  messageCreate,required TResult Function( CoreEventPayload_MessageUpdate value)  messageUpdate,required TResult Function( CoreEventPayload_MessageDelete value)  messageDelete,required TResult Function( CoreEventPayload_ChannelCreate value)  channelCreate,required TResult Function( CoreEventPayload_ChannelUpdate value)  channelUpdate,required TResult Function( CoreEventPayload_ChannelDelete value)  channelDelete,required TResult Function( CoreEventPayload_RoleCreate value)  roleCreate,required TResult Function( CoreEventPayload_RoleUpdate value)  roleUpdate,required TResult Function( CoreEventPayload_RoleDelete value)  roleDelete,required TResult Function( CoreEventPayload_MemberJoin value)  memberJoin,required TResult Function( CoreEventPayload_MemberLeave value)  memberLeave,required TResult Function( CoreEventPayload_MemberUpdate value)  memberUpdate,required TResult Function( CoreEventPayload_PresenceUpdate value)  presenceUpdate,required TResult Function( CoreEventPayload_TypingStart value)  typingStart,required TResult Function( CoreEventPayload_ServerUpdate value)  serverUpdate,required TResult Function( CoreEventPayload_PermissionsUpdate value)  permissionsUpdate,required TResult Function( CoreEventPayload_VoiceStateUpdate value)  voiceStateUpdate,required TResult Function( CoreEventPayload_VoiceSettingsUpdate value)  voiceSettingsUpdate,required TResult Function( CoreEventPayload_StreamCreate value)  streamCreate,required TResult Function( CoreEventPayload_StreamUpdate value)  streamUpdate,required TResult Function( CoreEventPayload_StreamDelete value)  streamDelete,required TResult Function( CoreEventPayload_StreamViewersUpdate value)  streamViewersUpdate,required TResult Function( CoreEventPayload_SoundboardSoundCreate value)  soundboardSoundCreate,required TResult Function( CoreEventPayload_SoundboardSoundUpdate value)  soundboardSoundUpdate,required TResult Function( CoreEventPayload_SoundboardSoundDelete value)  soundboardSoundDelete,required TResult Function( CoreEventPayload_VoiceChannelEffect value)  voiceChannelEffect,}){
+@optionalTypeArgs TResult map<TResult extends Object?>({required TResult Function( CoreEventPayload_ConnectionState value)  connectionState,required TResult Function( CoreEventPayload_Ready value)  ready,required TResult Function( CoreEventPayload_MessageCreate value)  messageCreate,required TResult Function( CoreEventPayload_MessageUpdate value)  messageUpdate,required TResult Function( CoreEventPayload_MessageDelete value)  messageDelete,required TResult Function( CoreEventPayload_ChannelCreate value)  channelCreate,required TResult Function( CoreEventPayload_ChannelUpdate value)  channelUpdate,required TResult Function( CoreEventPayload_ChannelDelete value)  channelDelete,required TResult Function( CoreEventPayload_RoleCreate value)  roleCreate,required TResult Function( CoreEventPayload_RoleUpdate value)  roleUpdate,required TResult Function( CoreEventPayload_RoleDelete value)  roleDelete,required TResult Function( CoreEventPayload_MemberJoin value)  memberJoin,required TResult Function( CoreEventPayload_MemberLeave value)  memberLeave,required TResult Function( CoreEventPayload_MemberUpdate value)  memberUpdate,required TResult Function( CoreEventPayload_PresenceUpdate value)  presenceUpdate,required TResult Function( CoreEventPayload_TypingStart value)  typingStart,required TResult Function( CoreEventPayload_ServerUpdate value)  serverUpdate,required TResult Function( CoreEventPayload_PermissionsUpdate value)  permissionsUpdate,required TResult Function( CoreEventPayload_VoiceStateUpdate value)  voiceStateUpdate,required TResult Function( CoreEventPayload_VoiceSettingsUpdate value)  voiceSettingsUpdate,required TResult Function( CoreEventPayload_StreamCreate value)  streamCreate,required TResult Function( CoreEventPayload_StreamUpdate value)  streamUpdate,required TResult Function( CoreEventPayload_StreamDelete value)  streamDelete,required TResult Function( CoreEventPayload_StreamViewersUpdate value)  streamViewersUpdate,required TResult Function( CoreEventPayload_SoundboardSoundCreate value)  soundboardSoundCreate,required TResult Function( CoreEventPayload_SoundboardSoundUpdate value)  soundboardSoundUpdate,required TResult Function( CoreEventPayload_SoundboardSoundDelete value)  soundboardSoundDelete,required TResult Function( CoreEventPayload_VoiceChannelEffect value)  voiceChannelEffect,required TResult Function( CoreEventPayload_ServerAddressesUpdate value)  serverAddressesUpdate,required TResult Function( CoreEventPayload_NetworkStatus value)  networkStatus,required TResult Function( CoreEventPayload_ServerNotice value)  serverNotice,required TResult Function( CoreEventPayload_LavalinkNodeStatus value)  lavalinkNodeStatus,required TResult Function( CoreEventPayload_LavalinkNodeRemoved value)  lavalinkNodeRemoved,required TResult Function( CoreEventPayload_LavalinkNodeEvent value)  lavalinkNodeEvent,required TResult Function( CoreEventPayload_LavalinkTestProgress value)  lavalinkTestProgress,required TResult Function( CoreEventPayload_MusicSettingsUpdate value)  musicSettingsUpdate,required TResult Function( CoreEventPayload_MusicSession value)  musicSession,required TResult Function( CoreEventPayload_MusicNowPlaying value)  musicNowPlaying,required TResult Function( CoreEventPayload_MusicNotice value)  musicNotice,required TResult Function( CoreEventPayload_CommandsUpdate value)  commandsUpdate,required TResult Function( CoreEventPayload_EphemeralMessage value)  ephemeralMessage,}){
 final _that = this;
 switch (_that) {
 case CoreEventPayload_ConnectionState():
@@ -1733,7 +1746,20 @@ return streamViewersUpdate(_that);case CoreEventPayload_SoundboardSoundCreate():
 return soundboardSoundCreate(_that);case CoreEventPayload_SoundboardSoundUpdate():
 return soundboardSoundUpdate(_that);case CoreEventPayload_SoundboardSoundDelete():
 return soundboardSoundDelete(_that);case CoreEventPayload_VoiceChannelEffect():
-return voiceChannelEffect(_that);}
+return voiceChannelEffect(_that);case CoreEventPayload_ServerAddressesUpdate():
+return serverAddressesUpdate(_that);case CoreEventPayload_NetworkStatus():
+return networkStatus(_that);case CoreEventPayload_ServerNotice():
+return serverNotice(_that);case CoreEventPayload_LavalinkNodeStatus():
+return lavalinkNodeStatus(_that);case CoreEventPayload_LavalinkNodeRemoved():
+return lavalinkNodeRemoved(_that);case CoreEventPayload_LavalinkNodeEvent():
+return lavalinkNodeEvent(_that);case CoreEventPayload_LavalinkTestProgress():
+return lavalinkTestProgress(_that);case CoreEventPayload_MusicSettingsUpdate():
+return musicSettingsUpdate(_that);case CoreEventPayload_MusicSession():
+return musicSession(_that);case CoreEventPayload_MusicNowPlaying():
+return musicNowPlaying(_that);case CoreEventPayload_MusicNotice():
+return musicNotice(_that);case CoreEventPayload_CommandsUpdate():
+return commandsUpdate(_that);case CoreEventPayload_EphemeralMessage():
+return ephemeralMessage(_that);}
 }
 /// A variant of `map` that fallback to returning `null`.
 ///
@@ -1747,7 +1773,7 @@ return voiceChannelEffect(_that);}
 /// }
 /// ```
 
-@optionalTypeArgs TResult? mapOrNull<TResult extends Object?>({TResult? Function( CoreEventPayload_ConnectionState value)?  connectionState,TResult? Function( CoreEventPayload_Ready value)?  ready,TResult? Function( CoreEventPayload_MessageCreate value)?  messageCreate,TResult? Function( CoreEventPayload_MessageUpdate value)?  messageUpdate,TResult? Function( CoreEventPayload_MessageDelete value)?  messageDelete,TResult? Function( CoreEventPayload_ChannelCreate value)?  channelCreate,TResult? Function( CoreEventPayload_ChannelUpdate value)?  channelUpdate,TResult? Function( CoreEventPayload_ChannelDelete value)?  channelDelete,TResult? Function( CoreEventPayload_RoleCreate value)?  roleCreate,TResult? Function( CoreEventPayload_RoleUpdate value)?  roleUpdate,TResult? Function( CoreEventPayload_RoleDelete value)?  roleDelete,TResult? Function( CoreEventPayload_MemberJoin value)?  memberJoin,TResult? Function( CoreEventPayload_MemberLeave value)?  memberLeave,TResult? Function( CoreEventPayload_MemberUpdate value)?  memberUpdate,TResult? Function( CoreEventPayload_PresenceUpdate value)?  presenceUpdate,TResult? Function( CoreEventPayload_TypingStart value)?  typingStart,TResult? Function( CoreEventPayload_ServerUpdate value)?  serverUpdate,TResult? Function( CoreEventPayload_PermissionsUpdate value)?  permissionsUpdate,TResult? Function( CoreEventPayload_VoiceStateUpdate value)?  voiceStateUpdate,TResult? Function( CoreEventPayload_VoiceSettingsUpdate value)?  voiceSettingsUpdate,TResult? Function( CoreEventPayload_StreamCreate value)?  streamCreate,TResult? Function( CoreEventPayload_StreamUpdate value)?  streamUpdate,TResult? Function( CoreEventPayload_StreamDelete value)?  streamDelete,TResult? Function( CoreEventPayload_StreamViewersUpdate value)?  streamViewersUpdate,TResult? Function( CoreEventPayload_SoundboardSoundCreate value)?  soundboardSoundCreate,TResult? Function( CoreEventPayload_SoundboardSoundUpdate value)?  soundboardSoundUpdate,TResult? Function( CoreEventPayload_SoundboardSoundDelete value)?  soundboardSoundDelete,TResult? Function( CoreEventPayload_VoiceChannelEffect value)?  voiceChannelEffect,}){
+@optionalTypeArgs TResult? mapOrNull<TResult extends Object?>({TResult? Function( CoreEventPayload_ConnectionState value)?  connectionState,TResult? Function( CoreEventPayload_Ready value)?  ready,TResult? Function( CoreEventPayload_MessageCreate value)?  messageCreate,TResult? Function( CoreEventPayload_MessageUpdate value)?  messageUpdate,TResult? Function( CoreEventPayload_MessageDelete value)?  messageDelete,TResult? Function( CoreEventPayload_ChannelCreate value)?  channelCreate,TResult? Function( CoreEventPayload_ChannelUpdate value)?  channelUpdate,TResult? Function( CoreEventPayload_ChannelDelete value)?  channelDelete,TResult? Function( CoreEventPayload_RoleCreate value)?  roleCreate,TResult? Function( CoreEventPayload_RoleUpdate value)?  roleUpdate,TResult? Function( CoreEventPayload_RoleDelete value)?  roleDelete,TResult? Function( CoreEventPayload_MemberJoin value)?  memberJoin,TResult? Function( CoreEventPayload_MemberLeave value)?  memberLeave,TResult? Function( CoreEventPayload_MemberUpdate value)?  memberUpdate,TResult? Function( CoreEventPayload_PresenceUpdate value)?  presenceUpdate,TResult? Function( CoreEventPayload_TypingStart value)?  typingStart,TResult? Function( CoreEventPayload_ServerUpdate value)?  serverUpdate,TResult? Function( CoreEventPayload_PermissionsUpdate value)?  permissionsUpdate,TResult? Function( CoreEventPayload_VoiceStateUpdate value)?  voiceStateUpdate,TResult? Function( CoreEventPayload_VoiceSettingsUpdate value)?  voiceSettingsUpdate,TResult? Function( CoreEventPayload_StreamCreate value)?  streamCreate,TResult? Function( CoreEventPayload_StreamUpdate value)?  streamUpdate,TResult? Function( CoreEventPayload_StreamDelete value)?  streamDelete,TResult? Function( CoreEventPayload_StreamViewersUpdate value)?  streamViewersUpdate,TResult? Function( CoreEventPayload_SoundboardSoundCreate value)?  soundboardSoundCreate,TResult? Function( CoreEventPayload_SoundboardSoundUpdate value)?  soundboardSoundUpdate,TResult? Function( CoreEventPayload_SoundboardSoundDelete value)?  soundboardSoundDelete,TResult? Function( CoreEventPayload_VoiceChannelEffect value)?  voiceChannelEffect,TResult? Function( CoreEventPayload_ServerAddressesUpdate value)?  serverAddressesUpdate,TResult? Function( CoreEventPayload_NetworkStatus value)?  networkStatus,TResult? Function( CoreEventPayload_ServerNotice value)?  serverNotice,TResult? Function( CoreEventPayload_LavalinkNodeStatus value)?  lavalinkNodeStatus,TResult? Function( CoreEventPayload_LavalinkNodeRemoved value)?  lavalinkNodeRemoved,TResult? Function( CoreEventPayload_LavalinkNodeEvent value)?  lavalinkNodeEvent,TResult? Function( CoreEventPayload_LavalinkTestProgress value)?  lavalinkTestProgress,TResult? Function( CoreEventPayload_MusicSettingsUpdate value)?  musicSettingsUpdate,TResult? Function( CoreEventPayload_MusicSession value)?  musicSession,TResult? Function( CoreEventPayload_MusicNowPlaying value)?  musicNowPlaying,TResult? Function( CoreEventPayload_MusicNotice value)?  musicNotice,TResult? Function( CoreEventPayload_CommandsUpdate value)?  commandsUpdate,TResult? Function( CoreEventPayload_EphemeralMessage value)?  ephemeralMessage,}){
 final _that = this;
 switch (_that) {
 case CoreEventPayload_ConnectionState() when connectionState != null:
@@ -1778,7 +1804,20 @@ return streamViewersUpdate(_that);case CoreEventPayload_SoundboardSoundCreate() 
 return soundboardSoundCreate(_that);case CoreEventPayload_SoundboardSoundUpdate() when soundboardSoundUpdate != null:
 return soundboardSoundUpdate(_that);case CoreEventPayload_SoundboardSoundDelete() when soundboardSoundDelete != null:
 return soundboardSoundDelete(_that);case CoreEventPayload_VoiceChannelEffect() when voiceChannelEffect != null:
-return voiceChannelEffect(_that);case _:
+return voiceChannelEffect(_that);case CoreEventPayload_ServerAddressesUpdate() when serverAddressesUpdate != null:
+return serverAddressesUpdate(_that);case CoreEventPayload_NetworkStatus() when networkStatus != null:
+return networkStatus(_that);case CoreEventPayload_ServerNotice() when serverNotice != null:
+return serverNotice(_that);case CoreEventPayload_LavalinkNodeStatus() when lavalinkNodeStatus != null:
+return lavalinkNodeStatus(_that);case CoreEventPayload_LavalinkNodeRemoved() when lavalinkNodeRemoved != null:
+return lavalinkNodeRemoved(_that);case CoreEventPayload_LavalinkNodeEvent() when lavalinkNodeEvent != null:
+return lavalinkNodeEvent(_that);case CoreEventPayload_LavalinkTestProgress() when lavalinkTestProgress != null:
+return lavalinkTestProgress(_that);case CoreEventPayload_MusicSettingsUpdate() when musicSettingsUpdate != null:
+return musicSettingsUpdate(_that);case CoreEventPayload_MusicSession() when musicSession != null:
+return musicSession(_that);case CoreEventPayload_MusicNowPlaying() when musicNowPlaying != null:
+return musicNowPlaying(_that);case CoreEventPayload_MusicNotice() when musicNotice != null:
+return musicNotice(_that);case CoreEventPayload_CommandsUpdate() when commandsUpdate != null:
+return commandsUpdate(_that);case CoreEventPayload_EphemeralMessage() when ephemeralMessage != null:
+return ephemeralMessage(_that);case _:
   return null;
 
 }
@@ -1795,7 +1834,7 @@ return voiceChannelEffect(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>({TResult Function( ConnectionState field0)?  connectionState,TResult Function( ReadySnapshot field0)?  ready,TResult Function( Message field0)?  messageCreate,TResult Function( Message field0)?  messageUpdate,TResult Function( PlatformInt64 channelId,  PlatformInt64 messageId)?  messageDelete,TResult Function( Channel field0)?  channelCreate,TResult Function( Channel field0)?  channelUpdate,TResult Function( PlatformInt64 channelId)?  channelDelete,TResult Function( Role field0)?  roleCreate,TResult Function( Role field0)?  roleUpdate,TResult Function( PlatformInt64 roleId)?  roleDelete,TResult Function( Member field0)?  memberJoin,TResult Function( PlatformInt64 userId)?  memberLeave,TResult Function( Member field0)?  memberUpdate,TResult Function( Presence field0)?  presenceUpdate,TResult Function( PlatformInt64 channelId,  PlatformInt64 userId)?  typingStart,TResult Function( ServerInfo field0)?  serverUpdate,TResult Function( PlatformInt64 serverPermissions,  List<ChannelPermissions> channelPermissions)?  permissionsUpdate,TResult Function( VoiceState field0)?  voiceStateUpdate,TResult Function( VoiceSettings field0)?  voiceSettingsUpdate,TResult Function( ScreenStream field0)?  streamCreate,TResult Function( ScreenStream field0)?  streamUpdate,TResult Function( String streamKey,  PlatformInt64 channelId)?  streamDelete,TResult Function( String streamKey,  Int64List viewerIds)?  streamViewersUpdate,TResult Function( SoundboardSound field0)?  soundboardSoundCreate,TResult Function( SoundboardSound field0)?  soundboardSoundUpdate,TResult Function( PlatformInt64 soundId)?  soundboardSoundDelete,TResult Function( SoundEffect field0)?  voiceChannelEffect,required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>({TResult Function( ConnectionState field0)?  connectionState,TResult Function( ReadySnapshot field0)?  ready,TResult Function( Message field0)?  messageCreate,TResult Function( Message field0)?  messageUpdate,TResult Function( PlatformInt64 channelId,  PlatformInt64 messageId)?  messageDelete,TResult Function( Channel field0)?  channelCreate,TResult Function( Channel field0)?  channelUpdate,TResult Function( PlatformInt64 channelId)?  channelDelete,TResult Function( Role field0)?  roleCreate,TResult Function( Role field0)?  roleUpdate,TResult Function( PlatformInt64 roleId)?  roleDelete,TResult Function( Member field0)?  memberJoin,TResult Function( PlatformInt64 userId)?  memberLeave,TResult Function( Member field0)?  memberUpdate,TResult Function( Presence field0)?  presenceUpdate,TResult Function( PlatformInt64 channelId,  PlatformInt64 userId)?  typingStart,TResult Function( ServerInfo field0)?  serverUpdate,TResult Function( PlatformInt64 serverPermissions,  List<ChannelPermissions> channelPermissions)?  permissionsUpdate,TResult Function( VoiceState field0)?  voiceStateUpdate,TResult Function( VoiceSettings field0)?  voiceSettingsUpdate,TResult Function( ScreenStream field0)?  streamCreate,TResult Function( ScreenStream field0)?  streamUpdate,TResult Function( String streamKey,  PlatformInt64 channelId)?  streamDelete,TResult Function( String streamKey,  Int64List viewerIds)?  streamViewersUpdate,TResult Function( SoundboardSound field0)?  soundboardSoundCreate,TResult Function( SoundboardSound field0)?  soundboardSoundUpdate,TResult Function( PlatformInt64 soundId)?  soundboardSoundDelete,TResult Function( SoundEffect field0)?  voiceChannelEffect,TResult Function( ServerAddresses field0)?  serverAddressesUpdate,TResult Function( NetworkInfo field0)?  networkStatus,TResult Function( ServerNotice field0)?  serverNotice,TResult Function( LavalinkNode node,  int channelsPlaying)?  lavalinkNodeStatus,TResult Function( PlatformInt64 nodeId,  int channelsPlaying)?  lavalinkNodeRemoved,TResult Function( LavalinkNodeEvent field0)?  lavalinkNodeEvent,TResult Function( LavalinkTestProgress field0)?  lavalinkTestProgress,TResult Function( MusicSettings field0)?  musicSettingsUpdate,TResult Function( MusicSession field0)?  musicSession,TResult Function( MusicNowPlaying field0)?  musicNowPlaying,TResult Function( MusicNotice field0)?  musicNotice,TResult Function( CommandList field0)?  commandsUpdate,TResult Function( EphemeralMessage field0)?  ephemeralMessage,required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case CoreEventPayload_ConnectionState() when connectionState != null:
 return connectionState(_that.field0);case CoreEventPayload_Ready() when ready != null:
@@ -1825,7 +1864,20 @@ return streamViewersUpdate(_that.streamKey,_that.viewerIds);case CoreEventPayloa
 return soundboardSoundCreate(_that.field0);case CoreEventPayload_SoundboardSoundUpdate() when soundboardSoundUpdate != null:
 return soundboardSoundUpdate(_that.field0);case CoreEventPayload_SoundboardSoundDelete() when soundboardSoundDelete != null:
 return soundboardSoundDelete(_that.soundId);case CoreEventPayload_VoiceChannelEffect() when voiceChannelEffect != null:
-return voiceChannelEffect(_that.field0);case _:
+return voiceChannelEffect(_that.field0);case CoreEventPayload_ServerAddressesUpdate() when serverAddressesUpdate != null:
+return serverAddressesUpdate(_that.field0);case CoreEventPayload_NetworkStatus() when networkStatus != null:
+return networkStatus(_that.field0);case CoreEventPayload_ServerNotice() when serverNotice != null:
+return serverNotice(_that.field0);case CoreEventPayload_LavalinkNodeStatus() when lavalinkNodeStatus != null:
+return lavalinkNodeStatus(_that.node,_that.channelsPlaying);case CoreEventPayload_LavalinkNodeRemoved() when lavalinkNodeRemoved != null:
+return lavalinkNodeRemoved(_that.nodeId,_that.channelsPlaying);case CoreEventPayload_LavalinkNodeEvent() when lavalinkNodeEvent != null:
+return lavalinkNodeEvent(_that.field0);case CoreEventPayload_LavalinkTestProgress() when lavalinkTestProgress != null:
+return lavalinkTestProgress(_that.field0);case CoreEventPayload_MusicSettingsUpdate() when musicSettingsUpdate != null:
+return musicSettingsUpdate(_that.field0);case CoreEventPayload_MusicSession() when musicSession != null:
+return musicSession(_that.field0);case CoreEventPayload_MusicNowPlaying() when musicNowPlaying != null:
+return musicNowPlaying(_that.field0);case CoreEventPayload_MusicNotice() when musicNotice != null:
+return musicNotice(_that.field0);case CoreEventPayload_CommandsUpdate() when commandsUpdate != null:
+return commandsUpdate(_that.field0);case CoreEventPayload_EphemeralMessage() when ephemeralMessage != null:
+return ephemeralMessage(_that.field0);case _:
   return orElse();
 
 }
@@ -1843,7 +1895,7 @@ return voiceChannelEffect(_that.field0);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>({required TResult Function( ConnectionState field0)  connectionState,required TResult Function( ReadySnapshot field0)  ready,required TResult Function( Message field0)  messageCreate,required TResult Function( Message field0)  messageUpdate,required TResult Function( PlatformInt64 channelId,  PlatformInt64 messageId)  messageDelete,required TResult Function( Channel field0)  channelCreate,required TResult Function( Channel field0)  channelUpdate,required TResult Function( PlatformInt64 channelId)  channelDelete,required TResult Function( Role field0)  roleCreate,required TResult Function( Role field0)  roleUpdate,required TResult Function( PlatformInt64 roleId)  roleDelete,required TResult Function( Member field0)  memberJoin,required TResult Function( PlatformInt64 userId)  memberLeave,required TResult Function( Member field0)  memberUpdate,required TResult Function( Presence field0)  presenceUpdate,required TResult Function( PlatformInt64 channelId,  PlatformInt64 userId)  typingStart,required TResult Function( ServerInfo field0)  serverUpdate,required TResult Function( PlatformInt64 serverPermissions,  List<ChannelPermissions> channelPermissions)  permissionsUpdate,required TResult Function( VoiceState field0)  voiceStateUpdate,required TResult Function( VoiceSettings field0)  voiceSettingsUpdate,required TResult Function( ScreenStream field0)  streamCreate,required TResult Function( ScreenStream field0)  streamUpdate,required TResult Function( String streamKey,  PlatformInt64 channelId)  streamDelete,required TResult Function( String streamKey,  Int64List viewerIds)  streamViewersUpdate,required TResult Function( SoundboardSound field0)  soundboardSoundCreate,required TResult Function( SoundboardSound field0)  soundboardSoundUpdate,required TResult Function( PlatformInt64 soundId)  soundboardSoundDelete,required TResult Function( SoundEffect field0)  voiceChannelEffect,}) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>({required TResult Function( ConnectionState field0)  connectionState,required TResult Function( ReadySnapshot field0)  ready,required TResult Function( Message field0)  messageCreate,required TResult Function( Message field0)  messageUpdate,required TResult Function( PlatformInt64 channelId,  PlatformInt64 messageId)  messageDelete,required TResult Function( Channel field0)  channelCreate,required TResult Function( Channel field0)  channelUpdate,required TResult Function( PlatformInt64 channelId)  channelDelete,required TResult Function( Role field0)  roleCreate,required TResult Function( Role field0)  roleUpdate,required TResult Function( PlatformInt64 roleId)  roleDelete,required TResult Function( Member field0)  memberJoin,required TResult Function( PlatformInt64 userId)  memberLeave,required TResult Function( Member field0)  memberUpdate,required TResult Function( Presence field0)  presenceUpdate,required TResult Function( PlatformInt64 channelId,  PlatformInt64 userId)  typingStart,required TResult Function( ServerInfo field0)  serverUpdate,required TResult Function( PlatformInt64 serverPermissions,  List<ChannelPermissions> channelPermissions)  permissionsUpdate,required TResult Function( VoiceState field0)  voiceStateUpdate,required TResult Function( VoiceSettings field0)  voiceSettingsUpdate,required TResult Function( ScreenStream field0)  streamCreate,required TResult Function( ScreenStream field0)  streamUpdate,required TResult Function( String streamKey,  PlatformInt64 channelId)  streamDelete,required TResult Function( String streamKey,  Int64List viewerIds)  streamViewersUpdate,required TResult Function( SoundboardSound field0)  soundboardSoundCreate,required TResult Function( SoundboardSound field0)  soundboardSoundUpdate,required TResult Function( PlatformInt64 soundId)  soundboardSoundDelete,required TResult Function( SoundEffect field0)  voiceChannelEffect,required TResult Function( ServerAddresses field0)  serverAddressesUpdate,required TResult Function( NetworkInfo field0)  networkStatus,required TResult Function( ServerNotice field0)  serverNotice,required TResult Function( LavalinkNode node,  int channelsPlaying)  lavalinkNodeStatus,required TResult Function( PlatformInt64 nodeId,  int channelsPlaying)  lavalinkNodeRemoved,required TResult Function( LavalinkNodeEvent field0)  lavalinkNodeEvent,required TResult Function( LavalinkTestProgress field0)  lavalinkTestProgress,required TResult Function( MusicSettings field0)  musicSettingsUpdate,required TResult Function( MusicSession field0)  musicSession,required TResult Function( MusicNowPlaying field0)  musicNowPlaying,required TResult Function( MusicNotice field0)  musicNotice,required TResult Function( CommandList field0)  commandsUpdate,required TResult Function( EphemeralMessage field0)  ephemeralMessage,}) {final _that = this;
 switch (_that) {
 case CoreEventPayload_ConnectionState():
 return connectionState(_that.field0);case CoreEventPayload_Ready():
@@ -1873,7 +1925,20 @@ return streamViewersUpdate(_that.streamKey,_that.viewerIds);case CoreEventPayloa
 return soundboardSoundCreate(_that.field0);case CoreEventPayload_SoundboardSoundUpdate():
 return soundboardSoundUpdate(_that.field0);case CoreEventPayload_SoundboardSoundDelete():
 return soundboardSoundDelete(_that.soundId);case CoreEventPayload_VoiceChannelEffect():
-return voiceChannelEffect(_that.field0);}
+return voiceChannelEffect(_that.field0);case CoreEventPayload_ServerAddressesUpdate():
+return serverAddressesUpdate(_that.field0);case CoreEventPayload_NetworkStatus():
+return networkStatus(_that.field0);case CoreEventPayload_ServerNotice():
+return serverNotice(_that.field0);case CoreEventPayload_LavalinkNodeStatus():
+return lavalinkNodeStatus(_that.node,_that.channelsPlaying);case CoreEventPayload_LavalinkNodeRemoved():
+return lavalinkNodeRemoved(_that.nodeId,_that.channelsPlaying);case CoreEventPayload_LavalinkNodeEvent():
+return lavalinkNodeEvent(_that.field0);case CoreEventPayload_LavalinkTestProgress():
+return lavalinkTestProgress(_that.field0);case CoreEventPayload_MusicSettingsUpdate():
+return musicSettingsUpdate(_that.field0);case CoreEventPayload_MusicSession():
+return musicSession(_that.field0);case CoreEventPayload_MusicNowPlaying():
+return musicNowPlaying(_that.field0);case CoreEventPayload_MusicNotice():
+return musicNotice(_that.field0);case CoreEventPayload_CommandsUpdate():
+return commandsUpdate(_that.field0);case CoreEventPayload_EphemeralMessage():
+return ephemeralMessage(_that.field0);}
 }
 /// A variant of `when` that fallback to returning `null`
 ///
@@ -1887,7 +1952,7 @@ return voiceChannelEffect(_that.field0);}
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>({TResult? Function( ConnectionState field0)?  connectionState,TResult? Function( ReadySnapshot field0)?  ready,TResult? Function( Message field0)?  messageCreate,TResult? Function( Message field0)?  messageUpdate,TResult? Function( PlatformInt64 channelId,  PlatformInt64 messageId)?  messageDelete,TResult? Function( Channel field0)?  channelCreate,TResult? Function( Channel field0)?  channelUpdate,TResult? Function( PlatformInt64 channelId)?  channelDelete,TResult? Function( Role field0)?  roleCreate,TResult? Function( Role field0)?  roleUpdate,TResult? Function( PlatformInt64 roleId)?  roleDelete,TResult? Function( Member field0)?  memberJoin,TResult? Function( PlatformInt64 userId)?  memberLeave,TResult? Function( Member field0)?  memberUpdate,TResult? Function( Presence field0)?  presenceUpdate,TResult? Function( PlatformInt64 channelId,  PlatformInt64 userId)?  typingStart,TResult? Function( ServerInfo field0)?  serverUpdate,TResult? Function( PlatformInt64 serverPermissions,  List<ChannelPermissions> channelPermissions)?  permissionsUpdate,TResult? Function( VoiceState field0)?  voiceStateUpdate,TResult? Function( VoiceSettings field0)?  voiceSettingsUpdate,TResult? Function( ScreenStream field0)?  streamCreate,TResult? Function( ScreenStream field0)?  streamUpdate,TResult? Function( String streamKey,  PlatformInt64 channelId)?  streamDelete,TResult? Function( String streamKey,  Int64List viewerIds)?  streamViewersUpdate,TResult? Function( SoundboardSound field0)?  soundboardSoundCreate,TResult? Function( SoundboardSound field0)?  soundboardSoundUpdate,TResult? Function( PlatformInt64 soundId)?  soundboardSoundDelete,TResult? Function( SoundEffect field0)?  voiceChannelEffect,}) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>({TResult? Function( ConnectionState field0)?  connectionState,TResult? Function( ReadySnapshot field0)?  ready,TResult? Function( Message field0)?  messageCreate,TResult? Function( Message field0)?  messageUpdate,TResult? Function( PlatformInt64 channelId,  PlatformInt64 messageId)?  messageDelete,TResult? Function( Channel field0)?  channelCreate,TResult? Function( Channel field0)?  channelUpdate,TResult? Function( PlatformInt64 channelId)?  channelDelete,TResult? Function( Role field0)?  roleCreate,TResult? Function( Role field0)?  roleUpdate,TResult? Function( PlatformInt64 roleId)?  roleDelete,TResult? Function( Member field0)?  memberJoin,TResult? Function( PlatformInt64 userId)?  memberLeave,TResult? Function( Member field0)?  memberUpdate,TResult? Function( Presence field0)?  presenceUpdate,TResult? Function( PlatformInt64 channelId,  PlatformInt64 userId)?  typingStart,TResult? Function( ServerInfo field0)?  serverUpdate,TResult? Function( PlatformInt64 serverPermissions,  List<ChannelPermissions> channelPermissions)?  permissionsUpdate,TResult? Function( VoiceState field0)?  voiceStateUpdate,TResult? Function( VoiceSettings field0)?  voiceSettingsUpdate,TResult? Function( ScreenStream field0)?  streamCreate,TResult? Function( ScreenStream field0)?  streamUpdate,TResult? Function( String streamKey,  PlatformInt64 channelId)?  streamDelete,TResult? Function( String streamKey,  Int64List viewerIds)?  streamViewersUpdate,TResult? Function( SoundboardSound field0)?  soundboardSoundCreate,TResult? Function( SoundboardSound field0)?  soundboardSoundUpdate,TResult? Function( PlatformInt64 soundId)?  soundboardSoundDelete,TResult? Function( SoundEffect field0)?  voiceChannelEffect,TResult? Function( ServerAddresses field0)?  serverAddressesUpdate,TResult? Function( NetworkInfo field0)?  networkStatus,TResult? Function( ServerNotice field0)?  serverNotice,TResult? Function( LavalinkNode node,  int channelsPlaying)?  lavalinkNodeStatus,TResult? Function( PlatformInt64 nodeId,  int channelsPlaying)?  lavalinkNodeRemoved,TResult? Function( LavalinkNodeEvent field0)?  lavalinkNodeEvent,TResult? Function( LavalinkTestProgress field0)?  lavalinkTestProgress,TResult? Function( MusicSettings field0)?  musicSettingsUpdate,TResult? Function( MusicSession field0)?  musicSession,TResult? Function( MusicNowPlaying field0)?  musicNowPlaying,TResult? Function( MusicNotice field0)?  musicNotice,TResult? Function( CommandList field0)?  commandsUpdate,TResult? Function( EphemeralMessage field0)?  ephemeralMessage,}) {final _that = this;
 switch (_that) {
 case CoreEventPayload_ConnectionState() when connectionState != null:
 return connectionState(_that.field0);case CoreEventPayload_Ready() when ready != null:
@@ -1917,7 +1982,20 @@ return streamViewersUpdate(_that.streamKey,_that.viewerIds);case CoreEventPayloa
 return soundboardSoundCreate(_that.field0);case CoreEventPayload_SoundboardSoundUpdate() when soundboardSoundUpdate != null:
 return soundboardSoundUpdate(_that.field0);case CoreEventPayload_SoundboardSoundDelete() when soundboardSoundDelete != null:
 return soundboardSoundDelete(_that.soundId);case CoreEventPayload_VoiceChannelEffect() when voiceChannelEffect != null:
-return voiceChannelEffect(_that.field0);case _:
+return voiceChannelEffect(_that.field0);case CoreEventPayload_ServerAddressesUpdate() when serverAddressesUpdate != null:
+return serverAddressesUpdate(_that.field0);case CoreEventPayload_NetworkStatus() when networkStatus != null:
+return networkStatus(_that.field0);case CoreEventPayload_ServerNotice() when serverNotice != null:
+return serverNotice(_that.field0);case CoreEventPayload_LavalinkNodeStatus() when lavalinkNodeStatus != null:
+return lavalinkNodeStatus(_that.node,_that.channelsPlaying);case CoreEventPayload_LavalinkNodeRemoved() when lavalinkNodeRemoved != null:
+return lavalinkNodeRemoved(_that.nodeId,_that.channelsPlaying);case CoreEventPayload_LavalinkNodeEvent() when lavalinkNodeEvent != null:
+return lavalinkNodeEvent(_that.field0);case CoreEventPayload_LavalinkTestProgress() when lavalinkTestProgress != null:
+return lavalinkTestProgress(_that.field0);case CoreEventPayload_MusicSettingsUpdate() when musicSettingsUpdate != null:
+return musicSettingsUpdate(_that.field0);case CoreEventPayload_MusicSession() when musicSession != null:
+return musicSession(_that.field0);case CoreEventPayload_MusicNowPlaying() when musicNowPlaying != null:
+return musicNowPlaying(_that.field0);case CoreEventPayload_MusicNotice() when musicNotice != null:
+return musicNotice(_that.field0);case CoreEventPayload_CommandsUpdate() when commandsUpdate != null:
+return commandsUpdate(_that.field0);case CoreEventPayload_EphemeralMessage() when ephemeralMessage != null:
+return ephemeralMessage(_that.field0);case _:
   return null;
 
 }
@@ -3792,6 +3870,868 @@ class _$CoreEventPayload_VoiceChannelEffectCopyWithImpl<$Res>
   return _then(CoreEventPayload_VoiceChannelEffect(
 null == field0 ? _self.field0 : field0 // ignore: cast_nullable_to_non_nullable
 as SoundEffect,
+  ));
+}
+
+
+}
+
+/// @nodoc
+
+
+class CoreEventPayload_ServerAddressesUpdate extends CoreEventPayload {
+  const CoreEventPayload_ServerAddressesUpdate(this.field0): super._();
+  
+
+ final  ServerAddresses field0;
+
+/// Create a copy of CoreEventPayload
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$CoreEventPayload_ServerAddressesUpdateCopyWith<CoreEventPayload_ServerAddressesUpdate> get copyWith => _$CoreEventPayload_ServerAddressesUpdateCopyWithImpl<CoreEventPayload_ServerAddressesUpdate>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is CoreEventPayload_ServerAddressesUpdate&&(identical(other.field0, field0) || other.field0 == field0));
+}
+
+
+@override
+int get hashCode => Object.hash(runtimeType,field0);
+
+@override
+String toString() {
+  return 'CoreEventPayload.serverAddressesUpdate(field0: $field0)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $CoreEventPayload_ServerAddressesUpdateCopyWith<$Res> implements $CoreEventPayloadCopyWith<$Res> {
+  factory $CoreEventPayload_ServerAddressesUpdateCopyWith(CoreEventPayload_ServerAddressesUpdate value, $Res Function(CoreEventPayload_ServerAddressesUpdate) _then) = _$CoreEventPayload_ServerAddressesUpdateCopyWithImpl;
+@useResult
+$Res call({
+ ServerAddresses field0
+});
+
+
+
+
+}
+/// @nodoc
+class _$CoreEventPayload_ServerAddressesUpdateCopyWithImpl<$Res>
+    implements $CoreEventPayload_ServerAddressesUpdateCopyWith<$Res> {
+  _$CoreEventPayload_ServerAddressesUpdateCopyWithImpl(this._self, this._then);
+
+  final CoreEventPayload_ServerAddressesUpdate _self;
+  final $Res Function(CoreEventPayload_ServerAddressesUpdate) _then;
+
+/// Create a copy of CoreEventPayload
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? field0 = null,}) {
+  return _then(CoreEventPayload_ServerAddressesUpdate(
+null == field0 ? _self.field0 : field0 // ignore: cast_nullable_to_non_nullable
+as ServerAddresses,
+  ));
+}
+
+
+}
+
+/// @nodoc
+
+
+class CoreEventPayload_NetworkStatus extends CoreEventPayload {
+  const CoreEventPayload_NetworkStatus(this.field0): super._();
+  
+
+ final  NetworkInfo field0;
+
+/// Create a copy of CoreEventPayload
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$CoreEventPayload_NetworkStatusCopyWith<CoreEventPayload_NetworkStatus> get copyWith => _$CoreEventPayload_NetworkStatusCopyWithImpl<CoreEventPayload_NetworkStatus>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is CoreEventPayload_NetworkStatus&&(identical(other.field0, field0) || other.field0 == field0));
+}
+
+
+@override
+int get hashCode => Object.hash(runtimeType,field0);
+
+@override
+String toString() {
+  return 'CoreEventPayload.networkStatus(field0: $field0)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $CoreEventPayload_NetworkStatusCopyWith<$Res> implements $CoreEventPayloadCopyWith<$Res> {
+  factory $CoreEventPayload_NetworkStatusCopyWith(CoreEventPayload_NetworkStatus value, $Res Function(CoreEventPayload_NetworkStatus) _then) = _$CoreEventPayload_NetworkStatusCopyWithImpl;
+@useResult
+$Res call({
+ NetworkInfo field0
+});
+
+
+
+
+}
+/// @nodoc
+class _$CoreEventPayload_NetworkStatusCopyWithImpl<$Res>
+    implements $CoreEventPayload_NetworkStatusCopyWith<$Res> {
+  _$CoreEventPayload_NetworkStatusCopyWithImpl(this._self, this._then);
+
+  final CoreEventPayload_NetworkStatus _self;
+  final $Res Function(CoreEventPayload_NetworkStatus) _then;
+
+/// Create a copy of CoreEventPayload
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? field0 = null,}) {
+  return _then(CoreEventPayload_NetworkStatus(
+null == field0 ? _self.field0 : field0 // ignore: cast_nullable_to_non_nullable
+as NetworkInfo,
+  ));
+}
+
+
+}
+
+/// @nodoc
+
+
+class CoreEventPayload_ServerNotice extends CoreEventPayload {
+  const CoreEventPayload_ServerNotice(this.field0): super._();
+  
+
+ final  ServerNotice field0;
+
+/// Create a copy of CoreEventPayload
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$CoreEventPayload_ServerNoticeCopyWith<CoreEventPayload_ServerNotice> get copyWith => _$CoreEventPayload_ServerNoticeCopyWithImpl<CoreEventPayload_ServerNotice>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is CoreEventPayload_ServerNotice&&(identical(other.field0, field0) || other.field0 == field0));
+}
+
+
+@override
+int get hashCode => Object.hash(runtimeType,field0);
+
+@override
+String toString() {
+  return 'CoreEventPayload.serverNotice(field0: $field0)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $CoreEventPayload_ServerNoticeCopyWith<$Res> implements $CoreEventPayloadCopyWith<$Res> {
+  factory $CoreEventPayload_ServerNoticeCopyWith(CoreEventPayload_ServerNotice value, $Res Function(CoreEventPayload_ServerNotice) _then) = _$CoreEventPayload_ServerNoticeCopyWithImpl;
+@useResult
+$Res call({
+ ServerNotice field0
+});
+
+
+
+
+}
+/// @nodoc
+class _$CoreEventPayload_ServerNoticeCopyWithImpl<$Res>
+    implements $CoreEventPayload_ServerNoticeCopyWith<$Res> {
+  _$CoreEventPayload_ServerNoticeCopyWithImpl(this._self, this._then);
+
+  final CoreEventPayload_ServerNotice _self;
+  final $Res Function(CoreEventPayload_ServerNotice) _then;
+
+/// Create a copy of CoreEventPayload
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? field0 = null,}) {
+  return _then(CoreEventPayload_ServerNotice(
+null == field0 ? _self.field0 : field0 // ignore: cast_nullable_to_non_nullable
+as ServerNotice,
+  ));
+}
+
+
+}
+
+/// @nodoc
+
+
+class CoreEventPayload_LavalinkNodeStatus extends CoreEventPayload {
+  const CoreEventPayload_LavalinkNodeStatus({required this.node, required this.channelsPlaying}): super._();
+  
+
+ final  LavalinkNode node;
+ final  int channelsPlaying;
+
+/// Create a copy of CoreEventPayload
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$CoreEventPayload_LavalinkNodeStatusCopyWith<CoreEventPayload_LavalinkNodeStatus> get copyWith => _$CoreEventPayload_LavalinkNodeStatusCopyWithImpl<CoreEventPayload_LavalinkNodeStatus>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is CoreEventPayload_LavalinkNodeStatus&&(identical(other.node, node) || other.node == node)&&(identical(other.channelsPlaying, channelsPlaying) || other.channelsPlaying == channelsPlaying));
+}
+
+
+@override
+int get hashCode => Object.hash(runtimeType,node,channelsPlaying);
+
+@override
+String toString() {
+  return 'CoreEventPayload.lavalinkNodeStatus(node: $node, channelsPlaying: $channelsPlaying)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $CoreEventPayload_LavalinkNodeStatusCopyWith<$Res> implements $CoreEventPayloadCopyWith<$Res> {
+  factory $CoreEventPayload_LavalinkNodeStatusCopyWith(CoreEventPayload_LavalinkNodeStatus value, $Res Function(CoreEventPayload_LavalinkNodeStatus) _then) = _$CoreEventPayload_LavalinkNodeStatusCopyWithImpl;
+@useResult
+$Res call({
+ LavalinkNode node, int channelsPlaying
+});
+
+
+
+
+}
+/// @nodoc
+class _$CoreEventPayload_LavalinkNodeStatusCopyWithImpl<$Res>
+    implements $CoreEventPayload_LavalinkNodeStatusCopyWith<$Res> {
+  _$CoreEventPayload_LavalinkNodeStatusCopyWithImpl(this._self, this._then);
+
+  final CoreEventPayload_LavalinkNodeStatus _self;
+  final $Res Function(CoreEventPayload_LavalinkNodeStatus) _then;
+
+/// Create a copy of CoreEventPayload
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? node = null,Object? channelsPlaying = null,}) {
+  return _then(CoreEventPayload_LavalinkNodeStatus(
+node: null == node ? _self.node : node // ignore: cast_nullable_to_non_nullable
+as LavalinkNode,channelsPlaying: null == channelsPlaying ? _self.channelsPlaying : channelsPlaying // ignore: cast_nullable_to_non_nullable
+as int,
+  ));
+}
+
+
+}
+
+/// @nodoc
+
+
+class CoreEventPayload_LavalinkNodeRemoved extends CoreEventPayload {
+  const CoreEventPayload_LavalinkNodeRemoved({required this.nodeId, required this.channelsPlaying}): super._();
+  
+
+ final  PlatformInt64 nodeId;
+ final  int channelsPlaying;
+
+/// Create a copy of CoreEventPayload
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$CoreEventPayload_LavalinkNodeRemovedCopyWith<CoreEventPayload_LavalinkNodeRemoved> get copyWith => _$CoreEventPayload_LavalinkNodeRemovedCopyWithImpl<CoreEventPayload_LavalinkNodeRemoved>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is CoreEventPayload_LavalinkNodeRemoved&&(identical(other.nodeId, nodeId) || other.nodeId == nodeId)&&(identical(other.channelsPlaying, channelsPlaying) || other.channelsPlaying == channelsPlaying));
+}
+
+
+@override
+int get hashCode => Object.hash(runtimeType,nodeId,channelsPlaying);
+
+@override
+String toString() {
+  return 'CoreEventPayload.lavalinkNodeRemoved(nodeId: $nodeId, channelsPlaying: $channelsPlaying)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $CoreEventPayload_LavalinkNodeRemovedCopyWith<$Res> implements $CoreEventPayloadCopyWith<$Res> {
+  factory $CoreEventPayload_LavalinkNodeRemovedCopyWith(CoreEventPayload_LavalinkNodeRemoved value, $Res Function(CoreEventPayload_LavalinkNodeRemoved) _then) = _$CoreEventPayload_LavalinkNodeRemovedCopyWithImpl;
+@useResult
+$Res call({
+ PlatformInt64 nodeId, int channelsPlaying
+});
+
+
+
+
+}
+/// @nodoc
+class _$CoreEventPayload_LavalinkNodeRemovedCopyWithImpl<$Res>
+    implements $CoreEventPayload_LavalinkNodeRemovedCopyWith<$Res> {
+  _$CoreEventPayload_LavalinkNodeRemovedCopyWithImpl(this._self, this._then);
+
+  final CoreEventPayload_LavalinkNodeRemoved _self;
+  final $Res Function(CoreEventPayload_LavalinkNodeRemoved) _then;
+
+/// Create a copy of CoreEventPayload
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? nodeId = null,Object? channelsPlaying = null,}) {
+  return _then(CoreEventPayload_LavalinkNodeRemoved(
+nodeId: null == nodeId ? _self.nodeId : nodeId // ignore: cast_nullable_to_non_nullable
+as PlatformInt64,channelsPlaying: null == channelsPlaying ? _self.channelsPlaying : channelsPlaying // ignore: cast_nullable_to_non_nullable
+as int,
+  ));
+}
+
+
+}
+
+/// @nodoc
+
+
+class CoreEventPayload_LavalinkNodeEvent extends CoreEventPayload {
+  const CoreEventPayload_LavalinkNodeEvent(this.field0): super._();
+  
+
+ final  LavalinkNodeEvent field0;
+
+/// Create a copy of CoreEventPayload
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$CoreEventPayload_LavalinkNodeEventCopyWith<CoreEventPayload_LavalinkNodeEvent> get copyWith => _$CoreEventPayload_LavalinkNodeEventCopyWithImpl<CoreEventPayload_LavalinkNodeEvent>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is CoreEventPayload_LavalinkNodeEvent&&(identical(other.field0, field0) || other.field0 == field0));
+}
+
+
+@override
+int get hashCode => Object.hash(runtimeType,field0);
+
+@override
+String toString() {
+  return 'CoreEventPayload.lavalinkNodeEvent(field0: $field0)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $CoreEventPayload_LavalinkNodeEventCopyWith<$Res> implements $CoreEventPayloadCopyWith<$Res> {
+  factory $CoreEventPayload_LavalinkNodeEventCopyWith(CoreEventPayload_LavalinkNodeEvent value, $Res Function(CoreEventPayload_LavalinkNodeEvent) _then) = _$CoreEventPayload_LavalinkNodeEventCopyWithImpl;
+@useResult
+$Res call({
+ LavalinkNodeEvent field0
+});
+
+
+
+
+}
+/// @nodoc
+class _$CoreEventPayload_LavalinkNodeEventCopyWithImpl<$Res>
+    implements $CoreEventPayload_LavalinkNodeEventCopyWith<$Res> {
+  _$CoreEventPayload_LavalinkNodeEventCopyWithImpl(this._self, this._then);
+
+  final CoreEventPayload_LavalinkNodeEvent _self;
+  final $Res Function(CoreEventPayload_LavalinkNodeEvent) _then;
+
+/// Create a copy of CoreEventPayload
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? field0 = null,}) {
+  return _then(CoreEventPayload_LavalinkNodeEvent(
+null == field0 ? _self.field0 : field0 // ignore: cast_nullable_to_non_nullable
+as LavalinkNodeEvent,
+  ));
+}
+
+
+}
+
+/// @nodoc
+
+
+class CoreEventPayload_LavalinkTestProgress extends CoreEventPayload {
+  const CoreEventPayload_LavalinkTestProgress(this.field0): super._();
+  
+
+ final  LavalinkTestProgress field0;
+
+/// Create a copy of CoreEventPayload
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$CoreEventPayload_LavalinkTestProgressCopyWith<CoreEventPayload_LavalinkTestProgress> get copyWith => _$CoreEventPayload_LavalinkTestProgressCopyWithImpl<CoreEventPayload_LavalinkTestProgress>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is CoreEventPayload_LavalinkTestProgress&&(identical(other.field0, field0) || other.field0 == field0));
+}
+
+
+@override
+int get hashCode => Object.hash(runtimeType,field0);
+
+@override
+String toString() {
+  return 'CoreEventPayload.lavalinkTestProgress(field0: $field0)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $CoreEventPayload_LavalinkTestProgressCopyWith<$Res> implements $CoreEventPayloadCopyWith<$Res> {
+  factory $CoreEventPayload_LavalinkTestProgressCopyWith(CoreEventPayload_LavalinkTestProgress value, $Res Function(CoreEventPayload_LavalinkTestProgress) _then) = _$CoreEventPayload_LavalinkTestProgressCopyWithImpl;
+@useResult
+$Res call({
+ LavalinkTestProgress field0
+});
+
+
+
+
+}
+/// @nodoc
+class _$CoreEventPayload_LavalinkTestProgressCopyWithImpl<$Res>
+    implements $CoreEventPayload_LavalinkTestProgressCopyWith<$Res> {
+  _$CoreEventPayload_LavalinkTestProgressCopyWithImpl(this._self, this._then);
+
+  final CoreEventPayload_LavalinkTestProgress _self;
+  final $Res Function(CoreEventPayload_LavalinkTestProgress) _then;
+
+/// Create a copy of CoreEventPayload
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? field0 = null,}) {
+  return _then(CoreEventPayload_LavalinkTestProgress(
+null == field0 ? _self.field0 : field0 // ignore: cast_nullable_to_non_nullable
+as LavalinkTestProgress,
+  ));
+}
+
+
+}
+
+/// @nodoc
+
+
+class CoreEventPayload_MusicSettingsUpdate extends CoreEventPayload {
+  const CoreEventPayload_MusicSettingsUpdate(this.field0): super._();
+  
+
+ final  MusicSettings field0;
+
+/// Create a copy of CoreEventPayload
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$CoreEventPayload_MusicSettingsUpdateCopyWith<CoreEventPayload_MusicSettingsUpdate> get copyWith => _$CoreEventPayload_MusicSettingsUpdateCopyWithImpl<CoreEventPayload_MusicSettingsUpdate>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is CoreEventPayload_MusicSettingsUpdate&&(identical(other.field0, field0) || other.field0 == field0));
+}
+
+
+@override
+int get hashCode => Object.hash(runtimeType,field0);
+
+@override
+String toString() {
+  return 'CoreEventPayload.musicSettingsUpdate(field0: $field0)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $CoreEventPayload_MusicSettingsUpdateCopyWith<$Res> implements $CoreEventPayloadCopyWith<$Res> {
+  factory $CoreEventPayload_MusicSettingsUpdateCopyWith(CoreEventPayload_MusicSettingsUpdate value, $Res Function(CoreEventPayload_MusicSettingsUpdate) _then) = _$CoreEventPayload_MusicSettingsUpdateCopyWithImpl;
+@useResult
+$Res call({
+ MusicSettings field0
+});
+
+
+
+
+}
+/// @nodoc
+class _$CoreEventPayload_MusicSettingsUpdateCopyWithImpl<$Res>
+    implements $CoreEventPayload_MusicSettingsUpdateCopyWith<$Res> {
+  _$CoreEventPayload_MusicSettingsUpdateCopyWithImpl(this._self, this._then);
+
+  final CoreEventPayload_MusicSettingsUpdate _self;
+  final $Res Function(CoreEventPayload_MusicSettingsUpdate) _then;
+
+/// Create a copy of CoreEventPayload
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? field0 = null,}) {
+  return _then(CoreEventPayload_MusicSettingsUpdate(
+null == field0 ? _self.field0 : field0 // ignore: cast_nullable_to_non_nullable
+as MusicSettings,
+  ));
+}
+
+
+}
+
+/// @nodoc
+
+
+class CoreEventPayload_MusicSession extends CoreEventPayload {
+  const CoreEventPayload_MusicSession(this.field0): super._();
+  
+
+ final  MusicSession field0;
+
+/// Create a copy of CoreEventPayload
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$CoreEventPayload_MusicSessionCopyWith<CoreEventPayload_MusicSession> get copyWith => _$CoreEventPayload_MusicSessionCopyWithImpl<CoreEventPayload_MusicSession>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is CoreEventPayload_MusicSession&&(identical(other.field0, field0) || other.field0 == field0));
+}
+
+
+@override
+int get hashCode => Object.hash(runtimeType,field0);
+
+@override
+String toString() {
+  return 'CoreEventPayload.musicSession(field0: $field0)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $CoreEventPayload_MusicSessionCopyWith<$Res> implements $CoreEventPayloadCopyWith<$Res> {
+  factory $CoreEventPayload_MusicSessionCopyWith(CoreEventPayload_MusicSession value, $Res Function(CoreEventPayload_MusicSession) _then) = _$CoreEventPayload_MusicSessionCopyWithImpl;
+@useResult
+$Res call({
+ MusicSession field0
+});
+
+
+
+
+}
+/// @nodoc
+class _$CoreEventPayload_MusicSessionCopyWithImpl<$Res>
+    implements $CoreEventPayload_MusicSessionCopyWith<$Res> {
+  _$CoreEventPayload_MusicSessionCopyWithImpl(this._self, this._then);
+
+  final CoreEventPayload_MusicSession _self;
+  final $Res Function(CoreEventPayload_MusicSession) _then;
+
+/// Create a copy of CoreEventPayload
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? field0 = null,}) {
+  return _then(CoreEventPayload_MusicSession(
+null == field0 ? _self.field0 : field0 // ignore: cast_nullable_to_non_nullable
+as MusicSession,
+  ));
+}
+
+
+}
+
+/// @nodoc
+
+
+class CoreEventPayload_MusicNowPlaying extends CoreEventPayload {
+  const CoreEventPayload_MusicNowPlaying(this.field0): super._();
+  
+
+ final  MusicNowPlaying field0;
+
+/// Create a copy of CoreEventPayload
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$CoreEventPayload_MusicNowPlayingCopyWith<CoreEventPayload_MusicNowPlaying> get copyWith => _$CoreEventPayload_MusicNowPlayingCopyWithImpl<CoreEventPayload_MusicNowPlaying>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is CoreEventPayload_MusicNowPlaying&&(identical(other.field0, field0) || other.field0 == field0));
+}
+
+
+@override
+int get hashCode => Object.hash(runtimeType,field0);
+
+@override
+String toString() {
+  return 'CoreEventPayload.musicNowPlaying(field0: $field0)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $CoreEventPayload_MusicNowPlayingCopyWith<$Res> implements $CoreEventPayloadCopyWith<$Res> {
+  factory $CoreEventPayload_MusicNowPlayingCopyWith(CoreEventPayload_MusicNowPlaying value, $Res Function(CoreEventPayload_MusicNowPlaying) _then) = _$CoreEventPayload_MusicNowPlayingCopyWithImpl;
+@useResult
+$Res call({
+ MusicNowPlaying field0
+});
+
+
+
+
+}
+/// @nodoc
+class _$CoreEventPayload_MusicNowPlayingCopyWithImpl<$Res>
+    implements $CoreEventPayload_MusicNowPlayingCopyWith<$Res> {
+  _$CoreEventPayload_MusicNowPlayingCopyWithImpl(this._self, this._then);
+
+  final CoreEventPayload_MusicNowPlaying _self;
+  final $Res Function(CoreEventPayload_MusicNowPlaying) _then;
+
+/// Create a copy of CoreEventPayload
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? field0 = null,}) {
+  return _then(CoreEventPayload_MusicNowPlaying(
+null == field0 ? _self.field0 : field0 // ignore: cast_nullable_to_non_nullable
+as MusicNowPlaying,
+  ));
+}
+
+
+}
+
+/// @nodoc
+
+
+class CoreEventPayload_MusicNotice extends CoreEventPayload {
+  const CoreEventPayload_MusicNotice(this.field0): super._();
+  
+
+ final  MusicNotice field0;
+
+/// Create a copy of CoreEventPayload
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$CoreEventPayload_MusicNoticeCopyWith<CoreEventPayload_MusicNotice> get copyWith => _$CoreEventPayload_MusicNoticeCopyWithImpl<CoreEventPayload_MusicNotice>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is CoreEventPayload_MusicNotice&&(identical(other.field0, field0) || other.field0 == field0));
+}
+
+
+@override
+int get hashCode => Object.hash(runtimeType,field0);
+
+@override
+String toString() {
+  return 'CoreEventPayload.musicNotice(field0: $field0)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $CoreEventPayload_MusicNoticeCopyWith<$Res> implements $CoreEventPayloadCopyWith<$Res> {
+  factory $CoreEventPayload_MusicNoticeCopyWith(CoreEventPayload_MusicNotice value, $Res Function(CoreEventPayload_MusicNotice) _then) = _$CoreEventPayload_MusicNoticeCopyWithImpl;
+@useResult
+$Res call({
+ MusicNotice field0
+});
+
+
+
+
+}
+/// @nodoc
+class _$CoreEventPayload_MusicNoticeCopyWithImpl<$Res>
+    implements $CoreEventPayload_MusicNoticeCopyWith<$Res> {
+  _$CoreEventPayload_MusicNoticeCopyWithImpl(this._self, this._then);
+
+  final CoreEventPayload_MusicNotice _self;
+  final $Res Function(CoreEventPayload_MusicNotice) _then;
+
+/// Create a copy of CoreEventPayload
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? field0 = null,}) {
+  return _then(CoreEventPayload_MusicNotice(
+null == field0 ? _self.field0 : field0 // ignore: cast_nullable_to_non_nullable
+as MusicNotice,
+  ));
+}
+
+
+}
+
+/// @nodoc
+
+
+class CoreEventPayload_CommandsUpdate extends CoreEventPayload {
+  const CoreEventPayload_CommandsUpdate(this.field0): super._();
+  
+
+ final  CommandList field0;
+
+/// Create a copy of CoreEventPayload
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$CoreEventPayload_CommandsUpdateCopyWith<CoreEventPayload_CommandsUpdate> get copyWith => _$CoreEventPayload_CommandsUpdateCopyWithImpl<CoreEventPayload_CommandsUpdate>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is CoreEventPayload_CommandsUpdate&&(identical(other.field0, field0) || other.field0 == field0));
+}
+
+
+@override
+int get hashCode => Object.hash(runtimeType,field0);
+
+@override
+String toString() {
+  return 'CoreEventPayload.commandsUpdate(field0: $field0)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $CoreEventPayload_CommandsUpdateCopyWith<$Res> implements $CoreEventPayloadCopyWith<$Res> {
+  factory $CoreEventPayload_CommandsUpdateCopyWith(CoreEventPayload_CommandsUpdate value, $Res Function(CoreEventPayload_CommandsUpdate) _then) = _$CoreEventPayload_CommandsUpdateCopyWithImpl;
+@useResult
+$Res call({
+ CommandList field0
+});
+
+
+
+
+}
+/// @nodoc
+class _$CoreEventPayload_CommandsUpdateCopyWithImpl<$Res>
+    implements $CoreEventPayload_CommandsUpdateCopyWith<$Res> {
+  _$CoreEventPayload_CommandsUpdateCopyWithImpl(this._self, this._then);
+
+  final CoreEventPayload_CommandsUpdate _self;
+  final $Res Function(CoreEventPayload_CommandsUpdate) _then;
+
+/// Create a copy of CoreEventPayload
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? field0 = null,}) {
+  return _then(CoreEventPayload_CommandsUpdate(
+null == field0 ? _self.field0 : field0 // ignore: cast_nullable_to_non_nullable
+as CommandList,
+  ));
+}
+
+
+}
+
+/// @nodoc
+
+
+class CoreEventPayload_EphemeralMessage extends CoreEventPayload {
+  const CoreEventPayload_EphemeralMessage(this.field0): super._();
+  
+
+ final  EphemeralMessage field0;
+
+/// Create a copy of CoreEventPayload
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$CoreEventPayload_EphemeralMessageCopyWith<CoreEventPayload_EphemeralMessage> get copyWith => _$CoreEventPayload_EphemeralMessageCopyWithImpl<CoreEventPayload_EphemeralMessage>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is CoreEventPayload_EphemeralMessage&&(identical(other.field0, field0) || other.field0 == field0));
+}
+
+
+@override
+int get hashCode => Object.hash(runtimeType,field0);
+
+@override
+String toString() {
+  return 'CoreEventPayload.ephemeralMessage(field0: $field0)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $CoreEventPayload_EphemeralMessageCopyWith<$Res> implements $CoreEventPayloadCopyWith<$Res> {
+  factory $CoreEventPayload_EphemeralMessageCopyWith(CoreEventPayload_EphemeralMessage value, $Res Function(CoreEventPayload_EphemeralMessage) _then) = _$CoreEventPayload_EphemeralMessageCopyWithImpl;
+@useResult
+$Res call({
+ EphemeralMessage field0
+});
+
+
+
+
+}
+/// @nodoc
+class _$CoreEventPayload_EphemeralMessageCopyWithImpl<$Res>
+    implements $CoreEventPayload_EphemeralMessageCopyWith<$Res> {
+  _$CoreEventPayload_EphemeralMessageCopyWithImpl(this._self, this._then);
+
+  final CoreEventPayload_EphemeralMessage _self;
+  final $Res Function(CoreEventPayload_EphemeralMessage) _then;
+
+/// Create a copy of CoreEventPayload
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? field0 = null,}) {
+  return _then(CoreEventPayload_EphemeralMessage(
+null == field0 ? _self.field0 : field0 // ignore: cast_nullable_to_non_nullable
+as EphemeralMessage,
   ));
 }
 

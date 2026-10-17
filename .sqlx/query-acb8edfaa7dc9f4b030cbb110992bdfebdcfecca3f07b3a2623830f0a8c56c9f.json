@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE lavalink_nodes SET resume_session = $1 WHERE id = $2",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "acb8edfaa7dc9f4b030cbb110992bdfebdcfecca3f07b3a2623830f0a8c56c9f"
+}

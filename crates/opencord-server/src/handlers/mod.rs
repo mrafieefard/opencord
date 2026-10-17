@@ -11,9 +11,14 @@ use crate::gateway::session::Session;
 use crate::state::AppState;
 
 mod channels;
+mod commands;
+mod domains;
 mod invites;
+mod lavalink;
 mod members;
 mod messages;
+pub(crate) mod music;
+mod network;
 mod profile;
 mod roles;
 pub(crate) mod settings;
@@ -96,6 +101,46 @@ async fn dispatch(ctx: &Ctx<'_>, request: proto::Request) -> Result<Response, Ap
         Kind::PlaySoundboardSound(request) => soundboard::play(ctx, request).await,
         Kind::UpdateSoundboardSound(request) => soundboard::update(ctx, request).await,
         Kind::DeleteSoundboardSound(request) => soundboard::delete(ctx, request).await,
+        Kind::WatchNetwork(request) => network::watch(ctx, &request),
+        Kind::SetPublicAddress(request) => network::set_public_address(ctx, request).await,
+        Kind::DetectPublicAddress(_) => network::detect_public_address(ctx).await,
+        Kind::UpdateNetworkSettings(request) => network::update_settings(ctx, request).await,
+        Kind::AddDomain(request) => domains::add(ctx, request).await,
+        Kind::UpdateDomain(request) => domains::update(ctx, request).await,
+        Kind::DeleteDomain(request) => domains::delete(ctx, request).await,
+        Kind::CheckDomain(request) => domains::check(ctx, &request),
+        Kind::FetchDomainChecks(request) => domains::history(ctx, request).await,
+        Kind::RequestCertificate(request) => domains::request_certificate(ctx, request).await,
+        Kind::UploadCertificate(request) => domains::upload_certificate(ctx, request).await,
+        Kind::SetDnsProvider(request) => domains::set_dns_provider(ctx, request).await,
+        Kind::AddFreeSubdomain(request) => domains::add_free_subdomain(ctx, request).await,
+        Kind::StartTunnel(request) => domains::start_tunnel(ctx, request).await,
+        Kind::StopTunnel(_) => domains::stop_tunnel(ctx).await,
+        Kind::FetchTunnelLog(_) => domains::tunnel_log(ctx).await,
+        Kind::InstallCloudflared(_) => domains::install_cloudflared(ctx).await,
+        Kind::FetchLavalinkNodes(request) => lavalink::fetch(ctx, &request),
+        Kind::CreateLavalinkNode(request) => lavalink::create(ctx, request).await,
+        Kind::UpdateLavalinkNode(request) => lavalink::update(ctx, request).await,
+        Kind::DeleteLavalinkNode(request) => lavalink::delete(ctx, &request).await,
+        Kind::TestLavalinkNode(request) => lavalink::test(ctx, &request),
+        Kind::MoveLavalinkPlayers(request) => lavalink::move_players(ctx, &request).await,
+        Kind::MusicSubscribe(request) => music::subscribe(ctx, request).await,
+        Kind::MusicSearch(request) => music::search(ctx, request).await,
+        Kind::MusicEnqueue(request) => music::enqueue(ctx, request).await,
+        Kind::MusicPlayback(request) => music::playback(ctx, request).await,
+        Kind::MusicSetMode(request) => music::set_mode(ctx, request).await,
+        Kind::MusicQueueMove(request) => music::queue_move(ctx, request).await,
+        Kind::MusicQueueRemove(request) => music::queue_remove(ctx, request).await,
+        Kind::MusicQueueClear(request) => music::queue_clear(ctx, &request).await,
+        Kind::MusicVoteSkip(request) => music::vote_skip(ctx, request).await,
+        Kind::FetchMusicSettings(_) => Ok(music::fetch_settings(ctx)),
+        Kind::UpdateMusicSettings(request) => music::update_settings(ctx, request).await,
+        Kind::FetchMusicBlocks(_) => music::fetch_blocks(ctx),
+        Kind::MusicBlockMember(request) => music::block_member(ctx, request).await,
+        Kind::ExecuteCommand(request) => commands::execute(ctx, request).await,
+        Kind::AutocompleteCommand(request) => commands::autocomplete(ctx, request).await,
+        Kind::FetchCommandSettings(_) => commands::fetch_settings(ctx),
+        Kind::UpdateCommandSettings(request) => commands::update_settings(ctx, request).await,
     }
 }
 

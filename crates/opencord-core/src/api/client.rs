@@ -13,13 +13,17 @@ use tokio::runtime::Runtime;
 
 use super::types::{
     AddServerOutcome, AudioDevices, AudioSettings, Ban, CameraDevice, CameraStarted, Channel,
-    ChannelChanges, ChannelKind, ChannelPosition, CoreError, CoreEvent, DefaultSound,
-    GeneratedIdentity, HotkeyBinding, HotkeySupport, IdentityInfo, Invite, MediaEvent, Member,
-    Message, NoiseSuppressionMode, OverwriteTargetKind, PermissionOverwrite, PresenceStatus, Role,
-    RoleChanges, ScreenAudioApp, ScreenAudioSupport, ScreenShareRequest, ScreenShareStarted,
-    ScreenSource, ScreenThumbnail, Server, ServerChanges, ServerInfo, SoundDraft, SoundSelection,
-    SoundboardSound, SoundboardSoundChanges, StreamSourceKind, TextureStats, TrustedFingerprint,
-    User, VideoSupport, VideoWant, VoiceCue, VoiceSettings, VoiceSettingsChanges, VoiceState,
+    ChannelChanges, ChannelKind, ChannelPosition, CommandChoice, CommandList, CommandOptionValue,
+    CommandOutcome, CommandSettingsChanges, CoreError, CoreEvent, DefaultSound, DomainCheck,
+    DomainKind, DomainUpdate, GeneratedIdentity, HotkeyBinding, HotkeySupport, IdentityInfo,
+    Invite, LavalinkNodeChanges, LavalinkNodeSettings, LavalinkNodes, MediaEvent, Member, Message,
+    MusicAction, MusicBlock, MusicPlacement, MusicRepeat, MusicSearchResults, MusicSession,
+    MusicSettings, MusicSettingsChanges, NetworkInfo, NetworkSettingsChanges, NoiseSuppressionMode,
+    OverwriteTargetKind, PermissionOverwrite, PresenceStatus, Role, RoleChanges, ScreenAudioApp,
+    ScreenAudioSupport, ScreenShareRequest, ScreenShareStarted, ScreenSource, ScreenThumbnail,
+    Server, ServerChanges, ServerInfo, SoundDraft, SoundSelection, SoundboardSound,
+    SoundboardSoundChanges, StreamSourceKind, TextureStats, TrustedFingerprint, TunnelKind, User,
+    VideoSupport, VideoWant, VoiceCue, VoiceSettings, VoiceSettingsChanges, VoiceState,
 };
 use crate::client::Client;
 use crate::frb_generated::StreamSink;
@@ -427,14 +431,17 @@ pub async fn update_presence(server_key: String, status: PresenceStatus) -> Resu
     on_runtime(move |client| async move { client.update_presence(&server_key, status).await }).await
 }
 
+/// An invite, through `domain_id`'s domain, or the server's primary
+/// domain when it has one (Phase 3 plan §7.6).
 pub async fn create_invite(
     server_key: String,
     max_uses: Option<u32>,
     expires_in_s: Option<u32>,
+    domain_id: Option<i64>,
 ) -> Result<Invite, CoreError> {
     on_runtime(move |client| async move {
         client
-            .create_invite(&server_key, max_uses, expires_in_s)
+            .create_invite(&server_key, max_uses, expires_in_s, domain_id)
             .await
     })
     .await
@@ -462,6 +469,510 @@ pub async fn update_voice_settings(
     on_runtime(
         move |client| async move { client.update_voice_settings(&server_key, changes).await },
     )
+    .await
+}
+
+/// Starts or stops `NetworkStatus` events for this session; returns the
+/// network as it is. Owner only (Phase 3 plan §8).
+pub async fn watch_network(server_key: String, watch: bool) -> Result<NetworkInfo, CoreError> {
+    on_runtime(move |client| async move { client.watch_network(&server_key, watch).await }).await
+}
+
+/// How the server finds its public address: detected, or overridden (an
+/// empty override is none).
+pub async fn set_public_address(
+    server_key: String,
+    auto_detect: bool,
+    override_ipv4: String,
+    override_ipv6: String,
+) -> Result<NetworkInfo, CoreError> {
+    on_runtime(move |client| async move {
+        client
+            .set_public_address(&server_key, auto_detect, override_ipv4, override_ipv6)
+            .await
+    })
+    .await
+}
+
+/// Looks the public address up now.
+pub async fn detect_public_address(server_key: String) -> Result<NetworkInfo, CoreError> {
+    on_runtime(move |client| async move { client.detect_public_address(&server_key).await }).await
+}
+
+pub async fn update_network_settings(
+    server_key: String,
+    changes: NetworkSettingsChanges,
+) -> Result<NetworkInfo, CoreError> {
+    on_runtime(
+        move |client| async move { client.update_network_settings(&server_key, changes).await },
+    )
+    .await
+}
+
+/// Attaches a domain to the server, pending its check (Phase 3 plan §6).
+pub async fn add_domain(
+    server_key: String,
+    hostname: String,
+    kind: DomainKind,
+    public_port: Option<u32>,
+) -> Result<NetworkInfo, CoreError> {
+    on_runtime(move |client| async move {
+        client
+            .add_domain(&server_key, hostname, kind, public_port)
+            .await
+    })
+    .await
+}
+
+pub async fn update_domain(
+    server_key: String,
+    domain_id: i64,
+    update: DomainUpdate,
+) -> Result<NetworkInfo, CoreError> {
+    on_runtime(
+        move |client| async move { client.update_domain(&server_key, domain_id, update).await },
+    )
+    .await
+}
+
+pub async fn delete_domain(server_key: String, domain_id: i64) -> Result<NetworkInfo, CoreError> {
+    on_runtime(move |client| async move { client.delete_domain(&server_key, domain_id).await })
+        .await
+}
+
+/// Starts a check of a domain; the result arrives as `NetworkStatus`.
+pub async fn check_domain(server_key: String, domain_id: i64) -> Result<NetworkInfo, CoreError> {
+    on_runtime(move |client| async move { client.check_domain(&server_key, domain_id).await }).await
+}
+
+/// A domain's last checks, newest first.
+pub async fn domain_checks(
+    server_key: String,
+    domain_id: i64,
+) -> Result<Vec<DomainCheck>, CoreError> {
+    on_runtime(move |client| async move { client.domain_checks(&server_key, domain_id).await })
+        .await
+}
+
+/// Starts getting a Let's Encrypt certificate for a domain; progress
+/// arrives as `NetworkStatus`. `agree_terms` is needed for the first one.
+pub async fn request_certificate(
+    server_key: String,
+    domain_id: i64,
+    email: Option<String>,
+    agree_terms: bool,
+) -> Result<NetworkInfo, CoreError> {
+    on_runtime(move |client| async move {
+        client
+            .request_certificate(&server_key, domain_id, email, agree_terms)
+            .await
+    })
+    .await
+}
+
+/// The owner's own certificate chain and key, in PEM.
+pub async fn upload_certificate(
+    server_key: String,
+    domain_id: i64,
+    chain_pem: String,
+    key_pem: String,
+) -> Result<NetworkInfo, CoreError> {
+    on_runtime(move |client| async move {
+        client
+            .upload_certificate(&server_key, domain_id, chain_pem, key_pem)
+            .await
+    })
+    .await
+}
+
+/// Connects a DNS provider (cloudflare, duckdns or desec); an empty token
+/// disconnects it.
+pub async fn set_dns_provider(
+    server_key: String,
+    kind: String,
+    token: String,
+) -> Result<NetworkInfo, CoreError> {
+    on_runtime(move |client| async move { client.set_dns_provider(&server_key, kind, token).await })
+        .await
+}
+
+/// Gets a free subdomain from DuckDNS or deSEC (`provider`: duckdns or
+/// desec); an empty token keeps the one connected.
+pub async fn add_free_subdomain(
+    server_key: String,
+    provider: String,
+    name: String,
+    token: String,
+    email: Option<String>,
+    agree_terms: bool,
+) -> Result<NetworkInfo, CoreError> {
+    on_runtime(move |client| async move {
+        client
+            .add_free_subdomain(&server_key, provider, name, token, email, agree_terms)
+            .await
+    })
+    .await
+}
+
+/// Starts a Cloudflare Tunnel; a named one needs its token (empty keeps the
+/// saved one) and hostname.
+pub async fn start_tunnel(
+    server_key: String,
+    kind: TunnelKind,
+    token: String,
+    hostname: String,
+) -> Result<NetworkInfo, CoreError> {
+    on_runtime(move |client| async move {
+        client
+            .start_tunnel(&server_key, kind, token, hostname)
+            .await
+    })
+    .await
+}
+
+pub async fn stop_tunnel(server_key: String) -> Result<NetworkInfo, CoreError> {
+    on_runtime(move |client| async move { client.stop_tunnel(&server_key).await }).await
+}
+
+/// cloudflared's last lines of output.
+pub async fn tunnel_log(server_key: String) -> Result<Vec<String>, CoreError> {
+    on_runtime(move |client| async move { client.tunnel_log(&server_key).await }).await
+}
+
+/// Has the server download cloudflared and check its checksum.
+pub async fn install_cloudflared(server_key: String) -> Result<NetworkInfo, CoreError> {
+    on_runtime(move |client| async move { client.install_cloudflared(&server_key).await }).await
+}
+
+/// The server's Lavalink nodes; with `watch`, their changes arrive as
+/// events until called again with `watch` false. Needs Manage server.
+pub async fn lavalink_nodes(server_key: String, watch: bool) -> Result<LavalinkNodes, CoreError> {
+    on_runtime(move |client| async move { client.lavalink_nodes(&server_key, watch).await }).await
+}
+
+pub async fn create_lavalink_node(
+    server_key: String,
+    settings: LavalinkNodeSettings,
+    password: String,
+) -> Result<LavalinkNodes, CoreError> {
+    on_runtime(move |client| async move {
+        client
+            .create_lavalink_node(&server_key, settings, password)
+            .await
+    })
+    .await
+}
+
+/// Changes a node; `None` fields stay as they are.
+pub async fn update_lavalink_node(
+    server_key: String,
+    node_id: i64,
+    changes: LavalinkNodeChanges,
+) -> Result<LavalinkNodes, CoreError> {
+    on_runtime(move |client| async move {
+        client
+            .update_lavalink_node(&server_key, node_id, changes)
+            .await
+    })
+    .await
+}
+
+pub async fn delete_lavalink_node(
+    server_key: String,
+    node_id: i64,
+) -> Result<LavalinkNodes, CoreError> {
+    on_runtime(move |client| async move { client.delete_lavalink_node(&server_key, node_id).await })
+        .await
+}
+
+/// Starts a node's connection test; its steps arrive as
+/// `LavalinkTestProgress` events.
+pub async fn test_lavalink_node(server_key: String, node_id: i64) -> Result<(), CoreError> {
+    on_runtime(move |client| async move { client.test_lavalink_node(&server_key, node_id).await })
+        .await
+}
+
+/// Moves the channels on a node now: to `to_node_id`, or each to the best
+/// other node. Needs Manage server.
+pub async fn move_lavalink_players(
+    server_key: String,
+    from_node_id: i64,
+    to_node_id: Option<i64>,
+) -> Result<LavalinkNodes, CoreError> {
+    on_runtime(move |client| async move {
+        client
+            .move_lavalink_players(&server_key, from_node_id, to_node_id)
+            .await
+    })
+    .await
+}
+
+/// Runs a chat command typed in `channel_id` (Phase 3 plan §17). An
+/// "only you" reply arrives as an `EphemeralMessage` with `nonce`.
+pub async fn command_execute(
+    server_key: String,
+    channel_id: i64,
+    name: String,
+    options: Vec<CommandOptionValue>,
+    nonce: String,
+) -> Result<CommandOutcome, CoreError> {
+    on_runtime(move |client| async move {
+        client
+            .command_execute(&server_key, channel_id, name, options, nonce)
+            .await
+    })
+    .await
+}
+
+/// Up to 10 suggestions for a command's option as typed so far.
+pub async fn command_autocomplete(
+    server_key: String,
+    channel_id: i64,
+    name: String,
+    option: String,
+    value: String,
+) -> Result<Vec<CommandChoice>, CoreError> {
+    on_runtime(move |client| async move {
+        client
+            .command_autocomplete(&server_key, channel_id, name, option, value)
+            .await
+    })
+    .await
+}
+
+/// Every command, on or off, for the Commands page. Needs Manage server.
+pub async fn command_settings(server_key: String) -> Result<CommandList, CoreError> {
+    on_runtime(move |client| async move { client.command_settings(&server_key).await }).await
+}
+
+/// Turns a command on or off, chooses where it works, or where results go.
+/// Needs Manage server.
+pub async fn update_command_settings(
+    server_key: String,
+    changes: CommandSettingsChanges,
+) -> Result<CommandList, CoreError> {
+    on_runtime(
+        move |client| async move { client.update_command_settings(&server_key, changes).await },
+    )
+    .await
+}
+
+/// Searches, or loads a link, for a voice channel; `source` empty for the
+/// server's default (Phase 3 plan §15.1). Needs Add music.
+pub async fn music_search(
+    server_key: String,
+    channel_id: i64,
+    query: String,
+    source: String,
+) -> Result<MusicSearchResults, CoreError> {
+    on_runtime(move |client| async move {
+        client
+            .music_search(&server_key, channel_id, query, source)
+            .await
+    })
+    .await
+}
+
+/// The channel's player; from now on its changes arrive as
+/// `MusicSession` events even when not connected to it (Phase 3 plan
+/// §14.3). Needs only to see the channel.
+pub async fn music_subscribe(
+    server_key: String,
+    channel_id: i64,
+) -> Result<MusicSession, CoreError> {
+    on_runtime(
+        move |client| async move { client.music_subscribe(&server_key, channel_id, true).await },
+    )
+    .await
+}
+
+/// Stops the changes `music_subscribe` started; those connected to the
+/// channel keep getting them.
+pub async fn music_unsubscribe(server_key: String, channel_id: i64) -> Result<(), CoreError> {
+    on_runtime(move |client| async move {
+        client
+            .music_subscribe(&server_key, channel_id, false)
+            .await
+            .map(|_| ())
+    })
+    .await
+}
+
+/// Adds search results, or tracks from the channel's history by their item
+/// ids ("Add again"): at the end, before `before_item_id`, next or now.
+/// Needs Add music; a position, next and now need Manage the queue.
+pub async fn music_enqueue(
+    server_key: String,
+    channel_id: i64,
+    result_ids: Vec<String>,
+    history_item_ids: Vec<String>,
+    before_item_id: Option<String>,
+    placement: MusicPlacement,
+) -> Result<MusicSession, CoreError> {
+    on_runtime(move |client| async move {
+        client
+            .music_enqueue(
+                &server_key,
+                channel_id,
+                result_ids,
+                history_item_ids,
+                before_item_id,
+                placement,
+            )
+            .await
+    })
+    .await
+}
+
+/// Pause, resume, next, previous, seek (to `position_ms`) or stop. With
+/// `expected_item_id`, nothing happens when another item plays by then.
+pub async fn music_playback(
+    server_key: String,
+    channel_id: i64,
+    action: MusicAction,
+    position_ms: Option<u64>,
+    expected_item_id: Option<String>,
+) -> Result<MusicSession, CoreError> {
+    on_runtime(move |client| async move {
+        client
+            .music_playback(
+                &server_key,
+                channel_id,
+                action,
+                position_ms,
+                expected_item_id,
+            )
+            .await
+    })
+    .await
+}
+
+/// Repeat and shuffle, shared by everyone in the channel.
+pub async fn music_set_mode(
+    server_key: String,
+    channel_id: i64,
+    repeat: Option<MusicRepeat>,
+    shuffle: Option<bool>,
+) -> Result<MusicSession, CoreError> {
+    on_runtime(move |client| async move {
+        client
+            .music_set_mode(&server_key, channel_id, repeat, shuffle)
+            .await
+    })
+    .await
+}
+
+/// Puts an item before another, or at the end. Needs Manage the queue.
+pub async fn music_queue_move(
+    server_key: String,
+    channel_id: i64,
+    item_id: String,
+    before_item_id: Option<String>,
+) -> Result<MusicSession, CoreError> {
+    on_runtime(move |client| async move {
+        client
+            .music_queue_move(&server_key, channel_id, item_id, before_item_id)
+            .await
+    })
+    .await
+}
+
+/// Removes items: one's own with Add music, others' with Manage the queue.
+pub async fn music_queue_remove(
+    server_key: String,
+    channel_id: i64,
+    item_ids: Vec<String>,
+) -> Result<MusicSession, CoreError> {
+    on_runtime(move |client| async move {
+        client
+            .music_queue_remove(&server_key, channel_id, item_ids)
+            .await
+    })
+    .await
+}
+
+/// Needs Manage the queue.
+pub async fn music_queue_clear(
+    server_key: String,
+    channel_id: i64,
+) -> Result<MusicSession, CoreError> {
+    on_runtime(move |client| async move { client.music_queue_clear(&server_key, channel_id).await })
+        .await
+}
+
+/// Votes to skip the current track when vote skip is enabled (Phase 3 plan §18.1).
+pub async fn music_vote_skip(
+    server_key: String,
+    channel_id: i64,
+    expected_item_id: String,
+) -> Result<MusicSession, CoreError> {
+    on_runtime(move |client| async move {
+        client
+            .music_vote_skip(&server_key, channel_id, expected_item_id)
+            .await
+    })
+    .await
+}
+
+/// This person's music volume (0–2, 200 %), mute, and "Lower music while
+/// people talk", for every server; kept on this device and never sent.
+/// Muted, the voice node stops sending the music (Phase 3 plan §19.8).
+#[frb(sync)]
+pub fn music_set_listening(
+    volume: f32,
+    muted: bool,
+    duck_while_talking: bool,
+) -> Result<(), CoreError> {
+    client()?.music_set_listening(volume, muted, duck_while_talking);
+    Ok(())
+}
+
+/// A track's artwork through the server, at 128 or 512 px: the path of a
+/// file kept on this device (Phase 3 plan §15.4).
+pub async fn music_artwork(
+    server_key: String,
+    artwork_id: String,
+    size: u32,
+) -> Result<String, CoreError> {
+    on_runtime(
+        move |client| async move { client.music_artwork(&server_key, &artwork_id, size).await },
+    )
+    .await
+}
+
+/// The music settings, with the search sources available now.
+pub async fn music_settings(server_key: String) -> Result<MusicSettings, CoreError> {
+    on_runtime(move |client| async move { client.music_settings(&server_key).await }).await
+}
+
+/// Changes the music settings; `None` fields stay. Needs Manage music.
+pub async fn update_music_settings(
+    server_key: String,
+    changes: MusicSettingsChanges,
+) -> Result<MusicSettings, CoreError> {
+    on_runtime(
+        move |client| async move { client.update_music_settings(&server_key, changes).await },
+    )
+    .await
+}
+
+/// Members blocked from music. Needs Manage music.
+pub async fn music_blocks(server_key: String) -> Result<Vec<MusicBlock>, CoreError> {
+    on_runtime(move |client| async move { client.music_blocks(&server_key).await }).await
+}
+
+/// Blocks a member from music, or unblocks them. Needs Manage music.
+pub async fn block_from_music(
+    server_key: String,
+    user_id: i64,
+    blocked: bool,
+    reason: String,
+) -> Result<Vec<MusicBlock>, CoreError> {
+    on_runtime(move |client| async move {
+        client
+            .block_from_music(&server_key, user_id, blocked, reason)
+            .await
+    })
     .await
 }
 

@@ -83,7 +83,7 @@ pub fn require_grantable(held: Permissions, requested: Permissions) -> Result<()
     }
 }
 
-fn missing(permissions: Permissions) -> ApiError {
+pub(crate) fn missing(permissions: Permissions) -> ApiError {
     ApiError::forbidden(format!("missing permission: {}", names(permissions)))
 }
 

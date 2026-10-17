@@ -29,6 +29,7 @@ use crate::api::types::{
 use crate::convert;
 use crate::identity::Identity;
 use crate::mirror::{GuildMirror, PermissionSnapshot};
+use crate::server_clock::ServerClock;
 use crate::store::Store;
 use crate::tofu::{TlsTrust, Verdict};
 use crate::voice::VoiceServer;
@@ -102,6 +103,10 @@ pub(crate) struct Opened {
     pub socket: Socket,
     pub hello: proto::Hello,
     pub presented: Fingerprint,
+    /// The name connected to, and whether an authority vouched for it (no
+    /// pin was needed).
+    pub host: String,
+    pub authority: bool,
 }
 
 /// Connects and reads `Hello`. With `pinned`, the certificate must match it.
@@ -145,6 +150,8 @@ pub(crate) async fn open(
         (Ok(Err(error)), _) => return Err(HandshakeError::Transient(error.to_string())),
         (Err(error), _) => return Err(error),
     };
+    let authority = matches!(trust.verdict(), Some(Verdict::Authority(_)))
+        && address.host.parse::<std::net::IpAddr>().is_err();
     let presented = match trust.verdict() {
         Some(Verdict::Pinned(fingerprint) | Verdict::Authority(fingerprint)) => fingerprint,
         _ => {
@@ -163,6 +170,8 @@ pub(crate) async fn open(
             socket,
             hello,
             presented,
+            host: address.host.clone(),
+            authority,
         }),
         _ => Err(HandshakeError::Transient(
             "the server did not say hello".to_owned(),
@@ -203,6 +212,20 @@ pub(crate) async fn identify(
         nonce,
         timestamp_ms: unix_ms(),
     };
+    // Checked by an authority under a name: bound to the name too, for a
+    // server behind a tunnel or proxy whose certificate it never sees.
+    let (host, host_signature) = if opened.authority {
+        let bound = Challenge {
+            certificate: opencord_common::auth::host_binding(&opened.host),
+            ..challenge
+        };
+        (
+            opened.host.clone(),
+            credentials.identity.sign_identify(&bound).to_vec(),
+        )
+    } else {
+        (String::new(), Vec::new())
+    };
     let identify = proto::Identify {
         public_key: credentials.identity.public_key().to_vec(),
         signature: credentials.identity.sign_identify(&challenge).to_vec(),
@@ -211,6 +234,8 @@ pub(crate) async fn identify(
         invite_code,
         claim_token,
         protocol_version: opencord_common::PROTOCOL_VERSION,
+        host,
+        host_signature,
     };
     let socket = &mut opened.socket;
     send_payload(socket, 0, Payload::Identify(identify)).await?;
@@ -323,11 +348,37 @@ pub(crate) struct Context {
     pub voice_servers: broadcast::Sender<VoiceServer>,
     /// Each server's latest media token, for its HTTP endpoints.
     pub media_tokens: MediaTokens,
+    pub routes: Routes,
+    pub clocks: Clocks,
 }
+
+/// Each server's clock against this device's, by server key.
+pub(crate) type Clocks = Arc<Mutex<HashMap<String, ServerClock>>>;
 
 /// Media tokens by server key. They stay in Rust: the soundboard needs
 /// them, the app does not.
 pub(crate) type MediaTokens = Arc<Mutex<HashMap<String, String>>>;
+
+/// How a server was last reached: its address, and the certificate pinned
+/// there, or `None` when an authority vouched for it. Requests besides the
+/// gateway (files, voice) go the same way (Phase 3 plan §7.5).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct Route {
+    pub address: ServerAddress,
+    pub pin: Option<Fingerprint>,
+}
+
+impl Route {
+    pub fn of(opened: &Opened, address: &ServerAddress) -> Self {
+        Self {
+            address: address.clone(),
+            pin: (!opened.authority).then_some(opened.presented),
+        }
+    }
+}
+
+/// Routes by server key.
+pub(crate) type Routes = Arc<Mutex<HashMap<String, Route>>>;
 
 pub(crate) fn spawn(
     runtime: &Handle,
@@ -479,8 +530,7 @@ impl Task {
     }
 
     async fn establish(&mut self) -> Result<Established, HandshakeError> {
-        let pinned = self.lock_store().pin(&self.context.key);
-        let mut opened = open(&self.context.address, pinned).await?;
+        let mut opened = self.open_any().await?;
         if let Some(session) = &self.session {
             match resume(&mut opened.socket, session).await? {
                 ResumeOutcome::Resumed(replayed) => {
@@ -524,6 +574,8 @@ impl Task {
         heartbeat.set_missed_tick_behavior(MissedTickBehavior::Delay);
         let mut sweep = interval(Duration::from_secs(1));
         let mut awaiting_ack = false;
+        // When the last heartbeat left, for the server's clock.
+        let mut beat_sent: Option<i64> = None;
         // A probe's deadline for its heartbeat's ack.
         let mut probe: Option<Instant> = None;
         let ended = loop {
@@ -543,9 +595,12 @@ impl Task {
                                     let _ = waiting.reply.send(result);
                                 }
                             }
-                            Some(Payload::HeartbeatAck(_)) => {
+                            Some(Payload::HeartbeatAck(ack)) => {
                                 awaiting_ack = false;
                                 probe = None;
+                                if let Some(sent) = beat_sent.take() {
+                                    self.clock_sample(ack.server_time_ms, sent, unix_ms_signed());
+                                }
                             }
                             _ => {}
                         }
@@ -562,6 +617,7 @@ impl Task {
                     }
                     let last_seq = self.session.as_ref().map_or(0, |session| session.last_seq);
                     let beat = Payload::Heartbeat(proto::Heartbeat { last_seq });
+                    beat_sent = Some(unix_ms_signed());
                     if send_payload(&mut socket, 0, beat).await.is_err() {
                         break Ended::Lost;
                     }
@@ -620,7 +676,129 @@ impl Task {
         ended
     }
 
+    /// Connects to the first of the server's addresses that answers as
+    /// this server: its domains, the primary first, then the address it
+    /// was added with, then its IP address (Phase 3 plan §7.5). Only the
+    /// address it was added with can fail with a certificate the user must
+    /// look at; the others are skipped.
+    async fn open_any(&mut self) -> Result<Opened, HandshakeError> {
+        let (pinned, saved) = {
+            let store = self.lock_store();
+            (
+                store.pin(&self.context.key),
+                store.server(&self.context.key).cloned(),
+            )
+        };
+        let own = &self.context.address;
+        let mut candidates: Vec<(ServerAddress, bool)> = Vec::new();
+        if let Some(saved) = &saved {
+            for address in saved.addresses.iter().chain(&saved.ip) {
+                let candidate = ServerAddress {
+                    host: address.host.to_ascii_lowercase(),
+                    port: address.port,
+                };
+                if candidate != *own && !candidates.iter().any(|(known, _)| *known == candidate) {
+                    candidates.push((candidate, address.trusted));
+                }
+            }
+        }
+        let ip = saved
+            .as_ref()
+            .and_then(|saved| saved.ip.as_ref())
+            .map(|ip| ServerAddress {
+                host: ip.host.clone(),
+                port: ip.port,
+            });
+        // The domains, then the address it was added with, then the IP.
+        let (mut ordered, ips): (Vec<_>, Vec<_>) = candidates
+            .into_iter()
+            .partition(|(address, _)| Some(address) != ip.as_ref());
+        ordered.push((own.clone(), false));
+        ordered.extend(ips);
+        let server_id = saved.as_ref().and_then(|saved| saved.server_id.clone());
+        let mut last = None;
+        for (address, trusted) in ordered {
+            let own_address = address == *own;
+            let pin = if trusted { None } else { pinned };
+            match open(&address, pin).await {
+                Ok(opened) => {
+                    // Another server at a domain that moved on: not ours.
+                    let id = hex::encode(&opened.hello.server_id);
+                    if server_id.as_ref().is_some_and(|known| *known != id) {
+                        last = Some(HandshakeError::Transient(format!(
+                            "{address} is another server now"
+                        )));
+                        continue;
+                    }
+                    if !own_address {
+                        tracing::debug!(%address, "connected through another of the server's addresses");
+                    }
+                    self.remember_server_id(&id);
+                    self.context
+                        .routes
+                        .lock()
+                        .unwrap_or_else(PoisonError::into_inner)
+                        .insert(self.context.key.clone(), Route::of(&opened, &address));
+                    return Ok(opened);
+                }
+                Err(error @ (HandshakeError::Untrusted(_) | HandshakeError::Mismatch { .. }))
+                    if own_address =>
+                {
+                    return Err(error);
+                }
+                Err(error) => last = Some(error),
+            }
+        }
+        Err(last.unwrap_or_else(|| {
+            HandshakeError::Transient("the server has no address to connect to".to_owned())
+        }))
+    }
+
+    fn remember_server_id(&self, id: &str) {
+        let mut store = self.lock_store();
+        let Some(saved) = store.server(&self.context.key).cloned() else {
+            return;
+        };
+        if saved.server_id.as_deref() != Some(id) {
+            let _ = store.upsert_server(crate::store::SavedServer {
+                server_id: Some(id.to_owned()),
+                ..saved
+            });
+        }
+    }
+
+    /// Keeps where the server is reached, for the next connection.
+    fn save_addresses(&self, addresses: &proto::ServerAddresses) {
+        let saved_address = |address: &proto::ConnectAddress| crate::store::SavedAddress {
+            host: address.host.to_ascii_lowercase(),
+            port: u16::try_from(address.port).unwrap_or(0),
+            trusted: address.trusted_certificate,
+        };
+        let mut store = self.lock_store();
+        let Some(saved) = store.server(&self.context.key).cloned() else {
+            return;
+        };
+        let updated = crate::store::SavedServer {
+            addresses: addresses
+                .domains
+                .iter()
+                .filter(|address| address.port != 0)
+                .map(saved_address)
+                .collect(),
+            ip: addresses.ip.as_ref().map(saved_address),
+            ..saved.clone()
+        };
+        if updated != saved {
+            let _ = store.upsert_server(updated);
+        }
+    }
+
     fn on_ready(&mut self, ready: proto::Ready) {
+        let now = unix_ms_signed();
+        self.clock_sample(ready.server_time_ms, now, now);
+        if let Some(addresses) = &ready.server_addresses {
+            self.save_addresses(addresses);
+        }
         if let Some(token) = &ready.media_token {
             self.context
                 .media_tokens
@@ -636,6 +814,25 @@ impl Task {
         self.self_id = user_id;
         self.update_saved_server(name, user_id);
         self.emit(CoreEventPayload::Ready(convert::ready(ready)));
+    }
+
+    fn clock_sample(&self, server_ms: i64, sent_ms: i64, received_ms: i64) {
+        self.context
+            .clocks
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .entry(self.context.key.clone())
+            .or_default()
+            .sample(server_ms, sent_ms, received_ms);
+    }
+
+    fn clock_offset(&self) -> i64 {
+        self.context
+            .clocks
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .get(&self.context.key)
+            .map_or(0, ServerClock::offset_ms)
     }
 
     fn on_event(&mut self, seq: u64, event: proto::Event) {
@@ -656,11 +853,22 @@ impl Task {
         if let proto::event::Kind::VoiceServerUpdate(update) = &kind {
             self.on_voice_server(update);
         }
+        if let proto::event::Kind::ServerAddressesUpdate(update) = &kind
+            && let Some(addresses) = &update.addresses
+        {
+            self.save_addresses(addresses);
+        }
         let session_id = self
             .session
             .as_ref()
             .map_or("", |session| session.session_id.as_str());
-        if let Some(payload) = convert::event(kind, session_id) {
+        let payload = match kind {
+            proto::event::Kind::MusicSnapshot(_)
+            | proto::event::Kind::MusicNowPlaying(_)
+            | proto::event::Kind::MusicNotice(_) => crate::music::event(kind, self.clock_offset()),
+            kind => convert::event(kind, session_id),
+        };
+        if let Some(payload) = payload {
             self.emit(payload);
         }
         if affects_permissions {
@@ -673,13 +881,32 @@ impl Task {
         let (Some(session), Some(user_id)) = (&self.session, self.self_id) else {
             return;
         };
+        // The server's own node is at the address this connection uses,
+        // checked the same way.
+        let route = self
+            .context
+            .routes
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .get(&self.context.key)
+            .cloned();
+        let (endpoint, certificate_fingerprint) = match &route {
+            Some(route) if update.endpoint.is_empty() => (
+                format!("wss://{}/voice", route.address),
+                route.pin.map(|pin| pin.to_vec()).unwrap_or_default(),
+            ),
+            _ => (
+                update.endpoint.clone(),
+                update.certificate_fingerprint.clone(),
+            ),
+        };
         let _ = self.context.voice_servers.send(VoiceServer {
             server_key: self.context.key.clone(),
             user_id,
             session_id: session.session_id.clone(),
             channel_id: update.channel_id,
-            endpoint: update.endpoint.clone(),
-            certificate_fingerprint: update.certificate_fingerprint.clone(),
+            endpoint,
+            certificate_fingerprint,
             token: update.token.clone(),
         });
     }
@@ -867,6 +1094,10 @@ fn unix_ms() -> u64 {
         .duration_since(UNIX_EPOCH)
         .unwrap_or_default();
     u64::try_from(since_epoch.as_millis()).unwrap_or(u64::MAX)
+}
+
+fn unix_ms_signed() -> i64 {
+    i64::try_from(unix_ms()).unwrap_or(i64::MAX)
 }
 
 /// A random number between 0 and 1.

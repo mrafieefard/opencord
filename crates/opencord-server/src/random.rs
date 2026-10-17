@@ -13,6 +13,19 @@ pub fn bytes<const N: usize>() -> [u8; N] {
     buffer
 }
 
+/// A number below `bound` (at least 1), each equally likely.
+pub fn below(bound: usize) -> usize {
+    let bound = u64::try_from(bound.max(1)).unwrap_or(u64::MAX);
+    // Values from `zone` up are skipped so none is favoured.
+    let zone = u64::MAX - u64::MAX % bound;
+    loop {
+        let value = u64::from_le_bytes(bytes::<8>());
+        if value < zone {
+            return usize::try_from(value % bound).unwrap_or(0);
+        }
+    }
+}
+
 /// Base62 code of `len` characters.
 pub fn code(len: usize) -> String {
     let mut code = String::with_capacity(len);

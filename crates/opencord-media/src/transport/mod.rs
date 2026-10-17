@@ -41,13 +41,20 @@ const NETWORK_CHECK: Duration = Duration::from_secs(1);
 pub struct VoiceTarget {
     /// The voice gateway, `wss://host:port/voice`.
     pub gateway_url: String,
-    /// SHA-256 of the node's certificate. Needed for `wss://`.
+    /// SHA-256 of the node's certificate, for `wss://`.
     pub certificate_fingerprint: Option<[u8; 32]>,
+    /// Without a fingerprint, the certificate authorities that vouch for
+    /// the gateway's name: behind a domain with an authority's certificate,
+    /// a tunnel or a proxy (Phase 3 plan §7.5).
+    pub authority: Option<Authority>,
     pub token: Vec<u8>,
     pub user_id: i64,
     pub session_id: String,
     pub channel_id: i64,
 }
+
+/// Certificate authorities to check a gateway's certificate with.
+pub type Authority = Arc<dyn rustls::client::danger::ServerCertVerifier>;
 
 /// How a connection treats frames; the defaults suit the app.
 #[derive(Default)]
@@ -176,6 +183,10 @@ pub struct RemoteTrack {
     pub available: Option<Vec<String>>,
 }
 
+/// The source key of the channel's music among received audio: never a
+/// user's id (Phase 3 plan §13.3).
+pub const MUSIC_SOURCE: i64 = 0;
+
 /// A video this client wants, at the height of its tile (plan §6).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SinkWant {
@@ -200,6 +211,12 @@ pub enum VoiceEvent {
     Audio(ReceivedAudio),
     /// The sound of someone's screen share, watched here (plan §10.5).
     StreamAudio(ReceivedAudio),
+    /// The channel's music started or stopped (Phase 3 plan §18.4).
+    Music {
+        active: bool,
+    },
+    /// A packet of the channel's music; its `user_id` is [`MUSIC_SOURCE`].
+    MusicAudio(ReceivedAudio),
     Speaking {
         user_id: i64,
         flags: u32,
@@ -270,6 +287,7 @@ pub enum TransportError {
 
 enum Command {
     Audio(AudioFrame),
+    MusicMuted(bool),
     ScreenAudio(EncodedScreenAudio),
     Video(VideoFrame),
     Speaking(u32),
@@ -311,7 +329,12 @@ impl VoiceConnection {
         options: ConnectOptions,
     ) -> Result<(Self, mpsc::UnboundedReceiver<VoiceEvent>), TransportError> {
         let url = GatewayUrl::parse(&target.gateway_url)?;
-        let mut socket = gateway::open(&url, target.certificate_fingerprint).await?;
+        let mut socket = gateway::open(
+            &url,
+            target.certificate_fingerprint,
+            target.authority.clone(),
+        )
+        .await?;
         let heartbeat = hello(&mut socket).await?;
         let support = |codec: voice::Codec| voice::CodecSupport {
             codec: codec as i32,
@@ -366,12 +389,16 @@ impl VoiceConnection {
                 }
             }
         }
+        if ready.music.is_some_and(|music| music.active) {
+            let _ = events.send(VoiceEvent::Music { active: true });
+        }
         let (commands, command_receiver) = mpsc::unbounded_channel();
         let audio_ssrc = ready.audio_ssrc;
         let limits = ready.limits;
         let driver = Driver::new(
             url,
             target.certificate_fingerprint,
+            target.authority.clone(),
             &ready,
             heartbeat,
             media,
@@ -434,6 +461,12 @@ impl VoiceConnection {
 
     pub fn send_video(&self, frame: VideoFrame) {
         let _ = self.commands.send(Command::Video(frame));
+    }
+
+    /// Whether the channel's music is sent to this client (Phase 3 plan
+    /// §18.4): a client that muted it does not receive it.
+    pub fn set_music_muted(&self, muted: bool) {
+        let _ = self.commands.send(Command::MusicMuted(muted));
     }
 
     /// The videos this client wants and at what size; the rest are not

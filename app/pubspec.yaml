@@ -47,6 +47,7 @@ dependencies:
   # V5, plan §7.11).
   irondash_engine_context: ^0.5.5
   file_selector: ^1.1.0
+  font_awesome_flutter: ^11.0.0
 
 dev_dependencies:
   flutter_test:

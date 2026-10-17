@@ -157,13 +157,16 @@ void main() {
     expect(_inMenu(find.text('Server mute')), findsNothing);
     await _closeMenu(tester);
 
-    // Someone in voice, from the member list.
+    // Someone in voice, from the member list: listed under "In this
+    // voice channel" and under their role.
     await _openMenu(
       tester,
-      find.descendant(
-        of: find.byType(MemberRow),
-        matching: find.text('Mira Okafor'),
-      ),
+      find
+          .descendant(
+            of: find.byType(MemberRow),
+            matching: find.text('Mira Okafor'),
+          )
+          .first,
     );
     expect(_inMenu(find.byType(UserAudioControls)), findsOneWidget);
     await app.dispose(tester);

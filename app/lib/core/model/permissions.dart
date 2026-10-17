@@ -34,6 +34,20 @@ extension type const Permissions(int bits) {
   /// Play sounds from other servers.
   static const useExternalSounds = Permissions(1 << 26);
   static const manageSoundboard = Permissions(1 << 27);
+
+  /// Search and add music; remove and skip one's own tracks.
+  static const musicAdd = Permissions(1 << 28);
+
+  /// Pause, resume, seek, next, previous, repeat and shuffle.
+  static const musicControl = Permissions(1 << 29);
+
+  /// Reorder the queue, remove anyone's tracks, clear it, play next and
+  /// play now.
+  static const musicManageQueue = Permissions(1 << 30);
+
+  /// Stop the player, block members from music, bypass music limits,
+  /// control music from outside the channel, music settings.
+  static const musicManage = Permissions(1 << 31);
   static const administrator = Permissions(1 << 63);
 
   /// Every defined bit.
@@ -64,6 +78,10 @@ extension type const Permissions(int bits) {
         (1 << 25) |
         (1 << 26) |
         (1 << 27) |
+        (1 << 28) |
+        (1 << 29) |
+        (1 << 30) |
+        (1 << 31) |
         (1 << 63),
   );
 
@@ -80,7 +98,9 @@ extension type const Permissions(int bits) {
         (1 << 19) |
         (1 << 24) |
         (1 << 25) |
-        (1 << 26),
+        (1 << 26) |
+        (1 << 28) |
+        (1 << 29),
   );
 
   bool has(Permissions other) => bits & other.bits == other.bits;

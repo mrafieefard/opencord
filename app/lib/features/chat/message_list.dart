@@ -297,6 +297,7 @@ class _MessageListState extends ConsumerState<MessageList>
       selfId: data.self.id,
       lastReadId: _lineReadId,
       reachedStart: !state.hasOlder,
+      ephemerals: ref.watch(ephemeralNotesProvider(_channel)),
     );
     _hasLine = rows.any((row) => row is UnreadRow);
     final split = _split = splitIndex(rows, _splitId);
@@ -444,6 +445,8 @@ class _MessageListState extends ConsumerState<MessageList>
       onJumpTo: jumpToMessage,
       onProfile: (id) =>
           showMemberProfile(context, serverKey: _channel.server, userId: id),
+      onDismissNote: (note) =>
+          ref.read(ephemeralNotesProvider(_channel).notifier).dismiss(note),
     );
   }
 

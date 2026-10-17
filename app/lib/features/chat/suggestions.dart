@@ -1,4 +1,5 @@
 import 'package:opencord/core/model/channel.dart';
+import 'package:opencord/core/model/commands.dart';
 import 'package:opencord/core/model/permissions.dart';
 import 'package:opencord/core/model/user.dart';
 import 'package:opencord/core/providers/channel_audience.dart';
@@ -40,6 +41,18 @@ final class EmojiSuggestion extends Suggestion {
 
   @override
   String get insert => '${emoji.char} ';
+}
+
+/// A chat command (Phase 3 §19.6); dimmed with [unavailable] when it
+/// can't be used here now.
+final class CommandSuggestion extends Suggestion {
+  const CommandSuggestion(this.spec, {this.unavailable});
+
+  final CommandSpec spec;
+  final String? unavailable;
+
+  @override
+  String get insert => '/${spec.name} ';
 }
 
 const maxSuggestions = 8;

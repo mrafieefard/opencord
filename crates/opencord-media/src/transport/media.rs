@@ -26,8 +26,9 @@ use super::assembler::{Assembled, FrameAssembler, VideoPacket};
 use super::h264::packetize;
 use super::transform::FrameTransform;
 use super::{
-    AudioFrame, ConnectionStats, EncodedScreenAudio, Layer, ReceivedAudio, ReceivedVideo,
-    RemoteTrack, TrackKind, TrackRequest, TransportError, VideoFrame, VoiceEvent, random,
+    AudioFrame, ConnectionStats, EncodedScreenAudio, Layer, MUSIC_SOURCE, ReceivedAudio,
+    ReceivedVideo, RemoteTrack, TrackKind, TrackRequest, TransportError, VideoFrame, VoiceEvent,
+    random,
 };
 use crate::video::priorities::{Planner, Sending, TrackPlan};
 
@@ -84,6 +85,8 @@ pub(super) struct Media {
     users_by_ssrc: HashMap<u32, i64>,
     /// Whose screen share sound arrives on each SSRC.
     streams_by_ssrc: HashMap<u32, i64>,
+    /// The channel's music, while it has a stream (Phase 3 plan §18.4).
+    music_ssrc: Option<u32>,
     pub timeout: Instant,
     /// Sending failed in a way that means the network went away.
     network_lost: bool,
@@ -257,10 +260,16 @@ impl Media {
         };
         let port = u16::try_from(candidate.port)
             .map_err(|_| TransportError::Protocol("a media port out of range".to_owned()))?;
-        let remote_address = tokio::net::lookup_host((host, port))
+        // IPv4 first: more networks carry it, and a name with both may have
+        // a node that hears only IPv4.
+        let mut addresses: Vec<SocketAddr> = tokio::net::lookup_host((host, port))
             .await
             .map_err(|error| TransportError::Connect(error.to_string()))?
-            .next()
+            .collect();
+        addresses.sort_by_key(SocketAddr::is_ipv6);
+        let remote_address = addresses
+            .first()
+            .copied()
             .ok_or_else(|| TransportError::Connect(format!("{host} has no address")))?;
         let (socket, local_address) = connected_socket(remote_address).await?;
 
@@ -300,6 +309,9 @@ impl Media {
                     hear(&mut api, participant.screen_audio_ssrc);
                 }
             }
+            if let Some(music) = ready.music.filter(|music| music.active) {
+                hear(&mut api, music.ssrc);
+            }
             api.start_dtls(true)
                 .map_err(|error| TransportError::Connect(error.to_string()))?;
             api.local_dtls_fingerprint().bytes.clone()
@@ -328,6 +340,10 @@ impl Media {
                 .filter(|p| p.screen_audio_ssrc != 0)
                 .map(|p| (p.screen_audio_ssrc, p.user_id))
                 .collect(),
+            music_ssrc: ready
+                .music
+                .filter(|music| music.active)
+                .map(|music| music.ssrc),
             timeout: now,
             network_lost: false,
             transform,
@@ -370,6 +386,22 @@ impl Media {
             self.streams_by_ssrc.insert(screen_ssrc, user_id);
             hear(&mut api, screen_ssrc);
         }
+    }
+
+    /// The channel's music stream started, or ended.
+    pub fn set_music(&mut self, ssrc: Option<u32>) {
+        if self.music_ssrc == ssrc {
+            return;
+        }
+        let mut api = self.rtc.direct_api();
+        if let Some(old) = self.music_ssrc.take() {
+            api.remove_media(receive_mid(old).as_str().into());
+            self.stats.jitter.remove(&old);
+        }
+        if let Some(new) = ssrc {
+            hear(&mut api, new);
+        }
+        self.music_ssrc = ssrc;
     }
 
     /// Someone left: their audio and video go.
@@ -953,6 +985,25 @@ impl Media {
                     arrived: packet.timestamp,
                 });
             }
+            return;
+        }
+        if self.music_ssrc == Some(ssrc) {
+            self.stats
+                .jitter
+                .entry(ssrc)
+                .or_default()
+                .arrived(packet.timestamp, packet.header.timestamp);
+            // From the server, not a person: no transform applies.
+            let _ = events.send(VoiceEvent::MusicAudio(ReceivedAudio {
+                user_id: MUSIC_SOURCE,
+                ssrc,
+                seq: *packet.seq_no,
+                timestamp: packet.header.timestamp,
+                marker: packet.header.marker,
+                payload: packet.payload,
+                audio_level: None,
+                arrived: packet.timestamp,
+            }));
             return;
         }
         let (user_id, stream) = match self.users_by_ssrc.get(&ssrc) {

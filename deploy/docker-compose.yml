@@ -7,7 +7,11 @@
 #   docker compose logs | grep claim_token
 #
 # Forward 7710/tcp and 7711/udp to this machine on your router
-# (docs/voice.md). An invite for others:
+# (docs/voice.md), and 7712/udp when Lavalink nodes on other machines play
+# music (docs/music.md). Port 80/tcp is optional for Let's Encrypt HTTP-01
+# certificate challenges when not using DNS-01 or TLS-ALPN (docs/domains.md).
+# UPnP from the app cannot reach the router from a container's own network.
+# An invite for others:
 #
 #   docker compose exec opencord opencord-server invite create
 services:
@@ -23,6 +27,9 @@ services:
     ports:
       - "7710:7710/tcp"
       - "7711:7711/udp"
+      - "7712:7712/udp"
+      # Optional: for Let's Encrypt HTTP-01 challenges (docs/domains.md):
+      # - "80:80/tcp"
     volumes:
       - opencord-data:/data
 

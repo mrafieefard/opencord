@@ -12,6 +12,8 @@ pub struct InviteRow {
     pub max_uses: Option<i64>,
     pub uses: i64,
     pub expires_at: Option<i64>,
+    /// The domain its link uses; it stops working with the domain.
+    pub domain_id: Option<i64>,
 }
 
 impl InviteRow {
@@ -29,6 +31,7 @@ pub async fn create(
     created_by: Option<i64>,
     max_uses: Option<u32>,
     expires_in_s: Option<u32>,
+    domain_id: Option<i64>,
     now_ms: i64,
 ) -> Result<InviteRow, sqlx::Error> {
     let invite = InviteRow {
@@ -40,6 +43,7 @@ pub async fn create(
         expires_at: expires_in_s
             .filter(|seconds| *seconds > 0)
             .map(|seconds| now_ms + i64::from(seconds) * 1_000),
+        domain_id,
     };
     insert(conn, &invite).await?;
     Ok(invite)
@@ -47,14 +51,15 @@ pub async fn create(
 
 pub async fn insert(conn: &mut SqliteConnection, invite: &InviteRow) -> Result<(), sqlx::Error> {
     sqlx::query!(
-        "INSERT INTO invites (code, created_by, created_at, max_uses, uses, expires_at)
-         VALUES ($1, $2, $3, $4, $5, $6)",
+        "INSERT INTO invites (code, created_by, created_at, max_uses, uses, expires_at, domain_id)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)",
         invite.code,
         invite.created_by,
         invite.created_at,
         invite.max_uses,
         invite.uses,
-        invite.expires_at
+        invite.expires_at,
+        invite.domain_id
     )
     .execute(conn)
     .await?;
@@ -67,7 +72,7 @@ pub async fn find(
 ) -> Result<Option<InviteRow>, sqlx::Error> {
     sqlx::query_as!(
         InviteRow,
-        "SELECT code, created_by, created_at, max_uses, uses, expires_at
+        "SELECT code, created_by, created_at, max_uses, uses, expires_at, domain_id
          FROM invites WHERE code = $1",
         code
     )
@@ -78,7 +83,7 @@ pub async fn find(
 pub async fn list(conn: &mut SqliteConnection) -> Result<Vec<InviteRow>, sqlx::Error> {
     sqlx::query_as!(
         InviteRow,
-        "SELECT code, created_by, created_at, max_uses, uses, expires_at
+        "SELECT code, created_by, created_at, max_uses, uses, expires_at, domain_id
          FROM invites ORDER BY created_at"
     )
     .fetch_all(conn)

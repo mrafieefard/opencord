@@ -70,6 +70,27 @@ max_egress_mbps = 0
 # [[voice.external_nodes]]
 # endpoint = "wss://voice1.example.com:7712"
 # secret_file = "voice1.secret"
+
+[music]
+# Music in voice channels, played by Lavalink nodes added in the app.
+# OPENCORD_MUSIC_ENABLED
+enabled = true
+# UDP port Lavalink sends music to; Lavalink nodes on other machines must
+# reach it. OPENCORD_MUSIC_UDP_PORT
+audio_udp_port = 7712
+# The domain Lavalink connects to: "primary", or another active domain with
+# a trusted certificate.
+bridge_domain = "primary"
+# Tracks from Lavalink's http and local sources let members make Lavalink
+# fetch any address or file; refused unless this is on.
+allow_unsafe_sources = false
+
+[network]
+# Services that answer with the address a request came from, used to find
+# the server's public address. Empty turns detection off; the owner can
+# also turn it off in the app. OPENCORD_IP_LOOKUP_V4, OPENCORD_IP_LOOKUP_V6
+ip_lookup_v4 = "https://api.ipify.org"
+ip_lookup_v6 = "https://api6.ipify.org"
 "#;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Deserialize)]
@@ -80,6 +101,31 @@ pub struct Config {
     pub gateway: GatewaySection,
     pub log: LogSection,
     pub voice: VoiceSection,
+    pub music: MusicSection,
+    pub network: NetworkSection,
+    pub acme: AcmeSection,
+    pub tunnel: TunnelSection,
+}
+
+/// Cloudflare Tunnel (Phase 3 plan §9.2).
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct TunnelSection {
+    /// The cloudflared to run; empty: the one downloaded into the data
+    /// directory, else the one on the PATH.
+    pub cloudflared: Option<PathBuf>,
+    /// Where cloudflared's latest release is described, for downloading it.
+    pub releases_api: String,
+}
+
+impl Default for TunnelSection {
+    fn default() -> Self {
+        Self {
+            cloudflared: None,
+            releases_api: "https://api.github.com/repos/cloudflare/cloudflared/releases/latest"
+                .to_owned(),
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
@@ -181,6 +227,87 @@ impl Default for VoiceSection {
             max_participants_per_channel: 99,
             max_egress_mbps: 0,
             external_nodes: Vec::new(),
+        }
+    }
+}
+
+/// Music in voice channels (Phase 3 plan §13.5).
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct MusicSection {
+    pub enabled: bool,
+    pub audio_udp_port: u16,
+    pub bridge_domain: String,
+    /// Tracks from Lavalink's `http` and `local` sources (plan §15.2).
+    pub allow_unsafe_sources: bool,
+}
+
+impl Default for MusicSection {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            audio_udp_port: 7712,
+            bridge_domain: "primary".to_owned(),
+            allow_unsafe_sources: false,
+        }
+    }
+}
+
+/// Where certificates come from (Phase 3 plan §7). Let's Encrypt unless
+/// changed; not in the default file: private ACME servers (step-ca, for
+/// one) and tests change it.
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct AcmeSection {
+    pub directory: String,
+    /// Used when the owner turns on the test environment.
+    pub test_directory: String,
+    /// A PEM file of the ACME server's own root, when not a public one.
+    pub root: Option<PathBuf>,
+    /// The ports the ACME server checks HTTP-01 and TLS-ALPN-01 on.
+    pub http_port: u16,
+    pub tls_alpn_port: u16,
+    /// How long a DNS-01 record may take to appear, at most, in seconds.
+    pub dns_propagation_s: u32,
+    /// The DNS providers' APIs.
+    pub cloudflare_api: String,
+    pub duckdns_api: String,
+    pub desec_api: String,
+}
+
+impl Default for AcmeSection {
+    fn default() -> Self {
+        Self {
+            directory: "https://acme-v02.api.letsencrypt.org/directory".to_owned(),
+            test_directory: "https://acme-staging-v02.api.letsencrypt.org/directory".to_owned(),
+            root: None,
+            http_port: 80,
+            tls_alpn_port: 443,
+            dns_propagation_s: 120,
+            cloudflare_api: "https://api.cloudflare.com/client/v4".to_owned(),
+            duckdns_api: "https://www.duckdns.org".to_owned(),
+            desec_api: "https://desec.io/api/v1".to_owned(),
+        }
+    }
+}
+
+/// How the server finds its public address (Phase 3 plan §5.1).
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct NetworkSection {
+    pub ip_lookup_v4: String,
+    pub ip_lookup_v6: String,
+    /// The port domain checks ask name servers on. Not in the default
+    /// file: only tests change it.
+    pub dns_name_server_port: u16,
+}
+
+impl Default for NetworkSection {
+    fn default() -> Self {
+        Self {
+            ip_lookup_v4: "https://api.ipify.org".to_owned(),
+            ip_lookup_v6: "https://api6.ipify.org".to_owned(),
+            dns_name_server_port: 53,
         }
     }
 }
@@ -301,6 +428,18 @@ impl Config {
         if let Some(value) = env("OPENCORD_VOICE_UDP_PORT") {
             config.voice.udp_port = parse_env("OPENCORD_VOICE_UDP_PORT", value)?;
         }
+        if let Some(value) = env("OPENCORD_MUSIC_ENABLED") {
+            config.music.enabled = parse_env("OPENCORD_MUSIC_ENABLED", value)?;
+        }
+        if let Some(value) = env("OPENCORD_MUSIC_UDP_PORT") {
+            config.music.audio_udp_port = parse_env("OPENCORD_MUSIC_UDP_PORT", value)?;
+        }
+        if let Some(value) = env("OPENCORD_IP_LOOKUP_V4") {
+            config.network.ip_lookup_v4 = value;
+        }
+        if let Some(value) = env("OPENCORD_IP_LOOKUP_V6") {
+            config.network.ip_lookup_v6 = value;
+        }
         if let Some(value) = env("OPENCORD_VOICE_PUBLIC_ADDRESS") {
             config.voice.public_address = value;
         }
@@ -325,6 +464,20 @@ impl Config {
                     })
                     .collect(),
                 ..self.voice
+            },
+            acme: AcmeSection {
+                root: self.acme.root.map(|root| base_dir.join(root)),
+                ..self.acme
+            },
+            tunnel: TunnelSection {
+                cloudflared: self.tunnel.cloudflared.map(|path| {
+                    if path.components().count() > 1 {
+                        base_dir.join(path)
+                    } else {
+                        path
+                    }
+                }),
+                ..self.tunnel
             },
             ..self
         }

@@ -11,14 +11,19 @@ use axum::{Json, Router};
 use opencord_voice::node::VoiceNode;
 use serde::Serialize;
 
+use crate::domains::http_check::VERIFY_PATH;
+use crate::domains::web;
 use crate::state::AppState;
-use crate::{gateway, media, voice};
+use crate::{gateway, media, music, voice};
 
 /// Voice gateway messages are small.
 const VOICE_FRAME_BYTES: usize = 64 * 1024;
 
 pub fn router(state: Arc<AppState>) -> Router {
     let router = Router::new()
+        .route("/", get(music::upgrade))
+        .route(VERIFY_PATH, get(web::verify))
+        .route("/invite/{code}", get(web::invite_page))
         .route("/health", get(health))
         .route("/info", get(info))
         .route("/gateway", get(gateway::upgrade))

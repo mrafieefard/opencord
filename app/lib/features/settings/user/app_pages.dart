@@ -286,6 +286,51 @@ class _VoicePageState extends ConsumerState<VoicePage> {
             ],
           ),
         ],
+        const SizedBox(height: OcSpace.s24),
+        const _MusicListening(),
+      ],
+    );
+  }
+}
+
+/// Music in voice channels (Phase 3 plan §19.8): one volume for every
+/// server, kept on this device.
+class _MusicListening extends ConsumerWidget {
+  const _MusicListening();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final listening = ref.watch(musicListeningProvider);
+    final notifier = ref.read(musicListeningProvider.notifier);
+    return SettingsSection(
+      title: 'Music',
+      footer:
+          'For music in voice channels, on every server. Muted, the music '
+          'is not sent to you at all.',
+      children: [
+        SettingsSliderRow(
+          title: 'Music volume',
+          value: listening.volume,
+          min: 0,
+          max: 200,
+          step: 1,
+          shown: '${listening.volume} %',
+          onChanged: (value) =>
+              notifier.update((l) => l.copyWith(volume: value)),
+        ),
+        SettingsSwitchRow(
+          title: 'Mute music',
+          value: listening.muted,
+          onChanged: (value) =>
+              notifier.update((l) => l.copyWith(muted: value)),
+        ),
+        SettingsSwitchRow(
+          title: 'Lower music while people talk',
+          subtitle: '10 dB quieter while someone speaks',
+          value: listening.duckWhileTalking,
+          onChanged: (value) =>
+              notifier.update((l) => l.copyWith(duckWhileTalking: value)),
+        ),
       ],
     );
   }
@@ -368,7 +413,7 @@ class _VolumeRow extends StatelessWidget {
           Slider(
             value: value.toDouble(),
             max: AudioSettings.maxVolume.toDouble(),
-            divisions: AudioSettings.maxVolume ~/ 5,
+            divisions: AudioSettings.maxVolume,
             semanticFormatterCallback: (value) => '${value.round()}%',
             onChanged: (value) => onChanged(value.round()),
           ),

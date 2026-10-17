@@ -27,6 +27,7 @@ Media is encrypted in transit (DTLS-SRTP), but the voice node can read it, as on
 | 7711 | UDP | Voice, camera and screen share media to and from the embedded node | Calls |
 | 7712 | TCP | An external voice node's voice gateway | Only with external nodes |
 | 7711 | UDP | An external voice node's media | Only with external nodes |
+| 7713 | UDP | Music audio from Lavalink to an external voice node | Only with `[music]` on there (`docs/music.md`) |
 
 All of them are set in `opencord.toml` (or `OPENCORD_*` variables): `[server] bind`, `[voice] udp_port`, and the node's own `opencord-voice-node.toml`.
 

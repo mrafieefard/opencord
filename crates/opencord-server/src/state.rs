@@ -30,6 +30,8 @@ pub enum Audience {
     /// broadcast to it while holding the voice states.
     Voice(i64),
     User(i64),
+    /// Sessions whose user holds these server-wide permissions.
+    Holding(opencord_common::permissions::Permissions),
 }
 
 #[derive(Debug)]
@@ -46,6 +48,22 @@ pub struct AppState {
     /// Signs voice and media tokens.
     pub voice_key: SigningKey,
     pub voice_nodes: VoiceNodes,
+    /// Domains & network (Phase 3 plan §5).
+    pub network: crate::network::Network,
+    /// The domains attached (Phase 3 plan §6).
+    pub domains: crate::domains::Domains,
+    /// Their certificates (Phase 3 plan §7).
+    pub certificates: crate::certs::Certificates,
+    /// The Cloudflare Tunnel, when one runs (Phase 3 plan §9.2).
+    pub tunnel: crate::tunnel::Tunnel,
+    /// Where Lavalink plays into, when music is on (Phase 3 plan §13).
+    pub music_bridge: Option<opencord_voice::bridge::MusicBridge>,
+    /// The Lavalink nodes music plays on (Phase 3 plan §12).
+    pub lavalink: crate::lavalink::Lavalink,
+    /// Music in voice channels (Phase 3 plan §14).
+    pub music: crate::music::Music,
+    /// The chat commands' settings (Phase 3 plan §17).
+    pub commands: crate::commands::Commands,
     guild: RwLock<Guild>,
     /// Lock after the guild, never before it.
     voice: StdMutex<VoiceStates>,
@@ -63,6 +81,15 @@ impl AppState {
         voice_nodes: VoiceNodes,
     ) -> Self {
         let rate_limits = RateLimits::with_identify_per_minute(config.gateway.identify_per_minute);
+        let network = crate::network::Network::new(
+            crate::network::settings::NetworkSettings::default(),
+            crate::network::Lookup {
+                v4: config.network.ip_lookup_v4.clone(),
+                v6: config.network.ip_lookup_v6.clone(),
+            },
+            crate::tls::http_client().expect("the HTTPS client builds with the ring provider"),
+            config.network.dns_name_server_port,
+        );
         Self {
             config,
             db,
@@ -74,10 +101,42 @@ impl AppState {
             shutdown: CancellationToken::new(),
             voice_key,
             voice_nodes,
+            network,
+            domains: crate::domains::Domains::default(),
+            certificates: crate::certs::Certificates::throwaway(),
+            tunnel: crate::tunnel::Tunnel::default(),
+            music_bridge: None,
+            lavalink: crate::lavalink::Lavalink::default(),
+            music: crate::music::Music::default(),
+            commands: crate::commands::Commands::default(),
             guild: RwLock::new(guild),
             voice: StdMutex::new(VoiceStates::default()),
             writes: Mutex::new(()),
         }
+    }
+
+    /// With the certificate store the TLS listener serves from.
+    #[must_use]
+    pub fn with_certificates(mut self, certificates: crate::certs::Certificates) -> Self {
+        self.certificates = certificates;
+        self
+    }
+
+    /// With the domains saved.
+    #[must_use]
+    pub fn with_domains(mut self, domains: crate::domains::Domains) -> Self {
+        self.domains = domains;
+        self
+    }
+
+    /// With the audio bridge music plays into.
+    #[must_use]
+    pub fn with_music_bridge(
+        mut self,
+        bridge: Option<opencord_voice::bridge::MusicBridge>,
+    ) -> Self {
+        self.music_bridge = bridge;
+        self
     }
 
     pub fn guild(&self) -> RwLockReadGuard<'_, Guild> {
@@ -117,6 +176,9 @@ impl AppState {
                 Audience::Channel(channel_id) => guild.can_view(session.user_id, channel_id),
                 Audience::Voice(_) => in_voice.contains(&session.user_id),
                 Audience::User(user_id) => session.user_id == user_id,
+                Audience::Holding(needed) => {
+                    guild.base_permissions(session.user_id).contains(needed)
+                }
             };
             if receives {
                 session.push_event(&event, now);

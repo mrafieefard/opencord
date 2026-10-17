@@ -76,7 +76,7 @@ pub async fn create_invite(
     ServerMeta::load(&mut conn)
         .await?
         .ok_or(BootstrapError::NotInitialized)?;
-    let invite = invites::create(&mut conn, None, max_uses, expires_in, now_ms()).await?;
+    let invite = invites::create(&mut conn, None, max_uses, expires_in, None, now_ms()).await?;
     Ok(InviteLink {
         address: ServerAddress {
             host: config.server.public_host.to_ascii_lowercase(),

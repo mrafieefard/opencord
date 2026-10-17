@@ -35,6 +35,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   String dco_decode_String(dynamic raw);
 
   @protected
+  AcmeAccount dco_decode_acme_account(dynamic raw);
+
+  @protected
   AddServerOutcome dco_decode_add_server_outcome(dynamic raw);
 
   @protected
@@ -62,13 +65,36 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   bool dco_decode_box_autoadd_bool(dynamic raw);
 
   @protected
+  CertificateStep dco_decode_box_autoadd_certificate_step(dynamic raw);
+
+  @protected
   Channel dco_decode_box_autoadd_channel(dynamic raw);
 
   @protected
   ChannelChanges dco_decode_box_autoadd_channel_changes(dynamic raw);
 
   @protected
+  CommandList dco_decode_box_autoadd_command_list(dynamic raw);
+
+  @protected
+  CommandSettingsChanges dco_decode_box_autoadd_command_settings_changes(
+    dynamic raw,
+  );
+
+  @protected
+  ConnectAddress dco_decode_box_autoadd_connect_address(dynamic raw);
+
+  @protected
   ConnectionState dco_decode_box_autoadd_connection_state(dynamic raw);
+
+  @protected
+  DomainCheck dco_decode_box_autoadd_domain_check(dynamic raw);
+
+  @protected
+  DomainUpdate dco_decode_box_autoadd_domain_update(dynamic raw);
+
+  @protected
+  EphemeralMessage dco_decode_box_autoadd_ephemeral_message(dynamic raw);
 
   @protected
   double dco_decode_box_autoadd_f_32(dynamic raw);
@@ -77,10 +103,63 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   PlatformInt64 dco_decode_box_autoadd_i_64(dynamic raw);
 
   @protected
+  LavalinkNode dco_decode_box_autoadd_lavalink_node(dynamic raw);
+
+  @protected
+  LavalinkNodeChanges dco_decode_box_autoadd_lavalink_node_changes(dynamic raw);
+
+  @protected
+  LavalinkNodeEvent dco_decode_box_autoadd_lavalink_node_event(dynamic raw);
+
+  @protected
+  LavalinkNodeSettings dco_decode_box_autoadd_lavalink_node_settings(
+    dynamic raw,
+  );
+
+  @protected
+  LavalinkTestProgress dco_decode_box_autoadd_lavalink_test_progress(
+    dynamic raw,
+  );
+
+  @protected
   Member dco_decode_box_autoadd_member(dynamic raw);
 
   @protected
   Message dco_decode_box_autoadd_message(dynamic raw);
+
+  @protected
+  MusicNotice dco_decode_box_autoadd_music_notice(dynamic raw);
+
+  @protected
+  MusicNowPlaying dco_decode_box_autoadd_music_now_playing(dynamic raw);
+
+  @protected
+  MusicPlaylist dco_decode_box_autoadd_music_playlist(dynamic raw);
+
+  @protected
+  MusicQueueItem dco_decode_box_autoadd_music_queue_item(dynamic raw);
+
+  @protected
+  MusicRepeat dco_decode_box_autoadd_music_repeat(dynamic raw);
+
+  @protected
+  MusicSession dco_decode_box_autoadd_music_session(dynamic raw);
+
+  @protected
+  MusicSettings dco_decode_box_autoadd_music_settings(dynamic raw);
+
+  @protected
+  MusicSettingsChanges dco_decode_box_autoadd_music_settings_changes(
+    dynamic raw,
+  );
+
+  @protected
+  NetworkInfo dco_decode_box_autoadd_network_info(dynamic raw);
+
+  @protected
+  NetworkSettingsChanges dco_decode_box_autoadd_network_settings_changes(
+    dynamic raw,
+  );
 
   @protected
   PermissionOverwrite dco_decode_box_autoadd_permission_overwrite(dynamic raw);
@@ -115,10 +194,16 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   Server dco_decode_box_autoadd_server(dynamic raw);
 
   @protected
+  ServerAddresses dco_decode_box_autoadd_server_addresses(dynamic raw);
+
+  @protected
   ServerChanges dco_decode_box_autoadd_server_changes(dynamic raw);
 
   @protected
   ServerInfo dco_decode_box_autoadd_server_info(dynamic raw);
+
+  @protected
+  ServerNotice dco_decode_box_autoadd_server_notice(dynamic raw);
 
   @protected
   SoundEffect dco_decode_box_autoadd_sound_effect(dynamic raw);
@@ -138,7 +223,13 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   TextureStats dco_decode_box_autoadd_texture_stats(dynamic raw);
 
   @protected
+  TunnelKind dco_decode_box_autoadd_tunnel_kind(dynamic raw);
+
+  @protected
   int dco_decode_box_autoadd_u_32(dynamic raw);
+
+  @protected
+  BigInt dco_decode_box_autoadd_u_64(dynamic raw);
 
   @protected
   VoiceConnectionState dco_decode_box_autoadd_voice_connection_state(
@@ -169,6 +260,15 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   CameraStarted dco_decode_camera_started(dynamic raw);
 
   @protected
+  CertificateState dco_decode_certificate_state(dynamic raw);
+
+  @protected
+  CertificateStatus dco_decode_certificate_status(dynamic raw);
+
+  @protected
+  CertificateStep dco_decode_certificate_step(dynamic raw);
+
+  @protected
   Channel dco_decode_channel(dynamic raw);
 
   @protected
@@ -184,6 +284,36 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   ChannelPosition dco_decode_channel_position(dynamic raw);
 
   @protected
+  CheckResult dco_decode_check_result(dynamic raw);
+
+  @protected
+  CommandChoice dco_decode_command_choice(dynamic raw);
+
+  @protected
+  CommandList dco_decode_command_list(dynamic raw);
+
+  @protected
+  CommandOptionKind dco_decode_command_option_kind(dynamic raw);
+
+  @protected
+  CommandOptionSpec dco_decode_command_option_spec(dynamic raw);
+
+  @protected
+  CommandOptionValue dco_decode_command_option_value(dynamic raw);
+
+  @protected
+  CommandOutcome dco_decode_command_outcome(dynamic raw);
+
+  @protected
+  CommandSettingsChanges dco_decode_command_settings_changes(dynamic raw);
+
+  @protected
+  CommandSpec dco_decode_command_spec(dynamic raw);
+
+  @protected
+  ConnectAddress dco_decode_connect_address(dynamic raw);
+
+  @protected
   ConnectionState dco_decode_connection_state(dynamic raw);
 
   @protected
@@ -197,6 +327,27 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   DefaultSound dco_decode_default_sound(dynamic raw);
+
+  @protected
+  DnsProvider dco_decode_dns_provider(dynamic raw);
+
+  @protected
+  Domain dco_decode_domain(dynamic raw);
+
+  @protected
+  DomainCheck dco_decode_domain_check(dynamic raw);
+
+  @protected
+  DomainKind dco_decode_domain_kind(dynamic raw);
+
+  @protected
+  DomainStatus dco_decode_domain_status(dynamic raw);
+
+  @protected
+  DomainUpdate dco_decode_domain_update(dynamic raw);
+
+  @protected
+  EphemeralMessage dco_decode_ephemeral_message(dynamic raw);
 
   @protected
   ErrorCode dco_decode_error_code(dynamic raw);
@@ -232,6 +383,48 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   Invite dco_decode_invite(dynamic raw);
 
   @protected
+  LavalinkBridge dco_decode_lavalink_bridge(dynamic raw);
+
+  @protected
+  LavalinkEventKind dco_decode_lavalink_event_kind(dynamic raw);
+
+  @protected
+  LavalinkHealth dco_decode_lavalink_health(dynamic raw);
+
+  @protected
+  LavalinkNode dco_decode_lavalink_node(dynamic raw);
+
+  @protected
+  LavalinkNodeChanges dco_decode_lavalink_node_changes(dynamic raw);
+
+  @protected
+  LavalinkNodeEvent dco_decode_lavalink_node_event(dynamic raw);
+
+  @protected
+  LavalinkNodeSettings dco_decode_lavalink_node_settings(dynamic raw);
+
+  @protected
+  LavalinkNodes dco_decode_lavalink_nodes(dynamic raw);
+
+  @protected
+  LavalinkPriority dco_decode_lavalink_priority(dynamic raw);
+
+  @protected
+  LavalinkTestProgress dco_decode_lavalink_test_progress(dynamic raw);
+
+  @protected
+  LavalinkTestStep dco_decode_lavalink_test_step(dynamic raw);
+
+  @protected
+  LavalinkTestStepKind dco_decode_lavalink_test_step_kind(dynamic raw);
+
+  @protected
+  LavalinkTestStepState dco_decode_lavalink_test_step_state(dynamic raw);
+
+  @protected
+  List<String> dco_decode_list_String(dynamic raw);
+
+  @protected
   List<AudioDevice> dco_decode_list_audio_device(dynamic raw);
 
   @protected
@@ -250,7 +443,31 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   List<ChannelPosition> dco_decode_list_channel_position(dynamic raw);
 
   @protected
+  List<CommandChoice> dco_decode_list_command_choice(dynamic raw);
+
+  @protected
+  List<CommandOptionSpec> dco_decode_list_command_option_spec(dynamic raw);
+
+  @protected
+  List<CommandOptionValue> dco_decode_list_command_option_value(dynamic raw);
+
+  @protected
+  List<CommandSpec> dco_decode_list_command_spec(dynamic raw);
+
+  @protected
+  List<ConnectAddress> dco_decode_list_connect_address(dynamic raw);
+
+  @protected
   List<DefaultSound> dco_decode_list_default_sound(dynamic raw);
+
+  @protected
+  List<DnsProvider> dco_decode_list_dns_provider(dynamic raw);
+
+  @protected
+  List<Domain> dco_decode_list_domain(dynamic raw);
+
+  @protected
+  List<DomainCheck> dco_decode_list_domain_check(dynamic raw);
 
   @protected
   List<HotkeyBinding> dco_decode_list_hotkey_binding(dynamic raw);
@@ -259,13 +476,34 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   List<Invite> dco_decode_list_invite(dynamic raw);
 
   @protected
+  List<LavalinkNode> dco_decode_list_lavalink_node(dynamic raw);
+
+  @protected
+  List<LavalinkNodeEvent> dco_decode_list_lavalink_node_event(dynamic raw);
+
+  @protected
+  List<LavalinkTestStep> dco_decode_list_lavalink_test_step(dynamic raw);
+
+  @protected
   List<Member> dco_decode_list_member(dynamic raw);
 
   @protected
   List<Message> dco_decode_list_message(dynamic raw);
 
   @protected
+  List<MusicBlock> dco_decode_list_music_block(dynamic raw);
+
+  @protected
+  List<MusicQueueItem> dco_decode_list_music_queue_item(dynamic raw);
+
+  @protected
+  List<MusicSearchResult> dco_decode_list_music_search_result(dynamic raw);
+
+  @protected
   List<PermissionOverwrite> dco_decode_list_permission_overwrite(dynamic raw);
+
+  @protected
+  List<PortStatus> dco_decode_list_port_status(dynamic raw);
 
   @protected
   List<Presence> dco_decode_list_presence(dynamic raw);
@@ -313,6 +551,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   List<VoiceState> dco_decode_list_voice_state(dynamic raw);
 
   @protected
+  MappingState dco_decode_mapping_state(dynamic raw);
+
+  @protected
   MediaEvent dco_decode_media_event(dynamic raw);
 
   @protected
@@ -322,7 +563,64 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   Message dco_decode_message(dynamic raw);
 
   @protected
+  MusicAction dco_decode_music_action(dynamic raw);
+
+  @protected
+  MusicBlock dco_decode_music_block(dynamic raw);
+
+  @protected
+  MusicNotice dco_decode_music_notice(dynamic raw);
+
+  @protected
+  MusicNowPlaying dco_decode_music_now_playing(dynamic raw);
+
+  @protected
+  MusicPlacement dco_decode_music_placement(dynamic raw);
+
+  @protected
+  MusicPlayState dco_decode_music_play_state(dynamic raw);
+
+  @protected
+  MusicPlaylist dco_decode_music_playlist(dynamic raw);
+
+  @protected
+  MusicQueueItem dco_decode_music_queue_item(dynamic raw);
+
+  @protected
+  MusicRepeat dco_decode_music_repeat(dynamic raw);
+
+  @protected
+  MusicSearchResult dco_decode_music_search_result(dynamic raw);
+
+  @protected
+  MusicSearchResults dco_decode_music_search_results(dynamic raw);
+
+  @protected
+  MusicSession dco_decode_music_session(dynamic raw);
+
+  @protected
+  MusicSettings dco_decode_music_settings(dynamic raw);
+
+  @protected
+  MusicSettingsChanges dco_decode_music_settings_changes(dynamic raw);
+
+  @protected
+  MusicTrack dco_decode_music_track(dynamic raw);
+
+  @protected
+  NetworkInfo dco_decode_network_info(dynamic raw);
+
+  @protected
+  NetworkSettings dco_decode_network_settings(dynamic raw);
+
+  @protected
+  NetworkSettingsChanges dco_decode_network_settings_changes(dynamic raw);
+
+  @protected
   NoiseSuppressionMode dco_decode_noise_suppression_mode(dynamic raw);
+
+  @protected
+  NoticeSeverity dco_decode_notice_severity(dynamic raw);
 
   @protected
   String? dco_decode_opt_String(dynamic raw);
@@ -331,10 +629,33 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   bool? dco_decode_opt_box_autoadd_bool(dynamic raw);
 
   @protected
+  CertificateStep? dco_decode_opt_box_autoadd_certificate_step(dynamic raw);
+
+  @protected
+  ConnectAddress? dco_decode_opt_box_autoadd_connect_address(dynamic raw);
+
+  @protected
+  DomainCheck? dco_decode_opt_box_autoadd_domain_check(dynamic raw);
+
+  @protected
   double? dco_decode_opt_box_autoadd_f_32(dynamic raw);
 
   @protected
   PlatformInt64? dco_decode_opt_box_autoadd_i_64(dynamic raw);
+
+  @protected
+  LavalinkNodeSettings? dco_decode_opt_box_autoadd_lavalink_node_settings(
+    dynamic raw,
+  );
+
+  @protected
+  MusicPlaylist? dco_decode_opt_box_autoadd_music_playlist(dynamic raw);
+
+  @protected
+  MusicQueueItem? dco_decode_opt_box_autoadd_music_queue_item(dynamic raw);
+
+  @protected
+  MusicRepeat? dco_decode_opt_box_autoadd_music_repeat(dynamic raw);
 
   @protected
   ScreenShareResolution? dco_decode_opt_box_autoadd_screen_share_resolution(
@@ -351,7 +672,19 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   TextureStats? dco_decode_opt_box_autoadd_texture_stats(dynamic raw);
 
   @protected
+  TunnelKind? dco_decode_opt_box_autoadd_tunnel_kind(dynamic raw);
+
+  @protected
   int? dco_decode_opt_box_autoadd_u_32(dynamic raw);
+
+  @protected
+  BigInt? dco_decode_opt_box_autoadd_u_64(dynamic raw);
+
+  @protected
+  List<String>? dco_decode_opt_list_String(dynamic raw);
+
+  @protected
+  Int64List? dco_decode_opt_list_prim_i_64_strict(dynamic raw);
 
   @protected
   OverwriteTargetKind dco_decode_overwrite_target_kind(dynamic raw);
@@ -360,10 +693,25 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   PermissionOverwrite dco_decode_permission_overwrite(dynamic raw);
 
   @protected
+  PortProtocol dco_decode_port_protocol(dynamic raw);
+
+  @protected
+  PortPurpose dco_decode_port_purpose(dynamic raw);
+
+  @protected
+  PortState dco_decode_port_state(dynamic raw);
+
+  @protected
+  PortStatus dco_decode_port_status(dynamic raw);
+
+  @protected
   Presence dco_decode_presence(dynamic raw);
 
   @protected
   PresenceStatus dco_decode_presence_status(dynamic raw);
+
+  @protected
+  PublicAddress dco_decode_public_address(dynamic raw);
 
   @protected
   ReadySnapshot dco_decode_ready_snapshot(dynamic raw);
@@ -405,10 +753,16 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   Server dco_decode_server(dynamic raw);
 
   @protected
+  ServerAddresses dco_decode_server_addresses(dynamic raw);
+
+  @protected
   ServerChanges dco_decode_server_changes(dynamic raw);
 
   @protected
   ServerInfo dco_decode_server_info(dynamic raw);
+
+  @protected
+  ServerNotice dco_decode_server_notice(dynamic raw);
 
   @protected
   SoundDraft dco_decode_sound_draft(dynamic raw);
@@ -436,6 +790,15 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   TrustedFingerprint dco_decode_trusted_fingerprint(dynamic raw);
+
+  @protected
+  TunnelKind dco_decode_tunnel_kind(dynamic raw);
+
+  @protected
+  TunnelState dco_decode_tunnel_state(dynamic raw);
+
+  @protected
+  TunnelStatus dco_decode_tunnel_status(dynamic raw);
 
   @protected
   int dco_decode_u_16(dynamic raw);
@@ -499,6 +862,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   String sse_decode_String(SseDeserializer deserializer);
 
   @protected
+  AcmeAccount sse_decode_acme_account(SseDeserializer deserializer);
+
+  @protected
   AddServerOutcome sse_decode_add_server_outcome(SseDeserializer deserializer);
 
   @protected
@@ -530,6 +896,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   bool sse_decode_box_autoadd_bool(SseDeserializer deserializer);
 
   @protected
+  CertificateStep sse_decode_box_autoadd_certificate_step(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   Channel sse_decode_box_autoadd_channel(SseDeserializer deserializer);
 
   @protected
@@ -538,7 +909,33 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  CommandList sse_decode_box_autoadd_command_list(SseDeserializer deserializer);
+
+  @protected
+  CommandSettingsChanges sse_decode_box_autoadd_command_settings_changes(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  ConnectAddress sse_decode_box_autoadd_connect_address(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   ConnectionState sse_decode_box_autoadd_connection_state(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  DomainCheck sse_decode_box_autoadd_domain_check(SseDeserializer deserializer);
+
+  @protected
+  DomainUpdate sse_decode_box_autoadd_domain_update(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  EphemeralMessage sse_decode_box_autoadd_ephemeral_message(
     SseDeserializer deserializer,
   );
 
@@ -549,10 +946,79 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   PlatformInt64 sse_decode_box_autoadd_i_64(SseDeserializer deserializer);
 
   @protected
+  LavalinkNode sse_decode_box_autoadd_lavalink_node(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  LavalinkNodeChanges sse_decode_box_autoadd_lavalink_node_changes(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  LavalinkNodeEvent sse_decode_box_autoadd_lavalink_node_event(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  LavalinkNodeSettings sse_decode_box_autoadd_lavalink_node_settings(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  LavalinkTestProgress sse_decode_box_autoadd_lavalink_test_progress(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   Member sse_decode_box_autoadd_member(SseDeserializer deserializer);
 
   @protected
   Message sse_decode_box_autoadd_message(SseDeserializer deserializer);
+
+  @protected
+  MusicNotice sse_decode_box_autoadd_music_notice(SseDeserializer deserializer);
+
+  @protected
+  MusicNowPlaying sse_decode_box_autoadd_music_now_playing(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  MusicPlaylist sse_decode_box_autoadd_music_playlist(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  MusicQueueItem sse_decode_box_autoadd_music_queue_item(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  MusicRepeat sse_decode_box_autoadd_music_repeat(SseDeserializer deserializer);
+
+  @protected
+  MusicSession sse_decode_box_autoadd_music_session(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  MusicSettings sse_decode_box_autoadd_music_settings(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  MusicSettingsChanges sse_decode_box_autoadd_music_settings_changes(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  NetworkInfo sse_decode_box_autoadd_network_info(SseDeserializer deserializer);
+
+  @protected
+  NetworkSettingsChanges sse_decode_box_autoadd_network_settings_changes(
+    SseDeserializer deserializer,
+  );
 
   @protected
   PermissionOverwrite sse_decode_box_autoadd_permission_overwrite(
@@ -597,12 +1063,22 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   Server sse_decode_box_autoadd_server(SseDeserializer deserializer);
 
   @protected
+  ServerAddresses sse_decode_box_autoadd_server_addresses(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   ServerChanges sse_decode_box_autoadd_server_changes(
     SseDeserializer deserializer,
   );
 
   @protected
   ServerInfo sse_decode_box_autoadd_server_info(SseDeserializer deserializer);
+
+  @protected
+  ServerNotice sse_decode_box_autoadd_server_notice(
+    SseDeserializer deserializer,
+  );
 
   @protected
   SoundEffect sse_decode_box_autoadd_sound_effect(SseDeserializer deserializer);
@@ -628,7 +1104,13 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  TunnelKind sse_decode_box_autoadd_tunnel_kind(SseDeserializer deserializer);
+
+  @protected
   int sse_decode_box_autoadd_u_32(SseDeserializer deserializer);
+
+  @protected
+  BigInt sse_decode_box_autoadd_u_64(SseDeserializer deserializer);
 
   @protected
   VoiceConnectionState sse_decode_box_autoadd_voice_connection_state(
@@ -661,6 +1143,15 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   CameraStarted sse_decode_camera_started(SseDeserializer deserializer);
 
   @protected
+  CertificateState sse_decode_certificate_state(SseDeserializer deserializer);
+
+  @protected
+  CertificateStatus sse_decode_certificate_status(SseDeserializer deserializer);
+
+  @protected
+  CertificateStep sse_decode_certificate_step(SseDeserializer deserializer);
+
+  @protected
   Channel sse_decode_channel(SseDeserializer deserializer);
 
   @protected
@@ -678,6 +1169,44 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   ChannelPosition sse_decode_channel_position(SseDeserializer deserializer);
 
   @protected
+  CheckResult sse_decode_check_result(SseDeserializer deserializer);
+
+  @protected
+  CommandChoice sse_decode_command_choice(SseDeserializer deserializer);
+
+  @protected
+  CommandList sse_decode_command_list(SseDeserializer deserializer);
+
+  @protected
+  CommandOptionKind sse_decode_command_option_kind(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  CommandOptionSpec sse_decode_command_option_spec(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  CommandOptionValue sse_decode_command_option_value(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  CommandOutcome sse_decode_command_outcome(SseDeserializer deserializer);
+
+  @protected
+  CommandSettingsChanges sse_decode_command_settings_changes(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  CommandSpec sse_decode_command_spec(SseDeserializer deserializer);
+
+  @protected
+  ConnectAddress sse_decode_connect_address(SseDeserializer deserializer);
+
+  @protected
   ConnectionState sse_decode_connection_state(SseDeserializer deserializer);
 
   @protected
@@ -691,6 +1220,27 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   DefaultSound sse_decode_default_sound(SseDeserializer deserializer);
+
+  @protected
+  DnsProvider sse_decode_dns_provider(SseDeserializer deserializer);
+
+  @protected
+  Domain sse_decode_domain(SseDeserializer deserializer);
+
+  @protected
+  DomainCheck sse_decode_domain_check(SseDeserializer deserializer);
+
+  @protected
+  DomainKind sse_decode_domain_kind(SseDeserializer deserializer);
+
+  @protected
+  DomainStatus sse_decode_domain_status(SseDeserializer deserializer);
+
+  @protected
+  DomainUpdate sse_decode_domain_update(SseDeserializer deserializer);
+
+  @protected
+  EphemeralMessage sse_decode_ephemeral_message(SseDeserializer deserializer);
 
   @protected
   ErrorCode sse_decode_error_code(SseDeserializer deserializer);
@@ -726,6 +1276,62 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   Invite sse_decode_invite(SseDeserializer deserializer);
 
   @protected
+  LavalinkBridge sse_decode_lavalink_bridge(SseDeserializer deserializer);
+
+  @protected
+  LavalinkEventKind sse_decode_lavalink_event_kind(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  LavalinkHealth sse_decode_lavalink_health(SseDeserializer deserializer);
+
+  @protected
+  LavalinkNode sse_decode_lavalink_node(SseDeserializer deserializer);
+
+  @protected
+  LavalinkNodeChanges sse_decode_lavalink_node_changes(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  LavalinkNodeEvent sse_decode_lavalink_node_event(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  LavalinkNodeSettings sse_decode_lavalink_node_settings(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  LavalinkNodes sse_decode_lavalink_nodes(SseDeserializer deserializer);
+
+  @protected
+  LavalinkPriority sse_decode_lavalink_priority(SseDeserializer deserializer);
+
+  @protected
+  LavalinkTestProgress sse_decode_lavalink_test_progress(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  LavalinkTestStep sse_decode_lavalink_test_step(SseDeserializer deserializer);
+
+  @protected
+  LavalinkTestStepKind sse_decode_lavalink_test_step_kind(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  LavalinkTestStepState sse_decode_lavalink_test_step_state(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  List<String> sse_decode_list_String(SseDeserializer deserializer);
+
+  @protected
   List<AudioDevice> sse_decode_list_audio_device(SseDeserializer deserializer);
 
   @protected
@@ -750,9 +1356,41 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  List<CommandChoice> sse_decode_list_command_choice(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  List<CommandOptionSpec> sse_decode_list_command_option_spec(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  List<CommandOptionValue> sse_decode_list_command_option_value(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  List<CommandSpec> sse_decode_list_command_spec(SseDeserializer deserializer);
+
+  @protected
+  List<ConnectAddress> sse_decode_list_connect_address(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   List<DefaultSound> sse_decode_list_default_sound(
     SseDeserializer deserializer,
   );
+
+  @protected
+  List<DnsProvider> sse_decode_list_dns_provider(SseDeserializer deserializer);
+
+  @protected
+  List<Domain> sse_decode_list_domain(SseDeserializer deserializer);
+
+  @protected
+  List<DomainCheck> sse_decode_list_domain_check(SseDeserializer deserializer);
 
   @protected
   List<HotkeyBinding> sse_decode_list_hotkey_binding(
@@ -763,15 +1401,46 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   List<Invite> sse_decode_list_invite(SseDeserializer deserializer);
 
   @protected
+  List<LavalinkNode> sse_decode_list_lavalink_node(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  List<LavalinkNodeEvent> sse_decode_list_lavalink_node_event(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  List<LavalinkTestStep> sse_decode_list_lavalink_test_step(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   List<Member> sse_decode_list_member(SseDeserializer deserializer);
 
   @protected
   List<Message> sse_decode_list_message(SseDeserializer deserializer);
 
   @protected
+  List<MusicBlock> sse_decode_list_music_block(SseDeserializer deserializer);
+
+  @protected
+  List<MusicQueueItem> sse_decode_list_music_queue_item(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  List<MusicSearchResult> sse_decode_list_music_search_result(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   List<PermissionOverwrite> sse_decode_list_permission_overwrite(
     SseDeserializer deserializer,
   );
+
+  @protected
+  List<PortStatus> sse_decode_list_port_status(SseDeserializer deserializer);
 
   @protected
   List<Presence> sse_decode_list_presence(SseDeserializer deserializer);
@@ -831,6 +1500,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   List<VoiceState> sse_decode_list_voice_state(SseDeserializer deserializer);
 
   @protected
+  MappingState sse_decode_mapping_state(SseDeserializer deserializer);
+
+  @protected
   MediaEvent sse_decode_media_event(SseDeserializer deserializer);
 
   @protected
@@ -840,9 +1512,74 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   Message sse_decode_message(SseDeserializer deserializer);
 
   @protected
+  MusicAction sse_decode_music_action(SseDeserializer deserializer);
+
+  @protected
+  MusicBlock sse_decode_music_block(SseDeserializer deserializer);
+
+  @protected
+  MusicNotice sse_decode_music_notice(SseDeserializer deserializer);
+
+  @protected
+  MusicNowPlaying sse_decode_music_now_playing(SseDeserializer deserializer);
+
+  @protected
+  MusicPlacement sse_decode_music_placement(SseDeserializer deserializer);
+
+  @protected
+  MusicPlayState sse_decode_music_play_state(SseDeserializer deserializer);
+
+  @protected
+  MusicPlaylist sse_decode_music_playlist(SseDeserializer deserializer);
+
+  @protected
+  MusicQueueItem sse_decode_music_queue_item(SseDeserializer deserializer);
+
+  @protected
+  MusicRepeat sse_decode_music_repeat(SseDeserializer deserializer);
+
+  @protected
+  MusicSearchResult sse_decode_music_search_result(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  MusicSearchResults sse_decode_music_search_results(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  MusicSession sse_decode_music_session(SseDeserializer deserializer);
+
+  @protected
+  MusicSettings sse_decode_music_settings(SseDeserializer deserializer);
+
+  @protected
+  MusicSettingsChanges sse_decode_music_settings_changes(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  MusicTrack sse_decode_music_track(SseDeserializer deserializer);
+
+  @protected
+  NetworkInfo sse_decode_network_info(SseDeserializer deserializer);
+
+  @protected
+  NetworkSettings sse_decode_network_settings(SseDeserializer deserializer);
+
+  @protected
+  NetworkSettingsChanges sse_decode_network_settings_changes(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   NoiseSuppressionMode sse_decode_noise_suppression_mode(
     SseDeserializer deserializer,
   );
+
+  @protected
+  NoticeSeverity sse_decode_notice_severity(SseDeserializer deserializer);
 
   @protected
   String? sse_decode_opt_String(SseDeserializer deserializer);
@@ -851,10 +1588,45 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   bool? sse_decode_opt_box_autoadd_bool(SseDeserializer deserializer);
 
   @protected
+  CertificateStep? sse_decode_opt_box_autoadd_certificate_step(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  ConnectAddress? sse_decode_opt_box_autoadd_connect_address(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  DomainCheck? sse_decode_opt_box_autoadd_domain_check(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   double? sse_decode_opt_box_autoadd_f_32(SseDeserializer deserializer);
 
   @protected
   PlatformInt64? sse_decode_opt_box_autoadd_i_64(SseDeserializer deserializer);
+
+  @protected
+  LavalinkNodeSettings? sse_decode_opt_box_autoadd_lavalink_node_settings(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  MusicPlaylist? sse_decode_opt_box_autoadd_music_playlist(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  MusicQueueItem? sse_decode_opt_box_autoadd_music_queue_item(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  MusicRepeat? sse_decode_opt_box_autoadd_music_repeat(
+    SseDeserializer deserializer,
+  );
 
   @protected
   ScreenShareResolution? sse_decode_opt_box_autoadd_screen_share_resolution(
@@ -877,7 +1649,21 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  TunnelKind? sse_decode_opt_box_autoadd_tunnel_kind(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   int? sse_decode_opt_box_autoadd_u_32(SseDeserializer deserializer);
+
+  @protected
+  BigInt? sse_decode_opt_box_autoadd_u_64(SseDeserializer deserializer);
+
+  @protected
+  List<String>? sse_decode_opt_list_String(SseDeserializer deserializer);
+
+  @protected
+  Int64List? sse_decode_opt_list_prim_i_64_strict(SseDeserializer deserializer);
 
   @protected
   OverwriteTargetKind sse_decode_overwrite_target_kind(
@@ -890,10 +1676,25 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  PortProtocol sse_decode_port_protocol(SseDeserializer deserializer);
+
+  @protected
+  PortPurpose sse_decode_port_purpose(SseDeserializer deserializer);
+
+  @protected
+  PortState sse_decode_port_state(SseDeserializer deserializer);
+
+  @protected
+  PortStatus sse_decode_port_status(SseDeserializer deserializer);
+
+  @protected
   Presence sse_decode_presence(SseDeserializer deserializer);
 
   @protected
   PresenceStatus sse_decode_presence_status(SseDeserializer deserializer);
+
+  @protected
+  PublicAddress sse_decode_public_address(SseDeserializer deserializer);
 
   @protected
   ReadySnapshot sse_decode_ready_snapshot(SseDeserializer deserializer);
@@ -943,10 +1744,16 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   Server sse_decode_server(SseDeserializer deserializer);
 
   @protected
+  ServerAddresses sse_decode_server_addresses(SseDeserializer deserializer);
+
+  @protected
   ServerChanges sse_decode_server_changes(SseDeserializer deserializer);
 
   @protected
   ServerInfo sse_decode_server_info(SseDeserializer deserializer);
+
+  @protected
+  ServerNotice sse_decode_server_notice(SseDeserializer deserializer);
 
   @protected
   SoundDraft sse_decode_sound_draft(SseDeserializer deserializer);
@@ -978,6 +1785,15 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   TrustedFingerprint sse_decode_trusted_fingerprint(
     SseDeserializer deserializer,
   );
+
+  @protected
+  TunnelKind sse_decode_tunnel_kind(SseDeserializer deserializer);
+
+  @protected
+  TunnelState sse_decode_tunnel_state(SseDeserializer deserializer);
+
+  @protected
+  TunnelStatus sse_decode_tunnel_status(SseDeserializer deserializer);
 
   @protected
   int sse_decode_u_16(SseDeserializer deserializer);
@@ -1050,6 +1866,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_String(String self, SseSerializer serializer);
 
   @protected
+  void sse_encode_acme_account(AcmeAccount self, SseSerializer serializer);
+
+  @protected
   void sse_encode_add_server_outcome(
     AddServerOutcome self,
     SseSerializer serializer,
@@ -1086,6 +1905,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_box_autoadd_bool(bool self, SseSerializer serializer);
 
   @protected
+  void sse_encode_box_autoadd_certificate_step(
+    CertificateStep self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_box_autoadd_channel(Channel self, SseSerializer serializer);
 
   @protected
@@ -1095,8 +1920,44 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_box_autoadd_command_list(
+    CommandList self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_box_autoadd_command_settings_changes(
+    CommandSettingsChanges self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_box_autoadd_connect_address(
+    ConnectAddress self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_box_autoadd_connection_state(
     ConnectionState self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_box_autoadd_domain_check(
+    DomainCheck self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_box_autoadd_domain_update(
+    DomainUpdate self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_box_autoadd_ephemeral_message(
+    EphemeralMessage self,
     SseSerializer serializer,
   );
 
@@ -1110,10 +1971,100 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_box_autoadd_lavalink_node(
+    LavalinkNode self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_box_autoadd_lavalink_node_changes(
+    LavalinkNodeChanges self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_box_autoadd_lavalink_node_event(
+    LavalinkNodeEvent self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_box_autoadd_lavalink_node_settings(
+    LavalinkNodeSettings self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_box_autoadd_lavalink_test_progress(
+    LavalinkTestProgress self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_box_autoadd_member(Member self, SseSerializer serializer);
 
   @protected
   void sse_encode_box_autoadd_message(Message self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_box_autoadd_music_notice(
+    MusicNotice self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_box_autoadd_music_now_playing(
+    MusicNowPlaying self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_box_autoadd_music_playlist(
+    MusicPlaylist self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_box_autoadd_music_queue_item(
+    MusicQueueItem self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_box_autoadd_music_repeat(
+    MusicRepeat self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_box_autoadd_music_session(
+    MusicSession self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_box_autoadd_music_settings(
+    MusicSettings self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_box_autoadd_music_settings_changes(
+    MusicSettingsChanges self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_box_autoadd_network_info(
+    NetworkInfo self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_box_autoadd_network_settings_changes(
+    NetworkSettingsChanges self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_box_autoadd_permission_overwrite(
@@ -1167,6 +2118,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_box_autoadd_server(Server self, SseSerializer serializer);
 
   @protected
+  void sse_encode_box_autoadd_server_addresses(
+    ServerAddresses self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_box_autoadd_server_changes(
     ServerChanges self,
     SseSerializer serializer,
@@ -1175,6 +2132,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_box_autoadd_server_info(
     ServerInfo self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_box_autoadd_server_notice(
+    ServerNotice self,
     SseSerializer serializer,
   );
 
@@ -1209,7 +2172,16 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_box_autoadd_tunnel_kind(
+    TunnelKind self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_box_autoadd_u_32(int self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_box_autoadd_u_64(BigInt self, SseSerializer serializer);
 
   @protected
   void sse_encode_box_autoadd_voice_connection_state(
@@ -1251,6 +2223,24 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_camera_started(CameraStarted self, SseSerializer serializer);
 
   @protected
+  void sse_encode_certificate_state(
+    CertificateState self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_certificate_status(
+    CertificateStatus self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_certificate_step(
+    CertificateStep self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_channel(Channel self, SseSerializer serializer);
 
   @protected
@@ -1275,6 +2265,54 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_check_result(CheckResult self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_command_choice(CommandChoice self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_command_list(CommandList self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_command_option_kind(
+    CommandOptionKind self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_command_option_spec(
+    CommandOptionSpec self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_command_option_value(
+    CommandOptionValue self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_command_outcome(
+    CommandOutcome self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_command_settings_changes(
+    CommandSettingsChanges self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_command_spec(CommandSpec self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_connect_address(
+    ConnectAddress self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_connection_state(
     ConnectionState self,
     SseSerializer serializer,
@@ -1294,6 +2332,30 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_default_sound(DefaultSound self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_dns_provider(DnsProvider self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_domain(Domain self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_domain_check(DomainCheck self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_domain_kind(DomainKind self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_domain_status(DomainStatus self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_domain_update(DomainUpdate self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_ephemeral_message(
+    EphemeralMessage self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_error_code(ErrorCode self, SseSerializer serializer);
@@ -1332,6 +2394,81 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_invite(Invite self, SseSerializer serializer);
 
   @protected
+  void sse_encode_lavalink_bridge(
+    LavalinkBridge self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_lavalink_event_kind(
+    LavalinkEventKind self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_lavalink_health(
+    LavalinkHealth self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_lavalink_node(LavalinkNode self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_lavalink_node_changes(
+    LavalinkNodeChanges self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_lavalink_node_event(
+    LavalinkNodeEvent self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_lavalink_node_settings(
+    LavalinkNodeSettings self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_lavalink_nodes(LavalinkNodes self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_lavalink_priority(
+    LavalinkPriority self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_lavalink_test_progress(
+    LavalinkTestProgress self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_lavalink_test_step(
+    LavalinkTestStep self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_lavalink_test_step_kind(
+    LavalinkTestStepKind self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_lavalink_test_step_state(
+    LavalinkTestStepState self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_String(List<String> self, SseSerializer serializer);
+
+  @protected
   void sse_encode_list_audio_device(
     List<AudioDevice> self,
     SseSerializer serializer,
@@ -1362,8 +2499,53 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_list_command_choice(
+    List<CommandChoice> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_command_option_spec(
+    List<CommandOptionSpec> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_command_option_value(
+    List<CommandOptionValue> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_command_spec(
+    List<CommandSpec> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_connect_address(
+    List<ConnectAddress> self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_list_default_sound(
     List<DefaultSound> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_dns_provider(
+    List<DnsProvider> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_domain(List<Domain> self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_list_domain_check(
+    List<DomainCheck> self,
     SseSerializer serializer,
   );
 
@@ -1377,14 +2559,56 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_list_invite(List<Invite> self, SseSerializer serializer);
 
   @protected
+  void sse_encode_list_lavalink_node(
+    List<LavalinkNode> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_lavalink_node_event(
+    List<LavalinkNodeEvent> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_lavalink_test_step(
+    List<LavalinkTestStep> self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_list_member(List<Member> self, SseSerializer serializer);
 
   @protected
   void sse_encode_list_message(List<Message> self, SseSerializer serializer);
 
   @protected
+  void sse_encode_list_music_block(
+    List<MusicBlock> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_music_queue_item(
+    List<MusicQueueItem> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_music_search_result(
+    List<MusicSearchResult> self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_list_permission_overwrite(
     List<PermissionOverwrite> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_port_status(
+    List<PortStatus> self,
     SseSerializer serializer,
   );
 
@@ -1467,6 +2691,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_mapping_state(MappingState self, SseSerializer serializer);
+
+  @protected
   void sse_encode_media_event(MediaEvent self, SseSerializer serializer);
 
   @protected
@@ -1476,8 +2703,95 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_message(Message self, SseSerializer serializer);
 
   @protected
+  void sse_encode_music_action(MusicAction self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_music_block(MusicBlock self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_music_notice(MusicNotice self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_music_now_playing(
+    MusicNowPlaying self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_music_placement(
+    MusicPlacement self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_music_play_state(
+    MusicPlayState self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_music_playlist(MusicPlaylist self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_music_queue_item(
+    MusicQueueItem self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_music_repeat(MusicRepeat self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_music_search_result(
+    MusicSearchResult self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_music_search_results(
+    MusicSearchResults self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_music_session(MusicSession self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_music_settings(MusicSettings self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_music_settings_changes(
+    MusicSettingsChanges self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_music_track(MusicTrack self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_network_info(NetworkInfo self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_network_settings(
+    NetworkSettings self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_network_settings_changes(
+    NetworkSettingsChanges self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_noise_suppression_mode(
     NoiseSuppressionMode self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_notice_severity(
+    NoticeSeverity self,
     SseSerializer serializer,
   );
 
@@ -1488,11 +2802,53 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_opt_box_autoadd_bool(bool? self, SseSerializer serializer);
 
   @protected
+  void sse_encode_opt_box_autoadd_certificate_step(
+    CertificateStep? self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_opt_box_autoadd_connect_address(
+    ConnectAddress? self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_opt_box_autoadd_domain_check(
+    DomainCheck? self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_opt_box_autoadd_f_32(double? self, SseSerializer serializer);
 
   @protected
   void sse_encode_opt_box_autoadd_i_64(
     PlatformInt64? self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_opt_box_autoadd_lavalink_node_settings(
+    LavalinkNodeSettings? self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_opt_box_autoadd_music_playlist(
+    MusicPlaylist? self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_opt_box_autoadd_music_queue_item(
+    MusicQueueItem? self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_opt_box_autoadd_music_repeat(
+    MusicRepeat? self,
     SseSerializer serializer,
   );
 
@@ -1521,7 +2877,25 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_opt_box_autoadd_tunnel_kind(
+    TunnelKind? self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_opt_box_autoadd_u_32(int? self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_opt_box_autoadd_u_64(BigInt? self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_opt_list_String(List<String>? self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_opt_list_prim_i_64_strict(
+    Int64List? self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_overwrite_target_kind(
@@ -1536,6 +2910,18 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_port_protocol(PortProtocol self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_port_purpose(PortPurpose self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_port_state(PortState self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_port_status(PortStatus self, SseSerializer serializer);
+
+  @protected
   void sse_encode_presence(Presence self, SseSerializer serializer);
 
   @protected
@@ -1543,6 +2929,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
     PresenceStatus self,
     SseSerializer serializer,
   );
+
+  @protected
+  void sse_encode_public_address(PublicAddress self, SseSerializer serializer);
 
   @protected
   void sse_encode_ready_snapshot(ReadySnapshot self, SseSerializer serializer);
@@ -1602,10 +2991,19 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_server(Server self, SseSerializer serializer);
 
   @protected
+  void sse_encode_server_addresses(
+    ServerAddresses self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_server_changes(ServerChanges self, SseSerializer serializer);
 
   @protected
   void sse_encode_server_info(ServerInfo self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_server_notice(ServerNotice self, SseSerializer serializer);
 
   @protected
   void sse_encode_sound_draft(SoundDraft self, SseSerializer serializer);
@@ -1651,6 +3049,15 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
     TrustedFingerprint self,
     SseSerializer serializer,
   );
+
+  @protected
+  void sse_encode_tunnel_kind(TunnelKind self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_tunnel_state(TunnelState self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_tunnel_status(TunnelStatus self, SseSerializer serializer);
 
   @protected
   void sse_encode_u_16(int self, SseSerializer serializer);

@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:opencord/core/model/misc.dart';
+import 'package:opencord/core/model/network.dart';
 import 'package:opencord/core/providers/providers.dart';
 import 'package:opencord/core/repository/repository.dart';
 import 'package:opencord/ui/theme/oc_colors.dart';
@@ -13,6 +14,8 @@ import 'package:opencord/ui/widgets/choice_chips.dart';
 import 'package:opencord/ui/widgets/inline_error.dart';
 import 'package:opencord/ui/widgets/oc_button.dart';
 import 'package:opencord/ui/widgets/oc_dialog.dart';
+import 'package:opencord/ui/widgets/oc_menu.dart';
+import 'package:opencord/ui/widgets/popover.dart';
 import 'package:opencord/ui/widgets/section_label.dart';
 import 'package:opencord/ui/widgets/toast.dart';
 
@@ -59,8 +62,12 @@ class _InviteDialogState extends ConsumerState<InviteDialog> {
   Duration? _expiry = const Duration(days: 7);
   int? _limit;
 
+  /// The domain the link goes through; null for the primary (Phase 3 plan
+  /// §7.6).
+  int? _domainId;
+
   /// The options the shown link was made with.
-  (Duration?, int?)? _madeWith;
+  (Duration?, int?, int?)? _madeWith;
 
   @override
   void initState() {
@@ -76,11 +83,17 @@ class _InviteDialogState extends ConsumerState<InviteDialog> {
     try {
       final invite = await ref
           .read(repositoryProvider)
-          .createInvite(widget.serverKey, expiresIn: _expiry, maxUses: _limit);
+          .createInvite(
+            widget.serverKey,
+            expiresIn: _expiry,
+            maxUses: _limit,
+            domainId: _domainId,
+          );
       if (!mounted) return;
       setState(() {
         _invite = invite;
-        _madeWith = (_expiry, _limit);
+        _domainId ??= invite.domainId;
+        _madeWith = (_expiry, _limit, _domainId);
         _busy = false;
       });
     } on RepoException catch (error) {
@@ -92,11 +105,26 @@ class _InviteDialogState extends ConsumerState<InviteDialog> {
     }
   }
 
-  void _copy() {
+  void _copy([String? link]) {
     final invite = _invite;
     if (invite == null) return;
-    Clipboard.setData(ClipboardData(text: invite.link));
+    Clipboard.setData(ClipboardData(text: link ?? invite.link));
     showOcToast(context, 'Invite link copied');
+  }
+
+  void _pickDomain(BuildContext anchor, List<ConnectAddress> domains) {
+    showOcMenu(
+      context: anchor,
+      position: globalRectOf(anchor).bottomLeft.translate(0, 4),
+      entries: [
+        for (final domain in domains)
+          OcMenuItem(
+            label: domain.host,
+            checked: domain.domainId == _domainId,
+            onSelected: () => setState(() => _domainId = domain.domainId),
+          ),
+      ],
+    );
   }
 
   @override
@@ -107,7 +135,19 @@ class _InviteDialogState extends ConsumerState<InviteDialog> {
           serverProvider(widget.serverKey).select((s) => s.data?.info.name),
         ) ??
         'this server';
-    final changed = _madeWith != null && _madeWith != (_expiry, _limit);
+    final domains =
+        ref.watch(
+          serverProvider(
+            widget.serverKey,
+          ).select((s) => s.data?.addresses.domains),
+        ) ??
+        const <ConnectAddress>[];
+    final chosen = domains
+        .where((domain) => domain.domainId == _domainId)
+        .firstOrNull;
+    final changed =
+        _madeWith != null && _madeWith != (_expiry, _limit, _domainId);
+    final invite = _invite;
     return OcDialog(
       title: 'Invite people to $name',
       width: 520,
@@ -152,9 +192,45 @@ class _InviteDialogState extends ConsumerState<InviteDialog> {
               ),
             ],
           ),
+          if (invite?.webLink case final web? when !changed) ...[
+            const SizedBox(height: OcSpace.s8),
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    'For a browser: $web',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: OcText.small.copyWith(color: colors.textSecondary),
+                  ),
+                ),
+                OcButton.ghost(
+                  label: 'Copy',
+                  dense: true,
+                  onPressed: () => _copy(web),
+                ),
+              ],
+            ),
+          ],
           if (_error case final error?) ...[
             const SizedBox(height: OcSpace.s10),
             InlineError(error),
+          ],
+          // Only with a choice to make (plan §7.6).
+          if (domains.length > 1) ...[
+            const SizedBox(height: OcSpace.s20),
+            const SectionLabel('Through'),
+            const SizedBox(height: OcSpace.s8),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Builder(
+                builder: (anchor) => OcButton(
+                  label: chosen?.host ?? domains.first.host,
+                  icon: OcIcons.arrowDropDown,
+                  onPressed: () => _pickDomain(anchor, domains),
+                ),
+              ),
+            ),
           ],
           const SizedBox(height: OcSpace.s20),
           const SectionLabel('Expire after'),
@@ -186,8 +262,12 @@ class _InviteDialogState extends ConsumerState<InviteDialog> {
           ],
           const SizedBox(height: OcSpace.s16),
           Text(
-            'The link carries this server’s fingerprint, so whoever '
-            'opens it connects to this server and not to an impostor.',
+            invite == null || invite.link.contains('#fp=')
+                ? 'The link carries this server’s fingerprint, so whoever '
+                      'opens it connects to this server and not to an impostor.'
+                : 'The link goes through a domain with a trusted '
+                      'certificate, so whoever opens it connects to this '
+                      'server and not to an impostor.',
             style: OcText.small.copyWith(color: colors.textMuted),
           ),
         ],

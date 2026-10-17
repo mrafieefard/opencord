@@ -10,7 +10,8 @@ import "opencord/v1/models.proto";
 // itself flows over ICE + DTLS-SRTP on the node's UDP port.
 message Envelope {
   // Node to client: set on sequenced messages (ClientConnect,
-  // ClientDisconnect, Speaking, TrackUpdate, SenderLayerWants), increasing
+  // ClientDisconnect, Speaking, TrackUpdate, SenderLayerWants,
+  // MusicStream), increasing
   // by one per message within a voice session. Used to resume.
   uint64 seq = 1;
   oneof payload {
@@ -32,6 +33,7 @@ message Envelope {
     SenderLayerWants sender_layer_wants = 25;
     Resume resume = 26;
     Resumed resumed = 27;
+    MusicStream music_stream = 28;
     // Connection-level failure. The node closes the socket after it.
     opencord.v1.Error error = 30;
   }
@@ -165,6 +167,8 @@ message Ready {
   Limits limits = 9;
   // Everyone else already in the channel.
   repeated Participant participants = 10;
+  // The channel's music, when it has a stream (Phase 3 plan §18.4).
+  MusicStream music = 12;
 }
 
 // The client's half of the transport, for str0m's direct API (no SDP).
@@ -250,6 +254,17 @@ message SinkWant {
 // listed are not sent.
 message MediaSinkWants {
   repeated SinkWant wants = 1;
+  // The channel's music is not sent while set (Phase 3 plan §18.4).
+  bool music_muted = 2;
+}
+
+// The channel's music stream (Phase 3 plan §13.3): Opus from the server's
+// music player, on an SSRC of its own. Not a participant: no
+// ClientConnect, no tile, no speaking.
+message MusicStream {
+  int64 channel_id = 1;
+  uint32 ssrc = 2;
+  bool active = 3;
 }
 
 // The layers of a track that anyone needs; the sender stops encoding the

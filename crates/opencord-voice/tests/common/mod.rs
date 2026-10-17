@@ -103,6 +103,7 @@ pub fn target(node: &Node, user_id: i64, token: Vec<u8>) -> VoiceTarget {
     VoiceTarget {
         gateway_url: node.gateway.clone(),
         certificate_fingerprint: None,
+        authority: None,
         token,
         user_id,
         session_id: format!("session-{user_id}"),

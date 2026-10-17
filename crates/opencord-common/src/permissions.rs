@@ -34,6 +34,16 @@ bitflags::bitflags! {
         /// Play sounds from other servers.
         const USE_EXTERNAL_SOUNDS = 1 << 26;
         const MANAGE_SOUNDBOARD = 1 << 27;
+        /// Search and add music; remove and skip one's own tracks.
+        const MUSIC_ADD = 1 << 28;
+        /// Pause, resume, seek, next, previous, repeat and shuffle.
+        const MUSIC_CONTROL = 1 << 29;
+        /// Reorder the queue, remove anyone's tracks, clear it, play next
+        /// and play now.
+        const MUSIC_MANAGE_QUEUE = 1 << 30;
+        /// Stop the player, block members from music, bypass music limits,
+        /// control music from outside the channel, music settings.
+        const MUSIC_MANAGE = 1 << 31;
         const ADMINISTRATOR = 1 << 63;
     }
 }
@@ -51,7 +61,9 @@ impl Permissions {
         .union(Self::SCREENSHARE)
         .union(Self::USE_VOICE_ACTIVITY)
         .union(Self::USE_SOUNDBOARD)
-        .union(Self::USE_EXTERNAL_SOUNDS);
+        .union(Self::USE_EXTERNAL_SOUNDS)
+        .union(Self::MUSIC_ADD)
+        .union(Self::MUSIC_CONTROL);
 }
 
 /// A role as far as permission checks are concerned.

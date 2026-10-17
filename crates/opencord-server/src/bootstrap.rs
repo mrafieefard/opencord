@@ -101,7 +101,7 @@ pub async fn startup_invite(
             return Ok(Some(code.clone()));
         }
     }
-    let invite = invites::create(&mut tx, None, None, None, now_ms).await?;
+    let invite = invites::create(&mut tx, None, None, None, None, now_ms).await?;
     ServerMeta {
         default_invite: Some(invite.code.clone()),
         ..meta

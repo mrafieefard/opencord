@@ -21,6 +21,28 @@ pub struct NodeLink {
     /// `wss://` URL; empty for the embedded node, at this server's `/voice`.
     pub endpoint: String,
     pub fingerprint: Fingerprint,
+    /// The node runs an audio bridge at its endpoint (Phase 3 plan §13.1).
+    pub music: bool,
+}
+
+/// Where a channel's music goes in (Phase 3 plan §13.1).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum MusicTarget {
+    /// This server's own bridge.
+    Embedded,
+    /// An external node's bridge, at `host:port`; `None` when the node
+    /// runs none.
+    External { id: String, bridge: Option<String> },
+}
+
+/// `host:port` of a `wss://host:port` endpoint.
+pub fn authority(endpoint: &str) -> String {
+    endpoint
+        .trim_start_matches("wss://")
+        .split('/')
+        .next()
+        .unwrap_or_default()
+        .to_owned()
 }
 
 /// Sends commands to an external node over its control channel.
@@ -116,7 +138,20 @@ impl VoiceNodes {
     /// to the embedded node.
     pub fn link_for(&self, channel_id: i64) -> Option<NodeLink> {
         let mut inner = self.lock();
-        let id = match inner.assignments.get(&channel_id).cloned() {
+        let id = self.assign(&mut inner, channel_id)?;
+        match id {
+            NodeId::Embedded => Some(NodeLink {
+                endpoint: String::new(),
+                fingerprint: self.fingerprint,
+                music: true,
+            }),
+            NodeId::External(id) => inner.external.get(&id).map(|node| node.link.clone()),
+        }
+    }
+
+    /// The node serving `channel_id`, picked now if it has none.
+    fn assign(&self, inner: &mut Inner, channel_id: i64) -> Option<NodeId> {
+        Some(match inner.assignments.get(&channel_id).cloned() {
             Some(id) => id,
             None => {
                 let embedded = self
@@ -135,14 +170,42 @@ impl VoiceNodes {
                 inner.assignments.insert(channel_id, id.clone());
                 id
             }
-        };
-        match id {
-            NodeId::Embedded => Some(NodeLink {
-                endpoint: String::new(),
-                fingerprint: self.fingerprint,
-            }),
-            NodeId::External(id) => inner.external.get(&id).map(|node| node.link.clone()),
-        }
+        })
+    }
+
+    /// Where `channel_id`'s music goes in: the bridge where its node runs.
+    /// Picks the channel's node now if it has none.
+    pub fn music_target(&self, channel_id: i64) -> Option<MusicTarget> {
+        let mut inner = self.lock();
+        Some(match self.assign(&mut inner, channel_id)? {
+            NodeId::Embedded => MusicTarget::Embedded,
+            NodeId::External(id) => {
+                let bridge = inner
+                    .external
+                    .get(&id)
+                    .filter(|node| node.link.music)
+                    .map(|node| authority(&node.link.endpoint));
+                MusicTarget::External { id, bridge }
+            }
+        })
+    }
+
+    /// The node serving `channel_id`, if any.
+    pub fn node_of(&self, channel_id: i64) -> Option<NodeId> {
+        self.lock().assignments.get(&channel_id).cloned()
+    }
+
+    /// External nodes' bridges, as `host:port`.
+    pub fn music_bridges(&self) -> Vec<String> {
+        let mut bridges: Vec<String> = self
+            .lock()
+            .external
+            .values()
+            .filter(|node| node.link.music)
+            .map(|node| authority(&node.link.endpoint))
+            .collect();
+        bridges.sort();
+        bridges
     }
 
     /// Sends a command to the node serving `channel_id`, if any.
@@ -252,6 +315,7 @@ mod tests {
 
     fn link(name: &str) -> NodeLink {
         NodeLink {
+            music: false,
             endpoint: format!("wss://{name}.example:7712"),
             fingerprint: [1; 32],
         }

@@ -8,7 +8,37 @@ import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 import 'package:freezed_annotation/freezed_annotation.dart' hide protected;
 part 'types.freezed.dart';
 
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `hash`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `hash`
+
+class AcmeAccount {
+  /// An account exists with the CA in use.
+  final bool exists;
+  final String email;
+
+  /// The subscriber agreement to accept before the first certificate.
+  final String termsUrl;
+
+  const AcmeAccount({
+    required this.exists,
+    required this.email,
+    required this.termsUrl,
+  });
+
+  static Future<AcmeAccount> default_() =>
+      RustLib.instance.api.crateApiTypesAcmeAccountDefault();
+
+  @override
+  int get hashCode => exists.hashCode ^ email.hashCode ^ termsUrl.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is AcmeAccount &&
+          runtimeType == other.runtimeType &&
+          exists == other.exists &&
+          email == other.email &&
+          termsUrl == other.termsUrl;
+}
 
 @freezed
 sealed class AddServerOutcome with _$AddServerOutcome {
@@ -276,6 +306,81 @@ class CameraStarted {
           height == other.height;
 }
 
+enum CertificateState {
+  none,
+  requesting,
+  valid,
+
+  /// Valid, but renewing it fails.
+  renewalFailed,
+
+  /// None; the last request failed.
+  failed,
+
+  /// The tunnel's or the proxy's.
+  provided,
+  expired,
+}
+
+class CertificateStatus {
+  final CertificateState state;
+  final String issuer;
+  final PlatformInt64 notAfterMs;
+
+  /// From Let's Encrypt's test environment: kept, not served.
+  final bool test;
+
+  /// The owner's own: not renewed by the server.
+  final bool uploaded;
+
+  /// While requesting.
+  final CertificateStep? step;
+
+  /// Why the last request or renewal failed.
+  final String error;
+
+  /// When it may be tried again, after too many failures; 0 when it may.
+  final PlatformInt64 retryAtMs;
+
+  const CertificateStatus({
+    required this.state,
+    required this.issuer,
+    required this.notAfterMs,
+    required this.test,
+    required this.uploaded,
+    this.step,
+    required this.error,
+    required this.retryAtMs,
+  });
+
+  @override
+  int get hashCode =>
+      state.hashCode ^
+      issuer.hashCode ^
+      notAfterMs.hashCode ^
+      test.hashCode ^
+      uploaded.hashCode ^
+      step.hashCode ^
+      error.hashCode ^
+      retryAtMs.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is CertificateStatus &&
+          runtimeType == other.runtimeType &&
+          state == other.state &&
+          issuer == other.issuer &&
+          notAfterMs == other.notAfterMs &&
+          test == other.test &&
+          uploaded == other.uploaded &&
+          step == other.step &&
+          error == other.error &&
+          retryAtMs == other.retryAtMs;
+}
+
+enum CertificateStep { account, order, challenge, validation, issuing }
+
 class Channel {
   final PlatformInt64 id;
   final ChannelKind kind;
@@ -421,6 +526,294 @@ class ChannelPosition {
           runtimeType == other.runtimeType &&
           channelId == other.channelId &&
           position == other.position;
+}
+
+enum CheckResult {
+  verified,
+  pointsElsewhere,
+  noRecord,
+  cloudflareProxied,
+  partlyCorrect,
+  failed,
+  confirmedByOwner,
+}
+
+class CommandChoice {
+  /// What the user sees.
+  final String name;
+
+  /// What is sent.
+  final String value;
+
+  /// A track's artwork, for /play's suggestions; empty otherwise.
+  final String artworkId;
+
+  const CommandChoice({
+    required this.name,
+    required this.value,
+    required this.artworkId,
+  });
+
+  @override
+  int get hashCode => name.hashCode ^ value.hashCode ^ artworkId.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is CommandChoice &&
+          runtimeType == other.runtimeType &&
+          name == other.name &&
+          value == other.value &&
+          artworkId == other.artworkId;
+}
+
+class CommandList {
+  final List<CommandSpec> commands;
+
+  /// Results go to the channel, or only to who ran the command.
+  final bool resultsPublic;
+
+  const CommandList({required this.commands, required this.resultsPublic});
+
+  static Future<CommandList> default_() =>
+      RustLib.instance.api.crateApiTypesCommandListDefault();
+
+  @override
+  int get hashCode => commands.hashCode ^ resultsPublic.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is CommandList &&
+          runtimeType == other.runtimeType &&
+          commands == other.commands &&
+          resultsPublic == other.resultsPublic;
+}
+
+/// The kind of value a command option takes (Phase 3 plan §17.1).
+enum CommandOptionKind { text, integer, boolean, choice, user, channel }
+
+class CommandOptionSpec {
+  final String name;
+  final String description;
+  final CommandOptionKind kind;
+  final bool required_;
+  final bool autocomplete;
+  final List<CommandChoice> choices;
+
+  /// For integers; both 0 for no bounds.
+  final PlatformInt64 min;
+  final PlatformInt64 max;
+
+  const CommandOptionSpec({
+    required this.name,
+    required this.description,
+    required this.kind,
+    required this.required_,
+    required this.autocomplete,
+    required this.choices,
+    required this.min,
+    required this.max,
+  });
+
+  @override
+  int get hashCode =>
+      name.hashCode ^
+      description.hashCode ^
+      kind.hashCode ^
+      required_.hashCode ^
+      autocomplete.hashCode ^
+      choices.hashCode ^
+      min.hashCode ^
+      max.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is CommandOptionSpec &&
+          runtimeType == other.runtimeType &&
+          name == other.name &&
+          description == other.description &&
+          kind == other.kind &&
+          required_ == other.required_ &&
+          autocomplete == other.autocomplete &&
+          choices == other.choices &&
+          min == other.min &&
+          max == other.max;
+}
+
+class CommandOptionValue {
+  final String name;
+  final String value;
+
+  const CommandOptionValue({required this.name, required this.value});
+
+  @override
+  int get hashCode => name.hashCode ^ value.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is CommandOptionValue &&
+          runtimeType == other.runtimeType &&
+          name == other.name &&
+          value == other.value;
+}
+
+/// What running a command did.
+class CommandOutcome {
+  /// The public result's message.
+  final PlatformInt64? messageId;
+
+  /// The reply came only to this device, as an `EphemeralMessage`.
+  final bool ephemeral;
+
+  const CommandOutcome({this.messageId, required this.ephemeral});
+
+  @override
+  int get hashCode => messageId.hashCode ^ ephemeral.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is CommandOutcome &&
+          runtimeType == other.runtimeType &&
+          messageId == other.messageId &&
+          ephemeral == other.ephemeral;
+}
+
+/// Changes to a command on the Commands page; `None` stays.
+class CommandSettingsChanges {
+  /// Empty to change only `results_public`.
+  final String name;
+  final bool? enabled;
+
+  /// An empty list for every channel.
+  final Int64List? channelIds;
+  final bool? resultsPublic;
+
+  const CommandSettingsChanges({
+    required this.name,
+    this.enabled,
+    this.channelIds,
+    this.resultsPublic,
+  });
+
+  static Future<CommandSettingsChanges> default_() =>
+      RustLib.instance.api.crateApiTypesCommandSettingsChangesDefault();
+
+  @override
+  int get hashCode =>
+      name.hashCode ^
+      enabled.hashCode ^
+      channelIds.hashCode ^
+      resultsPublic.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is CommandSettingsChanges &&
+          runtimeType == other.runtimeType &&
+          name == other.name &&
+          enabled == other.enabled &&
+          channelIds == other.channelIds &&
+          resultsPublic == other.resultsPublic;
+}
+
+/// A chat command, as the server describes it.
+class CommandSpec {
+  final String name;
+  final String description;
+  final List<CommandOptionSpec> options;
+
+  /// "music".
+  final String feature;
+
+  /// "Control playback".
+  final String permissionSummary;
+  final List<String> aliases;
+
+  /// The permission bits it needs at the least.
+  final PlatformInt64 permissions;
+  final bool enabled;
+
+  /// Empty: every channel.
+  final Int64List channelIds;
+
+  const CommandSpec({
+    required this.name,
+    required this.description,
+    required this.options,
+    required this.feature,
+    required this.permissionSummary,
+    required this.aliases,
+    required this.permissions,
+    required this.enabled,
+    required this.channelIds,
+  });
+
+  @override
+  int get hashCode =>
+      name.hashCode ^
+      description.hashCode ^
+      options.hashCode ^
+      feature.hashCode ^
+      permissionSummary.hashCode ^
+      aliases.hashCode ^
+      permissions.hashCode ^
+      enabled.hashCode ^
+      channelIds.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is CommandSpec &&
+          runtimeType == other.runtimeType &&
+          name == other.name &&
+          description == other.description &&
+          options == other.options &&
+          feature == other.feature &&
+          permissionSummary == other.permissionSummary &&
+          aliases == other.aliases &&
+          permissions == other.permissions &&
+          enabled == other.enabled &&
+          channelIds == other.channelIds;
+}
+
+/// One address a server is reached at.
+class ConnectAddress {
+  final String host;
+  final int port;
+
+  /// Checked like a website, by its certificate authority.
+  final bool trustedCertificate;
+
+  /// The domain's id; 0 for the IP address.
+  final PlatformInt64 domainId;
+
+  const ConnectAddress({
+    required this.host,
+    required this.port,
+    required this.trustedCertificate,
+    required this.domainId,
+  });
+
+  @override
+  int get hashCode =>
+      host.hashCode ^
+      port.hashCode ^
+      trustedCertificate.hashCode ^
+      domainId.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is ConnectAddress &&
+          runtimeType == other.runtimeType &&
+          host == other.host &&
+          port == other.port &&
+          trustedCertificate == other.trustedCertificate &&
+          domainId == other.domainId;
 }
 
 @freezed
@@ -590,6 +983,56 @@ sealed class CoreEventPayload with _$CoreEventPayload {
   /// that server.
   const factory CoreEventPayload.voiceChannelEffect(SoundEffect field0) =
       CoreEventPayload_VoiceChannelEffect;
+
+  /// Where the server is reached changed.
+  const factory CoreEventPayload.serverAddressesUpdate(ServerAddresses field0) =
+      CoreEventPayload_ServerAddressesUpdate;
+
+  /// Domains & network changed, while this session watches it.
+  const factory CoreEventPayload.networkStatus(NetworkInfo field0) =
+      CoreEventPayload_NetworkStatus;
+  const factory CoreEventPayload.serverNotice(ServerNotice field0) =
+      CoreEventPayload_ServerNotice;
+
+  /// A Lavalink node changed, while this session watches them.
+  const factory CoreEventPayload.lavalinkNodeStatus({
+    required LavalinkNode node,
+    required int channelsPlaying,
+  }) = CoreEventPayload_LavalinkNodeStatus;
+  const factory CoreEventPayload.lavalinkNodeRemoved({
+    required PlatformInt64 nodeId,
+    required int channelsPlaying,
+  }) = CoreEventPayload_LavalinkNodeRemoved;
+  const factory CoreEventPayload.lavalinkNodeEvent(LavalinkNodeEvent field0) =
+      CoreEventPayload_LavalinkNodeEvent;
+
+  /// A connection test this session started moved on.
+  const factory CoreEventPayload.lavalinkTestProgress(
+    LavalinkTestProgress field0,
+  ) = CoreEventPayload_LavalinkTestProgress;
+
+  /// The music settings changed.
+  const factory CoreEventPayload.musicSettingsUpdate(MusicSettings field0) =
+      CoreEventPayload_MusicSettingsUpdate;
+
+  /// A voice channel's player changed: to those connected to it and
+  /// those who subscribed.
+  const factory CoreEventPayload.musicSession(MusicSession field0) =
+      CoreEventPayload_MusicSession;
+
+  /// What plays in a channel, to everyone who can see it.
+  const factory CoreEventPayload.musicNowPlaying(MusicNowPlaying field0) =
+      CoreEventPayload_MusicNowPlaying;
+  const factory CoreEventPayload.musicNotice(MusicNotice field0) =
+      CoreEventPayload_MusicNotice;
+
+  /// The commands members can use changed.
+  const factory CoreEventPayload.commandsUpdate(CommandList field0) =
+      CoreEventPayload_CommandsUpdate;
+
+  /// A command's reply only this device sees.
+  const factory CoreEventPayload.ephemeralMessage(EphemeralMessage field0) =
+      CoreEventPayload_EphemeralMessage;
 }
 
 /// A sound every client has (plan §11.8), played as `default:<id>`.
@@ -621,6 +1064,232 @@ class DefaultSound {
           durationMs == other.durationMs;
 }
 
+/// A connected DNS provider; its token never leaves the server.
+class DnsProvider {
+  /// cloudflare, duckdns or desec.
+  final String kind;
+
+  /// The token's last characters, like `••••abcd`.
+  final String masked;
+
+  const DnsProvider({required this.kind, required this.masked});
+
+  @override
+  int get hashCode => kind.hashCode ^ masked.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is DnsProvider &&
+          runtimeType == other.runtimeType &&
+          kind == other.kind &&
+          masked == other.masked;
+}
+
+class Domain {
+  final PlatformInt64 id;
+  final String hostname;
+  final DomainKind kind;
+  final int publicPort;
+  final DomainStatus status;
+  final bool active;
+  final bool primary;
+  final PlatformInt64 problemSinceMs;
+  final DomainCheck? lastCheck;
+
+  /// A check is running now.
+  final bool checking;
+
+  /// People who connected through it in the last 24 hours.
+  final int users24H;
+  final PlatformInt64 createdAtMs;
+  final PlatformInt64 deactivatedAtMs;
+
+  /// Clients check it by its certificate authority.
+  final bool trustedCertificate;
+  final CertificateStatus certificate;
+
+  const Domain({
+    required this.id,
+    required this.hostname,
+    required this.kind,
+    required this.publicPort,
+    required this.status,
+    required this.active,
+    required this.primary,
+    required this.problemSinceMs,
+    this.lastCheck,
+    required this.checking,
+    required this.users24H,
+    required this.createdAtMs,
+    required this.deactivatedAtMs,
+    required this.trustedCertificate,
+    required this.certificate,
+  });
+
+  @override
+  int get hashCode =>
+      id.hashCode ^
+      hostname.hashCode ^
+      kind.hashCode ^
+      publicPort.hashCode ^
+      status.hashCode ^
+      active.hashCode ^
+      primary.hashCode ^
+      problemSinceMs.hashCode ^
+      lastCheck.hashCode ^
+      checking.hashCode ^
+      users24H.hashCode ^
+      createdAtMs.hashCode ^
+      deactivatedAtMs.hashCode ^
+      trustedCertificate.hashCode ^
+      certificate.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is Domain &&
+          runtimeType == other.runtimeType &&
+          id == other.id &&
+          hostname == other.hostname &&
+          kind == other.kind &&
+          publicPort == other.publicPort &&
+          status == other.status &&
+          active == other.active &&
+          primary == other.primary &&
+          problemSinceMs == other.problemSinceMs &&
+          lastCheck == other.lastCheck &&
+          checking == other.checking &&
+          users24H == other.users24H &&
+          createdAtMs == other.createdAtMs &&
+          deactivatedAtMs == other.deactivatedAtMs &&
+          trustedCertificate == other.trustedCertificate &&
+          certificate == other.certificate;
+}
+
+class DomainCheck {
+  final CheckResult result;
+  final String message;
+  final String note;
+  final List<String> found;
+  final PlatformInt64 checkedAtMs;
+
+  const DomainCheck({
+    required this.result,
+    required this.message,
+    required this.note,
+    required this.found,
+    required this.checkedAtMs,
+  });
+
+  @override
+  int get hashCode =>
+      result.hashCode ^
+      message.hashCode ^
+      note.hashCode ^
+      found.hashCode ^
+      checkedAtMs.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is DomainCheck &&
+          runtimeType == other.runtimeType &&
+          result == other.result &&
+          message == other.message &&
+          note == other.note &&
+          found == other.found &&
+          checkedAtMs == other.checkedAtMs;
+}
+
+enum DomainKind {
+  /// The owner's own domain, pointed here with A/AAAA records.
+  own,
+
+  /// A DuckDNS or deSEC name Opencord keeps pointed here.
+  freeSubdomain,
+
+  /// Cloudflare Tunnel.
+  tunnel,
+
+  /// Caddy, Nginx, Traefik, ngrok and the like.
+  reverseProxy,
+}
+
+enum DomainStatus {
+  pending,
+  verified,
+
+  /// Verified once; its checks fail since `problem_since_ms`.
+  dnsProblem,
+}
+
+/// What to change about a domain; absent fields stay.
+class DomainUpdate {
+  final bool? active;
+
+  /// Only `Some(true)`: makes it the primary.
+  final bool? primary;
+  final int? publicPort;
+
+  /// Vouches for a tunnel or proxy domain whose check could not reach it.
+  final bool confirm;
+
+  const DomainUpdate({
+    this.active,
+    this.primary,
+    this.publicPort,
+    required this.confirm,
+  });
+
+  static Future<DomainUpdate> default_() =>
+      RustLib.instance.api.crateApiTypesDomainUpdateDefault();
+
+  @override
+  int get hashCode =>
+      active.hashCode ^
+      primary.hashCode ^
+      publicPort.hashCode ^
+      confirm.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is DomainUpdate &&
+          runtimeType == other.runtimeType &&
+          active == other.active &&
+          primary == other.primary &&
+          publicPort == other.publicPort &&
+          confirm == other.confirm;
+}
+
+/// A reply only this device sees; never stored.
+class EphemeralMessage {
+  final PlatformInt64 channelId;
+
+  /// The nonce `command_execute` was given.
+  final String nonce;
+  final String content;
+
+  const EphemeralMessage({
+    required this.channelId,
+    required this.nonce,
+    required this.content,
+  });
+
+  @override
+  int get hashCode => channelId.hashCode ^ nonce.hashCode ^ content.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is EphemeralMessage &&
+          runtimeType == other.runtimeType &&
+          channelId == other.channelId &&
+          nonce == other.nonce &&
+          content == other.content;
+}
+
 enum ErrorCode {
   unauthorized,
   forbidden,
@@ -639,6 +1308,31 @@ enum ErrorCode {
   soundTooLong,
   soundInvalid,
   soundboardFull,
+  domainInvalid,
+  domainExists,
+  domainLimit,
+  domainNotVerified,
+  dnsMismatch,
+  acmeFailed,
+  acmeRateLimited,
+  portUnreachable,
+  musicNotConfigured,
+  musicNodeUnavailable,
+  musicNotInChannel,
+  musicBlocked,
+  musicQueueFull,
+  musicMemberLimit,
+  musicTrackTooLong,
+  musicStreamsNotAllowed,
+  musicSourceNotAllowed,
+  musicLinkNotAllowed,
+
+  /// Another track plays now than the action expected.
+  musicStale,
+  commandUnknown,
+  commandDisabled,
+  commandNotAllowedHere,
+  commandInvalidOptions,
   unknown,
 }
 
@@ -748,8 +1442,15 @@ class IdentityInfo {
 class Invite {
   final String code;
 
-  /// `opencord://host:port/invite/CODE#fp=...`, ready to share.
+  /// `opencord://host:port/invite/CODE#fp=...`, ready to share; without
+  /// the fingerprint through a domain with an authority's certificate.
   final String link;
+
+  /// `https://host[:port]/invite/CODE`, for a browser, through a domain.
+  final String? webLink;
+
+  /// The domain the links use, if one does.
+  final PlatformInt64? domainId;
   final PlatformInt64? createdBy;
   final PlatformInt64 createdAtMs;
   final int? maxUses;
@@ -759,6 +1460,8 @@ class Invite {
   const Invite({
     required this.code,
     required this.link,
+    this.webLink,
+    this.domainId,
     this.createdBy,
     required this.createdAtMs,
     this.maxUses,
@@ -770,6 +1473,8 @@ class Invite {
   int get hashCode =>
       code.hashCode ^
       link.hashCode ^
+      webLink.hashCode ^
+      domainId.hashCode ^
       createdBy.hashCode ^
       createdAtMs.hashCode ^
       maxUses.hashCode ^
@@ -783,12 +1488,418 @@ class Invite {
           runtimeType == other.runtimeType &&
           code == other.code &&
           link == other.link &&
+          webLink == other.webLink &&
+          domainId == other.domainId &&
           createdBy == other.createdBy &&
           createdAtMs == other.createdAtMs &&
           maxUses == other.maxUses &&
           uses == other.uses &&
           expiresAtMs == other.expiresAtMs;
 }
+
+/// What Lavalink needs from this server.
+class LavalinkBridge {
+  /// False when music is off on the server.
+  final bool enabled;
+
+  /// wss://host:port, where Lavalink connects.
+  final String url;
+  final bool trustedCertificate;
+
+  /// address:port, where Lavalink sends audio; empty while unknown.
+  final String audioAddress;
+  final int audioPort;
+  final bool audioListening;
+  final MappingState mapping;
+
+  /// Lavalink connections now, and what came since the server started.
+  final int connections;
+  final BigInt packets;
+  final BigInt decryptFailures;
+  final BigInt dropped;
+  final int jitterMs;
+
+  /// External voice nodes' bridges, as host:port.
+  final List<String> nodeBridges;
+
+  const LavalinkBridge({
+    required this.enabled,
+    required this.url,
+    required this.trustedCertificate,
+    required this.audioAddress,
+    required this.audioPort,
+    required this.audioListening,
+    required this.mapping,
+    required this.connections,
+    required this.packets,
+    required this.decryptFailures,
+    required this.dropped,
+    required this.jitterMs,
+    required this.nodeBridges,
+  });
+
+  @override
+  int get hashCode =>
+      enabled.hashCode ^
+      url.hashCode ^
+      trustedCertificate.hashCode ^
+      audioAddress.hashCode ^
+      audioPort.hashCode ^
+      audioListening.hashCode ^
+      mapping.hashCode ^
+      connections.hashCode ^
+      packets.hashCode ^
+      decryptFailures.hashCode ^
+      dropped.hashCode ^
+      jitterMs.hashCode ^
+      nodeBridges.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is LavalinkBridge &&
+          runtimeType == other.runtimeType &&
+          enabled == other.enabled &&
+          url == other.url &&
+          trustedCertificate == other.trustedCertificate &&
+          audioAddress == other.audioAddress &&
+          audioPort == other.audioPort &&
+          audioListening == other.audioListening &&
+          mapping == other.mapping &&
+          connections == other.connections &&
+          packets == other.packets &&
+          decryptFailures == other.decryptFailures &&
+          dropped == other.dropped &&
+          jitterMs == other.jitterMs &&
+          nodeBridges == other.nodeBridges;
+}
+
+enum LavalinkEventKind { connected, disconnected, degraded, recovered, moved }
+
+enum LavalinkHealth {
+  /// The first connection is still being made.
+  connecting,
+  healthy,
+
+  /// Connected but struggling: see the reason.
+  degraded,
+  unavailable,
+
+  /// Gets no new channels and keeps its own until they move.
+  draining,
+  disabled,
+}
+
+class LavalinkNode {
+  final PlatformInt64 id;
+  final LavalinkNodeSettings settings;
+  final bool draining;
+  final LavalinkHealth health;
+
+  /// Why it is degraded or unavailable, in plain words.
+  final String reason;
+  final String version;
+  final List<String> sources;
+  final List<String> plugins;
+
+  /// Opencord's channels on it, and every player it has.
+  final int channels;
+  final int players;
+  final int playingPlayers;
+
+  /// System load in percent.
+  final int cpuPercent;
+  final int pingMs;
+
+  /// The last thing that went wrong, kept after it recovers.
+  final String lastError;
+  final PlatformInt64 connectedSinceMs;
+
+  /// Back after being unavailable: new channels wait a little.
+  final bool recovering;
+
+  const LavalinkNode({
+    required this.id,
+    required this.settings,
+    required this.draining,
+    required this.health,
+    required this.reason,
+    required this.version,
+    required this.sources,
+    required this.plugins,
+    required this.channels,
+    required this.players,
+    required this.playingPlayers,
+    required this.cpuPercent,
+    required this.pingMs,
+    required this.lastError,
+    required this.connectedSinceMs,
+    required this.recovering,
+  });
+
+  @override
+  int get hashCode =>
+      id.hashCode ^
+      settings.hashCode ^
+      draining.hashCode ^
+      health.hashCode ^
+      reason.hashCode ^
+      version.hashCode ^
+      sources.hashCode ^
+      plugins.hashCode ^
+      channels.hashCode ^
+      players.hashCode ^
+      playingPlayers.hashCode ^
+      cpuPercent.hashCode ^
+      pingMs.hashCode ^
+      lastError.hashCode ^
+      connectedSinceMs.hashCode ^
+      recovering.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is LavalinkNode &&
+          runtimeType == other.runtimeType &&
+          id == other.id &&
+          settings == other.settings &&
+          draining == other.draining &&
+          health == other.health &&
+          reason == other.reason &&
+          version == other.version &&
+          sources == other.sources &&
+          plugins == other.plugins &&
+          channels == other.channels &&
+          players == other.players &&
+          playingPlayers == other.playingPlayers &&
+          cpuPercent == other.cpuPercent &&
+          pingMs == other.pingMs &&
+          lastError == other.lastError &&
+          connectedSinceMs == other.connectedSinceMs &&
+          recovering == other.recovering;
+}
+
+/// Changes to a node; what is `None` stays.
+class LavalinkNodeChanges {
+  final LavalinkNodeSettings? settings;
+  final String? password;
+  final bool? draining;
+
+  const LavalinkNodeChanges({this.settings, this.password, this.draining});
+
+  static Future<LavalinkNodeChanges> default_() =>
+      RustLib.instance.api.crateApiTypesLavalinkNodeChangesDefault();
+
+  @override
+  int get hashCode => settings.hashCode ^ password.hashCode ^ draining.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is LavalinkNodeChanges &&
+          runtimeType == other.runtimeType &&
+          settings == other.settings &&
+          password == other.password &&
+          draining == other.draining;
+}
+
+/// A line in the node events.
+class LavalinkNodeEvent {
+  final PlatformInt64 nodeId;
+  final LavalinkEventKind kind;
+  final String text;
+  final PlatformInt64 atMs;
+
+  const LavalinkNodeEvent({
+    required this.nodeId,
+    required this.kind,
+    required this.text,
+    required this.atMs,
+  });
+
+  @override
+  int get hashCode =>
+      nodeId.hashCode ^ kind.hashCode ^ text.hashCode ^ atMs.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is LavalinkNodeEvent &&
+          runtimeType == other.runtimeType &&
+          nodeId == other.nodeId &&
+          kind == other.kind &&
+          text == other.text &&
+          atMs == other.atMs;
+}
+
+/// What an admin sets for a node.
+class LavalinkNodeSettings {
+  final String name;
+  final String host;
+  final int port;
+
+  /// https and wss.
+  final bool secure;
+  final LavalinkPriority priority;
+
+  /// At most this many channels at once; 0 for no cap.
+  final int maxPlayers;
+
+  /// The bridge accepts only this node's addresses.
+  final bool strictAddress;
+  final bool enabled;
+
+  const LavalinkNodeSettings({
+    required this.name,
+    required this.host,
+    required this.port,
+    required this.secure,
+    required this.priority,
+    required this.maxPlayers,
+    required this.strictAddress,
+    required this.enabled,
+  });
+
+  @override
+  int get hashCode =>
+      name.hashCode ^
+      host.hashCode ^
+      port.hashCode ^
+      secure.hashCode ^
+      priority.hashCode ^
+      maxPlayers.hashCode ^
+      strictAddress.hashCode ^
+      enabled.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is LavalinkNodeSettings &&
+          runtimeType == other.runtimeType &&
+          name == other.name &&
+          host == other.host &&
+          port == other.port &&
+          secure == other.secure &&
+          priority == other.priority &&
+          maxPlayers == other.maxPlayers &&
+          strictAddress == other.strictAddress &&
+          enabled == other.enabled;
+}
+
+class LavalinkNodes {
+  final List<LavalinkNode> nodes;
+  final LavalinkBridge bridge;
+
+  /// Newest first.
+  final List<LavalinkNodeEvent> events;
+  final int channelsPlaying;
+
+  const LavalinkNodes({
+    required this.nodes,
+    required this.bridge,
+    required this.events,
+    required this.channelsPlaying,
+  });
+
+  @override
+  int get hashCode =>
+      nodes.hashCode ^
+      bridge.hashCode ^
+      events.hashCode ^
+      channelsPlaying.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is LavalinkNodes &&
+          runtimeType == other.runtimeType &&
+          nodes == other.nodes &&
+          bridge == other.bridge &&
+          events == other.events &&
+          channelsPlaying == other.channelsPlaying;
+}
+
+/// Lavalink nodes (Phase 3 plan §12). Their passwords never reach clients.
+enum LavalinkPriority {
+  preferred,
+  normal,
+
+  /// Used only when no Preferred or Normal node can play.
+  backup,
+}
+
+class LavalinkTestProgress {
+  final PlatformInt64 nodeId;
+  final List<LavalinkTestStep> steps;
+  final bool done;
+
+  const LavalinkTestProgress({
+    required this.nodeId,
+    required this.steps,
+    required this.done,
+  });
+
+  @override
+  int get hashCode => nodeId.hashCode ^ steps.hashCode ^ done.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is LavalinkTestProgress &&
+          runtimeType == other.runtimeType &&
+          nodeId == other.nodeId &&
+          steps == other.steps &&
+          done == other.done;
+}
+
+class LavalinkTestStep {
+  final LavalinkTestStepKind kind;
+  final LavalinkTestStepState state;
+
+  /// What passed, or what failed and how to fix it.
+  final String detail;
+
+  const LavalinkTestStep({
+    required this.kind,
+    required this.state,
+    required this.detail,
+  });
+
+  @override
+  int get hashCode => kind.hashCode ^ state.hashCode ^ detail.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is LavalinkTestStep &&
+          runtimeType == other.runtimeType &&
+          kind == other.kind &&
+          state == other.state &&
+          detail == other.detail;
+}
+
+enum LavalinkTestStepKind {
+  /// REST answers and takes the password.
+  rest,
+
+  /// The WebSocket says ready.
+  websocket,
+
+  /// A player reaches the audio bridge.
+  bridge,
+}
+
+enum LavalinkTestStepState {
+  waiting,
+  running,
+  passed,
+  failed,
+
+  /// Not run: an earlier step failed.
+  skipped,
+}
+
+enum MappingState { notUsed, mapped, failed }
 
 @freezed
 sealed class MediaEvent with _$MediaEvent {
@@ -927,6 +2038,9 @@ class Message {
   /// Set on messages this client sent, to match pending ones.
   final String? nonce;
 
+  /// A command's public result: the command run, by the author.
+  final String? command;
+
   const Message({
     required this.id,
     required this.channelId,
@@ -935,6 +2049,7 @@ class Message {
     required this.createdAtMs,
     this.editedAtMs,
     this.nonce,
+    this.command,
   });
 
   @override
@@ -945,7 +2060,8 @@ class Message {
       content.hashCode ^
       createdAtMs.hashCode ^
       editedAtMs.hashCode ^
-      nonce.hashCode;
+      nonce.hashCode ^
+      command.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -958,7 +2074,693 @@ class Message {
           content == other.content &&
           createdAtMs == other.createdAtMs &&
           editedAtMs == other.editedAtMs &&
-          nonce == other.nonce;
+          nonce == other.nonce &&
+          command == other.command;
+}
+
+enum MusicAction { pause, resume, next, previous, seek, stop }
+
+/// A member blocked from music.
+class MusicBlock {
+  final PlatformInt64 userId;
+  final String reason;
+  final PlatformInt64 blockedBy;
+  final PlatformInt64 createdAtMs;
+
+  const MusicBlock({
+    required this.userId,
+    required this.reason,
+    required this.blockedBy,
+    required this.createdAtMs,
+  });
+
+  @override
+  int get hashCode =>
+      userId.hashCode ^
+      reason.hashCode ^
+      blockedBy.hashCode ^
+      createdAtMs.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is MusicBlock &&
+          runtimeType == other.runtimeType &&
+          userId == other.userId &&
+          reason == other.reason &&
+          blockedBy == other.blockedBy &&
+          createdAtMs == other.createdAtMs;
+}
+
+/// A short activity line for the music panel.
+class MusicNotice {
+  final PlatformInt64 channelId;
+  final String text;
+  final PlatformInt64 atMs;
+
+  const MusicNotice({
+    required this.channelId,
+    required this.text,
+    required this.atMs,
+  });
+
+  @override
+  int get hashCode => channelId.hashCode ^ text.hashCode ^ atMs.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is MusicNotice &&
+          runtimeType == other.runtimeType &&
+          channelId == other.channelId &&
+          text == other.text &&
+          atMs == other.atMs;
+}
+
+/// What everyone who can see a channel learns about its music, for the
+/// now-playing card.
+class MusicNowPlaying {
+  final PlatformInt64 channelId;
+  final String title;
+  final String artist;
+  final String artworkId;
+  final bool playing;
+
+  /// Nothing plays any more.
+  final bool ended;
+
+  /// "YouTube", "SoundCloud"…
+  final String sourceDisplayName;
+
+  const MusicNowPlaying({
+    required this.channelId,
+    required this.title,
+    required this.artist,
+    required this.artworkId,
+    required this.playing,
+    required this.ended,
+    required this.sourceDisplayName,
+  });
+
+  @override
+  int get hashCode =>
+      channelId.hashCode ^
+      title.hashCode ^
+      artist.hashCode ^
+      artworkId.hashCode ^
+      playing.hashCode ^
+      ended.hashCode ^
+      sourceDisplayName.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is MusicNowPlaying &&
+          runtimeType == other.runtimeType &&
+          channelId == other.channelId &&
+          title == other.title &&
+          artist == other.artist &&
+          artworkId == other.artworkId &&
+          playing == other.playing &&
+          ended == other.ended &&
+          sourceDisplayName == other.sourceDisplayName;
+}
+
+enum MusicPlacement {
+  /// At the end, or before `before_item_id`.
+  end,
+  next,
+
+  /// Replaces what plays.
+  now,
+}
+
+enum MusicPlayState { idle, loading, playing, paused }
+
+/// A playlist a link loaded, shown as one card with "Add all".
+class MusicPlaylist {
+  final String name;
+  final List<String> resultIds;
+
+  const MusicPlaylist({required this.name, required this.resultIds});
+
+  @override
+  int get hashCode => name.hashCode ^ resultIds.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is MusicPlaylist &&
+          runtimeType == other.runtimeType &&
+          name == other.name &&
+          resultIds == other.resultIds;
+}
+
+/// A track in a channel's queue.
+class MusicQueueItem {
+  final String itemId;
+  final MusicTrack track;
+  final PlatformInt64 requesterId;
+  final PlatformInt64 addedAtMs;
+
+  const MusicQueueItem({
+    required this.itemId,
+    required this.track,
+    required this.requesterId,
+    required this.addedAtMs,
+  });
+
+  @override
+  int get hashCode =>
+      itemId.hashCode ^
+      track.hashCode ^
+      requesterId.hashCode ^
+      addedAtMs.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is MusicQueueItem &&
+          runtimeType == other.runtimeType &&
+          itemId == other.itemId &&
+          track == other.track &&
+          requesterId == other.requesterId &&
+          addedAtMs == other.addedAtMs;
+}
+
+enum MusicRepeat { off, queue, track }
+
+class MusicSearchResult {
+  /// What to add; good for 15 minutes, for this user only.
+  final String resultId;
+  final MusicTrack track;
+
+  const MusicSearchResult({required this.resultId, required this.track});
+
+  @override
+  int get hashCode => resultId.hashCode ^ track.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is MusicSearchResult &&
+          runtimeType == other.runtimeType &&
+          resultId == other.resultId &&
+          track == other.track;
+}
+
+class MusicSearchResults {
+  final List<MusicSearchResult> results;
+  final MusicPlaylist? playlist;
+
+  const MusicSearchResults({required this.results, this.playlist});
+
+  @override
+  int get hashCode => results.hashCode ^ playlist.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is MusicSearchResults &&
+          runtimeType == other.runtimeType &&
+          results == other.results &&
+          playlist == other.playlist;
+}
+
+/// A voice channel's player (Phase 3 plan §14.1).
+class MusicSession {
+  final PlatformInt64 channelId;
+
+  /// Increases with every change.
+  final BigInt version;
+  final MusicPlayState state;
+  final MusicQueueItem? nowPlaying;
+
+  /// Upcoming, in play order.
+  final List<MusicQueueItem> queue;
+
+  /// Most recent first.
+  final List<MusicQueueItem> history;
+
+  /// What is heard was `position_ms` at `anchor_ms` on this device's
+  /// clock (Unix ms), the server's clock offset and the music's playout
+  /// delay taken into account; it moves on while playing.
+  final BigInt positionMs;
+  final PlatformInt64 anchorMs;
+  final MusicRepeat repeat;
+  final bool shuffle;
+
+  /// Every node is unavailable: paused, the queue kept, retrying.
+  final bool waitingForNode;
+
+  /// Everyone left: paused until someone comes back.
+  final bool pausedEmpty;
+
+  /// Users who voted to skip the current track.
+  final Int64List skipVotes;
+  final int skipVotesNeeded;
+
+  const MusicSession({
+    required this.channelId,
+    required this.version,
+    required this.state,
+    this.nowPlaying,
+    required this.queue,
+    required this.history,
+    required this.positionMs,
+    required this.anchorMs,
+    required this.repeat,
+    required this.shuffle,
+    required this.waitingForNode,
+    required this.pausedEmpty,
+    required this.skipVotes,
+    required this.skipVotesNeeded,
+  });
+
+  @override
+  int get hashCode =>
+      channelId.hashCode ^
+      version.hashCode ^
+      state.hashCode ^
+      nowPlaying.hashCode ^
+      queue.hashCode ^
+      history.hashCode ^
+      positionMs.hashCode ^
+      anchorMs.hashCode ^
+      repeat.hashCode ^
+      shuffle.hashCode ^
+      waitingForNode.hashCode ^
+      pausedEmpty.hashCode ^
+      skipVotes.hashCode ^
+      skipVotesNeeded.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is MusicSession &&
+          runtimeType == other.runtimeType &&
+          channelId == other.channelId &&
+          version == other.version &&
+          state == other.state &&
+          nowPlaying == other.nowPlaying &&
+          queue == other.queue &&
+          history == other.history &&
+          positionMs == other.positionMs &&
+          anchorMs == other.anchorMs &&
+          repeat == other.repeat &&
+          shuffle == other.shuffle &&
+          waitingForNode == other.waitingForNode &&
+          pausedEmpty == other.pausedEmpty &&
+          skipVotes == other.skipVotes &&
+          skipVotesNeeded == other.skipVotesNeeded;
+}
+
+/// Server settings → Music (Phase 3 plan §16.2).
+class MusicSettings {
+  final bool enabled;
+
+  /// Search sources members may use; empty for every available one.
+  final List<String> enabledSources;
+  final String defaultSource;
+  final bool allowLinks;
+  final bool allowStreams;
+
+  /// 0 for no limit.
+  final BigInt maxTrackMs;
+  final int maxTracksPerMember;
+  final int maxPlaylistTracks;
+  final int queueLimit;
+  final bool voteSkip;
+  final int voteSkipPercent;
+  final int stopAfterEmptyS;
+  final int disconnectAfterIdleS;
+
+  /// "primary", or an active domain with a trusted certificate.
+  final String bridgeDomain;
+
+  /// Search sources at least one healthy node offers now.
+  final List<String> availableSources;
+
+  /// Music is on in the server's configuration file and runs there.
+  final bool supported;
+
+  /// Supported, enabled, and with a Lavalink node: members see music.
+  final bool configured;
+
+  const MusicSettings({
+    required this.enabled,
+    required this.enabledSources,
+    required this.defaultSource,
+    required this.allowLinks,
+    required this.allowStreams,
+    required this.maxTrackMs,
+    required this.maxTracksPerMember,
+    required this.maxPlaylistTracks,
+    required this.queueLimit,
+    required this.voteSkip,
+    required this.voteSkipPercent,
+    required this.stopAfterEmptyS,
+    required this.disconnectAfterIdleS,
+    required this.bridgeDomain,
+    required this.availableSources,
+    required this.supported,
+    required this.configured,
+  });
+
+  @override
+  int get hashCode =>
+      enabled.hashCode ^
+      enabledSources.hashCode ^
+      defaultSource.hashCode ^
+      allowLinks.hashCode ^
+      allowStreams.hashCode ^
+      maxTrackMs.hashCode ^
+      maxTracksPerMember.hashCode ^
+      maxPlaylistTracks.hashCode ^
+      queueLimit.hashCode ^
+      voteSkip.hashCode ^
+      voteSkipPercent.hashCode ^
+      stopAfterEmptyS.hashCode ^
+      disconnectAfterIdleS.hashCode ^
+      bridgeDomain.hashCode ^
+      availableSources.hashCode ^
+      supported.hashCode ^
+      configured.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is MusicSettings &&
+          runtimeType == other.runtimeType &&
+          enabled == other.enabled &&
+          enabledSources == other.enabledSources &&
+          defaultSource == other.defaultSource &&
+          allowLinks == other.allowLinks &&
+          allowStreams == other.allowStreams &&
+          maxTrackMs == other.maxTrackMs &&
+          maxTracksPerMember == other.maxTracksPerMember &&
+          maxPlaylistTracks == other.maxPlaylistTracks &&
+          queueLimit == other.queueLimit &&
+          voteSkip == other.voteSkip &&
+          voteSkipPercent == other.voteSkipPercent &&
+          stopAfterEmptyS == other.stopAfterEmptyS &&
+          disconnectAfterIdleS == other.disconnectAfterIdleS &&
+          bridgeDomain == other.bridgeDomain &&
+          availableSources == other.availableSources &&
+          supported == other.supported &&
+          configured == other.configured;
+}
+
+/// Changes to the music settings; what is `None` stays.
+class MusicSettingsChanges {
+  final bool? enabled;
+  final List<String>? enabledSources;
+  final String? defaultSource;
+  final bool? allowLinks;
+  final bool? allowStreams;
+  final BigInt? maxTrackMs;
+  final int? maxTracksPerMember;
+  final int? maxPlaylistTracks;
+  final int? queueLimit;
+  final bool? voteSkip;
+  final int? voteSkipPercent;
+  final int? stopAfterEmptyS;
+  final int? disconnectAfterIdleS;
+  final String? bridgeDomain;
+
+  const MusicSettingsChanges({
+    this.enabled,
+    this.enabledSources,
+    this.defaultSource,
+    this.allowLinks,
+    this.allowStreams,
+    this.maxTrackMs,
+    this.maxTracksPerMember,
+    this.maxPlaylistTracks,
+    this.queueLimit,
+    this.voteSkip,
+    this.voteSkipPercent,
+    this.stopAfterEmptyS,
+    this.disconnectAfterIdleS,
+    this.bridgeDomain,
+  });
+
+  static Future<MusicSettingsChanges> default_() =>
+      RustLib.instance.api.crateApiTypesMusicSettingsChangesDefault();
+
+  @override
+  int get hashCode =>
+      enabled.hashCode ^
+      enabledSources.hashCode ^
+      defaultSource.hashCode ^
+      allowLinks.hashCode ^
+      allowStreams.hashCode ^
+      maxTrackMs.hashCode ^
+      maxTracksPerMember.hashCode ^
+      maxPlaylistTracks.hashCode ^
+      queueLimit.hashCode ^
+      voteSkip.hashCode ^
+      voteSkipPercent.hashCode ^
+      stopAfterEmptyS.hashCode ^
+      disconnectAfterIdleS.hashCode ^
+      bridgeDomain.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is MusicSettingsChanges &&
+          runtimeType == other.runtimeType &&
+          enabled == other.enabled &&
+          enabledSources == other.enabledSources &&
+          defaultSource == other.defaultSource &&
+          allowLinks == other.allowLinks &&
+          allowStreams == other.allowStreams &&
+          maxTrackMs == other.maxTrackMs &&
+          maxTracksPerMember == other.maxTracksPerMember &&
+          maxPlaylistTracks == other.maxPlaylistTracks &&
+          queueLimit == other.queueLimit &&
+          voteSkip == other.voteSkip &&
+          voteSkipPercent == other.voteSkipPercent &&
+          stopAfterEmptyS == other.stopAfterEmptyS &&
+          disconnectAfterIdleS == other.disconnectAfterIdleS &&
+          bridgeDomain == other.bridgeDomain;
+}
+
+/// A track as the server shows it (Phase 3 plan §18.3); never its encoded
+/// form, which stays on the server.
+class MusicTrack {
+  final String title;
+  final String artist;
+
+  /// 0 for streams.
+  final BigInt durationMs;
+  final bool isStream;
+  final bool isSeekable;
+
+  /// Lavalink's source name, like "youtube".
+  final String source;
+
+  /// "YouTube", "SoundCloud"…
+  final String sourceDisplayName;
+  final String uri;
+
+  /// For `music_artwork`; empty without artwork.
+  final String artworkId;
+
+  const MusicTrack({
+    required this.title,
+    required this.artist,
+    required this.durationMs,
+    required this.isStream,
+    required this.isSeekable,
+    required this.source,
+    required this.sourceDisplayName,
+    required this.uri,
+    required this.artworkId,
+  });
+
+  @override
+  int get hashCode =>
+      title.hashCode ^
+      artist.hashCode ^
+      durationMs.hashCode ^
+      isStream.hashCode ^
+      isSeekable.hashCode ^
+      source.hashCode ^
+      sourceDisplayName.hashCode ^
+      uri.hashCode ^
+      artworkId.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is MusicTrack &&
+          runtimeType == other.runtimeType &&
+          title == other.title &&
+          artist == other.artist &&
+          durationMs == other.durationMs &&
+          isStream == other.isStream &&
+          isSeekable == other.isSeekable &&
+          source == other.source &&
+          sourceDisplayName == other.sourceDisplayName &&
+          uri == other.uri &&
+          artworkId == other.artworkId;
+}
+
+/// Domains & network, as the owner sees it (Phase 3 plan §8).
+class NetworkInfo {
+  final PublicAddress publicAddress;
+  final List<PortStatus> ports;
+  final NetworkSettings settings;
+
+  /// The main port in use now.
+  final int listeningPort;
+
+  /// Whether `settings.main_port` can be used, when it differs.
+  final PortState nextMainPort;
+  final String upnpGateway;
+  final String upnpExternalIp;
+  final String upnpError;
+
+  /// The domains attached, in the order they were added.
+  final List<Domain> domains;
+
+  /// DNS providers connected, for the DNS challenge.
+  final List<DnsProvider> dnsProviders;
+  final AcmeAccount acme;
+  final TunnelStatus tunnel;
+
+  const NetworkInfo({
+    required this.publicAddress,
+    required this.ports,
+    required this.settings,
+    required this.listeningPort,
+    required this.nextMainPort,
+    required this.upnpGateway,
+    required this.upnpExternalIp,
+    required this.upnpError,
+    required this.domains,
+    required this.dnsProviders,
+    required this.acme,
+    required this.tunnel,
+  });
+
+  @override
+  int get hashCode =>
+      publicAddress.hashCode ^
+      ports.hashCode ^
+      settings.hashCode ^
+      listeningPort.hashCode ^
+      nextMainPort.hashCode ^
+      upnpGateway.hashCode ^
+      upnpExternalIp.hashCode ^
+      upnpError.hashCode ^
+      domains.hashCode ^
+      dnsProviders.hashCode ^
+      acme.hashCode ^
+      tunnel.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is NetworkInfo &&
+          runtimeType == other.runtimeType &&
+          publicAddress == other.publicAddress &&
+          ports == other.ports &&
+          settings == other.settings &&
+          listeningPort == other.listeningPort &&
+          nextMainPort == other.nextMainPort &&
+          upnpGateway == other.upnpGateway &&
+          upnpExternalIp == other.upnpExternalIp &&
+          upnpError == other.upnpError &&
+          domains == other.domains &&
+          dnsProviders == other.dnsProviders &&
+          acme == other.acme &&
+          tunnel == other.tunnel;
+}
+
+class NetworkSettings {
+  /// The main port from the next start; 0 keeps the configured one.
+  final int mainPort;
+  final bool upnpEnabled;
+  final int localListenerPort;
+  final List<String> trustedProxies;
+  final List<String> dnsResolvers;
+  final bool acmeStaging;
+
+  const NetworkSettings({
+    required this.mainPort,
+    required this.upnpEnabled,
+    required this.localListenerPort,
+    required this.trustedProxies,
+    required this.dnsResolvers,
+    required this.acmeStaging,
+  });
+
+  @override
+  int get hashCode =>
+      mainPort.hashCode ^
+      upnpEnabled.hashCode ^
+      localListenerPort.hashCode ^
+      trustedProxies.hashCode ^
+      dnsResolvers.hashCode ^
+      acmeStaging.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is NetworkSettings &&
+          runtimeType == other.runtimeType &&
+          mainPort == other.mainPort &&
+          upnpEnabled == other.upnpEnabled &&
+          localListenerPort == other.localListenerPort &&
+          trustedProxies == other.trustedProxies &&
+          dnsResolvers == other.dnsResolvers &&
+          acmeStaging == other.acmeStaging;
+}
+
+/// Absent fields stay unchanged; `main_port` 0 goes back to the configured
+/// port.
+class NetworkSettingsChanges {
+  final int? mainPort;
+  final bool? upnpEnabled;
+  final int? localListenerPort;
+  final List<String>? trustedProxies;
+  final List<String>? dnsResolvers;
+  final bool? acmeStaging;
+
+  const NetworkSettingsChanges({
+    this.mainPort,
+    this.upnpEnabled,
+    this.localListenerPort,
+    this.trustedProxies,
+    this.dnsResolvers,
+    this.acmeStaging,
+  });
+
+  static Future<NetworkSettingsChanges> default_() =>
+      RustLib.instance.api.crateApiTypesNetworkSettingsChangesDefault();
+
+  @override
+  int get hashCode =>
+      mainPort.hashCode ^
+      upnpEnabled.hashCode ^
+      localListenerPort.hashCode ^
+      trustedProxies.hashCode ^
+      dnsResolvers.hashCode ^
+      acmeStaging.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is NetworkSettingsChanges &&
+          runtimeType == other.runtimeType &&
+          mainPort == other.mainPort &&
+          upnpEnabled == other.upnpEnabled &&
+          localListenerPort == other.localListenerPort &&
+          trustedProxies == other.trustedProxies &&
+          dnsResolvers == other.dnsResolvers &&
+          acmeStaging == other.acmeStaging;
 }
 
 /// Noise suppression on the microphone (Phase 2 plan §7.3).
@@ -971,6 +2773,8 @@ enum NoiseSuppressionMode {
   /// DeepFilterNet: much better on keyboards, dogs and fans, heavier.
   high,
 }
+
+enum NoticeSeverity { info, warning }
 
 enum OverwriteTargetKind { role, member }
 
@@ -1002,6 +2806,51 @@ class PermissionOverwrite {
           deny == other.deny;
 }
 
+enum PortProtocol { tcp, udp }
+
+enum PortPurpose { main, voice, music, acmeHttp, localProxy }
+
+enum PortState { unknown, listening, off, free, inUse, notPermitted }
+
+class PortStatus {
+  final PortPurpose purpose;
+  final PortProtocol protocol;
+  final int port;
+  final PortState state;
+  final MappingState mapping;
+  final String mappingError;
+
+  const PortStatus({
+    required this.purpose,
+    required this.protocol,
+    required this.port,
+    required this.state,
+    required this.mapping,
+    required this.mappingError,
+  });
+
+  @override
+  int get hashCode =>
+      purpose.hashCode ^
+      protocol.hashCode ^
+      port.hashCode ^
+      state.hashCode ^
+      mapping.hashCode ^
+      mappingError.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is PortStatus &&
+          runtimeType == other.runtimeType &&
+          purpose == other.purpose &&
+          protocol == other.protocol &&
+          port == other.port &&
+          state == other.state &&
+          mapping == other.mapping &&
+          mappingError == other.mappingError;
+}
+
 class Presence {
   final PlatformInt64 userId;
   final PresenceStatus status;
@@ -1021,6 +2870,68 @@ class Presence {
 }
 
 enum PresenceStatus { online, idle, dnd, offline }
+
+/// Where the server is reached from the internet (Phase 3 plan §5.1).
+/// Addresses are empty when unknown.
+class PublicAddress {
+  /// In use: the override when there is one, else what was detected.
+  final String ipv4;
+  final String ipv6;
+  final String detectedIpv4;
+  final String detectedIpv6;
+  final String overrideIpv4;
+  final String overrideIpv6;
+  final bool autoDetect;
+
+  /// When detection last succeeded; 0 for never.
+  final PlatformInt64 detectedAtMs;
+
+  /// Why the last detection failed, if it did.
+  final String detectError;
+  final bool hasIpv6;
+
+  const PublicAddress({
+    required this.ipv4,
+    required this.ipv6,
+    required this.detectedIpv4,
+    required this.detectedIpv6,
+    required this.overrideIpv4,
+    required this.overrideIpv6,
+    required this.autoDetect,
+    required this.detectedAtMs,
+    required this.detectError,
+    required this.hasIpv6,
+  });
+
+  @override
+  int get hashCode =>
+      ipv4.hashCode ^
+      ipv6.hashCode ^
+      detectedIpv4.hashCode ^
+      detectedIpv6.hashCode ^
+      overrideIpv4.hashCode ^
+      overrideIpv6.hashCode ^
+      autoDetect.hashCode ^
+      detectedAtMs.hashCode ^
+      detectError.hashCode ^
+      hasIpv6.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is PublicAddress &&
+          runtimeType == other.runtimeType &&
+          ipv4 == other.ipv4 &&
+          ipv6 == other.ipv6 &&
+          detectedIpv4 == other.detectedIpv4 &&
+          detectedIpv6 == other.detectedIpv6 &&
+          overrideIpv4 == other.overrideIpv4 &&
+          overrideIpv6 == other.overrideIpv6 &&
+          autoDetect == other.autoDetect &&
+          detectedAtMs == other.detectedAtMs &&
+          detectError == other.detectError &&
+          hasIpv6 == other.hasIpv6;
+}
 
 /// Everything about a server right after connecting.
 class ReadySnapshot {
@@ -1048,6 +2959,12 @@ class ReadySnapshot {
   /// This server's soundboard.
   final List<SoundboardSound> soundboardSounds;
 
+  /// Where the server is reached (Phase 3 plan §7.5).
+  final ServerAddresses addresses;
+
+  /// The chat commands this user may see (Phase 3 plan §17.1).
+  final CommandList commands;
+
   const ReadySnapshot({
     required this.selfUser,
     required this.server,
@@ -1062,6 +2979,8 @@ class ReadySnapshot {
     required this.streams,
     required this.voiceSettings,
     required this.soundboardSounds,
+    required this.addresses,
+    required this.commands,
   });
 
   @override
@@ -1078,7 +2997,9 @@ class ReadySnapshot {
       voiceStates.hashCode ^
       streams.hashCode ^
       voiceSettings.hashCode ^
-      soundboardSounds.hashCode;
+      soundboardSounds.hashCode ^
+      addresses.hashCode ^
+      commands.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -1097,7 +3018,9 @@ class ReadySnapshot {
           voiceStates == other.voiceStates &&
           streams == other.streams &&
           voiceSettings == other.voiceSettings &&
-          soundboardSounds == other.soundboardSounds;
+          soundboardSounds == other.soundboardSounds &&
+          addresses == other.addresses &&
+          commands == other.commands;
 }
 
 class Role {
@@ -1452,6 +3375,9 @@ class Server {
   /// Pinned certificate fingerprint (lowercase hex), if any.
   final String? fingerprint;
 
+  /// Its domains as `host:port`, the primary first (Phase 3 plan §7.5).
+  final List<String> addresses;
+
   const Server({
     required this.key,
     required this.name,
@@ -1459,6 +3385,7 @@ class Server {
     required this.port,
     this.userId,
     this.fingerprint,
+    required this.addresses,
   });
 
   @override
@@ -1468,7 +3395,8 @@ class Server {
       host.hashCode ^
       port.hashCode ^
       userId.hashCode ^
-      fingerprint.hashCode;
+      fingerprint.hashCode ^
+      addresses.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -1480,7 +3408,33 @@ class Server {
           host == other.host &&
           port == other.port &&
           userId == other.userId &&
-          fingerprint == other.fingerprint;
+          fingerprint == other.fingerprint &&
+          addresses == other.addresses;
+}
+
+/// Where a server is reached: its active domains (the primary first) and
+/// its public IP address.
+class ServerAddresses {
+  final ConnectAddress? primary;
+  final List<ConnectAddress> domains;
+  final ConnectAddress? ip;
+
+  const ServerAddresses({this.primary, required this.domains, this.ip});
+
+  static Future<ServerAddresses> default_() =>
+      RustLib.instance.api.crateApiTypesServerAddressesDefault();
+
+  @override
+  int get hashCode => primary.hashCode ^ domains.hashCode ^ ip.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is ServerAddresses &&
+          runtimeType == other.runtimeType &&
+          primary == other.primary &&
+          domains == other.domains &&
+          ip == other.ip;
 }
 
 class ServerChanges {
@@ -1543,6 +3497,37 @@ class ServerInfo {
           ownerId == other.ownerId &&
           openJoin == other.openJoin &&
           everyoneRoleId == other.everyoneRoleId;
+}
+
+/// Something the owner or admins should know: the public address changed,
+/// a domain's DNS broke, a certificate is about to expire.
+class ServerNotice {
+  /// One per subject: a newer notice replaces an older one.
+  final String key;
+  final NoticeSeverity severity;
+  final String title;
+  final String body;
+
+  const ServerNotice({
+    required this.key,
+    required this.severity,
+    required this.title,
+    required this.body,
+  });
+
+  @override
+  int get hashCode =>
+      key.hashCode ^ severity.hashCode ^ title.hashCode ^ body.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is ServerNotice &&
+          runtimeType == other.runtimeType &&
+          key == other.key &&
+          severity == other.severity &&
+          title == other.title &&
+          body == other.body;
 }
 
 /// A file opened for the trim editor (plan §11.3), decoded to 48 kHz mono.
@@ -1815,6 +3800,82 @@ class TrustedFingerprint {
           runtimeType == other.runtimeType &&
           address == other.address &&
           fingerprint == other.fingerprint;
+}
+
+enum TunnelKind {
+  /// A random *.trycloudflare.com address; for testing.
+  quick,
+
+  /// The owner's tunnel, by its token.
+  named,
+}
+
+enum TunnelState {
+  off,
+  starting,
+  running,
+
+  /// cloudflared stopped; it starts again after a pause.
+  restarting,
+
+  /// cloudflared cannot run.
+  failed,
+}
+
+class TunnelStatus {
+  final TunnelState state;
+  final TunnelKind? kind;
+
+  /// The tunnel's domain; a quick tunnel's once Cloudflare gave it.
+  final String hostname;
+  final PlatformInt64 domainId;
+  final String error;
+  final int restarts;
+
+  /// The cloudflared found; empty when there is none.
+  final String cloudflaredVersion;
+
+  /// Downloading cloudflared now.
+  final bool installing;
+
+  const TunnelStatus({
+    required this.state,
+    this.kind,
+    required this.hostname,
+    required this.domainId,
+    required this.error,
+    required this.restarts,
+    required this.cloudflaredVersion,
+    required this.installing,
+  });
+
+  static Future<TunnelStatus> default_() =>
+      RustLib.instance.api.crateApiTypesTunnelStatusDefault();
+
+  @override
+  int get hashCode =>
+      state.hashCode ^
+      kind.hashCode ^
+      hostname.hashCode ^
+      domainId.hashCode ^
+      error.hashCode ^
+      restarts.hashCode ^
+      cloudflaredVersion.hashCode ^
+      installing.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is TunnelStatus &&
+          runtimeType == other.runtimeType &&
+          state == other.state &&
+          kind == other.kind &&
+          hostname == other.hostname &&
+          domainId == other.domainId &&
+          error == other.error &&
+          restarts == other.restarts &&
+          cloudflaredVersion == other.cloudflaredVersion &&
+          installing == other.installing;
 }
 
 class User {

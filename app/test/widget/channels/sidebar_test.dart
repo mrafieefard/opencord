@@ -204,6 +204,8 @@ void main() {
         expect(connected, 1);
         expect(camera, isTrue);
         expect(find.text('Voice connected'), findsNothing);
+        // The music settings the voice panel asked for arrive.
+        await tester.pump(const Duration(milliseconds: 400));
         await app.dispose(tester);
       },
     );

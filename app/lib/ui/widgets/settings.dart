@@ -371,3 +371,27 @@ class SettingsSliderRow extends StatelessWidget {
     );
   }
 }
+
+/// A titled control inside a settings section.
+class SettingsField extends StatelessWidget {
+  const SettingsField({super.key, required this.title, required this.child});
+
+  final String title;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.oc;
+    return Padding(
+      padding: const EdgeInsets.all(OcSpace.s16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(title, style: OcText.body.copyWith(color: colors.text)),
+          const SizedBox(height: OcSpace.s8),
+          child,
+        ],
+      ),
+    );
+  }
+}

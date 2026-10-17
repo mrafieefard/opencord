@@ -33,4 +33,8 @@ class OcMotion {
 
   /// A mouse wheel notch gliding through the chat (§15).
   Duration get wheel => _maybe(140);
+
+  /// The right-side panel widening for music, and queue rows sliding to
+  /// their new place (Phase 3 §19.2, §19.5).
+  Duration get panel => _maybe(120);
 }

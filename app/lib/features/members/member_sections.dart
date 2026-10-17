@@ -37,6 +37,7 @@ final class MemberLine extends MemberEntry {
     required this.presence,
     this.activity,
     this.owner = false,
+    this.inVoiceSection = false,
   });
 
   final Member member;
@@ -46,14 +47,19 @@ final class MemberLine extends MemberEntry {
   final String? activity;
   final bool owner;
 
+  /// In "In this voice channel", where members also show in their role's
+  /// section below.
+  final bool inVoiceSection;
+
   @override
-  Object get key => member.id;
+  Object get key => inVoiceSection ? 'voice:${member.id}' : member.id;
 }
 
 /// The member panel's sections (§4.7): one per hoisted role (highest
 /// first) with the online members whose highest hoisted role it is, then
 /// everyone else online, then everyone offline. [query] keeps the members
-/// whose name contains it; empty sections are left out.
+/// whose name contains it; empty sections are left out. With [inVoice],
+/// those in the voice channel come first (Phase 3 plan §19.2).
 List<MemberEntry> memberSections(
   ServerData data,
   List<Member> members,
@@ -61,6 +67,7 @@ List<MemberEntry> memberSections(
   String query = '',
   String? Function(int userId)? voiceChannelOf,
   bool offlineExpanded = false,
+  List<int> inVoice = const [],
 }) {
   final needle = query.trim().toLowerCase();
   final shown =
@@ -93,6 +100,24 @@ List<MemberEntry> memberSections(
       .where((member) => presence.of(member.id) == Presence.offline)
       .toList();
   final entries = <MemberEntry>[];
+  final voiceIds = inVoice.toSet();
+  final here = [
+    for (final member in shown)
+      if (voiceIds.contains(member.id)) member,
+  ];
+  if (here.isNotEmpty) {
+    entries
+      ..add(MemberHeader('In this voice channel', here.length))
+      ..addAll([
+        for (final member in here)
+          MemberLine(
+            member,
+            presence: presence.of(member.id),
+            owner: data.info.ownerId == member.id,
+            inVoiceSection: true,
+          ),
+      ]);
+  }
   final placed = <int>{};
   for (final role in data.rolesDescending.where((role) => role.hoist)) {
     final holders = [

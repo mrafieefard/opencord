@@ -59,6 +59,12 @@ String dayLabel(DateTime day, DateTime now) {
   return day.year == now.year ? date : '$date ${day.year}';
 }
 
+/// `12 Jan`, with the year when it is not [now]'s: `12 Jan 2027`.
+String shortDate(DateTime time, DateTime now) {
+  final date = '${time.day} ${_months[time.month - 1].substring(0, 3)}';
+  return time.year == now.year ? date : '$date ${time.year}';
+}
+
 /// `7 October 2026`, for "member since" (§4.8).
 String longDate(DateTime time) =>
     '${time.day} ${_months[time.month - 1]} ${time.year}';

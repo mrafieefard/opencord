@@ -3,7 +3,10 @@ syntax = "proto3";
 
 package opencord.v1;
 
+import "opencord/v1/commands.proto";
 import "opencord/v1/models.proto";
+import "opencord/v1/music.proto";
+import "opencord/v1/network.proto";
 
 message Request {
   oneof kind {
@@ -61,6 +64,54 @@ message Request {
     PlaySoundboardSound play_soundboard_sound = 90;
     UpdateSoundboardSound update_soundboard_sound = 91;
     DeleteSoundboardSound delete_soundboard_sound = 92;
+
+    // Domains & network (Phase 3), owner only.
+    WatchNetwork watch_network = 100;
+    SetPublicAddress set_public_address = 101;
+    DetectPublicAddress detect_public_address = 102;
+    UpdateNetworkSettings update_network_settings = 103;
+    AddDomain add_domain = 104;
+    UpdateDomain update_domain = 105;
+    DeleteDomain delete_domain = 106;
+    CheckDomain check_domain = 107;
+    FetchDomainChecks fetch_domain_checks = 108;
+    RequestCertificate request_certificate = 109;
+    UploadCertificate upload_certificate = 110;
+    SetDnsProvider set_dns_provider = 111;
+    AddFreeSubdomain add_free_subdomain = 112;
+    StartTunnel start_tunnel = 113;
+    StopTunnel stop_tunnel = 114;
+    FetchTunnelLog fetch_tunnel_log = 115;
+    InstallCloudflared install_cloudflared = 116;
+
+    // Lavalink nodes (Phase 3 plan §12), MANAGE_SERVER.
+    FetchLavalinkNodes fetch_lavalink_nodes = 120;
+    CreateLavalinkNode create_lavalink_node = 121;
+    UpdateLavalinkNode update_lavalink_node = 122;
+    DeleteLavalinkNode delete_lavalink_node = 123;
+    TestLavalinkNode test_lavalink_node = 124;
+    MoveLavalinkPlayers move_lavalink_players = 125;
+
+    // Music sessions (Phase 3 plan §14, §18.1).
+    MusicSubscribe music_subscribe = 130;
+    MusicSearch music_search = 131;
+    MusicEnqueue music_enqueue = 132;
+    MusicPlayback music_playback = 133;
+    MusicSetMode music_set_mode = 134;
+    MusicQueueMove music_queue_move = 135;
+    MusicQueueRemove music_queue_remove = 136;
+    MusicQueueClear music_queue_clear = 137;
+    FetchMusicSettings fetch_music_settings = 138;
+    UpdateMusicSettings update_music_settings = 139;
+    FetchMusicBlocks fetch_music_blocks = 140;
+    MusicBlockMember music_block_member = 141;
+    MusicVoteSkip music_vote_skip = 142;
+
+    // Chat commands (Phase 3 plan §17).
+    ExecuteCommand execute_command = 150;
+    AutocompleteCommand autocomplete_command = 151;
+    FetchCommandSettings fetch_command_settings = 152;
+    UpdateCommandSettings update_command_settings = 153;
   }
 }
 
@@ -85,6 +136,17 @@ message Response {
     MediaToken media_token = 15;
     Stream stream = 16;
     SoundboardSound soundboard_sound = 17;
+    NetworkInfo network_info = 18;
+    DomainChecks domain_checks = 19;
+    TunnelLog tunnel_log = 20;
+    LavalinkNodes lavalink_nodes = 21;
+    MusicSession music_session = 22;
+    MusicSearchResults music_search_results = 23;
+    MusicSettings music_settings = 24;
+    MusicBlocks music_blocks = 25;
+    CommandResult command_result = 26;
+    CommandChoices command_choices = 27;
+    Commands commands = 28;
   }
 }
 
@@ -270,6 +332,8 @@ message CreateInvite {
   optional uint32 max_uses = 1;
   // Absent or 0 means it never expires.
   optional uint32 expires_in_s = 2;
+  // The active domain the link uses. Absent: the primary, if there is one.
+  optional int64 domain_id = 3;
 }
 
 // -> invites

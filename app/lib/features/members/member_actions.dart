@@ -74,6 +74,10 @@ class MemberActions {
 
   bool canBan(Member member) => _may(member, Permissions.banMembers);
 
+  /// Music moderation (Phase 3 plan §16.1), where voice runs.
+  bool canBlockFromMusic(Member member) =>
+      (_data?.voiceEnabled ?? false) && _may(member, Permissions.musicManage);
+
   /// Roles the current user can hand out or take away, highest first.
   List<Role> manageableRoles() {
     final data = _data;
@@ -282,6 +286,27 @@ class MemberActions {
     );
   }
 
+  /// They can still listen, but not add or control music; unblocking is in
+  /// Server settings → Music.
+  Future<void> blockFromMusic(Member member) async {
+    final reason = await _confirm(
+      title: 'Block ${member.displayName} from music?',
+      body:
+          "They can still listen, but can't add tracks or control the "
+          'music. Unblock them in Server settings → Music.',
+      action: 'Block',
+    );
+    if (reason == null) return;
+    await _guard(() async {
+      await ref
+          .read(repositoryProvider)
+          .blockFromMusic(serverKey, member.id, blocked: true, reason: reason);
+      if (context.mounted) {
+        showOcToast(context, '${member.displayName} is blocked from music');
+      }
+    });
+  }
+
   /// The reason typed (maybe empty), or null when cancelled.
   Future<String?> _confirm({
     required String title,
@@ -337,7 +362,14 @@ class MemberActions {
           ],
         ),
       ],
-      if (canKick(member) || canBan(member)) const OcMenuDivider(),
+      if (canKick(member) || canBan(member) || canBlockFromMusic(member))
+        const OcMenuDivider(),
+      if (canBlockFromMusic(member))
+        OcMenuItem(
+          label: 'Block from music',
+          icon: OcIcons.musicNote,
+          onSelected: () => blockFromMusic(member),
+        ),
       if (canKick(member))
         OcMenuItem(
           label: 'Kick',

@@ -2,10 +2,12 @@ import 'package:flutter/material.dart';
 
 import 'package:opencord/core/format.dart';
 import 'package:opencord/core/model/channel.dart';
+import 'package:opencord/core/model/commands.dart';
 import 'package:opencord/core/model/message.dart';
 import 'package:opencord/core/providers/server_state.dart';
 import 'package:opencord/features/chat/bubble.dart';
 import 'package:opencord/features/chat/chat_rows.dart';
+import 'package:opencord/features/chat/command_rows.dart';
 import 'package:opencord/features/chat/compact_message.dart';
 import 'package:opencord/features/chat/markdown_view.dart';
 import 'package:opencord/features/chat/message_actions.dart';
@@ -89,6 +91,7 @@ class ChatRowActions {
     required this.onReaction,
     required this.onJumpTo,
     required this.onProfile,
+    required this.onDismissNote,
   });
 
   final MarkdownContext links;
@@ -101,6 +104,9 @@ class ChatRowActions {
 
   /// Opens someone's profile from their avatar or name (§16).
   final void Function(int userId) onProfile;
+
+  /// Takes an "only you" reply away (Phase 3 §17.3).
+  final void Function(EphemeralNote note) onDismissNote;
 }
 
 /// Draws one row of the message list.
@@ -153,6 +159,16 @@ class ChatRowView extends StatelessWidget {
           ),
           icon: systemIcon(message.systemEvent!),
         ),
+      ),
+      CommandRow(:final message) => CommandResultLine(
+        message: message,
+        author: lookups.name(message.authorId),
+        links: actions.links,
+      ),
+      EphemeralRow(:final note) => EphemeralLine(
+        note: note,
+        links: actions.links,
+        onDismiss: () => actions.onDismissNote(note),
       ),
       MessageRow() => _message(row),
     };

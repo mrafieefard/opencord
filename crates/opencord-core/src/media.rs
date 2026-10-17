@@ -31,6 +31,7 @@ use crate::api::types::{
     VoiceStats,
 };
 use crate::client::Client;
+use crate::music_listening::{MusicDuck, MusicListening};
 use crate::video::Video;
 use crate::voice::VoiceServer;
 
@@ -152,6 +153,8 @@ struct State {
     listening: HashMap<(String, i64), (f32, bool)>,
     /// The same for their screen share's sound (plan §10.5).
     stream_listening: HashMap<(String, i64), (f32, bool)>,
+    /// How this person hears music, on every server (Phase 3 §19.8).
+    music: MusicListening,
 }
 
 /// One server's voice, from joining to leaving: the engine, and the task
@@ -171,6 +174,7 @@ impl Drop for MediaSession {
 enum SessionCommand {
     Connect(VoiceServer),
     Settings(AudioSettings),
+    Music(MusicListening),
     Stop,
 }
 
@@ -538,6 +542,17 @@ impl Media {
         }
     }
 
+    /// This person's music volume (0–2), mute and whether music is lowered
+    /// while people talk, for every server (Phase 3 plan §19.8). Muted, the
+    /// voice node stops sending the music.
+    pub fn set_music_listening(&self, listening: MusicListening) {
+        let mut state = self.lock();
+        state.music = listening;
+        if let Some(session) = &state.session {
+            let _ = session.commands.send(SessionCommand::Music(listening));
+        }
+    }
+
     fn connect_if_ready(&self, state: &mut State, client: &Client) {
         let Some((server, at)) = state.pending.take() else {
             return;
@@ -616,7 +631,9 @@ impl Media {
             settings: settings.clone(),
             open_devices: self.options.open_devices,
             video: Arc::clone(&self.video),
+            music: state.music,
         };
+        engine.set_music_volume(state.music.volume, state.music.muted);
         self.runtime
             .spawn(task.run(commands_received, frames_received, engine_events_received));
         Some(MediaSession {
@@ -773,9 +790,18 @@ struct SessionTask {
     settings: AudioSettings,
     open_devices: bool,
     video: Arc<Video>,
+    music: MusicListening,
 }
 
 impl SessionTask {
+    /// Applies the music's gain when lowering it started or ended.
+    fn duck_music(&self, duck: &mut MusicDuck) {
+        let (gain, changed) = duck.update(self.music, Instant::now());
+        if changed {
+            self.engine.set_music_volume(gain, self.music.muted);
+        }
+    }
+
     async fn run(
         mut self,
         mut commands: mpsc::UnboundedReceiver<SessionCommand>,
@@ -794,6 +820,7 @@ impl SessionTask {
         let mut talking = (false, false);
         // Other apps lowered while people talk; put back when this ends.
         let mut ducking = crate::ducking::Ducking::default();
+        let mut music_duck = MusicDuck::default();
         let mut camera_check = tokio::time::interval(CAMERA_CHECK);
         loop {
             tokio::select! {
@@ -812,6 +839,14 @@ impl SessionTask {
                     Some(SessionCommand::Settings(settings)) => {
                         self.settings = settings;
                         ducking.update(&self.settings, Instant::now());
+                    }
+                    Some(SessionCommand::Music(music)) => {
+                        self.music = music;
+                        let (gain, _) = music_duck.update(music, Instant::now());
+                        self.engine.set_music_volume(gain, music.muted);
+                        if let Some(live) = &live {
+                            live.connection.set_music_muted(music.muted);
+                        }
                     }
                     Some(SessionCommand::Stop) | None => {
                         if let Some((_, handle)) = connecting.take() {
@@ -842,6 +877,7 @@ impl SessionTask {
                                 server.channel_id,
                                 Arc::clone(&connection),
                             );
+                            connection.set_music_muted(self.music.muted);
                             live = Some(Live { server, connection, events });
                         }
                         Err(error) => {
@@ -864,6 +900,8 @@ impl SessionTask {
                     match event {
                         VoiceEvent::MediaConnected => {
                             no_route_at = None;
+                            refresh_at = None;
+                            retry_pause = RETRY_MIN;
                             self.report(channel_id, VoiceConnectionState::Connected);
                             if let Some(live) = &live {
                                 live.connection.set_speaking(speaking_flags(talking.0, talking.1));
@@ -871,6 +909,9 @@ impl SessionTask {
                         }
                         VoiceEvent::MediaDisconnected => {
                             self.report(channel_id, VoiceConnectionState::Reconnecting);
+                            if refresh_at.is_none() {
+                                refresh_at = Some(Instant::now() + Duration::from_secs(5));
+                            }
                         }
                         VoiceEvent::Audio(audio) => self.engine.receive(
                             audio.user_id,
@@ -886,11 +927,20 @@ impl SessionTask {
                             audio.payload,
                             audio.arrived,
                         ),
+                        VoiceEvent::MusicAudio(audio) => self.engine.receive_music(
+                            audio.timestamp,
+                            audio.marker,
+                            audio.payload,
+                            audio.arrived,
+                        ),
+                        VoiceEvent::Music { active: false } => self.engine.remove_music(),
                         VoiceEvent::ClientDisconnected { user_id } => self.engine.remove_user(user_id),
                         VoiceEvent::Closed { code } => {
                             live = None;
                             ducking.clear();
                             ducking.update(&self.settings, Instant::now());
+                            music_duck.clear();
+                            self.duck_music(&mut music_duck);
                             self.video.disconnected();
                             no_route_at = None;
                             match code {
@@ -935,6 +985,8 @@ impl SessionTask {
                         talking = (now, priority);
                         ducking.talking(now);
                         ducking.update(&self.settings, Instant::now());
+                        music_duck.talking(now);
+                        self.duck_music(&mut music_duck);
                         if let Some(live) = &live {
                             live.connection.set_speaking(speaking_flags(now, priority));
                             self.speaking(&live.server, vec![SpeakingChange {
@@ -946,8 +998,10 @@ impl SessionTask {
                     EngineEvent::Speaking(changes) => {
                         for &(user_id, speaking) in &changes {
                             ducking.others_speaking(user_id, speaking);
+                            music_duck.speaking(user_id, speaking);
                         }
                         ducking.update(&self.settings, Instant::now());
+                        self.duck_music(&mut music_duck);
                         if let Some(live) = &live {
                             let changes = changes
                                 .into_iter()
@@ -1000,10 +1054,15 @@ impl SessionTask {
                 () = sleep_until(ducking.release_at()) => {
                     ducking.update(&self.settings, Instant::now());
                 }
+                () = sleep_until(music_duck.release_at()) => {
+                    self.duck_music(&mut music_duck);
+                }
                 () = sleep_until(no_route_at) => {
                     no_route_at = None;
                     let channel_id = live.as_ref().map_or(0, |live| live.server.channel_id);
                     self.report(channel_id, VoiceConnectionState::NoRoute);
+                    refresh_at = Some(Instant::now() + retry_pause);
+                    retry_pause = (retry_pause * 2).min(RETRY_MAX);
                 }
                 () = tokio::time::sleep_until(devices_at), if self.open_devices => {
                     devices_at = Instant::now() + DEVICE_POLL;
@@ -1086,6 +1145,9 @@ fn voice_target(server: &VoiceServer) -> VoiceTarget {
     VoiceTarget {
         gateway_url: server.gateway_url(),
         certificate_fingerprint: server.certificate_fingerprint.as_slice().try_into().ok(),
+        // Without a fingerprint, the node's name is vouched for by an
+        // authority: a domain's certificate, a tunnel's or a proxy's.
+        authority: Some(crate::tofu::authority()),
         token: server.token.clone(),
         user_id: server.user_id,
         session_id: server.session_id.clone(),

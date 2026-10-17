@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:opencord/core/model/commands.dart';
 import 'package:opencord/core/model/message.dart';
 import 'package:opencord/features/chat/message_rows.dart';
 
@@ -30,6 +31,8 @@ String describe(ChatRow row) => switch (row) {
   DayRow(:final day) => 'day ${day.day}',
   UnreadRow() => 'unread',
   SystemRow(:final message) => 'system ${message.id}',
+  CommandRow(:final message) => 'command ${message.id}',
+  EphemeralRow(:final note) => 'only you ${note.nonce}',
   MessageRow(:final message, :final first, :final last, :final showAuthor) =>
     '${message.id}${first ? 'F' : ''}${last ? 'L' : ''}${showAuthor ? 'A' : ''}',
 };
@@ -178,5 +181,36 @@ void splitTests() {
     final rows = built([msg(1, kai), pending]);
 
     expect(rows.sublist(splitIndex(rows, 100)).map(describe), ['-5FL']);
+  });
+
+  test('command results stand alone, and only-you replies come last', () {
+    final result = Message(
+      id: 3,
+      channelId: 10,
+      authorId: kai,
+      content: 'Added *Song* to the queue in General',
+      createdAt: day.add(const Duration(minutes: 1)),
+      command: 'play',
+    );
+    final note = EphemeralNote(
+      channelId: 10,
+      nonce: 'n1',
+      content: 'Nothing is playing',
+      at: day.add(const Duration(minutes: 2)),
+    );
+    final built = buildRows(
+      [msg(1, kai), result, msg(4, kai, minute: 2)],
+      selfId: me,
+      lastReadId: null,
+      reachedStart: false,
+      ephemerals: [note],
+    );
+    expect(built.map(describe), [
+      'day 7',
+      '1FLA',
+      'command 3',
+      '4FLA',
+      'only you n1',
+    ]);
   });
 }

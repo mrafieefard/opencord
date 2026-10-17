@@ -41,6 +41,7 @@ class Message {
     this.pinned = false,
     this.systemEvent,
     this.sendState = SendState.sent,
+    this.command,
   });
 
   /// A snowflake: larger ids are newer. Pending messages use a placeholder.
@@ -60,6 +61,9 @@ class Message {
   /// Set on system notices; [authorId] is then who caused it.
   final SystemEvent? systemEvent;
   final SendState sendState;
+
+  /// A command's public result (Phase 3 §17.3): the command [authorId] ran.
+  final String? command;
 
   bool get isSystem => systemEvent != null;
 
@@ -86,5 +90,6 @@ class Message {
     pinned: pinned ?? this.pinned,
     systemEvent: systemEvent,
     sendState: sendState ?? this.sendState,
+    command: command,
   );
 }

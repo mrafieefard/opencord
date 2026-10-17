@@ -12,12 +12,21 @@ class Invite {
     this.maxUses,
     this.uses = 0,
     this.expiresAt,
+    this.webLink,
+    this.domainId,
   });
 
   final String code;
 
-  /// `opencord://host:port/invite/CODE#fp=...`, ready to share.
+  /// `opencord://host:port/invite/CODE#fp=...`, ready to share; without the
+  /// fingerprint through a domain with an authority's certificate.
   final String link;
+
+  /// `https://host/invite/CODE`, for a browser, through a domain.
+  final String? webLink;
+
+  /// The domain the links use, if one does.
+  final int? domainId;
   final int? createdBy;
   final DateTime createdAt;
   final int? maxUses;

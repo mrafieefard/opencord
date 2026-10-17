@@ -2,6 +2,11 @@
 
 #![allow(dead_code)]
 
+pub mod domains;
+pub use opencord_server::testing::fake_lavalink;
+pub mod music;
+pub mod pebble;
+
 use std::collections::VecDeque;
 use std::sync::Arc;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
@@ -36,12 +41,24 @@ impl TestServer {
     }
 
     pub async fn start_with(customize: impl FnOnce(&mut Config)) -> Self {
-        let dir = tempfile::tempdir().unwrap();
+        Self::start_in(tempfile::tempdir().unwrap(), customize).await
+    }
+
+    /// Stops the server and starts it again on the same data.
+    pub async fn restart(self, customize: impl FnOnce(&mut Config)) -> Self {
+        self.handle.shutdown().await;
+        Self::start_in(self.dir, customize).await
+    }
+
+    async fn start_in(dir: tempfile::TempDir, customize: impl FnOnce(&mut Config)) -> Self {
         let mut config = Config::default();
         config.server.bind = "127.0.0.1:0".parse().unwrap();
         config.server.data_dir = dir.path().join("data");
         config.server.name = "Test Server".to_owned();
         config.voice.udp_port = 0;
+        config.music.audio_udp_port = 0;
+        config.network.ip_lookup_v4 = String::new();
+        config.network.ip_lookup_v6 = String::new();
         customize(&mut config);
         let handle = server::start(config).await.unwrap();
         Self { handle, dir }
@@ -61,13 +78,18 @@ impl TestServer {
 
     /// HTTPS GET with extra headers; returns the status code and body.
     pub async fn get_with(&self, path: &str, headers: &[(&str, &str)]) -> (u16, String) {
+        self.get_as(path, "localhost", headers).await
+    }
+
+    /// HTTPS GET as if to `host` (its `Host` header).
+    pub async fn get_as(&self, path: &str, host: &str, headers: &[(&str, &str)]) -> (u16, String) {
         let mut stream = tls_connect(self).await;
         let extra: String = headers
             .iter()
             .map(|(name, value)| format!("{name}: {value}\r\n"))
             .collect();
         let request =
-            format!("GET {path} HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n{extra}\r\n");
+            format!("GET {path} HTTP/1.1\r\nHost: {host}\r\nConnection: close\r\n{extra}\r\n");
         stream.write_all(request.as_bytes()).await.unwrap();
         let mut response = String::new();
         stream.read_to_string(&mut response).await.unwrap();
@@ -149,11 +171,13 @@ pub struct TestClient {
 impl TestClient {
     /// Connects and reads `Hello`.
     pub async fn connect(server: &TestServer, key: SigningKey) -> Self {
+        Self::connect_as(server, key, "localhost").await
+    }
+
+    /// Connects as if through `host` (the URL's, so its `Host` header).
+    pub async fn connect_as(server: &TestServer, key: SigningKey, host: &str) -> Self {
         let tls = tls_connect(server).await;
-        let url = format!(
-            "wss://localhost:{}/gateway",
-            server.handle.local_addr.port()
-        );
+        let url = format!("wss://{host}:{}/gateway", server.handle.local_addr.port());
         let (ws, _) = tokio_tungstenite::client_async(url, tls).await.unwrap();
         let mut client = Self {
             ws,
@@ -191,6 +215,37 @@ impl TestClient {
             invite_code: invite.map(str::to_owned),
             claim_token: claim.map(str::to_owned),
             protocol_version: opencord_common::PROTOCOL_VERSION,
+            host: String::new(),
+            host_signature: Vec::new(),
+        }
+    }
+
+    /// An `Identify` as a client sends one that verified the server by an
+    /// authority under `host` and saw `certificate` (a proxy's).
+    pub fn identify_through(
+        &self,
+        display_name: &str,
+        invite: Option<&str>,
+        host: &str,
+        certificate: Fingerprint,
+    ) -> proto::Identify {
+        let challenge = |certificate| auth::Challenge {
+            server_id: self.hello.server_id.as_slice().try_into().unwrap(),
+            certificate,
+            nonce: self.hello.nonce.as_slice().try_into().unwrap(),
+            timestamp_ms: now_ms(),
+        };
+        let signed = challenge(certificate);
+        proto::Identify {
+            public_key: self.key.verifying_key().to_bytes().to_vec(),
+            signature: auth::sign(&self.key, &signed).to_vec(),
+            timestamp_ms: signed.timestamp_ms,
+            display_name: display_name.to_owned(),
+            invite_code: invite.map(str::to_owned),
+            claim_token: None,
+            protocol_version: opencord_common::PROTOCOL_VERSION,
+            host: host.to_owned(),
+            host_signature: auth::sign(&self.key, &challenge(auth::host_binding(host))).to_vec(),
         }
     }
 
@@ -299,6 +354,16 @@ impl TestClient {
             },
             Received::Closed(code) => panic!("connection closed ({code:?})"),
         }
+    }
+
+    /// Every event that arrives within `wait`.
+    pub async fn collect_for(&mut self, wait: Duration) -> Vec<proto::event::Kind> {
+        let deadline = tokio::time::Instant::now() + wait;
+        let mut seen = Vec::new();
+        while let Ok(event) = tokio::time::timeout_at(deadline, self.next_event()).await {
+            seen.push(event);
+        }
+        seen
     }
 
     /// Asserts nothing arrives within `wait`.
@@ -429,6 +494,7 @@ pub async fn invite(client: &mut TestClient, max_uses: Option<u32>) -> String {
         .ok(proto::request::Kind::CreateInvite(proto::CreateInvite {
             max_uses,
             expires_in_s: None,
+            domain_id: None,
         }))
         .await
     {

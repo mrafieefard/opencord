@@ -1,6 +1,9 @@
+import 'dart:async';
+
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:opencord/core/model/music.dart';
 import 'package:opencord/core/providers/providers.dart';
 import 'package:opencord/features/chat/bubble.dart';
 import 'package:opencord/features/chat/composer.dart';
@@ -150,9 +153,33 @@ void main() {
       'Mention',
       'Copy identity fingerprint',
       'Roles',
+      'Block from music',
       'Kick',
       'Ban',
     ]);
+    await app.dispose(tester);
+  });
+
+  testWidgets('blocking from music asks first and keeps the reason', (
+    tester,
+  ) async {
+    final app = await MockApp.pump(tester);
+    await _open(tester, app, 'general');
+
+    await _rightClick(tester, _row('Kai Nakamura'));
+    await tester.tap(find.text('Block from music'));
+    await _pumpFor(tester, const Duration(milliseconds: 300));
+    expect(find.text('Block Kai Nakamura from music?'), findsOneWidget);
+    await tester.enterText(find.byType(TextField).last, 'Queue spam');
+    await tester.tap(find.widgetWithText(OcButton, 'Block'));
+    await _pumpFor(tester, const Duration(milliseconds: 600));
+
+    var blocks = const <MusicBlock>[];
+    unawaited(app.repository.musicBlocks(_server).then((b) => blocks = b));
+    await _pumpFor(tester, const Duration(milliseconds: 300));
+    expect(blocks.single.userId, _kai);
+    expect(blocks.single.reason, 'Queue spam');
+    expect(find.text('Kai Nakamura is blocked from music'), findsOneWidget);
     await app.dispose(tester);
   });
 

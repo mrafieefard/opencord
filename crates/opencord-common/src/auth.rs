@@ -6,6 +6,13 @@
 //! certificate the client verified. It binds the signature to that TLS
 //! endpoint, so a server cannot pass another server's challenge to its
 //! users and replay their answers there.
+//!
+//! A client that verified the server by a certificate authority, under a
+//! domain name, also signs the challenge bound to that name
+//! ([`host_binding`]): behind a tunnel or reverse proxy the certificate the
+//! client sees is the proxy's, which the server never holds. An authority
+//! vouches for the name, so a server with its own name still cannot replay
+//! what it got elsewhere.
 
 use ed25519_dalek::{Signature, Signer};
 pub use ed25519_dalek::{SigningKey, VerifyingKey};
@@ -44,6 +51,17 @@ pub enum AuthError {
     InvalidSignature,
     #[error("the timestamp is more than 60 seconds away from the server clock")]
     StaleTimestamp,
+}
+
+/// Stands in for the certificate fingerprint when the client verified the
+/// server by an authority under `host`: SHA-256 of a separator and the
+/// lowercase name.
+pub fn host_binding(host: &str) -> Fingerprint {
+    use sha2::{Digest, Sha256};
+    let mut hash = Sha256::new();
+    hash.update(b"opencord-host-binding-v1\0");
+    hash.update(host.trim_end_matches('.').to_ascii_lowercase().as_bytes());
+    hash.finalize().into()
 }
 
 pub fn auth_payload(challenge: &Challenge) -> [u8; PAYLOAD_LEN] {
@@ -105,6 +123,18 @@ mod tests {
 
     fn public(key: &SigningKey) -> [u8; PUBLIC_KEY_LEN] {
         key.verifying_key().to_bytes()
+    }
+
+    #[test]
+    fn a_host_binding_ignores_case_and_the_final_dot() {
+        assert_eq!(
+            host_binding("Chat.Example.com."),
+            host_binding("chat.example.com")
+        );
+        assert_ne!(
+            host_binding("chat.example.com"),
+            host_binding("evil.example.com")
+        );
     }
 
     #[test]

@@ -6,3 +6,7 @@
 
 # The compose deployment's settings (deploy/docker-compose.yml).
 deploy/.env
+
+# Local runtime data
+/data/
+/opencord.toml

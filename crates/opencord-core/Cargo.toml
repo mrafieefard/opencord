@@ -22,6 +22,7 @@ opencord-media.workspace = true
 opencord-proto.workspace = true
 prost.workspace = true
 rustls.workspace = true
+rustls-platform-verifier.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 sha2.workspace = true
@@ -33,6 +34,7 @@ tracing.workspace = true
 webpki-roots.workspace = true
 
 [dev-dependencies]
+image.workspace = true
 opencord-server.workspace = true
 tempfile.workspace = true
 

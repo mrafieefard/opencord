@@ -1,6 +1,8 @@
 import 'package:opencord/core/model/channel.dart';
 import 'package:opencord/core/model/message.dart';
 import 'package:opencord/core/model/misc.dart';
+import 'package:opencord/core/rust/command_mapping.dart';
+import 'package:opencord/core/rust/network_mapping.dart';
 import 'package:opencord/core/model/permissions.dart';
 import 'package:opencord/core/model/presence.dart';
 import 'package:opencord/core/model/server.dart';
@@ -36,6 +38,7 @@ Message messageFrom(core.Message message) => Message(
     null => null,
   },
   nonce: message.nonce,
+  command: message.command,
 );
 
 ChannelKind channelKindFrom(core.ChannelKind kind) => switch (kind) {
@@ -233,6 +236,8 @@ ServerSummary serverFrom(core.Server server) => ServerSummary(
 Invite inviteFrom(core.Invite invite) => Invite(
   code: invite.code,
   link: invite.link,
+  webLink: invite.webLink,
+  domainId: invite.domainId,
   createdBy: invite.createdBy,
   createdAt: _time(invite.createdAtMs),
   maxUses: invite.maxUses,
@@ -331,6 +336,8 @@ ReadySnapshot snapshotFrom(
   },
   lastMessages: lastMessages,
   readStates: readStates,
+  addresses: serverAddressesFrom(ready.addresses),
+  commands: commandListFrom(ready.commands),
 );
 
 Sound soundFrom(core.SoundboardSound sound) => Sound(
@@ -392,6 +399,29 @@ RepoErrorKind _kindFrom(core.ErrorCode code) => switch (code) {
   core.ErrorCode.conflict ||
   core.ErrorCode.voiceNotConnected => RepoErrorKind.conflict,
   core.ErrorCode.soundboardFull => RepoErrorKind.soundboardFull,
+  core.ErrorCode.domainInvalid ||
+  core.ErrorCode.dnsMismatch => RepoErrorKind.invalidArgument,
+  core.ErrorCode.domainExists ||
+  core.ErrorCode.domainLimit ||
+  core.ErrorCode.domainNotVerified => RepoErrorKind.conflict,
+  core.ErrorCode.acmeRateLimited => RepoErrorKind.rateLimited,
+  core.ErrorCode.acmeFailed ||
+  core.ErrorCode.portUnreachable => RepoErrorKind.other,
+  core.ErrorCode.musicBlocked ||
+  core.ErrorCode.musicNotInChannel => RepoErrorKind.forbidden,
+  core.ErrorCode.musicStale => RepoErrorKind.musicStale,
+  core.ErrorCode.commandUnknown => RepoErrorKind.notFound,
+  core.ErrorCode.commandDisabled ||
+  core.ErrorCode.commandNotAllowedHere => RepoErrorKind.forbidden,
+  core.ErrorCode.commandInvalidOptions => RepoErrorKind.invalidArgument,
+  core.ErrorCode.musicQueueFull ||
+  core.ErrorCode.musicMemberLimit => RepoErrorKind.conflict,
+  core.ErrorCode.musicTrackTooLong ||
+  core.ErrorCode.musicStreamsNotAllowed ||
+  core.ErrorCode.musicSourceNotAllowed ||
+  core.ErrorCode.musicLinkNotAllowed => RepoErrorKind.invalidArgument,
+  core.ErrorCode.musicNotConfigured ||
+  core.ErrorCode.musicNodeUnavailable => RepoErrorKind.musicUnavailable,
   core.ErrorCode.qualityLimit => RepoErrorKind.qualityLimit,
   core.ErrorCode.streamViewerLimit => RepoErrorKind.streamFull,
   core.ErrorCode.voiceChannelFull => RepoErrorKind.voiceChannelFull,

@@ -4,13 +4,12 @@
 //! ended, while this server sends it commands. When the channel closes or
 //! goes quiet, the node's channels move to another node, or wait for one.
 
-use std::net::SocketAddr;
 use std::path::Path;
 use std::sync::Arc;
 use std::time::Duration;
 
 use axum::extract::ws::{CloseFrame, Message, WebSocket};
-use axum::extract::{ConnectInfo, State, WebSocketUpgrade};
+use axum::extract::{State, WebSocketUpgrade};
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use futures_util::stream::{SplitSink, SplitStream};
@@ -27,6 +26,7 @@ use tokio::time::Instant;
 
 use super::nodes::{CommandSink, NodeLink, Registration};
 use crate::config::ExternalNode;
+use crate::network::ClientAddr;
 use crate::random;
 use crate::state::AppState;
 
@@ -42,7 +42,7 @@ type Stream = SplitStream<WebSocket>;
 
 pub async fn upgrade(
     State(state): State<Arc<AppState>>,
-    ConnectInfo(peer): ConnectInfo<SocketAddr>,
+    ClientAddr(peer): ClientAddr,
     upgrade: WebSocketUpgrade,
 ) -> Response {
     if state.rate_limits.check_voice_node(peer.ip()).is_err() {
@@ -140,6 +140,7 @@ async fn register(
     let link = NodeLink {
         endpoint: node.endpoint.clone(),
         fingerprint,
+        music: register.music,
     };
     let registration =
         state
@@ -267,6 +268,14 @@ async fn handle(
             }
         }
         Some(Payload::ParticipantConnected(_)) => {}
+        Some(Payload::MusicBridgeStatus(status)) => {
+            // A node speaks only for the channels it serves.
+            if state.voice_nodes.serves(registration, status.channel_id)
+                && let Some(event) = control::bridge_event_from(status)
+            {
+                crate::music::bridge_event(state, event);
+            }
+        }
         Some(Payload::Error(error)) => {
             tracing::warn!(node = registration.id(), message = ?error.message, "a voice node reported an error");
         }

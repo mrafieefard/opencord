@@ -7,7 +7,7 @@ use std::sync::{Arc, Mutex, MutexGuard, OnceLock, PoisonError, RwLock, Weak};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use opencord_common::address::{
-    Fingerprint, InviteLink, ServerAddress, format_fingerprint, parse_fingerprint,
+    DEFAULT_PORT, Fingerprint, InviteLink, ServerAddress, format_fingerprint, parse_fingerprint,
 };
 use opencord_proto::v1 as proto;
 use proto::request::Kind as Request;
@@ -24,12 +24,16 @@ use crate::api::types::{
     SoundSelection, SoundboardSound, SoundboardSoundChanges, StreamSourceKind, User, VideoWant,
     VoiceCue, VoiceSettings, VoiceSettingsChanges, VoiceState,
 };
+use crate::artwork::ArtworkCache;
 use crate::connection::{
-    self, Command, Connection, Context, Credentials, Established, HandshakeError, MediaTokens,
+    self, Clocks, Command, Connection, Context, Credentials, Established, HandshakeError,
+    MediaTokens, Route, Routes,
 };
 use crate::convert;
+use crate::http::MediaHttp;
 use crate::identity::Identity;
 use crate::media::{self, Media, MediaOptions, MediaTarget};
+use crate::music_listening::MusicListening;
 use crate::soundboard::Soundboard;
 use crate::store::{SavedServer, Store, StoreError};
 use crate::voice::VoiceServer;
@@ -74,7 +78,13 @@ struct Inner {
     hotkeys: tokio::sync::Mutex<Option<Hotkeys>>,
     /// Each server's media token, kept by its connection.
     media_tokens: MediaTokens,
+    /// How each server was last reached.
+    routes: Routes,
     soundboard: Arc<Soundboard>,
+    artwork: Arc<ArtworkCache>,
+    clocks: Clocks,
+    /// How this person hears music, kept for media that starts later.
+    music_listening: Mutex<MusicListening>,
 }
 
 /// The app's id, as its desktop file names it; the system's portals ask for
@@ -133,11 +143,16 @@ impl Client {
         let (events, mut incoming) = mpsc::unbounded_channel();
         let (outward, receiver) = mpsc::unbounded_channel();
         let media_tokens = MediaTokens::default();
+        let routes = Routes::default();
         let soundboard = Arc::new(Soundboard::new(
             runtime.clone(),
             data_dir,
-            Arc::clone(&store),
+            Arc::clone(&routes),
             Arc::clone(&media_tokens),
+        ));
+        let artwork = Arc::new(ArtworkCache::new(
+            data_dir,
+            MediaHttp::new(Arc::clone(&routes), Arc::clone(&media_tokens)),
         ));
         let client = Self {
             inner: Arc::new(Inner {
@@ -152,7 +167,11 @@ impl Client {
                 media: OnceLock::new(),
                 hotkeys: tokio::sync::Mutex::new(None),
                 media_tokens,
+                routes,
                 soundboard,
+                artwork,
+                clocks: Clocks::default(),
+                music_listening: Mutex::default(),
             }),
         };
         client.spawn_wake_watch();
@@ -250,22 +269,42 @@ impl Client {
             connection::identify(&mut opened, &credentials, target.invite_code, claim_token)
                 .await?;
 
+        // The same server at another address stays one entry (plan §7.5).
+        let server_id = hex::encode(&opened.hello.server_id);
+        let known = self.lock_store().server_with_id(&server_id).cloned();
+        let (key, address) = match &known {
+            Some(known) if known.key != key => (
+                known.key.clone(),
+                ServerAddress::parse(&known.key).unwrap_or_else(|_| target.address.clone()),
+            ),
+            _ => (key, target.address.clone()),
+        };
+        let earlier = self.lock_store().server(&key).cloned();
         let saved = SavedServer {
             key: key.clone(),
-            host: target.address.host.clone(),
-            port: target.address.port,
+            host: address.host.clone(),
+            port: address.port,
             name: ready
                 .server
                 .as_ref()
                 .map(|server| server.name.clone())
                 .unwrap_or_default(),
             user_id: ready.self_user.as_ref().map(|user| user.id),
-            added_at_ms: self
-                .lock_store()
-                .server(&key)
+            added_at_ms: earlier
+                .as_ref()
                 .map_or_else(unix_ms, |known| known.added_at_ms),
+            server_id: Some(server_id),
+            addresses: earlier
+                .as_ref()
+                .map(|known| known.addresses.clone())
+                .unwrap_or_default(),
+            ip: earlier.and_then(|known| known.ip),
         };
-        let pin = pinned.map(|_| opened.presented);
+        // A pin belongs to the address it was made for: an entry reached
+        // again by another address keeps its own.
+        let pin = pinned
+            .map(|_| opened.presented)
+            .filter(|_| address == target.address);
         {
             let mut store = self.lock_store();
             if let Some(pin) = &pin {
@@ -273,13 +312,19 @@ impl Client {
             }
             store.upsert_server(saved.clone())?;
         }
+        let pin = pin.or_else(|| self.lock_store().pin(&key));
+        self.inner
+            .routes
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .insert(key.clone(), Route::of(&opened, &target.address));
         let previous = self.lock_connections().remove(&key);
         if let Some(previous) = previous {
             stop(previous).await;
         }
         let connection = connection::spawn(
             &self.inner.runtime,
-            self.context(key.clone(), target.address, credentials),
+            self.context(key.clone(), address, credentials),
             Some(Established::identified(opened, ready)),
         );
         self.lock_connections().insert(key, connection);
@@ -616,15 +661,19 @@ impl Client {
         expect_ack(self.request(key, request).await?)
     }
 
+    /// An invite, through `domain_id`'s domain, or the primary one when
+    /// there is one.
     pub async fn create_invite(
         &self,
         key: &str,
         max_uses: Option<u32>,
         expires_in_s: Option<u32>,
+        domain_id: Option<i64>,
     ) -> Result<Invite, CoreError> {
         let request = Request::CreateInvite(proto::CreateInvite {
             max_uses,
             expires_in_s,
+            domain_id,
         });
         match self.request(key, request).await? {
             Response::Invite(invite) => Ok(self.invite_view(key, invite)),
@@ -703,6 +752,13 @@ impl Client {
     ) -> Option<mpsc::UnboundedReceiver<MediaEvent>> {
         let (events, receiver) = mpsc::unbounded_channel();
         let media = Media::new(self.inner.runtime.clone(), options, events);
+        media.set_music_listening(
+            *self
+                .inner
+                .music_listening
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner),
+        );
         self.inner.media.set(media).ok()?;
         let mut servers = self.inner.voice_servers.subscribe();
         let watcher = Arc::downgrade(&self.inner);
@@ -1505,18 +1561,43 @@ impl Client {
         }
     }
 
+    /// An invite's links: through its domain when it has one (no
+    /// fingerprint when an authority vouches for the domain), else through
+    /// the address the server was added with (plan §7.6).
     fn invite_view(&self, key: &str, invite: proto::Invite) -> Invite {
-        let link = ServerAddress::parse(key)
-            .map(|address| {
-                InviteLink {
-                    address,
+        let pin = self.lock_store().pin(key);
+        let (link, web_link) = match &invite.address {
+            Some(domain) => {
+                let port = u16::try_from(domain.port).unwrap_or(DEFAULT_PORT);
+                let link = InviteLink {
+                    address: ServerAddress {
+                        host: domain.host.clone(),
+                        port,
+                    },
                     code: invite.code.clone(),
-                    fingerprint: self.lock_store().pin(key),
-                }
-                .to_string()
-            })
-            .unwrap_or_default();
-        convert::invite(invite, link)
+                    fingerprint: pin.filter(|_| !domain.trusted_certificate),
+                };
+                let web = match port {
+                    443 => format!("https://{}/invite/{}", domain.host, invite.code),
+                    port => format!("https://{}:{port}/invite/{}", domain.host, invite.code),
+                };
+                (link.to_string(), Some(web))
+            }
+            None => {
+                let link = ServerAddress::parse(key)
+                    .map(|address| {
+                        InviteLink {
+                            address,
+                            code: invite.code.clone(),
+                            fingerprint: pin,
+                        }
+                        .to_string()
+                    })
+                    .unwrap_or_default();
+                (link, None)
+            }
+        };
+        convert::invite(invite, link, web_link)
     }
 
     fn context(&self, key: String, address: ServerAddress, credentials: Credentials) -> Context {
@@ -1528,7 +1609,33 @@ impl Client {
             events: self.inner.events.clone(),
             voice_servers: self.inner.voice_servers.clone(),
             media_tokens: Arc::clone(&self.inner.media_tokens),
+            routes: Arc::clone(&self.inner.routes),
+            clocks: Arc::clone(&self.inner.clocks),
         }
+    }
+
+    /// This person's music volume (0–2), mute and "Lower music while people
+    /// talk", for every server (Phase 3 plan §19.8). Kept on this device.
+    pub fn music_set_listening(&self, volume: f32, muted: bool, duck: bool) {
+        let listening = MusicListening::clamped(volume, muted, duck);
+        *self
+            .inner
+            .music_listening
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner) = listening;
+        if let Some(media) = self.media() {
+            media.set_music_listening(listening);
+        }
+    }
+
+    /// The server's clock minus this device's, in ms; 0 until known.
+    pub(crate) fn server_clock_offset(&self, key: &str) -> i64 {
+        self.inner
+            .clocks
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .get(key)
+            .map_or(0, crate::server_clock::ServerClock::offset_ms)
     }
 
     fn credentials(&self) -> Option<Credentials> {
@@ -1596,6 +1703,17 @@ fn server_view(saved: &SavedServer, pin: Option<Fingerprint>) -> Server {
         port: saved.port,
         user_id: saved.user_id,
         fingerprint: pin.as_ref().map(format_fingerprint),
+        addresses: saved
+            .addresses
+            .iter()
+            .map(|address| {
+                ServerAddress {
+                    host: address.host.clone(),
+                    port: address.port,
+                }
+                .to_string()
+            })
+            .collect(),
     }
 }
 
@@ -1623,6 +1741,10 @@ impl Client {
 
     pub(crate) fn soundboard(&self) -> Arc<Soundboard> {
         Arc::clone(&self.inner.soundboard)
+    }
+
+    pub(crate) fn artwork(&self) -> Arc<ArtworkCache> {
+        Arc::clone(&self.inner.artwork)
     }
 
     /// A request answered with an ack.
@@ -1672,7 +1794,7 @@ fn drop_pending(pending: crate::video::screen::Pending) {
     std::thread::spawn(move || drop(pending));
 }
 
-fn unexpected(response: &Response) -> CoreError {
+pub(crate) fn unexpected(response: &Response) -> CoreError {
     CoreError::Connection {
         message: format!("the server sent an unexpected response: {response:?}"),
     }

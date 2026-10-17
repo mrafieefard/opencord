@@ -16,6 +16,7 @@ opencord-server = { path = "crates/opencord-server" }
 opencord-voice = { path = "crates/opencord-voice" }
 
 aec3 = "0.4.0"
+aes-gcm = "0.11.1"
 anyhow = "1.0.104"
 ashpd = { version = "0.13.13", default-features = false, features = ["tokio", "camera", "global_shortcuts", "screencast"] }
 audio_thread_priority = "0.38.0"
@@ -25,6 +26,7 @@ axum-server = { version = "0.8.0", features = ["tls-rustls-no-provider"] }
 bitflags = "2.13.2"
 bytes = "1.12.1"
 clap = { version = "4.6.7", features = ["derive", "env"] }
+chacha20poly1305 = "0.11.0"
 cpal = { version = "0.18.2", features = ["pipewire"] }
 data-encoding = "2.11.1"
 ebur128 = "0.1.10"
@@ -35,7 +37,11 @@ futures-util = "0.3.34"
 getrandom = "0.4.3"
 governor = "0.10.4"
 hex = "0.4.3"
+hickory-proto = { version = "0.26.3", default-features = false, features = ["std"] }
 hmac = "0.13.0"
+instant-acme = { version = "0.8.5", default-features = false, features = ["ring", "hyper-rustls", "time", "x509-parser"] }
+image = { version = "0.25.10", default-features = false, features = ["jpeg", "png", "webp"] }
+igd-next = { version = "0.18.0", default-features = false, features = ["aio_tokio"] }
 irondash_run_loop = "0.5.0"
 irondash_texture = "0.5.0"
 nnnoiseless = { version = "0.5.2", default-features = false }
@@ -50,11 +56,14 @@ rubato = "5.0.1"
 rtrb = "0.4.0"
 rcgen = "0.14.10"
 realfft = "3.5.0"
+reqwest = { version = "0.13.5", default-features = false, features = ["rustls-no-provider", "json", "query"] }
+rustls-platform-verifier = "0.7.1"
 rustls = { version = "0.23.45", default-features = false, features = ["ring", "std", "tls12", "logging"] }
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = "1.0.151"
 sha1 = "0.11.0"
 sha2 = "0.11.0"
+socket2 = "0.6.5"
 str0m = { version = "0.24.1", default-features = false, features = ["aws-lc-rs"] }
 str0m-netem = "0.4.0"
 symphonia = { version = "0.6.1", default-features = false, features = ["aac", "flac", "isomp4", "mp3", "ogg", "pcm", "vorbis", "wav"] }
@@ -71,6 +80,7 @@ tract-pulse = "0.23.8"
 tracing = "0.1.44"
 tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
 v4l = "0.14.0"
+x509-parser = "0.18.1"
 webpki-roots = "1.0.9"
 x11rb = { version = "0.14.0", features = ["screensaver", "xinput", "xtest"] }
 

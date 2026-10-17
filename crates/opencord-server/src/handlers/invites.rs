@@ -10,22 +10,39 @@ use crate::state::now_ms;
 
 pub async fn create(ctx: &Ctx<'_>, request: proto::CreateInvite) -> Result<Response, ApiError> {
     require_base(&ctx.state.guild(), ctx.user_id, Permissions::CREATE_INVITE)?;
+    // A link through a domain: the one asked for, else the primary.
+    let domain = match request.domain_id {
+        Some(id) => Some(
+            ctx.state
+                .domains
+                .get(id)
+                .filter(|domain| domain.active)
+                .ok_or_else(|| {
+                    ApiError::new(
+                        proto::ErrorCode::DomainNotVerified,
+                        "that domain is not active",
+                    )
+                })?,
+        ),
+        None => ctx.state.domains.primary(),
+    };
     let invite = invites::create(
         &mut *ctx.state.db.acquire().await?,
         Some(ctx.user_id),
         request.max_uses,
         request.expires_in_s,
+        domain.map(|domain| domain.id),
         now_ms(),
     )
     .await?;
-    Ok(Response::Invite(to_proto(invite)))
+    Ok(Response::Invite(to_proto(ctx, invite)))
 }
 
 pub async fn fetch(ctx: &Ctx<'_>) -> Result<Response, ApiError> {
     require_base(&ctx.state.guild(), ctx.user_id, Permissions::MANAGE_SERVER)?;
     let rows = invites::list(&mut *ctx.state.db.acquire().await?).await?;
     Ok(Response::Invites(proto::InviteList {
-        invites: rows.into_iter().map(to_proto).collect(),
+        invites: rows.into_iter().map(|row| to_proto(ctx, row)).collect(),
     }))
 }
 
@@ -41,8 +58,13 @@ pub async fn revoke(ctx: &Ctx<'_>, request: proto::RevokeInvite) -> Result<Respo
     Ok(ack())
 }
 
-fn to_proto(row: InviteRow) -> proto::Invite {
+fn to_proto(ctx: &Ctx<'_>, row: InviteRow) -> proto::Invite {
+    let address = row
+        .domain_id
+        .and_then(|id| ctx.state.domains.get(id))
+        .map(|domain| domain.address(ctx.state));
     proto::Invite {
+        address,
         code: row.code,
         created_by: row.created_by,
         created_at_ms: row.created_at,

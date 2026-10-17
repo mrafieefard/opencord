@@ -276,6 +276,9 @@ pub struct Heard {
     pub channels: usize,
     /// The last [`KEPT_SECONDS`] decoded, interleaved, at 48 kHz.
     pub recent: VecDeque<f32>,
+    /// Packets missing from the sequence, and the newest number seen.
+    pub lost: u64,
+    pub last_seq: Option<u64>,
 }
 
 /// How much decoded sound a bot keeps of each source, for measuring.
@@ -293,6 +296,14 @@ impl Heard {
             .copied()
             .collect();
         tone_dbfs(&samples, frequency)
+    }
+
+    /// Counts the packets skipped before `seq`.
+    fn sequence(&mut self, seq: u64) {
+        if let Some(last) = self.last_seq {
+            self.lost += seq.saturating_sub(last + 1);
+        }
+        self.last_seq = Some(self.last_seq.map_or(seq, |last| last.max(seq)));
     }
 
     fn record(&mut self, arrived: Instant, decoded: Option<&[i16]>) {
@@ -347,6 +358,9 @@ struct Shared {
     heard: HashMap<i64, Heard>,
     /// Others' screen share sound, by user.
     stream_heard: HashMap<i64, Heard>,
+    /// The channel's music (Phase 3 plan §13.3), and whether it is on.
+    music_heard: Option<Heard>,
+    music_active: bool,
     connection: Option<Arc<VoiceConnection>>,
     media_connected: bool,
     connections: u32,
@@ -572,6 +586,23 @@ impl VoiceSession {
     /// The screen share sound heard so far, by streamer.
     pub fn stream_heard(&self) -> HashMap<i64, Heard> {
         lock(&self.shared).stream_heard.clone()
+    }
+
+    /// The channel's music heard so far.
+    pub fn music_heard(&self) -> Option<Heard> {
+        lock(&self.shared).music_heard.clone()
+    }
+
+    /// Whether the channel has a music stream now.
+    pub fn music_active(&self) -> bool {
+        lock(&self.shared).music_active
+    }
+
+    /// Mutes the channel's music: the voice node stops sending it.
+    pub fn set_music_muted(&self, muted: bool) {
+        if let Some(connection) = lock(&self.shared).connection.as_ref() {
+            connection.set_music_muted(muted);
+        }
     }
 
     /// Sends a stereo tone as this bot's screen share sound for
@@ -803,6 +834,7 @@ async fn connect(
     let (connection, events) = VoiceConnection::connect(VoiceTarget {
         gateway_url: gateway_url.clone(),
         certificate_fingerprint: fingerprint,
+        authority: None,
         token: server.token.clone(),
         user_id: server.user_id,
         session_id: server.session_id.clone(),
@@ -979,6 +1011,8 @@ async fn follow(
 ) {
     let mut decoders: HashMap<i64, opus::Decoder> = HashMap::new();
     let mut stream_decoders: HashMap<i64, opus::Decoder> = HashMap::new();
+    let mut music_decoder =
+        opus::Decoder::new(SAMPLE_RATE, opus::Channels::Stereo).expect("Opus decoders can be made");
     let mut pcm = vec![0i16; FRAME_SAMPLES * 12];
     loop {
         tokio::select! {
@@ -1019,6 +1053,18 @@ async fn follow(
                     });
                     heard.record(audio.arrived, decoded.map(|frames| &pcm[..2 * frames]));
                 }
+                Some(VoiceEvent::MusicAudio(audio)) => {
+                    let decoded = music_decoder.decode(&audio.payload, &mut pcm, false).ok();
+                    let mut shared = lock(&shared);
+                    let heard = shared.music_heard.get_or_insert_with(|| Heard {
+                        peak_dbfs: -120.0,
+                        channels: 2,
+                        ..Heard::default()
+                    });
+                    heard.sequence(audio.seq);
+                    heard.record(audio.arrived, decoded.map(|frames| &pcm[..2 * frames]));
+                }
+                Some(VoiceEvent::Music { active }) => lock(&shared).music_active = active,
                 Some(VoiceEvent::Closed { code }) => lock(&shared).closed = Some(code),
                 Some(VoiceEvent::Video(video)) => record_video(&shared, &video),
                 Some(other) => on_video_event(&shared, other),

@@ -22,7 +22,7 @@ class UserAudioControls extends ConsumerWidget {
   final int userId;
 
   /// The slider's steps.
-  static const step = 5;
+  static const step = 1;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {

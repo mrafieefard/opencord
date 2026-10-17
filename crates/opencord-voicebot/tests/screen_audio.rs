@@ -26,6 +26,9 @@ impl TestServer {
         config.server.public_host = "127.0.0.1".to_owned();
         config.server.data_dir = dir.path().join("data");
         config.voice.udp_port = 0;
+        config.music.audio_udp_port = 0;
+        config.network.ip_lookup_v4 = String::new();
+        config.network.ip_lookup_v6 = String::new();
         let handle = server::start(config).await.unwrap();
         Self { handle, _dir: dir }
     }
@@ -55,7 +58,7 @@ async fn a_screens_sound_reaches_its_watchers_in_stereo_apart_from_the_voice() {
     .unwrap();
     let invite = streamer
         .client
-        .create_invite(&streamer.server_key, None, None)
+        .create_invite(&streamer.server_key, None, None, None)
         .await
         .unwrap();
     let watcher = Voicebot::connect(&invite.link, None, "Watcher")
