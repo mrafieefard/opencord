@@ -11,6 +11,7 @@ import 'package:opencord/core/settings/voice_view_prefs.dart';
 import 'package:opencord/features/channels/channel_row.dart';
 import 'package:opencord/features/chat/pinned_bar.dart';
 import 'package:opencord/features/chat/typing_dots.dart';
+import 'package:opencord/features/music/music_panel.dart';
 import 'package:opencord/features/voice/voice_controls.dart';
 import 'package:opencord/features/window/header_bar.dart';
 import 'package:opencord/ui/theme/oc_colors.dart';
@@ -33,6 +34,8 @@ class ChatHeader extends ConsumerWidget {
     this.memberToggle = true,
     required this.membersShown,
     required this.onToggleMembers,
+    this.musicShown = false,
+    this.onSelectMusic,
     required this.onJumpTo,
     this.onOpenSidebar,
     this.leadingControls = false,
@@ -51,6 +54,8 @@ class ChatHeader extends ConsumerWidget {
   final bool memberToggle;
   final bool membersShown;
   final VoidCallback onToggleMembers;
+  final bool musicShown;
+  final VoidCallback? onSelectMusic;
   final ValueChanged<int> onJumpTo;
   final VoidCallback? onOpenSidebar;
   final bool leadingControls;
@@ -126,9 +131,19 @@ class ChatHeader extends ConsumerWidget {
           if (memberToggle)
             OcIconButton(
               icon: OcIcons.group,
-              tooltip: 'Member list',
+              tooltip: 'Members',
               active: membersShown,
               onPressed: onToggleMembers,
+            ),
+          if (open != null &&
+              target != null &&
+              target.kind == ChannelKind.voice &&
+              ref.watch(musicOfferedProvider(open)))
+            OcIconButton(
+              icon: OcIcons.libraryMusic,
+              tooltip: 'Music',
+              active: musicShown,
+              onPressed: onSelectMusic,
             ),
           if (open != null && target != null)
             Builder(

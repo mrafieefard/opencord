@@ -131,4 +131,21 @@ void main() {
     expect(shownByDefault, isTrue);
     expect(second.read(memberPanelProvider), isFalse);
   });
+
+  test('the member list can be explicitly opened and closed', () {
+    final store = MemoryKeyValueStore();
+    final container = ProviderContainer(
+      overrides: [keyValueStoreProvider.overrideWithValue(store)],
+    );
+    addTearDown(container.dispose);
+
+    final notifier = container.read(memberPanelProvider.notifier);
+    notifier.close();
+    expect(container.read(memberPanelProvider), isFalse);
+    expect(store.read(memberPanelKey), 'false');
+
+    notifier.open();
+    expect(container.read(memberPanelProvider), isTrue);
+    expect(store.read(memberPanelKey), 'true');
+  });
 }

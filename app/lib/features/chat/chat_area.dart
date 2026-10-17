@@ -40,6 +40,8 @@ class ChatArea extends ConsumerStatefulWidget {
     super.key,
     required this.membersShown,
     required this.onToggleMembers,
+    this.musicShown = false,
+    this.onSelectMusic,
     this.onOpenSidebar,
     this.leadingControls = false,
     this.trailingControls = false,
@@ -51,6 +53,8 @@ class ChatArea extends ConsumerStatefulWidget {
 
   final bool membersShown;
   final VoidCallback onToggleMembers;
+  final bool musicShown;
+  final VoidCallback? onSelectMusic;
 
   /// Shown as a menu button when the sidebar is collapsed (§3).
   final VoidCallback? onOpenSidebar;
@@ -160,6 +164,8 @@ class _ChatAreaState extends ConsumerState<ChatArea> {
                 memberToggle: !noServers,
                 membersShown: widget.membersShown,
                 onToggleMembers: widget.onToggleMembers,
+                musicShown: widget.musicShown,
+                onSelectMusic: widget.onSelectMusic,
                 onOpenSidebar: widget.onOpenSidebar,
                 onJumpTo: _controller.jumpToMessage,
                 leadingControls: widget.leadingControls,

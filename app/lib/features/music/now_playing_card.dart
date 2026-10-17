@@ -5,6 +5,7 @@ import 'package:opencord/core/providers/providers.dart';
 import 'package:opencord/features/music/music_access.dart';
 import 'package:opencord/features/music/music_artwork.dart';
 import 'package:opencord/features/music/music_controls.dart';
+import 'package:opencord/features/shell/navigation.dart';
 import 'package:opencord/ui/theme/oc_colors.dart';
 import 'package:opencord/ui/theme/oc_icons.dart';
 import 'package:opencord/ui/theme/oc_metrics.dart';
@@ -57,9 +58,12 @@ class NowPlayingCard extends ConsumerWidget {
       padding: const EdgeInsets.fromLTRB(OcSpace.s8, OcSpace.s8, OcSpace.s8, 0),
       child: Builder(
         builder: (card) => Hoverable(
-          onTap: () => ref
-              .read(rightPanelModeProvider.notifier)
-              .set(RightPanelMode.music),
+          onTap: () {
+            ref
+                .read(rightPanelModeProvider.notifier)
+                .set(RightPanelMode.music);
+            ref.read(memberPanelProvider.notifier).open();
+          },
           onSecondaryTap: (position) => _menu(card, ref, position),
           semanticLabel:
               '${now.playing ? 'Playing' : 'Paused'}: ${now.title}, $detail. '

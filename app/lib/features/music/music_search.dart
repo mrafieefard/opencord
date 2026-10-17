@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -8,6 +10,7 @@ import 'package:opencord/core/providers/providers.dart';
 import 'package:opencord/core/repository/repository.dart';
 import 'package:opencord/features/music/music_access.dart';
 import 'package:opencord/features/music/music_artwork.dart';
+import 'package:opencord/features/music/music_source_icon.dart';
 import 'package:opencord/ui/theme/oc_colors.dart';
 import 'package:opencord/ui/theme/oc_icons.dart';
 import 'package:opencord/ui/theme/oc_metrics.dart';
@@ -83,7 +86,7 @@ final musicSearchProvider = NotifierProvider.autoDispose
       MusicSearchNotifier.new,
     );
 
-/// "Add a song": the field and the source pill.
+/// "Add a song": the field with the source selector on the left and debounced search.
 class MusicSearchField extends ConsumerStatefulWidget {
   const MusicSearchField({
     super.key,
@@ -100,11 +103,26 @@ class MusicSearchField extends ConsumerStatefulWidget {
 
 class _MusicSearchFieldState extends ConsumerState<MusicSearchField> {
   final _controller = TextEditingController();
+  Timer? _debounceTimer;
 
   @override
   void dispose() {
+    _debounceTimer?.cancel();
     _controller.dispose();
     super.dispose();
+  }
+
+  void _onChanged(String query) {
+    _debounceTimer?.cancel();
+    final words = query.trim();
+    if (words.isEmpty) {
+      ref.read(musicSearchProvider(widget.channel).notifier).close();
+      return;
+    }
+    _debounceTimer = Timer(const Duration(seconds: 1), () {
+      if (!mounted) return;
+      ref.read(musicSearchProvider(widget.channel).notifier).search(words);
+    });
   }
 
   void _pickSource(BuildContext anchor, List<String> sources, String chosen) {
@@ -116,8 +134,22 @@ class _MusicSearchFieldState extends ConsumerState<MusicSearchField> {
         for (final key in sources)
           OcMenuItem(
             label: musicSourceLabel(key),
+            leading: MusicSourceIcon(
+              key,
+              size: 16,
+              color: key == chosen
+                  ? context.oc.text
+                  : context.oc.textSecondary,
+            ),
             checked: key == chosen,
-            onSelected: () => notifier.chooseSource(key),
+            onSelected: () {
+              notifier.chooseSource(key);
+              final words = _controller.text.trim();
+              if (words.isNotEmpty) {
+                _debounceTimer?.cancel();
+                notifier.search(words);
+              }
+            },
           ),
       ],
     );
@@ -141,54 +173,64 @@ class _MusicSearchFieldState extends ConsumerState<MusicSearchField> {
         : sources.contains(settings?.defaultSource)
         ? settings!.defaultSource
         : sources.firstOrNull ?? '';
-    final field = OcTextField(
-      controller: _controller,
-      hint: 'Add a song',
-      prefixIcon: OcIcons.search,
-      autofocus: widget.autofocus && access.canAdd,
-      enabled: access.canAdd,
-      maxLength: 200,
-      semanticLabel: 'Search for music',
-      textInputAction: TextInputAction.search,
-      onSubmitted: (query) =>
-          ref.read(musicSearchProvider(widget.channel).notifier).search(query),
-      suffix: sources.length < 2
-          ? null
-          : Builder(
-              builder: (pill) => Hoverable(
-                onTap: access.canAdd
-                    ? () => _pickSource(pill, sources, chosen)
-                    : null,
-                semanticLabel: 'Search ${musicSourceLabel(chosen)}',
-                focusRadius: BorderRadius.circular(OcRadius.searchPill),
-                builder: (context, state) => AnimatedContainer(
-                  duration: OcMotion.of(context).hover,
-                  margin: const EdgeInsets.only(right: OcSpace.s4),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: OcSpace.s8,
-                    vertical: OcSpace.s2,
-                  ),
-                  decoration: BoxDecoration(
-                    color: state.active ? colors.selected : colors.hover,
-                    borderRadius: BorderRadius.circular(OcRadius.searchPill),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        musicSourceLabel(chosen),
-                        style: OcText.small.copyWith(color: colors.text),
-                      ),
+
+    final selector = sources.isEmpty
+        ? null
+        : Builder(
+            builder: (pill) => Hoverable(
+              onTap: access.canAdd && sources.length > 1
+                  ? () => _pickSource(pill, sources, chosen)
+                  : null,
+              semanticLabel: 'Search ${musicSourceLabel(chosen)}',
+              focusRadius: BorderRadius.circular(OcRadius.searchPill),
+              builder: (context, state) => AnimatedContainer(
+                duration: OcMotion.of(context).hover,
+                margin: const EdgeInsets.only(
+                  left: OcSpace.s6,
+                  right: OcSpace.s2,
+                ),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: OcSpace.s6,
+                  vertical: OcSpace.s4,
+                ),
+                decoration: BoxDecoration(
+                  color: state.active && sources.length > 1
+                      ? colors.selected
+                      : colors.hover,
+                  borderRadius: BorderRadius.circular(OcRadius.searchPill),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    MusicSourceIcon(chosen, size: 18),
+                    if (sources.length > 1) ...[
+                      const SizedBox(width: OcSpace.s2),
                       Icon(
                         OcIcons.expandMore,
                         size: OcSize.iconInline,
                         color: colors.textMuted,
                       ),
                     ],
-                  ),
+                  ],
                 ),
               ),
             ),
+          );
+
+    final field = OcTextField(
+      controller: _controller,
+      hint: 'Add a song',
+      prefix: selector,
+      autofocus: widget.autofocus && access.canAdd,
+      enabled: access.canAdd,
+      maxLength: 200,
+      semanticLabel: 'Search for music',
+      textInputAction: TextInputAction.search,
+      onChanged: _onChanged,
+      onSubmitted: (query) {
+        _debounceTimer?.cancel();
+        ref.read(musicSearchProvider(widget.channel).notifier).search(query);
+      },
     );
     return access.canAdd
         ? field

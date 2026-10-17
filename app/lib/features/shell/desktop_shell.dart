@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:opencord/core/model/channel.dart';
 import 'package:opencord/core/providers/providers.dart';
 import 'package:opencord/core/providers/voice_cues.dart';
 import 'package:opencord/core/settings/local_prefs.dart';
@@ -121,10 +122,28 @@ class _DesktopShellState extends ConsumerState<DesktopShell> {
     ref.read(nativeWindowProvider).setFullscreen(!fullscreen);
   }
 
-  /// Closes the music panel: the users list again, if it was open.
-  void _closeMusic() {
+  void _selectMusic() {
+    ref.read(rightPanelModeProvider.notifier).set(RightPanelMode.music);
+    if (_layout.membersInline) {
+      ref.read(memberPanelProvider.notifier).open();
+    } else {
+      setState(() => _membersDrawer = true);
+    }
+  }
+
+  void _selectMembers() {
     ref.read(rightPanelModeProvider.notifier).set(RightPanelMode.people);
-    if (!_layout.membersInline && !ref.read(memberPanelProvider)) {
+    if (_layout.membersInline) {
+      ref.read(memberPanelProvider.notifier).open();
+    } else {
+      setState(() => _membersDrawer = true);
+    }
+  }
+
+  void _closeRightPanel() {
+    if (_layout.membersInline) {
+      ref.read(memberPanelProvider.notifier).close();
+    } else {
       setState(() => _membersDrawer = false);
     }
   }
@@ -134,6 +153,7 @@ class _DesktopShellState extends ConsumerState<DesktopShell> {
   Widget _rightPanel({
     required bool music,
     required VoidCallback onClose,
+    bool isOverlay = false,
     bool trailingControls = false,
   }) {
     final channel = ref.read(musicChannelProvider);
@@ -145,18 +165,33 @@ class _DesktopShellState extends ConsumerState<DesktopShell> {
       child: music && channel != null
           ? MusicPanel(
               channel: channel,
-              onClose: _closeMusic,
+              onClose: onClose,
+              isOverlay: isOverlay,
+              onSelectMembers: _selectMembers,
+              onSelectMusic: _selectMusic,
               trailingControls: trailingControls,
             )
-          : MemberPanel(onClose: onClose, trailingControls: trailingControls),
+          : MemberPanel(
+              onClose: onClose,
+              isOverlay: isOverlay,
+              onSelectMembers: _selectMembers,
+              onSelectMusic: _selectMusic,
+              trailingControls: trailingControls,
+            ),
     );
   }
 
   void _toggleMembers() {
-    if (_layout.membersInline) {
-      ref.read(memberPanelProvider.notifier).toggle();
+    final panelOpen = _layout.membersInline
+        ? ref.read(memberPanelProvider) &&
+            ref.read(serverListProvider).isNotEmpty &&
+            !ref.read(voiceChatShownProvider)
+        : _membersDrawer;
+    final mode = ref.read(rightPanelModeProvider);
+    if (panelOpen && mode == RightPanelMode.people) {
+      _closeRightPanel();
     } else {
-      setState(() => _membersDrawer = !_membersDrawer);
+      _selectMembers();
     }
   }
 
@@ -259,20 +294,35 @@ class _DesktopShellState extends ConsumerState<DesktopShell> {
   @override
   Widget build(BuildContext context) {
     final colors = context.oc;
-    // No servers, no members to list (§4.13).
-    // A voice channel's chat takes the member list's place (Phase 2 §12).
-    final musicChannel = ref.watch(musicChannelProvider);
-    final musicShown =
-        musicChannel != null &&
-        ref.watch(rightPanelModeProvider) == RightPanelMode.music &&
-        ref.watch(musicOfferedProvider(musicChannel));
-    final membersShown =
-        musicShown ||
-        ref.watch(memberPanelProvider) &&
+    final server = ref.watch(currentServerProvider);
+    final channelId = ref.watch(currentChannelProvider);
+    final openChannelKind = server == null || channelId == null
+        ? null
+        : ref.watch(
+            serverProvider(
+              server,
+            ).select((s) => s.data?.channels[channelId]?.kind),
+          );
+    final isVoiceContext = openChannelKind == ChannelKind.voice;
+
+    final panelOpen = _layout.membersInline
+        ? ref.watch(memberPanelProvider) &&
             ref.watch(
               serverListProvider.select((servers) => servers.isNotEmpty),
             ) &&
-            !ref.watch(voiceChatShownProvider);
+            !ref.watch(voiceChatShownProvider)
+        : _membersDrawer;
+
+    final musicChannel = ref.watch(musicChannelProvider);
+    final musicOffered = isVoiceContext &&
+        musicChannel != null &&
+        ref.watch(musicOfferedProvider(musicChannel));
+    final mode = ref.watch(rightPanelModeProvider);
+
+    final musicShown = panelOpen && musicOffered && mode == RightPanelMode.music;
+    final membersActive = panelOpen && (!musicOffered || mode == RightPanelMode.people);
+    final musicActive = panelOpen && musicOffered && mode == RightPanelMode.music;
+
     // Text fields (the composer, searches) need Material underneath.
     return Material(
       type: MaterialType.transparency,
@@ -295,7 +345,7 @@ class _DesktopShellState extends ConsumerState<DesktopShell> {
                     thickness: 1,
                     color: colors.border,
                   );
-                  final membersInline = layout.membersInline && membersShown;
+                  final membersInline = layout.membersInline && panelOpen;
                   return Stack(
                     children: [
                       Row(
@@ -320,10 +370,10 @@ class _DesktopShellState extends ConsumerState<DesktopShell> {
                           Expanded(
                             key: DesktopShell.mainKey,
                             child: ChatArea(
-                              membersShown: layout.membersInline
-                                  ? membersShown
-                                  : _membersDrawer,
-                              onToggleMembers: _toggleMembers,
+                              membersShown: membersActive,
+                              onToggleMembers: _selectMembers,
+                              musicShown: musicActive,
+                              onSelectMusic: _selectMusic,
                               onOpenSidebar: layout.sidebarInline
                                   ? null
                                   : () => setState(() => _sidebarDrawer = true),
@@ -335,7 +385,7 @@ class _DesktopShellState extends ConsumerState<DesktopShell> {
                             border,
                             _rightPanel(
                               music: musicShown,
-                              onClose: _toggleMembers,
+                              onClose: _closeRightPanel,
                               trailingControls: true,
                             ),
                           ],
@@ -355,11 +405,11 @@ class _DesktopShellState extends ConsumerState<DesktopShell> {
                       if (!layout.membersInline && _membersDrawer)
                         _Drawer(
                           fromRight: true,
-                          onClose: () => setState(() => _membersDrawer = false),
+                          onClose: _closeRightPanel,
                           child: _rightPanel(
                             music: musicShown,
-                            onClose: () =>
-                                setState(() => _membersDrawer = false),
+                            onClose: _closeRightPanel,
+                            isOverlay: true,
                           ),
                         ),
                     ],

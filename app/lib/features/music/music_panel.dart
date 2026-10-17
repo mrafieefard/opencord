@@ -68,11 +68,17 @@ class MusicPanel extends ConsumerWidget {
     super.key,
     required this.channel,
     required this.onClose,
+    this.isOverlay = false,
+    this.onSelectMembers,
+    this.onSelectMusic,
     this.trailingControls = false,
   });
 
   final MusicChannel channel;
   final VoidCallback onClose;
+  final bool isOverlay;
+  final VoidCallback? onSelectMembers;
+  final VoidCallback? onSelectMusic;
   final bool trailingControls;
 
   @override
@@ -106,6 +112,22 @@ class MusicPanel extends ConsumerWidget {
                   ),
                 ),
                 if (configured) _PanelMenu(channel: channel),
+                if (isOverlay) ...[
+                  OcIconButton(
+                    icon: OcIcons.group,
+                    tooltip: 'Members',
+                    active: false,
+                    size: OcIconButtonSize.compact,
+                    onPressed: onSelectMembers,
+                  ),
+                  OcIconButton(
+                    icon: OcIcons.libraryMusic,
+                    tooltip: 'Music',
+                    active: true,
+                    size: OcIconButtonSize.compact,
+                    onPressed: onSelectMusic,
+                  ),
+                ],
                 if (!trailingControls ||
                     !showsTrailingWindowControls(context, ref))
                   OcIconButton(
@@ -117,7 +139,6 @@ class MusicPanel extends ConsumerWidget {
               ],
             ),
           ),
-          const RightPanelModeBar(),
           Expanded(
             child: configured
                 ? _MusicBody(channel: channel)

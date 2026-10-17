@@ -12,6 +12,8 @@ InputDecoration ocInputDecoration(
   BuildContext context, {
   String? hint,
   IconData? prefixIcon,
+  Widget? prefix,
+  BoxConstraints? prefixConstraints,
   Widget? suffix,
   double radius = OcRadius.input,
   EdgeInsets? padding,
@@ -33,10 +35,11 @@ InputDecoration ocInputDecoration(
           horizontal: OcSpace.s12,
           vertical: OcSpace.s10,
         ),
-    prefixIcon: prefixIcon == null
+    prefixIcon: prefix ?? (prefixIcon == null
         ? null
-        : Icon(prefixIcon, size: OcSize.iconRow, color: colors.textMuted),
-    prefixIconConstraints: const BoxConstraints(minWidth: 36, minHeight: 32),
+        : Icon(prefixIcon, size: OcSize.iconRow, color: colors.textMuted)),
+    prefixIconConstraints:
+        prefixConstraints ?? const BoxConstraints(minWidth: 36, minHeight: 32),
     suffixIcon: suffix,
     suffixIconConstraints: const BoxConstraints(minWidth: 32, minHeight: 32),
     border: shape,
@@ -53,6 +56,8 @@ class OcTextField extends StatelessWidget {
     this.focusNode,
     this.hint,
     this.prefixIcon,
+    this.prefix,
+    this.prefixConstraints,
     this.suffix,
     this.radius = OcRadius.input,
     this.mono = false,
@@ -74,6 +79,8 @@ class OcTextField extends StatelessWidget {
   final FocusNode? focusNode;
   final String? hint;
   final IconData? prefixIcon;
+  final Widget? prefix;
+  final BoxConstraints? prefixConstraints;
   final Widget? suffix;
   final double radius;
 
@@ -121,6 +128,8 @@ class OcTextField extends StatelessWidget {
         context,
         hint: hint,
         prefixIcon: prefixIcon,
+        prefix: prefix,
+        prefixConstraints: prefixConstraints,
         suffix: suffix,
         radius: radius,
       ).copyWith(counterText: ''),

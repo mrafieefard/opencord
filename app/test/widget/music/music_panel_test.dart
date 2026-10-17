@@ -4,18 +4,21 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:opencord/core/model/channel.dart';
 import 'package:opencord/core/model/music_session.dart';
 import 'package:opencord/core/providers/providers.dart';
 import 'package:opencord/features/channels/voice_panel.dart';
+import 'package:opencord/features/chat/chat_header.dart';
 import 'package:opencord/features/members/member_panel.dart';
 import 'package:opencord/features/music/music_panel.dart';
 import 'package:opencord/features/music/music_queue.dart';
 import 'package:opencord/features/music/now_playing_card.dart';
 import 'package:opencord/features/shell/desktop_shell.dart';
-import 'package:opencord/core/model/channel.dart';
 import 'package:opencord/features/shell/navigation.dart';
+import 'package:opencord/features/voice/voice_controls.dart';
 import 'package:opencord/features/voice/voice_tile.dart';
 import 'package:opencord/ui/theme/oc_metrics.dart';
+import 'package:opencord/ui/widgets/oc_icon_button.dart';
 import 'package:opencord/ui/widgets/oc_menu.dart';
 
 import '../../support/app.dart';
@@ -41,16 +44,18 @@ Finder _inPanel(Finder finder) =>
 Finder _inMenu(Finder finder) =>
     find.descendant(of: find.byType(OcMenuPanel), matching: finder);
 
-/// Joins General and opens its music panel from the voice panel.
+Finder _headerButton(String tooltip) => find.descendant(
+  of: find.byType(ChatHeader),
+  matching: find.byWidgetPredicate(
+    (widget) => widget is OcIconButton && widget.tooltip == tooltip,
+  ),
+);
+
+/// Joins General and opens its music panel from the header.
 Future<void> _openMusic(WidgetTester tester) async {
   await tester.tap(_inSidebar('General'));
   await _settle(tester);
-  await tester.tap(
-    find.descendant(
-      of: find.byType(VoiceConnectedPanel),
-      matching: find.bySemanticsLabel('Music'),
-    ),
-  );
+  await tester.tap(_headerButton('Music'));
   await _settle(tester);
 }
 
@@ -90,8 +95,13 @@ void main() {
     );
     expect(_inPanel(find.text('Nothing playing')), findsOneWidget);
 
-    // People · Music switches back.
-    await tester.tap(_inPanel(find.text('People')));
+    // Header Members button switches back.
+    await tester.tap(
+      find.descendant(
+        of: find.byType(ChatHeader),
+        matching: find.byTooltip('Members'),
+      ),
+    );
     await _settle(tester);
     expect(find.byType(MemberPanel), findsOneWidget);
     expect(
@@ -124,7 +134,12 @@ void main() {
 
     // Not a participant: no tile, and the card only in the users list.
     expect(find.byType(NowPlayingCard), findsNothing);
-    await tester.tap(_inPanel(find.text('People')));
+    await tester.tap(
+      find.descendant(
+        of: find.byType(ChatHeader),
+        matching: find.byTooltip('Members'),
+      ),
+    );
     await _settle(tester);
     expect(
       find.descendant(
@@ -321,4 +336,346 @@ void main() {
     expect(app.store.read(musicListeningKey), contains('150'));
     await app.dispose(tester);
   });
+
+  testWidgets(
+    'the header actions are ordered Video, Members, Music, More in a voice channel',
+    (tester) async {
+      final app = await MockApp.pump(tester);
+      await tester.tap(_inSidebar('General'));
+      await _settle(tester);
+
+      final membersFinder = find.descendant(
+        of: find.byType(ChatHeader),
+        matching: find.byTooltip('Members'),
+      );
+      final musicFinder = find.descendant(
+        of: find.byType(ChatHeader),
+        matching: find.byTooltip('Music'),
+      );
+      final moreFinder = find.descendant(
+        of: find.byType(ChatHeader),
+        matching: find.byTooltip('More'),
+      );
+
+      expect(membersFinder, findsOneWidget);
+      expect(musicFinder, findsOneWidget);
+      expect(moreFinder, findsOneWidget);
+
+      // Verify header order: Members -> Music -> More from left to right.
+      final membersDx = tester.getTopLeft(membersFinder).dx;
+      final musicDx = tester.getTopLeft(musicFinder).dx;
+      final moreDx = tester.getTopLeft(moreFinder).dx;
+      expect(membersDx, lessThan(musicDx));
+      expect(musicDx, lessThan(moreDx));
+
+      await app.dispose(tester);
+    },
+  );
+
+  testWidgets(
+    'Members and Music buttons track active panel state and clicking already-selected icon leaves it selected',
+    (tester) async {
+      final app = await MockApp.pump(tester);
+      await tester.tap(_inSidebar('General'));
+      await _settle(tester);
+
+      final headerMembers = _headerButton('Members');
+      final headerMusic = _headerButton('Music');
+
+      // Initially Members panel is shown and Members icon is active.
+      expect(find.byType(MemberPanel), findsOneWidget);
+      expect(find.byType(MusicPanel), findsNothing);
+      expect(tester.widget<OcIconButton>(headerMembers).active, isTrue);
+      expect(tester.widget<OcIconButton>(headerMusic).active, isFalse);
+
+      // Clicking already-selected Members does not close or switch the panel.
+      await tester.tap(headerMembers);
+      await _settle(tester);
+      expect(find.byType(MemberPanel), findsOneWidget);
+      expect(tester.widget<OcIconButton>(headerMembers).active, isTrue);
+      expect(tester.widget<OcIconButton>(headerMusic).active, isFalse);
+
+      // Clicking Music selects Music and replaces Members.
+      await tester.tap(headerMusic);
+      await _settle(tester);
+      expect(find.byType(MusicPanel), findsOneWidget);
+      expect(find.byType(MemberPanel), findsNothing);
+      expect(tester.widget<OcIconButton>(headerMembers).active, isFalse);
+      expect(tester.widget<OcIconButton>(headerMusic).active, isTrue);
+
+      // Clicking already-selected Music leaves Music selected.
+      await tester.tap(headerMusic);
+      await _settle(tester);
+      expect(find.byType(MusicPanel), findsOneWidget);
+      expect(tester.widget<OcIconButton>(headerMembers).active, isFalse);
+      expect(tester.widget<OcIconButton>(headerMusic).active, isTrue);
+
+      await app.dispose(tester);
+    },
+  );
+
+  testWidgets(
+    'closing the panel via close button leaves neither icon selected; reopening shows requested mode',
+    (tester) async {
+      final app = await MockApp.pump(tester);
+      await tester.tap(_inSidebar('General'));
+      await _settle(tester);
+
+      final headerMembers = _headerButton('Members');
+      final headerMusic = _headerButton('Music');
+
+      // Open Music first.
+      await tester.tap(headerMusic);
+      await _settle(tester);
+      expect(find.byType(MusicPanel), findsOneWidget);
+
+      // Close Music via the panel's Close button.
+      final musicClose = find.descendant(
+        of: find.byType(MusicPanel),
+        matching: find.byTooltip('Close'),
+      );
+      expect(musicClose, findsOneWidget);
+      await tester.tap(musicClose);
+      await _settle(tester);
+
+      // Panel is closed and neither button is active.
+      expect(find.byType(MusicPanel), findsNothing);
+      expect(find.byType(MemberPanel), findsNothing);
+      expect(tester.widget<OcIconButton>(headerMembers).active, isFalse);
+      expect(tester.widget<OcIconButton>(headerMusic).active, isFalse);
+
+      // Reopening via Music opens Music.
+      await tester.tap(headerMusic);
+      await _settle(tester);
+      expect(find.byType(MusicPanel), findsOneWidget);
+      expect(tester.widget<OcIconButton>(headerMusic).active, isTrue);
+      expect(tester.widget<OcIconButton>(headerMembers).active, isFalse);
+
+      // Close again.
+      await tester.tap(musicClose);
+      await _settle(tester);
+      expect(find.byType(MusicPanel), findsNothing);
+      expect(tester.widget<OcIconButton>(headerMembers).active, isFalse);
+      expect(tester.widget<OcIconButton>(headerMusic).active, isFalse);
+
+      // Reopening via Members opens Members.
+      await tester.tap(headerMembers);
+      await _settle(tester);
+      expect(find.byType(MemberPanel), findsOneWidget);
+      expect(tester.widget<OcIconButton>(headerMembers).active, isTrue);
+      expect(tester.widget<OcIconButton>(headerMusic).active, isFalse);
+
+      // Close MemberPanel via its close button.
+      final memberClose = find.descendant(
+        of: find.byType(MemberPanel),
+        matching: find.byTooltip('Close member list'),
+      );
+      expect(memberClose, findsOneWidget);
+      await tester.tap(memberClose);
+      await _settle(tester);
+      expect(find.byType(MemberPanel), findsNothing);
+      expect(tester.widget<OcIconButton>(headerMembers).active, isFalse);
+      expect(tester.widget<OcIconButton>(headerMusic).active, isFalse);
+
+      await app.dispose(tester);
+    },
+  );
+
+  testWidgets('the old People / Music segmented selector is absent from both panels', (
+    tester,
+  ) async {
+    final app = await MockApp.pump(tester);
+    await tester.tap(_inSidebar('General'));
+    await _settle(tester);
+
+    // In MemberPanel: no RightPanelModeBar or 'People' text.
+    expect(find.byType(MemberPanel), findsOneWidget);
+    expect(find.byType(RightPanelModeBar), findsNothing);
+
+    // In MusicPanel: no RightPanelModeBar.
+    await tester.tap(_headerButton('Music'));
+    await _settle(tester);
+    expect(find.byType(MusicPanel), findsOneWidget);
+    expect(find.byType(RightPanelModeBar), findsNothing);
+
+    await app.dispose(tester);
+  });
+
+  testWidgets('NowPlayingCard opens the music panel using the shared action', (
+    tester,
+  ) async {
+    final app = await MockApp.pump(tester);
+    await _openMusic(tester);
+    await _search(tester, 'lofi');
+    await tester.tap(_inPanel(find.byTooltip('Add to queue')).first);
+    await _settle(tester);
+    await tester.tap(_inPanel(find.text('Back to queue')));
+    await _settle(tester);
+
+    // Switch to Members.
+    final headerMembers = _headerButton('Members');
+    final headerMusic = _headerButton('Music');
+    await tester.tap(headerMembers);
+    await _settle(tester);
+
+    expect(find.byType(MemberPanel), findsOneWidget);
+    expect(find.byType(NowPlayingCard), findsOneWidget);
+    expect(tester.widget<OcIconButton>(headerMembers).active, isTrue);
+    expect(tester.widget<OcIconButton>(headerMusic).active, isFalse);
+
+    // Tap NowPlayingCard -> opens Music.
+    await tester.tap(find.byType(NowPlayingCard));
+    await _settle(tester);
+
+    expect(find.byType(MusicPanel), findsOneWidget);
+    expect(find.byType(MemberPanel), findsNothing);
+    expect(tester.widget<OcIconButton>(headerMusic).active, isTrue);
+    expect(tester.widget<OcIconButton>(headerMembers).active, isFalse);
+
+    await app.dispose(tester);
+  });
+
+  testWidgets(
+    'bottom Music buttons are removed from VoiceConnectedPanel and VoiceControlBar, preserving other controls',
+    (tester) async {
+      final app = await MockApp.pump(tester);
+      await tester.tap(_inSidebar('General'));
+      await _settle(tester);
+
+      // VoiceConnectedPanel: no Music toggle, other controls present.
+      final voicePanel = find.byType(VoiceConnectedPanel);
+      expect(voicePanel, findsOneWidget);
+      expect(
+        find.descendant(of: voicePanel, matching: find.bySemanticsLabel('Music')),
+        findsNothing,
+      );
+      expect(
+        find.descendant(of: voicePanel, matching: find.bySemanticsLabel('Camera')),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: voicePanel, matching: find.bySemanticsLabel('Screen')),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: voicePanel, matching: find.bySemanticsLabel('Soundboard')),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: voicePanel, matching: find.byTooltip('Disconnect')),
+        findsOneWidget,
+      );
+
+      // VoiceControlBar: no Music toggle, other controls present.
+      final controlBar = find.byType(VoiceControlBar);
+      expect(controlBar, findsOneWidget);
+      expect(
+        find.descendant(of: controlBar, matching: find.bySemanticsLabel('Music')),
+        findsNothing,
+      );
+      expect(
+        find.descendant(of: controlBar, matching: find.bySemanticsLabel('Mute')),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: controlBar, matching: find.bySemanticsLabel('Turn on camera')),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: controlBar, matching: find.bySemanticsLabel('Share your screen')),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: controlBar, matching: find.bySemanticsLabel('Soundboard')),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: controlBar, matching: find.bySemanticsLabel('Deafen')),
+        findsOneWidget,
+      );
+
+      await app.dispose(tester);
+    },
+  );
+
+  testWidgets('in text channels the Music header button is not shown', (
+    tester,
+  ) async {
+    final app = await MockApp.pump(tester);
+    // General text channel.
+    await tester.tap(_inSidebar('general'));
+    await _settle(tester);
+
+    final header = find.byType(ChatHeader);
+    expect(
+      find.descendant(of: header, matching: find.byTooltip('Music')),
+      findsNothing,
+    );
+    expect(
+      find.descendant(of: header, matching: find.byTooltip('Members')),
+      findsOneWidget,
+    );
+
+    await app.dispose(tester);
+  });
+
+  testWidgets(
+    'in narrow overlay mode, the overlay header provides Members and Music buttons',
+    (tester) async {
+      // Medium window where membersInline is false (ShellLayout.medium).
+      final app = await MockApp.pump(
+        tester,
+        size: const Size(1000, 900),
+      );
+      await tester.tap(_inSidebar('General'));
+      await _settle(tester);
+
+      // Main header has Members button. Tap it to open drawer.
+      await tester.tap(_headerButton('Members'));
+      await _settle(tester);
+
+      // MemberPanel is in overlay. Its header has Members and Music fallback buttons.
+      expect(find.byType(MemberPanel), findsOneWidget);
+      final overlayMusic = find.descendant(
+        of: find.byType(MemberPanel),
+        matching: find.byWidgetPredicate(
+          (w) => w is OcIconButton && w.tooltip == 'Music',
+        ),
+      );
+      expect(overlayMusic, findsOneWidget);
+
+      // Tap overlay Music button -> switches to MusicPanel in the overlay.
+      await tester.tap(overlayMusic);
+      await _settle(tester);
+
+      expect(find.byType(MusicPanel), findsOneWidget);
+      expect(find.byType(MemberPanel), findsNothing);
+
+      // Overlay MusicPanel has Members button.
+      final overlayMembers = find.descendant(
+        of: find.byType(MusicPanel),
+        matching: find.byWidgetPredicate(
+          (w) => w is OcIconButton && w.tooltip == 'Members',
+        ),
+      );
+      expect(overlayMembers, findsOneWidget);
+
+      // Tap overlay Members button -> switches back to MemberPanel.
+      await tester.tap(overlayMembers);
+      await _settle(tester);
+      expect(find.byType(MemberPanel), findsOneWidget);
+
+      // Close the overlay.
+      await tester.tap(
+        find.descendant(
+          of: find.byType(MemberPanel),
+          matching: find.byTooltip('Close member list'),
+        ),
+      );
+      await _settle(tester);
+      expect(find.byType(MemberPanel), findsNothing);
+
+      await app.dispose(tester);
+    },
+  );
 }

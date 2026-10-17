@@ -31,10 +31,16 @@ class MemberPanel extends ConsumerStatefulWidget {
   const MemberPanel({
     super.key,
     required this.onClose,
+    this.isOverlay = false,
+    this.onSelectMembers,
+    this.onSelectMusic,
     this.trailingControls = false,
   });
 
   final VoidCallback onClose;
+  final bool isOverlay;
+  final VoidCallback? onSelectMembers;
+  final VoidCallback? onSelectMusic;
 
   /// Carries the right-hand window controls (§3.1).
   final bool trailingControls;
@@ -137,6 +143,22 @@ class _MemberPanelState extends ConsumerState<MemberPanel> {
                     ),
                   ),
                 ),
+                if (widget.isOverlay && musicOffered) ...[
+                  OcIconButton(
+                    icon: OcIcons.group,
+                    tooltip: 'Members',
+                    active: true,
+                    size: OcIconButtonSize.compact,
+                    onPressed: widget.onSelectMembers,
+                  ),
+                  OcIconButton(
+                    icon: OcIcons.libraryMusic,
+                    tooltip: 'Music',
+                    active: false,
+                    size: OcIconButtonSize.compact,
+                    onPressed: widget.onSelectMusic,
+                  ),
+                ],
                 // Window buttons beside it would make two × in a row; the
                 // list still toggles from the chat header.
                 if (!widget.trailingControls ||
@@ -150,7 +172,6 @@ class _MemberPanelState extends ConsumerState<MemberPanel> {
               ],
             ),
           ),
-          if (musicOffered) const RightPanelModeBar(),
           const NowPlayingCard(),
           Padding(
             padding: const EdgeInsets.fromLTRB(
