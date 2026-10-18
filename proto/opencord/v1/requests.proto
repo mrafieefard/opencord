@@ -113,6 +113,19 @@ message Request {
     AutocompleteCommand autocomplete_command = 151;
     FetchCommandSettings fetch_command_settings = 152;
     UpdateCommandSettings update_command_settings = 153;
+
+    // Media uploads (design 2026-10-18).
+    CreateUpload create_upload = 160;
+    CancelUpload cancel_upload = 161;
+    UpdateUploadSettings update_upload_settings = 162;
+    GetStorage get_storage = 163;
+    AddStorage add_storage = 164;
+    UpdateStorage update_storage = 165;
+    TestStorage test_storage = 166;
+    ActivateStorage activate_storage = 167;
+    RemoveStorage remove_storage = 168;
+    StartStorageMove start_storage_move = 169;
+    StopStorageMove stop_storage_move = 170;
   }
 }
 
@@ -148,6 +161,11 @@ message Response {
     CommandResult command_result = 26;
     CommandChoices command_choices = 27;
     Commands commands = 28;
+    Upload upload = 29;
+    UploadSettings upload_settings = 30;
+    Storage storage = 31;
+    StorageTest storage_test = 32;
+    UploadStatus upload_status = 33;
   }
 }
 
@@ -172,6 +190,7 @@ message SendMessage {
   string content = 2;
   // Client-chosen, echoed on the created message.
   string nonce = 3;
+  repeated int64 attachment_ids = 4;
 }
 
 // -> message. Authors can only edit their own messages.
@@ -255,6 +274,7 @@ message CreateRole {
   uint64 permissions = 3;
   bool hoist = 4;
   bool mentionable = 5;
+  optional uint64 max_upload_bytes = 6;
 }
 
 // -> role. Absent fields are left unchanged.
@@ -265,6 +285,7 @@ message UpdateRole {
   optional uint64 permissions = 4;
   optional bool hoist = 5;
   optional bool mentionable = 6;
+  optional uint64 max_upload_bytes = 7;
 }
 
 // -> ack
@@ -478,3 +499,61 @@ message UpdateSoundboardSound {
 message DeleteSoundboardSound {
   int64 sound_id = 1;
 }
+
+// -> upload. kind is FILE or VOICE_MESSAGE; the server decides IMAGE,
+// VIDEO and AUDIO itself.
+message CreateUpload {
+  int64 channel_id = 1;
+  string filename = 2;
+  uint64 size_bytes = 3;
+  AttachmentKind kind = 4;
+  // Videos: what the sender's probe found; used only for layout.
+  optional uint32 width = 5;
+  optional uint32 height = 6;
+  optional uint32 duration_ms = 7;
+}
+
+// -> ack. One's own upload that is not sent yet.
+message CancelUpload {
+  int64 upload_id = 1;
+}
+
+message BlockedExtensions {
+  repeated string extensions = 1;
+}
+
+// -> upload_settings. MANAGE_SERVER. Absent fields stay.
+message UpdateUploadSettings {
+  optional BlockedExtensions blocked_extensions = 1;
+  optional uint32 voice_message_max_seconds = 2;
+}
+
+// Storage, owner only. Each answers -> storage, except TestStorage.
+message GetStorage {}
+// Tests the bucket first; refused if the test fails.
+message AddStorage {
+  string name = 1;
+  S3Config s3 = 2;
+}
+message UpdateStorage {
+  int64 storage_id = 1;
+  optional string name = 2;
+  optional S3Config s3 = 3;
+}
+// -> storage_test. Saves nothing.
+message TestStorage {
+  oneof target {
+    int64 storage_id = 1;
+    S3Config s3 = 2;
+  }
+}
+message ActivateStorage {
+  int64 storage_id = 1;
+}
+message RemoveStorage {
+  int64 storage_id = 1;
+}
+// Moves every file to the active storage.
+message StartStorageMove {}
+message StopStorageMove {}
+

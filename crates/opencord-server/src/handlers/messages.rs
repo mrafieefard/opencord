@@ -41,6 +41,7 @@ pub async fn send(ctx: &Ctx<'_>, request: proto::SendMessage) -> Result<Response
         edited_at_ms: None,
         nonce: (!request.nonce.is_empty()).then_some(request.nonce),
         interaction: None,
+        attachments: Vec::new(),
     };
     ctx.state.broadcast(
         Event::MessageCreate(proto::MessageCreate {
@@ -172,5 +173,6 @@ fn to_proto(row: MessageRow) -> proto::Message {
                 user_id: row.author_id,
                 command,
             }),
+        attachments: Vec::new(),
     }
 }

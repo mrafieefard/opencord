@@ -303,6 +303,7 @@ impl Role {
             permissions: self.permissions.bits(),
             hoist: self.hoist,
             mentionable: self.mentionable,
+            max_upload_bytes: None,
         }
     }
 }

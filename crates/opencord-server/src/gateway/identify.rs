@@ -363,5 +363,6 @@ fn ready(
         server_addresses: Some(server_addresses),
         server_time_ms: now_ms(),
         commands: Some(crate::commands::available(state)),
+        upload_settings: None,
     }
 }

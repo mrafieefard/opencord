@@ -142,6 +142,17 @@ async fn dispatch(ctx: &Ctx<'_>, request: proto::Request) -> Result<Response, Ap
         Kind::AutocompleteCommand(request) => commands::autocomplete(ctx, request).await,
         Kind::FetchCommandSettings(_) => commands::fetch_settings(ctx),
         Kind::UpdateCommandSettings(request) => commands::update_settings(ctx, request).await,
+        Kind::CreateUpload(_)
+        | Kind::CancelUpload(_)
+        | Kind::UpdateUploadSettings(_)
+        | Kind::GetStorage(_)
+        | Kind::AddStorage(_)
+        | Kind::UpdateStorage(_)
+        | Kind::TestStorage(_)
+        | Kind::ActivateStorage(_)
+        | Kind::RemoveStorage(_)
+        | Kind::StartStorageMove(_)
+        | Kind::StopStorageMove(_) => Err(ApiError::invalid_argument("not implemented")),
     }
 }
 

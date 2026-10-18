@@ -473,7 +473,11 @@ pub fn event(kind: proto::event::Kind, session_id: &str) -> Option<CoreEventPayl
         Kind::MusicSnapshot(_)
         | Kind::MusicUpdate(_)
         | Kind::MusicNotice(_)
-        | Kind::MusicNowPlaying(_) => return None,
+        | Kind::MusicNowPlaying(_)
+        | Kind::UploadSettingsUpdate(_)
+        | Kind::UploadReady(_)
+        | Kind::UploadFailed(_)
+        | Kind::StorageUpdate(_) => return None,
     })
 }
 

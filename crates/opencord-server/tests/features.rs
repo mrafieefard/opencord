@@ -39,6 +39,7 @@ fn send(channel_id: i64, content: &str) -> Request {
         channel_id,
         content: content.to_owned(),
         nonce: format!("nonce-{content}"),
+        attachment_ids: Vec::new(),
     })
 }
 
@@ -94,6 +95,7 @@ fn create_role(name: &str, permissions: Permissions) -> Request {
         permissions: permissions.bits(),
         hoist: false,
         mentionable: false,
+        max_upload_bytes: None,
     })
 }
 

@@ -391,6 +391,7 @@ impl Client {
             channel_id,
             content,
             nonce,
+            attachment_ids: Vec::new(),
         });
         expect_message(self.request(key, request).await?)
     }
@@ -544,6 +545,7 @@ impl Client {
             permissions: convert::bits_from_api(permissions),
             hoist,
             mentionable,
+            max_upload_bytes: None,
         });
         expect_role(self.request(key, request).await?)
     }
@@ -561,6 +563,7 @@ impl Client {
             permissions: changes.permissions.map(convert::bits_from_api),
             hoist: changes.hoist,
             mentionable: changes.mentionable,
+            max_upload_bytes: None,
         });
         expect_role(self.request(key, request).await?)
     }

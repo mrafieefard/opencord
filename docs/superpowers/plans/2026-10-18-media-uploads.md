@@ -264,7 +264,7 @@ These are the inputs most likely to break for real people while no ordinary test
 **Interfaces:**
 - Produces: the proto types below, used by every later task as `opencord_proto::v1::*`.
 
-- [ ] **Step 1: Add to `models.proto`** (after `MediaToken`):
+- [x] **Step 1: Add to `models.proto`** (after `MediaToken`):
 
 ```proto
 // Media uploads (design 2026-10-18).
@@ -413,7 +413,7 @@ Also in `models.proto`:
   ERROR_CODE_VOICE_MESSAGE_TOO_LONG = 47;
 ```
 
-- [ ] **Step 2: Add to `requests.proto`.**
+- [x] **Step 2: Add to `requests.proto`.**
 
 Existing messages:
 - `SendMessage`: `repeated int64 attachment_ids = 4;`
@@ -508,7 +508,7 @@ message StopStorageMove {}
     UploadStatus upload_status = 33;
 ```
 
-- [ ] **Step 3: Add to `events.proto`.**
+- [x] **Step 3: Add to `events.proto`.**
 
 `Event.kind` additions:
 
@@ -532,15 +532,15 @@ message UploadFailed { int64 upload_id = 1; Error error = 2; }
 message StorageUpdate { Storage storage = 1; }
 ```
 
-- [ ] **Step 4: Add to `gateway.proto`.** In `Ready`: `UploadSettings upload_settings = 20;`
+- [x] **Step 4: Add to `gateway.proto`.** In `Ready`: `UploadSettings upload_settings = 20;`
 
-- [ ] **Step 5: Build and fix literals.**
+- [x] **Step 5: Build and fix literals.**
   - Run `cargo check --workspace --all-targets`. It fails wherever a struct literal lacks a new field.
   - Add the empty value at each place: `attachments: Vec::new()`, `max_upload_bytes: None`, `attachment_ids: Vec::new()`, `upload_settings: None`. Behavior must not change in this task.
   - Run `app/tool/check_platforms.sh`.
   - Expected: both pass.
-- [ ] **Step 6:** `cargo test --workspace --lib --bins --tests`. Expected: PASS (nothing behaves differently yet).
-- [ ] **Step 7: Commit:** `feat: media upload protocol messages (A0)`.
+- [x] **Step 6:** `cargo test --workspace --lib --bins --tests`. Expected: PASS (nothing behaves differently yet).
+- [x] **Step 7: Commit:** `feat: media upload protocol messages (A0)`.
 
 ### Task 2: Shared upload rules
 
