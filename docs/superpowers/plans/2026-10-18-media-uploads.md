@@ -1157,7 +1157,7 @@ impl Attachments {
   - `pub async fn sweep_attachments(&self, now_ms: i64)` (Task 11)
   - `pub async fn drain_blob_deletions(&self, now_ms: i64)` (Task 11)
 
-- [ ] **Step 1: Write tests.**
+- [x] **Step 1: Write tests.**
   - **Unit, `images.rs`:**
     - `thumbnails_fit_800_and_keep_alpha_as_png`: a 1600×400 RGBA PNG → thumbnail 800×200 PNG.
     - `exif_rotation_is_applied`: build a JPEG with an Orientation=6 APP1 segment (use the exact 34-byte segment from Task 21 inserted after SOI). A 40×20 source reports 20×40.
@@ -1171,8 +1171,8 @@ impl Attachments {
     - **`odd_images_never_crash_processing`** (Review Focus 3): a PNG header claiming 20,000×20,000 (craft the IHDR and fix the CRC; a truncated body is fine) → FILE; a truncated PNG → FILE; a 16-bit grey PNG → IMAGE; a 2-frame GIF → `animated == true`.
     - **`a_storage_failure_fails_the_upload_cleanly`** (Review Focus 5): start a server with `uploads.local_dir` pointing at an existing **file** (so directories can't be made). Upload → `UploadFailed` with STORAGE_UNAVAILABLE; GET status says failed; the temp folder is empty.
     - **`processing_resumes_after_a_restart`**: `hold_processing(true)`, finish (202), `server.restart(|_| {})`, reconnect, poll GET until ready (≤ 10 s).
-- [ ] **Step 2:** Run → FAIL. **Step 3:** Implement. **Step 4:** Run → PASS.
-- [ ] **Step 5: Commit:** `feat: finishing uploads: thumbnails, voice checks and storage (A1)`.
+- [x] **Step 2:** Run → FAIL. **Step 3:** Implement. **Step 4:** Run → PASS.
+- [x] **Step 5: Commit:** `feat: finishing uploads: thumbnails, voice checks and storage (A1)`.
 
 ### Task 10: Downloads
 

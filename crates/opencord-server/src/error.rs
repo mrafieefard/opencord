@@ -206,3 +206,17 @@ impl From<crate::db::meta::MetaError> for ApiError {
         Self::internal()
     }
 }
+
+impl From<crate::attachments::storage::StorageError> for ApiError {
+    fn from(error: crate::attachments::storage::StorageError) -> Self {
+        match error {
+            crate::attachments::storage::StorageError::NotFound => {
+                Self::not_found("attachment object")
+            }
+            crate::attachments::storage::StorageError::Unavailable(msg) => {
+                Self::storage_unavailable(msg)
+            }
+            crate::attachments::storage::StorageError::Full => Self::storage_full(),
+        }
+    }
+}

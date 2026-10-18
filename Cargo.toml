@@ -40,7 +40,7 @@ hex = "0.4.3"
 hickory-proto = { version = "0.26.3", default-features = false, features = ["std"] }
 hmac = "0.13.0"
 instant-acme = { version = "0.8.5", default-features = false, features = ["ring", "hyper-rustls", "time", "x509-parser"] }
-image = { version = "0.25.10", default-features = false, features = ["jpeg", "png", "webp"] }
+image = { version = "0.25.10", default-features = false, features = ["jpeg", "png", "webp", "gif"] }
 igd-next = { version = "0.18.0", default-features = false, features = ["aio_tokio"] }
 irondash_run_loop = "0.5.0"
 irondash_texture = "0.5.0"

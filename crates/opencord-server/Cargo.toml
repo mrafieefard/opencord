@@ -45,6 +45,7 @@ toml.workspace = true
 opencord-common.workspace = true
 opencord-proto.workspace = true
 opencord-voice.workspace = true
+opus.workspace = true
 prost.workspace = true
 webpki-roots.workspace = true
 x509-parser.workspace = true

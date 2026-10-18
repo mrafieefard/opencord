@@ -531,3 +531,414 @@ async fn nothing_plain_reaches_the_temp_folder() {
         "temp file on disk must not contain the plaintext marker"
     );
 }
+
+#[tokio::test]
+async fn an_image_becomes_ready_with_a_thumbnail() {
+    let Room {
+        server,
+        mut member,
+        member_token,
+        text,
+        ..
+    } = room().await;
+
+    let img = png(1200, 900);
+    let attachment = upload(&mut member, &server, &member_token, text, "large.png", &img).await;
+    assert_eq!(attachment.kind, proto::AttachmentKind::Image as i32);
+    assert_eq!(attachment.width, Some(1200));
+    assert_eq!(attachment.height, Some(900));
+    assert!(attachment.has_thumbnail);
+    assert_eq!(attachment.thumbnail_width, Some(800));
+    assert_eq!(attachment.thumbnail_height, Some(600));
+}
+
+#[tokio::test]
+async fn a_zip_stays_a_file() {
+    let Room {
+        server,
+        mut member,
+        member_token,
+        text,
+        ..
+    } = room().await;
+
+    let mut zip_bytes = vec![0x50, 0x4B, 0x03, 0x04];
+    zip_bytes.resize(512, 0);
+    let attachment = upload(
+        &mut member,
+        &server,
+        &member_token,
+        text,
+        "data.zip",
+        &zip_bytes,
+    )
+    .await;
+    assert_eq!(attachment.kind, proto::AttachmentKind::File as i32);
+    assert!(!attachment.has_thumbnail);
+}
+
+#[tokio::test]
+async fn a_voice_message_gets_the_server_waveform() {
+    let Room {
+        server,
+        mut member,
+        member_token,
+        text,
+        ..
+    } = room().await;
+
+    let ogg = voice_ogg(1.0, 1.0);
+    let res = member
+        .ok(Req::CreateUpload(proto::CreateUpload {
+            channel_id: text,
+            filename: "my-recording.ogg".into(),
+            size_bytes: ogg.len() as u64,
+            kind: proto::AttachmentKind::VoiceMessage.into(),
+            width: None,
+            height: None,
+            duration_ms: None,
+        }))
+        .await;
+    let upload = match res {
+        Res::Upload(u) => u,
+        other => panic!("expected Upload, got {other:?}"),
+    };
+
+    let auth = format!("Bearer {member_token}");
+    let (status, _) = server
+        .send_http(
+            "PUT",
+            &format!("/media/uploads/{}", upload.upload_id),
+            &[("Authorization", &auth), ("Upload-Offset", "0")],
+            &ogg,
+        )
+        .await;
+    assert_eq!(status, 200);
+
+    let (status, _) = server
+        .send_http(
+            "POST",
+            &format!("/media/uploads/{}/finish", upload.upload_id),
+            &[("Authorization", &auth)],
+            &[],
+        )
+        .await;
+    assert_eq!(status, 202);
+
+    let attachment = member
+        .wait_for(|kind| match kind {
+            proto::event::Kind::UploadReady(ready) => ready.attachment.clone(),
+            _ => None,
+        })
+        .await;
+
+    assert_eq!(attachment.kind, proto::AttachmentKind::VoiceMessage as i32);
+    assert_eq!(attachment.filename, "voice-message.ogg");
+    assert_eq!(attachment.waveform.len(), 128);
+    let duration = attachment.duration_ms.expect("duration_ms");
+    assert!((1960..=2040).contains(&duration), "duration was {duration}");
+}
+
+#[tokio::test]
+async fn odd_images_never_crash_processing() {
+    let Room {
+        server,
+        mut member,
+        member_token,
+        text,
+        ..
+    } = room().await;
+
+    fn crc32(buf: &[u8]) -> u32 {
+        let mut crc = !0u32;
+        for &b in buf {
+            crc ^= b as u32;
+            for _ in 0..8 {
+                crc = if (crc & 1) != 0 {
+                    (crc >> 1) ^ 0xEDB88320
+                } else {
+                    crc >> 1
+                };
+            }
+        }
+        !crc
+    }
+
+    // 1. PNG claiming 20,000x20,000 -> FILE
+    let mut ihdr_data = Vec::new();
+    ihdr_data.extend_from_slice(b"IHDR");
+    ihdr_data.extend_from_slice(&20_000u32.to_be_bytes());
+    ihdr_data.extend_from_slice(&20_000u32.to_be_bytes());
+    ihdr_data.extend_from_slice(&[8, 2, 0, 0, 0]);
+    let crc = crc32(&ihdr_data);
+
+    let mut big_dim = Vec::new();
+    big_dim.extend_from_slice(&[0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]);
+    big_dim.extend_from_slice(&13u32.to_be_bytes());
+    big_dim.extend_from_slice(&ihdr_data);
+    big_dim.extend_from_slice(&crc.to_be_bytes());
+    let att = upload(
+        &mut member,
+        &server,
+        &member_token,
+        text,
+        "huge.png",
+        &big_dim,
+    )
+    .await;
+    assert_eq!(att.kind, proto::AttachmentKind::File as i32);
+    assert!(!att.has_thumbnail);
+
+    // 2. Truncated PNG -> FILE
+    let valid = png(100, 100);
+    let truncated = &valid[..25];
+    let att = upload(
+        &mut member,
+        &server,
+        &member_token,
+        text,
+        "trunc.png",
+        truncated,
+    )
+    .await;
+    assert_eq!(att.kind, proto::AttachmentKind::File as i32);
+    assert!(!att.has_thumbnail);
+
+    // 3. 16-bit grey PNG -> IMAGE
+    let grey16: image::ImageBuffer<image::Luma<u16>, Vec<u16>> =
+        image::ImageBuffer::from_pixel(50, 50, image::Luma([40_000u16]));
+    let mut grey_bytes = Vec::new();
+    grey16
+        .write_to(
+            &mut std::io::Cursor::new(&mut grey_bytes),
+            image::ImageFormat::Png,
+        )
+        .unwrap();
+    let att = upload(
+        &mut member,
+        &server,
+        &member_token,
+        text,
+        "grey16.png",
+        &grey_bytes,
+    )
+    .await;
+    assert_eq!(att.kind, proto::AttachmentKind::Image as i32);
+    assert_eq!(att.width, Some(50));
+    assert_eq!(att.height, Some(50));
+
+    // 4. 2-frame GIF -> animated == true
+    let mut gif_bytes = Vec::new();
+    {
+        let mut encoder = image::codecs::gif::GifEncoder::new(&mut gif_bytes);
+        encoder
+            .set_repeat(image::codecs::gif::Repeat::Infinite)
+            .unwrap();
+        let frame1 = image::Frame::new(image::RgbaImage::from_pixel(
+            20,
+            20,
+            image::Rgba([255, 0, 0, 255]),
+        ));
+        let frame2 = image::Frame::new(image::RgbaImage::from_pixel(
+            20,
+            20,
+            image::Rgba([0, 255, 0, 255]),
+        ));
+        encoder.encode_frame(frame1).unwrap();
+        encoder.encode_frame(frame2).unwrap();
+    }
+    let att = upload(
+        &mut member,
+        &server,
+        &member_token,
+        text,
+        "anim.gif",
+        &gif_bytes,
+    )
+    .await;
+    assert_eq!(att.kind, proto::AttachmentKind::Image as i32);
+    assert!(att.animated);
+}
+
+#[tokio::test]
+async fn a_storage_failure_fails_the_upload_cleanly() {
+    let temp_file_as_dir = tempfile::NamedTempFile::new().unwrap();
+    let file_path = temp_file_as_dir.path().to_path_buf();
+
+    let server = TestServer::start_with(|config| {
+        config.uploads.local_dir = Some(file_path);
+    })
+    .await;
+
+    let (mut owner, owner_ready) = owner(&server).await;
+    let invite = invite(&mut owner, None).await;
+    let (mut member, member_ready) = join(&server, 2, &invite).await;
+    let member_token = media_token(&member_ready);
+    let text = channel_id(&owner_ready, "general");
+
+    let img = png(100, 100);
+    let res = member
+        .ok(Req::CreateUpload(proto::CreateUpload {
+            channel_id: text,
+            filename: "photo.png".into(),
+            size_bytes: img.len() as u64,
+            kind: proto::AttachmentKind::File.into(),
+            width: None,
+            height: None,
+            duration_ms: None,
+        }))
+        .await;
+    let upload = match res {
+        Res::Upload(u) => u,
+        other => panic!("expected Upload, got {other:?}"),
+    };
+    let upload_id = upload.upload_id;
+    let auth = format!("Bearer {member_token}");
+
+    let (status, _) = server
+        .send_http(
+            "PUT",
+            &format!("/media/uploads/{upload_id}"),
+            &[("Authorization", &auth), ("Upload-Offset", "0")],
+            &img,
+        )
+        .await;
+    assert_eq!(status, 200);
+
+    let (status, _) = server
+        .send_http(
+            "POST",
+            &format!("/media/uploads/{upload_id}/finish"),
+            &[("Authorization", &auth)],
+            &[],
+        )
+        .await;
+    assert_eq!(status, 202);
+
+    let failed = member
+        .wait_for(|kind| match kind {
+            proto::event::Kind::UploadFailed(f) => Some(f.clone()),
+            _ => None,
+        })
+        .await;
+    assert_eq!(failed.upload_id, upload_id);
+    assert_eq!(
+        failed.error.as_ref().unwrap().code,
+        proto::ErrorCode::StorageUnavailable as i32
+    );
+
+    let (status, bytes) = server
+        .send_http(
+            "GET",
+            &format!("/media/uploads/{upload_id}"),
+            &[("Authorization", &auth)],
+            &[],
+        )
+        .await;
+    assert_eq!(status, 200);
+    match decode_response(&bytes) {
+        Res::UploadStatus(s) => {
+            assert_eq!(s.state, proto::UploadState::Failed as i32);
+            assert_eq!(
+                s.error.as_ref().unwrap().code,
+                proto::ErrorCode::StorageUnavailable as i32
+            );
+        }
+        other => panic!("expected UploadStatus, got {other:?}"),
+    }
+
+    let temp_dir = server.dir.path().join("data").join("uploads");
+    if temp_dir.exists() {
+        let mut entries = tokio::fs::read_dir(&temp_dir).await.unwrap();
+        let mut count = 0;
+        while entries.next_entry().await.unwrap().is_some() {
+            count += 1;
+        }
+        assert_eq!(count, 0, "temp folder must be empty");
+    }
+}
+
+#[tokio::test]
+async fn processing_resumes_after_a_restart() {
+    let Room {
+        server,
+        mut member,
+        member_token,
+        text,
+        invite,
+        ..
+    } = room().await;
+
+    server.handle.hold_processing(true);
+
+    let img = png(100, 100);
+    let res = member
+        .ok(Req::CreateUpload(proto::CreateUpload {
+            channel_id: text,
+            filename: "photo.png".into(),
+            size_bytes: img.len() as u64,
+            kind: proto::AttachmentKind::File.into(),
+            width: None,
+            height: None,
+            duration_ms: None,
+        }))
+        .await;
+    let upload = match res {
+        Res::Upload(u) => u,
+        other => panic!("expected Upload, got {other:?}"),
+    };
+    let upload_id = upload.upload_id;
+    let auth = format!("Bearer {member_token}");
+
+    let (status, _) = server
+        .send_http(
+            "PUT",
+            &format!("/media/uploads/{upload_id}"),
+            &[("Authorization", &auth), ("Upload-Offset", "0")],
+            &img,
+        )
+        .await;
+    assert_eq!(status, 200);
+
+    let (status, _) = server
+        .send_http(
+            "POST",
+            &format!("/media/uploads/{upload_id}/finish"),
+            &[("Authorization", &auth)],
+            &[],
+        )
+        .await;
+    assert_eq!(status, 202);
+
+    // Restart server.
+    let server = server.restart(|_| {}).await;
+
+    // Reconnect member.
+    let (_member, member_ready) = join(&server, 2, &invite).await;
+    let new_token = media_token(&member_ready);
+    let new_auth = format!("Bearer {new_token}");
+
+    // Poll GET /media/uploads/{upload_id} until ready (<= 10 s).
+    let deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(10);
+    let mut is_ready = false;
+    while tokio::time::Instant::now() < deadline {
+        let (status, bytes) = server
+            .send_http(
+                "GET",
+                &format!("/media/uploads/{upload_id}"),
+                &[("Authorization", &new_auth)],
+                &[],
+            )
+            .await;
+        if status == 200
+            && let Res::UploadStatus(s) = decode_response(&bytes)
+            && s.state == proto::UploadState::Ready as i32
+        {
+            is_ready = true;
+            assert!(s.attachment.is_some());
+            break;
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+    }
+    assert!(is_ready, "upload should become ready after server restart");
+}

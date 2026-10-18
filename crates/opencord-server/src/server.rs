@@ -126,6 +126,7 @@ pub async fn start(config: Config) -> anyhow::Result<ServerHandle> {
     music::start(&state).await?;
     state.commands.load(&mut *state.db.acquire().await?).await?;
     crate::lavalink::start(&state).await?;
+    crate::attachments::start(&state).await?;
     if let Some(mut events) = node_events {
         let state = Arc::clone(&state);
         tokio::spawn(async move {
@@ -281,6 +282,11 @@ impl ServerHandle {
         for session in self.state.sessions.for_user(user_id) {
             session.drop_connection(CloseCode::UNKNOWN, Instant::now());
         }
+    }
+
+    /// Intended for tests.
+    pub fn hold_processing(&self, hold: bool) {
+        self.state.attachments.hold_processing(hold);
     }
 }
 

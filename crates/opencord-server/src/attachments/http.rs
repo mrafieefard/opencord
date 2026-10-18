@@ -7,9 +7,9 @@ use axum::body::{Body, to_bytes};
 use axum::extract::{Path, State};
 use axum::http::{HeaderMap, StatusCode};
 use axum::response::Response;
-use axum::routing::{get, put};
+use axum::routing::{get, post, put};
 use opencord_common::blob::BlobKey;
-use opencord_common::upload::PIECE_BYTES;
+use opencord_common::upload::{PIECE_BYTES, POSTER_MAX_BYTES};
 use opencord_proto::v1 as proto;
 use proto::response::Result as Reply;
 
@@ -23,6 +23,7 @@ pub fn routes() -> Router<Arc<AppState>> {
     Router::new()
         .route("/media/uploads/{id}", put(put_upload))
         .route("/media/uploads/{id}", get(get_upload))
+        .route("/media/uploads/{id}/finish", post(finish_upload))
 }
 
 async fn put_upload(
@@ -170,6 +171,77 @@ async fn get_upload(
     }
 
     media::reply(StatusCode::OK, Reply::UploadStatus(to_status_proto(&row)))
+}
+
+async fn finish_upload(
+    State(state): State<Arc<AppState>>,
+    Path(id): Path<i64>,
+    headers: HeaderMap,
+    body: Body,
+) -> Response {
+    let poster = match to_bytes(body, POSTER_MAX_BYTES + 1).await {
+        Ok(b) => b,
+        Err(_) => return media::reply_error(&ApiError::invalid_argument("poster too large")),
+    };
+
+    if poster.len() > POSTER_MAX_BYTES {
+        return media::reply_error(&ApiError::invalid_argument("poster too large"));
+    }
+
+    let user_id = match media::authorize(&state, &headers) {
+        Ok(id) => id,
+        Err(err) => return media::reply_error(&err),
+    };
+
+    let _guard = state.attachments.lock_upload(id).await;
+
+    let mut conn = match state.db.acquire().await {
+        Ok(c) => c,
+        Err(e) => {
+            tracing::error!(?e, "database error");
+            return media::reply_error(&ApiError::internal());
+        }
+    };
+
+    let row = match attachments::find(&mut conn, id).await {
+        Ok(Some(row)) => row,
+        Ok(None) => return media::reply_error(&ApiError::not_found("upload")),
+        Err(e) => {
+            tracing::error!(?e, "database error");
+            return media::reply_error(&ApiError::internal());
+        }
+    };
+
+    if row.uploader_id != user_id {
+        return media::reply_error(&ApiError::not_found("upload"));
+    }
+
+    if row.state == "uploading" {
+        if row.received_bytes != row.size_bytes {
+            return media::reply_error(&ApiError::invalid_argument("upload incomplete"));
+        }
+
+        if !poster.is_empty() {
+            state.attachments.set_poster(id, poster.to_vec());
+        }
+
+        let now = crate::state::now_ms();
+        if let Err(e) = attachments::set_state(&mut conn, id, "processing", now).await {
+            tracing::error!(?e, "failed to set state to processing");
+            return media::reply_error(&ApiError::internal());
+        }
+
+        crate::attachments::process::spawn_job(state.clone(), id);
+
+        let mut updated = row;
+        updated.state = "processing".to_string();
+        media::reply(
+            StatusCode::ACCEPTED,
+            Reply::UploadStatus(to_status_proto(&updated)),
+        )
+    } else {
+        media::reply(StatusCode::OK, Reply::UploadStatus(to_status_proto(&row)))
+    }
 }
 
 pub fn to_status_proto(row: &AttachmentRow) -> proto::UploadStatus {

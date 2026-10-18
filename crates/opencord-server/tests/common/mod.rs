@@ -660,3 +660,29 @@ pub async fn upload(
         })
         .await
 }
+
+pub fn voice_ogg(seconds_tone: f32, seconds_silence: f32) -> Vec<u8> {
+    use opencord_common::sound::ogg;
+    let mut encoder =
+        opus::Encoder::new(48_000, opus::Channels::Mono, opus::Application::Voip).unwrap();
+    let tone_samples = (seconds_tone * 48_000.0).round() as usize;
+    let silence_samples = (seconds_silence * 48_000.0).round() as usize;
+    let total_samples = tone_samples + silence_samples;
+    let mut pcm = Vec::with_capacity(total_samples);
+    for t in 0..tone_samples {
+        let sample = 0.5 * (2.0 * std::f32::consts::PI * 440.0 * (t as f32) / 48_000.0).sin();
+        pcm.push(sample);
+    }
+    pcm.resize(total_samples, 0.0);
+
+    let frame_size = 960; // 20 ms at 48 kHz
+    let mut packets = Vec::new();
+    let mut out = vec![0u8; 1000];
+    for chunk in pcm.chunks(frame_size) {
+        let mut frame = chunk.to_vec();
+        frame.resize(frame_size, 0.0);
+        let len = encoder.encode_float(&frame, &mut out).unwrap();
+        packets.push(out[..len].to_vec());
+    }
+    ogg::write(1, 0, &packets, total_samples as u64)
+}
