@@ -151,6 +151,7 @@ pub fn now_ms() -> u64 {
     .unwrap()
 }
 
+#[allow(clippy::large_enum_variant)]
 pub enum Received {
     Envelope(proto::Envelope),
     Closed(Option<u16>),

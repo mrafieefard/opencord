@@ -683,7 +683,7 @@ Add one generated case to the Rust test: a 300-char name `"a".repeat(296) + ".pn
 
 The AAD is 22 bytes: `MAGIC || kind as u8 || blob_id.to_be_bytes() || index.to_be_bytes() || last as u8`. Use `XChaCha20Poly1305` with `Payload { msg, aad }`, as `crates/opencord-server/src/secrets.rs` does. Nonces: 24 bytes from `getrandom`; look at `crates/opencord-server/src/random.rs` for the call the codebase uses with `getrandom` 0.4.
 
-- [ ] **Step 1: Write the tests** (in `blob.rs`, `#[cfg(test)]`):
+- [x] **Step 1: Write the tests** (in `blob.rs`, `#[cfg(test)]`):
   - `round_trips_every_size`: sizes `[0, 1, 65_535, 65_536, 65_537, 3 × 65_536 + 5]`.
     - `open_all(seal_all(x)) == x`;
     - `seal_all(x).len() as u64 == sealed_len(len)`;
@@ -692,10 +692,10 @@ The AAD is 22 bytes: `MAGIC || kind as u8 || blob_id.to_be_bytes() || index.to_b
   - `truncation_at_a_segment_boundary_is_detected`: seal 2 × 65,536 bytes, drop the last segment → `open_all` errors.
   - `segments_cannot_be_swapped_between_files_or_kinds`: open a segment sealed for id 1 with id 2, or as `Thumbnail` → error.
   - `locate_and_open_span_return_exact_ranges`: for a 200,000-byte random file, every `(start, end)` in `[(0,0), (65_535, 65_536), (199_999, 199_999), (10, 150_000)]` gives `&plain[start..=end]`.
-- [ ] **Step 2:** `cargo test -p opencord-common blob`. Expected: FAIL.
-- [ ] **Step 3:** Implement.
-- [ ] **Step 4:** `cargo test -p opencord-common blob`. Expected: PASS.
-- [ ] **Step 5: Commit:** `feat: the encrypted blob format (A0)`.
+- [x] **Step 2:** `cargo test -p opencord-common blob`. Expected: FAIL.
+- [x] **Step 3:** Implement.
+- [x] **Step 4:** `cargo test -p opencord-common blob`. Expected: PASS.
+- [x] **Step 5: Commit:** `feat: the encrypted blob format (A0)`.
 
 ### Task 4: Type sniffing and waveform values
 

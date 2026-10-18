@@ -44,10 +44,8 @@ pub fn effective_upload_limit(
         return ceiling;
     }
     let mut max_limit = everyone;
-    for role in roles {
-        if let Some(limit) = role {
-            max_limit = max_limit.max(limit);
-        }
+    for limit in roles.into_iter().flatten() {
+        max_limit = max_limit.max(limit);
     }
     max_limit.min(ceiling)
 }
@@ -60,14 +58,14 @@ pub fn voice_max_bytes(max_seconds: u32) -> u64 {
 /// Sanitizes an uploaded filename according to the shared rules.
 pub fn sanitize_filename(input: &str) -> String {
     // 1. Keep only the part after the last / or \
-    let name = input.rsplit(|c| c == '/' || c == '\\').next().unwrap_or(input);
+    let name = input.rsplit(['/', '\\']).next().unwrap_or(input);
 
     // 2. Drop control characters
     let mut name: String = name.chars().filter(|c| !c.is_control()).collect();
 
     // 3. Trim trailing . and spaces, and leading spaces
     name = name.trim_start_matches(' ').to_string();
-    name = name.trim_end_matches(|c| c == '.' || c == ' ').to_string();
+    name = name.trim_end_matches(['.', ' ']).to_string();
 
     // 6. Empty -> "file"
     if name.is_empty() {
@@ -173,11 +171,7 @@ mod tests {
 
     #[test]
     fn normalize_blocked_list_sorts_and_dedupes() {
-        let entries = vec![
-            "EXE".to_string(),
-            ".exe".to_string(),
-            "bat".to_string(),
-        ];
+        let entries = vec!["EXE".to_string(), ".exe".to_string(), "bat".to_string()];
         let normalized = normalize_blocked_list(&entries).unwrap();
         assert_eq!(normalized, vec!["bat".to_string(), "exe".to_string()]);
     }

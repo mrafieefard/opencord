@@ -2,6 +2,7 @@
 
 pub mod address;
 pub mod auth;
+pub mod blob;
 pub mod channel;
 pub mod limits;
 pub mod permissions;
