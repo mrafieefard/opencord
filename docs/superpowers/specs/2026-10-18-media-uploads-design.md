@@ -685,8 +685,9 @@ videos.
   numbered rule in sections 6–9, including resume, offset conflicts, limits,
   blocking, permissions at download, deletes queueing blobs (channel cascade
   included), GC, voice validation and owner-only storage.
-- **S3 against MinIO in Docker:** `#[ignore]` tests, run manually, as the
-  Pebble ACME tests are.
+- **S3 against RustFS in Docker:** `#[ignore]` tests, run manually, as the
+  Pebble ACME tests are. (MinIO, the first choice, no longer publishes
+  images.)
 - **Core:**
   - uploads and downloads against a real server, as `tests/client.rs` does;
   - the recorder from a fixture;
@@ -706,7 +707,7 @@ videos.
 | A0 | Shared foundations: proto, permission bits, encryption, sniffing, filenames, extensions, limits, migration | Linux |
 | A1 | Server: local storage, uploads, finish processing (images, voice, posters), downloads, GC | Linux |
 | A2 | Server: messages with attachments, settings, role limits, Ready and events | Linux |
-| A3 | Server: S3 backend, storage management, move job, MinIO tests | Linux |
+| A3 | Server: S3 backend, storage management, move job, S3 tests (RustFS) | Linux |
 | A4 | Core: transfers, upload manager, downloads, encrypted cache, EXIF, clipboard, Dart API | Linux |
 | A5 | App: sending, viewing (images, viewer, files, preview, download), settings pages | Linux |
 | A6 | Voice messages: recorder, player, recording bar, voice bubble | Linux |

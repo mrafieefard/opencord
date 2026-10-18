@@ -1601,131 +1601,1587 @@ All paths below are under `crates/opencord-server/` unless they say otherwise.
 
 # Milestone A3: S3 storage
 
+Read first:
+- `src/attachments/mod.rs` (`Attachments`, `load`, `active`, `start`) and `src/attachments/storage/{mod,local}.rs`;
+- `src/db/storage.rs`, and in `src/db/attachments.rs`: `usage`, `not_on`, `count_not_on`, `set_storage_if`, `count_on`;
+- `src/attachments/process.rs` (`store`, `discard_stored`) and `src/attachments/gc.rs`;
+- `src/handlers/uploads.rs` (`update_settings`: the pattern for a handler that takes the write lock);
+- the storage messages in `proto/opencord/v1/models.proto` (`Storage` to `StorageMove`) and `proto/opencord/v1/requests.proto` (`GetStorage` to `StopStorageMove`).
+
+All paths below are under `crates/opencord-server/` unless they say otherwise.
+
+**The S3 test server.** MinIO no longer publishes Docker images, so the S3 tests run against RustFS, an S3-compatible server. Start it before Task 14 and leave it running until the A3 stop:
+
+```bash
+docker run -d --rm --name opencord-s3 -p 9000:9000 \
+  -e RUSTFS_ACCESS_KEY=opencord -e RUSTFS_SECRET_KEY=opencord-secret \
+  rustfs/rustfs:1.0.3 /data
+```
+
+The S3 tests are `#[ignore]`d, so the normal test run skips them. Run them with:
+
+```bash
+source .superpowers/sdd/media/env.sh && cargo test -p opencord-server --test s3 -- --ignored --test-threads=1
+```
+
+**The code blocks in A3 were compiled and clippy-checked before release, and the S3 code passed its tests against this server.** Copy them as given. If one doesn't compile against the code you have, stop and ask; don't rewrite it.
+
 ### Task 14: The S3 backend
 
 **Files:**
 - Create: `src/attachments/storage/s3.rs`, `tests/s3.rs`.
-- Modify: `src/attachments/storage/mod.rs` (`Backend::S3`), `src/attachments/mod.rs` (`load` builds S3 backends from rows), `Cargo.toml` (`rusty-s3 = "0.10.2"`, `url = "2"`).
+- Modify: `Cargo.toml`, `src/attachments/storage/mod.rs`, `src/attachments/mod.rs`, `src/attachments/process.rs`, `src/handlers/uploads.rs`.
 
 **Interfaces:**
-- `pub struct S3Settings { pub endpoint: String, pub region: String, pub bucket: String, pub key_prefix: String, pub path_style: bool, pub allow_http: bool, pub access_key_id: String, pub secret_access_key: String }`
-- **`S3Storage::new(settings: &S3Settings, http: reqwest::Client) -> Result<Self, StorageError>`:**
-  - `Url::parse(endpoint)`;
-  - the scheme must be `https`, or `http` with `allow_http`;
-  - `rusty_s3::Bucket::new(url, if path_style { UrlStyle::Path } else { UrlStyle::VirtualHost }, bucket, region)`;
-  - `Credentials::new(key, secret)`.
-- **Presigning:** every request is signed with `.sign(Duration::from_secs(900))` (trait `rusty_s3::S3Action`), then sent with the shared `reqwest::Client` with a 300 s per-request timeout. **Never log or return the signed URL.**
-- Object name = `key_prefix + key`.
-- **`put_file`:**
-  - size ≤ 64 MiB → one PUT with the file read into memory;
-  - otherwise multipart:
-    1. `create_multipart_upload` (POST) → `CreateMultipartUpload::parse_response(&text)?.upload_id()`;
-    2. 16 MiB parts read sequentially, each `upload_part(part_number from 1, upload_id)` PUT, keeping the `ETag` response header verbatim;
-    3. `complete_multipart_upload(.., etags.iter().map(String::as_str))` POST with `.body()`.
 
-    On any error, `abort_multipart_upload` (best effort), then return the error.
-- **`get_range`:** GET with header `Range: bytes={start}-{end-1}`; accept 206, or 200 when the range is the whole object; check the length.
-- **`size`:** HEAD → `Content-Length`; 404 → `None`.
-- **`delete`:** DELETE; 200, 204 and 404 are OK.
-- **Errors:** non-2xx → `Unavailable("{Code}: {Message}")` taken from the XML body with simple `find("<Code>")` slicing (≤ 200 chars); a network error → `Unavailable(error.to_string())` (its URL must be stripped: use `error.without_url()`).
-- **`pub async fn test(&self) -> proto::StorageTest`** runs these steps in order, stopping at the first failure:
-  1. "Write a small file": 1 KiB to `opencord-test/{random hex}`.
-  2. "Read part of it back": range 100–199 equals the written bytes.
-  3. "Upload in parts": multipart of 5 MiB + 1 KiB through a temp file, then size check.
-  4. "Delete the test files": both.
+- **`Cargo.toml`:** add `rusty-s3 = "0.10.2"` after `reqwest.workspace = true`. Don't add the `url` crate: `reqwest::Url` is the same type.
+- **`src/attachments/storage/s3.rs`**, exactly:
 
-  `ok` = every step ok.
-- **MinIO tests (`tests/s3.rs`, all `#[ignore]`):**
-  - Env: `OPENCORD_TEST_S3_ENDPOINT` (default `http://127.0.0.1:9000`), key `opencord`, secret `opencord-secret`.
-  - Each test creates bucket `opencord-test-{random}` with `rusty_s3` `create_bucket` and deletes it at the end.
-  - Document the run in the file header:
+```rust
+//! An S3-compatible bucket. Requests are presigned with `rusty-s3` and sent
+//! with the server's own HTTP client. Signed URLs carry credentials, so they
+//! are never logged or returned.
 
-```bash
-docker run -d --rm --name opencord-minio -p 9000:9000 -e MINIO_ROOT_USER=opencord -e MINIO_ROOT_PASSWORD=opencord-secret minio/minio server /data
-cargo test -p opencord-server --test s3 -- --ignored
-docker stop opencord-minio
+use std::path::Path;
+use std::time::Duration;
+
+use bytes::Bytes;
+use opencord_proto::v1 as proto;
+use reqwest::StatusCode;
+use reqwest::header::{CONTENT_LENGTH, ETAG, RANGE};
+use rusty_s3::actions::CreateMultipartUpload;
+use rusty_s3::{Bucket, Credentials, S3Action, UrlStyle};
+use tokio::io::AsyncReadExt;
+
+use super::StorageError;
+
+const MIB: u64 = 1024 * 1024;
+/// How long a presigned request stays valid.
+const SIGNED_FOR: Duration = Duration::from_secs(15 * 60);
+const REQUEST_TIMEOUT: Duration = Duration::from_secs(300);
+/// Larger files go up in parts.
+const SINGLE_PUT_MAX: u64 = 64 * MIB;
+const PART_BYTES: u64 = 16 * MIB;
+/// S3's smallest part, used by the bucket test.
+const TEST_PART_BYTES: u64 = 5 * MIB;
+
+/// A bucket's settings. No `Debug`: it holds the secret.
+#[derive(Clone)]
+pub struct S3Settings {
+    pub endpoint: String,
+    pub region: String,
+    pub bucket: String,
+    pub key_prefix: String,
+    pub path_style: bool,
+    pub allow_http: bool,
+    pub access_key_id: String,
+    pub secret_access_key: String,
+}
+
+/// `Credentials` keeps the secret out of `Debug`.
+#[derive(Debug)]
+pub struct S3Storage {
+    bucket: Bucket,
+    credentials: Credentials,
+    key_prefix: String,
+    http: reqwest::Client,
+}
+
+impl S3Storage {
+    /// Errors are messages for the person who typed the settings.
+    pub fn new(settings: &S3Settings, http: reqwest::Client) -> Result<Self, String> {
+        let endpoint = reqwest::Url::parse(settings.endpoint.trim())
+            .map_err(|_| "the endpoint isn't a web address".to_owned())?;
+        match endpoint.scheme() {
+            "https" => {}
+            "http" if settings.allow_http => {}
+            "http" => return Err("a plain http:// endpoint needs \"Allow plain HTTP\"".to_owned()),
+            _ => return Err("the endpoint must start with https://".to_owned()),
+        }
+        let style = if settings.path_style {
+            UrlStyle::Path
+        } else {
+            UrlStyle::VirtualHost
+        };
+        let bucket = Bucket::new(
+            endpoint,
+            style,
+            settings.bucket.clone(),
+            settings.region.clone(),
+        )
+        .map_err(|error| format!("the bucket settings don't work: {error}"))?;
+        Ok(Self {
+            bucket,
+            credentials: Credentials::new(
+                settings.access_key_id.clone(),
+                settings.secret_access_key.clone(),
+            ),
+            key_prefix: settings.key_prefix.clone(),
+            http,
+        })
+    }
+
+    fn object(&self, key: &str) -> String {
+        format!("{}{key}", self.key_prefix)
+    }
+
+    async fn send(
+        &self,
+        request: reqwest::RequestBuilder,
+    ) -> Result<reqwest::Response, StorageError> {
+        request
+            .timeout(REQUEST_TIMEOUT)
+            .send()
+            .await
+            .map_err(network_error)
+    }
+
+    /// Small files in one request, larger ones in parts. The file at `path`
+    /// stays where it is; the caller removes it.
+    pub async fn put_file(&self, key: &str, path: &Path) -> Result<(), StorageError> {
+        let size = tokio::fs::metadata(path).await?.len();
+        if size <= SINGLE_PUT_MAX {
+            let bytes = tokio::fs::read(path).await?;
+            return self.put_bytes(key, bytes).await;
+        }
+        self.put_parts(key, path, PART_BYTES).await
+    }
+
+    pub async fn put_bytes(&self, key: &str, bytes: Vec<u8>) -> Result<(), StorageError> {
+        let object = self.object(key);
+        let url = self
+            .bucket
+            .put_object(Some(&self.credentials), &object)
+            .sign(SIGNED_FOR);
+        let response = self.send(self.http.put(url).body(bytes)).await?;
+        if !response.status().is_success() {
+            return Err(failure(response).await);
+        }
+        Ok(())
+    }
+
+    pub async fn get_range(&self, key: &str, start: u64, end: u64) -> Result<Bytes, StorageError> {
+        if end <= start {
+            return Ok(Bytes::new());
+        }
+        let object = self.object(key);
+        let url = self
+            .bucket
+            .get_object(Some(&self.credentials), &object)
+            .sign(SIGNED_FOR);
+        let range = format!("bytes={start}-{}", end - 1);
+        let response = self.send(self.http.get(url).header(RANGE, range)).await?;
+        match response.status() {
+            StatusCode::PARTIAL_CONTENT => {}
+            // Some servers answer a range covering the whole object in full.
+            StatusCode::OK if start == 0 => {}
+            StatusCode::NOT_FOUND => return Err(StorageError::NotFound),
+            _ => return Err(failure(response).await),
+        }
+        let bytes = response.bytes().await.map_err(network_error)?;
+        if bytes.len() as u64 != end - start {
+            return Err(StorageError::Unavailable(format!(
+                "asked for {} bytes and got {}",
+                end - start,
+                bytes.len()
+            )));
+        }
+        Ok(bytes)
+    }
+
+    pub async fn size(&self, key: &str) -> Result<Option<u64>, StorageError> {
+        let object = self.object(key);
+        let url = self
+            .bucket
+            .head_object(Some(&self.credentials), &object)
+            .sign(SIGNED_FOR);
+        let response = self.send(self.http.head(url)).await?;
+        match response.status() {
+            StatusCode::NOT_FOUND => Ok(None),
+            status if status.is_success() => {
+                // Read the header itself: a HEAD answer has no body to count.
+                let length = response
+                    .headers()
+                    .get(CONTENT_LENGTH)
+                    .and_then(|value| value.to_str().ok())
+                    .and_then(|value| value.parse().ok())
+                    .ok_or_else(|| {
+                        StorageError::Unavailable("the storage didn't give the file's size".into())
+                    })?;
+                Ok(Some(length))
+            }
+            _ => Err(failure(response).await),
+        }
+    }
+
+    pub async fn delete(&self, key: &str) -> Result<(), StorageError> {
+        let object = self.object(key);
+        let url = self
+            .bucket
+            .delete_object(Some(&self.credentials), &object)
+            .sign(SIGNED_FOR);
+        let response = self.send(self.http.delete(url)).await?;
+        if response.status().is_success() || response.status() == StatusCode::NOT_FOUND {
+            Ok(())
+        } else {
+            Err(failure(response).await)
+        }
+    }
+
+    /// A multipart upload in parts of `part_bytes`, aborted on any failure.
+    async fn put_parts(&self, key: &str, path: &Path, part_bytes: u64) -> Result<(), StorageError> {
+        let object = self.object(key);
+        let url = self
+            .bucket
+            .create_multipart_upload(Some(&self.credentials), &object)
+            .sign(SIGNED_FOR);
+        let response = self.send(self.http.post(url)).await?;
+        if !response.status().is_success() {
+            return Err(failure(response).await);
+        }
+        let text = response.text().await.map_err(network_error)?;
+        let created = CreateMultipartUpload::parse_response(&text).map_err(|error| {
+            StorageError::Unavailable(format!("the storage's answer couldn't be read: {error}"))
+        })?;
+        let upload_id = created.upload_id();
+        let result = self.send_parts(&object, upload_id, path, part_bytes).await;
+        if result.is_err() {
+            let url = self
+                .bucket
+                .abort_multipart_upload(Some(&self.credentials), &object, upload_id)
+                .sign(SIGNED_FOR);
+            if let Err(error) = self.send(self.http.delete(url)).await {
+                tracing::warn!(%error, "an unfinished multipart upload couldn't be aborted");
+            }
+        }
+        result
+    }
+
+    async fn send_parts(
+        &self,
+        object: &str,
+        upload_id: &str,
+        path: &Path,
+        part_bytes: u64,
+    ) -> Result<(), StorageError> {
+        let mut file = tokio::fs::File::open(path).await?;
+        let mut etags = Vec::new();
+        loop {
+            let mut part = Vec::new();
+            (&mut file).take(part_bytes).read_to_end(&mut part).await?;
+            if part.is_empty() {
+                break;
+            }
+            let number = u16::try_from(etags.len() + 1)
+                .map_err(|_| StorageError::Unavailable("the file has too many parts".into()))?;
+            let url = self
+                .bucket
+                .upload_part(Some(&self.credentials), object, number, upload_id)
+                .sign(SIGNED_FOR);
+            let response = self.send(self.http.put(url).body(part)).await?;
+            if !response.status().is_success() {
+                return Err(failure(response).await);
+            }
+            let etag = response
+                .headers()
+                .get(ETAG)
+                .and_then(|value| value.to_str().ok())
+                .ok_or_else(|| {
+                    StorageError::Unavailable("the storage gave a part no ETag".into())
+                })?;
+            etags.push(etag.to_owned());
+        }
+        let action = self.bucket.complete_multipart_upload(
+            Some(&self.credentials),
+            object,
+            upload_id,
+            etags.iter().map(String::as_str),
+        );
+        // Sign first: `body` consumes the action.
+        let url = action.sign(SIGNED_FOR);
+        let response = self.send(self.http.post(url).body(action.body())).await?;
+        if !response.status().is_success() {
+            return Err(failure(response).await);
+        }
+        // S3 can answer 200 and still report an error in the body.
+        let text = response.text().await.map_err(network_error)?;
+        if text.contains("<Error>") {
+            return Err(StorageError::Unavailable(error_message(
+                StatusCode::OK,
+                &text,
+            )));
+        }
+        Ok(())
+    }
+
+    /// Checks that the bucket takes writes, ranged reads, multipart uploads
+    /// and deletes. Stops at the first failing step.
+    pub async fn test(&self, temp_dir: &Path) -> proto::StorageTest {
+        let run = format!("opencord-test/{}", hex::encode(crate::random::bytes::<8>()));
+        let small = format!("{run}/small");
+        let parts = format!("{run}/parts");
+        let mut steps = Vec::new();
+        let ok = self.run_test(&small, &parts, temp_dir, &mut steps).await;
+        if !ok {
+            // A failed step may leave a test file behind.
+            for key in [&small, &parts] {
+                if let Err(error) = self.delete(key).await {
+                    tracing::debug!(%error, "a storage test file couldn't be deleted");
+                }
+            }
+        }
+        proto::StorageTest { steps, ok }
+    }
+
+    async fn run_test(
+        &self,
+        small: &str,
+        parts: &str,
+        temp_dir: &Path,
+        steps: &mut Vec<proto::StorageTestStep>,
+    ) -> bool {
+        let data = crate::random::bytes::<1024>().to_vec();
+        let written = self.put_bytes(small, data.clone()).await;
+        if !record(steps, "Write a small file", written) {
+            return false;
+        }
+        let read = match self.get_range(small, 100, 200).await {
+            Ok(bytes) if bytes[..] == data[100..200] => Ok(()),
+            Ok(_) => Err(StorageError::Unavailable(
+                "the bytes read back differ".into(),
+            )),
+            Err(error) => Err(error),
+        };
+        if !record(steps, "Read part of it back", read) {
+            return false;
+        }
+        let uploaded = self.test_parts(parts, temp_dir).await;
+        if !record(steps, "Upload in parts", uploaded) {
+            return false;
+        }
+        let deleted = match self.delete(small).await {
+            Ok(()) => self.delete(parts).await,
+            Err(error) => Err(error),
+        };
+        record(steps, "Delete the test files", deleted)
+    }
+
+    /// Two parts, 5 MiB + 1 KiB, through a temp file.
+    async fn test_parts(&self, key: &str, temp_dir: &Path) -> Result<(), StorageError> {
+        const SIZE: u64 = TEST_PART_BYTES + 1024;
+        let name = format!(
+            "storage-test-{}.tmp",
+            hex::encode(crate::random::bytes::<8>())
+        );
+        let path = temp_dir.join(name);
+        let result = async {
+            tokio::fs::write(&path, vec![0x5a; SIZE as usize]).await?;
+            self.put_parts(key, &path, TEST_PART_BYTES).await?;
+            match self.size(key).await? {
+                Some(SIZE) => Ok(()),
+                other => Err(StorageError::Unavailable(format!(
+                    "the uploaded file has the wrong size ({other:?} bytes)"
+                ))),
+            }
+        }
+        .await;
+        if let Err(error) = tokio::fs::remove_file(&path).await
+            && error.kind() != std::io::ErrorKind::NotFound
+        {
+            tracing::warn!(%error, "a storage test's temp file couldn't be deleted");
+        }
+        result
+    }
+}
+
+fn record(
+    steps: &mut Vec<proto::StorageTestStep>,
+    name: &str,
+    result: Result<(), StorageError>,
+) -> bool {
+    let detail = match &result {
+        Ok(()) => String::new(),
+        Err(StorageError::Unavailable(message)) => message.clone(),
+        Err(error) => error.to_string(),
+    };
+    steps.push(proto::StorageTestStep {
+        name: name.to_owned(),
+        ok: result.is_ok(),
+        detail,
+    });
+    result.is_ok()
+}
+
+/// A network error without its URL: the URL carries the signature.
+fn network_error(error: reqwest::Error) -> StorageError {
+    StorageError::Unavailable(error.without_url().to_string())
+}
+
+async fn failure(response: reqwest::Response) -> StorageError {
+    let status = response.status();
+    // The body only improves the message; without it the status still says
+    // what happened.
+    let body = response.text().await.unwrap_or_default();
+    StorageError::Unavailable(error_message(status, &body))
+}
+
+/// "Code: Message" from an S3 error body, or the HTTP status. At most 200
+/// characters.
+fn error_message(status: StatusCode, body: &str) -> String {
+    let field = |name: &str| {
+        let open = format!("<{name}>");
+        let start = body.find(&open)? + open.len();
+        let end = start + body[start..].find(&format!("</{name}>"))?;
+        Some(body[start..end].trim().to_owned())
+    };
+    let message = match (field("Code"), field("Message")) {
+        (Some(code), Some(message)) => format!("{code}: {message}"),
+        (Some(code), None) => code,
+        _ => format!("HTTP {status}"),
+    };
+    message.chars().take(200).collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn settings(endpoint: &str, allow_http: bool) -> S3Settings {
+        S3Settings {
+            endpoint: endpoint.into(),
+            region: "us-east-1".into(),
+            bucket: "files".into(),
+            key_prefix: String::new(),
+            path_style: true,
+            allow_http,
+            access_key_id: "AKIAEXAMPLE".into(),
+            secret_access_key: "a-very-secret-value".into(),
+        }
+    }
+
+    #[test]
+    fn http_endpoints_need_allow_http() {
+        let http = crate::tls::http_client().unwrap();
+        assert!(S3Storage::new(&settings("http://127.0.0.1:9000", false), http.clone()).is_err());
+        assert!(S3Storage::new(&settings("http://127.0.0.1:9000", true), http.clone()).is_ok());
+        assert!(S3Storage::new(&settings("https://s3.example.com", false), http.clone()).is_ok());
+        assert!(S3Storage::new(&settings("ftp://s3.example.com", true), http.clone()).is_err());
+        assert!(S3Storage::new(&settings("not a url", true), http).is_err());
+    }
+
+    #[test]
+    fn debug_output_hides_the_secret() {
+        let storage = S3Storage::new(
+            &settings("https://s3.example.com", false),
+            crate::tls::http_client().unwrap(),
+        )
+        .unwrap();
+        assert!(!format!("{storage:?}").contains("a-very-secret-value"));
+    }
+
+    #[test]
+    fn error_bodies_become_short_messages() {
+        let body = "<?xml version=\"1.0\"?><Error><Code>NoSuchBucket</Code>\
+                    <Message>The specified bucket does not exist</Message></Error>";
+        assert_eq!(
+            error_message(StatusCode::NOT_FOUND, body),
+            "NoSuchBucket: The specified bucket does not exist"
+        );
+        assert_eq!(
+            error_message(StatusCode::BAD_GATEWAY, "<html>proxy error</html>"),
+            "HTTP 502 Bad Gateway"
+        );
+        let long = format!(
+            "<Error><Code>X</Code><Message>{}</Message></Error>",
+            "m".repeat(500)
+        );
+        assert_eq!(
+            error_message(StatusCode::BAD_REQUEST, &long)
+                .chars()
+                .count(),
+            200
+        );
+    }
+}
 ```
 
-- [ ] **Step 1: Write tests:**
-  - **Unit:** `http_endpoints_need_allow_http`; `error_bodies_become_short_messages` (sample S3 XML).
-  - **Ignored MinIO:**
-    - `round_trip_ranges_and_delete` (put_bytes, get_range, size, delete twice);
-    - `multipart_put_file_of_70_mib`;
-    - `the_bucket_test_passes_on_minio_and_fails_on_a_wrong_secret` (the step named "Write a small file" fails).
-- [ ] **Step 2:** Run the unit tests → FAIL; start MinIO and run the ignored ones → FAIL.
-- [ ] **Step 3:** Implement. **Step 4:** Both PASS.
+  Don't "fix" these; each is deliberate:
+  - Signed URLs carry the credentials. `network_error` strips them with `without_url()`, and no URL is ever logged or returned.
+  - `put_file` leaves the source file where it is, while the local backend moves it. `process.rs` already removes its temp file either way.
+  - `S3Settings` has no `Debug` because it holds the secret. `S3Storage` derives it safely: `rusty_s3::Credentials` leaves the secret out.
+  - `size` reads the `Content-Length` header itself, because a HEAD answer has no body to count.
+
+- **`src/attachments/storage/mod.rs`:**
+  - Add `pub mod s3;` and `pub use s3::{S3Settings, S3Storage};`.
+  - `Backend` gains `S3(Box<S3Storage>)`. The box keeps clippy's `large_enum_variant` quiet.
+  - Each of the five methods gains the arm `Self::S3(s3) => s3.<the same call>.await,`, for example `Self::S3(s3) => s3.put_file(key, path).await,`.
+- **`src/attachments/mod.rs`:**
+  - Change the re-export to `pub use storage::{Backend, LocalStorage, ObjectKind, S3Settings, S3Storage, StorageError, object_key};`, and add `use crate::db::storage::StorageRow;`.
+  - Replace `load` and `active` with the code below, which also adds `set_backend`, `remove_backend`, `set_active`, `active_id` and `http`:
+
+```rust
+    /// Builds the S3 backends and restores the active one. A storage that
+    /// can't be built stops the server: its files would be unreadable.
+    pub async fn load(&self, conn: &mut SqliteConnection, secrets: &Secrets) -> anyhow::Result<()> {
+        let rows = crate::db::storage::list(conn).await?;
+        let mut loaded = Vec::new();
+        for row in rows.iter().filter(|row| row.kind == "s3") {
+            let settings = s3_settings(row, secrets)
+                .map_err(|error| anyhow::anyhow!("storage \"{}\": {error}", row.name))?;
+            let storage = S3Storage::new(&settings, self.http.clone())
+                .map_err(|error| anyhow::anyhow!("storage \"{}\": {error}", row.name))?;
+            loaded.push((row.id, Arc::new(Backend::S3(Box::new(storage)))));
+        }
+        let active = rows.iter().find(|row| row.active).map_or(1, |row| row.id);
+        self.backends
+            .write()
+            .unwrap_or_else(PoisonError::into_inner)
+            .extend(loaded);
+        self.active.store(active, Ordering::Release);
+        Ok(())
+    }
+
+    /// Adds or replaces a backend. Callers write the database first.
+    pub fn set_backend(&self, id: i64, backend: Backend) {
+        self.backends
+            .write()
+            .unwrap_or_else(PoisonError::into_inner)
+            .insert(id, Arc::new(backend));
+    }
+
+    pub fn remove_backend(&self, id: i64) {
+        self.backends
+            .write()
+            .unwrap_or_else(PoisonError::into_inner)
+            .remove(&id);
+    }
+
+    /// New uploads go to `id` from now on. Its backend must be loaded.
+    pub fn set_active(&self, id: i64) {
+        self.active.store(id, Ordering::Release);
+    }
+
+    pub fn http(&self) -> &reqwest::Client {
+        &self.http
+    }
+
+    pub fn active_id(&self) -> i64 {
+        self.active.load(Ordering::Acquire)
+    }
+
+    pub fn active(&self) -> Result<(i64, Arc<Backend>), ApiError> {
+        let id = self.active_id();
+        let backend = self.backend(id).ok_or_else(|| {
+            tracing::error!(storage_id = id, "the active storage isn't loaded");
+            ApiError::internal()
+        })?;
+        Ok((id, backend))
+    }
+```
+
+  - Add these two functions next to `key_label`:
+
+```rust
+/// What an S3 storage's secret key is sealed under in the database.
+pub(crate) fn storage_secret_label(id: i64) -> String {
+    format!("storage-secret:{id}")
+}
+
+/// An S3 row's settings, with its secret opened.
+pub(crate) fn s3_settings(row: &StorageRow, secrets: &Secrets) -> Result<S3Settings, String> {
+    let sealed = row
+        .secret_enc
+        .as_deref()
+        .ok_or_else(|| "it has no secret key".to_owned())?;
+    let secret_access_key = secrets
+        .open_string(&storage_secret_label(row.id), sealed)
+        .map_err(|_| {
+            "its secret key couldn't be opened with this server's secrets file".to_owned()
+        })?;
+    Ok(S3Settings {
+        endpoint: row.endpoint.clone().unwrap_or_default(),
+        region: row.region.clone().unwrap_or_default(),
+        bucket: row.bucket.clone().unwrap_or_default(),
+        key_prefix: row.key_prefix.clone(),
+        path_style: row.path_style,
+        allow_http: row.allow_http,
+        access_key_id: row.access_key_id.clone().unwrap_or_default(),
+        secret_access_key,
+    })
+}
+```
+
+  - Update the two callers of `active()`:
+    - `handlers/uploads.rs` needs only the id: `let active_storage_id = ctx.state.attachments.active_id();`
+    - `process.rs`: `let (storage_id, backend) = state.attachments.active()?;`
+- **`tests/s3.rs`**, exactly:
+
+```rust
+//! Tests against a real S3-compatible server. They are ignored by default.
+//!
+//! ```bash
+//! docker run -d --rm --name opencord-s3 -p 9000:9000 \
+//!   -e RUSTFS_ACCESS_KEY=opencord -e RUSTFS_SECRET_KEY=opencord-secret \
+//!   rustfs/rustfs:1.0.3 /data
+//! cargo test -p opencord-server --test s3 -- --ignored --test-threads=1
+//! docker stop opencord-s3
+//! ```
+//!
+//! `OPENCORD_TEST_S3_ENDPOINT` overrides the endpoint (default
+//! `http://127.0.0.1:9000`).
+
+use std::time::Duration;
+
+use opencord_server::attachments::storage::{S3Settings, S3Storage};
+use rusty_s3::{Bucket, Credentials, S3Action, UrlStyle};
+
+const ACCESS_KEY: &str = "opencord";
+const SECRET_KEY: &str = "opencord-secret";
+
+fn endpoint() -> String {
+    std::env::var("OPENCORD_TEST_S3_ENDPOINT").unwrap_or_else(|_| "http://127.0.0.1:9000".into())
+}
+
+/// A new, empty bucket for one test. `drop_bucket` removes it.
+struct TestBucket {
+    name: String,
+    http: reqwest::Client,
+}
+
+impl TestBucket {
+    async fn create() -> Self {
+        let name = format!("opencord-test-{}", hex::encode(rand_bytes()));
+        let http = opencord_server::tls::http_client().unwrap();
+        let bucket = Bucket::new(
+            endpoint().parse().unwrap(),
+            UrlStyle::Path,
+            name.clone(),
+            "us-east-1",
+        )
+        .unwrap();
+        let credentials = Credentials::new(ACCESS_KEY, SECRET_KEY);
+        let url = bucket
+            .create_bucket(&credentials)
+            .sign(Duration::from_secs(60));
+        let response = http.put(url).send().await.unwrap();
+        assert!(
+            response.status().is_success(),
+            "{}",
+            response.text().await.unwrap()
+        );
+        Self { name, http }
+    }
+
+    fn settings(&self, secret: &str) -> S3Settings {
+        S3Settings {
+            endpoint: endpoint(),
+            region: "us-east-1".into(),
+            bucket: self.name.clone(),
+            key_prefix: "files/".into(),
+            path_style: true,
+            allow_http: true,
+            access_key_id: ACCESS_KEY.into(),
+            secret_access_key: secret.into(),
+        }
+    }
+
+    fn storage(&self) -> S3Storage {
+        S3Storage::new(&self.settings(SECRET_KEY), self.http.clone()).unwrap()
+    }
+
+    async fn drop_bucket(self) {
+        let bucket = Bucket::new(
+            endpoint().parse().unwrap(),
+            UrlStyle::Path,
+            self.name.clone(),
+            "us-east-1",
+        )
+        .unwrap();
+        let credentials = Credentials::new(ACCESS_KEY, SECRET_KEY);
+        let url = bucket
+            .delete_bucket(&credentials)
+            .sign(Duration::from_secs(60));
+        let response = self.http.delete(url).send().await.unwrap();
+        assert!(
+            response.status().is_success(),
+            "{}",
+            response.text().await.unwrap()
+        );
+    }
+}
+
+fn rand_bytes() -> [u8; 6] {
+    opencord_server::random::bytes::<6>()
+}
+
+#[tokio::test]
+#[ignore = "needs an S3 server; see the file header"]
+async fn round_trip_ranges_and_delete() {
+    let bucket = TestBucket::create().await;
+    let storage = bucket.storage();
+    let data: Vec<u8> = (0..1000u32).map(|i| (i % 251) as u8).collect();
+    storage.put_bytes("a/1", data.clone()).await.unwrap();
+    assert_eq!(storage.size("a/1").await.unwrap(), Some(1000));
+    assert_eq!(
+        storage.get_range("a/1", 10, 20).await.unwrap(),
+        &data[10..20]
+    );
+    assert_eq!(storage.get_range("a/1", 0, 1000).await.unwrap(), &data[..]);
+    storage.delete("a/1").await.unwrap();
+    storage.delete("a/1").await.unwrap();
+    assert_eq!(storage.size("a/1").await.unwrap(), None);
+    bucket.drop_bucket().await;
+}
+
+#[tokio::test]
+#[ignore = "needs an S3 server; see the file header"]
+async fn multipart_put_file_of_70_mib() {
+    let bucket = TestBucket::create().await;
+    let storage = bucket.storage();
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("big");
+    let data: Vec<u8> = (0..70 * 1024 * 1024u32).map(|i| (i % 251) as u8).collect();
+    tokio::fs::write(&path, &data).await.unwrap();
+    storage.put_file("a/2", &path).await.unwrap();
+    assert!(path.exists(), "S3 leaves the source file for the caller");
+    assert_eq!(storage.size("a/2").await.unwrap(), Some(data.len() as u64));
+    let boundary = 16 * 1024 * 1024;
+    assert_eq!(
+        storage
+            .get_range("a/2", boundary - 10, boundary + 10)
+            .await
+            .unwrap(),
+        &data[boundary as usize - 10..boundary as usize + 10]
+    );
+    storage.delete("a/2").await.unwrap();
+    bucket.drop_bucket().await;
+}
+
+#[tokio::test]
+#[ignore = "needs an S3 server; see the file header"]
+async fn the_bucket_test_passes_on_s3_and_fails_on_a_wrong_secret() {
+    let bucket = TestBucket::create().await;
+    let dir = tempfile::tempdir().unwrap();
+    let passed = bucket.storage().test(dir.path()).await;
+    assert!(passed.ok, "{passed:?}");
+    assert_eq!(passed.steps.len(), 4);
+
+    let wrong = S3Storage::new(&bucket.settings("wrong-secret"), bucket.http.clone()).unwrap();
+    let failed = wrong.test(dir.path()).await;
+    assert!(!failed.ok);
+    assert_eq!(failed.steps.len(), 1);
+    assert_eq!(failed.steps[0].name, "Write a small file");
+    assert!(!failed.steps[0].detail.is_empty());
+    println!("wrong secret: {}", failed.steps[0].detail);
+    bucket.drop_bucket().await;
+}
+```
+
+- [ ] **Step 1: Write the tests:** the `#[cfg(test)]` module at the bottom of `s3.rs`, and `tests/s3.rs`.
+- [ ] **Step 2:** Run → FAIL (they don't compile yet).
+- [ ] **Step 3:** Implement as above.
+- [ ] **Step 4:** Run → PASS:
+  - `cargo test -p opencord-server --lib -- attachments::storage::s3`;
+  - the S3 tests (command at the top of this milestone);
+  - `cargo test -p opencord-server --test attachments`, unchanged.
 - [ ] **Step 5: Commit:** `feat: the S3 storage backend (A3)`.
 
 ### Task 15: Managing storage (owner only)
 
 **Files:**
 - Create: `src/attachments/manage.rs`, `src/handlers/storage.rs`, `tests/storage.rs`.
-- Modify: `src/handlers/mod.rs`, `src/attachments/mod.rs`.
+- Modify:
+  - `src/attachments/mod.rs` (`pub mod manage;`);
+  - `src/db/storage.rs` (`find`, `count_blobs`);
+  - `src/handlers/mod.rs` (dispatch);
+  - `tests/common/mod.rs` and `tests/attachments.rs` (`media_token` moves to `common`);
+  - `tests/s3.rs`.
 
 **Interfaces:**
-- Every handler first: `if !guild.is_owner(user) → FORBIDDEN "only the owner manages storage"`.
-- **`pub async fn snapshot(state) -> proto::Storage`:**
-  - backends from DB rows plus `usage()`;
-  - S3 fields with the secret empty and the access key masked;
-  - `move` from the mover (Task 16; `None` until then);
-  - `temp_free_bytes` from `fs4::available_space(temp_dir)`.
-- **AddStorage:**
-  1. Validate: name 1–100 chars; endpoint, bucket, region, key and secret not empty [INVALID_ARGUMENT].
-  2. Build `S3Storage` and run `test()`. Not ok → STORAGE_UNAVAILABLE "the bucket test failed at “{step}”: {detail}".
-  3. Insert the row with `secret_enc = secrets.seal(&format!("storage-secret:{id}"), secret)`.
-  4. Add it to `backends`.
-  5. Broadcast `StorageUpdate` to `Audience::User(owner_id)`.
-  6. Answer `Storage`.
-- **UpdateStorage:** S3 rows only. An empty secret keeps the stored one. Re-test when `s3` is present, then save and rebuild the backend.
-- **TestStorage:** by id or by config. Returns `StorageTest`; saves nothing. Writes `last_error` on a failure for an existing backend.
-- **ActivateStorage:** exists; for S3 the test must pass; `set_active`; `active.store(id)`; broadcast.
-- **RemoveStorage:**
-  - id 1 → INVALID_ARGUMENT "this server's own storage can't be removed";
-  - active → CONFLICT "activate another storage first";
-  - `count_on(id) > 0` → CONFLICT "{n} files are still stored there; move them first";
-  - otherwise delete the row and drop the backend.
 
-- [ ] **Step 1: Write tests** (`tests/storage.rs`; anything needing MinIO goes in `tests/s3.rs` as ignored):
-  - `storage_requests_are_owner_only` (all 8 → FORBIDDEN for an admin with ADMINISTRATOR).
-  - `the_local_storage_cannot_be_removed`.
-  - `the_secret_never_comes_back` (ignored, MinIO): AddStorage, then GetStorage → `secret_access_key` is empty, `has_secret`, access key masked; the raw DB `secret_enc` doesn't contain the secret bytes.
-  - `activating_s3_sends_new_uploads_there` (ignored): upload after activation → the object exists in the bucket under `a/{id}`; downloading works.
-  - `a_failing_bucket_cannot_be_added` (unit or integration with an unreachable endpoint `http://127.0.0.1:1` and `allow_http`) → STORAGE_UNAVAILABLE naming "Write a small file".
-- [ ] **Step 2:** Run → FAIL. **Step 3:** Implement and regenerate sqlx. **Step 4:** Run → PASS.
+- **Queries** (`src/db/storage.rs`), then regenerate the sqlx data:
+
+```rust
+pub async fn count_blobs(conn: &mut SqliteConnection, storage_id: i64) -> Result<i64, sqlx::Error> {
+    let count: i64 = sqlx::query_scalar!(
+        "SELECT COUNT(*) FROM blob_deletions WHERE storage_id = $1",
+        storage_id
+    )
+    .fetch_one(conn)
+    .await?;
+    Ok(count)
+}
+
+pub async fn find(conn: &mut SqliteConnection, id: i64) -> Result<Option<StorageRow>, sqlx::Error> {
+    sqlx::query_as!(
+        StorageRow,
+        r#"SELECT id, kind, name, endpoint, region, bucket,
+                  key_prefix, path_style AS "path_style: bool",
+                  allow_http AS "allow_http: bool", access_key_id,
+                  secret_enc, active AS "active: bool", last_error,
+                  created_at
+           FROM storage_backends WHERE id = $1"#,
+        id
+    )
+    .fetch_optional(conn)
+    .await
+}
+```
+
+- **`src/attachments/manage.rs`**, exactly. Until Task 16 adds the mover, write the `r#move` line as `r#move: None,`:
+
+```rust
+//! What the owner's storage page shows, and the checks its requests share.
+
+use std::collections::HashMap;
+
+use opencord_proto::v1 as proto;
+
+use super::S3Settings;
+use crate::db;
+use crate::db::storage::StorageRow;
+use crate::error::ApiError;
+use crate::state::{AppState, Audience};
+
+/// Every backend with its usage, the move's progress and the temp folder's
+/// free space.
+pub async fn snapshot(state: &AppState) -> Result<proto::Storage, ApiError> {
+    let mut conn = state.db.acquire().await?;
+    let rows = db::storage::list(&mut conn).await?;
+    let usage: HashMap<i64, (i64, i64)> = db::attachments::usage(&mut conn)
+        .await?
+        .into_iter()
+        .map(|(storage_id, files, bytes)| (storage_id, (files, bytes)))
+        .collect();
+    let backends = rows
+        .iter()
+        .map(|row| {
+            let (files, bytes) = usage.get(&row.id).copied().unwrap_or((0, 0));
+            backend_to_proto(row, files, bytes)
+        })
+        .collect();
+    let temp_free_bytes = match fs4::available_space(state.attachments.temp_dir()) {
+        Ok(bytes) => bytes,
+        Err(error) => {
+            // Shown on the page only; nothing is decided from it.
+            tracing::warn!(%error, "the temp folder's free space couldn't be read");
+            0
+        }
+    };
+    Ok(proto::Storage {
+        backends,
+        r#move: state.attachments.mover().progress(),
+        temp_free_bytes,
+    })
+}
+
+fn backend_to_proto(row: &StorageRow, files: i64, bytes: i64) -> proto::StorageBackend {
+    let is_s3 = row.kind == "s3";
+    proto::StorageBackend {
+        id: row.id,
+        kind: if is_s3 {
+            proto::StorageKind::S3
+        } else {
+            proto::StorageKind::Local
+        }
+        .into(),
+        name: row.name.clone(),
+        active: row.active,
+        s3: is_s3.then(|| proto::S3Config {
+            endpoint: row.endpoint.clone().unwrap_or_default(),
+            region: row.region.clone().unwrap_or_default(),
+            bucket: row.bucket.clone().unwrap_or_default(),
+            key_prefix: row.key_prefix.clone(),
+            path_style: row.path_style,
+            allow_http: row.allow_http,
+            access_key_id: mask(row.access_key_id.as_deref().unwrap_or_default()),
+            secret_access_key: String::new(),
+        }),
+        has_secret: row.secret_enc.is_some(),
+        file_count: u64::try_from(files).unwrap_or(0),
+        bytes: u64::try_from(bytes).unwrap_or(0),
+        last_error: row.last_error.clone(),
+    }
+}
+
+/// "••••WXYZ": only the last 4 characters, and none of a key that short.
+pub fn mask(access_key_id: &str) -> String {
+    let chars: Vec<char> = access_key_id.chars().collect();
+    if chars.len() <= 4 {
+        return "••••".to_owned();
+    }
+    let tail: String = chars[chars.len() - 4..].iter().collect();
+    format!("••••{tail}")
+}
+
+/// Sends the owner the storage page's new state.
+pub async fn broadcast(state: &AppState) -> Result<proto::Storage, ApiError> {
+    let storage = snapshot(state).await?;
+    let owner_id = state.guild().meta.owner_id;
+    if let Some(owner_id) = owner_id {
+        state.broadcast(
+            proto::event::Kind::StorageUpdate(proto::StorageUpdate {
+                storage: Some(storage.clone()),
+            }),
+            Audience::User(owner_id),
+        );
+    }
+    Ok(storage)
+}
+
+pub fn valid_name(name: &str) -> Result<String, ApiError> {
+    let name = name.trim();
+    if name.is_empty() || name.chars().count() > 100 || name.chars().any(char::is_control) {
+        return Err(ApiError::invalid_argument(
+            "a storage name is 1 to 100 characters on one line",
+        ));
+    }
+    Ok(name.to_owned())
+}
+
+/// Checked, trimmed settings. `stored_secret` fills in an empty secret.
+pub fn valid_s3(
+    config: &proto::S3Config,
+    stored_secret: Option<String>,
+) -> Result<S3Settings, ApiError> {
+    let field = |value: &str, what: &str, max: usize| {
+        let value = value.trim();
+        if value.is_empty() || value.chars().count() > max {
+            return Err(ApiError::invalid_argument(format!(
+                "the {what} is 1 to {max} characters"
+            )));
+        }
+        Ok(value.to_owned())
+    };
+    let secret_access_key = match (config.secret_access_key.trim(), stored_secret) {
+        ("", Some(stored)) => stored,
+        (secret, _) => field(secret, "secret key", 200)?,
+    };
+    let key_prefix = config.key_prefix.trim();
+    if key_prefix.chars().count() > 200 {
+        return Err(ApiError::invalid_argument(
+            "the key prefix is at most 200 characters",
+        ));
+    }
+    Ok(S3Settings {
+        endpoint: field(&config.endpoint, "endpoint", 500)?,
+        region: field(&config.region, "region", 100)?,
+        bucket: field(&config.bucket, "bucket name", 100)?,
+        key_prefix: key_prefix.to_owned(),
+        path_style: config.path_style,
+        allow_http: config.allow_http,
+        access_key_id: field(&config.access_key_id, "access key", 200)?,
+        secret_access_key,
+    })
+}
+
+/// The first failed step, for a STORAGE_UNAVAILABLE message and `last_error`.
+pub fn test_failure(test: &proto::StorageTest) -> Option<String> {
+    test.steps
+        .iter()
+        .find(|step| !step.ok)
+        .map(|step| format!("the bucket test failed at “{}”: {}", step.name, step.detail))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn access_keys_show_only_their_last_four_characters() {
+        assert_eq!(mask("AKIAIOSFODNN7EXAMPLE"), "••••MPLE");
+        assert_eq!(mask("abcd"), "••••");
+        assert_eq!(mask(""), "••••");
+    }
+
+    #[test]
+    fn an_empty_secret_keeps_the_stored_one() {
+        let config = proto::S3Config {
+            endpoint: " https://s3.example.com ".into(),
+            region: "auto".into(),
+            bucket: "files".into(),
+            access_key_id: "AKIAEXAMPLE".into(),
+            ..Default::default()
+        };
+        let settings = valid_s3(&config, Some("stored".into())).unwrap();
+        assert_eq!(settings.secret_access_key, "stored");
+        assert_eq!(settings.endpoint, "https://s3.example.com");
+        assert!(valid_s3(&config, None).is_err());
+    }
+}
+```
+
+- **`src/handlers/storage.rs`.** Start with these helpers, exactly:
+
+```rust
+fn require_owner(ctx: &Ctx<'_>) -> Result<(), ApiError> {
+    if ctx.state.guild().is_owner(ctx.user_id) {
+        Ok(())
+    } else {
+        Err(ApiError::forbidden("only the owner manages storage"))
+    }
+}
+
+/// A saved S3 row's settings. This fails only if the secrets file changed.
+fn saved_settings(ctx: &Ctx<'_>, row: &StorageRow) -> Result<S3Settings, ApiError> {
+    s3_settings(row, ctx.state.certificates.secrets()).map_err(|error| {
+        tracing::error!(storage_id = row.id, %error, "a storage's settings couldn't be read");
+        ApiError::internal()
+    })
+}
+
+/// Builds the bucket and runs its test. A failed step is STORAGE_UNAVAILABLE.
+async fn tested(ctx: &Ctx<'_>, settings: &S3Settings) -> Result<S3Storage, ApiError> {
+    let storage = S3Storage::new(settings, ctx.state.attachments.http().clone())
+        .map_err(ApiError::invalid_argument)?;
+    let test = storage.test(ctx.state.attachments.temp_dir()).await;
+    match manage::test_failure(&test) {
+        Some(failure) => Err(ApiError::storage_unavailable(failure)),
+        None => Ok(storage),
+    }
+}
+
+/// `row` with the bucket's settings and its secret sealed.
+fn with_settings(row: StorageRow, settings: &S3Settings, secrets: &Secrets) -> StorageRow {
+    let secret_enc = secrets.seal(
+        &storage_secret_label(row.id),
+        settings.secret_access_key.as_bytes(),
+    );
+    StorageRow {
+        endpoint: Some(settings.endpoint.clone()),
+        region: Some(settings.region.clone()),
+        bucket: Some(settings.bucket.clone()),
+        key_prefix: settings.key_prefix.clone(),
+        path_style: settings.path_style,
+        allow_http: settings.allow_http,
+        access_key_id: Some(settings.access_key_id.clone()),
+        secret_enc: Some(secret_enc),
+        last_error: None,
+        ..row
+    }
+}
+```
+
+- **The handlers**, each in the order given:
+  - Every one follows Working Rules 13, 17 and 20:
+    1. the owner check;
+    2. validation;
+    3. the bucket test, outside the write lock because it uses the network;
+    4. then the write lock, and re-reading the row under it;
+    5. the database write;
+    6. the in-memory backends;
+    7. the broadcast, last.
+  - "Answer the storage" means `Ok(Response::Storage(manage::broadcast(ctx.state).await?))`.
+  - **`get(ctx)`:** `require_owner`, then `Ok(Response::Storage(manage::snapshot(ctx.state).await?))`.
+  - **`add(ctx, proto::AddStorage)`:**
+    1. `require_owner`.
+    2. `let name = manage::valid_name(&request.name)?;`
+    3. `request.s3` missing → INVALID_ARGUMENT "the bucket's settings are missing". Otherwise `let settings = manage::valid_s3(config, None)?;`.
+    4. `let storage = tested(ctx, &settings).await?;`
+    5. `let _writes = ctx.state.write_lock().await;`
+    6. `let id = ctx.state.ids.next_id();`
+    7. Insert `with_settings(StorageRow { id, kind: "s3".into(), name, endpoint: None, region: None, bucket: None, key_prefix: String::new(), path_style: false, allow_http: false, access_key_id: None, secret_enc: None, active: false, last_error: None, created_at: now_ms() }, &settings, ctx.state.certificates.secrets())`.
+    8. `ctx.state.attachments.set_backend(id, Backend::S3(Box::new(storage)));`
+    9. Answer the storage.
+  - **`update(ctx, proto::UpdateStorage)`:**
+    1. `require_owner`.
+    2. `db::storage::find` → NOT_FOUND "storage".
+    3. `let name = request.name.as_deref().map(manage::valid_name).transpose()?;`
+    4. If `request.s3` is set:
+       - the row is local → INVALID_ARGUMENT "this server's own storage has no bucket settings";
+       - `stored` is `Some(saved_settings(ctx, &row)?.secret_access_key)` when the request's secret is empty after trimming, else `None`;
+       - `let settings = manage::valid_s3(config, stored)?;`
+       - if the endpoint, bucket or key prefix differ from the row's, and `count_on(id) + count_blobs(id) > 0`: CONFLICT "this storage holds files; add a new storage and move them there instead";
+       - `let storage = tested(ctx, &settings).await?;`
+    5. Take the write lock, then `find` again → NOT_FOUND "storage" if it's gone. Call that row `current`.
+    6. Build the new row from `current`: `StorageRow { name: name.unwrap_or(current.name.clone()), ..current }`. With new settings, pass it through `with_settings`. Then `db::storage::update`.
+    7. With new settings: `set_backend(id, Backend::S3(Box::new(storage)))`.
+    8. Answer the storage.
+  - **`test(ctx, proto::TestStorage)`** answers `Response::StorageTest`:
+    1. `require_owner`.
+    2. Match `request.target`:
+       - `None` → INVALID_ARGUMENT "name a storage or give its settings";
+       - `Some(Target::S3(config))`: `valid_s3(&config, None)?`, then `S3Storage::new(..).map_err(ApiError::invalid_argument)?`, then return its `test(temp_dir)`. Nothing is saved.
+       - `Some(Target::StorageId(id))`, in this order:
+         1. `find` → NOT_FOUND "storage";
+         2. a local row → INVALID_ARGUMENT "only S3 storage can be tested";
+         3. `saved_settings`, `S3Storage::new`, `test`;
+         4. take the write lock;
+         5. `db::storage::set_last_error(conn, id, manage::test_failure(&test).as_deref())`, which also clears an old error;
+         6. drop the lock and call `manage::broadcast`;
+         7. return the test.
+    - `Target` is `proto::test_storage::Target`.
+  - **`activate(ctx, proto::ActivateStorage)`:**
+    1. `require_owner`.
+    2. `find` → NOT_FOUND "storage". Already active → answer the storage, changing nothing.
+    3. For an S3 row, build it from `saved_settings` and run `test`.
+       - A failed step:
+         - take the write lock;
+         - write `set_last_error` with the failure;
+         - drop the lock;
+         - `manage::broadcast`;
+         - return STORAGE_UNAVAILABLE with the failure.
+       - Otherwise keep the tested storage for step 6.
+    4. Take the write lock, then `find` again → NOT_FOUND if it's gone.
+    5. `db::storage::set_active(conn, id)`.
+    6. For S3: `set_backend(id, Backend::S3(Box::new(storage)))` **before** the next step, so `active()` always finds the backend.
+    7. `ctx.state.attachments.set_active(id)`.
+    8. Answer the storage.
+  - **`remove(ctx, proto::RemoveStorage)`:**
+    1. `require_owner`.
+    2. `id == 1` → INVALID_ARGUMENT "this server's own storage can't be removed".
+    3. Take the write lock. `find` → NOT_FOUND "storage".
+    4. Active → CONFLICT "activate another storage first".
+    5. `count_on(id) = n > 0` → CONFLICT "{n} files are still stored there; move them first".
+    6. `count_blobs(id) = n > 0` → CONFLICT "{n} files there are still waiting to be deleted; try again later".
+    7. `db::storage::delete`, then `remove_backend(id)`.
+    8. Answer the storage.
+- **Dispatch** (`handlers/mod.rs`): one arm per request, `Kind::GetStorage(_) => storage::get(ctx).await` and so on. `StartStorageMove` and `StopStorageMove` stay on "not implemented" until Task 16.
+
+- [ ] **Step 1: Write tests.**
+  - **Unit:**
+    - the two tests at the bottom of `manage.rs`;
+    - `the_secret_is_sealed` in `handlers/storage.rs`: `with_settings` with `Secrets::from_key(&[1; 32])` gives a `secret_enc` that doesn't contain the secret's bytes, and `s3_settings` opens it back.
+  - **Integration, `tests/storage.rs`:**
+    - `storage_requests_are_owner_only`: a member with an ADMINISTRATOR role sends all 8 storage requests → each is FORBIDDEN.
+    - `the_local_storage_is_listed_with_its_usage`:
+      - GetStorage → one backend: id 1, `LOCAL`, active, `has_secret == false`, no `s3`;
+      - after one upload is sent: `file_count == 1` and `bytes` is the file's length;
+      - `temp_free_bytes > 0`.
+    - `the_local_storage_cannot_be_removed`: RemoveStorage(1) → INVALID_ARGUMENT.
+    - `plain_http_needs_allow_http`: AddStorage with `http://127.0.0.1:1` and `allow_http: false` → INVALID_ARGUMENT, and GetStorage still lists one backend.
+    - `a_failing_bucket_cannot_be_added`: AddStorage with `http://127.0.0.1:1` and `allow_http: true` → STORAGE_UNAVAILABLE whose message contains "Write a small file". GetStorage still lists one backend.
+    - `testing_settings_saves_nothing`: TestStorage with that config → `ok == false`, one step, named "Write a small file". GetStorage still lists one backend.
+    - `unknown_storage_is_not_found`: ActivateStorage(12345) and RemoveStorage(12345) → NOT_FOUND.
+  - **S3, ignored (`tests/s3.rs`).**
+    - Setup:
+      - Add `mod common;` and `use common::*;`.
+      - Build the `proto::S3Config` from the `TestBucket`'s values. The secret is `SECRET_KEY` and the key prefix is `files/`.
+    - `the_secret_never_comes_back`: after AddStorage, both its answer and GetStorage show the new backend with an empty `secret_access_key`, `has_secret`, and `access_key_id == "••••cord"`.
+    - `activating_s3_sends_new_uploads_there_and_survives_a_restart`:
+      1. AddStorage, then ActivateStorage.
+      2. Upload and send a file.
+      3. The bucket holds `a/{id}`: check with `bucket.storage().size(..)`, which adds the prefix.
+      4. The download equals the original.
+      5. `server.restart(|_| {})` and reconnect.
+      6. GetStorage shows the S3 storage active, the download still equals the original, and a new upload also lands in the bucket.
+      7. RemoveStorage of the S3 storage → CONFLICT.
+    - `a_storage_holding_files_keeps_its_bucket`: with one file on S3:
+      - UpdateStorage with another bucket name → CONFLICT;
+      - with only a new name → ok, and GetStorage shows the name.
+- [ ] **Step 2:** Run → FAIL. **Step 3:** Implement and regenerate the sqlx data. **Step 4:** Run → PASS, including the S3 tests.
 - [ ] **Step 5: Commit:** `feat: owner storage management (A3)`.
 
 ### Task 16: Moving existing files
 
 **Files:**
 - Create: `src/attachments/move_job.rs`.
-- Modify: `src/attachments/{mod,manage}.rs`, `src/handlers/storage.rs`, `tests/s3.rs`.
+- Modify:
+  - `src/attachments/mod.rs` (`pub mod move_job;`, the mover, startup cleanup);
+  - `src/attachments/manage.rs` (the `r#move` line);
+  - `src/db/storage.rs` (`queue_blob_after`);
+  - `src/handlers/storage.rs`;
+  - `src/handlers/mod.rs`;
+  - `tests/storage.rs`;
+  - `tests/s3.rs`.
 
 **Interfaces:**
-- `pub struct Mover { state: std::sync::Mutex<Option<proto::StorageMove>>, cancel: std::sync::Mutex<Option<CancellationToken>> }`
-- **`pub fn start(state: &Arc<AppState>) -> Result<(), ApiError>`:**
-  - Already running → CONFLICT.
-  - Otherwise the target is the active id; totals come from `count_not_on(target)`; spawn the job.
-- `pub fn stop(&self)`
-- `pub fn snapshot(&self) -> Option<proto::StorageMove>`
-- **The job:**
-  - Pages of 50 via `not_on(target, after_id, 50)`, processed with `for_each_concurrent(2)`.
-  - Per row: copy `a/{id}` (and `t/{id}` when `has_thumbnail`) from `backend(row.storage_id)` to the target. Copy through a temp file in `temp_dir`: `get_range` in 8 MiB chunks, write, then `put_file`.
-  - Then `set_storage_if(id, from, target)`:
-    - true → `queue_blob(from, key)` for each copied key;
-    - false (the row was deleted or moved meanwhile) → `queue_blob(target, key)`.
-  - Retries: 3, with backoff 2 s, 4 s, 8 s. After that `failed += 1`.
-  - Progress: broadcast `StorageUpdate` to the owner at most every 2 s, and once at the end with `running = false`.
-  - The cancel token stops between files.
 
-- [ ] **Step 1: Write the test** (ignored, MinIO): `moving_files_copies_ciphertext_and_cleans_up`.
-  1. Upload 3 files on local and send them.
-  2. Add and activate S3.
-  3. StartStorageMove; wait for a StorageUpdate with `running == false`.
-  4. Assert: `files_done == 3`, `failed == 0`; downloads still equal the originals; after `drain_blob_deletions` the local object files are gone; RemoveStorage(1) is still refused (local can't be removed), but `count_on(1) == 0`.
-- [ ] **Step 2:** Run → FAIL. **Step 3:** Implement. **Step 4:** Run → PASS.
+- **Query** (`src/db/storage.rs`), then regenerate the sqlx data:
+
+```rust
+/// Queues an object that must stay until `not_before` (ms).
+pub async fn queue_blob_after(
+    conn: &mut SqliteConnection,
+    storage_id: i64,
+    key: &str,
+    not_before: i64,
+) -> Result<(), sqlx::Error> {
+    sqlx::query!(
+        "INSERT INTO blob_deletions (storage_id, object_key, next_attempt_at) VALUES ($1, $2, $3)",
+        storage_id,
+        key,
+        not_before
+    )
+    .execute(conn)
+    .await?;
+    Ok(())
+}
+```
+
+- **`src/attachments/move_job.rs`**, exactly:
+
+```rust
+//! Moves every file to the active storage. Ciphertext is copied as is, so
+//! nothing is decrypted or re-encrypted.
+
+use std::path::Path;
+use std::sync::{Arc, Mutex, PoisonError};
+use std::time::{Duration, Instant};
+
+use futures_util::StreamExt;
+use opencord_proto::v1 as proto;
+use sqlx::Connection;
+use tokio::io::AsyncWriteExt;
+use tokio_util::sync::CancellationToken;
+
+use super::{Backend, ObjectKind, StorageError, object_key};
+use crate::db;
+use crate::db::attachments::AttachmentRow;
+use crate::error::ApiError;
+use crate::state::{AppState, now_ms};
+
+const PAGE: i64 = 50;
+const AT_ONCE: usize = 2;
+const RETRIES: u32 = 3;
+const COPY_CHUNK: u64 = 8 * 1024 * 1024;
+const PROGRESS_EVERY: Duration = Duration::from_secs(2);
+/// Old copies outlive the switch by this much, so downloads that started
+/// before it can finish.
+const OLD_COPY_GRACE_MS: i64 = 60 * 60 * 1000;
+
+#[derive(Debug, Default)]
+pub struct Mover {
+    /// The running or last move. Kept when it ends, so the page shows how it
+    /// went.
+    progress: Mutex<Option<proto::StorageMove>>,
+    /// Present exactly while a move runs.
+    cancel: Mutex<Option<CancellationToken>>,
+    last_sent: Mutex<Option<Instant>>,
+}
+
+impl Mover {
+    pub fn progress(&self) -> Option<proto::StorageMove> {
+        *self.progress.lock().unwrap_or_else(PoisonError::into_inner)
+    }
+
+    pub fn is_running(&self) -> bool {
+        self.cancel
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .is_some()
+    }
+
+    /// The job stops before its next file.
+    pub fn stop(&self) {
+        if let Some(token) = self
+            .cancel
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .as_ref()
+        {
+            token.cancel();
+        }
+    }
+
+    /// Applies `change`; true when it's time to send the owner an update.
+    fn update(&self, change: impl FnOnce(&mut proto::StorageMove)) -> bool {
+        if let Some(progress) = self
+            .progress
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .as_mut()
+        {
+            change(progress);
+        }
+        let mut last_sent = self
+            .last_sent
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner);
+        let due = last_sent.is_none_or(|at| at.elapsed() >= PROGRESS_EVERY);
+        if due {
+            *last_sent = Some(Instant::now());
+        }
+        due
+    }
+}
+
+/// Starts moving every file that isn't on the active storage. The caller
+/// holds the write lock, so the active storage can't change meanwhile.
+pub async fn start(state: &Arc<AppState>) -> Result<(), ApiError> {
+    let mover = state.attachments.mover();
+    if mover.is_running() {
+        return Err(ApiError::conflict("files are already being moved"));
+    }
+    let target = state.attachments.active_id();
+    let (files, bytes) = {
+        let mut conn = state.db.acquire().await?;
+        db::attachments::count_not_on(&mut conn, target).await?
+    };
+    let token = CancellationToken::new();
+    *mover.cancel.lock().unwrap_or_else(PoisonError::into_inner) = Some(token.clone());
+    *mover
+        .progress
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner) = Some(proto::StorageMove {
+        to_storage_id: target,
+        running: true,
+        files_total: u64::try_from(files).unwrap_or(0),
+        bytes_total: u64::try_from(bytes).unwrap_or(0),
+        ..Default::default()
+    });
+    *mover
+        .last_sent
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner) = None;
+    tokio::spawn(run(Arc::clone(state), target, token));
+    Ok(())
+}
+
+async fn run(state: Arc<AppState>, target: i64, cancel: CancellationToken) {
+    let mut after_id = 0;
+    while !cancel.is_cancelled() {
+        let page = match next_page(&state, target, after_id).await {
+            Ok(page) => page,
+            Err(error) => {
+                tracing::error!(%error, "the files to move couldn't be listed");
+                break;
+            }
+        };
+        let Some(last) = page.last() else { break };
+        after_id = last.id;
+        futures_util::stream::iter(page)
+            .for_each_concurrent(AT_ONCE, |row| {
+                let state = &state;
+                let cancel = &cancel;
+                async move {
+                    if cancel.is_cancelled() {
+                        return;
+                    }
+                    let moved = move_with_retries(state, &row, target, cancel).await;
+                    let due = state.attachments.mover().update(|progress| {
+                        if moved {
+                            progress.files_done += 1;
+                            progress.bytes_done += u64::try_from(row.size_bytes).unwrap_or(0);
+                        } else {
+                            progress.failed += 1;
+                        }
+                    });
+                    if due {
+                        send_progress(state).await;
+                    }
+                }
+            })
+            .await;
+    }
+    let mover = state.attachments.mover();
+    mover.update(|progress| progress.running = false);
+    *mover.cancel.lock().unwrap_or_else(PoisonError::into_inner) = None;
+    send_progress(&state).await;
+}
+
+async fn next_page(
+    state: &AppState,
+    target: i64,
+    after_id: i64,
+) -> Result<Vec<AttachmentRow>, sqlx::Error> {
+    let mut conn = state.db.acquire().await?;
+    db::attachments::not_on(&mut conn, target, after_id, PAGE).await
+}
+
+async fn send_progress(state: &AppState) {
+    if let Err(error) = super::manage::broadcast(state).await {
+        tracing::warn!(?error, "the storage move's progress couldn't be sent");
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
+enum MoveError {
+    #[error(transparent)]
+    Storage(#[from] StorageError),
+    #[error(transparent)]
+    Database(#[from] sqlx::Error),
+    #[error("storage {0} isn't loaded")]
+    Missing(i64),
+}
+
+/// Three retries, 2, 4 and 8 seconds apart. False when the file stays put.
+async fn move_with_retries(
+    state: &AppState,
+    row: &AttachmentRow,
+    target: i64,
+    cancel: &CancellationToken,
+) -> bool {
+    for attempt in 0..=RETRIES {
+        match move_one(state, row, target).await {
+            Ok(()) => return true,
+            Err(error) if attempt < RETRIES && !cancel.is_cancelled() => {
+                tracing::warn!(attachment_id = row.id, %error, attempt, "moving a file failed; trying again");
+                tokio::time::sleep(Duration::from_secs(2 << attempt)).await;
+            }
+            Err(error) => {
+                tracing::error!(attachment_id = row.id, %error, "a file couldn't be moved");
+                return false;
+            }
+        }
+    }
+    false
+}
+
+async fn move_one(state: &AppState, row: &AttachmentRow, target: i64) -> Result<(), MoveError> {
+    let from = row.storage_id;
+    let source = state
+        .attachments
+        .backend(from)
+        .ok_or(MoveError::Missing(from))?;
+    let dest = state
+        .attachments
+        .backend(target)
+        .ok_or(MoveError::Missing(target))?;
+    let mut keys = vec![object_key(ObjectKind::File, row.id)];
+    if row.has_thumbnail {
+        keys.push(object_key(ObjectKind::Thumbnail, row.id));
+    }
+    for key in &keys {
+        let path = state
+            .attachments
+            .temp_dir()
+            .join(format!("move-{}.part", key.replace('/', "-")));
+        let copied = copy(&source, &dest, key, &path).await;
+        remove_temp(&path).await;
+        copied?;
+    }
+    // Writes only (Working Rule 20): the row switches and the copies nobody
+    // needs are queued together.
+    let mut conn = state.db.acquire().await?;
+    let mut tx = conn.begin().await?;
+    let moved = db::attachments::set_storage_if(&mut tx, row.id, from, target).await?;
+    if moved {
+        let not_before = now_ms() + OLD_COPY_GRACE_MS;
+        for key in &keys {
+            db::storage::queue_blob_after(&mut tx, from, key, not_before).await?;
+        }
+    } else {
+        // Deleted meanwhile: its old copies are already queued, and the new
+        // ones are unused.
+        for key in &keys {
+            db::storage::queue_blob(&mut tx, target, key).await?;
+        }
+    }
+    tx.commit().await?;
+    Ok(())
+}
+
+/// Through a temp file, in 8 MiB reads.
+async fn copy(
+    source: &Backend,
+    dest: &Backend,
+    key: &str,
+    path: &Path,
+) -> Result<(), StorageError> {
+    let size = source.size(key).await?.ok_or(StorageError::NotFound)?;
+    let mut file = tokio::fs::File::create(path).await?;
+    let mut offset = 0;
+    while offset < size {
+        let end = (offset + COPY_CHUNK).min(size);
+        file.write_all(&source.get_range(key, offset, end).await?)
+            .await?;
+        offset = end;
+    }
+    file.sync_all().await?;
+    drop(file);
+    dest.put_file(key, path).await
+}
+
+/// A local storage moved the file already; anything else is logged.
+async fn remove_temp(path: &Path) {
+    if let Err(error) = tokio::fs::remove_file(path).await
+        && error.kind() != std::io::ErrorKind::NotFound
+    {
+        tracing::warn!(%error, "a move's temp file couldn't be deleted");
+    }
+}
+```
+
+  - Why old copies wait an hour: a download that started before the switch reads the old copy, so it must outlive the switch.
+  - A file deleted meanwhile already had its old copies queued by the `attachments_queue_blobs` trigger.
+- **`src/attachments/mod.rs`:**
+  - `Attachments` gains `mover: move_job::Mover`, built with `move_job::Mover::default()`, and:
+
+    ```rust
+    pub fn mover(&self) -> &move_job::Mover {
+        &self.mover
+    }
+    ```
+
+  - In `start()`, also delete what a cut-short move or bucket test leaves. Replace the `is_orphan` computation with:
+
+    ```rust
+    let name = path
+        .file_name()
+        .and_then(|name| name.to_str())
+        .unwrap_or_default();
+    // A move or a bucket test that was cut short leaves these.
+    let is_leftover = name.starts_with("move-") || name.starts_with("storage-test-");
+    let is_orphan = name
+        .strip_suffix(".part")
+        .and_then(|id| id.parse::<i64>().ok())
+        .is_some_and(|id| !live.contains(&id));
+    ```
+
+    Then delete when `is_leftover || is_orphan`.
+- **`manage.rs`:** `r#move: state.attachments.mover().progress(),`.
+- **Handlers:**
+  - `start_move(ctx)`:
+    1. `require_owner`;
+    2. take the write lock;
+    3. `move_job::start(ctx.state).await?`;
+    4. answer the storage.
+  - `stop_move(ctx)`:
+    1. `require_owner`;
+    2. `ctx.state.attachments.mover().stop()`;
+    3. return `Ok(Response::Storage(manage::snapshot(ctx.state).await?))`. The job sends its final update itself.
+  - `activate`: right after taking the write lock, a running move → CONFLICT "wait for the move to finish, or stop it, first".
+  - Dispatch both requests.
+
+- [ ] **Step 1: Write tests.**
+  - **Integration, `tests/storage.rs`:** `a_move_with_nothing_to_move_finishes`:
+    1. StartStorageMove on a fresh server answers a `move` with `files_total == 0`. Don't assert `running`: with nothing to move, the job can finish before the answer is built.
+    2. A StorageUpdate whose `move` has `running == false` arrives.
+    3. StopStorageMove then answers ok.
+  - **S3, ignored:** `moving_files_copies_ciphertext_and_cleans_up`:
+    1. Upload three files on the local storage, one of them a PNG so that a thumbnail moves too, and send them.
+    2. Add and activate S3.
+    3. StartStorageMove. Wait for a StorageUpdate whose `move` has `running == false`.
+    4. `files_total == 3`, `files_done == 3`, `failed == 0`.
+    5. The three downloads equal the originals, and the PNG's thumbnail downloads.
+    6. The local object files still exist after `drain_blob_deletions(now)`, and are gone after `drain_blob_deletions(now + 3_600_000 + 1_000)`.
+    7. GetStorage: local `file_count == 0`, S3 `file_count == 3`.
+- [ ] **Step 2:** Run → FAIL. **Step 3:** Implement and regenerate the sqlx data. **Step 4:** Run → PASS, including the S3 tests.
 - [ ] **Step 5: Commit:** `feat: moving files between storages (A3)`.
 
-**A3 stop.** Full checks plus the MinIO tests, **D55**, ledger, report.
+**A3 stop.**
+1. Run the full checks and the S3 tests, then `docker stop opencord-s3`.
+2. Update the ledger and write the report.
+3. Copy this decisions entry into `docs/decisions.md` (see "Milestone stops"):
+
+```markdown
+## D55: Media uploads: S3 storage, storage management and moving files (Phase 4 A3, 2026-10-19)
+
+- **Why.** Milestone A3 of media uploads (`docs/superpowers/plans/2026-10-18-media-uploads.md`) lets the owner keep files in S3-compatible buckets. Commits: <commits>.
+- **The S3 backend** (`attachments/storage/s3.rs`).
+  - Requests are presigned with `rusty-s3` 0.10.2 for 15 minutes and sent with the server's own `reqwest` client, with 300 seconds each. Network errors drop the signed URL (`without_url`), so no URL reaches a log or a reply.
+  - Files up to 64 MiB go up in one request. Larger ones go up as multipart uploads in 16 MiB parts, aborted on failure.
+  - Reads are ranged GETs. A missing object is `NotFound`, and a delete treats 404 as done.
+  - S3 errors become "Code: Message" from the error body, at most 200 characters.
+  - The bucket test writes 1 KiB, reads bytes 100–199 back, uploads 5 MiB + 1 KiB in two parts and deletes both. It stops at the first failed step.
+- **Loading.** `Attachments::load` builds every S3 storage at startup and restores the active one. A storage whose secret can't be opened stops the server, rather than leaving its files unreadable.
+- **Managing storage.**
+  - Only the owner may send the storage requests; an administrator gets FORBIDDEN.
+  - AddStorage, UpdateStorage with new bucket settings, and ActivateStorage of an S3 storage run the bucket test first. A failed step is STORAGE_UNAVAILABLE "the bucket test failed at “step”: detail".
+  - The secret key is sealed as `storage-secret:<id>` and never sent back. An empty secret in UpdateStorage keeps the stored one. Answers show `has_secret` and the access key masked to its last 4 characters.
+  - A storage that holds files can't change its endpoint, bucket or key prefix.
+  - The local storage can't be removed. Another storage can be removed only when it's inactive, holds no files and has no deletions waiting.
+  - Every change goes to the owner as StorageUpdate.
+- **Moving files** (`attachments/move_job.rs`).
+  - StartStorageMove copies every ready or sent file, with its thumbnail, from the other storages to the active one: 50 rows per page, two files at a time, through a temp file in 8 MiB reads. The ciphertext is copied as is.
+  - The row switches with `set_storage_if` in the same transaction that queues the old copies for deletion. A file deleted meanwhile gets its new copies queued instead.
+  - Old copies are deleted an hour after the switch, so downloads already under way can finish.
+  - Each file gets three retries, 2, 4 and 8 seconds apart. After that it counts as failed and stays where it was.
+  - Progress goes to the owner at most every 2 seconds, and once at the end. StopStorageMove stops before the next file, and activating another storage is refused while a move runs.
+  - Startup deletes the temp files a move or a bucket test left behind.
+- **Tests.** The S3 tests in `tests/s3.rs` are ignored by default and run against RustFS 1.0.3 in Docker, because MinIO no longer publishes images.
+```
 
 ---
 
@@ -2499,7 +3955,7 @@ ffmpeg -display_rotation 90 -i h264_aac.mp4 -c copy rotated_90.mp4
 3. **Limits and blocked extensions.**
 4. **"Only in the app":** what it does (no links; authenticated, permission-checked serving; an encrypted app cache) and doesn't (a member can save a copy).
 5. **Moving between storages.**
-6. **Testing:** the MinIO command from Task 14, and a manual checklist (the live checks listed at A5, A6 and A7).
+6. **Testing:** the S3 test server and command from the top of Milestone A3, and a manual checklist (the live checks listed at A5, A6 and A7).
 
 **Steps:**
 - [ ] **Step 1: Security pass.** Run the `security-review` checklist over the diff of `phase4-media` against `pre`. Fix every finding, adding a regression test for each. Must-checks:
@@ -2515,7 +3971,7 @@ ffmpeg -display_rotation 90 -i h264_aac.mp4 -c copy rotated_90.mp4
   - Scrolling a channel with 200 image messages stays at 60 fps in profile mode.
   - Record the results in `docs/performance.md`.
 - [ ] **Step 3:** Write the docs. Add `cmake` to the Docker build stage if Task 9 didn't.
-- [ ] **Step 4:** Full checks, plus the MinIO tests and `app/tool/check_platforms.sh`.
+- [ ] **Step 4:** Full checks, plus the S3 tests (Milestone A3) and `app/tool/check_platforms.sh`.
 - [ ] **Step 5: Commit:** `docs: attachments, storage and voice messages; hardening (A8)`.
 
 **A8 stop.** Write **D60** (summary and measured numbers) and report.
