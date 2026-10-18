@@ -365,23 +365,15 @@ async fn a_repeated_piece_gets_a_conflict_and_the_upload_continues() {
         })
         .await;
 
-    // Send a message and mark the attachment sent
-    let msg_res = member
+    // Send a message with the attachment
+    member
         .ok(Req::SendMessage(proto::SendMessage {
             channel_id: text,
             content: "file message".into(),
+            attachment_ids: vec![att.id],
             ..Default::default()
         }))
         .await;
-    let message_id = match msg_res {
-        Res::Message(m) => m.id,
-        other => panic!("expected Message, got {other:?}"),
-    };
-
-    let mut conn = server.handle.db().acquire().await.unwrap();
-    opencord_server::db::attachments::mark_sent(&mut conn, &[att.id], message_id)
-        .await
-        .unwrap();
 
     // Download equals the original
     let (status, downloaded) = server
@@ -1064,21 +1056,14 @@ async fn downloads_return_exact_bytes_and_ranges() {
         )
         .await;
 
-        let msg_res = member
+        member
             .ok(Req::SendMessage(proto::SendMessage {
                 channel_id: text,
                 content: format!("size {size}"),
+                attachment_ids: vec![att.id],
                 ..Default::default()
             }))
             .await;
-        let message_id = match msg_res {
-            Res::Message(m) => m.id,
-            other => panic!("expected Message, got {other:?}"),
-        };
-        let mut conn = server.handle.db().acquire().await.unwrap();
-        opencord_server::db::attachments::mark_sent(&mut conn, &[att.id], message_id)
-            .await
-            .unwrap();
 
         // Full GET equals the original
         let (status, dl) = server
@@ -1148,6 +1133,7 @@ async fn downloads_check_the_channel_at_request_time() {
         .ok(Req::SendMessage(proto::SendMessage {
             channel_id: text,
             content: "perm check".into(),
+            attachment_ids: vec![att.id],
             ..Default::default()
         }))
         .await;
@@ -1155,10 +1141,6 @@ async fn downloads_check_the_channel_at_request_time() {
         Res::Message(m) => m.id,
         other => panic!("expected Message, got {other:?}"),
     };
-    let mut conn = server.handle.db().acquire().await.unwrap();
-    opencord_server::db::attachments::mark_sent(&mut conn, &[att.id], message_id)
-        .await
-        .unwrap();
 
     // 1. Owner hides channel from @everyone with an overwrite -> 404
     owner
@@ -1308,21 +1290,14 @@ async fn headers_forbid_inline_use() {
     )
     .await;
 
-    let msg_res = member
+    member
         .ok(Req::SendMessage(proto::SendMessage {
             channel_id: text,
             content: "header check".into(),
+            attachment_ids: vec![att.id],
             ..Default::default()
         }))
         .await;
-    let message_id = match msg_res {
-        Res::Message(m) => m.id,
-        other => panic!("expected Message, got {other:?}"),
-    };
-    let mut conn = server.handle.db().acquire().await.unwrap();
-    opencord_server::db::attachments::mark_sent(&mut conn, &[att.id], message_id)
-        .await
-        .unwrap();
 
     let auth = format!("Bearer {member_token}");
 
@@ -1518,4 +1493,580 @@ async fn deleted_rows_delete_their_objects() {
         !thumb_file.exists(),
         "thumbnail object file must be deleted by drain"
     );
+}
+
+async fn upload_voice_test(
+    client: &mut TestClient,
+    server: &TestServer,
+    token: &str,
+    channel_id: i64,
+) -> proto::Attachment {
+    let ogg = voice_ogg(1.0, 1.0);
+    let res = client
+        .ok(Req::CreateUpload(proto::CreateUpload {
+            channel_id,
+            filename: "voice-message.ogg".into(),
+            size_bytes: ogg.len() as u64,
+            kind: proto::AttachmentKind::VoiceMessage.into(),
+            width: None,
+            height: None,
+            duration_ms: None,
+        }))
+        .await;
+    let upload = match res {
+        Res::Upload(u) => u,
+        other => panic!("expected Upload, got {other:?}"),
+    };
+    let auth = format!("Bearer {token}");
+    let (status, _) = server
+        .send_http(
+            "PUT",
+            &format!("/media/uploads/{}", upload.upload_id),
+            &[("Authorization", &auth), ("Upload-Offset", "0")],
+            &ogg,
+        )
+        .await;
+    assert_eq!(status, 200);
+    let (status, _) = server
+        .send_http(
+            "POST",
+            &format!("/media/uploads/{}/finish", upload.upload_id),
+            &[("Authorization", &auth)],
+            &[],
+        )
+        .await;
+    assert_eq!(status, 202);
+    client
+        .wait_for(|kind| match kind {
+            proto::event::Kind::UploadReady(ready) => ready.attachment.clone(),
+            _ => None,
+        })
+        .await
+}
+
+#[tokio::test]
+async fn a_message_carries_its_files_in_order() {
+    let Room {
+        server,
+        mut member,
+        member_token,
+        text,
+        ..
+    } = room().await;
+
+    let a = upload(&mut member, &server, &member_token, text, "a.txt", b"aaa").await;
+    let b = upload(&mut member, &server, &member_token, text, "b.txt", b"bbb").await;
+
+    let res = member
+        .ok(Req::SendMessage(proto::SendMessage {
+            channel_id: text,
+            content: "".into(),
+            attachment_ids: vec![b.id, a.id],
+            ..Default::default()
+        }))
+        .await;
+    let msg = match res {
+        Res::Message(m) => m,
+        other => panic!("expected Message, got {other:?}"),
+    };
+    assert_eq!(msg.content, "");
+    assert_eq!(msg.attachments.len(), 2);
+    assert_eq!(msg.attachments[0].id, b.id);
+    assert_eq!(msg.attachments[1].id, a.id);
+
+    // MessageCreate event
+    let created = member
+        .wait_for(|kind| match kind {
+            proto::event::Kind::MessageCreate(c)
+                if c.message.as_ref().map(|m| m.id) == Some(msg.id) =>
+            {
+                c.message.clone()
+            }
+            _ => None,
+        })
+        .await;
+    assert_eq!(created.attachments.len(), 2);
+    assert_eq!(created.attachments[0].id, b.id);
+    assert_eq!(created.attachments[1].id, a.id);
+
+    // FetchMessages
+    let fetch_res = member
+        .ok(Req::FetchMessages(proto::FetchMessages {
+            channel_id: text,
+            limit: 10,
+            before: None,
+        }))
+        .await;
+    let list = match fetch_res {
+        Res::Messages(m) => m.messages,
+        other => panic!("expected Messages, got {other:?}"),
+    };
+    assert_eq!(list.len(), 1);
+    assert_eq!(list[0].attachments.len(), 2);
+    assert_eq!(list[0].attachments[0].id, b.id);
+    assert_eq!(list[0].attachments[1].id, a.id);
+}
+
+#[tokio::test]
+async fn sending_checks_permissions_again_at_send_time() {
+    let Room {
+        server,
+        mut owner,
+        mut member,
+        member_token,
+        everyone,
+        text,
+        ..
+    } = room().await;
+
+    let att = upload(
+        &mut member,
+        &server,
+        &member_token,
+        text,
+        "doc.txt",
+        b"hello",
+    )
+    .await;
+
+    // Owner removes ATTACH_FILES from @everyone
+    owner
+        .ok(Req::UpdateRole(proto::UpdateRole {
+            role_id: everyone,
+            permissions: Some(
+                (opencord_common::permissions::Permissions::DEFAULT_EVERYONE
+                    - opencord_common::permissions::Permissions::ATTACH_FILES)
+                    .bits(),
+            ),
+            ..Default::default()
+        }))
+        .await;
+
+    let error = member
+        .error(Req::SendMessage(proto::SendMessage {
+            channel_id: text,
+            content: "hello".into(),
+            attachment_ids: vec![att.id],
+            ..Default::default()
+        }))
+        .await;
+    assert_eq!(error.code, proto::ErrorCode::Forbidden as i32);
+}
+
+#[tokio::test]
+async fn someone_elses_or_unready_uploads_cannot_be_sent() {
+    let Room {
+        server,
+        mut owner,
+        owner_token,
+        mut member,
+        member_token,
+        text,
+        ..
+    } = room().await;
+
+    // 1. Another user's upload
+    let owner_att = upload(
+        &mut owner,
+        &server,
+        &owner_token,
+        text,
+        "owner.txt",
+        b"owner",
+    )
+    .await;
+    let err = member
+        .error(Req::SendMessage(proto::SendMessage {
+            channel_id: text,
+            content: "take this".into(),
+            attachment_ids: vec![owner_att.id],
+            ..Default::default()
+        }))
+        .await;
+    assert_eq!(err.code, proto::ErrorCode::NotFound as i32);
+
+    // 2. One still uploading
+    let unready_res = member
+        .ok(Req::CreateUpload(proto::CreateUpload {
+            channel_id: text,
+            filename: "unready.txt".into(),
+            size_bytes: 100,
+            kind: proto::AttachmentKind::File.into(),
+            width: None,
+            height: None,
+            duration_ms: None,
+        }))
+        .await;
+    let unready_id = match unready_res {
+        Res::Upload(u) => u.upload_id,
+        other => panic!("expected Upload, got {other:?}"),
+    };
+    let err = member
+        .error(Req::SendMessage(proto::SendMessage {
+            channel_id: text,
+            content: "unready".into(),
+            attachment_ids: vec![unready_id],
+            ..Default::default()
+        }))
+        .await;
+    assert_eq!(err.code, proto::ErrorCode::NotFound as i32);
+
+    // 3. One made in another channel
+    let ch2_res = owner
+        .ok(Req::CreateChannel(proto::CreateChannel {
+            name: "other-channel".into(),
+            kind: proto::ChannelKind::Text.into(),
+            topic: None,
+            parent_id: None,
+        }))
+        .await;
+    let ch2_id = match ch2_res {
+        Res::Channel(c) => c.id,
+        other => panic!("expected Channel, got {other:?}"),
+    };
+    let other_channel_att = upload(
+        &mut member,
+        &server,
+        &member_token,
+        ch2_id,
+        "other.txt",
+        b"other",
+    )
+    .await;
+    let err = member
+        .error(Req::SendMessage(proto::SendMessage {
+            channel_id: text,
+            content: "wrong channel".into(),
+            attachment_ids: vec![other_channel_att.id],
+            ..Default::default()
+        }))
+        .await;
+    assert_eq!(err.code, proto::ErrorCode::NotFound as i32);
+}
+
+#[tokio::test]
+async fn voice_messages_stand_alone() {
+    let Room {
+        server,
+        mut member,
+        member_token,
+        text,
+        ..
+    } = room().await;
+
+    let voice_att = upload_voice_test(&mut member, &server, &member_token, text).await;
+    let file_att = upload(&mut member, &server, &member_token, text, "doc.txt", b"doc").await;
+
+    // voice + text -> INVALID_ARGUMENT
+    let err = member
+        .error(Req::SendMessage(proto::SendMessage {
+            channel_id: text,
+            content: "voice message with text".into(),
+            attachment_ids: vec![voice_att.id],
+            ..Default::default()
+        }))
+        .await;
+    assert_eq!(err.code, proto::ErrorCode::InvalidArgument as i32);
+
+    // voice + file -> INVALID_ARGUMENT
+    let err = member
+        .error(Req::SendMessage(proto::SendMessage {
+            channel_id: text,
+            content: "".into(),
+            attachment_ids: vec![voice_att.id, file_att.id],
+            ..Default::default()
+        }))
+        .await;
+    assert_eq!(err.code, proto::ErrorCode::InvalidArgument as i32);
+
+    // voice alone -> ok
+    let res = member
+        .ok(Req::SendMessage(proto::SendMessage {
+            channel_id: text,
+            content: "".into(),
+            attachment_ids: vec![voice_att.id],
+            ..Default::default()
+        }))
+        .await;
+    let msg = match res {
+        Res::Message(m) => m,
+        other => panic!("expected Message, got {other:?}"),
+    };
+    assert_eq!(msg.attachments.len(), 1);
+    assert_eq!(msg.attachments[0].id, voice_att.id);
+    assert_eq!(
+        msg.attachments[0].kind,
+        proto::AttachmentKind::VoiceMessage as i32
+    );
+}
+
+#[tokio::test]
+async fn editing_keeps_files_and_allows_empty_text() {
+    let Room {
+        server,
+        mut member,
+        member_token,
+        text,
+        ..
+    } = room().await;
+
+    let file_att = upload(
+        &mut member,
+        &server,
+        &member_token,
+        text,
+        "file.txt",
+        b"file",
+    )
+    .await;
+    let msg_res = member
+        .ok(Req::SendMessage(proto::SendMessage {
+            channel_id: text,
+            content: "initial text".into(),
+            attachment_ids: vec![file_att.id],
+            ..Default::default()
+        }))
+        .await;
+    let msg_id = match msg_res {
+        Res::Message(m) => m.id,
+        other => panic!("expected Message, got {other:?}"),
+    };
+
+    // a message with a file edited to "" -> ok, and its MessageUpdate carries the file
+    let edit_res = member
+        .ok(Req::EditMessage(proto::EditMessage {
+            message_id: msg_id,
+            content: "".into(),
+        }))
+        .await;
+    let edited = match edit_res {
+        Res::Message(m) => m,
+        other => panic!("expected Message, got {other:?}"),
+    };
+    assert_eq!(edited.content, "");
+    assert_eq!(edited.attachments.len(), 1);
+    assert_eq!(edited.attachments[0].id, file_att.id);
+
+    let update = member
+        .wait_for(|kind| match kind {
+            proto::event::Kind::MessageUpdate(u)
+                if u.message.as_ref().map(|m| m.id) == Some(msg_id) =>
+            {
+                u.message.clone()
+            }
+            _ => None,
+        })
+        .await;
+    assert_eq!(update.content, "");
+    assert_eq!(update.attachments.len(), 1);
+    assert_eq!(update.attachments[0].id, file_att.id);
+
+    // a text-only message edited to "" -> INVALID_ARGUMENT
+    let text_msg_res = member
+        .ok(Req::SendMessage(proto::SendMessage {
+            channel_id: text,
+            content: "text only".into(),
+            ..Default::default()
+        }))
+        .await;
+    let text_msg_id = match text_msg_res {
+        Res::Message(m) => m.id,
+        other => panic!("expected Message, got {other:?}"),
+    };
+    let err = member
+        .error(Req::EditMessage(proto::EditMessage {
+            message_id: text_msg_id,
+            content: "".into(),
+        }))
+        .await;
+    assert_eq!(err.code, proto::ErrorCode::InvalidArgument as i32);
+
+    // a voice message edited to "hi" -> INVALID_ARGUMENT
+    let voice_att = upload_voice_test(&mut member, &server, &member_token, text).await;
+    let voice_msg_res = member
+        .ok(Req::SendMessage(proto::SendMessage {
+            channel_id: text,
+            content: "".into(),
+            attachment_ids: vec![voice_att.id],
+            ..Default::default()
+        }))
+        .await;
+    let voice_msg_id = match voice_msg_res {
+        Res::Message(m) => m.id,
+        other => panic!("expected Message, got {other:?}"),
+    };
+    let err = member
+        .error(Req::EditMessage(proto::EditMessage {
+            message_id: voice_msg_id,
+            content: "hi".into(),
+        }))
+        .await;
+    assert_eq!(err.code, proto::ErrorCode::InvalidArgument as i32);
+}
+
+#[tokio::test]
+async fn deleting_a_message_deletes_its_files() {
+    let Room {
+        server,
+        mut member,
+        member_token,
+        text,
+        ..
+    } = room().await;
+
+    let img = png(200, 200);
+    let att = upload(&mut member, &server, &member_token, text, "image.png", &img).await;
+    let msg_res = member
+        .ok(Req::SendMessage(proto::SendMessage {
+            channel_id: text,
+            content: "pic".into(),
+            attachment_ids: vec![att.id],
+            ..Default::default()
+        }))
+        .await;
+    let msg_id = match msg_res {
+        Res::Message(m) => m.id,
+        other => panic!("expected Message, got {other:?}"),
+    };
+
+    let shard = format!("{:02x}", (att.id >> 22) & 0xff);
+    let att_file = server
+        .dir
+        .path()
+        .join("data")
+        .join("attachments")
+        .join("a")
+        .join(&shard)
+        .join(att.id.to_string());
+    assert!(att_file.exists());
+
+    member
+        .ok(Req::DeleteMessage(proto::DeleteMessage {
+            message_id: msg_id,
+        }))
+        .await;
+
+    let now_ms = opencord_server::state::now_ms();
+    server.handle.drain_blob_deletions(now_ms + 1000).await;
+    assert!(!att_file.exists());
+
+    let (status, _) = server
+        .send_http(
+            "GET",
+            &format!("/media/attachments/{}", att.id),
+            &[("Authorization", &format!("Bearer {member_token}"))],
+            &[],
+        )
+        .await;
+    assert_eq!(status, 404);
+}
+
+#[tokio::test]
+async fn deleting_a_channel_deletes_its_files() {
+    let Room {
+        server,
+        mut owner,
+        mut member,
+        member_token,
+        ..
+    } = room().await;
+
+    let ch_res = owner
+        .ok(Req::CreateChannel(proto::CreateChannel {
+            name: "temp-channel".into(),
+            kind: proto::ChannelKind::Text.into(),
+            topic: None,
+            parent_id: None,
+        }))
+        .await;
+    let ch_id = match ch_res {
+        Res::Channel(c) => c.id,
+        other => panic!("expected Channel, got {other:?}"),
+    };
+
+    let img = png(100, 100);
+    let att = upload(&mut member, &server, &member_token, ch_id, "temp.png", &img).await;
+    member
+        .ok(Req::SendMessage(proto::SendMessage {
+            channel_id: ch_id,
+            content: "msg in doomed channel".into(),
+            attachment_ids: vec![att.id],
+            ..Default::default()
+        }))
+        .await;
+
+    let shard = format!("{:02x}", (att.id >> 22) & 0xff);
+    let att_file = server
+        .dir
+        .path()
+        .join("data")
+        .join("attachments")
+        .join("a")
+        .join(&shard)
+        .join(att.id.to_string());
+    assert!(att_file.exists());
+
+    owner
+        .ok(Req::DeleteChannel(proto::DeleteChannel {
+            channel_id: ch_id,
+        }))
+        .await;
+
+    let now_ms = opencord_server::state::now_ms();
+    server.handle.drain_blob_deletions(now_ms + 1000).await;
+    assert!(!att_file.exists());
+}
+
+#[tokio::test]
+async fn an_upload_cannot_be_sent_twice() {
+    let Room {
+        server,
+        mut member,
+        member_token,
+        text,
+        ..
+    } = room().await;
+
+    let att = upload(
+        &mut member,
+        &server,
+        &member_token,
+        text,
+        "once.txt",
+        b"once",
+    )
+    .await;
+
+    member
+        .ok(Req::SendMessage(proto::SendMessage {
+            channel_id: text,
+            content: "first send".into(),
+            attachment_ids: vec![att.id],
+            ..Default::default()
+        }))
+        .await;
+
+    let err = member
+        .error(Req::SendMessage(proto::SendMessage {
+            channel_id: text,
+            content: "second send".into(),
+            attachment_ids: vec![att.id],
+            ..Default::default()
+        }))
+        .await;
+    assert_eq!(err.code, proto::ErrorCode::NotFound as i32);
+
+    let fetch_res = member
+        .ok(Req::FetchMessages(proto::FetchMessages {
+            channel_id: text,
+            limit: 10,
+            before: None,
+        }))
+        .await;
+    let list = match fetch_res {
+        Res::Messages(m) => m.messages,
+        other => panic!("expected Messages, got {other:?}"),
+    };
+    assert_eq!(list.len(), 1);
+    assert_eq!(list[0].content, "first send");
 }

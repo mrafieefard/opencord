@@ -290,11 +290,6 @@ impl ServerHandle {
     }
 
     /// Intended for tests.
-    pub fn db(&self) -> &sqlx::SqlitePool {
-        &self.state.db
-    }
-
-    /// Intended for tests.
     pub async fn sweep_attachments(&self, now_ms: i64) {
         crate::attachments::gc::sweep(&self.state, now_ms).await;
     }

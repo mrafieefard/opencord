@@ -32,6 +32,13 @@ pub fn message_content(input: &str) -> Result<String, ValidationError> {
     Ok(trimmed.to_owned())
 }
 
+/// Message text that may be empty: a message with files needs no text.
+pub fn message_content_or_empty(input: &str) -> Result<String, ValidationError> {
+    let trimmed = input.trim();
+    require_max_chars("message", trimmed, MESSAGE_MAX_CHARS)?;
+    Ok(trimmed.to_owned())
+}
+
 pub fn display_name(input: &str) -> Result<String, ValidationError> {
     single_line_name("display name", input, NAME_MAX_CHARS)
 }
@@ -359,5 +366,11 @@ mod tests {
         assert_eq!(fetch_limit(0), FETCH_LIMIT_DEFAULT);
         assert_eq!(fetch_limit(10), 10);
         assert_eq!(fetch_limit(500), FETCH_LIMIT_MAX);
+    }
+
+    #[test]
+    fn message_content_or_empty_allows_empty_and_caps() {
+        assert_eq!(message_content_or_empty("  ").unwrap(), "");
+        assert!(message_content_or_empty(&"a".repeat(MESSAGE_MAX_CHARS + 1)).is_err());
     }
 }

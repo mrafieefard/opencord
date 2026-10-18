@@ -1397,7 +1397,7 @@ All paths below are under `crates/opencord-server/` unless they say otherwise.
   - The `attachments_queue_blobs` trigger queues the objects, and the blob worker deletes them.
   - A channel's deletion needs no code. `ON DELETE CASCADE` deletes its attachment rows, and the trigger fires for each one.
 
-- [ ] **Step 1: Write tests.**
+- [x] **Step 1: Write tests.**
   - **Unit, `validation.rs`:** `message_content_or_empty("  ")` gives `""`; `MESSAGE_MAX_CHARS + 1` characters give `Err`.
   - **Integration (`tests/attachments.rs`):**
     - `a_message_carries_its_files_in_order`: two uploads; send `[b, a]` with empty content. Both MessageCreate and FetchMessages give `[b, a]`.
@@ -1414,8 +1414,8 @@ All paths below are under `crates/opencord-server/` unless they say otherwise.
     - `deleting_a_message_deletes_its_files`: delete, then `drain_blob_deletions` → the object files are gone; GET → 404.
     - `deleting_a_channel_deletes_its_files`: send a message with a file, then delete the channel; drain → the objects are gone.
     - `an_upload_cannot_be_sent_twice`: the second send → NOT_FOUND, and no second message exists (FetchMessages holds one).
-- [ ] **Step 2:** Run → FAIL. **Step 3:** Implement and regenerate the sqlx data.
-- [ ] **Step 4: Remove the test hook.**
+- [x] **Step 2:** Run → FAIL. **Step 3:** Implement and regenerate the sqlx data.
+- [x] **Step 4: Remove the test hook.**
   - A1's tests link uploads to messages through `server.db()` and `mark_sent`. Change each of them to send a real message instead:
 
     ```rust
@@ -1425,7 +1425,7 @@ All paths below are under `crates/opencord-server/` unless they say otherwise.
   - Then delete `ServerHandle::db` from `src/server.rs`.
   - `grep -rn "\.db()" crates/opencord-server/tests` must print nothing.
   - Run → PASS.
-- [ ] **Step 5: Commit:** `feat: messages with attachments (A2)`.
+- [x] **Step 5: Commit:** `feat: messages with attachments (A2)`.
 
 ### Task 13: Upload settings, role limits and Ready
 

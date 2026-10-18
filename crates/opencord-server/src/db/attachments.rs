@@ -214,25 +214,34 @@ pub async fn set_failed(
     Ok(())
 }
 
+/// Moves the caller's ready uploads in this channel onto a message, keeping
+/// their order. False if any is no longer ready, theirs or in this channel;
+/// the caller then drops its transaction, which undoes the message.
 pub async fn mark_sent(
     conn: &mut SqliteConnection,
     ids: &[i64],
     message_id: i64,
-) -> Result<(), sqlx::Error> {
+    uploader_id: i64,
+    channel_id: i64,
+) -> Result<bool, sqlx::Error> {
     for (pos, id) in ids.iter().enumerate() {
         let position = pos as i64;
-        sqlx::query!(
-            "UPDATE attachments
-             SET message_id = $1, position = $2, state = 'sent'
-             WHERE id = $3",
+        let res = sqlx::query!(
+            "UPDATE attachments SET message_id = $1, position = $2, state = 'sent'
+             WHERE id = $3 AND state = 'ready' AND uploader_id = $4 AND channel_id = $5",
             message_id,
             position,
-            id
+            id,
+            uploader_id,
+            channel_id
         )
         .execute(&mut *conn)
         .await?;
+        if res.rows_affected() != 1 {
+            return Ok(false);
+        }
     }
-    Ok(())
+    Ok(true)
 }
 
 pub async fn for_messages(
@@ -526,7 +535,8 @@ mod tests {
         assert!(set_ready(&mut conn, 502, &ready_fields2, 40).await.unwrap());
 
         // Mark sent with specific order: 502 at position 0, 501 at position 1
-        mark_sent(&mut conn, &[502, 501], 100).await.unwrap();
+        assert!(mark_sent(&mut conn, &[502, 501], 100, 1, 10).await.unwrap());
+        assert!(!mark_sent(&mut conn, &[502, 501], 100, 1, 10).await.unwrap());
 
         let sent = for_messages(&mut conn, &[100]).await.unwrap();
         assert_eq!(sent.len(), 2);
