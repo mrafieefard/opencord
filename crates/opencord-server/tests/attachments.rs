@@ -36,10 +36,6 @@ async fn room() -> Room {
     }
 }
 
-fn media_token(ready: &proto::Ready) -> String {
-    ready.media_token.as_ref().unwrap().token.clone()
-}
-
 #[tokio::test]
 async fn create_upload_checks_permissions_and_size() {
     let Room {

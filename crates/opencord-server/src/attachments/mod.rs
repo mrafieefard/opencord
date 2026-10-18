@@ -3,6 +3,7 @@
 pub mod gc;
 pub mod http;
 pub mod images;
+pub mod manage;
 pub mod process;
 pub mod range;
 pub mod settings;
@@ -50,8 +51,10 @@ impl Attachments {
             1,
             Arc::new(Backend::Local(LocalStorage::new(config.attachments_dir()))),
         );
+        let temp_dir = config.uploads_temp_dir();
+        let _ = std::fs::create_dir_all(&temp_dir);
         Self {
-            temp_dir: config.uploads_temp_dir(),
+            temp_dir,
             max_file_bytes: config.max_file_bytes(),
             backends: RwLock::new(backends),
             active: AtomicI64::new(1),

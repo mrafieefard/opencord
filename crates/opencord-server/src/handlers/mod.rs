@@ -23,6 +23,7 @@ mod profile;
 mod roles;
 pub(crate) mod settings;
 pub(crate) mod soundboard;
+mod storage;
 mod streams;
 mod uploads;
 mod voice;
@@ -146,14 +147,14 @@ async fn dispatch(ctx: &Ctx<'_>, request: proto::Request) -> Result<Response, Ap
         Kind::CreateUpload(request) => uploads::create(ctx, request).await,
         Kind::CancelUpload(request) => uploads::cancel(ctx, request).await,
         Kind::UpdateUploadSettings(request) => uploads::update_settings(ctx, request).await,
-        Kind::GetStorage(_)
-        | Kind::AddStorage(_)
-        | Kind::UpdateStorage(_)
-        | Kind::TestStorage(_)
-        | Kind::ActivateStorage(_)
-        | Kind::RemoveStorage(_)
-        | Kind::StartStorageMove(_)
-        | Kind::StopStorageMove(_) => Err(ApiError::invalid_argument("not implemented")),
+        Kind::GetStorage(_) => storage::get(ctx).await,
+        Kind::AddStorage(request) => storage::add(ctx, request).await,
+        Kind::UpdateStorage(request) => storage::update(ctx, request).await,
+        Kind::TestStorage(request) => storage::test(ctx, request).await,
+        Kind::ActivateStorage(request) => storage::activate(ctx, request).await,
+        Kind::RemoveStorage(request) => storage::remove(ctx, request).await,
+        Kind::StartStorageMove(_) => storage::start_move(ctx).await,
+        Kind::StopStorageMove(_) => storage::stop_move(ctx).await,
     }
 }
 

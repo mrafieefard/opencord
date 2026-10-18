@@ -26,6 +26,31 @@ pub struct BlobRow {
     pub attempts: i64,
 }
 
+pub async fn count_blobs(conn: &mut SqliteConnection, storage_id: i64) -> Result<i64, sqlx::Error> {
+    let count: i64 = sqlx::query_scalar!(
+        "SELECT COUNT(*) FROM blob_deletions WHERE storage_id = $1",
+        storage_id
+    )
+    .fetch_one(conn)
+    .await?;
+    Ok(count)
+}
+
+pub async fn find(conn: &mut SqliteConnection, id: i64) -> Result<Option<StorageRow>, sqlx::Error> {
+    sqlx::query_as!(
+        StorageRow,
+        r#"SELECT id, kind, name, endpoint, region, bucket,
+                  key_prefix, path_style AS "path_style: bool",
+                  allow_http AS "allow_http: bool", access_key_id,
+                  secret_enc, active AS "active: bool", last_error,
+                  created_at
+           FROM storage_backends WHERE id = $1"#,
+        id
+    )
+    .fetch_optional(conn)
+    .await
+}
+
 pub async fn list(conn: &mut SqliteConnection) -> Result<Vec<StorageRow>, sqlx::Error> {
     sqlx::query_as!(
         StorageRow,

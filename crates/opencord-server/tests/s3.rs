@@ -11,9 +11,15 @@
 //! `OPENCORD_TEST_S3_ENDPOINT` overrides the endpoint (default
 //! `http://127.0.0.1:9000`).
 
+mod common;
+
 use std::time::Duration;
 
+use common::*;
+use opencord_proto::v1 as proto;
 use opencord_server::attachments::storage::{S3Settings, S3Storage};
+use proto::request::Kind as Request;
+use proto::response::Result as Response;
 use rusty_s3::{Bucket, Credentials, S3Action, UrlStyle};
 
 const ACCESS_KEY: &str = "opencord";
@@ -21,6 +27,17 @@ const SECRET_KEY: &str = "opencord-secret";
 
 fn endpoint() -> String {
     std::env::var("OPENCORD_TEST_S3_ENDPOINT").unwrap_or_else(|_| "http://127.0.0.1:9000".into())
+}
+
+fn code(error: &proto::Error) -> proto::ErrorCode {
+    proto::ErrorCode::try_from(error.code).unwrap()
+}
+
+fn get_storage(res: Response) -> proto::Storage {
+    match res {
+        Response::Storage(storage) => storage,
+        other => panic!("expected Storage, got {other:?}"),
+    }
 }
 
 /// A new, empty bucket for one test. `drop_bucket` removes it.
@@ -68,6 +85,19 @@ impl TestBucket {
 
     fn storage(&self) -> S3Storage {
         S3Storage::new(&self.settings(SECRET_KEY), self.http.clone()).unwrap()
+    }
+
+    fn proto_config(&self) -> proto::S3Config {
+        proto::S3Config {
+            endpoint: endpoint(),
+            region: "us-east-1".into(),
+            bucket: self.name.clone(),
+            key_prefix: "files/".into(),
+            path_style: true,
+            allow_http: true,
+            access_key_id: ACCESS_KEY.into(),
+            secret_access_key: SECRET_KEY.into(),
+        }
     }
 
     async fn drop_bucket(self) {
@@ -154,5 +184,226 @@ async fn the_bucket_test_passes_on_s3_and_fails_on_a_wrong_secret() {
     assert_eq!(failed.steps[0].name, "Write a small file");
     assert!(!failed.steps[0].detail.is_empty());
     println!("wrong secret: {}", failed.steps[0].detail);
+    bucket.drop_bucket().await;
+}
+
+#[tokio::test]
+#[ignore = "needs an S3 server; see the file header"]
+async fn the_secret_never_comes_back() {
+    let bucket = TestBucket::create().await;
+    let server = TestServer::start().await;
+    let (mut client, _ready) = owner(&server).await;
+
+    let res = client
+        .ok(Request::AddStorage(proto::AddStorage {
+            name: "S3 Primary".into(),
+            s3: Some(bucket.proto_config()),
+        }))
+        .await;
+    let added = get_storage(res);
+    let s3_backend = added
+        .backends
+        .iter()
+        .find(|b| b.name == "S3 Primary")
+        .unwrap();
+    let s3_conf = s3_backend.s3.as_ref().unwrap();
+    assert_eq!(s3_conf.secret_access_key, "");
+    assert!(s3_backend.has_secret);
+    assert_eq!(s3_conf.access_key_id, "••••cord");
+
+    let fetched = get_storage(client.ok(Request::GetStorage(proto::GetStorage {})).await);
+    let s3_fetched = fetched
+        .backends
+        .iter()
+        .find(|b| b.name == "S3 Primary")
+        .unwrap();
+    let s3_fetched_conf = s3_fetched.s3.as_ref().unwrap();
+    assert_eq!(s3_fetched_conf.secret_access_key, "");
+    assert!(s3_fetched.has_secret);
+    assert_eq!(s3_fetched_conf.access_key_id, "••••cord");
+
+    bucket.drop_bucket().await;
+}
+
+#[tokio::test]
+#[ignore = "needs an S3 server; see the file header"]
+async fn activating_s3_sends_new_uploads_there_and_survives_a_restart() {
+    let bucket = TestBucket::create().await;
+    let server = TestServer::start().await;
+    let (mut client, ready) = owner(&server).await;
+    let token = media_token(&ready);
+    let channel_id = channel_id(&ready, "general");
+
+    let res = client
+        .ok(Request::AddStorage(proto::AddStorage {
+            name: "S3 Primary".into(),
+            s3: Some(bucket.proto_config()),
+        }))
+        .await;
+    let s3_id = get_storage(res)
+        .backends
+        .iter()
+        .find(|b| b.name == "S3 Primary")
+        .unwrap()
+        .id;
+    client
+        .ok(Request::ActivateStorage(proto::ActivateStorage {
+            storage_id: s3_id,
+        }))
+        .await;
+
+    let content = b"hello s3 storage upload";
+    let att = upload(
+        &mut client,
+        &server,
+        &token,
+        channel_id,
+        "s3_file.txt",
+        content,
+    )
+    .await;
+    client
+        .ok(Request::SendMessage(proto::SendMessage {
+            channel_id,
+            content: "sending to s3".into(),
+            attachment_ids: vec![att.id],
+            ..Default::default()
+        }))
+        .await;
+
+    let object_key = format!("a/{}", att.id);
+    assert!(bucket.storage().size(&object_key).await.unwrap().is_some());
+
+    let auth = format!("Bearer {token}");
+    let (status, dl) = server
+        .send_http(
+            "GET",
+            &format!("/media/attachments/{}", att.id),
+            &[("Authorization", &auth)],
+            &[],
+        )
+        .await;
+    assert_eq!(status, 200);
+    assert_eq!(dl, content);
+
+    let server = server.restart(|_| {}).await;
+    let (mut client, ready) = owner_again(&server).await;
+    let token = media_token(&ready);
+    let auth = format!("Bearer {token}");
+
+    let storage = get_storage(client.ok(Request::GetStorage(proto::GetStorage {})).await);
+    let s3 = storage.backends.iter().find(|b| b.id == s3_id).unwrap();
+    assert!(s3.active);
+
+    let (status, dl) = server
+        .send_http(
+            "GET",
+            &format!("/media/attachments/{}", att.id),
+            &[("Authorization", &auth)],
+            &[],
+        )
+        .await;
+    assert_eq!(status, 200);
+    assert_eq!(dl, content);
+
+    let content2 = b"second upload to s3 after restart";
+    let att2 = upload(
+        &mut client,
+        &server,
+        &token,
+        channel_id,
+        "s3_file2.txt",
+        content2,
+    )
+    .await;
+    let object_key2 = format!("a/{}", att2.id);
+    assert!(bucket.storage().size(&object_key2).await.unwrap().is_some());
+
+    let err = client
+        .error(Request::RemoveStorage(proto::RemoveStorage {
+            storage_id: s3_id,
+        }))
+        .await;
+    assert_eq!(code(&err), proto::ErrorCode::Conflict);
+
+    bucket.storage().delete(&object_key).await.unwrap();
+    bucket.storage().delete(&object_key2).await.unwrap();
+    bucket.drop_bucket().await;
+}
+
+#[tokio::test]
+#[ignore = "needs an S3 server; see the file header"]
+async fn a_storage_holding_files_keeps_its_bucket() {
+    let bucket = TestBucket::create().await;
+    let server = TestServer::start().await;
+    let (mut client, ready) = owner(&server).await;
+    let token = media_token(&ready);
+    let channel_id = channel_id(&ready, "general");
+
+    let res = client
+        .ok(Request::AddStorage(proto::AddStorage {
+            name: "S3 Primary".into(),
+            s3: Some(bucket.proto_config()),
+        }))
+        .await;
+    let s3_id = get_storage(res)
+        .backends
+        .iter()
+        .find(|b| b.name == "S3 Primary")
+        .unwrap()
+        .id;
+    client
+        .ok(Request::ActivateStorage(proto::ActivateStorage {
+            storage_id: s3_id,
+        }))
+        .await;
+
+    let content = b"holding file";
+    let att = upload(
+        &mut client,
+        &server,
+        &token,
+        channel_id,
+        "file.txt",
+        content,
+    )
+    .await;
+    client
+        .ok(Request::SendMessage(proto::SendMessage {
+            channel_id,
+            content: "sending".into(),
+            attachment_ids: vec![att.id],
+            ..Default::default()
+        }))
+        .await;
+
+    let mut other_conf = bucket.proto_config();
+    other_conf.bucket = "different-bucket".into();
+    let err = client
+        .error(Request::UpdateStorage(proto::UpdateStorage {
+            storage_id: s3_id,
+            name: None,
+            s3: Some(other_conf),
+        }))
+        .await;
+    assert_eq!(code(&err), proto::ErrorCode::Conflict);
+
+    client
+        .ok(Request::UpdateStorage(proto::UpdateStorage {
+            storage_id: s3_id,
+            name: Some("Renamed S3".into()),
+            s3: None,
+        }))
+        .await;
+
+    let storage = get_storage(client.ok(Request::GetStorage(proto::GetStorage {})).await);
+    let s3 = storage.backends.iter().find(|b| b.id == s3_id).unwrap();
+    assert_eq!(s3.name, "Renamed S3");
+
+    bucket
+        .storage()
+        .delete(&format!("a/{}", att.id))
+        .await
+        .unwrap();
     bucket.drop_bucket().await;
 }

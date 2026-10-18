@@ -451,6 +451,13 @@ pub async fn owner(server: &TestServer) -> (TestClient, proto::Ready) {
     (client, ready)
 }
 
+/// Connects the owner after the server was already claimed.
+pub async fn owner_again(server: &TestServer) -> (TestClient, proto::Ready) {
+    let mut client = TestClient::connect(server, key(1)).await;
+    let ready = client.identify("Owner", None, None).await.unwrap();
+    (client, ready)
+}
+
 pub fn close_code(code: u16) -> CloseCode {
     CloseCode::from(code)
 }
@@ -685,4 +692,8 @@ pub fn voice_ogg(seconds_tone: f32, seconds_silence: f32) -> Vec<u8> {
         packets.push(out[..len].to_vec());
     }
     ogg::write(1, 0, &packets, total_samples as u64)
+}
+
+pub fn media_token(ready: &proto::Ready) -> String {
+    ready.media_token.as_ref().unwrap().token.clone()
 }

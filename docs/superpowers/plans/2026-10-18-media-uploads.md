@@ -2738,7 +2738,7 @@ fn with_settings(row: StorageRow, settings: &S3Settings, secrets: &Secrets) -> S
     8. Answer the storage.
 - **Dispatch** (`handlers/mod.rs`): one arm per request, `Kind::GetStorage(_) => storage::get(ctx).await` and so on. `StartStorageMove` and `StopStorageMove` stay on "not implemented" until Task 16.
 
-- [ ] **Step 1: Write tests.**
+- [x] **Step 1: Write tests.**
   - **Unit:**
     - the two tests at the bottom of `manage.rs`;
     - `the_secret_is_sealed` in `handlers/storage.rs`: `with_settings` with `Secrets::from_key(&[1; 32])` gives a `secret_enc` that doesn't contain the secret's bytes, and `s3_settings` opens it back.
@@ -2769,8 +2769,8 @@ fn with_settings(row: StorageRow, settings: &S3Settings, secrets: &Secrets) -> S
     - `a_storage_holding_files_keeps_its_bucket`: with one file on S3:
       - UpdateStorage with another bucket name → CONFLICT;
       - with only a new name → ok, and GetStorage shows the name.
-- [ ] **Step 2:** Run → FAIL. **Step 3:** Implement and regenerate the sqlx data. **Step 4:** Run → PASS, including the S3 tests.
-- [ ] **Step 5: Commit:** `feat: owner storage management (A3)`.
+- [x] **Step 2:** Run → FAIL. **Step 3:** Implement and regenerate the sqlx data. **Step 4:** Run → PASS, including the S3 tests.
+- [x] **Step 5: Commit:** `feat: owner storage management (A3)`.
 
 ### Task 16: Moving existing files
 
