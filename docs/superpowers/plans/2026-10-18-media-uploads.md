@@ -932,12 +932,12 @@ max_file_mb = 4096
   - parse the prefix and id from the key, and **refuse anything else** (`Unavailable("bad key")`), so no path ever comes from input;
   - create parent folders on write.
 
-- [ ] **Step 1: Write tests** (`#[tokio::test]` in `local.rs` with `tempfile`):
+- [x] **Step 1: Write tests** (`#[tokio::test]` in `local.rs` with `tempfile`):
   - `local_round_trip_and_ranges`: `put_bytes` then `get_range(…, 2, 5)`, `size`, and `delete` twice (the second is Ok); `size` is then `None`.
   - `put_file_moves_the_file`: the source path is gone and the content is readable.
   - `keys_cannot_escape_the_root`: `path("../x")`, `path("a/../../x")` and `path("z/1")` are `Err`.
-- [ ] **Step 2:** Run → FAIL. **Step 3:** Implement. **Step 4:** Run → PASS.
-- [ ] **Step 5: Commit:** `feat: the local storage backend (A1)`.
+- [x] **Step 2:** Run → FAIL. **Step 3:** Implement. **Step 4:** Run → PASS.
+- [x] **Step 5: Commit:** `feat: the local storage backend (A1)`.
 
 ### Task 7: Attachment and storage queries; upload settings; the Attachments service
 
