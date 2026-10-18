@@ -141,6 +141,30 @@ Regenerate them with the commands above.
     - On Linux you may not edit macOS- or Windows-only files.
 12. **cpal streams are not `Send`.** Open `Microphone`/`Speaker` (`opencord_media::audio::device`) on the thread that will own them, as `AudioEngine` does.
 
+The rules below come from the A1 review. Each one was broken there at least once.
+
+13. **Check cheapest first.**
+    - The order is: who is asking (token, permissions in memory), then other in-memory checks, then database reads, then reading request bodies or files, then writes.
+    - A handler never buffers a body before it knows who sent it.
+    - When this plan lists a handler's steps, they are already in this order. Keep it.
+14. **Every in-memory map says when entries leave.**
+    - Remove an entry where it is used, and on every error path.
+    - No map may grow with the number of uploads, messages or users ever seen.
+15. **Never turn an error into "nothing".**
+    - Use `?`.
+    - Never wrap a query in `if let Ok(..)`, `.ok()` or `unwrap_or_default()` when its result decides what gets deleted or skipped.
+    - Never write `let _ =` on a database write. If it truly may fail, log the error with `tracing`.
+16. **State changes are conditional.**
+    - Write each transition as `UPDATE … WHERE id = $1 AND state = '<expected>'`, and return `rows_affected() == 1` as a `bool`.
+    - Handle `false` (the row was cancelled, sent or changed meanwhile) the way the task says.
+17. **Locks and replies.**
+    - Std locks: `.lock().unwrap_or_else(PoisonError::into_inner)`, and the same for `read()` and `write()`, as `state.rs` does.
+    - Build HTTP replies with axum tuples (`(StatusCode, headers, body).into_response()`), never `Response::builder()…unwrap()`.
+18. **CPU-heavy work runs in `tokio::task::spawn_blocking`.** That covers decoding images, audio or video, and hashing large data.
+19. **Reuse what exists.**
+    - Before writing a helper, grep for one. Since A1 the server has `attachments::open_key`, `attachments::key_label`, `attachments::http::attachment_to_proto`, `to_status_proto` and `readable_attachment`, and `process::base_fields`.
+    - The same ten lines in two places is a review finding.
+
 ### Progress ledger (makes the final review cheap)
 
 Keep `.superpowers/sdd/media/progress.md`. After each task, append:
@@ -161,8 +185,11 @@ If the same step fails three times in a row, follow `GEMINI.md` → "When you're
 ### Milestone stops
 
 - At the end of each milestone (A0 … A8, P1, P2):
-  1. run the full checks (format, clippy, Rust tests, platform check, flutter analyze/test);
-  2. write the decisions entry;
+  1. run the full checks (format, clippy, Rust tests, platform check, flutter analyze/test). Run the Rust tests with `--no-fail-fast`: a failure in one crate otherwise hides every crate after it;
+  2. write the decisions entry. Each milestone's stop gives its text:
+     - copy it exactly and replace `<commits>` with the milestone's commit hashes;
+     - check every sentence against the code. If one is wrong, fix the code or the sentence, and say which in your report;
+     - add a `- **Deviations.**` bullet only if you deviated from the plan;
   3. **stop and report** to the user.
 - Continue only when the user releases the next milestone.
 
@@ -1243,70 +1270,325 @@ impl Attachments {
 
 # Milestone A2: Messages, settings and limits
 
+Read first:
+- `src/handlers/messages.rs` (`send`, `edit`, `delete`, `fetch`, `to_proto`);
+- `src/handlers/settings.rs` (`update_voice_settings`, the pattern for Task 13);
+- `src/handlers/roles.rs` (`create`, `update`);
+- `src/db/attachments.rs`;
+- `src/attachments/http.rs` (`attachment_to_proto`).
+
+All paths below are under `crates/opencord-server/` unless they say otherwise.
+
 ### Task 12: Messages with attachments
 
 **Files:**
-- Modify: `src/handlers/messages.rs`, `src/db/messages.rs` (unchanged queries; rows come with attachments loaded separately), `crates/opencord-common/src/validation.rs` (`pub fn message_content_or_empty(input: &str) -> Result<String, ValidationError>`: trims, allows empty, enforces the max chars), `tests/attachments.rs`.
+- Modify:
+  - `crates/opencord-common/src/validation.rs`;
+  - `src/db/attachments.rs` (`mark_sent`);
+  - `src/handlers/messages.rs`;
+  - `src/server.rs` (remove the `db()` test hook in Step 4);
+  - `tests/attachments.rs`.
+- `src/db/messages.rs` stays unchanged.
 
 **Interfaces:**
-- **`send`:**
-  - **No attachments:** behaves as today.
-  - **With attachments:**
-    1. ≤ 10 and no duplicates [INVALID_ARGUMENT].
-    2. Content through `message_content_or_empty`.
-    3. Load each row: it must exist, be uploaded by the caller, be in state ready, and have `channel_id == request.channel_id` [NOT_FOUND "upload"].
-    4. If any is voice: exactly one attachment and empty content [INVALID_ARGUMENT], and `SEND_VOICE_MESSAGES` now [FORBIDDEN]. Otherwise `ATTACH_FILES` now [FORBIDDEN].
-    5. Message rate limit as today.
-    6. One transaction (`conn.begin()`): `messages::insert`, then `attachments::mark_sent(ids, message_id)`.
-    7. The proto message carries the attachments in the given order.
-- **`fetch`:** after the list, one `for_messages` call; attach per message.
-- **`edit`:**
-  - If the message has attachments, the content may become empty (`message_content_or_empty`); otherwise keep today's rule.
-  - The response and `MessageUpdate` include the attachments.
-- **`delete`:** `attachments::delete_for_message(id)` in the same transaction as `mark_deleted`.
-- `fn to_proto(row: MessageRow, attachments: Vec<proto::Attachment>) -> proto::Message`.
-- `pub(crate) fn attachment_to_proto(row: &AttachmentRow) -> proto::Attachment` in `attachments/mod.rs`. Map kind `voice` → VOICE_MESSAGE; `waveform` empty unless voice.
 
-- [ ] **Step 1: Write tests:**
-  - `a_message_carries_its_files_in_order`: two uploads → send with `[b, a]` → MessageCreate has `[b, a]`; FetchMessages returns the same; content may be empty.
-  - **`sending_checks_permissions_again_at_send_time`** (Review Focus 2): upload, then the owner removes ATTACH_FILES from @everyone, then send → FORBIDDEN.
-  - `someone_elses_or_unready_uploads_cannot_be_sent` (another user's id, an uploading one, one from another channel → NOT_FOUND).
-  - `voice_messages_stand_alone`: voice + text → INVALID_ARGUMENT; voice + file → INVALID_ARGUMENT; voice alone OK.
-  - `deleting_a_message_deletes_its_files`: then drain → objects gone; GET → 404.
-  - `deleting_a_channel_deletes_its_files`: send a message with an attachment, delete the channel, drain → objects gone (the trigger fires through the `ON DELETE CASCADE`).
-  - `an_upload_cannot_be_sent_twice`: the second send → NOT_FOUND.
-- [ ] **Step 2:** Run → FAIL. **Step 3:** Implement. **Step 4:** Run → PASS.
+- **`opencord_common::validation::message_content_or_empty`**: `message_content` without the non-empty check.
+
+  ```rust
+  /// Message text that may be empty: a message with files needs no text.
+  pub fn message_content_or_empty(input: &str) -> Result<String, ValidationError> {
+      let trimmed = input.trim();
+      require_max_chars("message", trimmed, MESSAGE_MAX_CHARS)?;
+      Ok(trimmed.to_owned())
+  }
+  ```
+
+- **`db::attachments::mark_sent`** becomes a conditional transition (Working Rule 16). Between `send`'s checks and its insert, the upload may be cancelled or sent by another request.
+
+  ```rust
+  /// Moves the caller's ready uploads in this channel onto a message, keeping
+  /// their order. False if any is no longer ready, theirs or in this channel;
+  /// the caller then drops its transaction, which undoes the message.
+  pub async fn mark_sent(
+      conn: &mut SqliteConnection,
+      ids: &[i64],
+      message_id: i64,
+      uploader_id: i64,
+      channel_id: i64,
+  ) -> Result<bool, sqlx::Error>
+  ```
+
+  - For each id, with `position` = its index, run:
+
+    ```sql
+    UPDATE attachments SET message_id = $1, position = $2, state = 'sent'
+    WHERE id = $3 AND state = 'ready' AND uploader_id = $4 AND channel_id = $5
+    ```
+
+  - Return `Ok(false)` as soon as one `rows_affected() != 1`.
+  - Update the call in the unit test `upload_rows_move_through_their_states`. Then assert that calling `mark_sent` again with the same ids returns `false`.
+
+- **`messages::send`**, in this order:
+  1. Let `ids = request.attachment_ids`. If it isn't empty:
+     - more than `upload::MAX_ATTACHMENTS` → INVALID_ARGUMENT "a message can have at most 10 files";
+     - a duplicate (check with a `HashSet`) → INVALID_ARGUMENT "the same file is attached twice".
+  2. Content: `validation::message_content` when `ids` is empty (today's rule), else `validation::message_content_or_empty`.
+  3. The nonce check, `require_message_channel` and the message rate limit: all as today.
+  4. If `ids` isn't empty, load each row with `attachments::find`, keeping the request's order. A row that is missing, not `uploader_id == ctx.user_id`, not in state `ready`, or not in `request.channel_id` → NOT_FOUND "upload".
+  5. Permissions, in a block that holds `ctx.state.guild()` with no `.await` inside:
+     - if any row's kind is `voice`:
+       - `ids.len() == 1` and empty content, else INVALID_ARGUMENT "a voice message is sent on its own";
+       - then `require_channel(&guild, ctx.user_id, channel_id, Permissions::SEND_VOICE_MESSAGES)`;
+     - otherwise `require_channel(…, Permissions::ATTACH_FILES)`.
+     - `require_channel` gives the FORBIDDEN error itself.
+  6. Write in one transaction, as `roles::create` does:
+
+     ```rust
+     let mut tx = ctx.state.db.begin().await?;
+     messages::insert(&mut tx, id, request.channel_id, ctx.user_id, &content).await?;
+     if !ids.is_empty()
+         && !attachments::mark_sent(&mut tx, &ids, id, ctx.user_id, request.channel_id).await?
+     {
+         // Dropping tx rolls the message back.
+         return Err(ApiError::not_found("upload"));
+     }
+     tx.commit().await?;
+     ```
+
+  7. The message's `attachments` are `rows.iter().map(attachment_to_proto).collect()`, in request order.
+     - Use the existing `crate::attachments::http::attachment_to_proto`. Don't write a second one.
+  - With no attachments, behavior stays exactly as today, and the existing message tests must pass unchanged.
+
+- **`to_proto(row: MessageRow, attachments: Vec<proto::Attachment>) -> proto::Message`.**
+  - Update its callers.
+  - `handlers/commands.rs` builds its own message with `attachments: Vec::new()`. Leave it.
+
+- **`fetch`:** after `messages::list`, make one `for_messages` call and group its rows by message:
+
+  ```rust
+  let ids: Vec<i64> = rows.iter().map(|row| row.id).collect();
+  let mut files: HashMap<i64, Vec<proto::Attachment>> = HashMap::new();
+  for file in attachments::for_messages(&mut conn, &ids).await? {
+      if let Some(message_id) = file.message_id {
+          files.entry(message_id).or_default().push(attachment_to_proto(&file));
+      }
+  }
+  // then: to_proto(row, files.remove(&row.id).unwrap_or_default())
+  ```
+
+- **`edit`**, in this order:
+  1. `messages::find`, then `require_channel(VIEW_CHANNEL)` and the author check, all as today.
+  2. `let files = attachments::for_messages(&mut conn, &[existing.id]).await?;`
+  3. Content:
+     - `message_content_or_empty` when `files` isn't empty, else `message_content`. Validation moves after the load.
+     - If a file is a voice message and the new content isn't empty → INVALID_ARGUMENT "a voice message has no text".
+  4. Update as today. The reply and the `MessageUpdate` carry the files (`attachment_to_proto`).
+
+- **`delete`:** one transaction:
+
+  ```rust
+  let mut tx = ctx.state.db.begin().await?;
+  // find + the permission check as today, reading through &mut tx
+  messages::mark_deleted(&mut tx, existing.id).await?;
+  attachments::delete_for_message(&mut tx, existing.id).await?;
+  tx.commit().await?;
+  ```
+
+  - The `attachments_queue_blobs` trigger queues the objects, and the blob worker deletes them.
+  - A channel's deletion needs no code. `ON DELETE CASCADE` deletes its attachment rows, and the trigger fires for each one.
+
+- [ ] **Step 1: Write tests.**
+  - **Unit, `validation.rs`:** `message_content_or_empty("  ")` gives `""`; `MESSAGE_MAX_CHARS + 1` characters give `Err`.
+  - **Integration (`tests/attachments.rs`):**
+    - `a_message_carries_its_files_in_order`: two uploads; send `[b, a]` with empty content. Both MessageCreate and FetchMessages give `[b, a]`.
+    - **`sending_checks_permissions_again_at_send_time`** (Review Focus 2): upload; the owner removes ATTACH_FILES from @everyone; send → FORBIDDEN.
+    - `someone_elses_or_unready_uploads_cannot_be_sent`: each of these gives NOT_FOUND:
+      - another user's upload;
+      - one still uploading;
+      - one made in another channel.
+    - `voice_messages_stand_alone`: voice + text → INVALID_ARGUMENT; voice + file → INVALID_ARGUMENT; voice alone → ok.
+    - `editing_keeps_files_and_allows_empty_text`:
+      - a message with a file edited to `""` → ok, and its MessageUpdate carries the file;
+      - a text-only message edited to `""` → INVALID_ARGUMENT;
+      - a voice message edited to `"hi"` → INVALID_ARGUMENT.
+    - `deleting_a_message_deletes_its_files`: delete, then `drain_blob_deletions` → the object files are gone; GET → 404.
+    - `deleting_a_channel_deletes_its_files`: send a message with a file, then delete the channel; drain → the objects are gone.
+    - `an_upload_cannot_be_sent_twice`: the second send → NOT_FOUND, and no second message exists (FetchMessages holds one).
+- [ ] **Step 2:** Run → FAIL. **Step 3:** Implement and regenerate the sqlx data.
+- [ ] **Step 4: Remove the test hook.**
+  - A1's tests link uploads to messages through `server.db()` and `mark_sent`. Change each of them to send a real message instead:
+
+    ```rust
+    SendMessage { channel_id, content: "…".into(), attachment_ids: vec![att.id], ..Default::default() }
+    ```
+
+  - Then delete `ServerHandle::db` from `src/server.rs`.
+  - `grep -rn "\.db()" crates/opencord-server/tests` must print nothing.
+  - Run → PASS.
 - [ ] **Step 5: Commit:** `feat: messages with attachments (A2)`.
 
 ### Task 13: Upload settings, role limits and Ready
 
 **Files:**
-- Modify: `src/handlers/settings.rs` (or create `handlers/uploads.rs::update_settings`), `src/handlers/roles.rs`, `src/handlers/mod.rs`, `src/gateway/identify.rs`, `src/guild.rs`, `tests/attachments.rs`.
+- Modify:
+  - `src/handlers/uploads.rs` (`update_settings`, and the blocked-extension error message);
+  - `src/handlers/mod.rs` (dispatch);
+  - `src/handlers/roles.rs`;
+  - `src/gateway/identify.rs`;
+  - `tests/attachments.rs`.
+- No query changes: `Role::to_row` and `Role::to_proto` already carry `max_upload_bytes`.
 
 **Interfaces:**
-- **`UpdateUploadSettings` (MANAGE_SERVER):**
-  - `blocked_extensions` → `normalize_blocked_list` [INVALID_ARGUMENT with the bad entry].
-  - `voice_message_max_seconds` in 30–1,800 [INVALID_ARGUMENT].
-  - Save, update the guild, broadcast `UploadSettingsUpdate` to `Audience::Everyone`, answer `Response::UploadSettings`.
-- **CreateRole / UpdateRole `max_upload_bytes`:**
-  - @everyone: `Some(0)` → INVALID_ARGUMENT "@everyone needs an upload limit".
-  - Others: `Some(0)` → clear (`None`).
-  - Any `Some(v > 0)`: `v ≥ 1 MiB` and `v ≤ ceiling` [INVALID_ARGUMENT]. If the caller isn't the owner and `v > guild.upload_limit(caller, ceiling)` → FORBIDDEN "you can't give a role a larger upload limit than your own ({n} MB)".
-  - The value flows into `RoleRow` and `Role`.
-- **Ready:** `upload_settings: Some(guild.upload_settings.to_proto(config.max_file_bytes()))`.
 
-- [ ] **Step 1: Write tests:**
-  - `upload_settings_are_shared_and_validated`: the owner sets `["EXE", "tar.gz"]` → everyone gets an UploadSettingsUpdate with `["exe", "tar.gz"]`; a new session's Ready carries it; a member without MANAGE_SERVER → FORBIDDEN; 29 s → INVALID_ARGUMENT.
-  - `blocked_extensions_stop_uploads`: after the owner blocks `exe`, CreateUpload `setup.EXE` → FILE_TYPE_BLOCKED, `notes.txt` → ok; a voice message is never blocked.
+- **`handlers::uploads::update_settings(ctx, proto::UpdateUploadSettings) -> Result<Response, ApiError>`.**
+  - Dispatch `Kind::UpdateUploadSettings(request)` to it. The storage kinds stay on "not implemented" until A3.
+  - Mirror `settings::update_voice_settings`:
+
+  ```rust
+  let _writes = ctx.state.write_lock().await;
+  let current = {
+      let guild = ctx.state.guild();
+      require_base(&guild, ctx.user_id, Permissions::MANAGE_SERVER)?;
+      guild.upload_settings.clone()
+  };
+  let blocked_extensions = match &request.blocked_extensions {
+      Some(list) => {
+          if let Some(bad) = list
+              .extensions
+              .iter()
+              .find(|entry| upload::normalize_extension(entry).is_err())
+          {
+              let shown: String = bad.trim().chars().take(30).collect();
+              return Err(ApiError::invalid_argument(format!(
+                  "\"{shown}\" isn't a file extension"
+              )));
+          }
+          upload::normalize_blocked_list(&list.extensions)?
+      }
+      None => current.blocked_extensions,
+  };
+  let voice_message_max_seconds = match request.voice_message_max_seconds {
+      Some(seconds) if upload::VOICE_MAX_SECONDS_RANGE.contains(&seconds) => seconds,
+      Some(_) => {
+          return Err(ApiError::invalid_argument(
+              "voice messages can be limited to 30 seconds to 30 minutes",
+          ));
+      }
+      None => current.voice_message_max_seconds,
+  };
+  let updated = UploadSettings { blocked_extensions, voice_message_max_seconds };
+  updated.save(&mut *ctx.state.db.acquire().await?).await?;
+  ctx.state.guild_mut().upload_settings = updated.clone();
+  let settings = updated.to_proto(ctx.state.attachments.max_file_bytes());
+  ctx.state.broadcast(
+      Event::UploadSettingsUpdate(proto::UploadSettingsUpdate { settings: Some(settings.clone()) }),
+      Audience::Everyone,
+  );
+  Ok(Response::UploadSettings(settings))
+  ```
+
+- **The blocked-extension error in `create`** names the list entry that matched, not the file's last extension. So `archive.tar.gz` blocked by `tar.gz` says "tar.gz files can't be uploaded here":
+
+  ```rust
+  let blocked = &guild.upload_settings.blocked_extensions;
+  if let Some(entry) = blocked
+      .iter()
+      .find(|entry| upload::is_blocked(&filename, std::slice::from_ref(*entry)))
+  {
+      return Err(ApiError::file_type_blocked(entry));
+  }
+  ```
+
+- **Role limits** (`roles.rs`): add one helper.
+
+  ```rust
+  /// A role's upload limit from a request; `None` keeps `current`.
+  fn valid_upload_limit(
+      guild: &Guild,
+      caller: i64,
+      is_everyone: bool,
+      requested: Option<u64>,
+      current: Option<u64>,
+      ceiling: u64,
+  ) -> Result<Option<u64>, ApiError> {
+      match requested {
+          None => Ok(current),
+          Some(0) if is_everyone => Err(ApiError::invalid_argument("@everyone needs an upload limit")),
+          Some(0) => Ok(None),
+          Some(bytes) if bytes < upload::MIN_ROLE_LIMIT_BYTES || bytes > ceiling => {
+              Err(ApiError::invalid_argument(format!(
+                  "an upload limit can be 1 to {} MB here",
+                  ceiling / upload::MIB
+              )))
+          }
+          Some(bytes) => {
+              let own = guild.upload_limit(caller, ceiling);
+              if !guild.is_owner(caller) && bytes > own {
+                  return Err(ApiError::forbidden(format!(
+                      "you can't give a role a larger upload limit than your own ({} MB)",
+                      own / upload::MIB
+                  )));
+              }
+              Ok(Some(bytes))
+          }
+      }
+  }
+  ```
+
+  - `ceiling` is `ctx.state.attachments.max_file_bytes()`.
+  - **`create`:** call it inside the existing `let shifted = { … }` guild block, with `is_everyone = false` and `current = None`. Return the result from the block with `shifted`, and use it instead of `max_upload_bytes: None`.
+  - **`update`:** call it inside the existing block, with `is_everyone`, `request.max_upload_bytes` and `role.max_upload_bytes`. Set `max_upload_bytes` in the `Role { … }` literal.
+
+- **Ready** (`gateway/identify.rs`): replace `upload_settings: None` with:
+
+  ```rust
+  upload_settings: Some(guild.upload_settings.to_proto(state.attachments.max_file_bytes())),
+  ```
+
+- [ ] **Step 1: Write tests** (`tests/attachments.rs`):
+  - `upload_settings_are_shared_and_validated`:
+    - the owner sets `["EXE", ".tar.gz"]` → everyone gets an UploadSettingsUpdate with `["exe", "tar.gz"]`;
+    - a new session's Ready carries the same settings;
+    - a member without MANAGE_SERVER → FORBIDDEN;
+    - `29` seconds → INVALID_ARGUMENT;
+    - `["ex e"]` → INVALID_ARGUMENT whose message contains `ex e`.
+  - `blocked_extensions_stop_uploads`: after the owner blocks `exe` and `tar.gz`:
+    - CreateUpload `setup.EXE` → FILE_TYPE_BLOCKED;
+    - `archive.tar.gz` → FILE_TYPE_BLOCKED with `tar.gz` in the message;
+    - `notes.txt` → ok;
+    - a voice message is never blocked.
   - `role_limits_raise_members_and_respect_the_editor`:
     - the owner gives role R 200 MiB, then a member with R creates a 150 MiB upload → ok;
-    - a moderator (MANAGE_ROLES, own limit 50 MiB) setting a lower role to 100 MiB → FORBIDDEN, and to 40 MiB → ok;
-    - @everyone `Some(0)` → INVALID_ARGUMENT.
-  - `the_owner_is_limited_only_by_the_ceiling`: start with `uploads.max_file_mb = 1`; the owner's 2 MiB CreateUpload → FILE_TOO_LARGE.
-- [ ] **Step 2:** Run → FAIL. **Step 3:** Implement and regenerate sqlx. **Step 4:** Run → PASS.
+    - a moderator (MANAGE_ROLES, a role above the target, own limit 50 MiB) sets a lower role to 100 MiB → FORBIDDEN, and to 40 MiB → ok;
+    - @everyone `Some(0)` → INVALID_ARGUMENT;
+    - another role `Some(0)` clears its limit, and its RoleUpdate has no `max_upload_bytes`.
+  - `the_owner_is_limited_only_by_the_ceiling`: start with `TestServer::start_with(|c| c.uploads.max_file_mb = 1)`. The owner's 2 MiB CreateUpload → FILE_TOO_LARGE.
+- [ ] **Step 2:** Run → FAIL. **Step 3:** Implement. **Step 4:** Run → PASS. The existing role tests must pass unchanged.
 - [ ] **Step 5: Commit:** `feat: upload settings and role upload limits (A2)`.
 
-**A2 stop.** Full checks, **D54**, ledger, report.
+**A2 stop.** Full checks, the ledger, and the report. The decisions entry, to copy into `docs/decisions.md` (see "Milestone stops"):
+
+```markdown
+## D54: Media uploads: messages, upload settings and role limits (Phase 4 A2, 2026-10-18)
+
+- **Why.** Milestone A2 of media uploads (`docs/superpowers/plans/2026-10-18-media-uploads.md`) puts finished uploads on messages and lets the server's managers set the upload rules. Commits: <commits>.
+- **Messages.**
+  - `SendMessage.attachment_ids` takes up to 10 of the sender's own ready uploads from the same channel. The message keeps their order, and its text may then be empty (`validation::message_content_or_empty`).
+  - Attach Files, or Send Voice Messages for a voice message, is checked again when the message is sent, not only when the upload starts.
+  - A voice message stands alone: one attachment and no text, also after an edit.
+  - `db::attachments::mark_sent` moves an upload only while it is still ready, the sender's and in that channel. Otherwise the whole send rolls back with "not found", so a cancel or a second send in between can't put a file on two messages.
+  - `FetchMessages`, `EditMessage` and `MessageUpdate` carry the attachments.
+  - Deleting a message deletes its attachment rows in the same transaction. The `attachments_queue_blobs` trigger then queues their objects, also when a channel's deletion cascades to them.
+- **Upload settings.**
+  - `UpdateUploadSettings` (Manage Server) normalizes the blocked list with `normalize_blocked_list` and takes a voice message limit of 30–1,800 seconds.
+  - Everyone gets `UploadSettingsUpdate`, and `Ready.upload_settings` carries the settings at login.
+  - A blocked upload's error names the list entry it matched ("tar.gz files can't be uploaded here").
+- **Role limits.**
+  - `CreateRole` and `UpdateRole` take `max_upload_bytes`. 0 clears a role's limit but is refused for @everyone.
+  - Other values must be 1 MB up to the server's ceiling.
+  - Only the owner may give a role a larger limit than their own.
+- **Tests.** The A1 tests that put uploads on messages through `ServerHandle::db` now send real messages, and the hook is gone.
+```
 
 ---
 
@@ -1609,6 +1891,7 @@ impl Transfers {
     - cache hit → bytes;
     - otherwise GET the thumbnail, or the whole original (refused with InvalidInput "too large to show" when `Content-Length > 64 MiB`);
     - cache it when Thumbnail, or Original ≤ 20 MiB.
+    - Only the image viewer, the voice player and the audio player call it with `Original`. Video uses the media player's range reads, and other files use `download_attachment`. So this rule caches what the Global Constraints list: images ≤ 20 MiB, voice (always smaller) and audio ≤ 20 MiB. Don't call it for other kinds.
   - **`pub async fn download_attachment(server_key, attachment_id: i64, path: String) -> Result<()>`:**
     - stream to `path + ".part"`, then rename;
     - `DownloadProgress` at most 10 per second, plus a final event with `done`;

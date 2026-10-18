@@ -4,7 +4,8 @@
 
 You are implementing `docs/superpowers/plans/2026-10-18-media-uploads.md`. The design it builds on is `docs/superpowers/specs/2026-10-18-media-uploads-design.md`.
 
-- The plan's **Working Rules** section applies to everything you do in this repository.
+- The plan's **Working Rules** section applies to everything you do in this repository. Rules 13–19 were added after the A1 review: read them before each milestone.
+- Each milestone's code was reviewed and fixed after you finished it, and its decisions entry has a **Review** bullet. Read the latest one before starting, and build on the fixed code, not on what you remember writing.
 - The user releases one milestone at a time. Stop at the end of each milestone and report.
 
 ## Every build command loads the environment
@@ -26,7 +27,13 @@ export CARGO_INCREMENTAL=0 CARGO_PROFILE_DEV_DEBUG=0 CARGO_PROFILE_RELEASE_DEBUG
 
 ## Write docs from the code, not from memory
 
-When you write a decision entry, the progress ledger or a report:
+Each milestone's stop in the plan gives that milestone's decisions entry:
+
+- Copy it exactly into `docs/decisions.md` and fill in the commit hashes.
+- Check every sentence against the code. If one doesn't match what you built, fix the code or the sentence, and say which in your report.
+- Numbers and behavior count too: a wrong quality setting or a wrong "X doesn't happen" is as bad as a wrong name.
+
+When you write the progress ledger, a report, or a decisions entry the plan doesn't give:
 
 - Name only things that exist. Copy every message, request, event, function and file name, and every number, from the code or from `git diff pre..HEAD`.
 - Before you finish, search the code for each name you wrote (`grep -rn`). If a name isn't found, it doesn't go in.
