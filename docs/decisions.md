@@ -597,3 +597,32 @@ The desktop UI plan's §17.5 never arrived, so where Phase 2 §12 says only what
   - When the key file is missing and the database already holds sealed data, the server refuses to start instead of making a new key.
 - **Also.** The server's gateway frame reader boxes the envelope (clippy `large_enum_variant` after the proto grew).
 - **Review.** A file named only `.exe` got past blocking; `is_blocked` now matches it, and the fixture has the case.
+
+## D53: Media uploads: storage, uploads, processing and downloads (Phase 4 A1, 2026-10-18)
+
+- **Why.** Milestone A1 of media uploads (`docs/superpowers/plans/2026-10-18-media-uploads.md`) implements the complete server lifecycle for file and voice attachments: local storage, chunked upload receiving, thumbnail generation and voice verification, range downloads, and background garbage collection.
+- **Local storage backend** (`crates/opencord-server/src/attachments/storage/local.rs`):
+  - Objects are stored under `{root}/{prefix}/{shard}/{id}`, where prefix is `a` for full attachments and `t` for thumbnails, and `shard` is `{:02x}` of snowflake ID bits `(id >> 22) & 0xff`.
+  - Atomic rename (`tokio::fs::rename`) with fallback to buffered copy and source deletion across filesystem boundaries (handling `EXDEV` / `ErrorKind::CrossesDevices`).
+  - Read ranges via `get_range` and deletion via `delete`.
+- **Upload pipeline** (`crates/opencord-server/src/attachments/http.rs`, `crates/opencord-server/src/handlers/uploads.rs`):
+  - `CreateUpload` validates permissions (`ATTACH_FILES` / `SEND_VOICE_MESSAGES`), enforces rate limit (`UPLOAD_CREATE_RATE`), checks 512 MiB temp disk headroom (`TEMP_HEADROOM_BYTES`), creates an encrypted temporary `.part` file, and inserts an `uploading` row.
+  - `PUT /media/uploads/{id}` requires media token authentication and `Upload-Offset` matching current received bytes. Rejects out-of-order chunks with 409 `UploadStatus` without corrupting files. Receives 8 MiB chunks (`PIECE_BYTES`), seals them into encrypted `OCA1` segments, and streams into the `.part` file.
+  - `GET /media/uploads/{id}` returns `UploadStatus`.
+  - `CancelUpload` deletes the database row and unlinks the `.part` file.
+- **Processing and background workers** (`crates/opencord-server/src/attachments/process.rs`, `images.rs`, `voice.rs`):
+  - `POST /media/uploads/{id}/finish` sets the upload state to `processing` and spawns a background job governed by a 2-permit concurrency semaphore (`jobs`).
+  - Interruptions and restarts: `attachments::start` resumes any pending `processing` rows on boot, and cleans up orphaned `.part` files lacking active DB rows.
+  - Image processing: type sniffing via `sniff::sniff`. Images are decoded and downscaled into an 800×800 bounding box keeping aspect ratio and EXIF orientation (`image::imageops::thumbnail`). Formats with transparency keep alpha and save as PNG; otherwise JPEG at quality 80. Animated GIFs are detected without generating thumbnails.
+  - Voice processing: validates Ogg Opus structure, enforces maximum voice duration (`voice_message_max_seconds`), decodes PCM audio, measures duration, and calculates 128 normalized waveform bars (`waveform::waveform`).
+  - Storage: finishes by encrypting the thumbnail (if generated), moving the attachment file into the active storage backend, marking state `ready`, and broadcasting `UploadReady` (or `UploadFailed` on error).
+- **Downloads** (`crates/opencord-server/src/attachments/range.rs`, `crates/opencord-server/src/attachments/http.rs`):
+  - `GET /media/attachments/{id}` checks media token, requires the attachment row to be `sent`, checks message deletion, and verifies channel permissions (`VIEW_CHANNEL | READ_HISTORY`) at request time.
+  - Range requests: parses `Range: bytes=...` headers (`bytes=a-b`, `bytes=a-`, `bytes=-n`). Errors or invalid ranges return 416 Range Not Satisfiable.
+  - Range streaming: streams decrypted plaintext chunks segment-by-segment using `futures_util::stream::unfold`, reading at most 16 segments per storage batch.
+  - Security headers: sets `Cache-Control: private, no-store`, `X-Content-Type-Options: nosniff`, `Accept-Ranges: bytes`, and `Content-Disposition: attachment; filename*=UTF-8''...` with percent-encoding.
+  - `GET /media/attachments/{id}/thumbnail` returns the decrypted thumbnail with MIME detection.
+- **Garbage collection and blob deletion** (`crates/opencord-server/src/attachments/gc.rs`):
+  - `sweep`: runs every 10 minutes, pruning abandoned uploads (`uploading` and `ready` > 24 hours, `failed` > 1 hour) and removing their temp files.
+  - `drain_blobs`: runs every 30 seconds, deleting pending storage objects queued in `blob_deletions` by database triggers (`attachments_queue_blobs`), applying exponential retry backoff on failures.
+  - Test hooks on `ServerHandle`: `sweep_attachments` and `drain_blob_deletions`.
