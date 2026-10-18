@@ -137,7 +137,7 @@ pub fn start_typing(ctx: &Ctx<'_>, request: proto::StartTyping) -> Result<Respon
     Ok(ack())
 }
 
-fn require_message_channel(
+pub(crate) fn require_message_channel(
     ctx: &Ctx<'_>,
     channel_id: i64,
     needed: Permissions,

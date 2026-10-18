@@ -1087,7 +1087,7 @@ impl Attachments {
   - `pub fn png(width: u32, height: u32) -> Vec<u8>`: a grey RGB PNG made with the `image` crate.
   - `pub async fn upload(client: &mut TestClient, server: &TestServer, token: &str, channel_id: i64, name: &str, bytes: &[u8]) -> proto::Attachment`: CreateUpload, PUT every piece, POST finish, then `client.wait_for` UploadReady.
 
-- [ ] **Step 1: Write integration tests** in `tests/attachments.rs`:
+- [x] **Step 1: Write integration tests** in `tests/attachments.rs`:
   - `create_upload_checks_permissions_and_size`:
     - a member without ATTACH_FILES (the owner removes it from @everyone with UpdateRole first) → FORBIDDEN;
     - with it: 60 MiB → FILE_TOO_LARGE with "50 MB" in the message;
@@ -1100,10 +1100,10 @@ impl Attachments {
   - `another_users_upload_is_not_found`.
   - `cancel_removes_the_row_and_temp_file`.
   - `nothing_plain_reaches_the_temp_folder`: upload a piece made of a repeated marker string; the temp file doesn't contain the marker.
-- [ ] **Step 2:** Run `cargo test -p opencord-server --test attachments`. Expected: FAIL.
-- [ ] **Step 3:** Implement. Regenerate sqlx data if queries changed.
-- [ ] **Step 4:** Run. Expected: PASS (except the parts marked for Task 9/10).
-- [ ] **Step 5: Commit:** `feat: creating uploads and receiving pieces (A1)`.
+- [x] **Step 2:** Run `cargo test -p opencord-server --test attachments`. Expected: FAIL.
+- [x] **Step 3:** Implement. Regenerate sqlx data if queries changed.
+- [x] **Step 4:** Run. Expected: PASS (except the parts marked for Task 9/10).
+- [x] **Step 5: Commit:** `feat: creating uploads and receiving pieces (A1)`.
 
 ### Task 9: Finishing and processing
 

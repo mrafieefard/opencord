@@ -24,6 +24,7 @@ mod roles;
 pub(crate) mod settings;
 pub(crate) mod soundboard;
 mod streams;
+mod uploads;
 mod voice;
 
 /// The caller of a request.
@@ -142,9 +143,9 @@ async fn dispatch(ctx: &Ctx<'_>, request: proto::Request) -> Result<Response, Ap
         Kind::AutocompleteCommand(request) => commands::autocomplete(ctx, request).await,
         Kind::FetchCommandSettings(_) => commands::fetch_settings(ctx),
         Kind::UpdateCommandSettings(request) => commands::update_settings(ctx, request).await,
-        Kind::CreateUpload(_)
-        | Kind::CancelUpload(_)
-        | Kind::UpdateUploadSettings(_)
+        Kind::CreateUpload(request) => uploads::create(ctx, request).await,
+        Kind::CancelUpload(request) => uploads::cancel(ctx, request).await,
+        Kind::UpdateUploadSettings(_)
         | Kind::GetStorage(_)
         | Kind::AddStorage(_)
         | Kind::UpdateStorage(_)

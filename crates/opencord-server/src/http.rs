@@ -31,7 +31,8 @@ pub fn router(state: Arc<AppState>) -> Router {
         .route("/info", get(info))
         .route("/gateway", get(gateway::upgrade))
         .route("/voice", get(voice_gateway))
-        .merge(media::routes());
+        .merge(media::routes())
+        .merge(crate::attachments::http::routes());
     // Only servers with external voice nodes listen for them.
     let voice = &state.config.voice;
     let router = if voice.enabled && !voice.external_nodes.is_empty() {

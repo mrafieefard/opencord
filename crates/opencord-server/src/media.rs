@@ -266,7 +266,7 @@ async fn store(state: &AppState, sha256: &[u8; 32], bytes: &[u8]) -> Result<(), 
         })
 }
 
-fn reply(status: StatusCode, result: Reply) -> Response {
+pub(crate) fn reply(status: StatusCode, result: Reply) -> Response {
     let body = proto::Response {
         result: Some(result),
     }
@@ -274,22 +274,30 @@ fn reply(status: StatusCode, result: Reply) -> Response {
     (status, [(CONTENT_TYPE, "application/x-protobuf")], body).into_response()
 }
 
-fn reply_error(error: &ApiError) -> Response {
+pub(crate) fn reply_error(error: &ApiError) -> Response {
     use proto::ErrorCode as Code;
     let status = match error.code {
         Code::Unauthorized => StatusCode::UNAUTHORIZED,
         Code::Forbidden => StatusCode::FORBIDDEN,
         Code::NotFound => StatusCode::NOT_FOUND,
         Code::RateLimited => StatusCode::TOO_MANY_REQUESTS,
-        Code::SoundboardFull | Code::Conflict => StatusCode::CONFLICT,
-        Code::SoundTooLong | Code::SoundInvalid | Code::InvalidArgument => StatusCode::BAD_REQUEST,
+        Code::SoundboardFull | Code::Conflict | Code::UploadOffsetMismatch => StatusCode::CONFLICT,
+        Code::SoundTooLong
+        | Code::SoundInvalid
+        | Code::InvalidArgument
+        | Code::VoiceMessageInvalid
+        | Code::VoiceMessageTooLong => StatusCode::BAD_REQUEST,
+        Code::FileTooLarge => StatusCode::PAYLOAD_TOO_LARGE,
+        Code::FileTypeBlocked => StatusCode::UNSUPPORTED_MEDIA_TYPE,
+        Code::StorageUnavailable => StatusCode::SERVICE_UNAVAILABLE,
+        Code::StorageFull => StatusCode::INSUFFICIENT_STORAGE,
         _ => StatusCode::INTERNAL_SERVER_ERROR,
     };
     reply(status, Reply::Error(error.to_proto()))
 }
 
 /// The member a request's bearer token belongs to.
-fn authorize(state: &AppState, headers: &HeaderMap) -> Result<i64, ApiError> {
+pub(crate) fn authorize(state: &AppState, headers: &HeaderMap) -> Result<i64, ApiError> {
     let token = headers
         .get(AUTHORIZATION)
         .and_then(|value| value.to_str().ok())

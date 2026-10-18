@@ -1,7 +1,9 @@
 //! Media attachments and storage backends (Phase 4).
 
+pub mod http;
 pub mod settings;
 pub mod storage;
+pub mod temp;
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
