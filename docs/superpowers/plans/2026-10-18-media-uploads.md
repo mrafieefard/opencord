@@ -597,7 +597,7 @@ Rules the functions implement:
 - **`normalize_blocked_list`:** normalize each entry, drop duplicates, sort, at most 100 (else error).
 - **`is_blocked`:** true when the lowercase filename ends with `"." + entry` for any entry.
 
-- [ ] **Step 1: Write the shared fixture `tests/upload_rules.json`.**
+- [x] **Step 1: Write the shared fixture `tests/upload_rules.json`.**
 
 ```json
 {
@@ -639,16 +639,16 @@ Rules the functions implement:
 
 Add one generated case to the Rust test: a 300-char name `"a".repeat(296) + ".png"` sanitizes to 200 chars ending in `.png`.
 
-- [ ] **Step 2: Write `tests/upload_rules.rs`.**
+- [x] **Step 2: Write `tests/upload_rules.rs`.**
   - It reads the JSON with `include_str!("upload_rules.json")` and `serde_json`, and asserts every case: `limits`, `filenames`, `extensions` (`null` → `Err`), `blocked`.
   - Also add unit tests in `upload.rs`: `voice_max_bytes(300) == 2_465_536`; `normalize_blocked_list` sorts and dedupes `["EXE", ".exe", "bat"]` → `["bat", "exe"]`; 101 entries → `Err`.
-- [ ] **Step 3: Update `permissions.rs` tests.**
+- [x] **Step 3: Update `permissions.rs` tests.**
   - `bits_match_the_protocol` asserts `SEND_VOICE_MESSAGES.bits() == 1 << 14` and `ATTACH_FILES.bits() == 1 << 10`.
   - New `everyone_may_attach_files_and_send_voice_messages`.
-- [ ] **Step 4:** Run `cargo test -p opencord-common`. Expected: FAIL (module missing).
-- [ ] **Step 5:** Implement. Add `pub mod upload;` to `lib.rs`.
-- [ ] **Step 6:** Run `cargo test -p opencord-common`. Expected: PASS. Then run the whole workspace tests. Server tests asserting the old `DEFAULT_EVERYONE` may fail: update only those assertions and note them in the ledger.
-- [ ] **Step 7: Commit:** `feat: upload limits, filename and extension rules (A0)`.
+- [x] **Step 4:** Run `cargo test -p opencord-common`. Expected: FAIL (module missing).
+- [x] **Step 5:** Implement. Add `pub mod upload;` to `lib.rs`.
+- [x] **Step 6:** Run `cargo test -p opencord-common`. Expected: PASS. Then run the whole workspace tests. Server tests asserting the old `DEFAULT_EVERYONE` may fail: update only those assertions and note them in the ledger.
+- [x] **Step 7: Commit:** `feat: upload limits, filename and extension rules (A0)`.
 
 ### Task 3: Encrypted blob format
 

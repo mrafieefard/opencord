@@ -18,3 +18,7 @@ thiserror.workspace = true
 [features]
 # The frame-marking header extension for str0m, for clients and voice nodes.
 str0m = ["dep:str0m"]
+
+[dev-dependencies]
+serde.workspace = true
+serde_json.workspace = true

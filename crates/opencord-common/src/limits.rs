@@ -47,6 +47,12 @@ pub const IDENTIFY_RATE: RateLimit = RateLimit {
     period: Duration::from_secs(60),
 };
 
+/// CreateUpload requests per user.
+pub const UPLOAD_CREATE_RATE: RateLimit = RateLimit {
+    burst: 20,
+    period: Duration::from_secs(60),
+};
+
 // Voice (Phase 2 plan §5, §11.2, §14).
 
 /// Voice node registrations per IP address.

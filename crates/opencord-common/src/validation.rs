@@ -20,6 +20,8 @@ pub enum ValidationError {
     NotEmoji { field: &'static str },
     #[error("{field} must not contain control characters")]
     ControlCharacters { field: &'static str },
+    #[error("{field} is invalid")]
+    Invalid { field: &'static str },
 }
 
 /// Trimmed message text. Line breaks are kept.
