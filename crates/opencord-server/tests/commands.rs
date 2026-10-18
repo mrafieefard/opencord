@@ -430,6 +430,9 @@ async fn skip_command_acts_as_vote_skip_when_missing_control_and_vote_skip_enabl
 
     // Track advances!
     fake_plays(&lavalink, voice, "song 2 1").await;
-    let now = until(&mut owner, voice, "advanced to song 2", |s| playing(s, "song 2 1")).await;
+    let now = until(&mut owner, voice, "advanced to song 2", |s| {
+        playing(s, "song 2 1")
+    })
+    .await;
     assert_eq!(title(now.now_playing.as_ref()), "song 2 1");
 }

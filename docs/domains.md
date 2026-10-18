@@ -157,7 +157,7 @@ The token connects the provider under [DNS providers](#dns-providers) too, where
 
 A tunnel reaches the server when its ports cannot be opened (no port forwarding, carrier-grade NAT). cloudflared, Cloudflare's connector, opens an outgoing connection to Cloudflare and forwards the tunnel's name to Opencord's [local listener](#reverse-proxies). Cloudflare provides the certificate, so apps trust the name without a fingerprint, and WebSockets pass through: chat, voice signalling, web invites and a Lavalink node's connection to the audio bridge all work.
 
-**Tunnels carry no UDP.** Voice and video (UDP 7711) and music from Lavalink (UDP 7712) still need to reach the server directly. Without any reachable UDP, text works fully; music works when Lavalink runs on the same machine or network, since its UDP stays local; voice needs a UDP path (a relay is planned for later).
+**Tunnels carry no UDP.** Voice and video (UDP 7711) and music from Lavalink (UDP 7712) still need to reach the server directly. Apps that connect through a tunnel or a reverse proxy are sent to the server's public address for voice and video (the one under **Public address**, detected or set by hand), so it must be known and UDP 7711 open there. Without any reachable UDP, text works fully; music works when Lavalink runs on the same machine or network, since its UDP stays local; voice needs a UDP path (a relay is planned for later).
 
 Under **Domains**, choose **Use a tunnel**:
 

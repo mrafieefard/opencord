@@ -394,6 +394,7 @@ pub(crate) fn spawn(
         mirror: None,
         permissions: None,
         next_request_id: 1,
+        music: crate::music::MusicSessions::default(),
     };
     Connection {
         commands,
@@ -446,7 +447,8 @@ impl Ended {
 }
 
 struct Pending {
-    reply: oneshot::Sender<Result<proto::response::Result, CoreError>>,
+    /// `None` for the task's own requests: a music session asked for again.
+    reply: Option<oneshot::Sender<Result<proto::response::Result, CoreError>>>,
     deadline: Instant,
 }
 
@@ -459,6 +461,7 @@ struct Task {
     mirror: Option<GuildMirror>,
     permissions: Option<PermissionSnapshot>,
     next_request_id: u64,
+    music: crate::music::MusicSessions,
 }
 
 impl Task {
@@ -579,6 +582,10 @@ impl Task {
         // A probe's deadline for its heartbeat's ack.
         let mut probe: Option<Instant> = None;
         let ended = loop {
+            // Music sessions an update did not fit: asked for again (§14.3).
+            if !self.ask_for_missed_music(&mut socket, &mut pending).await {
+                break Ended::Lost;
+            }
             tokio::select! {
                 frame = socket.next() => match frame {
                     Some(Ok(Frame::Binary(bytes))) => {
@@ -589,10 +596,7 @@ impl Task {
                             Some(Payload::Event(event)) => self.on_event(envelope.seq, event),
                             Some(Payload::Response(response)) => {
                                 if let Some(waiting) = pending.remove(&envelope.request_id) {
-                                    let result = response.result.ok_or_else(|| CoreError::Connection {
-                                        message: "the server sent an empty response".to_owned(),
-                                    });
-                                    let _ = waiting.reply.send(result);
+                                    self.on_response(waiting, response.result);
                                 }
                             }
                             Some(Payload::HeartbeatAck(ack)) => {
@@ -634,8 +638,8 @@ impl Task {
                         .map(|(id, _)| *id)
                         .collect();
                     for id in expired {
-                        if let Some(waiting) = pending.remove(&id) {
-                            let _ = waiting.reply.send(Err(CoreError::Timeout));
+                        if let Some(reply) = pending.remove(&id).and_then(|waiting| waiting.reply) {
+                            let _ = reply.send(Err(CoreError::Timeout));
                         }
                     }
                 }
@@ -649,7 +653,7 @@ impl Task {
                             break Ended::Lost;
                         }
                         pending.insert(request_id, Pending {
-                            reply,
+                            reply: Some(reply),
                             deadline: Instant::now() + REQUEST_TIMEOUT,
                         });
                     }
@@ -670,8 +674,8 @@ impl Task {
                 },
             }
         };
-        for (_, waiting) in pending {
-            let _ = waiting.reply.send(Err(CoreError::NotConnected));
+        for reply in pending.into_values().filter_map(|waiting| waiting.reply) {
+            let _ = reply.send(Err(CoreError::NotConnected));
         }
         ended
     }
@@ -794,6 +798,7 @@ impl Task {
     }
 
     fn on_ready(&mut self, ready: proto::Ready) {
+        self.music.clear();
         let now = unix_ms_signed();
         self.clock_sample(ready.server_time_ms, now, now);
         if let Some(addresses) = &ready.server_addresses {
@@ -863,9 +868,24 @@ impl Task {
             .as_ref()
             .map_or("", |session| session.session_id.as_str());
         let payload = match kind {
-            proto::event::Kind::MusicSnapshot(_)
-            | proto::event::Kind::MusicNowPlaying(_)
-            | proto::event::Kind::MusicNotice(_) => crate::music::event(kind, self.clock_offset()),
+            proto::event::Kind::MusicSnapshot(snapshot) => snapshot
+                .session
+                .filter(|session| self.music.keep(session))
+                .map(|session| {
+                    CoreEventPayload::MusicSession(crate::music::session_from(
+                        session,
+                        self.clock_offset(),
+                    ))
+                }),
+            proto::event::Kind::MusicUpdate(update) => self.music.update(&update).map(|session| {
+                CoreEventPayload::MusicSession(crate::music::session_from(
+                    session,
+                    self.clock_offset(),
+                ))
+            }),
+            proto::event::Kind::MusicNowPlaying(_) | proto::event::Kind::MusicNotice(_) => {
+                crate::music::event(kind)
+            }
             kind => convert::event(kind, session_id),
         };
         if let Some(payload) = payload {
@@ -873,6 +893,54 @@ impl Task {
         }
         if affects_permissions {
             self.emit_permissions_if_changed();
+        }
+    }
+
+    /// Asks again for the music sessions an update did not fit; false when
+    /// the connection is gone.
+    async fn ask_for_missed_music(
+        &mut self,
+        socket: &mut Socket,
+        pending: &mut HashMap<u64, Pending>,
+    ) -> bool {
+        for channel_id in self.music.take_missed() {
+            let request_id = self.next_request_id;
+            self.next_request_id += 1;
+            let kind =
+                proto::request::Kind::FetchMusicSession(proto::FetchMusicSession { channel_id });
+            let request = Payload::Request(proto::Request { kind: Some(kind) });
+            if send_payload(socket, request_id, request).await.is_err() {
+                return false;
+            }
+            pending.insert(
+                request_id,
+                Pending {
+                    reply: None,
+                    deadline: Instant::now() + REQUEST_TIMEOUT,
+                },
+            );
+        }
+        true
+    }
+
+    /// An answer: to whoever asked; a music session in it is kept, and one
+    /// the task asked for itself goes to the app as a snapshot would.
+    fn on_response(&mut self, waiting: Pending, result: Option<proto::response::Result>) {
+        let kept = match &result {
+            Some(proto::response::Result::MusicSession(session)) => self.music.keep(session),
+            _ => false,
+        };
+        match (waiting.reply, result) {
+            (Some(reply), result) => {
+                let _ = reply.send(result.ok_or_else(|| CoreError::Connection {
+                    message: "the server sent an empty response".to_owned(),
+                }));
+            }
+            (None, Some(proto::response::Result::MusicSession(session))) if kept => {
+                let session = crate::music::session_from(*session, self.clock_offset());
+                self.emit(CoreEventPayload::MusicSession(session));
+            }
+            (None, _) => {}
         }
     }
 

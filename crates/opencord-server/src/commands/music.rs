@@ -259,9 +259,13 @@ pub async fn run(ctx: &Ctx<'_>, spec: &Spec, options: &Options) -> Result<Reply,
             let Some(item) = session.now_playing else {
                 return private("Nothing is playing");
             };
-            let perms = ctx.state.guild().channel_permissions(ctx.user_id, channel_id);
+            let perms = ctx
+                .state
+                .guild()
+                .channel_permissions(ctx.user_id, channel_id);
             let can_control = perms.contains(Permissions::MUSIC_CONTROL);
-            let can_own_skip = item.requester_id == ctx.user_id && perms.contains(Permissions::MUSIC_ADD);
+            let can_own_skip =
+                item.requester_id == ctx.user_id && perms.contains(Permissions::MUSIC_ADD);
             if can_control || can_own_skip {
                 let mut request = playback(channel_id, Action::Next);
                 request.expected_item_id = Some(item.item_id.clone());

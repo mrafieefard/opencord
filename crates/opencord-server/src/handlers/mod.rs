@@ -133,6 +133,7 @@ async fn dispatch(ctx: &Ctx<'_>, request: proto::Request) -> Result<Response, Ap
         Kind::MusicQueueRemove(request) => music::queue_remove(ctx, request).await,
         Kind::MusicQueueClear(request) => music::queue_clear(ctx, &request).await,
         Kind::MusicVoteSkip(request) => music::vote_skip(ctx, request).await,
+        Kind::FetchMusicSession(request) => music::fetch_session(ctx, &request).await,
         Kind::FetchMusicSettings(_) => Ok(music::fetch_settings(ctx)),
         Kind::UpdateMusicSettings(request) => music::update_settings(ctx, request).await,
         Kind::FetchMusicBlocks(_) => music::fetch_blocks(ctx),

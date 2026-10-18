@@ -5,6 +5,8 @@ pub mod v1 {
     include!(concat!(env!("OUT_DIR"), "/opencord.v1.rs"));
 }
 
+pub mod music_sync;
+
 /// The voice gateway.
 pub mod voice {
     pub mod v1 {

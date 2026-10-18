@@ -70,6 +70,10 @@ pub enum Command {
     Identify {
         identify: voice::Identify,
         connection: Connection,
+        /// Where this connection's media goes when the node has no public
+        /// address of its own; `None` for the host the client reached it
+        /// with.
+        media_host: Option<String>,
         reply: oneshot::Sender<Result<Identified, IdentifyError>>,
     },
     Resume {
@@ -198,9 +202,10 @@ impl Runtime {
             Command::Identify {
                 identify,
                 connection,
+                media_host,
                 reply,
             } => {
-                let result = self.identify(now, identify, connection);
+                let result = self.identify(now, identify, connection, media_host);
                 let _ = reply.send(result);
             }
             Command::Resume {
@@ -265,6 +270,7 @@ impl Runtime {
         now: Instant,
         identify: voice::Identify,
         connection: Connection,
+        media_host: Option<String>,
     ) -> Result<Identified, IdentifyError> {
         let presenter = Presenter {
             user_id: identify.user_id,
@@ -358,7 +364,11 @@ impl Runtime {
                 ice_ufrag: transport.ice_ufrag,
                 ice_pwd: transport.ice_pwd,
                 candidates: vec![voice::IceCandidate {
-                    ip: self.public_ip.clone(),
+                    ip: if self.public_ip.is_empty() {
+                        media_host.unwrap_or_default()
+                    } else {
+                        self.public_ip.clone()
+                    },
                     port: u32::from(self.udp_port),
                 }],
                 dtls_fingerprint: transport.dtls_fingerprint,

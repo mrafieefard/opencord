@@ -58,11 +58,7 @@ pub async fn update_voice_state(
             suppress: suppressed(&guild, ctx.user_id, channel_id),
         };
         let connecting = previous.as_ref().is_none_or(|previous| {
-            previous.channel_id != channel_id
-                || previous.session_id != joined.session_id
-                || (previous.self_mute == flags.mute
-                    && previous.self_deaf == flags.deaf
-                    && previous.self_video == flags.video)
+            previous.channel_id != channel_id || previous.session_id != joined.session_id
         });
         let update = match connecting {
             true => Some(
@@ -263,15 +259,12 @@ pub async fn refresh_voice_server(ctx: &Ctx<'_>) -> Result<Response, ApiError> {
     let _writes = ctx.state.write_lock().await;
     let update = {
         let guild = ctx.state.guild();
-        let mut voice_states = ctx.state.voice();
-        let mut current = voice_states
+        let voice_states = ctx.state.voice();
+        let current = voice_states
             .get(ctx.user_id)
+            .filter(|current| current.session_id == ctx.session_id)
             .cloned()
             .ok_or_else(|| ApiError::voice_not_connected("this session is"))?;
-        if current.session_id != ctx.session_id {
-            current.session_id = ctx.session_id.to_owned();
-            voice_states.put(current.clone());
-        }
         server_update(ctx.state, &guild, &voice_states, &current).ok_or_else(no_voice_node)?
     };
     send_server_update(ctx.state, ctx.session_id, update);

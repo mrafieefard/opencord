@@ -6,9 +6,10 @@ import 'package:opencord/ui/theme/oc_icons.dart';
 
 /// Returns the FontAwesome icon data for a music search provider.
 FaIconData musicSourceFaIcon(String sourceKey) {
-  final normalized = sourceKey
-      .toLowerCase()
-      .replaceAll(RegExp(r'[^a-z0-9]'), '');
+  final normalized = sourceKey.toLowerCase().replaceAll(
+    RegExp(r'[^a-z0-9]'),
+    '',
+  );
 
   return switch (normalized) {
     'youtubemusic' || 'ytm' => FontAwesomeIcons.youtube,
@@ -44,9 +45,10 @@ class MusicSourceIcon extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.oc;
-    final normalized = sourceKey
-        .toLowerCase()
-        .replaceAll(RegExp(r'[^a-z0-9]'), '');
+    final normalized = sourceKey.toLowerCase().replaceAll(
+      RegExp(r'[^a-z0-9]'),
+      '',
+    );
 
     switch (normalized) {
       case 'youtubemusic' || 'ytm':
@@ -62,11 +64,7 @@ class MusicSourceIcon extends StatelessWidget {
           color: color ?? colors.text,
         );
       default:
-        return Icon(
-          OcIcons.musicNote,
-          size: size,
-          color: color ?? colors.text,
-        );
+        return Icon(OcIcons.musicNote, size: size, color: color ?? colors.text);
     }
   }
 }

@@ -59,9 +59,7 @@ class NowPlayingCard extends ConsumerWidget {
       child: Builder(
         builder: (card) => Hoverable(
           onTap: () {
-            ref
-                .read(rightPanelModeProvider.notifier)
-                .set(RightPanelMode.music);
+            ref.read(rightPanelModeProvider.notifier).set(RightPanelMode.music);
             ref.read(memberPanelProvider.notifier).open();
           },
           onSecondaryTap: (position) => _menu(card, ref, position),

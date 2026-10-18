@@ -277,9 +277,57 @@ message MusicSession {
   uint32 skip_votes_needed = 14;
 }
 
-// To the session's subscribers on every change.
+// The whole session: to the subscribers when someone joins the channel;
+// otherwise a MusicUpdate (§14.3).
 message MusicSnapshot {
   MusicSession session = 1;
+}
+
+// What changed since base_version, to the subscribers. A client at another
+// version ignores it when it is older, and otherwise fetches the session
+// (FetchMusicSession): it missed something.
+message MusicUpdate {
+  int64 channel_id = 1;
+  uint64 base_version = 2;
+  uint64 version = 3;
+  // The rest of the session, small enough to send each time.
+  MusicPlayState state = 4;
+  uint64 position_ms = 5;
+  int64 server_time_ms = 6;
+  MusicRepeat repeat = 7;
+  bool shuffle = 8;
+  bool waiting_for_node = 9;
+  bool paused_empty = 10;
+  repeated int64 skip_votes = 11;
+  uint32 skip_votes_needed = 12;
+  // Set when another item plays, or none.
+  optional MusicNowPlayingChange now_playing = 13;
+  MusicListChange queue = 14;
+  MusicListChange history = 15;
+}
+
+message MusicNowPlayingChange {
+  optional MusicQueueItem item = 1;
+}
+
+// A list's changes by item id: the removals, then the placements in order.
+message MusicListChange {
+  repeated string removed = 1;
+  repeated MusicListPlacement placed = 2;
+}
+
+message MusicListPlacement {
+  string item_id = 1;
+  // A new item comes whole; one already in the list moves by id.
+  optional MusicQueueItem item = 2;
+  // Placed before this item; none: at the end.
+  optional string before_item_id = 3;
+}
+
+// -> music_session. The session now, without subscribing: for a client that
+// missed an update. Can see the channel.
+message FetchMusicSession {
+  int64 channel_id = 1;
 }
 
 // What everyone who can see a channel hears about its music, for the

@@ -12,6 +12,7 @@ use common::fake_lavalink::FakeLavalink;
 use common::music::*;
 use common::*;
 use opencord_common::permissions::Permissions;
+use opencord_proto::music_sync;
 use opencord_proto::v1 as proto;
 use proto::request::Kind;
 use proto::response::Result as Response;
@@ -862,8 +863,16 @@ async fn vote_skip_mechanism_advances_when_votes_reach_needed() {
     let found = search(&mut owner, voice, "song").await;
     owner.ok(enqueue(voice, found.clone())).await;
     fake_plays(&lavalink, voice, "song 1").await;
-    let playing_session = until(&mut owner, voice, "playing song 1", |s| playing(s, "song 1")).await;
-    let track_id = playing_session.now_playing.as_ref().unwrap().item_id.clone();
+    let playing_session = until(&mut owner, voice, "playing song 1", |s| {
+        playing(s, "song 1")
+    })
+    .await;
+    let track_id = playing_session
+        .now_playing
+        .as_ref()
+        .unwrap()
+        .item_id
+        .clone();
 
     // 1. Vote skip is off by default -> returns InvalidArgument.
     let error = member
@@ -902,7 +911,10 @@ async fn vote_skip_mechanism_advances_when_votes_reach_needed() {
 
     // Track advances!
     fake_plays(&lavalink, voice, "song 2").await;
-    let now = until(&mut owner, voice, "advanced to song 2", |s| playing(s, "song 2")).await;
+    let now = until(&mut owner, voice, "advanced to song 2", |s| {
+        playing(s, "song 2")
+    })
+    .await;
     assert_eq!(title(now.now_playing.as_ref()), "song 2");
     assert!(now.skip_votes.is_empty());
 }
@@ -979,7 +991,10 @@ async fn twenty_channels_play_together_under_load() {
         if active >= 20 {
             break;
         }
-        assert!(Instant::now() < deadline, "expected 20 players, got {active}");
+        assert!(
+            Instant::now() < deadline,
+            "expected 20 players, got {active}"
+        );
         tokio::time::sleep(Duration::from_millis(50)).await;
     }
 
@@ -1016,11 +1031,186 @@ async fn twenty_channels_play_together_under_load() {
 
     // When a listener joins an empty channel, it immediately unpauses.
     user3.ok(join_voice(channels[1])).await;
-    let s = until(&mut user3, channels[1], "unpaused when listener joins", |s| {
-        s.state == Play::Playing as i32 && !s.paused_empty
-    })
+    let s = until(
+        &mut user3,
+        channels[1],
+        "unpaused when listener joins",
+        |s| s.state == Play::Playing as i32 && !s.paused_empty,
+    )
     .await;
     assert_eq!(title(s.now_playing.as_ref()), "track-1 1");
 }
 
+/// Plan §21.2 L7: two people moving rows of Up next at the same time
+/// always end with the same order, every track once (moves are relative,
+/// §14.2).
+#[tokio::test]
+async fn two_people_moving_tracks_at_once_end_with_the_same_order() {
+    let Room {
+        mut owner,
+        mut member,
+        everyone,
+        voice,
+        lavalink,
+        ..
+    } = room().await;
+    member.ok(join_voice(voice)).await;
+    owner
+        .ok(Kind::UpdateRole(proto::UpdateRole {
+            role_id: everyone,
+            permissions: Some(
+                (Permissions::DEFAULT_EVERYONE | Permissions::MUSIC_MANAGE_QUEUE).bits(),
+            ),
+            ..Default::default()
+        }))
+        .await;
+    for query in ["song", "tune"] {
+        let found = search(&mut owner, voice, query).await;
+        owner.ok(enqueue(voice, found)).await;
+    }
+    fake_plays(&lavalink, voice, "song 1").await;
+    let start = session(owner.ok(snapshot_request(voice)).await);
+    let ids: Vec<String> = start
+        .queue
+        .iter()
+        .map(|item| item.item_id.clone())
+        .collect();
+    assert!(ids.len() >= 4, "enough to move: {}", ids.len());
+    let mut expected: Vec<String> = ids.clone();
+    expected.sort();
 
+    let move_before = |item: &str, before: Option<&str>| {
+        Kind::MusicQueueMove(proto::MusicQueueMove {
+            channel_id: voice,
+            item_id: item.to_owned(),
+            before_item_id: before.map(str::to_owned),
+        })
+    };
+    let last = ids.len() - 1;
+    for (mine, theirs) in [
+        (
+            move_before(&ids[last], Some(&ids[0])),
+            move_before(&ids[0], None),
+        ),
+        (
+            move_before(&ids[1], Some(&ids[2])),
+            move_before(&ids[2], Some(&ids[1])),
+        ),
+        (
+            move_before(&ids[0], Some(&ids[last])),
+            move_before(&ids[last], Some(&ids[0])),
+        ),
+    ] {
+        let (a, b) = tokio::join!(owner.request(mine), member.request(theirs));
+        assert!(
+            !matches!(a, Response::Error(_)) && !matches!(b, Response::Error(_)),
+            "{a:?} {b:?}"
+        );
+    }
+
+    let owners = session(owner.ok(snapshot_request(voice)).await);
+    let members = session(member.ok(snapshot_request(voice)).await);
+    let order = |session: &proto::MusicSession| -> Vec<String> {
+        session
+            .queue
+            .iter()
+            .map(|item| item.item_id.clone())
+            .collect()
+    };
+    assert_eq!(order(&owners), order(&members));
+    let mut seen = order(&owners);
+    seen.sort();
+    assert_eq!(seen, expected, "every track once");
+}
+
+/// Plan §14.3: after a snapshot, changes come as updates by item id. A
+/// move sends one placement without the track; applied in order, the
+/// updates give exactly the session the server holds.
+#[tokio::test]
+async fn changes_reach_listeners_as_small_updates() {
+    let Room {
+        mut owner,
+        voice,
+        lavalink,
+        ..
+    } = room().await;
+    for query in ["song", "tune"] {
+        let found = search(&mut owner, voice, query).await;
+        owner.ok(enqueue(voice, found)).await;
+    }
+    fake_plays(&lavalink, voice, "song 1").await;
+    let mut held = session(owner.ok(snapshot_request(voice)).await);
+    owner.collect_for(Duration::from_millis(300)).await;
+
+    let last = held.queue.last().unwrap().item_id.clone();
+    let first = held.queue[0].item_id.clone();
+    owner
+        .ok(Kind::MusicQueueMove(proto::MusicQueueMove {
+            channel_id: voice,
+            item_id: last.clone(),
+            before_item_id: Some(first.clone()),
+        }))
+        .await;
+    owner.ok(playback(voice, Action::Pause)).await;
+    owner.ok(playback(voice, Action::Next)).await;
+
+    let updates: Vec<proto::MusicUpdate> = owner
+        .collect_for(Duration::from_millis(500))
+        .await
+        .into_iter()
+        .filter_map(|event| match event {
+            proto::event::Kind::MusicUpdate(update) if update.channel_id == voice => Some(*update),
+            proto::event::Kind::MusicSnapshot(_) => panic!("a whole snapshot for a change"),
+            _ => None,
+        })
+        .collect();
+    assert!(updates.len() >= 3, "{updates:#?}");
+    let moved = updates[0].queue.as_ref().unwrap();
+    assert_eq!(moved.placed.len(), 1);
+    assert_eq!(moved.placed[0].item_id, last);
+    assert_eq!(moved.placed[0].item, None, "the track is not sent again");
+    assert_eq!(moved.placed[0].before_item_id.as_ref(), Some(&first));
+    for update in &updates {
+        assert_eq!(music_sync::apply(&mut held, update), Ok(true));
+    }
+    let server = session(owner.ok(snapshot_request(voice)).await);
+    assert_eq!(held.queue, server.queue);
+    assert_eq!(held.history, server.history);
+    assert_eq!(held.now_playing, server.now_playing);
+    assert_eq!(held.version, server.version);
+}
+
+/// A client that missed an update asks for the session; asking does not
+/// subscribe it.
+#[tokio::test]
+async fn the_session_can_be_fetched_without_subscribing() {
+    let Room {
+        mut owner,
+        mut member,
+        voice,
+        lavalink,
+        ..
+    } = room().await;
+    let found = search(&mut owner, voice, "song").await;
+    owner.ok(enqueue(voice, found)).await;
+    fake_plays(&lavalink, voice, "song 1").await;
+
+    let fetched = session(
+        member
+            .ok(Kind::FetchMusicSession(proto::FetchMusicSession {
+                channel_id: voice,
+            }))
+            .await,
+    );
+    assert_eq!(title(fetched.now_playing.as_ref()), "song 1");
+
+    owner.ok(playback(voice, Action::Pause)).await;
+    let heard = member.collect_for(Duration::from_millis(400)).await;
+    assert!(
+        !heard.iter().any(|event| matches!(
+            event,
+            proto::event::Kind::MusicUpdate(_) | proto::event::Kind::MusicSnapshot(_)
+        )),
+        "not subscribed: {heard:?}"
+    );
+}

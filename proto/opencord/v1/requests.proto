@@ -106,6 +106,7 @@ message Request {
     FetchMusicBlocks fetch_music_blocks = 140;
     MusicBlockMember music_block_member = 141;
     MusicVoteSkip music_vote_skip = 142;
+    FetchMusicSession fetch_music_session = 143;
 
     // Chat commands (Phase 3 plan §17).
     ExecuteCommand execute_command = 150;

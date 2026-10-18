@@ -271,6 +271,15 @@ impl Domains {
             .cloned()
     }
 
+    /// Whether `host` is an active tunnel or reverse-proxy domain: what
+    /// comes through it carries no UDP.
+    pub fn behind_proxy(&self, host: &str) -> bool {
+        let host = host_without_port(host).to_ascii_lowercase();
+        lock(&self.list)
+            .iter()
+            .any(|domain| domain.active && domain.kind.behind_proxy() && domain.hostname == host)
+    }
+
     /// Someone signed in through `host`: counted for that domain.
     pub fn used(&self, host: Option<&str>, user_id: i64) {
         let Some(host) = host.map(|host| host_without_port(host).to_ascii_lowercase()) else {

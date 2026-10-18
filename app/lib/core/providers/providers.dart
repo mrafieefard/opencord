@@ -709,7 +709,10 @@ class VoiceSessionNotifier extends Notifier<VoiceSession> {
 
   OpencordRepository get _repository => ref.read(repositoryProvider);
 
+  /// Joins [channelId]; already in it on this device, nothing changes, so
+  /// the call, camera and screen share carry on.
   Future<void> join(String serverKey, int channelId) async {
+    if (state.serverKey == serverKey && state.channelId == channelId) return;
     await _repository.joinVoice(serverKey, channelId);
     state = state.copyWith(
       serverKey: () => serverKey,

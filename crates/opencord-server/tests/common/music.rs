@@ -3,6 +3,7 @@
 
 use std::time::{Duration, Instant};
 
+use opencord_proto::music_sync;
 use opencord_proto::v1 as proto;
 use proto::request::Kind;
 use proto::response::Result as Response;
@@ -149,23 +150,41 @@ pub async fn until(
             return now;
         }
         assert!(Instant::now() < deadline, "never {what}: {now:#?}");
+        let held = now.clone();
         let next = tokio::time::timeout(
             Duration::from_secs(1),
             client.wait_for(|event| match event {
-                proto::event::Kind::MusicSnapshot(snapshot) => {
-                    snapshot.session.clone().filter(|session| {
-                        session.channel_id == channel_id && session.version >= now.version
+                proto::event::Kind::MusicSnapshot(snapshot) => snapshot
+                    .session
+                    .clone()
+                    .filter(|session| {
+                        session.channel_id == channel_id && session.version >= held.version
                     })
+                    .map(|session| Next::Session(Box::new(session))),
+                // A change after the one at hand applies; an older one is
+                // skipped; after a gap, the session is asked for again.
+                proto::event::Kind::MusicUpdate(update) if update.channel_id == channel_id => {
+                    let mut next = held.clone();
+                    match music_sync::apply(&mut next, update) {
+                        Ok(true) => Some(Next::Session(Box::new(next))),
+                        Ok(false) => None,
+                        Err(music_sync::Missed) => Some(Next::Missed),
+                    }
                 }
                 _ => None,
             }),
         )
         .await;
         now = match next {
-            Ok(next) => next,
-            Err(_) => session(client.ok(snapshot_request(channel_id)).await),
+            Ok(Next::Session(next)) => *next,
+            Ok(Next::Missed) | Err(_) => session(client.ok(snapshot_request(channel_id)).await),
         };
     }
+}
+
+enum Next {
+    Session(Box<proto::MusicSession>),
+    Missed,
 }
 
 pub fn title(item: Option<&proto::MusicQueueItem>) -> &str {

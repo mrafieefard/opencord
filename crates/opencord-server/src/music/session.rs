@@ -9,6 +9,7 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use opencord_common::permissions::Permissions;
+use opencord_proto::music_sync;
 use opencord_proto::v1 as proto;
 use proto::event::Kind as Event;
 use serde::{Deserialize, Serialize};
@@ -210,6 +211,9 @@ struct Session {
     announced: Option<String>,
     /// Users who voted to skip the current item (§14.1).
     skip_votes: std::collections::BTreeSet<i64>,
+    /// The session as subscribers last heard it: changes are sent from
+    /// there (§14.3).
+    published: Option<proto::MusicSession>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -254,6 +258,7 @@ impl Session {
             announced: saved.queue.now.as_ref().map(|item| item.id.clone()),
             queue: saved.queue,
             skip_votes: std::collections::BTreeSet::new(),
+            published: None,
         }
     }
 
@@ -537,7 +542,7 @@ impl Session {
     fn skip_votes_needed(&self) -> usize {
         let listeners = self.state.voice().in_channel(self.channel_id).count();
         let percent = self.state.music.settings().vote_skip_percent.clamp(1, 100) as usize;
-        ((listeners * percent + 99) / 100).max(1)
+        (listeners * percent).div_ceil(100).max(1)
     }
 
     async fn vote_skip(&mut self, caller: Caller, expected_item_id: &str) -> Result<(), ApiError> {
@@ -1224,19 +1229,35 @@ impl Session {
 
     // Sync.
 
-    /// Something changed: a new version, saved soon, sent now.
+    /// Something changed: a new version, saved soon, and what changed sent
+    /// now.
     fn changed(&mut self) {
         self.version += 1;
         if self.save_at.is_none() {
             self.save_at = Some(Instant::now() + SAVE_AFTER);
         }
-        self.publish();
+        let now = self.to_proto();
+        match self.published.replace(now.clone()) {
+            Some(before) => self.state.music.publish(
+                &self.state,
+                self.channel_id,
+                Event::MusicUpdate(Box::new(music_sync::diff(&before, &now))),
+            ),
+            None => self.send_snapshot(now),
+        }
         self.card();
     }
 
-    fn publish(&self) {
+    /// The whole session to the subscribers: someone joined the channel.
+    fn publish(&mut self) {
+        let now = self.to_proto();
+        self.published = Some(now.clone());
+        self.send_snapshot(now);
+    }
+
+    fn send_snapshot(&self, session: proto::MusicSession) {
         let snapshot = proto::MusicSnapshot {
-            session: Some(self.to_proto()),
+            session: Some(session),
         };
         self.state.music.publish(
             &self.state,

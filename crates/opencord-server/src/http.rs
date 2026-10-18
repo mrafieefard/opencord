@@ -1,10 +1,12 @@
 //! HTTP routes: the gateway plus a couple of plain endpoints.
 
+use std::net::SocketAddr;
 use std::sync::Arc;
 
-use axum::extract::State;
 use axum::extract::ws::WebSocketUpgrade;
-use axum::http::StatusCode;
+use axum::extract::{ConnectInfo, State};
+use axum::http::header::HOST;
+use axum::http::{HeaderMap, StatusCode};
 use axum::response::{IntoResponse, Response};
 use axum::routing::get;
 use axum::{Json, Router};
@@ -13,6 +15,7 @@ use serde::Serialize;
 
 use crate::domains::http_check::VERIFY_PATH;
 use crate::domains::web;
+use crate::network::proxy::ThroughLocalListener;
 use crate::state::AppState;
 use crate::{gateway, media, music, voice};
 
@@ -58,12 +61,38 @@ struct Info {
     voice_udp_port: Option<u16>,
 }
 
-/// The embedded voice node's gateway.
-async fn voice_gateway(State(state): State<Arc<AppState>>, upgrade: WebSocketUpgrade) -> Response {
-    match state.voice_nodes.embedded().cloned() {
-        Some(node) => voice_gateway_upgrade(node, upgrade),
-        None => StatusCode::NOT_FOUND.into_response(),
+/// The embedded voice node's gateway. Reached through a tunnel or a
+/// reverse proxy, which carry no UDP, its media goes straight to the
+/// server's public address (Phase 3 plan §4, §9.2–9.3).
+async fn voice_gateway(
+    State(state): State<Arc<AppState>>,
+    ConnectInfo(peer): ConnectInfo<SocketAddr>,
+    local: Option<axum::Extension<ThroughLocalListener>>,
+    headers: HeaderMap,
+    upgrade: WebSocketUpgrade,
+) -> Response {
+    let Some(node) = state.voice_nodes.embedded().cloned() else {
+        return StatusCode::NOT_FOUND.into_response();
+    };
+    let host = headers.get(HOST).and_then(|host| host.to_str().ok());
+    // A trusted peer alone is not enough: loopback is trusted by default,
+    // and an app on the server's own machine connects from there.
+    let forwarded = headers.contains_key("x-forwarded-for");
+    let proxied = local.is_some()
+        || (forwarded && state.network.settings().trusts(peer.ip()))
+        || host.is_some_and(|host| state.domains.behind_proxy(host));
+    if !proxied {
+        return voice_gateway_upgrade(node, upgrade);
     }
+    let public = state.network.current_public_ips();
+    let media_host = public
+        .v4
+        .map(|ip| ip.to_string())
+        .or_else(|| public.v6.map(|ip| ip.to_string()));
+    upgrade
+        .max_message_size(VOICE_FRAME_BYTES)
+        .max_frame_size(VOICE_FRAME_BYTES)
+        .on_upgrade(move |socket| async move { node.serve_proxied(socket, media_host).await })
 }
 
 /// Hands a voice gateway WebSocket to `node`.

@@ -345,3 +345,77 @@ async fn the_player_comes_with_its_changes_on_this_devices_clock() {
     assert!(cleared.queue.is_empty());
     owner.client.music_set_listening(1.5, true, true);
 }
+
+/// Plan §14.3: after the first snapshot, changes come as updates the core
+/// applies; the app still gets the whole session, the same as the
+/// server's.
+#[tokio::test(flavor = "multi_thread")]
+async fn changes_from_elsewhere_arrive_whole_from_the_servers_updates() {
+    let lavalink = FakeLavalink::start(PASSWORD).await;
+    let server = TestServer::start().await;
+    let key = server.address();
+    let (mut owner, ready) = Owner::of(&server).await;
+    add_node(&owner, &key, &lavalink).await;
+    let voice = ready
+        .channels
+        .iter()
+        .find(|channel| channel.kind == ChannelKind::Voice)
+        .unwrap()
+        .id;
+    owner.client.voice_join(&key, voice).await.unwrap();
+    owner
+        .client
+        .music_subscribe(&key, voice, true)
+        .await
+        .unwrap();
+    for query in ["song", "tune"] {
+        let found = owner
+            .client
+            .music_search(&key, voice, query.to_owned(), String::new())
+            .await
+            .unwrap();
+        let ids = found.results.iter().map(|r| r.result_id.clone()).collect();
+        owner
+            .client
+            .music_enqueue(&key, voice, ids, Vec::new(), None, MusicPlacement::End)
+            .await
+            .unwrap();
+    }
+    owner
+        .wait_for(|payload| match payload {
+            CoreEventPayload::MusicSession(session) if session.state == MusicPlayState::Playing => {
+                Some(())
+            }
+            _ => None,
+        })
+        .await;
+
+    // The track ends on the node: the server moves on by itself.
+    lavalink.fake.finish(voice);
+    let heard = owner
+        .wait_for(|payload| match payload {
+            CoreEventPayload::MusicSession(session)
+                if session.state == MusicPlayState::Playing
+                    && session
+                        .now_playing
+                        .as_ref()
+                        .is_some_and(|now| now.track.title == "song 2") =>
+            {
+                Some(session.clone())
+            }
+            _ => None,
+        })
+        .await;
+
+    let asked = owner
+        .client
+        .music_subscribe(&key, voice, true)
+        .await
+        .unwrap();
+    assert_eq!(heard.version, asked.version);
+    assert_eq!(heard.queue, asked.queue);
+    assert_eq!(heard.history, asked.history);
+    assert_eq!(heard.now_playing, asked.now_playing);
+    assert_eq!(heard.queue.len(), 4);
+    assert_eq!(heard.history[0].track.title, "song 1");
+}

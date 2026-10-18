@@ -51,36 +51,37 @@ Future<void> _openMusic(WidgetTester tester) async {
 
 void main() {
   group('MusicSourceIcon', () {
-    testWidgets('renders FontAwesome brand icons for known music providers and fallback', (
-      tester,
-    ) async {
-      await tester.pumpWidget(
-        MaterialApp(
-          theme: buildTheme(OcColors.dark),
-          home: const Scaffold(
-            body: SingleChildScrollView(
-              child: Column(
-                children: [
-                  MusicSourceIcon('youtube_music'),
-                  MusicSourceIcon('youtube'),
-                  MusicSourceIcon('soundcloud'),
-                  MusicSourceIcon('bandcamp'),
-                  MusicSourceIcon('spotify'),
-                  MusicSourceIcon('applemusic'),
-                  MusicSourceIcon('deezer'),
-                  MusicSourceIcon('unknown_provider'),
-                ],
+    testWidgets(
+      'renders FontAwesome brand icons for known music providers and fallback',
+      (tester) async {
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: buildTheme(OcColors.dark),
+            home: const Scaffold(
+              body: SingleChildScrollView(
+                child: Column(
+                  children: [
+                    MusicSourceIcon('youtube_music'),
+                    MusicSourceIcon('youtube'),
+                    MusicSourceIcon('soundcloud'),
+                    MusicSourceIcon('bandcamp'),
+                    MusicSourceIcon('spotify'),
+                    MusicSourceIcon('applemusic'),
+                    MusicSourceIcon('deezer'),
+                    MusicSourceIcon('unknown_provider'),
+                  ],
+                ),
               ),
             ),
           ),
-        ),
-      );
+        );
 
-      expect(find.byType(MusicSourceIcon), findsNWidgets(8));
-      // 7 FontAwesome FaIcon widgets, 1 fallback Icon(OcIcons.musicNote)
-      expect(find.byType(FaIcon), findsNWidgets(7));
-      expect(find.byIcon(OcIcons.musicNote), findsOneWidget);
-    });
+        expect(find.byType(MusicSourceIcon), findsNWidgets(8));
+        // 7 FontAwesome FaIcon widgets, 1 fallback Icon(OcIcons.musicNote)
+        expect(find.byType(FaIcon), findsNWidgets(7));
+        expect(find.byIcon(OcIcons.musicNote), findsOneWidget);
+      },
+    );
   });
 
   group('MusicSearchField', () {
@@ -136,46 +137,47 @@ void main() {
       await app.dispose(tester);
     });
 
-    testWidgets('tapping source selector opens vertical menu with provider names and icons', (
-      tester,
-    ) async {
-      final app = await MockApp.pump(tester);
-      await _openMusic(tester);
+    testWidgets(
+      'tapping source selector opens vertical menu with provider names and icons',
+      (tester) async {
+        final app = await MockApp.pump(tester);
+        await _openMusic(tester);
 
-      // Find the selector pill
-      final selectorPill = _inPanel(
-        find.bySemanticsLabel('Search YouTube Music'),
-      );
-      expect(selectorPill, findsOneWidget);
+        // Find the selector pill
+        final selectorPill = _inPanel(
+          find.bySemanticsLabel('Search YouTube Music'),
+        );
+        expect(selectorPill, findsOneWidget);
 
-      // Tap selector to open vertical menu
-      await tester.tap(selectorPill);
-      await _settle(tester);
+        // Tap selector to open vertical menu
+        await tester.tap(selectorPill);
+        await _settle(tester);
 
-      // Vertical menu should be open
-      expect(find.byType(OcMenuPanel), findsOneWidget);
+        // Vertical menu should be open
+        expect(find.byType(OcMenuPanel), findsOneWidget);
 
-      // Vertical menu lists provider names and icons
-      expect(_inMenu(find.text('YouTube Music')), findsOneWidget);
-      expect(_inMenu(find.text('YouTube')), findsOneWidget);
-      expect(_inMenu(find.text('SoundCloud')), findsOneWidget);
-      expect(_inMenu(find.text('Bandcamp')), findsOneWidget);
-      expect(_inMenu(find.byType(MusicSourceIcon)), findsWidgets);
+        // Vertical menu lists provider names and icons
+        expect(_inMenu(find.text('YouTube Music')), findsOneWidget);
+        expect(_inMenu(find.text('YouTube')), findsOneWidget);
+        expect(_inMenu(find.text('SoundCloud')), findsOneWidget);
+        expect(_inMenu(find.text('Bandcamp')), findsOneWidget);
+        expect(_inMenu(find.byType(MusicSourceIcon)), findsWidgets);
 
-      // Tap SoundCloud in the vertical menu
-      await tester.tap(_inMenu(find.text('SoundCloud')));
-      await _settle(tester);
+        // Tap SoundCloud in the vertical menu
+        await tester.tap(_inMenu(find.text('SoundCloud')));
+        await _settle(tester);
 
-      // Menu is dismissed
-      expect(find.byType(OcMenuPanel), findsNothing);
+        // Menu is dismissed
+        expect(find.byType(OcMenuPanel), findsNothing);
 
-      // Search field selector now reflects SoundCloud
-      expect(
-        _inPanel(find.bySemanticsLabel('Search SoundCloud')),
-        findsOneWidget,
-      );
+        // Search field selector now reflects SoundCloud
+        expect(
+          _inPanel(find.bySemanticsLabel('Search SoundCloud')),
+          findsOneWidget,
+        );
 
-      await app.dispose(tester);
-    });
+        await app.dispose(tester);
+      },
+    );
   });
 }

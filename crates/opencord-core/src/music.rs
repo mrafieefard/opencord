@@ -1,6 +1,9 @@
 //! Music (Phase 3 plan §15–16): its settings, members blocked from it,
 //! moving players off a Lavalink node, and artwork through the server.
 
+use std::collections::HashMap;
+
+use opencord_proto::music_sync;
 use opencord_proto::v1 as proto;
 use proto::request::Kind as Request;
 use proto::response::Result as Response;
@@ -386,13 +389,11 @@ pub(crate) fn session_from(session: proto::MusicSession, offset_ms: i64) -> Musi
     }
 }
 
-/// The music events, which need the server's clock offset.
-pub(crate) fn event(kind: proto::event::Kind, offset_ms: i64) -> Option<CoreEventPayload> {
+/// The now-playing card and notices. Sessions follow the connection's
+/// [`MusicSessions`].
+pub(crate) fn event(kind: proto::event::Kind) -> Option<CoreEventPayload> {
     use proto::event::Kind;
     Some(match kind {
-        Kind::MusicSnapshot(snapshot) => {
-            CoreEventPayload::MusicSession(session_from(snapshot.session?, offset_ms))
-        }
         Kind::MusicNowPlaying(card) => CoreEventPayload::MusicNowPlaying(MusicNowPlaying {
             channel_id: card.channel_id,
             title: card.title,
@@ -409,4 +410,112 @@ pub(crate) fn event(kind: proto::event::Kind, offset_ms: i64) -> Option<CoreEven
         }),
         _ => return None,
     })
+}
+
+/// The music sessions a connection follows, as last heard (§14.3).
+/// Updates apply to them; one that does not follow asks for the session
+/// again.
+#[derive(Debug, Default)]
+pub(crate) struct MusicSessions {
+    held: HashMap<i64, proto::MusicSession>,
+    /// Channels whose session is to be asked for again.
+    missed: Vec<i64>,
+}
+
+impl MusicSessions {
+    /// A whole session, from a snapshot or an answer, kept unless an even
+    /// newer one is at hand. Returns whether it was.
+    pub fn keep(&mut self, session: &proto::MusicSession) -> bool {
+        let newer = self
+            .held
+            .get(&session.channel_id)
+            .is_none_or(|held| held.version <= session.version);
+        if newer {
+            self.held.insert(session.channel_id, session.clone());
+            self.missed
+                .retain(|channel_id| *channel_id != session.channel_id);
+        }
+        newer
+    }
+
+    /// The session after `update`, when it applied.
+    pub fn update(&mut self, update: &proto::MusicUpdate) -> Option<proto::MusicSession> {
+        let applied = self
+            .held
+            .get_mut(&update.channel_id)
+            .map(|held| music_sync::apply(held, update));
+        match applied {
+            Some(Ok(true)) => self.held.get(&update.channel_id).cloned(),
+            Some(Ok(false)) => None,
+            Some(Err(music_sync::Missed)) | None => {
+                if !self.missed.contains(&update.channel_id) {
+                    self.missed.push(update.channel_id);
+                }
+                None
+            }
+        }
+    }
+
+    /// The channels to ask for again, once each.
+    pub fn take_missed(&mut self) -> Vec<i64> {
+        std::mem::take(&mut self.missed)
+    }
+
+    /// A fresh session starts from snapshots again.
+    pub fn clear(&mut self) {
+        self.held.clear();
+        self.missed.clear();
+    }
+}
+
+#[cfg(test)]
+mod sessions_tests {
+    use super::*;
+
+    fn session(version: u64, queue: &[&str]) -> proto::MusicSession {
+        proto::MusicSession {
+            channel_id: 9,
+            version,
+            queue: queue
+                .iter()
+                .map(|id| proto::MusicQueueItem {
+                    item_id: (*id).to_owned(),
+                    ..proto::MusicQueueItem::default()
+                })
+                .collect(),
+            ..proto::MusicSession::default()
+        }
+    }
+
+    #[test]
+    fn updates_apply_to_what_is_held_and_a_gap_asks_once() {
+        let mut sessions = MusicSessions::default();
+        let (v1, v2, v3) = (
+            session(1, &["a"]),
+            session(2, &["a", "b"]),
+            session(3, &["b"]),
+        );
+
+        // Nothing held yet: asked for.
+        assert_eq!(sessions.update(&music_sync::diff(&v1, &v2)), None);
+        assert_eq!(sessions.take_missed(), [9]);
+
+        assert!(sessions.keep(&v1));
+        assert_eq!(
+            sessions.update(&music_sync::diff(&v1, &v2)),
+            Some(v2.clone())
+        );
+        // Already applied: nothing.
+        assert_eq!(sessions.update(&music_sync::diff(&v1, &v2)), None);
+        assert!(sessions.take_missed().is_empty());
+        // An older answer does not replace a newer session.
+        assert!(!sessions.keep(&v1));
+
+        let v4 = session(4, &[]);
+        assert_eq!(sessions.update(&music_sync::diff(&v3, &v4)), None);
+        assert_eq!(sessions.update(&music_sync::diff(&v3, &v4)), None);
+        assert_eq!(sessions.take_missed(), [9], "once");
+        assert!(sessions.keep(&v4));
+        assert!(sessions.take_missed().is_empty());
+    }
 }

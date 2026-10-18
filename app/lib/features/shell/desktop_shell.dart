@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import 'package:opencord/core/model/channel.dart';
+import 'package:opencord/core/settings/voice_view_prefs.dart';
 import 'package:opencord/core/providers/providers.dart';
 import 'package:opencord/core/providers/voice_cues.dart';
 import 'package:opencord/core/settings/local_prefs.dart';
@@ -122,18 +122,18 @@ class _DesktopShellState extends ConsumerState<DesktopShell> {
     ref.read(nativeWindowProvider).setFullscreen(!fullscreen);
   }
 
-  void _selectMusic() {
-    ref.read(rightPanelModeProvider.notifier).set(RightPanelMode.music);
-    if (_layout.membersInline) {
-      ref.read(memberPanelProvider.notifier).open();
-    } else {
-      setState(() => _membersDrawer = true);
-    }
-  }
+  void _selectMusic() => _showRightPanel(RightPanelMode.music);
 
-  void _selectMembers() {
-    ref.read(rightPanelModeProvider.notifier).set(RightPanelMode.people);
+  void _selectMembers() => _showRightPanel(RightPanelMode.people);
+
+  /// Opens the right-side panel on [mode]. A voice channel's chat holds
+  /// that place while it is open, so it closes.
+  void _showRightPanel(RightPanelMode mode) {
+    ref.read(rightPanelModeProvider.notifier).set(mode);
     if (_layout.membersInline) {
+      if (ref.read(voiceChatShownProvider)) {
+        ref.read(voiceViewPrefsProvider.notifier).toggleChat();
+      }
       ref.read(memberPanelProvider.notifier).open();
     } else {
       setState(() => _membersDrawer = true);
@@ -184,8 +184,8 @@ class _DesktopShellState extends ConsumerState<DesktopShell> {
   void _toggleMembers() {
     final panelOpen = _layout.membersInline
         ? ref.read(memberPanelProvider) &&
-            ref.read(serverListProvider).isNotEmpty &&
-            !ref.read(voiceChatShownProvider)
+              ref.read(serverListProvider).isNotEmpty &&
+              !ref.read(voiceChatShownProvider)
         : _membersDrawer;
     final mode = ref.read(rightPanelModeProvider);
     if (panelOpen && mode == RightPanelMode.people) {
@@ -294,34 +294,27 @@ class _DesktopShellState extends ConsumerState<DesktopShell> {
   @override
   Widget build(BuildContext context) {
     final colors = context.oc;
-    final server = ref.watch(currentServerProvider);
-    final channelId = ref.watch(currentChannelProvider);
-    final openChannelKind = server == null || channelId == null
-        ? null
-        : ref.watch(
-            serverProvider(
-              server,
-            ).select((s) => s.data?.channels[channelId]?.kind),
-          );
-    final isVoiceContext = openChannelKind == ChannelKind.voice;
-
     final panelOpen = _layout.membersInline
         ? ref.watch(memberPanelProvider) &&
-            ref.watch(
-              serverListProvider.select((servers) => servers.isNotEmpty),
-            ) &&
-            !ref.watch(voiceChatShownProvider)
+              ref.watch(
+                serverListProvider.select((servers) => servers.isNotEmpty),
+              ) &&
+              !ref.watch(voiceChatShownProvider)
         : _membersDrawer;
 
+    // The voice channel open, or else the one this device is in: the
+    // now-playing card opens its music from a text channel too (§19.3).
     final musicChannel = ref.watch(musicChannelProvider);
-    final musicOffered = isVoiceContext &&
-        musicChannel != null &&
-        ref.watch(musicOfferedProvider(musicChannel));
+    final musicOffered =
+        musicChannel != null && ref.watch(musicOfferedProvider(musicChannel));
     final mode = ref.watch(rightPanelModeProvider);
 
-    final musicShown = panelOpen && musicOffered && mode == RightPanelMode.music;
-    final membersActive = panelOpen && (!musicOffered || mode == RightPanelMode.people);
-    final musicActive = panelOpen && musicOffered && mode == RightPanelMode.music;
+    final musicShown =
+        panelOpen && musicOffered && mode == RightPanelMode.music;
+    final membersActive =
+        panelOpen && (!musicOffered || mode == RightPanelMode.people);
+    final musicActive =
+        panelOpen && musicOffered && mode == RightPanelMode.music;
 
     // Text fields (the composer, searches) need Material underneath.
     return Material(

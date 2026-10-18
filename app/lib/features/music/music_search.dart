@@ -137,9 +137,7 @@ class _MusicSearchFieldState extends ConsumerState<MusicSearchField> {
             leading: MusicSourceIcon(
               key,
               size: 16,
-              color: key == chosen
-                  ? context.oc.text
-                  : context.oc.textSecondary,
+              color: key == chosen ? context.oc.text : context.oc.textSecondary,
             ),
             checked: key == chosen,
             onSelected: () {

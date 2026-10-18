@@ -470,7 +470,10 @@ pub fn event(kind: proto::event::Kind, session_id: &str) -> Option<CoreEventPayl
             content: message.content,
         }),
         // With the server's clock: `music::event`.
-        Kind::MusicSnapshot(_) | Kind::MusicNotice(_) | Kind::MusicNowPlaying(_) => return None,
+        Kind::MusicSnapshot(_)
+        | Kind::MusicUpdate(_)
+        | Kind::MusicNotice(_)
+        | Kind::MusicNowPlaying(_) => return None,
     })
 }
 

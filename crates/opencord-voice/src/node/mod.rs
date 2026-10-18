@@ -270,7 +270,15 @@ impl VoiceNode {
 
     /// Serves one voice gateway WebSocket until it closes.
     pub async fn serve(&self, socket: WebSocket) {
-        gateway::serve(self.clone(), socket).await;
+        gateway::serve(self.clone(), socket, None).await;
+    }
+
+    /// Serves one voice gateway WebSocket that came through a tunnel or a
+    /// reverse proxy, which carry no UDP: unless the node has a public
+    /// address of its own, its media goes to `media_host` (Phase 3 plan
+    /// §9.2–9.3).
+    pub async fn serve_proxied(&self, socket: WebSocket, media_host: Option<String>) {
+        gateway::serve(self.clone(), socket, media_host).await;
     }
 
     /// Ends every voice session (clients wait for the main server to send

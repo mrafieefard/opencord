@@ -35,9 +35,11 @@ InputDecoration ocInputDecoration(
           horizontal: OcSpace.s12,
           vertical: OcSpace.s10,
         ),
-    prefixIcon: prefix ?? (prefixIcon == null
-        ? null
-        : Icon(prefixIcon, size: OcSize.iconRow, color: colors.textMuted)),
+    prefixIcon:
+        prefix ??
+        (prefixIcon == null
+            ? null
+            : Icon(prefixIcon, size: OcSize.iconRow, color: colors.textMuted)),
     prefixIconConstraints:
         prefixConstraints ?? const BoxConstraints(minWidth: 36, minHeight: 32),
     suffixIcon: suffix,

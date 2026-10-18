@@ -127,6 +127,26 @@ pub async fn subscribe(
     Ok(session(snapshot))
 }
 
+/// The session now, without subscribing: for a client that missed an
+/// update (§14.3).
+pub async fn fetch_session(
+    ctx: &Ctx<'_>,
+    request: &proto::FetchMusicSession,
+) -> Result<Response, ApiError> {
+    if !music::supported(ctx.state) {
+        return Err(not_configured());
+    }
+    voice_channel(ctx, request.channel_id)?;
+    let snapshot = ctx
+        .state
+        .music
+        .ask(ctx.state, request.channel_id, |reply| Command::Snapshot {
+            reply,
+        })
+        .await?;
+    Ok(session(snapshot))
+}
+
 pub async fn search(ctx: &Ctx<'_>, request: proto::MusicSearch) -> Result<Response, ApiError> {
     act(
         ctx,
@@ -327,10 +347,7 @@ pub async fn queue_clear(
     ask(ctx, request.channel_id, |reply| Command::Clear { reply }).await
 }
 
-pub async fn vote_skip(
-    ctx: &Ctx<'_>,
-    request: proto::MusicVoteSkip,
-) -> Result<Response, ApiError> {
+pub async fn vote_skip(ctx: &Ctx<'_>, request: proto::MusicVoteSkip) -> Result<Response, ApiError> {
     let caller = act(
         ctx,
         request.channel_id,

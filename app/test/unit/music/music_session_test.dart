@@ -101,28 +101,37 @@ void main() {
     );
     expect(again.nowPlaying?.track.title, 'song 1');
 
-    session = music.update(7, (player) => player.voteSkip(10, again.nowPlaying!.id));
+    session = music.update(
+      7,
+      (player) => player.voteSkip(10, again.nowPlaying!.id),
+    );
     expect(session.skipVotes, [10]);
     expect(session.nowPlaying?.track.title, 'song 1');
 
-    session = music.update(7, (player) => player.voteSkip(11, session.nowPlaying!.id));
+    session = music.update(
+      7,
+      (player) => player.voteSkip(11, session.nowPlaying!.id),
+    );
     expect(session.skipVotes, isEmpty);
     expect(session.nowPlaying?.track.title, 'song 3');
   });
 
-  test('volumeToGain maps perceived audio loudness with Spotify normalization', () {
-    expect(MusicListening.volumeToGain(0), 0.0);
-    expect(MusicListening.volumeToGain(-10), 0.0);
-    // At lowest volume (1 %), gain is whisper-quiet (~0.00005, -86 dB).
-    expect(MusicListening.volumeToGain(1), closeTo(0.00005, 1e-6));
-    // At 5 %, gain is ~0.00125 (-58 dB).
-    expect(MusicListening.volumeToGain(5), closeTo(0.00125, 1e-5));
-    // At 50 %, gain is 0.125 (-18 dB, half perceived volume).
-    expect(MusicListening.volumeToGain(50), closeTo(0.125, 1e-4));
-    // At nominal 100 %, gain is 0.50 (-6 dB, Spotify -14 LUFS target).
-    expect(MusicListening.volumeToGain(100), closeTo(0.50, 1e-4));
-    // At maximum 200 %, gain is 2.0 (+6 dB boost).
-    expect(MusicListening.volumeToGain(200), closeTo(2.0, 1e-4));
-    expect(MusicListening.volumeToGain(250), closeTo(2.0, 1e-4));
-  });
+  test(
+    'volumeToGain maps perceived audio loudness with Spotify normalization',
+    () {
+      expect(MusicListening.volumeToGain(0), 0.0);
+      expect(MusicListening.volumeToGain(-10), 0.0);
+      // At lowest volume (1 %), gain is whisper-quiet (~0.00005, -86 dB).
+      expect(MusicListening.volumeToGain(1), closeTo(0.00005, 1e-6));
+      // At 5 %, gain is ~0.00125 (-58 dB).
+      expect(MusicListening.volumeToGain(5), closeTo(0.00125, 1e-5));
+      // At 50 %, gain is 0.125 (-18 dB, half perceived volume).
+      expect(MusicListening.volumeToGain(50), closeTo(0.125, 1e-4));
+      // At nominal 100 %, gain is 0.50 (-6 dB, Spotify -14 LUFS target).
+      expect(MusicListening.volumeToGain(100), closeTo(0.50, 1e-4));
+      // At maximum 200 %, gain is 2.0 (+6 dB boost).
+      expect(MusicListening.volumeToGain(200), closeTo(2.0, 1e-4));
+      expect(MusicListening.volumeToGain(250), closeTo(2.0, 1e-4));
+    },
+  );
 }

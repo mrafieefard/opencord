@@ -65,6 +65,11 @@ pub fn client_address(
         .map_or(peer, |ip| SocketAddr::new(ip.to_canonical(), 0))
 }
 
+/// Marks requests that came through the local listener: from a tunnel or a
+/// reverse proxy.
+#[derive(Debug, Clone, Copy)]
+pub struct ThroughLocalListener;
+
 /// The plain listener on this machine that tunnels and reverse proxies
 /// forward to: the same routes as the main port, without TLS.
 #[derive(Debug)]
@@ -80,6 +85,7 @@ impl LocalListener {
         let port = listener.local_addr()?.port();
         let stop = CancellationToken::new();
         let app = crate::http::router(Arc::clone(&state))
+            .layer(axum::Extension(ThroughLocalListener))
             .into_make_service_with_connect_info::<SocketAddr>();
         let stopped = stop.clone();
         let serving = tokio::spawn(async move {

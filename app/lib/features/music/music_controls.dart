@@ -235,8 +235,9 @@ class MusicTransport extends ConsumerWidget {
         () {
           final canDirectSkip =
               item != null && access.canSkip(item.requesterId);
-          final musicSettings =
-              ref.watch(musicSettingsProvider(channel.server)).value;
+          final musicSettings = ref
+              .watch(musicSettingsProvider(channel.server))
+              .value;
           final voteSkipOn =
               !canDirectSkip && (musicSettings?.voteSkip ?? false);
           final hasVoted = session?.hasVotedToSkip(access.selfId) ?? false;
@@ -247,8 +248,8 @@ class MusicTransport extends ConsumerWidget {
               ? 'Next'
               : voteSkipOn
               ? (hasVoted
-                  ? 'Voted to skip ($votes/$needed)'
-                  : 'Vote to skip ($votes/$needed)')
+                    ? 'Voted to skip ($votes/$needed)'
+                    : 'Vote to skip ($votes/$needed)')
               : why ?? 'Next';
 
           final nextOnPressed = item == null
@@ -471,7 +472,10 @@ class _RoundIcon extends StatelessWidget {
                   top: 0,
                   right: 0,
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 1),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 3,
+                      vertical: 1,
+                    ),
                     decoration: BoxDecoration(
                       color: colors.accent,
                       borderRadius: BorderRadius.circular(4),

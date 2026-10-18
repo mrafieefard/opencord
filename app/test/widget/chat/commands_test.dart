@@ -155,13 +155,9 @@ void main() {
     final app = await MockApp.pump(tester);
     await _open(tester, app, 'general');
     await _joinVoice(tester, app);
-    debugPrint('STEP joined');
     await _choose(tester, 'nowplaying');
-    debugPrint('STEP chosen');
     await _press(tester, LogicalKeyboardKey.enter);
-    debugPrint('STEP entered');
     await _settle(tester);
-    debugPrint('STEP settled');
 
     expect(find.byType(EphemeralLine), findsOneWidget);
     expect(find.text('Nothing is playing in General'), findsOneWidget);

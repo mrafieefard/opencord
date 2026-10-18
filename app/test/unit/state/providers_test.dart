@@ -233,6 +233,34 @@ void main() {
     }, simulateLife: true);
   });
 
+  test('joining the channel you are in leaves the call as it is', () {
+    withApp((async, container, repo) {
+      final server = repo.servers.first.key;
+      final voice = container
+          .read(serverProvider(server))
+          .data!
+          .channels
+          .values
+          .firstWhere((channel) => channel.kind == ChannelKind.voice);
+      final session = container.read(voiceSessionProvider.notifier);
+      session.join(server, voice.id);
+      async.elapse(const Duration(seconds: 1));
+      session.toggleCamera();
+      async.flushMicrotasks();
+      final joins = <RepoEvent>[];
+      final listening = repo.events
+          .where((event) => event is VoiceConnectionChanged)
+          .listen(joins.add);
+
+      session.join(server, voice.id);
+      async.elapse(const Duration(seconds: 1));
+      listening.cancel();
+
+      expect(joins, isEmpty, reason: 'no new connection');
+      expect(container.read(voiceSessionProvider).camera, isTrue);
+    });
+  });
+
   test('a moderator moving or disconnecting you moves the call', () {
     withApp((async, container, repo) {
       final server = repo.servers.first.key;

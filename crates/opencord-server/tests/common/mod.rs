@@ -417,7 +417,7 @@ pub async fn websocket(
         .map(|(ws, _)| ws)
 }
 
-async fn tls_connect(server: &TestServer) -> TlsStream<TcpStream> {
+pub async fn tls_connect(server: &TestServer) -> TlsStream<TcpStream> {
     let config = opencord_server::tls::client_config(Some(server.handle.fingerprint)).unwrap();
     let tcp = TcpStream::connect(server.handle.local_addr).await.unwrap();
     TlsConnector::from(Arc::new(config))

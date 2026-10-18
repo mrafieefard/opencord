@@ -481,25 +481,26 @@ void main() {
     },
   );
 
-  testWidgets('the old People / Music segmented selector is absent from both panels', (
-    tester,
-  ) async {
-    final app = await MockApp.pump(tester);
-    await tester.tap(_inSidebar('General'));
-    await _settle(tester);
+  testWidgets(
+    'the old People / Music segmented selector is absent from both panels',
+    (tester) async {
+      final app = await MockApp.pump(tester);
+      await tester.tap(_inSidebar('General'));
+      await _settle(tester);
 
-    // In MemberPanel: no RightPanelModeBar or 'People' text.
-    expect(find.byType(MemberPanel), findsOneWidget);
-    expect(find.byType(RightPanelModeBar), findsNothing);
+      // In MemberPanel: no RightPanelModeBar or 'People' text.
+      expect(find.byType(MemberPanel), findsOneWidget);
+      expect(find.byType(RightPanelModeBar), findsNothing);
 
-    // In MusicPanel: no RightPanelModeBar.
-    await tester.tap(_headerButton('Music'));
-    await _settle(tester);
-    expect(find.byType(MusicPanel), findsOneWidget);
-    expect(find.byType(RightPanelModeBar), findsNothing);
+      // In MusicPanel: no RightPanelModeBar.
+      await tester.tap(_headerButton('Music'));
+      await _settle(tester);
+      expect(find.byType(MusicPanel), findsOneWidget);
+      expect(find.byType(RightPanelModeBar), findsNothing);
 
-    await app.dispose(tester);
-  });
+      await app.dispose(tester);
+    },
+  );
 
   testWidgets('NowPlayingCard opens the music panel using the shared action', (
     tester,
@@ -546,19 +547,31 @@ void main() {
       final voicePanel = find.byType(VoiceConnectedPanel);
       expect(voicePanel, findsOneWidget);
       expect(
-        find.descendant(of: voicePanel, matching: find.bySemanticsLabel('Music')),
+        find.descendant(
+          of: voicePanel,
+          matching: find.bySemanticsLabel('Music'),
+        ),
         findsNothing,
       );
       expect(
-        find.descendant(of: voicePanel, matching: find.bySemanticsLabel('Camera')),
+        find.descendant(
+          of: voicePanel,
+          matching: find.bySemanticsLabel('Camera'),
+        ),
         findsOneWidget,
       );
       expect(
-        find.descendant(of: voicePanel, matching: find.bySemanticsLabel('Screen')),
+        find.descendant(
+          of: voicePanel,
+          matching: find.bySemanticsLabel('Screen'),
+        ),
         findsOneWidget,
       );
       expect(
-        find.descendant(of: voicePanel, matching: find.bySemanticsLabel('Soundboard')),
+        find.descendant(
+          of: voicePanel,
+          matching: find.bySemanticsLabel('Soundboard'),
+        ),
         findsOneWidget,
       );
       expect(
@@ -570,33 +583,99 @@ void main() {
       final controlBar = find.byType(VoiceControlBar);
       expect(controlBar, findsOneWidget);
       expect(
-        find.descendant(of: controlBar, matching: find.bySemanticsLabel('Music')),
+        find.descendant(
+          of: controlBar,
+          matching: find.bySemanticsLabel('Music'),
+        ),
         findsNothing,
       );
       expect(
-        find.descendant(of: controlBar, matching: find.bySemanticsLabel('Mute')),
+        find.descendant(
+          of: controlBar,
+          matching: find.bySemanticsLabel('Mute'),
+        ),
         findsOneWidget,
       );
       expect(
-        find.descendant(of: controlBar, matching: find.bySemanticsLabel('Turn on camera')),
+        find.descendant(
+          of: controlBar,
+          matching: find.bySemanticsLabel('Turn on camera'),
+        ),
         findsOneWidget,
       );
       expect(
-        find.descendant(of: controlBar, matching: find.bySemanticsLabel('Share your screen')),
+        find.descendant(
+          of: controlBar,
+          matching: find.bySemanticsLabel('Share your screen'),
+        ),
         findsOneWidget,
       );
       expect(
-        find.descendant(of: controlBar, matching: find.bySemanticsLabel('Soundboard')),
+        find.descendant(
+          of: controlBar,
+          matching: find.bySemanticsLabel('Soundboard'),
+        ),
         findsOneWidget,
       );
       expect(
-        find.descendant(of: controlBar, matching: find.bySemanticsLabel('Deafen')),
+        find.descendant(
+          of: controlBar,
+          matching: find.bySemanticsLabel('Deafen'),
+        ),
         findsOneWidget,
       );
 
       await app.dispose(tester);
     },
   );
+
+  testWidgets('in a text channel the card still opens the call\'s music', (
+    tester,
+  ) async {
+    final app = await MockApp.pump(tester);
+    await _openMusic(tester);
+    await _search(tester, 'lofi');
+    await tester.tap(_inPanel(find.byTooltip('Add to queue')).first);
+    await _settle(tester);
+    await tester.tap(_inSidebar('general'));
+    await _settle(tester);
+    await tester.tap(_headerButton('Members'));
+    await _settle(tester);
+    expect(find.byType(NowPlayingCard), findsOneWidget);
+
+    await tester.tap(find.byType(NowPlayingCard));
+    await _settle(tester);
+
+    expect(find.byType(MusicPanel), findsOneWidget, reason: 'the card works');
+    expect(find.byType(MemberPanel), findsNothing);
+    await app.dispose(tester);
+  });
+
+  testWidgets('with the voice chat open, Music and Members take its place', (
+    tester,
+  ) async {
+    final app = await MockApp.pump(tester);
+    await tester.tap(_inSidebar('General'));
+    await _settle(tester);
+    await tester.tap(
+      find.descendant(
+        of: find.byType(VoiceControlBar),
+        matching: find.byTooltip('Show chat'),
+      ),
+    );
+    await _settle(tester);
+    expect(find.byType(MemberPanel), findsNothing);
+
+    await tester.tap(_headerButton('Music'));
+    await _settle(tester);
+    expect(find.byType(MusicPanel), findsOneWidget);
+    expect(tester.widget<OcIconButton>(_headerButton('Music')).active, isTrue);
+
+    await tester.tap(_headerButton('Members'));
+    await _settle(tester);
+    expect(find.byType(MemberPanel), findsOneWidget);
+    await app.dispose(tester);
+  });
 
   testWidgets('in text channels the Music header button is not shown', (
     tester,
@@ -623,10 +702,7 @@ void main() {
     'in narrow overlay mode, the overlay header provides Members and Music buttons',
     (tester) async {
       // Medium window where membersInline is false (ShellLayout.medium).
-      final app = await MockApp.pump(
-        tester,
-        size: const Size(1000, 900),
-      );
+      final app = await MockApp.pump(tester, size: const Size(1000, 900));
       await tester.tap(_inSidebar('General'));
       await _settle(tester);
 

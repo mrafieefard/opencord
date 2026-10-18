@@ -66,6 +66,8 @@ message Event {
     // To a channel's subscribers: users connected to it, and sessions that
     // subscribed.
     MusicSnapshot music_snapshot = 93;
+    // The same audience, for every change after the first snapshot.
+    MusicUpdate music_update = 97;
     MusicNotice music_notice = 94;
     // To everyone who can see the channel.
     MusicNowPlaying music_now_playing = 95;
