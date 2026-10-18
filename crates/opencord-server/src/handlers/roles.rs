@@ -356,7 +356,9 @@ fn valid_upload_limit(
 ) -> Result<Option<u64>, ApiError> {
     match requested {
         None => Ok(current),
-        Some(0) if is_everyone => Err(ApiError::invalid_argument("@everyone needs an upload limit")),
+        Some(0) if is_everyone => Err(ApiError::invalid_argument(
+            "@everyone needs an upload limit",
+        )),
         Some(0) => Ok(None),
         Some(bytes) if bytes < upload::MIN_ROLE_LIMIT_BYTES || bytes > ceiling => {
             Err(ApiError::invalid_argument(format!(

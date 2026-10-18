@@ -363,6 +363,10 @@ fn ready(
         server_addresses: Some(server_addresses),
         server_time_ms: now_ms(),
         commands: Some(crate::commands::available(state)),
-        upload_settings: Some(guild.upload_settings.to_proto(state.attachments.max_file_bytes())),
+        upload_settings: Some(
+            guild
+                .upload_settings
+                .to_proto(state.attachments.max_file_bytes()),
+        ),
     }
 }

@@ -2152,9 +2152,7 @@ async fn upload_settings_are_shared_and_validated() {
 
     // A new session's Ready carries the same settings.
     let (_new_client, new_ready) = join(&server, 3, &invite).await;
-    let ready_settings = new_ready
-        .upload_settings
-        .expect("upload_settings in Ready");
+    let ready_settings = new_ready.upload_settings.expect("upload_settings in Ready");
     assert_eq!(ready_settings.blocked_extensions, vec!["exe", "tar.gz"]);
 }
 
@@ -2425,4 +2423,3 @@ async fn the_owner_is_limited_only_by_the_ceiling() {
         .await;
     assert_eq!(err.code, proto::ErrorCode::FileTooLarge as i32);
 }
-
