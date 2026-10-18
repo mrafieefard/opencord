@@ -6,15 +6,17 @@ use opencord_common::upload::{
     self, MAX_UNFINISHED_PER_USER, PIECE_BYTES, TEMP_HEADROOM_BYTES, VOICE_FILENAME,
 };
 use opencord_proto::v1 as proto;
+use proto::event::Kind as Event;
 use proto::response::Result as Response;
 
+use crate::attachments::settings::UploadSettings;
 use crate::attachments::temp;
 use crate::db::attachments::{self, AttachmentRow};
 use crate::error::ApiError;
 use crate::handlers::Ctx;
 use crate::handlers::messages::require_message_channel;
-use crate::permissions::require_channel;
-use crate::state::now_ms;
+use crate::permissions::{require_base, require_channel};
+use crate::state::{Audience, now_ms};
 
 pub async fn create(ctx: &Ctx<'_>, request: proto::CreateUpload) -> Result<Response, ApiError> {
     // 1. kind is FILE or VOICE_MESSAGE [INVALID_ARGUMENT]
@@ -49,11 +51,14 @@ pub async fn create(ctx: &Ctx<'_>, request: proto::CreateUpload) -> Result<Respo
         require_channel(&guild, ctx.user_id, request.channel_id, needed_perm)?;
 
         // 5. FILE: blocked extension [FILE_TYPE_BLOCKED]
-        if kind == proto::AttachmentKind::File
-            && upload::is_blocked(&filename, &guild.upload_settings.blocked_extensions)
-        {
-            let ext = filename.rsplit_once('.').map(|(_, e)| e).unwrap_or("");
-            return Err(ApiError::file_type_blocked(ext));
+        if kind == proto::AttachmentKind::File {
+            let blocked = &guild.upload_settings.blocked_extensions;
+            if let Some(entry) = blocked
+                .iter()
+                .find(|entry| upload::is_blocked(&filename, std::slice::from_ref(*entry)))
+            {
+                return Err(ApiError::file_type_blocked(entry));
+            }
         }
 
         // 6. FILE: size_bytes > guild.upload_limit(user, ceiling) [FILE_TOO_LARGE];
@@ -190,4 +195,55 @@ pub async fn cancel(ctx: &Ctx<'_>, request: proto::CancelUpload) -> Result<Respo
         }
         _ => Err(ApiError::not_found("upload")),
     }
+}
+
+pub async fn update_settings(
+    ctx: &Ctx<'_>,
+    request: proto::UpdateUploadSettings,
+) -> Result<Response, ApiError> {
+    let _writes = ctx.state.write_lock().await;
+    let current = {
+        let guild = ctx.state.guild();
+        require_base(&guild, ctx.user_id, Permissions::MANAGE_SERVER)?;
+        guild.upload_settings.clone()
+    };
+    let blocked_extensions = match &request.blocked_extensions {
+        Some(list) => {
+            if let Some(bad) = list
+                .extensions
+                .iter()
+                .find(|entry| upload::normalize_extension(entry).is_err())
+            {
+                let shown: String = bad.trim().chars().take(30).collect();
+                return Err(ApiError::invalid_argument(format!(
+                    "\"{shown}\" isn't a file extension"
+                )));
+            }
+            upload::normalize_blocked_list(&list.extensions)?
+        }
+        None => current.blocked_extensions,
+    };
+    let voice_message_max_seconds = match request.voice_message_max_seconds {
+        Some(seconds) if upload::VOICE_MAX_SECONDS_RANGE.contains(&seconds) => seconds,
+        Some(_) => {
+            return Err(ApiError::invalid_argument(
+                "voice messages can be limited to 30 seconds to 30 minutes",
+            ));
+        }
+        None => current.voice_message_max_seconds,
+    };
+    let updated = UploadSettings {
+        blocked_extensions,
+        voice_message_max_seconds,
+    };
+    updated.save(&mut *ctx.state.db.acquire().await?).await?;
+    ctx.state.guild_mut().upload_settings = updated.clone();
+    let settings = updated.to_proto(ctx.state.attachments.max_file_bytes());
+    ctx.state.broadcast(
+        Event::UploadSettingsUpdate(proto::UploadSettingsUpdate {
+            settings: Some(settings.clone()),
+        }),
+        Audience::Everyone,
+    );
+    Ok(Response::UploadSettings(settings))
 }

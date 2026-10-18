@@ -2,7 +2,7 @@ use std::collections::HashSet;
 
 use opencord_common::limits::MAX_ROLES;
 use opencord_common::permissions::{OverwriteTarget, Permissions};
-use opencord_common::validation;
+use opencord_common::{upload, validation};
 use opencord_proto::v1 as proto;
 use proto::event::Kind as Event;
 use proto::response::Result as Response;
@@ -23,7 +23,7 @@ pub async fn create(ctx: &Ctx<'_>, request: proto::CreateRole) -> Result<Respons
     let permissions = Permissions::from_bits_truncate(request.permissions);
 
     let _writes = ctx.state.write_lock().await;
-    let shifted: Vec<Role> = {
+    let (shifted, max_upload_bytes) = {
         let guild = ctx.state.guild();
         let held = require_base(&guild, ctx.user_id, Permissions::MANAGE_ROLES)?;
         require_grantable(held, permissions)?;
@@ -32,7 +32,15 @@ pub async fn create(ctx: &Ctx<'_>, request: proto::CreateRole) -> Result<Respons
                 "a server can have at most {MAX_ROLES} roles"
             )));
         }
-        guild
+        let max_upload_bytes = valid_upload_limit(
+            &guild,
+            ctx.user_id,
+            false,
+            request.max_upload_bytes,
+            None,
+            ctx.state.attachments.max_file_bytes(),
+        )?;
+        let shifted: Vec<Role> = guild
             .roles
             .values()
             .filter(|role| role.position >= 1)
@@ -40,7 +48,8 @@ pub async fn create(ctx: &Ctx<'_>, request: proto::CreateRole) -> Result<Respons
                 position: role.position + 1,
                 ..role.clone()
             })
-            .collect()
+            .collect();
+        (shifted, max_upload_bytes)
     };
     let role = Role {
         id: ctx.state.ids.next_id(),
@@ -50,7 +59,7 @@ pub async fn create(ctx: &Ctx<'_>, request: proto::CreateRole) -> Result<Respons
         permissions,
         hoist: request.hoist,
         mentionable: request.mentionable,
-        max_upload_bytes: None,
+        max_upload_bytes,
     };
     let mut tx = ctx.state.db.begin().await?;
     for moved in &shifted {
@@ -99,12 +108,21 @@ pub async fn update(ctx: &Ctx<'_>, request: proto::UpdateRole) -> Result<Respons
             }
             None => role.permissions,
         };
+        let max_upload_bytes = valid_upload_limit(
+            &guild,
+            ctx.user_id,
+            is_everyone,
+            request.max_upload_bytes,
+            role.max_upload_bytes,
+            ctx.state.attachments.max_file_bytes(),
+        )?;
         Role {
             name,
             color: request.color.map_or(Ok(role.color), valid_color)?,
             permissions,
             hoist: request.hoist.unwrap_or(role.hoist),
             mentionable: request.mentionable.unwrap_or(role.mentionable),
+            max_upload_bytes,
             ..role.clone()
         }
     };
@@ -324,6 +342,38 @@ fn valid_color(color: u32) -> Result<u32, ApiError> {
         Ok(color)
     } else {
         Err(ApiError::invalid_argument("color must be a 0xRRGGBB value"))
+    }
+}
+
+/// A role's upload limit from a request; `None` keeps `current`.
+fn valid_upload_limit(
+    guild: &Guild,
+    caller: i64,
+    is_everyone: bool,
+    requested: Option<u64>,
+    current: Option<u64>,
+    ceiling: u64,
+) -> Result<Option<u64>, ApiError> {
+    match requested {
+        None => Ok(current),
+        Some(0) if is_everyone => Err(ApiError::invalid_argument("@everyone needs an upload limit")),
+        Some(0) => Ok(None),
+        Some(bytes) if bytes < upload::MIN_ROLE_LIMIT_BYTES || bytes > ceiling => {
+            Err(ApiError::invalid_argument(format!(
+                "an upload limit can be 1 to {} MB here",
+                ceiling / upload::MIB
+            )))
+        }
+        Some(bytes) => {
+            let own = guild.upload_limit(caller, ceiling);
+            if !guild.is_owner(caller) && bytes > own {
+                return Err(ApiError::forbidden(format!(
+                    "you can't give a role a larger upload limit than your own ({} MB)",
+                    own / upload::MIB
+                )));
+            }
+            Ok(Some(bytes))
+        }
     }
 }
 

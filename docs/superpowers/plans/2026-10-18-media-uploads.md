@@ -1545,7 +1545,7 @@ All paths below are under `crates/opencord-server/` unless they say otherwise.
   upload_settings: Some(guild.upload_settings.to_proto(state.attachments.max_file_bytes())),
   ```
 
-- [ ] **Step 1: Write tests** (`tests/attachments.rs`):
+- [x] **Step 1: Write tests** (`tests/attachments.rs`):
   - `upload_settings_are_shared_and_validated`:
     - the owner sets `["EXE", ".tar.gz"]` → everyone gets an UploadSettingsUpdate with `["exe", "tar.gz"]`;
     - a new session's Ready carries the same settings;
@@ -1563,8 +1563,8 @@ All paths below are under `crates/opencord-server/` unless they say otherwise.
     - @everyone `Some(0)` → INVALID_ARGUMENT;
     - another role `Some(0)` clears its limit, and its RoleUpdate has no `max_upload_bytes`.
   - `the_owner_is_limited_only_by_the_ceiling`: start with `TestServer::start_with(|c| c.uploads.max_file_mb = 1)`. The owner's 2 MiB CreateUpload → FILE_TOO_LARGE.
-- [ ] **Step 2:** Run → FAIL. **Step 3:** Implement. **Step 4:** Run → PASS. The existing role tests must pass unchanged.
-- [ ] **Step 5: Commit:** `feat: upload settings and role upload limits (A2)`.
+- [x] **Step 2:** Run → FAIL. **Step 3:** Implement. **Step 4:** Run → PASS. The existing role tests must pass unchanged.
+- [x] **Step 5: Commit:** `feat: upload settings and role upload limits (A2)`.
 
 **A2 stop.** Full checks, the ledger, and the report. The decisions entry, to copy into `docs/decisions.md` (see "Milestone stops"):
 

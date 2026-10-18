@@ -2070,3 +2070,359 @@ async fn an_upload_cannot_be_sent_twice() {
     assert_eq!(list.len(), 1);
     assert_eq!(list[0].content, "first send");
 }
+
+#[tokio::test]
+async fn upload_settings_are_shared_and_validated() {
+    let Room {
+        server,
+        mut owner,
+        mut member,
+        invite,
+        ..
+    } = room().await;
+
+    // A member without MANAGE_SERVER -> FORBIDDEN.
+    let err = member
+        .error(Req::UpdateUploadSettings(proto::UpdateUploadSettings {
+            blocked_extensions: Some(proto::BlockedExtensions {
+                extensions: vec!["exe".into()],
+            }),
+            voice_message_max_seconds: None,
+        }))
+        .await;
+    assert_eq!(err.code, proto::ErrorCode::Forbidden as i32);
+
+    // 29 seconds -> INVALID_ARGUMENT.
+    let err = owner
+        .error(Req::UpdateUploadSettings(proto::UpdateUploadSettings {
+            blocked_extensions: None,
+            voice_message_max_seconds: Some(29),
+        }))
+        .await;
+    assert_eq!(err.code, proto::ErrorCode::InvalidArgument as i32);
+
+    // ["ex e"] -> INVALID_ARGUMENT whose message contains "ex e".
+    let err = owner
+        .error(Req::UpdateUploadSettings(proto::UpdateUploadSettings {
+            blocked_extensions: Some(proto::BlockedExtensions {
+                extensions: vec!["ex e".into()],
+            }),
+            voice_message_max_seconds: None,
+        }))
+        .await;
+    assert_eq!(err.code, proto::ErrorCode::InvalidArgument as i32);
+    assert!(
+        err.message.contains("ex e"),
+        "expected error message to contain 'ex e', got: {}",
+        err.message
+    );
+
+    // The owner sets ["EXE", ".tar.gz"] -> everyone gets an UploadSettingsUpdate with ["exe", "tar.gz"].
+    let res = owner
+        .ok(Req::UpdateUploadSettings(proto::UpdateUploadSettings {
+            blocked_extensions: Some(proto::BlockedExtensions {
+                extensions: vec!["EXE".into(), ".tar.gz".into()],
+            }),
+            voice_message_max_seconds: None,
+        }))
+        .await;
+    let settings = match res {
+        Res::UploadSettings(s) => s,
+        other => panic!("expected UploadSettings, got {other:?}"),
+    };
+    assert_eq!(settings.blocked_extensions, vec!["exe", "tar.gz"]);
+
+    // Owner gets the event:
+    let owner_settings = owner
+        .wait_for(|e| match e {
+            proto::event::Kind::UploadSettingsUpdate(u) => u.settings.clone(),
+            _ => None,
+        })
+        .await;
+    assert_eq!(owner_settings.blocked_extensions, vec!["exe", "tar.gz"]);
+
+    // Member gets the event:
+    let member_settings = member
+        .wait_for(|e| match e {
+            proto::event::Kind::UploadSettingsUpdate(u) => u.settings.clone(),
+            _ => None,
+        })
+        .await;
+    assert_eq!(member_settings.blocked_extensions, vec!["exe", "tar.gz"]);
+
+    // A new session's Ready carries the same settings.
+    let (_new_client, new_ready) = join(&server, 3, &invite).await;
+    let ready_settings = new_ready
+        .upload_settings
+        .expect("upload_settings in Ready");
+    assert_eq!(ready_settings.blocked_extensions, vec!["exe", "tar.gz"]);
+}
+
+#[tokio::test]
+async fn blocked_extensions_stop_uploads() {
+    let Room {
+        server: _server,
+        mut owner,
+        mut member,
+        text,
+        ..
+    } = room().await;
+
+    // After the owner blocks exe and tar.gz:
+    owner
+        .ok(Req::UpdateUploadSettings(proto::UpdateUploadSettings {
+            blocked_extensions: Some(proto::BlockedExtensions {
+                extensions: vec!["exe".into(), "tar.gz".into()],
+            }),
+            voice_message_max_seconds: None,
+        }))
+        .await;
+
+    // CreateUpload setup.EXE -> FILE_TYPE_BLOCKED
+    let err = member
+        .error(Req::CreateUpload(proto::CreateUpload {
+            channel_id: text,
+            filename: "setup.EXE".into(),
+            size_bytes: 1024,
+            kind: proto::AttachmentKind::File.into(),
+            width: None,
+            height: None,
+            duration_ms: None,
+        }))
+        .await;
+    assert_eq!(err.code, proto::ErrorCode::FileTypeBlocked as i32);
+
+    // archive.tar.gz -> FILE_TYPE_BLOCKED with tar.gz in the message
+    let err = member
+        .error(Req::CreateUpload(proto::CreateUpload {
+            channel_id: text,
+            filename: "archive.tar.gz".into(),
+            size_bytes: 1024,
+            kind: proto::AttachmentKind::File.into(),
+            width: None,
+            height: None,
+            duration_ms: None,
+        }))
+        .await;
+    assert_eq!(err.code, proto::ErrorCode::FileTypeBlocked as i32);
+    assert!(
+        err.message.contains("tar.gz"),
+        "expected error message to contain 'tar.gz', got: {}",
+        err.message
+    );
+
+    // notes.txt -> ok
+    let res = member
+        .ok(Req::CreateUpload(proto::CreateUpload {
+            channel_id: text,
+            filename: "notes.txt".into(),
+            size_bytes: 1024,
+            kind: proto::AttachmentKind::File.into(),
+            width: None,
+            height: None,
+            duration_ms: None,
+        }))
+        .await;
+    assert!(matches!(res, Res::Upload(_)));
+
+    // a voice message is never blocked
+    let res = member
+        .ok(Req::CreateUpload(proto::CreateUpload {
+            channel_id: text,
+            filename: "ignored.exe".into(),
+            size_bytes: 1024,
+            kind: proto::AttachmentKind::VoiceMessage.into(),
+            width: None,
+            height: None,
+            duration_ms: Some(1000),
+        }))
+        .await;
+    assert!(matches!(res, Res::Upload(_)));
+}
+
+#[tokio::test]
+async fn role_limits_raise_members_and_respect_the_editor() {
+    let Room {
+        server,
+        mut owner,
+        mut member,
+        member_id,
+        everyone,
+        invite,
+        text,
+        ..
+    } = room().await;
+
+    // The owner gives role R 200 MiB, then a member with R creates a 150 MiB upload -> ok.
+    let res = owner
+        .ok(Req::CreateRole(proto::CreateRole {
+            name: "R".into(),
+            color: 0,
+            permissions: 0,
+            hoist: false,
+            mentionable: false,
+            max_upload_bytes: Some(200 * 1024 * 1024),
+        }))
+        .await;
+    let role_r = match res {
+        Res::Role(r) => r,
+        other => panic!("expected Role, got {other:?}"),
+    };
+    assert_eq!(role_r.max_upload_bytes, Some(200 * 1024 * 1024));
+
+    owner
+        .ok(Req::AddMemberRole(proto::AddMemberRole {
+            user_id: member_id,
+            role_id: role_r.id,
+        }))
+        .await;
+
+    let res = member
+        .ok(Req::CreateUpload(proto::CreateUpload {
+            channel_id: text,
+            filename: "big.dat".into(),
+            size_bytes: 150 * 1024 * 1024,
+            kind: proto::AttachmentKind::File.into(),
+            width: None,
+            height: None,
+            duration_ms: None,
+        }))
+        .await;
+    assert!(matches!(res, Res::Upload(_)));
+
+    // A moderator (MANAGE_ROLES, a role above the target, own limit 50 MiB)
+    // sets a lower role to 100 MiB -> FORBIDDEN, and to 40 MiB -> ok.
+    let (mut moderator, mod_ready) = join(&server, 3, &invite).await;
+    let mod_id = self_id(&mod_ready);
+
+    // Create moderator role first (will end up at higher position than target role).
+    let res = owner
+        .ok(Req::CreateRole(proto::CreateRole {
+            name: "Moderator".into(),
+            color: 0,
+            permissions: opencord_common::permissions::Permissions::MANAGE_ROLES.bits(),
+            hoist: false,
+            mentionable: false,
+            max_upload_bytes: Some(50 * 1024 * 1024),
+        }))
+        .await;
+    let mod_role = match res {
+        Res::Role(r) => r,
+        other => panic!("expected Role, got {other:?}"),
+    };
+
+    owner
+        .ok(Req::AddMemberRole(proto::AddMemberRole {
+            user_id: mod_id,
+            role_id: mod_role.id,
+        }))
+        .await;
+
+    // Create target role (inserted at position 1; mod_role shifts up).
+    let res = owner
+        .ok(Req::CreateRole(proto::CreateRole {
+            name: "Target".into(),
+            color: 0,
+            permissions: 0,
+            hoist: false,
+            mentionable: false,
+            max_upload_bytes: None,
+        }))
+        .await;
+    let target_role = match res {
+        Res::Role(r) => r,
+        other => panic!("expected Role, got {other:?}"),
+    };
+
+    // Moderator sets lower role to 100 MiB -> FORBIDDEN (own limit is 50 MiB).
+    let err = moderator
+        .error(Req::UpdateRole(proto::UpdateRole {
+            role_id: target_role.id,
+            max_upload_bytes: Some(100 * 1024 * 1024),
+            ..Default::default()
+        }))
+        .await;
+    assert_eq!(err.code, proto::ErrorCode::Forbidden as i32);
+
+    // Moderator sets lower role to 40 MiB -> ok.
+    let res = moderator
+        .ok(Req::UpdateRole(proto::UpdateRole {
+            role_id: target_role.id,
+            max_upload_bytes: Some(40 * 1024 * 1024),
+            ..Default::default()
+        }))
+        .await;
+    let updated_role = match res {
+        Res::Role(r) => r,
+        other => panic!("expected Role, got {other:?}"),
+    };
+    assert_eq!(updated_role.max_upload_bytes, Some(40 * 1024 * 1024));
+    let r = member
+        .wait_for(|e| match e {
+            proto::event::Kind::RoleUpdate(u)
+                if u.role.as_ref().map(|r| r.id) == Some(target_role.id) =>
+            {
+                u.role.clone()
+            }
+            _ => None,
+        })
+        .await;
+    assert_eq!(r.max_upload_bytes, Some(40 * 1024 * 1024));
+
+    // @everyone Some(0) -> INVALID_ARGUMENT.
+    let err = owner
+        .error(Req::UpdateRole(proto::UpdateRole {
+            role_id: everyone,
+            max_upload_bytes: Some(0),
+            ..Default::default()
+        }))
+        .await;
+    assert_eq!(err.code, proto::ErrorCode::InvalidArgument as i32);
+
+    // Another role Some(0) clears its limit, and its RoleUpdate has no max_upload_bytes.
+    let res = owner
+        .ok(Req::UpdateRole(proto::UpdateRole {
+            role_id: target_role.id,
+            max_upload_bytes: Some(0),
+            ..Default::default()
+        }))
+        .await;
+    let cleared = match res {
+        Res::Role(r) => r,
+        other => panic!("expected Role, got {other:?}"),
+    };
+    assert_eq!(cleared.max_upload_bytes, None);
+
+    let r = member
+        .wait_for(|e| match e {
+            proto::event::Kind::RoleUpdate(u)
+                if u.role.as_ref().map(|r| r.id) == Some(target_role.id) =>
+            {
+                u.role.clone()
+            }
+            _ => None,
+        })
+        .await;
+    assert_eq!(r.max_upload_bytes, None);
+}
+
+#[tokio::test]
+async fn the_owner_is_limited_only_by_the_ceiling() {
+    let server = TestServer::start_with(|c| c.uploads.max_file_mb = 1).await;
+    let (mut owner, owner_ready) = owner(&server).await;
+    let general = channel_id(&owner_ready, "general");
+
+    let err = owner
+        .error(Req::CreateUpload(proto::CreateUpload {
+            channel_id: general,
+            filename: "big.bin".into(),
+            size_bytes: 2 * 1024 * 1024,
+            kind: proto::AttachmentKind::File.into(),
+            width: None,
+            height: None,
+            duration_ms: None,
+        }))
+        .await;
+    assert_eq!(err.code, proto::ErrorCode::FileTooLarge as i32);
+}
+

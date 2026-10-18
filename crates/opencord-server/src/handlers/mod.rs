@@ -145,8 +145,8 @@ async fn dispatch(ctx: &Ctx<'_>, request: proto::Request) -> Result<Response, Ap
         Kind::UpdateCommandSettings(request) => commands::update_settings(ctx, request).await,
         Kind::CreateUpload(request) => uploads::create(ctx, request).await,
         Kind::CancelUpload(request) => uploads::cancel(ctx, request).await,
-        Kind::UpdateUploadSettings(_)
-        | Kind::GetStorage(_)
+        Kind::UpdateUploadSettings(request) => uploads::update_settings(ctx, request).await,
+        Kind::GetStorage(_)
         | Kind::AddStorage(_)
         | Kind::UpdateStorage(_)
         | Kind::TestStorage(_)
