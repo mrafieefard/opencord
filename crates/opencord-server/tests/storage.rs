@@ -226,3 +226,32 @@ async fn unknown_storage_is_not_found() {
         .await;
     assert_eq!(code(&err_rem), proto::ErrorCode::NotFound);
 }
+
+#[tokio::test]
+async fn a_move_with_nothing_to_move_finishes() {
+    let server = TestServer::start().await;
+    let (mut client, _ready) = owner(&server).await;
+
+    let res = client
+        .ok(Request::StartStorageMove(proto::StartStorageMove {}))
+        .await;
+    let storage = get_storage(res);
+    let mv = storage.r#move.expect("a move in progress or finished");
+    assert_eq!(mv.files_total, 0);
+
+    let finished_event = client
+        .wait_for(|kind| match kind {
+            proto::event::Kind::StorageUpdate(update) => {
+                let s = update.storage.as_ref()?;
+                let m = s.r#move.as_ref()?;
+                if !m.running { Some(*m) } else { None }
+            }
+            _ => None,
+        })
+        .await;
+    assert_eq!(finished_event.files_total, 0);
+
+    client
+        .ok(Request::StopStorageMove(proto::StopStorageMove {}))
+        .await;
+}

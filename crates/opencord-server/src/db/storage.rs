@@ -171,6 +171,24 @@ pub async fn queue_blob(
     Ok(())
 }
 
+/// Queues an object that must stay until `not_before` (ms).
+pub async fn queue_blob_after(
+    conn: &mut SqliteConnection,
+    storage_id: i64,
+    key: &str,
+    not_before: i64,
+) -> Result<(), sqlx::Error> {
+    sqlx::query!(
+        "INSERT INTO blob_deletions (storage_id, object_key, next_attempt_at) VALUES ($1, $2, $3)",
+        storage_id,
+        key,
+        not_before
+    )
+    .execute(conn)
+    .await?;
+    Ok(())
+}
+
 pub async fn due_blobs(
     conn: &mut SqliteConnection,
     now: i64,

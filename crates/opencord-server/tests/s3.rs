@@ -17,7 +17,7 @@ use std::time::Duration;
 
 use common::*;
 use opencord_proto::v1 as proto;
-use opencord_server::attachments::storage::{S3Settings, S3Storage};
+use opencord_server::attachments::storage::{LocalStorage, S3Settings, S3Storage};
 use proto::request::Kind as Request;
 use proto::response::Result as Response;
 use rusty_s3::{Bucket, Credentials, S3Action, UrlStyle};
@@ -403,6 +403,158 @@ async fn a_storage_holding_files_keeps_its_bucket() {
     bucket
         .storage()
         .delete(&format!("a/{}", att.id))
+        .await
+        .unwrap();
+    bucket.drop_bucket().await;
+}
+
+#[tokio::test]
+#[ignore = "needs an S3 server; see the file header"]
+async fn moving_files_copies_ciphertext_and_cleans_up() {
+    let bucket = TestBucket::create().await;
+    let server = TestServer::start().await;
+    let (mut client, ready) = owner(&server).await;
+    let token = media_token(&ready);
+    let channel_id = channel_id(&ready, "general");
+
+    let f1 = upload(
+        &mut client,
+        &server,
+        &token,
+        channel_id,
+        "file1.txt",
+        b"content 1",
+    )
+    .await;
+    let f2 = upload(
+        &mut client,
+        &server,
+        &token,
+        channel_id,
+        "file2.txt",
+        b"content 2",
+    )
+    .await;
+    let f3_bytes = png(100, 100);
+    let f3 = upload(
+        &mut client,
+        &server,
+        &token,
+        channel_id,
+        "pic.png",
+        &f3_bytes,
+    )
+    .await;
+
+    client
+        .ok(Request::SendMessage(proto::SendMessage {
+            channel_id,
+            content: "three files".into(),
+            attachment_ids: vec![f1.id, f2.id, f3.id],
+            ..Default::default()
+        }))
+        .await;
+
+    let res = client
+        .ok(Request::AddStorage(proto::AddStorage {
+            name: "S3 Target".into(),
+            s3: Some(bucket.proto_config()),
+        }))
+        .await;
+    let s3_id = get_storage(res)
+        .backends
+        .iter()
+        .find(|b| b.name == "S3 Target")
+        .unwrap()
+        .id;
+    client
+        .ok(Request::ActivateStorage(proto::ActivateStorage {
+            storage_id: s3_id,
+        }))
+        .await;
+
+    client
+        .ok(Request::StartStorageMove(proto::StartStorageMove {}))
+        .await;
+
+    let mv = client
+        .wait_for(|kind| match kind {
+            proto::event::Kind::StorageUpdate(update) => {
+                let s = update.storage.as_ref()?;
+                let m = s.r#move.as_ref()?;
+                if !m.running { Some(*m) } else { None }
+            }
+            _ => None,
+        })
+        .await;
+
+    assert_eq!(mv.files_total, 3);
+    assert_eq!(mv.files_done, 3);
+    assert_eq!(mv.failed, 0);
+
+    let auth = format!("Bearer {token}");
+    for (att, expected_bytes) in [
+        (&f1, &b"content 1"[..]),
+        (&f2, &b"content 2"[..]),
+        (&f3, &f3_bytes[..]),
+    ] {
+        let (status, dl) = server
+            .send_http(
+                "GET",
+                &format!("/media/attachments/{}", att.id),
+                &[("Authorization", &auth)],
+                &[],
+            )
+            .await;
+        assert_eq!(status, 200);
+        assert_eq!(dl, expected_bytes);
+    }
+    let (status, thumb_dl) = server
+        .send_http(
+            "GET",
+            &format!("/media/attachments/{}/thumbnail", f3.id),
+            &[("Authorization", &auth)],
+            &[],
+        )
+        .await;
+    assert_eq!(status, 200);
+    assert!(!thumb_dl.is_empty());
+
+    let attachments_dir = server.dir.path().join("data").join("attachments");
+    let local_storage = LocalStorage::new(attachments_dir);
+    let local_file1 = local_storage.path(&format!("a/{}", f1.id)).unwrap();
+    let local_thumb = local_storage.path(&format!("t/{}", f3.id)).unwrap();
+    assert!(local_file1.exists());
+    assert!(local_thumb.exists());
+
+    let now = common::now_ms() as i64;
+    server.handle.drain_blob_deletions(now).await;
+    assert!(local_file1.exists());
+    assert!(local_thumb.exists());
+
+    server
+        .handle
+        .drain_blob_deletions(now + 3_600_000 + 1_000)
+        .await;
+    assert!(!local_file1.exists());
+    assert!(!local_thumb.exists());
+
+    let storage = get_storage(client.ok(Request::GetStorage(proto::GetStorage {})).await);
+    let local_b = storage.backends.iter().find(|b| b.id == 1).unwrap();
+    let s3_b = storage.backends.iter().find(|b| b.id == s3_id).unwrap();
+    assert_eq!(local_b.file_count, 0);
+    assert_eq!(s3_b.file_count, 3);
+
+    for att in [&f1, &f2, &f3] {
+        bucket
+            .storage()
+            .delete(&format!("a/{}", att.id))
+            .await
+            .unwrap();
+    }
+    bucket
+        .storage()
+        .delete(&format!("t/{}", f3.id))
         .await
         .unwrap();
     bucket.drop_bucket().await;

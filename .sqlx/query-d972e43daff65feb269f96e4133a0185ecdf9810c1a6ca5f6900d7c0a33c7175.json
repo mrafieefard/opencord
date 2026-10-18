@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO blob_deletions (storage_id, object_key, next_attempt_at) VALUES ($1, $2, $3)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": []
+  },
+  "hash": "d972e43daff65feb269f96e4133a0185ecdf9810c1a6ca5f6900d7c0a33c7175"
+}

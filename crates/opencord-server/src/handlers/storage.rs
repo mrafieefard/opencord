@@ -255,6 +255,11 @@ pub async fn activate(
     };
 
     let _writes = ctx.state.write_lock().await;
+    if ctx.state.attachments.mover().is_running() {
+        return Err(ApiError::conflict(
+            "wait for the move to finish, or stop it, first",
+        ));
+    }
     {
         let mut conn = ctx.state.db.acquire().await?;
         db::storage::find(&mut conn, id)
@@ -306,12 +311,15 @@ pub async fn remove(ctx: &Ctx<'_>, request: proto::RemoveStorage) -> Result<Resp
 
 pub async fn start_move(ctx: &Ctx<'_>) -> Result<Response, ApiError> {
     require_owner(ctx)?;
-    Err(ApiError::invalid_argument("not implemented"))
+    let _writes = ctx.state.write_lock().await;
+    crate::attachments::move_job::start(ctx.state).await?;
+    answer_storage(ctx.state).await
 }
 
 pub async fn stop_move(ctx: &Ctx<'_>) -> Result<Response, ApiError> {
     require_owner(ctx)?;
-    Err(ApiError::invalid_argument("not implemented"))
+    ctx.state.attachments.mover().stop();
+    Ok(Response::Storage(manage::snapshot(ctx.state).await?))
 }
 
 #[cfg(test)]

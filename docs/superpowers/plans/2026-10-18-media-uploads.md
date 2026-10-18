@@ -3134,7 +3134,7 @@ async fn remove_temp(path: &Path) {
   - `activate`: right after taking the write lock, a running move → CONFLICT "wait for the move to finish, or stop it, first".
   - Dispatch both requests.
 
-- [ ] **Step 1: Write tests.**
+- [x] **Step 1: Write tests.**
   - **Integration, `tests/storage.rs`:** `a_move_with_nothing_to_move_finishes`:
     1. StartStorageMove on a fresh server answers a `move` with `files_total == 0`. Don't assert `running`: with nothing to move, the job can finish before the answer is built.
     2. A StorageUpdate whose `move` has `running == false` arrives.
@@ -3147,8 +3147,8 @@ async fn remove_temp(path: &Path) {
     5. The three downloads equal the originals, and the PNG's thumbnail downloads.
     6. The local object files still exist after `drain_blob_deletions(now)`, and are gone after `drain_blob_deletions(now + 3_600_000 + 1_000)`.
     7. GetStorage: local `file_count == 0`, S3 `file_count == 3`.
-- [ ] **Step 2:** Run → FAIL. **Step 3:** Implement and regenerate the sqlx data. **Step 4:** Run → PASS, including the S3 tests.
-- [ ] **Step 5: Commit:** `feat: moving files between storages (A3)`.
+- [x] **Step 2:** Run → FAIL. **Step 3:** Implement and regenerate the sqlx data. **Step 4:** Run → PASS, including the S3 tests.
+- [x] **Step 5: Commit:** `feat: moving files between storages (A3)`.
 
 **A3 stop.**
 1. Run the full checks and the S3 tests, then `docker stop opencord-s3`.

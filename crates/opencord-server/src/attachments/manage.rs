@@ -37,7 +37,7 @@ pub async fn snapshot(state: &AppState) -> Result<proto::Storage, ApiError> {
     };
     Ok(proto::Storage {
         backends,
-        r#move: None,
+        r#move: state.attachments.mover().progress(),
         temp_free_bytes,
     })
 }

@@ -4,6 +4,7 @@ pub mod gc;
 pub mod http;
 pub mod images;
 pub mod manage;
+pub mod move_job;
 pub mod process;
 pub mod range;
 pub mod settings;
@@ -42,6 +43,7 @@ pub struct Attachments {
     posters: StdMutex<HashMap<i64, Vec<u8>>>,
     hold_processing: AtomicBool, // test hook
     http: reqwest::Client,
+    mover: move_job::Mover,
 }
 
 impl Attachments {
@@ -63,7 +65,12 @@ impl Attachments {
             posters: StdMutex::new(HashMap::new()),
             hold_processing: AtomicBool::new(false),
             http,
+            mover: move_job::Mover::default(),
         }
+    }
+
+    pub fn mover(&self) -> &move_job::Mover {
+        &self.mover
     }
 
     /// Builds the S3 backends and restores the active one. A storage that
@@ -254,13 +261,17 @@ pub async fn start(state: &Arc<crate::state::AppState>) -> anyhow::Result<()> {
     if let Ok(mut entries) = tokio::fs::read_dir(temp_dir).await {
         while let Ok(Some(entry)) = entries.next_entry().await {
             let path = entry.path();
-            let is_orphan = path
+            let name = path
                 .file_name()
-                .and_then(|n| n.to_str())
-                .and_then(|name| name.strip_suffix(".part"))
-                .and_then(|id_str| id_str.parse::<i64>().ok())
+                .and_then(|name| name.to_str())
+                .unwrap_or_default();
+            // A move or a bucket test that was cut short leaves these.
+            let is_leftover = name.starts_with("move-") || name.starts_with("storage-test-");
+            let is_orphan = name
+                .strip_suffix(".part")
+                .and_then(|id| id.parse::<i64>().ok())
                 .is_some_and(|id| !live.contains(&id));
-            if is_orphan {
+            if is_leftover || is_orphan {
                 tokio::fs::remove_file(&path).await.ok();
             }
         }
