@@ -656,3 +656,30 @@ The desktop UI plan's §17.5 never arrived, so where Phase 2 §12 says only what
   - Only the owner may give a role a larger limit than their own.
 - **Tests.** The A1 tests that put uploads on messages through `ServerHandle::db` now send real messages, and the hook is gone.
 - **Review.** `DeleteMessage` read the message inside its transaction. In WAL mode a transaction that has read can't start writing once another connection has committed, and SQLite fails it at once with `SQLITE_BUSY_SNAPSHOT`, so a delete that raced any message send failed. The read and the permission check now come before `begin`, and the transaction holds only the two writes. The plan gained Working Rule 20 for this.
+
+## D55: Media uploads: S3 storage, storage management and moving files (Phase 4 A3, 2026-10-19)
+
+- **Why.** Milestone A3 of media uploads (`docs/superpowers/plans/2026-10-18-media-uploads.md`) lets the owner keep files in S3-compatible buckets. Commits: 5ad3003..f64bdf1.
+- **The S3 backend** (`attachments/storage/s3.rs`).
+  - Requests are presigned with `rusty-s3` 0.10.2 for 15 minutes and sent with the server's own `reqwest` client, with 300 seconds each. Network errors drop the signed URL (`without_url`), so no URL reaches a log or a reply.
+  - Files up to 64 MiB go up in one request. Larger ones go up as multipart uploads in 16 MiB parts, aborted on failure.
+  - Reads are ranged GETs. A missing object is `NotFound`, and a delete treats 404 as done.
+  - S3 errors become "Code: Message" from the error body, at most 200 characters.
+  - The bucket test writes 1 KiB, reads bytes 100–199 back, uploads 5 MiB + 1 KiB in two parts and deletes both. It stops at the first failed step.
+- **Loading.** `Attachments::load` builds every S3 storage at startup and restores the active one. A storage whose secret can't be opened stops the server, rather than leaving its files unreadable.
+- **Managing storage.**
+  - Only the owner may send the storage requests; an administrator gets FORBIDDEN.
+  - AddStorage, UpdateStorage with new bucket settings, and ActivateStorage of an S3 storage run the bucket test first. A failed step is STORAGE_UNAVAILABLE "the bucket test failed at “step”: detail".
+  - The secret key is sealed as `storage-secret:<id>` and never sent back. An empty secret in UpdateStorage keeps the stored one. Answers show `has_secret` and the access key masked to its last 4 characters.
+  - A storage that holds files can't change its endpoint, bucket or key prefix.
+  - The local storage can't be removed. Another storage can be removed only when it's inactive, holds no files and has no deletions waiting.
+  - Every change goes to the owner as StorageUpdate.
+- **Moving files** (`attachments/move_job.rs`).
+  - StartStorageMove copies every ready or sent file, with its thumbnail, from the other storages to the active one: 50 rows per page, two files at a time, through a temp file in 8 MiB reads. The ciphertext is copied as is.
+  - The row switches with `set_storage_if` in the same transaction that queues the old copies for deletion. A file deleted meanwhile gets its new copies queued instead.
+  - Old copies are deleted an hour after the switch, so downloads already under way can finish.
+  - Each file gets three retries, 2, 4 and 8 seconds apart. After that it counts as failed and stays where it was.
+  - Progress goes to the owner at most every 2 seconds, and once at the end. StopStorageMove stops before the next file, and activating another storage is refused while a move runs.
+  - Startup deletes the temp files a move or a bucket test left behind.
+- **Tests.** The S3 tests in `tests/s3.rs` are ignored by default and run against RustFS 1.0.3 in Docker, because MinIO no longer publishes images.
+
