@@ -571,12 +571,29 @@ The desktop UI plan's §17.5 never arrived, so where Phase 2 §12 says only what
 
 ## D52: Media uploads: protocol, rules, encryption format, schema (Phase 4 A0, 2026-10-18)
 
-- **What was built.** Milestone A0 establishes the shared foundation for Phase 4 media uploads:
-  - **Protocol (`proto/opencord/v1/`):** defined `Attachment`, `AttachmentKind`, `AttachmentState`, `Storage`, `StorageBackend`, `StorageKind`, `StorageMove`, `StorageTest`, and `S3Config` in `models.proto`. Added `Role.max_upload_bytes`, `Message.attachments`, and error codes 41–47. Added upload and storage requests (`CreateUpload`, `CompleteUpload`, `UpdateUploadSettings`, `CreateStorage`, `UpdateStorage`, `DeleteStorage`, `TestStorage`, `MoveStorage`, `CancelStorageMove`) in `requests.proto` and events (`UploadProgress`, `UploadFailed`, `UploadSettingsUpdated`, `StorageUpdated`, `StorageDeleted`, `StorageMoved`) in `events.proto`. Updated `gateway.proto` request/event numbers 56–66.
-  - **Shared upload rules (`crates/opencord-common/src/upload.rs`):** role-based effective upload limit calculation with server ceiling; 5-minute voice message limit calculation (capped at 2.46 MB); sanitization of filenames against path traversal, control characters, Windows DOS device names (`CON`, `PRN`, `AUX`, `NUL`, `COM1`–`COM9`, `LPT1`–`LPT9`), and 200-char lengths while preserving extensions; extension normalization (1–20 chars, lowercase, no double dots) and blocked extension filtering. Shared cross-platform test fixtures in `tests/upload_rules.json` and Rust integration tests in `tests/upload_rules.rs`.
-  - **Permissions (`crates/opencord-common/src/permissions.rs`):** allocated bit 10 for `ATTACH_FILES` and bit 14 for `SEND_VOICE_MESSAGES`. Added both to `DEFAULT_EVERYONE`.
-  - **Encrypted blob format (`crates/opencord-common/src/blob.rs`):** 64 KiB segments with XChaCha20-Poly1305 AEAD, header magic `OCA1`, 24-byte random nonces, and 22-byte AAD binding magic, blob kind (`File`, `Thumbnail`, `Cache`), blob ID, segment index, and last segment flag to prevent segment swapping or truncation. Implemented `locate` and `open_span` for range requests.
-  - **Type sniffing and waveforms (`crates/opencord-common/src/{sniff.rs,waveform.rs}`):** sniffing first 64 bytes for 13 MIME formats across images, audio, and video containers. Voice waveform computation from raw PCM samples into 128 normalized dB level bytes (−60 dB noise floor to 0 dB full scale, −30 dB at byte 128).
-  - **Database schema & migration (`crates/opencord-server/migrations/0008_attachments.sql`):** created `storage_backends` with default local storage id 1, `attachments` table tracking upload state, kind, key encryption, dimensions, durations, and waveforms, `blob_deletions` queue, deletion cascade triggers (`attachments_queue_blobs`), and updated `roles` with `max_upload_bytes` giving `@everyone` 50 MB and bits 10 & 14.
-  - **Config & secrets guard (`crates/opencord-server/src/{config.rs,secrets.rs,server.rs,db/mod.rs}`):** added `[uploads]` section (`max_file_mb = 4096`, `local_dir`) and `[server] secrets_file` with env overrides. Updated `Secrets::load_or_generate` to fail with `SecretsError::Missing` instead of generating a new key if `db::holds_sealed_data(&pool)` detects existing sealed records in the database.
-- **Verified.** All unit and integration tests passing across `opencord-common`, `opencord-proto`, and `opencord-server`. Cross-crate compilation and format/clippy checks pass without warnings.
+- **Why.** Phase 4 adds file attachments, S3 storage and voice messages (design `docs/superpowers/specs/2026-10-18-media-uploads-design.md`, plan `docs/superpowers/plans/2026-10-18-media-uploads.md`). A0 lays the shared ground the later milestones build on.
+- **Protocol.**
+  - `models.proto`: `Attachment`, `AttachmentKind`, `UploadSettings`, `UploadState`, `Upload`, `UploadStatus`, `StorageKind`, `S3Config`, `StorageBackend`, `StorageMove`, `Storage`, `StorageTestStep` and `StorageTest`; `Role.max_upload_bytes` (8), `Message.attachments` (9); error codes 41–47.
+  - `requests.proto`: `SendMessage.attachment_ids`, `max_upload_bytes` on `CreateRole` (6) and `UpdateRole` (7), requests 160–170 (`CreateUpload` to `StopStorageMove`), responses 29–33.
+  - `events.proto`: 110–113 (`UploadSettingsUpdate`, `UploadReady`, `UploadFailed`, `StorageUpdate`).
+  - `gateway.proto`: `Ready.upload_settings` (20).
+  - Until A1–A3 the server answers the new requests with "not implemented".
+- **Permissions.** `ATTACH_FILES` (bit 10) now means something, and `SEND_VOICE_MESSAGES` is bit 14. Both are in `DEFAULT_EVERYONE`, and migration 0008 gives them to existing servers' @everyone along with a 50 MB limit.
+- **Shared rules** (`opencord-common/src/upload.rs`):
+  - the effective upload limit: the owner gets the ceiling; everyone else gets the highest of @everyone and their roles, capped at the ceiling;
+  - filename sanitizing;
+  - extension normalizing and blocking.
+
+  One JSON fixture (`tests/upload_rules.json`) holds the cases, and the Dart mirror will be tested against it too.
+- **Encryption** (`blob.rs`):
+  - an `OCA1` header, then 64 KiB segments;
+  - XChaCha20-Poly1305 with a random 24-byte nonce per segment;
+  - AAD binding the kind, blob id, segment index and last flag;
+  - `locate` and `open_span` serve byte ranges.
+- **Sniffing and waveform** (`sniff.rs`, `waveform.rs`): 13 formats by magic bytes; 128 waveform values with −60…0 dBFS mapped to 0…255.
+- **Schema** (migration 0008): `storage_backends` (the local storage is id 1 and active), `attachments`, `blob_deletions` filled by the `attachments_queue_blobs` trigger, and `roles.max_upload_bytes`.
+- **Config and the secrets key.**
+  - `[uploads] max_file_mb` (default 4096, 1–102,400) and `local_dir`; `[server] secrets_file` (`OPENCORD_SECRETS_FILE`).
+  - When the key file is missing and the database already holds sealed data, the server refuses to start instead of making a new key.
+- **Also.** The server's gateway frame reader boxes the envelope (clippy `large_enum_variant` after the proto grew).
+- **Review.** A file named only `.exe` got past blocking; `is_blocked` now matches it, and the fixture has the case.

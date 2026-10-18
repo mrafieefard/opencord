@@ -7,6 +7,30 @@ You are implementing `docs/superpowers/plans/2026-10-18-media-uploads.md`. The d
 - The plan's **Working Rules** section applies to everything you do in this repository.
 - The user releases one milestone at a time. Stop at the end of each milestone and report.
 
+## Every build command loads the environment
+
+Each shell command you run starts in a fresh shell, so an `export` from an earlier command is gone. Start **every** `cargo`, `flutter`, `dart`, `sqlx` and `flutter_rust_bridge_codegen` command with:
+
+```bash
+source .superpowers/sdd/media/env.sh && <command>
+```
+
+Without it, builds keep incremental caches and debug info, and the nearly full disk fills up.
+
+`env.sh` is git-ignored. If it's missing on this machine, create it with:
+
+```bash
+export PATH="$HOME/.cargo/bin:$HOME/.local/share/flutter/bin:$PATH"
+export CARGO_INCREMENTAL=0 CARGO_PROFILE_DEV_DEBUG=0 CARGO_PROFILE_RELEASE_DEBUG=0
+```
+
+## Write docs from the code, not from memory
+
+When you write a decision entry, the progress ledger or a report:
+
+- Name only things that exist. Copy every message, request, event, function and file name, and every number, from the code or from `git diff pre..HEAD`.
+- Before you finish, search the code for each name you wrote (`grep -rn`). If a name isn't found, it doesn't go in.
+
 ## When you're stuck: ask Claude
 
 If the same step fails **three times in a row**, stop retrying and ask Claude. "Fails" means the same test, build, lint or check still fails, or fails in a new way, after three different fix attempts. Claude is a stronger model that knows this codebase and wrote the plan.

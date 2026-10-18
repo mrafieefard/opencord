@@ -66,7 +66,7 @@
 
 ### Environment (Linux dev machine; the disk is nearly full)
 
-Run this in every new shell:
+Each shell command runs in a fresh shell, so exports don't carry over. Start every `cargo`, `flutter`, `dart`, `sqlx` and codegen command with `source .superpowers/sdd/media/env.sh &&`. `GEMINI.md` gives the file's contents in case it is missing. It sets:
 
 ```bash
 export PATH="$HOME/.cargo/bin:$HOME/.local/share/flutter/bin:$PATH"

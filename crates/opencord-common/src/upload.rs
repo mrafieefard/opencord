@@ -148,15 +148,14 @@ pub fn normalize_blocked_list(entries: &[String]) -> Result<Vec<String>, Validat
     Ok(list)
 }
 
-/// Checks if a sanitized filename matches any blocked extension.
+/// Whether a sanitized filename ends with "." and a blocked extension. A
+/// name that is only the extension (".exe") is blocked too: Windows runs it.
 pub fn is_blocked(sanitized_filename: &str, blocked: &[String]) -> bool {
     let lower = sanitized_filename.to_lowercase();
     blocked.iter().any(|entry| {
-        if lower.len() > entry.len() + 1 && lower.ends_with(entry) {
-            lower.as_bytes()[lower.len() - entry.len() - 1] == b'.'
-        } else {
-            false
-        }
+        lower
+            .strip_suffix(entry.as_str())
+            .is_some_and(|rest| rest.ends_with('.'))
     })
 }
 

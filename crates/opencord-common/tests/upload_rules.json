@@ -30,6 +30,7 @@
     {"filename": "archive.tar.gz", "list": ["tar.gz"], "expected": true},
     {"filename": "archive.gz", "list": ["tar.gz"], "expected": false},
     {"filename": "exe", "list": ["exe"], "expected": false},
+    {"filename": ".exe", "list": ["exe"], "expected": true},
     {"filename": "notes.txt", "list": [], "expected": false}
   ]
 }
