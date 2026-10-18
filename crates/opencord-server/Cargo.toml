@@ -28,6 +28,7 @@ igd-next.workspace = true
 instant-acme.workspace = true
 rcgen.workspace = true
 reqwest.workspace = true
+rusty-s3 = "0.10.2"
 rustls.workspace = true
 serde.workspace = true
 serde_json.workspace = true

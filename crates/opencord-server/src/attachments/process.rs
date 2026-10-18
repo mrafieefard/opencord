@@ -113,7 +113,7 @@ async fn run_inner(
         (base_fields("file", sniffed, &row.filename), None)
     };
 
-    let (storage_id, backend) = state.attachments.active();
+    let (storage_id, backend) = state.attachments.active()?;
     fields.storage_id = storage_id;
     let has_thumbnail = thumbnail.is_some();
     if let Err(error) = store(&backend, &key, id, temp_path, thumbnail).await {

@@ -21,10 +21,13 @@ use tokio::sync::{Mutex as TokioMutex, OwnedMutexGuard, Semaphore};
 
 use crate::config::Config;
 use crate::db::attachments::AttachmentRow;
+use crate::db::storage::StorageRow;
 use crate::error::ApiError;
 use crate::secrets::Secrets;
 pub use settings::UploadSettings;
-pub use storage::{Backend, LocalStorage, ObjectKind, StorageError, object_key};
+pub use storage::{
+    Backend, LocalStorage, ObjectKind, S3Settings, S3Storage, StorageError, object_key,
+};
 
 #[derive(Debug)]
 #[allow(dead_code)]
@@ -60,13 +63,62 @@ impl Attachments {
         }
     }
 
-    pub async fn load(
-        &self,
-        _conn: &mut SqliteConnection,
-        _secrets: &Secrets,
-    ) -> Result<(), anyhow::Error> {
-        // Milestone A3 adds loading S3 storage backends from DB.
+    /// Builds the S3 backends and restores the active one. A storage that
+    /// can't be built stops the server: its files would be unreadable.
+    pub async fn load(&self, conn: &mut SqliteConnection, secrets: &Secrets) -> anyhow::Result<()> {
+        let rows = crate::db::storage::list(conn).await?;
+        let mut loaded = Vec::new();
+        for row in rows.iter().filter(|row| row.kind == "s3") {
+            let settings = s3_settings(row, secrets)
+                .map_err(|error| anyhow::anyhow!("storage \"{}\": {error}", row.name))?;
+            let storage = S3Storage::new(&settings, self.http.clone())
+                .map_err(|error| anyhow::anyhow!("storage \"{}\": {error}", row.name))?;
+            loaded.push((row.id, Arc::new(Backend::S3(Box::new(storage)))));
+        }
+        let active = rows.iter().find(|row| row.active).map_or(1, |row| row.id);
+        self.backends
+            .write()
+            .unwrap_or_else(PoisonError::into_inner)
+            .extend(loaded);
+        self.active.store(active, Ordering::Release);
         Ok(())
+    }
+
+    /// Adds or replaces a backend. Callers write the database first.
+    pub fn set_backend(&self, id: i64, backend: Backend) {
+        self.backends
+            .write()
+            .unwrap_or_else(PoisonError::into_inner)
+            .insert(id, Arc::new(backend));
+    }
+
+    pub fn remove_backend(&self, id: i64) {
+        self.backends
+            .write()
+            .unwrap_or_else(PoisonError::into_inner)
+            .remove(&id);
+    }
+
+    /// New uploads go to `id` from now on. Its backend must be loaded.
+    pub fn set_active(&self, id: i64) {
+        self.active.store(id, Ordering::Release);
+    }
+
+    pub fn http(&self) -> &reqwest::Client {
+        &self.http
+    }
+
+    pub fn active_id(&self) -> i64 {
+        self.active.load(Ordering::Acquire)
+    }
+
+    pub fn active(&self) -> Result<(i64, Arc<Backend>), ApiError> {
+        let id = self.active_id();
+        let backend = self.backend(id).ok_or_else(|| {
+            tracing::error!(storage_id = id, "the active storage isn't loaded");
+            ApiError::internal()
+        })?;
+        Ok((id, backend))
     }
 
     pub fn backend(&self, id: i64) -> Option<Arc<Backend>> {
@@ -75,14 +127,6 @@ impl Attachments {
             .unwrap_or_else(PoisonError::into_inner)
             .get(&id)
             .cloned()
-    }
-
-    pub fn active(&self) -> (i64, Arc<Backend>) {
-        let id = self.active.load(Ordering::Relaxed);
-        let backend = self
-            .backend(id)
-            .expect("active storage backend must be present");
-        (id, backend)
     }
 
     pub fn temp_path(&self, id: i64) -> PathBuf {
@@ -139,6 +183,34 @@ impl Attachments {
     pub fn jobs(&self) -> Arc<Semaphore> {
         self.jobs.clone()
     }
+}
+
+/// What an S3 storage's secret key is sealed under in the database.
+pub(crate) fn storage_secret_label(id: i64) -> String {
+    format!("storage-secret:{id}")
+}
+
+/// An S3 row's settings, with its secret opened.
+pub(crate) fn s3_settings(row: &StorageRow, secrets: &Secrets) -> Result<S3Settings, String> {
+    let sealed = row
+        .secret_enc
+        .as_deref()
+        .ok_or_else(|| "it has no secret key".to_owned())?;
+    let secret_access_key = secrets
+        .open_string(&storage_secret_label(row.id), sealed)
+        .map_err(|_| {
+            "its secret key couldn't be opened with this server's secrets file".to_owned()
+        })?;
+    Ok(S3Settings {
+        endpoint: row.endpoint.clone().unwrap_or_default(),
+        region: row.region.clone().unwrap_or_default(),
+        bucket: row.bucket.clone().unwrap_or_default(),
+        key_prefix: row.key_prefix.clone(),
+        path_style: row.path_style,
+        allow_http: row.allow_http,
+        access_key_id: row.access_key_id.clone().unwrap_or_default(),
+        secret_access_key,
+    })
 }
 
 /// What an attachment's key is sealed under in the database.

@@ -2377,14 +2377,14 @@ async fn the_bucket_test_passes_on_s3_and_fails_on_a_wrong_secret() {
 }
 ```
 
-- [ ] **Step 1: Write the tests:** the `#[cfg(test)]` module at the bottom of `s3.rs`, and `tests/s3.rs`.
-- [ ] **Step 2:** Run → FAIL (they don't compile yet).
-- [ ] **Step 3:** Implement as above.
-- [ ] **Step 4:** Run → PASS:
+- [x] **Step 1: Write the tests:** the `#[cfg(test)]` module at the bottom of `s3.rs`, and `tests/s3.rs`.
+- [x] **Step 2:** Run → FAIL (they don't compile yet).
+- [x] **Step 3:** Implement as above.
+- [x] **Step 4:** Run → PASS:
   - `cargo test -p opencord-server --lib -- attachments::storage::s3`;
   - the S3 tests (command at the top of this milestone);
   - `cargo test -p opencord-server --test attachments`, unchanged.
-- [ ] **Step 5: Commit:** `feat: the S3 storage backend (A3)`.
+- [x] **Step 5: Commit:** `feat: the S3 storage backend (A3)`.
 
 ### Task 15: Managing storage (owner only)
 

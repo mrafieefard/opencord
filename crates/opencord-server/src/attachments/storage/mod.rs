@@ -1,8 +1,10 @@
 //! Storage backends for media attachments.
 
 pub mod local;
+pub mod s3;
 
 pub use local::LocalStorage;
+pub use s3::{S3Settings, S3Storage};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ObjectKind {
@@ -42,18 +44,21 @@ impl From<std::io::Error> for StorageError {
 #[derive(Debug)]
 pub enum Backend {
     Local(LocalStorage),
+    S3(Box<S3Storage>),
 }
 
 impl Backend {
     pub async fn put_file(&self, key: &str, path: &std::path::Path) -> Result<(), StorageError> {
         match self {
             Self::Local(local) => local.put_file(key, path).await,
+            Self::S3(s3) => s3.put_file(key, path).await,
         }
     }
 
     pub async fn put_bytes(&self, key: &str, bytes: Vec<u8>) -> Result<(), StorageError> {
         match self {
             Self::Local(local) => local.put_bytes(key, bytes).await,
+            Self::S3(s3) => s3.put_bytes(key, bytes).await,
         }
     }
 
@@ -65,18 +70,21 @@ impl Backend {
     ) -> Result<bytes::Bytes, StorageError> {
         match self {
             Self::Local(local) => local.get_range(key, start, end).await,
+            Self::S3(s3) => s3.get_range(key, start, end).await,
         }
     }
 
     pub async fn size(&self, key: &str) -> Result<Option<u64>, StorageError> {
         match self {
             Self::Local(local) => local.size(key).await,
+            Self::S3(s3) => s3.size(key).await,
         }
     }
 
     pub async fn delete(&self, key: &str) -> Result<(), StorageError> {
         match self {
             Self::Local(local) => local.delete(key).await,
+            Self::S3(s3) => s3.delete(key).await,
         }
     }
 }

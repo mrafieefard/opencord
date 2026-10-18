@@ -131,7 +131,7 @@ pub async fn create(ctx: &Ctx<'_>, request: proto::CreateUpload) -> Result<Respo
         ApiError::internal()
     })?;
 
-    let (active_storage_id, _) = ctx.state.attachments.active();
+    let active_storage_id = ctx.state.attachments.active_id();
     let kind_str = match kind {
         proto::AttachmentKind::File => "file",
         proto::AttachmentKind::VoiceMessage => "voice",
