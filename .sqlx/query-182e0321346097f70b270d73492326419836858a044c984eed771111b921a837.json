@@ -1,0 +1,62 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT directory, credentials_enc, email, created_at FROM acme_accounts\n         WHERE directory = $1",
+  "describe": {
+    "columns": [
+      {
+        "name": "directory",
+        "ordinal": 0,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "acme_accounts",
+            "name": "directory"
+          }
+        }
+      },
+      {
+        "name": "credentials_enc",
+        "ordinal": 1,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "acme_accounts",
+            "name": "credentials_enc"
+          }
+        }
+      },
+      {
+        "name": "email",
+        "ordinal": 2,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "acme_accounts",
+            "name": "email"
+          }
+        }
+      },
+      {
+        "name": "created_at",
+        "ordinal": 3,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "acme_accounts",
+            "name": "created_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false,
+      true,
+      false
+    ]
+  },
+  "hash": "182e0321346097f70b270d73492326419836858a044c984eed771111b921a837"
+}

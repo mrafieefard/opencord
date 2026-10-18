@@ -81,6 +81,8 @@ core.ReadySnapshot _ready({
     for (final channel in [_general, ...more.map((c) => c.id)])
       core.ChannelPermissions(channelId: channel, permissions: 0x5),
   ],
+  addresses: const core.ServerAddresses(domains: []),
+  commands: const core.CommandList(commands: [], resultsPublic: true),
 );
 
 /// A keychain that can be locked, refusing to save, or out of reach.
@@ -261,6 +263,7 @@ void main() {
             name: 'Home',
             host: 'home.example',
             port: 7710,
+            addresses: [],
           ),
         ];
 
@@ -447,6 +450,7 @@ void main() {
       name: 'Home',
       host: 'home.example',
       port: 7710,
+      addresses: [],
     );
     final saved = SavedIdentity(
       secret: Uint8List.fromList([9]),
@@ -479,8 +483,8 @@ void main() {
       final harness = await _Harness.start(saved: saved);
       harness.core
         ..servers = const [
-          core.Server(key: 'a:1', name: 'A', host: 'a', port: 1),
-          core.Server(key: 'b:1', name: 'B', host: 'b', port: 1),
+          core.Server(key: 'a:1', name: 'A', host: 'a', port: 1, addresses: []),
+          core.Server(key: 'b:1', name: 'B', host: 'b', port: 1, addresses: []),
         ]
         ..profileErrors['a:1'] = const core.CoreError.server(
           code: core.ErrorCode.forbidden,
@@ -560,8 +564,8 @@ void main() {
   test('presence goes to every server, invisible as offline', () async {
     final harness = await _Harness.start();
     harness.core.servers = const [
-      core.Server(key: 'a:1', name: 'A', host: 'a', port: 1),
-      core.Server(key: 'b:1', name: 'B', host: 'b', port: 1),
+      core.Server(key: 'a:1', name: 'A', host: 'a', port: 1, addresses: []),
+      core.Server(key: 'b:1', name: 'B', host: 'b', port: 1, addresses: []),
     ];
 
     await harness.repository.updatePresence(SelfPresence.invisible);
@@ -605,7 +609,13 @@ void main() {
   test('adding a server lists it and says the list changed', () async {
     final harness = await _Harness.start();
     harness.core.addOutcome = const core.AddServerOutcome.added(
-      core.Server(key: _server, name: 'Home', host: 'home.example', port: 7710),
+      core.Server(
+        key: _server,
+        name: 'Home',
+        host: 'home.example',
+        port: 7710,
+        addresses: [],
+      ),
     );
 
     final result = await harness.repository.addServer(

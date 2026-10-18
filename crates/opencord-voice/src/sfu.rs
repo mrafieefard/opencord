@@ -33,7 +33,10 @@ pub use video::{LayerSetup, TrackSetup, Want};
 mod allocation;
 mod audio;
 mod meter;
+mod music;
 mod video;
+
+pub use music::MusicPacket;
 
 use meter::{RateMeter, TokenBucket};
 
@@ -151,6 +154,8 @@ pub struct Sfu {
     /// Who watches each screen share, by channel and streamer: screens go
     /// to them only (plan §6).
     stream_viewers: HashMap<(i64, i64), HashSet<i64>>,
+    /// Channels' music streams (Phase 3 plan §13.3).
+    music: HashMap<i64, music::Music>,
 }
 
 struct Peer {
@@ -170,6 +175,9 @@ struct Peer {
     forwards: HashMap<PeerId, Forward>,
     /// The same for each sender's screen share sound.
     stream_forwards: HashMap<PeerId, Forward>,
+    /// And for the channel's music.
+    music_forward: Forward,
+    music_muted: bool,
     /// Video it publishes.
     tracks: Vec<video::Track>,
     /// Others' video it can receive.
@@ -266,6 +274,7 @@ impl Sfu {
             keyframe_requests: Vec::new(),
             allocate_at: far_future(Instant::now()),
             stream_viewers: HashMap::new(),
+            music: HashMap::new(),
         })
     }
 
@@ -313,6 +322,9 @@ impl Sfu {
                     declare_receive(&mut api, peer.setup.screen_audio_ssrc);
                 }
             }
+            if let Some(music) = self.music.get(&setup.channel_id) {
+                declare_receive(&mut api, music.ssrc);
+            }
             api.local_dtls_fingerprint().bytes.clone()
         };
         let id = self.next_id;
@@ -329,6 +341,8 @@ impl Sfu {
                 level: audio::SILENT,
                 forwards: HashMap::new(),
                 stream_forwards: HashMap::new(),
+                music_forward: Forward::default(),
+                music_muted: false,
                 tracks: Vec::new(),
                 sending: Vec::new(),
                 estimate: video::INITIAL_ESTIMATE,
@@ -475,8 +489,12 @@ impl Sfu {
         self.peers.get(&id).map(|peer| peer.setup)
     }
 
-    /// Whether anyone in the channel sends on `ssrc`, audio or video.
+    /// Whether anyone in the channel sends on `ssrc`, audio or video, or
+    /// its music does.
     pub fn ssrc_in_use(&self, channel_id: i64, ssrc: u32) -> bool {
+        if self.music_ssrc(channel_id) == Some(ssrc) {
+            return true;
+        }
         let Some(channel) = self.channels.get(&channel_id) else {
             return false;
         };

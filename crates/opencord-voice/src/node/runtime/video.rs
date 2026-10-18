@@ -184,6 +184,7 @@ impl Runtime {
         let Some(peer) = self.sessions.get(session_id).map(|session| session.peer) else {
             return;
         };
+        self.sfu.set_music_muted(peer, wants.music_muted);
         let wants: Vec<Want> = wants
             .wants
             .iter()

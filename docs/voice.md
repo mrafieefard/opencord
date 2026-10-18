@@ -27,6 +27,7 @@ Media is encrypted in transit (DTLS-SRTP), but the voice node can read it, as on
 | 7711 | UDP | Voice, camera and screen share media to and from the embedded node | Calls |
 | 7712 | TCP | An external voice node's voice gateway | Only with external nodes |
 | 7711 | UDP | An external voice node's media | Only with external nodes |
+| 7713 | UDP | Music audio from Lavalink to an external voice node | Only with `[music]` on there (`docs/music.md`) |
 
 All of them are set in `opencord.toml` (or `OPENCORD_*` variables): `[server] bind`, `[voice] udp_port`, and the node's own `opencord-voice-node.toml`.
 
@@ -55,7 +56,7 @@ The compose file publishes 7710/tcp and 7711/udp, and keeps the config, database
 ## When a call does not work
 
 - **The voice panel's bars.** In a call, the bars beside "Voice connected" show how the connection is doing; click "Voice connected" for a graph of the last five minutes of ping (the round trip to the node), with the average and last ping, packet loss and jitter.
-- **No sound at all, "No route"**: UDP 7711 does not reach the node. Check the router's forwarding, the server machine's firewall, and that nothing else uses the port.
+- **No sound at all, "No route"**: UDP 7711 does not reach the node. Check the router's forwarding, the server machine's firewall, and that nothing else uses the port. Behind a tunnel or reverse proxy, voice goes to the server's public address instead (docs/domains.md, Cloudflare Tunnel): check that it is known under Domains & network → Public address.
 - **Others hear you but you hear nothing, or the reverse**: check the devices under User settings → Voice & audio; the mic test plays back what is sent.
 - **Video stays blurry**: the receiver's downlink, or the sender's uplink, is too small for the top layer. The server's screen share cap (Server settings → Voice & video) also limits quality.
 - **A voicebot checks a server from the command line**: README, "Voice". Two bots in a channel each report what they heard from the other.

@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO messages (id, channel_id, author_id, content, interaction_command)\n         VALUES ($1, $2, $3, $4, $5)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 5
+    },
+    "nullable": []
+  },
+  "hash": "d73772f45872a4f1bfbca90c3138e393254431fba4480cd6fc5f2f678075a7c9"
+}

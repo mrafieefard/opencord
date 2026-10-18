@@ -1,8 +1,10 @@
 import 'package:flutter/foundation.dart';
 
 import 'package:opencord/core/model/channel.dart';
+import 'package:opencord/core/model/commands.dart';
 import 'package:opencord/core/model/message.dart';
 import 'package:opencord/core/model/misc.dart';
+import 'package:opencord/core/model/network.dart';
 import 'package:opencord/core/model/permissions.dart';
 import 'package:opencord/core/model/presence.dart';
 import 'package:opencord/core/model/server.dart';
@@ -32,6 +34,8 @@ class ReadySnapshot {
     this.sounds = const {},
     this.lastMessages = const {},
     this.readStates = const {},
+    this.addresses = const ServerAddresses(),
+    this.commands = const CommandList(),
   });
 
   final User self;
@@ -64,4 +68,10 @@ class ReadySnapshot {
   /// Newest message per channel, for the channel list previews.
   final Map<int, Message> lastMessages;
   final Map<int, ReadState> readStates;
+
+  /// Where the server is reached (Phase 3 plan §7.5).
+  /// The chat commands this user may see (Phase 3 plan §17.1).
+  final CommandList commands;
+
+  final ServerAddresses addresses;
 }

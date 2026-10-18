@@ -40,6 +40,7 @@ pub async fn send(ctx: &Ctx<'_>, request: proto::SendMessage) -> Result<Response
         created_at_ms: snowflake::timestamp_ms(id),
         edited_at_ms: None,
         nonce: (!request.nonce.is_empty()).then_some(request.nonce),
+        interaction: None,
     };
     ctx.state.broadcast(
         Event::MessageCreate(proto::MessageCreate {
@@ -165,5 +166,11 @@ fn to_proto(row: MessageRow) -> proto::Message {
         created_at_ms: snowflake::timestamp_ms(row.id),
         edited_at_ms: row.edited_at,
         nonce: None,
+        interaction: row
+            .interaction_command
+            .map(|command| proto::MessageInteraction {
+                user_id: row.author_id,
+                command,
+            }),
     }
 }

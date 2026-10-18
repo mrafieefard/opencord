@@ -257,6 +257,7 @@ abstract interface class CoreApi {
     String serverKey, {
     int? maxUses,
     int? expiresInS,
+    int? domainId,
   });
 
   Future<List<core.Invite>> fetchInvites(String serverKey);
@@ -271,6 +272,211 @@ abstract interface class CoreApi {
   Future<core.VoiceSettings> updateVoiceSettings(
     String serverKey,
     core.VoiceSettingsChanges changes,
+  );
+
+  Future<core.NetworkInfo> watchNetwork(String serverKey, bool watch);
+
+  Future<core.NetworkInfo> setPublicAddress(
+    String serverKey, {
+    required bool autoDetect,
+    required String overrideIpv4,
+    required String overrideIpv6,
+  });
+
+  Future<core.NetworkInfo> detectPublicAddress(String serverKey);
+
+  Future<core.NetworkInfo> updateNetworkSettings(
+    String serverKey,
+    core.NetworkSettingsChanges changes,
+  );
+
+  Future<core.NetworkInfo> addDomain(
+    String serverKey, {
+    required String hostname,
+    required core.DomainKind kind,
+    int? publicPort,
+  });
+
+  Future<core.NetworkInfo> updateDomain(
+    String serverKey,
+    int domainId,
+    core.DomainUpdate update,
+  );
+
+  Future<core.NetworkInfo> deleteDomain(String serverKey, int domainId);
+
+  Future<core.NetworkInfo> checkDomain(String serverKey, int domainId);
+
+  Future<List<core.DomainCheck>> domainChecks(String serverKey, int domainId);
+
+  Future<core.NetworkInfo> requestCertificate(
+    String serverKey,
+    int domainId,
+    String? email,
+    bool agreeTerms,
+  );
+
+  Future<core.NetworkInfo> uploadCertificate(
+    String serverKey,
+    int domainId,
+    String chainPem,
+    String keyPem,
+  );
+
+  Future<core.NetworkInfo> setDnsProvider(
+    String serverKey,
+    String kind,
+    String token,
+  );
+
+  Future<core.NetworkInfo> addFreeSubdomain(
+    String serverKey,
+    String provider,
+    String name,
+    String token,
+    String? email,
+    bool agreeTerms,
+  );
+
+  Future<core.NetworkInfo> startTunnel(
+    String serverKey,
+    core.TunnelKind kind,
+    String token,
+    String hostname,
+  );
+
+  Future<core.NetworkInfo> stopTunnel(String serverKey);
+
+  Future<List<String>> tunnelLog(String serverKey);
+
+  Future<core.NetworkInfo> installCloudflared(String serverKey);
+
+  Future<core.LavalinkNodes> lavalinkNodes(
+    String serverKey, {
+    required bool watch,
+  });
+
+  Future<core.LavalinkNodes> createLavalinkNode(
+    String serverKey,
+    core.LavalinkNodeSettings settings,
+    String password,
+  );
+
+  Future<core.LavalinkNodes> updateLavalinkNode(
+    String serverKey,
+    int nodeId,
+    core.LavalinkNodeChanges changes,
+  );
+
+  Future<core.LavalinkNodes> deleteLavalinkNode(String serverKey, int nodeId);
+
+  Future<void> testLavalinkNode(String serverKey, int nodeId);
+
+  Future<core.LavalinkNodes> moveLavalinkPlayers(
+    String serverKey,
+    int fromNodeId,
+    int? toNodeId,
+  );
+
+  Future<core.MusicSettings> musicSettings(String serverKey);
+
+  Future<core.MusicSettings> updateMusicSettings(
+    String serverKey,
+    core.MusicSettingsChanges changes,
+  );
+
+  Future<List<core.MusicBlock>> musicBlocks(String serverKey);
+
+  Future<List<core.MusicBlock>> blockFromMusic(
+    String serverKey,
+    int userId,
+    bool blocked,
+    String reason,
+  );
+
+  Future<core.MusicSearchResults> musicSearch(
+    String serverKey,
+    int channelId,
+    String query,
+    String source,
+  );
+
+  Future<core.MusicSession> musicSubscribe(String serverKey, int channelId);
+
+  Future<void> musicUnsubscribe(String serverKey, int channelId);
+
+  Future<core.MusicSession> musicEnqueue(
+    String serverKey,
+    int channelId,
+    List<String> resultIds,
+    List<String> historyItemIds,
+    String? beforeItemId,
+    core.MusicPlacement placement,
+  );
+
+  Future<core.MusicSession> musicPlayback(
+    String serverKey,
+    int channelId,
+    core.MusicAction action, {
+    int? positionMs,
+    String? expectedItemId,
+  });
+
+  Future<core.MusicSession> musicSetMode(
+    String serverKey,
+    int channelId, {
+    core.MusicRepeat? repeat,
+    bool? shuffle,
+  });
+
+  Future<core.MusicSession> musicQueueMove(
+    String serverKey,
+    int channelId,
+    String itemId,
+    String? beforeItemId,
+  );
+
+  Future<core.MusicSession> musicQueueRemove(
+    String serverKey,
+    int channelId,
+    List<String> itemIds,
+  );
+
+  Future<core.MusicSession> musicQueueClear(String serverKey, int channelId);
+
+  Future<core.MusicSession> musicVoteSkip(
+    String serverKey,
+    int channelId,
+    String expectedItemId,
+  );
+
+  /// 0–2 (200 %).
+  void musicSetListening(double volume, bool muted, bool duckWhileTalking);
+
+  /// The path of the artwork's file on this device.
+  Future<String> musicArtwork(String serverKey, String artworkId, int size);
+
+  Future<core.CommandOutcome> commandExecute(
+    String serverKey,
+    int channelId,
+    String name,
+    List<core.CommandOptionValue> options,
+    String nonce,
+  );
+
+  Future<List<core.CommandChoice>> commandAutocomplete(
+    String serverKey,
+    int channelId,
+    String name,
+    String option,
+    String value,
+  );
+
+  Future<core.CommandList> commandSettings(String serverKey);
+
+  Future<core.CommandList> updateCommandSettings(
+    String serverKey,
+    core.CommandSettingsChanges changes,
   );
 
   /// Leaves any other voice channel first, on any server.
@@ -739,10 +945,12 @@ class FrbCoreApi implements CoreApi {
     String serverKey, {
     int? maxUses,
     int? expiresInS,
+    int? domainId,
   }) => frb.createInvite(
     serverKey: serverKey,
     maxUses: maxUses,
     expiresInS: expiresInS,
+    domainId: domainId,
   );
 
   @override
@@ -764,6 +972,375 @@ class FrbCoreApi implements CoreApi {
     String serverKey,
     core.VoiceSettingsChanges changes,
   ) => frb.updateVoiceSettings(serverKey: serverKey, changes: changes);
+
+  @override
+  Future<core.NetworkInfo> watchNetwork(String serverKey, bool watch) =>
+      frb.watchNetwork(serverKey: serverKey, watch: watch);
+
+  @override
+  Future<core.NetworkInfo> setPublicAddress(
+    String serverKey, {
+    required bool autoDetect,
+    required String overrideIpv4,
+    required String overrideIpv6,
+  }) => frb.setPublicAddress(
+    serverKey: serverKey,
+    autoDetect: autoDetect,
+    overrideIpv4: overrideIpv4,
+    overrideIpv6: overrideIpv6,
+  );
+
+  @override
+  Future<core.NetworkInfo> detectPublicAddress(String serverKey) =>
+      frb.detectPublicAddress(serverKey: serverKey);
+
+  @override
+  Future<core.NetworkInfo> updateNetworkSettings(
+    String serverKey,
+    core.NetworkSettingsChanges changes,
+  ) => frb.updateNetworkSettings(serverKey: serverKey, changes: changes);
+
+  @override
+  Future<core.NetworkInfo> addDomain(
+    String serverKey, {
+    required String hostname,
+    required core.DomainKind kind,
+    int? publicPort,
+  }) => frb.addDomain(
+    serverKey: serverKey,
+    hostname: hostname,
+    kind: kind,
+    publicPort: publicPort,
+  );
+
+  @override
+  Future<core.NetworkInfo> updateDomain(
+    String serverKey,
+    int domainId,
+    core.DomainUpdate update,
+  ) => frb.updateDomain(
+    serverKey: serverKey,
+    domainId: domainId,
+    update: update,
+  );
+
+  @override
+  Future<core.NetworkInfo> deleteDomain(String serverKey, int domainId) =>
+      frb.deleteDomain(serverKey: serverKey, domainId: domainId);
+
+  @override
+  Future<core.NetworkInfo> checkDomain(String serverKey, int domainId) =>
+      frb.checkDomain(serverKey: serverKey, domainId: domainId);
+
+  @override
+  Future<List<core.DomainCheck>> domainChecks(String serverKey, int domainId) =>
+      frb.domainChecks(serverKey: serverKey, domainId: domainId);
+
+  @override
+  Future<core.NetworkInfo> requestCertificate(
+    String serverKey,
+    int domainId,
+    String? email,
+    bool agreeTerms,
+  ) => frb.requestCertificate(
+    serverKey: serverKey,
+    domainId: domainId,
+    email: email,
+    agreeTerms: agreeTerms,
+  );
+
+  @override
+  Future<core.NetworkInfo> uploadCertificate(
+    String serverKey,
+    int domainId,
+    String chainPem,
+    String keyPem,
+  ) => frb.uploadCertificate(
+    serverKey: serverKey,
+    domainId: domainId,
+    chainPem: chainPem,
+    keyPem: keyPem,
+  );
+
+  @override
+  Future<core.NetworkInfo> setDnsProvider(
+    String serverKey,
+    String kind,
+    String token,
+  ) => frb.setDnsProvider(serverKey: serverKey, kind: kind, token: token);
+
+  @override
+  Future<core.NetworkInfo> addFreeSubdomain(
+    String serverKey,
+    String provider,
+    String name,
+    String token,
+    String? email,
+    bool agreeTerms,
+  ) => frb.addFreeSubdomain(
+    serverKey: serverKey,
+    provider: provider,
+    name: name,
+    token: token,
+    email: email,
+    agreeTerms: agreeTerms,
+  );
+
+  @override
+  Future<core.NetworkInfo> startTunnel(
+    String serverKey,
+    core.TunnelKind kind,
+    String token,
+    String hostname,
+  ) => frb.startTunnel(
+    serverKey: serverKey,
+    kind: kind,
+    token: token,
+    hostname: hostname,
+  );
+
+  @override
+  Future<core.NetworkInfo> stopTunnel(String serverKey) =>
+      frb.stopTunnel(serverKey: serverKey);
+
+  @override
+  Future<List<String>> tunnelLog(String serverKey) =>
+      frb.tunnelLog(serverKey: serverKey);
+
+  @override
+  Future<core.NetworkInfo> installCloudflared(String serverKey) =>
+      frb.installCloudflared(serverKey: serverKey);
+
+  @override
+  Future<core.LavalinkNodes> lavalinkNodes(
+    String serverKey, {
+    required bool watch,
+  }) => frb.lavalinkNodes(serverKey: serverKey, watch: watch);
+
+  @override
+  Future<core.LavalinkNodes> createLavalinkNode(
+    String serverKey,
+    core.LavalinkNodeSettings settings,
+    String password,
+  ) => frb.createLavalinkNode(
+    serverKey: serverKey,
+    settings: settings,
+    password: password,
+  );
+
+  @override
+  Future<core.LavalinkNodes> updateLavalinkNode(
+    String serverKey,
+    int nodeId,
+    core.LavalinkNodeChanges changes,
+  ) => frb.updateLavalinkNode(
+    serverKey: serverKey,
+    nodeId: nodeId,
+    changes: changes,
+  );
+
+  @override
+  Future<core.LavalinkNodes> deleteLavalinkNode(String serverKey, int nodeId) =>
+      frb.deleteLavalinkNode(serverKey: serverKey, nodeId: nodeId);
+
+  @override
+  Future<void> testLavalinkNode(String serverKey, int nodeId) =>
+      frb.testLavalinkNode(serverKey: serverKey, nodeId: nodeId);
+
+  @override
+  Future<core.LavalinkNodes> moveLavalinkPlayers(
+    String serverKey,
+    int fromNodeId,
+    int? toNodeId,
+  ) => frb.moveLavalinkPlayers(
+    serverKey: serverKey,
+    fromNodeId: fromNodeId,
+    toNodeId: toNodeId,
+  );
+
+  @override
+  Future<core.MusicSettings> musicSettings(String serverKey) =>
+      frb.musicSettings(serverKey: serverKey);
+
+  @override
+  Future<core.MusicSettings> updateMusicSettings(
+    String serverKey,
+    core.MusicSettingsChanges changes,
+  ) => frb.updateMusicSettings(serverKey: serverKey, changes: changes);
+
+  @override
+  Future<List<core.MusicBlock>> musicBlocks(String serverKey) =>
+      frb.musicBlocks(serverKey: serverKey);
+
+  @override
+  Future<List<core.MusicBlock>> blockFromMusic(
+    String serverKey,
+    int userId,
+    bool blocked,
+    String reason,
+  ) => frb.blockFromMusic(
+    serverKey: serverKey,
+    userId: userId,
+    blocked: blocked,
+    reason: reason,
+  );
+
+  @override
+  Future<core.MusicSearchResults> musicSearch(
+    String serverKey,
+    int channelId,
+    String query,
+    String source,
+  ) => frb.musicSearch(
+    serverKey: serverKey,
+    channelId: channelId,
+    query: query,
+    source: source,
+  );
+
+  @override
+  Future<core.MusicSession> musicSubscribe(String serverKey, int channelId) =>
+      frb.musicSubscribe(serverKey: serverKey, channelId: channelId);
+
+  @override
+  Future<void> musicUnsubscribe(String serverKey, int channelId) =>
+      frb.musicUnsubscribe(serverKey: serverKey, channelId: channelId);
+
+  @override
+  Future<core.MusicSession> musicEnqueue(
+    String serverKey,
+    int channelId,
+    List<String> resultIds,
+    List<String> historyItemIds,
+    String? beforeItemId,
+    core.MusicPlacement placement,
+  ) => frb.musicEnqueue(
+    serverKey: serverKey,
+    channelId: channelId,
+    resultIds: resultIds,
+    historyItemIds: historyItemIds,
+    beforeItemId: beforeItemId,
+    placement: placement,
+  );
+
+  @override
+  Future<core.MusicSession> musicPlayback(
+    String serverKey,
+    int channelId,
+    core.MusicAction action, {
+    int? positionMs,
+    String? expectedItemId,
+  }) => frb.musicPlayback(
+    serverKey: serverKey,
+    channelId: channelId,
+    action: action,
+    positionMs: positionMs == null ? null : BigInt.from(positionMs),
+    expectedItemId: expectedItemId,
+  );
+
+  @override
+  Future<core.MusicSession> musicSetMode(
+    String serverKey,
+    int channelId, {
+    core.MusicRepeat? repeat,
+    bool? shuffle,
+  }) => frb.musicSetMode(
+    serverKey: serverKey,
+    channelId: channelId,
+    repeat: repeat,
+    shuffle: shuffle,
+  );
+
+  @override
+  Future<core.MusicSession> musicQueueMove(
+    String serverKey,
+    int channelId,
+    String itemId,
+    String? beforeItemId,
+  ) => frb.musicQueueMove(
+    serverKey: serverKey,
+    channelId: channelId,
+    itemId: itemId,
+    beforeItemId: beforeItemId,
+  );
+
+  @override
+  Future<core.MusicSession> musicQueueRemove(
+    String serverKey,
+    int channelId,
+    List<String> itemIds,
+  ) => frb.musicQueueRemove(
+    serverKey: serverKey,
+    channelId: channelId,
+    itemIds: itemIds,
+  );
+
+  @override
+  Future<core.MusicSession> musicQueueClear(String serverKey, int channelId) =>
+      frb.musicQueueClear(serverKey: serverKey, channelId: channelId);
+
+  @override
+  Future<core.MusicSession> musicVoteSkip(
+    String serverKey,
+    int channelId,
+    String expectedItemId,
+  ) => frb.musicVoteSkip(
+    serverKey: serverKey,
+    channelId: channelId,
+    expectedItemId: expectedItemId,
+  );
+
+  @override
+  void musicSetListening(double volume, bool muted, bool duckWhileTalking) =>
+      frb.musicSetListening(
+        volume: volume,
+        muted: muted,
+        duckWhileTalking: duckWhileTalking,
+      );
+
+  @override
+  Future<String> musicArtwork(String serverKey, String artworkId, int size) =>
+      frb.musicArtwork(serverKey: serverKey, artworkId: artworkId, size: size);
+
+  @override
+  Future<core.CommandOutcome> commandExecute(
+    String serverKey,
+    int channelId,
+    String name,
+    List<core.CommandOptionValue> options,
+    String nonce,
+  ) => frb.commandExecute(
+    serverKey: serverKey,
+    channelId: channelId,
+    name: name,
+    options: options,
+    nonce: nonce,
+  );
+
+  @override
+  Future<List<core.CommandChoice>> commandAutocomplete(
+    String serverKey,
+    int channelId,
+    String name,
+    String option,
+    String value,
+  ) => frb.commandAutocomplete(
+    serverKey: serverKey,
+    channelId: channelId,
+    name: name,
+    option: option,
+    value: value,
+  );
+
+  @override
+  Future<core.CommandList> commandSettings(String serverKey) =>
+      frb.commandSettings(serverKey: serverKey);
+
+  @override
+  Future<core.CommandList> updateCommandSettings(
+    String serverKey,
+    core.CommandSettingsChanges changes,
+  ) => frb.updateCommandSettings(serverKey: serverKey, changes: changes);
 
   @override
   Future<core.VoiceState> voiceJoin(String serverKey, int channelId) =>

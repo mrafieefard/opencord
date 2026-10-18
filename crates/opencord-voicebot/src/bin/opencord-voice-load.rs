@@ -87,7 +87,7 @@ async fn main() -> anyhow::Result<()> {
     }
     let invite = owner
         .client
-        .create_invite(&owner.server_key, None, None)
+        .create_invite(&owner.server_key, None, None, None)
         .await?
         .link;
 

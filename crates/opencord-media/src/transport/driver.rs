@@ -36,6 +36,7 @@ enum Flow {
 pub(super) struct Driver {
     url: GatewayUrl,
     fingerprint: Option<[u8; 32]>,
+    authority: Option<super::Authority>,
     voice_session_id: String,
     resume_token: Vec<u8>,
     heartbeat: Duration,
@@ -49,12 +50,16 @@ pub(super) struct Driver {
     /// Wants not sent yet, and when the last went out.
     wants_pending: Option<Vec<SinkWant>>,
     wants_sent: Option<Instant>,
+    /// What went out last, sent again when only the music changes.
+    wants_last: Vec<SinkWant>,
+    music_muted: bool,
 }
 
 impl Driver {
     pub fn new(
         url: GatewayUrl,
         fingerprint: Option<[u8; 32]>,
+        authority: Option<super::Authority>,
         ready: &voice::Ready,
         heartbeat: Duration,
         media: Media,
@@ -63,6 +68,7 @@ impl Driver {
         Self {
             url,
             fingerprint,
+            authority,
             voice_session_id: ready.voice_session_id.clone(),
             resume_token: ready.resume_token.clone(),
             heartbeat,
@@ -73,6 +79,8 @@ impl Driver {
             publishing: HashMap::new(),
             wants_pending: None,
             wants_sent: None,
+            wants_last: Vec::new(),
+            music_muted: false,
         }
     }
 
@@ -207,6 +215,15 @@ impl Driver {
                     let _ = gateway::send(open, unpublish).await;
                 }
             }
+            Some(Command::MusicMuted(muted)) => {
+                self.music_muted = muted;
+                self.wants_pending = Some(self.wants_last.clone());
+                if self.wants_due().is_some_and(|due| due <= Instant::now())
+                    && let Some(open) = socket.as_mut()
+                {
+                    self.send_wants(open).await;
+                }
+            }
             Some(Command::SinkWants(wants)) => {
                 self.wants_pending = Some(wants);
                 if self.wants_due().is_some_and(|due| due <= Instant::now())
@@ -295,7 +312,9 @@ impl Driver {
             return;
         };
         self.wants_sent = Some(Instant::now());
+        self.wants_last.clone_from(&wants);
         let message = voice::MediaSinkWants {
+            music_muted: self.music_muted,
             wants: wants
                 .into_iter()
                 .map(|want| voice::SinkWant {
@@ -357,6 +376,12 @@ impl Driver {
                 self.media
                     .set_wanted(&wants.track_id, &wants.active_layers, &self.events);
             }
+            Some(Payload::MusicStream(music)) => {
+                self.media.set_music(music.active.then_some(music.ssrc));
+                let _ = self.events.send(VoiceEvent::Music {
+                    active: music.active,
+                });
+            }
             Some(Payload::Resumed(_)) => {
                 let _ = self.events.send(VoiceEvent::Resumed);
             }
@@ -407,6 +432,7 @@ impl Driver {
     fn resume_later(&self) -> Reconnect {
         let url = self.url.clone();
         let fingerprint = self.fingerprint;
+        let authority = self.authority.clone();
         let resume = voice::Resume {
             voice_session_id: self.voice_session_id.clone(),
             resume_token: self.resume_token.clone(),
@@ -415,7 +441,7 @@ impl Driver {
         tokio::spawn(async move {
             let give_up = Instant::now() + RESUME_FOR;
             loop {
-                match resume_once(&url, fingerprint, resume.clone()).await {
+                match resume_once(&url, fingerprint, authority.clone(), resume.clone()).await {
                     Ok(socket) => return Ok(socket),
                     Err(Some(code)) if !close::is_resumable(Some(code)) => return Err(Some(code)),
                     Err(_) if Instant::now() >= give_up => return Err(None),
@@ -436,9 +462,12 @@ impl Driver {
 async fn resume_once(
     url: &GatewayUrl,
     fingerprint: Option<[u8; 32]>,
+    authority: Option<super::Authority>,
     resume: voice::Resume,
 ) -> Result<Socket, Option<u16>> {
-    let mut socket = gateway::open(url, fingerprint).await.map_err(|_| None)?;
+    let mut socket = gateway::open(url, fingerprint, authority)
+        .await
+        .map_err(|_| None)?;
     hello(&mut socket).await.map_err(|error| match error {
         TransportError::Refused(code) => code,
         _ => None,

@@ -80,6 +80,7 @@ pub fn announce(state: &AppState, voice_state: proto::VoiceState, channels: &[i6
             },
         );
     }
+    crate::music::voice_changed(state, channels);
 }
 
 /// Ends the user's media connection in `channel_id`; an empty channel may

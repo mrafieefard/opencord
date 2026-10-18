@@ -6,6 +6,9 @@ import 'package:opencord/core/providers/providers.dart';
 import 'package:opencord/features/settings/server/channels_page.dart';
 import 'package:opencord/features/settings/server/invites_bans_pages.dart';
 import 'package:opencord/features/settings/server/members_page.dart';
+import 'package:opencord/features/settings/server/commands_page.dart';
+import 'package:opencord/features/settings/server/music/music_page.dart';
+import 'package:opencord/features/settings/server/network/network_page.dart';
 import 'package:opencord/features/settings/server/overview_page.dart';
 import 'package:opencord/features/settings/server/roles_page.dart';
 import 'package:opencord/features/settings/server/soundboard_page.dart';
@@ -28,6 +31,15 @@ List<SettingsPage> serverSettingsPages(
       group: 'Server',
       builder: (_) => ServerOverviewPage(serverKey: serverKey),
     ),
+  // The owner's alone (Phase 3 plan §3).
+  if (data.isOwner)
+    SettingsPage(
+      id: 'network',
+      label: 'Domains & network',
+      icon: OcIcons.dns,
+      group: 'Server',
+      builder: (_) => ServerNetworkPage(serverKey: serverKey),
+    ),
   if (data.voiceEnabled && data.can(Permissions.manageServer))
     SettingsPage(
       id: 'voice',
@@ -35,6 +47,25 @@ List<SettingsPage> serverSettingsPages(
       icon: OcIcons.graphicEq,
       group: 'Server',
       builder: (_) => ServerVoicePage(serverKey: serverKey),
+    ),
+  // Music settings need Manage music, Lavalink nodes Manage server (Phase
+  // 3 plan §16.2).
+  if (data.voiceEnabled &&
+      (data.can(Permissions.manageServer) || data.can(Permissions.musicManage)))
+    SettingsPage(
+      id: 'music',
+      label: 'Music',
+      icon: OcIcons.headphones,
+      group: 'Server',
+      builder: (_) => ServerMusicPage(serverKey: serverKey),
+    ),
+  if (data.can(Permissions.manageServer))
+    SettingsPage(
+      id: 'commands',
+      label: 'Commands',
+      icon: OcIcons.code,
+      group: 'Server',
+      builder: (_) => ServerCommandsPage(serverKey: serverKey),
     ),
   if (data.voiceEnabled &&
       (data.can(Permissions.manageServer) ||

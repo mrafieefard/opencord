@@ -56,6 +56,15 @@ impl ApiError {
         }
     }
 
+    /// This error, to be tried again after `wait`.
+    #[must_use]
+    pub fn retry_after(self, wait: Duration) -> Self {
+        Self {
+            retry_after_ms: Some(u64::try_from(wait.as_millis()).unwrap_or(u64::MAX)),
+            ..self
+        }
+    }
+
     pub fn voice_channel_full() -> Self {
         Self::new(
             proto::ErrorCode::VoiceChannelFull,

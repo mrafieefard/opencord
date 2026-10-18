@@ -8,6 +8,9 @@ import 'package:opencord/core/model/user.dart';
 import 'package:opencord/core/providers/providers.dart';
 import 'package:opencord/features/members/member_actions.dart';
 import 'package:opencord/features/members/member_sections.dart';
+import 'package:opencord/features/music/music_access.dart';
+import 'package:opencord/features/music/music_panel.dart';
+import 'package:opencord/features/music/now_playing_card.dart';
 import 'package:opencord/features/shell/navigation.dart';
 import 'package:opencord/features/window/header_bar.dart';
 import 'package:opencord/ui/theme/oc_colors.dart';
@@ -28,10 +31,16 @@ class MemberPanel extends ConsumerStatefulWidget {
   const MemberPanel({
     super.key,
     required this.onClose,
+    this.isOverlay = false,
+    this.onSelectMembers,
+    this.onSelectMusic,
     this.trailingControls = false,
   });
 
   final VoidCallback onClose;
+  final bool isOverlay;
+  final VoidCallback? onSelectMembers;
+  final VoidCallback? onSelectMusic;
 
   /// Carries the right-hand window controls (§3.1).
   final bool trailingControls;
@@ -66,6 +75,9 @@ class _MemberPanelState extends ConsumerState<MemberPanel> {
         ? const <int, List<VoiceParticipant>>{}
         : ref.watch(voiceProvider(server));
     final channel = data?.channels[channelId];
+    final musicChannel = ref.watch(musicChannelProvider);
+    final musicOffered =
+        musicChannel != null && ref.watch(musicOfferedProvider(musicChannel));
     final members = data == null
         ? const <Member>[]
         : channel != null && channel.kind.isTextLike
@@ -89,6 +101,14 @@ class _MemberPanelState extends ConsumerState<MemberPanel> {
             query: _query,
             voiceChannelOf: voiceChannelOf,
             offlineExpanded: _offlineExpanded,
+            inVoice: musicChannel != null && musicChannel.server == server
+                ? [
+                    for (final participant
+                        in voice[musicChannel.channel] ??
+                            const <VoiceParticipant>[])
+                      participant.userId,
+                  ]
+                : const [],
           );
     return ColoredBox(
       color: colors.sidebar,
@@ -123,6 +143,22 @@ class _MemberPanelState extends ConsumerState<MemberPanel> {
                     ),
                   ),
                 ),
+                if (widget.isOverlay && musicOffered) ...[
+                  OcIconButton(
+                    icon: OcIcons.group,
+                    tooltip: 'Members',
+                    active: true,
+                    size: OcIconButtonSize.compact,
+                    onPressed: widget.onSelectMembers,
+                  ),
+                  OcIconButton(
+                    icon: OcIcons.libraryMusic,
+                    tooltip: 'Music',
+                    active: false,
+                    size: OcIconButtonSize.compact,
+                    onPressed: widget.onSelectMusic,
+                  ),
+                ],
                 // Window buttons beside it would make two × in a row; the
                 // list still toggles from the chat header.
                 if (!widget.trailingControls ||
@@ -136,6 +172,7 @@ class _MemberPanelState extends ConsumerState<MemberPanel> {
               ],
             ),
           ),
+          const NowPlayingCard(),
           Padding(
             padding: const EdgeInsets.fromLTRB(
               OcSpace.s12,

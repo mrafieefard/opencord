@@ -1,0 +1,89 @@
+//! Lavalink node requests (Phase 3 plan §12, §18.1): `MANAGE_SERVER`.
+
+use opencord_common::permissions::Permissions;
+use opencord_proto::v1 as proto;
+use proto::response::Result as Response;
+
+use super::Ctx;
+use crate::error::ApiError;
+use crate::permissions::require_base;
+
+fn require_manage_server(ctx: &Ctx<'_>) -> Result<(), ApiError> {
+    require_base(&ctx.state.guild(), ctx.user_id, Permissions::MANAGE_SERVER).map(drop)
+}
+
+fn nodes(ctx: &Ctx<'_>) -> Response {
+    Response::LavalinkNodes(Box::new(ctx.state.lavalink.info(ctx.state)))
+}
+
+pub fn fetch(ctx: &Ctx<'_>, request: &proto::FetchLavalinkNodes) -> Result<Response, ApiError> {
+    require_manage_server(ctx)?;
+    ctx.state.lavalink.watch(ctx.session_id, request.watch);
+    Ok(nodes(ctx))
+}
+
+pub async fn create(
+    ctx: &Ctx<'_>,
+    request: proto::CreateLavalinkNode,
+) -> Result<Response, ApiError> {
+    require_manage_server(ctx)?;
+    let settings = request
+        .settings
+        .ok_or_else(|| ApiError::invalid_argument("the node's settings are missing"))?;
+    ctx.state
+        .lavalink
+        .create(ctx.state, &settings, &request.password)
+        .await?;
+    crate::music::announce_settings(ctx.state);
+    Ok(nodes(ctx))
+}
+
+pub async fn update(
+    ctx: &Ctx<'_>,
+    request: proto::UpdateLavalinkNode,
+) -> Result<Response, ApiError> {
+    require_manage_server(ctx)?;
+    ctx.state.lavalink.update(ctx.state, &request).await?;
+    Ok(nodes(ctx))
+}
+
+pub async fn delete(
+    ctx: &Ctx<'_>,
+    request: &proto::DeleteLavalinkNode,
+) -> Result<Response, ApiError> {
+    require_manage_server(ctx)?;
+    if ctx.state.lavalink.node(request.node_id).is_none() {
+        return Err(ApiError::not_found("Lavalink node"));
+    }
+    // Its channels play elsewhere first (plan §12.7).
+    crate::music::move_players(ctx.state, request.node_id, None).await;
+    ctx.state
+        .lavalink
+        .delete(ctx.state, request.node_id)
+        .await?;
+    crate::music::announce_settings(ctx.state);
+    Ok(nodes(ctx))
+}
+
+/// Moves the channels on a node now (plan §12.7, maintenance).
+pub async fn move_players(
+    ctx: &Ctx<'_>,
+    request: &proto::MoveLavalinkPlayers,
+) -> Result<Response, ApiError> {
+    require_manage_server(ctx)?;
+    let known = |id: i64| ctx.state.lavalink.node(id).is_some();
+    if !known(request.from_node_id) || request.to_node_id.is_some_and(|to| !known(to)) {
+        return Err(ApiError::not_found("Lavalink node"));
+    }
+    if request.to_node_id == Some(request.from_node_id) {
+        return Err(ApiError::invalid_argument("pick another node to move to"));
+    }
+    crate::music::move_players(ctx.state, request.from_node_id, request.to_node_id).await;
+    Ok(nodes(ctx))
+}
+
+pub fn test(ctx: &Ctx<'_>, request: &proto::TestLavalinkNode) -> Result<Response, ApiError> {
+    require_manage_server(ctx)?;
+    crate::lavalink::start_test(ctx.state, request.node_id, ctx.session_id)?;
+    Ok(Response::Ack(proto::Ack {}))
+}

@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO acme_accounts (directory, credentials_enc, email, created_at)\n         VALUES ($1, $2, $3, $4)\n         ON CONFLICT (directory) DO UPDATE SET\n             credentials_enc = excluded.credentials_enc, email = excluded.email",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 4
+    },
+    "nullable": []
+  },
+  "hash": "0d74eefd7e682391ed2cf25202054c6c0e7806e74074d0ef682b3c3dd2fc97e7"
+}

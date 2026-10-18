@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 
+import 'package:opencord/core/model/commands.dart';
 import 'package:opencord/core/model/message.dart';
 import 'package:opencord/core/providers/activity_state.dart';
 
@@ -47,6 +48,26 @@ final class SystemRow extends ChatRow {
   Object get key => 's${message.id}';
 }
 
+/// A command's public result (Phase 3 §17.3).
+final class CommandRow extends ChatRow {
+  const CommandRow(this.message);
+
+  final Message message;
+
+  @override
+  Object get key => 'c${message.id}';
+}
+
+/// A reply only this device sees, after the messages.
+final class EphemeralRow extends ChatRow {
+  const EphemeralRow(this.note);
+
+  final EphemeralNote note;
+
+  @override
+  Object get key => 'e${note.nonce}${note.at.microsecondsSinceEpoch}';
+}
+
 final class MessageRow extends ChatRow {
   const MessageRow(
     this.message, {
@@ -88,6 +109,7 @@ List<ChatRow> buildRows(
   required int selfId,
   required int? lastReadId,
   required bool reachedStart,
+  List<EphemeralNote> ephemerals = const [],
 }) {
   final rows = <ChatRow>[if (reachedStart) const StartRow()];
   DateTime? currentDay;
@@ -134,6 +156,11 @@ List<ChatRow> buildRows(
       rows.add(SystemRow(message));
       continue;
     }
+    if (message.command != null) {
+      endGroup();
+      rows.add(CommandRow(message));
+      continue;
+    }
     final last = previous;
     final continues =
         last != null &&
@@ -145,6 +172,7 @@ List<ChatRow> buildRows(
     previous = message;
   }
   endGroup();
+  rows.addAll(ephemerals.map(EphemeralRow.new));
   return rows;
 }
 
@@ -156,8 +184,12 @@ List<ChatRow> buildRows(
 int splitIndex(List<ChatRow> rows, int splitId) {
   var index = rows.indexWhere(
     (row) => switch (row) {
-      MessageRow(:final message) || SystemRow(:final message) =>
-        message.id >= splitId || message.sendState != SendState.sent,
+      MessageRow(:final message) ||
+      SystemRow(:final message) ||
+      CommandRow(
+        :final message,
+      ) => message.id >= splitId || message.sendState != SendState.sent,
+      EphemeralRow() => true,
       _ => false,
     },
   );
@@ -171,7 +203,9 @@ int splitIndex(List<ChatRow> rows, int splitId) {
 
 /// The message a row shows, if it shows one.
 Message? messageOf(ChatRow row) => switch (row) {
-  MessageRow(:final message) || SystemRow(:final message) => message,
+  MessageRow(:final message) ||
+  SystemRow(:final message) ||
+  CommandRow(:final message) => message,
   _ => null,
 };
 
@@ -179,6 +213,8 @@ Message? messageOf(ChatRow row) => switch (row) {
 DateTime? dayOf(ChatRow row) => switch (row) {
   DayRow(:final day) => day,
   MessageRow(:final message) ||
-  SystemRow(:final message) => _day(message.createdAt),
+  SystemRow(:final message) ||
+  CommandRow(:final message) => _day(message.createdAt),
+  EphemeralRow(:final note) => _day(note.at),
   _ => null,
 };

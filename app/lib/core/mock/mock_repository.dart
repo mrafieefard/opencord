@@ -2,12 +2,19 @@ import 'dart:async';
 import 'dart:math';
 
 import 'package:clock/clock.dart';
+import 'package:flutter/foundation.dart';
 
+import 'package:opencord/core/mock/mock_music.dart';
 import 'package:opencord/core/mock/mock_world.dart';
 import 'package:opencord/core/model/stream.dart';
 import 'package:opencord/core/model/channel.dart';
+import 'package:opencord/core/model/commands.dart';
+import 'package:opencord/core/model/lavalink.dart';
 import 'package:opencord/core/model/message.dart';
 import 'package:opencord/core/model/misc.dart';
+import 'package:opencord/core/model/music.dart';
+import 'package:opencord/core/model/music_session.dart';
+import 'package:opencord/core/model/network.dart';
 import 'package:opencord/core/model/permissions.dart';
 import 'package:opencord/core/model/presence.dart';
 import 'package:opencord/core/model/server.dart';
@@ -68,6 +75,9 @@ class MockRepository implements OpencordRepository {
   final _retryTimers = <String, Timer>{};
   final _trusted = <String>{};
   Timer? _speaking;
+  Timer? _musicTick;
+  final _music = <String, MockMusic>{};
+  final _nowPlaying = <(String, int), MusicNowPlaying?>{};
   ({String server, int channel})? _voice;
   var _selfVoice = const VoiceParticipant(userId: 0);
   LocalIdentity? _identity;
@@ -136,6 +146,7 @@ class MockRepository implements OpencordRepository {
     for (final timer in [..._timers, ..._retryTimers.values]) {
       timer.cancel();
     }
+    _musicTick?.cancel();
     _speaking?.cancel();
     _levels?.cancel();
     _events.close();
@@ -193,6 +204,13 @@ class MockRepository implements OpencordRepository {
   }
 
   // Debug triggers (plan §11) ------------------------------------------
+
+  /// The network as the server keeps it.
+  NetworkInfo debugNetwork(String serverKey) => _server(serverKey).network;
+
+  /// A notice from the server, as the owner would get one.
+  void debugNotice(String serverKey, ServerNotice notice) =>
+      _emit(ServerNoticeReceived(serverKey, notice));
 
   void debugDisconnect(String serverKey) {
     final server = _server(serverKey);
@@ -1315,10 +1333,22 @@ class MockRepository implements OpencordRepository {
     String serverKey, {
     Duration? expiresIn,
     int? maxUses,
+    int? domainId,
   }) async {
     final server = _server(serverKey);
     _require(server, Permissions.createInvite);
     await _latency();
+    final domain = domainId == null
+        ? server.addresses.primary
+        : server.addresses.domains
+              .where((address) => address.domainId == domainId)
+              .firstOrNull;
+    if (domainId != null && domain == null) {
+      throw const RepoException(
+        RepoErrorKind.conflict,
+        'That domain is not active.',
+      );
+    }
     const alphabet = 'abcdefghjkmnpqrstuvwxyz23456789';
     final code = List.generate(
       8,
@@ -1327,7 +1357,21 @@ class MockRepository implements OpencordRepository {
     final now = _clock();
     final invite = Invite(
       code: code,
-      link: 'opencord://${server.key}/invite/$code#fp=${server.fingerprint}',
+      link: switch (domain) {
+        final domain? when domain.trustedCertificate =>
+          'opencord://${domain.display}/invite/$code',
+        final domain? =>
+          'opencord://${domain.display}/invite/$code#fp=${server.fingerprint}',
+        null =>
+          'opencord://${server.key}/invite/$code#fp=${server.fingerprint}',
+      },
+      webLink: switch (domain) {
+        final domain? when domain.port == 443 =>
+          'https://${domain.host}/invite/$code',
+        final domain? => 'https://${domain.display}/invite/$code',
+        null => null,
+      },
+      domainId: domain?.domainId,
       createdBy: server.selfId,
       createdAt: now,
       maxUses: maxUses,
@@ -1381,6 +1425,1749 @@ class MockRepository implements OpencordRepository {
     await _latency();
     server.voiceSettings = settings;
     _emit(VoiceSettingsChanged(serverKey, settings));
+  }
+
+  // Lavalink nodes ----------------------------------------------------------------
+
+  LavalinkNodes _lavalink(MockServer server, LavalinkNodes nodes) {
+    server.lavalink = nodes;
+    return nodes;
+  }
+
+  /// Tells whoever watches, and keeps it.
+  void _lavalinkNode(MockServer server, LavalinkNode node) {
+    _lavalink(server, server.lavalink.withNode(node));
+    _emit(
+      LavalinkNodeChanged(
+        server.key,
+        nodeId: node.id,
+        node: node,
+        channelsPlaying: server.lavalink.channelsPlaying,
+      ),
+    );
+  }
+
+  void _lavalinkEvent(MockServer server, LavalinkEventKind kind, String text) {
+    final nodeEvent = LavalinkNodeEvent(
+      nodeId: 0,
+      kind: kind,
+      text: text,
+      at: _clock(),
+    );
+    _lavalink(server, server.lavalink.withEvent(nodeEvent));
+    _emit(LavalinkNodeEventReceived(server.key, nodeEvent));
+  }
+
+  /// Why a mock node cannot be reached: "unreachable" in the host, or the
+  /// password "wrong".
+  String? _lavalinkProblem(LavalinkNodeSettings settings, String password) {
+    if (settings.host.contains('unreachable')) {
+      return 'Nothing is listening on ${settings.address}: check the port, '
+          'and that Lavalink is running';
+    }
+    if (password == 'wrong') return 'Lavalink refused the password';
+    return null;
+  }
+
+  /// Connects a mock node a moment later.
+  void _connectLavalink(MockServer server, int id) {
+    _later(const Duration(milliseconds: 600), () {
+      final node = server.lavalink.node(id);
+      if (node == null || !node.settings.enabled) return;
+      final problem = _lavalinkProblem(
+        node.settings,
+        server.lavalinkPasswords[id] ?? '',
+      );
+      final name = node.settings.name;
+      if (problem != null) {
+        _lavalinkNode(
+          server,
+          LavalinkNode(
+            id: id,
+            settings: node.settings,
+            draining: node.draining,
+            health: LavalinkHealth.unavailable,
+            reason: problem,
+            lastError: problem,
+          ),
+        );
+        _lavalinkEvent(
+          server,
+          LavalinkEventKind.disconnected,
+          '$name is unavailable: $problem',
+        );
+        return;
+      }
+      _lavalinkNode(
+        server,
+        LavalinkNode(
+          id: id,
+          settings: node.settings,
+          draining: node.draining,
+          health: node.draining
+              ? LavalinkHealth.draining
+              : LavalinkHealth.healthy,
+          version: '4.2.2',
+          sources: const ['youtube', 'soundcloud', 'bandcamp'],
+          plugins: const ['youtube-plugin 1.13.3'],
+          cpuPercent: 6 + _random.nextInt(10),
+          pingMs: 18 + _random.nextInt(30),
+          connectedSince: _clock(),
+        ),
+      );
+      _lavalinkEvent(
+        server,
+        LavalinkEventKind.connected,
+        '$name connected (Lavalink 4.2.2)',
+      );
+    });
+  }
+
+  @override
+  Future<LavalinkNodes> lavalinkNodes(
+    String serverKey, {
+    required bool watch,
+  }) async {
+    final server = _server(serverKey);
+    _require(server, Permissions.manageServer);
+    if (watch) await _latency(60);
+    return server.lavalink;
+  }
+
+  @override
+  Future<LavalinkNodes> createLavalinkNode(
+    String serverKey,
+    LavalinkNodeSettings settings,
+    String password,
+  ) async {
+    final server = _server(serverKey);
+    _require(server, Permissions.manageServer);
+    await _latency();
+    _checkLavalink(settings);
+    if (password.isEmpty) {
+      throw const RepoException(
+        RepoErrorKind.invalidArgument,
+        "the password is Lavalink's server.password, up to 512 characters",
+      );
+    }
+    if (server.lavalink.nodes.length >= maxLavalinkNodes) {
+      throw const RepoException(
+        RepoErrorKind.invalidArgument,
+        'a server has at most 20 Lavalink nodes',
+      );
+    }
+    final id = _world.ids.at(_clock());
+    server.lavalinkPasswords[id] = password;
+    final node = LavalinkNode(
+      id: id,
+      settings: settings,
+      health: settings.enabled
+          ? LavalinkHealth.connecting
+          : LavalinkHealth.disabled,
+    );
+    _lavalinkNode(server, node);
+    if (settings.enabled) _connectLavalink(server, id);
+    return server.lavalink;
+  }
+
+  void _checkLavalink(LavalinkNodeSettings settings) {
+    final host = settings.host;
+    if (settings.name.trim().isEmpty) {
+      throw const RepoException(
+        RepoErrorKind.invalidArgument,
+        'a node needs a name of up to 64 characters',
+      );
+    }
+    if (host.isEmpty || host.contains('/') || host.contains(' ')) {
+      throw const RepoException(
+        RepoErrorKind.invalidArgument,
+        'the host is a name like lavalink.example.com or an IP address, '
+        'without http:// or a path',
+      );
+    }
+    if (settings.port < 1 || settings.port > 65535) {
+      throw const RepoException(
+        RepoErrorKind.invalidArgument,
+        'the port is a number from 1 to 65535',
+      );
+    }
+  }
+
+  @override
+  Future<LavalinkNodes> updateLavalinkNode(
+    String serverKey,
+    int nodeId,
+    LavalinkNodeChanges changes,
+  ) async {
+    final server = _server(serverKey);
+    _require(server, Permissions.manageServer);
+    await _latency();
+    final old = server.lavalink.node(nodeId);
+    if (old == null) {
+      throw const RepoException(RepoErrorKind.notFound, 'Unknown node.');
+    }
+    final settings = changes.settings ?? old.settings;
+    _checkLavalink(settings);
+    if (changes.password case final password?) {
+      server.lavalinkPasswords[nodeId] = password;
+    }
+    final draining = changes.draining ?? old.draining;
+    final reconnect =
+        changes.password != null ||
+        settings.host != old.settings.host ||
+        settings.port != old.settings.port ||
+        settings.secure != old.settings.secure ||
+        (settings.enabled && !old.settings.enabled);
+    final health = switch ((settings.enabled, draining, reconnect)) {
+      (false, _, _) => LavalinkHealth.disabled,
+      (true, _, true) => LavalinkHealth.connecting,
+      (true, true, false) when old.health.isUp => LavalinkHealth.draining,
+      (true, false, false) when old.health == LavalinkHealth.draining =>
+        LavalinkHealth.healthy,
+      _ => old.health,
+    };
+    _lavalinkNode(
+      server,
+      LavalinkNode(
+        id: nodeId,
+        settings: settings,
+        draining: draining,
+        health: health,
+        reason: reconnect ? '' : old.reason,
+        version: old.version,
+        sources: old.sources,
+        plugins: old.plugins,
+        channels: old.channels,
+        cpuPercent: old.cpuPercent,
+        pingMs: old.pingMs,
+        lastError: old.lastError,
+        connectedSince: health.isUp ? old.connectedSince : null,
+      ),
+    );
+    if (reconnect && settings.enabled) _connectLavalink(server, nodeId);
+    return server.lavalink;
+  }
+
+  @override
+  Future<LavalinkNodes> deleteLavalinkNode(String serverKey, int nodeId) async {
+    final server = _server(serverKey);
+    _require(server, Permissions.manageServer);
+    await _latency();
+    server.lavalinkPasswords.remove(nodeId);
+    _lavalink(server, server.lavalink.without(nodeId));
+    _emit(
+      LavalinkNodeChanged(
+        server.key,
+        nodeId: nodeId,
+        node: null,
+        channelsPlaying: server.lavalink.channelsPlaying,
+      ),
+    );
+    return server.lavalink;
+  }
+
+  @override
+  Future<void> testLavalinkNode(String serverKey, int nodeId) async {
+    final server = _server(serverKey);
+    _require(server, Permissions.manageServer);
+    final node = server.lavalink.node(nodeId);
+    if (node == null) {
+      throw const RepoException(RepoErrorKind.notFound, 'Unknown node.');
+    }
+    await _latency(40);
+    final problem = _lavalinkProblem(
+      node.settings,
+      server.lavalinkPasswords[nodeId] ?? '',
+    );
+    final bridge = server.lavalink.bridge;
+    final outcomes = <(LavalinkTestStepState, String)>[
+      if (problem != null)
+        (LavalinkTestStepState.failed, problem)
+      else ...[
+        (
+          LavalinkTestStepState.passed,
+          'Lavalink 4.2.2 · sources: youtube, soundcloud, bandcamp',
+        ),
+        (LavalinkTestStepState.passed, 'Lavalink is ready for players'),
+        (
+          LavalinkTestStepState.passed,
+          'Lavalink signed in at ${bridge.url} and reached the audio port '
+              'from ${node.settings.host}',
+        ),
+      ],
+    ];
+    var steps = LavalinkTestProgress.started(nodeId).steps;
+    void send({bool done = false}) => _emit(
+      LavalinkTestProgressed(
+        server.key,
+        LavalinkTestProgress(nodeId: nodeId, steps: steps, done: done),
+      ),
+    );
+    for (final (index, (state, detail)) in outcomes.indexed) {
+      _later(Duration(milliseconds: 300 + 500 * index), () {
+        steps = [
+          for (final (at, step) in steps.indexed)
+            at == index
+                ? LavalinkTestStep(
+                    kind: step.kind,
+                    state: state,
+                    detail: detail,
+                  )
+                : at > index && state == LavalinkTestStepState.failed
+                ? LavalinkTestStep(
+                    kind: step.kind,
+                    state: LavalinkTestStepState.skipped,
+                  )
+                : at == index + 1
+                ? LavalinkTestStep(
+                    kind: step.kind,
+                    state: LavalinkTestStepState.running,
+                  )
+                : step,
+        ];
+        send(done: index == outcomes.length - 1);
+      });
+    }
+  }
+
+  @override
+  Future<LavalinkNodes> moveLavalinkPlayers(
+    String serverKey,
+    int fromNodeId, {
+    int? toNodeId,
+  }) async {
+    final server = _server(serverKey);
+    _require(server, Permissions.manageServer);
+    await _latency();
+    final from = server.lavalink.node(fromNodeId);
+    if (from == null) {
+      throw const RepoException(RepoErrorKind.notFound, 'Unknown node.');
+    }
+    final targets = server.lavalink.nodes
+        .where(
+          (node) =>
+              node.id != fromNodeId &&
+              node.health == LavalinkHealth.healthy &&
+              (toNodeId == null || node.id == toNodeId),
+        )
+        .toList();
+    if (from.channels == 0 || targets.isEmpty) return server.lavalink;
+    final to = targets.first;
+    final count = from.channels;
+    _lavalinkNode(server, from.copyWithChannels(0));
+    _lavalinkNode(server, to.copyWithChannels(to.channels + count));
+    _lavalinkEvent(
+      server,
+      LavalinkEventKind.moved,
+      'Moved ${count == 1 ? '1 channel' : '$count channels'} from '
+      '${from.settings.name} to ${to.settings.name}',
+    );
+    return server.lavalink;
+  }
+
+  /// Has a mock node play for [channels] channels, as if members played
+  /// music there.
+  @visibleForTesting
+  void debugSetLavalinkChannels(String serverKey, int nodeId, int channels) {
+    final server = _server(serverKey);
+    final node = server.lavalink.node(nodeId);
+    if (node != null) _lavalinkNode(server, node.copyWithChannels(channels));
+  }
+
+  // Music --------------------------------------------------------------------------
+
+  /// Fills a channel's queue with [count] tracks at once, for load checks.
+  @visibleForTesting
+  void debugFillQueue(String serverKey, int channelId, int count) {
+    final server = _server(serverKey);
+    final music = _musicOf(server);
+    _musicChanged(
+      server,
+      music.enqueue(channelId, server.selfId, music.debugResults(count)),
+    );
+  }
+
+  /// As if the server's music were set up or not (a node added).
+  @visibleForTesting
+  void debugSetMusicConfigured(String serverKey, {required bool configured}) {
+    final server = _server(serverKey);
+    server.music = server.music.copyWith(configured: configured);
+    _emit(MusicSettingsChanged(server.key, server.music));
+    _emit(CommandsChanged(server.key, server.availableCommands));
+  }
+
+  @override
+  Future<MusicSettings> musicSettings(String serverKey) async {
+    final server = _server(serverKey);
+    await _latency(40);
+    return server.music;
+  }
+
+  @override
+  Future<MusicSettings> updateMusicSettings(
+    String serverKey,
+    MusicSettings before,
+    MusicSettings after,
+  ) async {
+    final server = _server(serverKey);
+    _require(server, Permissions.musicManage);
+    await _latency();
+    if (!after.allows(after.defaultSource)) {
+      throw const RepoException(
+        RepoErrorKind.invalidArgument,
+        'the default source must be one of the enabled sources',
+      );
+    }
+    server.music = after;
+    _emit(MusicSettingsChanged(server.key, after));
+    return after;
+  }
+
+  List<MusicBlock> _blocks(MockServer server) =>
+      server.musicBlocks.values.toList()..sort((a, b) => a.at.compareTo(b.at));
+
+  MockMusic _musicOf(MockServer server) =>
+      _music.putIfAbsent(server.key, () => MockMusic(_clock));
+
+  /// As the server checks a member acting on a channel's music.
+  void _musicAct(MockServer server, int channelId, Permissions needed) {
+    if (!server.music.configured || !server.music.enabled) {
+      throw const RepoException(
+        RepoErrorKind.musicUnavailable,
+        "Music isn't set up on this server",
+      );
+    }
+    if (server.musicBlocks.containsKey(server.selfId)) {
+      throw const RepoException(
+        RepoErrorKind.forbidden,
+        "You're blocked from music on this server",
+      );
+    }
+    final held = server.selfChannelPermissions[channelId] ?? Permissions.none;
+    final connected = _voice == (server: server.key, channel: channelId);
+    if (!connected && !held.has(Permissions.musicManage)) {
+      throw const RepoException(
+        RepoErrorKind.forbidden,
+        'Join the voice channel to control its music',
+      );
+    }
+    _require(server, needed, channelId);
+  }
+
+  /// Tells the channel's listeners, and everyone the now-playing card.
+  MusicSession _musicChanged(
+    MockServer server,
+    MusicSession session, {
+    String? notice,
+  }) {
+    _emit(MusicSessionChanged(server.key, session));
+    final now = session.nowPlaying;
+    final card = now == null
+        ? null
+        : MusicNowPlaying(
+            channelId: session.channelId,
+            title: now.track.title,
+            artist: now.track.artist,
+            artworkId: now.track.artworkId,
+            playing: session.playing,
+            sourceName: now.track.sourceName,
+          );
+    if (_nowPlaying[(server.key, session.channelId)] != card) {
+      _nowPlaying[(server.key, session.channelId)] = card;
+      _emit(
+        MusicNowPlayingChanged(
+          server.key,
+          channelId: session.channelId,
+          nowPlaying: card,
+        ),
+      );
+    }
+    if (notice != null) {
+      _emit(
+        MusicNoticeReceived(
+          server.key,
+          MusicNotice(channelId: session.channelId, text: notice, at: _clock()),
+        ),
+      );
+    }
+    _musicTicking();
+    return session;
+  }
+
+  /// Plays on to the next track when one ends, while something plays.
+  void _musicTicking() {
+    if (!simulateLife || _musicTick != null) return;
+    _musicTick = Timer.periodic(const Duration(seconds: 1), (_) {
+      for (final MapEntry(key: serverKey, value: music) in _music.entries) {
+        final server = _world.servers.where((s) => s.key == serverKey);
+        for (final session in music.finishEnded()) {
+          if (server.isNotEmpty) _musicChanged(server.first, session);
+        }
+      }
+    });
+  }
+
+  String _selfName(MockServer server) =>
+      server.members[server.selfId]?.displayName ?? 'You';
+
+  @override
+  Future<MusicSearchResults> musicSearch(
+    String serverKey,
+    int channelId,
+    String query, {
+    String source = '',
+  }) async {
+    final server = _server(serverKey);
+    _musicAct(server, channelId, Permissions.musicAdd);
+    await _latency(200);
+    if (query.trim().isEmpty || query.length > 200) {
+      throw const RepoException(
+        RepoErrorKind.invalidArgument,
+        'a search is 1 to 200 characters',
+      );
+    }
+    return _musicOf(
+      server,
+    ).search(query, source.isEmpty ? server.music.defaultSource : source);
+  }
+
+  @override
+  Future<MusicSession> musicSubscribe(String serverKey, int channelId) async {
+    final server = _server(serverKey);
+    await _latency(40);
+    return _musicOf(server).session(channelId);
+  }
+
+  @override
+  Future<void> musicUnsubscribe(String serverKey, int channelId) async {}
+
+  @override
+  Future<MusicSession> musicEnqueue(
+    String serverKey,
+    int channelId,
+    List<String> resultIds, {
+    List<String> historyItemIds = const [],
+    String? beforeItemId,
+    MusicPlacement placement = MusicPlacement.end,
+  }) async {
+    final server = _server(serverKey);
+    _musicAct(server, channelId, Permissions.musicAdd);
+    if (placement != MusicPlacement.end || beforeItemId != null) {
+      _require(server, Permissions.musicManageQueue, channelId);
+    }
+    await _latency();
+    final session = _musicOf(server).enqueue(
+      channelId,
+      server.selfId,
+      resultIds,
+      historyItemIds: historyItemIds,
+      beforeItemId: beforeItemId,
+      placement: placement,
+    );
+    final count = resultIds.length + historyItemIds.length;
+    return _musicChanged(
+      server,
+      session,
+      notice: count == 1
+          ? '${_selfName(server)} added '
+                "'${session.queue.lastOrNull?.track.title ?? session.nowPlaying?.track.title}'"
+          : '${_selfName(server)} added $count tracks',
+    );
+  }
+
+  Future<MusicSession> _musicControl(
+    String serverKey,
+    int channelId,
+    Permissions needed,
+    void Function(MockPlayer player) change,
+  ) async {
+    final server = _server(serverKey);
+    _musicAct(server, channelId, needed);
+    await _latency(60);
+    return _musicChanged(server, _musicOf(server).update(channelId, change));
+  }
+
+  @override
+  Future<MusicSession> musicPause(
+    String serverKey,
+    int channelId, {
+    required bool paused,
+  }) => _musicControl(
+    serverKey,
+    channelId,
+    Permissions.musicControl,
+    (player) => player.setPaused(paused),
+  );
+
+  @override
+  Future<MusicSession> musicSkip(
+    String serverKey,
+    int channelId, {
+    required bool forward,
+    String? expectedItemId,
+  }) => _musicControl(serverKey, channelId, Permissions.musicControl, (player) {
+    player.expect(expectedItemId);
+    forward ? player.next() : player.previous();
+  });
+
+  @override
+  Future<MusicSession> musicVoteSkip(
+    String serverKey,
+    int channelId, {
+    required String expectedItemId,
+  }) => _musicControl(serverKey, channelId, Permissions.none, (player) {
+    player.voteSkip(_server(serverKey).selfId, expectedItemId);
+  });
+
+  @override
+  Future<MusicSession> musicSeek(
+    String serverKey,
+    int channelId,
+    Duration position, {
+    String? expectedItemId,
+  }) => _musicControl(serverKey, channelId, Permissions.musicControl, (player) {
+    player.expect(expectedItemId);
+    player.seek(position);
+  });
+
+  @override
+  Future<MusicSession> musicStop(String serverKey, int channelId) =>
+      _musicControl(
+        serverKey,
+        channelId,
+        Permissions.musicManage,
+        (player) => player.stop(),
+      );
+
+  @override
+  Future<MusicSession> musicSetMode(
+    String serverKey,
+    int channelId, {
+    MusicRepeat? repeat,
+    bool? shuffle,
+  }) => _musicControl(
+    serverKey,
+    channelId,
+    Permissions.musicControl,
+    (player) => player.setMode(repeat: repeat, shuffle: shuffle),
+  );
+
+  @override
+  Future<MusicSession> musicMove(
+    String serverKey,
+    int channelId,
+    String itemId, {
+    String? beforeItemId,
+  }) => _musicControl(
+    serverKey,
+    channelId,
+    Permissions.musicManageQueue,
+    (player) => player.move(itemId, beforeItemId),
+  );
+
+  @override
+  Future<MusicSession> musicRemove(
+    String serverKey,
+    int channelId,
+    List<String> itemIds,
+  ) => _musicControl(
+    serverKey,
+    channelId,
+    Permissions.musicAdd,
+    (player) => player.remove(itemIds),
+  );
+
+  @override
+  Future<MusicSession> musicClear(String serverKey, int channelId) =>
+      _musicControl(
+        serverKey,
+        channelId,
+        Permissions.musicManageQueue,
+        (player) => player.clear(),
+      );
+
+  // Commands -------------------------------------------------------------------
+
+  /// Commands the mock ran, by name, for tests.
+  final List<String> commandsRun = [];
+
+  @override
+  Future<CommandOutcome> executeCommand(
+    String serverKey,
+    int channelId,
+    String name,
+    Map<String, String> options, {
+    required String nonce,
+  }) async {
+    final server = _server(serverKey);
+    _require(server, Permissions.sendMessages, channelId);
+    final spec = server.availableCommands.find(name);
+    if (spec == null) {
+      throw RepoException(
+        RepoErrorKind.notFound,
+        '/$name isn\'t a command here',
+      );
+    }
+    if (!spec.allowedIn(channelId)) {
+      throw RepoException(
+        RepoErrorKind.forbidden,
+        '/${spec.name} can\'t be used in this channel',
+      );
+    }
+    commandsRun.add(spec.name);
+    final voice = _voice;
+    final reply = voice == null || voice.server != serverKey
+        ? (false, 'Join a voice channel to use music commands')
+        : await _runMusicCommand(server, voice.channel, spec.name, options);
+    final (public, text) = reply;
+    if (public && server.commands.resultsPublic) {
+      final now = _clock();
+      final message = Message(
+        id: _world.ids.at(now),
+        channelId: channelId,
+        authorId: server.selfId,
+        content: text,
+        createdAt: now,
+        command: spec.name,
+      );
+      _history(server, channelId).add(message);
+      _emit(MessageCreated(serverKey, message));
+      return (messageId: message.id, ephemeral: false);
+    }
+    _emit(
+      EphemeralMessageReceived(
+        serverKey,
+        EphemeralNote(
+          channelId: channelId,
+          nonce: nonce,
+          content: text,
+          at: _clock(),
+        ),
+      ),
+    );
+    return (messageId: null, ephemeral: true);
+  }
+
+  /// (public, what it says).
+  Future<(bool, String)> _runMusicCommand(
+    MockServer server,
+    int channelId,
+    String name,
+    Map<String, String> options,
+  ) async {
+    final where = server.channels[channelId]?.name ?? 'the channel';
+    final key = server.key;
+    String line(MusicQueueItem item) =>
+        '*${item.track.title}* — ${item.track.artist}';
+    switch (name) {
+      case 'play':
+        final query = options['query'] ?? '';
+        final found = await musicSearch(key, channelId, query);
+        if (found.results.isEmpty) return (false, 'Nothing found for “$query”');
+        final next = options['next'] == 'yes';
+        final session = await musicEnqueue(key, channelId, [
+          found.results.first.id,
+        ], placement: next ? MusicPlacement.next : MusicPlacement.end);
+        final added = [?session.nowPlaying, ...session.queue].lastWhere(
+          (item) => item.track.title == found.results.first.track.title,
+        );
+        return (true, 'Added ${line(added)} to the queue in $where');
+      case 'pause' || 'resume':
+        await musicPause(key, channelId, paused: name == 'pause');
+        return (
+          true,
+          '${name == 'pause' ? 'Paused' : 'Resumed'} the music in $where',
+        );
+      case 'skip':
+        await musicSkip(key, channelId, forward: true);
+        return (true, 'Skipped in $where');
+      case 'stop':
+        await musicStop(key, channelId);
+        return (true, 'Stopped the music in $where');
+      case 'clear':
+        await musicClear(key, channelId);
+        return (true, 'Cleared the queue in $where');
+      case 'nowplaying' || 'queue':
+        final session = _musicOf(server).session(channelId);
+        final now = session.nowPlaying;
+        return (
+          false,
+          now == null
+              ? 'Nothing is playing in $where'
+              : 'Now playing in $where: ${line(now)}',
+        );
+      default:
+        return (false, '/$name did nothing here');
+    }
+  }
+
+  @override
+  Future<List<CommandChoice>> autocompleteCommand(
+    String serverKey,
+    int channelId,
+    String name,
+    String option,
+    String value,
+  ) async {
+    final server = _server(serverKey);
+    final voice = _voice;
+    if (name != 'play' ||
+        option != 'query' ||
+        value.trim().length < 2 ||
+        voice == null) {
+      return const [];
+    }
+    final found = _musicOf(server).search(value, server.music.defaultSource);
+    await _latency(60);
+    return [
+      for (final result in found.results)
+        CommandChoice(
+          name:
+              '${result.track.title} — ${result.track.artist} · '
+              '${formatTrackTime(result.track.duration)}',
+          value: result.id,
+          artworkId: result.track.artworkId,
+        ),
+    ];
+  }
+
+  @override
+  Future<CommandList> commandSettings(String serverKey) async {
+    final server = _server(serverKey);
+    _require(server, Permissions.manageServer);
+    await _latency(40);
+    return server.commands;
+  }
+
+  @override
+  Future<CommandList> updateCommandSettings(
+    String serverKey, {
+    String name = '',
+    bool? enabled,
+    List<int>? channelIds,
+    bool? resultsPublic,
+  }) async {
+    final server = _server(serverKey);
+    _require(server, Permissions.manageServer);
+    await _latency();
+    server.commands = CommandList(
+      commands: [
+        for (final spec in server.commands.commands)
+          spec.name == name
+              ? spec.copyWith(enabled: enabled, channelIds: channelIds)
+              : spec,
+      ],
+      resultsPublic: resultsPublic ?? server.commands.resultsPublic,
+    );
+    _emit(CommandsChanged(serverKey, server.availableCommands));
+    return server.commands;
+  }
+
+  /// What the app last set, for tests.
+  MusicListening musicListening = const MusicListening();
+
+  @override
+  void setMusicListening(MusicListening listening) =>
+      musicListening = listening;
+
+  @override
+  Future<String?> musicArtwork(
+    String serverKey,
+    String artworkId,
+    int size,
+  ) async => null;
+
+  @override
+  Future<List<MusicBlock>> musicBlocks(String serverKey) async {
+    final server = _server(serverKey);
+    _require(server, Permissions.musicManage);
+    await _latency(40);
+    return _blocks(server);
+  }
+
+  @override
+  Future<List<MusicBlock>> blockFromMusic(
+    String serverKey,
+    int userId, {
+    required bool blocked,
+    String reason = '',
+  }) async {
+    final server = _server(serverKey);
+    _require(server, Permissions.musicManage);
+    await _latency();
+    if (!server.members.containsKey(userId)) {
+      throw const RepoException(RepoErrorKind.notFound, 'Unknown member.');
+    }
+    if (blocked) {
+      server.musicBlocks[userId] = MusicBlock(
+        userId: userId,
+        reason: reason.trim(),
+        blockedBy: server.selfId,
+        at: _clock(),
+      );
+    } else {
+      server.musicBlocks.remove(userId);
+    }
+    return _blocks(server);
+  }
+
+  // Domains & network -------------------------------------------------------------
+
+  void _requireOwner(MockServer server) {
+    if (server.info.ownerId != server.selfId) {
+      throw const RepoException(
+        RepoErrorKind.forbidden,
+        "Only the server's owner manages its domains and network.",
+      );
+    }
+  }
+
+  /// Saves the network and tells whoever watches it.
+  NetworkInfo _network(MockServer server, NetworkInfo network) {
+    server.network = network;
+    _emit(NetworkStatusChanged(server.key, network));
+    return network;
+  }
+
+  @override
+  Future<NetworkInfo> watchNetwork(
+    String serverKey, {
+    required bool watch,
+  }) async {
+    final server = _server(serverKey);
+    _requireOwner(server);
+    // Stopping is fire and forget: nobody waits on it.
+    if (watch) await _latency(60);
+    return server.network;
+  }
+
+  @override
+  Future<NetworkInfo> setPublicAddress(
+    String serverKey, {
+    required bool autoDetect,
+    String overrideIpv4 = '',
+    String overrideIpv6 = '',
+  }) async {
+    final server = _server(serverKey);
+    _requireOwner(server);
+    await _latency();
+    final old = server.network;
+    final address = old.publicAddress;
+    return _network(
+      server,
+      NetworkInfo(
+        publicAddress: PublicAddress(
+          ipv4: overrideIpv4.isNotEmpty ? overrideIpv4 : address.detectedIpv4,
+          ipv6: overrideIpv6.isNotEmpty ? overrideIpv6 : address.detectedIpv6,
+          detectedIpv4: address.detectedIpv4,
+          detectedIpv6: address.detectedIpv6,
+          overrideIpv4: overrideIpv4,
+          overrideIpv6: overrideIpv6,
+          autoDetect: autoDetect,
+          detectedAt: address.detectedAt,
+          hasIpv6: address.hasIpv6,
+        ),
+        ports: old.ports,
+        settings: old.settings,
+        listeningPort: old.listeningPort,
+        nextMainPort: old.nextMainPort,
+        domains: old.domains,
+        dnsProviders: old.dnsProviders,
+        acme: old.acme,
+        tunnel: old.tunnel,
+      ),
+    );
+  }
+
+  @override
+  Future<NetworkInfo> detectPublicAddress(String serverKey) async {
+    final server = _server(serverKey);
+    _requireOwner(server);
+    await _latency(600);
+    final old = server.network;
+    final address = old.publicAddress;
+    return _network(
+      server,
+      NetworkInfo(
+        publicAddress: PublicAddress(
+          ipv4: address.overrideIpv4.isNotEmpty
+              ? address.overrideIpv4
+              : address.detectedIpv4,
+          ipv6: address.ipv6,
+          detectedIpv4: address.detectedIpv4,
+          detectedIpv6: address.detectedIpv6,
+          overrideIpv4: address.overrideIpv4,
+          overrideIpv6: address.overrideIpv6,
+          autoDetect: address.autoDetect,
+          detectedAt: clock.now(),
+          hasIpv6: address.hasIpv6,
+        ),
+        ports: old.ports,
+        settings: old.settings,
+        listeningPort: old.listeningPort,
+        nextMainPort: old.nextMainPort,
+        domains: old.domains,
+        dnsProviders: old.dnsProviders,
+        acme: old.acme,
+        tunnel: old.tunnel,
+      ),
+    );
+  }
+
+  /// Replaces the domains, keeps the addresses in step, and tells whom it
+  /// concerns.
+  NetworkInfo _domains(MockServer server, List<Domain> domains) {
+    final old = server.network;
+    final active = [
+      for (final domain in domains)
+        if (domain.primary && domain.active) domain,
+      for (final domain in domains)
+        if (domain.active && !domain.primary) domain,
+    ];
+    ConnectAddress address(Domain domain) => ConnectAddress(
+      host: domain.hostname,
+      port: domain.publicPort,
+      trustedCertificate: domain.trustedCertificate,
+      domainId: domain.id,
+    );
+    final addresses = ServerAddresses(
+      primary: active.isNotEmpty && active.first.primary
+          ? address(active.first)
+          : null,
+      domains: [for (final domain in active) address(domain)],
+      ip: old.publicAddress.ipv4.isEmpty
+          ? null
+          : ConnectAddress(
+              host: old.publicAddress.ipv4,
+              port: old.listeningPort,
+            ),
+    );
+    if (addresses != server.addresses) {
+      server.addresses = addresses;
+      _emit(ServerAddressesChanged(server.key, addresses));
+    }
+    return _network(
+      server,
+      NetworkInfo(
+        publicAddress: old.publicAddress,
+        ports: old.ports,
+        settings: old.settings,
+        listeningPort: old.listeningPort,
+        nextMainPort: old.nextMainPort,
+        upnpGateway: old.upnpGateway,
+        upnpExternalIp: old.upnpExternalIp,
+        upnpError: old.upnpError,
+        domains: domains,
+        dnsProviders: old.dnsProviders,
+        acme: old.acme,
+        tunnel: old.tunnel,
+      ),
+    );
+  }
+
+  Domain _domain(MockServer server, int id) =>
+      server.network.domains.where((domain) => domain.id == id).firstOrNull ??
+      (throw const RepoException(RepoErrorKind.notFound, 'No such domain.'));
+
+  @override
+  Future<NetworkInfo> addDomain(
+    String serverKey, {
+    required String hostname,
+    required DomainKind kind,
+    int? publicPort,
+  }) async {
+    final server = _server(serverKey);
+    _requireOwner(server);
+    await _latency();
+    final name = hostname.trim().toLowerCase();
+    if (!RegExp(r'^([a-z0-9-]+\.)+[a-z]{2,}$').hasMatch(name)) {
+      throw RepoException(
+        RepoErrorKind.invalidArgument,
+        '${hostname.trim()} is not a domain name on the internet.',
+      );
+    }
+    final domains = server.network.domains;
+    if (domains.any((domain) => domain.hostname == name)) {
+      throw RepoException(RepoErrorKind.conflict, '$name is already added.');
+    }
+    if (domains.length >= 20) {
+      throw const RepoException(
+        RepoErrorKind.conflict,
+        'A server has at most 20 domains.',
+      );
+    }
+    final domain = Domain(
+      id: _random.nextInt(1 << 30) + 1,
+      hostname: name,
+      kind: kind,
+      publicPort:
+          publicPort ?? (kind.behindProxy ? 443 : server.network.listeningPort),
+      trustedCertificate: kind.behindProxy,
+    );
+    return _domains(server, [...domains, domain]);
+  }
+
+  @override
+  Future<NetworkInfo> updateDomain(
+    String serverKey,
+    int domainId,
+    DomainUpdate update,
+  ) async {
+    final server = _server(serverKey);
+    _requireOwner(server);
+    await _latency();
+    var domain = _domain(server, domainId);
+    var domains = server.network.domains;
+    if (update.confirm) {
+      domain = _with(
+        domain,
+        status: DomainStatus.verified,
+        lastCheck: DomainCheck(
+          result: CheckResult.confirmedByOwner,
+          message: 'Confirmed by the owner.',
+          checkedAt: _clock(),
+        ),
+      );
+    }
+    final primary = update.primary ?? false;
+    if ((update.active ?? false) || primary) {
+      if (!domain.wasVerified) {
+        throw const RepoException(
+          RepoErrorKind.conflict,
+          'Check the domain first: only verified domains can be used.',
+        );
+      }
+      domain = _with(domain, active: true);
+    }
+    if (update.active == false) {
+      if (domain.primary && domains.where((d) => d.active).length > 1) {
+        throw const RepoException(
+          RepoErrorKind.conflict,
+          'Make another domain the primary before turning this one off.',
+        );
+      }
+      domain = _with(
+        domain,
+        active: false,
+        primary: false,
+        deactivatedAt: _clock(),
+      );
+    }
+    if (update.publicPort case final port?) {
+      domain = _with(domain, publicPort: port);
+    }
+    domains = [
+      for (final other in domains)
+        if (other.id == domain.id)
+          primary ? _with(domain, primary: true) : domain
+        else if (primary)
+          _with(other, primary: false)
+        else
+          other,
+    ];
+    return _domains(server, _withPrimary(domains));
+  }
+
+  /// One active domain is the primary, while any is active.
+  List<Domain> _withPrimary(List<Domain> domains) {
+    if (domains.any((d) => d.active && d.primary)) return domains;
+    final first = domains.where((d) => d.active).firstOrNull;
+    return [
+      for (final domain in domains)
+        domain == first ? _with(domain, primary: true) : domain,
+    ];
+  }
+
+  @override
+  Future<NetworkInfo> deleteDomain(String serverKey, int domainId) async {
+    final server = _server(serverKey);
+    _requireOwner(server);
+    await _latency();
+    final domain = _domain(server, domainId);
+    final domains = server.network.domains;
+    if (domain.primary && domains.where((d) => d.active).length > 1) {
+      throw const RepoException(
+        RepoErrorKind.conflict,
+        'Make another domain the primary before deleting this one.',
+      );
+    }
+    server.domainChecks.remove(domainId);
+    return _domains(
+      server,
+      _withPrimary([
+        for (final other in domains)
+          if (other.id != domainId) other,
+      ]),
+    );
+  }
+
+  /// Names starting with "wrong" point elsewhere; the rest pass.
+  @override
+  Future<NetworkInfo> checkDomain(String serverKey, int domainId) async {
+    final server = _server(serverKey);
+    _requireOwner(server);
+    await _latency(60);
+    final domain = _domain(server, domainId);
+    final info = _domains(server, [
+      for (final other in server.network.domains)
+        other.id == domainId ? _with(other, checking: true) : other,
+    ]);
+    _later(const Duration(milliseconds: 900), () {
+      final passed = !domain.hostname.startsWith('wrong');
+      final check = DomainCheck(
+        result: passed ? CheckResult.verified : CheckResult.pointsElsewhere,
+        message: passed
+            ? 'It points to this server.'
+            : 'It points to 198.51.100.1, not this server '
+                  '(${server.network.publicAddress.ipv4}).',
+        found: [passed ? server.network.publicAddress.ipv4 : '198.51.100.1'],
+        checkedAt: _clock(),
+      );
+      server.domainChecks[domainId] = [
+        check,
+        ...?server.domainChecks[domainId],
+      ].take(10).toList();
+      final first = passed && !server.network.domains.any((d) => d.active);
+      final current = _domain(server, domainId);
+      _domains(server, [
+        for (final other in server.network.domains)
+          if (other.id == domainId)
+            _with(
+              current,
+              checking: false,
+              lastCheck: check,
+              status: passed
+                  ? DomainStatus.verified
+                  : current.wasVerified
+                  ? DomainStatus.dnsProblem
+                  : DomainStatus.pending,
+              active: first ? true : null,
+              primary: first ? true : null,
+            )
+          else
+            other,
+      ]);
+    });
+    return info;
+  }
+
+  /// Steps through a request; names starting with "nocert" fail at
+  /// validation, as when port 80 is closed.
+  @override
+  Future<NetworkInfo> requestCertificate(
+    String serverKey,
+    int domainId, {
+    String? email,
+    bool agreeTerms = false,
+  }) async {
+    final server = _server(serverKey);
+    _requireOwner(server);
+    await _latency(60);
+    final domain = _domain(server, domainId);
+    if (domain.kind.behindProxy) {
+      throw const RepoException(
+        RepoErrorKind.invalidArgument,
+        "The tunnel or proxy provides this domain's certificate.",
+      );
+    }
+    if (domain.status != DomainStatus.verified) {
+      throw const RepoException(
+        RepoErrorKind.conflict,
+        'The domain must point to this server first: check it.',
+      );
+    }
+    if (!server.network.acme.exists && !agreeTerms) {
+      throw const RepoException(
+        RepoErrorKind.invalidArgument,
+        "Agree to Let's Encrypt's subscriber agreement first.",
+      );
+    }
+    final old = domain.certificate;
+    void at(CertificateStatus certificate) => _domains(server, [
+      for (final other in server.network.domains)
+        other.id == domainId ? _with(other, certificate: certificate) : other,
+    ]);
+    CertificateStatus stepping(CertificateStep step) => CertificateStatus(
+      state: CertificateState.requesting,
+      issuer: old.issuer,
+      notAfter: old.notAfter,
+      test: old.test,
+      step: step,
+    );
+    at(stepping(CertificateStep.account));
+    final steps = CertificateStep.values.skip(1).toList();
+    for (final (index, step) in steps.indexed) {
+      _later(
+        Duration(milliseconds: 600 * (index + 1)),
+        () => at(stepping(step)),
+      );
+    }
+    _later(Duration(milliseconds: 600 * (steps.length + 1)), () {
+      final staging = server.network.settings.acmeStaging;
+      final info = server.network;
+      _network(
+        server,
+        NetworkInfo(
+          publicAddress: info.publicAddress,
+          ports: info.ports,
+          settings: info.settings,
+          listeningPort: info.listeningPort,
+          nextMainPort: info.nextMainPort,
+          upnpGateway: info.upnpGateway,
+          upnpExternalIp: info.upnpExternalIp,
+          upnpError: info.upnpError,
+          domains: info.domains,
+          dnsProviders: info.dnsProviders,
+          acme: AcmeAccount(
+            exists: true,
+            email: email ?? info.acme.email,
+            termsUrl: info.acme.termsUrl,
+          ),
+          tunnel: info.tunnel,
+        ),
+      );
+      at(
+        domain.hostname.startsWith('nocert')
+            ? CertificateStatus(
+                state: old.held
+                    ? CertificateState.renewalFailed
+                    : CertificateState.failed,
+                issuer: old.issuer,
+                notAfter: old.notAfter,
+                error:
+                    "Port 80 isn't reachable from the internet. Open or "
+                    'forward it, or connect your DNS provider to use the DNS '
+                    'challenge.',
+              )
+            : CertificateStatus(
+                state: CertificateState.valid,
+                issuer: staging ? '(STAGING) Ersatz Edamame E1' : 'E6',
+                notAfter: _clock().add(const Duration(days: 90)),
+                test: staging,
+              ),
+      );
+    });
+    return server.network;
+  }
+
+  @override
+  Future<NetworkInfo> uploadCertificate(
+    String serverKey,
+    int domainId, {
+    required String chainPem,
+    required String keyPem,
+  }) async {
+    final server = _server(serverKey);
+    _requireOwner(server);
+    await _latency();
+    _domain(server, domainId);
+    if (!chainPem.contains('-----BEGIN CERTIFICATE-----')) {
+      throw const RepoException(
+        RepoErrorKind.invalidArgument,
+        'The certificate is not in PEM form.',
+      );
+    }
+    if (!keyPem.contains('PRIVATE KEY-----')) {
+      throw const RepoException(
+        RepoErrorKind.invalidArgument,
+        'The private key is not in PEM form.',
+      );
+    }
+    return _domains(server, [
+      for (final other in server.network.domains)
+        other.id == domainId
+            ? _with(
+                other,
+                certificate: CertificateStatus(
+                  state: CertificateState.valid,
+                  issuer: 'Example CA',
+                  notAfter: _clock().add(const Duration(days: 365)),
+                  uploaded: true,
+                ),
+              )
+            : other,
+    ]);
+  }
+
+  /// The network with the tunnel, providers or account replaced.
+  NetworkInfo _replaced(
+    MockServer server, {
+    TunnelStatus? tunnel,
+    List<DnsProvider>? dnsProviders,
+  }) {
+    final old = server.network;
+    return _network(
+      server,
+      NetworkInfo(
+        publicAddress: old.publicAddress,
+        ports: old.ports,
+        settings: old.settings,
+        listeningPort: old.listeningPort,
+        nextMainPort: old.nextMainPort,
+        upnpGateway: old.upnpGateway,
+        upnpExternalIp: old.upnpExternalIp,
+        upnpError: old.upnpError,
+        domains: old.domains,
+        dnsProviders: dnsProviders ?? old.dnsProviders,
+        acme: old.acme,
+        tunnel: tunnel ?? old.tunnel,
+      ),
+    );
+  }
+
+  TunnelStatus _tunnel(
+    TunnelStatus old, {
+    TunnelState? state,
+    TunnelKind? kind,
+    String? hostname,
+    int? domainId,
+    String? error,
+    int? restarts,
+    String? cloudflaredVersion,
+    bool? installing,
+  }) => TunnelStatus(
+    state: state ?? old.state,
+    kind: kind ?? old.kind,
+    hostname: hostname ?? old.hostname,
+    domainId: domainId ?? old.domainId,
+    error: error ?? old.error,
+    restarts: restarts ?? old.restarts,
+    cloudflaredVersion: cloudflaredVersion ?? old.cloudflaredVersion,
+    installing: installing ?? old.installing,
+  );
+
+  /// Names starting with "taken" are someone else's at the provider.
+  @override
+  Future<NetworkInfo> addFreeSubdomain(
+    String serverKey, {
+    required DnsProviderKind provider,
+    required String name,
+    String token = '',
+    String? email,
+    bool agreeTerms = false,
+  }) async {
+    final server = _server(serverKey);
+    _requireOwner(server);
+    await _latency();
+    final suffix = switch (provider) {
+      DnsProviderKind.duckdns => '.duckdns.org',
+      DnsProviderKind.desec => '.dedyn.io',
+      DnsProviderKind.cloudflare => throw const RepoException(
+        RepoErrorKind.invalidArgument,
+        'Free subdomains come from DuckDNS or deSEC.',
+      ),
+    };
+    final label = name.trim().toLowerCase().replaceAll(suffix, '');
+    if (!RegExp(r'^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$').hasMatch(label)) {
+      throw RepoException(
+        RepoErrorKind.invalidArgument,
+        '$label is not a ${provider.label} name: letters, digits and hyphens.',
+      );
+    }
+    final connected = server.network.provider(provider) != null;
+    if (token.trim().isEmpty && !connected) {
+      throw RepoException(
+        RepoErrorKind.invalidArgument,
+        'Paste your ${provider.label} token.',
+      );
+    }
+    if (!server.network.acme.exists && !agreeTerms) {
+      throw const RepoException(
+        RepoErrorKind.invalidArgument,
+        "Agree to Let's Encrypt's subscriber agreement first: the domain gets "
+        'its certificate by itself.',
+      );
+    }
+    if (label.startsWith('taken')) {
+      throw RepoException(
+        RepoErrorKind.invalidArgument,
+        '${provider.label}: $label$suffix is not one of your names.',
+      );
+    }
+    if (token.trim().isNotEmpty) {
+      await setDnsProvider(serverKey, provider, token);
+    }
+    final hostname = '$label$suffix';
+    await addDomain(
+      serverKey,
+      hostname: hostname,
+      kind: DomainKind.freeSubdomain,
+    );
+    final id = server.network.domains.last.id;
+    await checkDomain(serverKey, id);
+    _later(const Duration(milliseconds: 1000), () {
+      if (_domain(server, id).status == DomainStatus.verified) {
+        unawaited(
+          requestCertificate(
+            serverKey,
+            id,
+            email: email,
+            agreeTerms: true,
+          ).catchError((Object _) => server.network),
+        );
+      }
+    });
+    return server.network;
+  }
+
+  @override
+  Future<NetworkInfo> startTunnel(
+    String serverKey,
+    TunnelKind kind, {
+    String token = '',
+    String hostname = '',
+  }) async {
+    final server = _server(serverKey);
+    _requireOwner(server);
+    await _latency();
+    final old = server.network.tunnel;
+    if (!old.hasCloudflared) {
+      throw const RepoException(
+        RepoErrorKind.invalidArgument,
+        'cloudflared is not installed: install it, or let Opencord download '
+        'it.',
+      );
+    }
+    var host = hostname.trim().toLowerCase();
+    if (kind == TunnelKind.named) {
+      final saved = old.kind == TunnelKind.named;
+      if (token.trim().isEmpty && !saved) {
+        throw const RepoException(
+          RepoErrorKind.invalidArgument,
+          'Paste the tunnel token.',
+        );
+      }
+      if (token.trim().isNotEmpty && token.trim().length < 32) {
+        throw const RepoException(
+          RepoErrorKind.invalidArgument,
+          "That is not a tunnel token: copy the long one from the tunnel's "
+          "install command in Cloudflare's dashboard.",
+        );
+      }
+      if (!host.contains('.')) {
+        throw const RepoException(
+          RepoErrorKind.invalidArgument,
+          'Enter the public hostname you set up for the tunnel.',
+        );
+      }
+    } else {
+      host = 'mock-words-${_random.nextInt(900) + 100}.trycloudflare.com';
+    }
+    for (final domain in server.network.domains) {
+      if (domain.kind == DomainKind.tunnel &&
+          domain.hostname.endsWith('.trycloudflare.com')) {
+        _domains(server, [
+          for (final other in server.network.domains)
+            if (other.id != domain.id) other,
+        ]);
+      }
+    }
+    _replaced(
+      server,
+      tunnel: TunnelStatus(
+        state: TunnelState.starting,
+        kind: kind,
+        hostname: kind == TunnelKind.named ? host : '',
+        cloudflaredVersion: old.cloudflaredVersion,
+      ),
+    );
+    _later(const Duration(milliseconds: 600), () async {
+      if (server.network.tunnel.state != TunnelState.starting) return;
+      var id = server.network.domains
+          .where((domain) => domain.hostname == host)
+          .firstOrNull
+          ?.id;
+      if (id == null) {
+        await addDomain(serverKey, hostname: host, kind: DomainKind.tunnel);
+        id = server.network.domains.last.id;
+      }
+      _replaced(
+        server,
+        tunnel: _tunnel(
+          server.network.tunnel,
+          state: TunnelState.running,
+          hostname: host,
+          domainId: id,
+        ),
+      );
+      await checkDomain(serverKey, id);
+    });
+    return server.network;
+  }
+
+  @override
+  Future<NetworkInfo> stopTunnel(String serverKey) async {
+    final server = _server(serverKey);
+    _requireOwner(server);
+    await _latency();
+    final old = server.network.tunnel;
+    if (old.kind == TunnelKind.quick && old.domainId != 0) {
+      final remaining = [
+        for (final domain in server.network.domains)
+          if (domain.id != old.domainId) domain,
+      ];
+      final hasPrimary = remaining.any((d) => d.active && d.primary);
+      _domains(server, [
+        for (final (index, domain) in remaining.indexed)
+          !hasPrimary &&
+                  domain.active &&
+                  index == remaining.indexWhere((d) => d.active)
+              ? _with(domain, primary: true)
+              : domain,
+      ]);
+    }
+    return _replaced(
+      server,
+      tunnel: TunnelStatus(cloudflaredVersion: old.cloudflaredVersion),
+    );
+  }
+
+  @override
+  Future<List<String>> tunnelLog(String serverKey) async {
+    final server = _server(serverKey);
+    _requireOwner(server);
+    await _latency(60);
+    final tunnel = server.network.tunnel;
+    if (!tunnel.on) return const [];
+    return [
+      'INF Starting tunnel tunnelID=mock',
+      'INF Version ${tunnel.cloudflaredVersion}',
+      if (tunnel.kind == TunnelKind.quick)
+        'INF |  https://${tunnel.hostname}  |',
+      if (tunnel.state == TunnelState.running)
+        'INF Registered tunnel connection connIndex=0 location=ams01',
+    ];
+  }
+
+  @override
+  Future<NetworkInfo> installCloudflared(String serverKey) async {
+    final server = _server(serverKey);
+    _requireOwner(server);
+    await _latency();
+    _later(const Duration(milliseconds: 1200), () {
+      _replaced(
+        server,
+        tunnel: _tunnel(
+          server.network.tunnel,
+          installing: false,
+          cloudflaredVersion: '2026.10.0',
+        ),
+      );
+    });
+    return _replaced(
+      server,
+      tunnel: _tunnel(server.network.tunnel, installing: true, error: ''),
+    );
+  }
+
+  @override
+  Future<NetworkInfo> setDnsProvider(
+    String serverKey,
+    DnsProviderKind kind,
+    String token,
+  ) async {
+    final server = _server(serverKey);
+    _requireOwner(server);
+    await _latency();
+    final trimmed = token.trim();
+    if (trimmed.isNotEmpty && trimmed.length < 8) {
+      throw RepoException(
+        RepoErrorKind.invalidArgument,
+        '${kind.label} refused the token.',
+      );
+    }
+    final old = server.network;
+    return _network(
+      server,
+      NetworkInfo(
+        publicAddress: old.publicAddress,
+        ports: old.ports,
+        settings: old.settings,
+        listeningPort: old.listeningPort,
+        nextMainPort: old.nextMainPort,
+        upnpGateway: old.upnpGateway,
+        upnpExternalIp: old.upnpExternalIp,
+        upnpError: old.upnpError,
+        domains: old.domains,
+        dnsProviders: [
+          for (final provider in old.dnsProviders)
+            if (provider.kind != kind) provider,
+          if (trimmed.isNotEmpty)
+            DnsProvider(
+              kind: kind,
+              masked: '••••${trimmed.substring(trimmed.length - 4)}',
+            ),
+        ]..sort((a, b) => a.kind.index.compareTo(b.kind.index)),
+        acme: old.acme,
+        tunnel: old.tunnel,
+      ),
+    );
+  }
+
+  @override
+  Future<List<DomainCheck>> domainChecks(String serverKey, int domainId) async {
+    final server = _server(serverKey);
+    _requireOwner(server);
+    _domain(server, domainId);
+    await _latency(60);
+    return server.domainChecks[domainId] ?? const [];
+  }
+
+  @override
+  Future<NetworkInfo> updateNetworkSettings(
+    String serverKey,
+    NetworkSettingsChanges changes,
+  ) async {
+    final server = _server(serverKey);
+    _requireOwner(server);
+    await _latency();
+    final old = server.network;
+    final settings = old.settings;
+    final next = NetworkSettings(
+      mainPort: changes.mainPort ?? settings.mainPort,
+      upnpEnabled: changes.upnpEnabled ?? settings.upnpEnabled,
+      localListenerPort:
+          changes.localListenerPort ?? settings.localListenerPort,
+      trustedProxies: changes.trustedProxies ?? settings.trustedProxies,
+      dnsResolvers: changes.dnsResolvers ?? settings.dnsResolvers,
+      acmeStaging: changes.acmeStaging ?? settings.acmeStaging,
+    );
+    return _network(
+      server,
+      NetworkInfo(
+        publicAddress: old.publicAddress,
+        ports: [
+          for (final port in old.ports)
+            next.upnpEnabled && port.purpose != PortPurpose.acmeHttp
+                ? PortStatus(
+                    purpose: port.purpose,
+                    protocol: port.protocol,
+                    port: port.port,
+                    state: port.state,
+                    mapping: port.state == PortState.listening
+                        ? MappingState.mapped
+                        : MappingState.notUsed,
+                  )
+                : PortStatus(
+                    purpose: port.purpose,
+                    protocol: port.protocol,
+                    port: port.port,
+                    state: port.state,
+                  ),
+        ],
+        settings: next,
+        listeningPort: old.listeningPort,
+        nextMainPort: next.mainPort == 0 || next.mainPort == old.listeningPort
+            ? PortState.unknown
+            : PortState.free,
+        upnpGateway: next.upnpEnabled ? '192.168.1.1' : '',
+        upnpExternalIp: next.upnpEnabled ? old.publicAddress.ipv4 : '',
+        domains: old.domains,
+        dnsProviders: old.dnsProviders,
+        acme: old.acme,
+        tunnel: old.tunnel,
+      ),
+    );
   }
 
   // Voice -------------------------------------------------------------------------
@@ -2135,3 +3922,35 @@ class MockRepository implements OpencordRepository {
     _emit(VoiceChanged(session.server, session.channel, List.of(participants)));
   }
 }
+
+/// [domain] with some fields changed.
+Domain _with(
+  Domain domain, {
+  DomainStatus? status,
+  bool? active,
+  bool? primary,
+  bool? checking,
+  int? publicPort,
+  DomainCheck? lastCheck,
+  DateTime? deactivatedAt,
+  CertificateStatus? certificate,
+}) => Domain(
+  id: domain.id,
+  hostname: domain.hostname,
+  kind: domain.kind,
+  publicPort: publicPort ?? domain.publicPort,
+  status: status ?? domain.status,
+  active: active ?? domain.active,
+  primary: primary ?? domain.primary,
+  problemSince: domain.problemSince,
+  lastCheck: lastCheck ?? domain.lastCheck,
+  checking: checking ?? domain.checking,
+  users24h: domain.users24h,
+  deactivatedAt: active == true ? null : deactivatedAt ?? domain.deactivatedAt,
+  trustedCertificate: switch (certificate) {
+    final certificate? =>
+      certificate.state == CertificateState.valid && !certificate.test,
+    null => domain.trustedCertificate,
+  },
+  certificate: certificate ?? domain.certificate,
+);

@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:opencord/core/model/commands.dart';
 import 'package:opencord/core/format.dart';
 import 'package:opencord/core/model/message.dart';
 import 'package:opencord/core/model/permissions.dart';
@@ -13,6 +14,7 @@ import 'package:opencord/core/repository/repository.dart';
 import 'package:opencord/features/chat/chat_controller.dart';
 import 'package:opencord/features/chat/composer_bar.dart';
 import 'package:opencord/features/chat/composer_state.dart';
+import 'package:opencord/features/chat/command_input.dart';
 import 'package:opencord/features/chat/emoji_picker.dart';
 import 'package:opencord/features/chat/mentions.dart';
 import 'package:opencord/features/chat/suggestion_list.dart';
@@ -68,6 +70,9 @@ class _ComposerState extends ConsumerState<Composer> {
   /// The token whose suggestions were closed with Escape; they stay closed
   /// until something else is typed.
   int? _dismissedAt;
+
+  /// A chat command being written (Phase 3 §19.6), in place of the text.
+  CommandSpec? _command;
 
   ChannelRef get _channel => widget.channel;
 
@@ -172,17 +177,48 @@ class _ComposerState extends ConsumerState<Composer> {
 
   // Autocomplete -------------------------------------------------------------
 
+  /// "/" and a word at the start: the commands it could be.
+  List<Suggestion>? _commandSuggestions(ServerData data) {
+    final text = _text.text;
+    final match = RegExp(r'^/(\S*)$').firstMatch(text);
+    if (match == null ||
+        _text.selection.baseOffset != text.length ||
+        ref.read(composerProvider(_channel)).editing != null) {
+      return null;
+    }
+    final voice = ref.read(voiceSessionProvider);
+    return [
+      for (final spec in matchingCommands(
+        data.commands,
+        match[1]!,
+      ).take(maxSuggestions))
+        CommandSuggestion(
+          spec,
+          unavailable: commandUnavailable(
+            spec,
+            data: data,
+            channelId: _channel.channel,
+            voice: voice,
+            serverKey: _channel.server,
+          ),
+        ),
+    ];
+  }
+
   void _updateSuggestions() {
     final selection = _text.selection;
     final data = _data;
     final channel = data?.channels[_channel.channel];
-    final token = selection.isCollapsed && data != null && channel != null
+    final commands = data == null ? null : _commandSuggestions(data);
+    final token = commands != null
+        ? (trigger: '/', query: _text.text.substring(1), start: 0)
+        : selection.isCollapsed && data != null && channel != null
         ? activeToken(_text.text, selection.baseOffset)
         : null;
     if (token?.start != _dismissedAt) _dismissedAt = null;
     final suggestions = token == null || _dismissedAt != null
         ? const <Suggestion>[]
-        : suggest(data!, channel!, token);
+        : commands ?? suggest(data!, channel!, token);
     _token = token;
     if (suggestions.length != _suggestions.length ||
         !_sameSuggestions(suggestions)) {
@@ -204,6 +240,16 @@ class _ComposerState extends ConsumerState<Composer> {
   }
 
   void _pick(Suggestion suggestion) {
+    if (suggestion case CommandSuggestion(:final spec, :final unavailable)) {
+      if (unavailable != null) {
+        showOcToast(context, unavailable);
+        return;
+      }
+      _text.clear();
+      _popup.hide();
+      setState(() => _command = spec);
+      return;
+    }
     final token = _token;
     if (token == null) return;
     final caret = _text.selection.baseOffset;
@@ -376,7 +422,12 @@ class _ComposerState extends ConsumerState<Composer> {
   /// types it there (§16). Not while another text field, a menu or a
   /// dialog has the keyboard, and not for spaces, which press buttons.
   bool _typeToFocus(KeyEvent event) {
-    if (event is! KeyDownEvent || _focus.hasFocus || !mounted) return false;
+    if (event is! KeyDownEvent ||
+        _focus.hasFocus ||
+        !mounted ||
+        _command != null) {
+      return false;
+    }
     final character = event.character;
     if (character == null ||
         character.isEmpty ||
@@ -541,6 +592,8 @@ class _ComposerState extends ConsumerState<Composer> {
   }
 
   Widget _input(BuildContext context, String channelName) {
+    // One portal either way: swapping it for the command's own leaves its
+    // semantics behind.
     return OverlayPortal(
       controller: _popup,
       overlayChildBuilder: (context) => Positioned(
@@ -561,51 +614,65 @@ class _ComposerState extends ConsumerState<Composer> {
           ),
         ),
       ),
-      child: KeyedSubtree(
-        key: _fieldKey,
-        child: Focus(
-          canRequestFocus: false,
-          skipTraversal: true,
-          onKeyEvent: _onKey,
-          child: TextField(
-            controller: _text,
-            focusNode: _focus,
-            minLines: 1,
-            maxLines: 8,
-            keyboardType: TextInputType.multiline,
-            textInputAction: TextInputAction.newline,
-            style: OcText.body.copyWith(color: context.oc.text),
-            cursorColor: context.oc.text,
-            decoration: ocInputDecoration(
-              context,
-              hint: 'Message #$channelName',
-              radius: OcRadius.composer,
-              padding: const EdgeInsets.fromLTRB(
-                OcSpace.s16,
-                OcSpace.s10,
-                OcSpace.s8,
-                OcSpace.s10,
-              ),
-              suffix: Builder(
-                builder: (context) => OcIconButton(
-                  icon: OcIcons.mood,
-                  tooltip: 'Emoji',
-                  size: OcIconButtonSize.compact,
-                  onPressed: () async {
-                    final emoji = await showEmojiPicker(
-                      context,
-                      anchor: globalRectOf(context),
-                    );
-                    if (emoji == null || !mounted) return;
-                    _focus.requestFocus();
-                    _insert(emoji);
-                  },
+      child: switch (_command) {
+        final spec? => CommandInput(
+          key: ValueKey(spec.name),
+          serverKey: _channel.server,
+          channelId: _channel.channel,
+          spec: spec,
+          onClose: () {
+            setState(() => _command = null);
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (mounted) _focus.requestFocus();
+            });
+          },
+        ),
+        null => KeyedSubtree(
+          key: _fieldKey,
+          child: Focus(
+            canRequestFocus: false,
+            skipTraversal: true,
+            onKeyEvent: _onKey,
+            child: TextField(
+              controller: _text,
+              focusNode: _focus,
+              minLines: 1,
+              maxLines: 8,
+              keyboardType: TextInputType.multiline,
+              textInputAction: TextInputAction.newline,
+              style: OcText.body.copyWith(color: context.oc.text),
+              cursorColor: context.oc.text,
+              decoration: ocInputDecoration(
+                context,
+                hint: 'Message #$channelName',
+                radius: OcRadius.composer,
+                padding: const EdgeInsets.fromLTRB(
+                  OcSpace.s16,
+                  OcSpace.s10,
+                  OcSpace.s8,
+                  OcSpace.s10,
+                ),
+                suffix: Builder(
+                  builder: (context) => OcIconButton(
+                    icon: OcIcons.mood,
+                    tooltip: 'Emoji',
+                    size: OcIconButtonSize.compact,
+                    onPressed: () async {
+                      final emoji = await showEmojiPicker(
+                        context,
+                        anchor: globalRectOf(context),
+                      );
+                      if (emoji == null || !mounted) return;
+                      _focus.requestFocus();
+                      _insert(emoji);
+                    },
+                  ),
                 ),
               ),
             ),
           ),
         ),
-      ),
+      },
     );
   }
 

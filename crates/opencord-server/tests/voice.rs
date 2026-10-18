@@ -578,6 +578,37 @@ async fn the_session_in_voice_can_ask_for_a_fresh_voice_token() {
     assert_ne!(fresh.token, first.token);
 }
 
+/// Joining the channel this session is already in changes nothing: no new
+/// token, so its media connection carries on.
+#[tokio::test]
+async fn joining_the_channel_the_session_is_in_again_keeps_its_connection() {
+    let mut room = room().await;
+    room.member.ok(join_voice(room.voice)).await;
+    server_update(&mut room.member).await;
+
+    room.member.ok(join_voice(room.voice)).await;
+    let again = tokio::time::timeout(QUIET, server_update(&mut room.member)).await;
+
+    assert!(again.is_err(), "a fresh token would reconnect its media");
+}
+
+/// Another session of the same user, not in voice, cannot take the voice
+/// state over by asking for a token: it joins, which everyone hears of.
+#[tokio::test]
+async fn another_session_of_the_same_user_gets_no_voice_token() {
+    let mut room = room().await;
+    room.member.ok(join_voice(room.voice)).await;
+    server_update(&mut room.member).await;
+    let mut second = TestClient::connect(&room.server, common::key(2)).await;
+    second.identify("user2", None, None).await.unwrap();
+
+    let refused = second
+        .error(Request::RefreshVoiceServer(proto::RefreshVoiceServer {}))
+        .await;
+
+    assert_eq!(code(&refused), proto::ErrorCode::VoiceNotConnected);
+}
+
 #[tokio::test]
 async fn only_the_session_in_voice_gets_a_voice_token() {
     let mut room = room().await;
@@ -768,4 +799,105 @@ async fn idle_reports_from_another_session_are_ignored() {
     room.member.ok(report_idle(Some(1_000))).await;
     let (_, idle) = room.server.handle.voice_activity(room.member_id).unwrap();
     assert!(idle.is_some());
+}
+
+/// The candidate the embedded node's Ready names, for a voice gateway
+/// WebSocket at `url` over `stream`.
+async fn media_candidate<S>(
+    stream: S,
+    url: &str,
+    update: &proto::VoiceServerUpdate,
+    user_id: i64,
+    session_id: &str,
+) -> String
+where
+    S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin,
+{
+    use futures_util::{SinkExt, StreamExt};
+    use opencord_proto::voice::v1 as voice;
+    use prost::Message as _;
+    use tokio_tungstenite::tungstenite::Message;
+
+    let (mut socket, _) = tokio_tungstenite::client_async(url, stream).await.unwrap();
+    let identify = voice::Envelope {
+        seq: 0,
+        payload: Some(voice::envelope::Payload::Identify(voice::Identify {
+            token: update.token.clone(),
+            user_id,
+            session_id: session_id.to_owned(),
+            channel_id: update.channel_id,
+            ..voice::Identify::default()
+        })),
+    };
+    socket
+        .send(Message::Binary(identify.encode_to_vec().into()))
+        .await
+        .unwrap();
+    tokio::time::timeout(Duration::from_secs(5), async {
+        loop {
+            let Some(Ok(Message::Binary(bytes))) = socket.next().await else {
+                panic!("the voice gateway closed");
+            };
+            let envelope = voice::Envelope::decode(bytes).unwrap();
+            if let Some(voice::envelope::Payload::Ready(ready)) = envelope.payload {
+                return ready.candidates[0].ip.clone();
+            }
+        }
+    })
+    .await
+    .expect("no Ready")
+}
+
+/// Plan §4 and §9.2–9.3: tunnels and reverse proxies carry no UDP, so a
+/// voice gateway reached through one sends media straight to the server's
+/// public address; reached directly, to the host the client used.
+#[tokio::test]
+async fn voice_reached_through_a_tunnel_or_proxy_sends_media_to_the_public_address() {
+    let mut room = room().await;
+    room.owner
+        .ok(Request::SetPublicAddress(proto::SetPublicAddress {
+            auto_detect: false,
+            override_ipv4: "203.0.113.10".to_owned(),
+            override_ipv6: String::new(),
+        }))
+        .await;
+    let local = room
+        .server
+        .handle
+        .set_local_listener_on_any_port(true)
+        .await
+        .unwrap()
+        .unwrap();
+    let session_id = voice_state(room.member.ok(join_voice(room.voice)).await).session_id;
+    let update = server_update(&mut room.member).await;
+    let tcp = tokio::net::TcpStream::connect(("127.0.0.1", local))
+        .await
+        .unwrap();
+    let proxied = media_candidate(
+        tcp,
+        "ws://tunnel.example/voice",
+        &update,
+        room.member_id,
+        &session_id,
+    )
+    .await;
+    assert_eq!(proxied, "203.0.113.10");
+
+    room.member
+        .ok(Request::RefreshVoiceServer(proto::RefreshVoiceServer {}))
+        .await;
+    let update = server_update(&mut room.member).await;
+    let direct = common::tls_connect(&room.server).await;
+    let direct = media_candidate(
+        direct,
+        &format!(
+            "wss://localhost:{}/voice",
+            room.server.handle.local_addr.port()
+        ),
+        &update,
+        room.member_id,
+        &session_id,
+    )
+    .await;
+    assert_eq!(direct, "", "the host the client reached the node with");
 }

@@ -117,7 +117,7 @@ class _ServerVoicePageState extends ConsumerState<ServerVoicePage> {
               'People sharing their screen pick up to these. Higher '
               "settings use more of the server's upload.",
           children: [
-            _Field(
+            SettingsField(
               title: 'Highest resolution',
               child: ChoiceChips<ScreenShareResolution>(
                 options: [
@@ -129,7 +129,7 @@ class _ServerVoicePageState extends ConsumerState<ServerVoicePage> {
                     _edit((d) => d.copyWith(screenShareMaxResolution: value)),
               ),
             ),
-            _Field(
+            SettingsField(
               title: 'Highest frame rate',
               child: ChoiceChips<int>(
                 options: [
@@ -211,7 +211,7 @@ class _ServerVoicePageState extends ConsumerState<ServerVoicePage> {
                 onTap: () => _pickAfkChannel(context, voiceChannels),
               ),
             ),
-            _Field(
+            SettingsField(
               title: 'Move idle people after',
               child: ChoiceChips<Duration>(
                 options: [
@@ -245,30 +245,6 @@ class _ServerVoicePageState extends ConsumerState<ServerVoicePage> {
           style: OcText.small.copyWith(color: colors.textMuted),
         ),
       ],
-    );
-  }
-}
-
-/// A titled control inside a settings section.
-class _Field extends StatelessWidget {
-  const _Field({required this.title, required this.child});
-
-  final String title;
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.oc;
-    return Padding(
-      padding: const EdgeInsets.all(OcSpace.s16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(title, style: OcText.body.copyWith(color: colors.text)),
-          const SizedBox(height: OcSpace.s8),
-          child,
-        ],
-      ),
     );
   }
 }

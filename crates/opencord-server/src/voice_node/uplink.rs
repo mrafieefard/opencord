@@ -13,8 +13,9 @@ use futures_util::{SinkExt, StreamExt};
 use internal::control_envelope::Payload;
 use opencord_common::address::{Fingerprint, ServerAddress};
 use opencord_proto::internal::v1 as internal;
+use opencord_voice::bridge::{BridgeEvent, MusicBridge};
 use opencord_voice::control::{self, CONTROL_PATH, LOAD_EVERY, SILENT_FOR};
-use opencord_voice::node::{NodeEvent, NodeLoad, VoiceNode};
+use opencord_voice::node::{NodeCommand, NodeEvent, NodeLoad, VoiceNode};
 use prost::Message as _;
 use rustls::pki_types::ServerName;
 use tokio::net::TcpStream;
@@ -47,6 +48,8 @@ pub struct Uplink {
     /// Empty for "the endpoint's host".
     pub public_address: String,
     pub udp_port: u16,
+    /// The audio bridge, when music is on here.
+    pub music: Option<MusicBridge>,
 }
 
 /// Keeps the node registered with the main server, for as long as it runs.
@@ -54,11 +57,12 @@ pub async fn run(
     uplink: Uplink,
     node: VoiceNode,
     mut events: mpsc::UnboundedReceiver<NodeEvent>,
+    mut bridge_events: Option<mpsc::UnboundedReceiver<BridgeEvent>>,
     registered: watch::Sender<bool>,
 ) {
     let mut pause = RECONNECT_MIN;
     loop {
-        let ended = session(&uplink, &node, &mut events, &registered).await;
+        let ended = session(&uplink, &node, &mut events, &mut bridge_events, &registered).await;
         let was_registered = registered.send_replace(false);
         if events.is_closed() {
             tracing::error!("the voice node stopped; leaving the main server");
@@ -67,6 +71,9 @@ pub async fn run(
         node.suspend();
         // Reports from before the main server forgot this node are stale.
         while events.try_recv().is_ok() {}
+        if let Some(bridge_events) = &mut bridge_events {
+            while bridge_events.try_recv().is_ok() {}
+        }
         if was_registered {
             tracing::warn!("lost the main server, registering again: {ended:#}");
             pause = RECONNECT_MIN;
@@ -87,6 +94,7 @@ async fn session(
     uplink: &Uplink,
     node: &VoiceNode,
     events: &mut mpsc::UnboundedReceiver<NodeEvent>,
+    bridge_events: &mut Option<mpsc::UnboundedReceiver<BridgeEvent>>,
     registered: &watch::Sender<bool>,
 ) -> anyhow::Error {
     let mut socket = match connect(uplink).await {
@@ -100,7 +108,14 @@ async fn session(
     node.set_verifying_key(key);
     registered.send_replace(true);
     tracing::info!(main_server = %uplink.main_server, "registered with the main server");
-    serve(&mut socket, node, events).await
+    serve(
+        &mut socket,
+        node,
+        uplink.music.as_ref(),
+        events,
+        bridge_events,
+    )
+    .await
 }
 
 async fn connect(uplink: &Uplink) -> anyhow::Result<Socket> {
@@ -149,6 +164,11 @@ async fn register(uplink: &Uplink, socket: &mut Socket) -> anyhow::Result<Verify
         certificate_fingerprint: uplink.certificate_fingerprint.to_vec(),
         public_address: uplink.public_address.clone(),
         udp_port: u32::from(uplink.udp_port),
+        music: uplink.music.is_some(),
+        music_udp_port: uplink
+            .music
+            .as_ref()
+            .map_or(0, |music| u32::from(music.udp_port())),
     };
     send(socket, Payload::Register(register)).await?;
     let registered = loop {
@@ -200,7 +220,9 @@ async fn recv(socket: &mut Socket) -> anyhow::Result<Payload> {
 async fn serve(
     socket: &mut Socket,
     node: &VoiceNode,
+    music: Option<&MusicBridge>,
     events: &mut mpsc::UnboundedReceiver<NodeEvent>,
+    bridge_events: &mut Option<mpsc::UnboundedReceiver<BridgeEvent>>,
 ) -> anyhow::Error {
     let mut reports = tokio::time::interval(LOAD_EVERY);
     let mut last = (Instant::now(), node.load());
@@ -211,6 +233,10 @@ async fn serve(
                 Some(event) => send_envelope(socket, &control::envelope_for_event(&event)).await,
                 None => Err(anyhow!("the voice node stopped")),
             },
+            Some(event) = next_bridge_event(bridge_events) => {
+                log_bridge_event(&event);
+                send_envelope(socket, &control::envelope_for_bridge_event(&event)).await
+            }
             _ = reports.tick() => {
                 if heard_at.elapsed() > SILENT_FOR {
                     return anyhow!("the main server went quiet");
@@ -227,7 +253,7 @@ async fn serve(
             message = socket.next() => {
                 heard_at = Instant::now();
                 match message {
-                    Some(Ok(Message::Binary(bytes))) => apply(node, &bytes),
+                    Some(Ok(Message::Binary(bytes))) => apply(node, music, &bytes),
                     Some(Ok(Message::Close(frame))) => {
                         let code = frame.map(|frame| u16::from(frame.code));
                         Err(anyhow!("the main server closed the control channel (close {code:?})"))
@@ -245,7 +271,7 @@ async fn serve(
 }
 
 /// A command from the main server.
-fn apply(node: &VoiceNode, bytes: &[u8]) -> anyhow::Result<()> {
+fn apply(node: &VoiceNode, music: Option<&MusicBridge>, bytes: &[u8]) -> anyhow::Result<()> {
     let envelope = internal::ControlEnvelope::decode(bytes)
         .context("the main server sent an unreadable message")?;
     match &envelope.payload {
@@ -257,10 +283,46 @@ fn apply(node: &VoiceNode, bytes: &[u8]) -> anyhow::Result<()> {
         _ => {
             let command = control::command_from(envelope)
                 .context("the main server sent a message nodes do not take")?;
+            match (&command, music) {
+                (NodeCommand::ExpectMusic(player), Some(music)) => music.expect(player.clone()),
+                (NodeCommand::ExpectMusic(player), None) => tracing::warn!(
+                    channel_id = player.channel_id,
+                    "the main server asked for music, which is off on this node"
+                ),
+                (NodeCommand::StopMusic { channel_id }, Some(music)) => music.cancel(*channel_id),
+                _ => {}
+            }
             node.send(command);
         }
     }
     Ok(())
+}
+
+/// The bridge's next event; never, without a bridge.
+async fn next_bridge_event(
+    events: &mut Option<mpsc::UnboundedReceiver<BridgeEvent>>,
+) -> Option<BridgeEvent> {
+    match events {
+        Some(events) => events.recv().await,
+        None => std::future::pending().await,
+    }
+}
+
+fn log_bridge_event(event: &BridgeEvent) {
+    match event {
+        BridgeEvent::Connected { channel_id, .. } => {
+            tracing::info!(channel_id, "Lavalink connected for music");
+        }
+        BridgeEvent::Closed { channel_id, code } => {
+            tracing::info!(channel_id, code, "Lavalink's music connection ended");
+        }
+        BridgeEvent::Refused { channel_id, peer } => tracing::warn!(
+            channel_id,
+            %peer,
+            "Lavalink signed in from an address its node does not have"
+        ),
+        _ => {}
+    }
 }
 
 /// The load between two readings of the node's counters.

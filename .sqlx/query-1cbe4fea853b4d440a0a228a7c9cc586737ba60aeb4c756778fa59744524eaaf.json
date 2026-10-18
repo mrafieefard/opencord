@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO domain_certificates (domain_id, chain_pem, key_enc, issuer, not_before,\n                                          not_after, is_test, uploaded, created_at)\n         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)\n         ON CONFLICT (domain_id) DO UPDATE SET\n             chain_pem = excluded.chain_pem, key_enc = excluded.key_enc,\n             issuer = excluded.issuer, not_before = excluded.not_before,\n             not_after = excluded.not_after, is_test = excluded.is_test,\n             uploaded = excluded.uploaded, created_at = excluded.created_at",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 9
+    },
+    "nullable": []
+  },
+  "hash": "1cbe4fea853b4d440a0a228a7c9cc586737ba60aeb4c756778fa59744524eaaf"
+}

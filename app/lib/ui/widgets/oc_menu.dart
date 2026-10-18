@@ -19,6 +19,7 @@ class OcMenuItem extends OcMenuEntry {
   const OcMenuItem({
     required this.label,
     this.icon,
+    this.leading,
     this.shortcut,
     this.onSelected,
     this.checked,
@@ -27,6 +28,7 @@ class OcMenuItem extends OcMenuEntry {
 
   final String label;
   final IconData? icon;
+  final Widget? leading;
 
   /// Shown on the right, in the platform's notation.
   final SingleActivator? shortcut;
@@ -210,7 +212,14 @@ class _MenuItemTile extends StatelessWidget {
         ),
         child: Row(
           children: [
-            if (item.icon != null) ...[
+            if (item.leading != null) ...[
+              Container(
+                width: 18,
+                alignment: Alignment.center,
+                child: item.leading!,
+              ),
+              const SizedBox(width: 10),
+            ] else if (item.icon != null) ...[
               Icon(
                 item.icon,
                 size: 18,

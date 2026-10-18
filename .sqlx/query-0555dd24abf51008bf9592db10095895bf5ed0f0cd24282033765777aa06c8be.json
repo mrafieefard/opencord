@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "DELETE FROM domain_certificates WHERE domain_id = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": []
+  },
+  "hash": "0555dd24abf51008bf9592db10095895bf5ed0f0cd24282033765777aa06c8be"
+}

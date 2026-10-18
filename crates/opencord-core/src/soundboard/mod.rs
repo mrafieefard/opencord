@@ -24,10 +24,9 @@ use crate::api::types::{
     CoreError, CoreEvent, CoreEventPayload, DefaultSound, ErrorCode, SoundEffect, SoundboardSound,
 };
 use crate::client::Client;
-use crate::connection::MediaTokens;
+use crate::connection::{MediaTokens, Routes};
 use crate::convert;
-use crate::http::{self, HttpError, HttpResponse};
-use crate::store::Store;
+use crate::http::{HttpResponse, MediaHttp};
 
 /// What this person chose for sounds (plan §11.7, User settings → Sounds).
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -62,23 +61,16 @@ struct State {
 
 pub(crate) struct Soundboard {
     runtime: Handle,
-    store: Arc<Mutex<Store>>,
-    tokens: MediaTokens,
+    media: MediaHttp,
     cache: SoundCache,
     state: Mutex<State>,
 }
 
 impl Soundboard {
-    pub fn new(
-        runtime: Handle,
-        data_dir: &Path,
-        store: Arc<Mutex<Store>>,
-        tokens: MediaTokens,
-    ) -> Self {
+    pub fn new(runtime: Handle, data_dir: &Path, routes: Routes, tokens: MediaTokens) -> Self {
         Self {
             runtime,
-            store,
-            tokens,
+            media: MediaHttp::new(routes, tokens),
             cache: SoundCache::new(data_dir, CLIENT_CACHE_BYTES),
             state: Mutex::new(State::default()),
         }
@@ -350,7 +342,7 @@ impl Soundboard {
     }
 
     /// A request to the server's media endpoints with this device's media
-    /// token; an expired token is renewed once.
+    /// token.
     async fn http(
         &self,
         client: &Client,
@@ -359,54 +351,9 @@ impl Soundboard {
         path: &str,
         body: &[u8],
     ) -> Result<HttpResponse, CoreError> {
-        let (address, pin) = {
-            let store = self.store.lock().unwrap_or_else(PoisonError::into_inner);
-            let server = store.server(key).ok_or(CoreError::UnknownServer)?;
-            let address = opencord_common::address::ServerAddress {
-                host: server.host.clone(),
-                port: server.port,
-            };
-            (address, store.pin(key).ok_or(CoreError::NotConnected)?)
-        };
-        let mut renewed = false;
-        loop {
-            let token = self.token(key).ok_or(CoreError::NotConnected)?;
-            let response = http::request(
-                &address,
-                pin,
-                method,
-                path,
-                &token,
-                body,
-                MAX_FILE_BYTES * 2,
-            )
+        self.media
+            .request(client, key, method, path, body, MAX_FILE_BYTES * 2)
             .await
-            .map_err(http_error)?;
-            if response.status != 401 || renewed {
-                return Ok(response);
-            }
-            let renewal = client
-                .request(
-                    key,
-                    proto::request::Kind::RefreshMediaToken(proto::RefreshMediaToken {}),
-                )
-                .await?;
-            if let proto::response::Result::MediaToken(token) = renewal {
-                self.tokens
-                    .lock()
-                    .unwrap_or_else(PoisonError::into_inner)
-                    .insert(key.to_owned(), token.token);
-            }
-            renewed = true;
-        }
-    }
-
-    fn token(&self, key: &str) -> Option<String> {
-        self.tokens
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner)
-            .get(key)
-            .cloned()
     }
 
     fn lock(&self) -> MutexGuard<'_, State> {
@@ -426,12 +373,6 @@ fn expect<T>(
         Some(proto::response::Result::Error(error)) => Err(convert::error(error)),
         Some(result) => pick(result).ok_or_else(|| invalid("an unexpected answer".to_owned())),
         None => Err(invalid(format!("the server answered {}", response.status))),
-    }
-}
-
-fn http_error(error: HttpError) -> CoreError {
-    CoreError::Connection {
-        message: error.to_string(),
     }
 }
 

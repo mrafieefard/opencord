@@ -2,9 +2,18 @@ import 'dart:async';
 import 'dart:developer' as developer;
 import 'dart:typed_data';
 
+import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart'
+    as frb_types
+    show Int64List;
+
 import 'package:opencord/core/model/channel.dart';
+import 'package:opencord/core/model/commands.dart';
+import 'package:opencord/core/model/lavalink.dart';
+import 'package:opencord/core/model/music.dart';
+import 'package:opencord/core/model/music_session.dart';
 import 'package:opencord/core/model/message.dart';
 import 'package:opencord/core/model/misc.dart';
+import 'package:opencord/core/model/network.dart';
 import 'package:opencord/core/model/permissions.dart';
 import 'package:opencord/core/model/server.dart';
 import 'package:opencord/core/model/snapshot.dart';
@@ -15,9 +24,13 @@ import 'package:opencord/core/model/video.dart';
 import 'package:opencord/core/model/voice.dart';
 import 'package:opencord/core/providers/activity_state.dart';
 import 'package:opencord/core/repository/repository.dart';
+import 'package:opencord/core/rust/command_mapping.dart';
 import 'package:opencord/core/rust/core_api.dart';
 import 'package:opencord/core/rust/core_mapping.dart';
 import 'package:opencord/core/rust/identity_store.dart';
+import 'package:opencord/core/rust/lavalink_mapping.dart';
+import 'package:opencord/core/rust/music_mapping.dart';
+import 'package:opencord/core/rust/network_mapping.dart';
 import 'package:opencord/core/rust/read_positions.dart';
 import 'package:opencord/core/settings/key_value_store.dart';
 import 'package:opencord/src/rust/api/types.dart' as core;
@@ -534,6 +547,81 @@ class RustRepository implements OpencordRepository {
         server,
         soundPlayFrom(field0),
       ),
+      core.CoreEventPayload_NetworkStatus(:final field0) =>
+        NetworkStatusChanged(server, networkInfoFrom(field0)),
+      core.CoreEventPayload_ServerAddressesUpdate(:final field0) =>
+        ServerAddressesChanged(server, serverAddressesFrom(field0)),
+      core.CoreEventPayload_ServerNotice(:final field0) => ServerNoticeReceived(
+        server,
+        serverNoticeFrom(field0),
+      ),
+      core.CoreEventPayload_LavalinkNodeStatus(
+        :final node,
+        :final channelsPlaying,
+      ) =>
+        LavalinkNodeChanged(
+          server,
+          nodeId: node.id,
+          node: lavalinkNodeFrom(node),
+          channelsPlaying: channelsPlaying,
+        ),
+      core.CoreEventPayload_LavalinkNodeRemoved(
+        :final nodeId,
+        :final channelsPlaying,
+      ) =>
+        LavalinkNodeChanged(
+          server,
+          nodeId: nodeId,
+          node: null,
+          channelsPlaying: channelsPlaying,
+        ),
+      core.CoreEventPayload_LavalinkNodeEvent(:final field0) =>
+        LavalinkNodeEventReceived(server, lavalinkEventFrom(field0)),
+      core.CoreEventPayload_LavalinkTestProgress(:final field0) =>
+        LavalinkTestProgressed(server, lavalinkTestFrom(field0)),
+      core.CoreEventPayload_MusicSettingsUpdate(:final field0) =>
+        MusicSettingsChanged(server, musicSettingsFrom(field0)),
+      core.CoreEventPayload_MusicSession(:final field0) => MusicSessionChanged(
+        server,
+        musicSessionFrom(field0),
+      ),
+      core.CoreEventPayload_MusicNowPlaying(:final field0) =>
+        MusicNowPlayingChanged(
+          server,
+          channelId: field0.channelId,
+          nowPlaying: field0.ended
+              ? null
+              : MusicNowPlaying(
+                  channelId: field0.channelId,
+                  title: field0.title,
+                  artist: field0.artist,
+                  artworkId: field0.artworkId,
+                  playing: field0.playing,
+                  sourceName: field0.sourceDisplayName,
+                ),
+        ),
+      core.CoreEventPayload_CommandsUpdate(:final field0) => CommandsChanged(
+        server,
+        commandListFrom(field0),
+      ),
+      core.CoreEventPayload_EphemeralMessage(:final field0) =>
+        EphemeralMessageReceived(
+          server,
+          EphemeralNote(
+            channelId: field0.channelId,
+            nonce: field0.nonce,
+            content: field0.content,
+            at: DateTime.now(),
+          ),
+        ),
+      core.CoreEventPayload_MusicNotice(:final field0) => MusicNoticeReceived(
+        server,
+        MusicNotice(
+          channelId: field0.channelId,
+          text: field0.text,
+          at: DateTime.fromMillisecondsSinceEpoch(field0.atMs),
+        ),
+      ),
     };
     if (event != null) _emit(event);
   }
@@ -936,12 +1024,14 @@ class RustRepository implements OpencordRepository {
     String serverKey, {
     Duration? expiresIn,
     int? maxUses,
+    int? domainId,
   }) async => inviteFrom(
     await _call(
       () => _core.createInvite(
         serverKey,
         maxUses: maxUses,
         expiresInS: expiresIn?.inSeconds,
+        domainId: domainId,
       ),
     ),
   );
@@ -961,6 +1051,526 @@ class RustRepository implements OpencordRepository {
       _call(
         () => _core.updateVoiceSettings(serverKey, voiceSettingsTo(settings)),
       );
+
+  // Domains & network ---------------------------------------------------------
+
+  @override
+  Future<NetworkInfo> watchNetwork(
+    String serverKey, {
+    required bool watch,
+  }) async =>
+      networkInfoFrom(await _call(() => _core.watchNetwork(serverKey, watch)));
+
+  @override
+  Future<NetworkInfo> setPublicAddress(
+    String serverKey, {
+    required bool autoDetect,
+    String overrideIpv4 = '',
+    String overrideIpv6 = '',
+  }) async => networkInfoFrom(
+    await _call(
+      () => _core.setPublicAddress(
+        serverKey,
+        autoDetect: autoDetect,
+        overrideIpv4: overrideIpv4,
+        overrideIpv6: overrideIpv6,
+      ),
+    ),
+  );
+
+  @override
+  Future<NetworkInfo> detectPublicAddress(String serverKey) async =>
+      networkInfoFrom(await _call(() => _core.detectPublicAddress(serverKey)));
+
+  @override
+  Future<NetworkInfo> updateNetworkSettings(
+    String serverKey,
+    NetworkSettingsChanges changes,
+  ) async => networkInfoFrom(
+    await _call(
+      () => _core.updateNetworkSettings(serverKey, networkChangesTo(changes)),
+    ),
+  );
+
+  @override
+  Future<NetworkInfo> addDomain(
+    String serverKey, {
+    required String hostname,
+    required DomainKind kind,
+    int? publicPort,
+  }) async => networkInfoFrom(
+    await _call(
+      () => _core.addDomain(
+        serverKey,
+        hostname: hostname,
+        kind: domainKindTo(kind),
+        publicPort: publicPort,
+      ),
+    ),
+  );
+
+  @override
+  Future<NetworkInfo> updateDomain(
+    String serverKey,
+    int domainId,
+    DomainUpdate update,
+  ) async => networkInfoFrom(
+    await _call(
+      () => _core.updateDomain(serverKey, domainId, domainUpdateTo(update)),
+    ),
+  );
+
+  @override
+  Future<NetworkInfo> deleteDomain(String serverKey, int domainId) async =>
+      networkInfoFrom(
+        await _call(() => _core.deleteDomain(serverKey, domainId)),
+      );
+
+  @override
+  Future<NetworkInfo> checkDomain(String serverKey, int domainId) async =>
+      networkInfoFrom(
+        await _call(() => _core.checkDomain(serverKey, domainId)),
+      );
+
+  @override
+  Future<NetworkInfo> requestCertificate(
+    String serverKey,
+    int domainId, {
+    String? email,
+    bool agreeTerms = false,
+  }) async => networkInfoFrom(
+    await _call(
+      () => _core.requestCertificate(serverKey, domainId, email, agreeTerms),
+    ),
+  );
+
+  @override
+  Future<NetworkInfo> uploadCertificate(
+    String serverKey,
+    int domainId, {
+    required String chainPem,
+    required String keyPem,
+  }) async => networkInfoFrom(
+    await _call(
+      () => _core.uploadCertificate(serverKey, domainId, chainPem, keyPem),
+    ),
+  );
+
+  @override
+  Future<NetworkInfo> addFreeSubdomain(
+    String serverKey, {
+    required DnsProviderKind provider,
+    required String name,
+    String token = '',
+    String? email,
+    bool agreeTerms = false,
+  }) async => networkInfoFrom(
+    await _call(
+      () => _core.addFreeSubdomain(
+        serverKey,
+        provider.wire,
+        name,
+        token,
+        email,
+        agreeTerms,
+      ),
+    ),
+  );
+
+  @override
+  Future<NetworkInfo> startTunnel(
+    String serverKey,
+    TunnelKind kind, {
+    String token = '',
+    String hostname = '',
+  }) async => networkInfoFrom(
+    await _call(
+      () => _core.startTunnel(
+        serverKey,
+        switch (kind) {
+          TunnelKind.quick => core.TunnelKind.quick,
+          TunnelKind.named => core.TunnelKind.named,
+        },
+        token,
+        hostname,
+      ),
+    ),
+  );
+
+  @override
+  Future<NetworkInfo> stopTunnel(String serverKey) async =>
+      networkInfoFrom(await _call(() => _core.stopTunnel(serverKey)));
+
+  @override
+  Future<List<String>> tunnelLog(String serverKey) =>
+      _call(() => _core.tunnelLog(serverKey));
+
+  @override
+  Future<NetworkInfo> installCloudflared(String serverKey) async =>
+      networkInfoFrom(await _call(() => _core.installCloudflared(serverKey)));
+
+  @override
+  Future<LavalinkNodes> lavalinkNodes(
+    String serverKey, {
+    required bool watch,
+  }) async => lavalinkNodesFrom(
+    await _call(() => _core.lavalinkNodes(serverKey, watch: watch)),
+  );
+
+  @override
+  Future<LavalinkNodes> createLavalinkNode(
+    String serverKey,
+    LavalinkNodeSettings settings,
+    String password,
+  ) async => lavalinkNodesFrom(
+    await _call(
+      () => _core.createLavalinkNode(
+        serverKey,
+        lavalinkSettingsToCore(settings),
+        password,
+      ),
+    ),
+  );
+
+  @override
+  Future<LavalinkNodes> updateLavalinkNode(
+    String serverKey,
+    int nodeId,
+    LavalinkNodeChanges changes,
+  ) async => lavalinkNodesFrom(
+    await _call(
+      () => _core.updateLavalinkNode(
+        serverKey,
+        nodeId,
+        core.LavalinkNodeChanges(
+          settings: switch (changes.settings) {
+            final settings? => lavalinkSettingsToCore(settings),
+            null => null,
+          },
+          password: changes.password,
+          draining: changes.draining,
+        ),
+      ),
+    ),
+  );
+
+  @override
+  Future<LavalinkNodes> deleteLavalinkNode(
+    String serverKey,
+    int nodeId,
+  ) async => lavalinkNodesFrom(
+    await _call(() => _core.deleteLavalinkNode(serverKey, nodeId)),
+  );
+
+  @override
+  Future<void> testLavalinkNode(String serverKey, int nodeId) =>
+      _call(() => _core.testLavalinkNode(serverKey, nodeId));
+
+  @override
+  Future<LavalinkNodes> moveLavalinkPlayers(
+    String serverKey,
+    int fromNodeId, {
+    int? toNodeId,
+  }) async => lavalinkNodesFrom(
+    await _call(
+      () => _core.moveLavalinkPlayers(serverKey, fromNodeId, toNodeId),
+    ),
+  );
+
+  @override
+  Future<MusicSettings> musicSettings(String serverKey) async =>
+      musicSettingsFrom(await _call(() => _core.musicSettings(serverKey)));
+
+  @override
+  Future<MusicSettings> updateMusicSettings(
+    String serverKey,
+    MusicSettings before,
+    MusicSettings after,
+  ) async => musicSettingsFrom(
+    await _call(
+      () => _core.updateMusicSettings(
+        serverKey,
+        musicSettingsChanges(before, after),
+      ),
+    ),
+  );
+
+  @override
+  Future<List<MusicBlock>> musicBlocks(String serverKey) async => [
+    for (final block in await _call(() => _core.musicBlocks(serverKey)))
+      musicBlockFrom(block),
+  ];
+
+  @override
+  Future<List<MusicBlock>> blockFromMusic(
+    String serverKey,
+    int userId, {
+    required bool blocked,
+    String reason = '',
+  }) async => [
+    for (final block in await _call(
+      () => _core.blockFromMusic(serverKey, userId, blocked, reason),
+    ))
+      musicBlockFrom(block),
+  ];
+
+  @override
+  Future<CommandOutcome> executeCommand(
+    String serverKey,
+    int channelId,
+    String name,
+    Map<String, String> options, {
+    required String nonce,
+  }) async {
+    final outcome = await _call(
+      () => _core.commandExecute(serverKey, channelId, name, [
+        for (final MapEntry(:key, :value) in options.entries)
+          core.CommandOptionValue(name: key, value: value),
+      ], nonce),
+    );
+    return (messageId: outcome.messageId, ephemeral: outcome.ephemeral);
+  }
+
+  @override
+  Future<List<CommandChoice>> autocompleteCommand(
+    String serverKey,
+    int channelId,
+    String name,
+    String option,
+    String value,
+  ) async => [
+    for (final choice in await _call(
+      () =>
+          _core.commandAutocomplete(serverKey, channelId, name, option, value),
+    ))
+      commandChoiceFrom(choice),
+  ];
+
+  @override
+  Future<CommandList> commandSettings(String serverKey) async =>
+      commandListFrom(await _call(() => _core.commandSettings(serverKey)));
+
+  @override
+  Future<CommandList> updateCommandSettings(
+    String serverKey, {
+    String name = '',
+    bool? enabled,
+    List<int>? channelIds,
+    bool? resultsPublic,
+  }) async => commandListFrom(
+    await _call(
+      () => _core.updateCommandSettings(
+        serverKey,
+        core.CommandSettingsChanges(
+          name: name,
+          enabled: enabled,
+          channelIds: channelIds == null
+              ? null
+              : frb_types.Int64List.fromList(channelIds),
+          resultsPublic: resultsPublic,
+        ),
+      ),
+    ),
+  );
+
+  @override
+  Future<MusicSearchResults> musicSearch(
+    String serverKey,
+    int channelId,
+    String query, {
+    String source = '',
+  }) async => musicSearchResultsFrom(
+    await _call(() => _core.musicSearch(serverKey, channelId, query, source)),
+  );
+
+  @override
+  Future<MusicSession> musicSubscribe(String serverKey, int channelId) async =>
+      musicSessionFrom(
+        await _call(() => _core.musicSubscribe(serverKey, channelId)),
+      );
+
+  @override
+  Future<void> musicUnsubscribe(String serverKey, int channelId) =>
+      _call(() => _core.musicUnsubscribe(serverKey, channelId));
+
+  @override
+  Future<MusicSession> musicEnqueue(
+    String serverKey,
+    int channelId,
+    List<String> resultIds, {
+    List<String> historyItemIds = const [],
+    String? beforeItemId,
+    MusicPlacement placement = MusicPlacement.end,
+  }) async => musicSessionFrom(
+    await _call(
+      () => _core.musicEnqueue(
+        serverKey,
+        channelId,
+        resultIds,
+        historyItemIds,
+        beforeItemId,
+        musicPlacementTo(placement),
+      ),
+    ),
+  );
+
+  Future<MusicSession> _playback(
+    String serverKey,
+    int channelId,
+    core.MusicAction action, {
+    int? positionMs,
+    String? expectedItemId,
+  }) async => musicSessionFrom(
+    await _call(
+      () => _core.musicPlayback(
+        serverKey,
+        channelId,
+        action,
+        positionMs: positionMs,
+        expectedItemId: expectedItemId,
+      ),
+    ),
+  );
+
+  @override
+  Future<MusicSession> musicPause(
+    String serverKey,
+    int channelId, {
+    required bool paused,
+  }) => _playback(
+    serverKey,
+    channelId,
+    paused ? core.MusicAction.pause : core.MusicAction.resume,
+  );
+
+  @override
+  Future<MusicSession> musicSkip(
+    String serverKey,
+    int channelId, {
+    required bool forward,
+    String? expectedItemId,
+  }) => _playback(
+    serverKey,
+    channelId,
+    forward ? core.MusicAction.next : core.MusicAction.previous,
+    expectedItemId: expectedItemId,
+  );
+
+  @override
+  Future<MusicSession> musicVoteSkip(
+    String serverKey,
+    int channelId, {
+    required String expectedItemId,
+  }) async => musicSessionFrom(
+    await _call(
+      () => _core.musicVoteSkip(serverKey, channelId, expectedItemId),
+    ),
+  );
+
+  @override
+  Future<MusicSession> musicSeek(
+    String serverKey,
+    int channelId,
+    Duration position, {
+    String? expectedItemId,
+  }) => _playback(
+    serverKey,
+    channelId,
+    core.MusicAction.seek,
+    positionMs: position.inMilliseconds,
+    expectedItemId: expectedItemId,
+  );
+
+  @override
+  Future<MusicSession> musicStop(String serverKey, int channelId) =>
+      _playback(serverKey, channelId, core.MusicAction.stop);
+
+  @override
+  Future<MusicSession> musicSetMode(
+    String serverKey,
+    int channelId, {
+    MusicRepeat? repeat,
+    bool? shuffle,
+  }) async => musicSessionFrom(
+    await _call(
+      () => _core.musicSetMode(
+        serverKey,
+        channelId,
+        repeat: repeat == null ? null : musicRepeatTo(repeat),
+        shuffle: shuffle,
+      ),
+    ),
+  );
+
+  @override
+  Future<MusicSession> musicMove(
+    String serverKey,
+    int channelId,
+    String itemId, {
+    String? beforeItemId,
+  }) async => musicSessionFrom(
+    await _call(
+      () => _core.musicQueueMove(serverKey, channelId, itemId, beforeItemId),
+    ),
+  );
+
+  @override
+  Future<MusicSession> musicRemove(
+    String serverKey,
+    int channelId,
+    List<String> itemIds,
+  ) async => musicSessionFrom(
+    await _call(() => _core.musicQueueRemove(serverKey, channelId, itemIds)),
+  );
+
+  @override
+  Future<MusicSession> musicClear(String serverKey, int channelId) async =>
+      musicSessionFrom(
+        await _call(() => _core.musicQueueClear(serverKey, channelId)),
+      );
+
+  @override
+  void setMusicListening(MusicListening listening) => _now(
+    () => _core.musicSetListening(
+      MusicListening.volumeToGain(listening.volume),
+      listening.muted,
+      listening.duckWhileTalking,
+    ),
+  );
+
+  @override
+  Future<String?> musicArtwork(
+    String serverKey,
+    String artworkId,
+    int size,
+  ) async {
+    if (artworkId.isEmpty) return null;
+    try {
+      return await _call(() => _core.musicArtwork(serverKey, artworkId, size));
+    } on RepoException {
+      return null;
+    }
+  }
+
+  @override
+  Future<NetworkInfo> setDnsProvider(
+    String serverKey,
+    DnsProviderKind kind,
+    String token,
+  ) async => networkInfoFrom(
+    await _call(() => _core.setDnsProvider(serverKey, kind.wire, token)),
+  );
+
+  @override
+  Future<List<DomainCheck>> domainChecks(
+    String serverKey,
+    int domainId,
+  ) async => [
+    for (final check in await _call(
+      () => _core.domainChecks(serverKey, domainId),
+    ))
+      domainCheckFrom(check),
+  ];
 
   // Voice ---------------------------------------------------------------------
 

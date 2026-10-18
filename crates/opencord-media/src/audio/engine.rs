@@ -237,6 +237,35 @@ impl AudioEngine {
         });
     }
 
+    /// A packet of the channel's music (Phase 3 plan §13.3): stereo, like
+    /// a screen share's sound, under its own source key.
+    pub fn receive_music(
+        &self,
+        timestamp: u32,
+        marker: bool,
+        payload: Arc<[u8]>,
+        arrived: Instant,
+    ) {
+        self.receive_stream(
+            crate::transport::MUSIC_SOURCE,
+            timestamp,
+            marker,
+            payload,
+            arrived,
+        );
+    }
+
+    /// The channel's music stream ended.
+    pub fn remove_music(&self) {
+        self.remove_stream(crate::transport::MUSIC_SOURCE);
+    }
+
+    /// This listener's music volume, 0–2 (200 %), and mute (plan §19.8).
+    pub fn set_music_volume(&self, volume: f32, muted: bool) {
+        self.set_stream_volume(crate::transport::MUSIC_SOURCE, volume);
+        self.set_stream_mute(crate::transport::MUSIC_SOURCE, muted);
+    }
+
     /// `user_id`'s screen share is no longer watched here.
     pub fn remove_stream(&self, user_id: i64) {
         self.command(Command::RemoveStream(user_id));

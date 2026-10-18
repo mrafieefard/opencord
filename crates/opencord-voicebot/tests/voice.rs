@@ -28,6 +28,9 @@ impl TestServer {
         config.server.public_host = "127.0.0.1".to_owned();
         config.server.data_dir = dir.path().join("data");
         config.voice.udp_port = 0;
+        config.music.audio_udp_port = 0;
+        config.network.ip_lookup_v4 = String::new();
+        config.network.ip_lookup_v6 = String::new();
         customize(&mut config);
         let handle = server::start(config).await.unwrap();
         Self { handle, _dir: dir }
@@ -154,7 +157,7 @@ async fn two_bots_in_general(
     .unwrap();
     let invite = owner
         .client
-        .create_invite(&owner.server_key, None, None)
+        .create_invite(&owner.server_key, None, None, None)
         .await
         .unwrap();
     let member = Voicebot::connect(&invite.link, None, "Member")
@@ -352,7 +355,7 @@ async fn the_app_learns_who_starts_and_stops_speaking() {
     .unwrap();
     let invite = owner
         .client
-        .create_invite(&owner.server_key, None, None)
+        .create_invite(&owner.server_key, None, None, None)
         .await
         .unwrap();
     // The member runs the app's voice media, without devices.

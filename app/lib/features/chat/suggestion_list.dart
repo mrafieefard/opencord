@@ -30,6 +30,7 @@ class SuggestionList extends StatelessWidget {
     MemberSuggestion() => 'Members',
     ChannelSuggestion() => 'Channels',
     EmojiSuggestion() => 'Emoji',
+    CommandSuggestion() => 'Commands',
     null => '',
   };
 
@@ -125,6 +126,30 @@ class _SuggestionRow extends StatelessWidget {
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: name,
+            ),
+          ),
+        ],
+        CommandSuggestion(:final spec, :final unavailable) => [
+          Expanded(
+            child: Opacity(
+              opacity: unavailable == null ? 1 : 0.5,
+              child: Row(
+                children: [
+                  Text(
+                    '/${spec.name}',
+                    style: OcText.bodyStrong.copyWith(color: colors.text),
+                  ),
+                  const SizedBox(width: OcSpace.s10),
+                  Expanded(
+                    child: Text(
+                      unavailable ?? spec.description,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: muted,
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ],

@@ -1,0 +1,533 @@
+// SPDX-License-Identifier: MPL-2.0
+syntax = "proto3";
+
+package opencord.v1;
+
+import "opencord/v1/network.proto";
+
+// Music (Phase 3 plan Part B). Lavalink nodes play every voice channel's
+// music; members who manage the server add and watch them (§12). Clients
+// never talk to Lavalink, and its passwords never leave the server.
+
+enum LavalinkPriority {
+  LAVALINK_PRIORITY_UNSPECIFIED = 0;
+  LAVALINK_PRIORITY_PREFERRED = 1;
+  LAVALINK_PRIORITY_NORMAL = 2;
+  // Used only when no Preferred or Normal node can play.
+  LAVALINK_PRIORITY_BACKUP = 3;
+}
+
+// §12.5.
+enum LavalinkHealth {
+  LAVALINK_HEALTH_UNSPECIFIED = 0;
+  // Added or enabled, and the first connection is still being made.
+  LAVALINK_HEALTH_CONNECTING = 1;
+  LAVALINK_HEALTH_HEALTHY = 2;
+  // Connected but struggling: see reason.
+  LAVALINK_HEALTH_DEGRADED = 3;
+  LAVALINK_HEALTH_UNAVAILABLE = 4;
+  // Gets no new channels and keeps its own until they move.
+  LAVALINK_HEALTH_DRAINING = 5;
+  LAVALINK_HEALTH_DISABLED = 6;
+}
+
+// What the admin sets for a node (§12.1).
+message LavalinkNodeSettings {
+  string name = 1;
+  string host = 2;
+  uint32 port = 3;
+  // https and wss.
+  bool secure = 4;
+  LavalinkPriority priority = 5;
+  // At most this many Opencord channels at once; 0 for no cap.
+  uint32 max_players = 6;
+  // The bridge accepts only this node's addresses.
+  bool strict_address = 7;
+  bool enabled = 8;
+}
+
+message LavalinkNode {
+  int64 id = 1;
+  LavalinkNodeSettings settings = 2;
+  bool draining = 3;
+  LavalinkHealth health = 4;
+  // Why it is degraded or unavailable, in plain words.
+  string reason = 5;
+  // From the node, once connected.
+  string version = 6;
+  repeated string sources = 7;
+  repeated string plugins = 8;
+  // Opencord's channels on it, and every player it has.
+  uint32 channels = 9;
+  uint32 players = 10;
+  uint32 playing_players = 11;
+  // System load, 0 to 1.
+  float cpu = 12;
+  // The last REST round trip; 0 before the first.
+  uint32 ping_ms = 13;
+  // The last thing that went wrong, kept after it recovers.
+  string last_error = 14;
+  int64 connected_since_ms = 15;
+  // Back after being unavailable: new channels wait until it stays well.
+  bool recovering = 16;
+}
+
+enum LavalinkEventKind {
+  LAVALINK_EVENT_KIND_UNSPECIFIED = 0;
+  LAVALINK_EVENT_KIND_CONNECTED = 1;
+  LAVALINK_EVENT_KIND_DISCONNECTED = 2;
+  LAVALINK_EVENT_KIND_DEGRADED = 3;
+  LAVALINK_EVENT_KIND_RECOVERED = 4;
+  // Channels moved from one node to another.
+  LAVALINK_EVENT_KIND_MOVED = 5;
+}
+
+// A line in the node events (§12.8).
+message LavalinkNodeEvent {
+  int64 node_id = 1;
+  LavalinkEventKind kind = 2;
+  // In plain words, the node named.
+  string text = 3;
+  int64 at_ms = 4;
+}
+
+// What Lavalink needs from this server (§12.8's checklist).
+message LavalinkBridge {
+  // False when music is off in opencord.toml or voice runs on other
+  // nodes only.
+  bool enabled = 1;
+  // wss://<host>:<port>, where Lavalink connects.
+  string url = 2;
+  // Java checks it: an authority's, a tunnel's or a proxy's.
+  bool trusted_certificate = 3;
+  // <public address>:<port>, where Lavalink sends audio; empty while the
+  // public address is unknown.
+  string audio_address = 4;
+  uint32 audio_port = 5;
+  bool audio_listening = 6;
+  MappingState mapping = 7;
+  // What the bridge counted since the server started (§13.3).
+  LavalinkBridgeStats stats = 8;
+  // External voice nodes that run a bridge of their own.
+  repeated string node_bridges = 9;
+}
+
+message LavalinkBridgeStats {
+  // Lavalink connections now.
+  uint32 connections = 1;
+  uint64 packets = 2;
+  uint64 decrypt_failures = 3;
+  // From unknown addresses or sources, too large, or past a full queue.
+  uint64 dropped = 4;
+  // The highest interarrival jitter of the connections now.
+  uint32 jitter_ms = 5;
+}
+
+message LavalinkNodes {
+  repeated LavalinkNode nodes = 1;
+  LavalinkBridge bridge = 2;
+  // Newest first, at most 50.
+  repeated LavalinkNodeEvent events = 3;
+  uint32 channels_playing = 4;
+}
+
+// -> lavalink_nodes. watch starts LavalinkNodeStatus and LavalinkNodeEvent
+// events for this session; false stops them. MANAGE_SERVER.
+message FetchLavalinkNodes {
+  bool watch = 1;
+}
+
+// -> lavalink_nodes. MANAGE_SERVER; at most 20 nodes.
+message CreateLavalinkNode {
+  LavalinkNodeSettings settings = 1;
+  string password = 2;
+}
+
+// -> lavalink_nodes. Fields left out stay as they are.
+message UpdateLavalinkNode {
+  int64 node_id = 1;
+  optional LavalinkNodeSettings settings = 2;
+  optional string password = 3;
+  optional bool draining = 4;
+}
+
+// -> lavalink_nodes.
+message DeleteLavalinkNode {
+  int64 node_id = 1;
+}
+
+// -> ack. Runs the connection test (§12.9); its steps arrive as
+// LavalinkTestProgress to this session.
+message TestLavalinkNode {
+  int64 node_id = 1;
+}
+
+enum LavalinkTestStepKind {
+  LAVALINK_TEST_STEP_KIND_UNSPECIFIED = 0;
+  // REST answers and takes the password.
+  LAVALINK_TEST_STEP_KIND_REST = 1;
+  // The WebSocket says ready.
+  LAVALINK_TEST_STEP_KIND_WEBSOCKET = 2;
+  // A player reaches the audio bridge: sign-in and UDP IP discovery.
+  LAVALINK_TEST_STEP_KIND_BRIDGE = 3;
+}
+
+enum LavalinkTestStepState {
+  LAVALINK_TEST_STEP_STATE_UNSPECIFIED = 0;
+  LAVALINK_TEST_STEP_STATE_WAITING = 1;
+  LAVALINK_TEST_STEP_STATE_RUNNING = 2;
+  LAVALINK_TEST_STEP_STATE_PASSED = 3;
+  LAVALINK_TEST_STEP_STATE_FAILED = 4;
+  // Not run: an earlier step failed.
+  LAVALINK_TEST_STEP_STATE_SKIPPED = 5;
+}
+
+message LavalinkTestStep {
+  LavalinkTestStepKind kind = 1;
+  LavalinkTestStepState state = 2;
+  // What passed, or what failed and how to fix it.
+  string detail = 3;
+}
+
+// To the session that asked for the test, as each step changes.
+message LavalinkTestProgress {
+  int64 node_id = 1;
+  repeated LavalinkTestStep steps = 2;
+  bool done = 3;
+}
+
+// To sessions watching the nodes.
+message LavalinkNodeStatus {
+  LavalinkNode node = 1;
+  // The node was deleted; only node.id is set.
+  bool removed = 2;
+  uint32 channels_playing = 3;
+}
+
+// -> ack. Moves the channels on a node now (§12.7, maintenance): to
+// to_node_id, or each to the best other node. MANAGE_SERVER.
+message MoveLavalinkPlayers {
+  int64 from_node_id = 1;
+  optional int64 to_node_id = 2;
+}
+
+// A track as clients see it (§18.3). Lavalink's encoded track never
+// leaves the server.
+message MusicTrack {
+  string title = 1;
+  // Lavalink's author.
+  string artist = 2;
+  uint64 duration_ms = 3;
+  bool is_stream = 4;
+  bool is_seekable = 5;
+  // Lavalink's sourceName, like "youtube".
+  string source = 6;
+  // "YouTube", "SoundCloud"…
+  string source_display_name = 7;
+  string uri = 8;
+  // For the artwork proxy (L4); empty without artwork.
+  string artwork_id = 9;
+}
+
+message MusicQueueItem {
+  string item_id = 1;
+  MusicTrack track = 2;
+  int64 requester_id = 3;
+  int64 added_at_ms = 4;
+}
+
+enum MusicPlayState {
+  MUSIC_PLAY_STATE_UNSPECIFIED = 0;
+  MUSIC_PLAY_STATE_IDLE = 1;
+  MUSIC_PLAY_STATE_LOADING = 2;
+  MUSIC_PLAY_STATE_PLAYING = 3;
+  MUSIC_PLAY_STATE_PAUSED = 4;
+}
+
+enum MusicRepeat {
+  MUSIC_REPEAT_UNSPECIFIED = 0;
+  MUSIC_REPEAT_OFF = 1;
+  MUSIC_REPEAT_QUEUE = 2;
+  MUSIC_REPEAT_TRACK = 3;
+}
+
+// A voice channel's player (§14.1).
+message MusicSession {
+  int64 channel_id = 1;
+  // Increases with every change.
+  uint64 version = 2;
+  MusicPlayState state = 3;
+  optional MusicQueueItem now_playing = 4;
+  // Upcoming, in play order.
+  repeated MusicQueueItem queue = 5;
+  // Most recent first, at most 50.
+  repeated MusicQueueItem history = 6;
+  // The position was position_ms at server_time_ms; it moves on while
+  // playing.
+  uint64 position_ms = 7;
+  int64 server_time_ms = 8;
+  MusicRepeat repeat = 9;
+  bool shuffle = 10;
+  // Every node is unavailable: paused, the queue kept, retrying.
+  bool waiting_for_node = 11;
+  // Everyone left: paused until someone comes back.
+  bool paused_empty = 12;
+  // Members who voted to skip the current track (Phase 3 plan §14.1, L7).
+  repeated int64 skip_votes = 13;
+  uint32 skip_votes_needed = 14;
+}
+
+// The whole session: to the subscribers when someone joins the channel;
+// otherwise a MusicUpdate (§14.3).
+message MusicSnapshot {
+  MusicSession session = 1;
+}
+
+// What changed since base_version, to the subscribers. A client at another
+// version ignores it when it is older, and otherwise fetches the session
+// (FetchMusicSession): it missed something.
+message MusicUpdate {
+  int64 channel_id = 1;
+  uint64 base_version = 2;
+  uint64 version = 3;
+  // The rest of the session, small enough to send each time.
+  MusicPlayState state = 4;
+  uint64 position_ms = 5;
+  int64 server_time_ms = 6;
+  MusicRepeat repeat = 7;
+  bool shuffle = 8;
+  bool waiting_for_node = 9;
+  bool paused_empty = 10;
+  repeated int64 skip_votes = 11;
+  uint32 skip_votes_needed = 12;
+  // Set when another item plays, or none.
+  optional MusicNowPlayingChange now_playing = 13;
+  MusicListChange queue = 14;
+  MusicListChange history = 15;
+}
+
+message MusicNowPlayingChange {
+  optional MusicQueueItem item = 1;
+}
+
+// A list's changes by item id: the removals, then the placements in order.
+message MusicListChange {
+  repeated string removed = 1;
+  repeated MusicListPlacement placed = 2;
+}
+
+message MusicListPlacement {
+  string item_id = 1;
+  // A new item comes whole; one already in the list moves by id.
+  optional MusicQueueItem item = 2;
+  // Placed before this item; none: at the end.
+  optional string before_item_id = 3;
+}
+
+// -> music_session. The session now, without subscribing: for a client that
+// missed an update. Can see the channel.
+message FetchMusicSession {
+  int64 channel_id = 1;
+}
+
+// What everyone who can see a channel hears about its music, for the
+// now-playing card (§14.3).
+message MusicNowPlaying {
+  int64 channel_id = 1;
+  string title = 2;
+  string artist = 3;
+  string artwork_id = 4;
+  bool playing = 5;
+  // Nothing plays any more.
+  bool ended = 6;
+  // "YouTube", "SoundCloud"…
+  string source_display_name = 7;
+}
+
+// A short activity line for the music panel (§14.4).
+message MusicNotice {
+  int64 channel_id = 1;
+  string text = 2;
+  int64 at_ms = 3;
+}
+
+// -> music_session. Starts or stops snapshots for this session; users
+// connected to the channel get them anyway. Can see the channel.
+message MusicSubscribe {
+  int64 channel_id = 1;
+  bool subscribe = 2;
+}
+
+message MusicSearchResult {
+  // Opaque; good for 15 minutes, for this user only.
+  string result_id = 1;
+  MusicTrack track = 2;
+}
+
+message MusicPlaylist {
+  string name = 1;
+  // Its tracks' results, up to the playlist limit.
+  repeated string result_ids = 2;
+}
+
+// -> music_search_results. MUSIC_ADD.
+message MusicSearch {
+  int64 channel_id = 1;
+  // Words, or a link.
+  string query = 2;
+  // youtube_music, youtube, soundcloud…; empty for the default.
+  string source = 3;
+}
+
+message MusicSearchResults {
+  repeated MusicSearchResult results = 1;
+  optional MusicPlaylist playlist = 2;
+}
+
+enum MusicPlacement {
+  MUSIC_PLACEMENT_UNSPECIFIED = 0;
+  // At the end, or before before_item_id.
+  MUSIC_PLACEMENT_END = 1;
+  MUSIC_PLACEMENT_NEXT = 2;
+  // Replaces what plays.
+  MUSIC_PLACEMENT_NOW = 3;
+}
+
+// -> music_session. MUSIC_ADD; a position, NEXT or NOW need
+// MUSIC_MANAGE_QUEUE. Search results, or tracks from the channel's
+// history ("Add again"), by their item ids.
+message MusicEnqueue {
+  int64 channel_id = 1;
+  repeated string result_ids = 2;
+  optional string before_item_id = 3;
+  MusicPlacement placement = 4;
+  repeated string history_item_ids = 5;
+}
+
+enum MusicAction {
+  MUSIC_ACTION_UNSPECIFIED = 0;
+  MUSIC_ACTION_PAUSE = 1;
+  MUSIC_ACTION_RESUME = 2;
+  MUSIC_ACTION_NEXT = 3;
+  MUSIC_ACTION_PREVIOUS = 4;
+  MUSIC_ACTION_SEEK = 5;
+  MUSIC_ACTION_STOP = 6;
+}
+
+// -> music_session. MUSIC_CONTROL; NEXT on one's own track needs only
+// MUSIC_ADD; STOP needs MUSIC_MANAGE. With expected_item_id, nothing
+// happens when another item plays now (MUSIC_STALE).
+message MusicPlayback {
+  int64 channel_id = 1;
+  MusicAction action = 2;
+  optional uint64 position_ms = 3;
+  optional string expected_item_id = 4;
+}
+
+// -> music_session. MUSIC_CONTROL.
+message MusicSetMode {
+  int64 channel_id = 1;
+  optional MusicRepeat repeat = 2;
+  optional bool shuffle = 3;
+}
+
+// -> music_session. Puts the item before another, or at the end.
+// MUSIC_MANAGE_QUEUE.
+message MusicQueueMove {
+  int64 channel_id = 1;
+  string item_id = 2;
+  optional string before_item_id = 3;
+}
+
+// -> music_session. Own items with MUSIC_ADD; others need
+// MUSIC_MANAGE_QUEUE.
+message MusicQueueRemove {
+  int64 channel_id = 1;
+  repeated string item_ids = 2;
+}
+
+// -> music_session. MUSIC_MANAGE_QUEUE.
+message MusicQueueClear {
+  int64 channel_id = 1;
+}
+
+// -> music_session. Connected, vote skip enabled (Phase 3 plan §18.1).
+message MusicVoteSkip {
+  int64 channel_id = 1;
+  string expected_item_id = 2;
+}
+
+// Server settings → Music (§16.2).
+message MusicSettings {
+  bool enabled = 1;
+  // Search sources members may use; empty for every available one.
+  repeated string enabled_sources = 2;
+  string default_source = 3;
+  bool allow_links = 4;
+  bool allow_streams = 5;
+  // 0 for no limit.
+  uint64 max_track_ms = 6;
+  uint32 max_tracks_per_member = 7;
+  uint32 max_playlist_tracks = 8;
+  uint32 queue_limit = 9;
+  bool vote_skip = 10;
+  uint32 vote_skip_percent = 11;
+  uint32 stop_after_empty_s = 12;
+  uint32 disconnect_after_idle_s = 13;
+  // "primary", or an active domain with a trusted certificate.
+  string bridge_domain = 14;
+  // Search sources at least one healthy node offers now.
+  repeated string available_sources = 15;
+  // Music is on in opencord.toml and runs on this server.
+  bool supported = 16;
+  // Supported, enabled, and with a Lavalink node added: members see the
+  // music buttons (§19.1).
+  bool configured = 17;
+}
+
+// -> music_settings. Anyone.
+message FetchMusicSettings {}
+
+// -> music_settings. MUSIC_MANAGE. Fields left out stay as they are.
+message UpdateMusicSettings {
+  optional bool enabled = 1;
+  optional StringList enabled_sources = 2;
+  optional string default_source = 3;
+  optional bool allow_links = 4;
+  optional bool allow_streams = 5;
+  optional uint64 max_track_ms = 6;
+  optional uint32 max_tracks_per_member = 7;
+  optional uint32 max_playlist_tracks = 8;
+  optional uint32 queue_limit = 9;
+  optional bool vote_skip = 10;
+  optional uint32 vote_skip_percent = 11;
+  optional uint32 stop_after_empty_s = 12;
+  optional uint32 disconnect_after_idle_s = 13;
+  optional string bridge_domain = 14;
+}
+
+// To everyone.
+message MusicSettingsUpdate {
+  MusicSettings settings = 1;
+}
+
+message MusicBlock {
+  int64 user_id = 1;
+  string reason = 2;
+  int64 blocked_by = 3;
+  int64 created_at_ms = 4;
+}
+
+message MusicBlocks {
+  repeated MusicBlock blocks = 1;
+}
+
+// -> music_blocks. MUSIC_MANAGE.
+message FetchMusicBlocks {}
+
+// -> music_blocks. MUSIC_MANAGE.
+message MusicBlockMember {
+  int64 user_id = 1;
+  bool blocked = 2;
+  string reason = 3;
+}

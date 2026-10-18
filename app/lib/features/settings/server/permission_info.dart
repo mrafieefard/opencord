@@ -199,6 +199,31 @@ const permissionGroups = <(String, List<PermissionInfo>)>[
     ],
   ),
   (
+    'Music',
+    [
+      PermissionInfo(
+        Permissions.musicAdd,
+        'Add music',
+        'Search and add tracks; remove or skip their own',
+      ),
+      PermissionInfo(
+        Permissions.musicControl,
+        'Control playback',
+        'Pause, resume, seek, skip, repeat and shuffle',
+      ),
+      PermissionInfo(
+        Permissions.musicManageQueue,
+        'Manage the queue',
+        "Reorder, remove anyone's tracks, clear, play next and play now",
+      ),
+      PermissionInfo(
+        Permissions.musicManage,
+        'Manage music',
+        'Stop the player, block members from music, and music settings',
+      ),
+    ],
+  ),
+  (
     'Advanced',
     [
       PermissionInfo(

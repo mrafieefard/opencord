@@ -31,6 +31,8 @@ pub struct Server {
     pub user_id: Option<i64>,
     /// Pinned certificate fingerprint (lowercase hex), if any.
     pub fingerprint: Option<String>,
+    /// Its domains as `host:port`, the primary first (Phase 3 plan §7.5).
+    pub addresses: Vec<String>,
 }
 
 /// A pinned certificate.
@@ -158,13 +160,20 @@ pub struct Message {
     pub edited_at_ms: Option<i64>,
     /// Set on messages this client sent, to match pending ones.
     pub nonce: Option<String>,
+    /// A command's public result: the command run, by the author.
+    pub command: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Invite {
     pub code: String,
-    /// `opencord://host:port/invite/CODE#fp=...`, ready to share.
+    /// `opencord://host:port/invite/CODE#fp=...`, ready to share; without
+    /// the fingerprint through a domain with an authority's certificate.
     pub link: String,
+    /// `https://host[:port]/invite/CODE`, for a browser, through a domain.
+    pub web_link: Option<String>,
+    /// The domain the links use, if one does.
+    pub domain_id: Option<i64>,
     pub created_by: Option<i64>,
     pub created_at_ms: i64,
     pub max_uses: Option<u32>,
@@ -340,6 +349,30 @@ pub struct ReadySnapshot {
     pub voice_settings: VoiceSettings,
     /// This server's soundboard.
     pub soundboard_sounds: Vec<SoundboardSound>,
+    /// Where the server is reached (Phase 3 plan §7.5).
+    pub addresses: ServerAddresses,
+    /// The chat commands this user may see (Phase 3 plan §17.1).
+    pub commands: CommandList,
+}
+
+/// One address a server is reached at.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ConnectAddress {
+    pub host: String,
+    pub port: u32,
+    /// Checked like a website, by its certificate authority.
+    pub trusted_certificate: bool,
+    /// The domain's id; 0 for the IP address.
+    pub domain_id: i64,
+}
+
+/// Where a server is reached: its active domains (the primary first) and
+/// its public IP address.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct ServerAddresses {
+    pub primary: Option<ConnectAddress>,
+    pub domains: Vec<ConnectAddress>,
+    pub ip: Option<ConnectAddress>,
 }
 
 /// One of a server's soundboard sounds (Phase 2 plan §11).
@@ -517,6 +550,337 @@ pub enum CoreEventPayload {
     /// A sound played in a voice channel this device is connected to on
     /// that server.
     VoiceChannelEffect(SoundEffect),
+    /// Where the server is reached changed.
+    ServerAddressesUpdate(ServerAddresses),
+    /// Domains & network changed, while this session watches it.
+    NetworkStatus(NetworkInfo),
+    ServerNotice(ServerNotice),
+    /// A Lavalink node changed, while this session watches them.
+    LavalinkNodeStatus {
+        node: LavalinkNode,
+        channels_playing: u32,
+    },
+    LavalinkNodeRemoved {
+        node_id: i64,
+        channels_playing: u32,
+    },
+    LavalinkNodeEvent(LavalinkNodeEvent),
+    /// A connection test this session started moved on.
+    LavalinkTestProgress(LavalinkTestProgress),
+    /// The music settings changed.
+    MusicSettingsUpdate(MusicSettings),
+    /// A voice channel's player changed: to those connected to it and
+    /// those who subscribed.
+    MusicSession(MusicSession),
+    /// What plays in a channel, to everyone who can see it.
+    MusicNowPlaying(MusicNowPlaying),
+    MusicNotice(MusicNotice),
+    /// The commands members can use changed.
+    CommandsUpdate(CommandList),
+    /// A command's reply only this device sees.
+    EphemeralMessage(EphemeralMessage),
+}
+
+/// Where the server is reached from the internet (Phase 3 plan §5.1).
+/// Addresses are empty when unknown.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PublicAddress {
+    /// In use: the override when there is one, else what was detected.
+    pub ipv4: String,
+    pub ipv6: String,
+    pub detected_ipv4: String,
+    pub detected_ipv6: String,
+    pub override_ipv4: String,
+    pub override_ipv6: String,
+    pub auto_detect: bool,
+    /// When detection last succeeded; 0 for never.
+    pub detected_at_ms: i64,
+    /// Why the last detection failed, if it did.
+    pub detect_error: String,
+    pub has_ipv6: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PortPurpose {
+    Main,
+    Voice,
+    Music,
+    AcmeHttp,
+    LocalProxy,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PortProtocol {
+    Tcp,
+    Udp,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PortState {
+    Unknown,
+    Listening,
+    Off,
+    Free,
+    InUse,
+    NotPermitted,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MappingState {
+    NotUsed,
+    Mapped,
+    Failed,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PortStatus {
+    pub purpose: PortPurpose,
+    pub protocol: PortProtocol,
+    pub port: u32,
+    pub state: PortState,
+    pub mapping: MappingState,
+    pub mapping_error: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NetworkSettings {
+    /// The main port from the next start; 0 keeps the configured one.
+    pub main_port: u32,
+    pub upnp_enabled: bool,
+    pub local_listener_port: u32,
+    pub trusted_proxies: Vec<String>,
+    pub dns_resolvers: Vec<String>,
+    pub acme_staging: bool,
+}
+
+/// Absent fields stay unchanged; `main_port` 0 goes back to the configured
+/// port.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct NetworkSettingsChanges {
+    pub main_port: Option<u32>,
+    pub upnp_enabled: Option<bool>,
+    pub local_listener_port: Option<u32>,
+    pub trusted_proxies: Option<Vec<String>>,
+    pub dns_resolvers: Option<Vec<String>>,
+    pub acme_staging: Option<bool>,
+}
+
+/// Domains & network, as the owner sees it (Phase 3 plan §8).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NetworkInfo {
+    pub public_address: PublicAddress,
+    pub ports: Vec<PortStatus>,
+    pub settings: NetworkSettings,
+    /// The main port in use now.
+    pub listening_port: u32,
+    /// Whether `settings.main_port` can be used, when it differs.
+    pub next_main_port: PortState,
+    pub upnp_gateway: String,
+    pub upnp_external_ip: String,
+    pub upnp_error: String,
+    /// The domains attached, in the order they were added.
+    pub domains: Vec<Domain>,
+    /// DNS providers connected, for the DNS challenge.
+    pub dns_providers: Vec<DnsProvider>,
+    pub acme: AcmeAccount,
+    pub tunnel: TunnelStatus,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TunnelKind {
+    /// A random *.trycloudflare.com address; for testing.
+    Quick,
+    /// The owner's tunnel, by its token.
+    Named,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TunnelState {
+    Off,
+    Starting,
+    Running,
+    /// cloudflared stopped; it starts again after a pause.
+    Restarting,
+    /// cloudflared cannot run.
+    Failed,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TunnelStatus {
+    pub state: TunnelState,
+    pub kind: Option<TunnelKind>,
+    /// The tunnel's domain; a quick tunnel's once Cloudflare gave it.
+    pub hostname: String,
+    pub domain_id: i64,
+    pub error: String,
+    pub restarts: u32,
+    /// The cloudflared found; empty when there is none.
+    pub cloudflared_version: String,
+    /// Downloading cloudflared now.
+    pub installing: bool,
+}
+
+impl Default for TunnelStatus {
+    fn default() -> Self {
+        Self {
+            state: TunnelState::Off,
+            kind: None,
+            hostname: String::new(),
+            domain_id: 0,
+            error: String::new(),
+            restarts: 0,
+            cloudflared_version: String::new(),
+            installing: false,
+        }
+    }
+}
+
+/// A connected DNS provider; its token never leaves the server.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DnsProvider {
+    /// cloudflare, duckdns or desec.
+    pub kind: String,
+    /// The token's last characters, like `••••abcd`.
+    pub masked: String,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct AcmeAccount {
+    /// An account exists with the CA in use.
+    pub exists: bool,
+    pub email: String,
+    /// The subscriber agreement to accept before the first certificate.
+    pub terms_url: String,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CertificateState {
+    None,
+    Requesting,
+    Valid,
+    /// Valid, but renewing it fails.
+    RenewalFailed,
+    /// None; the last request failed.
+    Failed,
+    /// The tunnel's or the proxy's.
+    Provided,
+    Expired,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CertificateStep {
+    Account,
+    Order,
+    Challenge,
+    Validation,
+    Issuing,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CertificateStatus {
+    pub state: CertificateState,
+    pub issuer: String,
+    pub not_after_ms: i64,
+    /// From Let's Encrypt's test environment: kept, not served.
+    pub test: bool,
+    /// The owner's own: not renewed by the server.
+    pub uploaded: bool,
+    /// While requesting.
+    pub step: Option<CertificateStep>,
+    /// Why the last request or renewal failed.
+    pub error: String,
+    /// When it may be tried again, after too many failures; 0 when it may.
+    pub retry_at_ms: i64,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DomainKind {
+    /// The owner's own domain, pointed here with A/AAAA records.
+    Own,
+    /// A DuckDNS or deSEC name Opencord keeps pointed here.
+    FreeSubdomain,
+    /// Cloudflare Tunnel.
+    Tunnel,
+    /// Caddy, Nginx, Traefik, ngrok and the like.
+    ReverseProxy,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DomainStatus {
+    Pending,
+    Verified,
+    /// Verified once; its checks fail since `problem_since_ms`.
+    DnsProblem,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CheckResult {
+    Verified,
+    PointsElsewhere,
+    NoRecord,
+    CloudflareProxied,
+    PartlyCorrect,
+    Failed,
+    ConfirmedByOwner,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DomainCheck {
+    pub result: CheckResult,
+    pub message: String,
+    pub note: String,
+    pub found: Vec<String>,
+    pub checked_at_ms: i64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Domain {
+    pub id: i64,
+    pub hostname: String,
+    pub kind: DomainKind,
+    pub public_port: u32,
+    pub status: DomainStatus,
+    pub active: bool,
+    pub primary: bool,
+    pub problem_since_ms: i64,
+    pub last_check: Option<DomainCheck>,
+    /// A check is running now.
+    pub checking: bool,
+    /// People who connected through it in the last 24 hours.
+    pub users_24h: u32,
+    pub created_at_ms: i64,
+    pub deactivated_at_ms: i64,
+    /// Clients check it by its certificate authority.
+    pub trusted_certificate: bool,
+    pub certificate: CertificateStatus,
+}
+
+/// What to change about a domain; absent fields stay.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct DomainUpdate {
+    pub active: Option<bool>,
+    /// Only `Some(true)`: makes it the primary.
+    pub primary: Option<bool>,
+    pub public_port: Option<u32>,
+    /// Vouches for a tunnel or proxy domain whose check could not reach it.
+    pub confirm: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum NoticeSeverity {
+    Info,
+    Warning,
+}
+
+/// Something the owner or admins should know: the public address changed,
+/// a domain's DNS broke, a certificate is about to expire.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ServerNotice {
+    /// One per subject: a newer notice replaces an older one.
+    pub key: String,
+    pub severity: NoticeSeverity,
+    pub title: String,
+    pub body: String,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -538,6 +902,30 @@ pub enum ErrorCode {
     SoundTooLong,
     SoundInvalid,
     SoundboardFull,
+    DomainInvalid,
+    DomainExists,
+    DomainLimit,
+    DomainNotVerified,
+    DnsMismatch,
+    AcmeFailed,
+    AcmeRateLimited,
+    PortUnreachable,
+    MusicNotConfigured,
+    MusicNodeUnavailable,
+    MusicNotInChannel,
+    MusicBlocked,
+    MusicQueueFull,
+    MusicMemberLimit,
+    MusicTrackTooLong,
+    MusicStreamsNotAllowed,
+    MusicSourceNotAllowed,
+    MusicLinkNotAllowed,
+    /// Another track plays now than the action expected.
+    MusicStale,
+    CommandUnknown,
+    CommandDisabled,
+    CommandNotAllowedHere,
+    CommandInvalidOptions,
     Unknown,
 }
 
@@ -961,4 +1349,443 @@ pub enum CoreError {
         problem: CameraProblem,
         message: String,
     },
+}
+
+/// Lavalink nodes (Phase 3 plan §12). Their passwords never reach clients.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LavalinkPriority {
+    Preferred,
+    Normal,
+    /// Used only when no Preferred or Normal node can play.
+    Backup,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LavalinkHealth {
+    /// The first connection is still being made.
+    Connecting,
+    Healthy,
+    /// Connected but struggling: see the reason.
+    Degraded,
+    Unavailable,
+    /// Gets no new channels and keeps its own until they move.
+    Draining,
+    Disabled,
+}
+
+/// What an admin sets for a node.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LavalinkNodeSettings {
+    pub name: String,
+    pub host: String,
+    pub port: u32,
+    /// https and wss.
+    pub secure: bool,
+    pub priority: LavalinkPriority,
+    /// At most this many channels at once; 0 for no cap.
+    pub max_players: u32,
+    /// The bridge accepts only this node's addresses.
+    pub strict_address: bool,
+    pub enabled: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LavalinkNode {
+    pub id: i64,
+    pub settings: LavalinkNodeSettings,
+    pub draining: bool,
+    pub health: LavalinkHealth,
+    /// Why it is degraded or unavailable, in plain words.
+    pub reason: String,
+    pub version: String,
+    pub sources: Vec<String>,
+    pub plugins: Vec<String>,
+    /// Opencord's channels on it, and every player it has.
+    pub channels: u32,
+    pub players: u32,
+    pub playing_players: u32,
+    /// System load in percent.
+    pub cpu_percent: u32,
+    pub ping_ms: u32,
+    /// The last thing that went wrong, kept after it recovers.
+    pub last_error: String,
+    pub connected_since_ms: i64,
+    /// Back after being unavailable: new channels wait a little.
+    pub recovering: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LavalinkEventKind {
+    Connected,
+    Disconnected,
+    Degraded,
+    Recovered,
+    Moved,
+}
+
+/// A line in the node events.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LavalinkNodeEvent {
+    pub node_id: i64,
+    pub kind: LavalinkEventKind,
+    pub text: String,
+    pub at_ms: i64,
+}
+
+/// What Lavalink needs from this server.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LavalinkBridge {
+    /// False when music is off on the server.
+    pub enabled: bool,
+    /// wss://host:port, where Lavalink connects.
+    pub url: String,
+    pub trusted_certificate: bool,
+    /// address:port, where Lavalink sends audio; empty while unknown.
+    pub audio_address: String,
+    pub audio_port: u32,
+    pub audio_listening: bool,
+    pub mapping: MappingState,
+    /// Lavalink connections now, and what came since the server started.
+    pub connections: u32,
+    pub packets: u64,
+    pub decrypt_failures: u64,
+    pub dropped: u64,
+    pub jitter_ms: u32,
+    /// External voice nodes' bridges, as host:port.
+    pub node_bridges: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LavalinkNodes {
+    pub nodes: Vec<LavalinkNode>,
+    pub bridge: LavalinkBridge,
+    /// Newest first.
+    pub events: Vec<LavalinkNodeEvent>,
+    pub channels_playing: u32,
+}
+
+/// Changes to a node; what is `None` stays.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct LavalinkNodeChanges {
+    pub settings: Option<LavalinkNodeSettings>,
+    pub password: Option<String>,
+    pub draining: Option<bool>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LavalinkTestStepKind {
+    /// REST answers and takes the password.
+    Rest,
+    /// The WebSocket says ready.
+    Websocket,
+    /// A player reaches the audio bridge.
+    Bridge,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LavalinkTestStepState {
+    Waiting,
+    Running,
+    Passed,
+    Failed,
+    /// Not run: an earlier step failed.
+    Skipped,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LavalinkTestStep {
+    pub kind: LavalinkTestStepKind,
+    pub state: LavalinkTestStepState,
+    /// What passed, or what failed and how to fix it.
+    pub detail: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LavalinkTestProgress {
+    pub node_id: i64,
+    pub steps: Vec<LavalinkTestStep>,
+    pub done: bool,
+}
+
+/// Server settings → Music (Phase 3 plan §16.2).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MusicSettings {
+    pub enabled: bool,
+    /// Search sources members may use; empty for every available one.
+    pub enabled_sources: Vec<String>,
+    pub default_source: String,
+    pub allow_links: bool,
+    pub allow_streams: bool,
+    /// 0 for no limit.
+    pub max_track_ms: u64,
+    pub max_tracks_per_member: u32,
+    pub max_playlist_tracks: u32,
+    pub queue_limit: u32,
+    pub vote_skip: bool,
+    pub vote_skip_percent: u32,
+    pub stop_after_empty_s: u32,
+    pub disconnect_after_idle_s: u32,
+    /// "primary", or an active domain with a trusted certificate.
+    pub bridge_domain: String,
+    /// Search sources at least one healthy node offers now.
+    pub available_sources: Vec<String>,
+    /// Music is on in the server's configuration file and runs there.
+    pub supported: bool,
+    /// Supported, enabled, and with a Lavalink node: members see music.
+    pub configured: bool,
+}
+
+/// Changes to the music settings; what is `None` stays.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct MusicSettingsChanges {
+    pub enabled: Option<bool>,
+    pub enabled_sources: Option<Vec<String>>,
+    pub default_source: Option<String>,
+    pub allow_links: Option<bool>,
+    pub allow_streams: Option<bool>,
+    pub max_track_ms: Option<u64>,
+    pub max_tracks_per_member: Option<u32>,
+    pub max_playlist_tracks: Option<u32>,
+    pub queue_limit: Option<u32>,
+    pub vote_skip: Option<bool>,
+    pub vote_skip_percent: Option<u32>,
+    pub stop_after_empty_s: Option<u32>,
+    pub disconnect_after_idle_s: Option<u32>,
+    pub bridge_domain: Option<String>,
+}
+
+/// A member blocked from music.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MusicBlock {
+    pub user_id: i64,
+    pub reason: String,
+    pub blocked_by: i64,
+    pub created_at_ms: i64,
+}
+
+/// A track as the server shows it (Phase 3 plan §18.3); never its encoded
+/// form, which stays on the server.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MusicTrack {
+    pub title: String,
+    pub artist: String,
+    /// 0 for streams.
+    pub duration_ms: u64,
+    pub is_stream: bool,
+    pub is_seekable: bool,
+    /// Lavalink's source name, like "youtube".
+    pub source: String,
+    /// "YouTube", "SoundCloud"…
+    pub source_display_name: String,
+    pub uri: String,
+    /// For `music_artwork`; empty without artwork.
+    pub artwork_id: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MusicSearchResult {
+    /// What to add; good for 15 minutes, for this user only.
+    pub result_id: String,
+    pub track: MusicTrack,
+}
+
+/// A playlist a link loaded, shown as one card with "Add all".
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MusicPlaylist {
+    pub name: String,
+    pub result_ids: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MusicSearchResults {
+    pub results: Vec<MusicSearchResult>,
+    pub playlist: Option<MusicPlaylist>,
+}
+
+/// A track in a channel's queue.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MusicQueueItem {
+    pub item_id: String,
+    pub track: MusicTrack,
+    pub requester_id: i64,
+    pub added_at_ms: i64,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MusicPlayState {
+    Idle,
+    Loading,
+    Playing,
+    Paused,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MusicRepeat {
+    Off,
+    Queue,
+    Track,
+}
+
+/// A voice channel's player (Phase 3 plan §14.1).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MusicSession {
+    pub channel_id: i64,
+    /// Increases with every change.
+    pub version: u64,
+    pub state: MusicPlayState,
+    pub now_playing: Option<MusicQueueItem>,
+    /// Upcoming, in play order.
+    pub queue: Vec<MusicQueueItem>,
+    /// Most recent first.
+    pub history: Vec<MusicQueueItem>,
+    /// What is heard was `position_ms` at `anchor_ms` on this device's
+    /// clock (Unix ms), the server's clock offset and the music's playout
+    /// delay taken into account; it moves on while playing.
+    pub position_ms: u64,
+    pub anchor_ms: i64,
+    pub repeat: MusicRepeat,
+    pub shuffle: bool,
+    /// Every node is unavailable: paused, the queue kept, retrying.
+    pub waiting_for_node: bool,
+    /// Everyone left: paused until someone comes back.
+    pub paused_empty: bool,
+    /// Users who voted to skip the current track.
+    pub skip_votes: Vec<i64>,
+    pub skip_votes_needed: u32,
+}
+
+/// What everyone who can see a channel learns about its music, for the
+/// now-playing card.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MusicNowPlaying {
+    pub channel_id: i64,
+    pub title: String,
+    pub artist: String,
+    pub artwork_id: String,
+    pub playing: bool,
+    /// Nothing plays any more.
+    pub ended: bool,
+    /// "YouTube", "SoundCloud"…
+    pub source_display_name: String,
+}
+
+/// A short activity line for the music panel.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MusicNotice {
+    pub channel_id: i64,
+    pub text: String,
+    pub at_ms: i64,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MusicPlacement {
+    /// At the end, or before `before_item_id`.
+    End,
+    Next,
+    /// Replaces what plays.
+    Now,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MusicAction {
+    Pause,
+    Resume,
+    Next,
+    Previous,
+    Seek,
+    Stop,
+}
+
+/// The kind of value a command option takes (Phase 3 plan §17.1).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CommandOptionKind {
+    Text,
+    Integer,
+    Boolean,
+    Choice,
+    User,
+    Channel,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CommandChoice {
+    /// What the user sees.
+    pub name: String,
+    /// What is sent.
+    pub value: String,
+    /// A track's artwork, for /play's suggestions; empty otherwise.
+    pub artwork_id: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CommandOptionSpec {
+    pub name: String,
+    pub description: String,
+    pub kind: CommandOptionKind,
+    pub required: bool,
+    pub autocomplete: bool,
+    pub choices: Vec<CommandChoice>,
+    /// For integers; both 0 for no bounds.
+    pub min: i64,
+    pub max: i64,
+}
+
+/// A chat command, as the server describes it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CommandSpec {
+    pub name: String,
+    pub description: String,
+    pub options: Vec<CommandOptionSpec>,
+    /// "music".
+    pub feature: String,
+    /// "Control playback".
+    pub permission_summary: String,
+    pub aliases: Vec<String>,
+    /// The permission bits it needs at the least.
+    pub permissions: i64,
+    pub enabled: bool,
+    /// Empty: every channel.
+    pub channel_ids: Vec<i64>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct CommandList {
+    pub commands: Vec<CommandSpec>,
+    /// Results go to the channel, or only to who ran the command.
+    pub results_public: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CommandOptionValue {
+    pub name: String,
+    pub value: String,
+}
+
+/// What running a command did.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CommandOutcome {
+    /// The public result's message.
+    pub message_id: Option<i64>,
+    /// The reply came only to this device, as an `EphemeralMessage`.
+    pub ephemeral: bool,
+}
+
+/// A reply only this device sees; never stored.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct EphemeralMessage {
+    pub channel_id: i64,
+    /// The nonce `command_execute` was given.
+    pub nonce: String,
+    pub content: String,
+}
+
+/// Changes to a command on the Commands page; `None` stays.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct CommandSettingsChanges {
+    /// Empty to change only `results_public`.
+    pub name: String,
+    pub enabled: Option<bool>,
+    /// An empty list for every channel.
+    pub channel_ids: Option<Vec<i64>>,
+    pub results_public: Option<bool>,
 }

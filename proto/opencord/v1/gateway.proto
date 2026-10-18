@@ -3,8 +3,10 @@ syntax = "proto3";
 
 package opencord.v1;
 
+import "opencord/v1/commands.proto";
 import "opencord/v1/events.proto";
 import "opencord/v1/models.proto";
+import "opencord/v1/network.proto";
 import "opencord/v1/requests.proto";
 
 // Every WebSocket binary frame carries exactly one Envelope.
@@ -51,6 +53,13 @@ message Identify {
   optional string invite_code = 5;
   optional string claim_token = 6;
   uint32 protocol_version = 7;
+  // Phase 3: when the client verified the server by a certificate
+  // authority under a name, that name, and the same challenge signed with
+  // the name's binding in place of the certificate (auth.rs). The server
+  // takes it when `signature` does not match its certificate: behind a
+  // tunnel or proxy, the client sees the proxy's.
+  string host = 8;
+  bytes host_signature = 9;
 }
 
 // Re-attaches to an existing session after a dropped connection.
@@ -85,6 +94,13 @@ message Ready {
   repeated SoundboardSound soundboard_sounds = 14;
   VoiceSettings voice_settings = 15;
   MediaToken media_token = 16;
+  // Where the server is reached (Phase 3 plan §7.5).
+  ServerAddresses server_addresses = 17;
+  // The server's clock, Unix ms, as Ready was sent: a first estimate of
+  // the offset that music progress needs (Phase 3 plan §14.3).
+  int64 server_time_ms = 18;
+  // The chat commands this user may see (Phase 3 plan §17.1).
+  Commands commands = 19;
 }
 
 // Sent after the missed events have been replayed.
@@ -96,4 +112,8 @@ message Heartbeat {
   uint64 last_seq = 1;
 }
 
-message HeartbeatAck {}
+message HeartbeatAck {
+  // The server's clock, Unix ms, as the ack was sent: with the round trip,
+  // the client's offset from the server's clock (Phase 3 plan §14.3).
+  int64 server_time_ms = 1;
+}

@@ -35,7 +35,9 @@ const MAX_ICE_FIELD: usize = 256;
 
 static NEXT_CONNECTION_ID: AtomicU64 = AtomicU64::new(1);
 
-pub async fn serve(node: VoiceNode, socket: WebSocket) {
+/// `media_host`: where media goes when the node has no public address of
+/// its own; `None` for the host the client reached it with.
+pub async fn serve(node: VoiceNode, socket: WebSocket, media_host: Option<String>) {
     let (sink, mut stream) = socket.split();
     let (outbound, frames) = mpsc::channel(OUTBOUND_CAPACITY);
     let writer = tokio::spawn(write_frames(sink, frames));
@@ -52,7 +54,7 @@ pub async fn serve(node: VoiceNode, socket: WebSocket) {
         .send(Outbound::Frame(encode(0, hello)))
         .await;
 
-    if let Some(session) = handshake(&node, &mut stream, &connection).await {
+    if let Some(session) = handshake(&node, &mut stream, &connection, media_host).await {
         let code = serve_session(&node, &mut stream, &connection, &session, heartbeat).await;
         node.command(Command::Detached {
             session,
@@ -96,6 +98,7 @@ async fn handshake(
     node: &VoiceNode,
     stream: &mut futures_util::stream::SplitStream<WebSocket>,
     connection: &Connection,
+    media_host: Option<String>,
 ) -> Option<String> {
     let deadline = Instant::now() + HANDSHAKE_TIMEOUT;
     loop {
@@ -116,6 +119,7 @@ async fn handshake(
                 node.command(Command::Identify {
                     identify,
                     connection: connection.clone(),
+                    media_host,
                     reply,
                 });
                 return match answer.await {

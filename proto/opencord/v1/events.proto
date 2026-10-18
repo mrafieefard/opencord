@@ -3,7 +3,10 @@ syntax = "proto3";
 
 package opencord.v1;
 
+import "opencord/v1/commands.proto";
 import "opencord/v1/models.proto";
+import "opencord/v1/music.proto";
+import "opencord/v1/network.proto";
 
 // Events about a channel are only sent to sessions that can view it.
 message Event {
@@ -47,6 +50,34 @@ message Event {
     SoundboardSoundCreate soundboard_sound_create = 71;
     SoundboardSoundUpdate soundboard_sound_update = 72;
     SoundboardSoundDelete soundboard_sound_delete = 73;
+
+    // Phase 3: to sessions watching the network (WatchNetwork).
+    NetworkStatus network_status = 80;
+    // To those it concerns: the owner, or members who manage the server.
+    ServerNotice server_notice = 81;
+    // Where the server is reached changed: to everyone.
+    ServerAddressesUpdate server_addresses_update = 82;
+
+    // Phase 3 music: to sessions watching the Lavalink nodes.
+    LavalinkNodeStatus lavalink_node_status = 90;
+    LavalinkNodeEvent lavalink_node_event = 91;
+    // To the session that started the test.
+    LavalinkTestProgress lavalink_test_progress = 92;
+    // To a channel's subscribers: users connected to it, and sessions that
+    // subscribed.
+    MusicSnapshot music_snapshot = 93;
+    // The same audience, for every change after the first snapshot.
+    MusicUpdate music_update = 97;
+    MusicNotice music_notice = 94;
+    // To everyone who can see the channel.
+    MusicNowPlaying music_now_playing = 95;
+    // To everyone.
+    MusicSettingsUpdate music_settings_update = 96;
+
+    // Chat commands (Phase 3 plan §17).
+    CommandsUpdate commands_update = 100;
+    // Only to the session that ran the command.
+    EphemeralMessage ephemeral_message = 101;
   }
 }
 

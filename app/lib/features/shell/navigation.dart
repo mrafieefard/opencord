@@ -230,6 +230,18 @@ class MemberPanelNotifier extends Notifier<bool> {
     state = !state;
     ref.read(keyValueStoreProvider).write(memberPanelKey, '$state');
   }
+
+  void open() {
+    if (state) return;
+    state = true;
+    ref.read(keyValueStoreProvider).write(memberPanelKey, 'true');
+  }
+
+  void close() {
+    if (!state) return;
+    state = false;
+    ref.read(keyValueStoreProvider).write(memberPanelKey, 'false');
+  }
 }
 
 final memberPanelProvider = NotifierProvider<MemberPanelNotifier, bool>(

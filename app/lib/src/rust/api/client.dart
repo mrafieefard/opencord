@@ -7,7 +7,7 @@ import '../frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 import 'types.dart';
 
-// These functions are ignored because they are not marked as `pub`: `checked_identity`, `client`, `deliver`, `identity_info`, `invalid_input`, `lock_events`, `on_runtime`
+// These functions are ignored because they are not marked as `pub`: `checked_identity`, `client`, `deliver`, `identity_info`, `invalid_input`, `lock_events`, `on_runtime`, `return_large_buffers`
 // These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `Events`
 
 /// Opens local data in `app_data_dir`. Safe to call again (for example
@@ -328,14 +328,18 @@ Future<void> updatePresence({
   status: status,
 );
 
+/// An invite, through `domain_id`'s domain, or the server's primary
+/// domain when it has one (Phase 3 plan §7.6).
 Future<Invite> createInvite({
   required String serverKey,
   int? maxUses,
   int? expiresInS,
+  PlatformInt64? domainId,
 }) => RustLib.instance.api.crateApiClientCreateInvite(
   serverKey: serverKey,
   maxUses: maxUses,
   expiresInS: expiresInS,
+  domainId: domainId,
 );
 
 Future<List<Invite>> fetchInvites({required String serverKey}) =>
@@ -361,6 +365,463 @@ Future<VoiceSettings> updateVoiceSettings({
 }) => RustLib.instance.api.crateApiClientUpdateVoiceSettings(
   serverKey: serverKey,
   changes: changes,
+);
+
+/// Starts or stops `NetworkStatus` events for this session; returns the
+/// network as it is. Owner only (Phase 3 plan §8).
+Future<NetworkInfo> watchNetwork({
+  required String serverKey,
+  required bool watch,
+}) => RustLib.instance.api.crateApiClientWatchNetwork(
+  serverKey: serverKey,
+  watch: watch,
+);
+
+/// How the server finds its public address: detected, or overridden (an
+/// empty override is none).
+Future<NetworkInfo> setPublicAddress({
+  required String serverKey,
+  required bool autoDetect,
+  required String overrideIpv4,
+  required String overrideIpv6,
+}) => RustLib.instance.api.crateApiClientSetPublicAddress(
+  serverKey: serverKey,
+  autoDetect: autoDetect,
+  overrideIpv4: overrideIpv4,
+  overrideIpv6: overrideIpv6,
+);
+
+/// Looks the public address up now.
+Future<NetworkInfo> detectPublicAddress({required String serverKey}) => RustLib
+    .instance
+    .api
+    .crateApiClientDetectPublicAddress(serverKey: serverKey);
+
+Future<NetworkInfo> updateNetworkSettings({
+  required String serverKey,
+  required NetworkSettingsChanges changes,
+}) => RustLib.instance.api.crateApiClientUpdateNetworkSettings(
+  serverKey: serverKey,
+  changes: changes,
+);
+
+/// Attaches a domain to the server, pending its check (Phase 3 plan §6).
+Future<NetworkInfo> addDomain({
+  required String serverKey,
+  required String hostname,
+  required DomainKind kind,
+  int? publicPort,
+}) => RustLib.instance.api.crateApiClientAddDomain(
+  serverKey: serverKey,
+  hostname: hostname,
+  kind: kind,
+  publicPort: publicPort,
+);
+
+Future<NetworkInfo> updateDomain({
+  required String serverKey,
+  required PlatformInt64 domainId,
+  required DomainUpdate update,
+}) => RustLib.instance.api.crateApiClientUpdateDomain(
+  serverKey: serverKey,
+  domainId: domainId,
+  update: update,
+);
+
+Future<NetworkInfo> deleteDomain({
+  required String serverKey,
+  required PlatformInt64 domainId,
+}) => RustLib.instance.api.crateApiClientDeleteDomain(
+  serverKey: serverKey,
+  domainId: domainId,
+);
+
+/// Starts a check of a domain; the result arrives as `NetworkStatus`.
+Future<NetworkInfo> checkDomain({
+  required String serverKey,
+  required PlatformInt64 domainId,
+}) => RustLib.instance.api.crateApiClientCheckDomain(
+  serverKey: serverKey,
+  domainId: domainId,
+);
+
+/// A domain's last checks, newest first.
+Future<List<DomainCheck>> domainChecks({
+  required String serverKey,
+  required PlatformInt64 domainId,
+}) => RustLib.instance.api.crateApiClientDomainChecks(
+  serverKey: serverKey,
+  domainId: domainId,
+);
+
+/// Starts getting a Let's Encrypt certificate for a domain; progress
+/// arrives as `NetworkStatus`. `agree_terms` is needed for the first one.
+Future<NetworkInfo> requestCertificate({
+  required String serverKey,
+  required PlatformInt64 domainId,
+  String? email,
+  required bool agreeTerms,
+}) => RustLib.instance.api.crateApiClientRequestCertificate(
+  serverKey: serverKey,
+  domainId: domainId,
+  email: email,
+  agreeTerms: agreeTerms,
+);
+
+/// The owner's own certificate chain and key, in PEM.
+Future<NetworkInfo> uploadCertificate({
+  required String serverKey,
+  required PlatformInt64 domainId,
+  required String chainPem,
+  required String keyPem,
+}) => RustLib.instance.api.crateApiClientUploadCertificate(
+  serverKey: serverKey,
+  domainId: domainId,
+  chainPem: chainPem,
+  keyPem: keyPem,
+);
+
+/// Connects a DNS provider (cloudflare, duckdns or desec); an empty token
+/// disconnects it.
+Future<NetworkInfo> setDnsProvider({
+  required String serverKey,
+  required String kind,
+  required String token,
+}) => RustLib.instance.api.crateApiClientSetDnsProvider(
+  serverKey: serverKey,
+  kind: kind,
+  token: token,
+);
+
+/// Gets a free subdomain from DuckDNS or deSEC (`provider`: duckdns or
+/// desec); an empty token keeps the one connected.
+Future<NetworkInfo> addFreeSubdomain({
+  required String serverKey,
+  required String provider,
+  required String name,
+  required String token,
+  String? email,
+  required bool agreeTerms,
+}) => RustLib.instance.api.crateApiClientAddFreeSubdomain(
+  serverKey: serverKey,
+  provider: provider,
+  name: name,
+  token: token,
+  email: email,
+  agreeTerms: agreeTerms,
+);
+
+/// Starts a Cloudflare Tunnel; a named one needs its token (empty keeps the
+/// saved one) and hostname.
+Future<NetworkInfo> startTunnel({
+  required String serverKey,
+  required TunnelKind kind,
+  required String token,
+  required String hostname,
+}) => RustLib.instance.api.crateApiClientStartTunnel(
+  serverKey: serverKey,
+  kind: kind,
+  token: token,
+  hostname: hostname,
+);
+
+Future<NetworkInfo> stopTunnel({required String serverKey}) =>
+    RustLib.instance.api.crateApiClientStopTunnel(serverKey: serverKey);
+
+/// cloudflared's last lines of output.
+Future<List<String>> tunnelLog({required String serverKey}) =>
+    RustLib.instance.api.crateApiClientTunnelLog(serverKey: serverKey);
+
+/// Has the server download cloudflared and check its checksum.
+Future<NetworkInfo> installCloudflared({required String serverKey}) =>
+    RustLib.instance.api.crateApiClientInstallCloudflared(serverKey: serverKey);
+
+/// The server's Lavalink nodes; with `watch`, their changes arrive as
+/// events until called again with `watch` false. Needs Manage server.
+Future<LavalinkNodes> lavalinkNodes({
+  required String serverKey,
+  required bool watch,
+}) => RustLib.instance.api.crateApiClientLavalinkNodes(
+  serverKey: serverKey,
+  watch: watch,
+);
+
+Future<LavalinkNodes> createLavalinkNode({
+  required String serverKey,
+  required LavalinkNodeSettings settings,
+  required String password,
+}) => RustLib.instance.api.crateApiClientCreateLavalinkNode(
+  serverKey: serverKey,
+  settings: settings,
+  password: password,
+);
+
+/// Changes a node; `None` fields stay as they are.
+Future<LavalinkNodes> updateLavalinkNode({
+  required String serverKey,
+  required PlatformInt64 nodeId,
+  required LavalinkNodeChanges changes,
+}) => RustLib.instance.api.crateApiClientUpdateLavalinkNode(
+  serverKey: serverKey,
+  nodeId: nodeId,
+  changes: changes,
+);
+
+Future<LavalinkNodes> deleteLavalinkNode({
+  required String serverKey,
+  required PlatformInt64 nodeId,
+}) => RustLib.instance.api.crateApiClientDeleteLavalinkNode(
+  serverKey: serverKey,
+  nodeId: nodeId,
+);
+
+/// Starts a node's connection test; its steps arrive as
+/// `LavalinkTestProgress` events.
+Future<void> testLavalinkNode({
+  required String serverKey,
+  required PlatformInt64 nodeId,
+}) => RustLib.instance.api.crateApiClientTestLavalinkNode(
+  serverKey: serverKey,
+  nodeId: nodeId,
+);
+
+/// Moves the channels on a node now: to `to_node_id`, or each to the best
+/// other node. Needs Manage server.
+Future<LavalinkNodes> moveLavalinkPlayers({
+  required String serverKey,
+  required PlatformInt64 fromNodeId,
+  PlatformInt64? toNodeId,
+}) => RustLib.instance.api.crateApiClientMoveLavalinkPlayers(
+  serverKey: serverKey,
+  fromNodeId: fromNodeId,
+  toNodeId: toNodeId,
+);
+
+/// Runs a chat command typed in `channel_id` (Phase 3 plan §17). An
+/// "only you" reply arrives as an `EphemeralMessage` with `nonce`.
+Future<CommandOutcome> commandExecute({
+  required String serverKey,
+  required PlatformInt64 channelId,
+  required String name,
+  required List<CommandOptionValue> options,
+  required String nonce,
+}) => RustLib.instance.api.crateApiClientCommandExecute(
+  serverKey: serverKey,
+  channelId: channelId,
+  name: name,
+  options: options,
+  nonce: nonce,
+);
+
+/// Up to 10 suggestions for a command's option as typed so far.
+Future<List<CommandChoice>> commandAutocomplete({
+  required String serverKey,
+  required PlatformInt64 channelId,
+  required String name,
+  required String option,
+  required String value,
+}) => RustLib.instance.api.crateApiClientCommandAutocomplete(
+  serverKey: serverKey,
+  channelId: channelId,
+  name: name,
+  option: option,
+  value: value,
+);
+
+/// Every command, on or off, for the Commands page. Needs Manage server.
+Future<CommandList> commandSettings({required String serverKey}) =>
+    RustLib.instance.api.crateApiClientCommandSettings(serverKey: serverKey);
+
+/// Turns a command on or off, chooses where it works, or where results go.
+/// Needs Manage server.
+Future<CommandList> updateCommandSettings({
+  required String serverKey,
+  required CommandSettingsChanges changes,
+}) => RustLib.instance.api.crateApiClientUpdateCommandSettings(
+  serverKey: serverKey,
+  changes: changes,
+);
+
+/// Searches, or loads a link, for a voice channel; `source` empty for the
+/// server's default (Phase 3 plan §15.1). Needs Add music.
+Future<MusicSearchResults> musicSearch({
+  required String serverKey,
+  required PlatformInt64 channelId,
+  required String query,
+  required String source,
+}) => RustLib.instance.api.crateApiClientMusicSearch(
+  serverKey: serverKey,
+  channelId: channelId,
+  query: query,
+  source: source,
+);
+
+/// The channel's player; from now on its changes arrive as
+/// `MusicSession` events even when not connected to it (Phase 3 plan
+/// §14.3). Needs only to see the channel.
+Future<MusicSession> musicSubscribe({
+  required String serverKey,
+  required PlatformInt64 channelId,
+}) => RustLib.instance.api.crateApiClientMusicSubscribe(
+  serverKey: serverKey,
+  channelId: channelId,
+);
+
+/// Stops the changes `music_subscribe` started; those connected to the
+/// channel keep getting them.
+Future<void> musicUnsubscribe({
+  required String serverKey,
+  required PlatformInt64 channelId,
+}) => RustLib.instance.api.crateApiClientMusicUnsubscribe(
+  serverKey: serverKey,
+  channelId: channelId,
+);
+
+/// Adds search results, or tracks from the channel's history by their item
+/// ids ("Add again"): at the end, before `before_item_id`, next or now.
+/// Needs Add music; a position, next and now need Manage the queue.
+Future<MusicSession> musicEnqueue({
+  required String serverKey,
+  required PlatformInt64 channelId,
+  required List<String> resultIds,
+  required List<String> historyItemIds,
+  String? beforeItemId,
+  required MusicPlacement placement,
+}) => RustLib.instance.api.crateApiClientMusicEnqueue(
+  serverKey: serverKey,
+  channelId: channelId,
+  resultIds: resultIds,
+  historyItemIds: historyItemIds,
+  beforeItemId: beforeItemId,
+  placement: placement,
+);
+
+/// Pause, resume, next, previous, seek (to `position_ms`) or stop. With
+/// `expected_item_id`, nothing happens when another item plays by then.
+Future<MusicSession> musicPlayback({
+  required String serverKey,
+  required PlatformInt64 channelId,
+  required MusicAction action,
+  BigInt? positionMs,
+  String? expectedItemId,
+}) => RustLib.instance.api.crateApiClientMusicPlayback(
+  serverKey: serverKey,
+  channelId: channelId,
+  action: action,
+  positionMs: positionMs,
+  expectedItemId: expectedItemId,
+);
+
+/// Repeat and shuffle, shared by everyone in the channel.
+Future<MusicSession> musicSetMode({
+  required String serverKey,
+  required PlatformInt64 channelId,
+  MusicRepeat? repeat,
+  bool? shuffle,
+}) => RustLib.instance.api.crateApiClientMusicSetMode(
+  serverKey: serverKey,
+  channelId: channelId,
+  repeat: repeat,
+  shuffle: shuffle,
+);
+
+/// Puts an item before another, or at the end. Needs Manage the queue.
+Future<MusicSession> musicQueueMove({
+  required String serverKey,
+  required PlatformInt64 channelId,
+  required String itemId,
+  String? beforeItemId,
+}) => RustLib.instance.api.crateApiClientMusicQueueMove(
+  serverKey: serverKey,
+  channelId: channelId,
+  itemId: itemId,
+  beforeItemId: beforeItemId,
+);
+
+/// Removes items: one's own with Add music, others' with Manage the queue.
+Future<MusicSession> musicQueueRemove({
+  required String serverKey,
+  required PlatformInt64 channelId,
+  required List<String> itemIds,
+}) => RustLib.instance.api.crateApiClientMusicQueueRemove(
+  serverKey: serverKey,
+  channelId: channelId,
+  itemIds: itemIds,
+);
+
+/// Needs Manage the queue.
+Future<MusicSession> musicQueueClear({
+  required String serverKey,
+  required PlatformInt64 channelId,
+}) => RustLib.instance.api.crateApiClientMusicQueueClear(
+  serverKey: serverKey,
+  channelId: channelId,
+);
+
+/// Votes to skip the current track when vote skip is enabled (Phase 3 plan §18.1).
+Future<MusicSession> musicVoteSkip({
+  required String serverKey,
+  required PlatformInt64 channelId,
+  required String expectedItemId,
+}) => RustLib.instance.api.crateApiClientMusicVoteSkip(
+  serverKey: serverKey,
+  channelId: channelId,
+  expectedItemId: expectedItemId,
+);
+
+/// This person's music volume (0–2, 200 %), mute, and "Lower music while
+/// people talk", for every server; kept on this device and never sent.
+/// Muted, the voice node stops sending the music (Phase 3 plan §19.8).
+void musicSetListening({
+  required double volume,
+  required bool muted,
+  required bool duckWhileTalking,
+}) => RustLib.instance.api.crateApiClientMusicSetListening(
+  volume: volume,
+  muted: muted,
+  duckWhileTalking: duckWhileTalking,
+);
+
+/// A track's artwork through the server, at 128 or 512 px: the path of a
+/// file kept on this device (Phase 3 plan §15.4).
+Future<String> musicArtwork({
+  required String serverKey,
+  required String artworkId,
+  required int size,
+}) => RustLib.instance.api.crateApiClientMusicArtwork(
+  serverKey: serverKey,
+  artworkId: artworkId,
+  size: size,
+);
+
+/// The music settings, with the search sources available now.
+Future<MusicSettings> musicSettings({required String serverKey}) =>
+    RustLib.instance.api.crateApiClientMusicSettings(serverKey: serverKey);
+
+/// Changes the music settings; `None` fields stay. Needs Manage music.
+Future<MusicSettings> updateMusicSettings({
+  required String serverKey,
+  required MusicSettingsChanges changes,
+}) => RustLib.instance.api.crateApiClientUpdateMusicSettings(
+  serverKey: serverKey,
+  changes: changes,
+);
+
+/// Members blocked from music. Needs Manage music.
+Future<List<MusicBlock>> musicBlocks({required String serverKey}) =>
+    RustLib.instance.api.crateApiClientMusicBlocks(serverKey: serverKey);
+
+/// Blocks a member from music, or unblocks them. Needs Manage music.
+Future<List<MusicBlock>> blockFromMusic({
+  required String serverKey,
+  required PlatformInt64 userId,
+  required bool blocked,
+  required String reason,
+}) => RustLib.instance.api.crateApiClientBlockFromMusic(
+  serverKey: serverKey,
+  userId: userId,
+  blocked: blocked,
+  reason: reason,
 );
 
 /// Joins a voice channel. This device is in at most one voice channel

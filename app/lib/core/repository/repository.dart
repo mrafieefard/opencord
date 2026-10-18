@@ -2,8 +2,13 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:opencord/core/model/channel.dart';
+import 'package:opencord/core/model/commands.dart';
+import 'package:opencord/core/model/lavalink.dart';
 import 'package:opencord/core/model/message.dart';
 import 'package:opencord/core/model/misc.dart';
+import 'package:opencord/core/model/music.dart';
+import 'package:opencord/core/model/music_session.dart';
+import 'package:opencord/core/model/network.dart';
 import 'package:opencord/core/model/permissions.dart';
 import 'package:opencord/core/model/presence.dart';
 import 'package:opencord/core/model/server.dart';
@@ -151,6 +156,11 @@ enum RepoErrorKind {
   soundTooLong,
   soundInvalid,
   soundboardFull,
+
+  /// Music (Phase 3): the track changed before the action arrived; not
+  /// set up or no node to play.
+  musicStale,
+  musicUnavailable,
   unauthorized,
   forbidden,
   notFound,
@@ -375,10 +385,13 @@ abstract interface class OpencordRepository {
 
   Future<void> updatePresence(SelfPresence presence);
 
+  /// Through [domainId]'s domain, or the primary one when the server has
+  /// one (Phase 3 plan §7.6).
   Future<Invite> createInvite(
     String serverKey, {
     Duration? expiresIn,
     int? maxUses,
+    int? domainId,
   });
 
   Future<List<Invite>> fetchInvites(String serverKey);
@@ -395,6 +408,279 @@ abstract interface class OpencordRepository {
   /// Saves the server's voice, video and soundboard settings (Phase 2
   /// plan §5.2); needs Manage server.
   Future<void> updateVoiceSettings(String serverKey, VoiceSettings settings);
+
+  /// Domains & network (Phase 3 plan §8), the owner's only. While watched,
+  /// changes arrive as [NetworkStatusChanged].
+  Future<NetworkInfo> watchNetwork(String serverKey, {required bool watch});
+
+  /// How the public address is found: detected, or set by hand (an empty
+  /// override is none).
+  Future<NetworkInfo> setPublicAddress(
+    String serverKey, {
+    required bool autoDetect,
+    String overrideIpv4 = '',
+    String overrideIpv6 = '',
+  });
+
+  /// Looks the public address up now.
+  Future<NetworkInfo> detectPublicAddress(String serverKey);
+
+  Future<NetworkInfo> updateNetworkSettings(
+    String serverKey,
+    NetworkSettingsChanges changes,
+  );
+
+  /// Attaches a domain, pending its check (Phase 3 plan §6).
+  Future<NetworkInfo> addDomain(
+    String serverKey, {
+    required String hostname,
+    required DomainKind kind,
+    int? publicPort,
+  });
+
+  Future<NetworkInfo> updateDomain(
+    String serverKey,
+    int domainId,
+    DomainUpdate update,
+  );
+
+  Future<NetworkInfo> deleteDomain(String serverKey, int domainId);
+
+  /// Starts a check; its result arrives as [NetworkStatusChanged].
+  Future<NetworkInfo> checkDomain(String serverKey, int domainId);
+
+  /// A domain's last checks, newest first.
+  Future<List<DomainCheck>> domainChecks(String serverKey, int domainId);
+
+  /// Starts getting a Let's Encrypt certificate; progress arrives as
+  /// [NetworkStatusChanged]. [agreeTerms] is needed for the first one.
+  Future<NetworkInfo> requestCertificate(
+    String serverKey,
+    int domainId, {
+    String? email,
+    bool agreeTerms = false,
+  });
+
+  /// The owner's own certificate chain and key, in PEM.
+  Future<NetworkInfo> uploadCertificate(
+    String serverKey,
+    int domainId, {
+    required String chainPem,
+    required String keyPem,
+  });
+
+  /// A free subdomain from DuckDNS or deSEC (plan §9.1): the server points
+  /// it here, keeps it pointed here, checks it and gets its certificate. An
+  /// empty [token] keeps the one connected.
+  Future<NetworkInfo> addFreeSubdomain(
+    String serverKey, {
+    required DnsProviderKind provider,
+    required String name,
+    String token = '',
+    String? email,
+    bool agreeTerms = false,
+  });
+
+  /// Starts a Cloudflare Tunnel (plan §9.2); a named one needs its [token]
+  /// (empty keeps the saved one) and [hostname].
+  Future<NetworkInfo> startTunnel(
+    String serverKey,
+    TunnelKind kind, {
+    String token = '',
+    String hostname = '',
+  });
+
+  Future<NetworkInfo> stopTunnel(String serverKey);
+
+  /// cloudflared's last lines of output.
+  Future<List<String>> tunnelLog(String serverKey);
+
+  /// Has the server download cloudflared, checked by its checksum.
+  Future<NetworkInfo> installCloudflared(String serverKey);
+
+  /// Connects a DNS provider; an empty [token] disconnects it.
+  Future<NetworkInfo> setDnsProvider(
+    String serverKey,
+    DnsProviderKind kind,
+    String token,
+  );
+
+  /// The Lavalink nodes (Phase 3 plan §12); needs Manage server. While
+  /// watched, changes arrive as [LavalinkNodeChanged] and
+  /// [LavalinkNodeEventReceived].
+  Future<LavalinkNodes> lavalinkNodes(String serverKey, {required bool watch});
+
+  Future<LavalinkNodes> createLavalinkNode(
+    String serverKey,
+    LavalinkNodeSettings settings,
+    String password,
+  );
+
+  Future<LavalinkNodes> updateLavalinkNode(
+    String serverKey,
+    int nodeId,
+    LavalinkNodeChanges changes,
+  );
+
+  Future<LavalinkNodes> deleteLavalinkNode(String serverKey, int nodeId);
+
+  /// Starts the connection test; its steps arrive as
+  /// [LavalinkTestProgressed].
+  Future<void> testLavalinkNode(String serverKey, int nodeId);
+
+  /// Moves the channels on a node now: to [toNodeId], or each to the best
+  /// other node. Needs Manage server.
+  Future<LavalinkNodes> moveLavalinkPlayers(
+    String serverKey,
+    int fromNodeId, {
+    int? toNodeId,
+  });
+
+  /// The music settings (Phase 3 plan §16.2). Changes arrive as
+  /// [MusicSettingsChanged].
+  Future<MusicSettings> musicSettings(String serverKey);
+
+  /// Saves what differs from [before] in [after]. Needs Manage music.
+  Future<MusicSettings> updateMusicSettings(
+    String serverKey,
+    MusicSettings before,
+    MusicSettings after,
+  );
+
+  /// Members blocked from music. Needs Manage music.
+  Future<List<MusicBlock>> musicBlocks(String serverKey);
+
+  /// Blocks a member from music, or unblocks them. Needs Manage music.
+  Future<List<MusicBlock>> blockFromMusic(
+    String serverKey,
+    int userId, {
+    required bool blocked,
+    String reason = '',
+  });
+
+  /// Searches, or loads a link, for a voice channel's music (Phase 3 plan
+  /// §15); [source] empty for the server's default. Needs Add music.
+  Future<MusicSearchResults> musicSearch(
+    String serverKey,
+    int channelId,
+    String query, {
+    String source = '',
+  });
+
+  /// The channel's player; its changes come as [MusicSessionChanged] from
+  /// now on, even when not connected to the channel (§14.3).
+  Future<MusicSession> musicSubscribe(String serverKey, int channelId);
+
+  Future<void> musicUnsubscribe(String serverKey, int channelId);
+
+  /// Adds search results, or recently played tracks by their item ids
+  /// ([historyItemIds], "Add again"), at the end, before [beforeItemId],
+  /// next or now. Needs Add music; a position, next and now need Manage
+  /// the queue.
+  Future<MusicSession> musicEnqueue(
+    String serverKey,
+    int channelId,
+    List<String> resultIds, {
+    List<String> historyItemIds = const [],
+    String? beforeItemId,
+    MusicPlacement placement = MusicPlacement.end,
+  });
+
+  Future<MusicSession> musicPause(
+    String serverKey,
+    int channelId, {
+    required bool paused,
+  });
+
+  /// With [expectedItemId], nothing happens when another track plays by
+  /// then ([RepoErrorKind.musicStale]).
+  Future<MusicSession> musicSkip(
+    String serverKey,
+    int channelId, {
+    required bool forward,
+    String? expectedItemId,
+  });
+
+  /// Votes to skip the current track when vote skip is enabled (Phase 3 plan §18.1).
+  Future<MusicSession> musicVoteSkip(
+    String serverKey,
+    int channelId, {
+    required String expectedItemId,
+  });
+
+  Future<MusicSession> musicSeek(
+    String serverKey,
+    int channelId,
+    Duration position, {
+    String? expectedItemId,
+  });
+
+  /// Stops the music and clears the queue. Needs Manage music.
+  Future<MusicSession> musicStop(String serverKey, int channelId);
+
+  /// Repeat and shuffle, shared by everyone in the channel.
+  Future<MusicSession> musicSetMode(
+    String serverKey,
+    int channelId, {
+    MusicRepeat? repeat,
+    bool? shuffle,
+  });
+
+  /// Puts an item before another, or at the end ([beforeItemId] null).
+  Future<MusicSession> musicMove(
+    String serverKey,
+    int channelId,
+    String itemId, {
+    String? beforeItemId,
+  });
+
+  Future<MusicSession> musicRemove(
+    String serverKey,
+    int channelId,
+    List<String> itemIds,
+  );
+
+  Future<MusicSession> musicClear(String serverKey, int channelId);
+
+  /// This person's music volume and mute, on every server; kept on this
+  /// device. Muted, the voice node stops sending the music (§19.8).
+  void setMusicListening(MusicListening listening);
+
+  /// A track's artwork through the server, 128 or 512 px: the path of a
+  /// file on this device, or null when there is none.
+  Future<String?> musicArtwork(String serverKey, String artworkId, int size);
+
+  /// Runs a chat command typed in [channelId] (Phase 3 plan §17). An
+  /// "only you" reply comes as [EphemeralMessageReceived] with [nonce].
+  Future<CommandOutcome> executeCommand(
+    String serverKey,
+    int channelId,
+    String name,
+    Map<String, String> options, {
+    required String nonce,
+  });
+
+  /// Up to 10 suggestions for an option as typed so far.
+  Future<List<CommandChoice>> autocompleteCommand(
+    String serverKey,
+    int channelId,
+    String name,
+    String option,
+    String value,
+  );
+
+  /// Every command, on or off, for the Commands page. Needs Manage server.
+  Future<CommandList> commandSettings(String serverKey);
+
+  /// Turns [name] on or off, keeps it to channels (an empty list for
+  /// every channel), or chooses where results go. Needs Manage server.
+  Future<CommandList> updateCommandSettings(
+    String serverKey, {
+    String name = '',
+    bool? enabled,
+    List<int>? channelIds,
+    bool? resultsPublic,
+  });
 
   Future<void> joinVoice(String serverKey, int channelId);
 

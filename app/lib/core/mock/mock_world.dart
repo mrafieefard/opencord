@@ -1,7 +1,12 @@
+import 'package:opencord/core/mock/mock_commands.dart';
+import 'package:opencord/core/model/commands.dart';
 import 'package:opencord/core/model/stream.dart';
 import 'package:opencord/core/model/channel.dart';
+import 'package:opencord/core/model/lavalink.dart';
 import 'package:opencord/core/model/message.dart';
 import 'package:opencord/core/model/misc.dart';
+import 'package:opencord/core/model/music.dart';
+import 'package:opencord/core/model/network.dart';
 import 'package:opencord/core/model/permissions.dart';
 import 'package:opencord/core/model/presence.dart';
 import 'package:opencord/core/model/server.dart';
@@ -53,6 +58,85 @@ class MockServer {
   final List<Invite> invites = [];
   final List<Ban> bans = [];
   VoiceSettings voiceSettings = const VoiceSettings();
+
+  /// Where the server is reached, and each domain's checks, newest first.
+  ServerAddresses addresses = const ServerAddresses();
+  final Map<int, List<DomainCheck>> domainChecks = {};
+
+  /// The Lavalink nodes (Phase 3 plan §12), and their passwords, which only
+  /// the mock server knows.
+  LavalinkNodes lavalink = const LavalinkNodes(
+    bridge: LavalinkBridge(
+      enabled: true,
+      url: 'wss://chat.example.com:7710',
+      trustedCertificate: true,
+      audioAddress: '203.0.113.10:7712',
+      audioPort: 7712,
+      audioListening: true,
+    ),
+  );
+  final Map<int, String> lavalinkPasswords = {};
+
+  /// Music settings and members blocked from music (Phase 3 plan §16.2).
+  MusicSettings music = const MusicSettings(
+    availableSources: ['youtube_music', 'youtube', 'soundcloud', 'bandcamp'],
+  );
+  final Map<int, MusicBlock> musicBlocks = {};
+
+  /// Every chat command, on or off (Phase 3 plan §17).
+  CommandList commands = CommandList(commands: mockCommandSpecs);
+
+  /// What members can use: enabled, with music set up.
+  CommandList get availableCommands => CommandList(
+    commands: [
+      for (final spec in commands.commands)
+        if (spec.enabled && (spec.feature != 'music' || music.configured)) spec,
+    ],
+    resultsPublic: commands.resultsPublic,
+  );
+
+  /// Domains & network, as the owner sees it (Phase 3).
+  NetworkInfo network = const NetworkInfo(
+    publicAddress: PublicAddress(
+      ipv4: '203.0.113.10',
+      detectedIpv4: '203.0.113.10',
+    ),
+    listeningPort: 7710,
+    ports: [
+      PortStatus(
+        purpose: PortPurpose.main,
+        protocol: PortProtocol.tcp,
+        port: 7710,
+        state: PortState.listening,
+      ),
+      PortStatus(
+        purpose: PortPurpose.voice,
+        protocol: PortProtocol.udp,
+        port: 7711,
+        state: PortState.listening,
+      ),
+      PortStatus(
+        purpose: PortPurpose.music,
+        protocol: PortProtocol.udp,
+        port: 7712,
+        state: PortState.listening,
+      ),
+      PortStatus(
+        purpose: PortPurpose.acmeHttp,
+        protocol: PortProtocol.tcp,
+        port: 80,
+        state: PortState.notPermitted,
+      ),
+      PortStatus(
+        purpose: PortPurpose.localProxy,
+        protocol: PortProtocol.tcp,
+        port: 7719,
+        state: PortState.off,
+      ),
+    ],
+    acme: AcmeAccount(termsUrl: 'https://letsencrypt.org/repository/'),
+    tunnel: TunnelStatus(cloudflaredVersion: '2026.10.0'),
+  );
 
   /// The soundboard, by id.
   final Map<int, Sound> sounds = {};
@@ -141,6 +225,8 @@ class MockServer {
         for (final MapEntry(:key, :value) in readStates.entries)
           if (visible.containsKey(key)) key: value,
       },
+      addresses: addresses,
+      commands: availableCommands,
     );
   }
 }

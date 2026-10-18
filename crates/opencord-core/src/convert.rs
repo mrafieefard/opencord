@@ -3,10 +3,11 @@
 use opencord_proto::v1 as proto;
 
 use crate::api::types::{
-    Ban, Channel, ChannelKind, ChannelPermissions, CoreError, CoreEventPayload, ErrorCode, Invite,
-    Member, Message, OverwriteTargetKind, PermissionOverwrite, Presence, PresenceStatus,
-    ReadySnapshot, Role, ScreenShareResolution, ScreenStream, ServerInfo, SoundEffect,
-    SoundboardSound, StreamSourceKind, User, VoiceSettings, VoiceSettingsChanges, VoiceState,
+    Ban, Channel, ChannelKind, ChannelPermissions, ConnectAddress, CoreError, CoreEventPayload,
+    EphemeralMessage, ErrorCode, Invite, Member, Message, OverwriteTargetKind, PermissionOverwrite,
+    Presence, PresenceStatus, ReadySnapshot, Role, ScreenShareResolution, ScreenStream,
+    ServerAddresses, ServerInfo, SoundEffect, SoundboardSound, StreamSourceKind, User,
+    VoiceSettings, VoiceSettingsChanges, VoiceState,
 };
 use crate::identity::public_key_fingerprint;
 
@@ -211,6 +212,7 @@ pub fn message(message: proto::Message) -> Message {
         created_at_ms: message.created_at_ms,
         edited_at_ms: message.edited_at_ms,
         nonce: message.nonce,
+        command: message.interaction.map(|interaction| interaction.command),
     }
 }
 
@@ -259,10 +261,16 @@ pub fn ban(ban: proto::Ban) -> Ban {
     }
 }
 
-pub fn invite(invite: proto::Invite, link: String) -> Invite {
+pub fn invite(invite: proto::Invite, link: String, web_link: Option<String>) -> Invite {
     Invite {
+        domain_id: invite
+            .address
+            .as_ref()
+            .map(|address| address.domain_id)
+            .filter(|id| *id != 0),
         code: invite.code,
         link,
+        web_link,
         created_by: invite.created_by,
         created_at_ms: invite.created_at_ms,
         max_uses: invite.max_uses,
@@ -309,6 +317,25 @@ pub fn ready(ready: proto::Ready) -> ReadySnapshot {
             .into_iter()
             .map(soundboard_sound)
             .collect(),
+        addresses: server_addresses(ready.server_addresses.unwrap_or_default()),
+        commands: crate::commands::list_from(ready.commands.unwrap_or_default()),
+    }
+}
+
+pub fn server_addresses(addresses: proto::ServerAddresses) -> ServerAddresses {
+    ServerAddresses {
+        primary: addresses.primary.map(connect_address),
+        domains: addresses.domains.into_iter().map(connect_address).collect(),
+        ip: addresses.ip.map(connect_address),
+    }
+}
+
+pub fn connect_address(address: proto::ConnectAddress) -> ConnectAddress {
+    ConnectAddress {
+        host: address.host,
+        port: address.port,
+        trusted_certificate: address.trusted_certificate,
+        domain_id: address.domain_id,
     }
 }
 
@@ -402,6 +429,51 @@ pub fn event(kind: proto::event::Kind, session_id: &str) -> Option<CoreEventPayl
         Kind::SoundboardSoundDelete(event) => CoreEventPayload::SoundboardSoundDelete {
             sound_id: event.sound_id,
         },
+        Kind::NetworkStatus(event) => {
+            CoreEventPayload::NetworkStatus(crate::network::info_from(event.info?))
+        }
+        Kind::ServerNotice(notice) => {
+            CoreEventPayload::ServerNotice(crate::network::notice(notice))
+        }
+        Kind::ServerAddressesUpdate(update) => {
+            CoreEventPayload::ServerAddressesUpdate(server_addresses(update.addresses?))
+        }
+        Kind::LavalinkNodeStatus(status) => {
+            let node = status.node?;
+            if status.removed {
+                CoreEventPayload::LavalinkNodeRemoved {
+                    node_id: node.id,
+                    channels_playing: status.channels_playing,
+                }
+            } else {
+                CoreEventPayload::LavalinkNodeStatus {
+                    node: crate::lavalink::node_from(node),
+                    channels_playing: status.channels_playing,
+                }
+            }
+        }
+        Kind::LavalinkNodeEvent(event) => {
+            CoreEventPayload::LavalinkNodeEvent(crate::lavalink::event_from(event))
+        }
+        Kind::LavalinkTestProgress(progress) => {
+            CoreEventPayload::LavalinkTestProgress(crate::lavalink::test_progress_from(progress))
+        }
+        Kind::MusicSettingsUpdate(update) => {
+            CoreEventPayload::MusicSettingsUpdate(crate::music::settings_from(update.settings?))
+        }
+        Kind::CommandsUpdate(update) => CoreEventPayload::CommandsUpdate(
+            crate::commands::list_from(update.commands.unwrap_or_default()),
+        ),
+        Kind::EphemeralMessage(message) => CoreEventPayload::EphemeralMessage(EphemeralMessage {
+            channel_id: message.channel_id,
+            nonce: message.nonce,
+            content: message.content,
+        }),
+        // With the server's clock: `music::event`.
+        Kind::MusicSnapshot(_)
+        | Kind::MusicUpdate(_)
+        | Kind::MusicNotice(_)
+        | Kind::MusicNowPlaying(_) => return None,
     })
 }
 
@@ -424,6 +496,29 @@ pub fn error_code(code: i32) -> ErrorCode {
         Ok(proto::ErrorCode::SoundTooLong) => ErrorCode::SoundTooLong,
         Ok(proto::ErrorCode::SoundInvalid) => ErrorCode::SoundInvalid,
         Ok(proto::ErrorCode::SoundboardFull) => ErrorCode::SoundboardFull,
+        Ok(proto::ErrorCode::DomainInvalid) => ErrorCode::DomainInvalid,
+        Ok(proto::ErrorCode::DomainExists) => ErrorCode::DomainExists,
+        Ok(proto::ErrorCode::DomainLimit) => ErrorCode::DomainLimit,
+        Ok(proto::ErrorCode::DomainNotVerified) => ErrorCode::DomainNotVerified,
+        Ok(proto::ErrorCode::DnsMismatch) => ErrorCode::DnsMismatch,
+        Ok(proto::ErrorCode::AcmeFailed) => ErrorCode::AcmeFailed,
+        Ok(proto::ErrorCode::AcmeRateLimited) => ErrorCode::AcmeRateLimited,
+        Ok(proto::ErrorCode::PortUnreachable) => ErrorCode::PortUnreachable,
+        Ok(proto::ErrorCode::MusicNotConfigured) => ErrorCode::MusicNotConfigured,
+        Ok(proto::ErrorCode::MusicNodeUnavailable) => ErrorCode::MusicNodeUnavailable,
+        Ok(proto::ErrorCode::MusicNotInChannel) => ErrorCode::MusicNotInChannel,
+        Ok(proto::ErrorCode::MusicBlocked) => ErrorCode::MusicBlocked,
+        Ok(proto::ErrorCode::MusicQueueFull) => ErrorCode::MusicQueueFull,
+        Ok(proto::ErrorCode::MusicMemberLimit) => ErrorCode::MusicMemberLimit,
+        Ok(proto::ErrorCode::MusicTrackTooLong) => ErrorCode::MusicTrackTooLong,
+        Ok(proto::ErrorCode::MusicStreamsNotAllowed) => ErrorCode::MusicStreamsNotAllowed,
+        Ok(proto::ErrorCode::MusicSourceNotAllowed) => ErrorCode::MusicSourceNotAllowed,
+        Ok(proto::ErrorCode::MusicLinkNotAllowed) => ErrorCode::MusicLinkNotAllowed,
+        Ok(proto::ErrorCode::MusicStale) => ErrorCode::MusicStale,
+        Ok(proto::ErrorCode::CommandUnknown) => ErrorCode::CommandUnknown,
+        Ok(proto::ErrorCode::CommandDisabled) => ErrorCode::CommandDisabled,
+        Ok(proto::ErrorCode::CommandNotAllowedHere) => ErrorCode::CommandNotAllowedHere,
+        Ok(proto::ErrorCode::CommandInvalidOptions) => ErrorCode::CommandInvalidOptions,
         _ => ErrorCode::Unknown,
     }
 }

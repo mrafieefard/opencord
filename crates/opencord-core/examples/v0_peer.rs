@@ -78,7 +78,7 @@ async fn run(address: &str, claim: &str, invite_file: &Path) -> Result<(), Failu
         .await?
         .id;
 
-    let invite = client.create_invite(&key, Some(1), None).await?;
+    let invite = client.create_invite(&key, Some(1), None, None).await?;
     // Whole or not at all: the driver starts the app once the file is there.
     let partial = invite_file.with_extension("partial");
     std::fs::write(&partial, &invite.link)?;

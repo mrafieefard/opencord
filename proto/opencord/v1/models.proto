@@ -3,6 +3,8 @@ syntax = "proto3";
 
 package opencord.v1;
 
+import "opencord/v1/network.proto";
+
 // All ids are 64-bit Snowflakes. All timestamps are Unix milliseconds.
 
 message User {
@@ -81,6 +83,13 @@ message Message {
   // Echoed from SendMessage so the sender can match its pending message.
   // Never stored, so it is absent from fetched history.
   optional string nonce = 7;
+  // A command's public result (Phase 3 plan §17.3): who ran which.
+  optional MessageInteraction interaction = 8;
+}
+
+message MessageInteraction {
+  int64 user_id = 1;
+  string command = 2;
 }
 
 message Invite {
@@ -93,6 +102,8 @@ message Invite {
   uint32 uses = 5;
   // Absent means the invite never expires.
   optional int64 expires_at_ms = 6;
+  // The domain its link uses (Phase 3); absent for links by IP address.
+  optional ConnectAddress address = 7;
 }
 
 message Ban {
@@ -148,6 +159,33 @@ enum ErrorCode {
   ERROR_CODE_SOUND_TOO_LONG = 15;
   ERROR_CODE_SOUND_INVALID = 16;
   ERROR_CODE_SOUNDBOARD_FULL = 17;
+  // Phase 3, domains and certificates.
+  ERROR_CODE_DOMAIN_INVALID = 18;
+  ERROR_CODE_DOMAIN_EXISTS = 19;
+  ERROR_CODE_DOMAIN_LIMIT = 20;
+  ERROR_CODE_DOMAIN_NOT_VERIFIED = 21;
+  ERROR_CODE_DNS_MISMATCH = 22;
+  ERROR_CODE_ACME_FAILED = 23;
+  ERROR_CODE_ACME_RATE_LIMITED = 24;
+  ERROR_CODE_PORT_UNREACHABLE = 25;
+  // Phase 3, music (§18.5).
+  ERROR_CODE_MUSIC_NOT_CONFIGURED = 26;
+  ERROR_CODE_MUSIC_NODE_UNAVAILABLE = 27;
+  ERROR_CODE_MUSIC_NOT_IN_CHANNEL = 28;
+  ERROR_CODE_MUSIC_BLOCKED = 29;
+  ERROR_CODE_MUSIC_QUEUE_FULL = 30;
+  ERROR_CODE_MUSIC_MEMBER_LIMIT = 31;
+  ERROR_CODE_MUSIC_TRACK_TOO_LONG = 32;
+  ERROR_CODE_MUSIC_STREAMS_NOT_ALLOWED = 33;
+  ERROR_CODE_MUSIC_SOURCE_NOT_ALLOWED = 34;
+  ERROR_CODE_MUSIC_LINK_NOT_ALLOWED = 35;
+  // Another item plays now than the action expected.
+  ERROR_CODE_MUSIC_STALE = 36;
+  // Chat commands (Phase 3 plan §17.5).
+  ERROR_CODE_COMMAND_UNKNOWN = 37;
+  ERROR_CODE_COMMAND_DISABLED = 38;
+  ERROR_CODE_COMMAND_NOT_ALLOWED_HERE = 39;
+  ERROR_CODE_COMMAND_INVALID_OPTIONS = 40;
 }
 
 message Error {

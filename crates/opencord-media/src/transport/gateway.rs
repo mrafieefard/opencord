@@ -69,10 +69,12 @@ impl GatewayUrl {
     }
 }
 
-/// Opens the WebSocket, pinning `fingerprint` for TLS.
+/// Opens the WebSocket, pinning `fingerprint` for TLS, or, without one,
+/// checking the certificate with `authority` under the URL's host.
 pub async fn open(
     url: &GatewayUrl,
     fingerprint: Option<[u8; 32]>,
+    authority: Option<super::Authority>,
 ) -> Result<Socket, TransportError> {
     let address = (url.address.host.as_str(), url.address.port);
     let tcp = tokio::time::timeout(CONNECT_TIMEOUT, TcpStream::connect(address))
@@ -81,8 +83,18 @@ pub async fn open(
         .map_err(|error| TransportError::Connect(error.to_string()))?;
     let _ = tcp.set_nodelay(true);
     let stream: Box<dyn Io> = if url.tls {
-        let fingerprint = fingerprint.ok_or(TransportError::NoFingerprint)?;
-        Box::new(tls(tcp, &url.address.host, fingerprint).await?)
+        let verifier: Arc<dyn ServerCertVerifier> = match (fingerprint, authority) {
+            (Some(fingerprint), _) => {
+                let provider = rustls::crypto::ring::default_provider();
+                Arc::new(Pinned {
+                    fingerprint,
+                    algorithms: provider.signature_verification_algorithms,
+                })
+            }
+            (None, Some(authority)) => authority,
+            (None, None) => return Err(TransportError::NoFingerprint),
+        };
+        Box::new(tls(tcp, &url.address.host, verifier).await?)
     } else {
         Box::new(tcp)
     };
@@ -102,13 +114,9 @@ pub async fn open(
 async fn tls(
     tcp: TcpStream,
     host: &str,
-    fingerprint: [u8; 32],
+    verifier: Arc<dyn ServerCertVerifier>,
 ) -> Result<tokio_rustls::client::TlsStream<TcpStream>, TransportError> {
     let provider = Arc::new(rustls::crypto::ring::default_provider());
-    let verifier = Arc::new(Pinned {
-        fingerprint,
-        algorithms: provider.signature_verification_algorithms,
-    });
     let config = rustls::ClientConfig::builder_with_provider(provider)
         .with_safe_default_protocol_versions()
         .map_err(|error| TransportError::Connect(error.to_string()))?

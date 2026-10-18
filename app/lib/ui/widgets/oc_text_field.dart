@@ -12,6 +12,8 @@ InputDecoration ocInputDecoration(
   BuildContext context, {
   String? hint,
   IconData? prefixIcon,
+  Widget? prefix,
+  BoxConstraints? prefixConstraints,
   Widget? suffix,
   double radius = OcRadius.input,
   EdgeInsets? padding,
@@ -33,10 +35,13 @@ InputDecoration ocInputDecoration(
           horizontal: OcSpace.s12,
           vertical: OcSpace.s10,
         ),
-    prefixIcon: prefixIcon == null
-        ? null
-        : Icon(prefixIcon, size: OcSize.iconRow, color: colors.textMuted),
-    prefixIconConstraints: const BoxConstraints(minWidth: 36, minHeight: 32),
+    prefixIcon:
+        prefix ??
+        (prefixIcon == null
+            ? null
+            : Icon(prefixIcon, size: OcSize.iconRow, color: colors.textMuted)),
+    prefixIconConstraints:
+        prefixConstraints ?? const BoxConstraints(minWidth: 36, minHeight: 32),
     suffixIcon: suffix,
     suffixIconConstraints: const BoxConstraints(minWidth: 32, minHeight: 32),
     border: shape,
@@ -53,6 +58,8 @@ class OcTextField extends StatelessWidget {
     this.focusNode,
     this.hint,
     this.prefixIcon,
+    this.prefix,
+    this.prefixConstraints,
     this.suffix,
     this.radius = OcRadius.input,
     this.mono = false,
@@ -67,12 +74,15 @@ class OcTextField extends StatelessWidget {
     this.textInputAction,
     this.inputFormatters,
     this.semanticLabel,
+    this.obscure = false,
   });
 
   final TextEditingController? controller;
   final FocusNode? focusNode;
   final String? hint;
   final IconData? prefixIcon;
+  final Widget? prefix;
+  final BoxConstraints? prefixConstraints;
   final Widget? suffix;
   final double radius;
 
@@ -90,6 +100,9 @@ class OcTextField extends StatelessWidget {
   final List<TextInputFormatter>? inputFormatters;
   final String? semanticLabel;
 
+  /// Hides what is typed, for passwords.
+  final bool obscure;
+
   @override
   Widget build(BuildContext context) {
     final colors = context.oc;
@@ -103,6 +116,9 @@ class OcTextField extends StatelessWidget {
       minLines: minLines,
       maxLength: maxLength,
       maxLengthEnforcement: MaxLengthEnforcement.enforced,
+      obscureText: obscure,
+      enableSuggestions: !obscure,
+      autocorrect: !obscure,
       onChanged: onChanged,
       onSubmitted: onSubmitted,
       textInputAction: textInputAction,
@@ -114,6 +130,8 @@ class OcTextField extends StatelessWidget {
         context,
         hint: hint,
         prefixIcon: prefixIcon,
+        prefix: prefix,
+        prefixConstraints: prefixConstraints,
         suffix: suffix,
         radius: radius,
       ).copyWith(counterText: ''),

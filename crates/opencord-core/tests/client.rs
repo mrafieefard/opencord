@@ -34,7 +34,17 @@ impl TestServer {
     async fn restart(self) -> Self {
         let port = self.handle.local_addr.port();
         self.handle.shutdown().await;
-        let handle = server::start(Self::config(&self._dir, port)).await.unwrap();
+        let mut attempts = 0;
+        let handle = loop {
+            match server::start(Self::config(&self._dir, port)).await {
+                Ok(handle) => break handle,
+                Err(_err) if attempts < 50 => {
+                    attempts += 1;
+                    tokio::time::sleep(Duration::from_millis(50)).await;
+                }
+                Err(err) => panic!("could not restart test server: {err:?}"),
+            }
+        };
         Self {
             handle,
             _dir: self._dir,
@@ -48,6 +58,9 @@ impl TestServer {
         config.server.data_dir = dir.path().join("data");
         config.server.name = "Test Server".to_owned();
         config.voice.udp_port = 0;
+        config.music.audio_udp_port = 0;
+        config.network.ip_lookup_v4 = String::new();
+        config.network.ip_lookup_v6 = String::new();
         config
     }
 
@@ -142,7 +155,7 @@ async fn owner_and_member(
     let owner_ready = owner.ready().await;
     let invite = owner
         .client
-        .create_invite(&server.address(), None, None)
+        .create_invite(&server.address(), None, None, None)
         .await
         .unwrap();
     let mut member = TestClient::new("Member");
@@ -470,7 +483,11 @@ async fn a_kicked_member_can_rejoin_with_a_new_invite() {
             _ => None,
         })
         .await;
-    let invite = owner.client.create_invite(&key, None, None).await.unwrap();
+    let invite = owner
+        .client
+        .create_invite(&key, None, None, None)
+        .await
+        .unwrap();
 
     let client = member.client.clone();
     let outcome = tokio::time::timeout(
@@ -1259,7 +1276,7 @@ async fn after_the_computer_sleeps_the_call_comes_back_within_seconds() {
         .unwrap();
     let invite = owner
         .client
-        .create_invite(&relay.address, None, None)
+        .create_invite(&relay.address, None, None, None)
         .await
         .unwrap();
     let link = invite.link.replace(&relay.address, &server.address());
@@ -1271,4 +1288,122 @@ async fn after_the_computer_sleeps_the_call_comes_back_within_seconds() {
         .find(|state| state.user_id == ready.self_user.id)
         .copied();
     assert_eq!(held.and_then(|state| state.channel_id), Some(voice));
+}
+
+/// Joining the channel this device is already in leaves its call alone:
+/// no new token, no reconnection.
+#[tokio::test]
+async fn joining_the_channel_this_device_is_in_keeps_the_call() {
+    let server = TestServer::start().await;
+    let (_owner, owner_ready, member, _) = owner_and_member(&server).await;
+    let mut media = member
+        .client
+        .enable_media(MediaOptions {
+            open_devices: false,
+        })
+        .unwrap();
+    let voice = voice_channel(&owner_ready);
+    member
+        .client
+        .voice_join(&server.address(), voice)
+        .await
+        .unwrap();
+    assert_eq!(
+        states_until_connected(&mut media).await,
+        connecting_to(voice)
+    );
+
+    member
+        .client
+        .voice_join(&server.address(), voice)
+        .await
+        .unwrap();
+
+    let after = tokio::time::timeout(Duration::from_secs(1), media.recv()).await;
+    assert!(
+        !matches!(after, Ok(Some(MediaEvent::ConnectionState { .. }))),
+        "the call reconnected: {after:?}"
+    );
+}
+
+/// A client on its own runtime, so it can die the way a closed app does:
+/// every task and socket at once.
+fn client_on(
+    runtime: &tokio::runtime::Runtime,
+    identity: Identity,
+    dir: tempfile::TempDir,
+) -> TestClient {
+    let (client, events) = Client::new(dir.path(), runtime.handle().clone()).unwrap();
+    client.set_identity(identity.clone(), "Member".to_owned());
+    TestClient {
+        client,
+        events,
+        identity,
+        dir,
+    }
+}
+
+fn own_runtime() -> tokio::runtime::Runtime {
+    tokio::runtime::Builder::new_multi_thread()
+        .worker_threads(2)
+        .enable_all()
+        .build()
+        .unwrap()
+}
+
+/// The app closed while in voice: the server and the node still hold the
+/// old session for their grace periods, and the next launch joins at once.
+#[tokio::test(flavor = "multi_thread")]
+async fn after_the_app_dies_in_voice_the_next_launch_gets_voice_back() {
+    let server = TestServer::start().await;
+    let (_owner, owner_ready, member, _) = owner_and_member(&server).await;
+    let voice = voice_channel(&owner_ready);
+    let (identity, dir) = (member.identity.clone(), member.dir);
+    drop(member.client);
+
+    let first = own_runtime();
+    let mut app = client_on(&first, identity.clone(), dir);
+    app.client.connect_saved_servers();
+    app.ready().await;
+    let mut media = app
+        .client
+        .enable_media(MediaOptions {
+            open_devices: false,
+        })
+        .unwrap();
+    app.client
+        .voice_join(&server.address(), voice)
+        .await
+        .unwrap();
+    assert_eq!(
+        states_until_connected(&mut media).await,
+        connecting_to(voice)
+    );
+
+    // The app is closed while in voice: everything stops at once.
+    let dir = app.dir;
+    drop(media);
+    first.shutdown_background();
+    tokio::time::sleep(Duration::from_millis(300)).await;
+
+    let second = own_runtime();
+    let mut app = client_on(&second, identity, dir);
+    app.client.connect_saved_servers();
+    app.ready().await;
+    let mut media = app
+        .client
+        .enable_media(MediaOptions {
+            open_devices: false,
+        })
+        .unwrap();
+    app.client
+        .voice_join(&server.address(), voice)
+        .await
+        .unwrap();
+    assert_eq!(
+        states_until_connected(&mut media).await,
+        connecting_to(voice)
+    );
+    drop(media);
+    second.shutdown_background();
 }

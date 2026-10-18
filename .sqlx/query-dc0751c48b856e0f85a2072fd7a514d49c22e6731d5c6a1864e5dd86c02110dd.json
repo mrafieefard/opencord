@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO music_blocks (user_id, reason, blocked_by, created_at) VALUES ($1, $2, $3, $4)\n         ON CONFLICT (user_id) DO UPDATE SET reason = excluded.reason,\n             blocked_by = excluded.blocked_by, created_at = excluded.created_at",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 4
+    },
+    "nullable": []
+  },
+  "hash": "dc0751c48b856e0f85a2072fd7a514d49c22e6731d5c6a1864e5dd86c02110dd"
+}
