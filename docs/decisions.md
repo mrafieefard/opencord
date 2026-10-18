@@ -635,3 +635,23 @@ The desktop UI plan's §17.5 never arrived, so where Phase 2 §12 says only what
   - Voice decoding moved to `spawn_blocking`; animation detection runs before the full image decode.
   - `upload_locks` kept an entry for every upload ever made; unused entries are now dropped.
   - Blob retry delays overflowed after weeks of failures (`retry_delay_ms` caps them at 6 hours), and storage error details reached members; they now stay in the log.
+
+## D54: Media uploads: messages, upload settings and role limits (Phase 4 A2, 2026-10-18)
+
+- **Why.** Milestone A2 of media uploads (`docs/superpowers/plans/2026-10-18-media-uploads.md`) puts finished uploads on messages and lets the server's managers set the upload rules. Commits: 3b10a2c, 4f9f05a, d22e7ca.
+- **Messages.**
+  - `SendMessage.attachment_ids` takes up to 10 of the sender's own ready uploads from the same channel. The message keeps their order, and its text may then be empty (`validation::message_content_or_empty`).
+  - Attach Files, or Send Voice Messages for a voice message, is checked again when the message is sent, not only when the upload starts.
+  - A voice message stands alone: one attachment and no text, also after an edit.
+  - `db::attachments::mark_sent` moves an upload only while it is still ready, the sender's and in that channel. Otherwise the whole send rolls back with "not found", so a cancel or a second send in between can't put a file on two messages.
+  - `FetchMessages`, `EditMessage` and `MessageUpdate` carry the attachments.
+  - Deleting a message deletes its attachment rows in the same transaction. The `attachments_queue_blobs` trigger then queues their objects, also when a channel's deletion cascades to them.
+- **Upload settings.**
+  - `UpdateUploadSettings` (Manage Server) normalizes the blocked list with `normalize_blocked_list` and takes a voice message limit of 30–1,800 seconds.
+  - Everyone gets `UploadSettingsUpdate`, and `Ready.upload_settings` carries the settings at login.
+  - A blocked upload's error names the list entry it matched ("tar.gz files can't be uploaded here").
+- **Role limits.**
+  - `CreateRole` and `UpdateRole` take `max_upload_bytes`. 0 clears a role's limit but is refused for @everyone.
+  - Other values must be 1 MB up to the server's ceiling.
+  - Only the owner may give a role a larger limit than their own.
+- **Tests.** The A1 tests that put uploads on messages through `ServerHandle::db` now send real messages, and the hook is gone.
