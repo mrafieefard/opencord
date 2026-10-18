@@ -4,7 +4,7 @@
 
 You are implementing `docs/superpowers/plans/2026-10-18-media-uploads.md`. The design it builds on is `docs/superpowers/specs/2026-10-18-media-uploads-design.md`.
 
-- The plan's **Working Rules** section applies to everything you do in this repository. Rules 13–20 were added after the A1 and A2 reviews: read them before each milestone.
+- The plan's **Working Rules** section applies to everything you do in this repository. Rules 13–21 were added after the A1, A2 and A3 reviews: read them before each milestone.
 - Each milestone's code was reviewed and fixed after you finished it, and its decisions entry has a **Review** bullet. Read the latest one before starting, and build on the fixed code, not on what you remember writing.
 - The user releases one milestone at a time. Stop at the end of each milestone and report.
 

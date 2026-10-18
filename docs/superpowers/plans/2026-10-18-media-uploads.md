@@ -153,7 +153,7 @@ The rules below come from the A1 review. Each one was broken there at least once
 15. **Never turn an error into "nothing".**
     - Use `?`.
     - Never wrap a query in `if let Ok(..)`, `.ok()` or `unwrap_or_default()` when its result decides what gets deleted or skipped.
-    - Never write `let _ =` on a database write. If it truly may fail, log the error with `tracing`.
+    - Never write `let _ =` on any `Result` (database, files, network). If it truly may fail, log the error with `tracing`.
 16. **State changes are conditional.**
     - Write each transition as `UPDATE … WHERE id = $1 AND state = '<expected>'`, and return `rows_affected() == 1` as a `bool`.
     - Handle `false` (the row was cancelled, sent or changed meanwhile) the way the task says.
@@ -172,6 +172,13 @@ The rule below comes from the A2 review.
     - So do the reads and permission checks first, on a plain connection, and then `conn.begin()` for the writes.
     - When a read must hold until the write, make the write itself conditional (rule 16) instead of reading inside the transaction.
 
+The rule below comes from the A3 review.
+
+21. **A check holds only under the lock that guards the change.**
+    - A handler that checks, then awaits (a network test, a file), then writes must check again after taking the write lock, next to the write. An early check before the await is only a faster refusal.
+    - Work in flight counts. A background job that will write somewhere (a storage, a channel) records where on its row under the write lock, before it starts writing. So a check for "anything there?" sees it.
+    - Don't replace in-memory state that another handler keeps in step with the database. Build it once where the row changes.
+
 ### Progress ledger (makes the final review cheap)
 
 Keep `.superpowers/sdd/media/progress.md`. After each task, append:
@@ -184,6 +191,8 @@ Keep `.superpowers/sdd/media/progress.md`. After each task, append:
 - Deviations from the plan: <none | what and why>
 - Left undone / doubts: <none | list>
 ```
+
+A deviation is any line of non-test code the plan doesn't give or ask for, even one line that fixes a test, and any planned line you changed. If `git diff` shows such a line, "Deviations: none" is wrong. Name each one in the ledger and in the report, with the failure that made you add it.
 
 ### When a step keeps failing
 

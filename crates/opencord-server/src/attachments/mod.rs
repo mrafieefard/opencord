@@ -53,10 +53,8 @@ impl Attachments {
             1,
             Arc::new(Backend::Local(LocalStorage::new(config.attachments_dir()))),
         );
-        let temp_dir = config.uploads_temp_dir();
-        let _ = std::fs::create_dir_all(&temp_dir);
         Self {
-            temp_dir,
+            temp_dir: config.uploads_temp_dir(),
             max_file_bytes: config.max_file_bytes(),
             backends: RwLock::new(backends),
             active: AtomicI64::new(1),
@@ -258,6 +256,8 @@ pub async fn start(state: &Arc<crate::state::AppState>) -> anyhow::Result<()> {
         .map(|row| row.id)
         .collect();
     let temp_dir = state.attachments.temp_dir();
+    // Bucket tests and moves write here before any upload has.
+    tokio::fs::create_dir_all(temp_dir).await?;
     if let Ok(mut entries) = tokio::fs::read_dir(temp_dir).await {
         while let Ok(Some(entry)) = entries.next_entry().await {
             let path = entry.path();

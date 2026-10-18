@@ -113,7 +113,10 @@ async fn run_inner(
         (base_fields("file", sniffed, &row.filename), None)
     };
 
-    let (storage_id, backend) = state.attachments.active()?;
+    let Some((storage_id, backend)) = choose_storage(state, row).await? else {
+        // Cancelled while processing; nothing was stored.
+        return Ok(());
+    };
     fields.storage_id = storage_id;
     let has_thumbnail = thumbnail.is_some();
     if let Err(error) = store(&backend, &key, id, temp_path, thumbnail).await {
@@ -138,6 +141,23 @@ async fn run_inner(
         Audience::User(row.uploader_id),
     );
     Ok(())
+}
+
+/// The active storage, written on the row before anything is stored there,
+/// under the write lock. So a storage that is changed or removed counts this
+/// file even while it is being written (`handlers/storage.rs`). None when the
+/// upload was cancelled.
+async fn choose_storage(
+    state: &AppState,
+    row: &AttachmentRow,
+) -> Result<Option<(i64, Arc<Backend>)>, ApiError> {
+    let _writes = state.write_lock().await;
+    let (storage_id, backend) = state.attachments.active()?;
+    let mut conn = state.db.acquire().await?;
+    if !db::attachments::set_storage_if(&mut conn, row.id, row.storage_id, storage_id).await? {
+        return Ok(None);
+    }
+    Ok(Some((storage_id, backend)))
 }
 
 /// Ready fields with nothing measured yet.

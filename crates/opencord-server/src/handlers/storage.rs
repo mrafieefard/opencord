@@ -58,6 +58,35 @@ fn with_settings(row: StorageRow, settings: &S3Settings, secrets: &Secrets) -> S
     }
 }
 
+/// Files already at the old place would be lost by moving `row` there:
+/// stored, queued for deletion, or being written by an upload or a move.
+async fn check_place_change(
+    ctx: &Ctx<'_>,
+    row: &StorageRow,
+    settings: &S3Settings,
+) -> Result<(), ApiError> {
+    let same_place = row.endpoint.as_deref() == Some(&settings.endpoint)
+        && row.bucket.as_deref() == Some(&settings.bucket)
+        && row.key_prefix == settings.key_prefix;
+    if same_place {
+        return Ok(());
+    }
+    if ctx.state.attachments.mover().is_running() {
+        return Err(ApiError::conflict(
+            "wait for the move to finish, or stop it, first",
+        ));
+    }
+    let mut conn = ctx.state.db.acquire().await?;
+    let count_on = db::attachments::count_on(&mut conn, row.id).await?;
+    let count_blobs = db::storage::count_blobs(&mut conn, row.id).await?;
+    if count_on + count_blobs > 0 {
+        return Err(ApiError::conflict(
+            "this storage holds files; add a new storage and move them there instead",
+        ));
+    }
+    Ok(())
+}
+
 async fn answer_storage(state: &AppState) -> Result<Response, ApiError> {
     Ok(Response::Storage(manage::broadcast(state).await?))
 }
@@ -134,19 +163,8 @@ pub async fn update(ctx: &Ctx<'_>, request: proto::UpdateStorage) -> Result<Resp
             None
         };
         let settings = manage::valid_s3(&config, stored)?;
-        let differs = row.endpoint.as_deref() != Some(&settings.endpoint)
-            || row.bucket.as_deref() != Some(&settings.bucket)
-            || row.key_prefix != settings.key_prefix;
-        if differs {
-            let mut conn = ctx.state.db.acquire().await?;
-            let count_on = db::attachments::count_on(&mut conn, id).await?;
-            let count_blobs = db::storage::count_blobs(&mut conn, id).await?;
-            if count_on + count_blobs > 0 {
-                return Err(ApiError::conflict(
-                    "this storage holds files; add a new storage and move them there instead",
-                ));
-            }
-        }
+        // Checked again under the lock; this one spares a bucket test.
+        check_place_change(ctx, &row, &settings).await?;
         let storage = tested(ctx, &settings).await?;
         (Some(settings), Some(storage))
     } else {
@@ -160,6 +178,9 @@ pub async fn update(ctx: &Ctx<'_>, request: proto::UpdateStorage) -> Result<Resp
             .await?
             .ok_or_else(|| ApiError::not_found("storage"))?
     };
+    if let Some(settings) = &new_settings {
+        check_place_change(ctx, &current, settings).await?;
+    }
     let mut updated_row = StorageRow {
         name: name.unwrap_or(current.name.clone()),
         ..current
@@ -235,7 +256,9 @@ pub async fn activate(
     if row.active {
         return answer_storage(ctx.state).await;
     }
-    let maybe_tested_storage = if row.kind == "s3" {
+    // Only a test: startup, add and update keep the loaded backend in step
+    // with the row, and replacing it here could undo an update made meanwhile.
+    if row.kind == "s3" {
         let settings = saved_settings(ctx, &row)?;
         let storage = S3Storage::new(&settings, ctx.state.attachments.http().clone())
             .map_err(ApiError::invalid_argument)?;
@@ -249,10 +272,7 @@ pub async fn activate(
             manage::broadcast(ctx.state).await?;
             return Err(ApiError::storage_unavailable(failure));
         }
-        Some(storage)
-    } else {
-        None
-    };
+    }
 
     let _writes = ctx.state.write_lock().await;
     if ctx.state.attachments.mover().is_running() {
@@ -266,11 +286,6 @@ pub async fn activate(
             .await?
             .ok_or_else(|| ApiError::not_found("storage"))?;
         db::storage::set_active(&mut conn, id).await?;
-    }
-    if let Some(storage) = maybe_tested_storage {
-        ctx.state
-            .attachments
-            .set_backend(id, Backend::S3(Box::new(storage)));
     }
     ctx.state.attachments.set_active(id);
     answer_storage(ctx.state).await

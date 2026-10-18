@@ -682,4 +682,9 @@ The desktop UI plan's §17.5 never arrived, so where Phase 2 §12 says only what
   - Progress goes to the owner at most every 2 seconds, and once at the end. StopStorageMove stops before the next file, and activating another storage is refused while a move runs.
   - Startup deletes the temp files a move or a bucket test left behind.
 - **Tests.** The S3 tests in `tests/s3.rs` are ignored by default and run against RustFS 1.0.3 in Docker, because MinIO no longer publishes images.
-
+- **Review.**
+  - Processing now picks the active storage under the write lock and writes it on the row before storing anything. Before, a file still being stored (minutes for a large one on S3) showed the storage it was created under. So changing the bucket of the storage it was going to, or removing that storage, didn't count it, and the file was lost.
+  - UpdateStorage checks for files again under the write lock, next to the write. It also refuses to change a storage's endpoint, bucket or key prefix while a move runs, since the move may be writing there.
+  - ActivateStorage only tests the bucket now and keeps the backend that startup, AddStorage or UpdateStorage loaded. Installing the one it tested could undo an UpdateStorage that finished meanwhile.
+  - Startup creates the uploads temp folder and stops if it can't. The bucket test and moves write there, and on a fresh server it didn't exist yet. The implementation had created it with the error ignored and didn't report it.
+  - The plan gained Working Rule 21 for the first two.
