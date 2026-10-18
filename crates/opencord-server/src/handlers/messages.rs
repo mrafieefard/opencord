@@ -7,6 +7,7 @@ use opencord_common::{snowflake, upload, validation};
 use opencord_proto::v1 as proto;
 use proto::event::Kind as Event;
 use proto::response::Result as Response;
+use sqlx::Connection;
 
 use super::{Ctx, ack};
 use crate::attachments::http::attachment_to_proto;
@@ -175,8 +176,8 @@ pub async fn edit(ctx: &Ctx<'_>, request: proto::EditMessage) -> Result<Response
 }
 
 pub async fn delete(ctx: &Ctx<'_>, request: proto::DeleteMessage) -> Result<Response, ApiError> {
-    let mut tx = ctx.state.db.begin().await?;
-    let existing = messages::find(&mut tx, request.message_id)
+    let mut conn = ctx.state.db.acquire().await?;
+    let existing = messages::find(&mut conn, request.message_id)
         .await?
         .ok_or_else(|| ApiError::not_found("message"))?;
     let needed = if existing.author_id == ctx.user_id {
@@ -185,6 +186,9 @@ pub async fn delete(ctx: &Ctx<'_>, request: proto::DeleteMessage) -> Result<Resp
         Permissions::VIEW_CHANNEL | Permissions::MANAGE_MESSAGES
     };
     require_channel(&ctx.state.guild(), ctx.user_id, existing.channel_id, needed)?;
+    // Read before the transaction: in WAL mode a transaction that has read
+    // can't start writing once another connection has committed in between.
+    let mut tx = conn.begin().await?;
     messages::mark_deleted(&mut tx, existing.id).await?;
     attachments::delete_for_message(&mut tx, existing.id).await?;
     tx.commit().await?;

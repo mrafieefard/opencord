@@ -165,6 +165,13 @@ The rules below come from the A1 review. Each one was broken there at least once
     - Before writing a helper, grep for one. Since A1 the server has `attachments::open_key`, `attachments::key_label`, `attachments::http::attachment_to_proto`, `to_status_proto` and `readable_attachment`, and `process::base_fields`.
     - The same ten lines in two places is a review finding.
 
+The rule below comes from the A2 review.
+
+20. **A transaction holds only writes.**
+    - The database runs SQLite in WAL mode. A transaction that has read can't start writing if another connection committed in between: SQLite fails it at once with `SQLITE_BUSY_SNAPSHOT` and doesn't wait.
+    - So do the reads and permission checks first, on a plain connection, and then `conn.begin()` for the writes.
+    - When a read must hold until the write, make the write itself conditional (rule 16) instead of reading inside the transaction.
+
 ### Progress ledger (makes the final review cheap)
 
 Keep `.superpowers/sdd/media/progress.md`. After each task, append:

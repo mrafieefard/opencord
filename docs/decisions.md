@@ -655,3 +655,4 @@ The desktop UI plan's §17.5 never arrived, so where Phase 2 §12 says only what
   - Other values must be 1 MB up to the server's ceiling.
   - Only the owner may give a role a larger limit than their own.
 - **Tests.** The A1 tests that put uploads on messages through `ServerHandle::db` now send real messages, and the hook is gone.
+- **Review.** `DeleteMessage` read the message inside its transaction. In WAL mode a transaction that has read can't start writing once another connection has committed, and SQLite fails it at once with `SQLITE_BUSY_SNAPSHOT`, so a delete that raced any message send failed. The read and the permission check now come before `begin`, and the transaction holds only the two writes. The plan gained Working Rule 20 for this.
