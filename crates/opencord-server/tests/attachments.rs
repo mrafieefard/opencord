@@ -1337,3 +1337,138 @@ async fn headers_forbid_inline_use() {
         "expected thumbnail Content-Disposition to start with 'attachment;', got: {thumb_disp}"
     );
 }
+
+#[tokio::test]
+async fn expired_uploads_are_swept() {
+    let Room {
+        server,
+        mut member,
+        member_token,
+        text,
+        ..
+    } = room().await;
+
+    let res = member
+        .ok(Req::CreateUpload(proto::CreateUpload {
+            channel_id: text,
+            filename: "expired.txt".into(),
+            size_bytes: 100,
+            kind: proto::AttachmentKind::File.into(),
+            width: None,
+            height: None,
+            duration_ms: None,
+        }))
+        .await;
+    let upload_id = match res {
+        Res::Upload(u) => u.upload_id,
+        other => panic!("expected Upload, got {other:?}"),
+    };
+
+    let temp_file = server
+        .dir
+        .path()
+        .join("data")
+        .join("uploads")
+        .join(format!("{upload_id}.part"));
+
+    // Put a piece so temp file definitely exists and has received_bytes > 0
+    let piece = vec![0u8; 100];
+    let (status, _) = server
+        .send_http(
+            "PUT",
+            &format!("/media/uploads/{upload_id}"),
+            &[
+                ("Authorization", &format!("Bearer {member_token}")),
+                ("Upload-Offset", "0"),
+            ],
+            &piece,
+        )
+        .await;
+    assert_eq!(status, 200);
+    assert!(temp_file.exists());
+
+    let now_ms = opencord_server::state::now_ms();
+    server
+        .handle
+        .sweep_attachments(now_ms + 24 * 3600 * 1000 + 1000)
+        .await;
+
+    assert!(!temp_file.exists(), "temp file must be deleted by sweep");
+
+    // GET /media/uploads/{id} -> 404
+    let (status, _) = server
+        .send_http(
+            "GET",
+            &format!("/media/uploads/{upload_id}"),
+            &[("Authorization", &format!("Bearer {member_token}"))],
+            &[],
+        )
+        .await;
+    assert_eq!(status, 404);
+}
+
+#[tokio::test]
+async fn deleted_rows_delete_their_objects() {
+    let Room {
+        server,
+        mut member,
+        member_token,
+        text,
+        ..
+    } = room().await;
+
+    let img = png(400, 300);
+    let att = upload(
+        &mut member,
+        &server,
+        &member_token,
+        text,
+        "to_delete.png",
+        &img,
+    )
+    .await;
+    assert!(att.has_thumbnail);
+
+    let shard = format!("{:02x}", (att.id >> 22) & 0xff);
+    let att_file = server
+        .dir
+        .path()
+        .join("data")
+        .join("attachments")
+        .join("a")
+        .join(&shard)
+        .join(att.id.to_string());
+    let thumb_file = server
+        .dir
+        .path()
+        .join("data")
+        .join("attachments")
+        .join("t")
+        .join(&shard)
+        .join(att.id.to_string());
+
+    assert!(
+        att_file.exists(),
+        "attachment object file must exist before cancel"
+    );
+    assert!(
+        thumb_file.exists(),
+        "thumbnail object file must exist before cancel"
+    );
+
+    member
+        .ok(Req::CancelUpload(proto::CancelUpload { upload_id: att.id }))
+        .await;
+
+    let now_ms = opencord_server::state::now_ms();
+    server.handle.drain_blob_deletions(now_ms + 1000).await;
+
+    assert!(
+        !att_file.exists(),
+        "attachment object file must be deleted by drain"
+    );
+    assert!(
+        !thumb_file.exists(),
+        "thumbnail object file must be deleted by drain"
+    );
+}

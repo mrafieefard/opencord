@@ -1229,13 +1229,13 @@ impl Attachments {
   - Ok → `blob_done`. Err → `blob_retry(attempts + 1, now + min(2^attempts minutes, 6 h))`.
 - **Hooks:** `ServerHandle::sweep_attachments(now_ms)`, `ServerHandle::drain_blob_deletions(now_ms)`.
 
-- [ ] **Step 1: Write tests:**
+- [x] **Step 1: Write tests:**
   - `expired_uploads_are_swept`: an unfinished upload; `sweep_attachments(now + 24h + 1s)` → GET 404, temp file gone.
   - `deleted_rows_delete_their_objects`: a ready upload, `CancelUpload`, `drain_blob_deletions(now)` → the object files under `attachments/a/..` and `t/..` are gone.
 
   (Channel deletion is tested in Task 12, once messages carry attachments.)
-- [ ] **Step 2:** Run → FAIL. **Step 3:** Implement. **Step 4:** Run → PASS.
-- [ ] **Step 5: Commit:** `feat: expiring uploads and deleting stored objects (A1)`.
+- [x] **Step 2:** Run → FAIL. **Step 3:** Implement. **Step 4:** Run → PASS.
+- [x] **Step 5: Commit:** `feat: expiring uploads and deleting stored objects (A1)`.
 
 **A1 stop.** Full checks, **D53** ("Storage, uploads, processing and downloads"), ledger, report.
 

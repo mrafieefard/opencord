@@ -293,6 +293,16 @@ impl ServerHandle {
     pub fn db(&self) -> &sqlx::SqlitePool {
         &self.state.db
     }
+
+    /// Intended for tests.
+    pub async fn sweep_attachments(&self, now_ms: i64) {
+        crate::attachments::gc::sweep(&self.state, now_ms).await;
+    }
+
+    /// Intended for tests.
+    pub async fn drain_blob_deletions(&self, now_ms: i64) {
+        crate::attachments::gc::drain_blobs(&self.state, now_ms).await;
+    }
 }
 
 /// The voice node inside this server, unless voice is off or on external

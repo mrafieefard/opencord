@@ -1,5 +1,6 @@
 //! Media attachments and storage backends (Phase 4).
 
+pub mod gc;
 pub mod http;
 pub mod images;
 pub mod process;
@@ -162,6 +163,9 @@ pub async fn start(state: &Arc<crate::state::AppState>) -> anyhow::Result<()> {
             process::spawn_job(state.clone(), row.id);
         }
     }
+
+    // 3. Start GC
+    gc::start(state);
 
     Ok(())
 }
