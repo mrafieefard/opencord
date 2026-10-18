@@ -1202,15 +1202,15 @@ impl Attachments {
   8. A backend error before the first byte → 502.
 - **`GET /media/attachments/{id}/thumbnail`:** same checks; `has_thumbnail` must be true, else 404. Fetch the whole sealed thumbnail, `open_all`, `Content-Type: image/png` if the bytes start with the PNG magic, else `image/jpeg`.
 
-- [ ] **Step 1: Write tests.**
+- [x] **Step 1: Write tests.**
   - **Unit (`range.rs`):** `range_edges` (Review Focus 4) with every case above, including `len 0`, `bytes=0-0`, `bytes=-5` on a 3-byte file → (0, 2), `bytes=5-` on 5 bytes → Err, `bytes=0-1,3-4` → Err.
   - **Integration:**
     - `downloads_return_exact_bytes_and_ranges`: sizes 0, 65,536 and 200,000. Full GET equals the original; `bytes=65530-65540` equals the slice; `bytes=-10` on 200,000 equals the last 10. Also finish Task 8's repeated-piece test here: its download equals the original.
     - **`downloads_check_the_channel_at_request_time`** (Review Focus 2): after the owner hides the channel from @everyone with an overwrite, the member gets 404; with READ_HISTORY denied, 403; a deleted message → 404; a bad token → 401.
     - `a_ready_but_unsent_upload_cannot_be_downloaded_by_anyone`: GET → 404.
     - `headers_forbid_inline_use`: check `Cache-Control`, `nosniff`, and that `Content-Disposition` starts with `attachment;`.
-- [ ] **Step 2:** Run → FAIL. **Step 3:** Implement. **Step 4:** Run → PASS.
-- [ ] **Step 5: Commit:** `feat: downloading attachments with ranges (A1)`.
+- [x] **Step 2:** Run → FAIL. **Step 3:** Implement. **Step 4:** Run → PASS.
+- [x] **Step 5: Commit:** `feat: downloading attachments with ranges (A1)`.
 
 ### Task 11: Garbage collection and blob deletion
 

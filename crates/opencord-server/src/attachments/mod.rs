@@ -3,6 +3,7 @@
 pub mod http;
 pub mod images;
 pub mod process;
+pub mod range;
 pub mod settings;
 pub mod storage;
 pub mod temp;

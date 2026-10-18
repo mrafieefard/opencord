@@ -288,6 +288,11 @@ impl ServerHandle {
     pub fn hold_processing(&self, hold: bool) {
         self.state.attachments.hold_processing(hold);
     }
+
+    /// Intended for tests.
+    pub fn db(&self) -> &sqlx::SqlitePool {
+        &self.state.db
+    }
 }
 
 /// The voice node inside this server, unless voice is off or on external

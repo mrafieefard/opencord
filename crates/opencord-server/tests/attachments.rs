@@ -346,6 +346,56 @@ async fn a_repeated_piece_gets_a_conflict_and_the_upload_continues() {
         Res::UploadStatus(s) => assert_eq!(s.received_bytes, 9 * 1024 * 1024),
         other => panic!("expected UploadStatus, got {other:?}"),
     }
+
+    // Finish the upload (Task 10 check)
+    let (status, _) = server
+        .send_http(
+            "POST",
+            &format!("/media/uploads/{upload_id}/finish"),
+            &[("Authorization", &auth)],
+            &[],
+        )
+        .await;
+    assert_eq!(status, 202);
+
+    let att = member
+        .wait_for(|kind| match kind {
+            proto::event::Kind::UploadReady(ready) => ready.attachment.clone(),
+            _ => None,
+        })
+        .await;
+
+    // Send a message and mark the attachment sent
+    let msg_res = member
+        .ok(Req::SendMessage(proto::SendMessage {
+            channel_id: text,
+            content: "file message".into(),
+            ..Default::default()
+        }))
+        .await;
+    let message_id = match msg_res {
+        Res::Message(m) => m.id,
+        other => panic!("expected Message, got {other:?}"),
+    };
+
+    let mut conn = server.handle.db().acquire().await.unwrap();
+    opencord_server::db::attachments::mark_sent(&mut conn, &[att.id], message_id)
+        .await
+        .unwrap();
+
+    // Download equals the original
+    let (status, downloaded) = server
+        .send_http(
+            "GET",
+            &format!("/media/attachments/{upload_id}"),
+            &[("Authorization", &auth)],
+            &[],
+        )
+        .await;
+    assert_eq!(status, 200);
+    let mut expected = piece1;
+    expected.extend_from_slice(&piece2);
+    assert_eq!(downloaded, expected);
 }
 
 #[tokio::test]
@@ -941,4 +991,349 @@ async fn processing_resumes_after_a_restart() {
         tokio::time::sleep(std::time::Duration::from_millis(100)).await;
     }
     assert!(is_ready, "upload should become ready after server restart");
+}
+
+#[tokio::test]
+async fn downloads_return_exact_bytes_and_ranges() {
+    let Room {
+        server,
+        mut member,
+        member_token,
+        text,
+        ..
+    } = room().await;
+
+    let auth = format!("Bearer {member_token}");
+
+    for size in [0, 65_536, 200_000] {
+        let bytes: Vec<u8> = (0..size).map(|i| (i % 251) as u8).collect();
+        let att = upload(
+            &mut member,
+            &server,
+            &member_token,
+            text,
+            &format!("file_{size}.bin"),
+            &bytes,
+        )
+        .await;
+
+        let msg_res = member
+            .ok(Req::SendMessage(proto::SendMessage {
+                channel_id: text,
+                content: format!("size {size}"),
+                ..Default::default()
+            }))
+            .await;
+        let message_id = match msg_res {
+            Res::Message(m) => m.id,
+            other => panic!("expected Message, got {other:?}"),
+        };
+        let mut conn = server.handle.db().acquire().await.unwrap();
+        opencord_server::db::attachments::mark_sent(&mut conn, &[att.id], message_id)
+            .await
+            .unwrap();
+
+        // Full GET equals the original
+        let (status, dl) = server
+            .send_http(
+                "GET",
+                &format!("/media/attachments/{}", att.id),
+                &[("Authorization", &auth)],
+                &[],
+            )
+            .await;
+        assert_eq!(status, 200);
+        assert_eq!(dl, bytes);
+
+        if size == 200_000 {
+            // bytes=65530-65540 equals the slice
+            let (status, dl_range) = server
+                .send_http(
+                    "GET",
+                    &format!("/media/attachments/{}", att.id),
+                    &[("Authorization", &auth), ("Range", "bytes=65530-65540")],
+                    &[],
+                )
+                .await;
+            assert_eq!(status, 206);
+            assert_eq!(dl_range, &bytes[65530..=65540]);
+
+            // bytes=-10 on 200,000 equals the last 10
+            let (status, dl_suffix) = server
+                .send_http(
+                    "GET",
+                    &format!("/media/attachments/{}", att.id),
+                    &[("Authorization", &auth), ("Range", "bytes=-10")],
+                    &[],
+                )
+                .await;
+            assert_eq!(status, 206);
+            assert_eq!(dl_suffix, &bytes[200_000 - 10..]);
+        }
+    }
+}
+
+#[tokio::test]
+async fn downloads_check_the_channel_at_request_time() {
+    let Room {
+        server,
+        mut owner,
+        mut member,
+        member_token,
+        everyone,
+        text,
+        ..
+    } = room().await;
+
+    let auth = format!("Bearer {member_token}");
+    let bytes = b"channel permission test content".to_vec();
+    let att = upload(
+        &mut member,
+        &server,
+        &member_token,
+        text,
+        "check.txt",
+        &bytes,
+    )
+    .await;
+
+    let msg_res = member
+        .ok(Req::SendMessage(proto::SendMessage {
+            channel_id: text,
+            content: "perm check".into(),
+            ..Default::default()
+        }))
+        .await;
+    let message_id = match msg_res {
+        Res::Message(m) => m.id,
+        other => panic!("expected Message, got {other:?}"),
+    };
+    let mut conn = server.handle.db().acquire().await.unwrap();
+    opencord_server::db::attachments::mark_sent(&mut conn, &[att.id], message_id)
+        .await
+        .unwrap();
+
+    // 1. Owner hides channel from @everyone with an overwrite -> 404
+    owner
+        .ok(Req::SetChannelOverwrite(proto::SetChannelOverwrite {
+            channel_id: text,
+            overwrite: Some(proto::PermissionOverwrite {
+                target_kind: proto::OverwriteTarget::Role as i32,
+                target_id: everyone,
+                allow: 0,
+                deny: opencord_common::permissions::Permissions::VIEW_CHANNEL.bits(),
+            }),
+        }))
+        .await;
+
+    let (status, _) = server
+        .send_http(
+            "GET",
+            &format!("/media/attachments/{}", att.id),
+            &[("Authorization", &auth)],
+            &[],
+        )
+        .await;
+    assert_eq!(status, 404);
+
+    // 2. With READ_HISTORY denied -> 403
+    owner
+        .ok(Req::SetChannelOverwrite(proto::SetChannelOverwrite {
+            channel_id: text,
+            overwrite: Some(proto::PermissionOverwrite {
+                target_kind: proto::OverwriteTarget::Role as i32,
+                target_id: everyone,
+                allow: opencord_common::permissions::Permissions::VIEW_CHANNEL.bits(),
+                deny: opencord_common::permissions::Permissions::READ_HISTORY.bits(),
+            }),
+        }))
+        .await;
+
+    let (status, _) = server
+        .send_http(
+            "GET",
+            &format!("/media/attachments/{}", att.id),
+            &[("Authorization", &auth)],
+            &[],
+        )
+        .await;
+    assert_eq!(status, 403);
+
+    // Restore channel permissions
+    owner
+        .ok(Req::DeleteChannelOverwrite(proto::DeleteChannelOverwrite {
+            channel_id: text,
+            target_kind: proto::OverwriteTarget::Role as i32,
+            target_id: everyone,
+        }))
+        .await;
+
+    // 3. A deleted message -> 404
+    member
+        .ok(Req::DeleteMessage(proto::DeleteMessage { message_id }))
+        .await;
+
+    let (status, _) = server
+        .send_http(
+            "GET",
+            &format!("/media/attachments/{}", att.id),
+            &[("Authorization", &auth)],
+            &[],
+        )
+        .await;
+    assert_eq!(status, 404);
+
+    // 4. A bad token -> 401
+    let (status, _) = server
+        .send_http(
+            "GET",
+            &format!("/media/attachments/{}", att.id),
+            &[("Authorization", "Bearer invalid-token")],
+            &[],
+        )
+        .await;
+    assert_eq!(status, 401);
+}
+
+#[tokio::test]
+async fn a_ready_but_unsent_upload_cannot_be_downloaded_by_anyone() {
+    let Room {
+        server,
+        mut member,
+        member_token,
+        owner_token,
+        text,
+        ..
+    } = room().await;
+
+    let bytes = b"unsent file content".to_vec();
+    let att = upload(
+        &mut member,
+        &server,
+        &member_token,
+        text,
+        "unsent.txt",
+        &bytes,
+    )
+    .await;
+
+    // Member gets 404
+    let (status, _) = server
+        .send_http(
+            "GET",
+            &format!("/media/attachments/{}", att.id),
+            &[("Authorization", &format!("Bearer {member_token}"))],
+            &[],
+        )
+        .await;
+    assert_eq!(status, 404);
+
+    // Owner gets 404
+    let (status, _) = server
+        .send_http(
+            "GET",
+            &format!("/media/attachments/{}", att.id),
+            &[("Authorization", &format!("Bearer {owner_token}"))],
+            &[],
+        )
+        .await;
+    assert_eq!(status, 404);
+}
+
+#[tokio::test]
+async fn headers_forbid_inline_use() {
+    let Room {
+        server,
+        mut member,
+        member_token,
+        text,
+        ..
+    } = room().await;
+
+    let img = png(200, 200);
+    let att = upload(
+        &mut member,
+        &server,
+        &member_token,
+        text,
+        "test_image.png",
+        &img,
+    )
+    .await;
+
+    let msg_res = member
+        .ok(Req::SendMessage(proto::SendMessage {
+            channel_id: text,
+            content: "header check".into(),
+            ..Default::default()
+        }))
+        .await;
+    let message_id = match msg_res {
+        Res::Message(m) => m.id,
+        other => panic!("expected Message, got {other:?}"),
+    };
+    let mut conn = server.handle.db().acquire().await.unwrap();
+    opencord_server::db::attachments::mark_sent(&mut conn, &[att.id], message_id)
+        .await
+        .unwrap();
+
+    let auth = format!("Bearer {member_token}");
+
+    // Check attachment headers
+    let (status, headers, _) = server
+        .send_http_full(
+            "GET",
+            &format!("/media/attachments/{}", att.id),
+            &[("Authorization", &auth)],
+            &[],
+        )
+        .await;
+    assert_eq!(status, 200);
+
+    let get_header = |headers: &[(String, String)], name: &str| -> Option<String> {
+        headers
+            .iter()
+            .find(|(k, _)| k.eq_ignore_ascii_case(name))
+            .map(|(_, v)| v.clone())
+    };
+
+    assert_eq!(
+        get_header(&headers, "cache-control").as_deref(),
+        Some("private, no-store")
+    );
+    assert_eq!(
+        get_header(&headers, "x-content-type-options").as_deref(),
+        Some("nosniff")
+    );
+    let disp = get_header(&headers, "content-disposition").expect("content-disposition header");
+    assert!(
+        disp.starts_with("attachment;"),
+        "expected Content-Disposition to start with 'attachment;', got: {disp}"
+    );
+
+    // Check thumbnail headers
+    let (status, thumb_headers, _) = server
+        .send_http_full(
+            "GET",
+            &format!("/media/attachments/{}/thumbnail", att.id),
+            &[("Authorization", &auth)],
+            &[],
+        )
+        .await;
+    assert_eq!(status, 200);
+
+    assert_eq!(
+        get_header(&thumb_headers, "cache-control").as_deref(),
+        Some("private, no-store")
+    );
+    assert_eq!(
+        get_header(&thumb_headers, "x-content-type-options").as_deref(),
+        Some("nosniff")
+    );
+    let thumb_disp =
+        get_header(&thumb_headers, "content-disposition").expect("content-disposition header");
+    assert!(
+        thumb_disp.starts_with("attachment;"),
+        "expected thumbnail Content-Disposition to start with 'attachment;', got: {thumb_disp}"
+    );
 }
