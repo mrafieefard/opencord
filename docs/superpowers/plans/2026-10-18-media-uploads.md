@@ -736,14 +736,14 @@ The AAD is 22 bytes: `MAGIC || kind as u8 || blob_id.to_be_bytes() || index.to_b
 - `level_unit(rms) = clamp((20·log10(max(rms, 1e-9)) + 60) / 60, 0, 1)`; `level_byte = (level_unit × 255).round() as u8`.
 - `waveform(samples, len)`: slice `i` covers `samples[i·n/len .. (i+1)·n/len]` (integer maths, `n = samples.len()`). Value = `level_byte(rms of the slice)`; an empty slice is 0. Always returns exactly `len` values.
 
-- [ ] **Step 1: Write the tests.**
+- [x] **Step 1: Write the tests.**
   - One sniff test per table row, using literal byte arrays.
   - A 3-byte input is Unknown, and nothing panics on an empty slice.
   - `level_byte(1.0) == 255`; `level_byte(0.001) == 0`; `level_byte(0.0316) == 128 ± 1` (−30 dB).
   - `waveform(&[], 128)` is 128 zeros.
   - Half silence then half full-scale sine gives `w[0] == 0` and `w[127] > 240`.
-- [ ] **Step 2:** Run → FAIL. **Step 3:** Implement. **Step 4:** Run → PASS.
-- [ ] **Step 5: Commit:** `feat: file sniffing and voice waveform values (A0)`.
+- [x] **Step 2:** Run → FAIL. **Step 3:** Implement. **Step 4:** Run → PASS.
+- [x] **Step 5: Commit:** `feat: file sniffing and voice waveform values (A0)`.
 
 ### Task 5: Migration, config, secrets location and guard
 

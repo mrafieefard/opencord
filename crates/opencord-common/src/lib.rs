@@ -8,12 +8,14 @@ pub mod limits;
 pub mod permissions;
 pub mod rate;
 pub mod signed;
+pub mod sniff;
 pub mod snowflake;
 pub mod sound;
 pub mod upload;
 pub mod validation;
 pub mod video;
 pub mod voice;
+pub mod waveform;
 
 /// Version of the gateway protocol spoken by this build.
 pub const PROTOCOL_VERSION: u32 = 1;
