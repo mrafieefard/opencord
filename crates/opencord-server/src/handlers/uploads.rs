@@ -100,7 +100,7 @@ pub async fn create(ctx: &Ctx<'_>, request: proto::CreateUpload) -> Result<Respo
     let temp_dir = ctx.state.attachments.temp_dir();
     tokio::fs::create_dir_all(temp_dir).await.map_err(|e| {
         tracing::error!(?e, "failed to create temp dir");
-        ApiError::storage_full()
+        ApiError::internal()
     })?;
     let required = request.size_bytes.saturating_add(TEMP_HEADROOM_BYTES);
     let available = fs4::available_space(temp_dir).map_err(|e| {
@@ -118,7 +118,7 @@ pub async fn create(ctx: &Ctx<'_>, request: proto::CreateUpload) -> Result<Respo
         .state
         .certificates
         .secrets()
-        .seal(&format!("attachment-key:{id}"), key.as_bytes());
+        .seal(&crate::attachments::key_label(id), key.as_bytes());
 
     let temp_path = ctx.state.attachments.temp_path(id);
     temp::create(&temp_path).await.map_err(|e| {

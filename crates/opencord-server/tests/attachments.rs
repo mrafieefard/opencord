@@ -525,6 +525,53 @@ async fn cancel_removes_the_row_and_temp_file() {
 }
 
 #[tokio::test]
+async fn a_zero_byte_file_finishes_without_a_piece() {
+    let Room {
+        server,
+        mut member,
+        member_token,
+        text,
+        ..
+    } = room().await;
+
+    let res = member
+        .ok(Req::CreateUpload(proto::CreateUpload {
+            channel_id: text,
+            filename: "empty.txt".into(),
+            size_bytes: 0,
+            kind: proto::AttachmentKind::File.into(),
+            width: None,
+            height: None,
+            duration_ms: None,
+        }))
+        .await;
+    let upload_id = match res {
+        Res::Upload(u) => u.upload_id,
+        other => panic!("expected Upload, got {other:?}"),
+    };
+
+    // Straight to finish: no empty PUT first.
+    let (status, _) = server
+        .send_http(
+            "POST",
+            &format!("/media/uploads/{upload_id}/finish"),
+            &[("Authorization", &format!("Bearer {member_token}"))],
+            &[],
+        )
+        .await;
+    assert_eq!(status, 202);
+
+    let att = member
+        .wait_for(|kind| match kind {
+            proto::event::Kind::UploadReady(ready) => ready.attachment.clone(),
+            _ => None,
+        })
+        .await;
+    assert_eq!(att.id, upload_id);
+    assert_eq!(att.size_bytes, 0);
+}
+
+#[tokio::test]
 async fn nothing_plain_reaches_the_temp_folder() {
     let Room {
         server,

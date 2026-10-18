@@ -213,8 +213,10 @@ impl From<crate::attachments::storage::StorageError> for ApiError {
             crate::attachments::storage::StorageError::NotFound => {
                 Self::not_found("attachment object")
             }
-            crate::attachments::storage::StorageError::Unavailable(msg) => {
-                Self::storage_unavailable(msg)
+            crate::attachments::storage::StorageError::Unavailable(message) => {
+                // Paths and S3 replies stay in the log, never in the reply.
+                tracing::warn!(%message, "attachment storage failed");
+                Self::storage_unavailable("the server's file storage isn't working right now")
             }
             crate::attachments::storage::StorageError::Full => Self::storage_full(),
         }

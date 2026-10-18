@@ -13,12 +13,15 @@ pub mod voice;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, AtomicI64, Ordering};
-use std::sync::{Arc, Mutex as StdMutex, RwLock};
+use std::sync::{Arc, Mutex as StdMutex, PoisonError, RwLock};
 
+use opencord_common::blob::BlobKey;
 use sqlx::SqliteConnection;
 use tokio::sync::{Mutex as TokioMutex, OwnedMutexGuard, Semaphore};
 
 use crate::config::Config;
+use crate::db::attachments::AttachmentRow;
+use crate::error::ApiError;
 use crate::secrets::Secrets;
 pub use settings::UploadSettings;
 pub use storage::{Backend, LocalStorage, ObjectKind, StorageError, object_key};
@@ -67,7 +70,11 @@ impl Attachments {
     }
 
     pub fn backend(&self, id: i64) -> Option<Arc<Backend>> {
-        self.backends.read().unwrap().get(&id).cloned()
+        self.backends
+            .read()
+            .unwrap_or_else(PoisonError::into_inner)
+            .get(&id)
+            .cloned()
     }
 
     pub fn active(&self) -> (i64, Arc<Backend>) {
@@ -92,7 +99,13 @@ impl Attachments {
 
     pub async fn lock_upload(&self, id: i64) -> OwnedMutexGuard<()> {
         let lock = {
-            let mut locks = self.upload_locks.lock().unwrap();
+            let mut locks = self
+                .upload_locks
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner);
+            // Forget locks nobody holds or waits for, so the map stays as
+            // small as the number of uploads in flight.
+            locks.retain(|_, lock| Arc::strong_count(lock) > 1);
             locks
                 .entry(id)
                 .or_insert_with(|| Arc::new(TokioMutex::new(())))
@@ -110,11 +123,17 @@ impl Attachments {
     }
 
     pub fn set_poster(&self, id: i64, poster: Vec<u8>) {
-        self.posters.lock().unwrap().insert(id, poster);
+        self.posters
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .insert(id, poster);
     }
 
     pub fn take_poster(&self, id: i64) -> Option<Vec<u8>> {
-        self.posters.lock().unwrap().remove(&id)
+        self.posters
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .remove(&id)
     }
 
     pub fn jobs(&self) -> Arc<Semaphore> {
@@ -122,50 +141,59 @@ impl Attachments {
     }
 }
 
+/// What an attachment's key is sealed under in the database.
+pub(crate) fn key_label(id: i64) -> String {
+    format!("attachment-key:{id}")
+}
+
+/// The key that encrypts an attachment's file and thumbnail.
+pub(crate) fn open_key(secrets: &Secrets, row: &AttachmentRow) -> Result<BlobKey, ApiError> {
+    let bytes = secrets
+        .open(&key_label(row.id), &row.key_enc)
+        .map_err(|error| {
+            tracing::error!(
+                attachment_id = row.id,
+                ?error,
+                "an attachment key failed to open"
+            );
+            ApiError::internal()
+        })?;
+    let bytes: [u8; 32] = bytes.try_into().map_err(|_| ApiError::internal())?;
+    Ok(BlobKey::from_bytes(bytes))
+}
+
 pub async fn start(state: &Arc<crate::state::AppState>) -> anyhow::Result<()> {
-    // 1. Delete orphan temp files: temp files with no uploading or processing row.
+    let mut conn = state.db.acquire().await?;
+    let uploading = crate::db::attachments::in_state(&mut conn, "uploading").await?;
+    let processing = crate::db::attachments::in_state(&mut conn, "processing").await?;
+    drop(conn);
+
+    // Temp files with no uploading or processing row are left from uploads
+    // that were cancelled or expired while the server was down.
+    let live: std::collections::HashSet<i64> = uploading
+        .iter()
+        .chain(&processing)
+        .map(|row| row.id)
+        .collect();
     let temp_dir = state.attachments.temp_dir();
-    if tokio::fs::try_exists(temp_dir).await.unwrap_or(false) {
-        let mut active_ids = std::collections::HashSet::new();
-        if let Ok(mut conn) = state.db.acquire().await {
-            if let Ok(rows) = crate::db::attachments::in_state(&mut conn, "uploading").await {
-                for r in rows {
-                    active_ids.insert(r.id);
-                }
-            }
-            if let Ok(rows) = crate::db::attachments::in_state(&mut conn, "processing").await {
-                for r in rows {
-                    active_ids.insert(r.id);
-                }
-            }
-        }
-        if let Ok(mut entries) = tokio::fs::read_dir(temp_dir).await {
-            while let Ok(Some(entry)) = entries.next_entry().await {
-                let path = entry.path();
-                let is_orphan = path
-                    .file_name()
-                    .and_then(|n| n.to_str())
-                    .and_then(|name| name.strip_suffix(".part"))
-                    .and_then(|id_str| id_str.parse::<i64>().ok())
-                    .is_some_and(|id| !active_ids.contains(&id));
-                if is_orphan {
-                    tokio::fs::remove_file(&path).await.ok();
-                }
+    if let Ok(mut entries) = tokio::fs::read_dir(temp_dir).await {
+        while let Ok(Some(entry)) = entries.next_entry().await {
+            let path = entry.path();
+            let is_orphan = path
+                .file_name()
+                .and_then(|n| n.to_str())
+                .and_then(|name| name.strip_suffix(".part"))
+                .and_then(|id_str| id_str.parse::<i64>().ok())
+                .is_some_and(|id| !live.contains(&id));
+            if is_orphan {
+                tokio::fs::remove_file(&path).await.ok();
             }
         }
     }
 
-    // 2. Resume processing rows:
-    if let Ok(mut conn) = state.db.acquire().await
-        && let Ok(rows) = crate::db::attachments::in_state(&mut conn, "processing").await
-    {
-        for row in rows {
-            process::spawn_job(state.clone(), row.id);
-        }
+    for row in processing {
+        process::spawn_job(state.clone(), row.id);
     }
-
-    // 3. Start GC
     gc::start(state);
-
     Ok(())
 }

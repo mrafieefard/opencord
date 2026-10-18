@@ -42,7 +42,10 @@ pub fn process(bytes: &[u8]) -> Result<ImageInfo, ImageError> {
         )));
     }
 
-    // 2. Decode with orientation
+    // 2. Animation, before the full decode so their buffers never coexist.
+    let animated = is_animated(bytes);
+
+    // 3. Decode with orientation
     let mut reader = ImageReader::new(Cursor::new(bytes)).with_guessed_format()?;
     reader.limits(limits);
     let mut decoder = reader.into_decoder()?;
@@ -50,9 +53,6 @@ pub fn process(bytes: &[u8]) -> Result<ImageInfo, ImageError> {
     let mut image = DynamicImage::from_decoder(decoder)?;
     image.apply_orientation(orientation);
     let (width, height) = image.dimensions();
-
-    // 3. Animation detection
-    let animated = is_animated(bytes);
 
     // 4. Thumbnail generation: unchanged if both sides <= 800, else resize
     let (thumb_image, thumb_w, thumb_h) = if width <= THUMB_MAX_SIDE && height <= THUMB_MAX_SIDE {

@@ -144,13 +144,15 @@ pub async fn set_state(
     Ok(())
 }
 
+/// Marks a processing row ready. False when the row is gone or no longer
+/// processing (cancelled while its job ran).
 pub async fn set_ready(
     conn: &mut SqliteConnection,
     id: i64,
     ready: &ReadyFields,
     now: i64,
-) -> Result<(), sqlx::Error> {
-    sqlx::query!(
+) -> Result<bool, sqlx::Error> {
+    let result = sqlx::query!(
         "UPDATE attachments
          SET state = 'ready',
              kind = $2,
@@ -166,7 +168,7 @@ pub async fn set_ready(
              thumbnail_width = $12,
              thumbnail_height = $13,
              updated_at = $14
-         WHERE id = $1",
+         WHERE id = $1 AND state = 'processing'",
         id,
         ready.kind,
         ready.content_type,
@@ -184,7 +186,7 @@ pub async fn set_ready(
     )
     .execute(conn)
     .await?;
-    Ok(())
+    Ok(result.rows_affected() == 1)
 }
 
 pub async fn set_failed(
@@ -502,7 +504,7 @@ mod tests {
             thumbnail_width: Some(200),
             thumbnail_height: Some(150),
         };
-        set_ready(&mut conn, 501, &ready, 40).await.unwrap();
+        assert!(set_ready(&mut conn, 501, &ready, 40).await.unwrap());
 
         let ready_fields2 = ReadyFields {
             kind: "file".to_string(),
@@ -518,7 +520,10 @@ mod tests {
             thumbnail_width: None,
             thumbnail_height: None,
         };
-        set_ready(&mut conn, 502, &ready_fields2, 40).await.unwrap();
+        // Only a processing row becomes ready.
+        assert!(!set_ready(&mut conn, 502, &ready_fields2, 35).await.unwrap());
+        set_state(&mut conn, 502, "processing", 35).await.unwrap();
+        assert!(set_ready(&mut conn, 502, &ready_fields2, 40).await.unwrap());
 
         // Mark sent with specific order: 502 at position 0, 501 at position 1
         mark_sent(&mut conn, &[502, 501], 100).await.unwrap();

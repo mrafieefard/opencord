@@ -613,7 +613,7 @@ The desktop UI plan's §17.5 never arrived, so where Phase 2 §12 says only what
 - **Processing and background workers** (`crates/opencord-server/src/attachments/process.rs`, `images.rs`, `voice.rs`):
   - `POST /media/uploads/{id}/finish` sets the upload state to `processing` and spawns a background job governed by a 2-permit concurrency semaphore (`jobs`).
   - Interruptions and restarts: `attachments::start` resumes any pending `processing` rows on boot, and cleans up orphaned `.part` files lacking active DB rows.
-  - Image processing: type sniffing via `sniff::sniff`. Images are decoded and downscaled into an 800×800 bounding box keeping aspect ratio and EXIF orientation (`image::imageops::thumbnail`). Formats with transparency keep alpha and save as PNG; otherwise JPEG at quality 80. Animated GIFs are detected without generating thumbnails.
+  - Image processing: type sniffing via `sniff::sniff`. Images are decoded with EXIF orientation applied and, when a side is over 800 px, scaled to fit 800×800 keeping the aspect ratio (`DynamicImage::resize`, `FilterType::Triangle`). Images with alpha save as PNG; others as JPEG at quality 82. Animated GIF and WebP files are flagged `animated` and still get a thumbnail of their first frame. An image that fails to decode stays a file.
   - Voice processing: validates Ogg Opus structure, enforces maximum voice duration (`voice_message_max_seconds`), decodes PCM audio, measures duration, and calculates 128 normalized waveform bars (`waveform::waveform`).
   - Storage: finishes by encrypting the thumbnail (if generated), moving the attachment file into the active storage backend, marking state `ready`, and broadcasting `UploadReady` (or `UploadFailed` on error).
 - **Downloads** (`crates/opencord-server/src/attachments/range.rs`, `crates/opencord-server/src/attachments/http.rs`):
@@ -625,4 +625,13 @@ The desktop UI plan's §17.5 never arrived, so where Phase 2 §12 says only what
 - **Garbage collection and blob deletion** (`crates/opencord-server/src/attachments/gc.rs`):
   - `sweep`: runs every 10 minutes, pruning abandoned uploads (`uploading` and `ready` > 24 hours, `failed` > 1 hour) and removing their temp files.
   - `drain_blobs`: runs every 30 seconds, deleting pending storage objects queued in `blob_deletions` by database triggers (`attachments_queue_blobs`), applying exponential retry backoff on failures.
-  - Test hooks on `ServerHandle`: `sweep_attachments` and `drain_blob_deletions`.
+  - Test hooks on `ServerHandle`: `hold_processing`, `db`, `sweep_attachments` and `drain_blob_deletions`.
+- **Review.**
+  - `PUT` and `finish` checked the media token only after buffering the body (up to 8 MiB); the token now comes first.
+  - A poster sent with a non-video upload stayed in memory for good; every job now takes its poster.
+  - An upload cancelled while processing could leave its stored objects behind: `set_ready` only updates a `processing` row, and a job whose row is gone queues what it stored with `queue_blob`. Objects stored before a failure are queued the same way.
+  - A zero-byte upload finished without an empty `PUT` failed; `finish` now writes its empty last segment.
+  - `attachments::start` deleted every temp file when its database query failed; startup now stops instead.
+  - Voice decoding moved to `spawn_blocking`; animation detection runs before the full image decode.
+  - `upload_locks` kept an entry for every upload ever made; unused entries are now dropped.
+  - Blob retry delays overflowed after weeks of failures (`retry_delay_ms` caps them at 6 hours), and storage error details reached members; they now stay in the log.

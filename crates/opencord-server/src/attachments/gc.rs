@@ -94,18 +94,44 @@ pub async fn drain_blobs(state: &AppState, now: i64) {
 
         match res {
             Ok(()) => {
-                let _ = db::storage::blob_done(&mut conn, blob.id).await;
+                if let Err(e) = db::storage::blob_done(&mut conn, blob.id).await {
+                    tracing::error!(blob_id = blob.id, ?e, "a deleted blob stayed queued");
+                }
             }
             Err(e) => {
                 tracing::warn!(blob_id = blob.id, key = %blob.object_key, ?e, "blob deletion failed, scheduling retry");
-                let attempts = blob.attempts + 1;
-                let delay_minutes = 1i64
-                    .checked_shl(blob.attempts as u32)
-                    .unwrap_or(360)
-                    .min(360);
-                let next_at = now + delay_minutes * 60 * 1000;
-                let _ = db::storage::blob_retry(&mut conn, blob.id, attempts, next_at).await;
+                let next_at = now + retry_delay_ms(blob.attempts);
+                if let Err(e) =
+                    db::storage::blob_retry(&mut conn, blob.id, blob.attempts + 1, next_at).await
+                {
+                    tracing::error!(blob_id = blob.id, ?e, "a blob retry wasn't scheduled");
+                }
             }
         }
+    }
+}
+
+/// 2^attempts minutes, at most 6 hours.
+fn retry_delay_ms(attempts: i64) -> i64 {
+    const MAX_MINUTES: i64 = 6 * 60;
+    // 2^9 minutes is already past the cap; this also keeps the shift small.
+    let minutes = (1i64 << attempts.clamp(0, 9)).min(MAX_MINUTES);
+    minutes * 60 * 1000
+}
+
+#[cfg(test)]
+mod tests {
+    use super::retry_delay_ms;
+
+    #[test]
+    fn retries_back_off_to_six_hours() {
+        const MINUTE: i64 = 60_000;
+        assert_eq!(retry_delay_ms(0), MINUTE);
+        assert_eq!(retry_delay_ms(3), 8 * MINUTE);
+        assert_eq!(retry_delay_ms(8), 256 * MINUTE);
+        assert_eq!(retry_delay_ms(9), 360 * MINUTE);
+        // Weeks of failures must not overflow the shift.
+        assert_eq!(retry_delay_ms(63), 360 * MINUTE);
+        assert_eq!(retry_delay_ms(i64::MAX), 360 * MINUTE);
     }
 }
