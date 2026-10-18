@@ -43,6 +43,7 @@ pub struct Role {
     pub permissions: Permissions,
     pub hoist: bool,
     pub mentionable: bool,
+    pub max_upload_bytes: Option<u64>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -97,6 +98,11 @@ impl Guild {
                     permissions: permissions_from_db(row.permissions),
                     hoist: row.hoist,
                     mentionable: row.mentionable,
+                    max_upload_bytes: row
+                        .max_upload_bytes
+                        .map(u64::try_from)
+                        .transpose()
+                        .map_err(|_| corrupt("role", row.id))?,
                 };
                 Ok((role.id, role))
             })
@@ -303,7 +309,7 @@ impl Role {
             permissions: self.permissions.bits(),
             hoist: self.hoist,
             mentionable: self.mentionable,
-            max_upload_bytes: None,
+            max_upload_bytes: self.max_upload_bytes,
         }
     }
 }
@@ -318,6 +324,7 @@ impl Role {
             permissions: permissions_to_db(self.permissions),
             hoist: self.hoist,
             mentionable: self.mentionable,
+            max_upload_bytes: self.max_upload_bytes.map(|b| b as i64),
         }
     }
 }
@@ -454,6 +461,7 @@ pub(crate) mod tests {
                 permissions: Permissions::KICK_MEMBERS,
                 hoist: true,
                 mentionable: false,
+                max_upload_bytes: None,
             },
         );
         guild.members.insert(OWNER, member(OWNER, vec![]));

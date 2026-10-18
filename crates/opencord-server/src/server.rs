@@ -71,7 +71,8 @@ pub async fn start(config: Config) -> anyhow::Result<ServerHandle> {
         .unzip();
     let guild = Guild::load(&mut *pool.acquire().await?, bootstrap.meta).await?;
     let invite_code = bootstrap::startup_invite(&pool, now_ms()).await?;
-    let secrets = Secrets::load_or_generate(&data_dir)?;
+    let secrets =
+        Secrets::load_or_generate(&config.secrets_file(), !db::holds_sealed_data(&pool).await?)?;
     let store = Arc::new(CertStore::new(certified_key(
         tls.cert_chain.clone(),
         &tls.key,

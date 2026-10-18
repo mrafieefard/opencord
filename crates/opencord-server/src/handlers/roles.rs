@@ -50,6 +50,7 @@ pub async fn create(ctx: &Ctx<'_>, request: proto::CreateRole) -> Result<Respons
         permissions,
         hoist: request.hoist,
         mentionable: request.mentionable,
+        max_upload_bytes: None,
     };
     let mut tx = ctx.state.db.begin().await?;
     for moved in &shifted {

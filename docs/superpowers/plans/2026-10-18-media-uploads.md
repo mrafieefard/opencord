@@ -769,7 +769,7 @@ The AAD is 22 bytes: `MAGIC || kind as u8 || blob_id.to_be_bytes() || index.to_b
 - `pub async fn holds_sealed_data(pool: &SqlitePool) -> Result<bool, sqlx::Error>` in `db/mod.rs`. It is true if any row exists in `domain_certificates`, `acme_accounts`, `dns_providers`, `lavalink_nodes` or `attachments`, or in `storage_backends` with `secret_enc IS NOT NULL`, or in `server_meta` with `key = 'tunnel.token'`.
 - **Roles:** `RoleRow` gains `pub max_upload_bytes: Option<i64>` (list, insert and update queries include it). `guild::Role` gains `pub max_upload_bytes: Option<u64>`, and `to_proto` fills it. `bootstrap.rs::create_server` gives @everyone `Some(EVERYONE_DEFAULT_BYTES)`.
 
-- [ ] **Step 1: Write the migration** exactly:
+- [x] **Step 1: Write the migration** exactly:
 
 ```sql
 -- Media uploads (design 2026-10-18): storage backends, attachments, and the
@@ -860,7 +860,7 @@ SET max_upload_bytes = 52428800,
 WHERE id = (SELECT CAST(value AS INTEGER) FROM server_meta WHERE key = 'everyone_role_id');
 ```
 
-- [ ] **Step 2: Write the failing tests.**
+- [x] **Step 2: Write the failing tests.**
   - **`config.rs` unit tests:**
     - `uploads_defaults_and_env`: defaults give `max_file_bytes() == 4096 × MIB` and `attachments_dir() == data_dir/attachments`; `OPENCORD_UPLOADS_MAX_FILE_MB=10` gives `10 × MIB`; `OPENCORD_SECRETS_FILE=keys/s.key` resolves against the config folder.
     - `max_file_mb_out_of_range_is_refused`: 0 and 102,401 → `ConfigError::Invalid`.
@@ -875,8 +875,8 @@ WHERE id = (SELECT CAST(value AS INTEGER) FROM server_meta WHERE key = 'everyone
       3. Run the full `sqlx::migrate!("./migrations")`, which applies 0008.
       4. Assert the role's permissions are `3 | 1024 | 16384` and `max_upload_bytes = 52428800`.
     - Also: deleting an attachments row inserts the `a/` key (and the `t/` key when `has_thumbnail`) into `blob_deletions`. Deleting the **channel** (cascade) does the same.
-- [ ] **Step 3:** Run → FAIL.
-- [ ] **Step 4: Implement.**
+- [x] **Step 3:** Run → FAIL.
+- [x] **Step 4: Implement.**
   - **`DEFAULT_CONFIG_TOML`:** add under `[server]`:
 
 ```toml
@@ -902,8 +902,8 @@ max_file_mb = 4096
 
   - **`server.rs`:** replace `Secrets::load_or_generate(&data_dir)` with `Secrets::load_or_generate(&config.secrets_file(), !db::holds_sealed_data(&pool).await?)`.
   - Regenerate sqlx data.
-- [ ] **Step 5:** `cargo test -p opencord-server --lib` and `cargo test -p opencord-server --tests`. Expected: PASS.
-- [ ] **Step 6: Commit:** `feat: attachments schema, uploads config and the secrets key location (A0)`.
+- [x] **Step 5:** `cargo test -p opencord-server --lib` and `cargo test -p opencord-server --tests`. Expected: PASS.
+- [x] **Step 6: Commit:** `feat: attachments schema, uploads config and the secrets key location (A0)`.
 
 **A0 stop.** Run the full checks, write **D52** ("Media uploads: protocol, rules, encryption format, schema"), update the ledger, and report.
 
