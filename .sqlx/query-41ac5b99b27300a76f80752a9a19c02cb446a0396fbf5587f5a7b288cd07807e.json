@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO storage_backends (\n            id, kind, name, endpoint, region, bucket, key_prefix,\n            path_style, allow_http, access_key_id, secret_enc,\n            active, last_error, created_at\n         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 14
+    },
+    "nullable": []
+  },
+  "hash": "41ac5b99b27300a76f80752a9a19c02cb446a0396fbf5587f5a7b288cd07807e"
+}

@@ -39,6 +39,7 @@ impl From<std::io::Error> for StorageError {
     }
 }
 
+#[derive(Debug)]
 pub enum Backend {
     Local(LocalStorage),
 }

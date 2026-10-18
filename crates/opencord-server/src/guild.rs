@@ -72,6 +72,7 @@ pub struct Guild {
     pub members: HashMap<i64, Member>,
     /// Soundboard sounds, oldest first.
     pub sounds: BTreeMap<i64, Sound>,
+    pub upload_settings: crate::attachments::settings::UploadSettings,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -190,6 +191,7 @@ impl Guild {
             channels,
             members,
             sounds,
+            upload_settings: crate::attachments::settings::UploadSettings::load(conn).await?,
         })
     }
 
@@ -199,6 +201,26 @@ impl Guild {
 
     pub fn everyone_role(&self) -> Option<&Role> {
         self.roles.get(&self.meta.everyone_role_id)
+    }
+
+    pub fn upload_limit(&self, user_id: i64, ceiling: u64) -> u64 {
+        let is_owner = self.is_owner(user_id);
+        let everyone_limit = self
+            .everyone_role()
+            .and_then(|r| r.max_upload_bytes)
+            .unwrap_or(opencord_common::upload::EVERYONE_DEFAULT_BYTES);
+        let role_limits = self
+            .members
+            .get(&user_id)
+            .into_iter()
+            .flat_map(|m| &m.role_ids)
+            .map(|id| self.roles.get(id).and_then(|r| r.max_upload_bytes));
+        opencord_common::upload::effective_upload_limit(
+            is_owner,
+            everyone_limit,
+            role_limits,
+            ceiling,
+        )
     }
 
     /// Server-wide permissions; empty for non-members.
@@ -539,5 +561,27 @@ pub(crate) mod tests {
         guild.members.get_mut(&ALICE).unwrap().role_ids = vec![MOD_ROLE];
 
         assert_eq!(guild.highest_position(ALICE), 1);
+    }
+
+    #[tokio::test]
+    async fn upload_limit_uses_roles_and_ceiling() {
+        let mut guild = sample_guild().await;
+        const MIB: u64 = 1024 * 1024;
+        const CEILING: u64 = 500 * MIB;
+
+        if let Some(everyone) = guild.roles.get_mut(&guild.meta.everyone_role_id) {
+            everyone.max_upload_bytes = Some(50 * MIB);
+        }
+
+        if let Some(role) = guild.roles.get_mut(&MOD_ROLE) {
+            role.max_upload_bytes = Some(200 * MIB);
+        }
+
+        const BOB: i64 = 99;
+        guild.members.insert(BOB, member(BOB, vec![MOD_ROLE]));
+
+        assert_eq!(guild.upload_limit(BOB, CEILING), 200 * MIB);
+        assert_eq!(guild.upload_limit(ALICE, CEILING), 50 * MIB);
+        assert_eq!(guild.upload_limit(OWNER, CEILING), CEILING);
     }
 }

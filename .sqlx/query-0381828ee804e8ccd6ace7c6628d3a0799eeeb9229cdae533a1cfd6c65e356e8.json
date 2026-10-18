@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE attachments SET storage_id = $1 WHERE id = $2 AND storage_id = $3",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": []
+  },
+  "hash": "0381828ee804e8ccd6ace7c6628d3a0799eeeb9229cdae533a1cfd6c65e356e8"
+}

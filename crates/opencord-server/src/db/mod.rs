@@ -9,6 +9,7 @@ use opencord_common::permissions::Permissions;
 use sqlx::SqlitePool;
 use sqlx::sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions, SqliteSynchronous};
 
+pub mod attachments;
 pub mod bans;
 pub mod certificates;
 pub mod channels;
@@ -21,6 +22,7 @@ pub mod meta;
 pub mod music;
 pub mod roles;
 pub mod sounds;
+pub mod storage;
 pub mod users;
 
 pub const DATABASE_FILE: &str = "opencord.db";

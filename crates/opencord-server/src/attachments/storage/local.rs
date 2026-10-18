@@ -4,6 +4,7 @@ use tokio::io::{AsyncReadExt, AsyncSeekExt, AsyncWriteExt};
 
 use super::StorageError;
 
+#[derive(Debug)]
 pub struct LocalStorage {
     root: PathBuf,
 }

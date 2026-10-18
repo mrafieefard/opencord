@@ -128,6 +128,52 @@ impl ApiError {
         )
     }
 
+    pub fn file_too_large(limit_bytes: u64) -> Self {
+        let n = (limit_bytes / (1024 * 1024)).max(1);
+        Self::new(
+            proto::ErrorCode::FileTooLarge,
+            format!("files can be at most {n} MB here"),
+        )
+    }
+
+    pub fn file_type_blocked(extension: &str) -> Self {
+        Self::new(
+            proto::ErrorCode::FileTypeBlocked,
+            format!("{extension} files can't be uploaded here"),
+        )
+    }
+
+    pub fn upload_offset_mismatch() -> Self {
+        Self::new(
+            proto::ErrorCode::UploadOffsetMismatch,
+            "upload offset mismatch",
+        )
+    }
+
+    pub fn storage_unavailable(message: impl Into<String>) -> Self {
+        Self::new(proto::ErrorCode::StorageUnavailable, message)
+    }
+
+    pub fn storage_full() -> Self {
+        Self::new(
+            proto::ErrorCode::StorageFull,
+            "the server is out of space for uploads",
+        )
+    }
+
+    pub fn voice_message_invalid(message: impl Into<String>) -> Self {
+        Self::new(proto::ErrorCode::VoiceMessageInvalid, message)
+    }
+
+    pub fn voice_message_too_long(max_seconds: u32) -> Self {
+        let m = max_seconds / 60;
+        let ss = max_seconds % 60;
+        Self::new(
+            proto::ErrorCode::VoiceMessageTooLong,
+            format!("voice messages can be at most {m}:{ss:02} long"),
+        )
+    }
+
     pub fn internal() -> Self {
         Self::new(proto::ErrorCode::Internal, "internal server error")
     }

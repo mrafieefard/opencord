@@ -98,6 +98,13 @@ pub async fn start(config: Config) -> anyhow::Result<ServerHandle> {
         .with_certificates(certificates),
     );
     state
+        .attachments
+        .load(
+            &mut *state.db.acquire().await?,
+            state.certificates.secrets(),
+        )
+        .await?;
+    state
         .certificates
         .serve(&state.domains.all(), crate::state::now_ms());
     state.network.restore(network_settings);

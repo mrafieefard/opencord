@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE storage_backends SET active = FALSE WHERE active",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": []
+  },
+  "hash": "2df91bb28d75d65aec31ed176f4130b714c7d4fadceada7524f3cc619082ba08"
+}

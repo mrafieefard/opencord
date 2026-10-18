@@ -1,0 +1,62 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT id, storage_id, object_key, attempts\n         FROM blob_deletions\n         WHERE next_attempt_at <= $1\n         ORDER BY id\n         LIMIT $2",
+  "describe": {
+    "columns": [
+      {
+        "name": "id",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "blob_deletions",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "name": "storage_id",
+        "ordinal": 1,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "blob_deletions",
+            "name": "storage_id"
+          }
+        }
+      },
+      {
+        "name": "object_key",
+        "ordinal": 2,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "blob_deletions",
+            "name": "object_key"
+          }
+        }
+      },
+      {
+        "name": "attempts",
+        "ordinal": 3,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "blob_deletions",
+            "name": "attempts"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "e1cf8264a85f70794d1faeff6cdf029ec3cfe127842f9bb57eff082244f13e30"
+}

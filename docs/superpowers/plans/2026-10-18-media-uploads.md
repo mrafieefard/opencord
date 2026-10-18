@@ -1015,14 +1015,14 @@ impl Attachments {
   - `voice_message_invalid(message)`
   - `voice_message_too_long(max_seconds: u32)`: "voice messages can be at most {m}:{ss} long".
 
-- [ ] **Step 1: Write tests** (unit, `test_pool()`):
+- [x] **Step 1: Write tests** (unit, `test_pool()`):
   - `upload_rows_move_through_their_states`: insert uploading → set_received → processing → ready → mark_sent; `for_messages` returns them in position order.
   - `expired_picks_each_state_by_its_age`: 24 h uploading and ready, 1 h failed, and fresh rows are kept.
   - `one_backend_is_active`: `set_active(2)` leaves exactly one active.
   - `upload_settings_round_trip_and_default`.
   - `upload_limit_uses_roles_and_ceiling`: a guild built in the test with @everyone 50 MiB and a role with 200 MiB gives the member 200 MiB, a non-member of that role 50 MiB, and the owner the ceiling.
-- [ ] **Step 2:** Run → FAIL. **Step 3:** Implement, then regenerate sqlx data. **Step 4:** Run → PASS.
-- [ ] **Step 5: Commit:** `feat: attachment queries, upload settings and the attachments service (A1)`.
+- [x] **Step 2:** Run → FAIL. **Step 3:** Implement, then regenerate sqlx data. **Step 4:** Run → PASS.
+- [x] **Step 5: Commit:** `feat: attachment queries, upload settings and the attachments service (A1)`.
 
 ### Task 8: Creating uploads and receiving pieces
 
