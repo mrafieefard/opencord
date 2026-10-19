@@ -105,6 +105,35 @@ void cancelSend({required String serverKey, required String nonce}) => RustLib
     .api
     .crateApiAttachmentsCancelSend(serverKey: serverKey, nonce: nonce);
 
+/// Starts recording a voice message.
+void voiceRecordStart({required int maxSeconds}) => RustLib.instance.api
+    .crateApiAttachmentsVoiceRecordStart(maxSeconds: maxSeconds);
+
+/// Stops recording and returns the drafted voice message.
+VoiceDraft voiceRecordStop() =>
+    RustLib.instance.api.crateApiAttachmentsVoiceRecordStop();
+
+/// Cancels the recording in progress without saving a draft.
+void voiceRecordCancel() =>
+    RustLib.instance.api.crateApiAttachmentsVoiceRecordCancel();
+
+/// Discards a drafted voice message.
+void voiceDraftDiscard({required BigInt draftId}) =>
+    RustLib.instance.api.crateApiAttachmentsVoiceDraftDiscard(draftId: draftId);
+
+/// Uploads and sends a drafted voice message.
+Future<Message> sendVoiceMessage({
+  required String serverKey,
+  required PlatformInt64 channelId,
+  required String nonce,
+  required BigInt draftId,
+}) => RustLib.instance.api.crateApiAttachmentsSendVoiceMessage(
+  serverKey: serverKey,
+  channelId: channelId,
+  nonce: nonce,
+  draftId: draftId,
+);
+
 /// Saves the attachment at `path`; DownloadProgress events follow it.
 Future<void> downloadAttachment({
   required String serverKey,

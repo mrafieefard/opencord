@@ -1323,6 +1323,25 @@ pub enum MediaEvent {
         channel_id: i64,
         stats: VoiceStats,
     },
+    /// The loudness of the voice message being recorded, 0..1.
+    VoiceRecordLevel { level: f32 },
+    /// Recording stopped by itself.
+    VoiceRecordStopped { reason: VoiceStopReason },
+}
+
+/// Why a voice recording stopped by itself.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum VoiceStopReason {
+    MaxLength,
+    DeviceLost,
+}
+
+/// A voice message recorded on this device, ready to send or preview.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct VoiceDraft {
+    pub draft_id: u64,
+    pub duration_ms: u32,
+    pub waveform: Vec<u8>,
 }
 
 /// A voice connection over the last second (Phase 2 §12).

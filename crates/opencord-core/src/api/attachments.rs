@@ -6,7 +6,7 @@ use flutter_rust_bridge::frb;
 use super::client::{client, on_blocking, on_runtime};
 use super::types::{
     AttachmentVariant, CoreError, Message, OutgoingFile, S3Config, StorageInfo, StorageTestResult,
-    StorageTestTarget, UploadSettings,
+    StorageTestTarget, UploadSettings, VoiceDraft,
 };
 use crate::attachments::clipboard;
 
@@ -106,6 +106,47 @@ pub async fn send_message_with_files(
 pub fn cancel_send(server_key: String, nonce: String) -> Result<(), CoreError> {
     client()?.cancel_send(&server_key, &nonce);
     Ok(())
+}
+
+/// Starts recording a voice message.
+#[frb(sync)]
+pub fn voice_record_start(max_seconds: u32) -> Result<(), CoreError> {
+    client()?.voice_record_start(max_seconds)
+}
+
+/// Stops recording and returns the drafted voice message.
+#[frb(sync)]
+pub fn voice_record_stop() -> Result<VoiceDraft, CoreError> {
+    client()?.voice_record_stop()
+}
+
+/// Cancels the recording in progress without saving a draft.
+#[frb(sync)]
+pub fn voice_record_cancel() -> Result<(), CoreError> {
+    client()?.voice_record_cancel();
+    Ok(())
+}
+
+/// Discards a drafted voice message.
+#[frb(sync)]
+pub fn voice_draft_discard(draft_id: u64) -> Result<(), CoreError> {
+    client()?.voice_draft_discard(draft_id);
+    Ok(())
+}
+
+/// Uploads and sends a drafted voice message.
+pub async fn send_voice_message(
+    server_key: String,
+    channel_id: i64,
+    nonce: String,
+    draft_id: u64,
+) -> Result<Message, CoreError> {
+    on_runtime(move |client| async move {
+        client
+            .send_voice_message(&server_key, channel_id, nonce, draft_id)
+            .await
+    })
+    .await
 }
 
 /// Saves the attachment at `path`; DownloadProgress events follow it.

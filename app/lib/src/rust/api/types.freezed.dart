@@ -5430,7 +5430,7 @@ extension MediaEventPatterns on MediaEvent {
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeMap<TResult extends Object?>({TResult Function( MediaEvent_ConnectionState value)?  connectionState,TResult Function( MediaEvent_DeviceFellBack value)?  deviceFellBack,TResult Function( MediaEvent_DeviceFailed value)?  deviceFailed,TResult Function( MediaEvent_DevicesChanged value)?  devicesChanged,TResult Function( MediaEvent_Speaking value)?  speaking,TResult Function( MediaEvent_InputLevel value)?  inputLevel,TResult Function( MediaEvent_SpeakingWhileMuted value)?  speakingWhileMuted,TResult Function( MediaEvent_NoiseSuppressionFellBack value)?  noiseSuppressionFellBack,TResult Function( MediaEvent_HotkeyPressed value)?  hotkeyPressed,TResult Function( MediaEvent_VideoTrackAdded value)?  videoTrackAdded,TResult Function( MediaEvent_VideoTrackRemoved value)?  videoTrackRemoved,TResult Function( MediaEvent_CameraStopped value)?  cameraStopped,TResult Function( MediaEvent_ScreenShareStopped value)?  screenShareStopped,TResult Function( MediaEvent_ConnectionStats value)?  connectionStats,required TResult orElse(),}){
+@optionalTypeArgs TResult maybeMap<TResult extends Object?>({TResult Function( MediaEvent_ConnectionState value)?  connectionState,TResult Function( MediaEvent_DeviceFellBack value)?  deviceFellBack,TResult Function( MediaEvent_DeviceFailed value)?  deviceFailed,TResult Function( MediaEvent_DevicesChanged value)?  devicesChanged,TResult Function( MediaEvent_Speaking value)?  speaking,TResult Function( MediaEvent_InputLevel value)?  inputLevel,TResult Function( MediaEvent_SpeakingWhileMuted value)?  speakingWhileMuted,TResult Function( MediaEvent_NoiseSuppressionFellBack value)?  noiseSuppressionFellBack,TResult Function( MediaEvent_HotkeyPressed value)?  hotkeyPressed,TResult Function( MediaEvent_VideoTrackAdded value)?  videoTrackAdded,TResult Function( MediaEvent_VideoTrackRemoved value)?  videoTrackRemoved,TResult Function( MediaEvent_CameraStopped value)?  cameraStopped,TResult Function( MediaEvent_ScreenShareStopped value)?  screenShareStopped,TResult Function( MediaEvent_ConnectionStats value)?  connectionStats,TResult Function( MediaEvent_VoiceRecordLevel value)?  voiceRecordLevel,TResult Function( MediaEvent_VoiceRecordStopped value)?  voiceRecordStopped,required TResult orElse(),}){
 final _that = this;
 switch (_that) {
 case MediaEvent_ConnectionState() when connectionState != null:
@@ -5447,7 +5447,9 @@ return videoTrackAdded(_that);case MediaEvent_VideoTrackRemoved() when videoTrac
 return videoTrackRemoved(_that);case MediaEvent_CameraStopped() when cameraStopped != null:
 return cameraStopped(_that);case MediaEvent_ScreenShareStopped() when screenShareStopped != null:
 return screenShareStopped(_that);case MediaEvent_ConnectionStats() when connectionStats != null:
-return connectionStats(_that);case _:
+return connectionStats(_that);case MediaEvent_VoiceRecordLevel() when voiceRecordLevel != null:
+return voiceRecordLevel(_that);case MediaEvent_VoiceRecordStopped() when voiceRecordStopped != null:
+return voiceRecordStopped(_that);case _:
   return orElse();
 
 }
@@ -5465,7 +5467,7 @@ return connectionStats(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult map<TResult extends Object?>({required TResult Function( MediaEvent_ConnectionState value)  connectionState,required TResult Function( MediaEvent_DeviceFellBack value)  deviceFellBack,required TResult Function( MediaEvent_DeviceFailed value)  deviceFailed,required TResult Function( MediaEvent_DevicesChanged value)  devicesChanged,required TResult Function( MediaEvent_Speaking value)  speaking,required TResult Function( MediaEvent_InputLevel value)  inputLevel,required TResult Function( MediaEvent_SpeakingWhileMuted value)  speakingWhileMuted,required TResult Function( MediaEvent_NoiseSuppressionFellBack value)  noiseSuppressionFellBack,required TResult Function( MediaEvent_HotkeyPressed value)  hotkeyPressed,required TResult Function( MediaEvent_VideoTrackAdded value)  videoTrackAdded,required TResult Function( MediaEvent_VideoTrackRemoved value)  videoTrackRemoved,required TResult Function( MediaEvent_CameraStopped value)  cameraStopped,required TResult Function( MediaEvent_ScreenShareStopped value)  screenShareStopped,required TResult Function( MediaEvent_ConnectionStats value)  connectionStats,}){
+@optionalTypeArgs TResult map<TResult extends Object?>({required TResult Function( MediaEvent_ConnectionState value)  connectionState,required TResult Function( MediaEvent_DeviceFellBack value)  deviceFellBack,required TResult Function( MediaEvent_DeviceFailed value)  deviceFailed,required TResult Function( MediaEvent_DevicesChanged value)  devicesChanged,required TResult Function( MediaEvent_Speaking value)  speaking,required TResult Function( MediaEvent_InputLevel value)  inputLevel,required TResult Function( MediaEvent_SpeakingWhileMuted value)  speakingWhileMuted,required TResult Function( MediaEvent_NoiseSuppressionFellBack value)  noiseSuppressionFellBack,required TResult Function( MediaEvent_HotkeyPressed value)  hotkeyPressed,required TResult Function( MediaEvent_VideoTrackAdded value)  videoTrackAdded,required TResult Function( MediaEvent_VideoTrackRemoved value)  videoTrackRemoved,required TResult Function( MediaEvent_CameraStopped value)  cameraStopped,required TResult Function( MediaEvent_ScreenShareStopped value)  screenShareStopped,required TResult Function( MediaEvent_ConnectionStats value)  connectionStats,required TResult Function( MediaEvent_VoiceRecordLevel value)  voiceRecordLevel,required TResult Function( MediaEvent_VoiceRecordStopped value)  voiceRecordStopped,}){
 final _that = this;
 switch (_that) {
 case MediaEvent_ConnectionState():
@@ -5482,7 +5484,9 @@ return videoTrackAdded(_that);case MediaEvent_VideoTrackRemoved():
 return videoTrackRemoved(_that);case MediaEvent_CameraStopped():
 return cameraStopped(_that);case MediaEvent_ScreenShareStopped():
 return screenShareStopped(_that);case MediaEvent_ConnectionStats():
-return connectionStats(_that);}
+return connectionStats(_that);case MediaEvent_VoiceRecordLevel():
+return voiceRecordLevel(_that);case MediaEvent_VoiceRecordStopped():
+return voiceRecordStopped(_that);}
 }
 /// A variant of `map` that fallback to returning `null`.
 ///
@@ -5496,7 +5500,7 @@ return connectionStats(_that);}
 /// }
 /// ```
 
-@optionalTypeArgs TResult? mapOrNull<TResult extends Object?>({TResult? Function( MediaEvent_ConnectionState value)?  connectionState,TResult? Function( MediaEvent_DeviceFellBack value)?  deviceFellBack,TResult? Function( MediaEvent_DeviceFailed value)?  deviceFailed,TResult? Function( MediaEvent_DevicesChanged value)?  devicesChanged,TResult? Function( MediaEvent_Speaking value)?  speaking,TResult? Function( MediaEvent_InputLevel value)?  inputLevel,TResult? Function( MediaEvent_SpeakingWhileMuted value)?  speakingWhileMuted,TResult? Function( MediaEvent_NoiseSuppressionFellBack value)?  noiseSuppressionFellBack,TResult? Function( MediaEvent_HotkeyPressed value)?  hotkeyPressed,TResult? Function( MediaEvent_VideoTrackAdded value)?  videoTrackAdded,TResult? Function( MediaEvent_VideoTrackRemoved value)?  videoTrackRemoved,TResult? Function( MediaEvent_CameraStopped value)?  cameraStopped,TResult? Function( MediaEvent_ScreenShareStopped value)?  screenShareStopped,TResult? Function( MediaEvent_ConnectionStats value)?  connectionStats,}){
+@optionalTypeArgs TResult? mapOrNull<TResult extends Object?>({TResult? Function( MediaEvent_ConnectionState value)?  connectionState,TResult? Function( MediaEvent_DeviceFellBack value)?  deviceFellBack,TResult? Function( MediaEvent_DeviceFailed value)?  deviceFailed,TResult? Function( MediaEvent_DevicesChanged value)?  devicesChanged,TResult? Function( MediaEvent_Speaking value)?  speaking,TResult? Function( MediaEvent_InputLevel value)?  inputLevel,TResult? Function( MediaEvent_SpeakingWhileMuted value)?  speakingWhileMuted,TResult? Function( MediaEvent_NoiseSuppressionFellBack value)?  noiseSuppressionFellBack,TResult? Function( MediaEvent_HotkeyPressed value)?  hotkeyPressed,TResult? Function( MediaEvent_VideoTrackAdded value)?  videoTrackAdded,TResult? Function( MediaEvent_VideoTrackRemoved value)?  videoTrackRemoved,TResult? Function( MediaEvent_CameraStopped value)?  cameraStopped,TResult? Function( MediaEvent_ScreenShareStopped value)?  screenShareStopped,TResult? Function( MediaEvent_ConnectionStats value)?  connectionStats,TResult? Function( MediaEvent_VoiceRecordLevel value)?  voiceRecordLevel,TResult? Function( MediaEvent_VoiceRecordStopped value)?  voiceRecordStopped,}){
 final _that = this;
 switch (_that) {
 case MediaEvent_ConnectionState() when connectionState != null:
@@ -5513,7 +5517,9 @@ return videoTrackAdded(_that);case MediaEvent_VideoTrackRemoved() when videoTrac
 return videoTrackRemoved(_that);case MediaEvent_CameraStopped() when cameraStopped != null:
 return cameraStopped(_that);case MediaEvent_ScreenShareStopped() when screenShareStopped != null:
 return screenShareStopped(_that);case MediaEvent_ConnectionStats() when connectionStats != null:
-return connectionStats(_that);case _:
+return connectionStats(_that);case MediaEvent_VoiceRecordLevel() when voiceRecordLevel != null:
+return voiceRecordLevel(_that);case MediaEvent_VoiceRecordStopped() when voiceRecordStopped != null:
+return voiceRecordStopped(_that);case _:
   return null;
 
 }
@@ -5530,7 +5536,7 @@ return connectionStats(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>({TResult Function( String serverKey,  PlatformInt64 channelId,  VoiceConnectionState state)?  connectionState,TResult Function( bool output,  String device)?  deviceFellBack,TResult Function( bool output,  String message)?  deviceFailed,TResult Function( AudioDevices field0)?  devicesChanged,TResult Function( String serverKey,  PlatformInt64 channelId,  List<SpeakingChange> changes)?  speaking,TResult Function( double dbfs)?  inputLevel,TResult Function()?  speakingWhileMuted,TResult Function()?  noiseSuppressionFellBack,TResult Function( HotkeyAction action)?  hotkeyPressed,TResult Function( String serverKey,  PlatformInt64 channelId,  PlatformInt64 userId,  String trackId,  VideoTrackKind kind,  PlatformInt64? textureId,  int width,  int height)?  videoTrackAdded,TResult Function( String serverKey,  PlatformInt64 channelId,  PlatformInt64 userId,  String trackId)?  videoTrackRemoved,TResult Function( String message)?  cameraStopped,TResult Function( String message)?  screenShareStopped,TResult Function( String serverKey,  PlatformInt64 channelId,  VoiceStats stats)?  connectionStats,required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>({TResult Function( String serverKey,  PlatformInt64 channelId,  VoiceConnectionState state)?  connectionState,TResult Function( bool output,  String device)?  deviceFellBack,TResult Function( bool output,  String message)?  deviceFailed,TResult Function( AudioDevices field0)?  devicesChanged,TResult Function( String serverKey,  PlatformInt64 channelId,  List<SpeakingChange> changes)?  speaking,TResult Function( double dbfs)?  inputLevel,TResult Function()?  speakingWhileMuted,TResult Function()?  noiseSuppressionFellBack,TResult Function( HotkeyAction action)?  hotkeyPressed,TResult Function( String serverKey,  PlatformInt64 channelId,  PlatformInt64 userId,  String trackId,  VideoTrackKind kind,  PlatformInt64? textureId,  int width,  int height)?  videoTrackAdded,TResult Function( String serverKey,  PlatformInt64 channelId,  PlatformInt64 userId,  String trackId)?  videoTrackRemoved,TResult Function( String message)?  cameraStopped,TResult Function( String message)?  screenShareStopped,TResult Function( String serverKey,  PlatformInt64 channelId,  VoiceStats stats)?  connectionStats,TResult Function( double level)?  voiceRecordLevel,TResult Function( VoiceStopReason reason)?  voiceRecordStopped,required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case MediaEvent_ConnectionState() when connectionState != null:
 return connectionState(_that.serverKey,_that.channelId,_that.state);case MediaEvent_DeviceFellBack() when deviceFellBack != null:
@@ -5546,7 +5552,9 @@ return videoTrackAdded(_that.serverKey,_that.channelId,_that.userId,_that.trackI
 return videoTrackRemoved(_that.serverKey,_that.channelId,_that.userId,_that.trackId);case MediaEvent_CameraStopped() when cameraStopped != null:
 return cameraStopped(_that.message);case MediaEvent_ScreenShareStopped() when screenShareStopped != null:
 return screenShareStopped(_that.message);case MediaEvent_ConnectionStats() when connectionStats != null:
-return connectionStats(_that.serverKey,_that.channelId,_that.stats);case _:
+return connectionStats(_that.serverKey,_that.channelId,_that.stats);case MediaEvent_VoiceRecordLevel() when voiceRecordLevel != null:
+return voiceRecordLevel(_that.level);case MediaEvent_VoiceRecordStopped() when voiceRecordStopped != null:
+return voiceRecordStopped(_that.reason);case _:
   return orElse();
 
 }
@@ -5564,7 +5572,7 @@ return connectionStats(_that.serverKey,_that.channelId,_that.stats);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>({required TResult Function( String serverKey,  PlatformInt64 channelId,  VoiceConnectionState state)  connectionState,required TResult Function( bool output,  String device)  deviceFellBack,required TResult Function( bool output,  String message)  deviceFailed,required TResult Function( AudioDevices field0)  devicesChanged,required TResult Function( String serverKey,  PlatformInt64 channelId,  List<SpeakingChange> changes)  speaking,required TResult Function( double dbfs)  inputLevel,required TResult Function()  speakingWhileMuted,required TResult Function()  noiseSuppressionFellBack,required TResult Function( HotkeyAction action)  hotkeyPressed,required TResult Function( String serverKey,  PlatformInt64 channelId,  PlatformInt64 userId,  String trackId,  VideoTrackKind kind,  PlatformInt64? textureId,  int width,  int height)  videoTrackAdded,required TResult Function( String serverKey,  PlatformInt64 channelId,  PlatformInt64 userId,  String trackId)  videoTrackRemoved,required TResult Function( String message)  cameraStopped,required TResult Function( String message)  screenShareStopped,required TResult Function( String serverKey,  PlatformInt64 channelId,  VoiceStats stats)  connectionStats,}) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>({required TResult Function( String serverKey,  PlatformInt64 channelId,  VoiceConnectionState state)  connectionState,required TResult Function( bool output,  String device)  deviceFellBack,required TResult Function( bool output,  String message)  deviceFailed,required TResult Function( AudioDevices field0)  devicesChanged,required TResult Function( String serverKey,  PlatformInt64 channelId,  List<SpeakingChange> changes)  speaking,required TResult Function( double dbfs)  inputLevel,required TResult Function()  speakingWhileMuted,required TResult Function()  noiseSuppressionFellBack,required TResult Function( HotkeyAction action)  hotkeyPressed,required TResult Function( String serverKey,  PlatformInt64 channelId,  PlatformInt64 userId,  String trackId,  VideoTrackKind kind,  PlatformInt64? textureId,  int width,  int height)  videoTrackAdded,required TResult Function( String serverKey,  PlatformInt64 channelId,  PlatformInt64 userId,  String trackId)  videoTrackRemoved,required TResult Function( String message)  cameraStopped,required TResult Function( String message)  screenShareStopped,required TResult Function( String serverKey,  PlatformInt64 channelId,  VoiceStats stats)  connectionStats,required TResult Function( double level)  voiceRecordLevel,required TResult Function( VoiceStopReason reason)  voiceRecordStopped,}) {final _that = this;
 switch (_that) {
 case MediaEvent_ConnectionState():
 return connectionState(_that.serverKey,_that.channelId,_that.state);case MediaEvent_DeviceFellBack():
@@ -5580,7 +5588,9 @@ return videoTrackAdded(_that.serverKey,_that.channelId,_that.userId,_that.trackI
 return videoTrackRemoved(_that.serverKey,_that.channelId,_that.userId,_that.trackId);case MediaEvent_CameraStopped():
 return cameraStopped(_that.message);case MediaEvent_ScreenShareStopped():
 return screenShareStopped(_that.message);case MediaEvent_ConnectionStats():
-return connectionStats(_that.serverKey,_that.channelId,_that.stats);}
+return connectionStats(_that.serverKey,_that.channelId,_that.stats);case MediaEvent_VoiceRecordLevel():
+return voiceRecordLevel(_that.level);case MediaEvent_VoiceRecordStopped():
+return voiceRecordStopped(_that.reason);}
 }
 /// A variant of `when` that fallback to returning `null`
 ///
@@ -5594,7 +5604,7 @@ return connectionStats(_that.serverKey,_that.channelId,_that.stats);}
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>({TResult? Function( String serverKey,  PlatformInt64 channelId,  VoiceConnectionState state)?  connectionState,TResult? Function( bool output,  String device)?  deviceFellBack,TResult? Function( bool output,  String message)?  deviceFailed,TResult? Function( AudioDevices field0)?  devicesChanged,TResult? Function( String serverKey,  PlatformInt64 channelId,  List<SpeakingChange> changes)?  speaking,TResult? Function( double dbfs)?  inputLevel,TResult? Function()?  speakingWhileMuted,TResult? Function()?  noiseSuppressionFellBack,TResult? Function( HotkeyAction action)?  hotkeyPressed,TResult? Function( String serverKey,  PlatformInt64 channelId,  PlatformInt64 userId,  String trackId,  VideoTrackKind kind,  PlatformInt64? textureId,  int width,  int height)?  videoTrackAdded,TResult? Function( String serverKey,  PlatformInt64 channelId,  PlatformInt64 userId,  String trackId)?  videoTrackRemoved,TResult? Function( String message)?  cameraStopped,TResult? Function( String message)?  screenShareStopped,TResult? Function( String serverKey,  PlatformInt64 channelId,  VoiceStats stats)?  connectionStats,}) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>({TResult? Function( String serverKey,  PlatformInt64 channelId,  VoiceConnectionState state)?  connectionState,TResult? Function( bool output,  String device)?  deviceFellBack,TResult? Function( bool output,  String message)?  deviceFailed,TResult? Function( AudioDevices field0)?  devicesChanged,TResult? Function( String serverKey,  PlatformInt64 channelId,  List<SpeakingChange> changes)?  speaking,TResult? Function( double dbfs)?  inputLevel,TResult? Function()?  speakingWhileMuted,TResult? Function()?  noiseSuppressionFellBack,TResult? Function( HotkeyAction action)?  hotkeyPressed,TResult? Function( String serverKey,  PlatformInt64 channelId,  PlatformInt64 userId,  String trackId,  VideoTrackKind kind,  PlatformInt64? textureId,  int width,  int height)?  videoTrackAdded,TResult? Function( String serverKey,  PlatformInt64 channelId,  PlatformInt64 userId,  String trackId)?  videoTrackRemoved,TResult? Function( String message)?  cameraStopped,TResult? Function( String message)?  screenShareStopped,TResult? Function( String serverKey,  PlatformInt64 channelId,  VoiceStats stats)?  connectionStats,TResult? Function( double level)?  voiceRecordLevel,TResult? Function( VoiceStopReason reason)?  voiceRecordStopped,}) {final _that = this;
 switch (_that) {
 case MediaEvent_ConnectionState() when connectionState != null:
 return connectionState(_that.serverKey,_that.channelId,_that.state);case MediaEvent_DeviceFellBack() when deviceFellBack != null:
@@ -5610,7 +5620,9 @@ return videoTrackAdded(_that.serverKey,_that.channelId,_that.userId,_that.trackI
 return videoTrackRemoved(_that.serverKey,_that.channelId,_that.userId,_that.trackId);case MediaEvent_CameraStopped() when cameraStopped != null:
 return cameraStopped(_that.message);case MediaEvent_ScreenShareStopped() when screenShareStopped != null:
 return screenShareStopped(_that.message);case MediaEvent_ConnectionStats() when connectionStats != null:
-return connectionStats(_that.serverKey,_that.channelId,_that.stats);case _:
+return connectionStats(_that.serverKey,_that.channelId,_that.stats);case MediaEvent_VoiceRecordLevel() when voiceRecordLevel != null:
+return voiceRecordLevel(_that.level);case MediaEvent_VoiceRecordStopped() when voiceRecordStopped != null:
+return voiceRecordStopped(_that.reason);case _:
   return null;
 
 }
@@ -6520,6 +6532,138 @@ serverKey: null == serverKey ? _self.serverKey : serverKey // ignore: cast_nulla
 as String,channelId: null == channelId ? _self.channelId : channelId // ignore: cast_nullable_to_non_nullable
 as PlatformInt64,stats: null == stats ? _self.stats : stats // ignore: cast_nullable_to_non_nullable
 as VoiceStats,
+  ));
+}
+
+
+}
+
+/// @nodoc
+
+
+class MediaEvent_VoiceRecordLevel extends MediaEvent {
+  const MediaEvent_VoiceRecordLevel({required this.level}): super._();
+  
+
+ final  double level;
+
+/// Create a copy of MediaEvent
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$MediaEvent_VoiceRecordLevelCopyWith<MediaEvent_VoiceRecordLevel> get copyWith => _$MediaEvent_VoiceRecordLevelCopyWithImpl<MediaEvent_VoiceRecordLevel>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is MediaEvent_VoiceRecordLevel&&(identical(other.level, level) || other.level == level));
+}
+
+
+@override
+int get hashCode => Object.hash(runtimeType,level);
+
+@override
+String toString() {
+  return 'MediaEvent.voiceRecordLevel(level: $level)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $MediaEvent_VoiceRecordLevelCopyWith<$Res> implements $MediaEventCopyWith<$Res> {
+  factory $MediaEvent_VoiceRecordLevelCopyWith(MediaEvent_VoiceRecordLevel value, $Res Function(MediaEvent_VoiceRecordLevel) _then) = _$MediaEvent_VoiceRecordLevelCopyWithImpl;
+@useResult
+$Res call({
+ double level
+});
+
+
+
+
+}
+/// @nodoc
+class _$MediaEvent_VoiceRecordLevelCopyWithImpl<$Res>
+    implements $MediaEvent_VoiceRecordLevelCopyWith<$Res> {
+  _$MediaEvent_VoiceRecordLevelCopyWithImpl(this._self, this._then);
+
+  final MediaEvent_VoiceRecordLevel _self;
+  final $Res Function(MediaEvent_VoiceRecordLevel) _then;
+
+/// Create a copy of MediaEvent
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? level = null,}) {
+  return _then(MediaEvent_VoiceRecordLevel(
+level: null == level ? _self.level : level // ignore: cast_nullable_to_non_nullable
+as double,
+  ));
+}
+
+
+}
+
+/// @nodoc
+
+
+class MediaEvent_VoiceRecordStopped extends MediaEvent {
+  const MediaEvent_VoiceRecordStopped({required this.reason}): super._();
+  
+
+ final  VoiceStopReason reason;
+
+/// Create a copy of MediaEvent
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$MediaEvent_VoiceRecordStoppedCopyWith<MediaEvent_VoiceRecordStopped> get copyWith => _$MediaEvent_VoiceRecordStoppedCopyWithImpl<MediaEvent_VoiceRecordStopped>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is MediaEvent_VoiceRecordStopped&&(identical(other.reason, reason) || other.reason == reason));
+}
+
+
+@override
+int get hashCode => Object.hash(runtimeType,reason);
+
+@override
+String toString() {
+  return 'MediaEvent.voiceRecordStopped(reason: $reason)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $MediaEvent_VoiceRecordStoppedCopyWith<$Res> implements $MediaEventCopyWith<$Res> {
+  factory $MediaEvent_VoiceRecordStoppedCopyWith(MediaEvent_VoiceRecordStopped value, $Res Function(MediaEvent_VoiceRecordStopped) _then) = _$MediaEvent_VoiceRecordStoppedCopyWithImpl;
+@useResult
+$Res call({
+ VoiceStopReason reason
+});
+
+
+
+
+}
+/// @nodoc
+class _$MediaEvent_VoiceRecordStoppedCopyWithImpl<$Res>
+    implements $MediaEvent_VoiceRecordStoppedCopyWith<$Res> {
+  _$MediaEvent_VoiceRecordStoppedCopyWithImpl(this._self, this._then);
+
+  final MediaEvent_VoiceRecordStopped _self;
+  final $Res Function(MediaEvent_VoiceRecordStopped) _then;
+
+/// Create a copy of MediaEvent
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? reason = null,}) {
+  return _then(MediaEvent_VoiceRecordStopped(
+reason: null == reason ? _self.reason : reason // ignore: cast_nullable_to_non_nullable
+as VoiceStopReason,
   ));
 }
 

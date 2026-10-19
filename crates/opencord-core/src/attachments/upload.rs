@@ -175,6 +175,7 @@ pub(crate) async fn send(
     content: String,
     nonce: String,
     files: Vec<OutgoingFile>,
+    kind: proto::AttachmentKind,
 ) -> Result<Message, CoreError> {
     if files.is_empty() || files.len() > MAX_ATTACHMENTS {
         return Err(invalid(format!(
@@ -202,7 +203,7 @@ pub(crate) async fn send(
     let created = Mutex::new(Vec::new());
     let uploaded = tokio::select! {
         () = guard.token.cancelled() => Err(Stop::Cancelled),
-        result = upload_all(client, key, channel_id, files, &progress, &created) => result,
+        result = upload_all(files, kind, &progress, &created) => result,
     };
     drop(guard);
     let created = created.into_inner().unwrap_or_else(PoisonError::into_inner);
@@ -235,17 +236,15 @@ pub(crate) async fn send(
 
 /// Every file, two at a time; their attachments in the files' order.
 async fn upload_all(
-    client: &Client,
-    key: &str,
-    channel_id: i64,
     files: Vec<OutgoingFile>,
+    kind: proto::AttachmentKind,
     progress: &Progress<'_>,
     created: &Mutex<Vec<i64>>,
 ) -> Result<Vec<proto::Attachment>, Stop> {
     let mut done: Vec<(usize, proto::Attachment)> =
         futures_util::stream::iter(files.into_iter().enumerate())
             .map(|(index, file)| async move {
-                upload_one(client, key, channel_id, index, file, progress, created)
+                upload_one(index, file, kind, progress, created)
                     .await
                     .map(|attachment| (index, attachment))
                     .map_err(|error| Stop::Failed { index, error })
@@ -258,11 +257,9 @@ async fn upload_all(
 }
 
 async fn upload_one(
-    client: &Client,
-    key: &str,
-    channel_id: i64,
     index: usize,
     file: OutgoingFile,
+    kind: proto::AttachmentKind,
     progress: &Progress<'_>,
     created: &Mutex<Vec<i64>>,
 ) -> Result<proto::Attachment, CoreError> {
@@ -270,15 +267,15 @@ async fn upload_one(
     let mut source = Source::prepare(file).await?;
     progress.sized(index, source.size);
     let request = Request::CreateUpload(proto::CreateUpload {
-        channel_id,
+        channel_id: progress.channel_id,
         filename: source.filename.clone(),
         size_bytes: source.size,
-        kind: proto::AttachmentKind::File as i32,
+        kind: kind as i32,
         width: None,
         height: None,
         duration_ms: None,
     });
-    let upload = match client.request(key, request).await? {
+    let upload = match progress.client.request(progress.key, request).await? {
         Response::Upload(upload) => upload,
         other => return Err(unexpected(&other)),
     };
@@ -287,12 +284,18 @@ async fn upload_one(
         .unwrap_or_else(PoisonError::into_inner)
         .push(upload.upload_id);
     progress.phase(index, UploadPhase::Uploading);
-    send_pieces(client, key, &mut source, &upload, |sent| {
-        progress.sent(index, sent);
-    })
+    send_pieces(
+        progress.client,
+        progress.key,
+        &mut source,
+        &upload,
+        |sent| {
+            progress.sent(index, sent);
+        },
+    )
     .await?;
     progress.phase(index, UploadPhase::Processing);
-    finish(client, key, upload.upload_id).await
+    finish(progress.client, progress.key, upload.upload_id).await
 }
 
 /// A file to upload, read from memory or from disk.

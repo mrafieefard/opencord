@@ -914,6 +914,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   VoiceCue dco_decode_voice_cue(dynamic raw);
 
   @protected
+  VoiceDraft dco_decode_voice_draft(dynamic raw);
+
+  @protected
   VoiceSettings dco_decode_voice_settings(dynamic raw);
 
   @protected
@@ -924,6 +927,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   VoiceStats dco_decode_voice_stats(dynamic raw);
+
+  @protected
+  VoiceStopReason dco_decode_voice_stop_reason(dynamic raw);
 
   @protected
   AnyhowException sse_decode_AnyhowException(SseDeserializer deserializer);
@@ -2008,6 +2014,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   VoiceCue sse_decode_voice_cue(SseDeserializer deserializer);
 
   @protected
+  VoiceDraft sse_decode_voice_draft(SseDeserializer deserializer);
+
+  @protected
   VoiceSettings sse_decode_voice_settings(SseDeserializer deserializer);
 
   @protected
@@ -2020,6 +2029,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   VoiceStats sse_decode_voice_stats(SseDeserializer deserializer);
+
+  @protected
+  VoiceStopReason sse_decode_voice_stop_reason(SseDeserializer deserializer);
 
   @protected
   void sse_encode_AnyhowException(
@@ -3417,6 +3429,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_voice_cue(VoiceCue self, SseSerializer serializer);
 
   @protected
+  void sse_encode_voice_draft(VoiceDraft self, SseSerializer serializer);
+
+  @protected
   void sse_encode_voice_settings(VoiceSettings self, SseSerializer serializer);
 
   @protected
@@ -3430,6 +3445,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_voice_stats(VoiceStats self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_voice_stop_reason(
+    VoiceStopReason self,
+    SseSerializer serializer,
+  );
 }
 
 // Section: wire_class

@@ -23,7 +23,7 @@ use crate::api::types::{
     S3Config, ScreenProblem, ScreenShareRequest, ScreenShareStarted, ScreenStream, Server,
     ServerChanges, ServerInfo, SoundDraft, SoundSelection, SoundboardSound, SoundboardSoundChanges,
     StorageInfo, StorageTestResult, StorageTestTarget, StreamSourceKind, UploadSettings, User,
-    VideoWant, VoiceCue, VoiceSettings, VoiceSettingsChanges, VoiceState,
+    VideoWant, VoiceCue, VoiceDraft, VoiceSettings, VoiceSettingsChanges, VoiceState,
 };
 use crate::artwork::ArtworkCache;
 use crate::attachments::cache::{self, MediaCache};
@@ -42,6 +42,7 @@ use crate::music_listening::MusicListening;
 use crate::soundboard::Soundboard;
 use crate::store::{SavedServer, Store, StoreError};
 use crate::voice::VoiceServer;
+use crate::voice_message::recorder::{TapEngine, VoiceRecorder};
 use opencord_media::hotkeys::Hotkeys;
 
 const INVITE_SCHEME: &str = "opencord://";
@@ -96,6 +97,7 @@ struct Inner {
     downloads: Downloads,
     /// Attachments kept on this device, once the app gave the cache's key.
     media_cache: RwLock<Option<Arc<MediaCache>>>,
+    voice_recorder: VoiceRecorder,
 }
 
 /// The app's id, as its desktop file names it; the system's portals ask for
@@ -188,6 +190,7 @@ impl Client {
                 uploads: Arc::default(),
                 downloads: Downloads::default(),
                 media_cache: RwLock::new(None),
+                voice_recorder: VoiceRecorder::default(),
             }),
         };
         client.spawn_wake_watch();
@@ -434,7 +437,76 @@ impl Client {
         nonce: String,
         files: Vec<OutgoingFile>,
     ) -> Result<Message, CoreError> {
-        upload::send(self, key, channel_id, content, nonce, files).await
+        upload::send(
+            self,
+            key,
+            channel_id,
+            content,
+            nonce,
+            files,
+            proto::AttachmentKind::File,
+        )
+        .await
+    }
+
+    /// Records a voice message from the microphone, or from the call's
+    /// audio engine if in a voice call.
+    pub fn voice_record_start(&self, max_seconds: u32) -> Result<(), CoreError> {
+        let media = self.media().ok_or(CoreError::NotInitialized)?;
+        let engine = media.call_engine().map(|e| e as Arc<dyn TapEngine>);
+        let settings = media.audio_settings();
+        let events = Some(media.events().clone());
+        self.inner
+            .voice_recorder
+            .start(engine, settings, events, max_seconds)
+    }
+
+    pub fn voice_record_stop(&self) -> Result<VoiceDraft, CoreError> {
+        self.inner.voice_recorder.stop()
+    }
+
+    pub fn voice_record_cancel(&self) {
+        self.inner.voice_recorder.cancel();
+    }
+
+    pub fn voice_draft_discard(&self, draft_id: u64) {
+        self.inner.voice_recorder.discard(draft_id);
+    }
+
+    pub async fn send_voice_message(
+        &self,
+        key: &str,
+        channel_id: i64,
+        nonce: String,
+        draft_id: u64,
+    ) -> Result<Message, CoreError> {
+        let ogg_bytes = {
+            let (bytes, _) = self
+                .inner
+                .voice_recorder
+                .get_draft(draft_id)
+                .ok_or_else(|| CoreError::InvalidInput {
+                    message: format!("voice draft {draft_id} not found"),
+                })?;
+            bytes
+        };
+        let file = OutgoingFile {
+            path: None,
+            bytes: Some(ogg_bytes),
+            filename: "voice-message.ogg".to_owned(),
+        };
+        let message = upload::send(
+            self,
+            key,
+            channel_id,
+            String::new(),
+            nonce,
+            vec![file],
+            proto::AttachmentKind::VoiceMessage,
+        )
+        .await?;
+        self.inner.voice_recorder.discard(draft_id);
+        Ok(message)
     }
 
     /// Stops a `send_message_with_files` that is still uploading; it

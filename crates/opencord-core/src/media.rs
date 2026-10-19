@@ -198,6 +198,18 @@ impl Media {
         &self.video
     }
 
+    pub(crate) fn call_engine(&self) -> Option<Arc<AudioEngine>> {
+        self.lock().session.as_ref().map(|s| Arc::clone(&s.engine))
+    }
+
+    pub(crate) fn audio_settings(&self) -> AudioSettings {
+        self.lock().settings.clone()
+    }
+
+    pub(crate) fn events(&self) -> &mpsc::UnboundedSender<MediaEvent> {
+        &self.events
+    }
+
     /// This device's voice state changed: joined, left, moved, or flags.
     pub fn on_target(&self, client: &Client, target: Option<MediaTarget>) {
         let mut state = self.lock();
@@ -676,7 +688,7 @@ fn input_mode(settings: &AudioSettings) -> InputMode {
     }
 }
 
-fn processing(settings: &AudioSettings) -> ProcessingSettings {
+pub(crate) fn processing(settings: &AudioSettings) -> ProcessingSettings {
     ProcessingSettings {
         echo_cancellation: settings.echo_cancellation,
         noise_suppression: match settings.noise_suppression {

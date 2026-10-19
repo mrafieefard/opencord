@@ -2014,6 +2014,8 @@ class RustRepository implements OpencordRepository {
           screenEncoder: stats.screenEncoder,
         ),
       ),
+    core.MediaEvent_VoiceRecordLevel() => null,
+    core.MediaEvent_VoiceRecordStopped() => null,
   };
 
   @override
