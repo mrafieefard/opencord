@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'package:opencord/core/format.dart';
 import 'package:opencord/core/model/message.dart';
+import 'package:opencord/features/chat/attachments/attachment_view.dart';
 import 'package:opencord/features/chat/bubble.dart';
 import 'package:opencord/features/chat/markdown_view.dart';
 import 'package:opencord/ui/theme/oc_colors.dart';
@@ -31,9 +32,11 @@ class CompactMessage extends StatelessWidget {
     this.onRetry,
     this.onSelectionChanged,
     this.onAuthorTap,
+    this.serverKey = '',
   });
 
   final Message message;
+  final String serverKey;
   final bool first;
   final String author;
   final String? role;
@@ -161,6 +164,14 @@ class CompactMessage extends StatelessWidget {
                   ),
                   null => text,
                 },
+                if (message.attachments.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 4),
+                    child: AttachmentsView(
+                      serverKey: serverKey,
+                      message: message,
+                    ),
+                  ),
                 if (failed)
                   Padding(
                     padding: const EdgeInsets.only(top: 2),

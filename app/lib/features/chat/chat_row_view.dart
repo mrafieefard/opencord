@@ -5,6 +5,7 @@ import 'package:opencord/core/model/channel.dart';
 import 'package:opencord/core/model/commands.dart';
 import 'package:opencord/core/model/message.dart';
 import 'package:opencord/core/providers/server_state.dart';
+import 'package:opencord/features/chat/attachments/summary.dart';
 import 'package:opencord/features/chat/bubble.dart';
 import 'package:opencord/features/chat/chat_rows.dart';
 import 'package:opencord/features/chat/command_rows.dart';
@@ -61,7 +62,7 @@ class ChatLookups {
     return ReplyPreview(
       author: name(original.authorId),
       text: previewText(
-        original.content,
+        messageSummary(original),
         user: (id) => data.members[id]?.displayName,
         channel: channelName,
       ),
@@ -194,6 +195,7 @@ class ChatRowView extends StatelessWidget {
         compact: true,
         builder: (onSelectionChanged) => CompactMessage(
           message: message,
+          serverKey: actions.message.channel.server,
           first: row.first,
           author: author,
           role: row.first ? lookups.role(message.authorId) : null,
@@ -226,6 +228,7 @@ class ChatRowView extends StatelessWidget {
           : null,
       builder: (onSelectionChanged) => MessageBubble(
         message: message,
+        serverKey: actions.message.channel.server,
         own: row.own,
         first: row.first,
         last: row.last,

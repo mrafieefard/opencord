@@ -9,6 +9,7 @@ import 'package:opencord/core/model/permissions.dart';
 import 'package:opencord/core/providers/providers.dart';
 import 'package:opencord/core/repository/repository.dart';
 import 'package:opencord/features/channels/channel_row.dart';
+import 'package:opencord/features/chat/attachments/summary.dart';
 import 'package:opencord/features/chat/chat_controller.dart';
 import 'package:opencord/features/chat/composer_state.dart';
 import 'package:opencord/features/chat/reaction_pill.dart';
@@ -205,7 +206,7 @@ class MessageActions {
       builder: (context) => _DeleteDialog(
         author: data?.members[message.authorId]?.displayName ?? 'Unknown user',
         text: previewText(
-          message.content,
+          messageSummary(message),
           user: (id) => data?.members[id]?.displayName,
           channel: (id) => data?.channels[id]?.name,
         ),

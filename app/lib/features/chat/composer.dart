@@ -14,6 +14,7 @@ import 'package:opencord/core/model/permissions.dart';
 import 'package:opencord/core/providers/providers.dart';
 import 'package:opencord/core/repository/repository.dart';
 import 'package:opencord/features/chat/attachments/staged_tiles.dart';
+import 'package:opencord/features/chat/attachments/summary.dart';
 import 'package:opencord/features/chat/chat_controller.dart';
 import 'package:opencord/features/chat/composer_bar.dart';
 import 'package:opencord/features/chat/composer_state.dart';
@@ -434,8 +435,9 @@ class _ComposerState extends ConsumerState<Composer> {
     }
     if ((text.isEmpty && state.staged.isEmpty) ||
         _coolingDown ||
-        state.hasProblem)
+        state.hasProblem) {
       return;
+    }
     final staged = List<StagedFile>.of(state.staged);
     _composer.sent();
     _composer.clearStaged();
@@ -551,7 +553,7 @@ class _ComposerState extends ConsumerState<Composer> {
                           ? 'Edit message'
                           : 'Reply to ${data.members[about.authorId]?.displayName ?? 'Unknown user'}',
                       preview: previewText(
-                        about.content,
+                        messageSummary(about),
                         user: (id) => data.members[id]?.displayName,
                         channel: (id) => data.channels[id]?.name,
                       ),
@@ -654,8 +656,9 @@ class _ComposerState extends ConsumerState<Composer> {
     final state = ref.read(composerProvider(_channel));
     if (state.editing != null ||
         state.replyTo != null ||
-        state.staged.isNotEmpty)
+        state.staged.isNotEmpty) {
       return;
+    }
     ref.read(restingComposerHeightProvider.notifier).set(height);
   }
 

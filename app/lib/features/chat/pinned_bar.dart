@@ -6,6 +6,7 @@ import 'package:opencord/core/model/message.dart';
 import 'package:opencord/core/model/permissions.dart';
 import 'package:opencord/core/providers/providers.dart';
 import 'package:opencord/core/repository/repository.dart';
+import 'package:opencord/features/chat/attachments/summary.dart';
 import 'package:opencord/ui/theme/oc_colors.dart';
 import 'package:opencord/ui/theme/oc_icons.dart';
 import 'package:opencord/ui/theme/oc_metrics.dart';
@@ -19,7 +20,7 @@ import 'package:opencord/ui/widgets/toast.dart';
 String _preview(WidgetRef ref, ChannelRef channel, Message message) {
   final data = ref.read(serverProvider(channel.server)).data;
   return previewText(
-    message.content,
+    messageSummary(message),
     user: (id) => data?.members[id]?.displayName,
     channel: (id) => data?.channels[id]?.name,
   );

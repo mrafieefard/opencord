@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'package:opencord/core/format.dart';
 import 'package:opencord/core/model/message.dart';
+import 'package:opencord/features/chat/attachments/attachment_view.dart';
 import 'package:opencord/features/chat/attachments/upload_progress.dart';
 import 'package:opencord/features/chat/markdown.dart';
 import 'package:opencord/features/chat/markdown_view.dart';
@@ -56,9 +57,11 @@ class MessageBubble extends StatelessWidget {
     this.onCancelSend,
     this.onSelectionChanged,
     this.onAuthorTap,
+    this.serverKey = '',
   });
 
   final Message message;
+  final String serverKey;
   final bool own;
   final bool first;
   final bool last;
@@ -155,6 +158,11 @@ class MessageBubble extends StatelessWidget {
                 if (!separateMeta)
                   Positioned(right: 0, bottom: -1, child: meta),
               ],
+            ),
+          if (message.attachments.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: AttachmentsView(serverKey: serverKey, message: message),
             ),
           if (message.uploads.isNotEmpty)
             UploadProgressList(
