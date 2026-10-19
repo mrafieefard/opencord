@@ -7,6 +7,8 @@ use std::collections::VecDeque;
 use std::sync::Arc;
 use std::time::Instant;
 
+use rtrb::{Consumer, Producer};
+
 use super::capture::{Capture, EncodedFrame, InputMode};
 use super::codec::CodecError;
 use super::convert::{ConvertError, FromDevice, ToDevice};
@@ -64,6 +66,9 @@ pub struct Processor {
     /// The loudest microphone tick since the last look, after processing
     /// and the input volume.
     input_level: Option<f32>,
+    capture_tap: Option<Producer<f32>>,
+    silence_call: bool,
+    local_media: Option<Consumer<f32>>,
 }
 
 impl Processor {
@@ -93,7 +98,24 @@ impl Processor {
             mic_test: false,
             mic_test_frames: Vec::new(),
             input_level: None,
+            capture_tap: None,
+            silence_call: false,
+            local_media: None,
         })
+    }
+
+    /// Attaches or detaches a capture tap. When `silence_call` is true,
+    /// processed ticks still reach the tap and the input level meter, but
+    /// the call receives silence.
+    pub fn set_capture_tap(&mut self, tap: Option<Producer<f32>>, silence_call: bool) {
+        self.capture_tap = tap;
+        self.silence_call = silence_call;
+    }
+
+    /// Sets or clears an interleaved stereo source (48 kHz) to mix into
+    /// local playback and the echo canceller's reference.
+    pub fn set_local_media(&mut self, source: Option<Consumer<f32>>) {
+        self.local_media = source;
     }
 
     /// A new microphone, at its rate and channels.
@@ -120,8 +142,18 @@ impl Processor {
                     *sample *= self.input_volume;
                 }
             }
+            if let Some(tap) = &mut self.capture_tap {
+                for &sample in &self.tick {
+                    if tap.push(sample).is_err() {
+                        break;
+                    }
+                }
+            }
             let level = dbfs(&self.tick);
             self.input_level = Some(self.input_level.map_or(level, |loudest| loudest.max(level)));
+            if self.silence_call {
+                self.tick.fill(0.0);
+            }
             if let Some(frame) = self.capture.push(&self.tick, heard) {
                 if self.mic_test {
                     self.mic_test_frames.push(frame.clone());
@@ -151,6 +183,14 @@ impl Processor {
         let wanted = interleaved.len() / self.output_channels;
         while self.to_device.buffered() < wanted {
             self.playback.tick_stereo(now, &mut self.stereo);
+            if let Some(source) = &mut self.local_media {
+                for sample in &mut self.stereo {
+                    match source.pop() {
+                        Ok(s) => *sample += s,
+                        Err(_) => break,
+                    }
+                }
+            }
             // Everything played is what the echo canceller listens for,
             // and the sound this device shares, which its speakers play
             // too: the microphone must not send it again (plan §10.6).
@@ -171,6 +211,13 @@ impl Processor {
     pub fn play_unheard(&mut self, now: Instant) {
         self.deliver_mic_test(now);
         self.playback.tick_stereo(now, &mut self.stereo);
+        if let Some(source) = &mut self.local_media {
+            for _ in 0..self.stereo.len() {
+                if source.pop().is_err() {
+                    break;
+                }
+            }
+        }
         self.shared.clear();
     }
 
@@ -981,5 +1028,110 @@ mod tests {
                 whole_us / 100.0
             );
         }
+    }
+
+    #[test]
+    fn the_tap_gets_processed_ticks_and_silence_reaches_the_call() {
+        use crate::audio::codec::VoiceDecoder;
+        use rtrb::RingBuffer;
+
+        let mut processor = Processor::new(settings(), (SAMPLE_RATE, 2), (SAMPLE_RATE, 2)).unwrap();
+        processor.set_mode(InputMode::PushToTalk {
+            release_delay: Duration::ZERO,
+        });
+        processor.set_push_to_talk(true);
+        let (producer, mut consumer) = RingBuffer::new(25 * TICK);
+        processor.set_capture_tap(Some(producer), true);
+
+        let mut sent = Vec::new();
+        for index in 0..20 {
+            processor.capture(&microphone_tick(index, 0.5), |frame| sent.push(frame));
+        }
+
+        // Tap receives 480-sample ticks of processed audio (sine wave)
+        let mut tapped = Vec::new();
+        while let Ok(sample) = consumer.pop() {
+            tapped.push(sample);
+        }
+        assert_eq!(tapped.len(), 20 * TICK);
+        assert!(dbfs(&tapped) > -30.0);
+
+        // Every encoded frame sent to the call decodes to silence (< -60 dBFS)
+        assert!(!sent.is_empty());
+        let mut decoder = VoiceDecoder::new().unwrap();
+        let mut pcm = vec![0.0; 960];
+        for frame in sent {
+            let n = decoder.decode(&frame.payload, &mut pcm).unwrap();
+            let energy = dbfs(&pcm[..n]);
+            assert!(
+                energy < -60.0,
+                "expected silence (< -60 dBFS), but frame had {energy} dBFS"
+            );
+        }
+    }
+
+    #[test]
+    fn local_media_is_played_and_heard_by_the_echo_canceller() {
+        use rtrb::RingBuffer;
+
+        let sent_while_local_media = |echo_cancellation: bool,
+                                      with_media: bool|
+         -> (Vec<usize>, f32) {
+            let mut bob_settings = settings();
+            bob_settings.processing.echo_cancellation = echo_cancellation;
+            let mut bob = Processor::new(bob_settings, (SAMPLE_RATE, 1), (SAMPLE_RATE, 1)).unwrap();
+            let speech_samples = at_level(&speech(), -20.0);
+            let start = Instant::now();
+            let mut room: VecDeque<Vec<f32>> = std::iter::repeat_n(vec![0.0; TICK], 4).collect();
+            let mut sent = Vec::new();
+            let mut total_played = Vec::new();
+
+            if with_media {
+                let (mut producer, consumer) =
+                    RingBuffer::new(speech_samples.len() * 2 + 10 * TICK);
+                for s in &speech_samples {
+                    let _ = producer.push(*s);
+                    let _ = producer.push(*s);
+                }
+                bob.set_local_media(Some(consumer));
+            }
+
+            for (index, _) in speech_samples.as_chunks::<TICK>().0.iter().enumerate() {
+                let mut played = vec![0.0; TICK];
+                bob.play(
+                    start + Duration::from_millis(index as u64 * 10),
+                    &mut played,
+                );
+                if with_media {
+                    total_played.extend_from_slice(&played);
+                }
+                room.push_back(played.iter().map(|s| s * 0.316).collect());
+                let heard = room.pop_front().unwrap();
+                bob.capture(&heard, |_| {
+                    if index >= 100 {
+                        sent.push(index);
+                    }
+                });
+            }
+            (sent, dbfs(&total_played))
+        };
+
+        let (without_canceller, level_without) = sent_while_local_media(false, true);
+        let (with_canceller, level_with) = sent_while_local_media(true, true);
+
+        // Output contains the samples
+        assert!(level_without > -30.0, "level_without was {level_without}");
+        assert!(level_with > -30.0, "level_with was {level_with}");
+
+        // Without canceller, the speaker bleeding sends frames; with canceller, echo is removed
+        assert!(
+            without_canceller.len() > 100,
+            "expected echo without canceller, got {}",
+            without_canceller.len()
+        );
+        assert!(
+            with_canceller.iter().all(|tick| *tick < 150),
+            "local media echo was sent after adaptation at {with_canceller:?}"
+        );
     }
 }

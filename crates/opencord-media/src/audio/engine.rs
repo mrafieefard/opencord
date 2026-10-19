@@ -121,6 +121,8 @@ enum Command {
     LevelMeter(bool),
     PlaySound(Arc<[f32]>, f32),
     StopSounds,
+    CaptureTap(Option<rtrb::Producer<f32>>, bool),
+    LocalMedia(Option<rtrb::Consumer<f32>>),
     Stop,
 }
 
@@ -370,6 +372,17 @@ impl AudioEngine {
         self.command(Command::LevelMeter(on));
     }
 
+    /// Attaches or detaches a capture tap on the processing tick.
+    pub fn set_capture_tap(&self, tap: Option<rtrb::Producer<f32>>, silence_call: bool) {
+        self.command(Command::CaptureTap(tap, silence_call));
+    }
+
+    /// Sets or clears an interleaved stereo source (48 kHz) to mix into
+    /// local playback and the echo canceller's reference.
+    pub fn set_local_media(&self, source: Option<rtrb::Consumer<f32>>) {
+        self.command(Command::LocalMedia(source));
+    }
+
     fn command(&self, command: Command) {
         let _ = self.commands.send(command);
     }
@@ -535,6 +548,10 @@ impl Engine {
             Command::PlaySound(samples, gain) => processor.play_sound(samples, gain),
             Command::StopSounds => processor.stop_sounds(),
             Command::LevelMeter(on) => self.level_meter = on,
+            Command::CaptureTap(tap, silence_call) => {
+                processor.set_capture_tap(tap, silence_call);
+            }
+            Command::LocalMedia(source) => processor.set_local_media(source),
             Command::Stop => {}
         }
     }
