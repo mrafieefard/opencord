@@ -688,3 +688,33 @@ The desktop UI plan's §17.5 never arrived, so where Phase 2 §12 says only what
   - ActivateStorage only tests the bucket now and keeps the backend that startup, AddStorage or UpdateStorage loaded. Installing the one it tested could undo an UpdateStorage that finished meanwhile.
   - Startup creates the uploads temp folder and stops if it can't. The bucket test and moves write there, and on a fresh server it didn't exist yet. The implementation had created it with the error ignored and didn't report it.
   - The plan gained Working Rule 21 for the first two.
+
+## D56: Media uploads: the client core (Phase 4 A4, 2026-10-19)
+
+- **Why.** Milestone A4 of media uploads (`docs/superpowers/plans/2026-10-18-media-uploads.md`) gives the client core what the app needs to send, show and save files. Commits: 56089df..f00971f.
+- **Types and requests.**
+  - Messages carry their attachments, roles their upload limit, and Ready the upload settings. In RoleChanges, a limit of 0 removes a role's limit.
+  - The core has the requests for upload settings and the owner's storage, and passes UploadSettingsUpdate and StorageUpdate to the app. CoreError gains Cancelled.
+- **Transfers** (`attachments/transfer.rs`).
+  - Uploads and downloads use one `reqwest` client per server, built with the gateway's own certificate check (`TlsTrust`), so a pinned certificate stays pinned. It is rebuilt when the server's route changes.
+  - A changed certificate is FingerprintMismatch. A 401 renews the media token once, with the renewal now shared with `http.rs`.
+  - Connecting may take 10 seconds, and 60 seconds without a byte ends a request. A piece may take 120 seconds, a status or finish 30, and a download has no overall limit.
+- **Sending files** (`attachments/upload.rs`).
+  - `send_message_with_files` takes 1 to 10 files, by path or by bytes. Two go up at a time, in the server's 8 MiB pieces, then SendMessage goes out with their ids in the files' order.
+  - A network failure is tried again 1, 2, 4, 8 and 16 seconds later, six tries in all. A piece whose answer was lost goes again, and the server's 409 says where the upload really is.
+  - Each file's verdict comes by its UploadReady or UploadFailed event, waited for from before the finish request. The status is also asked every 5 seconds, in case the event was lost.
+  - UploadProgress follows each file: Preparing, Uploading (at most 10 a second), Processing, Sending, Done. On a failure the failing file is Failed and the others Cancelled.
+  - `cancel_send` stops a send. After a cancel or a failure, every upload the send made is cancelled on the server.
+- **Photo metadata** (`attachments/exif.rs`). A JPEG, PNG or WebP of at most 100 MiB loses its metadata before it leaves the device.
+  - JPEG loses its Exif, XMP and IPTC segments. An orientation other than 1 comes back as a minimal Exif block, so the photo still shows the right way up.
+  - PNG loses its eXIf, text and tIME chunks. WebP loses its EXIF and XMP chunks, their VP8X flags are cleared, and its RIFF size is rewritten.
+  - A file that isn't well formed is sent as it is.
+- **Downloads and the cache** (`attachments/{download,cache}.rs`).
+  - `download_attachment` streams a file through `path.part` to `path`, with DownloadProgress; `cancel_download` stops it.
+  - `attachment_bytes` reads a thumbnail, or an original of at most 64 MiB, for the image viewer and the voice and audio players. Thumbnails and originals up to 20 MiB are cached.
+  - The cache is 1 GiB for every server, the least recently used going first. Each entry is sealed as a client-cache blob under a key the app keeps in the system keychain (`media_cache_key_store.dart`). The entry's name is a SHA-256 of server, attachment and variant, and its first 8 bytes are the blob id, so a file copied over another entry doesn't open. Without the keychain nothing is cached on disk.
+- **Clipboard** (`attachments/clipboard.rs`).
+  - `clipboard_image` pastes an image as PNG; with text on the clipboard it returns nothing. `clipboard_set_image` copies an image.
+  - It uses `arboard` 3.7.0 on Linux, X11 and Wayland, with one clipboard kept for the app's life so a copied image stays.
+  - macOS follows in P2. On Windows `arboard` needs BSL-1.0 crates, outside the allowed licences, so P1 settles Windows.
+- **Tests.** `tests/attachments.rs` runs the core against a real server: sending, a lost piece answer, cancelling, a blocked file, an expired token, saving, the cache with the server stopped, and a photo's location. ServerHandle gains `uploads_in_state` for them.
