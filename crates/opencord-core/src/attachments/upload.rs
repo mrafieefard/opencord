@@ -11,7 +11,7 @@ use std::time::{Duration, Instant};
 
 use bytes::Bytes;
 use futures_util::{StreamExt, TryStreamExt};
-use opencord_common::upload::{MAX_ATTACHMENTS, PIECE_BYTES};
+use opencord_common::upload::{IMAGE_PROCESS_MAX_BYTES, MAX_ATTACHMENTS, PIECE_BYTES};
 use opencord_proto::v1 as proto;
 use proto::request::Kind as Request;
 use proto::response::Result as Response;
@@ -20,6 +20,7 @@ use tokio::io::{AsyncReadExt, AsyncSeekExt};
 use tokio::sync::oneshot;
 use tokio_util::sync::CancellationToken;
 
+use super::exif;
 use super::transfer::{Call, upload_status};
 use crate::api::types::{CoreError, CoreEventPayload, Message, OutgoingFile, UploadPhase};
 use crate::client::{Client, unexpected};
@@ -335,6 +336,7 @@ impl Source {
             }
             (None, None) => return Err(invalid("a file needs a path or bytes")),
         };
+        let body = without_metadata(body).await?;
         let size = match &body {
             Body::Bytes(bytes) => bytes.len() as u64,
             Body::File(file) => file
@@ -366,6 +368,37 @@ impl Source {
             }
         }
     }
+}
+
+/// A photo of at most 100 MiB without its metadata (Task 20), read into
+/// memory to strip it. Anything else stays as it is.
+async fn without_metadata(body: Body) -> Result<Body, CoreError> {
+    let unreadable = |error: std::io::Error| invalid(format!("the file can't be read: {error}"));
+    let bytes = match body {
+        Body::Bytes(bytes) => bytes,
+        Body::File(mut file) => {
+            let size = file.metadata().await.map_err(unreadable)?.len();
+            let mut head = [0; 12];
+            let read = file.read(&mut head).await.map_err(unreadable)?;
+            if size > IMAGE_PROCESS_MAX_BYTES || !exif::is_photo(&head[..read]) {
+                return Ok(Body::File(file));
+            }
+            file.seek(SeekFrom::Start(0)).await.map_err(unreadable)?;
+            let mut bytes = Vec::with_capacity(size as usize);
+            file.read_to_end(&mut bytes).await.map_err(unreadable)?;
+            Bytes::from(bytes)
+        }
+    };
+    if bytes.len() as u64 > IMAGE_PROCESS_MAX_BYTES || !exif::is_photo(&bytes) {
+        return Ok(Body::Bytes(bytes));
+    }
+    let stripped = tokio::task::spawn_blocking(move || match exif::strip_metadata(&bytes) {
+        Some(stripped) => Bytes::from(stripped),
+        None => bytes,
+    })
+    .await
+    .map_err(|error| invalid(format!("the file can't be prepared: {error}")))?;
+    Ok(Body::Bytes(stripped))
 }
 
 /// Sends the file from the start. A piece whose answer is lost is sent

@@ -506,3 +506,62 @@ async fn attachment_bytes_uses_the_cache_second_time() {
     owner.client.media_cache_clear().await.unwrap();
     assert_eq!(owner.client.media_cache_size().await.unwrap(), 0);
 }
+
+const SECRET: &[u8] = b"GPS 52.5200N 13.4050E";
+
+/// A JPEG whose Exif holds orientation 6 and a GPS position.
+fn photo_with_location() -> Vec<u8> {
+    let mut jpeg = Vec::new();
+    image::DynamicImage::ImageRgb8(image::RgbImage::from_pixel(
+        32,
+        16,
+        image::Rgb([200, 80, 40]),
+    ))
+    .write_to(
+        &mut std::io::Cursor::new(&mut jpeg),
+        image::ImageFormat::Jpeg,
+    )
+    .unwrap();
+    let mut exif = b"Exif\0\0II\x2A\x00\x08\x00\x00\x00\x01\x00\x12\x01\x03\x00\x01\x00\x00\x00\x06\x00\x00\x00\x00\x00\x00\x00".to_vec();
+    exif.extend_from_slice(SECRET);
+    let mut photo = jpeg[..2].to_vec();
+    photo.extend_from_slice(&[0xFF, 0xE1]);
+    photo.extend_from_slice(&u16::try_from(exif.len() + 2).unwrap().to_be_bytes());
+    photo.extend_from_slice(&exif);
+    photo.extend_from_slice(&jpeg[2..]);
+    photo
+}
+
+/// Task 20: the photo's GPS position never reaches the server, and it still
+/// shows the right way up.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_photos_location_never_leaves_the_device() {
+    let server = TestServer::start().await;
+    let (owner, ready) = TestClient::owner(&server).await;
+    let key = server.address();
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("photo.jpg");
+    std::fs::write(&path, photo_with_location()).unwrap();
+
+    let message = owner
+        .client
+        .send_message_with_files(
+            &key,
+            general(&ready),
+            String::new(),
+            "n1".to_owned(),
+            vec![OutgoingFile {
+                path: Some(path.to_string_lossy().into_owned()),
+                bytes: None,
+                filename: String::new(),
+            }],
+        )
+        .await
+        .unwrap();
+
+    let attachment = &message.attachments[0];
+    let sent = download(&owner, &key, attachment.id).await;
+    assert!(!sent.windows(SECRET.len()).any(|window| window == SECRET));
+    // Orientation 6 turns the 32×16 photo on its side.
+    assert_eq!((attachment.width, attachment.height), (Some(16), Some(32)));
+}

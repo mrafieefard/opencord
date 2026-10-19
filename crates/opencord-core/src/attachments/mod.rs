@@ -3,5 +3,6 @@
 
 pub(crate) mod cache;
 pub(crate) mod download;
+pub mod exif;
 pub(crate) mod transfer;
 pub(crate) mod upload;
