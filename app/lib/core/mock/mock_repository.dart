@@ -4480,30 +4480,16 @@ class MockRepository implements OpencordRepository {
   PlaybackItem? _playingItem;
   int _playbackPositionMs = 0;
   bool _playbackPlaying = false;
+  double _playbackSpeed = 1.0;
   Timer? _playbackTimer;
 
-  @override
-  Future<void> voicePlay(
-    PlaybackItem item,
-    int positionMs,
-    double speed,
-  ) async {
+  double get lastVoiceSpeed => _playbackSpeed;
+
+  void _startPlaybackTimer(PlaybackItem item) {
     _playbackTimer?.cancel();
-    _playingItem = item;
-    _playbackPositionMs = positionMs;
-    _playbackPlaying = true;
-    _emit(
-      PlaybackUpdate(
-        item: item,
-        positionMs: positionMs,
-        durationMs: 3000,
-        playing: true,
-        buffering: false,
-      ),
-    );
     _playbackTimer = Timer.periodic(const Duration(milliseconds: 100), (timer) {
       if (!_playbackPlaying) return;
-      _playbackPositionMs += (100 * speed).toInt();
+      _playbackPositionMs += (100 * _playbackSpeed).toInt();
       if (_playbackPositionMs >= 3000) {
         timer.cancel();
         _playbackPlaying = false;
@@ -4523,8 +4509,31 @@ class MockRepository implements OpencordRepository {
   }
 
   @override
+  Future<void> voicePlay(
+    PlaybackItem item,
+    int positionMs,
+    double speed,
+  ) async {
+    _playingItem = item;
+    _playbackPositionMs = positionMs;
+    _playbackSpeed = speed;
+    _playbackPlaying = true;
+    _startPlaybackTimer(item);
+    _emit(
+      PlaybackUpdate(
+        item: item,
+        positionMs: positionMs,
+        durationMs: 3000,
+        playing: true,
+        buffering: false,
+      ),
+    );
+  }
+
+  @override
   void voicePause(PlaybackItem item) {
     _playbackPlaying = false;
+    _playbackTimer?.cancel();
     _emit(
       PlaybackUpdate(
         item: item,
@@ -4539,6 +4548,7 @@ class MockRepository implements OpencordRepository {
   @override
   void voiceResume(PlaybackItem item) {
     _playbackPlaying = true;
+    _startPlaybackTimer(item);
     _emit(
       PlaybackUpdate(
         item: item,
@@ -4565,7 +4575,9 @@ class MockRepository implements OpencordRepository {
   }
 
   @override
-  void voiceSetSpeed(PlaybackItem item, double speed) {}
+  void voiceSetSpeed(PlaybackItem item, double speed) {
+    _playbackSpeed = speed;
+  }
 
   @override
   void voiceStop() {

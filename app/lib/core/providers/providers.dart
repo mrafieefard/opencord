@@ -33,6 +33,7 @@ import 'package:opencord/core/providers/user_audio.dart';
 import 'package:opencord/core/repository/repository.dart';
 import 'package:opencord/core/settings/local_prefs.dart';
 import 'package:opencord/core/settings/key_value_store.dart';
+import 'package:opencord/features/chat/voice/voice_player_state.dart';
 
 export 'package:opencord/core/providers/activity_state.dart';
 export 'package:opencord/core/providers/channel_audience.dart';
@@ -49,6 +50,7 @@ export 'package:opencord/core/providers/sound_state.dart';
 export 'package:opencord/core/providers/stream_state.dart';
 export 'package:opencord/core/providers/typing_state.dart';
 export 'package:opencord/core/providers/user_audio.dart';
+export 'package:opencord/features/chat/voice/voice_player_state.dart';
 
 /// A channel on a server: the key of per-channel providers.
 typedef ChannelRef = ({String server, int channel});
@@ -369,6 +371,8 @@ void _route(Ref ref, RepoEvent event) {
       ref.read(voiceSessionProvider.notifier).apply(event);
     case VoiceConnectionChanged():
       ref.read(voiceConnectionProvider.notifier).apply(event);
+    case PlaybackUpdate() || PlaybackEnded() || PlaybackFailed():
+      ref.read(playbackProvider.notifier).apply(event);
     default:
       break;
   }

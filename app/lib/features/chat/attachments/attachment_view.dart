@@ -3,6 +3,7 @@ import 'package:opencord/core/model/attachment.dart';
 import 'package:opencord/core/model/message.dart';
 import 'package:opencord/features/chat/attachments/file_card.dart';
 import 'package:opencord/features/chat/attachments/image_grid.dart';
+import 'package:opencord/features/chat/voice/voice_bubble.dart';
 import 'package:opencord/ui/theme/oc_metrics.dart';
 
 class AttachmentsView extends StatelessWidget {
@@ -42,7 +43,14 @@ class AttachmentsView extends StatelessWidget {
           if (nonImages.isNotEmpty) const SizedBox(height: OcSpace.s8),
         ],
         for (final item in nonImages) ...[
-          FileCard(serverKey: serverKey, attachment: item, message: message),
+          if (item.kind == AttachmentKind.voiceMessage)
+            VoiceBubble(
+              serverKey: serverKey,
+              attachment: item,
+              message: message,
+            )
+          else
+            FileCard(serverKey: serverKey, attachment: item, message: message),
           const SizedBox(height: OcSpace.s4),
         ],
       ],
