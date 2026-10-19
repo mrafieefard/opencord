@@ -141,43 +141,7 @@ Regenerate them with the commands above.
     - On Linux you may not edit macOS- or Windows-only files.
 12. **cpal streams are not `Send`.** Open `Microphone`/`Speaker` (`opencord_media::audio::device`) on the thread that will own them, as `AudioEngine` does.
 
-The rules below come from the A1 review. Each one was broken there at least once.
-
-13. **Check cheapest first.**
-    - The order is: who is asking (token, permissions in memory), then other in-memory checks, then database reads, then reading request bodies or files, then writes.
-    - A handler never buffers a body before it knows who sent it.
-    - When this plan lists a handler's steps, they are already in this order. Keep it.
-14. **Every in-memory map says when entries leave.**
-    - Remove an entry where it is used, and on every error path.
-    - No map may grow with the number of uploads, messages or users ever seen.
-15. **Never turn an error into "nothing".**
-    - Use `?`.
-    - Never wrap a query in `if let Ok(..)`, `.ok()` or `unwrap_or_default()` when its result decides what gets deleted or skipped.
-    - Never write `let _ =` on any `Result` (database, files, network). If it truly may fail, log the error with `tracing`.
-16. **State changes are conditional.**
-    - Write each transition as `UPDATE … WHERE id = $1 AND state = '<expected>'`, and return `rows_affected() == 1` as a `bool`.
-    - Handle `false` (the row was cancelled, sent or changed meanwhile) the way the task says.
-17. **Locks and replies.**
-    - Std locks: `.lock().unwrap_or_else(PoisonError::into_inner)`, and the same for `read()` and `write()`, as `state.rs` does.
-    - Build HTTP replies with axum tuples (`(StatusCode, headers, body).into_response()`), never `Response::builder()…unwrap()`.
-18. **CPU-heavy work runs in `tokio::task::spawn_blocking`.** That covers decoding images, audio or video, and hashing large data.
-19. **Reuse what exists.**
-    - Before writing a helper, grep for one. Since A1 the server has `attachments::open_key`, `attachments::key_label`, `attachments::http::attachment_to_proto`, `to_status_proto` and `readable_attachment`, and `process::base_fields`.
-    - The same ten lines in two places is a review finding.
-
-The rule below comes from the A2 review.
-
-20. **A transaction holds only writes.**
-    - The database runs SQLite in WAL mode. A transaction that has read can't start writing if another connection committed in between: SQLite fails it at once with `SQLITE_BUSY_SNAPSHOT` and doesn't wait.
-    - So do the reads and permission checks first, on a plain connection, and then `conn.begin()` for the writes.
-    - When a read must hold until the write, make the write itself conditional (rule 16) instead of reading inside the transaction.
-
-The rule below comes from the A3 review.
-
-21. **A check holds only under the lock that guards the change.**
-    - A handler that checks, then awaits (a network test, a file), then writes must check again after taking the write lock, next to the write. An early check before the await is only a faster refusal.
-    - Work in flight counts. A background job that will write somewhere (a storage, a channel) records where on its row under the write lock, before it starts writing. So a check for "anything there?" sees it.
-    - Don't replace in-memory state that another handler keeps in step with the database. Build it once where the row changes.
+Rules 13–21 came from the A1, A2 and A3 reviews. They now live in `GEMINI.md` → "How to write code here", which grows after every review. Earlier tasks that cite them by number mean those rules: 13 check cheapest first, 14 maps say when entries leave, 15 never turn an error into "nothing", 16 conditional state changes, 17 std locks and HTTP replies, 18 `spawn_blocking`, 19 reuse what exists, 20 a transaction holds only writes, 21 a check holds only under the lock.
 
 ### Progress ledger (makes the final review cheap)
 
@@ -192,7 +156,7 @@ Keep `.superpowers/sdd/media/progress.md`. After each task, append:
 - Left undone / doubts: <none | list>
 ```
 
-A deviation is any line of non-test code the plan doesn't give or ask for, even one line that fixes a test, and any planned line you changed. If `git diff` shows such a line, "Deviations: none" is wrong. Name each one in the ledger and in the report, with the failure that made you add it.
+What counts as a deviation, and how to report it, is in `GEMINI.md` → "Reports and the ledger".
 
 ### When a step keeps failing
 
@@ -202,9 +166,9 @@ If the same step fails three times in a row, follow `GEMINI.md` → "When you're
 
 - At the end of each milestone (A0 … A8, P1, P2):
   1. run the full checks (format, clippy, Rust tests, platform check, flutter analyze/test). Run the Rust tests with `--no-fail-fast`: a failure in one crate otherwise hides every crate after it;
-  2. write the decisions entry. Each milestone's stop gives its text:
-     - copy it exactly and replace `<commits>` with the milestone's commit hashes;
-     - check every sentence against the code. If one is wrong, fix the code or the sentence, and say which in your report;
+  2. write the decisions entry:
+     - A0–A4 give its text: copy it exactly, replace `<commits>` with the milestone's commit hashes, and check every sentence against the code. If one is wrong, fix the code or the sentence, and say which in your report;
+     - from A5 on, the stop names the entry and you write it from `git diff`, as `GEMINI.md` → "Write docs from the code" says;
      - add a `- **Deviations.**` bullet only if you deviated from the plan;
   3. **stop and report** to the user.
 - Continue only when the user releases the next milestone.
@@ -8012,14 +7976,29 @@ Future<void> clearMediaCache();
 ```
 
   - `updateRole`/`createRole` gain `int? maxUploadBytes` (0 clears).
-- **`events.dart`:** add `UploadProgressEvent`, `DownloadProgressEvent`, `UploadSettingsEvent`, `StorageEvent` to the existing event hierarchy, mapped in `rust_repository.dart`.
+- **The core API these call** (A4, Tasks 17–21; the generated Dart is in `app/lib/src/rust/api/attachments.dart`):
+  - `send_message_with_files` takes a list of `OutgoingFile` (`path` or `bytes`, plus `filename`; an empty filename uses the path's);
+  - `attachment_bytes` takes an `AttachmentVariant` (`original`, `thumbnail`);
+  - `storage_test` takes a `StorageTestTarget`: `existing(storageId)` or `config(s3)`;
+  - the other storage calls are `storage_get`, `storage_add`, `storage_update`, `storage_activate`, `storage_remove`, `storage_move_start` and `storage_move_stop`;
+  - the cache calls are `media_cache_size` and `media_cache_clear`; the clipboard calls are `clipboard_image` and `clipboard_set_image`;
+  - the core's `u64` values arrive as `BigInt`. Convert them the way `core_mapping.dart` already does.
+- **Already done in A4; don't redo:** `core/rust/media_cache_key_store.dart` and its hook in `app_start.dart`; the optional `maxUploadBytes` on the generated `createRole`.
+- **`events.dart`:** add `UploadProgressEvent`, `DownloadProgressEvent`, `UploadSettingsEvent`, `StorageEvent` to the existing event hierarchy.
+  - Map them in `rust_repository.dart`, replacing the A4 placeholder that drops `CoreEventPayload_UploadSettingsUpdate`, `_StorageUpdate`, `_UploadProgress` and `_DownloadProgress`.
+  - `UploadProgress` carries `channelId`, `nonce`, `fileIndex`, `sentBytes`, `totalBytes` and an `UploadPhase`, whose `failed` holds the message.
+  - `DownloadProgress` carries `attachmentId`, `receivedBytes`, `totalBytes`, `done` and `error`.
+- **Error kinds** (`RepoErrorKind` in `repository.dart`, mapped in `core_mapping.dart`). A4 left a placeholder there, "Task 22 gives them kinds of their own". Replace it:
+  - add `fileTooLarge`, `fileTypeBlocked`, `voiceMessageInvalid`, `voiceMessageTooLong`, `storageUnavailable`, `storageFull` and `cancelled`, each with a doc comment, and map the matching `ErrorCode`s and `CoreError_Cancelled` to them;
+  - `uploadOffsetMismatch` stays `conflict`, since the core resumes from it itself;
+  - a cancelled send or download shows no error toast.
 - **Mock:**
   - `MockRepository` implements everything in memory (fake progress with a short `Timer`; the cache size is 0).
   - `mock_world.dart` adds to an existing text channel: one message with a **grey** 640×360 PNG (generate the bytes in code with `dart:ui` or embed a tiny grey PNG as a base64 constant), one with a `report.pdf` file, and one voice message (waveform of 128 deterministic values, 7 s).
 - **Colors:** `OcColors` gets `required this.voice, required this.recording` with the values in Global Constraints, plus `copyWith` and `lerp` entries and doc comments: "Voice messages only (the waveform). One of the app's two hues; see desktop-ui.md §1." and "The recording dot and the cancel state only."
 - **Icons** (`tool/build_icons.dart`, Dart name → Material Symbols name):
   - `image` → `image`, `movie` → `movie`, `description` → `description`, `folderZip` → `folder_zip`, `article` → `article`;
-  - `speed` → `speed`, `lockOpen` → `lock_open`, `volumeUp` → `volume_up`, `volumeOff` → `volume_off`;
+  - `speed` → `speed`, `lockOpen` → `lock_open` (`volumeUp`, `volumeOff`, `upload`, `audioFile`, `check`, `close` and `error` exist already);
   - `fullscreen` → `fullscreen`, `zoomIn` → `zoom_in`, `chevronLeft` → `chevron_left`, `storage` → `storage`, `cloudUpload` → `cloud_upload`.
 
   Then run the icon build.
@@ -8161,8 +8140,8 @@ Future<void> clearMediaCache();
   - @everyone: required.
   - Others: a "Not set" checkbox.
   - Validation: ≥ 1 MB; ≤ `uploadSettings.maxFileBytes`; and, when not the owner, ≤ `data.myUploadLimit` ("You can't set more than your own limit (X)").
-  - Saves through `updateRole(maxUploadBytes:)` (0 clears).
-- **User settings** (the app/advanced page): a "Media cache" row with the current size (`mediaCacheSize`) and a "Clear" button.
+  - Saves through `updateRole(maxUploadBytes:)` (0 clears), sent **only when the field changed**. The server refuses any value above the editor's own limit, even one left as it was.
+- **User settings** ("Windows & behavior", `BehaviorPage` in `app_pages.dart`): a "Media cache" section with one row with the current size (`mediaCacheSize`) and a "Clear" button.
 
 - [ ] **Step 1: Write widget tests:**
   - `uploads_page_normalizes_and_saves`;
@@ -8172,7 +8151,7 @@ Future<void> clearMediaCache();
 - [ ] **Step 2:** FAIL. **Step 3:** Implement. **Step 4:** PASS, plus the whole `flutter test`.
 - [ ] **Step 5: Commit:** `feat: storage, uploads, role limit and cache settings (A5)`.
 
-**A5 stop.** Full checks. Run the app against a local server (`OPENCORD_PROFILE` for two users) and try: attach, drop, paste, send, view, save, and the settings pages. **D57**, ledger, report.
+**A5 stop.** Full checks. Run the app against a local server (`OPENCORD_PROFILE` for two users) and try: attach, drop, paste, send, view, save, and the settings pages. Ledger, then **D57** ("Media uploads: the app (Phase 4 A5, <date>)"), written from `git diff` as `GEMINI.md` → "Write docs from the code" says, then report.
 
 ---
 

@@ -718,3 +718,4 @@ The desktop UI plan's §17.5 never arrived, so where Phase 2 §12 says only what
   - It uses `arboard` 3.7.0 on Linux, X11 and Wayland, with one clipboard kept for the app's life so a copied image stays.
   - macOS follows in P2. On Windows `arboard` needs BSL-1.0 crates, outside the allowed licences, so P1 settles Windows.
 - **Tests.** `tests/attachments.rs` runs the core against a real server: sending, a lost piece answer, cancelling, a blocked file, an expired token, saving, the cache with the server stopped, and a photo's location. ServerHandle gains `uploads_in_state` for them.
+- **Review.** The code matches the plan exactly, and every check passes, so nothing was changed. The working rules from the A1–A3 reviews moved from the plan to `GEMINI.md`, which now collects every review's lessons. From A5 on, the plan gives behavior and interfaces rather than code.
