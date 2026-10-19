@@ -1,6 +1,9 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:opencord/core/model/voice_message.dart';
 import 'package:opencord/core/providers/providers.dart';
 import 'package:opencord/features/chat/voice/voice_recorder_state.dart';
 import 'package:opencord/features/chat/voice/waveform_painter.dart';
@@ -28,9 +31,6 @@ class _RecordingBarState extends ConsumerState<RecordingBar>
     with SingleTickerProviderStateMixin {
   late final AnimationController _pulse;
   late final FocusNode _focusNode;
-
-  bool _previewPlaying = false;
-  final _previewPositionMs = 0;
 
   @override
   void initState() {
@@ -88,6 +88,11 @@ class _RecordingBarState extends ConsumerState<RecordingBar>
     final isCancelling = state.phase == RecordingPhase.cancelling;
     final isLocked = state.phase == RecordingPhase.locked;
     final isPreview = state.phase == RecordingPhase.preview;
+    final draft = state.draft;
+    final previewItem = draft == null ? null : DraftPlayback(draft.id);
+    final playback = ref.watch(playbackProvider);
+    final previewing = previewItem != null && playback.item == previewItem;
+    final previewPlaying = previewing && playback.playing;
 
     final bgColor = isCancelling
         ? colors.recording.withValues(alpha: 0.15)
@@ -144,28 +149,31 @@ class _RecordingBarState extends ConsumerState<RecordingBar>
               ),
               const SizedBox(width: 12),
             ],
-            if (isPreview && state.draft != null) ...[
-              // Preview play/pause button
+            if (isPreview && draft != null && previewItem != null) ...[
               OcIconButton(
-                icon: _previewPlaying ? OcIcons.pause : OcIcons.playArrow,
-                tooltip: _previewPlaying ? 'Pause' : 'Play',
+                icon: previewPlaying ? OcIcons.pause : OcIcons.playArrow,
+                tooltip: previewPlaying ? 'Pause' : 'Play',
                 color: colors.text,
                 onPressed: () {
-                  setState(() {
-                    _previewPlaying = !_previewPlaying;
-                  });
+                  final player = ref.read(playbackProvider.notifier);
+                  if (!previewing || playback.error != null) {
+                    unawaited(player.play(previewItem));
+                  } else if (previewPlaying) {
+                    player.pause(previewItem);
+                  } else {
+                    player.resume(previewItem);
+                  }
                 },
               ),
               const SizedBox(width: 8),
-              // Static waveform
               Expanded(
                 child: SizedBox(
                   height: 24,
                   child: CustomPaint(
                     painter: WaveformPainter.static(
-                      values: state.draft!.waveform,
-                      progress: state.draft!.durationMs > 0
-                          ? _previewPositionMs / state.draft!.durationMs
+                      values: draft.waveform,
+                      progress: previewing && draft.durationMs > 0
+                          ? playback.positionMs / draft.durationMs
                           : 0,
                       playedColor: colors.voice,
                       unplayedColor: colors.textMuted,
@@ -174,11 +182,10 @@ class _RecordingBarState extends ConsumerState<RecordingBar>
                 ),
               ),
               const SizedBox(width: 8),
-              // Total duration
               Text(
-                _formatDuration(
-                  Duration(milliseconds: state.draft!.durationMs),
-                ),
+                previewing && playback.error != null
+                    ? playback.error!
+                    : _formatDuration(Duration(milliseconds: draft.durationMs)),
                 style: OcText.body.copyWith(color: colors.textMuted),
               ),
               const SizedBox(width: 12),

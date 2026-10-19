@@ -2026,15 +2026,17 @@ class RustRepository implements OpencordRepository {
       :final buffering,
     ) =>
       PlaybackUpdate(
-        item: item,
+        item: playbackItemFrom(item),
         positionMs: positionMs,
         durationMs: durationMs,
         playing: playing,
         buffering: buffering,
       ),
-    core.MediaEvent_PlaybackEnded(:final item) => PlaybackEnded(item),
+    core.MediaEvent_PlaybackEnded(:final item) => PlaybackEnded(
+      playbackItemFrom(item),
+    ),
     core.MediaEvent_PlaybackFailed(:final item, :final message) =>
-      PlaybackFailed(item: item, message: message),
+      PlaybackFailed(item: playbackItemFrom(item), message: message),
   };
 
   @override
@@ -2361,7 +2363,7 @@ class RustRepository implements OpencordRepository {
 
   @override
   Future<VoiceDraft> voiceRecordStop() async =>
-      _now(() => _core.voiceRecordStop());
+      voiceDraftFrom(_now(() => _core.voiceRecordStop()));
 
   @override
   void voiceRecordCancel() => _now(() => _core.voiceRecordCancel());
@@ -2389,21 +2391,19 @@ class RustRepository implements OpencordRepository {
 
   @override
   Future<void> voicePlay(PlaybackItem item, int positionMs, double speed) =>
-      _call(() => _core.voicePlay(item, positionMs, speed));
+      _call(() => _core.voicePlay(playbackItemTo(item), positionMs, speed));
 
   @override
-  void voicePause(PlaybackItem item) => _now(() => _core.voicePause(item));
+  void voicePause() => _now(_core.voicePause);
 
   @override
-  void voiceResume(PlaybackItem item) => _now(() => _core.voiceResume(item));
+  void voiceResume() => _now(_core.voiceResume);
 
   @override
-  void voiceSeek(PlaybackItem item, int positionMs) =>
-      _now(() => _core.voiceSeek(item, positionMs));
+  void voiceSeek(int positionMs) => _now(() => _core.voiceSeek(positionMs));
 
   @override
-  void voiceSetSpeed(PlaybackItem item, double speed) =>
-      _now(() => _core.voiceSetSpeed(item, speed));
+  void voiceSetSpeed(double speed) => _now(() => _core.voiceSetSpeed(speed));
 
   @override
   void voiceStop() => _now(() => _core.voiceStop());

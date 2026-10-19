@@ -46,6 +46,9 @@ Every rule here was broken at least once and caught in review.
 - **In Dart, catch what you expect:** `on RepoException catch (error)`, never a bare `catch` or `catch (_) {}`.
   - An error the user can cause reaches them, as a toast or an inline error.
   - An `unawaited` future catches its own errors; nothing else will.
+- **A worker thread's error reaches its caller.**
+  - A thread that can fail (opening a device, encoding) stores its error where the caller's next call returns it, and says so at once through the event stream.
+  - `Err(_) => None` on a thread is the same swallowed error as anywhere else.
 - **Production code never bends for tests.** No `try`/`catch` "for tests where X isn't set up": fix the test's setup instead.
 
 ### Shared state and races
@@ -66,6 +69,7 @@ Every rule here was broken at least once and caught in review.
 - **Std locks:**
   - Use `.lock().unwrap_or_else(PoisonError::into_inner)`, and the same for `read()` and `write()`, as `state.rs` does.
   - Never hold one across `.await`.
+- **Each event reaches a listener once.** Route it through the existing router (`_route` in `providers.dart`) or subscribe to the repository's events, never both.
 - **After every `await` in a widget's `State`, check `mounted`** before touching `context`, `ref` or `setState`. The page may have closed while it waited.
 
 ### What the user sees
@@ -75,6 +79,8 @@ Every rule here was broken at least once and caught in review.
   - It resets what belongs to one attempt: progress, errors.
   - If part of the original request is gone, it refuses rather than sending less (a message without its files).
 - **A gate checks what it guards.** When an action is allowed only after a check (Save after Test), the check runs on exactly the values the action will send, and any change locks it again.
+- **One gesture, one action.** A drag moves a preview and acts once, on release; nothing starts work on every pointer move.
+- **A control does what it shows, or it isn't there.** A button that only flips a flag (a play button that plays nothing) is a stub: leave it out and list it under "Left undone".
 - **Masked values never go back.** Fields the server answers masked (access keys, secrets) start empty in an edit form and are sent only when the user types new ones.
 
 ### Resources
@@ -82,6 +88,11 @@ Every rule here was broken at least once and caught in review.
 - **Every in-memory map says when its entries leave.**
   - Remove the entry where it is used, and on every error path. A guard whose `Drop` removes it covers both.
   - No map may grow with the number of uploads, messages or users ever seen.
+- **Feeding something that plays in real time (a speaker, the call), wait for room.**
+  - Write only while the queue is under a small target (tens of milliseconds), as the audio engine does with its speaker. Never push with `let _ =` and drop what doesn't fit.
+  - Work in steps the size of the output: decode a packet, make a tick, write it. Decoding a whole file up front costs memory and freezes what later changes (speed, seek) should affect.
+  - Test it with a sink drained at real time, and check the total length heard.
+- **Know what a library call does to its state** before streaming through it, above all after `flush`, `finish` or `reset` (`wsola::TimeStretch` replays the input it still holds when pulled after `flush`). Test the whole stream's length end to end.
 - **CPU-heavy work runs in `tokio::task::spawn_blocking`:** decoding images, audio or video; hashing, sealing or compressing large data.
 
 ### Reuse and conventions
@@ -91,6 +102,11 @@ Every rule here was broken at least once and caught in review.
   - The app has its own widgets in `app/lib/ui/widgets` (`ChoiceChips`, `OcSwitch`, `OcButton`, …) and text styles in `OcText` (`OcText.mono` for code). Never use the Material widget one of them replaces.
   - Follow the wrappers the file already uses (in `rust_repository.dart`: `_call` for async core calls, `_now` for sync ones).
   - The server's attachments code already has `attachments::open_key` and `key_label`, `attachments::http::attachment_to_proto`, `to_status_proto` and `readable_attachment`, and `attachments::process::base_fields`.
+- **Layers stay apart.**
+  - Generated types (`app/lib/src/rust/`) stay in `core/rust`. The repository, its events and the widgets use app models from `core/model`, mapped in `core_mapping.dart`.
+  - `core/` never imports `features/`: shared state goes in `core/providers`.
+  - The repository's methods mirror the core's: no parameters the core ignores.
+- **The two hues are for their one use each:** `voice` for the voice waveform, `recording` for the recording dot and the cancel state. Everything else is monochrome, even a selected chip.
 - **Finishing a feature removes what stood in for it.** Grep for its "coming later" markers, placeholder toasts and `later:` flags, and remove them in the same task.
 - **A value kept on both sides changes on both sides.** A permission set, a default, a limit or a list that exists in Rust and in Dart is updated in both, in the same task.
 - **A rule ported from another language matches its meaning, not its look.**

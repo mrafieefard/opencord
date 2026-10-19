@@ -580,13 +580,13 @@ abstract interface class CoreApi {
 
   Future<void> voicePlay(core.PlaybackItem item, int positionMs, double speed);
 
-  void voicePause(core.PlaybackItem item);
+  void voicePause();
 
-  void voiceResume(core.PlaybackItem item);
+  void voiceResume();
 
-  void voiceSeek(core.PlaybackItem item, int positionMs);
+  void voiceSeek(int positionMs);
 
-  void voiceSetSpeed(core.PlaybackItem item, double speed);
+  void voiceSetSpeed(double speed);
 
   void voiceStop();
 }
@@ -1624,17 +1624,17 @@ class FrbCoreApi implements CoreApi {
   );
 
   @override
-  void voicePause(core.PlaybackItem item) => frb_attachments.voicePause();
+  void voicePause() => frb_attachments.voicePause();
 
   @override
-  void voiceResume(core.PlaybackItem item) => frb_attachments.voiceResume();
+  void voiceResume() => frb_attachments.voiceResume();
 
   @override
-  void voiceSeek(core.PlaybackItem item, int positionMs) =>
+  void voiceSeek(int positionMs) =>
       frb_attachments.voiceSeek(positionMs: positionMs);
 
   @override
-  void voiceSetSpeed(core.PlaybackItem item, double speed) =>
+  void voiceSetSpeed(double speed) =>
       frb_attachments.voiceSetSpeed(speed: speed);
 
   @override

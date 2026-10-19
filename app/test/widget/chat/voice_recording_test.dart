@@ -4,7 +4,6 @@ import 'package:opencord/core/model/attachment.dart';
 import 'package:opencord/core/model/permissions.dart';
 import 'package:opencord/core/model/voice.dart';
 import 'package:opencord/core/providers/providers.dart';
-import 'package:opencord/core/repository/events.dart';
 import 'package:opencord/core/repository/repository.dart';
 import 'package:opencord/features/chat/voice/mic_button.dart';
 import 'package:opencord/features/chat/voice/recording_bar.dart';
@@ -176,6 +175,53 @@ void main() {
     expect(find.byIcon(OcIcons.playArrow), findsOneWidget);
     expect(find.byIcon(OcIcons.delete), findsOneWidget);
     expect(find.byIcon(OcIcons.send), findsOneWidget);
+    await app.dispose(tester);
+  });
+
+  testWidgets('the_preview_plays_the_draft', (tester) async {
+    final app = await MockApp.pump(tester);
+    await _open(tester, app, 'general');
+
+    final gesture = await tester.startGesture(
+      tester.getCenter(find.byType(MicButton)),
+    );
+    await tester.pump(const Duration(milliseconds: 100));
+    await gesture.moveBy(const Offset(0, -70));
+    await tester.pump();
+    await gesture.up();
+    await tester.pump();
+    await tester.tap(find.byTooltip('Stop'));
+    await _pumpFor(tester, const Duration(milliseconds: 200));
+
+    await tester.tap(find.byIcon(OcIcons.playArrow));
+    await _pumpFor(tester, const Duration(milliseconds: 300));
+    expect(app.read(playbackProvider).item, isA<DraftPlayback>());
+    expect(find.byIcon(OcIcons.pause), findsOneWidget);
+
+    // Deleting the draft stops it playing.
+    await tester.tap(find.byTooltip('Delete'));
+    await tester.pump();
+    expect(app.read(playbackProvider).item, isNull);
+    await app.dispose(tester);
+  });
+
+  testWidgets('a_lost_microphone_keeps_the_recording', (tester) async {
+    final app = await MockApp.pump(tester);
+    await _open(tester, app, 'general');
+
+    final gesture = await tester.startGesture(
+      tester.getCenter(find.byType(MicButton)),
+    );
+    await _pumpFor(tester, const Duration(milliseconds: 600));
+    app.repository.emitVoiceRecordStopped(VoiceStopReason.deviceLost);
+    await _pumpFor(tester, const Duration(milliseconds: 200));
+
+    // The preview holds what was recorded, and the member is told why.
+    expect(find.byTooltip('Send'), findsOneWidget);
+    expect(find.textContaining('The microphone stopped'), findsOneWidget);
+    await gesture.up();
+    await tester.pump();
+    expect(find.byTooltip('Send'), findsOneWidget);
     await app.dispose(tester);
   });
 

@@ -166,6 +166,12 @@ pub(crate) fn compute_waveform(tick_power: &[f32]) -> Vec<u8> {
     out
 }
 
+fn encoding(error: impl std::fmt::Display) -> CoreError {
+    CoreError::InvalidInput {
+        message: format!("The voice message couldn't be encoded: {error}"),
+    }
+}
+
 pub(crate) struct RecordResult {
     pub ogg_bytes: Vec<u8>,
     pub draft: VoiceDraft,
@@ -179,32 +185,18 @@ pub(crate) fn record_ticks(
     events: Option<mpsc::UnboundedSender<MediaEvent>>,
     draft_id: u64,
 ) -> Result<Option<RecordResult>, CoreError> {
+    // As the call's encoder (opencord-media's codec.rs), but with a fixed
+    // bitrate and no DTX: a message keeps its pauses.
     let mut encoder =
-        opus::Encoder::new(SAMPLE_RATE, opus::Channels::Mono, opus::Application::Voip).map_err(
-            |e| CoreError::InvalidInput {
-                message: e.to_string(),
-            },
-        )?;
+        opus::Encoder::new(SAMPLE_RATE, opus::Channels::Mono, opus::Application::Voip)
+            .map_err(encoding)?;
     encoder
         .set_bitrate(opus::Bitrate::Bits(32_000))
-        .map_err(|e| CoreError::InvalidInput {
-            message: e.to_string(),
-        })?;
-    encoder.set_vbr(true).map_err(|e| CoreError::InvalidInput {
-        message: e.to_string(),
-    })?;
-    encoder
-        .set_dtx(false)
-        .map_err(|e| CoreError::InvalidInput {
-            message: e.to_string(),
-        })?;
-    encoder
-        .set_complexity(10)
-        .map_err(|e| CoreError::InvalidInput {
-            message: e.to_string(),
-        })?;
-
-    let pre_skip = u16::try_from(encoder.get_lookahead().unwrap_or(0)).unwrap_or(0);
+        .map_err(encoding)?;
+    encoder.set_vbr(true).map_err(encoding)?;
+    encoder.set_dtx(false).map_err(encoding)?;
+    encoder.set_complexity(10).map_err(encoding)?;
+    let pre_skip = u16::try_from(encoder.get_lookahead().map_err(encoding)?).map_err(encoding)?;
 
     let max_ticks = (max_seconds as usize) * 100;
     let mut tick_power: Vec<f32> = Vec::new();
@@ -238,11 +230,9 @@ pub(crate) fn record_ticks(
             frame[TICK..].copy_from_slice(&tick);
             tick_in_frame = 0;
 
-            let size = encoder.encode_float(&frame, &mut packet_buf).map_err(|e| {
-                CoreError::InvalidInput {
-                    message: e.to_string(),
-                }
-            })?;
+            let size = encoder
+                .encode_float(&frame, &mut packet_buf)
+                .map_err(encoding)?;
             packets.push(packet_buf[..size].to_vec());
 
             let prev_mean_sq = tick_power[tick_power.len() - 2];
@@ -276,13 +266,18 @@ pub(crate) fn record_ticks(
         return Ok(None);
     }
 
+    // A lost microphone ends the recording; what it heard is kept.
     if !stopped_by_max_length && !stop_flag.load(Ordering::Relaxed) && source.is_device_lost() {
         if let Some(events) = &events {
             let _ = events.send(MediaEvent::VoiceRecordStopped {
                 reason: VoiceStopReason::DeviceLost,
             });
         }
-        return Ok(None);
+        if packets.is_empty() {
+            return Err(CoreError::InvalidInput {
+                message: "The microphone stopped before anything was recorded.".to_owned(),
+            });
+        }
     }
 
     let frames = packets.len();
@@ -293,9 +288,7 @@ pub(crate) fn record_ticks(
     let pad_frame = [0.0f32; FRAME];
     let pad_size = encoder
         .encode_float(&pad_frame, &mut packet_buf)
-        .map_err(|e| CoreError::InvalidInput {
-            message: e.to_string(),
-        })?;
+        .map_err(encoding)?;
     packets.push(packet_buf[..pad_size].to_vec());
 
     let ogg_bytes = ogg::write(1, pre_skip, &packets, samples);
@@ -310,12 +303,27 @@ pub(crate) fn record_ticks(
     Ok(Some(RecordResult { ogg_bytes, draft }))
 }
 
+/// Two seconds of in-call ticks waiting for the recorder thread.
+const TAP_CAPACITY: usize = 2 * SAMPLE_RATE as usize;
+
+/// The chosen microphone, opened on the calling thread (cpal streams aren't
+/// `Send`).
+fn open_microphone(settings: &AudioSettings) -> Result<(Microphone, FromDevice), CoreError> {
+    let unavailable = |error: &dyn std::fmt::Display| CoreError::InvalidInput {
+        message: format!("The microphone couldn't be opened: {error}"),
+    };
+    let mic = Microphone::open(settings.input_device.as_deref()).map_err(|e| unavailable(&e))?;
+    let from_device = FromDevice::new(mic.rate, mic.channels).map_err(|e| unavailable(&e))?;
+    Ok((mic, from_device))
+}
+
 struct ActiveRecording {
     draft_id: u64,
     stop_flag: Arc<AtomicBool>,
     cancel_flag: Arc<AtomicBool>,
-    join_handle: Option<std::thread::JoinHandle<Option<VoiceDraft>>>,
-    finished_draft: Arc<Mutex<Option<VoiceDraft>>>,
+    join_handle: Option<std::thread::JoinHandle<()>>,
+    /// The thread's outcome: a draft, or why there is none.
+    finished: Arc<Mutex<Option<Result<VoiceDraft, CoreError>>>>,
     tap_engine: Option<Arc<dyn TapEngine>>,
 }
 
@@ -346,74 +354,75 @@ impl VoiceRecorder {
         let draft_id = NEXT_DRAFT_ID.fetch_add(1, Ordering::Relaxed);
         let stop_flag = Arc::new(AtomicBool::new(false));
         let cancel_flag = Arc::new(AtomicBool::new(false));
-        let finished_draft = Arc::new(Mutex::new(None));
+        let finished = Arc::new(Mutex::new(None));
 
         let thread_stop = stop_flag.clone();
         let thread_cancel = cancel_flag.clone();
-        let thread_finished = finished_draft.clone();
+        let thread_finished = Arc::clone(&finished);
         let thread_drafts = Arc::clone(&self.drafts);
         let thread_engine = engine.clone();
 
         let join_handle = std::thread::Builder::new()
             .name("opencord-voice-recorder".to_owned())
             .spawn(move || {
-                let source: Option<Box<dyn TickSource>> = if let Some(tap_engine) = &thread_engine {
-                    let (producer, consumer) = rtrb::RingBuffer::new(96000);
-                    tap_engine.set_capture_tap(Some(producer), true);
-                    Some(Box::new(TapTickSource::new(
-                        consumer,
-                        thread_stop.clone(),
-                        thread_cancel.clone(),
-                    )))
-                } else {
-                    match Microphone::open(settings.input_device.as_deref()) {
-                        Ok(mic) => match FromDevice::new(mic.rate, mic.channels) {
-                            Ok(from_device) => {
-                                let processing =
-                                    VoiceProcessing::new(crate::media::processing(&settings));
-                                Some(Box::new(MicTickSource::new(
-                                    mic,
-                                    from_device,
-                                    processing,
-                                    settings.input_volume,
-                                    thread_stop.clone(),
-                                    thread_cancel.clone(),
-                                )))
-                            }
-                            Err(_) => None,
-                        },
-                        Err(_) => None,
-                    }
-                };
-
-                let outcome = if let Some(source) = source {
-                    record_ticks(
+                let source: Result<Box<dyn TickSource>, CoreError> =
+                    if let Some(tap_engine) = &thread_engine {
+                        let (producer, consumer) = rtrb::RingBuffer::new(TAP_CAPACITY);
+                        tap_engine.set_capture_tap(Some(producer), true);
+                        Ok(Box::new(TapTickSource::new(
+                            consumer,
+                            thread_stop.clone(),
+                            thread_cancel.clone(),
+                        )))
+                    } else {
+                        open_microphone(&settings).map(|(mic, from_device)| {
+                            Box::new(MicTickSource::new(
+                                mic,
+                                from_device,
+                                VoiceProcessing::new(crate::media::processing(&settings)),
+                                settings.input_volume,
+                                thread_stop.clone(),
+                                thread_cancel.clone(),
+                            )) as Box<dyn TickSource>
+                        })
+                    };
+                let outcome = match source {
+                    Ok(source) => record_ticks(
                         source,
                         max_seconds,
                         thread_stop,
                         thread_cancel,
                         events,
                         draft_id,
-                    )
-                } else {
-                    Ok(None)
+                    ),
+                    Err(error) => {
+                        // The app hears at once that recording isn't happening.
+                        if let Some(events) = &events {
+                            let _ = events.send(MediaEvent::VoiceRecordStopped {
+                                reason: VoiceStopReason::DeviceLost,
+                            });
+                        }
+                        Err(error)
+                    }
                 };
-
                 if let Some(engine) = &thread_engine {
                     engine.set_capture_tap(None, false);
                 }
-                if let Ok(Some(result)) = outcome {
-                    *thread_finished
-                        .lock()
-                        .unwrap_or_else(PoisonError::into_inner) = Some(result.draft.clone());
-                    thread_drafts
-                        .lock()
-                        .unwrap_or_else(PoisonError::into_inner)
-                        .insert(draft_id, (result.ogg_bytes, result.draft.clone()));
-                    Some(result.draft)
-                } else {
-                    None
-                }
+                let outcome = match outcome {
+                    Ok(Some(result)) => {
+                        thread_drafts
+                            .lock()
+                            .unwrap_or_else(PoisonError::into_inner)
+                            .insert(draft_id, (result.ogg_bytes, result.draft.clone()));
+                        Some(Ok(result.draft))
+                    }
+                    // Cancelled: nobody asks for an outcome.
+                    Ok(None) => None,
+                    Err(error) => Some(Err(error)),
+                };
+                *thread_finished
+                    .lock()
+                    .unwrap_or_else(PoisonError::into_inner) = outcome;
             })
             .map_err(|e| CoreError::InvalidInput {
                 message: format!("could not spawn voice recorder thread: {e}"),
@@ -424,7 +433,7 @@ impl VoiceRecorder {
             stop_flag,
             cancel_flag,
             join_handle: Some(join_handle),
-            finished_draft,
+            finished,
             tap_engine: engine,
         });
 
@@ -449,16 +458,16 @@ impl VoiceRecorder {
             engine.set_capture_tap(None, false);
         }
 
-        let draft = active
-            .finished_draft
+        active
+            .finished
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
-            .clone()
-            .ok_or_else(|| CoreError::InvalidInput {
-                message: "recording produced no draft".to_owned(),
-            })?;
-
-        Ok(draft)
+            .take()
+            .unwrap_or_else(|| {
+                Err(CoreError::InvalidInput {
+                    message: "Nothing was recorded.".to_owned(),
+                })
+            })
     }
 
     pub fn cancel(&self) {
@@ -643,5 +652,49 @@ mod tests {
 
         fake.set_capture_tap(None, false);
         assert_eq!(*fake.tap.lock().unwrap(), Some((false, false)));
+    }
+
+    /// Yields `ticks` ticks of sound, then loses its device.
+    struct LostAfter {
+        ticks: usize,
+    }
+
+    impl TickSource for LostAfter {
+        fn next_tick(&mut self, tick: &mut [f32; 480]) -> Option<()> {
+            self.ticks = self.ticks.checked_sub(1)?;
+            tick.fill(0.25);
+            Some(())
+        }
+
+        fn is_device_lost(&self) -> bool {
+            self.ticks == 0
+        }
+    }
+
+    #[test]
+    fn a_lost_microphone_keeps_what_was_heard() {
+        let flags = || Arc::new(AtomicBool::new(false));
+        let (events, mut received) = mpsc::unbounded_channel();
+        let kept = record_ticks(
+            LostAfter { ticks: 50 },
+            60,
+            flags(),
+            flags(),
+            Some(events),
+            7,
+        )
+        .unwrap()
+        .expect("a draft");
+        assert_eq!(kept.draft.duration_ms, 500);
+        let mut stopped = None;
+        while let Ok(event) = received.try_recv() {
+            if let MediaEvent::VoiceRecordStopped { reason } = event {
+                stopped = Some(reason);
+            }
+        }
+        assert_eq!(stopped, Some(VoiceStopReason::DeviceLost));
+
+        let nothing = record_ticks(LostAfter { ticks: 0 }, 60, flags(), flags(), None, 8);
+        assert!(nothing.is_err());
     }
 }

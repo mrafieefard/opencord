@@ -1,17 +1,19 @@
+import 'dart:async';
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:opencord/core/model/attachment.dart';
 import 'package:opencord/core/model/message.dart';
+import 'package:opencord/core/model/voice_message.dart';
 import 'package:opencord/features/chat/attachments/download.dart';
-import 'package:opencord/features/chat/voice/voice_player_state.dart';
+import 'package:opencord/core/providers/playback_state.dart';
 import 'package:opencord/features/chat/voice/waveform_painter.dart';
-import 'package:opencord/src/rust/api/types.dart' show PlaybackItem;
 import 'package:opencord/ui/theme/oc_colors.dart';
 import 'package:opencord/ui/theme/oc_icons.dart';
 import 'package:opencord/ui/theme/oc_metrics.dart';
 import 'package:opencord/ui/theme/oc_text.dart';
+import 'package:opencord/ui/widgets/hoverable.dart';
 import 'package:opencord/ui/widgets/oc_icon_button.dart';
 
 String _formatMs(int ms) {
@@ -42,49 +44,47 @@ class VoiceBubble extends ConsumerStatefulWidget {
 class _VoiceBubbleState extends ConsumerState<VoiceBubble> {
   double _speed = 1.0;
 
-  PlaybackItem get _item => PlaybackItem.attachment(
-    serverKey: widget.serverKey,
-    attachmentId: widget.attachment.id,
-  );
+  /// Where a drag on the bars would seek to; null when not dragging.
+  int? _dragMs;
 
-  void _cycleSpeed(bool isPlayingThis) {
-    setState(() {
-      if (_speed == 1.0) {
-        _speed = 1.5;
-      } else if (_speed == 1.5) {
-        _speed = 2.0;
-      } else {
-        _speed = 1.0;
-      }
-    });
-    if (isPlayingThis) {
-      ref.read(playbackProvider.notifier).setSpeed(_item, _speed);
+  PlaybackItem get _item =>
+      AttachmentPlayback(widget.serverKey, widget.attachment.id);
+
+  /// A message still being sent has no file to play yet.
+  bool get _sent => widget.attachment.id > 0;
+
+  void _cycleSpeed() {
+    setState(
+      () => _speed = switch (_speed) {
+        1.0 => 1.5,
+        1.5 => 2.0,
+        _ => 1.0,
+      },
+    );
+    ref.read(playbackProvider.notifier).setSpeed(_item, _speed);
+  }
+
+  void _togglePlay(PlaybackState playback) {
+    final notifier = ref.read(playbackProvider.notifier);
+    if (playback.item != _item || playback.error != null) {
+      unawaited(notifier.play(_item, speed: _speed));
+    } else if (playback.playing) {
+      notifier.pause(_item);
+    } else {
+      notifier.resume(_item);
     }
   }
 
-  void _togglePlay(bool isPlayingThis, bool isPlaying) {
-    final notifier = ref.read(playbackProvider.notifier);
-    if (isPlayingThis) {
-      if (isPlaying) {
-        notifier.pause(_item);
-      } else {
-        notifier.resume(_item);
-      }
-    } else {
-      notifier.play(_item, speed: _speed);
-    }
-  }
+  int _msAt(double localX, double width, int durationMs) =>
+      width <= 0 ? 0 : ((localX / width).clamp(0.0, 1.0) * durationMs).toInt();
 
-  void _seek(double localX, double width, int durationMs) {
-    if (width <= 0) return;
-    final ratio = (localX / width).clamp(0.0, 1.0);
-    final targetMs = (ratio * durationMs).toInt();
+  /// One seek per gesture: a tap, or the end of a drag.
+  void _seekTo(int positionMs) {
     final notifier = ref.read(playbackProvider.notifier);
-    final playback = ref.read(playbackProvider);
-    if (playback.isItem(_item)) {
-      notifier.seek(_item, targetMs);
+    if (ref.read(playbackProvider).item == _item) {
+      notifier.seek(_item, positionMs);
     } else {
-      notifier.play(_item, positionMs: targetMs, speed: _speed);
+      unawaited(notifier.play(_item, positionMs: positionMs, speed: _speed));
     }
   }
 
@@ -92,22 +92,22 @@ class _VoiceBubbleState extends ConsumerState<VoiceBubble> {
   Widget build(BuildContext context) {
     final colors = context.oc;
     final playback = ref.watch(playbackProvider);
-    final isThisItem = playback.isItem(_item);
+    final isThisItem = playback.item == _item;
     final isPlaying = isThisItem && playback.playing;
-
+    final failure = isThisItem ? playback.error : null;
     final durationMs = widget.attachment.durationMs ?? 0;
     final durationSec = durationMs / 1000.0;
     final factor = ((durationSec - 10.0) / 50.0).clamp(0.0, 1.0);
     final width = ui.lerpDouble(200.0, 320.0, factor)!;
-
-    final progress = isThisItem && durationMs > 0
-        ? (playback.positionMs / durationMs).clamp(0.0, 1.0)
+    final positionMs = _dragMs ?? (isThisItem ? playback.positionMs : 0);
+    final progress = (isThisItem || _dragMs != null) && durationMs > 0
+        ? (positionMs / durationMs).clamp(0.0, 1.0)
         : 0.0;
-
     final timeLabel =
-        isThisItem && (playback.playing || playback.positionMs > 0)
-        ? '${_formatMs(playback.positionMs)} / ${_formatMs(durationMs)}'
-        : _formatMs(durationMs);
+        failure ??
+        (isThisItem && (playback.playing || playback.positionMs > 0)
+            ? '${_formatMs(positionMs)} / ${_formatMs(durationMs)}'
+            : _formatMs(durationMs));
 
     return GestureDetector(
       onSecondaryTapUp: (details) => showAttachmentMenu(
@@ -135,7 +135,7 @@ class _VoiceBubbleState extends ConsumerState<VoiceBubble> {
             OcIconButton(
               icon: isPlaying ? OcIcons.pause : OcIcons.playArrow,
               tooltip: isPlaying ? 'Pause' : 'Play',
-              onPressed: () => _togglePlay(isThisItem, isPlaying),
+              onPressed: _sent ? () => _togglePlay(playback) : null,
             ),
             const SizedBox(width: OcSpace.s8),
             Expanded(
@@ -146,18 +146,29 @@ class _VoiceBubbleState extends ConsumerState<VoiceBubble> {
                   Expanded(
                     child: LayoutBuilder(
                       builder: (context, constraints) {
+                        int at(Offset position) => _msAt(
+                          position.dx,
+                          constraints.maxWidth,
+                          durationMs,
+                        );
                         return GestureDetector(
                           behavior: HitTestBehavior.opaque,
-                          onTapDown: (details) => _seek(
-                            details.localPosition.dx,
-                            constraints.maxWidth,
-                            durationMs,
-                          ),
-                          onHorizontalDragUpdate: (details) => _seek(
-                            details.localPosition.dx,
-                            constraints.maxWidth,
-                            durationMs,
-                          ),
+                          onTapUp: _sent
+                              ? (details) => _seekTo(at(details.localPosition))
+                              : null,
+                          onHorizontalDragUpdate: _sent
+                              ? (details) => setState(
+                                  () => _dragMs = at(details.localPosition),
+                                )
+                              : null,
+                          onHorizontalDragEnd: _sent
+                              ? (_) {
+                                  if (_dragMs case final target?) {
+                                    setState(() => _dragMs = null);
+                                    _seekTo(target);
+                                  }
+                                }
+                              : null,
                           child: SizedBox(
                             width: constraints.maxWidth,
                             height: double.infinity,
@@ -178,14 +189,25 @@ class _VoiceBubbleState extends ConsumerState<VoiceBubble> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text(
-                        timeLabel,
-                        style: OcText.meta.copyWith(color: colors.textMuted),
+                      Expanded(
+                        child: Text(
+                          timeLabel,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: OcText.meta.copyWith(
+                            color: failure != null
+                                ? colors.textSecondary
+                                : colors.textMuted,
+                          ),
+                        ),
                       ),
-                      InkWell(
-                        onTap: () => _cycleSpeed(isThisItem),
-                        borderRadius: BorderRadius.circular(4),
-                        child: Padding(
+                      // The speed is text, not a hue: `voice` is for the
+                      // waveform only.
+                      Hoverable(
+                        onTap: _cycleSpeed,
+                        semanticLabel: 'Playback speed ${_speedLabel(_speed)}',
+                        focusRadius: BorderRadius.circular(4),
+                        builder: (context, hover) => Padding(
                           padding: const EdgeInsets.symmetric(
                             horizontal: 4,
                             vertical: 1,
@@ -193,8 +215,8 @@ class _VoiceBubbleState extends ConsumerState<VoiceBubble> {
                           child: Text(
                             _speedLabel(_speed),
                             style: OcText.meta.copyWith(
-                              color: _speed != 1.0
-                                  ? colors.voice
+                              color: _speed != 1.0 || hover.hovered
+                                  ? colors.text
                                   : colors.textMuted,
                               fontWeight: FontWeight.w600,
                             ),

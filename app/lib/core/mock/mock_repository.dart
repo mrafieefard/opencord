@@ -151,7 +151,7 @@ class MockRepository implements OpencordRepository {
     for (final timer in [..._timers, ..._retryTimers.values]) {
       timer.cancel();
     }
-    _mockRecordingTimer?.cancel();
+    _recordingTimer?.cancel();
     _playbackTimer?.cancel();
     _musicTick?.cancel();
     _speaking?.cancel();
@@ -4381,58 +4381,62 @@ class MockRepository implements OpencordRepository {
     _mediaCacheSize = 0;
   }
 
+  // Voice messages: answers as the core does, refusing what it refuses.
+
   int _nextDraftId = 1;
   final _voiceDrafts = <int, VoiceDraft>{};
-  Timer? _mockRecordingTimer;
-  bool _mockRecording = false;
+  Timer? _recordingTimer;
+  bool _recording = false;
 
-  void emitVoiceRecordLevel(double rms) {
-    _emit(VoiceRecordLevel(rms));
-  }
+  void emitVoiceRecordLevel(double level) => _emit(VoiceRecordLevel(level));
 
   void emitVoiceRecordStopped(VoiceStopReason reason) {
-    _mockRecording = false;
-    _mockRecordingTimer?.cancel();
+    _recordingTimer?.cancel();
     _emit(VoiceRecordStopped(reason));
   }
 
   @override
   void voiceRecordStart(int maxSeconds) {
-    _mockRecording = true;
-    _mockRecordingTimer?.cancel();
-    _mockRecordingTimer = Timer.periodic(const Duration(milliseconds: 100), (
-      _,
-    ) {
-      if (_mockRecording) {
-        _emit(const VoiceRecordLevel(0.5));
-      }
-    });
+    if (_recording) {
+      throw const RepoException(
+        RepoErrorKind.invalidArgument,
+        'already recording',
+      );
+    }
+    _recording = true;
+    _recordingTimer = Timer.periodic(
+      const Duration(milliseconds: 100),
+      (_) => _emit(const VoiceRecordLevel(0.5)),
+    );
   }
 
   @override
   Future<VoiceDraft> voiceRecordStop() async {
-    _mockRecording = false;
-    _mockRecordingTimer?.cancel();
-    final draftId = _nextDraftId++;
+    if (!_recording) {
+      throw const RepoException(
+        RepoErrorKind.invalidArgument,
+        'Nothing was recorded.',
+      );
+    }
+    _recording = false;
+    _recordingTimer?.cancel();
     final draft = VoiceDraft(
-      draftId: BigInt.from(draftId),
+      id: _nextDraftId++,
       durationMs: 3000,
-      waveform: Uint8List.fromList(List.filled(128, 120)),
+      waveform: List.filled(128, 120),
     );
-    _voiceDrafts[draftId] = draft;
+    _voiceDrafts[draft.id] = draft;
     return draft;
   }
 
   @override
   void voiceRecordCancel() {
-    _mockRecording = false;
-    _mockRecordingTimer?.cancel();
+    _recording = false;
+    _recordingTimer?.cancel();
   }
 
   @override
-  void voiceDraftDiscard(int draftId) {
-    _voiceDrafts.remove(draftId);
-  }
+  void voiceDraftDiscard(int draftId) => _voiceDrafts.remove(draftId);
 
   @override
   Future<Message> sendVoiceMessage(
@@ -4443,14 +4447,14 @@ class MockRepository implements OpencordRepository {
   ) async {
     final server = _server(serverKey);
     _require(server, Permissions.sendVoiceMessages, channelId);
+    final draft = _voiceDrafts[draftId];
+    if (draft == null) {
+      throw RepoException(
+        RepoErrorKind.invalidArgument,
+        'voice draft $draftId not found',
+      );
+    }
     final history = _history(server, channelId);
-    final draft =
-        _voiceDrafts[draftId] ??
-        VoiceDraft(
-          draftId: BigInt.from(draftId),
-          durationMs: 3000,
-          waveform: Uint8List.fromList(List.filled(128, 120)),
-        );
     final now = _clock();
     final messageId = _world.ids.at(now);
     final message = Message(
@@ -4473,40 +4477,49 @@ class MockRepository implements OpencordRepository {
       ],
     );
     history.add(message);
+    _voiceDrafts.remove(draftId);
     _emit(MessageCreated(serverKey, message));
     return message;
   }
 
   PlaybackItem? _playingItem;
   int _playbackPositionMs = 0;
+  int _playbackDurationMs = 0;
   bool _playbackPlaying = false;
   double _playbackSpeed = 1.0;
   Timer? _playbackTimer;
 
+  /// The speed last asked of the player, for tests.
   double get lastVoiceSpeed => _playbackSpeed;
 
-  void _startPlaybackTimer(PlaybackItem item) {
-    _playbackTimer?.cancel();
-    _playbackTimer = Timer.periodic(const Duration(milliseconds: 100), (timer) {
-      if (!_playbackPlaying) return;
-      _playbackPositionMs += (100 * _playbackSpeed).toInt();
-      if (_playbackPositionMs >= 3000) {
-        timer.cancel();
-        _playbackPlaying = false;
-        _emit(PlaybackEnded(item));
-      } else {
-        _emit(
-          PlaybackUpdate(
-            item: item,
-            positionMs: _playbackPositionMs,
-            durationMs: 3000,
-            playing: true,
-            buffering: false,
-          ),
-        );
-      }
-    });
+  void _emitPlayback() {
+    if (_playingItem case final item?) {
+      _emit(
+        PlaybackUpdate(
+          item: item,
+          positionMs: _playbackPositionMs,
+          durationMs: _playbackDurationMs,
+          playing: _playbackPlaying,
+          buffering: false,
+        ),
+      );
+    }
   }
+
+  int _durationOf(PlaybackItem item) => switch (item) {
+    DraftPlayback(:final draftId) => _voiceDrafts[draftId]?.durationMs ?? 0,
+    // The attachment's length when this mock holds its message, else 3 s.
+    AttachmentPlayback(:final serverKey, :final attachmentId) =>
+      _world.servers
+              .where((server) => server.key == serverKey)
+              .expand((server) => server.messages.values)
+              .expand((messages) => messages)
+              .expand((message) => message.attachments)
+              .where((attachment) => attachment.id == attachmentId)
+              .firstOrNull
+              ?.durationMs ??
+          3000,
+  };
 
   @override
   Future<void> voicePlay(
@@ -4514,79 +4527,72 @@ class MockRepository implements OpencordRepository {
     int positionMs,
     double speed,
   ) async {
-    _playingItem = item;
-    _playbackPositionMs = positionMs;
-    _playbackSpeed = speed;
-    _playbackPlaying = true;
-    _startPlaybackTimer(item);
-    _emit(
-      PlaybackUpdate(
-        item: item,
-        positionMs: positionMs,
-        durationMs: 3000,
-        playing: true,
-        buffering: false,
-      ),
-    );
-  }
-
-  @override
-  void voicePause(PlaybackItem item) {
-    _playbackPlaying = false;
+    if (item case DraftPlayback(
+      :final draftId,
+    ) when !_voiceDrafts.containsKey(draftId)) {
+      throw RepoException(
+        RepoErrorKind.invalidArgument,
+        'voice draft $draftId not found',
+      );
+    }
     _playbackTimer?.cancel();
-    _emit(
-      PlaybackUpdate(
-        item: item,
-        positionMs: _playbackPositionMs,
-        durationMs: 3000,
-        playing: false,
-        buffering: false,
-      ),
-    );
-  }
-
-  @override
-  void voiceResume(PlaybackItem item) {
-    _playbackPlaying = true;
-    _startPlaybackTimer(item);
-    _emit(
-      PlaybackUpdate(
-        item: item,
-        positionMs: _playbackPositionMs,
-        durationMs: 3000,
-        playing: true,
-        buffering: false,
-      ),
-    );
-  }
-
-  @override
-  void voiceSeek(PlaybackItem item, int positionMs) {
+    _playingItem = item;
+    _playbackDurationMs = _durationOf(item);
     _playbackPositionMs = positionMs;
-    _emit(
-      PlaybackUpdate(
-        item: item,
-        positionMs: _playbackPositionMs,
-        durationMs: 3000,
-        playing: _playbackPlaying,
-        buffering: false,
-      ),
-    );
+    _playbackSpeed = speed;
+    _playbackPlaying = true;
+    _runPlayback(item);
+    _emitPlayback();
+  }
+
+  /// Advances the position every 100 ms while playing.
+  void _runPlayback(PlaybackItem item) {
+    _playbackTimer?.cancel();
+    _playbackTimer = Timer.periodic(const Duration(milliseconds: 100), (timer) {
+      _playbackPositionMs += (100 * _playbackSpeed).toInt();
+      if (_playbackPositionMs >= _playbackDurationMs) {
+        timer.cancel();
+        _playbackPlaying = false;
+        _emit(PlaybackEnded(item));
+      } else {
+        _emitPlayback();
+      }
+    });
   }
 
   @override
-  void voiceSetSpeed(PlaybackItem item, double speed) {
+  void voicePause() {
+    _playbackTimer?.cancel();
+    _playbackPlaying = false;
+    _emitPlayback();
+  }
+
+  @override
+  void voiceResume() {
+    if (_playingItem case final item?) {
+      _playbackPlaying = true;
+      _runPlayback(item);
+      _emitPlayback();
+    }
+  }
+
+  @override
+  void voiceSeek(int positionMs) {
+    _playbackPositionMs = positionMs;
+    _emitPlayback();
+  }
+
+  @override
+  void voiceSetSpeed(double speed) {
     _playbackSpeed = speed;
+    _emitPlayback();
   }
 
   @override
   void voiceStop() {
     _playbackTimer?.cancel();
     _playbackPlaying = false;
-    if (_playingItem case final item?) {
-      _emit(PlaybackEnded(item));
-      _playingItem = null;
-    }
+    _playingItem = null;
   }
 }
 

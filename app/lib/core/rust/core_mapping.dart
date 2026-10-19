@@ -434,6 +434,29 @@ VoiceStopReason voiceStopReasonFrom(core.VoiceStopReason r) => switch (r) {
   core.VoiceStopReason.deviceLost => VoiceStopReason.deviceLost,
 };
 
+VoiceDraft voiceDraftFrom(core.VoiceDraft draft) => VoiceDraft(
+  id: draft.draftId.toInt(),
+  durationMs: draft.durationMs,
+  waveform: draft.waveform,
+);
+
+PlaybackItem playbackItemFrom(core.PlaybackItem item) => switch (item) {
+  core.PlaybackItem_Attachment(:final serverKey, :final attachmentId) =>
+    AttachmentPlayback(serverKey, attachmentId),
+  core.PlaybackItem_Draft(:final draftId) => DraftPlayback(draftId.toInt()),
+};
+
+core.PlaybackItem playbackItemTo(PlaybackItem item) => switch (item) {
+  AttachmentPlayback(:final serverKey, :final attachmentId) =>
+    core.PlaybackItem.attachment(
+      serverKey: serverKey,
+      attachmentId: attachmentId,
+    ),
+  DraftPlayback(:final draftId) => core.PlaybackItem.draft(
+    draftId: BigInt.from(draftId),
+  ),
+};
+
 StorageMove storageMoveFrom(core.StorageMove m) => StorageMove(
   toStorageId: m.toStorageId,
   running: m.running,

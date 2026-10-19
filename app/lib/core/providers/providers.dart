@@ -33,7 +33,7 @@ import 'package:opencord/core/providers/user_audio.dart';
 import 'package:opencord/core/repository/repository.dart';
 import 'package:opencord/core/settings/local_prefs.dart';
 import 'package:opencord/core/settings/key_value_store.dart';
-import 'package:opencord/features/chat/voice/voice_player_state.dart';
+import 'package:opencord/core/providers/playback_state.dart';
 
 export 'package:opencord/core/providers/activity_state.dart';
 export 'package:opencord/core/providers/channel_audience.dart';
@@ -50,7 +50,7 @@ export 'package:opencord/core/providers/sound_state.dart';
 export 'package:opencord/core/providers/stream_state.dart';
 export 'package:opencord/core/providers/typing_state.dart';
 export 'package:opencord/core/providers/user_audio.dart';
-export 'package:opencord/features/chat/voice/voice_player_state.dart';
+export 'package:opencord/core/providers/playback_state.dart';
 
 /// A channel on a server: the key of per-channel providers.
 typedef ChannelRef = ({String server, int channel});
@@ -1132,6 +1132,10 @@ class ChannelMessagesNotifier extends Notifier<ChannelMessages> {
   /// The files of each message sent with files, kept for Retry. An entry
   /// leaves when its message is sent, discarded or cancelled.
   final _stagedByNonce = <String, List<StagedFile>>{};
+
+  /// The draft of each voice message being sent, kept for Retry. An entry
+  /// leaves when its message is sent or discarded; the core frees the
+  /// draft then too.
   final _draftsByNonce = <String, int>{};
 
   @override
@@ -1337,7 +1341,7 @@ class ChannelMessagesNotifier extends Notifier<ChannelMessages> {
     final nonce =
         '${now.microsecondsSinceEpoch.toRadixString(36)}'
         '${_nonces.nextInt(1 << 32).toRadixString(36)}';
-    final draftId = draft.draftId.toInt();
+    final draftId = draft.id;
     final localAttachment = Attachment(
       id: -now.microsecondsSinceEpoch,
       filename: 'voice-message.ogg',

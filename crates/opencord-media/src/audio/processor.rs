@@ -142,12 +142,12 @@ impl Processor {
                     *sample *= self.input_volume;
                 }
             }
-            if let Some(tap) = &mut self.capture_tap {
-                for &sample in &self.tick {
-                    if tap.push(sample).is_err() {
-                        break;
-                    }
-                }
+            // A whole tick or none: a reader that falls behind loses ticks,
+            // never parts of one.
+            if let Some(tap) = &mut self.capture_tap
+                && let Ok(chunk) = tap.write_chunk_uninit(self.tick.len())
+            {
+                chunk.fill_from_iter(self.tick.iter().copied());
             }
             let level = dbfs(&self.tick);
             self.input_level = Some(self.input_level.map_or(level, |loudest| loudest.max(level)));

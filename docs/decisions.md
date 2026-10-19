@@ -789,7 +789,7 @@ The desktop UI plan's §17.5 never arrived, so where Phase 2 §12 says only what
 - **The voice recorder** (`crates/opencord-core/src/voice_message/recorder.rs`, `media.rs`, `client.rs`, `api/{types.rs,attachments.rs}`).
   - `voice_record_start(max_seconds)` initiates an `opencord-voice-recorder` worker thread using an active call's capture tap via `TapEngine` (silencing call audio) or opening a direct `Microphone` with `FromDevice` and `VoiceProcessing`.
   - Samples are encoded via `opus::Encoder` at 48 kHz Mono Voip with 32,000 bps bitrate, VBR enabled, DTX disabled, and complexity 10.
-  - Mean square sample powers (`Σx²/480`) are collected per 10 ms tick; at stop, the powers are max-pooled into 128 slices where `rms = sqrt(mean of slice)` and mapped to bytes via `level_byte(rms)`.
+  - Mean square sample powers (`Σx²/480`) are collected per 10 ms tick; at stop, they are split into 128 slices the way `waveform()` splits samples, and each slice's `rms = sqrt(mean of slice)` is mapped to a byte with `level_byte(rms)`.
   - Packets are written into an Ogg Opus stream with encoder pre-skip lookahead via `ogg::write(1, pre_skip, &packets, samples)`.
   - Emits `MediaEvent::VoiceRecordLevel { level }` at most every 33 ms and `MediaEvent::VoiceRecordStopped { reason }` on `VoiceStopReason::MaxLength` or `VoiceStopReason::DeviceLost`.
   - `voice_record_stop()` returns `VoiceDraft { draft_id, duration_ms, waveform }` and caches `(ogg_bytes, draft)` in memory; `voice_record_cancel()` aborts without a draft; `voice_draft_discard(draft_id)` frees the cached draft.
@@ -802,7 +802,7 @@ The desktop UI plan's §17.5 never arrived, so where Phase 2 §12 says only what
   - Exposes `voice_pause()`, `voice_resume()`, `voice_seek(position_ms)`, `voice_set_speed(speed)`, and `voice_stop()`.
   - Emits `MediaEvent::PlaybackUpdate { item, position_ms, duration_ms, playing, buffering }` (at source time rate), `MediaEvent::PlaybackEnded`, and `MediaEvent::PlaybackFailed`.
 - **Permissions and repository** (`app/lib/core/model/{permissions.dart,voice.dart}`, `app/lib/core/repository/{repository.dart,events.dart}`, `app/lib/core/rust/rust_repository.dart`, `app/lib/core/mock/mock_repository.dart`, `app/lib/features/settings/server/permission_info.dart`).
-  - Added `Permissions.sendVoiceMessages = Permissions(1 << 14)` to `Permissions`, `defaultEveryone`, and `allPermissions`, with UI entry "Send voice messages" ("Record and send voice messages") in server permission settings.
+  - Added `Permissions.sendVoiceMessages = Permissions(1 << 14)` to `Permissions`, `defaultEveryone` and `Permissions.all`, with UI entry "Send voice messages" ("Record and send voice messages") in server permission settings.
   - Added repository methods for voice recording and playback, mapping FRB calls to Dart types. `MockRepository` implements timer-driven level updates, draft storage, and simulated playback with pause/resume support.
 - **Recording UI and composer bar** (`app/lib/features/chat/voice/{mic_button.dart,recording_bar.dart,waveform_painter.dart,voice_recorder_state.dart}`, `features/chat/composer.dart`, `features/channels/voice_panel.dart`).
   - `MicButton` uses raw pointer listeners with an inner `OcIconButton` (tooltip "Voice message"). Pressing calls `voiceRecordStart`; dragging left (`dx < -120`) enters cancelling; dragging up (`dy < -60`) locks; releasing under 500 ms displays a toast "Hold to record". Keyboard Space down/up and Escape are handled when focused.
@@ -811,8 +811,8 @@ The desktop UI plan's §17.5 never arrived, so where Phase 2 §12 says only what
     - Normal/holding: pulsing 10 px dot in `recording` (0.4 to 1.0 opacity every 600 ms), `m:ss` timer, live waveform scrolling left (3 px bars, 2 px gaps in `voice`), and hint "Release to send · Esc to cancel".
     - Cancelling: `recording` background at 15% opacity, static dot, and hint "Release to cancel".
     - Locked: actions Delete (`OcIcons.delete`), Stop (`OcIcons.stop`), and Send (`OcIcons.send`, inverted). Enter sends; Escape deletes.
-    - Preview: play/pause toggle (`OcIcons.playArrow` / `OcIcons.pause`), static draft waveform, duration, Delete, and Send.
-- **Voice message bubbles** (`app/lib/features/chat/voice/{voice_bubble.dart,voice_player_state.dart}`, `features/chat/attachments/attachment_view.dart`).
+    - Preview: play/pause (`OcIcons.playArrow` / `OcIcons.pause`) plays the draft through the voice player (`DraftPlayback`), with the static draft waveform filling as it plays, the duration, Delete and Send.
+- **Voice message bubbles** (`app/lib/features/chat/voice/voice_bubble.dart`, `app/lib/core/providers/playback_state.dart`, `features/chat/attachments/attachment_view.dart`).
   - `VoiceBubble` width scales smoothly from 200 to 320 px via `lerpDouble(200.0, 320.0, clamp((durationSec - 10.0) / 50.0, 0.0, 1.0))`.
   - Max-pools 128 waveform bytes to `floor(width / 5)` bars via `resampleWaveform`; unplayed bars use `textMuted` (keeping resting dark/light screens monochrome) while played bars use `voice`.
   - Displays play/pause icon button, time label (`m:ss` idle or `m:ss / m:ss` playing), speed chip cycling `1×` → `1.5×` → `2×` (remembered per bubble), and seeking on tap/drag.
@@ -822,3 +822,26 @@ The desktop UI plan's §17.5 never arrived, so where Phase 2 §12 says only what
   - Rust unit tests: `crates/opencord-media/src/audio/processor.rs` (`the_tap_gets_processed_ticks_and_silence_reaches_the_call`, `local_media_is_played_and_heard_by_the_echo_canceller`); `crates/opencord-core/src/voice_message/recorder.rs` (`a_recording_becomes_valid_ogg_opus`, `the_draft_waveform_matches_the_server_formula`, `recording_stops_at_the_maximum`, `in_call_recording_silences_the_call`); `crates/opencord-core/src/voice_message/player.rs` (`tempo_two_halves_the_output`, `seek_lands_within_a_frame`, `starting_another_item_stops_the_first`, `a_draft_plays_without_network`).
   - Dart unit and widget tests: `app/test/unit/chat/waveform_test.dart` (`waveform_resampling_uses_max`); `app/test/widget/chat/voice_recording_test.dart` (`hold_shows_the_bar_and_release_sends`, `a_short_press_shows_hold_to_record`, `dragging_left_cancels`, `dragging_up_locks_and_enter_sends`, `max_length_while_locked_opens_the_preview`, `no_permission_hides_the_mic`); `app/test/widget/chat/voice_bubble_test.dart` (`voice_bubble_plays_seeks_and_changes_speed`); `app/test/golden/voice_bar_golden_test.dart` (`recording bar states (dark)`, `recording bar states (light)`).
 
+- **Review.** Fixed after A6:
+  - **Playback wasn't paced.**
+    - The player decoded the whole file at once and pushed into the call's or the speaker's ring buffer with `let _ =`, dropping what didn't fit. On a real device a message would have played about its first second while its position raced to the end.
+    - After the end it kept pulling `wsola`, which replays the input it still holds after `flush`, so every message ended with up to 1.4 s played again.
+    - A speed change mid-play applied to nothing, since everything had been stretched already.
+    - Now the player decodes a packet at a time, writes a tick only while the output is under 60 ms ahead, never pulls after the flush, and detaches from the call when it stops. `playing_into_a_call_drops_nothing_and_keeps_time` and `a_new_speed_applies_to_what_follows` feed a call-like sink at real time.
+  - **Recorder errors.**
+    - A microphone that wouldn't open, or an encoder error, became `None`, and `stop` said only "recording produced no draft". Now the error reaches `stop`, and the app hears `DeviceLost` at once.
+    - A lost microphone kept nothing; now it keeps what was heard (`a_lost_microphone_keeps_what_was_heard`).
+    - The encoder's lookahead error no longer becomes a pre-skip of 0.
+    - The capture tap takes whole ticks or none.
+  - **The draft preview's play button was a stub** that only flipped a flag. It now plays the draft, and deleting or sending stops it.
+  - **The app:**
+    - the generated `PlaybackItem` and `VoiceDraft` no longer leak past `core/rust`: the app has its own models in `core/model/voice_message.dart`;
+    - the playback state moved from `features/` into `core/providers/playback_state.dart` and no longer applied each event twice;
+    - the recorder's level was converted to decibels twice;
+    - start and stop failures, and a lost microphone, now reach the member as a toast;
+    - dragging on a bubble started a new player per pointer move and now seeks once on release;
+    - a playback failure is shown;
+    - the speed chip is monochrome (`voice` is for the waveform only) and uses `Hoverable`;
+    - a message still being sent can't be played.
+  - **The mock now refuses what the core refuses:** a second start, a stop with nothing recorded, a missing draft.
+  - **D58 itself:** "max-pooled" (the slices are averaged), `allPermissions` (it is `Permissions.all`), and a working preview that wasn't.

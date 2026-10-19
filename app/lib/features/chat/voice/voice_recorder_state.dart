@@ -3,12 +3,21 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:opencord/core/model/attachment.dart';
 import 'package:opencord/core/model/voice.dart';
 import 'package:opencord/core/providers/providers.dart';
 import 'package:opencord/core/repository/repository.dart';
 import 'package:opencord/features/shell/navigation.dart';
 
 enum RecordingPhase { idle, holding, cancelling, locked, preview }
+
+/// Why recording or sending a voice message failed, for a toast. Each one is
+/// a new object, so the same message twice is still two toasts.
+class VoiceRecorderProblem {
+  VoiceRecorderProblem(this.message);
+
+  final String message;
+}
 
 @immutable
 class VoiceRecorderState {
@@ -17,12 +26,16 @@ class VoiceRecorderState {
     this.elapsed = Duration.zero,
     this.bars = const [],
     this.draft,
+    this.problem,
   });
 
   final RecordingPhase phase;
   final Duration elapsed;
+
+  /// One level per 100 ms, 0–1.
   final List<double> bars;
   final VoiceDraft? draft;
+  final VoiceRecorderProblem? problem;
 
   VoiceRecorderState copyWith({
     RecordingPhase? phase,
@@ -37,80 +50,73 @@ class VoiceRecorderState {
   );
 }
 
-double _rmsToLevel(double rms) {
-  final safe = math.max(rms, 1e-9);
-  final db = 20 * (math.log(safe) / math.ln10);
-  return ((db + 60) / 60).clamp(0.0, 1.0);
-}
-
 class VoiceRecorderNotifier extends Notifier<VoiceRecorderState> {
   VoiceRecorderNotifier(this.channel);
 
   final ChannelRef channel;
 
   Timer? _timer;
-  StreamSubscription<RepoEvent>? _eventsSub;
-  double _currentWindowMaxRms = 0;
+  StreamSubscription<RepoEvent>? _events;
 
-  OpencordRepository get _repo => ref.read(repositoryProvider);
+  /// The loudest level heard in the current 100 ms bar.
+  double _loudest = 0;
+
+  OpencordRepository get _repository => ref.read(repositoryProvider);
 
   @override
   VoiceRecorderState build() {
-    ref.onDispose(() {
-      _timer?.cancel();
-      _eventsSub?.cancel();
-    });
+    ref.onDispose(_stopListening);
     return const VoiceRecorderState();
   }
 
+  bool get _recording => switch (state.phase) {
+    RecordingPhase.holding ||
+    RecordingPhase.cancelling ||
+    RecordingPhase.locked => true,
+    RecordingPhase.idle || RecordingPhase.preview => false,
+  };
+
   void press() {
-    _cleanup();
-    final serverData = ref.read(serverProvider(channel.server)).data;
-    final maxSeconds = serverData?.uploadSettings.voiceMessageMaxSeconds ?? 300;
-
-    _repo.voiceRecordStart(maxSeconds);
-    _currentWindowMaxRms = 0;
-
-    state = const VoiceRecorderState(
-      phase: RecordingPhase.holding,
-      elapsed: Duration.zero,
-      bars: [],
-    );
-
-    _eventsSub = _repo.events.listen(_onRepoEvent);
+    _stopListening();
+    final settings = ref.read(serverProvider(channel.server)).data;
+    final maxSeconds =
+        settings?.uploadSettings.voiceMessageMaxSeconds ??
+        UploadSettings.fallback.voiceMessageMaxSeconds;
+    try {
+      _repository.voiceRecordStart(maxSeconds);
+    } on RepoException catch (error) {
+      _fail(error.message);
+      return;
+    }
+    _loudest = 0;
+    state = const VoiceRecorderState(phase: RecordingPhase.holding);
+    _events = _repository.events.listen(_onEvent);
     _timer = Timer.periodic(const Duration(milliseconds: 100), _onTick);
   }
 
   void _onTick(Timer timer) {
-    if (state.phase != RecordingPhase.holding &&
-        state.phase != RecordingPhase.cancelling &&
-        state.phase != RecordingPhase.locked) {
-      return;
-    }
-    final elapsed = state.elapsed + const Duration(milliseconds: 100);
-
-    final barLevel = _rmsToLevel(_currentWindowMaxRms);
-    _currentWindowMaxRms = 0;
-
-    final updatedBars = List<double>.from(state.bars)..add(barLevel);
-    state = state.copyWith(elapsed: elapsed, bars: updatedBars);
+    if (!_recording) return;
+    state = state.copyWith(
+      elapsed: state.elapsed + const Duration(milliseconds: 100),
+      bars: [...state.bars, _loudest],
+    );
+    _loudest = 0;
   }
 
-  void _onRepoEvent(RepoEvent event) {
-    if (event is VoiceRecordLevel) {
-      if (event.rms > _currentWindowMaxRms) {
-        _currentWindowMaxRms = event.rms;
-      }
-    } else if (event is VoiceRecordStopped) {
-      if (event.reason == VoiceStopReason.maxLength) {
+  void _onEvent(RepoEvent event) {
+    switch (event) {
+      case VoiceRecordLevel(:final level):
+        _loudest = math.max(_loudest, level);
+      case VoiceRecordStopped(reason: VoiceStopReason.maxLength):
         if (state.phase == RecordingPhase.holding) {
-          send();
+          unawaited(send());
         } else if (state.phase == RecordingPhase.locked) {
-          stopForPreview();
+          unawaited(stopForPreview());
         }
-      } else if (event.reason == VoiceStopReason.deviceLost) {
-        cancel();
-      }
+      case VoiceRecordStopped(reason: VoiceStopReason.deviceLost):
+        // Keep what was heard: the member decides whether to send it.
+        unawaited(stopForPreview(lost: true));
+      default:
     }
   }
 
@@ -130,26 +136,29 @@ class VoiceRecorderNotifier extends Notifier<VoiceRecorderState> {
     }
   }
 
-  /// Returns false if the press was shorter than 500 ms (cancelled and tooltip shown).
+  /// False when the press was too short to record (it is cancelled).
   bool release() {
     if (state.phase == RecordingPhase.holding) {
       if (state.elapsed < const Duration(milliseconds: 500)) {
         cancel();
         return false;
       }
-      send();
-      return true;
+      unawaited(send());
     } else if (state.phase == RecordingPhase.cancelling) {
       cancel();
-      return true;
     }
     return true;
   }
 
   void cancel() {
-    _cleanup();
-    _repo.voiceRecordCancel();
-    state = const VoiceRecorderState(phase: RecordingPhase.idle);
+    _stopListening();
+    try {
+      _repository.voiceRecordCancel();
+    } on RepoException catch (error) {
+      _fail(error.message);
+      return;
+    }
+    state = const VoiceRecorderState();
   }
 
   void lock() {
@@ -159,40 +168,71 @@ class VoiceRecorderNotifier extends Notifier<VoiceRecorderState> {
     }
   }
 
-  Future<void> stopForPreview() async {
-    _timer?.cancel();
-    _eventsSub?.cancel();
+  Future<void> stopForPreview({bool lost = false}) async {
+    if (!_recording) return;
+    _stopListening();
     try {
-      final draft = await _repo.voiceRecordStop();
-      state = state.copyWith(phase: RecordingPhase.preview, draft: () => draft);
-    } on RepoException {
-      cancel();
+      final draft = await _repository.voiceRecordStop();
+      state = VoiceRecorderState(
+        phase: RecordingPhase.preview,
+        elapsed: state.elapsed,
+        bars: state.bars,
+        draft: draft,
+        problem: lost
+            ? VoiceRecorderProblem(
+                'The microphone stopped. What it recorded is kept.',
+              )
+            : null,
+      );
+    } on RepoException catch (error) {
+      _fail(error.message);
     }
   }
 
-  Future<void> send([VoiceDraft? draft]) async {
-    _cleanup();
-    final d = draft ?? state.draft;
-    final toSend = d ?? await _repo.voiceRecordStop();
-    state = const VoiceRecorderState(phase: RecordingPhase.idle);
-    await ref.read(channelMessagesProvider(channel).notifier).sendVoice(toSend);
+  Future<void> send() async {
+    _stopListening();
+    final VoiceDraft draft;
+    if (state.draft case final kept?) {
+      draft = kept;
+      ref.read(playbackProvider.notifier).stop(DraftPlayback(kept.id));
+    } else {
+      try {
+        draft = await _repository.voiceRecordStop();
+      } on RepoException catch (error) {
+        _fail(error.message);
+        return;
+      }
+    }
+    state = const VoiceRecorderState();
+    await ref.read(channelMessagesProvider(channel).notifier).sendVoice(draft);
   }
 
   void discard() {
-    _cleanup();
-    if (state.draft case final draft?) {
-      _repo.voiceDraftDiscard(draft.draftId.toInt());
-    } else {
-      _repo.voiceRecordCancel();
+    _stopListening();
+    try {
+      if (state.draft case final draft?) {
+        ref.read(playbackProvider.notifier).stop(DraftPlayback(draft.id));
+        _repository.voiceDraftDiscard(draft.id);
+      } else {
+        _repository.voiceRecordCancel();
+      }
+    } on RepoException catch (error) {
+      _fail(error.message);
+      return;
     }
-    state = const VoiceRecorderState(phase: RecordingPhase.idle);
+    state = const VoiceRecorderState();
   }
 
-  void _cleanup() {
+  void _fail(String message) {
+    _stopListening();
+    state = VoiceRecorderState(problem: VoiceRecorderProblem(message));
+  }
+
+  void _stopListening() {
     _timer?.cancel();
     _timer = null;
-    _eventsSub?.cancel();
-    _eventsSub = null;
+    unawaited(_events?.cancel());
+    _events = null;
   }
 }
 

@@ -22,8 +22,8 @@ import 'package:opencord/core/model/voice.dart';
 import 'package:opencord/core/repository/events.dart';
 
 export 'package:opencord/core/repository/events.dart';
-import 'package:opencord/src/rust/api/types.dart' show PlaybackItem, VoiceDraft;
-export 'package:opencord/src/rust/api/types.dart' show PlaybackItem, VoiceDraft;
+import 'package:opencord/core/model/voice_message.dart';
+export 'package:opencord/core/model/voice_message.dart';
 
 /// UI features that need protocol support Phase 1 does not have yet. The
 /// mock has them all; the Rust core reports what it can do, and the UI
@@ -970,13 +970,14 @@ abstract interface class OpencordRepository {
 
   Future<void> voicePlay(PlaybackItem item, int positionMs, double speed);
 
-  void voicePause(PlaybackItem item);
+  /// Pause, resume, seek and speed act on whatever is playing.
+  void voicePause();
 
-  void voiceResume(PlaybackItem item);
+  void voiceResume();
 
-  void voiceSeek(PlaybackItem item, int positionMs);
+  void voiceSeek(int positionMs);
 
-  void voiceSetSpeed(PlaybackItem item, double speed);
+  void voiceSetSpeed(double speed);
 
   void voiceStop();
 }

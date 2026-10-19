@@ -8338,7 +8338,8 @@ Then the ledger, then **D58** ("Media uploads: voice messages (Phase 4 A6, <date
 - [ ] **Step 1: Build dav1d first** in the script:
   - pinned `dav1d_version=1.5.4`, `dav1d_sha256=686616b7c69eb88d44459391ab25cac13b6647a3b288835c5784e71c1514a5c5`, URL `https://downloads.videolan.org/pub/videolan/dav1d/$dav1d_version/dav1d-$dav1d_version.tar.xz` (fetched with the script's `fetch`);
   - build: `meson setup build --prefix="$prefix" --libdir=lib --buildtype=release --default-library=static -Denable_tools=false -Denable_tests=false && ninja -C build install`.
-  - The script header must list meson and ninja as needs.
+  - The script header must list meson and ninja as needs. Both are installed on this machine (`/usr/bin/meson`, `/usr/bin/ninja`), and so is the `ffmpeg` command-line tool for the test fixtures.
+  - If the download doesn't match the pinned checksum, stop and report. Don't change the pinned value.
 - [ ] **Step 2: Change FFmpeg's configure:**
   - add `--enable-libdav1d`;
   - decoders: `--enable-decoder=h264,mjpeg,hevc,vp8,vp9,libdav1d,mpeg4,aac,mp3float,opus,vorbis,flac,pcm_s16le,pcm_s24le,pcm_s32le,pcm_f32le,pcm_u8`;
@@ -8433,7 +8434,9 @@ ffmpeg -display_rotation 90 -i h264_aac.mp4 -c copy rotated_90.mp4
   - `media_play()`, `media_pause()`, `media_seek(position_ms: u32)`, `media_set_volume(volume: f32, muted: bool)`, `media_close()`.
   - Events reuse `MediaEvent::PlaybackUpdate`/`Ended`/`Failed` with `PlaybackItem::Attachment`.
   - `#[frb(sync)] pub fn media_supported() -> bool`.
-- **Upload:** for a path whose sniff is a video and where `media_supported()`, `probe_and_poster(path, 800)`. CreateUpload gets the hints; finish gets the poster.
+- **Upload:** for a path whose sniff is a video and where `media_supported()`, `probe_and_poster(path, 800)`. CreateUpload gets the hints (`width`, `height`, `duration_ms`); the poster is the body of the finish request (`POST /media/uploads/{id}/finish`, a JPEG of at most 2 MiB), which `attachments/upload.rs` sends with no body today.
+- **Audio out, reused:** the speaker and in-call output are the job `OutputSink` in `voice_message/player.rs` already does since the A6 review: it paces to 60 ms ahead and detaches from the call when dropped. Move it to a module both players use, and implement `AudioOut` on it; don't write a second one.
+- `FrameSink::present(width, height, rgba)` in `video.rs` has the same signature as `VideoOut::present`.
 
 - [ ] **Step 1: Write tests** (core integration):
   - `range_reader_reads_any_span` (random seeks equal the source bytes);
@@ -8456,12 +8459,14 @@ ffmpeg -display_rotation 90 -i h264_aac.mp4 -c copy rotated_90.mp4
   - `!mediaSupported()` → a message "This video can't play on this computer yet" with Download.
 - **`AudioCard`** (audio kind): the `FileCard` layout plus play/pause, a seek slider and the time, through the same media API (no texture).
 - Starting any media stops a playing voice message, and vice versa (`NowPlaying` in the core; the app updates from events).
+- **The playing state is `playbackProvider`** (`core/providers/playback_state.dart`, A6 review). It already takes `PlaybackUpdate`/`Ended`/`Failed` for any `PlaybackItem`; media items are `AttachmentPlayback`. Give it the media calls, so pause, resume and seek reach the media player for media and the voice player for voice messages.
+- `media_viewer.dart` shows a "Video playback coming soon" placeholder for videos: replace it. The viewer is dark in both themes, so use `context.oc` inside it.
 
 - [ ] **Step 1: Write widget tests** (mock repository): `video_tile_opens_the_viewer_and_plays`, `audio_card_plays_and_seeks`, `unsupported_video_offers_download`.
 - [ ] **Step 2:** FAIL. **Step 3:** Implement. **Step 4:** PASS.
 - [ ] **Step 5: Commit:** `feat: video and audio playback in the app (A7)`.
 
-**A7 stop.** Full checks. Live: play an MP4, a WebM and a phone video (rotated) inside the app; seek; play during a call. **D59**, ledger, report.
+**A7 stop.** Full checks. Live: play an MP4, a WebM and a phone video (rotated) inside the app; seek; play during a call. Then the ledger, then **D59** ("Media uploads: video and audio playback (Phase 4 A7, <date>)"), written from `git diff` as `GEMINI.md` → "Write docs from the code" says, then report.
 
 ---
 

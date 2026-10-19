@@ -515,6 +515,12 @@ class _ComposerState extends ConsumerState<Composer> {
             .has(Permissions.sendVoiceMessages) ??
         false;
     final voiceState = ref.watch(voiceRecorderProvider(_channel));
+    ref.listen(
+      voiceRecorderProvider(_channel).select((state) => state.problem),
+      (_, problem) {
+        if (problem != null) showOcToast(context, problem.message);
+      },
+    );
     final isRecording = voiceState.phase != RecordingPhase.idle;
     final state = ref.watch(composerProvider(_channel));
     final cooldown = ref.watch(sendCooldownProvider(_channel));
