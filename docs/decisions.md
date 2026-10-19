@@ -719,3 +719,40 @@ The desktop UI plan's §17.5 never arrived, so where Phase 2 §12 says only what
   - macOS follows in P2. On Windows `arboard` needs BSL-1.0 crates, outside the allowed licences, so P1 settles Windows.
 - **Tests.** `tests/attachments.rs` runs the core against a real server: sending, a lost piece answer, cancelling, a blocked file, an expired token, saving, the cache with the server stopped, and a photo's location. ServerHandle gains `uploads_in_state` for them.
 - **Review.** The code matches the plan exactly, and every check passes, so nothing was changed. The working rules from the A1–A3 reviews moved from the plan to `GEMINI.md`, which now collects every review's lessons. From A5 on, the plan gives behavior and interfaces rather than code.
+
+## D57: Media uploads: the app (Phase 4 A5, 2026-10-19)
+
+- **Why.** Milestone A5 of media uploads (`docs/superpowers/plans/2026-10-18-media-uploads.md`) brings attachment support to the Flutter app: models, upload rules, composer staging, sending, chat attachment views, the media viewer, and server and user settings. Commits: 382bcab..98d96d3.
+- **Models and upload rules** (`core/model/attachment.dart`, `core/model/storage.dart`, `core/upload_rules.dart`, `core/format.dart`).
+  - `Attachment` holds an uploaded file's metadata (`id`, `filename`, `contentType`, `sizeBytes`, `kind`, dimensions, `durationMs`, `waveform`, thumbnail presence and size, and `animated`).
+  - `UploadSettings` stores server limits: `blockedExtensions`, `voiceMessageMaxSeconds`, `maxFileBytes`, and `maxAttachments` (fallback 10). `UploadPhase` tracks `preparing`, `uploading`, `processing`, `sending`, `done`, `failed` and `cancelled`.
+  - `StorageBackend` describes local or S3 storage (`id`, `kind`, `name`, `active`, `s3`, `hasSecret`, `fileCount`, `bytes`, and `lastError`). `StorageMove` reports file move progress (`toStorageId`, `running`, `filesDone`, `filesTotal`, `bytesDone`, `bytesTotal`, `failed`).
+  - `effectiveUploadLimit` calculates member upload limit: the owner gets `ceiling` (`maxFileBytes`); other members take the maximum of `@everyone` or their assigned roles' limits, capped at `ceiling`.
+  - `sanitizeFilename` strips directories, control characters, leading spaces and trailing dots/spaces; prefixes DOS device stems with `_`; caps length to 200 preserving extension; and defaults empty names to `file`. `normalizeExtension` trims, strips a leading dot, and validates 1..20 lowercase alphanumeric or dot characters.
+  - `stageProblem` detects `StageProblem.tooLarge` and `StageProblem.blocked`. `blockProgramsPreset` contains 33 executable extensions. `formatFileSize` formats sizes as B, KB, MB, or GB.
+- **Repository and state** (`core/repository/repository.dart`, `core/rust/rust_repository.dart`, `core/mock/mock_repository.dart`, `core/providers/providers.dart`, `core/providers/server_state.dart`).
+  - `OpencordRepository` gains `sendMessageWithFiles`, `cancelSend`, `attachmentBytes`, `downloadAttachment`, `cancelDownload`, `clipboardImage`, `copyImage`, `updateUploadSettings`, `storage`, `addStorage`, `updateStorage`, `testStorage`, `activateStorage`, `removeStorage`, `startStorageMove`, `stopStorageMove`, `mediaCacheSize`, and `clearMediaCache`.
+  - `ServerData` exposes `uploadSettings` and calculates `myUploadLimit`. `ChannelMessagesNotifier` handles `sendWithFiles` with a unique nonce, tracking pending uploads with `UploadProgressEvent` updates and supporting `cancelSend` and `discard`.
+- **Composer, staging and sending** (`features/chat/composer.dart`, `features/chat/composer_state.dart`, `features/chat/attachment_drop.dart`, `features/chat/attachments/staged_tiles.dart`, `features/chat/attachments/upload_progress.dart`).
+  - An `OcIconButton` with `OcIcons.attachFile` opens the system file picker (`openFiles`) when permitted.
+  - `AttachmentDropZone` detects files dragged over chat and stages them in the composer. Pasting (`CallbackShortcuts`) checks `clipboardImage` and stages pasted PNG bytes.
+  - `StagedTiles` shows previews for image files up to 20 MiB, filenames, sizes, and remove buttons. Files exceeding the limit or blocked show error indicators and disable sending. Beyond 10 files, tiles receive `StageProblem.tooMany`.
+  - Outgoing uploads display `UploadProgressList` with status, progress percentages, and cancel buttons.
+- **Attachments in messages and downloads** (`features/chat/attachments/{attachment_view,image_grid,file_card,download,text_preview_dialog}.dart`, `features/chat/bubble.dart`).
+  - `AttachmentsView` displays attachments in message bubbles.
+  - Images render in `ImageGrid`: up to 4 images in a grid layout, with a `+N` badge on the 4th item when 5 or more images are present.
+  - Non-image files render in `FileCard` with icons by type, filename, size, and download button calling `saveAttachment`. Text files up to 256 KiB (`maxPreviewBytes`) offer a "Preview" button opening `TextPreviewDialog` with line numbers.
+  - `messageSummary` summarizes messages for notifications and pinned banners as text, `Photo`, `count photos`, `Video`, `Voice message (m:ss)`, or `filename`.
+- **In-app media viewer** (`features/chat/attachments/media_viewer.dart`).
+  - `showMediaViewer` opens a transparent fullscreen route with scrim background.
+  - `MediaViewer` displays images with `InteractiveViewer` supporting pan and scroll-wheel zoom between 1.0x and 8.0x.
+  - Top bar shows filename (`middleEllipsis` at 36 characters), index counter (`i / N`), download button, and close button. Left/right buttons and ArrowLeft/ArrowRight keyboard shortcuts navigate; Escape closes.
+- **Settings** (`features/settings/server/{uploads_page,storage_page,storage_dialogs,roles_page}.dart`, `features/settings/user/app_pages.dart`).
+  - `ServerUploadsPage` configures blocked file extensions (with a "Block executable programs" button) and voice message maximum duration.
+  - `ServerStoragePage` (owner only) lists backends, active status, file counts, and byte sizes. S3 backends require a successful `testStorage` run before saving. Existing files can be migrated with `startStorageMove` and monitored with progress and `stopStorageMove`.
+  - `_RoleEditor` in `roles_page.dart` provides "Max upload size" with MB/GB units and a "Not set" toggle for non-@everyone roles, validated against server limits and user upload capacity.
+  - `_MediaCacheSection` in `BehaviorPage` shows cached bytes and provides a "Clear" button calling `clearMediaCache`.
+- **Tests.**
+  - Unit tests: `app/test/unit/model/upload_rules_test.dart` (limits, sanitization, normalization, blocking), `app/test/unit/format_test.dart` (`formatFileSize`, `middleEllipsis`), `app/test/unit/mock/mock_repository_test.dart` (`sendMessageWithFiles`), `app/test/unit/rust/core_mapping_test.dart` (error mapping), `app/test/unit/theme/oc_colors_test.dart` (tokens), `app/test/unit/message_summary_test.dart` (summaries).
+  - Widget tests: `app/test/widget/chat/composer_attach_test.dart` (staging, problem blocking, pasting, sending progress, cancel), `app/test/widget/chat/attachment_drop_test.dart` (drag overlay and drop), `app/test/widget/chat/attachments_view_test.dart` (aspect ratio box, grid counter, text preview), `app/test/widget/chat/media_viewer_test.dart` (navigation and close), `app/test/widget/settings/media_settings_test.dart` (uploads page, storage owner/test requirement, role limits, cache clear).
+
