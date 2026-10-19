@@ -1,9 +1,12 @@
 //! Files in messages, upload settings and storage (media uploads plan,
 //! milestone A4), for the Flutter app.
 
-use super::client::on_runtime;
+use flutter_rust_bridge::frb;
+
+use super::client::{client, on_runtime};
 use super::types::{
-    CoreError, S3Config, StorageInfo, StorageTestResult, StorageTestTarget, UploadSettings,
+    CoreError, Message, OutgoingFile, S3Config, StorageInfo, StorageTestResult, StorageTestTarget,
+    UploadSettings,
 };
 
 /// MANAGE_SERVER. `None` leaves a setting as it is.
@@ -77,4 +80,49 @@ pub async fn storage_move_start(server_key: String) -> Result<StorageInfo, CoreE
 
 pub async fn storage_move_stop(server_key: String) -> Result<StorageInfo, CoreError> {
     on_runtime(move |client| async move { client.storage_move_stop(&server_key).await }).await
+}
+
+/// Uploads the files, two at a time, then sends the message with them.
+/// UploadProgress events follow each file. On a failure or a cancel, the
+/// uploads made so far are cancelled.
+pub async fn send_message_with_files(
+    server_key: String,
+    channel_id: i64,
+    content: String,
+    nonce: String,
+    files: Vec<OutgoingFile>,
+) -> Result<Message, CoreError> {
+    on_runtime(move |client| async move {
+        client
+            .send_message_with_files(&server_key, channel_id, content, nonce, files)
+            .await
+    })
+    .await
+}
+
+/// Stops a send that is still uploading; it returns `Cancelled`.
+#[frb(sync)]
+pub fn cancel_send(server_key: String, nonce: String) -> Result<(), CoreError> {
+    client()?.cancel_send(&server_key, &nonce);
+    Ok(())
+}
+
+/// Saves the attachment at `path`; DownloadProgress events follow it.
+pub async fn download_attachment(
+    server_key: String,
+    attachment_id: i64,
+    path: String,
+) -> Result<(), CoreError> {
+    on_runtime(move |client| async move {
+        client
+            .download_attachment(&server_key, attachment_id, path)
+            .await
+    })
+    .await
+}
+
+#[frb(sync)]
+pub fn cancel_download(server_key: String, attachment_id: i64) -> Result<(), CoreError> {
+    client()?.cancel_download(&server_key, attachment_id);
+    Ok(())
 }

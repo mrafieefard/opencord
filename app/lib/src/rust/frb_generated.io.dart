@@ -526,6 +526,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   List<MusicSearchResult> dco_decode_list_music_search_result(dynamic raw);
 
   @protected
+  List<OutgoingFile> dco_decode_list_outgoing_file(dynamic raw);
+
+  @protected
   List<PermissionOverwrite> dco_decode_list_permission_overwrite(dynamic raw);
 
   @protected
@@ -723,6 +726,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   Int64List? dco_decode_opt_list_prim_i_64_strict(dynamic raw);
+
+  @protected
+  Uint8List? dco_decode_opt_list_prim_u_8_strict(dynamic raw);
+
+  @protected
+  OutgoingFile dco_decode_outgoing_file(dynamic raw);
 
   @protected
   OverwriteTargetKind dco_decode_overwrite_target_kind(dynamic raw);
@@ -1534,6 +1543,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  List<OutgoingFile> sse_decode_list_outgoing_file(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   List<PermissionOverwrite> sse_decode_list_permission_overwrite(
     SseDeserializer deserializer,
   );
@@ -1781,6 +1795,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   Int64List? sse_decode_opt_list_prim_i_64_strict(SseDeserializer deserializer);
+
+  @protected
+  Uint8List? sse_decode_opt_list_prim_u_8_strict(SseDeserializer deserializer);
+
+  @protected
+  OutgoingFile sse_decode_outgoing_file(SseDeserializer deserializer);
 
   @protected
   OverwriteTargetKind sse_decode_overwrite_target_kind(
@@ -2803,6 +2823,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_list_outgoing_file(
+    List<OutgoingFile> self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_list_permission_overwrite(
     List<PermissionOverwrite> self,
     SseSerializer serializer,
@@ -3122,6 +3148,15 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
     Int64List? self,
     SseSerializer serializer,
   );
+
+  @protected
+  void sse_encode_opt_list_prim_u_8_strict(
+    Uint8List? self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_outgoing_file(OutgoingFile self, SseSerializer serializer);
 
   @protected
   void sse_encode_overwrite_target_kind(

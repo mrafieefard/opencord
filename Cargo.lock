@@ -3918,6 +3918,7 @@ dependencies = [
 name = "opencord_core"
 version = "0.1.0"
 dependencies = [
+ "bytes",
  "data-encoding",
  "flutter_rust_bridge",
  "futures-util",
@@ -3933,6 +3934,7 @@ dependencies = [
  "opencord-proto",
  "opencord-server",
  "prost",
+ "reqwest",
  "rustls",
  "rustls-platform-verifier",
  "serde",
@@ -3943,6 +3945,7 @@ dependencies = [
  "tokio",
  "tokio-rustls",
  "tokio-tungstenite 0.30.0",
+ "tokio-util",
  "tracing",
  "webpki-roots",
 ]

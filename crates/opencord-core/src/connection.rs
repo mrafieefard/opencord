@@ -26,8 +26,10 @@ use tokio_tungstenite::tungstenite::Message as Frame;
 use crate::api::types::{
     ConnectionState, CoreError, CoreEvent, CoreEventPayload, ErrorCode, FailureReason,
 };
+use crate::attachments::upload::Uploads;
 use crate::convert;
 use crate::identity::Identity;
+
 use crate::mirror::{GuildMirror, PermissionSnapshot};
 use crate::server_clock::ServerClock;
 use crate::store::Store;
@@ -350,6 +352,8 @@ pub(crate) struct Context {
     pub media_tokens: MediaTokens,
     pub routes: Routes,
     pub clocks: Clocks,
+    /// Sends waiting for their uploads' verdicts.
+    pub uploads: Arc<Uploads>,
 }
 
 /// Each server's clock against this device's, by server key.
@@ -886,6 +890,22 @@ impl Task {
             proto::event::Kind::MusicNowPlaying(_) | proto::event::Kind::MusicNotice(_) => {
                 crate::music::event(kind)
             }
+            // For the send waiting on them, not for the app.
+            proto::event::Kind::UploadReady(ready) => {
+                if let Some(attachment) = ready.attachment {
+                    self.context.uploads.on_ready(&self.context.key, attachment);
+                }
+                None
+            }
+            proto::event::Kind::UploadFailed(failed) => {
+                self.context.uploads.on_failed(
+                    &self.context.key,
+                    failed.upload_id,
+                    failed.error.unwrap_or_default(),
+                );
+                None
+            }
+
             kind => convert::event(kind, session_id),
         };
         if let Some(payload) = payload {

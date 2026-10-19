@@ -298,6 +298,15 @@ impl ServerHandle {
     pub async fn drain_blob_deletions(&self, now_ms: i64) {
         crate::attachments::gc::drain_blobs(&self.state, now_ms).await;
     }
+
+    /// Intended for tests: how many uploads are in `state` ("uploading",
+    /// "processing", "ready", "failed" or "sent").
+    pub async fn uploads_in_state(&self, state: &str) -> Result<usize, sqlx::Error> {
+        let mut conn = self.state.db.acquire().await?;
+        Ok(crate::db::attachments::in_state(&mut conn, state)
+            .await?
+            .len())
+    }
 }
 
 /// The voice node inside this server, unless voice is off or on external

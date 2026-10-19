@@ -2,6 +2,8 @@
 
 pub mod api;
 mod artwork;
+pub mod attachments;
+
 pub mod client;
 mod commands;
 mod connection;

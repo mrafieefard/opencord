@@ -12,6 +12,7 @@ publish = false
 crate-type = ["cdylib", "staticlib", "rlib"]
 
 [dependencies]
+bytes.workspace = true
 data-encoding.workspace = true
 flutter_rust_bridge.workspace = true
 futures-util.workspace = true
@@ -21,6 +22,7 @@ opencord-common.workspace = true
 opencord-media.workspace = true
 opencord-proto.workspace = true
 prost.workspace = true
+reqwest.workspace = true
 rustls.workspace = true
 rustls-platform-verifier.workspace = true
 serde.workspace = true
@@ -29,6 +31,7 @@ sha2.workspace = true
 thiserror.workspace = true
 tokio-rustls.workspace = true
 tokio-tungstenite.workspace = true
+tokio-util.workspace = true
 tokio.workspace = true
 tracing.workspace = true
 webpki-roots.workspace = true
@@ -45,6 +48,7 @@ unexpected_cfgs = { level = "warn", check-cfg = ['cfg(frb_expand)'] }
 [target.'cfg(any(target_os = "linux", target_os = "macos", target_os = "windows"))'.dependencies]
 irondash_run_loop.workspace = true
 irondash_texture.workspace = true
+
 
 # One section per system (docs/plans/platforms.md): each session edits only
 # its own. A crate only one system needs goes here with its version, never

@@ -18,14 +18,17 @@ use tokio::sync::{broadcast, mpsc, oneshot};
 use crate::api::types::{
     AddServerOutcome, AudioSettings, Ban, CameraStarted, Channel, ChannelChanges, ChannelKind,
     ChannelPosition, CoreError, CoreEvent, CoreEventPayload, ErrorCode, HotkeyBinding,
-    HotkeySupport, IdentityInfo, Invite, MediaEvent, Member, Message, OverwriteTargetKind,
-    PermissionOverwrite, PresenceStatus, Role, RoleChanges, S3Config, ScreenProblem,
-    ScreenShareRequest, ScreenShareStarted, ScreenStream, Server, ServerChanges, ServerInfo,
-    SoundDraft, SoundSelection, SoundboardSound, SoundboardSoundChanges, StorageInfo,
+    HotkeySupport, IdentityInfo, Invite, MediaEvent, Member, Message, OutgoingFile,
+    OverwriteTargetKind, PermissionOverwrite, PresenceStatus, Role, RoleChanges, S3Config,
+    ScreenProblem, ScreenShareRequest, ScreenShareStarted, ScreenStream, Server, ServerChanges,
+    ServerInfo, SoundDraft, SoundSelection, SoundboardSound, SoundboardSoundChanges, StorageInfo,
     StorageTestResult, StorageTestTarget, StreamSourceKind, UploadSettings, User, VideoWant,
     VoiceCue, VoiceSettings, VoiceSettingsChanges, VoiceState,
 };
 use crate::artwork::ArtworkCache;
+use crate::attachments::download::{self, Downloads};
+use crate::attachments::transfer::Transfers;
+use crate::attachments::upload::{self, Uploads};
 use crate::connection::{
     self, Clocks, Command, Connection, Context, Credentials, Established, HandshakeError,
     MediaTokens, Route, Routes,
@@ -86,6 +89,9 @@ struct Inner {
     clocks: Clocks,
     /// How this person hears music, kept for media that starts later.
     music_listening: Mutex<MusicListening>,
+    transfers: Transfers,
+    uploads: Arc<Uploads>,
+    downloads: Downloads,
 }
 
 /// The app's id, as its desktop file names it; the system's portals ask for
@@ -167,12 +173,15 @@ impl Client {
                 voice: Mutex::new(Voice::default()),
                 media: OnceLock::new(),
                 hotkeys: tokio::sync::Mutex::new(None),
-                media_tokens,
-                routes,
+                media_tokens: Arc::clone(&media_tokens),
+                routes: Arc::clone(&routes),
                 soundboard,
                 artwork,
                 clocks: Clocks::default(),
                 music_listening: Mutex::default(),
+                transfers: Transfers::new(Arc::clone(&routes), Arc::clone(&media_tokens)),
+                uploads: Arc::default(),
+                downloads: Downloads::default(),
             }),
         };
         client.spawn_wake_watch();
@@ -388,13 +397,44 @@ impl Client {
         content: String,
         nonce: String,
     ) -> Result<Message, CoreError> {
+        self.send_message_with_ids(key, channel_id, content, nonce, Vec::new())
+            .await
+    }
+
+    pub(crate) async fn send_message_with_ids(
+        &self,
+        key: &str,
+        channel_id: i64,
+        content: String,
+        nonce: String,
+        attachment_ids: Vec<i64>,
+    ) -> Result<Message, CoreError> {
         let request = Request::SendMessage(proto::SendMessage {
             channel_id,
             content,
             nonce,
-            attachment_ids: Vec::new(),
+            attachment_ids,
         });
         expect_message(self.request(key, request).await?)
+    }
+
+    /// Uploads the files, then sends the message with them.
+    /// `UploadProgress` events follow each file.
+    pub async fn send_message_with_files(
+        &self,
+        key: &str,
+        channel_id: i64,
+        content: String,
+        nonce: String,
+        files: Vec<OutgoingFile>,
+    ) -> Result<Message, CoreError> {
+        upload::send(self, key, channel_id, content, nonce, files).await
+    }
+
+    /// Stops a `send_message_with_files` that is still uploading; it
+    /// returns `Cancelled`.
+    pub fn cancel_send(&self, key: &str, nonce: &str) {
+        self.inner.uploads.cancel(key, nonce);
     }
 
     pub async fn edit_message(
@@ -1617,6 +1657,7 @@ impl Client {
             media_tokens: Arc::clone(&self.inner.media_tokens),
             routes: Arc::clone(&self.inner.routes),
             clocks: Arc::clone(&self.inner.clocks),
+            uploads: Arc::clone(&self.inner.uploads),
         }
     }
 
@@ -1854,6 +1895,62 @@ impl Client {
     pub async fn storage_move_stop(&self, key: &str) -> Result<StorageInfo, CoreError> {
         let request = Request::StopStorageMove(proto::StopStorageMove {});
         expect_storage(self.request(key, request).await?)
+    }
+
+    pub(crate) fn transfers(&self) -> &Transfers {
+        &self.inner.transfers
+    }
+
+    pub(crate) fn uploads(&self) -> Arc<Uploads> {
+        Arc::clone(&self.inner.uploads)
+    }
+
+    pub(crate) fn downloads(&self) -> &Downloads {
+        &self.inner.downloads
+    }
+
+    /// An event of this client's own, for the app.
+    pub(crate) fn emit(&self, key: &str, payload: CoreEventPayload) {
+        let event = CoreEvent {
+            server_key: key.to_owned(),
+            payload,
+        };
+        if self.inner.outward.send(event).is_err() {
+            tracing::debug!("an event was dropped: the app stopped listening");
+        }
+    }
+
+    /// Saves the attachment at `path`; `DownloadProgress` events follow it.
+    pub async fn download_attachment(
+        &self,
+        key: &str,
+        attachment_id: i64,
+        path: String,
+    ) -> Result<(), CoreError> {
+        download::save(self, key, attachment_id, path).await
+    }
+
+    /// Stops a `download_attachment`; it returns `Cancelled`.
+    pub fn cancel_download(&self, key: &str, attachment_id: i64) {
+        self.inner.downloads.cancel(key, attachment_id);
+    }
+
+    /// Test hook: the next `count` answers to upload pieces are dropped, as
+    /// if the network lost them after the server took the piece.
+    #[doc(hidden)]
+    pub fn lose_upload_answers(&self, count: u32) {
+        self.inner.uploads.lose_answers(count);
+    }
+
+    /// Test hook: the server at `key` will refuse this device's media token
+    /// until it is renewed.
+    #[doc(hidden)]
+    pub fn spoil_media_token(&self, key: &str) {
+        self.inner
+            .media_tokens
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .insert(key.to_owned(), "spoiled".to_owned());
     }
 
     /// A request answered with an ack.

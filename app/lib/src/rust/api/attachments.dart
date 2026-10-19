@@ -81,3 +81,45 @@ Future<StorageInfo> storageMoveStop({required String serverKey}) => RustLib
     .instance
     .api
     .crateApiAttachmentsStorageMoveStop(serverKey: serverKey);
+
+/// Uploads the files, two at a time, then sends the message with them.
+/// UploadProgress events follow each file. On a failure or a cancel, the
+/// uploads made so far are cancelled.
+Future<Message> sendMessageWithFiles({
+  required String serverKey,
+  required PlatformInt64 channelId,
+  required String content,
+  required String nonce,
+  required List<OutgoingFile> files,
+}) => RustLib.instance.api.crateApiAttachmentsSendMessageWithFiles(
+  serverKey: serverKey,
+  channelId: channelId,
+  content: content,
+  nonce: nonce,
+  files: files,
+);
+
+/// Stops a send that is still uploading; it returns `Cancelled`.
+void cancelSend({required String serverKey, required String nonce}) => RustLib
+    .instance
+    .api
+    .crateApiAttachmentsCancelSend(serverKey: serverKey, nonce: nonce);
+
+/// Saves the attachment at `path`; DownloadProgress events follow it.
+Future<void> downloadAttachment({
+  required String serverKey,
+  required PlatformInt64 attachmentId,
+  required String path,
+}) => RustLib.instance.api.crateApiAttachmentsDownloadAttachment(
+  serverKey: serverKey,
+  attachmentId: attachmentId,
+  path: path,
+);
+
+void cancelDownload({
+  required String serverKey,
+  required PlatformInt64 attachmentId,
+}) => RustLib.instance.api.crateApiAttachmentsCancelDownload(
+  serverKey: serverKey,
+  attachmentId: attachmentId,
+);
