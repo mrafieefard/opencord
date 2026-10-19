@@ -26,6 +26,7 @@ core.Message _message(int id, {int channel = _general}) => core.Message(
   authorId: 2,
   content: 'm$id',
   createdAtMs: 1760000000000 + id,
+  attachments: const [],
 );
 
 /// Newest first, as the core answers.
@@ -76,6 +77,7 @@ final _readyPayload = core.CoreEventPayload.ready(
     ],
     addresses: const core.ServerAddresses(domains: []),
     commands: const core.CommandList(commands: [], resultsPublic: true),
+    uploadSettings: coreUploadSettings,
   ),
 );
 

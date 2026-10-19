@@ -35,6 +35,7 @@ core.Message _message(
   authorId: author,
   content: content,
   createdAtMs: 1760000000000 + id,
+  attachments: const [],
 );
 
 core.Channel _text(int id, String name, {int position = 0}) => core.Channel(
@@ -83,6 +84,7 @@ core.ReadySnapshot _ready({
   ],
   addresses: const core.ServerAddresses(domains: []),
   commands: const core.CommandList(commands: [], resultsPublic: true),
+  uploadSettings: coreUploadSettings,
 );
 
 /// A keychain that can be locked, refusing to save, or out of reach.

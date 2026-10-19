@@ -403,9 +403,11 @@ async fn permission_changes_are_reported() {
             bits(Permissions::MANAGE_MESSAGES),
             false,
             false,
+            None,
         )
         .await
         .unwrap();
+
     owner
         .client
         .add_member_role(&key, member_ready.self_user.id, role.id)

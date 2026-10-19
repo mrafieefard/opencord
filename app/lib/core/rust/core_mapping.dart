@@ -429,6 +429,14 @@ RepoErrorKind _kindFrom(core.ErrorCode code) => switch (code) {
   core.ErrorCode.soundCooldown => RepoErrorKind.soundCooldown,
   core.ErrorCode.soundTooLong => RepoErrorKind.soundTooLong,
   core.ErrorCode.soundInvalid => RepoErrorKind.soundInvalid,
+  // Media uploads; Task 22 gives them kinds of their own.
+  core.ErrorCode.fileTooLarge ||
+  core.ErrorCode.fileTypeBlocked ||
+  core.ErrorCode.voiceMessageInvalid ||
+  core.ErrorCode.voiceMessageTooLong => RepoErrorKind.invalidArgument,
+  core.ErrorCode.uploadOffsetMismatch => RepoErrorKind.conflict,
+  core.ErrorCode.storageUnavailable ||
+  core.ErrorCode.storageFull => RepoErrorKind.other,
   core.ErrorCode.internal || core.ErrorCode.unknown => RepoErrorKind.other,
 };
 
@@ -482,6 +490,10 @@ RepoException errorFrom(core.CoreError error) => switch (error) {
   core.CoreError_Storage(:final message) => RepoException(
     RepoErrorKind.other,
     message,
+  ),
+  core.CoreError_Cancelled() => const RepoException(
+    RepoErrorKind.other,
+    'Cancelled.',
   ),
   core.CoreError_Camera(:final problem, :final message) => RepoException(
     switch (problem) {

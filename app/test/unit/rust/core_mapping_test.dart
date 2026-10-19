@@ -30,6 +30,7 @@ void main() {
         createdAtMs: 1760000000000,
         editedAtMs: 1760000005000,
         nonce: 'n1',
+        attachments: [],
       ),
     );
 
@@ -55,6 +56,7 @@ void main() {
         authorId: 7,
         content: 'hi',
         createdAtMs: 9223372036854775807,
+        attachments: [],
       ),
     );
 
@@ -187,6 +189,7 @@ void main() {
         ],
         addresses: const core.ServerAddresses(domains: []),
         commands: const core.CommandList(commands: [], resultsPublic: true),
+        uploadSettings: coreUploadSettings,
       ),
     );
 

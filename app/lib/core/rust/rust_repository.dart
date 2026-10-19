@@ -622,6 +622,11 @@ class RustRepository implements OpencordRepository {
           at: DateTime.fromMillisecondsSinceEpoch(field0.atMs),
         ),
       ),
+      // Uploads, downloads and storage reach the app from Task 22 on.
+      core.CoreEventPayload_UploadSettingsUpdate() ||
+      core.CoreEventPayload_StorageUpdate() ||
+      core.CoreEventPayload_UploadProgress() ||
+      core.CoreEventPayload_DownloadProgress() => null,
     };
     if (event != null) _emit(event);
   }

@@ -19,9 +19,10 @@ use crate::api::types::{
     AddServerOutcome, AudioSettings, Ban, CameraStarted, Channel, ChannelChanges, ChannelKind,
     ChannelPosition, CoreError, CoreEvent, CoreEventPayload, ErrorCode, HotkeyBinding,
     HotkeySupport, IdentityInfo, Invite, MediaEvent, Member, Message, OverwriteTargetKind,
-    PermissionOverwrite, PresenceStatus, Role, RoleChanges, ScreenProblem, ScreenShareRequest,
-    ScreenShareStarted, ScreenStream, Server, ServerChanges, ServerInfo, SoundDraft,
-    SoundSelection, SoundboardSound, SoundboardSoundChanges, StreamSourceKind, User, VideoWant,
+    PermissionOverwrite, PresenceStatus, Role, RoleChanges, S3Config, ScreenProblem,
+    ScreenShareRequest, ScreenShareStarted, ScreenStream, Server, ServerChanges, ServerInfo,
+    SoundDraft, SoundSelection, SoundboardSound, SoundboardSoundChanges, StorageInfo,
+    StorageTestResult, StorageTestTarget, StreamSourceKind, UploadSettings, User, VideoWant,
     VoiceCue, VoiceSettings, VoiceSettingsChanges, VoiceState,
 };
 use crate::artwork::ArtworkCache;
@@ -530,6 +531,7 @@ impl Client {
         expect_channel(self.request(key, request).await?)
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub async fn create_role(
         &self,
         key: &str,
@@ -538,6 +540,7 @@ impl Client {
         permissions: i64,
         hoist: bool,
         mentionable: bool,
+        max_upload_bytes: Option<u64>,
     ) -> Result<Role, CoreError> {
         let request = Request::CreateRole(proto::CreateRole {
             name,
@@ -545,7 +548,7 @@ impl Client {
             permissions: convert::bits_from_api(permissions),
             hoist,
             mentionable,
-            max_upload_bytes: None,
+            max_upload_bytes,
         });
         expect_role(self.request(key, request).await?)
     }
@@ -563,7 +566,7 @@ impl Client {
             permissions: changes.permissions.map(convert::bits_from_api),
             hoist: changes.hoist,
             mentionable: changes.mentionable,
-            max_upload_bytes: None,
+            max_upload_bytes: changes.max_upload_bytes,
         });
         expect_role(self.request(key, request).await?)
     }
@@ -1750,6 +1753,109 @@ impl Client {
         Arc::clone(&self.inner.artwork)
     }
 
+    /// Owner or MANAGE_SERVER. `None` leaves a setting as it is.
+    pub async fn update_upload_settings(
+        &self,
+        key: &str,
+        blocked_extensions: Option<Vec<String>>,
+        voice_message_max_seconds: Option<u32>,
+    ) -> Result<UploadSettings, CoreError> {
+        let request = Request::UpdateUploadSettings(proto::UpdateUploadSettings {
+            blocked_extensions: blocked_extensions
+                .map(|extensions| proto::BlockedExtensions { extensions }),
+            voice_message_max_seconds,
+        });
+        match self.request(key, request).await? {
+            Response::UploadSettings(settings) => Ok(convert::upload_settings(settings)),
+            other => Err(unexpected(&other)),
+        }
+    }
+
+    pub async fn storage_get(&self, key: &str) -> Result<StorageInfo, CoreError> {
+        expect_storage(
+            self.request(key, Request::GetStorage(proto::GetStorage {}))
+                .await?,
+        )
+    }
+
+    pub async fn storage_add(
+        &self,
+        key: &str,
+        name: String,
+        s3: S3Config,
+    ) -> Result<StorageInfo, CoreError> {
+        let request = Request::AddStorage(proto::AddStorage {
+            name,
+            s3: Some(convert::s3_config_to_proto(s3)),
+        });
+        expect_storage(self.request(key, request).await?)
+    }
+
+    pub async fn storage_update(
+        &self,
+        key: &str,
+        storage_id: i64,
+        name: Option<String>,
+        s3: Option<S3Config>,
+    ) -> Result<StorageInfo, CoreError> {
+        let request = Request::UpdateStorage(proto::UpdateStorage {
+            storage_id,
+            name,
+            s3: s3.map(convert::s3_config_to_proto),
+        });
+        expect_storage(self.request(key, request).await?)
+    }
+
+    pub async fn storage_test(
+        &self,
+        key: &str,
+        target: StorageTestTarget,
+    ) -> Result<StorageTestResult, CoreError> {
+        let target = match target {
+            StorageTestTarget::Existing { storage_id } => {
+                proto::test_storage::Target::StorageId(storage_id)
+            }
+            StorageTestTarget::Config { s3 } => {
+                proto::test_storage::Target::S3(convert::s3_config_to_proto(s3))
+            }
+        };
+        let request = Request::TestStorage(proto::TestStorage {
+            target: Some(target),
+        });
+        match self.request(key, request).await? {
+            Response::StorageTest(test) => Ok(convert::storage_test(test)),
+            other => Err(unexpected(&other)),
+        }
+    }
+
+    pub async fn storage_activate(
+        &self,
+        key: &str,
+        storage_id: i64,
+    ) -> Result<StorageInfo, CoreError> {
+        let request = Request::ActivateStorage(proto::ActivateStorage { storage_id });
+        expect_storage(self.request(key, request).await?)
+    }
+
+    pub async fn storage_remove(
+        &self,
+        key: &str,
+        storage_id: i64,
+    ) -> Result<StorageInfo, CoreError> {
+        let request = Request::RemoveStorage(proto::RemoveStorage { storage_id });
+        expect_storage(self.request(key, request).await?)
+    }
+
+    pub async fn storage_move_start(&self, key: &str) -> Result<StorageInfo, CoreError> {
+        let request = Request::StartStorageMove(proto::StartStorageMove {});
+        expect_storage(self.request(key, request).await?)
+    }
+
+    pub async fn storage_move_stop(&self, key: &str) -> Result<StorageInfo, CoreError> {
+        let request = Request::StopStorageMove(proto::StopStorageMove {});
+        expect_storage(self.request(key, request).await?)
+    }
+
     /// A request answered with an ack.
     pub(crate) async fn ack(&self, key: &str, kind: Request) -> Result<(), CoreError> {
         expect_ack(self.request(key, kind).await?)
@@ -1773,6 +1879,13 @@ fn expect_message(response: Response) -> Result<Message, CoreError> {
 fn expect_channel(response: Response) -> Result<Channel, CoreError> {
     match response {
         Response::Channel(channel) => Ok(convert::channel(channel)),
+        other => Err(unexpected(&other)),
+    }
+}
+
+fn expect_storage(response: Response) -> Result<StorageInfo, CoreError> {
+    match response {
+        Response::Storage(storage) => Ok(convert::storage(storage)),
         other => Err(unexpected(&other)),
     }
 }

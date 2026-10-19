@@ -207,6 +207,7 @@ Future<Channel> deleteChannelOverwrite({
   targetId: targetId,
 );
 
+/// `max_upload_bytes`: `None` leaves uploads to the member's other roles.
 Future<Role> createRole({
   required String serverKey,
   required String name,
@@ -214,6 +215,7 @@ Future<Role> createRole({
   required PlatformInt64 permissions,
   required bool hoist,
   required bool mentionable,
+  BigInt? maxUploadBytes,
 }) => RustLib.instance.api.crateApiClientCreateRole(
   serverKey: serverKey,
   name: name,
@@ -221,6 +223,7 @@ Future<Role> createRole({
   permissions: permissions,
   hoist: hoist,
   mentionable: mentionable,
+  maxUploadBytes: maxUploadBytes,
 );
 
 Future<Role> updateRole({

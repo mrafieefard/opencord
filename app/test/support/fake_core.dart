@@ -362,6 +362,7 @@ class FakeCoreApi extends Fake implements CoreApi {
       content: content,
       createdAtMs: 0,
       nonce: nonce,
+      attachments: const [],
     );
   }
 
@@ -478,6 +479,13 @@ class FakeCoreApi extends Fake implements CoreApi {
 }
 
 /// The server's default voice settings, as the core reports them.
+final coreUploadSettings = core.UploadSettings(
+  blockedExtensions: const [],
+  voiceMessageMaxSeconds: 300,
+  maxFileBytes: BigInt.from(4096 * 1024 * 1024),
+  maxAttachments: 10,
+);
+
 const coreVoiceSettings = core.VoiceSettings(
   screenShareMaxResolution: core.ScreenShareResolution.p720,
   screenShareMaxFps: 30,

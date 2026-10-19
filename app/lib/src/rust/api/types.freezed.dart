@@ -727,7 +727,7 @@ extension CoreErrorPatterns on CoreError {
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeMap<TResult extends Object?>({TResult Function( CoreError_NotInitialized value)?  notInitialized,TResult Function( CoreError_NoIdentity value)?  noIdentity,TResult Function( CoreError_UnknownServer value)?  unknownServer,TResult Function( CoreError_NotConnected value)?  notConnected,TResult Function( CoreError_Timeout value)?  timeout,TResult Function( CoreError_InvalidInput value)?  invalidInput,TResult Function( CoreError_Server value)?  server,TResult Function( CoreError_FingerprintMismatch value)?  fingerprintMismatch,TResult Function( CoreError_Rejected value)?  rejected,TResult Function( CoreError_Connection value)?  connection,TResult Function( CoreError_Storage value)?  storage,TResult Function( CoreError_Screen value)?  screen,TResult Function( CoreError_Camera value)?  camera,required TResult orElse(),}){
+@optionalTypeArgs TResult maybeMap<TResult extends Object?>({TResult Function( CoreError_NotInitialized value)?  notInitialized,TResult Function( CoreError_NoIdentity value)?  noIdentity,TResult Function( CoreError_UnknownServer value)?  unknownServer,TResult Function( CoreError_NotConnected value)?  notConnected,TResult Function( CoreError_Timeout value)?  timeout,TResult Function( CoreError_InvalidInput value)?  invalidInput,TResult Function( CoreError_Server value)?  server,TResult Function( CoreError_FingerprintMismatch value)?  fingerprintMismatch,TResult Function( CoreError_Rejected value)?  rejected,TResult Function( CoreError_Connection value)?  connection,TResult Function( CoreError_Storage value)?  storage,TResult Function( CoreError_Screen value)?  screen,TResult Function( CoreError_Camera value)?  camera,TResult Function( CoreError_Cancelled value)?  cancelled,required TResult orElse(),}){
 final _that = this;
 switch (_that) {
 case CoreError_NotInitialized() when notInitialized != null:
@@ -743,7 +743,8 @@ return rejected(_that);case CoreError_Connection() when connection != null:
 return connection(_that);case CoreError_Storage() when storage != null:
 return storage(_that);case CoreError_Screen() when screen != null:
 return screen(_that);case CoreError_Camera() when camera != null:
-return camera(_that);case _:
+return camera(_that);case CoreError_Cancelled() when cancelled != null:
+return cancelled(_that);case _:
   return orElse();
 
 }
@@ -761,7 +762,7 @@ return camera(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult map<TResult extends Object?>({required TResult Function( CoreError_NotInitialized value)  notInitialized,required TResult Function( CoreError_NoIdentity value)  noIdentity,required TResult Function( CoreError_UnknownServer value)  unknownServer,required TResult Function( CoreError_NotConnected value)  notConnected,required TResult Function( CoreError_Timeout value)  timeout,required TResult Function( CoreError_InvalidInput value)  invalidInput,required TResult Function( CoreError_Server value)  server,required TResult Function( CoreError_FingerprintMismatch value)  fingerprintMismatch,required TResult Function( CoreError_Rejected value)  rejected,required TResult Function( CoreError_Connection value)  connection,required TResult Function( CoreError_Storage value)  storage,required TResult Function( CoreError_Screen value)  screen,required TResult Function( CoreError_Camera value)  camera,}){
+@optionalTypeArgs TResult map<TResult extends Object?>({required TResult Function( CoreError_NotInitialized value)  notInitialized,required TResult Function( CoreError_NoIdentity value)  noIdentity,required TResult Function( CoreError_UnknownServer value)  unknownServer,required TResult Function( CoreError_NotConnected value)  notConnected,required TResult Function( CoreError_Timeout value)  timeout,required TResult Function( CoreError_InvalidInput value)  invalidInput,required TResult Function( CoreError_Server value)  server,required TResult Function( CoreError_FingerprintMismatch value)  fingerprintMismatch,required TResult Function( CoreError_Rejected value)  rejected,required TResult Function( CoreError_Connection value)  connection,required TResult Function( CoreError_Storage value)  storage,required TResult Function( CoreError_Screen value)  screen,required TResult Function( CoreError_Camera value)  camera,required TResult Function( CoreError_Cancelled value)  cancelled,}){
 final _that = this;
 switch (_that) {
 case CoreError_NotInitialized():
@@ -777,7 +778,8 @@ return rejected(_that);case CoreError_Connection():
 return connection(_that);case CoreError_Storage():
 return storage(_that);case CoreError_Screen():
 return screen(_that);case CoreError_Camera():
-return camera(_that);}
+return camera(_that);case CoreError_Cancelled():
+return cancelled(_that);}
 }
 /// A variant of `map` that fallback to returning `null`.
 ///
@@ -791,7 +793,7 @@ return camera(_that);}
 /// }
 /// ```
 
-@optionalTypeArgs TResult? mapOrNull<TResult extends Object?>({TResult? Function( CoreError_NotInitialized value)?  notInitialized,TResult? Function( CoreError_NoIdentity value)?  noIdentity,TResult? Function( CoreError_UnknownServer value)?  unknownServer,TResult? Function( CoreError_NotConnected value)?  notConnected,TResult? Function( CoreError_Timeout value)?  timeout,TResult? Function( CoreError_InvalidInput value)?  invalidInput,TResult? Function( CoreError_Server value)?  server,TResult? Function( CoreError_FingerprintMismatch value)?  fingerprintMismatch,TResult? Function( CoreError_Rejected value)?  rejected,TResult? Function( CoreError_Connection value)?  connection,TResult? Function( CoreError_Storage value)?  storage,TResult? Function( CoreError_Screen value)?  screen,TResult? Function( CoreError_Camera value)?  camera,}){
+@optionalTypeArgs TResult? mapOrNull<TResult extends Object?>({TResult? Function( CoreError_NotInitialized value)?  notInitialized,TResult? Function( CoreError_NoIdentity value)?  noIdentity,TResult? Function( CoreError_UnknownServer value)?  unknownServer,TResult? Function( CoreError_NotConnected value)?  notConnected,TResult? Function( CoreError_Timeout value)?  timeout,TResult? Function( CoreError_InvalidInput value)?  invalidInput,TResult? Function( CoreError_Server value)?  server,TResult? Function( CoreError_FingerprintMismatch value)?  fingerprintMismatch,TResult? Function( CoreError_Rejected value)?  rejected,TResult? Function( CoreError_Connection value)?  connection,TResult? Function( CoreError_Storage value)?  storage,TResult? Function( CoreError_Screen value)?  screen,TResult? Function( CoreError_Camera value)?  camera,TResult? Function( CoreError_Cancelled value)?  cancelled,}){
 final _that = this;
 switch (_that) {
 case CoreError_NotInitialized() when notInitialized != null:
@@ -807,7 +809,8 @@ return rejected(_that);case CoreError_Connection() when connection != null:
 return connection(_that);case CoreError_Storage() when storage != null:
 return storage(_that);case CoreError_Screen() when screen != null:
 return screen(_that);case CoreError_Camera() when camera != null:
-return camera(_that);case _:
+return camera(_that);case CoreError_Cancelled() when cancelled != null:
+return cancelled(_that);case _:
   return null;
 
 }
@@ -824,7 +827,7 @@ return camera(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>({TResult Function()?  notInitialized,TResult Function()?  noIdentity,TResult Function()?  unknownServer,TResult Function()?  notConnected,TResult Function()?  timeout,TResult Function( String message)?  invalidInput,TResult Function( ErrorCode code,  String message,  int? retryAfterMs)?  server,TResult Function( String expected,  String presented)?  fingerprintMismatch,TResult Function( FailureReason reason,  String message)?  rejected,TResult Function( String message)?  connection,TResult Function( String message)?  storage,TResult Function( ScreenProblem problem,  String message)?  screen,TResult Function( CameraProblem problem,  String message)?  camera,required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>({TResult Function()?  notInitialized,TResult Function()?  noIdentity,TResult Function()?  unknownServer,TResult Function()?  notConnected,TResult Function()?  timeout,TResult Function( String message)?  invalidInput,TResult Function( ErrorCode code,  String message,  int? retryAfterMs)?  server,TResult Function( String expected,  String presented)?  fingerprintMismatch,TResult Function( FailureReason reason,  String message)?  rejected,TResult Function( String message)?  connection,TResult Function( String message)?  storage,TResult Function( ScreenProblem problem,  String message)?  screen,TResult Function( CameraProblem problem,  String message)?  camera,TResult Function()?  cancelled,required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case CoreError_NotInitialized() when notInitialized != null:
 return notInitialized();case CoreError_NoIdentity() when noIdentity != null:
@@ -839,7 +842,8 @@ return rejected(_that.reason,_that.message);case CoreError_Connection() when con
 return connection(_that.message);case CoreError_Storage() when storage != null:
 return storage(_that.message);case CoreError_Screen() when screen != null:
 return screen(_that.problem,_that.message);case CoreError_Camera() when camera != null:
-return camera(_that.problem,_that.message);case _:
+return camera(_that.problem,_that.message);case CoreError_Cancelled() when cancelled != null:
+return cancelled();case _:
   return orElse();
 
 }
@@ -857,7 +861,7 @@ return camera(_that.problem,_that.message);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>({required TResult Function()  notInitialized,required TResult Function()  noIdentity,required TResult Function()  unknownServer,required TResult Function()  notConnected,required TResult Function()  timeout,required TResult Function( String message)  invalidInput,required TResult Function( ErrorCode code,  String message,  int? retryAfterMs)  server,required TResult Function( String expected,  String presented)  fingerprintMismatch,required TResult Function( FailureReason reason,  String message)  rejected,required TResult Function( String message)  connection,required TResult Function( String message)  storage,required TResult Function( ScreenProblem problem,  String message)  screen,required TResult Function( CameraProblem problem,  String message)  camera,}) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>({required TResult Function()  notInitialized,required TResult Function()  noIdentity,required TResult Function()  unknownServer,required TResult Function()  notConnected,required TResult Function()  timeout,required TResult Function( String message)  invalidInput,required TResult Function( ErrorCode code,  String message,  int? retryAfterMs)  server,required TResult Function( String expected,  String presented)  fingerprintMismatch,required TResult Function( FailureReason reason,  String message)  rejected,required TResult Function( String message)  connection,required TResult Function( String message)  storage,required TResult Function( ScreenProblem problem,  String message)  screen,required TResult Function( CameraProblem problem,  String message)  camera,required TResult Function()  cancelled,}) {final _that = this;
 switch (_that) {
 case CoreError_NotInitialized():
 return notInitialized();case CoreError_NoIdentity():
@@ -872,7 +876,8 @@ return rejected(_that.reason,_that.message);case CoreError_Connection():
 return connection(_that.message);case CoreError_Storage():
 return storage(_that.message);case CoreError_Screen():
 return screen(_that.problem,_that.message);case CoreError_Camera():
-return camera(_that.problem,_that.message);}
+return camera(_that.problem,_that.message);case CoreError_Cancelled():
+return cancelled();}
 }
 /// A variant of `when` that fallback to returning `null`
 ///
@@ -886,7 +891,7 @@ return camera(_that.problem,_that.message);}
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>({TResult? Function()?  notInitialized,TResult? Function()?  noIdentity,TResult? Function()?  unknownServer,TResult? Function()?  notConnected,TResult? Function()?  timeout,TResult? Function( String message)?  invalidInput,TResult? Function( ErrorCode code,  String message,  int? retryAfterMs)?  server,TResult? Function( String expected,  String presented)?  fingerprintMismatch,TResult? Function( FailureReason reason,  String message)?  rejected,TResult? Function( String message)?  connection,TResult? Function( String message)?  storage,TResult? Function( ScreenProblem problem,  String message)?  screen,TResult? Function( CameraProblem problem,  String message)?  camera,}) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>({TResult? Function()?  notInitialized,TResult? Function()?  noIdentity,TResult? Function()?  unknownServer,TResult? Function()?  notConnected,TResult? Function()?  timeout,TResult? Function( String message)?  invalidInput,TResult? Function( ErrorCode code,  String message,  int? retryAfterMs)?  server,TResult? Function( String expected,  String presented)?  fingerprintMismatch,TResult? Function( FailureReason reason,  String message)?  rejected,TResult? Function( String message)?  connection,TResult? Function( String message)?  storage,TResult? Function( ScreenProblem problem,  String message)?  screen,TResult? Function( CameraProblem problem,  String message)?  camera,TResult? Function()?  cancelled,}) {final _that = this;
 switch (_that) {
 case CoreError_NotInitialized() when notInitialized != null:
 return notInitialized();case CoreError_NoIdentity() when noIdentity != null:
@@ -901,7 +906,8 @@ return rejected(_that.reason,_that.message);case CoreError_Connection() when con
 return connection(_that.message);case CoreError_Storage() when storage != null:
 return storage(_that.message);case CoreError_Screen() when screen != null:
 return screen(_that.problem,_that.message);case CoreError_Camera() when camera != null:
-return camera(_that.problem,_that.message);case _:
+return camera(_that.problem,_that.message);case CoreError_Cancelled() when cancelled != null:
+return cancelled();case _:
   return null;
 
 }
@@ -1610,6 +1616,38 @@ as String,
 }
 
 /// @nodoc
+
+
+class CoreError_Cancelled extends CoreError {
+  const CoreError_Cancelled(): super._();
+  
+
+
+
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is CoreError_Cancelled);
+}
+
+
+@override
+int get hashCode => runtimeType.hashCode;
+
+@override
+String toString() {
+  return 'CoreError.cancelled()';
+}
+
+
+}
+
+
+
+
+/// @nodoc
 mixin _$CoreEventPayload {
 
 
@@ -1653,7 +1691,7 @@ extension CoreEventPayloadPatterns on CoreEventPayload {
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeMap<TResult extends Object?>({TResult Function( CoreEventPayload_ConnectionState value)?  connectionState,TResult Function( CoreEventPayload_Ready value)?  ready,TResult Function( CoreEventPayload_MessageCreate value)?  messageCreate,TResult Function( CoreEventPayload_MessageUpdate value)?  messageUpdate,TResult Function( CoreEventPayload_MessageDelete value)?  messageDelete,TResult Function( CoreEventPayload_ChannelCreate value)?  channelCreate,TResult Function( CoreEventPayload_ChannelUpdate value)?  channelUpdate,TResult Function( CoreEventPayload_ChannelDelete value)?  channelDelete,TResult Function( CoreEventPayload_RoleCreate value)?  roleCreate,TResult Function( CoreEventPayload_RoleUpdate value)?  roleUpdate,TResult Function( CoreEventPayload_RoleDelete value)?  roleDelete,TResult Function( CoreEventPayload_MemberJoin value)?  memberJoin,TResult Function( CoreEventPayload_MemberLeave value)?  memberLeave,TResult Function( CoreEventPayload_MemberUpdate value)?  memberUpdate,TResult Function( CoreEventPayload_PresenceUpdate value)?  presenceUpdate,TResult Function( CoreEventPayload_TypingStart value)?  typingStart,TResult Function( CoreEventPayload_ServerUpdate value)?  serverUpdate,TResult Function( CoreEventPayload_PermissionsUpdate value)?  permissionsUpdate,TResult Function( CoreEventPayload_VoiceStateUpdate value)?  voiceStateUpdate,TResult Function( CoreEventPayload_VoiceSettingsUpdate value)?  voiceSettingsUpdate,TResult Function( CoreEventPayload_StreamCreate value)?  streamCreate,TResult Function( CoreEventPayload_StreamUpdate value)?  streamUpdate,TResult Function( CoreEventPayload_StreamDelete value)?  streamDelete,TResult Function( CoreEventPayload_StreamViewersUpdate value)?  streamViewersUpdate,TResult Function( CoreEventPayload_SoundboardSoundCreate value)?  soundboardSoundCreate,TResult Function( CoreEventPayload_SoundboardSoundUpdate value)?  soundboardSoundUpdate,TResult Function( CoreEventPayload_SoundboardSoundDelete value)?  soundboardSoundDelete,TResult Function( CoreEventPayload_VoiceChannelEffect value)?  voiceChannelEffect,TResult Function( CoreEventPayload_ServerAddressesUpdate value)?  serverAddressesUpdate,TResult Function( CoreEventPayload_NetworkStatus value)?  networkStatus,TResult Function( CoreEventPayload_ServerNotice value)?  serverNotice,TResult Function( CoreEventPayload_LavalinkNodeStatus value)?  lavalinkNodeStatus,TResult Function( CoreEventPayload_LavalinkNodeRemoved value)?  lavalinkNodeRemoved,TResult Function( CoreEventPayload_LavalinkNodeEvent value)?  lavalinkNodeEvent,TResult Function( CoreEventPayload_LavalinkTestProgress value)?  lavalinkTestProgress,TResult Function( CoreEventPayload_MusicSettingsUpdate value)?  musicSettingsUpdate,TResult Function( CoreEventPayload_MusicSession value)?  musicSession,TResult Function( CoreEventPayload_MusicNowPlaying value)?  musicNowPlaying,TResult Function( CoreEventPayload_MusicNotice value)?  musicNotice,TResult Function( CoreEventPayload_CommandsUpdate value)?  commandsUpdate,TResult Function( CoreEventPayload_EphemeralMessage value)?  ephemeralMessage,required TResult orElse(),}){
+@optionalTypeArgs TResult maybeMap<TResult extends Object?>({TResult Function( CoreEventPayload_ConnectionState value)?  connectionState,TResult Function( CoreEventPayload_Ready value)?  ready,TResult Function( CoreEventPayload_MessageCreate value)?  messageCreate,TResult Function( CoreEventPayload_MessageUpdate value)?  messageUpdate,TResult Function( CoreEventPayload_MessageDelete value)?  messageDelete,TResult Function( CoreEventPayload_ChannelCreate value)?  channelCreate,TResult Function( CoreEventPayload_ChannelUpdate value)?  channelUpdate,TResult Function( CoreEventPayload_ChannelDelete value)?  channelDelete,TResult Function( CoreEventPayload_RoleCreate value)?  roleCreate,TResult Function( CoreEventPayload_RoleUpdate value)?  roleUpdate,TResult Function( CoreEventPayload_RoleDelete value)?  roleDelete,TResult Function( CoreEventPayload_MemberJoin value)?  memberJoin,TResult Function( CoreEventPayload_MemberLeave value)?  memberLeave,TResult Function( CoreEventPayload_MemberUpdate value)?  memberUpdate,TResult Function( CoreEventPayload_PresenceUpdate value)?  presenceUpdate,TResult Function( CoreEventPayload_TypingStart value)?  typingStart,TResult Function( CoreEventPayload_ServerUpdate value)?  serverUpdate,TResult Function( CoreEventPayload_PermissionsUpdate value)?  permissionsUpdate,TResult Function( CoreEventPayload_VoiceStateUpdate value)?  voiceStateUpdate,TResult Function( CoreEventPayload_VoiceSettingsUpdate value)?  voiceSettingsUpdate,TResult Function( CoreEventPayload_StreamCreate value)?  streamCreate,TResult Function( CoreEventPayload_StreamUpdate value)?  streamUpdate,TResult Function( CoreEventPayload_StreamDelete value)?  streamDelete,TResult Function( CoreEventPayload_StreamViewersUpdate value)?  streamViewersUpdate,TResult Function( CoreEventPayload_SoundboardSoundCreate value)?  soundboardSoundCreate,TResult Function( CoreEventPayload_SoundboardSoundUpdate value)?  soundboardSoundUpdate,TResult Function( CoreEventPayload_SoundboardSoundDelete value)?  soundboardSoundDelete,TResult Function( CoreEventPayload_VoiceChannelEffect value)?  voiceChannelEffect,TResult Function( CoreEventPayload_ServerAddressesUpdate value)?  serverAddressesUpdate,TResult Function( CoreEventPayload_NetworkStatus value)?  networkStatus,TResult Function( CoreEventPayload_ServerNotice value)?  serverNotice,TResult Function( CoreEventPayload_LavalinkNodeStatus value)?  lavalinkNodeStatus,TResult Function( CoreEventPayload_LavalinkNodeRemoved value)?  lavalinkNodeRemoved,TResult Function( CoreEventPayload_LavalinkNodeEvent value)?  lavalinkNodeEvent,TResult Function( CoreEventPayload_LavalinkTestProgress value)?  lavalinkTestProgress,TResult Function( CoreEventPayload_MusicSettingsUpdate value)?  musicSettingsUpdate,TResult Function( CoreEventPayload_MusicSession value)?  musicSession,TResult Function( CoreEventPayload_MusicNowPlaying value)?  musicNowPlaying,TResult Function( CoreEventPayload_MusicNotice value)?  musicNotice,TResult Function( CoreEventPayload_CommandsUpdate value)?  commandsUpdate,TResult Function( CoreEventPayload_EphemeralMessage value)?  ephemeralMessage,TResult Function( CoreEventPayload_UploadSettingsUpdate value)?  uploadSettingsUpdate,TResult Function( CoreEventPayload_StorageUpdate value)?  storageUpdate,TResult Function( CoreEventPayload_UploadProgress value)?  uploadProgress,TResult Function( CoreEventPayload_DownloadProgress value)?  downloadProgress,required TResult orElse(),}){
 final _that = this;
 switch (_that) {
 case CoreEventPayload_ConnectionState() when connectionState != null:
@@ -1697,7 +1735,11 @@ return musicSession(_that);case CoreEventPayload_MusicNowPlaying() when musicNow
 return musicNowPlaying(_that);case CoreEventPayload_MusicNotice() when musicNotice != null:
 return musicNotice(_that);case CoreEventPayload_CommandsUpdate() when commandsUpdate != null:
 return commandsUpdate(_that);case CoreEventPayload_EphemeralMessage() when ephemeralMessage != null:
-return ephemeralMessage(_that);case _:
+return ephemeralMessage(_that);case CoreEventPayload_UploadSettingsUpdate() when uploadSettingsUpdate != null:
+return uploadSettingsUpdate(_that);case CoreEventPayload_StorageUpdate() when storageUpdate != null:
+return storageUpdate(_that);case CoreEventPayload_UploadProgress() when uploadProgress != null:
+return uploadProgress(_that);case CoreEventPayload_DownloadProgress() when downloadProgress != null:
+return downloadProgress(_that);case _:
   return orElse();
 
 }
@@ -1715,7 +1757,7 @@ return ephemeralMessage(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult map<TResult extends Object?>({required TResult Function( CoreEventPayload_ConnectionState value)  connectionState,required TResult Function( CoreEventPayload_Ready value)  ready,required TResult Function( CoreEventPayload_MessageCreate value)  messageCreate,required TResult Function( CoreEventPayload_MessageUpdate value)  messageUpdate,required TResult Function( CoreEventPayload_MessageDelete value)  messageDelete,required TResult Function( CoreEventPayload_ChannelCreate value)  channelCreate,required TResult Function( CoreEventPayload_ChannelUpdate value)  channelUpdate,required TResult Function( CoreEventPayload_ChannelDelete value)  channelDelete,required TResult Function( CoreEventPayload_RoleCreate value)  roleCreate,required TResult Function( CoreEventPayload_RoleUpdate value)  roleUpdate,required TResult Function( CoreEventPayload_RoleDelete value)  roleDelete,required TResult Function( CoreEventPayload_MemberJoin value)  memberJoin,required TResult Function( CoreEventPayload_MemberLeave value)  memberLeave,required TResult Function( CoreEventPayload_MemberUpdate value)  memberUpdate,required TResult Function( CoreEventPayload_PresenceUpdate value)  presenceUpdate,required TResult Function( CoreEventPayload_TypingStart value)  typingStart,required TResult Function( CoreEventPayload_ServerUpdate value)  serverUpdate,required TResult Function( CoreEventPayload_PermissionsUpdate value)  permissionsUpdate,required TResult Function( CoreEventPayload_VoiceStateUpdate value)  voiceStateUpdate,required TResult Function( CoreEventPayload_VoiceSettingsUpdate value)  voiceSettingsUpdate,required TResult Function( CoreEventPayload_StreamCreate value)  streamCreate,required TResult Function( CoreEventPayload_StreamUpdate value)  streamUpdate,required TResult Function( CoreEventPayload_StreamDelete value)  streamDelete,required TResult Function( CoreEventPayload_StreamViewersUpdate value)  streamViewersUpdate,required TResult Function( CoreEventPayload_SoundboardSoundCreate value)  soundboardSoundCreate,required TResult Function( CoreEventPayload_SoundboardSoundUpdate value)  soundboardSoundUpdate,required TResult Function( CoreEventPayload_SoundboardSoundDelete value)  soundboardSoundDelete,required TResult Function( CoreEventPayload_VoiceChannelEffect value)  voiceChannelEffect,required TResult Function( CoreEventPayload_ServerAddressesUpdate value)  serverAddressesUpdate,required TResult Function( CoreEventPayload_NetworkStatus value)  networkStatus,required TResult Function( CoreEventPayload_ServerNotice value)  serverNotice,required TResult Function( CoreEventPayload_LavalinkNodeStatus value)  lavalinkNodeStatus,required TResult Function( CoreEventPayload_LavalinkNodeRemoved value)  lavalinkNodeRemoved,required TResult Function( CoreEventPayload_LavalinkNodeEvent value)  lavalinkNodeEvent,required TResult Function( CoreEventPayload_LavalinkTestProgress value)  lavalinkTestProgress,required TResult Function( CoreEventPayload_MusicSettingsUpdate value)  musicSettingsUpdate,required TResult Function( CoreEventPayload_MusicSession value)  musicSession,required TResult Function( CoreEventPayload_MusicNowPlaying value)  musicNowPlaying,required TResult Function( CoreEventPayload_MusicNotice value)  musicNotice,required TResult Function( CoreEventPayload_CommandsUpdate value)  commandsUpdate,required TResult Function( CoreEventPayload_EphemeralMessage value)  ephemeralMessage,}){
+@optionalTypeArgs TResult map<TResult extends Object?>({required TResult Function( CoreEventPayload_ConnectionState value)  connectionState,required TResult Function( CoreEventPayload_Ready value)  ready,required TResult Function( CoreEventPayload_MessageCreate value)  messageCreate,required TResult Function( CoreEventPayload_MessageUpdate value)  messageUpdate,required TResult Function( CoreEventPayload_MessageDelete value)  messageDelete,required TResult Function( CoreEventPayload_ChannelCreate value)  channelCreate,required TResult Function( CoreEventPayload_ChannelUpdate value)  channelUpdate,required TResult Function( CoreEventPayload_ChannelDelete value)  channelDelete,required TResult Function( CoreEventPayload_RoleCreate value)  roleCreate,required TResult Function( CoreEventPayload_RoleUpdate value)  roleUpdate,required TResult Function( CoreEventPayload_RoleDelete value)  roleDelete,required TResult Function( CoreEventPayload_MemberJoin value)  memberJoin,required TResult Function( CoreEventPayload_MemberLeave value)  memberLeave,required TResult Function( CoreEventPayload_MemberUpdate value)  memberUpdate,required TResult Function( CoreEventPayload_PresenceUpdate value)  presenceUpdate,required TResult Function( CoreEventPayload_TypingStart value)  typingStart,required TResult Function( CoreEventPayload_ServerUpdate value)  serverUpdate,required TResult Function( CoreEventPayload_PermissionsUpdate value)  permissionsUpdate,required TResult Function( CoreEventPayload_VoiceStateUpdate value)  voiceStateUpdate,required TResult Function( CoreEventPayload_VoiceSettingsUpdate value)  voiceSettingsUpdate,required TResult Function( CoreEventPayload_StreamCreate value)  streamCreate,required TResult Function( CoreEventPayload_StreamUpdate value)  streamUpdate,required TResult Function( CoreEventPayload_StreamDelete value)  streamDelete,required TResult Function( CoreEventPayload_StreamViewersUpdate value)  streamViewersUpdate,required TResult Function( CoreEventPayload_SoundboardSoundCreate value)  soundboardSoundCreate,required TResult Function( CoreEventPayload_SoundboardSoundUpdate value)  soundboardSoundUpdate,required TResult Function( CoreEventPayload_SoundboardSoundDelete value)  soundboardSoundDelete,required TResult Function( CoreEventPayload_VoiceChannelEffect value)  voiceChannelEffect,required TResult Function( CoreEventPayload_ServerAddressesUpdate value)  serverAddressesUpdate,required TResult Function( CoreEventPayload_NetworkStatus value)  networkStatus,required TResult Function( CoreEventPayload_ServerNotice value)  serverNotice,required TResult Function( CoreEventPayload_LavalinkNodeStatus value)  lavalinkNodeStatus,required TResult Function( CoreEventPayload_LavalinkNodeRemoved value)  lavalinkNodeRemoved,required TResult Function( CoreEventPayload_LavalinkNodeEvent value)  lavalinkNodeEvent,required TResult Function( CoreEventPayload_LavalinkTestProgress value)  lavalinkTestProgress,required TResult Function( CoreEventPayload_MusicSettingsUpdate value)  musicSettingsUpdate,required TResult Function( CoreEventPayload_MusicSession value)  musicSession,required TResult Function( CoreEventPayload_MusicNowPlaying value)  musicNowPlaying,required TResult Function( CoreEventPayload_MusicNotice value)  musicNotice,required TResult Function( CoreEventPayload_CommandsUpdate value)  commandsUpdate,required TResult Function( CoreEventPayload_EphemeralMessage value)  ephemeralMessage,required TResult Function( CoreEventPayload_UploadSettingsUpdate value)  uploadSettingsUpdate,required TResult Function( CoreEventPayload_StorageUpdate value)  storageUpdate,required TResult Function( CoreEventPayload_UploadProgress value)  uploadProgress,required TResult Function( CoreEventPayload_DownloadProgress value)  downloadProgress,}){
 final _that = this;
 switch (_that) {
 case CoreEventPayload_ConnectionState():
@@ -1759,7 +1801,11 @@ return musicSession(_that);case CoreEventPayload_MusicNowPlaying():
 return musicNowPlaying(_that);case CoreEventPayload_MusicNotice():
 return musicNotice(_that);case CoreEventPayload_CommandsUpdate():
 return commandsUpdate(_that);case CoreEventPayload_EphemeralMessage():
-return ephemeralMessage(_that);}
+return ephemeralMessage(_that);case CoreEventPayload_UploadSettingsUpdate():
+return uploadSettingsUpdate(_that);case CoreEventPayload_StorageUpdate():
+return storageUpdate(_that);case CoreEventPayload_UploadProgress():
+return uploadProgress(_that);case CoreEventPayload_DownloadProgress():
+return downloadProgress(_that);}
 }
 /// A variant of `map` that fallback to returning `null`.
 ///
@@ -1773,7 +1819,7 @@ return ephemeralMessage(_that);}
 /// }
 /// ```
 
-@optionalTypeArgs TResult? mapOrNull<TResult extends Object?>({TResult? Function( CoreEventPayload_ConnectionState value)?  connectionState,TResult? Function( CoreEventPayload_Ready value)?  ready,TResult? Function( CoreEventPayload_MessageCreate value)?  messageCreate,TResult? Function( CoreEventPayload_MessageUpdate value)?  messageUpdate,TResult? Function( CoreEventPayload_MessageDelete value)?  messageDelete,TResult? Function( CoreEventPayload_ChannelCreate value)?  channelCreate,TResult? Function( CoreEventPayload_ChannelUpdate value)?  channelUpdate,TResult? Function( CoreEventPayload_ChannelDelete value)?  channelDelete,TResult? Function( CoreEventPayload_RoleCreate value)?  roleCreate,TResult? Function( CoreEventPayload_RoleUpdate value)?  roleUpdate,TResult? Function( CoreEventPayload_RoleDelete value)?  roleDelete,TResult? Function( CoreEventPayload_MemberJoin value)?  memberJoin,TResult? Function( CoreEventPayload_MemberLeave value)?  memberLeave,TResult? Function( CoreEventPayload_MemberUpdate value)?  memberUpdate,TResult? Function( CoreEventPayload_PresenceUpdate value)?  presenceUpdate,TResult? Function( CoreEventPayload_TypingStart value)?  typingStart,TResult? Function( CoreEventPayload_ServerUpdate value)?  serverUpdate,TResult? Function( CoreEventPayload_PermissionsUpdate value)?  permissionsUpdate,TResult? Function( CoreEventPayload_VoiceStateUpdate value)?  voiceStateUpdate,TResult? Function( CoreEventPayload_VoiceSettingsUpdate value)?  voiceSettingsUpdate,TResult? Function( CoreEventPayload_StreamCreate value)?  streamCreate,TResult? Function( CoreEventPayload_StreamUpdate value)?  streamUpdate,TResult? Function( CoreEventPayload_StreamDelete value)?  streamDelete,TResult? Function( CoreEventPayload_StreamViewersUpdate value)?  streamViewersUpdate,TResult? Function( CoreEventPayload_SoundboardSoundCreate value)?  soundboardSoundCreate,TResult? Function( CoreEventPayload_SoundboardSoundUpdate value)?  soundboardSoundUpdate,TResult? Function( CoreEventPayload_SoundboardSoundDelete value)?  soundboardSoundDelete,TResult? Function( CoreEventPayload_VoiceChannelEffect value)?  voiceChannelEffect,TResult? Function( CoreEventPayload_ServerAddressesUpdate value)?  serverAddressesUpdate,TResult? Function( CoreEventPayload_NetworkStatus value)?  networkStatus,TResult? Function( CoreEventPayload_ServerNotice value)?  serverNotice,TResult? Function( CoreEventPayload_LavalinkNodeStatus value)?  lavalinkNodeStatus,TResult? Function( CoreEventPayload_LavalinkNodeRemoved value)?  lavalinkNodeRemoved,TResult? Function( CoreEventPayload_LavalinkNodeEvent value)?  lavalinkNodeEvent,TResult? Function( CoreEventPayload_LavalinkTestProgress value)?  lavalinkTestProgress,TResult? Function( CoreEventPayload_MusicSettingsUpdate value)?  musicSettingsUpdate,TResult? Function( CoreEventPayload_MusicSession value)?  musicSession,TResult? Function( CoreEventPayload_MusicNowPlaying value)?  musicNowPlaying,TResult? Function( CoreEventPayload_MusicNotice value)?  musicNotice,TResult? Function( CoreEventPayload_CommandsUpdate value)?  commandsUpdate,TResult? Function( CoreEventPayload_EphemeralMessage value)?  ephemeralMessage,}){
+@optionalTypeArgs TResult? mapOrNull<TResult extends Object?>({TResult? Function( CoreEventPayload_ConnectionState value)?  connectionState,TResult? Function( CoreEventPayload_Ready value)?  ready,TResult? Function( CoreEventPayload_MessageCreate value)?  messageCreate,TResult? Function( CoreEventPayload_MessageUpdate value)?  messageUpdate,TResult? Function( CoreEventPayload_MessageDelete value)?  messageDelete,TResult? Function( CoreEventPayload_ChannelCreate value)?  channelCreate,TResult? Function( CoreEventPayload_ChannelUpdate value)?  channelUpdate,TResult? Function( CoreEventPayload_ChannelDelete value)?  channelDelete,TResult? Function( CoreEventPayload_RoleCreate value)?  roleCreate,TResult? Function( CoreEventPayload_RoleUpdate value)?  roleUpdate,TResult? Function( CoreEventPayload_RoleDelete value)?  roleDelete,TResult? Function( CoreEventPayload_MemberJoin value)?  memberJoin,TResult? Function( CoreEventPayload_MemberLeave value)?  memberLeave,TResult? Function( CoreEventPayload_MemberUpdate value)?  memberUpdate,TResult? Function( CoreEventPayload_PresenceUpdate value)?  presenceUpdate,TResult? Function( CoreEventPayload_TypingStart value)?  typingStart,TResult? Function( CoreEventPayload_ServerUpdate value)?  serverUpdate,TResult? Function( CoreEventPayload_PermissionsUpdate value)?  permissionsUpdate,TResult? Function( CoreEventPayload_VoiceStateUpdate value)?  voiceStateUpdate,TResult? Function( CoreEventPayload_VoiceSettingsUpdate value)?  voiceSettingsUpdate,TResult? Function( CoreEventPayload_StreamCreate value)?  streamCreate,TResult? Function( CoreEventPayload_StreamUpdate value)?  streamUpdate,TResult? Function( CoreEventPayload_StreamDelete value)?  streamDelete,TResult? Function( CoreEventPayload_StreamViewersUpdate value)?  streamViewersUpdate,TResult? Function( CoreEventPayload_SoundboardSoundCreate value)?  soundboardSoundCreate,TResult? Function( CoreEventPayload_SoundboardSoundUpdate value)?  soundboardSoundUpdate,TResult? Function( CoreEventPayload_SoundboardSoundDelete value)?  soundboardSoundDelete,TResult? Function( CoreEventPayload_VoiceChannelEffect value)?  voiceChannelEffect,TResult? Function( CoreEventPayload_ServerAddressesUpdate value)?  serverAddressesUpdate,TResult? Function( CoreEventPayload_NetworkStatus value)?  networkStatus,TResult? Function( CoreEventPayload_ServerNotice value)?  serverNotice,TResult? Function( CoreEventPayload_LavalinkNodeStatus value)?  lavalinkNodeStatus,TResult? Function( CoreEventPayload_LavalinkNodeRemoved value)?  lavalinkNodeRemoved,TResult? Function( CoreEventPayload_LavalinkNodeEvent value)?  lavalinkNodeEvent,TResult? Function( CoreEventPayload_LavalinkTestProgress value)?  lavalinkTestProgress,TResult? Function( CoreEventPayload_MusicSettingsUpdate value)?  musicSettingsUpdate,TResult? Function( CoreEventPayload_MusicSession value)?  musicSession,TResult? Function( CoreEventPayload_MusicNowPlaying value)?  musicNowPlaying,TResult? Function( CoreEventPayload_MusicNotice value)?  musicNotice,TResult? Function( CoreEventPayload_CommandsUpdate value)?  commandsUpdate,TResult? Function( CoreEventPayload_EphemeralMessage value)?  ephemeralMessage,TResult? Function( CoreEventPayload_UploadSettingsUpdate value)?  uploadSettingsUpdate,TResult? Function( CoreEventPayload_StorageUpdate value)?  storageUpdate,TResult? Function( CoreEventPayload_UploadProgress value)?  uploadProgress,TResult? Function( CoreEventPayload_DownloadProgress value)?  downloadProgress,}){
 final _that = this;
 switch (_that) {
 case CoreEventPayload_ConnectionState() when connectionState != null:
@@ -1817,7 +1863,11 @@ return musicSession(_that);case CoreEventPayload_MusicNowPlaying() when musicNow
 return musicNowPlaying(_that);case CoreEventPayload_MusicNotice() when musicNotice != null:
 return musicNotice(_that);case CoreEventPayload_CommandsUpdate() when commandsUpdate != null:
 return commandsUpdate(_that);case CoreEventPayload_EphemeralMessage() when ephemeralMessage != null:
-return ephemeralMessage(_that);case _:
+return ephemeralMessage(_that);case CoreEventPayload_UploadSettingsUpdate() when uploadSettingsUpdate != null:
+return uploadSettingsUpdate(_that);case CoreEventPayload_StorageUpdate() when storageUpdate != null:
+return storageUpdate(_that);case CoreEventPayload_UploadProgress() when uploadProgress != null:
+return uploadProgress(_that);case CoreEventPayload_DownloadProgress() when downloadProgress != null:
+return downloadProgress(_that);case _:
   return null;
 
 }
@@ -1834,7 +1884,7 @@ return ephemeralMessage(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>({TResult Function( ConnectionState field0)?  connectionState,TResult Function( ReadySnapshot field0)?  ready,TResult Function( Message field0)?  messageCreate,TResult Function( Message field0)?  messageUpdate,TResult Function( PlatformInt64 channelId,  PlatformInt64 messageId)?  messageDelete,TResult Function( Channel field0)?  channelCreate,TResult Function( Channel field0)?  channelUpdate,TResult Function( PlatformInt64 channelId)?  channelDelete,TResult Function( Role field0)?  roleCreate,TResult Function( Role field0)?  roleUpdate,TResult Function( PlatformInt64 roleId)?  roleDelete,TResult Function( Member field0)?  memberJoin,TResult Function( PlatformInt64 userId)?  memberLeave,TResult Function( Member field0)?  memberUpdate,TResult Function( Presence field0)?  presenceUpdate,TResult Function( PlatformInt64 channelId,  PlatformInt64 userId)?  typingStart,TResult Function( ServerInfo field0)?  serverUpdate,TResult Function( PlatformInt64 serverPermissions,  List<ChannelPermissions> channelPermissions)?  permissionsUpdate,TResult Function( VoiceState field0)?  voiceStateUpdate,TResult Function( VoiceSettings field0)?  voiceSettingsUpdate,TResult Function( ScreenStream field0)?  streamCreate,TResult Function( ScreenStream field0)?  streamUpdate,TResult Function( String streamKey,  PlatformInt64 channelId)?  streamDelete,TResult Function( String streamKey,  Int64List viewerIds)?  streamViewersUpdate,TResult Function( SoundboardSound field0)?  soundboardSoundCreate,TResult Function( SoundboardSound field0)?  soundboardSoundUpdate,TResult Function( PlatformInt64 soundId)?  soundboardSoundDelete,TResult Function( SoundEffect field0)?  voiceChannelEffect,TResult Function( ServerAddresses field0)?  serverAddressesUpdate,TResult Function( NetworkInfo field0)?  networkStatus,TResult Function( ServerNotice field0)?  serverNotice,TResult Function( LavalinkNode node,  int channelsPlaying)?  lavalinkNodeStatus,TResult Function( PlatformInt64 nodeId,  int channelsPlaying)?  lavalinkNodeRemoved,TResult Function( LavalinkNodeEvent field0)?  lavalinkNodeEvent,TResult Function( LavalinkTestProgress field0)?  lavalinkTestProgress,TResult Function( MusicSettings field0)?  musicSettingsUpdate,TResult Function( MusicSession field0)?  musicSession,TResult Function( MusicNowPlaying field0)?  musicNowPlaying,TResult Function( MusicNotice field0)?  musicNotice,TResult Function( CommandList field0)?  commandsUpdate,TResult Function( EphemeralMessage field0)?  ephemeralMessage,required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>({TResult Function( ConnectionState field0)?  connectionState,TResult Function( ReadySnapshot field0)?  ready,TResult Function( Message field0)?  messageCreate,TResult Function( Message field0)?  messageUpdate,TResult Function( PlatformInt64 channelId,  PlatformInt64 messageId)?  messageDelete,TResult Function( Channel field0)?  channelCreate,TResult Function( Channel field0)?  channelUpdate,TResult Function( PlatformInt64 channelId)?  channelDelete,TResult Function( Role field0)?  roleCreate,TResult Function( Role field0)?  roleUpdate,TResult Function( PlatformInt64 roleId)?  roleDelete,TResult Function( Member field0)?  memberJoin,TResult Function( PlatformInt64 userId)?  memberLeave,TResult Function( Member field0)?  memberUpdate,TResult Function( Presence field0)?  presenceUpdate,TResult Function( PlatformInt64 channelId,  PlatformInt64 userId)?  typingStart,TResult Function( ServerInfo field0)?  serverUpdate,TResult Function( PlatformInt64 serverPermissions,  List<ChannelPermissions> channelPermissions)?  permissionsUpdate,TResult Function( VoiceState field0)?  voiceStateUpdate,TResult Function( VoiceSettings field0)?  voiceSettingsUpdate,TResult Function( ScreenStream field0)?  streamCreate,TResult Function( ScreenStream field0)?  streamUpdate,TResult Function( String streamKey,  PlatformInt64 channelId)?  streamDelete,TResult Function( String streamKey,  Int64List viewerIds)?  streamViewersUpdate,TResult Function( SoundboardSound field0)?  soundboardSoundCreate,TResult Function( SoundboardSound field0)?  soundboardSoundUpdate,TResult Function( PlatformInt64 soundId)?  soundboardSoundDelete,TResult Function( SoundEffect field0)?  voiceChannelEffect,TResult Function( ServerAddresses field0)?  serverAddressesUpdate,TResult Function( NetworkInfo field0)?  networkStatus,TResult Function( ServerNotice field0)?  serverNotice,TResult Function( LavalinkNode node,  int channelsPlaying)?  lavalinkNodeStatus,TResult Function( PlatformInt64 nodeId,  int channelsPlaying)?  lavalinkNodeRemoved,TResult Function( LavalinkNodeEvent field0)?  lavalinkNodeEvent,TResult Function( LavalinkTestProgress field0)?  lavalinkTestProgress,TResult Function( MusicSettings field0)?  musicSettingsUpdate,TResult Function( MusicSession field0)?  musicSession,TResult Function( MusicNowPlaying field0)?  musicNowPlaying,TResult Function( MusicNotice field0)?  musicNotice,TResult Function( CommandList field0)?  commandsUpdate,TResult Function( EphemeralMessage field0)?  ephemeralMessage,TResult Function( UploadSettings field0)?  uploadSettingsUpdate,TResult Function( StorageInfo field0)?  storageUpdate,TResult Function( PlatformInt64 channelId,  String nonce,  int fileIndex,  BigInt sentBytes,  BigInt totalBytes,  UploadPhase phase)?  uploadProgress,TResult Function( PlatformInt64 attachmentId,  BigInt receivedBytes,  BigInt totalBytes,  bool done,  String? error)?  downloadProgress,required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case CoreEventPayload_ConnectionState() when connectionState != null:
 return connectionState(_that.field0);case CoreEventPayload_Ready() when ready != null:
@@ -1877,7 +1927,11 @@ return musicSession(_that.field0);case CoreEventPayload_MusicNowPlaying() when m
 return musicNowPlaying(_that.field0);case CoreEventPayload_MusicNotice() when musicNotice != null:
 return musicNotice(_that.field0);case CoreEventPayload_CommandsUpdate() when commandsUpdate != null:
 return commandsUpdate(_that.field0);case CoreEventPayload_EphemeralMessage() when ephemeralMessage != null:
-return ephemeralMessage(_that.field0);case _:
+return ephemeralMessage(_that.field0);case CoreEventPayload_UploadSettingsUpdate() when uploadSettingsUpdate != null:
+return uploadSettingsUpdate(_that.field0);case CoreEventPayload_StorageUpdate() when storageUpdate != null:
+return storageUpdate(_that.field0);case CoreEventPayload_UploadProgress() when uploadProgress != null:
+return uploadProgress(_that.channelId,_that.nonce,_that.fileIndex,_that.sentBytes,_that.totalBytes,_that.phase);case CoreEventPayload_DownloadProgress() when downloadProgress != null:
+return downloadProgress(_that.attachmentId,_that.receivedBytes,_that.totalBytes,_that.done,_that.error);case _:
   return orElse();
 
 }
@@ -1895,7 +1949,7 @@ return ephemeralMessage(_that.field0);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>({required TResult Function( ConnectionState field0)  connectionState,required TResult Function( ReadySnapshot field0)  ready,required TResult Function( Message field0)  messageCreate,required TResult Function( Message field0)  messageUpdate,required TResult Function( PlatformInt64 channelId,  PlatformInt64 messageId)  messageDelete,required TResult Function( Channel field0)  channelCreate,required TResult Function( Channel field0)  channelUpdate,required TResult Function( PlatformInt64 channelId)  channelDelete,required TResult Function( Role field0)  roleCreate,required TResult Function( Role field0)  roleUpdate,required TResult Function( PlatformInt64 roleId)  roleDelete,required TResult Function( Member field0)  memberJoin,required TResult Function( PlatformInt64 userId)  memberLeave,required TResult Function( Member field0)  memberUpdate,required TResult Function( Presence field0)  presenceUpdate,required TResult Function( PlatformInt64 channelId,  PlatformInt64 userId)  typingStart,required TResult Function( ServerInfo field0)  serverUpdate,required TResult Function( PlatformInt64 serverPermissions,  List<ChannelPermissions> channelPermissions)  permissionsUpdate,required TResult Function( VoiceState field0)  voiceStateUpdate,required TResult Function( VoiceSettings field0)  voiceSettingsUpdate,required TResult Function( ScreenStream field0)  streamCreate,required TResult Function( ScreenStream field0)  streamUpdate,required TResult Function( String streamKey,  PlatformInt64 channelId)  streamDelete,required TResult Function( String streamKey,  Int64List viewerIds)  streamViewersUpdate,required TResult Function( SoundboardSound field0)  soundboardSoundCreate,required TResult Function( SoundboardSound field0)  soundboardSoundUpdate,required TResult Function( PlatformInt64 soundId)  soundboardSoundDelete,required TResult Function( SoundEffect field0)  voiceChannelEffect,required TResult Function( ServerAddresses field0)  serverAddressesUpdate,required TResult Function( NetworkInfo field0)  networkStatus,required TResult Function( ServerNotice field0)  serverNotice,required TResult Function( LavalinkNode node,  int channelsPlaying)  lavalinkNodeStatus,required TResult Function( PlatformInt64 nodeId,  int channelsPlaying)  lavalinkNodeRemoved,required TResult Function( LavalinkNodeEvent field0)  lavalinkNodeEvent,required TResult Function( LavalinkTestProgress field0)  lavalinkTestProgress,required TResult Function( MusicSettings field0)  musicSettingsUpdate,required TResult Function( MusicSession field0)  musicSession,required TResult Function( MusicNowPlaying field0)  musicNowPlaying,required TResult Function( MusicNotice field0)  musicNotice,required TResult Function( CommandList field0)  commandsUpdate,required TResult Function( EphemeralMessage field0)  ephemeralMessage,}) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>({required TResult Function( ConnectionState field0)  connectionState,required TResult Function( ReadySnapshot field0)  ready,required TResult Function( Message field0)  messageCreate,required TResult Function( Message field0)  messageUpdate,required TResult Function( PlatformInt64 channelId,  PlatformInt64 messageId)  messageDelete,required TResult Function( Channel field0)  channelCreate,required TResult Function( Channel field0)  channelUpdate,required TResult Function( PlatformInt64 channelId)  channelDelete,required TResult Function( Role field0)  roleCreate,required TResult Function( Role field0)  roleUpdate,required TResult Function( PlatformInt64 roleId)  roleDelete,required TResult Function( Member field0)  memberJoin,required TResult Function( PlatformInt64 userId)  memberLeave,required TResult Function( Member field0)  memberUpdate,required TResult Function( Presence field0)  presenceUpdate,required TResult Function( PlatformInt64 channelId,  PlatformInt64 userId)  typingStart,required TResult Function( ServerInfo field0)  serverUpdate,required TResult Function( PlatformInt64 serverPermissions,  List<ChannelPermissions> channelPermissions)  permissionsUpdate,required TResult Function( VoiceState field0)  voiceStateUpdate,required TResult Function( VoiceSettings field0)  voiceSettingsUpdate,required TResult Function( ScreenStream field0)  streamCreate,required TResult Function( ScreenStream field0)  streamUpdate,required TResult Function( String streamKey,  PlatformInt64 channelId)  streamDelete,required TResult Function( String streamKey,  Int64List viewerIds)  streamViewersUpdate,required TResult Function( SoundboardSound field0)  soundboardSoundCreate,required TResult Function( SoundboardSound field0)  soundboardSoundUpdate,required TResult Function( PlatformInt64 soundId)  soundboardSoundDelete,required TResult Function( SoundEffect field0)  voiceChannelEffect,required TResult Function( ServerAddresses field0)  serverAddressesUpdate,required TResult Function( NetworkInfo field0)  networkStatus,required TResult Function( ServerNotice field0)  serverNotice,required TResult Function( LavalinkNode node,  int channelsPlaying)  lavalinkNodeStatus,required TResult Function( PlatformInt64 nodeId,  int channelsPlaying)  lavalinkNodeRemoved,required TResult Function( LavalinkNodeEvent field0)  lavalinkNodeEvent,required TResult Function( LavalinkTestProgress field0)  lavalinkTestProgress,required TResult Function( MusicSettings field0)  musicSettingsUpdate,required TResult Function( MusicSession field0)  musicSession,required TResult Function( MusicNowPlaying field0)  musicNowPlaying,required TResult Function( MusicNotice field0)  musicNotice,required TResult Function( CommandList field0)  commandsUpdate,required TResult Function( EphemeralMessage field0)  ephemeralMessage,required TResult Function( UploadSettings field0)  uploadSettingsUpdate,required TResult Function( StorageInfo field0)  storageUpdate,required TResult Function( PlatformInt64 channelId,  String nonce,  int fileIndex,  BigInt sentBytes,  BigInt totalBytes,  UploadPhase phase)  uploadProgress,required TResult Function( PlatformInt64 attachmentId,  BigInt receivedBytes,  BigInt totalBytes,  bool done,  String? error)  downloadProgress,}) {final _that = this;
 switch (_that) {
 case CoreEventPayload_ConnectionState():
 return connectionState(_that.field0);case CoreEventPayload_Ready():
@@ -1938,7 +1992,11 @@ return musicSession(_that.field0);case CoreEventPayload_MusicNowPlaying():
 return musicNowPlaying(_that.field0);case CoreEventPayload_MusicNotice():
 return musicNotice(_that.field0);case CoreEventPayload_CommandsUpdate():
 return commandsUpdate(_that.field0);case CoreEventPayload_EphemeralMessage():
-return ephemeralMessage(_that.field0);}
+return ephemeralMessage(_that.field0);case CoreEventPayload_UploadSettingsUpdate():
+return uploadSettingsUpdate(_that.field0);case CoreEventPayload_StorageUpdate():
+return storageUpdate(_that.field0);case CoreEventPayload_UploadProgress():
+return uploadProgress(_that.channelId,_that.nonce,_that.fileIndex,_that.sentBytes,_that.totalBytes,_that.phase);case CoreEventPayload_DownloadProgress():
+return downloadProgress(_that.attachmentId,_that.receivedBytes,_that.totalBytes,_that.done,_that.error);}
 }
 /// A variant of `when` that fallback to returning `null`
 ///
@@ -1952,7 +2010,7 @@ return ephemeralMessage(_that.field0);}
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>({TResult? Function( ConnectionState field0)?  connectionState,TResult? Function( ReadySnapshot field0)?  ready,TResult? Function( Message field0)?  messageCreate,TResult? Function( Message field0)?  messageUpdate,TResult? Function( PlatformInt64 channelId,  PlatformInt64 messageId)?  messageDelete,TResult? Function( Channel field0)?  channelCreate,TResult? Function( Channel field0)?  channelUpdate,TResult? Function( PlatformInt64 channelId)?  channelDelete,TResult? Function( Role field0)?  roleCreate,TResult? Function( Role field0)?  roleUpdate,TResult? Function( PlatformInt64 roleId)?  roleDelete,TResult? Function( Member field0)?  memberJoin,TResult? Function( PlatformInt64 userId)?  memberLeave,TResult? Function( Member field0)?  memberUpdate,TResult? Function( Presence field0)?  presenceUpdate,TResult? Function( PlatformInt64 channelId,  PlatformInt64 userId)?  typingStart,TResult? Function( ServerInfo field0)?  serverUpdate,TResult? Function( PlatformInt64 serverPermissions,  List<ChannelPermissions> channelPermissions)?  permissionsUpdate,TResult? Function( VoiceState field0)?  voiceStateUpdate,TResult? Function( VoiceSettings field0)?  voiceSettingsUpdate,TResult? Function( ScreenStream field0)?  streamCreate,TResult? Function( ScreenStream field0)?  streamUpdate,TResult? Function( String streamKey,  PlatformInt64 channelId)?  streamDelete,TResult? Function( String streamKey,  Int64List viewerIds)?  streamViewersUpdate,TResult? Function( SoundboardSound field0)?  soundboardSoundCreate,TResult? Function( SoundboardSound field0)?  soundboardSoundUpdate,TResult? Function( PlatformInt64 soundId)?  soundboardSoundDelete,TResult? Function( SoundEffect field0)?  voiceChannelEffect,TResult? Function( ServerAddresses field0)?  serverAddressesUpdate,TResult? Function( NetworkInfo field0)?  networkStatus,TResult? Function( ServerNotice field0)?  serverNotice,TResult? Function( LavalinkNode node,  int channelsPlaying)?  lavalinkNodeStatus,TResult? Function( PlatformInt64 nodeId,  int channelsPlaying)?  lavalinkNodeRemoved,TResult? Function( LavalinkNodeEvent field0)?  lavalinkNodeEvent,TResult? Function( LavalinkTestProgress field0)?  lavalinkTestProgress,TResult? Function( MusicSettings field0)?  musicSettingsUpdate,TResult? Function( MusicSession field0)?  musicSession,TResult? Function( MusicNowPlaying field0)?  musicNowPlaying,TResult? Function( MusicNotice field0)?  musicNotice,TResult? Function( CommandList field0)?  commandsUpdate,TResult? Function( EphemeralMessage field0)?  ephemeralMessage,}) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>({TResult? Function( ConnectionState field0)?  connectionState,TResult? Function( ReadySnapshot field0)?  ready,TResult? Function( Message field0)?  messageCreate,TResult? Function( Message field0)?  messageUpdate,TResult? Function( PlatformInt64 channelId,  PlatformInt64 messageId)?  messageDelete,TResult? Function( Channel field0)?  channelCreate,TResult? Function( Channel field0)?  channelUpdate,TResult? Function( PlatformInt64 channelId)?  channelDelete,TResult? Function( Role field0)?  roleCreate,TResult? Function( Role field0)?  roleUpdate,TResult? Function( PlatformInt64 roleId)?  roleDelete,TResult? Function( Member field0)?  memberJoin,TResult? Function( PlatformInt64 userId)?  memberLeave,TResult? Function( Member field0)?  memberUpdate,TResult? Function( Presence field0)?  presenceUpdate,TResult? Function( PlatformInt64 channelId,  PlatformInt64 userId)?  typingStart,TResult? Function( ServerInfo field0)?  serverUpdate,TResult? Function( PlatformInt64 serverPermissions,  List<ChannelPermissions> channelPermissions)?  permissionsUpdate,TResult? Function( VoiceState field0)?  voiceStateUpdate,TResult? Function( VoiceSettings field0)?  voiceSettingsUpdate,TResult? Function( ScreenStream field0)?  streamCreate,TResult? Function( ScreenStream field0)?  streamUpdate,TResult? Function( String streamKey,  PlatformInt64 channelId)?  streamDelete,TResult? Function( String streamKey,  Int64List viewerIds)?  streamViewersUpdate,TResult? Function( SoundboardSound field0)?  soundboardSoundCreate,TResult? Function( SoundboardSound field0)?  soundboardSoundUpdate,TResult? Function( PlatformInt64 soundId)?  soundboardSoundDelete,TResult? Function( SoundEffect field0)?  voiceChannelEffect,TResult? Function( ServerAddresses field0)?  serverAddressesUpdate,TResult? Function( NetworkInfo field0)?  networkStatus,TResult? Function( ServerNotice field0)?  serverNotice,TResult? Function( LavalinkNode node,  int channelsPlaying)?  lavalinkNodeStatus,TResult? Function( PlatformInt64 nodeId,  int channelsPlaying)?  lavalinkNodeRemoved,TResult? Function( LavalinkNodeEvent field0)?  lavalinkNodeEvent,TResult? Function( LavalinkTestProgress field0)?  lavalinkTestProgress,TResult? Function( MusicSettings field0)?  musicSettingsUpdate,TResult? Function( MusicSession field0)?  musicSession,TResult? Function( MusicNowPlaying field0)?  musicNowPlaying,TResult? Function( MusicNotice field0)?  musicNotice,TResult? Function( CommandList field0)?  commandsUpdate,TResult? Function( EphemeralMessage field0)?  ephemeralMessage,TResult? Function( UploadSettings field0)?  uploadSettingsUpdate,TResult? Function( StorageInfo field0)?  storageUpdate,TResult? Function( PlatformInt64 channelId,  String nonce,  int fileIndex,  BigInt sentBytes,  BigInt totalBytes,  UploadPhase phase)?  uploadProgress,TResult? Function( PlatformInt64 attachmentId,  BigInt receivedBytes,  BigInt totalBytes,  bool done,  String? error)?  downloadProgress,}) {final _that = this;
 switch (_that) {
 case CoreEventPayload_ConnectionState() when connectionState != null:
 return connectionState(_that.field0);case CoreEventPayload_Ready() when ready != null:
@@ -1995,7 +2053,11 @@ return musicSession(_that.field0);case CoreEventPayload_MusicNowPlaying() when m
 return musicNowPlaying(_that.field0);case CoreEventPayload_MusicNotice() when musicNotice != null:
 return musicNotice(_that.field0);case CoreEventPayload_CommandsUpdate() when commandsUpdate != null:
 return commandsUpdate(_that.field0);case CoreEventPayload_EphemeralMessage() when ephemeralMessage != null:
-return ephemeralMessage(_that.field0);case _:
+return ephemeralMessage(_that.field0);case CoreEventPayload_UploadSettingsUpdate() when uploadSettingsUpdate != null:
+return uploadSettingsUpdate(_that.field0);case CoreEventPayload_StorageUpdate() when storageUpdate != null:
+return storageUpdate(_that.field0);case CoreEventPayload_UploadProgress() when uploadProgress != null:
+return uploadProgress(_that.channelId,_that.nonce,_that.fileIndex,_that.sentBytes,_that.totalBytes,_that.phase);case CoreEventPayload_DownloadProgress() when downloadProgress != null:
+return downloadProgress(_that.attachmentId,_that.receivedBytes,_that.totalBytes,_that.done,_that.error);case _:
   return null;
 
 }
@@ -4739,6 +4801,298 @@ as EphemeralMessage,
 }
 
 /// @nodoc
+
+
+class CoreEventPayload_UploadSettingsUpdate extends CoreEventPayload {
+  const CoreEventPayload_UploadSettingsUpdate(this.field0): super._();
+  
+
+ final  UploadSettings field0;
+
+/// Create a copy of CoreEventPayload
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$CoreEventPayload_UploadSettingsUpdateCopyWith<CoreEventPayload_UploadSettingsUpdate> get copyWith => _$CoreEventPayload_UploadSettingsUpdateCopyWithImpl<CoreEventPayload_UploadSettingsUpdate>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is CoreEventPayload_UploadSettingsUpdate&&(identical(other.field0, field0) || other.field0 == field0));
+}
+
+
+@override
+int get hashCode => Object.hash(runtimeType,field0);
+
+@override
+String toString() {
+  return 'CoreEventPayload.uploadSettingsUpdate(field0: $field0)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $CoreEventPayload_UploadSettingsUpdateCopyWith<$Res> implements $CoreEventPayloadCopyWith<$Res> {
+  factory $CoreEventPayload_UploadSettingsUpdateCopyWith(CoreEventPayload_UploadSettingsUpdate value, $Res Function(CoreEventPayload_UploadSettingsUpdate) _then) = _$CoreEventPayload_UploadSettingsUpdateCopyWithImpl;
+@useResult
+$Res call({
+ UploadSettings field0
+});
+
+
+
+
+}
+/// @nodoc
+class _$CoreEventPayload_UploadSettingsUpdateCopyWithImpl<$Res>
+    implements $CoreEventPayload_UploadSettingsUpdateCopyWith<$Res> {
+  _$CoreEventPayload_UploadSettingsUpdateCopyWithImpl(this._self, this._then);
+
+  final CoreEventPayload_UploadSettingsUpdate _self;
+  final $Res Function(CoreEventPayload_UploadSettingsUpdate) _then;
+
+/// Create a copy of CoreEventPayload
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? field0 = null,}) {
+  return _then(CoreEventPayload_UploadSettingsUpdate(
+null == field0 ? _self.field0 : field0 // ignore: cast_nullable_to_non_nullable
+as UploadSettings,
+  ));
+}
+
+
+}
+
+/// @nodoc
+
+
+class CoreEventPayload_StorageUpdate extends CoreEventPayload {
+  const CoreEventPayload_StorageUpdate(this.field0): super._();
+  
+
+ final  StorageInfo field0;
+
+/// Create a copy of CoreEventPayload
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$CoreEventPayload_StorageUpdateCopyWith<CoreEventPayload_StorageUpdate> get copyWith => _$CoreEventPayload_StorageUpdateCopyWithImpl<CoreEventPayload_StorageUpdate>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is CoreEventPayload_StorageUpdate&&(identical(other.field0, field0) || other.field0 == field0));
+}
+
+
+@override
+int get hashCode => Object.hash(runtimeType,field0);
+
+@override
+String toString() {
+  return 'CoreEventPayload.storageUpdate(field0: $field0)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $CoreEventPayload_StorageUpdateCopyWith<$Res> implements $CoreEventPayloadCopyWith<$Res> {
+  factory $CoreEventPayload_StorageUpdateCopyWith(CoreEventPayload_StorageUpdate value, $Res Function(CoreEventPayload_StorageUpdate) _then) = _$CoreEventPayload_StorageUpdateCopyWithImpl;
+@useResult
+$Res call({
+ StorageInfo field0
+});
+
+
+
+
+}
+/// @nodoc
+class _$CoreEventPayload_StorageUpdateCopyWithImpl<$Res>
+    implements $CoreEventPayload_StorageUpdateCopyWith<$Res> {
+  _$CoreEventPayload_StorageUpdateCopyWithImpl(this._self, this._then);
+
+  final CoreEventPayload_StorageUpdate _self;
+  final $Res Function(CoreEventPayload_StorageUpdate) _then;
+
+/// Create a copy of CoreEventPayload
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? field0 = null,}) {
+  return _then(CoreEventPayload_StorageUpdate(
+null == field0 ? _self.field0 : field0 // ignore: cast_nullable_to_non_nullable
+as StorageInfo,
+  ));
+}
+
+
+}
+
+/// @nodoc
+
+
+class CoreEventPayload_UploadProgress extends CoreEventPayload {
+  const CoreEventPayload_UploadProgress({required this.channelId, required this.nonce, required this.fileIndex, required this.sentBytes, required this.totalBytes, required this.phase}): super._();
+  
+
+ final  PlatformInt64 channelId;
+ final  String nonce;
+/// Its place among the message's files.
+ final  int fileIndex;
+ final  BigInt sentBytes;
+ final  BigInt totalBytes;
+ final  UploadPhase phase;
+
+/// Create a copy of CoreEventPayload
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$CoreEventPayload_UploadProgressCopyWith<CoreEventPayload_UploadProgress> get copyWith => _$CoreEventPayload_UploadProgressCopyWithImpl<CoreEventPayload_UploadProgress>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is CoreEventPayload_UploadProgress&&(identical(other.channelId, channelId) || other.channelId == channelId)&&(identical(other.nonce, nonce) || other.nonce == nonce)&&(identical(other.fileIndex, fileIndex) || other.fileIndex == fileIndex)&&(identical(other.sentBytes, sentBytes) || other.sentBytes == sentBytes)&&(identical(other.totalBytes, totalBytes) || other.totalBytes == totalBytes)&&(identical(other.phase, phase) || other.phase == phase));
+}
+
+
+@override
+int get hashCode => Object.hash(runtimeType,channelId,nonce,fileIndex,sentBytes,totalBytes,phase);
+
+@override
+String toString() {
+  return 'CoreEventPayload.uploadProgress(channelId: $channelId, nonce: $nonce, fileIndex: $fileIndex, sentBytes: $sentBytes, totalBytes: $totalBytes, phase: $phase)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $CoreEventPayload_UploadProgressCopyWith<$Res> implements $CoreEventPayloadCopyWith<$Res> {
+  factory $CoreEventPayload_UploadProgressCopyWith(CoreEventPayload_UploadProgress value, $Res Function(CoreEventPayload_UploadProgress) _then) = _$CoreEventPayload_UploadProgressCopyWithImpl;
+@useResult
+$Res call({
+ PlatformInt64 channelId, String nonce, int fileIndex, BigInt sentBytes, BigInt totalBytes, UploadPhase phase
+});
+
+
+$UploadPhaseCopyWith<$Res> get phase;
+
+}
+/// @nodoc
+class _$CoreEventPayload_UploadProgressCopyWithImpl<$Res>
+    implements $CoreEventPayload_UploadProgressCopyWith<$Res> {
+  _$CoreEventPayload_UploadProgressCopyWithImpl(this._self, this._then);
+
+  final CoreEventPayload_UploadProgress _self;
+  final $Res Function(CoreEventPayload_UploadProgress) _then;
+
+/// Create a copy of CoreEventPayload
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? channelId = null,Object? nonce = null,Object? fileIndex = null,Object? sentBytes = null,Object? totalBytes = null,Object? phase = null,}) {
+  return _then(CoreEventPayload_UploadProgress(
+channelId: null == channelId ? _self.channelId : channelId // ignore: cast_nullable_to_non_nullable
+as PlatformInt64,nonce: null == nonce ? _self.nonce : nonce // ignore: cast_nullable_to_non_nullable
+as String,fileIndex: null == fileIndex ? _self.fileIndex : fileIndex // ignore: cast_nullable_to_non_nullable
+as int,sentBytes: null == sentBytes ? _self.sentBytes : sentBytes // ignore: cast_nullable_to_non_nullable
+as BigInt,totalBytes: null == totalBytes ? _self.totalBytes : totalBytes // ignore: cast_nullable_to_non_nullable
+as BigInt,phase: null == phase ? _self.phase : phase // ignore: cast_nullable_to_non_nullable
+as UploadPhase,
+  ));
+}
+
+/// Create a copy of CoreEventPayload
+/// with the given fields replaced by the non-null parameter values.
+@override
+@pragma('vm:prefer-inline')
+$UploadPhaseCopyWith<$Res> get phase {
+  
+  return $UploadPhaseCopyWith<$Res>(_self.phase, (value) {
+    return _then(_self.copyWith(phase: value));
+  });
+}
+}
+
+/// @nodoc
+
+
+class CoreEventPayload_DownloadProgress extends CoreEventPayload {
+  const CoreEventPayload_DownloadProgress({required this.attachmentId, required this.receivedBytes, required this.totalBytes, required this.done, this.error}): super._();
+  
+
+ final  PlatformInt64 attachmentId;
+ final  BigInt receivedBytes;
+ final  BigInt totalBytes;
+ final  bool done;
+ final  String? error;
+
+/// Create a copy of CoreEventPayload
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$CoreEventPayload_DownloadProgressCopyWith<CoreEventPayload_DownloadProgress> get copyWith => _$CoreEventPayload_DownloadProgressCopyWithImpl<CoreEventPayload_DownloadProgress>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is CoreEventPayload_DownloadProgress&&(identical(other.attachmentId, attachmentId) || other.attachmentId == attachmentId)&&(identical(other.receivedBytes, receivedBytes) || other.receivedBytes == receivedBytes)&&(identical(other.totalBytes, totalBytes) || other.totalBytes == totalBytes)&&(identical(other.done, done) || other.done == done)&&(identical(other.error, error) || other.error == error));
+}
+
+
+@override
+int get hashCode => Object.hash(runtimeType,attachmentId,receivedBytes,totalBytes,done,error);
+
+@override
+String toString() {
+  return 'CoreEventPayload.downloadProgress(attachmentId: $attachmentId, receivedBytes: $receivedBytes, totalBytes: $totalBytes, done: $done, error: $error)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $CoreEventPayload_DownloadProgressCopyWith<$Res> implements $CoreEventPayloadCopyWith<$Res> {
+  factory $CoreEventPayload_DownloadProgressCopyWith(CoreEventPayload_DownloadProgress value, $Res Function(CoreEventPayload_DownloadProgress) _then) = _$CoreEventPayload_DownloadProgressCopyWithImpl;
+@useResult
+$Res call({
+ PlatformInt64 attachmentId, BigInt receivedBytes, BigInt totalBytes, bool done, String? error
+});
+
+
+
+
+}
+/// @nodoc
+class _$CoreEventPayload_DownloadProgressCopyWithImpl<$Res>
+    implements $CoreEventPayload_DownloadProgressCopyWith<$Res> {
+  _$CoreEventPayload_DownloadProgressCopyWithImpl(this._self, this._then);
+
+  final CoreEventPayload_DownloadProgress _self;
+  final $Res Function(CoreEventPayload_DownloadProgress) _then;
+
+/// Create a copy of CoreEventPayload
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? attachmentId = null,Object? receivedBytes = null,Object? totalBytes = null,Object? done = null,Object? error = freezed,}) {
+  return _then(CoreEventPayload_DownloadProgress(
+attachmentId: null == attachmentId ? _self.attachmentId : attachmentId // ignore: cast_nullable_to_non_nullable
+as PlatformInt64,receivedBytes: null == receivedBytes ? _self.receivedBytes : receivedBytes // ignore: cast_nullable_to_non_nullable
+as BigInt,totalBytes: null == totalBytes ? _self.totalBytes : totalBytes // ignore: cast_nullable_to_non_nullable
+as BigInt,done: null == done ? _self.done : done // ignore: cast_nullable_to_non_nullable
+as bool,error: freezed == error ? _self.error : error // ignore: cast_nullable_to_non_nullable
+as String?,
+  ));
+}
+
+
+}
+
+/// @nodoc
 mixin _$HotkeySupport {
 
 
@@ -6171,6 +6525,746 @@ as VoiceStats,
 
 
 }
+
+/// @nodoc
+mixin _$StorageTestTarget {
+
+
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is StorageTestTarget);
+}
+
+
+@override
+int get hashCode => runtimeType.hashCode;
+
+@override
+String toString() {
+  return 'StorageTestTarget()';
+}
+
+
+}
+
+/// @nodoc
+class $StorageTestTargetCopyWith<$Res>  {
+$StorageTestTargetCopyWith(StorageTestTarget _, $Res Function(StorageTestTarget) __);
+}
+
+
+/// Adds pattern-matching-related methods to [StorageTestTarget].
+extension StorageTestTargetPatterns on StorageTestTarget {
+/// A variant of `map` that fallback to returning `orElse`.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case _:
+///     return orElse();
+/// }
+/// ```
+
+@optionalTypeArgs TResult maybeMap<TResult extends Object?>({TResult Function( StorageTestTarget_Existing value)?  existing,TResult Function( StorageTestTarget_Config value)?  config,required TResult orElse(),}){
+final _that = this;
+switch (_that) {
+case StorageTestTarget_Existing() when existing != null:
+return existing(_that);case StorageTestTarget_Config() when config != null:
+return config(_that);case _:
+  return orElse();
+
+}
+}
+/// A `switch`-like method, using callbacks.
+///
+/// Callbacks receives the raw object, upcasted.
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case final Subclass2 value:
+///     return ...;
+/// }
+/// ```
+
+@optionalTypeArgs TResult map<TResult extends Object?>({required TResult Function( StorageTestTarget_Existing value)  existing,required TResult Function( StorageTestTarget_Config value)  config,}){
+final _that = this;
+switch (_that) {
+case StorageTestTarget_Existing():
+return existing(_that);case StorageTestTarget_Config():
+return config(_that);}
+}
+/// A variant of `map` that fallback to returning `null`.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case _:
+///     return null;
+/// }
+/// ```
+
+@optionalTypeArgs TResult? mapOrNull<TResult extends Object?>({TResult? Function( StorageTestTarget_Existing value)?  existing,TResult? Function( StorageTestTarget_Config value)?  config,}){
+final _that = this;
+switch (_that) {
+case StorageTestTarget_Existing() when existing != null:
+return existing(_that);case StorageTestTarget_Config() when config != null:
+return config(_that);case _:
+  return null;
+
+}
+}
+/// A variant of `when` that fallback to an `orElse` callback.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case _:
+///     return orElse();
+/// }
+/// ```
+
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>({TResult Function( PlatformInt64 storageId)?  existing,TResult Function( S3Config s3)?  config,required TResult orElse(),}) {final _that = this;
+switch (_that) {
+case StorageTestTarget_Existing() when existing != null:
+return existing(_that.storageId);case StorageTestTarget_Config() when config != null:
+return config(_that.s3);case _:
+  return orElse();
+
+}
+}
+/// A `switch`-like method, using callbacks.
+///
+/// As opposed to `map`, this offers destructuring.
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case Subclass2(:final field2):
+///     return ...;
+/// }
+/// ```
+
+@optionalTypeArgs TResult when<TResult extends Object?>({required TResult Function( PlatformInt64 storageId)  existing,required TResult Function( S3Config s3)  config,}) {final _that = this;
+switch (_that) {
+case StorageTestTarget_Existing():
+return existing(_that.storageId);case StorageTestTarget_Config():
+return config(_that.s3);}
+}
+/// A variant of `when` that fallback to returning `null`
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case _:
+///     return null;
+/// }
+/// ```
+
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>({TResult? Function( PlatformInt64 storageId)?  existing,TResult? Function( S3Config s3)?  config,}) {final _that = this;
+switch (_that) {
+case StorageTestTarget_Existing() when existing != null:
+return existing(_that.storageId);case StorageTestTarget_Config() when config != null:
+return config(_that.s3);case _:
+  return null;
+
+}
+}
+
+}
+
+/// @nodoc
+
+
+class StorageTestTarget_Existing extends StorageTestTarget {
+  const StorageTestTarget_Existing({required this.storageId}): super._();
+  
+
+ final  PlatformInt64 storageId;
+
+/// Create a copy of StorageTestTarget
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$StorageTestTarget_ExistingCopyWith<StorageTestTarget_Existing> get copyWith => _$StorageTestTarget_ExistingCopyWithImpl<StorageTestTarget_Existing>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is StorageTestTarget_Existing&&(identical(other.storageId, storageId) || other.storageId == storageId));
+}
+
+
+@override
+int get hashCode => Object.hash(runtimeType,storageId);
+
+@override
+String toString() {
+  return 'StorageTestTarget.existing(storageId: $storageId)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $StorageTestTarget_ExistingCopyWith<$Res> implements $StorageTestTargetCopyWith<$Res> {
+  factory $StorageTestTarget_ExistingCopyWith(StorageTestTarget_Existing value, $Res Function(StorageTestTarget_Existing) _then) = _$StorageTestTarget_ExistingCopyWithImpl;
+@useResult
+$Res call({
+ PlatformInt64 storageId
+});
+
+
+
+
+}
+/// @nodoc
+class _$StorageTestTarget_ExistingCopyWithImpl<$Res>
+    implements $StorageTestTarget_ExistingCopyWith<$Res> {
+  _$StorageTestTarget_ExistingCopyWithImpl(this._self, this._then);
+
+  final StorageTestTarget_Existing _self;
+  final $Res Function(StorageTestTarget_Existing) _then;
+
+/// Create a copy of StorageTestTarget
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? storageId = null,}) {
+  return _then(StorageTestTarget_Existing(
+storageId: null == storageId ? _self.storageId : storageId // ignore: cast_nullable_to_non_nullable
+as PlatformInt64,
+  ));
+}
+
+
+}
+
+/// @nodoc
+
+
+class StorageTestTarget_Config extends StorageTestTarget {
+  const StorageTestTarget_Config({required this.s3}): super._();
+  
+
+ final  S3Config s3;
+
+/// Create a copy of StorageTestTarget
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$StorageTestTarget_ConfigCopyWith<StorageTestTarget_Config> get copyWith => _$StorageTestTarget_ConfigCopyWithImpl<StorageTestTarget_Config>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is StorageTestTarget_Config&&(identical(other.s3, s3) || other.s3 == s3));
+}
+
+
+@override
+int get hashCode => Object.hash(runtimeType,s3);
+
+@override
+String toString() {
+  return 'StorageTestTarget.config(s3: $s3)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $StorageTestTarget_ConfigCopyWith<$Res> implements $StorageTestTargetCopyWith<$Res> {
+  factory $StorageTestTarget_ConfigCopyWith(StorageTestTarget_Config value, $Res Function(StorageTestTarget_Config) _then) = _$StorageTestTarget_ConfigCopyWithImpl;
+@useResult
+$Res call({
+ S3Config s3
+});
+
+
+
+
+}
+/// @nodoc
+class _$StorageTestTarget_ConfigCopyWithImpl<$Res>
+    implements $StorageTestTarget_ConfigCopyWith<$Res> {
+  _$StorageTestTarget_ConfigCopyWithImpl(this._self, this._then);
+
+  final StorageTestTarget_Config _self;
+  final $Res Function(StorageTestTarget_Config) _then;
+
+/// Create a copy of StorageTestTarget
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? s3 = null,}) {
+  return _then(StorageTestTarget_Config(
+s3: null == s3 ? _self.s3 : s3 // ignore: cast_nullable_to_non_nullable
+as S3Config,
+  ));
+}
+
+
+}
+
+/// @nodoc
+mixin _$UploadPhase {
+
+
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is UploadPhase);
+}
+
+
+@override
+int get hashCode => runtimeType.hashCode;
+
+@override
+String toString() {
+  return 'UploadPhase()';
+}
+
+
+}
+
+/// @nodoc
+class $UploadPhaseCopyWith<$Res>  {
+$UploadPhaseCopyWith(UploadPhase _, $Res Function(UploadPhase) __);
+}
+
+
+/// Adds pattern-matching-related methods to [UploadPhase].
+extension UploadPhasePatterns on UploadPhase {
+/// A variant of `map` that fallback to returning `orElse`.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case _:
+///     return orElse();
+/// }
+/// ```
+
+@optionalTypeArgs TResult maybeMap<TResult extends Object?>({TResult Function( UploadPhase_Preparing value)?  preparing,TResult Function( UploadPhase_Uploading value)?  uploading,TResult Function( UploadPhase_Processing value)?  processing,TResult Function( UploadPhase_Sending value)?  sending,TResult Function( UploadPhase_Done value)?  done,TResult Function( UploadPhase_Failed value)?  failed,TResult Function( UploadPhase_Cancelled value)?  cancelled,required TResult orElse(),}){
+final _that = this;
+switch (_that) {
+case UploadPhase_Preparing() when preparing != null:
+return preparing(_that);case UploadPhase_Uploading() when uploading != null:
+return uploading(_that);case UploadPhase_Processing() when processing != null:
+return processing(_that);case UploadPhase_Sending() when sending != null:
+return sending(_that);case UploadPhase_Done() when done != null:
+return done(_that);case UploadPhase_Failed() when failed != null:
+return failed(_that);case UploadPhase_Cancelled() when cancelled != null:
+return cancelled(_that);case _:
+  return orElse();
+
+}
+}
+/// A `switch`-like method, using callbacks.
+///
+/// Callbacks receives the raw object, upcasted.
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case final Subclass2 value:
+///     return ...;
+/// }
+/// ```
+
+@optionalTypeArgs TResult map<TResult extends Object?>({required TResult Function( UploadPhase_Preparing value)  preparing,required TResult Function( UploadPhase_Uploading value)  uploading,required TResult Function( UploadPhase_Processing value)  processing,required TResult Function( UploadPhase_Sending value)  sending,required TResult Function( UploadPhase_Done value)  done,required TResult Function( UploadPhase_Failed value)  failed,required TResult Function( UploadPhase_Cancelled value)  cancelled,}){
+final _that = this;
+switch (_that) {
+case UploadPhase_Preparing():
+return preparing(_that);case UploadPhase_Uploading():
+return uploading(_that);case UploadPhase_Processing():
+return processing(_that);case UploadPhase_Sending():
+return sending(_that);case UploadPhase_Done():
+return done(_that);case UploadPhase_Failed():
+return failed(_that);case UploadPhase_Cancelled():
+return cancelled(_that);}
+}
+/// A variant of `map` that fallback to returning `null`.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case _:
+///     return null;
+/// }
+/// ```
+
+@optionalTypeArgs TResult? mapOrNull<TResult extends Object?>({TResult? Function( UploadPhase_Preparing value)?  preparing,TResult? Function( UploadPhase_Uploading value)?  uploading,TResult? Function( UploadPhase_Processing value)?  processing,TResult? Function( UploadPhase_Sending value)?  sending,TResult? Function( UploadPhase_Done value)?  done,TResult? Function( UploadPhase_Failed value)?  failed,TResult? Function( UploadPhase_Cancelled value)?  cancelled,}){
+final _that = this;
+switch (_that) {
+case UploadPhase_Preparing() when preparing != null:
+return preparing(_that);case UploadPhase_Uploading() when uploading != null:
+return uploading(_that);case UploadPhase_Processing() when processing != null:
+return processing(_that);case UploadPhase_Sending() when sending != null:
+return sending(_that);case UploadPhase_Done() when done != null:
+return done(_that);case UploadPhase_Failed() when failed != null:
+return failed(_that);case UploadPhase_Cancelled() when cancelled != null:
+return cancelled(_that);case _:
+  return null;
+
+}
+}
+/// A variant of `when` that fallback to an `orElse` callback.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case _:
+///     return orElse();
+/// }
+/// ```
+
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>({TResult Function()?  preparing,TResult Function()?  uploading,TResult Function()?  processing,TResult Function()?  sending,TResult Function()?  done,TResult Function( String message)?  failed,TResult Function()?  cancelled,required TResult orElse(),}) {final _that = this;
+switch (_that) {
+case UploadPhase_Preparing() when preparing != null:
+return preparing();case UploadPhase_Uploading() when uploading != null:
+return uploading();case UploadPhase_Processing() when processing != null:
+return processing();case UploadPhase_Sending() when sending != null:
+return sending();case UploadPhase_Done() when done != null:
+return done();case UploadPhase_Failed() when failed != null:
+return failed(_that.message);case UploadPhase_Cancelled() when cancelled != null:
+return cancelled();case _:
+  return orElse();
+
+}
+}
+/// A `switch`-like method, using callbacks.
+///
+/// As opposed to `map`, this offers destructuring.
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case Subclass2(:final field2):
+///     return ...;
+/// }
+/// ```
+
+@optionalTypeArgs TResult when<TResult extends Object?>({required TResult Function()  preparing,required TResult Function()  uploading,required TResult Function()  processing,required TResult Function()  sending,required TResult Function()  done,required TResult Function( String message)  failed,required TResult Function()  cancelled,}) {final _that = this;
+switch (_that) {
+case UploadPhase_Preparing():
+return preparing();case UploadPhase_Uploading():
+return uploading();case UploadPhase_Processing():
+return processing();case UploadPhase_Sending():
+return sending();case UploadPhase_Done():
+return done();case UploadPhase_Failed():
+return failed(_that.message);case UploadPhase_Cancelled():
+return cancelled();}
+}
+/// A variant of `when` that fallback to returning `null`
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case _:
+///     return null;
+/// }
+/// ```
+
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>({TResult? Function()?  preparing,TResult? Function()?  uploading,TResult? Function()?  processing,TResult? Function()?  sending,TResult? Function()?  done,TResult? Function( String message)?  failed,TResult? Function()?  cancelled,}) {final _that = this;
+switch (_that) {
+case UploadPhase_Preparing() when preparing != null:
+return preparing();case UploadPhase_Uploading() when uploading != null:
+return uploading();case UploadPhase_Processing() when processing != null:
+return processing();case UploadPhase_Sending() when sending != null:
+return sending();case UploadPhase_Done() when done != null:
+return done();case UploadPhase_Failed() when failed != null:
+return failed(_that.message);case UploadPhase_Cancelled() when cancelled != null:
+return cancelled();case _:
+  return null;
+
+}
+}
+
+}
+
+/// @nodoc
+
+
+class UploadPhase_Preparing extends UploadPhase {
+  const UploadPhase_Preparing(): super._();
+  
+
+
+
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is UploadPhase_Preparing);
+}
+
+
+@override
+int get hashCode => runtimeType.hashCode;
+
+@override
+String toString() {
+  return 'UploadPhase.preparing()';
+}
+
+
+}
+
+
+
+
+/// @nodoc
+
+
+class UploadPhase_Uploading extends UploadPhase {
+  const UploadPhase_Uploading(): super._();
+  
+
+
+
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is UploadPhase_Uploading);
+}
+
+
+@override
+int get hashCode => runtimeType.hashCode;
+
+@override
+String toString() {
+  return 'UploadPhase.uploading()';
+}
+
+
+}
+
+
+
+
+/// @nodoc
+
+
+class UploadPhase_Processing extends UploadPhase {
+  const UploadPhase_Processing(): super._();
+  
+
+
+
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is UploadPhase_Processing);
+}
+
+
+@override
+int get hashCode => runtimeType.hashCode;
+
+@override
+String toString() {
+  return 'UploadPhase.processing()';
+}
+
+
+}
+
+
+
+
+/// @nodoc
+
+
+class UploadPhase_Sending extends UploadPhase {
+  const UploadPhase_Sending(): super._();
+  
+
+
+
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is UploadPhase_Sending);
+}
+
+
+@override
+int get hashCode => runtimeType.hashCode;
+
+@override
+String toString() {
+  return 'UploadPhase.sending()';
+}
+
+
+}
+
+
+
+
+/// @nodoc
+
+
+class UploadPhase_Done extends UploadPhase {
+  const UploadPhase_Done(): super._();
+  
+
+
+
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is UploadPhase_Done);
+}
+
+
+@override
+int get hashCode => runtimeType.hashCode;
+
+@override
+String toString() {
+  return 'UploadPhase.done()';
+}
+
+
+}
+
+
+
+
+/// @nodoc
+
+
+class UploadPhase_Failed extends UploadPhase {
+  const UploadPhase_Failed({required this.message}): super._();
+  
+
+ final  String message;
+
+/// Create a copy of UploadPhase
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$UploadPhase_FailedCopyWith<UploadPhase_Failed> get copyWith => _$UploadPhase_FailedCopyWithImpl<UploadPhase_Failed>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is UploadPhase_Failed&&(identical(other.message, message) || other.message == message));
+}
+
+
+@override
+int get hashCode => Object.hash(runtimeType,message);
+
+@override
+String toString() {
+  return 'UploadPhase.failed(message: $message)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $UploadPhase_FailedCopyWith<$Res> implements $UploadPhaseCopyWith<$Res> {
+  factory $UploadPhase_FailedCopyWith(UploadPhase_Failed value, $Res Function(UploadPhase_Failed) _then) = _$UploadPhase_FailedCopyWithImpl;
+@useResult
+$Res call({
+ String message
+});
+
+
+
+
+}
+/// @nodoc
+class _$UploadPhase_FailedCopyWithImpl<$Res>
+    implements $UploadPhase_FailedCopyWith<$Res> {
+  _$UploadPhase_FailedCopyWithImpl(this._self, this._then);
+
+  final UploadPhase_Failed _self;
+  final $Res Function(UploadPhase_Failed) _then;
+
+/// Create a copy of UploadPhase
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? message = null,}) {
+  return _then(UploadPhase_Failed(
+message: null == message ? _self.message : message // ignore: cast_nullable_to_non_nullable
+as String,
+  ));
+}
+
+
+}
+
+/// @nodoc
+
+
+class UploadPhase_Cancelled extends UploadPhase {
+  const UploadPhase_Cancelled(): super._();
+  
+
+
+
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is UploadPhase_Cancelled);
+}
+
+
+@override
+int get hashCode => runtimeType.hashCode;
+
+@override
+String toString() {
+  return 'UploadPhase.cancelled()';
+}
+
+
+}
+
+
+
 
 /// @nodoc
 mixin _$VoiceConnectionState {

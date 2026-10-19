@@ -326,6 +326,8 @@ pub async fn delete_channel_overwrite(
     .await
 }
 
+/// `max_upload_bytes`: `None` leaves uploads to the member's other roles.
+#[allow(clippy::too_many_arguments)]
 pub async fn create_role(
     server_key: String,
     name: String,
@@ -333,10 +335,19 @@ pub async fn create_role(
     permissions: i64,
     hoist: bool,
     mentionable: bool,
+    max_upload_bytes: Option<u64>,
 ) -> Result<Role, CoreError> {
     on_runtime(move |client| async move {
         client
-            .create_role(&server_key, name, color, permissions, hoist, mentionable)
+            .create_role(
+                &server_key,
+                name,
+                color,
+                permissions,
+                hoist,
+                mentionable,
+                max_upload_bytes,
+            )
             .await
     })
     .await
@@ -1463,12 +1474,12 @@ pub fn soundboard_close_draft(draft_id: u64) -> Result<(), CoreError> {
     Ok(())
 }
 
-fn client() -> Result<Client, CoreError> {
+pub(crate) fn client() -> Result<Client, CoreError> {
     CLIENT.get().cloned().ok_or(CoreError::NotInitialized)
 }
 
 /// Runs `work` on the core's runtime, where connections live.
-async fn on_runtime<T, F>(work: impl FnOnce(Client) -> F) -> Result<T, CoreError>
+pub(crate) async fn on_runtime<T, F>(work: impl FnOnce(Client) -> F) -> Result<T, CoreError>
 where
     F: Future<Output = Result<T, CoreError>> + Send + 'static,
     T: Send + 'static,
