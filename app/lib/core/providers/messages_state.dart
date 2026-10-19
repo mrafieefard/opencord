@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 
+import 'package:opencord/core/model/attachment.dart';
 import 'package:opencord/core/model/message.dart';
 import 'package:opencord/core/repository/repository.dart';
 
@@ -165,6 +166,26 @@ ChannelMessages removePending(ChannelMessages state, String nonce) =>
       ],
     );
 
+ChannelMessages updatePendingUploads(
+  ChannelMessages state,
+  String nonce,
+  int fileIndex,
+  PendingUpload upload,
+) => state.copyWith(
+  pending: [
+    for (final message in state.pending)
+      if (message.nonce == nonce)
+        message.copyWith(
+          uploads: [
+            for (var i = 0; i < message.uploads.length; i++)
+              if (i == fileIndex) upload else message.uploads[i],
+          ],
+        )
+      else
+        message,
+  ],
+);
+
 /// Applies a message event for this channel.
 ChannelMessages reduceMessages(ChannelMessages state, RepoEvent event) {
   switch (event) {
@@ -181,6 +202,28 @@ ChannelMessages reduceMessages(ChannelMessages state, RepoEvent event) {
             if (message.id != messageId) message,
         ],
       );
+    case UploadProgressEvent(
+      :final nonce,
+      :final fileIndex,
+      :final sentBytes,
+      :final totalBytes,
+      :final phase,
+      :final error,
+    ):
+      final pendingMsg = state.pending
+          .where((m) => m.nonce == nonce)
+          .firstOrNull;
+      if (pendingMsg == null || fileIndex >= pendingMsg.uploads.length) {
+        return state;
+      }
+      final currentUpload = pendingMsg.uploads[fileIndex];
+      final updatedUpload = currentUpload.copyWith(
+        sent: sentBytes,
+        size: totalBytes > 0 ? totalBytes : currentUpload.size,
+        phase: phase,
+        error: () => error,
+      );
+      return updatePendingUploads(state, nonce, fileIndex, updatedUpload);
     default:
       return state;
   }

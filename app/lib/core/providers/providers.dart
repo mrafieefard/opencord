@@ -9,6 +9,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:opencord/core/hotkeys.dart';
 
+import 'package:opencord/core/model/attachment.dart';
 import 'package:opencord/core/model/message.dart';
 import 'package:opencord/core/model/misc.dart';
 import 'package:opencord/core/model/server.dart';
@@ -361,6 +362,8 @@ void _route(Ref ref, RepoEvent event) {
     case MessageCreated(:final message) || MessageUpdated(:final message):
       _toChannel(ref, key, message.channelId, event);
     case MessageDeleted(:final channelId):
+      _toChannel(ref, key, channelId, event);
+    case UploadProgressEvent(:final channelId):
       _toChannel(ref, key, channelId, event);
     case OwnVoiceChanged():
       ref.read(voiceSessionProvider.notifier).apply(event);
@@ -1121,6 +1124,7 @@ class ChannelMessagesNotifier extends Notifier<ChannelMessages> {
   /// when shown again, rather than every channel visited reloading at once
   /// after each new session (the server limits requests).
   var _shown = 0;
+  final _stagedByNonce = <String, List<StagedFile>>{};
 
   @override
   ChannelMessages build() {
@@ -1237,6 +1241,68 @@ class ChannelMessagesNotifier extends Notifier<ChannelMessages> {
     await _deliver(pending);
   }
 
+  Future<void> sendWithFiles(
+    String content,
+    List<StagedFile> files, {
+    int? replyToId,
+  }) async {
+    final text = content.trim();
+    if (text.isEmpty && files.isEmpty) return;
+    final now = ref.read(clockProvider)();
+    final nonce =
+        '${now.microsecondsSinceEpoch.toRadixString(36)}'
+        '${_nonces.nextInt(1 << 32).toRadixString(36)}';
+    final uploads = [
+      for (final file in files)
+        PendingUpload(
+          name: file.name,
+          size: file.size,
+          sent: 0,
+          phase: UploadPhase.preparing,
+          preview: file.preview,
+        ),
+    ];
+    final pending = Message(
+      id: -now.microsecondsSinceEpoch,
+      channelId: channel.channel,
+      authorId: ref.read(serverProvider(channel.server)).data?.self.id ?? 0,
+      content: text,
+      createdAt: now,
+      nonce: nonce,
+      replyToId: replyToId,
+      sendState: SendState.pending,
+      uploads: uploads,
+    );
+    _stagedByNonce[nonce] = List.of(files);
+    state = withPending(state, pending);
+    await _deliverWithFiles(pending, files);
+  }
+
+  Future<void> _deliverWithFiles(
+    Message pending,
+    List<StagedFile> files,
+  ) async {
+    try {
+      final sent = await _repository.sendMessageWithFiles(
+        channel.server,
+        channel.channel,
+        pending.content,
+        nonce: pending.nonce!,
+        files: files,
+      );
+      _stagedByNonce.remove(pending.nonce);
+      if (ref.mounted) state = resolvePending(state, sent);
+    } on RepoException catch (error) {
+      if (!ref.mounted) return;
+      state = failPending(state, pending.nonce!);
+      if (error.kind == RepoErrorKind.rateLimited) {
+        ref
+            .read(sendCooldownProvider(channel).notifier)
+            .start(error.retryAfter ?? const Duration(seconds: 5));
+      }
+    }
+  }
+
   Future<void> _deliver(Message pending) async {
     try {
       final sent = await _repository.sendMessage(
@@ -1264,10 +1330,22 @@ class ChannelMessagesNotifier extends Notifier<ChannelMessages> {
     if (failed == null) return;
     final again = failed.copyWith(sendState: SendState.pending);
     state = withPending(state, again);
-    await _deliver(again);
+    if (_stagedByNonce[nonce] case final files? when files.isNotEmpty) {
+      await _deliverWithFiles(again, files);
+    } else {
+      await _deliver(again);
+    }
   }
 
-  void discard(String nonce) => state = removePending(state, nonce);
+  void discard(String nonce) {
+    _stagedByNonce.remove(nonce);
+    state = removePending(state, nonce);
+  }
+
+  void cancelSend(String nonce) {
+    _repository.cancelSend(channel.server, nonce);
+    discard(nonce);
+  }
 
   Future<void> edit(int messageId, String content) => _repository.editMessage(
     channel.server,

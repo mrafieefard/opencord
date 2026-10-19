@@ -166,3 +166,19 @@ String formatFileSize(int bytes) {
   }
   return '${value.toStringAsFixed(1)} $unit';
 }
+
+/// Truncates a filename in the middle, keeping the extension intact:
+/// `very_long_file_name.png` -> `very_long…ame.png`.
+String middleEllipsis(String name, {int maxLength = 24}) {
+  if (name.length <= maxLength) return name;
+  final dot = name.lastIndexOf('.');
+  final ext = dot != -1 && dot > name.length - 10 ? name.substring(dot) : '';
+  final stem = ext.isNotEmpty ? name.substring(0, dot) : name;
+  final available = maxLength - 1 - ext.length;
+  if (available <= 3) {
+    return '${name.substring(0, maxLength - 1)}…';
+  }
+  final head = (available * 0.55).ceil();
+  final tail = available - head;
+  return '${stem.substring(0, head)}…${stem.substring(stem.length - tail)}$ext';
+}

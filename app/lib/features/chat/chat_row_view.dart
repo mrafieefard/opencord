@@ -88,6 +88,7 @@ class ChatRowActions {
     required this.links,
     required this.message,
     required this.onRetry,
+    this.onCancelSend,
     required this.onReaction,
     required this.onJumpTo,
     required this.onProfile,
@@ -99,6 +100,7 @@ class ChatRowActions {
   /// Reply, react, edit, the context menu (§4.5).
   final MessageActions message;
   final void Function(Message message) onRetry;
+  final void Function(Message message)? onCancelSend;
   final void Function(Message message, String emoji) onReaction;
   final void Function(int messageId) onJumpTo;
 
@@ -237,6 +239,9 @@ class ChatRowView extends StatelessWidget {
         onReaction: onReaction,
         onReplyTap: onReplyTap,
         onRetry: () => actions.onRetry(message),
+        onCancelSend: message.nonce != null
+            ? () => actions.onCancelSend?.call(message)
+            : null,
         onSelectionChanged: onSelectionChanged,
         onAuthorTap: () => actions.onProfile(message.authorId),
       ),

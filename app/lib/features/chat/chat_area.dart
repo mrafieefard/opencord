@@ -87,6 +87,7 @@ class _ChatAreaState extends ConsumerState<ChatArea> {
     bool unreachable, {
     required bool pins,
   }) => AttachmentDropZone(
+    channel: open,
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [

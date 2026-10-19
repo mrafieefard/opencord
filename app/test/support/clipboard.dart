@@ -9,6 +9,12 @@ class ClipboardSpy {
       if (call.method == 'Clipboard.setData') {
         copied = (call.arguments as Map)['text'] as String?;
       }
+      if (call.method == 'Clipboard.getData') {
+        return copied == null ? null : {'text': copied};
+      }
+      if (call.method == 'Clipboard.hasStrings') {
+        return {'value': copied != null && copied!.isNotEmpty};
+      }
       return null;
     });
     addTearDown(

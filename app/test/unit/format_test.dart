@@ -142,4 +142,20 @@ void main() {
       expect(formatFileSize(500 * 1024 * 1024), '500 MB');
     });
   });
+
+  group('middleEllipsis', () {
+    test('short names are unchanged', () {
+      expect(middleEllipsis('file.png'), 'file.png');
+    });
+
+    test('long names are truncated in the middle keeping extension', () {
+      final truncated = middleEllipsis(
+        'very_long_file_name_123456789.png',
+        maxLength: 20,
+      );
+      expect(truncated.length, lessThanOrEqualTo(20));
+      expect(truncated, contains('…'));
+      expect(truncated, endsWith('.png'));
+    });
+  });
 }

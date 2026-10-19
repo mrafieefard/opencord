@@ -437,6 +437,9 @@ class _MessageListState extends ConsumerState<MessageList>
       onRetry: (message) {
         if (message.nonce case final nonce?) _messages.retry(nonce);
       },
+      onCancelSend: (message) {
+        if (message.nonce case final nonce?) _messages.cancelSend(nonce);
+      },
       onReaction: (reacted, emoji) {
         if (reacted.sendState == SendState.sent) {
           message.toggleReaction(reacted, emoji);

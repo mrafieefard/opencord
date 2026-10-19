@@ -1,16 +1,19 @@
 import 'dart:async';
 
 import 'package:clock/clock.dart';
+import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:opencord/core/model/attachment.dart';
 import 'package:opencord/core/model/commands.dart';
 import 'package:opencord/core/format.dart';
 import 'package:opencord/core/model/message.dart';
 import 'package:opencord/core/model/permissions.dart';
 import 'package:opencord/core/providers/providers.dart';
 import 'package:opencord/core/repository/repository.dart';
+import 'package:opencord/features/chat/attachments/staged_tiles.dart';
 import 'package:opencord/features/chat/chat_controller.dart';
 import 'package:opencord/features/chat/composer_bar.dart';
 import 'package:opencord/features/chat/composer_state.dart';
@@ -345,11 +348,30 @@ class _ComposerState extends ConsumerState<Composer> {
     return KeyEventResult.ignored;
   }
 
-  /// Images cannot be sent yet: when what is pasted is not text, say so.
   Future<void> _checkPaste() async {
     final hasText = await Clipboard.hasStrings();
-    if (!hasText && mounted) {
-      showOcToast(context, 'Pasting images is coming in a later version.');
+    if (!hasText) {
+      final bytes = await ref.read(repositoryProvider).clipboardImage();
+      if (bytes != null) {
+        final now = ref.read(clockProvider)().toLocal();
+        final y = now.year.toString().padLeft(4, '0');
+        final m = now.month.toString().padLeft(2, '0');
+        final d = now.day.toString().padLeft(2, '0');
+        final h = now.hour.toString().padLeft(2, '0');
+        final min = now.minute.toString().padLeft(2, '0');
+        final s = now.second.toString().padLeft(2, '0');
+        final filename = 'pasted-image-$y$m$d-$h$min$s.png';
+        final id = '${now.microsecondsSinceEpoch}_${filename.hashCode}';
+        _composer.stageFile(
+          StagedFile(
+            id: id,
+            name: filename,
+            size: bytes.length,
+            bytes: bytes,
+            preview: bytes.length <= 20 * 1024 * 1024 ? bytes : null,
+          ),
+        );
+      }
     }
   }
 
@@ -410,9 +432,20 @@ class _ComposerState extends ConsumerState<Composer> {
       }
       return;
     }
-    if (text.isEmpty || _coolingDown) return;
+    if ((text.isEmpty && state.staged.isEmpty) ||
+        _coolingDown ||
+        state.hasProblem)
+      return;
+    final staged = List<StagedFile>.of(state.staged);
     _composer.sent();
-    unawaited(_messages.send(encoded, replyToId: state.replyTo?.id));
+    _composer.clearStaged();
+    if (staged.isNotEmpty) {
+      unawaited(
+        _messages.sendWithFiles(encoded, staged, replyToId: state.replyTo?.id),
+      );
+    } else {
+      unawaited(_messages.send(encoded, replyToId: state.replyTo?.id));
+    }
     unawaited(widget.controller.scrollToEnd());
   }
 
@@ -525,14 +558,41 @@ class _ComposerState extends ConsumerState<Composer> {
                       onTap: () => widget.controller.jumpToMessage(about.id),
                       onClose: _composer.cancel,
                     ),
+                  if (state.staged.isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: OcSpace.s8),
+                      child: StagedTiles(
+                        files: state.staged,
+                        limit: data.myUploadLimit,
+                        onRemove: _composer.removeStaged,
+                      ),
+                    ),
                   Row(
                     crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
-                      const Padding(
-                        padding: EdgeInsets.only(bottom: 2),
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 2),
                         child: OcIconButton(
                           icon: OcIcons.attachFile,
-                          tooltip: 'Attachments are coming in a later version',
+                          tooltip:
+                              data
+                                  .permissionsIn(_channel.channel)
+                                  .has(Permissions.attachFiles)
+                              ? 'Attach files · up to ${formatFileSize(data.myUploadLimit)} each'
+                              : "You can't attach files here",
+                          onPressed:
+                              data
+                                  .permissionsIn(_channel.channel)
+                                  .has(Permissions.attachFiles)
+                              ? () async {
+                                  final files = await openFiles();
+                                  if (files.isNotEmpty) {
+                                    await _composer.stagePaths(
+                                      files.map((f) => f.path).toList(),
+                                    );
+                                  }
+                                }
+                              : null,
                         ),
                       ),
                       const SizedBox(width: OcSpace.s4),
@@ -548,7 +608,10 @@ class _ComposerState extends ConsumerState<Composer> {
                         ),
                       Padding(
                         padding: const EdgeInsets.only(bottom: 2),
-                        child: hasText || editing != null
+                        child:
+                            hasText ||
+                                editing != null ||
+                                state.staged.isNotEmpty
                             ? OcIconButton(
                                 icon: editing != null
                                     ? OcIcons.check
@@ -556,7 +619,9 @@ class _ComposerState extends ConsumerState<Composer> {
                                 tooltip: editing != null ? 'Save' : 'Send',
                                 active: true,
                                 activeStyle: OcActiveStyle.inverted,
-                                onPressed: cooldown != null && editing == null
+                                onPressed:
+                                    (cooldown != null && editing == null) ||
+                                        state.hasProblem
                                     ? null
                                     : _submit,
                               )
@@ -587,7 +652,10 @@ class _ComposerState extends ConsumerState<Composer> {
   void _measured(double height) {
     if (!mounted || _text.text.isNotEmpty) return;
     final state = ref.read(composerProvider(_channel));
-    if (state.editing != null || state.replyTo != null) return;
+    if (state.editing != null ||
+        state.replyTo != null ||
+        state.staged.isNotEmpty)
+      return;
     ref.read(restingComposerHeightProvider.notifier).set(height);
   }
 

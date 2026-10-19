@@ -63,7 +63,12 @@ class MockServer {
   final List<Invite> invites = [];
   final List<Ban> bans = [];
   VoiceSettings voiceSettings = const VoiceSettings();
-  UploadSettings uploadSettings = UploadSettings.fallback;
+  UploadSettings uploadSettings = const UploadSettings(
+    blockedExtensions: [],
+    voiceMessageMaxSeconds: 300,
+    maxFileBytes: 50 * 1024 * 1024,
+    maxAttachments: 10,
+  );
   StorageInfo storage = const StorageInfo(
     backends: [
       StorageBackend(
