@@ -22,6 +22,7 @@ import 'package:opencord/ui/widgets/oc_text_field.dart';
 import 'package:opencord/ui/widgets/settings.dart';
 import 'package:opencord/ui/widgets/toast.dart';
 import 'package:opencord/ui/widgets/oc_menu.dart';
+import 'package:opencord/ui/widgets/popover.dart';
 import 'package:opencord/ui/widgets/ellipsis_text.dart';
 
 /// What the current user may do with roles: whom they outrank and which
@@ -309,8 +310,13 @@ class _RoleEditor extends ConsumerStatefulWidget {
 class _RoleEditorState extends ConsumerState<_RoleEditor> {
   late final _name = TextEditingController(text: widget.role.name)
     ..addListener(() => setState(() {}));
+  late final _limitController = TextEditingController()
+    ..addListener(() => setState(() {}));
+  String _unit = 'MB';
+  bool _notSet = false;
   Map<Object, bool Function()>? _unsaved;
   var _saving = false;
+  var _savingLimit = false;
   String? _error;
 
   OpencordRepository get _repository => ref.read(repositoryProvider);
@@ -318,16 +324,113 @@ class _RoleEditorState extends ConsumerState<_RoleEditor> {
   bool get _nameChanged =>
       _name.text.trim().isNotEmpty && _name.text.trim() != widget.role.name;
 
+  int? get _parsedBytes {
+    if (_notSet) return 0;
+    final num = int.tryParse(_limitController.text.trim());
+    if (num == null) return null;
+    return num * (_unit == 'GB' ? 1024 * 1024 * 1024 : 1024 * 1024);
+  }
+
+  String? get _limitError {
+    if (_notSet) {
+      if (widget.everyone) return 'A limit is required for @everyone';
+      return null;
+    }
+    final text = _limitController.text.trim();
+    if (text.isEmpty) return 'Enter a number';
+    final num = int.tryParse(text);
+    if (num == null || num <= 0) return 'Enter a valid positive number';
+    final bytes = num * (_unit == 'GB' ? 1024 * 1024 * 1024 : 1024 * 1024);
+    if (bytes < 1024 * 1024) return 'Must be at least 1 MB';
+
+    final data = ref.read(serverProvider(widget.serverKey)).data;
+    if (data == null) return null;
+
+    final ceiling = data.uploadSettings.maxFileBytes;
+    if (bytes > ceiling) {
+      return 'Cannot exceed server maximum (${formatFileSize(ceiling)})';
+    }
+
+    if (!data.isOwner && bytes > data.myUploadLimit) {
+      return "You can't set more than your own limit (${formatFileSize(data.myUploadLimit)})";
+    }
+
+    return null;
+  }
+
+  bool get _limitChanged {
+    final current = widget.role.maxUploadBytes;
+    if (_notSet) {
+      return current != null && current > 0;
+    }
+    final bytes = _parsedBytes;
+    if (bytes == null) return false;
+    if (current == null) {
+      if (widget.everyone) {
+        final data = ref.read(serverProvider(widget.serverKey)).data;
+        final defaultCeiling =
+            data?.uploadSettings.maxFileBytes ?? (50 * 1024 * 1024);
+        return bytes != defaultCeiling;
+      }
+      return true;
+    }
+    return bytes != current;
+  }
+
+  bool get _hasUnsaved => _nameChanged || _limitChanged;
+
+  @override
+  void initState() {
+    super.initState();
+    _initUploadLimit();
+  }
+
+  void _initUploadLimit() {
+    final current = widget.role.maxUploadBytes;
+    if (current != null && current > 0) {
+      _notSet = false;
+      if (current >= 1024 * 1024 * 1024 &&
+          current % (1024 * 1024 * 1024) == 0) {
+        _unit = 'GB';
+        _limitController.text = (current ~/ (1024 * 1024 * 1024)).toString();
+      } else {
+        _unit = 'MB';
+        _limitController.text = (current ~/ (1024 * 1024)).toString();
+      }
+    } else {
+      if (widget.everyone) {
+        _notSet = false;
+        final data = ref.read(serverProvider(widget.serverKey)).data;
+        final ceiling = data?.uploadSettings.maxFileBytes ?? (50 * 1024 * 1024);
+        _unit = 'MB';
+        _limitController.text = (ceiling ~/ (1024 * 1024)).toString();
+      } else {
+        _notSet = true;
+        _unit = 'MB';
+        _limitController.text = '';
+      }
+    }
+  }
+
+  @override
+  void didUpdateWidget(_RoleEditor oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.role.maxUploadBytes != widget.role.maxUploadBytes) {
+      _initUploadLimit();
+    }
+  }
+
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    _unsaved = SettingsScope.of(context)?..[this] = () => _nameChanged;
+    _unsaved = SettingsScope.of(context)?..[this] = () => _hasUnsaved;
   }
 
   @override
   void dispose() {
     _unsaved?.remove(this);
     _name.dispose();
+    _limitController.dispose();
     super.dispose();
   }
 
@@ -354,6 +457,25 @@ class _RoleEditorState extends ConsumerState<_RoleEditor> {
       if (mounted) setState(() => _error = error.message);
     }
     if (mounted) setState(() => _saving = false);
+  }
+
+  Future<void> _saveLimit() async {
+    if (!_limitChanged || _limitError != null) return;
+    setState(() {
+      _savingLimit = true;
+      _error = null;
+    });
+    try {
+      final bytes = _parsedBytes ?? 0;
+      await _repository.updateRole(
+        widget.serverKey,
+        widget.role.id,
+        maxUploadBytes: bytes,
+      );
+    } on RepoException catch (error) {
+      if (mounted) setState(() => _error = error.message);
+    }
+    if (mounted) setState(() => _savingLimit = false);
   }
 
   Future<void> _delete() async {
@@ -436,6 +558,105 @@ class _RoleEditorState extends ConsumerState<_RoleEditor> {
                     : null,
               ),
             ],
+            Padding(
+              padding: const EdgeInsets.symmetric(
+                horizontal: OcSpace.s16,
+                vertical: OcSpace.s12,
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OcTextField(
+                          key: const Key('role-max-upload-size'),
+                          controller: _limitController,
+                          enabled: editable && !_notSet,
+                          semanticLabel: 'Max upload size',
+                          hint: 'Max upload size',
+                          inputFormatters: [
+                            FilteringTextInputFormatter.digitsOnly,
+                          ],
+                          onSubmitted: (_) {
+                            if (editable &&
+                                _limitChanged &&
+                                _limitError == null) {
+                              _saveLimit();
+                            }
+                          },
+                        ),
+                      ),
+                      const SizedBox(width: OcSpace.s8),
+                      Builder(
+                        builder: (btnContext) => OcButton(
+                          label: _unit,
+                          dense: true,
+                          icon: OcIcons.expandMore,
+                          onPressed: editable && !_notSet
+                              ? () {
+                                  final rect = globalRectOf(btnContext);
+                                  showOcMenu(
+                                    context: context,
+                                    position: rect.bottomLeft.translate(0, 4),
+                                    entries: [
+                                      OcMenuItem(
+                                        label: 'MB',
+                                        checked: _unit == 'MB',
+                                        onSelected: () =>
+                                            setState(() => _unit = 'MB'),
+                                      ),
+                                      OcMenuItem(
+                                        label: 'GB',
+                                        checked: _unit == 'GB',
+                                        onSelected: () =>
+                                            setState(() => _unit = 'GB'),
+                                      ),
+                                    ],
+                                  );
+                                }
+                              : null,
+                        ),
+                      ),
+                      if (!widget.everyone) ...[
+                        const SizedBox(width: OcSpace.s12),
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Checkbox(
+                              value: _notSet,
+                              onChanged: editable
+                                  ? (val) {
+                                      setState(() {
+                                        _notSet = val ?? false;
+                                      });
+                                    }
+                                  : null,
+                            ),
+                            Text(
+                              'Not set',
+                              style: OcText.body.copyWith(color: colors.text),
+                            ),
+                          ],
+                        ),
+                      ],
+                      if (_limitChanged && _limitError == null) ...[
+                        const SizedBox(width: OcSpace.s8),
+                        OcButton.primary(
+                          label: 'Save',
+                          busy: _savingLimit,
+                          onPressed: editable ? _saveLimit : null,
+                        ),
+                      ],
+                    ],
+                  ),
+                  if (_limitError case final err?) ...[
+                    const SizedBox(height: OcSpace.s8),
+                    InlineError(err),
+                  ],
+                ],
+              ),
+            ),
           ],
         ),
         if (_error case final error?) ...[

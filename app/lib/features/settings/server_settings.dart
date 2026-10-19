@@ -12,6 +12,8 @@ import 'package:opencord/features/settings/server/network/network_page.dart';
 import 'package:opencord/features/settings/server/overview_page.dart';
 import 'package:opencord/features/settings/server/roles_page.dart';
 import 'package:opencord/features/settings/server/soundboard_page.dart';
+import 'package:opencord/features/settings/server/storage_page.dart';
+import 'package:opencord/features/settings/server/uploads_page.dart';
 import 'package:opencord/features/settings/server/voice_page.dart';
 import 'package:opencord/features/settings/settings_dialog.dart';
 import 'package:opencord/ui/theme/oc_icons.dart';
@@ -93,6 +95,22 @@ List<SettingsPage> serverSettingsPages(
       icon: OcIcons.shieldPerson,
       group: 'Server',
       builder: (_) => ServerRolesPage(serverKey: serverKey),
+    ),
+  if (data.can(Permissions.manageServer))
+    SettingsPage(
+      id: 'uploads',
+      label: 'Uploads',
+      icon: OcIcons.upload,
+      group: 'Server',
+      builder: (_) => ServerUploadsPage(serverKey: serverKey),
+    ),
+  if (data.isOwner)
+    SettingsPage(
+      id: 'storage',
+      label: 'Storage',
+      icon: OcIcons.storage,
+      group: 'Server',
+      builder: (_) => ServerStoragePage(serverKey: serverKey),
     ),
   if (data.can(Permissions.kickMembers) ||
       data.can(Permissions.banMembers) ||

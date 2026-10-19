@@ -4331,13 +4331,17 @@ class MockRepository implements OpencordRepository {
     return updated;
   }
 
+  int _mediaCacheSize = 12 * 1024 * 1024;
+
   @override
   Future<int> mediaCacheSize() async {
-    return 0;
+    return _mediaCacheSize;
   }
 
   @override
-  Future<void> clearMediaCache() async {}
+  Future<void> clearMediaCache() async {
+    _mediaCacheSize = 0;
+  }
 }
 
 /// [domain] with some fields changed.

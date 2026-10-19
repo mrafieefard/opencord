@@ -33,34 +33,101 @@ class BehaviorPage extends ConsumerWidget {
     // Only Linux has a tray yet (D21); on a Mac, closing the window keeps
     // Opencord in the Dock anyway.
     final tray = Theme.of(context).platform == TargetPlatform.linux;
-    return SettingsSection(
-      title: 'Window',
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        if (tray) ...[
-          SettingsSwitchRow(
-            title: 'Close button minimizes to the tray',
-            subtitle: 'Messages keep arriving in the background',
-            value: settings.closeToTray,
-            onChanged: (value) => update((s) => s.copyWith(closeToTray: value)),
-          ),
-          SettingsSwitchRow(
-            title: 'Start minimized',
-            subtitle: 'When Opencord starts at login',
-            value: settings.startMinimized,
-            onChanged: (value) =>
-                update((s) => s.copyWith(startMinimized: value)),
-          ),
-        ],
-        SettingsSwitchRow(
-          title: 'Launch at login',
-          value: settings.launchAtLogin,
-          onChanged: (value) => update((s) => s.copyWith(launchAtLogin: value)),
+        SettingsSection(
+          title: 'Window',
+          children: [
+            if (tray) ...[
+              SettingsSwitchRow(
+                title: 'Close button minimizes to the tray',
+                subtitle: 'Messages keep arriving in the background',
+                value: settings.closeToTray,
+                onChanged: (value) =>
+                    update((s) => s.copyWith(closeToTray: value)),
+              ),
+              SettingsSwitchRow(
+                title: 'Start minimized',
+                subtitle: 'When Opencord starts at login',
+                value: settings.startMinimized,
+                onChanged: (value) =>
+                    update((s) => s.copyWith(startMinimized: value)),
+              ),
+            ],
+            SettingsSwitchRow(
+              title: 'Launch at login',
+              value: settings.launchAtLogin,
+              onChanged: (value) =>
+                  update((s) => s.copyWith(launchAtLogin: value)),
+            ),
+            SettingsSwitchRow(
+              title: 'Restore the last window position',
+              value: settings.restoreWindowPosition,
+              onChanged: (value) =>
+                  update((s) => s.copyWith(restoreWindowPosition: value)),
+            ),
+          ],
         ),
-        SettingsSwitchRow(
-          title: 'Restore the last window position',
-          value: settings.restoreWindowPosition,
-          onChanged: (value) =>
-              update((s) => s.copyWith(restoreWindowPosition: value)),
+        const SizedBox(height: OcSpace.s24),
+        const _MediaCacheSection(),
+      ],
+    );
+  }
+}
+
+class _MediaCacheSection extends ConsumerStatefulWidget {
+  const _MediaCacheSection();
+
+  @override
+  ConsumerState<_MediaCacheSection> createState() => _MediaCacheSectionState();
+}
+
+class _MediaCacheSectionState extends ConsumerState<_MediaCacheSection> {
+  int? _size;
+  var _clearing = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    final size = await ref.read(repositoryProvider).mediaCacheSize();
+    if (mounted) setState(() => _size = size);
+  }
+
+  Future<void> _clear() async {
+    setState(() => _clearing = true);
+    try {
+      await ref.read(repositoryProvider).clearMediaCache();
+      final size = await ref.read(repositoryProvider).mediaCacheSize();
+      if (mounted) {
+        setState(() => _size = size);
+        showOcToast(context, 'Media cache cleared');
+      }
+    } finally {
+      if (mounted) setState(() => _clearing = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final size = _size;
+    return SettingsSection(
+      title: 'Media cache',
+      footer:
+          'Downloaded images, audio, video and files cached on this device.',
+      children: [
+        SettingsRow(
+          title: size != null ? formatFileSize(size) : 'Calculating…',
+          trailing: OcButton(
+            label: 'Clear',
+            dense: true,
+            busy: _clearing,
+            onPressed: size != null && size > 0 ? _clear : null,
+          ),
         ),
       ],
     );

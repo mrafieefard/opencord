@@ -167,3 +167,38 @@ StageProblem? stageProblem({
   if (isBlocked(sanitizeFilename(name), blocked)) return StageProblem.blocked;
   return null;
 }
+
+/// The standard preset of program and executable file extensions to block.
+const blockProgramsPreset = [
+  'exe',
+  'msi',
+  'msix',
+  'appx',
+  'bat',
+  'cmd',
+  'com',
+  'scr',
+  'pif',
+  'cpl',
+  'ps1',
+  'psm1',
+  'vbs',
+  'vbe',
+  'js',
+  'jse',
+  'wsf',
+  'wsh',
+  'hta',
+  'lnk',
+  'reg',
+  'jar',
+  'apk',
+  'app',
+  'dmg',
+  'pkg',
+  'deb',
+  'rpm',
+  'appimage',
+  'sh',
+  'run',
+];
