@@ -1,4 +1,3 @@
-import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -10,6 +9,7 @@ import 'package:opencord/ui/theme/oc_colors.dart';
 import 'package:opencord/ui/theme/oc_icons.dart';
 import 'package:opencord/ui/theme/oc_metrics.dart';
 import 'package:opencord/ui/theme/oc_text.dart';
+import 'package:opencord/ui/theme/oc_theme.dart';
 import 'package:opencord/ui/widgets/oc_button.dart';
 
 Future<void> showMediaViewer(
@@ -18,14 +18,20 @@ Future<void> showMediaViewer(
   required List<Attachment> media,
   required int index,
 }) {
-  final colors = context.oc;
   return Navigator.of(context, rootNavigator: true).push<void>(
     PageRouteBuilder<void>(
       opaque: false,
       barrierDismissible: true,
-      barrierColor: colors.scrim,
-      pageBuilder: (context, animation, secondaryAnimation) =>
-          MediaViewer(serverKey: serverKey, media: media, initialIndex: index),
+      barrierColor: OcColors.dark.scrim,
+      // Dark in either theme: everything here sits on the dark scrim.
+      pageBuilder: (context, animation, secondaryAnimation) => Theme(
+        data: buildTheme(OcColors.dark),
+        child: MediaViewer(
+          serverKey: serverKey,
+          media: media,
+          initialIndex: index,
+        ),
+      ),
       transitionsBuilder: (context, animation, secondaryAnimation, child) {
         return FadeTransition(opacity: animation, child: child);
       },
@@ -86,22 +92,6 @@ class _MediaViewerState extends ConsumerState<MediaViewer> {
     }
   }
 
-  void _handlePointerSignal(PointerSignalEvent event) {
-    if (event is PointerScrollEvent) {
-      final double zoomFactor = event.scrollDelta.dy < 0 ? 1.15 : 0.85;
-      final currentScale = _transformController.value.getMaxScaleOnAxis();
-      final targetScale = (currentScale * zoomFactor).clamp(1.0, 8.0);
-      final effectiveFactor = targetScale / currentScale;
-
-      final focalPoint = event.localPosition;
-      final Matrix4 matrix = _transformController.value.clone();
-      matrix.translateByDouble(focalPoint.dx, focalPoint.dy, 0.0, 1.0);
-      matrix.scaleByDouble(effectiveFactor, effectiveFactor, 1.0, 1.0);
-      matrix.translateByDouble(-focalPoint.dx, -focalPoint.dy, 0.0, 1.0);
-      _transformController.value = matrix;
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final colors = context.oc;
@@ -124,15 +114,13 @@ class _MediaViewerState extends ConsumerState<MediaViewer> {
             fit: StackFit.expand,
             children: [
               // Media Content (centered)
+              // InteractiveViewer zooms on the mouse wheel itself.
               Center(
-                child: Listener(
-                  onPointerSignal: _handlePointerSignal,
-                  child: InteractiveViewer(
-                    transformationController: _transformController,
-                    minScale: 1.0,
-                    maxScale: 8.0,
-                    child: _buildMediaContent(context, current),
-                  ),
+                child: InteractiveViewer(
+                  transformationController: _transformController,
+                  minScale: 1.0,
+                  maxScale: 8.0,
+                  child: _buildMediaContent(context, current),
                 ),
               ),
 
@@ -145,7 +133,7 @@ class _MediaViewerState extends ConsumerState<MediaViewer> {
                   child: Center(
                     child: IconButton(
                       icon: const Icon(OcIcons.chevronLeft, size: 32),
-                      color: OcColors.dark.text,
+                      color: colors.text,
                       tooltip: 'Previous',
                       onPressed: _previous,
                     ),
@@ -161,7 +149,7 @@ class _MediaViewerState extends ConsumerState<MediaViewer> {
                   child: Center(
                     child: IconButton(
                       icon: const Icon(OcIcons.chevronRight, size: 32),
-                      color: OcColors.dark.text,
+                      color: colors.text,
                       tooltip: 'Next',
                       onPressed: _next,
                     ),
@@ -182,9 +170,7 @@ class _MediaViewerState extends ConsumerState<MediaViewer> {
                       Expanded(
                         child: Text(
                           middleEllipsis(current.filename, maxLength: 36),
-                          style: OcText.bodyStrong.copyWith(
-                            color: OcColors.dark.text,
-                          ),
+                          style: OcText.bodyStrong.copyWith(color: colors.text),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         ),
@@ -210,7 +196,7 @@ class _MediaViewerState extends ConsumerState<MediaViewer> {
                       const SizedBox(width: OcSpace.s8),
                       IconButton(
                         icon: const Icon(OcIcons.close),
-                        color: OcColors.dark.text,
+                        color: colors.text,
                         tooltip: 'Close',
                         onPressed: () => Navigator.of(context).pop(),
                       ),

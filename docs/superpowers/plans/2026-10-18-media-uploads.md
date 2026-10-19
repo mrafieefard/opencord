@@ -8173,7 +8173,7 @@ Future<void> clearMediaCache();
 
 - [ ] **Step 1: Write unit tests** (in `processor.rs` tests; reuse the module's helpers):
   - `the_tap_gets_processed_ticks_and_silence_reaches_the_call` (feed a sine; the tap receives 480-sample ticks; with `silence_call` every encoded frame decodes to energy < −60 dBFS);
-  - `local_media_is_played_and_heard_by_the_echo_canceller` (output contains the samples; the AEC reference sees them; follow how the existing `shared_sound` test checks the reference).
+  - `local_media_is_played_and_heard_by_the_echo_canceller` (output contains the samples; the AEC reference sees them; follow `the_sound_bob_shares_is_not_sent_again_through_his_microphone` and its helper `sent_while_sharing`, which check the reference for shared sound).
 - [ ] **Step 2:** FAIL. **Step 3:** Implement. **Step 4:** PASS (`cargo test -p opencord-media audio::processor`).
 - [ ] **Step 5: Commit:** `feat: audio engine tap and local media mix (A6)`.
 
@@ -8192,7 +8192,7 @@ Future<void> clearMediaCache();
   - `pub fn voice_record_stop() -> Result<VoiceDraft, CoreError>`
   - `pub fn voice_record_cancel()`
   - `pub fn voice_draft_discard(draft_id: u64)`
-  - `pub async fn send_voice_message(server_key: String, channel_id: i64, nonce: String, draft_id: u64) -> Result<Message, CoreError>`: uses Task 18's manager (`attachments::upload::send`, which gains the upload kind as an argument; it sends FILE until then) with an in-memory source, kind VOICE_MESSAGE, filename `voice-message.ogg`, empty content; the draft is removed after success.
+  - `pub async fn send_voice_message(server_key: String, channel_id: i64, nonce: String, draft_id: u64) -> Result<Message, CoreError>`: uses Task 18's manager, `attachments::upload::send(client, key, channel_id, content, nonce, files)`. It gains the upload kind as an argument: its per-file helper writes `kind: proto::AttachmentKind::File` into `CreateUpload` today. Send the draft as `OutgoingFile { path: None, bytes: Some(ogg), filename }`, kind VOICE_MESSAGE, filename `voice-message.ogg`, empty content; the draft is removed after success.
 - **Recorder thread** (`opencord-voice-recorder`), with the input source chosen at start:
   - **In a call** (`call_engine()` is Some): `engine.set_capture_tap(Some(producer), true)`; the ticks are already processed. On stop or cancel, `set_capture_tap(None, false)`.
     - The recorder sees the engine only through `pub(crate) trait TapEngine: Send + Sync { fn set_capture_tap(&self, tap: Option<rtrb::Producer<f32>>, silence_call: bool); }`, implemented for `AudioEngine`, so tests can pass a fake.
@@ -8243,7 +8243,7 @@ Future<void> clearMediaCache();
   - `OpusFile::read` → the packet list.
   - Sample position of each packet via `opus::packet::get_nb_samples(packet, 48_000)`.
   - Seek to the packet containing `position − 80 ms`; decode from there, discarding samples until `position`.
-  - Decode mono f32 → `wsola::TimeStretch` (`set_tempo(speed)`; first verify in a test that tempo 2.0 halves the duration) → output.
+  - Decode mono f32 → `wsola::TimeStretch` → output. Its API (0.2.0, MIT): `TimeStretch::new(NonZeroU32 rate, NonZeroU16 channels)`, `set_tempo(f32)`, `push(&[f32])`, `pull(max) -> impl Iterator<Item = f32>`, `flush()`, `reset()`. First verify in a test that tempo 2.0 halves the duration.
   - **Output:**
     - in a call: `engine.set_local_media(Some(consumer))` with interleaved stereo 48 kHz (duplicate mono), and `None` when done;
     - otherwise `Speaker::open(settings.output_device)` on the player thread with `ToDevice::new(rate, channels)`, applying the user's output volume.
@@ -8261,7 +8261,7 @@ Future<void> clearMediaCache();
 
 **Files:**
 - Create: `app/lib/features/chat/voice/{mic_button.dart,recording_bar.dart,waveform_painter.dart,voice_recorder_state.dart}`.
-- Modify: `features/chat/composer.dart` (replace the toast mic with `MicButton`; swap the field for `RecordingBar` while recording), `core/repository/repository.dart` (+ rust and mock: `voiceRecordStart(int maxSeconds)`, `voiceRecordStop() -> VoiceDraft`, `voiceRecordCancel()`, `voiceDraftDiscard(int id)`, `sendVoiceMessage(server, channel, nonce, draftId)`, a stream of `VoiceRecordLevel`/`VoiceRecordStopped` from the existing media event wiring; search `mediaEventStream` in `app/lib`), the voice panel (find the widget showing the call's own status; show "Recording a voice message" while recording in a call).
+- Modify: `features/chat/composer.dart` (replace the toast mic with `MicButton`; swap the field for `RecordingBar` while recording), `core/repository/repository.dart` (+ rust and mock: `voiceRecordStart(int maxSeconds)`, `voiceRecordStop() -> VoiceDraft`, `voiceRecordCancel()`, `voiceDraftDiscard(int id)`, `sendVoiceMessage(server, channel, nonce, draftId)`, a stream of `VoiceRecordLevel`/`VoiceRecordStopped` from the existing media event wiring: `rust_repository.dart` listens with `_core.mediaEventStream().listen(_onMediaEvent)`), `core/model/permissions.dart` and `features/settings/server/permission_info.dart` (below), the voice panel (find the widget showing the call's own status; show "Recording a voice message" while recording in a call).
 
 **Interfaces:**
 - `enum RecordingPhase { idle, holding, cancelling, locked, preview }`
@@ -8273,6 +8273,7 @@ Future<void> clearMediaCache();
   - Keyboard: with the mic focused, Space down/up behave the same.
   - Esc cancels while holding or locked.
   - The button is hidden without `sendVoiceMessages` in the channel, and shows only when the field is empty (as today).
+  - The Dart model has no such permission yet. Add `static const sendVoiceMessages = Permissions(1 << 14)` (Rust's `SEND_VOICE_MESSAGES`), add the bit to `defaultEveryone` as Rust's `DEFAULT_EVERYONE` has it, and add a "Send voice messages" row after "Attach files" in `permission_info.dart`.
 - **`RecordingBar`** (same height as the field):
   - left: a 10 px dot in `recording` (opacity pulsing 1.0 ↔ 0.4 every 600 ms) and the timer `m:ss`;
   - middle: the live waveform (`WaveformPainter.live`), one bar per 100 ms (the max level received in that window), 3 px bars with 2 px gaps, drawn in `voice`, the newest at the right, scrolling left;
@@ -8282,6 +8283,8 @@ Future<void> clearMediaCache();
   - **Preview** (after Stop): play/pause plus the static waveform from `draft.waveform` (played part in `voice`) plus the duration, then Delete and Send.
   - `VoiceRecordStopped{maxLength}`: holding → send; locked → go to preview.
 - **Sending:** a pending message with a local voice attachment (the draft waveform and duration) shows immediately; then `sendVoiceMessage`; success → resolvePending; failure → failPending (Retry re-sends the same draft).
+  - Follow A5's file sending in `ChannelMessagesNotifier` (`providers.dart`): `sendWithFiles`, `_deliverWithFiles` and `retry` keep each message's files by nonce for Retry. Keep the draft id the same way, and call `voiceDraftDiscard` when the pending message is discarded or sent.
+- **Icons:** `mic`, `stop`, `send`, `delete`, `pause` and `playArrow` exist; there is no `play`.
 
 - [ ] **Step 1: Write widget tests** (`app/test/widget/chat/voice_recording_test.dart`, mock repository with a fake level stream):
   - `hold_shows_the_bar_and_release_sends`;
@@ -8307,7 +8310,8 @@ Future<void> clearMediaCache();
 - Time: idle `m:ss` of the total; playing `m:ss / m:ss`.
 - A speed chip cycling 1× → 1.5× → 2× (`voiceSetSpeed` while playing; remembered per bubble).
 - Tap or drag on the bars seeks.
-- The right-click menu has Download.
+- The right-click menu has Download: reuse `showAttachmentMenu` from `features/chat/attachments/download.dart`.
+- `AttachmentsView` sends every non-image to `FileCard` today; route `voiceMessage` to `VoiceBubble`.
 
 - [ ] **Step 1: Write tests:**
   - **Widget:** `voice_bubble_plays_seeks_and_changes_speed`;
@@ -8321,7 +8325,7 @@ Future<void> clearMediaCache();
 - record during a call: the other side hears silence, and the recording has no echo;
 - play during a call on speakers: the other side doesn't hear it.
 
-Then **D58**, ledger, report.
+Then the ledger, then **D58** ("Media uploads: voice messages (Phase 4 A6, <date>)"), written from `git diff` as `GEMINI.md` → "Write docs from the code" says, then report.
 
 ---
 

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:opencord/core/format.dart';
 import 'package:opencord/core/model/attachment.dart';
+import 'package:opencord/features/chat/attachments/file_icon.dart';
 import 'package:opencord/ui/theme/oc_colors.dart';
 import 'package:opencord/ui/theme/oc_icons.dart';
 import 'package:opencord/ui/theme/oc_metrics.dart';
@@ -37,23 +38,14 @@ class _UploadRow extends StatelessWidget {
   final PendingUpload upload;
   final VoidCallback? onCancel;
 
-  IconData _iconFor(String name) {
-    final ext = name.split('.').last.toLowerCase();
-    return switch (ext) {
-      'png' || 'jpg' || 'jpeg' || 'gif' || 'webp' => OcIcons.image,
-      'mp4' || 'mov' || 'webm' || 'mkv' => OcIcons.movie,
-      'mp3' || 'ogg' || 'wav' || 'flac' || 'm4a' => OcIcons.audioFile,
-      'zip' || '7z' || 'rar' || 'tar' || 'gz' => OcIcons.folderZip,
-      'txt' || 'md' || 'log' || 'json' || 'csv' => OcIcons.article,
-      _ => OcIcons.description,
-    };
-  }
-
   @override
   Widget build(BuildContext context) {
     final colors = context.oc;
     final isProcessing = upload.phase == UploadPhase.processing;
     final isDone = upload.phase == UploadPhase.done;
+    final failure = upload.phase == UploadPhase.failed
+        ? upload.error ?? "Couldn't upload"
+        : null;
     final progress = upload.size > 0
         ? (upload.sent / upload.size).clamp(0.0, 1.0)
         : 0.0;
@@ -66,7 +58,7 @@ class _UploadRow extends StatelessWidget {
           Row(
             children: [
               Icon(
-                _iconFor(upload.name),
+                fileIcon(upload.name),
                 size: 16,
                 color: colors.textSecondary,
               ),
@@ -83,7 +75,7 @@ class _UploadRow extends StatelessWidget {
               Text(
                 isProcessing
                     ? 'Processing…'
-                    : isDone
+                    : isDone || failure != null
                     ? formatFileSize(upload.size)
                     : '${formatFileSize(upload.sent)} / ${formatFileSize(upload.size)}',
                 style: OcText.meta.copyWith(color: colors.textSecondary),
@@ -107,22 +99,28 @@ class _UploadRow extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 4),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(2),
-            child: SizedBox(
-              height: 4,
-              child: isProcessing
-                  ? LinearProgressIndicator(
-                      backgroundColor: colors.border,
-                      valueColor: AlwaysStoppedAnimation<Color>(colors.text),
-                    )
-                  : LinearProgressIndicator(
-                      value: progress,
-                      backgroundColor: colors.border,
-                      valueColor: AlwaysStoppedAnimation<Color>(colors.text),
-                    ),
+          if (failure != null)
+            Text(
+              failure,
+              style: OcText.small.copyWith(color: colors.textSecondary),
+            )
+          else
+            ClipRRect(
+              borderRadius: BorderRadius.circular(2),
+              child: SizedBox(
+                height: 4,
+                child: isProcessing
+                    ? LinearProgressIndicator(
+                        backgroundColor: colors.border,
+                        valueColor: AlwaysStoppedAnimation<Color>(colors.text),
+                      )
+                    : LinearProgressIndicator(
+                        value: progress,
+                        backgroundColor: colors.border,
+                        valueColor: AlwaysStoppedAnimation<Color>(colors.text),
+                      ),
+              ),
             ),
-          ),
         ],
       ),
     );

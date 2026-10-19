@@ -729,30 +729,52 @@ The desktop UI plan's §17.5 never arrived, so where Phase 2 §12 says only what
   - `StorageBackend` describes local or S3 storage (`id`, `kind`, `name`, `active`, `s3`, `hasSecret`, `fileCount`, `bytes`, and `lastError`). `StorageMove` reports file move progress (`toStorageId`, `running`, `filesDone`, `filesTotal`, `bytesDone`, `bytesTotal`, `failed`).
   - `effectiveUploadLimit` calculates member upload limit: the owner gets `ceiling` (`maxFileBytes`); other members take the maximum of `@everyone` or their assigned roles' limits, capped at `ceiling`.
   - `sanitizeFilename` strips directories, control characters, leading spaces and trailing dots/spaces; prefixes DOS device stems with `_`; caps length to 200 preserving extension; and defaults empty names to `file`. `normalizeExtension` trims, strips a leading dot, and validates 1..20 lowercase alphanumeric or dot characters.
-  - `stageProblem` detects `StageProblem.tooLarge` and `StageProblem.blocked`. `blockProgramsPreset` contains 33 executable extensions. `formatFileSize` formats sizes as B, KB, MB, or GB.
+  - `stageProblem` detects `StageProblem.tooLarge` and `StageProblem.blocked`. `blockProgramsPreset` copies the server's 31 program extensions. `formatFileSize` formats sizes as B, KB, MB, or GB.
 - **Repository and state** (`core/repository/repository.dart`, `core/rust/rust_repository.dart`, `core/mock/mock_repository.dart`, `core/providers/providers.dart`, `core/providers/server_state.dart`).
   - `OpencordRepository` gains `sendMessageWithFiles`, `cancelSend`, `attachmentBytes`, `downloadAttachment`, `cancelDownload`, `clipboardImage`, `copyImage`, `updateUploadSettings`, `storage`, `addStorage`, `updateStorage`, `testStorage`, `activateStorage`, `removeStorage`, `startStorageMove`, `stopStorageMove`, `mediaCacheSize`, and `clearMediaCache`.
   - `ServerData` exposes `uploadSettings` and calculates `myUploadLimit`. `ChannelMessagesNotifier` handles `sendWithFiles` with a unique nonce, tracking pending uploads with `UploadProgressEvent` updates and supporting `cancelSend` and `discard`.
 - **Composer, staging and sending** (`features/chat/composer.dart`, `features/chat/composer_state.dart`, `features/chat/attachment_drop.dart`, `features/chat/attachments/staged_tiles.dart`, `features/chat/attachments/upload_progress.dart`).
   - An `OcIconButton` with `OcIcons.attachFile` opens the system file picker (`openFiles`) when permitted.
-  - `AttachmentDropZone` detects files dragged over chat and stages them in the composer. Pasting (`CallbackShortcuts`) checks `clipboardImage` and stages pasted PNG bytes.
+  - `AttachmentDropZone` detects files dragged over chat and stages them in the composer. Ctrl+V (or Cmd+V) with no text on the clipboard checks `clipboardImage` and stages the image as `pasted-image-YYYYMMDD-HHMMSS.png`. Dropping and pasting need Attach Files, like the button.
   - `StagedTiles` shows previews for image files up to 20 MiB, filenames, sizes, and remove buttons. Files exceeding the limit or blocked show error indicators and disable sending. Beyond 10 files, tiles receive `StageProblem.tooMany`.
-  - Outgoing uploads display `UploadProgressList` with status, progress percentages, and cancel buttons.
+  - Outgoing uploads display `UploadProgressList` with sent and total sizes, a bar, the reason when a file fails, and a cancel button.
 - **Attachments in messages and downloads** (`features/chat/attachments/{attachment_view,image_grid,file_card,download,text_preview_dialog}.dart`, `features/chat/bubble.dart`).
   - `AttachmentsView` displays attachments in message bubbles.
   - Images render in `ImageGrid`: up to 4 images in a grid layout, with a `+N` badge on the 4th item when 5 or more images are present.
-  - Non-image files render in `FileCard` with icons by type, filename, size, and download button calling `saveAttachment`. Text files up to 256 KiB (`maxPreviewBytes`) offer a "Preview" button opening `TextPreviewDialog` with line numbers.
+  - Non-image files render in `FileCard` with icons by type, filename, size, and download button calling `saveAttachment`. Text files up to 256 KiB (`maxPreviewBytes`) offer a "Preview" button opening `TextPreviewDialog`, which shows the text in `OcText.mono` and never renders it.
   - `messageSummary` summarizes messages for notifications and pinned banners as text, `Photo`, `count photos`, `Video`, `Voice message (m:ss)`, or `filename`.
 - **In-app media viewer** (`features/chat/attachments/media_viewer.dart`).
   - `showMediaViewer` opens a transparent fullscreen route with scrim background.
   - `MediaViewer` displays images with `InteractiveViewer` supporting pan and scroll-wheel zoom between 1.0x and 8.0x.
   - Top bar shows filename (`middleEllipsis` at 36 characters), index counter (`i / N`), download button, and close button. Left/right buttons and ArrowLeft/ArrowRight keyboard shortcuts navigate; Escape closes.
 - **Settings** (`features/settings/server/{uploads_page,storage_page,storage_dialogs,roles_page}.dart`, `features/settings/user/app_pages.dart`).
-  - `ServerUploadsPage` configures blocked file extensions (with a "Block executable programs" button) and voice message maximum duration.
-  - `ServerStoragePage` (owner only) lists backends, active status, file counts, and byte sizes. S3 backends require a successful `testStorage` run before saving. Existing files can be migrated with `startStorageMove` and monitored with progress and `stopStorageMove`.
+  - `ServerUploadsPage` configures blocked file extensions (with a "Block programs" button) and voice message maximum duration.
+  - `ServerStoragePage` (owner only) lists backends, active status, file counts, and byte sizes. A new bucket, or a change to a bucket's settings, needs its access key and secret and a passing `testStorage` of exactly those values before Save; a rename needs neither. Existing files can be migrated with `startStorageMove` and monitored with progress and `stopStorageMove`.
   - `_RoleEditor` in `roles_page.dart` provides "Max upload size" with MB/GB units and a "Not set" toggle for non-@everyone roles, validated against server limits and user upload capacity.
   - `_MediaCacheSection` in `BehaviorPage` shows cached bytes and provides a "Clear" button calling `clearMediaCache`.
 - **Tests.**
   - Unit tests: `app/test/unit/model/upload_rules_test.dart` (limits, sanitization, normalization, blocking), `app/test/unit/format_test.dart` (`formatFileSize`, `middleEllipsis`), `app/test/unit/mock/mock_repository_test.dart` (`sendMessageWithFiles`), `app/test/unit/rust/core_mapping_test.dart` (error mapping), `app/test/unit/theme/oc_colors_test.dart` (tokens), `app/test/unit/message_summary_test.dart` (summaries).
   - Widget tests: `app/test/widget/chat/composer_attach_test.dart` (staging, problem blocking, pasting, sending progress, cancel), `app/test/widget/chat/attachment_drop_test.dart` (drag overlay and drop), `app/test/widget/chat/attachments_view_test.dart` (aspect ratio box, grid counter, text preview), `app/test/widget/chat/media_viewer_test.dart` (navigation and close), `app/test/widget/settings/media_settings_test.dart` (uploads page, storage owner/test requirement, role limits, cache clear).
 
+- **Review.** Fixed after A5:
+  - **Editing a bucket.** The dialog filled the access key with the masked value answers carry, and sent it back with every edit, so the server's own bucket test refused even a rename. It also tested the saved bucket instead of the values typed. Now the keys start empty, a rename sends only the name, and changed settings need both keys and a passing test of exactly what Save sends. The mock now masks keys like the server.
+  - **The Dart filename rules** counted UTF-16 units and kept U+0080–U+009F, where Rust counts characters and drops them. The shared fixture gained both cases.
+  - **Sending:**
+    - a retry now starts each file's progress afresh, and never sends a message's text without its files;
+    - a failed file shows why;
+    - staging is one pass that uses the server's `maxAttachments`;
+    - a blocked file names the extension that matched;
+    - paste and drop need Attach Files and report clipboard errors.
+  - **The viewer:**
+    - it is dark in either theme, since it sits on the dark scrim;
+    - it no longer zooms twice per wheel step, because `InteractiveViewer` zooms on the wheel itself (the plan wrongly asked for a `Listener`).
+  - **Conventions:**
+    - one file-type icon mapping in `file_icon.dart`, instead of three;
+    - `ChoiceChips` and `OcSwitch` instead of Material widgets;
+    - `on RepoException` instead of bare `catch`;
+    - `mounted` checks after awaits;
+    - cancels go through `_now`;
+    - the download progress provider no longer hides a missing repository (the test that relied on that now provides one);
+    - the media cache section reports its errors and says what it holds.
+  - **Leftovers from before attachments:** the role editor still showed Attach files as "coming later", and Dart's default @everyone lacked it, unlike `Permissions::DEFAULT_EVERYONE`. Both are fixed.
+  - **D57 itself** described the plan rather than the code in five places: the preset size, the paste handler, the upload rows, the text preview and a button label.

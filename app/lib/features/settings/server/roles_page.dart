@@ -22,6 +22,7 @@ import 'package:opencord/ui/widgets/oc_text_field.dart';
 import 'package:opencord/ui/widgets/settings.dart';
 import 'package:opencord/ui/widgets/toast.dart';
 import 'package:opencord/ui/widgets/oc_menu.dart';
+import 'package:opencord/ui/widgets/oc_switch.dart';
 import 'package:opencord/ui/widgets/popover.dart';
 import 'package:opencord/ui/widgets/ellipsis_text.dart';
 
@@ -623,16 +624,14 @@ class _RoleEditorState extends ConsumerState<_RoleEditor> {
                         Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Checkbox(
+                            OcSwitch(
                               value: _notSet,
+                              semanticLabel: 'Not set',
                               onChanged: editable
-                                  ? (val) {
-                                      setState(() {
-                                        _notSet = val ?? false;
-                                      });
-                                    }
+                                  ? (value) => setState(() => _notSet = value)
                                   : null,
                             ),
+                            const SizedBox(width: OcSpace.s6),
                             Text(
                               'Not set',
                               style: OcText.body.copyWith(color: colors.text),

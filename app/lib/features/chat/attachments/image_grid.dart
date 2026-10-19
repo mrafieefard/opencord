@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:opencord/core/model/attachment.dart';
@@ -27,186 +29,95 @@ class ImageGrid extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (images.isEmpty) return const SizedBox.shrink();
-
     final handleTap =
         onTap ??
-        (int index) {
-          showMediaViewer(
-            context,
-            serverKey: serverKey,
-            media: images,
-            index: index,
-          );
-        };
-
-    if (images.length == 1) {
-      final img = images.first;
-      final w = (img.width ?? img.thumbnailWidth ?? 4).toDouble();
-      final h = (img.height ?? img.thumbnailHeight ?? 3).toDouble();
-      final ratio = (w <= 0 || h <= 0) ? (4.0 / 3.0) : (w / h);
-      final double boxWidth;
-      final double boxHeight;
-      if (ratio >= 400.0 / 300.0) {
-        boxWidth = 400.0;
-        boxHeight = 400.0 / ratio;
-      } else {
-        boxHeight = 300.0;
-        boxWidth = 300.0 * ratio;
-      }
-
-      return SizedBox(
-        width: boxWidth,
-        height: boxHeight,
-        child: _Cell(
+        (int index) => showMediaViewer(
+          context,
           serverKey: serverKey,
-          message: message,
-          attachment: img,
-          index: 0,
-          onTap: handleTap,
-        ),
-      );
-    }
-
-    if (images.length == 2) {
-      return SizedBox(
-        width: 400,
-        height: 200,
-        child: Row(
-          children: [
-            Expanded(
-              child: _Cell(
-                serverKey: serverKey,
-                message: message,
-                attachment: images[0],
-                index: 0,
-                onTap: handleTap,
-              ),
-            ),
-            const SizedBox(width: OcSpace.s4),
-            Expanded(
-              child: _Cell(
-                serverKey: serverKey,
-                message: message,
-                attachment: images[1],
-                index: 1,
-                onTap: handleTap,
-              ),
-            ),
-          ],
-        ),
-      );
-    }
-
-    if (images.length == 3) {
-      return SizedBox(
-        width: 400,
-        height: 266,
-        child: Row(
-          children: [
-            Expanded(
-              flex: 2,
-              child: _Cell(
-                serverKey: serverKey,
-                message: message,
-                attachment: images[0],
-                index: 0,
-                onTap: handleTap,
-              ),
-            ),
-            const SizedBox(width: OcSpace.s4),
-            Expanded(
-              flex: 1,
-              child: Column(
-                children: [
-                  Expanded(
-                    child: _Cell(
-                      serverKey: serverKey,
-                      message: message,
-                      attachment: images[1],
-                      index: 1,
-                      onTap: handleTap,
-                    ),
-                  ),
-                  const SizedBox(height: OcSpace.s4),
-                  Expanded(
-                    child: _Cell(
-                      serverKey: serverKey,
-                      message: message,
-                      attachment: images[2],
-                      index: 2,
-                      onTap: handleTap,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      );
-    }
-
-    // 4 or more images: 2x2 grid in 400x300 box
-    final remaining = images.length > 4 ? images.length - 4 : 0;
-    return SizedBox(
-      width: 400,
-      height: 300,
-      child: Column(
-        children: [
-          Expanded(
-            child: Row(
-              children: [
-                Expanded(
-                  child: _Cell(
-                    serverKey: serverKey,
-                    message: message,
-                    attachment: images[0],
-                    index: 0,
-                    onTap: handleTap,
-                  ),
-                ),
-                const SizedBox(width: OcSpace.s4),
-                Expanded(
-                  child: _Cell(
-                    serverKey: serverKey,
-                    message: message,
-                    attachment: images[1],
-                    index: 1,
-                    onTap: handleTap,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: OcSpace.s4),
-          Expanded(
-            child: Row(
-              children: [
-                Expanded(
-                  child: _Cell(
-                    serverKey: serverKey,
-                    message: message,
-                    attachment: images[2],
-                    index: 2,
-                    onTap: handleTap,
-                  ),
-                ),
-                const SizedBox(width: OcSpace.s4),
-                Expanded(
-                  child: _Cell(
-                    serverKey: serverKey,
-                    message: message,
-                    attachment: images[3],
-                    index: 3,
-                    remaining: remaining,
-                    onTap: handleTap,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
+          media: images,
+          index: index,
+        );
+    Widget cell(int index, {int remaining = 0}) => _Cell(
+      serverKey: serverKey,
+      message: message,
+      attachment: images[index],
+      index: index,
+      remaining: remaining,
+      onTap: handleTap,
     );
+    const gap = SizedBox(width: OcSpace.s4, height: OcSpace.s4);
+
+    switch (images.length) {
+      case 1:
+        // The box is sized before loading, so the list doesn't jump; a
+        // small picture keeps its own size.
+        final image = images.first;
+        final width = (image.width ?? image.thumbnailWidth ?? 4).toDouble();
+        final height = (image.height ?? image.thumbnailHeight ?? 3).toDouble();
+        final (w, h) = width > 0 && height > 0 ? (width, height) : (4.0, 3.0);
+        final scale = [1.0, 400 / w, 300 / h].reduce(min);
+        return SizedBox(width: w * scale, height: h * scale, child: cell(0));
+      case 2:
+        return SizedBox(
+          width: 400,
+          height: 200,
+          child: Row(
+            children: [
+              Expanded(child: cell(0)),
+              gap,
+              Expanded(child: cell(1)),
+            ],
+          ),
+        );
+      case 3:
+        return SizedBox(
+          width: 400,
+          height: 266,
+          child: Row(
+            children: [
+              Expanded(flex: 2, child: cell(0)),
+              gap,
+              Expanded(
+                child: Column(
+                  children: [
+                    Expanded(child: cell(1)),
+                    gap,
+                    Expanded(child: cell(2)),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        );
+      default:
+        return SizedBox(
+          width: 400,
+          height: 300,
+          child: Column(
+            children: [
+              Expanded(
+                child: Row(
+                  children: [
+                    Expanded(child: cell(0)),
+                    gap,
+                    Expanded(child: cell(1)),
+                  ],
+                ),
+              ),
+              gap,
+              Expanded(
+                child: Row(
+                  children: [
+                    Expanded(child: cell(2)),
+                    gap,
+                    Expanded(child: cell(3, remaining: images.length - 4)),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        );
+    }
   }
 }
 
@@ -230,9 +141,10 @@ class _Cell extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = context.oc;
+    // A small animated picture plays from its original.
     final isAnimatedSmall =
         attachment.animated && attachment.sizeBytes <= 15 * 1024 * 1024;
-    final useThumbnail = !isAnimatedSmall;
+    final useThumbnail = attachment.hasThumbnail && !isAnimatedSmall;
     final key = (server: serverKey, id: attachment.id, thumbnail: useThumbnail);
     final bytesAsync = ref.watch(attachmentBytesProvider(key));
 

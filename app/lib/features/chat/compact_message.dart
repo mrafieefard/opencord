@@ -32,7 +32,7 @@ class CompactMessage extends StatelessWidget {
     this.onRetry,
     this.onSelectionChanged,
     this.onAuthorTap,
-    this.serverKey = '',
+    required this.serverKey,
   });
 
   final Message message;

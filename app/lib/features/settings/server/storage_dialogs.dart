@@ -8,6 +8,7 @@ import 'package:opencord/ui/theme/oc_icons.dart';
 import 'package:opencord/ui/theme/oc_metrics.dart';
 import 'package:opencord/ui/theme/oc_text.dart';
 import 'package:opencord/ui/widgets/inline_error.dart';
+import 'package:opencord/ui/widgets/choice_chips.dart';
 import 'package:opencord/ui/widgets/oc_button.dart';
 import 'package:opencord/ui/widgets/oc_dialog.dart';
 import 'package:opencord/ui/widgets/oc_switch.dart';
@@ -59,8 +60,9 @@ class _S3DialogState extends ConsumerState<S3Dialog> {
   void initState() {
     super.initState();
     final s3 = widget.existing?.s3;
+    // The name isn't tested; it only decides whether Save may be pressed.
     _name = TextEditingController(text: widget.existing?.name ?? '')
-      ..addListener(_onFieldChanged);
+      ..addListener(() => setState(() {}));
     _endpoint = TextEditingController(text: s3?.endpoint ?? '')
       ..addListener(_onFieldChanged);
     _region = TextEditingController(text: s3?.region ?? '')
@@ -69,10 +71,10 @@ class _S3DialogState extends ConsumerState<S3Dialog> {
       ..addListener(_onFieldChanged);
     _keyPrefix = TextEditingController(text: s3?.keyPrefix ?? '')
       ..addListener(_onFieldChanged);
-    _accessKeyId = TextEditingController(text: s3?.accessKeyId ?? '')
-      ..addListener(_onFieldChanged);
-    _secretAccessKey = TextEditingController(text: s3?.secretAccessKey ?? '')
-      ..addListener(_onFieldChanged);
+    // Answers carry the access key masked and no secret: both start empty,
+    // and are sent only when typed again.
+    _accessKeyId = TextEditingController()..addListener(_onFieldChanged);
+    _secretAccessKey = TextEditingController()..addListener(_onFieldChanged);
     _r2AccountId = TextEditingController()..addListener(_onR2AccountChanged);
 
     _pathStyle = s3?.pathStyle ?? false;
@@ -92,12 +94,27 @@ class _S3DialogState extends ConsumerState<S3Dialog> {
     super.dispose();
   }
 
-  void _onFieldChanged() {
-    if (_testResult != null && !_dirtySinceTest) {
-      setState(() {
-        _dirtySinceTest = true;
-      });
-    }
+  void _onFieldChanged() => setState(() {
+    if (_testResult != null) _dirtySinceTest = true;
+  });
+
+  bool get _keysGiven =>
+      _accessKeyId.text.trim().isNotEmpty &&
+      _secretAccessKey.text.trim().isNotEmpty;
+
+  /// Whether the bucket settings differ from the saved ones; always true
+  /// when adding. Unchanged, an edit is a rename and needs no test.
+  bool get _bucketChanged {
+    final saved = widget.existing?.s3;
+    if (saved == null) return true;
+    return _endpoint.text.trim() != saved.endpoint ||
+        _region.text.trim() != saved.region ||
+        _bucket.text.trim() != saved.bucket ||
+        _keyPrefix.text.trim() != saved.keyPrefix ||
+        _pathStyle != saved.pathStyle ||
+        _allowHttp != saved.allowHttp ||
+        _accessKeyId.text.trim().isNotEmpty ||
+        _secretAccessKey.text.trim().isNotEmpty;
   }
 
   void _onR2AccountChanged() {
@@ -166,14 +183,15 @@ class _S3DialogState extends ConsumerState<S3Dialog> {
       _error = null;
     });
     try {
-      final config = _buildConfig();
-      final result = await ref
-          .read(repositoryProvider)
-          .testStorage(
-            widget.serverKey,
-            storageId: widget.existing?.id,
-            s3: config,
-          );
+      // Unchanged settings test the saved bucket (with its saved secret);
+      // anything else tests exactly what Save would send.
+      final result = _bucketChanged
+          ? await ref
+                .read(repositoryProvider)
+                .testStorage(widget.serverKey, s3: _buildConfig())
+          : await ref
+                .read(repositoryProvider)
+                .testStorage(widget.serverKey, storageId: widget.existing?.id);
       if (mounted) {
         setState(() {
           _testResult = result;
@@ -206,20 +224,16 @@ class _S3DialogState extends ConsumerState<S3Dialog> {
       _error = null;
     });
     try {
-      final config = _buildConfig();
-      if (widget.existing != null) {
-        await ref
-            .read(repositoryProvider)
-            .updateStorage(
-              widget.serverKey,
-              widget.existing!.id,
-              name: name,
-              s3: config,
-            );
+      final repository = ref.read(repositoryProvider);
+      if (widget.existing case final existing?) {
+        await repository.updateStorage(
+          widget.serverKey,
+          existing.id,
+          name: name,
+          s3: _bucketChanged ? _buildConfig() : null,
+        );
       } else {
-        await ref
-            .read(repositoryProvider)
-            .addStorage(widget.serverKey, name, config);
+        await repository.addStorage(widget.serverKey, name, _buildConfig());
       }
       if (mounted) {
         Navigator.of(context).pop(true);
@@ -238,10 +252,11 @@ class _S3DialogState extends ConsumerState<S3Dialog> {
   Widget build(BuildContext context) {
     final colors = context.oc;
     final isEdit = widget.existing != null;
+    final bucketChanged = _bucketChanged;
+    final tested = _keysGiven && _testResult?.ok == true && !_dirtySinceTest;
     final canSave =
-        _testResult != null &&
-        _testResult!.ok &&
-        !_dirtySinceTest &&
+        _name.text.trim().isNotEmpty &&
+        (!bucketChanged || tested) &&
         !_testing &&
         !_saving;
 
@@ -263,17 +278,10 @@ class _S3DialogState extends ConsumerState<S3Dialog> {
           mainAxisSize: MainAxisSize.min,
           children: [
             // Provider Preset Buttons
-            Wrap(
-              spacing: OcSpace.s8,
-              runSpacing: OcSpace.s8,
-              children: [
-                for (final p in S3Provider.values)
-                  ChoiceChip(
-                    label: Text(p.label),
-                    selected: _provider == p,
-                    onSelected: (_) => _applyPreset(p),
-                  ),
-              ],
+            ChoiceChips<S3Provider>(
+              options: [for (final p in S3Provider.values) (p, p.label)],
+              value: _provider,
+              onChanged: _applyPreset,
             ),
             const SizedBox(height: OcSpace.s16),
             if (_provider == S3Provider.r2) ...[
@@ -325,17 +333,25 @@ class _S3DialogState extends ConsumerState<S3Dialog> {
             OcTextField(
               controller: _accessKeyId,
               semanticLabel: 'Access key ID',
-              hint: 'Access key ID',
+              hint: switch (widget.existing?.s3?.accessKeyId) {
+                final saved? => 'Access key ID (saved: $saved)',
+                null => 'Access key ID',
+              },
             ),
             const SizedBox(height: OcSpace.s12),
             OcTextField(
               controller: _secretAccessKey,
               semanticLabel: 'Secret access key',
-              hint: isEdit
-                  ? 'Leave empty to keep current secret'
-                  : 'Secret access key',
+              hint: 'Secret access key',
               obscure: true,
             ),
+            if (isEdit && bucketChanged && !_keysGiven) ...[
+              const SizedBox(height: 4),
+              Text(
+                'Changing the bucket settings needs its access key and secret again.',
+                style: OcText.small.copyWith(color: colors.textSecondary),
+              ),
+            ],
             const SizedBox(height: OcSpace.s12),
             Row(
               children: [

@@ -1,39 +1,5 @@
 import 'package:opencord/core/model/attachment.dart';
 
-const blockPrograms = [
-  'exe',
-  'msi',
-  'msix',
-  'appx',
-  'bat',
-  'cmd',
-  'com',
-  'scr',
-  'pif',
-  'cpl',
-  'ps1',
-  'psm1',
-  'vbs',
-  'vbe',
-  'js',
-  'jse',
-  'wsf',
-  'wsh',
-  'hta',
-  'lnk',
-  'reg',
-  'jar',
-  'apk',
-  'app',
-  'dmg',
-  'pkg',
-  'deb',
-  'rpm',
-  'appimage',
-  'sh',
-  'run',
-];
-
 const _reservedStems = {
   'con',
   'prn',
@@ -81,8 +47,11 @@ String sanitizeFilename(String input) {
   // 1. Keep only the part after the last / or \
   var name = input.split(RegExp(r'[/\\]')).last;
 
-  // 2. Drop control characters
-  name = String.fromCharCodes(name.runes.where((c) => c >= 32 && c != 127));
+  // 2. Drop control characters: Rust's `char::is_control` is U+0000–U+001F
+  // and U+007F–U+009F.
+  name = String.fromCharCodes(
+    name.runes.where((c) => c >= 0x20 && (c < 0x7F || c > 0x9F)),
+  );
 
   // 3. Trim trailing . and spaces, and leading spaces
   name = name.replaceFirst(RegExp(r'^ +'), '');
@@ -100,19 +69,22 @@ String sanitizeFilename(String input) {
     name = '_$name';
   }
 
-  // 6. Length > 200 chars: cut the stem and keep the extension (<= 20 chars)
-  if (name.length > 200) {
+  // 6. Length > 200 chars: cut the stem and keep the extension (<= 20 chars).
+  // Counted in Unicode scalar values, as Rust's `chars()` does.
+  final chars = name.runes.toList();
+  if (chars.length > 200) {
     final lastDot = name.lastIndexOf('.');
-    if (lastDot != -1) {
-      final ext = name.substring(lastDot + 1);
-      if (ext.length <= 20) {
-        final stemBudget = 200 - (ext.length + 1);
-        name = '${name.substring(0, stemBudget)}.$ext';
-      } else {
-        name = name.substring(0, 200);
-      }
+    final ext = lastDot == -1
+        ? null
+        : name.substring(lastDot + 1).runes.toList();
+    if (ext != null && ext.length <= 20) {
+      final stem = name
+          .substring(0, lastDot)
+          .runes
+          .take(200 - (ext.length + 1));
+      name = '${String.fromCharCodes(stem)}.${String.fromCharCodes(ext)}';
     } else {
-      name = name.substring(0, 200);
+      name = String.fromCharCodes(chars.take(200));
     }
   }
 
@@ -148,12 +120,17 @@ String? normalizeExtension(String input) {
 }
 
 /// Whether a sanitized filename ends with "." and a blocked extension.
-bool isBlocked(String sanitizedFilename, List<String> blocked) {
+bool isBlocked(String sanitizedFilename, List<String> blocked) =>
+    blockedExtension(sanitizedFilename, blocked) != null;
+
+/// The blocked extension a sanitized filename ends with, or null.
+String? blockedExtension(String sanitizedFilename, List<String> blocked) {
   final lower = sanitizedFilename.toLowerCase();
-  return blocked.any((entry) {
+  for (final entry in blocked) {
     final norm = entry.toLowerCase();
-    return lower.endsWith('.$norm');
-  });
+    if (lower.endsWith('.$norm')) return norm;
+  }
+  return null;
 }
 
 /// Validates whether a file can be staged in the composer.
@@ -168,7 +145,7 @@ StageProblem? stageProblem({
   return null;
 }
 
-/// The standard preset of program and executable file extensions to block.
+/// The "Block programs" preset: a copy of `opencord_common::upload::BLOCK_PROGRAMS`.
 const blockProgramsPreset = [
   'exe',
   'msi',

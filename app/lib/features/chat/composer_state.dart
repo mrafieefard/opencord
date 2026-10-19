@@ -10,6 +10,7 @@ import 'package:opencord/core/model/message.dart';
 import 'package:opencord/core/providers/providers.dart';
 import 'package:opencord/core/settings/key_value_store.dart';
 import 'package:opencord/core/upload_rules.dart';
+import 'package:opencord/features/chat/attachments/file_icon.dart';
 
 export 'package:opencord/core/providers/providers.dart' show ChannelRef;
 
@@ -65,6 +66,10 @@ class ComposerState {
 
 /// One channel's composer. Drafts survive switching channels and
 /// restarting (§4.6, §16); replies and edits last for this run.
+/// Images staged with a thumbnail; larger ones show their icon.
+const _previewExtensions = {'png', 'jpg', 'jpeg', 'gif', 'webp'};
+const _previewMaxBytes = 20 * 1024 * 1024;
+
 class ComposerNotifier extends Notifier<ComposerState> {
   ComposerNotifier(this.channel);
 
@@ -158,44 +163,57 @@ class ComposerNotifier extends Notifier<ComposerState> {
     state = ComposerState(draft: _savedText, staged: state.staged);
   }
 
-  void stageFiles(List<StagedFile> files) {
-    final serverData = ref.read(serverProvider(channel.server)).data;
-    final limit =
-        serverData?.myUploadLimit ?? UploadSettings.fallback.maxFileBytes;
-    final blocked = serverData?.uploadSettings.blockedExtensions ?? const [];
+  /// Numbers staged files, so two with one name stay apart.
+  var _nextStaged = 0;
 
-    final current = List<StagedFile>.of(state.staged);
-    for (final file in files) {
-      final problem =
-          file.problem ??
-          stageProblem(
-            name: file.name,
-            size: file.size,
-            limit: limit,
-            blocked: blocked,
-          );
-      current.add(file.copyWith(problem: () => problem));
-    }
-    final updated = <StagedFile>[];
-    for (var i = 0; i < current.length; i++) {
-      final file = current[i];
-      if (i >= 10 && file.problem == null) {
-        updated.add(file.copyWith(problem: () => StageProblem.tooMany));
-      } else {
-        updated.add(file);
-      }
-    }
-    state = ComposerState(
-      draft: state.draft,
-      replyTo: state.replyTo,
-      editing: state.editing,
-      stashedDraft: state.stashedDraft,
-      staged: updated,
-    );
+  String _stagedId() => 'staged-${_nextStaged++}';
+
+  /// Each file's problem, worked out again for the whole list: a removal
+  /// can bring a file back under the server's attachment limit.
+  List<StagedFile> _checked(List<StagedFile> files) {
+    final data = ref.read(serverProvider(channel.server)).data;
+    final settings = data?.uploadSettings ?? UploadSettings.fallback;
+    final limit = data?.myUploadLimit ?? settings.maxFileBytes;
+    return [
+      for (final (index, file) in files.indexed)
+        file.copyWith(
+          problem: () => index >= settings.maxAttachments
+              ? StageProblem.tooMany
+              : stageProblem(
+                  name: file.name,
+                  size: file.size,
+                  limit: limit,
+                  blocked: settings.blockedExtensions,
+                ),
+        ),
+    ];
   }
 
-  void stageFile(StagedFile file) => stageFiles([file]);
+  void _setStaged(List<StagedFile> staged) => state = ComposerState(
+    draft: state.draft,
+    replyTo: state.replyTo,
+    editing: state.editing,
+    stashedDraft: state.stashedDraft,
+    staged: _checked(staged),
+  );
 
+  /// Stages a file built by the caller; its id must differ from every
+  /// staged file's.
+  void stageFile(StagedFile file) => _setStaged([...state.staged, file]);
+
+  /// Stages a pasted image.
+  void stageBytes(String name, Uint8List bytes) => stageFile(
+    StagedFile(
+      id: _stagedId(),
+      name: name,
+      size: bytes.length,
+      bytes: bytes,
+      preview: bytes.length <= _previewMaxBytes ? bytes : null,
+    ),
+  );
+
+  /// Stages files from the picker or a drop; folders and missing files are
+  /// skipped.
   Future<void> stagePaths(List<String> paths) async {
     final files = <StagedFile>[];
     for (final path in paths) {
@@ -207,17 +225,18 @@ class ComposerNotifier extends Notifier<ComposerState> {
         orElse: () => 'file',
       );
       Uint8List? preview;
-      final ext = name.split('.').last.toLowerCase();
-      if (const {'png', 'jpg', 'jpeg', 'gif', 'webp'}.contains(ext) &&
-          size <= 20 * 1024 * 1024) {
+      if (_previewExtensions.contains(fileExtension(name)) &&
+          size <= _previewMaxBytes) {
         try {
           preview = await file.readAsBytes();
-        } catch (_) {}
+        } on FileSystemException {
+          // Only the thumbnail is lost; sending reads the file again and
+          // reports a failure there.
+        }
       }
-      final id = '${DateTime.now().microsecondsSinceEpoch}_${name.hashCode}';
       files.add(
         StagedFile(
-          id: id,
+          id: _stagedId(),
           name: name,
           size: size,
           path: path,
@@ -225,37 +244,14 @@ class ComposerNotifier extends Notifier<ComposerState> {
         ),
       );
     }
-    stageFiles(files);
+    if (!ref.mounted) return;
+    _setStaged([...state.staged, ...files]);
   }
 
-  void removeStaged(String id) {
-    final remaining = state.staged.where((f) => f.id != id).toList();
-    final serverData = ref.read(serverProvider(channel.server)).data;
-    final limit =
-        serverData?.myUploadLimit ?? UploadSettings.fallback.maxFileBytes;
-    final blocked = serverData?.uploadSettings.blockedExtensions ?? const [];
-
-    final updated = <StagedFile>[];
-    for (var i = 0; i < remaining.length; i++) {
-      final file = remaining[i];
-      final problem = i >= 10
-          ? StageProblem.tooMany
-          : stageProblem(
-              name: file.name,
-              size: file.size,
-              limit: limit,
-              blocked: blocked,
-            );
-      updated.add(file.copyWith(problem: () => problem));
-    }
-    state = ComposerState(
-      draft: state.draft,
-      replyTo: state.replyTo,
-      editing: state.editing,
-      stashedDraft: state.stashedDraft,
-      staged: updated,
-    );
-  }
+  void removeStaged(String id) => _setStaged([
+    for (final file in state.staged)
+      if (file.id != id) file,
+  ]);
 
   void clearStaged() {
     state = ComposerState(

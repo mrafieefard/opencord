@@ -43,6 +43,10 @@ Every rule here was broken at least once and caught in review.
 - **Never turn an error into "nothing".** Propagate with `?`.
   - Never wrap a query in `if let Ok(..)`, `.ok()` or `unwrap_or_default()` when its result decides what gets deleted or skipped. A failed query then looks like an empty one.
   - Never write `let _ =` on a `Result` (database, files, network). If a failure is truly harmless, log it with `tracing` and say why in a comment.
+- **In Dart, catch what you expect:** `on RepoException catch (error)`, never a bare `catch` or `catch (_) {}`.
+  - An error the user can cause reaches them, as a toast or an inline error.
+  - An `unawaited` future catches its own errors; nothing else will.
+- **Production code never bends for tests.** No `try`/`catch` "for tests where X isn't set up": fix the test's setup instead.
 
 ### Shared state and races
 
@@ -62,6 +66,16 @@ Every rule here was broken at least once and caught in review.
 - **Std locks:**
   - Use `.lock().unwrap_or_else(PoisonError::into_inner)`, and the same for `read()` and `write()`, as `state.rs` does.
   - Never hold one across `.await`.
+- **After every `await` in a widget's `State`, check `mounted`** before touching `context`, `ref` or `setState`. The page may have closed while it waited.
+
+### What the user sees
+
+- **Every failure is shown.** If a model has an `error` or `failed` field, some widget renders it.
+- **A retry starts clean and sends the same thing.**
+  - It resets what belongs to one attempt: progress, errors.
+  - If part of the original request is gone, it refuses rather than sending less (a message without its files).
+- **A gate checks what it guards.** When an action is allowed only after a check (Save after Test), the check runs on exactly the values the action will send, and any change locks it again.
+- **Masked values never go back.** Fields the server answers masked (access keys, secrets) start empty in an edit form and are sent only when the user types new ones.
 
 ### Resources
 
@@ -73,7 +87,16 @@ Every rule here was broken at least once and caught in review.
 ### Reuse and conventions
 
 - **Reuse what exists.** Before writing a helper, grep for one. The same ten lines in two places is a review finding.
+  - One mapping (an icon per file type, a validation pass, a list of extensions) lives in one function or constant, not one copy per widget.
+  - The app has its own widgets in `app/lib/ui/widgets` (`ChoiceChips`, `OcSwitch`, `OcButton`, …) and text styles in `OcText` (`OcText.mono` for code). Never use the Material widget one of them replaces.
+  - Follow the wrappers the file already uses (in `rust_repository.dart`: `_call` for async core calls, `_now` for sync ones).
   - The server's attachments code already has `attachments::open_key` and `key_label`, `attachments::http::attachment_to_proto`, `to_status_proto` and `readable_attachment`, and `attachments::process::base_fields`.
+- **Finishing a feature removes what stood in for it.** Grep for its "coming later" markers, placeholder toasts and `later:` flags, and remove them in the same task.
+- **A value kept on both sides changes on both sides.** A permission set, a default, a limit or a list that exists in Rust and in Dart is updated in both, in the same task.
+- **A rule ported from another language matches its meaning, not its look.**
+  - Rust's `chars()` counts Unicode scalar values; Dart's `length` counts UTF-16 units, so use `runes`.
+  - Rust's `is_control()` includes U+0080–U+009F.
+  - Add each such edge case to the shared fixture so both sides test it.
 - **HTTP replies** are axum tuples (`(StatusCode, headers, body).into_response()`), never `Response::builder()…unwrap()`.
 - **New dependencies:** check the licence of the crate and of everything it pulls in, on every system, not just Linux:
 
@@ -86,6 +109,8 @@ Every rule here was broken at least once and caught in review.
 ### Tests and task boundaries
 
 - **A test sets up everything it depends on.** Never rely on a default (an empty list, a setting's starting value) or on another test's data. Set it in the test.
+- **Test every mode of a flow, not just the first.** A form that adds and edits gets a test for editing; a send that can fail and retry gets a test for the retry.
+- **Fakes answer like the real thing.** A mock repository masks what the server masks and sends the last event the core sends (on a cancel, too). Otherwise tests pass on behavior real users never get.
 - **Every commit passes the checks on its own.**
   - Code that only a later task uses goes in with that task. Otherwise `-D warnings` fails on dead code.
   - Don't add `#[allow(dead_code)]` to get past it.
@@ -101,15 +126,18 @@ Every milestone ends with a decisions entry in `docs/decisions.md`.
   - **Why**, with the commits;
   - one bullet per part, saying what it does;
   - **Tests**.
-- **Numbers and behavior count too:** a wrong quality setting or a wrong "X doesn't happen" is as bad as a wrong name.
+- **Describe the code, not the plan.** For each sentence, open the code it describes, and copy labels, counts and messages from there. The plan says what was asked for; only the code says what was built.
+- **Numbers and behavior count too:** a wrong quality setting, a wrong count or a wrong "X doesn't happen" is as bad as a wrong name.
 - **Name only things that exist.** Copy every message, request, event, function and file name, and every number, from the code or the diff. This covers the decisions entry, the progress ledger and your report.
 - **Search before you finish.** Grep for each name you wrote (`grep -rn`). If a name isn't found, it doesn't go in.
 
 ## Reports and the ledger
 
 - **A deviation** is anything you did differently from the plan, or added without the plan asking for it:
-  - a public name, file, user-visible message, behavior or dependency;
+  - a behavior, user-visible text, interface or dependency that differs from the plan's, or that the plan doesn't ask for;
   - where the plan gives code, any non-test line that isn't in it, even one that only makes a test pass.
+
+  Private helpers you needed to build what the plan describes are not deviations.
 
   Name each one in the ledger and in the report, with the failure that made you add it. If `git diff` shows one, "Deviations: none" is wrong.
 - **Every problem names its test and pastes its error line.** A claim without them is left out.

@@ -110,8 +110,9 @@ class _StorageContentState extends ConsumerState<_StorageContent> {
         widget.serverKey,
         backend.id,
       );
+      if (!mounted) return;
       ref.read(storageProvider(widget.serverKey).notifier).set(updated);
-      if (mounted) showOcToast(context, 'Activated ${backend.name}');
+      showOcToast(context, 'Activated ${backend.name}');
     } on RepoException catch (e) {
       if (mounted) showOcToast(context, e.message);
     }
@@ -150,8 +151,9 @@ class _StorageContentState extends ConsumerState<_StorageContent> {
         widget.serverKey,
         backend.id,
       );
+      if (!mounted) return;
       ref.read(storageProvider(widget.serverKey).notifier).set(updated);
-      if (mounted) showOcToast(context, 'Removed ${backend.name}');
+      showOcToast(context, 'Removed ${backend.name}');
     } on RepoException catch (e) {
       if (mounted) showOcToast(context, e.message);
     }
@@ -160,8 +162,9 @@ class _StorageContentState extends ConsumerState<_StorageContent> {
   Future<void> _startMove() async {
     try {
       final updated = await _repository.startStorageMove(widget.serverKey);
+      if (!mounted) return;
       ref.read(storageProvider(widget.serverKey).notifier).set(updated);
-      if (mounted) showOcToast(context, 'Moving files to active storage');
+      showOcToast(context, 'Moving files to active storage');
     } on RepoException catch (e) {
       if (mounted) showOcToast(context, e.message);
     }
@@ -170,8 +173,9 @@ class _StorageContentState extends ConsumerState<_StorageContent> {
   Future<void> _stopMove() async {
     try {
       final updated = await _repository.stopStorageMove(widget.serverKey);
+      if (!mounted) return;
       ref.read(storageProvider(widget.serverKey).notifier).set(updated);
-      if (mounted) showOcToast(context, 'Stopped moving files');
+      showOcToast(context, 'Stopped moving files');
     } on RepoException catch (e) {
       if (mounted) showOcToast(context, e.message);
     }

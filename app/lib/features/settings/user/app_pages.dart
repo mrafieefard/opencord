@@ -93,20 +93,28 @@ class _MediaCacheSectionState extends ConsumerState<_MediaCacheSection> {
     _load();
   }
 
+  String? _error;
+
   Future<void> _load() async {
-    final size = await ref.read(repositoryProvider).mediaCacheSize();
-    if (mounted) setState(() => _size = size);
+    try {
+      final size = await ref.read(repositoryProvider).mediaCacheSize();
+      if (mounted) setState(() => _size = size);
+    } on RepoException catch (error) {
+      if (mounted) setState(() => _error = error.message);
+    }
   }
 
   Future<void> _clear() async {
     setState(() => _clearing = true);
+    final repository = ref.read(repositoryProvider);
     try {
-      await ref.read(repositoryProvider).clearMediaCache();
-      final size = await ref.read(repositoryProvider).mediaCacheSize();
-      if (mounted) {
-        setState(() => _size = size);
-        showOcToast(context, 'Media cache cleared');
-      }
+      await repository.clearMediaCache();
+      final size = await repository.mediaCacheSize();
+      if (!mounted) return;
+      setState(() => _size = size);
+      showOcToast(context, 'Media cache cleared');
+    } on RepoException catch (error) {
+      if (mounted) showOcToast(context, error.message);
     } finally {
       if (mounted) setState(() => _clearing = false);
     }
@@ -118,10 +126,15 @@ class _MediaCacheSectionState extends ConsumerState<_MediaCacheSection> {
     return SettingsSection(
       title: 'Media cache',
       footer:
-          'Downloaded images, audio, video and files cached on this device.',
+          'Thumbnails, pictures and voice messages you have seen, kept '
+          'encrypted on this device, up to 1 GB. Saved files are not in it.',
       children: [
         SettingsRow(
-          title: size != null ? formatFileSize(size) : 'Calculating…',
+          title: switch ((size, _error)) {
+            (final size?, _) => formatFileSize(size),
+            (null, final error?) => error,
+            (null, null) => 'Calculating…',
+          },
           trailing: OcButton(
             label: 'Clear',
             dense: true,

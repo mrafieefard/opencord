@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:opencord/core/format.dart';
 import 'package:opencord/core/model/attachment.dart';
 import 'package:opencord/core/upload_rules.dart';
+import 'package:opencord/features/chat/attachments/file_icon.dart';
 import 'package:opencord/ui/theme/oc_colors.dart';
 import 'package:opencord/ui/theme/oc_icons.dart';
 import 'package:opencord/ui/theme/oc_metrics.dart';
@@ -14,11 +15,17 @@ class StagedTiles extends StatelessWidget {
     super.key,
     required this.files,
     required this.limit,
+    required this.blocked,
+    required this.maxFiles,
     required this.onRemove,
   });
 
   final List<StagedFile> files;
   final int limit;
+
+  /// The server's blocked extensions, to name the one a file matched.
+  final List<String> blocked;
+  final int maxFiles;
   final ValueChanged<String> onRemove;
 
   @override
@@ -37,6 +44,8 @@ class StagedTiles extends StatelessWidget {
         itemBuilder: (context, index) => _StagedTile(
           file: files[index],
           limit: limit,
+          blocked: blocked,
+          maxFiles: maxFiles,
           onRemove: () => onRemove(files[index].id),
         ),
       ),
@@ -48,34 +57,24 @@ class _StagedTile extends StatelessWidget {
   const _StagedTile({
     required this.file,
     required this.limit,
+    required this.blocked,
+    required this.maxFiles,
     required this.onRemove,
   });
 
   final StagedFile file;
   final int limit;
+  final List<String> blocked;
+  final int maxFiles;
   final VoidCallback onRemove;
 
-  IconData _iconFor(String name) {
-    final ext = name.split('.').last.toLowerCase();
-    return switch (ext) {
-      'png' || 'jpg' || 'jpeg' || 'gif' || 'webp' => OcIcons.image,
-      'mp4' || 'mov' || 'webm' || 'mkv' => OcIcons.movie,
-      'mp3' || 'ogg' || 'wav' || 'flac' || 'm4a' => OcIcons.audioFile,
-      'zip' || '7z' || 'rar' || 'tar' || 'gz' => OcIcons.folderZip,
-      'txt' || 'md' || 'log' || 'json' || 'csv' => OcIcons.article,
-      _ => OcIcons.description,
-    };
-  }
-
-  String _reasonText(StageProblem problem) {
-    return switch (problem) {
-      StageProblem.tooLarge =>
-        'Larger than your ${formatFileSize(limit)} limit',
-      StageProblem.blocked =>
-        '${normalizeExtension(file.name) ?? file.name.split('.').last} files are blocked here',
-      StageProblem.tooMany => 'Only 10 files per message',
-    };
-  }
+  String _reasonText(StageProblem problem) => switch (problem) {
+    StageProblem.tooLarge => 'Larger than your ${formatFileSize(limit)} limit',
+    StageProblem.blocked =>
+      '${blockedExtension(sanitizeFilename(file.name), blocked) ?? fileExtension(file.name)} '
+          'files are blocked here',
+    StageProblem.tooMany => 'Only $maxFiles files per message',
+  };
 
   @override
   Widget build(BuildContext context) {
@@ -119,7 +118,7 @@ class _StagedTile extends StatelessWidget {
                       borderRadius: BorderRadius.circular(4),
                     ),
                     child: Icon(
-                      _iconFor(file.name),
+                      fileIcon(file.name),
                       size: 22,
                       color: colors.textSecondary,
                     ),
@@ -136,7 +135,7 @@ class _StagedTile extends StatelessWidget {
                 borderRadius: BorderRadius.circular(4),
               ),
               child: Icon(
-                _iconFor(file.name),
+                fileIcon(file.name),
                 size: 22,
                 color: colors.textSecondary,
               ),

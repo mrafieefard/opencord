@@ -169,16 +169,22 @@ String formatFileSize(int bytes) {
 
 /// Truncates a filename in the middle, keeping the extension intact:
 /// `very_long_file_name.png` -> `very_long…ame.png`.
+/// Counts characters, not UTF-16 units, so an emoji is never cut in half.
 String middleEllipsis(String name, {int maxLength = 24}) {
-  if (name.length <= maxLength) return name;
-  final dot = name.lastIndexOf('.');
-  final ext = dot != -1 && dot > name.length - 10 ? name.substring(dot) : '';
-  final stem = ext.isNotEmpty ? name.substring(0, dot) : name;
+  final chars = name.runes.toList();
+  if (chars.length <= maxLength) return name;
+  String part(Iterable<int> runes) => String.fromCharCodes(runes);
+  final dot = chars.lastIndexOf(0x2E);
+  final ext = dot != -1 && dot > chars.length - 10
+      ? chars.sublist(dot)
+      : const <int>[];
+  final stem = ext.isNotEmpty ? chars.sublist(0, dot) : chars;
   final available = maxLength - 1 - ext.length;
   if (available <= 3) {
-    return '${name.substring(0, maxLength - 1)}…';
+    return '${part(chars.take(maxLength - 1))}…';
   }
   final head = (available * 0.55).ceil();
   final tail = available - head;
-  return '${stem.substring(0, head)}…${stem.substring(stem.length - tail)}$ext';
+  return '${part(stem.take(head))}…'
+      '${part(stem.skip(stem.length - tail))}${part(ext)}';
 }

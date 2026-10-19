@@ -57,7 +57,7 @@ class MessageBubble extends StatelessWidget {
     this.onCancelSend,
     this.onSelectionChanged,
     this.onAuthorTap,
-    this.serverKey = '',
+    required this.serverKey,
   });
 
   final Message message;

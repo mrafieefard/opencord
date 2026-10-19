@@ -39,6 +39,7 @@ Future<void> _pumpBubble(
   Align(
     alignment: Alignment.topLeft,
     child: MessageBubble(
+      serverKey: 'test',
       message: message,
       own: own,
       first: true,

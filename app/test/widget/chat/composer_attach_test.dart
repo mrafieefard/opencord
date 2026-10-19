@@ -1,8 +1,11 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:opencord/core/model/attachment.dart';
 import 'package:opencord/core/providers/providers.dart';
+import 'package:opencord/core/repository/repository.dart';
 import 'package:opencord/features/chat/composer.dart';
 import 'package:opencord/features/chat/composer_state.dart';
 import 'package:opencord/features/shell/navigation.dart';
@@ -163,6 +166,27 @@ void main() {
       pending.where((m) => m.uploads.any((u) => u.name == 'huge.dat')),
       isEmpty,
     );
+
+    await app.dispose(tester);
+  });
+  testWidgets('a_blocked_file_names_the_blocked_extension', (tester) async {
+    final app = await MockApp.pump(tester);
+    final channel = await _open(tester, app, 'general');
+    unawaited(
+      app
+          .read(repositoryProvider)
+          .updateUploadSettings(_server, blockedExtensions: ['exe', 'tar.gz']),
+    );
+    await _pumpFor(tester, const Duration(milliseconds: 300));
+    final composer = app.read(composerProvider(channel).notifier);
+
+    composer
+      ..stageFile(const StagedFile(id: 'a', name: 'setup.EXE', size: 1024))
+      ..stageFile(const StagedFile(id: 'b', name: 'logs.tar.gz', size: 1024));
+    await _pumpFor(tester, const Duration(milliseconds: 200));
+
+    expect(find.text('exe files are blocked here'), findsOneWidget);
+    expect(find.text('tar.gz files are blocked here'), findsOneWidget);
 
     await app.dispose(tester);
   });

@@ -148,6 +148,13 @@ void main() {
       expect(middleEllipsis('file.png'), 'file.png');
     });
 
+    test('counts characters, so an emoji is never cut in half', () {
+      expect(
+        middleEllipsis('${'😀' * 30}.png', maxLength: 10),
+        '😀😀😀…😀😀.png',
+      );
+    });
+
     test('long names are truncated in the middle keeping extension', () {
       final truncated = middleEllipsis(
         'very_long_file_name_123456789.png',

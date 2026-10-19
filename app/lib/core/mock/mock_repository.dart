@@ -4059,10 +4059,18 @@ class MockRepository implements OpencordRepository {
       );
       await _latency(40);
       if (_activeDownloads[attachmentId] == true) {
-        throw const RepoException(
-          RepoErrorKind.cancelled,
-          'Download cancelled',
+        // Like the core: a download always ends with a last event.
+        _emit(
+          DownloadProgressEvent(
+            serverKey,
+            attachmentId: attachmentId,
+            receivedBytes: 500,
+            totalBytes: 1000,
+            done: false,
+            error: 'Cancelled.',
+          ),
         );
+        throw const RepoException(RepoErrorKind.cancelled, 'Cancelled.');
       }
       _emit(
         DownloadProgressEvent(
@@ -4144,6 +4152,7 @@ class MockRepository implements OpencordRepository {
         'Only the owner manages storage.',
       );
     }
+    _checkKeys(s3);
     await _latency();
     final id = server.storage.backends.length + 1;
     final backend = StorageBackend(
@@ -4151,7 +4160,7 @@ class MockRepository implements OpencordRepository {
       kind: StorageKind.s3,
       name: name,
       active: false,
-      s3: s3,
+      s3: _answered(s3),
       hasSecret: s3.secretAccessKey.isNotEmpty,
     );
     final updated = StorageInfo(
@@ -4178,6 +4187,7 @@ class MockRepository implements OpencordRepository {
         'Only the owner manages storage.',
       );
     }
+    if (s3 != null) _checkKeys(s3);
     await _latency();
     final backends = server.storage.backends.map((b) {
       if (b.id != storageId) return b;
@@ -4186,7 +4196,7 @@ class MockRepository implements OpencordRepository {
         kind: b.kind,
         name: name ?? b.name,
         active: b.active,
-        s3: s3 ?? b.s3,
+        s3: s3 == null ? b.s3 : _answered(s3),
         hasSecret: (s3?.secretAccessKey.isNotEmpty ?? false) || b.hasSecret,
         fileCount: b.fileCount,
         bytes: b.bytes,
@@ -4200,6 +4210,32 @@ class MockRepository implements OpencordRepository {
     server.storage = updated;
     _emit(StorageEvent(serverKey, updated));
     return updated;
+  }
+
+  /// As the server answers: the access key masked, no secret.
+  S3Config _answered(S3Config s3) {
+    final key = s3.accessKeyId;
+    return S3Config(
+      endpoint: s3.endpoint,
+      region: s3.region,
+      bucket: s3.bucket,
+      keyPrefix: s3.keyPrefix,
+      pathStyle: s3.pathStyle,
+      allowHttp: s3.allowHttp,
+      accessKeyId: '••••${key.length > 4 ? key.substring(key.length - 4) : ''}',
+      secretAccessKey: '',
+    );
+  }
+
+  /// The server tests a bucket before saving it, and a masked or missing
+  /// key fails that test.
+  void _checkKeys(S3Config s3) {
+    if (s3.accessKeyId.isEmpty || s3.accessKeyId.startsWith('•')) {
+      throw const RepoException(
+        RepoErrorKind.invalidArgument,
+        'The bucket refused the access key.',
+      );
+    }
   }
 
   @override

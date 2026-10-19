@@ -1,11 +1,14 @@
 import 'dart:async';
+import 'dart:math';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:opencord/core/mock/mock_repository.dart';
 import 'package:opencord/core/model/attachment.dart';
 import 'package:opencord/core/model/message.dart';
+import 'package:opencord/core/repository/repository.dart';
 import 'package:opencord/features/chat/attachments/attachment_bytes.dart';
 import 'package:opencord/features/chat/attachments/attachment_view.dart';
 import 'package:opencord/features/chat/attachments/file_card.dart';
@@ -132,6 +135,12 @@ void main() {
 
     await tester.pumpWidget(
       ProviderScope(
+        overrides: [
+          // The cards watch download progress, which comes from it.
+          repositoryProvider.overrideWithValue(
+            MockRepository(random: Random(1), simulateLife: false),
+          ),
+        ],
         child: MaterialApp(
           theme: buildTheme(OcColors.dark),
           home: Scaffold(

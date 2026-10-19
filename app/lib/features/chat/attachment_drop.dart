@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:opencord/core/format.dart';
 import 'package:opencord/core/model/attachment.dart';
+import 'package:opencord/core/model/permissions.dart';
 import 'package:opencord/core/providers/providers.dart';
 import 'package:opencord/features/chat/composer_state.dart';
 import 'package:opencord/ui/theme/oc_colors.dart';
@@ -39,12 +40,18 @@ class _AttachmentDropZoneState extends ConsumerState<AttachmentDropZone> {
     );
     final channelName = data?.channels[widget.channel.channel]?.name ?? '';
     final limit = data?.myUploadLimit ?? UploadSettings.fallback.maxFileBytes;
+    final canAttach =
+        data
+            ?.permissionsIn(widget.channel.channel)
+            .has(Permissions.attachFiles) ??
+        false;
 
     return DropTarget(
       onDragEntered: (_) => setState(() => _dragging = true),
       onDragExited: (_) => setState(() => _dragging = false),
       onDragDone: (details) {
         setState(() => _dragging = false);
+        if (!canAttach) return;
         final paths = details.files.map((f) => f.path).toList();
         unawaited(
           ref.read(composerProvider(widget.channel).notifier).stagePaths(paths),
@@ -74,18 +81,21 @@ class _AttachmentDropZoneState extends ConsumerState<AttachmentDropZone> {
                           Icon(OcIcons.upload, size: 32, color: colors.text),
                           const SizedBox(height: OcSpace.s12),
                           Text(
-                            'Drop to send to #$channelName',
+                            canAttach
+                                ? 'Drop to send to #$channelName'
+                                : "You can't attach files here",
                             textAlign: TextAlign.center,
                             style: OcText.title.copyWith(color: colors.text),
                           ),
                           const SizedBox(height: OcSpace.s6),
-                          Text(
-                            'Up to ${formatFileSize(limit)} each',
-                            textAlign: TextAlign.center,
-                            style: OcText.small.copyWith(
-                              color: colors.textSecondary,
+                          if (canAttach)
+                            Text(
+                              'Up to ${formatFileSize(limit)} each',
+                              textAlign: TextAlign.center,
+                              style: OcText.small.copyWith(
+                                color: colors.textSecondary,
+                              ),
                             ),
-                          ),
                         ],
                       ),
                     ),

@@ -1124,6 +1124,9 @@ class ChannelMessagesNotifier extends Notifier<ChannelMessages> {
   /// when shown again, rather than every channel visited reloading at once
   /// after each new session (the server limits requests).
   var _shown = 0;
+
+  /// The files of each message sent with files, kept for Retry. An entry
+  /// leaves when its message is sent, discarded or cancelled.
   final _stagedByNonce = <String, List<StagedFile>>{};
 
   @override
@@ -1328,13 +1331,28 @@ class ChannelMessagesNotifier extends Notifier<ChannelMessages> {
   Future<void> retry(String nonce) async {
     final failed = state.pending.where((m) => m.nonce == nonce).firstOrNull;
     if (failed == null) return;
-    final again = failed.copyWith(sendState: SendState.pending);
-    state = withPending(state, again);
-    if (_stagedByNonce[nonce] case final files? when files.isNotEmpty) {
-      await _deliverWithFiles(again, files);
-    } else {
+    if (failed.uploads.isEmpty) {
+      final again = failed.copyWith(sendState: SendState.pending);
+      state = withPending(state, again);
       await _deliver(again);
+      return;
     }
+    // Without its files the message would go out as something else.
+    final files = _stagedByNonce[nonce];
+    if (files == null) return;
+    final again = failed.copyWith(
+      sendState: SendState.pending,
+      uploads: [
+        for (final upload in failed.uploads)
+          PendingUpload(
+            name: upload.name,
+            size: upload.size,
+            preview: upload.preview,
+          ),
+      ],
+    );
+    state = withPending(state, again);
+    await _deliverWithFiles(again, files);
   }
 
   void discard(String nonce) {

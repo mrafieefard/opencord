@@ -351,30 +351,31 @@ class _ComposerState extends ConsumerState<Composer> {
 
   Future<void> _checkPaste() async {
     final hasText = await Clipboard.hasStrings();
-    if (!hasText) {
-      final bytes = await ref.read(repositoryProvider).clipboardImage();
-      if (bytes != null) {
-        final now = ref.read(clockProvider)().toLocal();
-        final y = now.year.toString().padLeft(4, '0');
-        final m = now.month.toString().padLeft(2, '0');
-        final d = now.day.toString().padLeft(2, '0');
-        final h = now.hour.toString().padLeft(2, '0');
-        final min = now.minute.toString().padLeft(2, '0');
-        final s = now.second.toString().padLeft(2, '0');
-        final filename = 'pasted-image-$y$m$d-$h$min$s.png';
-        final id = '${now.microsecondsSinceEpoch}_${filename.hashCode}';
-        _composer.stageFile(
-          StagedFile(
-            id: id,
-            name: filename,
-            size: bytes.length,
-            bytes: bytes,
-            preview: bytes.length <= 20 * 1024 * 1024 ? bytes : null,
-          ),
-        );
-      }
+    if (hasText || !mounted || !_canAttach) return;
+    final Uint8List? bytes;
+    try {
+      bytes = await ref.read(repositoryProvider).clipboardImage();
+    } on RepoException catch (error) {
+      if (mounted) showOcToast(context, error.message);
+      return;
     }
+    if (bytes == null || !mounted) return;
+    final now = ref.read(clockProvider)().toLocal();
+    String two(int value) => value.toString().padLeft(2, '0');
+    final stamp =
+        '${now.year}${two(now.month)}${two(now.day)}'
+        '-${two(now.hour)}${two(now.minute)}${two(now.second)}';
+    _composer.stageBytes('pasted-image-$stamp.png', bytes);
   }
+
+  /// Whether this member may attach files in this channel.
+  bool get _canAttach =>
+      ref
+          .read(serverProvider(_channel.server))
+          .data
+          ?.permissionsIn(_channel.channel)
+          .has(Permissions.attachFiles) ??
+      false;
 
   /// ↑ in an empty composer edits your last message (§4.6, §7).
   bool _editLast() {
@@ -566,6 +567,8 @@ class _ComposerState extends ConsumerState<Composer> {
                       child: StagedTiles(
                         files: state.staged,
                         limit: data.myUploadLimit,
+                        blocked: data.uploadSettings.blockedExtensions,
+                        maxFiles: data.uploadSettings.maxAttachments,
                         onRemove: _composer.removeStaged,
                       ),
                     ),

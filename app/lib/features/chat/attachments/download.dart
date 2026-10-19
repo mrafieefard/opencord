@@ -4,7 +4,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:opencord/core/model/attachment.dart';
 import 'package:opencord/core/model/message.dart';
 import 'package:opencord/core/repository/repository.dart';
-import 'package:opencord/features/chat/attachments/attachment_bytes.dart';
 import 'package:opencord/features/chat/chat_controller.dart';
 import 'package:opencord/features/chat/message_actions.dart';
 import 'package:opencord/ui/theme/oc_icons.dart';
@@ -16,26 +15,23 @@ final downloadProgressProvider =
       DownloadProgressNotifier.new,
     );
 
+/// Downloads in progress, by attachment; each leaves on its last event
+/// (`done`, or an error such as a cancel).
 class DownloadProgressNotifier
     extends Notifier<Map<int, DownloadProgressEvent>> {
   @override
   Map<int, DownloadProgressEvent> build() {
-    try {
-      final sub = ref.watch(repositoryProvider).events.listen((event) {
-        if (event is DownloadProgressEvent) {
-          final next = Map<int, DownloadProgressEvent>.from(state);
-          if (event.done || event.error != null) {
-            next.remove(event.attachmentId);
-          } else {
-            next[event.attachmentId] = event;
-          }
-          state = next;
-        }
-      });
-      ref.onDispose(sub.cancel);
-    } catch (_) {
-      // In tests where repositoryProvider is not overridden.
-    }
+    final changes = ref.watch(repositoryProvider).events.listen((event) {
+      if (event is! DownloadProgressEvent) return;
+      final next = Map.of(state);
+      if (event.done || event.error != null) {
+        next.remove(event.attachmentId);
+      } else {
+        next[event.attachmentId] = event;
+      }
+      state = next;
+    });
+    ref.onDispose(changes.cancel);
     return const {};
   }
 }
@@ -55,14 +51,9 @@ Future<void> saveAttachment(
     if (context.mounted) {
       showOcToast(context, 'Saved ${attachment.filename}');
     }
-  } catch (error) {
-    if (error is RepoException && error.kind == RepoErrorKind.cancelled) {
-      return;
-    }
-    if (context.mounted) {
-      final message = error is RepoException ? error.message : error.toString();
-      showOcToast(context, message);
-    }
+  } on RepoException catch (error) {
+    if (error.kind == RepoErrorKind.cancelled || !context.mounted) return;
+    showOcToast(context, error.message);
   }
 }
 
@@ -95,25 +86,16 @@ Future<void> showAttachmentMenu({
         label: 'Copy image',
         icon: OcIcons.contentCopy,
         onSelected: () async {
+          final repository = ref.read(repositoryProvider);
           try {
-            final bytes = await ref.read(
-              attachmentBytesProvider((
-                server: serverKey,
-                id: attachment.id,
-                thumbnail: false,
-              )).future,
+            final bytes = await repository.attachmentBytes(
+              serverKey,
+              attachment.id,
             );
-            await ref.read(repositoryProvider).copyImage(bytes);
-            if (context.mounted) {
-              showOcToast(context, 'Copied');
-            }
-          } catch (error) {
-            if (context.mounted) {
-              final message = error is RepoException
-                  ? error.message
-                  : error.toString();
-              showOcToast(context, message);
-            }
+            await repository.copyImage(bytes);
+            if (context.mounted) showOcToast(context, 'Copied');
+          } on RepoException catch (error) {
+            if (context.mounted) showOcToast(context, error.message);
           }
         },
       ),

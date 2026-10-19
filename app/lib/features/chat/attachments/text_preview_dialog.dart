@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:opencord/ui/theme/oc_colors.dart';
 import 'package:opencord/ui/theme/oc_metrics.dart';
+import 'package:opencord/ui/theme/oc_text.dart';
 import 'package:opencord/ui/widgets/oc_button.dart';
 import 'package:opencord/ui/widgets/oc_dialog.dart';
 
@@ -55,12 +56,7 @@ class TextPreviewDialog extends StatelessWidget {
               scrollDirection: Axis.horizontal,
               child: SelectableText(
                 text,
-                style: TextStyle(
-                  fontFamily: 'monospace',
-                  fontSize: 13,
-                  color: colors.text,
-                  height: 1.4,
-                ),
+                style: OcText.mono.copyWith(color: colors.text),
               ),
             ),
           ),

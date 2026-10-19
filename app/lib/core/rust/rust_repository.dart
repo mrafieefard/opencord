@@ -2175,9 +2175,8 @@ class RustRepository implements OpencordRepository {
   );
 
   @override
-  void cancelSend(String serverKey, String nonce) {
-    _core.cancelSend(serverKey: serverKey, nonce: nonce);
-  }
+  void cancelSend(String serverKey, String nonce) =>
+      _now(() => _core.cancelSend(serverKey: serverKey, nonce: nonce));
 
   @override
   Future<Uint8List> attachmentBytes(
@@ -2208,9 +2207,10 @@ class RustRepository implements OpencordRepository {
   );
 
   @override
-  void cancelDownload(String serverKey, int attachmentId) {
-    _core.cancelDownload(serverKey: serverKey, attachmentId: attachmentId);
-  }
+  void cancelDownload(String serverKey, int attachmentId) => _now(
+    () =>
+        _core.cancelDownload(serverKey: serverKey, attachmentId: attachmentId),
+  );
 
   @override
   Future<Uint8List?> clipboardImage() => _call(() => _core.clipboardImage());

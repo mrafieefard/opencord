@@ -94,7 +94,6 @@ const permissionGroups = <(String, List<PermissionInfo>)>[
         Permissions.attachFiles,
         'Attach files',
         'Send files and images',
-        later: true,
       ),
       PermissionInfo(
         Permissions.mentionEveryone,

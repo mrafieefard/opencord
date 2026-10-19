@@ -4,8 +4,8 @@ import 'package:opencord/core/format.dart';
 import 'package:opencord/core/model/attachment.dart';
 import 'package:opencord/core/model/message.dart';
 import 'package:opencord/core/repository/repository.dart';
-import 'package:opencord/features/chat/attachments/attachment_bytes.dart';
 import 'package:opencord/features/chat/attachments/download.dart';
+import 'package:opencord/features/chat/attachments/file_icon.dart';
 import 'package:opencord/features/chat/attachments/text_preview_dialog.dart';
 import 'package:opencord/ui/theme/oc_colors.dart';
 import 'package:opencord/ui/theme/oc_icons.dart';
@@ -13,34 +13,6 @@ import 'package:opencord/ui/theme/oc_metrics.dart';
 import 'package:opencord/ui/theme/oc_text.dart';
 import 'package:opencord/ui/widgets/oc_button.dart';
 import 'package:opencord/ui/widgets/toast.dart';
-
-const textPreviewExtensions = {
-  'txt',
-  'md',
-  'log',
-  'json',
-  'csv',
-  'xml',
-  'yaml',
-  'yml',
-  'toml',
-  'ini',
-  'cfg',
-  'conf',
-  'rs',
-  'py',
-  'js',
-  'ts',
-  'dart',
-  'c',
-  'h',
-  'cpp',
-  'java',
-  'go',
-  'sh',
-};
-
-const int maxPreviewBytes = 256 * 1024;
 
 class FileCard extends ConsumerWidget {
   const FileCard({
@@ -54,61 +26,9 @@ class FileCard extends ConsumerWidget {
   final Attachment attachment;
   final Message? message;
 
-  static IconData iconFor(Attachment attachment) {
-    if (attachment.kind == AttachmentKind.image) return OcIcons.image;
-    if (attachment.kind == AttachmentKind.video) return OcIcons.movie;
-    if (attachment.kind == AttachmentKind.audio ||
-        attachment.kind == AttachmentKind.voiceMessage) {
-      return OcIcons.audioFile;
-    }
-    final dot = attachment.filename.lastIndexOf('.');
-    final ext = dot != -1
-        ? attachment.filename.substring(dot + 1).toLowerCase()
-        : '';
-    if (const {
-      'zip',
-      '7z',
-      'rar',
-      'tar',
-      'gz',
-      'bz2',
-      'xz',
-      'tgz',
-    }.contains(ext)) {
-      return OcIcons.folderZip;
-    }
-    if (textPreviewExtensions.contains(ext)) {
-      return OcIcons.article;
-    }
-    if (const {
-      'png',
-      'jpg',
-      'jpeg',
-      'gif',
-      'webp',
-      'svg',
-      'bmp',
-      'ico',
-    }.contains(ext)) {
-      return OcIcons.image;
-    }
-    if (const {'mp4', 'webm', 'mkv', 'mov', 'avi'}.contains(ext)) {
-      return OcIcons.movie;
-    }
-    if (const {'mp3', 'ogg', 'wav', 'flac', 'm4a', 'opus'}.contains(ext)) {
-      return OcIcons.audioFile;
-    }
-    return OcIcons.description;
-  }
-
-  bool get _canPreview {
-    final dot = attachment.filename.lastIndexOf('.');
-    final ext = dot != -1
-        ? attachment.filename.substring(dot + 1).toLowerCase()
-        : '';
-    return textPreviewExtensions.contains(ext) &&
-        attachment.sizeBytes <= maxPreviewBytes;
-  }
+  bool get _canPreview =>
+      textPreviewExtensions.contains(fileExtension(attachment.filename)) &&
+      attachment.sizeBytes <= maxPreviewBytes;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -140,7 +60,7 @@ class FileCard extends ConsumerWidget {
         child: Row(
           children: [
             Icon(
-              iconFor(attachment),
+              fileIcon(attachment.filename, kind: attachment.kind),
               size: OcSize.iconButton,
               color: colors.textSecondary,
             ),
@@ -199,13 +119,9 @@ class FileCard extends ConsumerWidget {
                   dense: true,
                   onPressed: () async {
                     try {
-                      final bytes = await ref.read(
-                        attachmentBytesProvider((
-                          server: serverKey,
-                          id: attachment.id,
-                          thumbnail: false,
-                        )).future,
-                      );
+                      final bytes = await ref
+                          .read(repositoryProvider)
+                          .attachmentBytes(serverKey, attachment.id);
                       if (context.mounted) {
                         showTextPreviewDialog(
                           context,
@@ -213,10 +129,8 @@ class FileCard extends ConsumerWidget {
                           bytes: bytes,
                         );
                       }
-                    } catch (error) {
-                      if (context.mounted) {
-                        showOcToast(context, error.toString());
-                      }
+                    } on RepoException catch (error) {
+                      if (context.mounted) showOcToast(context, error.message);
                     }
                   },
                 ),
