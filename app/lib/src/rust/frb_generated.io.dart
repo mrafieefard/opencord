@@ -173,6 +173,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   PermissionOverwrite dco_decode_box_autoadd_permission_overwrite(dynamic raw);
 
   @protected
+  PlaybackItem dco_decode_box_autoadd_playback_item(dynamic raw);
+
+  @protected
   Presence dco_decode_box_autoadd_presence(dynamic raw);
 
   @protected
@@ -743,6 +746,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   PermissionOverwrite dco_decode_permission_overwrite(dynamic raw);
 
   @protected
+  PlaybackItem dco_decode_playback_item(dynamic raw);
+
+  @protected
   PortProtocol dco_decode_port_protocol(dynamic raw);
 
   @protected
@@ -1117,6 +1123,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   PermissionOverwrite sse_decode_box_autoadd_permission_overwrite(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  PlaybackItem sse_decode_box_autoadd_playback_item(
     SseDeserializer deserializer,
   );
 
@@ -1825,6 +1836,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  PlaybackItem sse_decode_playback_item(SseDeserializer deserializer);
+
+  @protected
   PortProtocol sse_decode_port_protocol(SseDeserializer deserializer);
 
   @protected
@@ -2273,6 +2287,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_box_autoadd_permission_overwrite(
     PermissionOverwrite self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_box_autoadd_playback_item(
+    PlaybackItem self,
     SseSerializer serializer,
   );
 
@@ -3193,6 +3213,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
     PermissionOverwrite self,
     SseSerializer serializer,
   );
+
+  @protected
+  void sse_encode_playback_item(PlaybackItem self, SseSerializer serializer);
 
   @protected
   void sse_encode_port_protocol(PortProtocol self, SseSerializer serializer);

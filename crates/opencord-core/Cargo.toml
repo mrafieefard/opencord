@@ -38,6 +38,7 @@ tokio-util.workspace = true
 tokio.workspace = true
 tracing.workspace = true
 webpki-roots.workspace = true
+wsola.workspace = true
 
 [dev-dependencies]
 opencord-server.workspace = true

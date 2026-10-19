@@ -210,6 +210,10 @@ impl Media {
         &self.events
     }
 
+    pub(crate) fn options(&self) -> MediaOptions {
+        self.options
+    }
+
     /// This device's voice state changed: joined, left, moved, or flags.
     pub fn on_target(&self, client: &Client, target: Option<MediaTarget>) {
         let mut state = self.lock();

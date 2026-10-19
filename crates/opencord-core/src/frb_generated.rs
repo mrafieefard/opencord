@@ -39,7 +39,7 @@ flutter_rust_bridge::frb_generated_boilerplate!(
     default_rust_auto_opaque = RustAutoOpaqueMoi,
 );
 pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_VERSION: &str = "2.13.0";
-pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = 1693954292;
+pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -1528625831;
 
 // Section: executor
 
@@ -6246,6 +6246,78 @@ fn wire__crate__api__client__voice_move_member_impl(
         },
     )
 }
+fn wire__crate__api__attachments__voice_pause_impl(
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) -> flutter_rust_bridge::for_generated::WireSyncRust2DartSse {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_sync::<flutter_rust_bridge::for_generated::SseCodec, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "voice_pause",
+            port: None,
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Sync,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            deserializer.end();
+            transform_result_sse::<_, crate::api::types::CoreError>((move || {
+                let output_ok = crate::api::attachments::voice_pause()?;
+                std::result::Result::Ok(output_ok)
+            })())
+        },
+    )
+}
+fn wire__crate__api__attachments__voice_play_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::SseCodec, _, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "voice_play",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_item = <crate::api::types::PlaybackItem>::sse_decode(&mut deserializer);
+            let api_position_ms = <u32>::sse_decode(&mut deserializer);
+            let api_speed = <f32>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| async move {
+                transform_result_sse::<_, crate::api::types::CoreError>(
+                    (move || async move {
+                        let output_ok = crate::api::attachments::voice_play(
+                            api_item,
+                            api_position_ms,
+                            api_speed,
+                        )
+                        .await?;
+                        std::result::Result::Ok(output_ok)
+                    })()
+                    .await,
+                )
+            }
+        },
+    )
+}
 fn wire__crate__api__attachments__voice_record_cancel_impl(
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -6329,6 +6401,65 @@ fn wire__crate__api__attachments__voice_record_stop_impl(
             deserializer.end();
             transform_result_sse::<_, crate::api::types::CoreError>((move || {
                 let output_ok = crate::api::attachments::voice_record_stop()?;
+                std::result::Result::Ok(output_ok)
+            })())
+        },
+    )
+}
+fn wire__crate__api__attachments__voice_resume_impl(
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) -> flutter_rust_bridge::for_generated::WireSyncRust2DartSse {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_sync::<flutter_rust_bridge::for_generated::SseCodec, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "voice_resume",
+            port: None,
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Sync,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            deserializer.end();
+            transform_result_sse::<_, crate::api::types::CoreError>((move || {
+                let output_ok = crate::api::attachments::voice_resume()?;
+                std::result::Result::Ok(output_ok)
+            })())
+        },
+    )
+}
+fn wire__crate__api__attachments__voice_seek_impl(
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) -> flutter_rust_bridge::for_generated::WireSyncRust2DartSse {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_sync::<flutter_rust_bridge::for_generated::SseCodec, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "voice_seek",
+            port: None,
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Sync,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_position_ms = <u32>::sse_decode(&mut deserializer);
+            deserializer.end();
+            transform_result_sse::<_, crate::api::types::CoreError>((move || {
+                let output_ok = crate::api::attachments::voice_seek(api_position_ms)?;
                 std::result::Result::Ok(output_ok)
             })())
         },
@@ -6540,6 +6671,36 @@ fn wire__crate__api__client__voice_set_self_mute_impl(
         },
     )
 }
+fn wire__crate__api__attachments__voice_set_speed_impl(
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) -> flutter_rust_bridge::for_generated::WireSyncRust2DartSse {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_sync::<flutter_rust_bridge::for_generated::SseCodec, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "voice_set_speed",
+            port: None,
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Sync,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_speed = <f32>::sse_decode(&mut deserializer);
+            deserializer.end();
+            transform_result_sse::<_, crate::api::types::CoreError>((move || {
+                let output_ok = crate::api::attachments::voice_set_speed(api_speed)?;
+                std::result::Result::Ok(output_ok)
+            })())
+        },
+    )
+}
 fn wire__crate__api__client__voice_set_stream_mute_impl(
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -6714,6 +6875,35 @@ fn wire__crate__api__types__voice_settings_changes_default_impl(
                     std::result::Result::Ok(output_ok)
                 })())
             }
+        },
+    )
+}
+fn wire__crate__api__attachments__voice_stop_impl(
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) -> flutter_rust_bridge::for_generated::WireSyncRust2DartSse {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_sync::<flutter_rust_bridge::for_generated::SseCodec, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "voice_stop",
+            port: None,
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Sync,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            deserializer.end();
+            transform_result_sse::<_, crate::api::types::CoreError>((move || {
+                let output_ok = crate::api::attachments::voice_stop()?;
+                std::result::Result::Ok(output_ok)
+            })())
         },
     )
 }
@@ -9027,6 +9217,32 @@ impl SseDecode for crate::api::types::MediaEvent {
                 let mut var_reason = <crate::api::types::VoiceStopReason>::sse_decode(deserializer);
                 return crate::api::types::MediaEvent::VoiceRecordStopped { reason: var_reason };
             }
+            16 => {
+                let mut var_item = <crate::api::types::PlaybackItem>::sse_decode(deserializer);
+                let mut var_positionMs = <u32>::sse_decode(deserializer);
+                let mut var_durationMs = <u32>::sse_decode(deserializer);
+                let mut var_playing = <bool>::sse_decode(deserializer);
+                let mut var_buffering = <bool>::sse_decode(deserializer);
+                return crate::api::types::MediaEvent::PlaybackUpdate {
+                    item: var_item,
+                    position_ms: var_positionMs,
+                    duration_ms: var_durationMs,
+                    playing: var_playing,
+                    buffering: var_buffering,
+                };
+            }
+            17 => {
+                let mut var_item = <crate::api::types::PlaybackItem>::sse_decode(deserializer);
+                return crate::api::types::MediaEvent::PlaybackEnded { item: var_item };
+            }
+            18 => {
+                let mut var_item = <crate::api::types::PlaybackItem>::sse_decode(deserializer);
+                let mut var_message = <String>::sse_decode(deserializer);
+                return crate::api::types::MediaEvent::PlaybackFailed {
+                    item: var_item,
+                    message: var_message,
+                };
+            }
             _ => {
                 unimplemented!("");
             }
@@ -9780,6 +9996,32 @@ impl SseDecode for crate::api::types::PermissionOverwrite {
             allow: var_allow,
             deny: var_deny,
         };
+    }
+}
+
+impl SseDecode for crate::api::types::PlaybackItem {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut tag_ = <i32>::sse_decode(deserializer);
+        match tag_ {
+            0 => {
+                let mut var_serverKey = <String>::sse_decode(deserializer);
+                let mut var_attachmentId = <i64>::sse_decode(deserializer);
+                return crate::api::types::PlaybackItem::Attachment {
+                    server_key: var_serverKey,
+                    attachment_id: var_attachmentId,
+                };
+            }
+            1 => {
+                let mut var_draftId = <u64>::sse_decode(deserializer);
+                return crate::api::types::PlaybackItem::Draft {
+                    draft_id: var_draftId,
+                };
+            }
+            _ => {
+                unimplemented!("");
+            }
+        }
     }
 }
 
@@ -11203,17 +11445,18 @@ fn pde_ffi_dispatcher_primary_impl(
         162 => wire__crate__api__client__voice_join_impl(port, ptr, rust_vec_len, data_len),
         163 => wire__crate__api__client__voice_leave_impl(port, ptr, rust_vec_len, data_len),
         164 => wire__crate__api__client__voice_move_member_impl(port, ptr, rust_vec_len, data_len),
-        168 => {
+        166 => wire__crate__api__attachments__voice_play_impl(port, ptr, rust_vec_len, data_len),
+        172 => {
             wire__crate__api__client__voice_server_deafen_impl(port, ptr, rust_vec_len, data_len)
         }
-        169 => wire__crate__api__client__voice_server_mute_impl(port, ptr, rust_vec_len, data_len),
-        178 => wire__crate__api__types__voice_settings_changes_default_impl(
+        173 => wire__crate__api__client__voice_server_mute_impl(port, ptr, rust_vec_len, data_len),
+        183 => wire__crate__api__types__voice_settings_changes_default_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        179 => wire__crate__api__client__watch_network_impl(port, ptr, rust_vec_len, data_len),
+        185 => wire__crate__api__client__watch_network_impl(port, ptr, rust_vec_len, data_len),
         _ => unreachable!(),
     }
 }
@@ -11261,21 +11504,26 @@ fn pde_ffi_dispatcher_sync_impl(
         158 => wire__crate__api__client__video_support_impl(ptr, rust_vec_len, data_len),
         159 => wire__crate__api__client__video_texture_stats_impl(ptr, rust_vec_len, data_len),
         161 => wire__crate__api__attachments__voice_draft_discard_impl(ptr, rust_vec_len, data_len),
-        165 => wire__crate__api__attachments__voice_record_cancel_impl(ptr, rust_vec_len, data_len),
-        166 => wire__crate__api__attachments__voice_record_start_impl(ptr, rust_vec_len, data_len),
-        167 => wire__crate__api__attachments__voice_record_stop_impl(ptr, rust_vec_len, data_len),
-        170 => {
+        165 => wire__crate__api__attachments__voice_pause_impl(ptr, rust_vec_len, data_len),
+        167 => wire__crate__api__attachments__voice_record_cancel_impl(ptr, rust_vec_len, data_len),
+        168 => wire__crate__api__attachments__voice_record_start_impl(ptr, rust_vec_len, data_len),
+        169 => wire__crate__api__attachments__voice_record_stop_impl(ptr, rust_vec_len, data_len),
+        170 => wire__crate__api__attachments__voice_resume_impl(ptr, rust_vec_len, data_len),
+        171 => wire__crate__api__attachments__voice_seek_impl(ptr, rust_vec_len, data_len),
+        174 => {
             wire__crate__api__client__voice_set_priority_speaker_impl(ptr, rust_vec_len, data_len)
         }
-        171 => wire__crate__api__client__voice_set_push_to_talk_impl(ptr, rust_vec_len, data_len),
-        172 => wire__crate__api__client__voice_set_self_deaf_impl(ptr, rust_vec_len, data_len),
-        173 => wire__crate__api__client__voice_set_self_mute_impl(ptr, rust_vec_len, data_len),
-        174 => wire__crate__api__client__voice_set_stream_mute_impl(ptr, rust_vec_len, data_len),
-        175 => wire__crate__api__client__voice_set_stream_volume_impl(ptr, rust_vec_len, data_len),
-        176 => {
+        175 => wire__crate__api__client__voice_set_push_to_talk_impl(ptr, rust_vec_len, data_len),
+        176 => wire__crate__api__client__voice_set_self_deaf_impl(ptr, rust_vec_len, data_len),
+        177 => wire__crate__api__client__voice_set_self_mute_impl(ptr, rust_vec_len, data_len),
+        178 => wire__crate__api__attachments__voice_set_speed_impl(ptr, rust_vec_len, data_len),
+        179 => wire__crate__api__client__voice_set_stream_mute_impl(ptr, rust_vec_len, data_len),
+        180 => wire__crate__api__client__voice_set_stream_volume_impl(ptr, rust_vec_len, data_len),
+        181 => {
             wire__crate__api__client__voice_set_user_local_mute_impl(ptr, rust_vec_len, data_len)
         }
-        177 => wire__crate__api__client__voice_set_user_volume_impl(ptr, rust_vec_len, data_len),
+        182 => wire__crate__api__client__voice_set_user_volume_impl(ptr, rust_vec_len, data_len),
+        184 => wire__crate__api__attachments__voice_stop_impl(ptr, rust_vec_len, data_len),
         _ => unreachable!(),
     }
 }
@@ -13228,6 +13476,30 @@ impl flutter_rust_bridge::IntoDart for crate::api::types::MediaEvent {
             crate::api::types::MediaEvent::VoiceRecordStopped { reason } => {
                 [15.into_dart(), reason.into_into_dart().into_dart()].into_dart()
             }
+            crate::api::types::MediaEvent::PlaybackUpdate {
+                item,
+                position_ms,
+                duration_ms,
+                playing,
+                buffering,
+            } => [
+                16.into_dart(),
+                item.into_into_dart().into_dart(),
+                position_ms.into_into_dart().into_dart(),
+                duration_ms.into_into_dart().into_dart(),
+                playing.into_into_dart().into_dart(),
+                buffering.into_into_dart().into_dart(),
+            ]
+            .into_dart(),
+            crate::api::types::MediaEvent::PlaybackEnded { item } => {
+                [17.into_dart(), item.into_into_dart().into_dart()].into_dart()
+            }
+            crate::api::types::MediaEvent::PlaybackFailed { item, message } => [
+                18.into_dart(),
+                item.into_into_dart().into_dart(),
+                message.into_into_dart().into_dart(),
+            ]
+            .into_dart(),
             _ => {
                 unimplemented!("");
             }
@@ -13843,6 +14115,39 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::types::PermissionOverwrite>
     for crate::api::types::PermissionOverwrite
 {
     fn into_into_dart(self) -> crate::api::types::PermissionOverwrite {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::types::PlaybackItem {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        match self {
+            crate::api::types::PlaybackItem::Attachment {
+                server_key,
+                attachment_id,
+            } => [
+                0.into_dart(),
+                server_key.into_into_dart().into_dart(),
+                attachment_id.into_into_dart().into_dart(),
+            ]
+            .into_dart(),
+            crate::api::types::PlaybackItem::Draft { draft_id } => {
+                [1.into_dart(), draft_id.into_into_dart().into_dart()].into_dart()
+            }
+            _ => {
+                unimplemented!("");
+            }
+        }
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::api::types::PlaybackItem
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::types::PlaybackItem>
+    for crate::api::types::PlaybackItem
+{
+    fn into_into_dart(self) -> crate::api::types::PlaybackItem {
         self
     }
 }
@@ -17105,6 +17410,29 @@ impl SseEncode for crate::api::types::MediaEvent {
                 <i32>::sse_encode(15, serializer);
                 <crate::api::types::VoiceStopReason>::sse_encode(reason, serializer);
             }
+            crate::api::types::MediaEvent::PlaybackUpdate {
+                item,
+                position_ms,
+                duration_ms,
+                playing,
+                buffering,
+            } => {
+                <i32>::sse_encode(16, serializer);
+                <crate::api::types::PlaybackItem>::sse_encode(item, serializer);
+                <u32>::sse_encode(position_ms, serializer);
+                <u32>::sse_encode(duration_ms, serializer);
+                <bool>::sse_encode(playing, serializer);
+                <bool>::sse_encode(buffering, serializer);
+            }
+            crate::api::types::MediaEvent::PlaybackEnded { item } => {
+                <i32>::sse_encode(17, serializer);
+                <crate::api::types::PlaybackItem>::sse_encode(item, serializer);
+            }
+            crate::api::types::MediaEvent::PlaybackFailed { item, message } => {
+                <i32>::sse_encode(18, serializer);
+                <crate::api::types::PlaybackItem>::sse_encode(item, serializer);
+                <String>::sse_encode(message, serializer);
+            }
             _ => {
                 unimplemented!("");
             }
@@ -17690,6 +18018,29 @@ impl SseEncode for crate::api::types::PermissionOverwrite {
         <i64>::sse_encode(self.target_id, serializer);
         <i64>::sse_encode(self.allow, serializer);
         <i64>::sse_encode(self.deny, serializer);
+    }
+}
+
+impl SseEncode for crate::api::types::PlaybackItem {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        match self {
+            crate::api::types::PlaybackItem::Attachment {
+                server_key,
+                attachment_id,
+            } => {
+                <i32>::sse_encode(0, serializer);
+                <String>::sse_encode(server_key, serializer);
+                <i64>::sse_encode(attachment_id, serializer);
+            }
+            crate::api::types::PlaybackItem::Draft { draft_id } => {
+                <i32>::sse_encode(1, serializer);
+                <u64>::sse_encode(draft_id, serializer);
+            }
+            _ => {
+                unimplemented!("");
+            }
+        }
     }
 }
 

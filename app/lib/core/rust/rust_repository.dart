@@ -2016,6 +2016,9 @@ class RustRepository implements OpencordRepository {
       ),
     core.MediaEvent_VoiceRecordLevel() => null,
     core.MediaEvent_VoiceRecordStopped() => null,
+    core.MediaEvent_PlaybackUpdate() => null,
+    core.MediaEvent_PlaybackEnded() => null,
+    core.MediaEvent_PlaybackFailed() => null,
   };
 
   @override

@@ -1327,6 +1327,30 @@ pub enum MediaEvent {
     VoiceRecordLevel { level: f32 },
     /// Recording stopped by itself.
     VoiceRecordStopped { reason: VoiceStopReason },
+    /// Voice message or media playback status.
+    PlaybackUpdate {
+        item: PlaybackItem,
+        position_ms: u32,
+        duration_ms: u32,
+        playing: bool,
+        buffering: bool,
+    },
+    /// Voice message or media playback reached the end.
+    PlaybackEnded { item: PlaybackItem },
+    /// Voice message or media playback failed.
+    PlaybackFailed { item: PlaybackItem, message: String },
+}
+
+/// What is being played: an attachment on a server, or a locally recorded draft.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum PlaybackItem {
+    Attachment {
+        server_key: String,
+        attachment_id: i64,
+    },
+    Draft {
+        draft_id: u64,
+    },
 }
 
 /// Why a voice recording stopped by itself.

@@ -19,11 +19,12 @@ use crate::api::types::{
     AddServerOutcome, AttachmentVariant, AudioSettings, Ban, CameraStarted, Channel,
     ChannelChanges, ChannelKind, ChannelPosition, CoreError, CoreEvent, CoreEventPayload,
     ErrorCode, HotkeyBinding, HotkeySupport, IdentityInfo, Invite, MediaEvent, Member, Message,
-    OutgoingFile, OverwriteTargetKind, PermissionOverwrite, PresenceStatus, Role, RoleChanges,
-    S3Config, ScreenProblem, ScreenShareRequest, ScreenShareStarted, ScreenStream, Server,
-    ServerChanges, ServerInfo, SoundDraft, SoundSelection, SoundboardSound, SoundboardSoundChanges,
-    StorageInfo, StorageTestResult, StorageTestTarget, StreamSourceKind, UploadSettings, User,
-    VideoWant, VoiceCue, VoiceDraft, VoiceSettings, VoiceSettingsChanges, VoiceState,
+    OutgoingFile, OverwriteTargetKind, PermissionOverwrite, PlaybackItem, PresenceStatus, Role,
+    RoleChanges, S3Config, ScreenProblem, ScreenShareRequest, ScreenShareStarted, ScreenStream,
+    Server, ServerChanges, ServerInfo, SoundDraft, SoundSelection, SoundboardSound,
+    SoundboardSoundChanges, StorageInfo, StorageTestResult, StorageTestTarget, StreamSourceKind,
+    UploadSettings, User, VideoWant, VoiceCue, VoiceDraft, VoiceSettings, VoiceSettingsChanges,
+    VoiceState,
 };
 use crate::artwork::ArtworkCache;
 use crate::attachments::cache::{self, MediaCache};
@@ -39,9 +40,11 @@ use crate::http::MediaHttp;
 use crate::identity::Identity;
 use crate::media::{self, Media, MediaOptions, MediaTarget};
 use crate::music_listening::MusicListening;
+use crate::now_playing::NowPlaying;
 use crate::soundboard::Soundboard;
 use crate::store::{SavedServer, Store, StoreError};
 use crate::voice::VoiceServer;
+use crate::voice_message::player::VoicePlayer;
 use crate::voice_message::recorder::{TapEngine, VoiceRecorder};
 use opencord_media::hotkeys::Hotkeys;
 
@@ -98,6 +101,8 @@ struct Inner {
     /// Attachments kept on this device, once the app gave the cache's key.
     media_cache: RwLock<Option<Arc<MediaCache>>>,
     voice_recorder: VoiceRecorder,
+    now_playing: Arc<NowPlaying>,
+    voice_player: Arc<VoicePlayer>,
 }
 
 /// The app's id, as its desktop file names it; the system's portals ask for
@@ -191,6 +196,8 @@ impl Client {
                 downloads: Downloads::default(),
                 media_cache: RwLock::new(None),
                 voice_recorder: VoiceRecorder::default(),
+                now_playing: Arc::default(),
+                voice_player: Arc::default(),
             }),
         };
         client.spawn_wake_watch();
@@ -507,6 +514,72 @@ impl Client {
         .await?;
         self.inner.voice_recorder.discard(draft_id);
         Ok(message)
+    }
+
+    pub async fn voice_play(
+        &self,
+        item: PlaybackItem,
+        position_ms: u32,
+        speed: f32,
+    ) -> Result<(), CoreError> {
+        let bytes = match &item {
+            PlaybackItem::Draft { draft_id } => {
+                let (bytes, _) =
+                    self.inner
+                        .voice_recorder
+                        .get_draft(*draft_id)
+                        .ok_or_else(|| CoreError::InvalidInput {
+                            message: format!("voice draft {draft_id} not found"),
+                        })?;
+                bytes
+            }
+            PlaybackItem::Attachment {
+                server_key,
+                attachment_id,
+            } => {
+                self.attachment_bytes(server_key, *attachment_id, AttachmentVariant::Original)
+                    .await?
+            }
+        };
+
+        let media = self.media().ok_or(CoreError::NotInitialized)?;
+        let engine = media.call_engine();
+        let settings = media.audio_settings();
+        let events = media.events().clone();
+        let open_devices = media.options().open_devices;
+
+        self.inner.voice_player.play(
+            item,
+            bytes,
+            position_ms,
+            speed,
+            engine,
+            settings,
+            events,
+            open_devices,
+            &self.inner.now_playing,
+        )
+    }
+
+    pub fn voice_pause(&self) {
+        self.inner.voice_player.pause();
+    }
+
+    pub fn voice_resume(&self) {
+        self.inner.voice_player.resume();
+    }
+
+    pub fn voice_seek(&self, position_ms: u32) {
+        self.inner.voice_player.seek(position_ms);
+    }
+
+    pub fn voice_set_speed(&self, speed: f32) -> Result<(), CoreError> {
+        self.inner.voice_player.set_speed(speed)
+    }
+
+    pub fn voice_stop(&self) {
+        self.inner.voice_player.stop();
+        self.inner.now_playing.clear();
     }
 
     /// Stops a `send_message_with_files` that is still uploading; it

@@ -19,6 +19,7 @@ pub mod mirror;
 mod music;
 pub(crate) mod music_listening;
 mod network;
+pub(crate) mod now_playing;
 mod server_clock;
 mod soundboard;
 pub mod store;

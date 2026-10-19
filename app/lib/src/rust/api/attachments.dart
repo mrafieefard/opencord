@@ -134,6 +134,29 @@ Future<Message> sendVoiceMessage({
   draftId: draftId,
 );
 
+/// Plays a voice message (attachment or draft) starting from `position_ms` at `speed`.
+Future<void> voicePlay({
+  required PlaybackItem item,
+  required int positionMs,
+  required double speed,
+}) => RustLib.instance.api.crateApiAttachmentsVoicePlay(
+  item: item,
+  positionMs: positionMs,
+  speed: speed,
+);
+
+void voicePause() => RustLib.instance.api.crateApiAttachmentsVoicePause();
+
+void voiceResume() => RustLib.instance.api.crateApiAttachmentsVoiceResume();
+
+void voiceSeek({required int positionMs}) =>
+    RustLib.instance.api.crateApiAttachmentsVoiceSeek(positionMs: positionMs);
+
+void voiceSetSpeed({required double speed}) =>
+    RustLib.instance.api.crateApiAttachmentsVoiceSetSpeed(speed: speed);
+
+void voiceStop() => RustLib.instance.api.crateApiAttachmentsVoiceStop();
+
 /// Saves the attachment at `path`; DownloadProgress events follow it.
 Future<void> downloadAttachment({
   required String serverKey,

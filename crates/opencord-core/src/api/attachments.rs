@@ -5,8 +5,8 @@ use flutter_rust_bridge::frb;
 
 use super::client::{client, on_blocking, on_runtime};
 use super::types::{
-    AttachmentVariant, CoreError, Message, OutgoingFile, S3Config, StorageInfo, StorageTestResult,
-    StorageTestTarget, UploadSettings, VoiceDraft,
+    AttachmentVariant, CoreError, Message, OutgoingFile, PlaybackItem, S3Config, StorageInfo,
+    StorageTestResult, StorageTestTarget, UploadSettings, VoiceDraft,
 };
 use crate::attachments::clipboard;
 
@@ -147,6 +147,40 @@ pub async fn send_voice_message(
             .await
     })
     .await
+}
+
+/// Plays a voice message (attachment or draft) starting from `position_ms` at `speed`.
+pub async fn voice_play(item: PlaybackItem, position_ms: u32, speed: f32) -> Result<(), CoreError> {
+    on_runtime(move |client| async move { client.voice_play(item, position_ms, speed).await }).await
+}
+
+#[frb(sync)]
+pub fn voice_pause() -> Result<(), CoreError> {
+    client()?.voice_pause();
+    Ok(())
+}
+
+#[frb(sync)]
+pub fn voice_resume() -> Result<(), CoreError> {
+    client()?.voice_resume();
+    Ok(())
+}
+
+#[frb(sync)]
+pub fn voice_seek(position_ms: u32) -> Result<(), CoreError> {
+    client()?.voice_seek(position_ms);
+    Ok(())
+}
+
+#[frb(sync)]
+pub fn voice_set_speed(speed: f32) -> Result<(), CoreError> {
+    client()?.voice_set_speed(speed)
+}
+
+#[frb(sync)]
+pub fn voice_stop() -> Result<(), CoreError> {
+    client()?.voice_stop();
+    Ok(())
 }
 
 /// Saves the attachment at `path`; DownloadProgress events follow it.
