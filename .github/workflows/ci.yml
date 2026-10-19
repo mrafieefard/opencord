@@ -22,9 +22,9 @@ env:
   # Native libraries the Rust crates build against on Linux: cpal's PipeWire
   # and ALSA backends (libspa-sys runs bindgen, hence libclang) and the D-Bus
   # client audio_thread_priority uses for RtKit; GLib for irondash's Linux
-  # textures. FFmpeg is not the system's: nasm and libva build our own (see
+  # textures. FFmpeg is not the system's: nasm, meson, ninja and libva build our own (see
   # app/tool/build_ffmpeg.sh), which the Linux bundle carries.
-  RUST_LINUX_DEPS: clang libclang-dev pkg-config libasound2-dev libpipewire-0.3-dev libspa-0.2-dev libdbus-1-dev nasm libva-dev libglib2.0-dev libgtk-3-dev
+  RUST_LINUX_DEPS: clang libclang-dev pkg-config libasound2-dev libpipewire-0.3-dev libspa-0.2-dev libdbus-1-dev nasm libva-dev libglib2.0-dev libgtk-3-dev meson ninja-build
 
 jobs:
   rust:
