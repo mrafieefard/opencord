@@ -3,8 +3,8 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:opencord/core/providers/providers.dart';
 import 'package:opencord/features/chat/voice/voice_recorder_state.dart';
-import 'package:opencord/ui/theme/oc_colors.dart';
 import 'package:opencord/ui/theme/oc_icons.dart';
+import 'package:opencord/ui/widgets/oc_icon_button.dart';
 import 'package:opencord/ui/widgets/toast.dart';
 
 class MicButton extends ConsumerStatefulWidget {
@@ -74,25 +74,22 @@ class _MicButtonState extends ConsumerState<MicButton> {
     return KeyEventResult.ignored;
   }
 
+  static void _noop() {}
+
   @override
   Widget build(BuildContext context) {
-    final colors = context.oc;
-
     return Focus(
       onKeyEvent: _onKeyEvent,
-      child: Tooltip(
-        message: 'Voice message',
-        excludeFromSemantics: true,
-        child: Listener(
-          onPointerDown: _onPointerDown,
-          onPointerMove: _onPointerMove,
-          onPointerUp: _onPointerUp,
-          onPointerCancel: _onPointerCancel,
-          behavior: HitTestBehavior.opaque,
-          child: Padding(
-            padding: const EdgeInsets.all(6),
-            child: Icon(OcIcons.mic, size: 20, color: colors.textMuted),
-          ),
+      child: Listener(
+        onPointerDown: _onPointerDown,
+        onPointerMove: _onPointerMove,
+        onPointerUp: _onPointerUp,
+        onPointerCancel: _onPointerCancel,
+        behavior: HitTestBehavior.opaque,
+        child: const OcIconButton(
+          icon: OcIcons.mic,
+          tooltip: 'Voice message',
+          onPressed: _noop,
         ),
       ),
     );
