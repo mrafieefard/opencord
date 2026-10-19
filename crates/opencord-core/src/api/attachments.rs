@@ -5,8 +5,8 @@ use flutter_rust_bridge::frb;
 
 use super::client::{client, on_runtime};
 use super::types::{
-    CoreError, Message, OutgoingFile, S3Config, StorageInfo, StorageTestResult, StorageTestTarget,
-    UploadSettings,
+    AttachmentVariant, CoreError, Message, OutgoingFile, S3Config, StorageInfo, StorageTestResult,
+    StorageTestTarget, UploadSettings,
 };
 
 /// MANAGE_SERVER. `None` leaves a setting as it is.
@@ -125,4 +125,35 @@ pub async fn download_attachment(
 pub fn cancel_download(server_key: String, attachment_id: i64) -> Result<(), CoreError> {
     client()?.cancel_download(&server_key, attachment_id);
     Ok(())
+}
+
+/// A thumbnail, or an original of at most 64 MiB, through the cache. Only
+/// for images, voice messages and audio; other files use
+/// `download_attachment`, videos the media player.
+pub async fn attachment_bytes(
+    server_key: String,
+    attachment_id: i64,
+    variant: AttachmentVariant,
+) -> Result<Vec<u8>, CoreError> {
+    on_runtime(move |client| async move {
+        client
+            .attachment_bytes(&server_key, attachment_id, variant)
+            .await
+    })
+    .await
+}
+
+/// Turns the attachment cache on, with the 32-byte key the app keeps in
+/// the system keychain. Without it nothing is cached on disk.
+#[frb(sync)]
+pub fn media_cache_init(key: Vec<u8>) -> Result<(), CoreError> {
+    client()?.media_cache_init(&key)
+}
+
+pub async fn media_cache_size() -> Result<u64, CoreError> {
+    on_runtime(move |client| async move { client.media_cache_size().await }).await
+}
+
+pub async fn media_cache_clear() -> Result<(), CoreError> {
+    on_runtime(move |client| async move { client.media_cache_clear().await }).await
 }

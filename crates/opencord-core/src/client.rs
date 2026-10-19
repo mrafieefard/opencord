@@ -2,7 +2,7 @@
 //! server. Every event from every server arrives on one channel.
 
 use std::collections::HashMap;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, MutexGuard, OnceLock, PoisonError, RwLock, Weak};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
@@ -16,16 +16,17 @@ use tokio::runtime::Handle;
 use tokio::sync::{broadcast, mpsc, oneshot};
 
 use crate::api::types::{
-    AddServerOutcome, AudioSettings, Ban, CameraStarted, Channel, ChannelChanges, ChannelKind,
-    ChannelPosition, CoreError, CoreEvent, CoreEventPayload, ErrorCode, HotkeyBinding,
-    HotkeySupport, IdentityInfo, Invite, MediaEvent, Member, Message, OutgoingFile,
-    OverwriteTargetKind, PermissionOverwrite, PresenceStatus, Role, RoleChanges, S3Config,
-    ScreenProblem, ScreenShareRequest, ScreenShareStarted, ScreenStream, Server, ServerChanges,
-    ServerInfo, SoundDraft, SoundSelection, SoundboardSound, SoundboardSoundChanges, StorageInfo,
-    StorageTestResult, StorageTestTarget, StreamSourceKind, UploadSettings, User, VideoWant,
-    VoiceCue, VoiceSettings, VoiceSettingsChanges, VoiceState,
+    AddServerOutcome, AttachmentVariant, AudioSettings, Ban, CameraStarted, Channel,
+    ChannelChanges, ChannelKind, ChannelPosition, CoreError, CoreEvent, CoreEventPayload,
+    ErrorCode, HotkeyBinding, HotkeySupport, IdentityInfo, Invite, MediaEvent, Member, Message,
+    OutgoingFile, OverwriteTargetKind, PermissionOverwrite, PresenceStatus, Role, RoleChanges,
+    S3Config, ScreenProblem, ScreenShareRequest, ScreenShareStarted, ScreenStream, Server,
+    ServerChanges, ServerInfo, SoundDraft, SoundSelection, SoundboardSound, SoundboardSoundChanges,
+    StorageInfo, StorageTestResult, StorageTestTarget, StreamSourceKind, UploadSettings, User,
+    VideoWant, VoiceCue, VoiceSettings, VoiceSettingsChanges, VoiceState,
 };
 use crate::artwork::ArtworkCache;
+use crate::attachments::cache::{self, MediaCache};
 use crate::attachments::download::{self, Downloads};
 use crate::attachments::transfer::Transfers;
 use crate::attachments::upload::{self, Uploads};
@@ -89,9 +90,12 @@ struct Inner {
     clocks: Clocks,
     /// How this person hears music, kept for media that starts later.
     music_listening: Mutex<MusicListening>,
+    data_dir: PathBuf,
     transfers: Transfers,
     uploads: Arc<Uploads>,
     downloads: Downloads,
+    /// Attachments kept on this device, once the app gave the cache's key.
+    media_cache: RwLock<Option<Arc<MediaCache>>>,
 }
 
 /// The app's id, as its desktop file names it; the system's portals ask for
@@ -179,9 +183,11 @@ impl Client {
                 artwork,
                 clocks: Clocks::default(),
                 music_listening: Mutex::default(),
+                data_dir: data_dir.to_owned(),
                 transfers: Transfers::new(Arc::clone(&routes), Arc::clone(&media_tokens)),
                 uploads: Arc::default(),
                 downloads: Downloads::default(),
+                media_cache: RwLock::new(None),
             }),
         };
         client.spawn_wake_watch();
@@ -1951,6 +1957,53 @@ impl Client {
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
             .insert(key.to_owned(), "spoiled".to_owned());
+    }
+
+    pub(crate) fn media_cache(&self) -> Option<Arc<MediaCache>> {
+        self.inner
+            .media_cache
+            .read()
+            .unwrap_or_else(PoisonError::into_inner)
+            .clone()
+    }
+
+    /// A thumbnail, or an original of at most 64 MiB, through the cache.
+    pub async fn attachment_bytes(
+        &self,
+        key: &str,
+        attachment_id: i64,
+        variant: AttachmentVariant,
+    ) -> Result<Vec<u8>, CoreError> {
+        download::bytes(self, key, attachment_id, variant).await
+    }
+
+    /// Turns the attachment cache on, sealed with this 32-byte key.
+    pub fn media_cache_init(&self, key: &[u8]) -> Result<(), CoreError> {
+        let key: [u8; 32] = key.try_into().map_err(|_| CoreError::InvalidInput {
+            message: "the media cache's key must be 32 bytes".to_owned(),
+        })?;
+        let cache = MediaCache::open(
+            self.inner.data_dir.join(cache::DIR),
+            opencord_common::blob::BlobKey::from_bytes(key),
+            cache::LIMIT,
+        )
+        .map_err(|error| CoreError::Storage {
+            message: error.to_string(),
+        })?;
+        *self
+            .inner
+            .media_cache
+            .write()
+            .unwrap_or_else(PoisonError::into_inner) = Some(Arc::new(cache));
+        Ok(())
+    }
+
+    pub async fn media_cache_size(&self) -> Result<u64, CoreError> {
+        download::cache_size(self.media_cache()).await
+    }
+
+    pub async fn media_cache_clear(&self) -> Result<(), CoreError> {
+        download::cache_clear(self.media_cache()).await
     }
 
     /// A request answered with an ack.

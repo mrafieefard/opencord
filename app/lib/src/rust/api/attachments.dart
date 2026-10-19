@@ -123,3 +123,27 @@ void cancelDownload({
   serverKey: serverKey,
   attachmentId: attachmentId,
 );
+
+/// A thumbnail, or an original of at most 64 MiB, through the cache. Only
+/// for images, voice messages and audio; other files use
+/// `download_attachment`, videos the media player.
+Future<Uint8List> attachmentBytes({
+  required String serverKey,
+  required PlatformInt64 attachmentId,
+  required AttachmentVariant variant,
+}) => RustLib.instance.api.crateApiAttachmentsAttachmentBytes(
+  serverKey: serverKey,
+  attachmentId: attachmentId,
+  variant: variant,
+);
+
+/// Turns the attachment cache on, with the 32-byte key the app keeps in
+/// the system keychain. Without it nothing is cached on disk.
+void mediaCacheInit({required List<int> key}) =>
+    RustLib.instance.api.crateApiAttachmentsMediaCacheInit(key: key);
+
+Future<BigInt> mediaCacheSize() =>
+    RustLib.instance.api.crateApiAttachmentsMediaCacheSize();
+
+Future<void> mediaCacheClear() =>
+    RustLib.instance.api.crateApiAttachmentsMediaCacheClear();

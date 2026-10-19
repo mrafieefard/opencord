@@ -1,20 +1,26 @@
-//! Attachments coming down (media uploads plan, Task 18): any file streamed
-//! to where the user saves it.
+//! Attachments coming down (media uploads plan, Tasks 18 and 19): small ones whole,
+//! for the image viewer and the players, through the cache; any file
+//! streamed to where the user saves it.
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
-use std::sync::{Mutex, MutexGuard, PoisonError};
+use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 use std::time::{Duration, Instant};
 
 use tokio::io::AsyncWriteExt;
 use tokio_util::sync::CancellationToken;
 
+use super::cache::{Entry, MediaCache};
 use super::transfer::{Call, network, refusal};
 use crate::api::types::{AttachmentVariant, CoreError, CoreEventPayload};
 use crate::client::Client;
 
 /// Progress goes out at most this often.
 const PROGRESS_EVERY: Duration = Duration::from_millis(100);
+/// The most `bytes` reads into memory.
+const SHOW_MAX_BYTES: u64 = 64 * 1024 * 1024;
+/// Originals up to this size are cached; thumbnails always are.
+const CACHE_MAX_BYTES: u64 = 20 * 1024 * 1024;
 
 #[derive(Default)]
 pub(crate) struct Downloads {
@@ -187,4 +193,98 @@ impl Progress<'_> {
             },
         );
     }
+}
+
+/// A thumbnail, or an original of at most 64 MiB, from the cache when it
+/// is there. Only images, voice messages and audio are read this way.
+pub(crate) async fn bytes(
+    client: &Client,
+    key: &str,
+    attachment_id: i64,
+    variant: AttachmentVariant,
+) -> Result<Vec<u8>, CoreError> {
+    let entry = Entry::new(key, attachment_id, variant);
+    let cache = client.media_cache();
+    if let Some(cache) = &cache {
+        let (cache, entry) = (Arc::clone(cache), entry.clone());
+        if let Some(bytes) = blocking(move || Ok(cache.get(&entry))).await? {
+            return Ok(bytes);
+        }
+    }
+    let call = Call::get(path_of(attachment_id, variant), None);
+    let mut response = client.transfers().send(client, key, call).await?;
+    if !response.status().is_success() {
+        return Err(refusal(response).await);
+    }
+    let too_large = || CoreError::InvalidInput {
+        message: "the file is too large to show".to_owned(),
+    };
+    if response
+        .content_length()
+        .is_some_and(|length| length > SHOW_MAX_BYTES)
+    {
+        return Err(too_large());
+    }
+    let mut body = Vec::new();
+    while let Some(chunk) = response.chunk().await.map_err(|error| network(&error))? {
+        if (body.len() + chunk.len()) as u64 > SHOW_MAX_BYTES {
+            return Err(too_large());
+        }
+        body.extend_from_slice(&chunk);
+    }
+    let worth_keeping =
+        variant == AttachmentVariant::Thumbnail || body.len() as u64 <= CACHE_MAX_BYTES;
+    if let Some(cache) = cache
+        && worth_keeping
+    {
+        let plain = body.clone();
+        let kept = blocking(move || {
+            cache
+                .put(&entry, &plain)
+                .map_err(|error| CoreError::Storage {
+                    message: error.to_string(),
+                })
+        })
+        .await;
+        if let Err(error) = kept {
+            tracing::warn!(%error, "an attachment couldn't be cached");
+        }
+    }
+    Ok(body)
+}
+
+/// Runs cache work (file reads and sealing) off the async threads.
+async fn blocking<T: Send + 'static>(
+    work: impl FnOnce() -> Result<T, CoreError> + Send + 'static,
+) -> Result<T, CoreError> {
+    tokio::task::spawn_blocking(work)
+        .await
+        .map_err(|error| CoreError::Storage {
+            message: error.to_string(),
+        })?
+}
+
+/// The cache's size, or 0 without one.
+pub(crate) async fn cache_size(cache: Option<Arc<MediaCache>>) -> Result<u64, CoreError> {
+    let Some(cache) = cache else {
+        return Ok(0);
+    };
+    blocking(move || {
+        cache.size().map_err(|error| CoreError::Storage {
+            message: error.to_string(),
+        })
+    })
+    .await
+}
+
+pub(crate) async fn cache_clear(cache: Option<Arc<MediaCache>>) -> Result<(), CoreError> {
+    let Some(cache) = cache else {
+        return Ok(());
+    };
+    blocking(move || {
+        cache.clear().map_err(|error| CoreError::Storage {
+            message: error.to_string(),
+        })
+    })
+    .await
 }

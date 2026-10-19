@@ -5,8 +5,8 @@ use std::time::Duration;
 
 use opencord_common::address::format_fingerprint;
 use opencord_core::api::types::{
-    CoreError, CoreEvent, CoreEventPayload, ErrorCode, OutgoingFile, ReadySnapshot, RoleChanges,
-    StorageKind, UploadPhase,
+    AttachmentVariant, CoreError, CoreEvent, CoreEventPayload, ErrorCode, OutgoingFile,
+    ReadySnapshot, RoleChanges, StorageKind, UploadPhase,
 };
 use opencord_core::client::Client;
 use opencord_core::identity::Identity;
@@ -452,4 +452,57 @@ async fn download_attachment_writes_the_exact_file() {
         })
         .await;
     assert_eq!((received, total), (file.len() as u64, file.len() as u64));
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn attachment_bytes_uses_the_cache_second_time() {
+    let server = TestServer::start().await;
+    let (owner, ready) = TestClient::owner(&server).await;
+    let key = server.address();
+    owner.client.media_cache_init(&[9; 32]).unwrap();
+    let mut png = Vec::new();
+    image::DynamicImage::ImageRgb8(image::RgbImage::from_pixel(64, 64, image::Rgb([1, 2, 3])))
+        .write_to(&mut std::io::Cursor::new(&mut png), image::ImageFormat::Png)
+        .unwrap();
+    let message = owner
+        .client
+        .send_message_with_files(
+            &key,
+            general(&ready),
+            String::new(),
+            "n1".to_owned(),
+            vec![bytes_file("picture.png", png.clone())],
+        )
+        .await
+        .unwrap();
+    let id = message.attachments[0].id;
+    let original = owner
+        .client
+        .attachment_bytes(&key, id, AttachmentVariant::Original)
+        .await
+        .unwrap();
+    let thumbnail = owner
+        .client
+        .attachment_bytes(&key, id, AttachmentVariant::Thumbnail)
+        .await
+        .unwrap();
+    assert_eq!(original, png);
+    assert!(owner.client.media_cache_size().await.unwrap() > 0);
+
+    server.handle.shutdown().await;
+
+    let cached = owner
+        .client
+        .attachment_bytes(&key, id, AttachmentVariant::Original)
+        .await
+        .unwrap();
+    assert_eq!(cached, png);
+    let cached = owner
+        .client
+        .attachment_bytes(&key, id, AttachmentVariant::Thumbnail)
+        .await
+        .unwrap();
+    assert_eq!(cached, thumbnail);
+    owner.client.media_cache_clear().await.unwrap();
+    assert_eq!(owner.client.media_cache_size().await.unwrap(), 0);
 }

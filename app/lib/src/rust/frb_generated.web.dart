@@ -48,6 +48,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   AttachmentKind dco_decode_attachment_kind(dynamic raw);
 
   @protected
+  AttachmentVariant dco_decode_attachment_variant(dynamic raw);
+
+  @protected
   AudioDevice dco_decode_audio_device(dynamic raw);
 
   @protected
@@ -951,6 +954,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   AttachmentKind sse_decode_attachment_kind(SseDeserializer deserializer);
+
+  @protected
+  AttachmentVariant sse_decode_attachment_variant(SseDeserializer deserializer);
 
   @protected
   AudioDevice sse_decode_audio_device(SseDeserializer deserializer);
@@ -2053,6 +2059,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_attachment_kind(
     AttachmentKind self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_attachment_variant(
+    AttachmentVariant self,
     SseSerializer serializer,
   );
 
