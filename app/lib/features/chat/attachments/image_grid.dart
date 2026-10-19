@@ -4,6 +4,7 @@ import 'package:opencord/core/model/attachment.dart';
 import 'package:opencord/core/model/message.dart';
 import 'package:opencord/features/chat/attachments/attachment_bytes.dart';
 import 'package:opencord/features/chat/attachments/download.dart';
+import 'package:opencord/features/chat/attachments/media_viewer.dart';
 import 'package:opencord/ui/theme/oc_colors.dart';
 import 'package:opencord/ui/theme/oc_icons.dart';
 import 'package:opencord/ui/theme/oc_metrics.dart';
@@ -26,6 +27,17 @@ class ImageGrid extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (images.isEmpty) return const SizedBox.shrink();
+
+    final handleTap =
+        onTap ??
+        (int index) {
+          showMediaViewer(
+            context,
+            serverKey: serverKey,
+            media: images,
+            index: index,
+          );
+        };
 
     if (images.length == 1) {
       final img = images.first;
@@ -50,7 +62,7 @@ class ImageGrid extends StatelessWidget {
           message: message,
           attachment: img,
           index: 0,
-          onTap: onTap,
+          onTap: handleTap,
         ),
       );
     }
@@ -67,7 +79,7 @@ class ImageGrid extends StatelessWidget {
                 message: message,
                 attachment: images[0],
                 index: 0,
-                onTap: onTap,
+                onTap: handleTap,
               ),
             ),
             const SizedBox(width: OcSpace.s4),
@@ -77,7 +89,7 @@ class ImageGrid extends StatelessWidget {
                 message: message,
                 attachment: images[1],
                 index: 1,
-                onTap: onTap,
+                onTap: handleTap,
               ),
             ),
           ],
@@ -98,7 +110,7 @@ class ImageGrid extends StatelessWidget {
                 message: message,
                 attachment: images[0],
                 index: 0,
-                onTap: onTap,
+                onTap: handleTap,
               ),
             ),
             const SizedBox(width: OcSpace.s4),
@@ -112,7 +124,7 @@ class ImageGrid extends StatelessWidget {
                       message: message,
                       attachment: images[1],
                       index: 1,
-                      onTap: onTap,
+                      onTap: handleTap,
                     ),
                   ),
                   const SizedBox(height: OcSpace.s4),
@@ -122,7 +134,7 @@ class ImageGrid extends StatelessWidget {
                       message: message,
                       attachment: images[2],
                       index: 2,
-                      onTap: onTap,
+                      onTap: handleTap,
                     ),
                   ),
                 ],
@@ -149,7 +161,7 @@ class ImageGrid extends StatelessWidget {
                     message: message,
                     attachment: images[0],
                     index: 0,
-                    onTap: onTap,
+                    onTap: handleTap,
                   ),
                 ),
                 const SizedBox(width: OcSpace.s4),
@@ -159,7 +171,7 @@ class ImageGrid extends StatelessWidget {
                     message: message,
                     attachment: images[1],
                     index: 1,
-                    onTap: onTap,
+                    onTap: handleTap,
                   ),
                 ),
               ],
@@ -175,7 +187,7 @@ class ImageGrid extends StatelessWidget {
                     message: message,
                     attachment: images[2],
                     index: 2,
-                    onTap: onTap,
+                    onTap: handleTap,
                   ),
                 ),
                 const SizedBox(width: OcSpace.s4),
@@ -186,7 +198,7 @@ class ImageGrid extends StatelessWidget {
                     attachment: images[3],
                     index: 3,
                     remaining: remaining,
-                    onTap: onTap,
+                    onTap: handleTap,
                   ),
                 ),
               ],
