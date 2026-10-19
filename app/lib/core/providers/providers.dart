@@ -1128,6 +1128,7 @@ class ChannelMessagesNotifier extends Notifier<ChannelMessages> {
   /// The files of each message sent with files, kept for Retry. An entry
   /// leaves when its message is sent, discarded or cancelled.
   final _stagedByNonce = <String, List<StagedFile>>{};
+  final _draftsByNonce = <String, int>{};
 
   @override
   ChannelMessages build() {
@@ -1327,10 +1328,68 @@ class ChannelMessagesNotifier extends Notifier<ChannelMessages> {
     }
   }
 
+  Future<void> sendVoice(VoiceDraft draft) async {
+    final now = ref.read(clockProvider)();
+    final nonce =
+        '${now.microsecondsSinceEpoch.toRadixString(36)}'
+        '${_nonces.nextInt(1 << 32).toRadixString(36)}';
+    final draftId = draft.draftId.toInt();
+    final localAttachment = Attachment(
+      id: -now.microsecondsSinceEpoch,
+      filename: 'voice-message.ogg',
+      contentType: 'audio/ogg',
+      sizeBytes: 0,
+      kind: AttachmentKind.voiceMessage,
+      durationMs: draft.durationMs,
+      waveform: draft.waveform,
+    );
+    final pending = Message(
+      id: -now.microsecondsSinceEpoch,
+      channelId: channel.channel,
+      authorId: ref.read(serverProvider(channel.server)).data?.self.id ?? 0,
+      content: '',
+      createdAt: now,
+      nonce: nonce,
+      sendState: SendState.pending,
+      attachments: [localAttachment],
+    );
+    _draftsByNonce[nonce] = draftId;
+    state = withPending(state, pending);
+    await _deliverVoice(pending, draftId);
+  }
+
+  Future<void> _deliverVoice(Message pending, int draftId) async {
+    try {
+      final sent = await _repository.sendVoiceMessage(
+        channel.server,
+        channel.channel,
+        pending.nonce!,
+        draftId,
+      );
+      _draftsByNonce.remove(pending.nonce);
+      _repository.voiceDraftDiscard(draftId);
+      if (ref.mounted) state = resolvePending(state, sent);
+    } on RepoException catch (error) {
+      if (!ref.mounted) return;
+      state = failPending(state, pending.nonce!);
+      if (error.kind == RepoErrorKind.rateLimited) {
+        ref
+            .read(sendCooldownProvider(channel).notifier)
+            .start(error.retryAfter ?? const Duration(seconds: 5));
+      }
+    }
+  }
+
   /// Sends a failed message again.
   Future<void> retry(String nonce) async {
     final failed = state.pending.where((m) => m.nonce == nonce).firstOrNull;
     if (failed == null) return;
+    if (_draftsByNonce[nonce] case final draftId?) {
+      final again = failed.copyWith(sendState: SendState.pending);
+      state = withPending(state, again);
+      await _deliverVoice(again, draftId);
+      return;
+    }
     if (failed.uploads.isEmpty) {
       final again = failed.copyWith(sendState: SendState.pending);
       state = withPending(state, again);
@@ -1357,6 +1416,10 @@ class ChannelMessagesNotifier extends Notifier<ChannelMessages> {
 
   void discard(String nonce) {
     _stagedByNonce.remove(nonce);
+    final draftId = _draftsByNonce.remove(nonce);
+    if (draftId != null) {
+      _repository.voiceDraftDiscard(draftId);
+    }
     state = removePending(state, nonce);
   }
 

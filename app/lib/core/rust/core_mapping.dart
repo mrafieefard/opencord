@@ -429,6 +429,11 @@ core.S3Config s3ConfigTo(S3Config c) => core.S3Config(
   secretAccessKey: c.secretAccessKey,
 );
 
+VoiceStopReason voiceStopReasonFrom(core.VoiceStopReason r) => switch (r) {
+  core.VoiceStopReason.maxLength => VoiceStopReason.maxLength,
+  core.VoiceStopReason.deviceLost => VoiceStopReason.deviceLost,
+};
+
 StorageMove storageMoveFrom(core.StorageMove m) => StorageMove(
   toStorageId: m.toStorageId,
   running: m.running,

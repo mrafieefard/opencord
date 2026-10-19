@@ -151,6 +151,8 @@ class MockRepository implements OpencordRepository {
     for (final timer in [..._timers, ..._retryTimers.values]) {
       timer.cancel();
     }
+    _mockRecordingTimer?.cancel();
+    _playbackTimer?.cancel();
     _musicTick?.cancel();
     _speaking?.cancel();
     _levels?.cancel();
@@ -4377,6 +4379,202 @@ class MockRepository implements OpencordRepository {
   @override
   Future<void> clearMediaCache() async {
     _mediaCacheSize = 0;
+  }
+
+  int _nextDraftId = 1;
+  final _voiceDrafts = <int, VoiceDraft>{};
+  Timer? _mockRecordingTimer;
+  bool _mockRecording = false;
+
+  void emitVoiceRecordLevel(double rms) {
+    _emit(VoiceRecordLevel(rms));
+  }
+
+  void emitVoiceRecordStopped(VoiceStopReason reason) {
+    _mockRecording = false;
+    _mockRecordingTimer?.cancel();
+    _emit(VoiceRecordStopped(reason));
+  }
+
+  @override
+  void voiceRecordStart(int maxSeconds) {
+    _mockRecording = true;
+    _mockRecordingTimer?.cancel();
+    _mockRecordingTimer = Timer.periodic(const Duration(milliseconds: 100), (
+      _,
+    ) {
+      if (_mockRecording) {
+        _emit(const VoiceRecordLevel(0.5));
+      }
+    });
+  }
+
+  @override
+  Future<VoiceDraft> voiceRecordStop() async {
+    _mockRecording = false;
+    _mockRecordingTimer?.cancel();
+    final draftId = _nextDraftId++;
+    final draft = VoiceDraft(
+      draftId: BigInt.from(draftId),
+      durationMs: 3000,
+      waveform: Uint8List.fromList(List.filled(128, 120)),
+    );
+    _voiceDrafts[draftId] = draft;
+    return draft;
+  }
+
+  @override
+  void voiceRecordCancel() {
+    _mockRecording = false;
+    _mockRecordingTimer?.cancel();
+  }
+
+  @override
+  void voiceDraftDiscard(int draftId) {
+    _voiceDrafts.remove(draftId);
+  }
+
+  @override
+  Future<Message> sendVoiceMessage(
+    String serverKey,
+    int channelId,
+    String nonce,
+    int draftId,
+  ) async {
+    final server = _server(serverKey);
+    _require(server, Permissions.sendVoiceMessages, channelId);
+    final history = _history(server, channelId);
+    final draft =
+        _voiceDrafts[draftId] ??
+        VoiceDraft(
+          draftId: BigInt.from(draftId),
+          durationMs: 3000,
+          waveform: Uint8List.fromList(List.filled(128, 120)),
+        );
+    final now = _clock();
+    final messageId = _world.ids.at(now);
+    final message = Message(
+      id: messageId,
+      channelId: channelId,
+      authorId: server.selfId,
+      content: '',
+      createdAt: now,
+      nonce: nonce,
+      attachments: [
+        Attachment(
+          id: messageId + 1,
+          filename: 'voice-message.ogg',
+          contentType: 'audio/ogg',
+          sizeBytes: 12000,
+          kind: AttachmentKind.voiceMessage,
+          durationMs: draft.durationMs,
+          waveform: draft.waveform,
+        ),
+      ],
+    );
+    history.add(message);
+    _emit(MessageCreated(serverKey, message));
+    return message;
+  }
+
+  PlaybackItem? _playingItem;
+  int _playbackPositionMs = 0;
+  bool _playbackPlaying = false;
+  Timer? _playbackTimer;
+
+  @override
+  Future<void> voicePlay(
+    PlaybackItem item,
+    int positionMs,
+    double speed,
+  ) async {
+    _playbackTimer?.cancel();
+    _playingItem = item;
+    _playbackPositionMs = positionMs;
+    _playbackPlaying = true;
+    _emit(
+      PlaybackUpdate(
+        item: item,
+        positionMs: positionMs,
+        durationMs: 3000,
+        playing: true,
+        buffering: false,
+      ),
+    );
+    _playbackTimer = Timer.periodic(const Duration(milliseconds: 100), (timer) {
+      if (!_playbackPlaying) return;
+      _playbackPositionMs += (100 * speed).toInt();
+      if (_playbackPositionMs >= 3000) {
+        timer.cancel();
+        _playbackPlaying = false;
+        _emit(PlaybackEnded(item));
+      } else {
+        _emit(
+          PlaybackUpdate(
+            item: item,
+            positionMs: _playbackPositionMs,
+            durationMs: 3000,
+            playing: true,
+            buffering: false,
+          ),
+        );
+      }
+    });
+  }
+
+  @override
+  void voicePause(PlaybackItem item) {
+    _playbackPlaying = false;
+    _emit(
+      PlaybackUpdate(
+        item: item,
+        positionMs: _playbackPositionMs,
+        durationMs: 3000,
+        playing: false,
+        buffering: false,
+      ),
+    );
+  }
+
+  @override
+  void voiceResume(PlaybackItem item) {
+    _playbackPlaying = true;
+    _emit(
+      PlaybackUpdate(
+        item: item,
+        positionMs: _playbackPositionMs,
+        durationMs: 3000,
+        playing: true,
+        buffering: false,
+      ),
+    );
+  }
+
+  @override
+  void voiceSeek(PlaybackItem item, int positionMs) {
+    _playbackPositionMs = positionMs;
+    _emit(
+      PlaybackUpdate(
+        item: item,
+        positionMs: _playbackPositionMs,
+        durationMs: 3000,
+        playing: _playbackPlaying,
+        buffering: false,
+      ),
+    );
+  }
+
+  @override
+  void voiceSetSpeed(PlaybackItem item, double speed) {}
+
+  @override
+  void voiceStop() {
+    _playbackTimer?.cancel();
+    _playbackPlaying = false;
+    if (_playingItem case final item?) {
+      _emit(PlaybackEnded(item));
+      _playingItem = null;
+    }
   }
 }
 

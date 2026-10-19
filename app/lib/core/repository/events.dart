@@ -17,6 +17,7 @@ import 'package:opencord/core/model/stream.dart';
 import 'package:opencord/core/model/user.dart';
 import 'package:opencord/core/model/video.dart';
 import 'package:opencord/core/model/voice.dart';
+import 'package:opencord/src/rust/api/types.dart' as core show PlaybackItem;
 
 /// Something that happened on one server. Both repositories (mock and Rust
 /// core) emit these, so the UI cannot tell them apart.
@@ -508,4 +509,47 @@ final class StorageEvent extends RepoEvent {
   const StorageEvent(super.serverKey, this.storage);
 
   final StorageInfo storage;
+}
+
+/// Voice message recording events (Milestone A6).
+final class VoiceRecordLevel extends RepoEvent {
+  const VoiceRecordLevel(this.rms) : super('');
+
+  final double rms;
+}
+
+final class VoiceRecordStopped extends RepoEvent {
+  const VoiceRecordStopped(this.reason) : super('');
+
+  final VoiceStopReason reason;
+}
+
+/// Voice message playback events (Milestone A6).
+final class PlaybackUpdate extends RepoEvent {
+  const PlaybackUpdate({
+    required this.item,
+    required this.positionMs,
+    required this.durationMs,
+    required this.playing,
+    required this.buffering,
+  }) : super('');
+
+  final core.PlaybackItem item;
+  final int positionMs;
+  final int durationMs;
+  final bool playing;
+  final bool buffering;
+}
+
+final class PlaybackEnded extends RepoEvent {
+  const PlaybackEnded(this.item) : super('');
+
+  final core.PlaybackItem item;
+}
+
+final class PlaybackFailed extends RepoEvent {
+  const PlaybackFailed({required this.item, required this.message}) : super('');
+
+  final core.PlaybackItem item;
+  final String message;
 }

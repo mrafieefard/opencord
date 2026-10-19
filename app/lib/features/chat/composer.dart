@@ -23,6 +23,9 @@ import 'package:opencord/features/chat/emoji_picker.dart';
 import 'package:opencord/features/chat/mentions.dart';
 import 'package:opencord/features/chat/suggestion_list.dart';
 import 'package:opencord/features/chat/suggestions.dart';
+import 'package:opencord/features/chat/voice/mic_button.dart';
+import 'package:opencord/features/chat/voice/recording_bar.dart';
+import 'package:opencord/features/chat/voice/voice_recorder_state.dart';
 import 'package:opencord/ui/theme/oc_colors.dart';
 import 'package:opencord/ui/theme/oc_icons.dart';
 import 'package:opencord/ui/theme/oc_metrics.dart';
@@ -506,6 +509,13 @@ class _ComposerState extends ConsumerState<Composer> {
     final canSend =
         data?.permissionsIn(_channel.channel).has(Permissions.sendMessages) ??
         false;
+    final canVoice =
+        data
+            ?.permissionsIn(_channel.channel)
+            .has(Permissions.sendVoiceMessages) ??
+        false;
+    final voiceState = ref.watch(voiceRecorderProvider(_channel));
+    final isRecording = voiceState.phase != RecordingPhase.idle;
     final state = ref.watch(composerProvider(_channel));
     final cooldown = ref.watch(sendCooldownProvider(_channel));
     final decoration = BoxDecoration(
@@ -572,74 +582,79 @@ class _ComposerState extends ConsumerState<Composer> {
                         onRemove: _composer.removeStaged,
                       ),
                     ),
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.end,
+                  Stack(
                     children: [
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: 2),
-                        child: OcIconButton(
-                          icon: OcIcons.attachFile,
-                          tooltip:
-                              data
-                                  .permissionsIn(_channel.channel)
-                                  .has(Permissions.attachFiles)
-                              ? 'Attach files · up to ${formatFileSize(data.myUploadLimit)} each'
-                              : "You can't attach files here",
-                          onPressed:
-                              data
-                                  .permissionsIn(_channel.channel)
-                                  .has(Permissions.attachFiles)
-                              ? () async {
-                                  final files = await openFiles();
-                                  if (files.isNotEmpty) {
-                                    await _composer.stagePaths(
-                                      files.map((f) => f.path).toList(),
-                                    );
-                                  }
-                                }
-                              : null,
-                        ),
-                      ),
-                      const SizedBox(width: OcSpace.s4),
-                      Expanded(child: _input(context, channel.name)),
-                      const SizedBox(width: OcSpace.s6),
-                      if (cooldown != null)
-                        Padding(
-                          padding: const EdgeInsets.only(
-                            right: OcSpace.s6,
-                            bottom: 11,
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 2),
+                            child: OcIconButton(
+                              icon: OcIcons.attachFile,
+                              tooltip:
+                                  data
+                                      .permissionsIn(_channel.channel)
+                                      .has(Permissions.attachFiles)
+                                  ? 'Attach files · up to ${formatFileSize(data.myUploadLimit)} each'
+                                  : "You can't attach files here",
+                              onPressed:
+                                  data
+                                      .permissionsIn(_channel.channel)
+                                      .has(Permissions.attachFiles)
+                                  ? () async {
+                                      final files = await openFiles();
+                                      if (files.isNotEmpty) {
+                                        await _composer.stagePaths(
+                                          files.map((f) => f.path).toList(),
+                                        );
+                                      }
+                                    }
+                                  : null,
+                            ),
                           ),
-                          child: _Countdown(until: cooldown),
-                        ),
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: 2),
-                        child:
-                            hasText ||
-                                editing != null ||
-                                state.staged.isNotEmpty
-                            ? OcIconButton(
-                                icon: editing != null
-                                    ? OcIcons.check
-                                    : OcIcons.send,
-                                tooltip: editing != null ? 'Save' : 'Send',
-                                active: true,
-                                activeStyle: OcActiveStyle.inverted,
-                                onPressed:
-                                    (cooldown != null && editing == null) ||
-                                        state.hasProblem
-                                    ? null
-                                    : _submit,
-                              )
-                            : OcIconButton(
-                                icon: OcIcons.mic,
-                                tooltip: 'Voice message',
-                                color: colors.textMuted,
-                                onPressed: () => showOcToast(
-                                  context,
-                                  'Voice messages are coming in a later version.',
-                                ),
+                          const SizedBox(width: OcSpace.s4),
+                          Expanded(child: _input(context, channel.name)),
+                          const SizedBox(width: OcSpace.s6),
+                          if (cooldown != null)
+                            Padding(
+                              padding: const EdgeInsets.only(
+                                right: OcSpace.s6,
+                                bottom: 11,
                               ),
+                              child: _Countdown(until: cooldown),
+                            ),
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 2),
+                            child:
+                                hasText ||
+                                    editing != null ||
+                                    state.staged.isNotEmpty
+                                ? OcIconButton(
+                                    icon: editing != null
+                                        ? OcIcons.check
+                                        : OcIcons.send,
+                                    tooltip: editing != null ? 'Save' : 'Send',
+                                    active: true,
+                                    activeStyle: OcActiveStyle.inverted,
+                                    onPressed:
+                                        (cooldown != null && editing == null) ||
+                                            state.hasProblem
+                                        ? null
+                                        : _submit,
+                                  )
+                                : (canVoice
+                                      ? MicButton(channel: _channel)
+                                      : const SizedBox.shrink()),
+                          ),
+                        ],
                       ),
+                      if (isRecording)
+                        Positioned.fill(
+                          child: ColoredBox(
+                            color: colors.sidebar,
+                            child: RecordingBar(channel: _channel),
+                          ),
+                        ),
                     ],
                   ),
                 ],

@@ -500,3 +500,6 @@ class VoiceStats {
     screenEncoder,
   );
 }
+
+/// Why recording a voice message stopped.
+enum VoiceStopReason { maxLength, deviceLost }

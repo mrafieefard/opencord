@@ -96,6 +96,11 @@ const permissionGroups = <(String, List<PermissionInfo>)>[
         'Send files and images',
       ),
       PermissionInfo(
+        Permissions.sendVoiceMessages,
+        'Send voice messages',
+        'Record and send voice messages',
+      ),
+      PermissionInfo(
         Permissions.mentionEveryone,
         'Mention @everyone',
         'Notify everyone who can see the channel at once',

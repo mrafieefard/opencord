@@ -562,6 +562,33 @@ abstract interface class CoreApi {
   Future<BigInt> mediaCacheSize();
 
   Future<void> mediaCacheClear();
+
+  void voiceRecordStart(int maxSeconds);
+
+  core.VoiceDraft voiceRecordStop();
+
+  void voiceRecordCancel();
+
+  void voiceDraftDiscard(BigInt draftId);
+
+  Future<core.Message> sendVoiceMessage(
+    String serverKey,
+    int channelId,
+    String nonce,
+    BigInt draftId,
+  );
+
+  Future<void> voicePlay(core.PlaybackItem item, int positionMs, double speed);
+
+  void voicePause(core.PlaybackItem item);
+
+  void voiceResume(core.PlaybackItem item);
+
+  void voiceSeek(core.PlaybackItem item, int positionMs);
+
+  void voiceSetSpeed(core.PlaybackItem item, double speed);
+
+  void voiceStop();
 }
 
 /// [CoreApi] over the generated bindings; needs `RustLib.init` first.
@@ -1557,4 +1584,59 @@ class FrbCoreApi implements CoreApi {
 
   @override
   Future<void> mediaCacheClear() => frb_attachments.mediaCacheClear();
+
+  @override
+  void voiceRecordStart(int maxSeconds) =>
+      frb_attachments.voiceRecordStart(maxSeconds: maxSeconds);
+
+  @override
+  core.VoiceDraft voiceRecordStop() => frb_attachments.voiceRecordStop();
+
+  @override
+  void voiceRecordCancel() => frb_attachments.voiceRecordCancel();
+
+  @override
+  void voiceDraftDiscard(BigInt draftId) =>
+      frb_attachments.voiceDraftDiscard(draftId: draftId);
+
+  @override
+  Future<core.Message> sendVoiceMessage(
+    String serverKey,
+    int channelId,
+    String nonce,
+    BigInt draftId,
+  ) => frb_attachments.sendVoiceMessage(
+    serverKey: serverKey,
+    channelId: channelId,
+    nonce: nonce,
+    draftId: draftId,
+  );
+
+  @override
+  Future<void> voicePlay(
+    core.PlaybackItem item,
+    int positionMs,
+    double speed,
+  ) => frb_attachments.voicePlay(
+    item: item,
+    positionMs: positionMs,
+    speed: speed,
+  );
+
+  @override
+  void voicePause(core.PlaybackItem item) => frb_attachments.voicePause();
+
+  @override
+  void voiceResume(core.PlaybackItem item) => frb_attachments.voiceResume();
+
+  @override
+  void voiceSeek(core.PlaybackItem item, int positionMs) =>
+      frb_attachments.voiceSeek(positionMs: positionMs);
+
+  @override
+  void voiceSetSpeed(core.PlaybackItem item, double speed) =>
+      frb_attachments.voiceSetSpeed(speed: speed);
+
+  @override
+  void voiceStop() => frb_attachments.voiceStop();
 }

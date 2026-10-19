@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:opencord/core/providers/providers.dart';
 import 'package:opencord/core/repository/repository.dart';
+import 'package:opencord/features/chat/voice/voice_recorder_state.dart';
 import 'package:opencord/features/shell/navigation.dart';
 import 'package:opencord/features/soundboard/soundboard_picker.dart';
 import 'package:opencord/features/voice/camera_menu.dart';
@@ -36,7 +37,10 @@ class VoiceConnectedPanel extends ConsumerWidget {
     );
     final capabilities = ref.read(repositoryProvider).capabilities;
     final connection = ref.watch(voiceConnectionProvider);
-    final status = connection?.phase.label ?? 'Voice connected';
+    final isRecordingVoice = ref.watch(isRecordingVoiceProvider);
+    final status = isRecordingVoice
+        ? 'Recording a voice message'
+        : (connection?.phase.label ?? 'Voice connected');
     final detail = connection?.detail;
     // Rebuilt when the bars change, not with every report.
     final bars = ref.watch(voiceStatsProvider.select((stats) => stats?.bars));

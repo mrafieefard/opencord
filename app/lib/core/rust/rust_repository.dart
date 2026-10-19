@@ -2014,11 +2014,27 @@ class RustRepository implements OpencordRepository {
           screenEncoder: stats.screenEncoder,
         ),
       ),
-    core.MediaEvent_VoiceRecordLevel() => null,
-    core.MediaEvent_VoiceRecordStopped() => null,
-    core.MediaEvent_PlaybackUpdate() => null,
-    core.MediaEvent_PlaybackEnded() => null,
-    core.MediaEvent_PlaybackFailed() => null,
+    core.MediaEvent_VoiceRecordLevel(:final level) => VoiceRecordLevel(level),
+    core.MediaEvent_VoiceRecordStopped(:final reason) => VoiceRecordStopped(
+      voiceStopReasonFrom(reason),
+    ),
+    core.MediaEvent_PlaybackUpdate(
+      :final item,
+      :final positionMs,
+      :final durationMs,
+      :final playing,
+      :final buffering,
+    ) =>
+      PlaybackUpdate(
+        item: item,
+        positionMs: positionMs,
+        durationMs: durationMs,
+        playing: playing,
+        buffering: buffering,
+      ),
+    core.MediaEvent_PlaybackEnded(:final item) => PlaybackEnded(item),
+    core.MediaEvent_PlaybackFailed(:final item, :final message) =>
+      PlaybackFailed(item: item, message: message),
   };
 
   @override
@@ -2336,4 +2352,59 @@ class RustRepository implements OpencordRepository {
 
   @override
   Future<void> clearMediaCache() => _call(() => _core.mediaCacheClear());
+
+  // Voice messages (Phase 4 A6) ---------------------------------------------
+
+  @override
+  void voiceRecordStart(int maxSeconds) =>
+      _now(() => _core.voiceRecordStart(maxSeconds));
+
+  @override
+  Future<VoiceDraft> voiceRecordStop() async =>
+      _now(() => _core.voiceRecordStop());
+
+  @override
+  void voiceRecordCancel() => _now(() => _core.voiceRecordCancel());
+
+  @override
+  void voiceDraftDiscard(int draftId) =>
+      _now(() => _core.voiceDraftDiscard(BigInt.from(draftId)));
+
+  @override
+  Future<Message> sendVoiceMessage(
+    String serverKey,
+    int channelId,
+    String nonce,
+    int draftId,
+  ) async => messageFrom(
+    await _call(
+      () => _core.sendVoiceMessage(
+        serverKey,
+        channelId,
+        nonce,
+        BigInt.from(draftId),
+      ),
+    ),
+  );
+
+  @override
+  Future<void> voicePlay(PlaybackItem item, int positionMs, double speed) =>
+      _call(() => _core.voicePlay(item, positionMs, speed));
+
+  @override
+  void voicePause(PlaybackItem item) => _now(() => _core.voicePause(item));
+
+  @override
+  void voiceResume(PlaybackItem item) => _now(() => _core.voiceResume(item));
+
+  @override
+  void voiceSeek(PlaybackItem item, int positionMs) =>
+      _now(() => _core.voiceSeek(item, positionMs));
+
+  @override
+  void voiceSetSpeed(PlaybackItem item, double speed) =>
+      _now(() => _core.voiceSetSpeed(item, speed));
+
+  @override
+  void voiceStop() => _now(() => _core.voiceStop());
 }
