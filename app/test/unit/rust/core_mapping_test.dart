@@ -230,6 +230,67 @@ void main() {
         RepoErrorKind.fingerprintMismatch,
       );
     });
+
+    test('media upload errors map to dedicated kinds', () {
+      expect(
+        errorFrom(
+          const core.CoreError.server(
+            code: core.ErrorCode.fileTooLarge,
+            message: 'too big',
+          ),
+        ).kind,
+        RepoErrorKind.fileTooLarge,
+      );
+      expect(
+        errorFrom(
+          const core.CoreError.server(
+            code: core.ErrorCode.fileTypeBlocked,
+            message: 'blocked',
+          ),
+        ).kind,
+        RepoErrorKind.fileTypeBlocked,
+      );
+      expect(
+        errorFrom(
+          const core.CoreError.server(
+            code: core.ErrorCode.voiceMessageInvalid,
+            message: 'invalid voice',
+          ),
+        ).kind,
+        RepoErrorKind.voiceMessageInvalid,
+      );
+      expect(
+        errorFrom(
+          const core.CoreError.server(
+            code: core.ErrorCode.voiceMessageTooLong,
+            message: 'too long',
+          ),
+        ).kind,
+        RepoErrorKind.voiceMessageTooLong,
+      );
+      expect(
+        errorFrom(
+          const core.CoreError.server(
+            code: core.ErrorCode.storageUnavailable,
+            message: 'unavailable',
+          ),
+        ).kind,
+        RepoErrorKind.storageUnavailable,
+      );
+      expect(
+        errorFrom(
+          const core.CoreError.server(
+            code: core.ErrorCode.storageFull,
+            message: 'full',
+          ),
+        ).kind,
+        RepoErrorKind.storageFull,
+      );
+      expect(
+        errorFrom(const core.CoreError.cancelled()).kind,
+        RepoErrorKind.cancelled,
+      );
+    });
   });
 
   test('adding a server either adds it or asks for trust', () {

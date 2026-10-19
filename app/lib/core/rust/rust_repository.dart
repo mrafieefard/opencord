@@ -6,6 +6,7 @@ import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart'
     as frb_types
     show Int64List;
 
+import 'package:opencord/core/model/attachment.dart';
 import 'package:opencord/core/model/channel.dart';
 import 'package:opencord/core/model/commands.dart';
 import 'package:opencord/core/model/lavalink.dart';
@@ -18,6 +19,7 @@ import 'package:opencord/core/model/permissions.dart';
 import 'package:opencord/core/model/server.dart';
 import 'package:opencord/core/model/snapshot.dart';
 import 'package:opencord/core/model/sound.dart';
+import 'package:opencord/core/model/storage.dart';
 import 'package:opencord/core/model/user.dart';
 import 'package:opencord/core/model/stream.dart';
 import 'package:opencord/core/model/video.dart';
@@ -622,11 +624,48 @@ class RustRepository implements OpencordRepository {
           at: DateTime.fromMillisecondsSinceEpoch(field0.atMs),
         ),
       ),
-      // Uploads, downloads and storage reach the app from Task 22 on.
-      core.CoreEventPayload_UploadSettingsUpdate() ||
-      core.CoreEventPayload_StorageUpdate() ||
-      core.CoreEventPayload_UploadProgress() ||
-      core.CoreEventPayload_DownloadProgress() => null,
+      core.CoreEventPayload_UploadSettingsUpdate(:final field0) =>
+        UploadSettingsEvent(server, uploadSettingsFrom(field0)),
+      core.CoreEventPayload_StorageUpdate(:final field0) => StorageEvent(
+        server,
+        storageInfoFrom(field0),
+      ),
+      core.CoreEventPayload_UploadProgress(
+        :final channelId,
+        :final nonce,
+        :final fileIndex,
+        :final sentBytes,
+        :final totalBytes,
+        :final phase,
+      ) =>
+        UploadProgressEvent(
+          server,
+          channelId: channelId.toInt(),
+          nonce: nonce,
+          fileIndex: fileIndex,
+          sentBytes: sentBytes.toInt(),
+          totalBytes: totalBytes.toInt(),
+          phase: uploadPhaseFrom(phase),
+          error: switch (phase) {
+            core.UploadPhase_Failed(:final message) => message,
+            _ => null,
+          },
+        ),
+      core.CoreEventPayload_DownloadProgress(
+        :final attachmentId,
+        :final receivedBytes,
+        :final totalBytes,
+        :final done,
+        :final error,
+      ) =>
+        DownloadProgressEvent(
+          server,
+          attachmentId: attachmentId.toInt(),
+          receivedBytes: receivedBytes.toInt(),
+          totalBytes: totalBytes.toInt(),
+          done: done,
+          error: error,
+        ),
     };
     if (event != null) _emit(event);
   }
@@ -929,6 +968,7 @@ class RustRepository implements OpencordRepository {
     Permissions permissions = Permissions.none,
     bool hoist = false,
     bool mentionable = false,
+    int? maxUploadBytes,
   }) async => roleFrom(
     await _call(
       () => _core.createRole(
@@ -938,6 +978,7 @@ class RustRepository implements OpencordRepository {
         permissions: permissions.bits,
         hoist: hoist,
         mentionable: mentionable,
+        maxUploadBytes: maxUploadBytes,
       ),
     ),
   );
@@ -950,6 +991,7 @@ class RustRepository implements OpencordRepository {
     Permissions? permissions,
     bool? hoist,
     bool? mentionable,
+    int? maxUploadBytes,
   }) async => roleFrom(
     await _call(
       () => _core.updateRole(
@@ -960,6 +1002,9 @@ class RustRepository implements OpencordRepository {
           permissions: permissions?.bits,
           hoist: hoist,
           mentionable: mentionable,
+          maxUploadBytes: maxUploadBytes != null
+              ? BigInt.from(maxUploadBytes)
+              : null,
         ),
       ),
     ),
@@ -2104,4 +2149,186 @@ class RustRepository implements OpencordRepository {
         ),
     ]),
   );
+
+  // Media uploads and storage ------------------------------------------------
+
+  @override
+  Future<Message> sendMessageWithFiles(
+    String serverKey,
+    int channelId,
+    String content, {
+    required String nonce,
+    required List<StagedFile> files,
+  }) async => messageFrom(
+    await _call(
+      () => _core.sendMessageWithFiles(
+        serverKey: serverKey,
+        channelId: channelId,
+        content: content,
+        nonce: nonce,
+        files: [
+          for (final f in files)
+            core.OutgoingFile(filename: f.name, path: f.path, bytes: f.bytes),
+        ],
+      ),
+    ),
+  );
+
+  @override
+  void cancelSend(String serverKey, String nonce) {
+    _core.cancelSend(serverKey: serverKey, nonce: nonce);
+  }
+
+  @override
+  Future<Uint8List> attachmentBytes(
+    String serverKey,
+    int attachmentId, {
+    bool thumbnail = false,
+  }) => _call(
+    () => _core.attachmentBytes(
+      serverKey: serverKey,
+      attachmentId: attachmentId,
+      variant: thumbnail
+          ? core.AttachmentVariant.thumbnail
+          : core.AttachmentVariant.original,
+    ),
+  );
+
+  @override
+  Future<void> downloadAttachment(
+    String serverKey,
+    int attachmentId,
+    String path,
+  ) => _call(
+    () => _core.downloadAttachment(
+      serverKey: serverKey,
+      attachmentId: attachmentId,
+      path: path,
+    ),
+  );
+
+  @override
+  void cancelDownload(String serverKey, int attachmentId) {
+    _core.cancelDownload(serverKey: serverKey, attachmentId: attachmentId);
+  }
+
+  @override
+  Future<Uint8List?> clipboardImage() => _call(() => _core.clipboardImage());
+
+  @override
+  Future<void> copyImage(Uint8List bytes) =>
+      _call(() => _core.clipboardSetImage(bytes));
+
+  @override
+  Future<UploadSettings> updateUploadSettings(
+    String serverKey, {
+    List<String>? blockedExtensions,
+    int? voiceMessageMaxSeconds,
+  }) async => uploadSettingsFrom(
+    await _call(
+      () => _core.updateUploadSettings(
+        serverKey: serverKey,
+        blockedExtensions: blockedExtensions,
+        voiceMessageMaxSeconds: voiceMessageMaxSeconds,
+      ),
+    ),
+  );
+
+  @override
+  Future<StorageInfo> storage(String serverKey) async => storageInfoFrom(
+    await _call(() => _core.storageGet(serverKey: serverKey)),
+  );
+
+  @override
+  Future<StorageInfo> addStorage(
+    String serverKey,
+    String name,
+    S3Config s3,
+  ) async => storageInfoFrom(
+    await _call(
+      () => _core.storageAdd(
+        serverKey: serverKey,
+        name: name,
+        s3: s3ConfigTo(s3),
+      ),
+    ),
+  );
+
+  @override
+  Future<StorageInfo> updateStorage(
+    String serverKey,
+    int storageId, {
+    String? name,
+    S3Config? s3,
+  }) async => storageInfoFrom(
+    await _call(
+      () => _core.storageUpdate(
+        serverKey: serverKey,
+        storageId: storageId,
+        name: name,
+        s3: s3 != null ? s3ConfigTo(s3) : null,
+      ),
+    ),
+  );
+
+  @override
+  Future<StorageTestResult> testStorage(
+    String serverKey, {
+    int? storageId,
+    S3Config? s3,
+  }) async {
+    final core.StorageTestTarget target;
+    if (storageId != null) {
+      target = core.StorageTestTarget.existing(storageId: storageId);
+    } else if (s3 != null) {
+      target = core.StorageTestTarget.config(s3: s3ConfigTo(s3));
+    } else {
+      throw ArgumentError(
+        'Either storageId or s3 must be provided to testStorage',
+      );
+    }
+    return storageTestResultFrom(
+      await _call(
+        () => _core.storageTest(serverKey: serverKey, target: target),
+      ),
+    );
+  }
+
+  @override
+  Future<StorageInfo> activateStorage(String serverKey, int storageId) async =>
+      storageInfoFrom(
+        await _call(
+          () =>
+              _core.storageActivate(serverKey: serverKey, storageId: storageId),
+        ),
+      );
+
+  @override
+  Future<StorageInfo> removeStorage(String serverKey, int storageId) async =>
+      storageInfoFrom(
+        await _call(
+          () => _core.storageRemove(serverKey: serverKey, storageId: storageId),
+        ),
+      );
+
+  @override
+  Future<StorageInfo> startStorageMove(String serverKey) async =>
+      storageInfoFrom(
+        await _call(() => _core.storageMoveStart(serverKey: serverKey)),
+      );
+
+  @override
+  Future<StorageInfo> stopStorageMove(String serverKey) async =>
+      storageInfoFrom(
+        await _call(() => _core.storageMoveStop(serverKey: serverKey)),
+      );
+
+  @override
+  Future<int> mediaCacheSize() async {
+    final size = await _call(() => _core.mediaCacheSize());
+    return size.toInt();
+  }
+
+  @override
+  Future<void> clearMediaCache() => _call(() => _core.mediaCacheClear());
 }

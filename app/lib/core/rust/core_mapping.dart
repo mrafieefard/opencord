@@ -1,3 +1,4 @@
+import 'package:opencord/core/model/attachment.dart';
 import 'package:opencord/core/model/channel.dart';
 import 'package:opencord/core/model/message.dart';
 import 'package:opencord/core/model/misc.dart';
@@ -8,6 +9,7 @@ import 'package:opencord/core/model/presence.dart';
 import 'package:opencord/core/model/server.dart';
 import 'package:opencord/core/model/snapshot.dart';
 import 'package:opencord/core/model/sound.dart';
+import 'package:opencord/core/model/storage.dart';
 import 'package:opencord/core/model/stream.dart';
 import 'package:opencord/core/model/user.dart';
 import 'package:opencord/core/model/voice.dart';
@@ -39,6 +41,29 @@ Message messageFrom(core.Message message) => Message(
   },
   nonce: message.nonce,
   command: message.command,
+  attachments: [for (final a in message.attachments) attachmentFrom(a)],
+);
+
+Attachment attachmentFrom(core.Attachment a) => Attachment(
+  id: a.id,
+  filename: a.filename,
+  contentType: a.contentType,
+  sizeBytes: a.sizeBytes.toInt(),
+  kind: switch (a.kind) {
+    core.AttachmentKind.file => AttachmentKind.file,
+    core.AttachmentKind.image => AttachmentKind.image,
+    core.AttachmentKind.video => AttachmentKind.video,
+    core.AttachmentKind.audio => AttachmentKind.audio,
+    core.AttachmentKind.voiceMessage => AttachmentKind.voiceMessage,
+  },
+  width: a.width,
+  height: a.height,
+  durationMs: a.durationMs,
+  waveform: a.waveform,
+  hasThumbnail: a.hasThumbnail,
+  thumbnailWidth: a.thumbnailWidth,
+  thumbnailHeight: a.thumbnailHeight,
+  animated: a.animated,
 );
 
 ChannelKind channelKindFrom(core.ChannelKind kind) => switch (kind) {
@@ -215,6 +240,7 @@ Role roleFrom(core.Role role) => Role(
   permissions: Permissions(role.permissions),
   hoist: role.hoist,
   mentionable: role.mentionable,
+  maxUploadBytes: role.maxUploadBytes?.toInt(),
 );
 
 ServerInfo serverInfoFrom(core.ServerInfo info) => ServerInfo(
@@ -338,7 +364,89 @@ ReadySnapshot snapshotFrom(
   readStates: readStates,
   addresses: serverAddressesFrom(ready.addresses),
   commands: commandListFrom(ready.commands),
+  uploadSettings: uploadSettingsFrom(ready.uploadSettings),
 );
+
+UploadSettings uploadSettingsFrom(core.UploadSettings s) => UploadSettings(
+  blockedExtensions: s.blockedExtensions,
+  voiceMessageMaxSeconds: s.voiceMessageMaxSeconds,
+  maxFileBytes: s.maxFileBytes.toInt(),
+  maxAttachments: s.maxAttachments,
+);
+
+UploadPhase uploadPhaseFrom(core.UploadPhase phase) => switch (phase) {
+  core.UploadPhase_Preparing() => UploadPhase.preparing,
+  core.UploadPhase_Uploading() => UploadPhase.uploading,
+  core.UploadPhase_Processing() => UploadPhase.processing,
+  core.UploadPhase_Sending() => UploadPhase.sending,
+  core.UploadPhase_Done() => UploadPhase.done,
+  core.UploadPhase_Failed() => UploadPhase.failed,
+  core.UploadPhase_Cancelled() => UploadPhase.cancelled,
+};
+
+StorageInfo storageInfoFrom(core.StorageInfo info) => StorageInfo(
+  backends: [for (final b in info.backends) storageBackendFrom(b)],
+  moveStatus: info.moveStatus == null
+      ? null
+      : storageMoveFrom(info.moveStatus!),
+  tempFreeBytes: info.tempFreeBytes.toInt(),
+);
+
+StorageBackend storageBackendFrom(core.StorageBackend b) => StorageBackend(
+  id: b.id,
+  kind: switch (b.kind) {
+    core.StorageKind.local => StorageKind.local,
+    core.StorageKind.s3 => StorageKind.s3,
+  },
+  name: b.name,
+  active: b.active,
+  s3: b.s3 == null ? null : s3ConfigFrom(b.s3!),
+  hasSecret: b.hasSecret,
+  fileCount: b.fileCount.toInt(),
+  bytes: b.bytes.toInt(),
+  lastError: b.lastError,
+);
+
+S3Config s3ConfigFrom(core.S3Config c) => S3Config(
+  endpoint: c.endpoint,
+  region: c.region,
+  bucket: c.bucket,
+  keyPrefix: c.keyPrefix,
+  pathStyle: c.pathStyle,
+  allowHttp: c.allowHttp,
+  accessKeyId: c.accessKeyId,
+  secretAccessKey: c.secretAccessKey,
+);
+
+core.S3Config s3ConfigTo(S3Config c) => core.S3Config(
+  endpoint: c.endpoint,
+  region: c.region,
+  bucket: c.bucket,
+  keyPrefix: c.keyPrefix,
+  pathStyle: c.pathStyle,
+  allowHttp: c.allowHttp,
+  accessKeyId: c.accessKeyId,
+  secretAccessKey: c.secretAccessKey,
+);
+
+StorageMove storageMoveFrom(core.StorageMove m) => StorageMove(
+  toStorageId: m.toStorageId,
+  running: m.running,
+  filesDone: m.filesDone.toInt(),
+  filesTotal: m.filesTotal.toInt(),
+  bytesDone: m.bytesDone.toInt(),
+  bytesTotal: m.bytesTotal.toInt(),
+  failed: m.failed,
+);
+
+StorageTestResult storageTestResultFrom(core.StorageTestResult r) =>
+    StorageTestResult(
+      steps: [
+        for (final s in r.steps)
+          StorageTestStep(name: s.name, ok: s.ok, detail: s.detail),
+      ],
+      ok: r.ok,
+    );
 
 Sound soundFrom(core.SoundboardSound sound) => Sound(
   id: sound.id,
@@ -429,14 +537,13 @@ RepoErrorKind _kindFrom(core.ErrorCode code) => switch (code) {
   core.ErrorCode.soundCooldown => RepoErrorKind.soundCooldown,
   core.ErrorCode.soundTooLong => RepoErrorKind.soundTooLong,
   core.ErrorCode.soundInvalid => RepoErrorKind.soundInvalid,
-  // Media uploads; Task 22 gives them kinds of their own.
-  core.ErrorCode.fileTooLarge ||
-  core.ErrorCode.fileTypeBlocked ||
-  core.ErrorCode.voiceMessageInvalid ||
-  core.ErrorCode.voiceMessageTooLong => RepoErrorKind.invalidArgument,
+  core.ErrorCode.fileTooLarge => RepoErrorKind.fileTooLarge,
+  core.ErrorCode.fileTypeBlocked => RepoErrorKind.fileTypeBlocked,
+  core.ErrorCode.voiceMessageInvalid => RepoErrorKind.voiceMessageInvalid,
+  core.ErrorCode.voiceMessageTooLong => RepoErrorKind.voiceMessageTooLong,
   core.ErrorCode.uploadOffsetMismatch => RepoErrorKind.conflict,
-  core.ErrorCode.storageUnavailable ||
-  core.ErrorCode.storageFull => RepoErrorKind.other,
+  core.ErrorCode.storageUnavailable => RepoErrorKind.storageUnavailable,
+  core.ErrorCode.storageFull => RepoErrorKind.storageFull,
   core.ErrorCode.internal || core.ErrorCode.unknown => RepoErrorKind.other,
 };
 
@@ -492,7 +599,7 @@ RepoException errorFrom(core.CoreError error) => switch (error) {
     message,
   ),
   core.CoreError_Cancelled() => const RepoException(
-    RepoErrorKind.other,
+    RepoErrorKind.cancelled,
     'Cancelled.',
   ),
   core.CoreError_Camera(:final problem, :final message) => RepoException(

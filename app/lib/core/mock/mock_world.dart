@@ -1,4 +1,8 @@
+import 'dart:convert';
+import 'dart:typed_data';
+
 import 'package:opencord/core/mock/mock_commands.dart';
+import 'package:opencord/core/model/attachment.dart';
 import 'package:opencord/core/model/commands.dart';
 import 'package:opencord/core/model/stream.dart';
 import 'package:opencord/core/model/channel.dart';
@@ -12,6 +16,7 @@ import 'package:opencord/core/model/presence.dart';
 import 'package:opencord/core/model/server.dart';
 import 'package:opencord/core/model/snapshot.dart';
 import 'package:opencord/core/model/sound.dart';
+import 'package:opencord/core/model/storage.dart';
 import 'package:opencord/core/model/user.dart';
 import 'package:opencord/core/model/voice.dart';
 
@@ -58,6 +63,18 @@ class MockServer {
   final List<Invite> invites = [];
   final List<Ban> bans = [];
   VoiceSettings voiceSettings = const VoiceSettings();
+  UploadSettings uploadSettings = UploadSettings.fallback;
+  StorageInfo storage = const StorageInfo(
+    backends: [
+      StorageBackend(
+        id: 1,
+        kind: StorageKind.local,
+        name: 'Local disk',
+        active: true,
+      ),
+    ],
+    tempFreeBytes: 10 * 1024 * 1024 * 1024,
+  );
 
   /// Where the server is reached, and each domain's checks, newest first.
   ServerAddresses addresses = const ServerAddresses();
@@ -227,6 +244,7 @@ class MockServer {
       },
       addresses: addresses,
       commands: availableCommands,
+      uploadSettings: uploadSettings,
     );
   }
 }
@@ -243,6 +261,22 @@ const selfName = 'Alex Rivera';
 /// Servers that start muted (plan §11: the reconnecting one).
 const mockMutedServers = {'homelab.local:7710'};
 const selfFingerprint = 'KQ7M-3XPA-ZR2D-W9TB';
+
+/// A 640x360 pure grey (128, 128, 128) PNG for testing and mock data.
+final Uint8List mockGreyPngBytes = base64Decode(
+  'iVBORw0KGgoAAAANSUhEUgAAAoAAAAFoCAAAAADiWRWNAAACkElEQVR42u3SQREAAAzCMKQjHRl7LJHQ'
+  'awqHIgEGxIBgQAwIBsSAYEAMCAbEgGBADAgGxIBgQAwIBsSAYEAMCAbEgGBADAgGxIBgQAwIBsSAYEAM'
+  'iAHBgBgQDIgBwYAYEAyIAcGAGBAMiAHBgBgQDIgBwYAYEAyIAcGAGBAMiAHBgBgQDIgBwYAYEAyIATEg'
+  'GBADggExIBgQA4IBMSAYEAOCATEgGBADggExIBgQA4IBMSAYEAOCATEgGBADggExIBgQA2JAMCAGBANi'
+  'QDAgBgQDYkAwIAYEA2JAMCAGBANiQDAgBgQDYkAwIAYEA2JAMCAGBANiQDAgBgQDYkAMCAbEgGBADAgG'
+  'xIBgQAwIBsSAYEAMCAbEgGBADAgGxIBgQAwIBsSAYEAMCAbEgGBADAgGxIBgQAyIAcGAGBAMiAHBgBgQ'
+  'DIgBwYAYEAyIAcGAGBAMiAHBgBgQDIgBwYAYEAyIAcGAGBAMiAHBgBgQA4IBMSAYEAOCATEgGBADggEx'
+  'IBgQA4IBMSAYEAOCATEgGBADggExIBgQA4IBMSAYEAOCATEgGBADYkAwIAYEA2JAMCAGBANiQDAgBgQD'
+  'YkAwIAYEA2JAMCAGBANiQDAgBgQDYkAwIAYEA2JAMCAGxIASYEAMCAbEgGBADAgGxIBgQAwIBsSAYEAM'
+  'CAbEgGBADAgGxIBgQAwIBsSAYEAMCAbEgGBADAgGxIAYEAyIAcGAGBAMiAHBgBgQDIgBwYAYEAyIAcGAG'
+  'BAMiAHBgBgQDIgBwYAYEAyIAcGAGBAMiAHBgBgQA4IBMSAYEAOCATEgGBADggExIBgQA4IBMSAYEAOC'
+  'ATEgGBADggExIBgQA4IBMSAYEAOCATEgBgQDYkAwIN8MBC4aX1xS0jYAAAAASUVORK5CYII=',
+);
 
 /// Builds the three servers of plan §11 around [now].
 MockWorld buildMockWorld(DateTime now) {
@@ -484,6 +518,7 @@ class _Builder {
     bool pinned = false,
     Duration? editedAfter,
     SystemEvent? system,
+    List<Attachment> attachments = const [],
   }) {
     final message = Message(
       id: ids.at(at),
@@ -503,6 +538,7 @@ class _Builder {
       ],
       pinned: pinned,
       systemEvent: system,
+      attachments: attachments,
     );
     server.messages[channelId]!.add(message);
     return message;
@@ -902,6 +938,58 @@ MockServer _opencordDev(DateTime now, MockIds ids) {
     lena,
     b.today(0.35),
     '<@$self> the theme cards need a miniature of each theme. Can you take that?',
+  );
+  b.say(
+    design,
+    mira,
+    b.today(0.4),
+    'Here is the screenshot of the theme cards:',
+    attachments: [
+      Attachment(
+        id: ids.at(b.today(0.4)) + 1,
+        filename: 'screenshot.png',
+        contentType: 'image/png',
+        sizeBytes: mockGreyPngBytes.length,
+        kind: AttachmentKind.image,
+        width: 640,
+        height: 360,
+        hasThumbnail: true,
+        thumbnailWidth: 640,
+        thumbnailHeight: 360,
+      ),
+    ],
+  );
+  b.say(
+    design,
+    jonas,
+    b.today(0.45),
+    'Here is the design review report:',
+    attachments: [
+      Attachment(
+        id: ids.at(b.today(0.45)) + 1,
+        filename: 'report.pdf',
+        contentType: 'application/pdf',
+        sizeBytes: 245760,
+        kind: AttachmentKind.file,
+      ),
+    ],
+  );
+  b.say(
+    design,
+    kai,
+    b.today(0.5),
+    '',
+    attachments: [
+      Attachment(
+        id: ids.at(b.today(0.5)) + 1,
+        filename: 'voice-message.ogg',
+        contentType: 'audio/ogg',
+        sizeBytes: 42000,
+        kind: AttachmentKind.voiceMessage,
+        durationMs: 7000,
+        waveform: List.generate(128, (i) => (i * 2) % 256),
+      ),
+    ],
   );
   b.readUpTo(design, designRead);
 

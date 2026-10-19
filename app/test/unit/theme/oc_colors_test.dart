@@ -55,6 +55,13 @@ void main() {
         '#B6B6BE',
       ]);
     });
+
+    test('voice and recording tokens have their designated values', () {
+      expect(hex(OcColors.dark.voice), '#4C8DFF');
+      expect(hex(OcColors.light.voice), '#2F6FEB');
+      expect(hex(OcColors.dark.recording), '#F2555A');
+      expect(hex(OcColors.light.recording), '#DC3E42');
+    });
   });
 
   test('no token carries a hue', () {

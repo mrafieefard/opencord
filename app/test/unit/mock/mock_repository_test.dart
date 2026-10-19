@@ -3,6 +3,7 @@ import 'dart:math';
 import 'package:fake_async/fake_async.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:opencord/core/mock/mock_repository.dart';
+import 'package:opencord/core/model/attachment.dart';
 import 'package:opencord/core/model/channel.dart';
 import 'package:opencord/core/model/message.dart';
 import 'package:opencord/core/model/presence.dart';
@@ -307,5 +308,45 @@ void main() {
         expect(oldest.length + newest.length, 10000);
       });
     });
+
+    test(
+      'sendMessageWithFiles emits progress and resolves with attachments',
+      () {
+        withMock((async, repo, events) {
+          final key = repo.servers.first.key;
+          final channelId = readyOf(
+            events,
+            key,
+          ).snapshot.channels.firstWhere((c) => !c.isCategory).id;
+
+          late Message result;
+          repo
+              .sendMessageWithFiles(
+                key,
+                channelId,
+                'Here is a file',
+                nonce: 'test-nonce-1',
+                files: [
+                  const StagedFile(id: 'file-1', name: 'hello.txt', size: 1024),
+                ],
+              )
+              .then((m) => result = m);
+
+          async.elapse(const Duration(milliseconds: 500));
+
+          expect(result.content, 'Here is a file');
+          expect(result.attachments, hasLength(1));
+          expect(result.attachments.first.filename, 'hello.txt');
+          expect(result.attachments.first.sizeBytes, 1024);
+
+          final progressEvents = events
+              .whereType<UploadProgressEvent>()
+              .where((e) => e.nonce == 'test-nonce-1')
+              .toList();
+          expect(progressEvents, isNotEmpty);
+          expect(progressEvents.last.phase, UploadPhase.done);
+        });
+      },
+    );
   });
 }

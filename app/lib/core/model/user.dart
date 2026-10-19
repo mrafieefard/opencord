@@ -70,6 +70,7 @@ class Role {
     this.color = 0,
     this.hoist = false,
     this.mentionable = false,
+    this.maxUploadBytes,
   });
 
   final int id;
@@ -86,12 +87,16 @@ class Role {
   final bool hoist;
   final bool mentionable;
 
+  /// Maximum file size members of this role may upload.
+  final int? maxUploadBytes;
+
   Role copyWith({
     String? name,
     int? position,
     Permissions? permissions,
     bool? hoist,
     bool? mentionable,
+    int? Function()? maxUploadBytes,
   }) => Role(
     id: id,
     name: name ?? this.name,
@@ -100,5 +105,8 @@ class Role {
     permissions: permissions ?? this.permissions,
     hoist: hoist ?? this.hoist,
     mentionable: mentionable ?? this.mentionable,
+    maxUploadBytes: maxUploadBytes == null
+        ? this.maxUploadBytes
+        : maxUploadBytes(),
   );
 }

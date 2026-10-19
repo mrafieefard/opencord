@@ -1,3 +1,4 @@
+import 'package:opencord/core/model/attachment.dart';
 import 'package:opencord/core/model/channel.dart';
 import 'package:opencord/core/model/commands.dart';
 import 'package:opencord/core/model/lavalink.dart';
@@ -11,6 +12,7 @@ import 'package:opencord/core/model/presence.dart';
 import 'package:opencord/core/model/server.dart';
 import 'package:opencord/core/model/snapshot.dart';
 import 'package:opencord/core/model/sound.dart';
+import 'package:opencord/core/model/storage.dart';
 import 'package:opencord/core/model/stream.dart';
 import 'package:opencord/core/model/user.dart';
 import 'package:opencord/core/model/video.dart';
@@ -452,4 +454,58 @@ final class EphemeralMessageReceived extends RepoEvent {
   const EphemeralMessageReceived(super.serverKey, this.note);
 
   final EphemeralNote note;
+}
+
+/// Progress of an outgoing file upload.
+final class UploadProgressEvent extends RepoEvent {
+  const UploadProgressEvent(
+    super.serverKey, {
+    required this.channelId,
+    required this.nonce,
+    required this.fileIndex,
+    required this.sentBytes,
+    required this.totalBytes,
+    required this.phase,
+    this.error,
+  });
+
+  final int channelId;
+  final String nonce;
+  final int fileIndex;
+  final int sentBytes;
+  final int totalBytes;
+  final UploadPhase phase;
+  final String? error;
+}
+
+/// Progress of a file being downloaded.
+final class DownloadProgressEvent extends RepoEvent {
+  const DownloadProgressEvent(
+    super.serverKey, {
+    required this.attachmentId,
+    required this.receivedBytes,
+    required this.totalBytes,
+    required this.done,
+    this.error,
+  });
+
+  final int attachmentId;
+  final int receivedBytes;
+  final int totalBytes;
+  final bool done;
+  final String? error;
+}
+
+/// Upload limits or blocked extensions changed on the server.
+final class UploadSettingsEvent extends RepoEvent {
+  const UploadSettingsEvent(super.serverKey, this.settings);
+
+  final UploadSettings settings;
+}
+
+/// Storage backends or a file move changed on the server (owner only).
+final class StorageEvent extends RepoEvent {
+  const StorageEvent(super.serverKey, this.storage);
+
+  final StorageInfo storage;
 }

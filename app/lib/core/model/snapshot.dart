@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 
+import 'package:opencord/core/model/attachment.dart';
 import 'package:opencord/core/model/channel.dart';
 import 'package:opencord/core/model/commands.dart';
 import 'package:opencord/core/model/message.dart';
@@ -36,6 +37,7 @@ class ReadySnapshot {
     this.readStates = const {},
     this.addresses = const ServerAddresses(),
     this.commands = const CommandList(),
+    this.uploadSettings = UploadSettings.fallback,
   });
 
   final User self;
@@ -74,4 +76,5 @@ class ReadySnapshot {
   final CommandList commands;
 
   final ServerAddresses addresses;
+  final UploadSettings uploadSettings;
 }

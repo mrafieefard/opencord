@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart'
     show Int64List;
 
+import 'package:opencord/src/rust/api/attachments.dart' as frb_attachments;
 import 'package:opencord/src/rust/api/client.dart' as frb;
 import 'package:opencord/src/rust/api/types.dart' as core;
 
@@ -215,6 +216,7 @@ abstract interface class CoreApi {
     required int permissions,
     required bool hoist,
     required bool mentionable,
+    int? maxUploadBytes,
   });
 
   Future<core.Role> updateRole(
@@ -488,6 +490,78 @@ abstract interface class CoreApi {
   void voiceSetSelfMute(bool muted);
 
   void voiceSetSelfDeaf(bool deafened);
+
+  Future<core.Message> sendMessageWithFiles({
+    required String serverKey,
+    required int channelId,
+    required String content,
+    required String nonce,
+    required List<core.OutgoingFile> files,
+  });
+
+  void cancelSend({required String serverKey, required String nonce});
+
+  Future<void> downloadAttachment({
+    required String serverKey,
+    required int attachmentId,
+    required String path,
+  });
+
+  void cancelDownload({required String serverKey, required int attachmentId});
+
+  Future<Uint8List> attachmentBytes({
+    required String serverKey,
+    required int attachmentId,
+    required core.AttachmentVariant variant,
+  });
+
+  Future<Uint8List?> clipboardImage();
+
+  Future<void> clipboardSetImage(Uint8List bytes);
+
+  Future<core.UploadSettings> updateUploadSettings({
+    required String serverKey,
+    List<String>? blockedExtensions,
+    int? voiceMessageMaxSeconds,
+  });
+
+  Future<core.StorageInfo> storageGet({required String serverKey});
+
+  Future<core.StorageInfo> storageAdd({
+    required String serverKey,
+    required String name,
+    required core.S3Config s3,
+  });
+
+  Future<core.StorageInfo> storageUpdate({
+    required String serverKey,
+    required int storageId,
+    String? name,
+    core.S3Config? s3,
+  });
+
+  Future<core.StorageTestResult> storageTest({
+    required String serverKey,
+    required core.StorageTestTarget target,
+  });
+
+  Future<core.StorageInfo> storageActivate({
+    required String serverKey,
+    required int storageId,
+  });
+
+  Future<core.StorageInfo> storageRemove({
+    required String serverKey,
+    required int storageId,
+  });
+
+  Future<core.StorageInfo> storageMoveStart({required String serverKey});
+
+  Future<core.StorageInfo> storageMoveStop({required String serverKey});
+
+  Future<BigInt> mediaCacheSize();
+
+  Future<void> mediaCacheClear();
 }
 
 /// [CoreApi] over the generated bindings; needs `RustLib.init` first.
@@ -866,6 +940,7 @@ class FrbCoreApi implements CoreApi {
     required int permissions,
     required bool hoist,
     required bool mentionable,
+    int? maxUploadBytes,
   }) => frb.createRole(
     serverKey: serverKey,
     name: name,
@@ -873,6 +948,7 @@ class FrbCoreApi implements CoreApi {
     permissions: permissions,
     hoist: hoist,
     mentionable: mentionable,
+    maxUploadBytes: maxUploadBytes != null ? BigInt.from(maxUploadBytes) : null,
   );
 
   @override
@@ -1355,4 +1431,130 @@ class FrbCoreApi implements CoreApi {
   @override
   void voiceSetSelfDeaf(bool deafened) =>
       frb.voiceSetSelfDeaf(deafened: deafened);
+
+  @override
+  Future<core.Message> sendMessageWithFiles({
+    required String serverKey,
+    required int channelId,
+    required String content,
+    required String nonce,
+    required List<core.OutgoingFile> files,
+  }) => frb_attachments.sendMessageWithFiles(
+    serverKey: serverKey,
+    channelId: channelId,
+    content: content,
+    nonce: nonce,
+    files: files,
+  );
+
+  @override
+  void cancelSend({required String serverKey, required String nonce}) =>
+      frb_attachments.cancelSend(serverKey: serverKey, nonce: nonce);
+
+  @override
+  Future<void> downloadAttachment({
+    required String serverKey,
+    required int attachmentId,
+    required String path,
+  }) => frb_attachments.downloadAttachment(
+    serverKey: serverKey,
+    attachmentId: attachmentId,
+    path: path,
+  );
+
+  @override
+  void cancelDownload({required String serverKey, required int attachmentId}) =>
+      frb_attachments.cancelDownload(
+        serverKey: serverKey,
+        attachmentId: attachmentId,
+      );
+
+  @override
+  Future<Uint8List> attachmentBytes({
+    required String serverKey,
+    required int attachmentId,
+    required core.AttachmentVariant variant,
+  }) => frb_attachments.attachmentBytes(
+    serverKey: serverKey,
+    attachmentId: attachmentId,
+    variant: variant,
+  );
+
+  @override
+  Future<Uint8List?> clipboardImage() => frb_attachments.clipboardImage();
+
+  @override
+  Future<void> clipboardSetImage(Uint8List bytes) =>
+      frb_attachments.clipboardSetImage(bytes: bytes);
+
+  @override
+  Future<core.UploadSettings> updateUploadSettings({
+    required String serverKey,
+    List<String>? blockedExtensions,
+    int? voiceMessageMaxSeconds,
+  }) => frb_attachments.updateUploadSettings(
+    serverKey: serverKey,
+    blockedExtensions: blockedExtensions,
+    voiceMessageMaxSeconds: voiceMessageMaxSeconds,
+  );
+
+  @override
+  Future<core.StorageInfo> storageGet({required String serverKey}) =>
+      frb_attachments.storageGet(serverKey: serverKey);
+
+  @override
+  Future<core.StorageInfo> storageAdd({
+    required String serverKey,
+    required String name,
+    required core.S3Config s3,
+  }) => frb_attachments.storageAdd(serverKey: serverKey, name: name, s3: s3);
+
+  @override
+  Future<core.StorageInfo> storageUpdate({
+    required String serverKey,
+    required int storageId,
+    String? name,
+    core.S3Config? s3,
+  }) => frb_attachments.storageUpdate(
+    serverKey: serverKey,
+    storageId: storageId,
+    name: name,
+    s3: s3,
+  );
+
+  @override
+  Future<core.StorageTestResult> storageTest({
+    required String serverKey,
+    required core.StorageTestTarget target,
+  }) => frb_attachments.storageTest(serverKey: serverKey, target: target);
+
+  @override
+  Future<core.StorageInfo> storageActivate({
+    required String serverKey,
+    required int storageId,
+  }) => frb_attachments.storageActivate(
+    serverKey: serverKey,
+    storageId: storageId,
+  );
+
+  @override
+  Future<core.StorageInfo> storageRemove({
+    required String serverKey,
+    required int storageId,
+  }) =>
+      frb_attachments.storageRemove(serverKey: serverKey, storageId: storageId);
+
+  @override
+  Future<core.StorageInfo> storageMoveStart({required String serverKey}) =>
+      frb_attachments.storageMoveStart(serverKey: serverKey);
+
+  @override
+  Future<core.StorageInfo> storageMoveStop({required String serverKey}) =>
+      frb_attachments.storageMoveStop(serverKey: serverKey);
+
+  @override
+  Future<BigInt> mediaCacheSize() => frb_attachments.mediaCacheSize();
+
+  @override
+  Future<void> mediaCacheClear() => frb_attachments.mediaCacheClear();
 }

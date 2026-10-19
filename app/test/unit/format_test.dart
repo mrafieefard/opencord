@@ -129,4 +129,17 @@ void main() {
     );
     expect(expiryLabel(now.add(const Duration(days: 1)), now), 'in 1 day');
   });
+
+  group('formatFileSize', () {
+    test('formats bytes, KB, MB, and GB per spec', () {
+      expect(formatFileSize(0), '0 B');
+      expect(formatFileSize(999), '999 B');
+      expect(formatFileSize(1024), '1.0 KB');
+      expect(formatFileSize((12.5 * 1024 * 1024).round()), '12.5 MB');
+      expect(formatFileSize((1.2 * 1024 * 1024 * 1024).round()), '1.2 GB');
+      expect(formatFileSize(100 * 1024), '100 KB');
+      expect(formatFileSize(100 * 1024 * 1024), '100 MB');
+      expect(formatFileSize(500 * 1024 * 1024), '500 MB');
+    });
+  });
 }

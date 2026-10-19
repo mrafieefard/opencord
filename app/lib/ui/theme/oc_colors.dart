@@ -23,6 +23,8 @@ class OcColors extends ThemeExtension<OcColors> {
     required this.mentionBg,
     required this.scrim,
     required this.avatarShades,
+    required this.voice,
+    required this.recording,
   });
 
   static const dark = OcColors(
@@ -50,6 +52,8 @@ class OcColors extends ThemeExtension<OcColors> {
       Color(0xFF494951),
       Color(0xFF55555D),
     ],
+    voice: Color(0xFF4C8DFF),
+    recording: Color(0xFFF2555A),
   );
 
   static const light = OcColors(
@@ -77,6 +81,8 @@ class OcColors extends ThemeExtension<OcColors> {
       Color(0xFFE3E3E7),
       Color(0xFFB6B6BE),
     ],
+    voice: Color(0xFF2F6FEB),
+    recording: Color(0xFFDC3E42),
   );
 
   /// Server rail background.
@@ -137,6 +143,13 @@ class OcColors extends ThemeExtension<OcColors> {
   /// Avatar backgrounds, picked by a hash of the user or server id.
   final List<Color> avatarShades;
 
+  /// Voice messages only (the waveform). One of the app's two hues; see
+  /// desktop-ui.md §1.
+  final Color voice;
+
+  /// The recording dot and the cancel state only.
+  final Color recording;
+
   /// The grey an id always gets as its avatar background.
   Color avatarShade(Object id) =>
       avatarShades[stableHash(id.toString()) % avatarShades.length];
@@ -185,6 +198,8 @@ class OcColors extends ThemeExtension<OcColors> {
     Color? mentionBg,
     Color? scrim,
     List<Color>? avatarShades,
+    Color? voice,
+    Color? recording,
   }) {
     return OcColors(
       rail: rail ?? this.rail,
@@ -205,6 +220,8 @@ class OcColors extends ThemeExtension<OcColors> {
       mentionBg: mentionBg ?? this.mentionBg,
       scrim: scrim ?? this.scrim,
       avatarShades: avatarShades ?? this.avatarShades,
+      voice: voice ?? this.voice,
+      recording: recording ?? this.recording,
     );
   }
 
@@ -234,6 +251,8 @@ class OcColors extends ThemeExtension<OcColors> {
         for (var i = 0; i < avatarShades.length; i++)
           mix(avatarShades[i], other.avatarShades[i]),
       ],
+      voice: mix(voice, other.voice),
+      recording: mix(recording, other.recording),
     );
   }
 }

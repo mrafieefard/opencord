@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:opencord/core/model/attachment.dart';
 import 'package:opencord/core/model/channel.dart';
 import 'package:opencord/core/model/commands.dart';
 import 'package:opencord/core/model/lavalink.dart';
@@ -13,6 +14,7 @@ import 'package:opencord/core/model/permissions.dart';
 import 'package:opencord/core/model/presence.dart';
 import 'package:opencord/core/model/server.dart';
 import 'package:opencord/core/model/sound.dart';
+import 'package:opencord/core/model/storage.dart';
 import 'package:opencord/core/model/stream.dart';
 import 'package:opencord/core/model/user.dart';
 import 'package:opencord/core/model/video.dart';
@@ -161,6 +163,29 @@ enum RepoErrorKind {
   /// set up or no node to play.
   musicStale,
   musicUnavailable,
+
+  /// Media uploads (Phase 4):
+  /// A file larger than the member's or the server's limit.
+  fileTooLarge,
+
+  /// A file whose extension is on the server's blocked list.
+  fileTypeBlocked,
+
+  /// A voice message that is not Opus or has bad metadata.
+  voiceMessageInvalid,
+
+  /// A voice message longer than the server allows.
+  voiceMessageTooLong,
+
+  /// Storage unreachable, bucket test failed, or active storage missing.
+  storageUnavailable,
+
+  /// No space left on the storage backend.
+  storageFull,
+
+  /// The upload, download, or operation was cancelled.
+  cancelled,
+
   unauthorized,
   forbidden,
   notFound,
@@ -332,6 +357,7 @@ abstract interface class OpencordRepository {
     Permissions permissions = Permissions.none,
     bool hoist = false,
     bool mentionable = false,
+    int? maxUploadBytes,
   });
 
   Future<Role> updateRole(
@@ -341,6 +367,7 @@ abstract interface class OpencordRepository {
     Permissions? permissions,
     bool? hoist,
     bool? mentionable,
+    int? maxUploadBytes,
   });
 
   Future<void> deleteRole(String serverKey, int roleId);
@@ -856,6 +883,71 @@ abstract interface class OpencordRepository {
   });
 
   void closeSoundDraft(int draftId);
+
+  // Media uploads and storage (Phase 4) --------------------------------------
+
+  Future<Message> sendMessageWithFiles(
+    String serverKey,
+    int channelId,
+    String content, {
+    required String nonce,
+    required List<StagedFile> files,
+  });
+
+  void cancelSend(String serverKey, String nonce);
+
+  Future<Uint8List> attachmentBytes(
+    String serverKey,
+    int attachmentId, {
+    bool thumbnail = false,
+  });
+
+  Future<void> downloadAttachment(
+    String serverKey,
+    int attachmentId,
+    String path,
+  );
+
+  void cancelDownload(String serverKey, int attachmentId);
+
+  Future<Uint8List?> clipboardImage();
+
+  Future<void> copyImage(Uint8List bytes);
+
+  Future<UploadSettings> updateUploadSettings(
+    String serverKey, {
+    List<String>? blockedExtensions,
+    int? voiceMessageMaxSeconds,
+  });
+
+  Future<StorageInfo> storage(String serverKey);
+
+  Future<StorageInfo> addStorage(String serverKey, String name, S3Config s3);
+
+  Future<StorageInfo> updateStorage(
+    String serverKey,
+    int storageId, {
+    String? name,
+    S3Config? s3,
+  });
+
+  Future<StorageTestResult> testStorage(
+    String serverKey, {
+    int? storageId,
+    S3Config? s3,
+  });
+
+  Future<StorageInfo> activateStorage(String serverKey, int storageId);
+
+  Future<StorageInfo> removeStorage(String serverKey, int storageId);
+
+  Future<StorageInfo> startStorageMove(String serverKey);
+
+  Future<StorageInfo> stopStorageMove(String serverKey);
+
+  Future<int> mediaCacheSize();
+
+  Future<void> clearMediaCache();
 }
 
 /// Overridden at startup with the mock or the Rust-core repository.

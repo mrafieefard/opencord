@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart';
 
 import 'package:opencord/core/mock/mock_music.dart';
 import 'package:opencord/core/mock/mock_world.dart';
+import 'package:opencord/core/model/attachment.dart';
 import 'package:opencord/core/model/stream.dart';
 import 'package:opencord/core/model/channel.dart';
 import 'package:opencord/core/model/commands.dart';
@@ -19,6 +20,7 @@ import 'package:opencord/core/model/permissions.dart';
 import 'package:opencord/core/model/presence.dart';
 import 'package:opencord/core/model/server.dart';
 import 'package:opencord/core/model/sound.dart';
+import 'package:opencord/core/model/storage.dart';
 import 'package:opencord/core/model/user.dart';
 import 'package:opencord/core/model/video.dart';
 import 'package:opencord/core/model/voice.dart';
@@ -83,6 +85,9 @@ class MockRepository implements OpencordRepository {
   LocalIdentity? _identity;
   RepoException? _identityUnavailable;
   var _disposed = false;
+  final _activeSends = <String, bool>{};
+  final _activeDownloads = <int, bool>{};
+  Uint8List? _clipboardImage;
 
   /// Everything by default; Phase 1's set to see the app as it will be
   /// on the Rust core.
@@ -991,6 +996,7 @@ class MockRepository implements OpencordRepository {
     Permissions permissions = Permissions.none,
     bool hoist = false,
     bool mentionable = false,
+    int? maxUploadBytes,
   }) async {
     final server = _server(serverKey);
     _require(server, Permissions.manageRoles);
@@ -1014,6 +1020,7 @@ class MockRepository implements OpencordRepository {
       permissions: permissions,
       hoist: hoist,
       mentionable: mentionable,
+      maxUploadBytes: maxUploadBytes == 0 ? null : maxUploadBytes,
     );
     server.roles[role.id] = role;
     _emit(RoleUpserted(serverKey, role));
@@ -1028,6 +1035,7 @@ class MockRepository implements OpencordRepository {
     Permissions? permissions,
     bool? hoist,
     bool? mentionable,
+    int? maxUploadBytes,
   }) {
     final server = _server(serverKey);
     _require(server, Permissions.manageRoles);
@@ -1044,6 +1052,9 @@ class MockRepository implements OpencordRepository {
         permissions: permissions,
         hoist: hoist,
         mentionable: mentionable,
+        maxUploadBytes: maxUploadBytes == null
+            ? null
+            : () => (maxUploadBytes == 0 ? null : maxUploadBytes),
       );
       server.roles[roleId] = updated;
       _emit(RoleUpserted(serverKey, updated));
@@ -3921,6 +3932,412 @@ class MockRepository implements OpencordRepository {
     if (index != -1) participants[index] = _selfVoice;
     _emit(VoiceChanged(session.server, session.channel, List.of(participants)));
   }
+
+  @override
+  Future<Message> sendMessageWithFiles(
+    String serverKey,
+    int channelId,
+    String content, {
+    required String nonce,
+    required List<StagedFile> files,
+  }) async {
+    final server = _server(serverKey);
+    _require(server, Permissions.sendMessages, channelId);
+    _require(server, Permissions.attachFiles, channelId);
+
+    _activeSends[nonce] = false;
+    try {
+      for (var i = 0; i < files.length; i++) {
+        if (_activeSends[nonce] == true) {
+          throw const RepoException(
+            RepoErrorKind.cancelled,
+            'Upload cancelled',
+          );
+        }
+        final file = files[i];
+        _emit(
+          UploadProgressEvent(
+            serverKey,
+            channelId: channelId,
+            nonce: nonce,
+            fileIndex: i,
+            sentBytes: file.size ~/ 2,
+            totalBytes: file.size,
+            phase: UploadPhase.uploading,
+          ),
+        );
+        await _latency(40);
+        if (_activeSends[nonce] == true) {
+          throw const RepoException(
+            RepoErrorKind.cancelled,
+            'Upload cancelled',
+          );
+        }
+        _emit(
+          UploadProgressEvent(
+            serverKey,
+            channelId: channelId,
+            nonce: nonce,
+            fileIndex: i,
+            sentBytes: file.size,
+            totalBytes: file.size,
+            phase: UploadPhase.done,
+          ),
+        );
+      }
+
+      final now = _clock();
+      final messageId = _world.ids.at(now);
+      final attachments = [
+        for (var i = 0; i < files.length; i++)
+          Attachment(
+            id: messageId + i + 1,
+            filename: files[i].name,
+            contentType: 'application/octet-stream',
+            sizeBytes: files[i].size,
+            kind:
+                files[i].name.endsWith('.png') || files[i].name.endsWith('.jpg')
+                ? AttachmentKind.image
+                : (files[i].name.endsWith('.ogg')
+                      ? AttachmentKind.voiceMessage
+                      : AttachmentKind.file),
+            hasThumbnail:
+                files[i].name.endsWith('.png') ||
+                files[i].name.endsWith('.jpg'),
+          ),
+      ];
+
+      final message = Message(
+        id: messageId,
+        channelId: channelId,
+        authorId: server.selfId,
+        content: content,
+        createdAt: now,
+        attachments: attachments,
+      );
+      server.messages[channelId]!.add(message);
+      _emit(MessageCreated(serverKey, message));
+      return message;
+    } finally {
+      _activeSends.remove(nonce);
+    }
+  }
+
+  @override
+  void cancelSend(String serverKey, String nonce) {
+    if (_activeSends.containsKey(nonce)) {
+      _activeSends[nonce] = true;
+    }
+  }
+
+  @override
+  Future<Uint8List> attachmentBytes(
+    String serverKey,
+    int attachmentId, {
+    bool thumbnail = false,
+  }) async {
+    await _latency(40);
+    return mockGreyPngBytes;
+  }
+
+  @override
+  Future<void> downloadAttachment(
+    String serverKey,
+    int attachmentId,
+    String path,
+  ) async {
+    _activeDownloads[attachmentId] = false;
+    try {
+      _emit(
+        DownloadProgressEvent(
+          serverKey,
+          attachmentId: attachmentId,
+          receivedBytes: 500,
+          totalBytes: 1000,
+          done: false,
+        ),
+      );
+      await _latency(40);
+      if (_activeDownloads[attachmentId] == true) {
+        throw const RepoException(
+          RepoErrorKind.cancelled,
+          'Download cancelled',
+        );
+      }
+      _emit(
+        DownloadProgressEvent(
+          serverKey,
+          attachmentId: attachmentId,
+          receivedBytes: 1000,
+          totalBytes: 1000,
+          done: true,
+        ),
+      );
+    } finally {
+      _activeDownloads.remove(attachmentId);
+    }
+  }
+
+  @override
+  void cancelDownload(String serverKey, int attachmentId) {
+    if (_activeDownloads.containsKey(attachmentId)) {
+      _activeDownloads[attachmentId] = true;
+    }
+  }
+
+  @override
+  Future<Uint8List?> clipboardImage() async {
+    return _clipboardImage;
+  }
+
+  @override
+  Future<void> copyImage(Uint8List bytes) async {
+    _clipboardImage = bytes;
+  }
+
+  @override
+  Future<UploadSettings> updateUploadSettings(
+    String serverKey, {
+    List<String>? blockedExtensions,
+    int? voiceMessageMaxSeconds,
+  }) async {
+    final server = _server(serverKey);
+    _require(server, Permissions.manageServer);
+    await _latency();
+    final updated = UploadSettings(
+      blockedExtensions:
+          blockedExtensions ?? server.uploadSettings.blockedExtensions,
+      voiceMessageMaxSeconds:
+          voiceMessageMaxSeconds ??
+          server.uploadSettings.voiceMessageMaxSeconds,
+      maxFileBytes: server.uploadSettings.maxFileBytes,
+      maxAttachments: server.uploadSettings.maxAttachments,
+    );
+    server.uploadSettings = updated;
+    _emit(UploadSettingsEvent(serverKey, updated));
+    return updated;
+  }
+
+  @override
+  Future<StorageInfo> storage(String serverKey) async {
+    final server = _server(serverKey);
+    if (server.info.ownerId != server.selfId) {
+      throw const RepoException(
+        RepoErrorKind.forbidden,
+        'Only the owner manages storage.',
+      );
+    }
+    await _latency();
+    return server.storage;
+  }
+
+  @override
+  Future<StorageInfo> addStorage(
+    String serverKey,
+    String name,
+    S3Config s3,
+  ) async {
+    final server = _server(serverKey);
+    if (server.info.ownerId != server.selfId) {
+      throw const RepoException(
+        RepoErrorKind.forbidden,
+        'Only the owner manages storage.',
+      );
+    }
+    await _latency();
+    final id = server.storage.backends.length + 1;
+    final backend = StorageBackend(
+      id: id,
+      kind: StorageKind.s3,
+      name: name,
+      active: false,
+      s3: s3,
+      hasSecret: s3.secretAccessKey.isNotEmpty,
+    );
+    final updated = StorageInfo(
+      backends: [...server.storage.backends, backend],
+      moveStatus: server.storage.moveStatus,
+      tempFreeBytes: server.storage.tempFreeBytes,
+    );
+    server.storage = updated;
+    _emit(StorageEvent(serverKey, updated));
+    return updated;
+  }
+
+  @override
+  Future<StorageInfo> updateStorage(
+    String serverKey,
+    int storageId, {
+    String? name,
+    S3Config? s3,
+  }) async {
+    final server = _server(serverKey);
+    if (server.info.ownerId != server.selfId) {
+      throw const RepoException(
+        RepoErrorKind.forbidden,
+        'Only the owner manages storage.',
+      );
+    }
+    await _latency();
+    final backends = server.storage.backends.map((b) {
+      if (b.id != storageId) return b;
+      return StorageBackend(
+        id: b.id,
+        kind: b.kind,
+        name: name ?? b.name,
+        active: b.active,
+        s3: s3 ?? b.s3,
+        hasSecret: (s3?.secretAccessKey.isNotEmpty ?? false) || b.hasSecret,
+        fileCount: b.fileCount,
+        bytes: b.bytes,
+      );
+    }).toList();
+    final updated = StorageInfo(
+      backends: backends,
+      moveStatus: server.storage.moveStatus,
+      tempFreeBytes: server.storage.tempFreeBytes,
+    );
+    server.storage = updated;
+    _emit(StorageEvent(serverKey, updated));
+    return updated;
+  }
+
+  @override
+  Future<StorageTestResult> testStorage(
+    String serverKey, {
+    int? storageId,
+    S3Config? s3,
+  }) async {
+    final server = _server(serverKey);
+    if (server.info.ownerId != server.selfId) {
+      throw const RepoException(
+        RepoErrorKind.forbidden,
+        'Only the owner manages storage.',
+      );
+    }
+    await _latency();
+    return const StorageTestResult(
+      steps: [
+        StorageTestStep(name: 'List objects', ok: true, detail: 'OK'),
+        StorageTestStep(name: 'Put object', ok: true, detail: 'OK'),
+        StorageTestStep(name: 'Get object', ok: true, detail: 'OK'),
+        StorageTestStep(name: 'Delete object', ok: true, detail: 'OK'),
+      ],
+      ok: true,
+    );
+  }
+
+  @override
+  Future<StorageInfo> activateStorage(String serverKey, int storageId) async {
+    final server = _server(serverKey);
+    if (server.info.ownerId != server.selfId) {
+      throw const RepoException(
+        RepoErrorKind.forbidden,
+        'Only the owner manages storage.',
+      );
+    }
+    await _latency();
+    final backends = server.storage.backends.map((b) {
+      return StorageBackend(
+        id: b.id,
+        kind: b.kind,
+        name: b.name,
+        active: b.id == storageId,
+        s3: b.s3,
+        hasSecret: b.hasSecret,
+        fileCount: b.fileCount,
+        bytes: b.bytes,
+      );
+    }).toList();
+    final updated = StorageInfo(
+      backends: backends,
+      moveStatus: server.storage.moveStatus,
+      tempFreeBytes: server.storage.tempFreeBytes,
+    );
+    server.storage = updated;
+    _emit(StorageEvent(serverKey, updated));
+    return updated;
+  }
+
+  @override
+  Future<StorageInfo> removeStorage(String serverKey, int storageId) async {
+    final server = _server(serverKey);
+    if (server.info.ownerId != server.selfId) {
+      throw const RepoException(
+        RepoErrorKind.forbidden,
+        'Only the owner manages storage.',
+      );
+    }
+    await _latency();
+    final backends = server.storage.backends
+        .where((b) => b.id != storageId)
+        .toList();
+    final updated = StorageInfo(
+      backends: backends,
+      moveStatus: server.storage.moveStatus,
+      tempFreeBytes: server.storage.tempFreeBytes,
+    );
+    server.storage = updated;
+    _emit(StorageEvent(serverKey, updated));
+    return updated;
+  }
+
+  @override
+  Future<StorageInfo> startStorageMove(String serverKey) async {
+    final server = _server(serverKey);
+    if (server.info.ownerId != server.selfId) {
+      throw const RepoException(
+        RepoErrorKind.forbidden,
+        'Only the owner manages storage.',
+      );
+    }
+    await _latency();
+    final activeId = server.storage.backends.firstWhere((b) => b.active).id;
+    final updated = StorageInfo(
+      backends: server.storage.backends,
+      moveStatus: StorageMove(
+        toStorageId: activeId,
+        running: true,
+        filesDone: 0,
+        filesTotal: 10,
+        bytesDone: 0,
+        bytesTotal: 1024 * 1024,
+        failed: 0,
+      ),
+      tempFreeBytes: server.storage.tempFreeBytes,
+    );
+    server.storage = updated;
+    _emit(StorageEvent(serverKey, updated));
+    return updated;
+  }
+
+  @override
+  Future<StorageInfo> stopStorageMove(String serverKey) async {
+    final server = _server(serverKey);
+    if (server.info.ownerId != server.selfId) {
+      throw const RepoException(
+        RepoErrorKind.forbidden,
+        'Only the owner manages storage.',
+      );
+    }
+    await _latency();
+    final updated = StorageInfo(
+      backends: server.storage.backends,
+      moveStatus: null,
+      tempFreeBytes: server.storage.tempFreeBytes,
+    );
+    server.storage = updated;
+    _emit(StorageEvent(serverKey, updated));
+    return updated;
+  }
+
+  @override
+  Future<int> mediaCacheSize() async {
+    return 0;
+  }
+
+  @override
+  Future<void> clearMediaCache() async {}
 }
 
 /// [domain] with some fields changed.

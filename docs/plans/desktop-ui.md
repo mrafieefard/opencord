@@ -19,7 +19,7 @@
 
 ## 1. Design principles
 
-1. **Monochrome only.** Dark and light themes built from neutral greys, black and white. **No blue, orange, red, green or any other hue** — not for links, not for errors, not for presence, not for roles. Contrast, weight, shape and inversion do the work that color usually does.
+1. **Monochrome only.** Dark and light themes built from neutral greys, black and white. **No blue, orange, red, green or any other hue** — not for links, not for errors, not for presence, not for roles. Contrast, weight, shape and inversion do the work that color usually does. Phase 4 (Media uploads and voice messages) introduces two strictly scoped exceptions: the `voice` hue (`#4C8DFF` dark, `#2F6FEB` light) for voice message waveforms, and the `recording` hue (`#F2555A` dark, `#DC3E42` light) for the recording indicator dot and cancellation state. Resting screens and all other UI elements remain strictly monochrome.
 2. **Telegram consistency.** Same row heights, same radii, same paddings everywhere. Two-line list rows (title + preview + time + badge). Rounded chat bubbles. Calm, flat surfaces with no gradients and almost no shadows.
 3. **Discord capability.** Server rail, channel categories, voice channels with live participants, member list grouped by role, roles and permissions editor, voice/camera/screenshare controls, quick switcher, rich context menus.
 4. **Inversion = emphasis.** The strongest state (selected server, unread badge, primary button, active toggle, own reaction) is shown by **inverting** foreground and background (white on black in dark, black on white in light).

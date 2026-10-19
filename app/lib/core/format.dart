@@ -142,3 +142,27 @@ String previewText(
   ).replaceAll(_quote, '');
   return text.replaceAll(_space, ' ').trim();
 }
+
+/// Formats a byte size: `0 B`, `999 B`, `1.0 KB`, `12.5 MB`, `1.2 GB`.
+/// One decimal from KB up, no decimal for whole numbers ≥ 100.
+String formatFileSize(int bytes) {
+  if (bytes < 1024) return '$bytes B';
+  final double value;
+  final String unit;
+  if (bytes < 1024 * 1024) {
+    value = bytes / 1024;
+    unit = 'KB';
+  } else if (bytes < 1024 * 1024 * 1024) {
+    value = bytes / (1024 * 1024);
+    unit = 'MB';
+  } else {
+    value = bytes / (1024 * 1024 * 1024);
+    unit = 'GB';
+  }
+  if (value >= 100) {
+    final fixed = value.toStringAsFixed(1);
+    final text = fixed.endsWith('.0') ? value.toStringAsFixed(0) : fixed;
+    return '$text $unit';
+  }
+  return '${value.toStringAsFixed(1)} $unit';
+}
