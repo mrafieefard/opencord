@@ -3,11 +3,12 @@
 
 use flutter_rust_bridge::frb;
 
-use super::client::{client, on_runtime};
+use super::client::{client, on_blocking, on_runtime};
 use super::types::{
     AttachmentVariant, CoreError, Message, OutgoingFile, S3Config, StorageInfo, StorageTestResult,
     StorageTestTarget, UploadSettings,
 };
+use crate::attachments::clipboard;
 
 /// MANAGE_SERVER. `None` leaves a setting as it is.
 pub async fn update_upload_settings(
@@ -156,4 +157,14 @@ pub async fn media_cache_size() -> Result<u64, CoreError> {
 
 pub async fn media_cache_clear() -> Result<(), CoreError> {
     on_runtime(move |client| async move { client.media_cache_clear().await }).await
+}
+
+/// The clipboard's image as PNG; `None` when it holds text or nothing.
+pub async fn clipboard_image() -> Result<Option<Vec<u8>>, CoreError> {
+    on_blocking(clipboard::image).await
+}
+
+/// Puts an image (PNG, JPEG, GIF or WebP) on the clipboard.
+pub async fn clipboard_set_image(bytes: Vec<u8>) -> Result<(), CoreError> {
+    on_blocking(move || clipboard::set_image(&bytes)).await
 }

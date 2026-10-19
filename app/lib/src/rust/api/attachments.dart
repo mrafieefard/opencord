@@ -147,3 +147,11 @@ Future<BigInt> mediaCacheSize() =>
 
 Future<void> mediaCacheClear() =>
     RustLib.instance.api.crateApiAttachmentsMediaCacheClear();
+
+/// The clipboard's image as PNG; `None` when it holds text or nothing.
+Future<Uint8List?> clipboardImage() =>
+    RustLib.instance.api.crateApiAttachmentsClipboardImage();
+
+/// Puts an image (PNG, JPEG, GIF or WebP) on the clipboard.
+Future<void> clipboardSetImage({required List<int> bytes}) =>
+    RustLib.instance.api.crateApiAttachmentsClipboardSetImage(bytes: bytes);

@@ -1494,6 +1494,19 @@ where
         })?
 }
 
+/// Runs blocking `work` (the clipboard) on the core's runtime.
+pub(crate) async fn on_blocking<T: Send + 'static>(
+    work: impl FnOnce() -> Result<T, CoreError> + Send + 'static,
+) -> Result<T, CoreError> {
+    let runtime = RUNTIME.get().ok_or(CoreError::NotInitialized)?;
+    runtime
+        .spawn_blocking(work)
+        .await
+        .map_err(|error| CoreError::Connection {
+            message: error.to_string(),
+        })?
+}
+
 fn deliver(event: CoreEvent) {
     let mut events = lock_events();
     let undelivered = match &events.sink {
