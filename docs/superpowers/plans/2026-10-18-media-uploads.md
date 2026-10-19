@@ -213,7 +213,7 @@ If the same step fails three times in a row, follow `GEMINI.md` → "When you're
 
 These are the inputs most likely to break for real people while no ordinary test would catch them. Each has a pinned test in the task named.
 
-1. **A piece sent twice after a client timeout** (the server committed it, the client never heard back). Expected: 409 with the current offset, and the upload continues with no corrupted bytes. Pinned in Task 8 (`a_repeated_piece_gets_a_conflict_and_the_upload_continues`) and Task 19 (`uploads_resume_after_a_conflict`).
+1. **A piece sent twice after a client timeout** (the server committed it, the client never heard back). Expected: 409 with the current offset, and the upload continues with no corrupted bytes. Pinned in Task 8 (`a_repeated_piece_gets_a_conflict_and_the_upload_continues`) and Task 18 (`uploads_resume_after_a_lost_answer`).
 2. **Permissions change between upload, send and download** (Attach Files removed, channel hidden, member kicked). Expected: send refused; download 403/404 at request time. Pinned in Task 12 (`sending_checks_permissions_again_at_send_time`) and Task 10 (`downloads_check_the_channel_at_request_time`).
 3. **Odd or hostile images** (header claiming 20,000×20,000, truncated PNG, 16-bit PNG, animated GIF, EXIF-rotated JPEG). Expected: no crash or hang; huge or broken ones become FILE; rotation honored. Pinned in Task 9 (`odd_images_never_crash_processing`).
 4. **Range edges** (zero-byte file, size exactly 65,536, `bytes=-n` with n > size, start beyond end, two ranges). Expected: correct bytes or 416. Pinned in Task 10 (`range_edges`).
@@ -282,6 +282,7 @@ These are the inputs most likely to break for real people while no ordinary test
 |---|---|---|
 | `core/model/attachment.dart`, `core/model/storage.dart` | new | models |
 | `core/upload_rules.dart` | new | Dart mirror of the shared rules |
+| `core/rust/media_cache_key_store.dart` | new | the media cache's key in the keychain |
 | existing | modify | `core/model/message.dart`, `core/model/user.dart` (Role), `core/model/snapshot.dart`, `core/providers/server_state.dart`, `core/providers/providers.dart`, `core/providers/messages_state.dart`, `core/repository/{repository,events}.dart`, `core/rust/{rust_repository,core_mapping}.dart`, `core/mock/{mock_repository,mock_world}.dart`, `core/format.dart` |
 | `features/chat/attachments/*.dart` | new | staging, views, viewer, preview, downloads |
 | `features/chat/voice/*.dart` | new | mic button, recording bar, waveform, voice bubble |
@@ -1203,7 +1204,7 @@ impl Attachments {
 - [x] **Step 1: Write tests.**
   - **Unit, `images.rs`:**
     - `thumbnails_fit_800_and_keep_alpha_as_png`: a 1600×400 RGBA PNG → thumbnail 800×200 PNG.
-    - `exif_rotation_is_applied`: build a JPEG with an Orientation=6 APP1 segment (use the exact 34-byte segment from Task 21 inserted after SOI). A 40×20 source reports 20×40.
+    - `exif_rotation_is_applied`: build a JPEG with an Orientation=6 APP1 segment (use the 36-byte segment from Task 20, inserted after SOI). A 40×20 source reports 20×40.
   - **Unit, `voice.rs`:** build an Ogg Opus in the test with `opus::Encoder` (48 kHz mono, 20 ms frames: 1 s of a 440 Hz sine at amplitude 0.5, then 1 s of silence) and `ogg::write`. Put this builder in `tests/common/mod.rs` as `pub fn voice_ogg(seconds_tone: f32, seconds_silence: f32) -> Vec<u8>` so the integration tests reuse it.
     - `voice_check_measures_and_draws` gives `duration_ms ≈ 2000 (±40)`, the first half of the waveform > 150, the last 10 values < 20.
     - Garbage → VOICE_MESSAGE_INVALID; max 1 s → VOICE_MESSAGE_TOO_LONG.
@@ -3196,233 +3197,4769 @@ async fn remove_temp(path: &Path) {
 
 # Milestone A4: Client core
 
-### Task 17: Core types, conversions and simple requests
+Read first:
+- `crates/opencord-core/src/client.rs`: `Inner`, `Client::new`, `request`, `send_message`, `context`, the `expect_*` helpers and `unexpected`;
+- `src/connection.rs`: `Context`, `Route`, `Routes`, `MediaTokens`, `on_event`;
+- `src/http.rs` (`MediaHttp`), `src/tofu.rs` (`TlsTrust`) and `src/soundboard/cache.rs`, the cache the attachment cache follows;
+- `src/api/client.rs`: `client`, `on_runtime`, and how an API function wraps a `Client` method;
+- `crates/opencord-server/src/attachments/http.rs`: the endpoints the core talks to, and what each answers.
 
-**Files:**
-- Modify: `crates/opencord-core/src/api/types.rs`, `src/convert.rs`, `src/connection.rs`, `src/client.rs`.
-- Create: `src/api/attachments.rs` (add `pub mod attachments;` to `api/mod.rs`).
-- Then run frb generation.
+All paths below are under `crates/opencord-core/` unless they say otherwise.
 
-**Interfaces** (all in `api/types.rs` unless noted):
+**How A4's code is given.**
+- All of A4 was written, compiled and tested task by task before release. After each task the tree built, `cargo clippy -p opencord_core --all-targets -- -D warnings` passed, and the task's tests passed. Task 21 also passed `app/tool/check_platforms.sh`, and the whole of A4 passed the full core suite and `flutter test`.
+- A new file is given whole. Create it with exactly that content.
+- A change to an existing file is a `diff` block in unified form: `-` lines go, `+` lines come in, the rest is context for finding the place.
+  - Apply one by saving the block to `/tmp/a4.patch` and running `git apply /tmp/a4.patch` from the repository root, or make the same edits by hand.
+  - If a block doesn't apply, stop and ask. Don't rewrite the code to make it fit.
+- Don't change, reorder or "improve" the given code, comments included. A line not given is a deviation.
 
-```rust
-pub enum AttachmentKind { File, Image, Video, Audio, VoiceMessage }
-pub struct Attachment { pub id: i64, pub filename: String, pub content_type: String, pub size_bytes: u64,
-    pub kind: AttachmentKind, pub width: Option<u32>, pub height: Option<u32>, pub duration_ms: Option<u32>,
-    pub waveform: Vec<u8>, pub has_thumbnail: bool, pub thumbnail_width: Option<u32>,
-    pub thumbnail_height: Option<u32>, pub animated: bool }
-pub struct UploadSettings { pub blocked_extensions: Vec<String>, pub voice_message_max_seconds: u32,
-    pub max_file_bytes: u64, pub max_attachments: u32 }
-pub enum UploadPhase { Preparing, Uploading, Processing, Sending, Done, Failed { message: String }, Cancelled }
-pub enum StorageKind { Local, S3 }
-pub struct S3Config { pub endpoint: String, pub region: String, pub bucket: String, pub key_prefix: String,
-    pub path_style: bool, pub allow_http: bool, pub access_key_id: String, pub secret_access_key: String }
-pub struct StorageBackend { pub id: i64, pub kind: StorageKind, pub name: String, pub active: bool,
-    pub s3: Option<S3Config>, pub has_secret: bool, pub file_count: u64, pub bytes: u64,
-    pub last_error: Option<String> }
-pub struct StorageMove { pub to_storage_id: i64, pub running: bool, pub files_done: u64, pub files_total: u64,
-    pub bytes_done: u64, pub bytes_total: u64, pub failed: u32 }
-pub struct StorageInfo { pub backends: Vec<StorageBackend>, pub move_status: Option<StorageMove>,
-    pub temp_free_bytes: u64 }
-pub struct StorageTestStep { pub name: String, pub ok: bool, pub detail: String }
-pub struct StorageTestResult { pub steps: Vec<StorageTestStep>, pub ok: bool }
-pub enum StorageTestTarget { Existing { storage_id: i64 }, Config { s3: S3Config } }
-pub struct OutgoingFile { pub path: Option<String>, pub bytes: Option<Vec<u8>>, pub filename: String }
-pub enum AttachmentVariant { Original, Thumbnail }
+**Bindings.** Tasks 17, 18, 19 and 21 change `src/api/`. After each, regenerate:
+
+```bash
+cd app && source ../.superpowers/sdd/media/env.sh && flutter_rust_bridge_codegen generate
 ```
 
-Changes to existing types:
-- `Message` += `pub attachments: Vec<Attachment>`
-- `Role` += `pub max_upload_bytes: Option<u64>`
-- `RoleChanges` += `pub max_upload_bytes: Option<u64>` (`Some(0)` clears)
-- `ReadySnapshot` += `pub upload_settings: UploadSettings`
-- `CoreError` += `Cancelled` (`#[error("cancelled")]`)
-- `ErrorCode` += the 7 new codes
-- `CoreEventPayload` +=
-  - `UploadSettingsUpdate(UploadSettings)`
-  - `StorageUpdate(StorageInfo)`
-  - `UploadProgress { channel_id: i64, nonce: String, file_index: u32, sent_bytes: u64, total_bytes: u64, phase: UploadPhase }`
-  - `DownloadProgress { attachment_id: i64, received_bytes: u64, total_bytes: u64, done: bool, error: Option<String> }`
-- Converters in `convert.rs`: `attachment`, `upload_settings`, `storage`, `storage_test`, `s3_config_to_proto`.
-- `convert::event` maps `UploadSettingsUpdate` and `StorageUpdate`, and returns `None` for `UploadReady`/`UploadFailed` (Task 19 routes them).
-- **API** in `api/attachments.rs`, using the same `on_runtime` and `client()` pattern as `api/client.rs`:
-  - `update_upload_settings(server_key: String, blocked_extensions: Option<Vec<String>>, voice_message_max_seconds: Option<u32>) -> Result<UploadSettings, CoreError>`
-  - `storage_get(server_key) -> Result<StorageInfo>`
-  - `storage_add(server_key, name: String, s3: S3Config) -> Result<StorageInfo>`
-  - `storage_update(server_key, storage_id: i64, name: Option<String>, s3: Option<S3Config>) -> Result<StorageInfo>`
-  - `storage_test(server_key, target: StorageTestTarget) -> Result<StorageTestResult>`
-  - `storage_activate(server_key, storage_id) -> Result<StorageInfo>`
-  - `storage_remove(server_key, storage_id) -> Result<StorageInfo>`
-  - `storage_move_start(server_key) -> Result<StorageInfo>`
-  - `storage_move_stop(server_key) -> Result<StorageInfo>`
+It takes about two minutes and rewrites `src/frb_generated.rs` and `app/lib/src/rust/`. Commit those files with the task. Never edit them by hand.
 
-  Each is one `client.request` with the matching `Request::Kind`; `unexpected()` handles other responses.
-- `update_role` / `create_role` pass `max_upload_bytes`.
+**The core's tests.** `tests/attachments.rs` starts a real server in the test process:
 
-- [ ] **Step 1: Write tests** (`crates/opencord-core/tests/client.rs` style, against a real server):
-  - `ready_carries_upload_settings_and_role_limits`;
-  - `owner_updates_upload_settings_and_sees_the_event`;
-  - `storage_get_lists_the_local_storage`;
-  - `role_limit_round_trips`.
-- [ ] **Step 2:** Run `cargo test -p opencord_core --test client <names>` → FAIL.
-- [ ] **Step 3:** Implement, then `cd app && flutter_rust_bridge_codegen generate`.
-- [ ] **Step 4:** Rust tests PASS. `flutter analyze` may now report Dart errors where generated types gained fields: fix the Dart mapping minimally (`core_mapping.dart`: pass the new fields through or ignore them) so `flutter analyze` and `flutter test` pass.
-- [ ] **Step 5: Commit:** `feat: core types and requests for uploads and storage (A4)`.
+```bash
+source .superpowers/sdd/media/env.sh && cargo test -p opencord_core --test attachments
+```
 
-### Task 18: The transfer client
+The whole file takes about 10 seconds. A test that runs longer than a minute is hung, which is a bug: stop and report it, with the test's name.
 
-**Files:**
-- Create: `crates/opencord-core/src/attachments/{mod.rs,transfer.rs}`.
-- Modify: `crates/opencord-core/Cargo.toml` (`reqwest = { workspace = true, features = ["stream"] }`), `src/lib.rs`, `src/client.rs` (hold `Transfers`).
+### Task 17: Core types, conversions and simple requests
 
-**Interfaces:**
+**What it does.**
+- Messages carry their attachments, roles their upload limit, and Ready the upload settings.
+- `RoleChanges.max_upload_bytes` `Some(0)` removes a role's limit, as the server's UpdateRole does. `create_role` gains a `max_upload_bytes` argument.
+- The core gains the requests for upload settings and the owner's storage pages, and passes UploadSettingsUpdate and StorageUpdate events to the app.
+- `UploadReady` and `UploadFailed` still map to nothing here. Task 18 hands them to the upload manager.
+- The seven new error codes keep their names, and `CoreError` gains `Cancelled`.
+- `client` and `on_runtime` in `api/client.rs` become `pub(crate)`, so `api/attachments.rs` can use them.
+
+**Files.**
+- Modify: `src/api/types.rs`, `src/convert.rs`, `src/client.rs`, `src/api/client.rs`, `src/api/mod.rs`, `tests/client.rs`, `examples/m6_peer.rs`.
+- Create: `src/api/attachments.rs`, `tests/attachments.rs`.
+- Dart, after regenerating: `app/lib/core/rust/core_mapping.dart`, `app/lib/core/rust/rust_repository.dart`, `app/test/support/fake_core.dart`, `app/test/unit/rust/core_mapping_test.dart`, `app/test/unit/rust/rust_repository_test.dart`, `app/test/unit/state/channel_messages_test.dart`.
+
+**`src/api/types.rs`:**
+
+```diff
+--- a/crates/opencord-core/src/api/types.rs
++++ b/crates/opencord-core/src/api/types.rs
+@@ -82,6 +82,9 @@
+     pub permissions: i64,
+     pub hoist: bool,
+     pub mentionable: bool,
++    /// The largest file its members may upload; `None` leaves it to their
++    /// other roles.
++    pub max_upload_bytes: Option<u64>,
+ }
+ 
+ #[derive(Debug, Clone, Default, PartialEq, Eq)]
+@@ -91,6 +94,8 @@
+     pub permissions: Option<i64>,
+     pub hoist: Option<bool>,
+     pub mentionable: Option<bool>,
++    /// `Some(0)` removes the role's limit.
++    pub max_upload_bytes: Option<u64>,
+ }
+ 
+ #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+@@ -162,6 +167,8 @@
+     pub nonce: Option<String>,
+     /// A command's public result: the command run, by the author.
+     pub command: Option<String>,
++    /// In the order they were attached.
++    pub attachments: Vec<Attachment>,
+ }
+ 
+ #[derive(Debug, Clone, PartialEq, Eq)]
+@@ -353,6 +360,7 @@
+     pub addresses: ServerAddresses,
+     /// The chat commands this user may see (Phase 3 plan §17.1).
+     pub commands: CommandList,
++    pub upload_settings: UploadSettings,
+ }
+ 
+ /// One address a server is reached at.
+@@ -579,6 +587,29 @@
+     CommandsUpdate(CommandList),
+     /// A command's reply only this device sees.
+     EphemeralMessage(EphemeralMessage),
++    UploadSettingsUpdate(UploadSettings),
++    /// To the owner only.
++    StorageUpdate(StorageInfo),
++    /// A file of a message being sent with `send_message_with_files`, at
++    /// most 10 times a second, and once at each phase.
++    UploadProgress {
++        channel_id: i64,
++        nonce: String,
++        /// Its place among the message's files.
++        file_index: u32,
++        sent_bytes: u64,
++        total_bytes: u64,
++        phase: UploadPhase,
++    },
++    /// A `download_attachment`, at most 10 times a second, and once at the
++    /// end with `done` or `error`.
++    DownloadProgress {
++        attachment_id: i64,
++        received_bytes: u64,
++        total_bytes: u64,
++        done: bool,
++        error: Option<String>,
++    },
+ }
+ 
+ /// Where the server is reached from the internet (Phase 3 plan §5.1).
+@@ -926,6 +957,13 @@
+     CommandDisabled,
+     CommandNotAllowedHere,
+     CommandInvalidOptions,
++    FileTooLarge,
++    FileTypeBlocked,
++    UploadOffsetMismatch,
++    StorageUnavailable,
++    StorageFull,
++    VoiceMessageInvalid,
++    VoiceMessageTooLong,
+     Unknown,
+ }
+ 
+@@ -1349,6 +1387,8 @@
+         problem: CameraProblem,
+         message: String,
+     },
++    #[error("cancelled")]
++    Cancelled,
+ }
+ 
+ /// Lavalink nodes (Phase 3 plan §12). Their passwords never reach clients.
+@@ -1789,3 +1829,159 @@
+     pub channel_ids: Option<Vec<i64>>,
+     pub results_public: Option<bool>,
+ }
++
++#[derive(Debug, Clone, Copy, PartialEq, Eq)]
++pub enum AttachmentKind {
++    File,
++    Image,
++    Video,
++    Audio,
++    VoiceMessage,
++}
++
++/// A file in a message.
++#[derive(Debug, Clone, PartialEq, Eq)]
++pub struct Attachment {
++    pub id: i64,
++    pub filename: String,
++    /// Chosen by the server from the file's first bytes.
++    pub content_type: String,
++    pub size_bytes: u64,
++    pub kind: AttachmentKind,
++    /// Images: after EXIF rotation. Videos: the sender's hints.
++    pub width: Option<u32>,
++    pub height: Option<u32>,
++    /// Videos (hint) and voice messages (measured).
++    pub duration_ms: Option<u32>,
++    /// Voice messages: 128 values, 0–255. Empty otherwise.
++    pub waveform: Vec<u8>,
++    pub has_thumbnail: bool,
++    pub thumbnail_width: Option<u32>,
++    pub thumbnail_height: Option<u32>,
++    /// A GIF or WebP with more than one frame.
++    pub animated: bool,
++}
++
++/// What may be uploaded to a server.
++#[derive(Debug, Clone, PartialEq, Eq)]
++pub struct UploadSettings {
++    /// Lowercase, without the dot; may hold inner dots ("tar.gz").
++    pub blocked_extensions: Vec<String>,
++    pub voice_message_max_seconds: u32,
++    /// The server's ceiling: the owner's limit and the most any role allows.
++    pub max_file_bytes: u64,
++    pub max_attachments: u32,
++}
++
++/// Where a file being sent is.
++#[derive(Debug, Clone, PartialEq, Eq)]
++pub enum UploadPhase {
++    /// Reading it, and removing a photo's location.
++    Preparing,
++    Uploading,
++    /// The server checks it and makes its thumbnail.
++    Processing,
++    /// Every file is in; the message goes out.
++    Sending,
++    Done,
++    Failed {
++        message: String,
++    },
++    Cancelled,
++}
++
++#[derive(Debug, Clone, Copy, PartialEq, Eq)]
++pub enum StorageKind {
++    Local,
++    S3,
++}
++
++/// An S3-compatible bucket. In answers the access key is masked to its
++/// last 4 characters and the secret is empty.
++#[derive(Debug, Clone, PartialEq, Eq)]
++pub struct S3Config {
++    pub endpoint: String,
++    pub region: String,
++    pub bucket: String,
++    pub key_prefix: String,
++    pub path_style: bool,
++    pub allow_http: bool,
++    pub access_key_id: String,
++    /// Empty in an update keeps the saved one.
++    pub secret_access_key: String,
++}
++
++#[derive(Debug, Clone, PartialEq, Eq)]
++pub struct StorageBackend {
++    pub id: i64,
++    pub kind: StorageKind,
++    pub name: String,
++    /// New files go here.
++    pub active: bool,
++    pub s3: Option<S3Config>,
++    pub has_secret: bool,
++    pub file_count: u64,
++    pub bytes: u64,
++    /// Why its last test failed.
++    pub last_error: Option<String>,
++}
++
++/// Moving every file to the active storage.
++#[derive(Debug, Clone, Copy, PartialEq, Eq)]
++pub struct StorageMove {
++    pub to_storage_id: i64,
++    pub running: bool,
++    pub files_done: u64,
++    pub files_total: u64,
++    pub bytes_done: u64,
++    pub bytes_total: u64,
++    pub failed: u32,
++}
++
++/// Where a server keeps its files. Owner only.
++#[derive(Debug, Clone, PartialEq, Eq)]
++pub struct StorageInfo {
++    pub backends: Vec<StorageBackend>,
++    /// The running or last move.
++    pub move_status: Option<StorageMove>,
++    /// Free space where the server receives uploads.
++    pub temp_free_bytes: u64,
++}
++
++#[derive(Debug, Clone, PartialEq, Eq)]
++pub struct StorageTestStep {
++    pub name: String,
++    pub ok: bool,
++    pub detail: String,
++}
++
++/// A bucket test: the steps run, up to the first that failed.
++#[derive(Debug, Clone, PartialEq, Eq)]
++pub struct StorageTestResult {
++    pub steps: Vec<StorageTestStep>,
++    pub ok: bool,
++}
++
++#[derive(Debug, Clone, PartialEq, Eq)]
++pub enum StorageTestTarget {
++    /// A saved storage; its result is saved as its `last_error`.
++    Existing { storage_id: i64 },
++    /// Settings not saved yet; nothing is saved.
++    Config { s3: S3Config },
++}
++
++/// A file to send: a path on this device, or bytes (a pasted image).
++/// Exactly one of the two.
++#[derive(Debug, Clone, PartialEq, Eq)]
++pub struct OutgoingFile {
++    pub path: Option<String>,
++    pub bytes: Option<Vec<u8>>,
++    /// Empty uses the path's file name.
++    pub filename: String,
++}
++
++#[derive(Debug, Clone, Copy, PartialEq, Eq)]
++pub enum AttachmentVariant {
++    Original,
++    Thumbnail,
++}
+```
+
+**`src/convert.rs`:**
+
+```diff
+--- a/crates/opencord-core/src/convert.rs
++++ b/crates/opencord-core/src/convert.rs
+@@ -3,11 +3,13 @@
+ use opencord_proto::v1 as proto;
+ 
+ use crate::api::types::{
+-    Ban, Channel, ChannelKind, ChannelPermissions, ConnectAddress, CoreError, CoreEventPayload,
+-    EphemeralMessage, ErrorCode, Invite, Member, Message, OverwriteTargetKind, PermissionOverwrite,
+-    Presence, PresenceStatus, ReadySnapshot, Role, ScreenShareResolution, ScreenStream,
+-    ServerAddresses, ServerInfo, SoundEffect, SoundboardSound, StreamSourceKind, User,
+-    VoiceSettings, VoiceSettingsChanges, VoiceState,
++    Attachment, AttachmentKind, Ban, Channel, ChannelKind, ChannelPermissions, ConnectAddress,
++    CoreError, CoreEventPayload, EphemeralMessage, ErrorCode, Invite, Member, Message,
++    OverwriteTargetKind, PermissionOverwrite, Presence, PresenceStatus, ReadySnapshot, Role,
++    S3Config, ScreenShareResolution, ScreenStream, ServerAddresses, ServerInfo, SoundEffect,
++    SoundboardSound, StorageBackend, StorageInfo, StorageKind, StorageMove, StorageTestResult,
++    StorageTestStep, StreamSourceKind, UploadSettings, User, VoiceSettings, VoiceSettingsChanges,
++    VoiceState,
+ };
+ use crate::identity::public_key_fingerprint;
+ 
+@@ -47,6 +49,7 @@
+         permissions: bits_to_api(role.permissions),
+         hoist: role.hoist,
+         mentionable: role.mentionable,
++        max_upload_bytes: role.max_upload_bytes,
+     }
+ }
+ 
+@@ -213,6 +216,116 @@
+         edited_at_ms: message.edited_at_ms,
+         nonce: message.nonce,
+         command: message.interaction.map(|interaction| interaction.command),
++        attachments: message.attachments.into_iter().map(attachment).collect(),
++    }
++}
++
++pub fn attachment(attachment: proto::Attachment) -> Attachment {
++    let kind = match proto::AttachmentKind::try_from(attachment.kind) {
++        Ok(proto::AttachmentKind::Image) => AttachmentKind::Image,
++        Ok(proto::AttachmentKind::Video) => AttachmentKind::Video,
++        Ok(proto::AttachmentKind::Audio) => AttachmentKind::Audio,
++        Ok(proto::AttachmentKind::VoiceMessage) => AttachmentKind::VoiceMessage,
++        _ => AttachmentKind::File,
++    };
++    Attachment {
++        id: attachment.id,
++        filename: attachment.filename,
++        content_type: attachment.content_type,
++        size_bytes: attachment.size_bytes,
++        kind,
++        width: attachment.width,
++        height: attachment.height,
++        duration_ms: attachment.duration_ms,
++        waveform: attachment.waveform,
++        has_thumbnail: attachment.has_thumbnail,
++        thumbnail_width: attachment.thumbnail_width,
++        thumbnail_height: attachment.thumbnail_height,
++        animated: attachment.animated,
++    }
++}
++
++pub fn upload_settings(settings: proto::UploadSettings) -> UploadSettings {
++    UploadSettings {
++        blocked_extensions: settings.blocked_extensions,
++        voice_message_max_seconds: settings.voice_message_max_seconds,
++        max_file_bytes: settings.max_file_bytes,
++        max_attachments: settings.max_attachments,
++    }
++}
++
++pub fn storage(storage: proto::Storage) -> StorageInfo {
++    StorageInfo {
++        backends: storage.backends.into_iter().map(storage_backend).collect(),
++        move_status: storage.r#move.map(|status| StorageMove {
++            to_storage_id: status.to_storage_id,
++            running: status.running,
++            files_done: status.files_done,
++            files_total: status.files_total,
++            bytes_done: status.bytes_done,
++            bytes_total: status.bytes_total,
++            failed: status.failed,
++        }),
++        temp_free_bytes: storage.temp_free_bytes,
++    }
++}
++
++fn storage_backend(backend: proto::StorageBackend) -> StorageBackend {
++    let kind = match proto::StorageKind::try_from(backend.kind) {
++        Ok(proto::StorageKind::S3) => StorageKind::S3,
++        _ => StorageKind::Local,
++    };
++    StorageBackend {
++        id: backend.id,
++        kind,
++        name: backend.name,
++        active: backend.active,
++        s3: backend.s3.map(s3_config),
++        has_secret: backend.has_secret,
++        file_count: backend.file_count,
++        bytes: backend.bytes,
++        last_error: backend.last_error,
++    }
++}
++
++fn s3_config(config: proto::S3Config) -> S3Config {
++    S3Config {
++        endpoint: config.endpoint,
++        region: config.region,
++        bucket: config.bucket,
++        key_prefix: config.key_prefix,
++        path_style: config.path_style,
++        allow_http: config.allow_http,
++        access_key_id: config.access_key_id,
++        secret_access_key: config.secret_access_key,
++    }
++}
++
++pub fn s3_config_to_proto(config: S3Config) -> proto::S3Config {
++    proto::S3Config {
++        endpoint: config.endpoint,
++        region: config.region,
++        bucket: config.bucket,
++        key_prefix: config.key_prefix,
++        path_style: config.path_style,
++        allow_http: config.allow_http,
++        access_key_id: config.access_key_id,
++        secret_access_key: config.secret_access_key,
++    }
++}
++
++pub fn storage_test(test: proto::StorageTest) -> StorageTestResult {
++    StorageTestResult {
++        steps: test
++            .steps
++            .into_iter()
++            .map(|step| StorageTestStep {
++                name: step.name,
++                ok: step.ok,
++                detail: step.detail,
++            })
++            .collect(),
++        ok: test.ok,
+     }
+ }
+ 
+@@ -319,6 +432,7 @@
+             .collect(),
+         addresses: server_addresses(ready.server_addresses.unwrap_or_default()),
+         commands: crate::commands::list_from(ready.commands.unwrap_or_default()),
++        upload_settings: upload_settings(ready.upload_settings.unwrap_or_default()),
+     }
+ }
+ 
+@@ -469,15 +583,19 @@
+             nonce: message.nonce,
+             content: message.content,
+         }),
++        Kind::UploadSettingsUpdate(update) => {
++            CoreEventPayload::UploadSettingsUpdate(upload_settings(update.settings?))
++        }
++        Kind::StorageUpdate(update) => CoreEventPayload::StorageUpdate(storage(update.storage?)),
+         // With the server's clock: `music::event`.
+         Kind::MusicSnapshot(_)
+         | Kind::MusicUpdate(_)
+         | Kind::MusicNotice(_)
+         | Kind::MusicNowPlaying(_)
+-        | Kind::UploadSettingsUpdate(_)
++        // For the send waiting on them: `connection.rs` hands them to
++        // `Uploads`.
+         | Kind::UploadReady(_)
+-        | Kind::UploadFailed(_)
+-        | Kind::StorageUpdate(_) => return None,
++        | Kind::UploadFailed(_) => return None,
+     })
+ }
+ 
+@@ -523,6 +641,14 @@
+         Ok(proto::ErrorCode::CommandDisabled) => ErrorCode::CommandDisabled,
+         Ok(proto::ErrorCode::CommandNotAllowedHere) => ErrorCode::CommandNotAllowedHere,
+         Ok(proto::ErrorCode::CommandInvalidOptions) => ErrorCode::CommandInvalidOptions,
++        Ok(proto::ErrorCode::FileTooLarge) => ErrorCode::FileTooLarge,
++        Ok(proto::ErrorCode::FileTypeBlocked) => ErrorCode::FileTypeBlocked,
++        Ok(proto::ErrorCode::UploadOffsetMismatch) => ErrorCode::UploadOffsetMismatch,
++        Ok(proto::ErrorCode::StorageUnavailable) => ErrorCode::StorageUnavailable,
++        Ok(proto::ErrorCode::StorageFull) => ErrorCode::StorageFull,
++        Ok(proto::ErrorCode::VoiceMessageInvalid) => ErrorCode::VoiceMessageInvalid,
++        Ok(proto::ErrorCode::VoiceMessageTooLong) => ErrorCode::VoiceMessageTooLong,
++
+         _ => ErrorCode::Unknown,
+     }
+ }
+```
+
+**`src/client.rs`:**
+
+```diff
+--- a/crates/opencord-core/src/client.rs
++++ b/crates/opencord-core/src/client.rs
+@@ -19,9 +19,10 @@
+     AddServerOutcome, AudioSettings, Ban, CameraStarted, Channel, ChannelChanges, ChannelKind,
+     ChannelPosition, CoreError, CoreEvent, CoreEventPayload, ErrorCode, HotkeyBinding,
+     HotkeySupport, IdentityInfo, Invite, MediaEvent, Member, Message, OverwriteTargetKind,
+-    PermissionOverwrite, PresenceStatus, Role, RoleChanges, ScreenProblem, ScreenShareRequest,
+-    ScreenShareStarted, ScreenStream, Server, ServerChanges, ServerInfo, SoundDraft,
+-    SoundSelection, SoundboardSound, SoundboardSoundChanges, StreamSourceKind, User, VideoWant,
++    PermissionOverwrite, PresenceStatus, Role, RoleChanges, S3Config, ScreenProblem,
++    ScreenShareRequest, ScreenShareStarted, ScreenStream, Server, ServerChanges, ServerInfo,
++    SoundDraft, SoundSelection, SoundboardSound, SoundboardSoundChanges, StorageInfo,
++    StorageTestResult, StorageTestTarget, StreamSourceKind, UploadSettings, User, VideoWant,
+     VoiceCue, VoiceSettings, VoiceSettingsChanges, VoiceState,
+ };
+ use crate::artwork::ArtworkCache;
+@@ -530,6 +531,7 @@
+         expect_channel(self.request(key, request).await?)
+     }
+ 
++    #[allow(clippy::too_many_arguments)]
+     pub async fn create_role(
+         &self,
+         key: &str,
+@@ -538,6 +540,7 @@
+         permissions: i64,
+         hoist: bool,
+         mentionable: bool,
++        max_upload_bytes: Option<u64>,
+     ) -> Result<Role, CoreError> {
+         let request = Request::CreateRole(proto::CreateRole {
+             name,
+@@ -545,7 +548,7 @@
+             permissions: convert::bits_from_api(permissions),
+             hoist,
+             mentionable,
+-            max_upload_bytes: None,
++            max_upload_bytes,
+         });
+         expect_role(self.request(key, request).await?)
+     }
+@@ -563,7 +566,7 @@
+             permissions: changes.permissions.map(convert::bits_from_api),
+             hoist: changes.hoist,
+             mentionable: changes.mentionable,
+-            max_upload_bytes: None,
++            max_upload_bytes: changes.max_upload_bytes,
+         });
+         expect_role(self.request(key, request).await?)
+     }
+@@ -1750,6 +1753,109 @@
+         Arc::clone(&self.inner.artwork)
+     }
+ 
++    /// Owner or MANAGE_SERVER. `None` leaves a setting as it is.
++    pub async fn update_upload_settings(
++        &self,
++        key: &str,
++        blocked_extensions: Option<Vec<String>>,
++        voice_message_max_seconds: Option<u32>,
++    ) -> Result<UploadSettings, CoreError> {
++        let request = Request::UpdateUploadSettings(proto::UpdateUploadSettings {
++            blocked_extensions: blocked_extensions
++                .map(|extensions| proto::BlockedExtensions { extensions }),
++            voice_message_max_seconds,
++        });
++        match self.request(key, request).await? {
++            Response::UploadSettings(settings) => Ok(convert::upload_settings(settings)),
++            other => Err(unexpected(&other)),
++        }
++    }
++
++    pub async fn storage_get(&self, key: &str) -> Result<StorageInfo, CoreError> {
++        expect_storage(
++            self.request(key, Request::GetStorage(proto::GetStorage {}))
++                .await?,
++        )
++    }
++
++    pub async fn storage_add(
++        &self,
++        key: &str,
++        name: String,
++        s3: S3Config,
++    ) -> Result<StorageInfo, CoreError> {
++        let request = Request::AddStorage(proto::AddStorage {
++            name,
++            s3: Some(convert::s3_config_to_proto(s3)),
++        });
++        expect_storage(self.request(key, request).await?)
++    }
++
++    pub async fn storage_update(
++        &self,
++        key: &str,
++        storage_id: i64,
++        name: Option<String>,
++        s3: Option<S3Config>,
++    ) -> Result<StorageInfo, CoreError> {
++        let request = Request::UpdateStorage(proto::UpdateStorage {
++            storage_id,
++            name,
++            s3: s3.map(convert::s3_config_to_proto),
++        });
++        expect_storage(self.request(key, request).await?)
++    }
++
++    pub async fn storage_test(
++        &self,
++        key: &str,
++        target: StorageTestTarget,
++    ) -> Result<StorageTestResult, CoreError> {
++        let target = match target {
++            StorageTestTarget::Existing { storage_id } => {
++                proto::test_storage::Target::StorageId(storage_id)
++            }
++            StorageTestTarget::Config { s3 } => {
++                proto::test_storage::Target::S3(convert::s3_config_to_proto(s3))
++            }
++        };
++        let request = Request::TestStorage(proto::TestStorage {
++            target: Some(target),
++        });
++        match self.request(key, request).await? {
++            Response::StorageTest(test) => Ok(convert::storage_test(test)),
++            other => Err(unexpected(&other)),
++        }
++    }
++
++    pub async fn storage_activate(
++        &self,
++        key: &str,
++        storage_id: i64,
++    ) -> Result<StorageInfo, CoreError> {
++        let request = Request::ActivateStorage(proto::ActivateStorage { storage_id });
++        expect_storage(self.request(key, request).await?)
++    }
++
++    pub async fn storage_remove(
++        &self,
++        key: &str,
++        storage_id: i64,
++    ) -> Result<StorageInfo, CoreError> {
++        let request = Request::RemoveStorage(proto::RemoveStorage { storage_id });
++        expect_storage(self.request(key, request).await?)
++    }
++
++    pub async fn storage_move_start(&self, key: &str) -> Result<StorageInfo, CoreError> {
++        let request = Request::StartStorageMove(proto::StartStorageMove {});
++        expect_storage(self.request(key, request).await?)
++    }
++
++    pub async fn storage_move_stop(&self, key: &str) -> Result<StorageInfo, CoreError> {
++        let request = Request::StopStorageMove(proto::StopStorageMove {});
++        expect_storage(self.request(key, request).await?)
++    }
++
+     /// A request answered with an ack.
+     pub(crate) async fn ack(&self, key: &str, kind: Request) -> Result<(), CoreError> {
+         expect_ack(self.request(key, kind).await?)
+@@ -1776,6 +1882,13 @@
+         other => Err(unexpected(&other)),
+     }
+ }
++
++fn expect_storage(response: Response) -> Result<StorageInfo, CoreError> {
++    match response {
++        Response::Storage(storage) => Ok(convert::storage(storage)),
++        other => Err(unexpected(&other)),
++    }
++}
+ 
+ fn expect_role(response: Response) -> Result<Role, CoreError> {
+     match response {
+```
+
+**`src/api/client.rs`:**
+
+```diff
+--- a/crates/opencord-core/src/api/client.rs
++++ b/crates/opencord-core/src/api/client.rs
+@@ -326,6 +326,8 @@
+     .await
+ }
+ 
++/// `max_upload_bytes`: `None` leaves uploads to the member's other roles.
++#[allow(clippy::too_many_arguments)]
+ pub async fn create_role(
+     server_key: String,
+     name: String,
+@@ -333,10 +335,19 @@
+     permissions: i64,
+     hoist: bool,
+     mentionable: bool,
++    max_upload_bytes: Option<u64>,
+ ) -> Result<Role, CoreError> {
+     on_runtime(move |client| async move {
+         client
+-            .create_role(&server_key, name, color, permissions, hoist, mentionable)
++            .create_role(
++                &server_key,
++                name,
++                color,
++                permissions,
++                hoist,
++                mentionable,
++                max_upload_bytes,
++            )
+             .await
+     })
+     .await
+@@ -1463,12 +1474,12 @@
+     Ok(())
+ }
+ 
+-fn client() -> Result<Client, CoreError> {
++pub(crate) fn client() -> Result<Client, CoreError> {
+     CLIENT.get().cloned().ok_or(CoreError::NotInitialized)
+ }
+ 
+ /// Runs `work` on the core's runtime, where connections live.
+-async fn on_runtime<T, F>(work: impl FnOnce(Client) -> F) -> Result<T, CoreError>
++pub(crate) async fn on_runtime<T, F>(work: impl FnOnce(Client) -> F) -> Result<T, CoreError>
+ where
+     F: Future<Output = Result<T, CoreError>> + Send + 'static,
+     T: Send + 'static,
+```
+
+**`src/api/mod.rs`, `tests/client.rs` and `examples/m6_peer.rs`:**
+
+```diff
+--- a/crates/opencord-core/src/api/mod.rs
++++ b/crates/opencord-core/src/api/mod.rs
+@@ -1,3 +1,5 @@
++pub mod attachments;
+ pub mod client;
++
+ pub mod system;
+ pub mod types;
+```
+
+```diff
+--- a/crates/opencord-core/tests/client.rs
++++ b/crates/opencord-core/tests/client.rs
+@@ -403,9 +403,11 @@
+             bits(Permissions::MANAGE_MESSAGES),
+             false,
+             false,
++            None,
+         )
+         .await
+         .unwrap();
++
+     owner
+         .client
+         .add_member_role(&key, member_ready.self_user.id, role.id)
+```
+
+```diff
+--- a/crates/opencord-core/examples/m6_peer.rs
++++ b/crates/opencord-core/examples/m6_peer.rs
+@@ -105,7 +105,7 @@
+         .await?;
+ 
+     let role = client
+-        .create_role(&key, ROLE.to_owned(), 0x3B_A5_5C, 0, true, false)
++        .create_role(&key, ROLE.to_owned(), 0x3B_A5_5C, 0, true, false, None)
+         .await?;
+     client.add_member_role(&key, member_id, role.id).await?;
+     client
+```
+
+**`src/api/attachments.rs`** (new):
 
 ```rust
-pub(crate) struct Transfers { routes: Routes, tokens: MediaTokens,
-    clients: std::sync::Mutex<HashMap<String, (Route, reqwest::Client, Arc<TlsTrust>)>> }
-impl Transfers {
-    pub fn new(routes: Routes, tokens: MediaTokens) -> Self;
-    /// A request to this server's media endpoints with the media token; renews the token once on 401.
-    pub async fn send(&self, client: &Client, key: &str, method: reqwest::Method, path: &str,
-        headers: &[(&str, String)], body: Option<Vec<u8>>, timeout: Duration) -> Result<reqwest::Response, CoreError>;
+//! Files in messages, upload settings and storage (media uploads plan,
+//! milestone A4), for the Flutter app.
+
+use super::client::on_runtime;
+use super::types::{
+    CoreError, S3Config, StorageInfo, StorageTestResult, StorageTestTarget, UploadSettings,
+};
+
+/// MANAGE_SERVER. `None` leaves a setting as it is.
+pub async fn update_upload_settings(
+    server_key: String,
+    blocked_extensions: Option<Vec<String>>,
+    voice_message_max_seconds: Option<u32>,
+) -> Result<UploadSettings, CoreError> {
+    on_runtime(move |client| async move {
+        client
+            .update_upload_settings(&server_key, blocked_extensions, voice_message_max_seconds)
+            .await
+    })
+    .await
+}
+
+/// The storage requests are the owner's only.
+pub async fn storage_get(server_key: String) -> Result<StorageInfo, CoreError> {
+    on_runtime(move |client| async move { client.storage_get(&server_key).await }).await
+}
+
+/// Tests the bucket first; refused when the test fails.
+pub async fn storage_add(
+    server_key: String,
+    name: String,
+    s3: S3Config,
+) -> Result<StorageInfo, CoreError> {
+    on_runtime(move |client| async move { client.storage_add(&server_key, name, s3).await }).await
+}
+
+/// An empty secret keeps the saved one.
+pub async fn storage_update(
+    server_key: String,
+    storage_id: i64,
+    name: Option<String>,
+    s3: Option<S3Config>,
+) -> Result<StorageInfo, CoreError> {
+    on_runtime(move |client| async move {
+        client
+            .storage_update(&server_key, storage_id, name, s3)
+            .await
+    })
+    .await
+}
+
+pub async fn storage_test(
+    server_key: String,
+    target: StorageTestTarget,
+) -> Result<StorageTestResult, CoreError> {
+    on_runtime(move |client| async move { client.storage_test(&server_key, target).await }).await
+}
+
+/// New files go there from now on.
+pub async fn storage_activate(
+    server_key: String,
+    storage_id: i64,
+) -> Result<StorageInfo, CoreError> {
+    on_runtime(move |client| async move { client.storage_activate(&server_key, storage_id).await })
+        .await
+}
+
+pub async fn storage_remove(server_key: String, storage_id: i64) -> Result<StorageInfo, CoreError> {
+    on_runtime(move |client| async move { client.storage_remove(&server_key, storage_id).await })
+        .await
+}
+
+/// Moves every file to the active storage; StorageUpdate events follow it.
+pub async fn storage_move_start(server_key: String) -> Result<StorageInfo, CoreError> {
+    on_runtime(move |client| async move { client.storage_move_start(&server_key).await }).await
+}
+
+pub async fn storage_move_stop(server_key: String) -> Result<StorageInfo, CoreError> {
+    on_runtime(move |client| async move { client.storage_move_stop(&server_key).await }).await
 }
 ```
 
-- **Building a client:**
-  - `TlsTrust::new(route.pin)`;
-  - `reqwest::Client::builder().tls_backend_preconfigured((*trust.config).clone()).connect_timeout(10 s).pool_idle_timeout(60 s).build()`;
-  - rebuild when the `Route` for the key changed.
-- **URL:** `format!("https://{}{path}", route.address)`. `ServerAddress`'s `Display` already brackets IPv6.
-- **Token renewal:** on 401, `RefreshMediaToken` exactly as `http.rs` `MediaHttp::request` does, then retry once.
-- **Errors:**
-  - a connect or TLS failure where `trust.verdict()` reports a mismatch → the same certificate error `http.rs` maps to;
-  - other failures → `CoreError::Connection`;
-  - a protobuf error body (`Content-Type: application/x-protobuf`) → `CoreError::Server{…}` via the existing error conversion.
-- **Timeouts:** pieces 120 s, status and finish 30 s, downloads none overall (per-chunk idle 60 s).
+**`tests/attachments.rs`** (new). Tasks 18 to 20 add to it.
 
-- [ ] **Step 1: Write the test** (`tests/attachments.rs` in the core): `transfers_reach_a_self_signed_server_and_renew_tokens`. Corrupt the stored media token, GET a status → succeeds after one renewal.
-- [ ] **Step 2:** FAIL. **Step 3:** Implement. **Step 4:** PASS.
-- [ ] **Step 5: Commit:** `feat: core transfers over pinned TLS (A4)`.
+```rust
+//! Files in messages, upload settings and storage, against a real server
+//! (media uploads plan, milestone A4).
 
-### Task 19: The upload manager
+use std::time::Duration;
 
-**Files:**
-- Create: `crates/opencord-core/src/attachments/upload.rs`.
-- Modify: `src/connection.rs` (route UploadReady/UploadFailed), `src/client.rs`, `src/api/attachments.rs`, generated bindings.
+use opencord_common::address::format_fingerprint;
+use opencord_core::api::types::{
+    CoreEvent, CoreEventPayload, ReadySnapshot, RoleChanges, StorageKind,
+};
+use opencord_core::client::Client;
+use opencord_core::identity::Identity;
+use opencord_server::config::Config;
+use opencord_server::server::{self, ServerHandle};
+use tokio::sync::mpsc::UnboundedReceiver;
 
-**Interfaces:**
-- `pub(crate) struct Uploads { sends: Mutex<HashMap<(String, String), CancellationToken>>, waiters: Mutex<HashMap<i64, oneshot::Sender<Result<proto::Attachment, proto::Error>>>> }`
-- `pub fn on_ready(&self, attachment: proto::Attachment)` and `pub fn on_failed(&self, upload_id: i64, error: proto::Error)`. `connection.rs` calls these from `on_event` for `UploadReady`/`UploadFailed` (reach `Uploads` through the `Context`; add an `Arc<Uploads>` field there).
-- **API:** `pub async fn send_message_with_files(server_key: String, channel_id: i64, content: String, nonce: String, files: Vec<OutgoingFile>) -> Result<Message, CoreError>`
-  - For each file (two at a time, `futures_util::stream::iter(..).buffer_unordered(2)` keeping file indexes):
-    1. **Prepare** (phase Preparing). Read bytes for in-memory sources. For paths, `metadata().len()`. Images (by sniff) ≤ 100 MiB go through `exif::strip_metadata` (Task 21; until then unchanged).
-    2. **CreateUpload** with kind FILE.
-    3. **Pieces**, each `min(8 MiB, size − offset)`, read from bytes or with `File::seek` + `read_exact`.
-       - PUT with header `Upload-Offset`.
-       - 200 → advance.
-       - **409** → decode `UploadStatus` and set `offset = received_bytes`.
-       - Network error → wait 1, 2, 4, 8, 16 s (max 6 attempts), then GET status and continue from `received_bytes`.
-       - Any other error → fail.
-       - Emit `UploadProgress` (Uploading) at most 10 per second per file, plus once at the end.
-    4. **Finish** (phase Processing). Register a waiter for the upload id **before** POSTing. Wait for the waiter or, every 5 s, GET status: ready → attachment; failed → error.
-  - When all are ready: phase Sending, then `SendMessage { channel_id, content, nonce, attachment_ids }` → `Message`, then phase Done.
-  - On error:
-    - phase `Failed{message}` for that file;
-    - cancel the other files and `CancelUpload` every created upload (best effort);
-    - return the error.
-- **API:** `#[frb(sync)] pub fn cancel_send(server_key: String, nonce: String)`: cancels the token. The send returns `CoreError::Cancelled` after cancelling its uploads, with phase Cancelled.
-- Before any upload, the core rejects more than `max_attachments` files with `InvalidInput`.
+const WAIT: Duration = Duration::from_secs(20);
+const MIB: usize = 1024 * 1024;
 
-- [ ] **Step 1: Write tests** (core `tests/attachments.rs`):
-  - `send_message_with_files_uploads_and_sends`: a 9 MiB file from a temp path plus 1 KiB bytes → the returned Message has 2 attachments in order; progress events reach `Done` for both.
-  - **`uploads_resume_after_a_conflict`** (Review Focus 1): pre-send piece 1 of the first upload directly over HTTP using the id returned by a spy (add a `#[cfg(test)]`-free hook: an `upload_created` callback on `Uploads` used only by tests). The manager gets a 409 and finishes correctly; the download SHA-256 equals the source.
-  - `cancel_send_cancels_server_uploads`: cancel mid-upload → `CoreError::Cancelled`; the server status for the upload → 404.
-  - `a_blocked_file_fails_with_the_servers_reason`.
-- [ ] **Step 2:** FAIL. **Step 3:** Implement and regenerate bindings. **Step 4:** PASS.
-- [ ] **Step 5: Commit:** `feat: sending messages with files (A4)`.
+struct TestServer {
+    handle: ServerHandle,
+    _dir: tempfile::TempDir,
+}
 
-### Task 20: Downloads, attachment bytes and the encrypted cache
+impl TestServer {
+    async fn start() -> Self {
+        let dir = tempfile::tempdir().unwrap();
+        let mut config = Config::default();
+        config.server.bind = "127.0.0.1:0".parse().unwrap();
+        config.server.public_host = "127.0.0.1".to_owned();
+        config.server.data_dir = dir.path().join("data");
+        config.server.name = "Test Server".to_owned();
+        config.voice.udp_port = 0;
+        config.music.audio_udp_port = 0;
+        config.network.ip_lookup_v4 = String::new();
+        config.network.ip_lookup_v6 = String::new();
+        let handle = server::start(config).await.unwrap();
+        Self { handle, _dir: dir }
+    }
 
-**Files:**
-- Create: `crates/opencord-core/src/attachments/{download.rs,cache.rs}`.
-- Modify: `src/api/attachments.rs`, `src/client.rs`, bindings.
+    fn address(&self) -> String {
+        format!("127.0.0.1:{}", self.handle.local_addr.port())
+    }
+}
 
-**Interfaces:**
-- **`MediaCache`:**
-  - `pub fn open(dir: PathBuf, key: BlobKey, limit: u64) -> io::Result<Self>`
-  - `pub fn get(&self, name: &str) -> Option<Vec<u8>>`: `open_all(key, Cache, id_of(name), bytes)`; touch mtime with `File::set_modified`.
-  - `pub fn put(&self, name: &str, bytes: &[u8])`: write to `name.tmp`, rename, then `evict()`.
-  - `pub fn clear(&self)`, `pub fn size(&self) -> u64`.
-  - Entry name = lowercase hex SHA-256 of `"{server_key}\n{attachment_id}\n{original|thumbnail}"`.
-  - `id_of(name)` = the first 8 bytes of that hash as `i64::from_be_bytes`.
-  - `evict()` deletes the oldest-mtime files until the total ≤ limit.
-- **API:**
-  - `#[frb(sync)] pub fn media_cache_init(key: Vec<u8>) -> Result<(), CoreError>`: 32 bytes, else InvalidInput. Cache dir `<app data>/media-cache`, limit 1 GiB. Without init, nothing is cached on disk.
-  - `pub async fn media_cache_size() -> Result<u64>`, `pub async fn media_cache_clear() -> Result<()>`.
-  - **`pub async fn attachment_bytes(server_key, attachment_id: i64, variant: AttachmentVariant) -> Result<Vec<u8>>`:**
-    - cache hit → bytes;
-    - otherwise GET the thumbnail, or the whole original (refused with InvalidInput "too large to show" when `Content-Length > 64 MiB`);
-    - cache it when Thumbnail, or Original ≤ 20 MiB.
-    - Only the image viewer, the voice player and the audio player call it with `Original`. Video uses the media player's range reads, and other files use `download_attachment`. So this rule caches what the Global Constraints list: images ≤ 20 MiB, voice (always smaller) and audio ≤ 20 MiB. Don't call it for other kinds.
-  - **`pub async fn download_attachment(server_key, attachment_id: i64, path: String) -> Result<()>`:**
-    - stream to `path + ".part"`, then rename;
-    - `DownloadProgress` at most 10 per second, plus a final event with `done`;
-    - on error remove the `.part` file and send a final event with `error`.
-  - `#[frb(sync)] pub fn cancel_download(server_key: String, attachment_id: i64)`.
-- **Dart side, in this task** so the cache can be tested end to end:
-  - `app/lib/core/rust/media_cache_key_store.dart` keeps the key in the keychain under `${prefix}media-cache.key` (base64, 32 bytes from `Random.secure()`), with the same `SecureIdentityStore` options and prefix rules.
-  - Call it in `app_start.dart` after `core.init`, then `mediaCacheInit`. If the keychain fails, log it and skip (no disk cache).
+struct TestClient {
+    client: Client,
+    events: UnboundedReceiver<CoreEvent>,
+    _dir: tempfile::TempDir,
+}
 
-- [ ] **Step 1: Write tests:**
-  - **Rust unit:**
-    - `cache_round_trips_and_evicts_oldest`: limit 3 entries' worth, so the oldest is gone.
-    - `cache_files_hold_no_plaintext`: a marker string isn't in any file.
-    - `a_cache_file_cannot_be_renamed_to_another_entry`: copy file A over B's name → `get(B) == None`.
-  - **Core integration:** `download_attachment_writes_the_exact_file`, `attachment_bytes_uses_the_cache_second_time` (the second call works with the server stopped).
-  - **Dart unit:** `media_cache_key_store_test.dart` with a fake secure storage: creates once, then reuses.
-- [ ] **Step 2:** FAIL. **Step 3:** Implement and regenerate. **Step 4:** PASS.
-- [ ] **Step 5: Commit:** `feat: downloads and the encrypted media cache (A4)`.
+impl TestClient {
+    /// The owner: trusts the certificate and claims the server.
+    async fn owner(server: &TestServer) -> (Self, ReadySnapshot) {
+        let dir = tempfile::tempdir().unwrap();
+        let (client, events) = Client::new(dir.path(), tokio::runtime::Handle::current()).unwrap();
+        client.set_identity(Identity::generate(), "Owner".to_owned());
+        client
+            .trust_fingerprint(
+                &server.address(),
+                &format_fingerprint(&server.handle.fingerprint),
+            )
+            .unwrap();
+        client
+            .add_server(&server.address(), server.handle.claim_token.clone())
+            .await
+            .unwrap();
+        let mut owner = Self {
+            client,
+            events,
+            _dir: dir,
+        };
+        let ready = owner
+            .wait_for(|payload| match payload {
+                CoreEventPayload::Ready(ready) => Some(ready.clone()),
+                _ => None,
+            })
+            .await;
+        (owner, ready)
+    }
 
-### Task 21: Photo metadata stripping and clipboard images
+    /// Skips events until `pick` returns something.
+    async fn wait_for<T>(&mut self, mut pick: impl FnMut(&CoreEventPayload) -> Option<T>) -> T {
+        tokio::time::timeout(WAIT, async {
+            loop {
+                let event = self.events.recv().await.expect("the event stream ended");
+                if let Some(found) = pick(&event.payload) {
+                    return found;
+                }
+            }
+        })
+        .await
+        .expect("timed out waiting for an event")
+    }
+}
 
-**Files:**
-- Create: `crates/opencord-core/src/attachments/{exif.rs,clipboard.rs}`.
-- Modify: `Cargo.toml` (`arboard = { version = "3.7.0", features = ["wayland-data-control"] }`, `image.workspace = true`), `src/attachments/upload.rs` (call strip), `src/api/attachments.rs`, bindings.
+#[tokio::test(flavor = "multi_thread")]
+async fn ready_carries_upload_settings_and_role_limits() {
+    let server = TestServer::start().await;
+    let (_owner, ready) = TestClient::owner(&server).await;
 
-**Interfaces:**
-- **`pub fn strip_metadata(bytes: &[u8]) -> Option<Vec<u8>>`:** returns `None` when the input isn't JPEG, PNG or WebP, or is malformed; the caller then sends the original.
-  - **JPEG:**
-    - Walk the segments from `FF D8` until `FF DA` (start of scan); copy the rest verbatim.
-    - Drop APP1 segments whose payload starts with `Exif\0\0` or `http://ns.adobe.com/xap/1.0/\0`, and drop APP13. Keep APP0 (JFIF), APP2 (ICC) and every other segment.
-    - If the dropped Exif had Orientation (tag `0x0112` in IFD0, either byte order) ≠ 1, insert directly after SOI the 34-byte segment below (`n` is the orientation 2–8):
+    assert_eq!(ready.upload_settings.max_attachments, 10);
+    assert_eq!(ready.upload_settings.max_file_bytes, 4096 * MIB as u64);
+    assert_eq!(ready.upload_settings.voice_message_max_seconds, 300);
+    let everyone = ready
+        .roles
+        .iter()
+        .find(|role| role.name == "@everyone")
+        .unwrap();
+    assert_eq!(everyone.max_upload_bytes, Some(50 * MIB as u64));
+}
 
+#[tokio::test(flavor = "multi_thread")]
+async fn owner_updates_upload_settings_and_sees_the_event() {
+    let server = TestServer::start().await;
+    let (mut owner, _) = TestClient::owner(&server).await;
+    let key = server.address();
+
+    let settings = owner
+        .client
+        .update_upload_settings(&key, Some(vec!["psd".to_owned()]), Some(120))
+        .await
+        .unwrap();
+
+    assert_eq!(settings.blocked_extensions, ["psd"]);
+    assert_eq!(settings.voice_message_max_seconds, 120);
+    let event = owner
+        .wait_for(|payload| match payload {
+            CoreEventPayload::UploadSettingsUpdate(settings) => Some(settings.clone()),
+            _ => None,
+        })
+        .await;
+    assert_eq!(event, settings);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn storage_get_lists_the_local_storage() {
+    let server = TestServer::start().await;
+    let (owner, _) = TestClient::owner(&server).await;
+
+    let storage = owner.client.storage_get(&server.address()).await.unwrap();
+
+    assert_eq!(storage.backends.len(), 1);
+    assert_eq!(storage.backends[0].kind, StorageKind::Local);
+    assert!(storage.backends[0].active);
+    assert!(storage.move_status.is_none());
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn role_limit_round_trips() {
+    let server = TestServer::start().await;
+    let (owner, _) = TestClient::owner(&server).await;
+    let key = server.address();
+
+    let role = owner
+        .client
+        .create_role(
+            &key,
+            "uploaders".to_owned(),
+            0,
+            0,
+            false,
+            false,
+            Some(100 * MIB as u64),
+        )
+        .await
+        .unwrap();
+    assert_eq!(role.max_upload_bytes, Some(100 * MIB as u64));
+
+    let changes = RoleChanges {
+        max_upload_bytes: Some(0),
+        ..RoleChanges::default()
+    };
+    let role = owner
+        .client
+        .update_role(&key, role.id, changes)
+        .await
+        .unwrap();
+    assert_eq!(role.max_upload_bytes, None);
+}
 ```
-FF E1 00 22 45 78 69 66 00 00 4D 4D 00 2A 00 00 00 08 00 01 01 12 00 03 00 00 00 01 00 0n 00 00 00 00 00 00
+
+**Dart.** After regenerating, `flutter analyze` reports exactly these:
+- three switches no longer cover every case (`ErrorCode`, `CoreError` and `CoreEventPayload`);
+- eight test call sites miss the new required fields `attachments` and `uploadSettings`.
+
+The app maps the new codes to existing kinds and ignores the new events until Task 22 gives them their own. `uploadSettings` is a `BigInt`-holding value, so the shared test fixture is `final`, not `const`.
+
+```diff
+--- a/app/lib/core/rust/core_mapping.dart
++++ b/app/lib/core/rust/core_mapping.dart
+@@ -429,6 +429,14 @@
+   core.ErrorCode.soundCooldown => RepoErrorKind.soundCooldown,
+   core.ErrorCode.soundTooLong => RepoErrorKind.soundTooLong,
+   core.ErrorCode.soundInvalid => RepoErrorKind.soundInvalid,
++  // Media uploads; Task 22 gives them kinds of their own.
++  core.ErrorCode.fileTooLarge ||
++  core.ErrorCode.fileTypeBlocked ||
++  core.ErrorCode.voiceMessageInvalid ||
++  core.ErrorCode.voiceMessageTooLong => RepoErrorKind.invalidArgument,
++  core.ErrorCode.uploadOffsetMismatch => RepoErrorKind.conflict,
++  core.ErrorCode.storageUnavailable ||
++  core.ErrorCode.storageFull => RepoErrorKind.other,
+   core.ErrorCode.internal || core.ErrorCode.unknown => RepoErrorKind.other,
+ };
+ 
+@@ -483,6 +491,10 @@
+     RepoErrorKind.other,
+     message,
+   ),
++  core.CoreError_Cancelled() => const RepoException(
++    RepoErrorKind.other,
++    'Cancelled.',
++  ),
+   core.CoreError_Camera(:final problem, :final message) => RepoException(
+     switch (problem) {
+       core.CameraProblem.denied => RepoErrorKind.cameraDenied,
 ```
 
-  - **PNG:** walk the chunks after the 8-byte signature; drop `eXIf`, and drop `iTXt` whose keyword is `XML:com.adobe.xmp`; copy the rest (CRCs unchanged).
-  - **WebP:**
-    - Walk the RIFF chunks; drop `EXIF` and `XMP `.
-    - If a `VP8X` chunk exists, clear its flag bits `0x08` (EXIF) and `0x04` (XMP) in the first payload byte.
-    - Rewrite the RIFF size (bytes 4–8, little endian) = total length − 8. Chunks with odd sizes carry a pad byte.
-- **`pub fn clipboard_image() -> Result<Option<Vec<u8>>, CoreError>`:**
-  - `arboard::Clipboard::new()`;
-  - if `get_text()` is Ok and non-empty → `None`;
-  - otherwise `get_image()` → RGBA → PNG via `image::RgbaImage::from_raw` and the PNG encoder;
-  - a "content not available" error → `None`.
-  - API: `pub async fn clipboard_image() -> Result<Option<Vec<u8>>, CoreError>` (run it in `spawn_blocking`).
-- **`pub fn clipboard_set_image(bytes: &[u8]) -> Result<(), CoreError>`:** decode PNG or JPEG with `image` (with the Task 9 limits), then `arboard` `set_image` with RGBA `ImageData`. API: `pub async fn clipboard_set_image(bytes: Vec<u8>) -> Result<(), CoreError>` (in `spawn_blocking`). It backs "Copy image" in Task 24.
+```diff
+--- a/app/lib/core/rust/rust_repository.dart
++++ b/app/lib/core/rust/rust_repository.dart
+@@ -622,6 +622,11 @@
+           at: DateTime.fromMillisecondsSinceEpoch(field0.atMs),
+         ),
+       ),
++      // Uploads, downloads and storage reach the app from Task 22 on.
++      core.CoreEventPayload_UploadSettingsUpdate() ||
++      core.CoreEventPayload_StorageUpdate() ||
++      core.CoreEventPayload_UploadProgress() ||
++      core.CoreEventPayload_DownloadProgress() => null,
+     };
+     if (event != null) _emit(event);
+   }
+```
 
-- [ ] **Step 1: Write tests** (unit, with fixtures built in code using `image` plus hand-inserted segments):
-  - `jpeg_gps_exif_is_removed_and_orientation_kept`: the output contains no `Exif\0\0` other than the 34-byte segment; decoding with `image` + `orientation()` still reports 6.
-  - `jpeg_without_exif_is_unchanged_apart_from_nothing` (output == input).
-  - `png_exif_chunk_is_removed_and_the_png_decodes`.
-  - `webp_exif_is_removed_and_riff_size_fixed` (decodes with `image`).
-  - `other_files_are_left_alone` (`None` for a zip).
-- [ ] **Step 2:** FAIL. **Step 3:** Implement, wire it into `upload.rs`, regenerate. **Step 4:** PASS.
-- [ ] **Step 5: Commit:** `feat: stripping photo metadata and pasting images (A4)`.
+```diff
+--- a/app/test/support/fake_core.dart
++++ b/app/test/support/fake_core.dart
+@@ -362,6 +362,7 @@
+       content: content,
+       createdAtMs: 0,
+       nonce: nonce,
++      attachments: const [],
+     );
+   }
+ 
+@@ -478,6 +479,13 @@
+ }
+ 
+ /// The server's default voice settings, as the core reports them.
++final coreUploadSettings = core.UploadSettings(
++  blockedExtensions: const [],
++  voiceMessageMaxSeconds: 300,
++  maxFileBytes: BigInt.from(4096 * 1024 * 1024),
++  maxAttachments: 10,
++);
++
+ const coreVoiceSettings = core.VoiceSettings(
+   screenShareMaxResolution: core.ScreenShareResolution.p720,
+   screenShareMaxFps: 30,
+```
 
-**A4 stop.** Full checks, **D56**, ledger, report.
+```diff
+--- a/app/test/unit/rust/core_mapping_test.dart
++++ b/app/test/unit/rust/core_mapping_test.dart
+@@ -30,6 +30,7 @@
+         createdAtMs: 1760000000000,
+         editedAtMs: 1760000005000,
+         nonce: 'n1',
++        attachments: [],
+       ),
+     );
+ 
+@@ -55,6 +56,7 @@
+         authorId: 7,
+         content: 'hi',
+         createdAtMs: 9223372036854775807,
++        attachments: [],
+       ),
+     );
+ 
+@@ -187,6 +189,7 @@
+         ],
+         addresses: const core.ServerAddresses(domains: []),
+         commands: const core.CommandList(commands: [], resultsPublic: true),
++        uploadSettings: coreUploadSettings,
+       ),
+     );
+ 
+```
+
+```diff
+--- a/app/test/unit/rust/rust_repository_test.dart
++++ b/app/test/unit/rust/rust_repository_test.dart
+@@ -35,6 +35,7 @@
+   authorId: author,
+   content: content,
+   createdAtMs: 1760000000000 + id,
++  attachments: const [],
+ );
+ 
+ core.Channel _text(int id, String name, {int position = 0}) => core.Channel(
+@@ -83,6 +84,7 @@
+   ],
+   addresses: const core.ServerAddresses(domains: []),
+   commands: const core.CommandList(commands: [], resultsPublic: true),
++  uploadSettings: coreUploadSettings,
+ );
+ 
+ /// A keychain that can be locked, refusing to save, or out of reach.
+```
+
+```diff
+--- a/app/test/unit/state/channel_messages_test.dart
++++ b/app/test/unit/state/channel_messages_test.dart
+@@ -26,6 +26,7 @@
+   authorId: 2,
+   content: 'm$id',
+   createdAtMs: 1760000000000 + id,
++  attachments: const [],
+ );
+ 
+ /// Newest first, as the core answers.
+@@ -76,6 +77,7 @@
+     ],
+     addresses: const core.ServerAddresses(domains: []),
+     commands: const core.CommandList(commands: [], resultsPublic: true),
++    uploadSettings: coreUploadSettings,
+   ),
+ );
+ 
+```
+
+- [ ] **Step 1:** Create `tests/attachments.rs` as given.
+- [ ] **Step 2:** Run it → FAIL: it doesn't compile yet.
+- [ ] **Step 3:** Make the Rust changes, then regenerate the bindings.
+- [ ] **Step 4:** Make the Dart changes.
+- [ ] **Step 5:** Run → PASS:
+  - `cargo test -p opencord_core --test attachments`: 4 tests;
+  - `cargo test -p opencord_core --test client`;
+  - `cargo clippy -p opencord_core --all-targets -- -D warnings`;
+  - `cd app && flutter analyze && flutter test`.
+- [ ] **Step 6: Commit:** `feat: core types and requests for uploads and storage (A4)`.
+
+### Task 18: Transfers, sending files and saving them
+
+**What it does.**
+- **Transfers** (`attachments/transfer.rs`).
+  - Uploads and downloads use one `reqwest` client per server. It is built with the rustls config of `TlsTrust`, the gateway's own certificate check, so a pinned certificate stays pinned.
+  - A client is rebuilt when the server's route changes, and its entry leaves when the server has no route.
+  - A changed certificate is `FingerprintMismatch`. A 401 renews the media token once. The renewal moves out of `MediaHttp` into `http::renew_media_token`, which both use (Working Rule 19).
+  - Timeouts: 10 s to connect, and 60 s without a byte ends any request. A piece may take 120 s, a status or finish 30 s, and a download has no overall limit.
+- **Sending** (`attachments/upload.rs`).
+  - `send_message_with_files` takes 1 to 10 files, each by path or by bytes. Two go up at a time, each in the server's pieces of 8 MiB. Then SendMessage goes out with their ids in the files' order.
+  - A network failure is tried again 1, 2, 4, 8 and 16 seconds later, six tries in all.
+  - **A piece whose answer was lost goes again.** The server answers 409 with what it has, and the upload carries on from there (Review Focus 1). That is why a network failure never needs a status request.
+  - Each file's verdict comes by its UploadReady or UploadFailed event. Its waiter is registered **before** the finish request, so a verdict that comes at once isn't missed. The status is also asked for every 5 seconds, in case the event went with a dropped connection.
+  - **UploadProgress** follows each file:
+    - Preparing, then Uploading at most 10 times a second, then Processing, Sending and Done;
+    - on a failure the failing file is `Failed` and the others `Cancelled`.
+  - `cancel_send` stops a send while it uploads. After a cancel or any failure, every upload the send made is cancelled on the server.
+  - Both maps (`sends`, `waiters`) lose their entry through a guard's `Drop`, on every path (Working Rule 14). A second send with the same nonce is refused.
+  - Test hook: `lose_upload_answers(n)` drops the next n piece answers after the server took the piece.
+- **Saving** (`attachments/download.rs`). `download_attachment` streams a file to `path.part`, then renames it.
+  - DownloadProgress follows it at most 10 times a second, and once at the end with `done` or `error`.
+  - `cancel_download` stops it. On any failure the `.part` file is removed.
+- **Server hook** (`crates/opencord-server/src/server.rs`): `ServerHandle::uploads_in_state`, for the cancel test.
+- Test hook: `spoil_media_token(key)` makes the next transfer meet a 401.
+
+**Files.**
+- Create: `src/attachments/{mod,transfer,upload,download}.rs`.
+- Modify: `Cargo.toml`, `src/lib.rs`, `src/http.rs`, `src/connection.rs`, `src/client.rs`, `src/api/attachments.rs`, `tests/attachments.rs`, `crates/opencord-server/src/server.rs`.
+
+**`Cargo.toml`:**
+
+```diff
+--- a/crates/opencord-core/Cargo.toml
++++ b/crates/opencord-core/Cargo.toml
+@@ -12,6 +12,7 @@
+ crate-type = ["cdylib", "staticlib", "rlib"]
+ 
+ [dependencies]
++bytes.workspace = true
+ data-encoding.workspace = true
+ flutter_rust_bridge.workspace = true
+ futures-util.workspace = true
+@@ -21,6 +22,7 @@
+ opencord-media.workspace = true
+ opencord-proto.workspace = true
+ prost.workspace = true
++reqwest.workspace = true
+ rustls.workspace = true
+ rustls-platform-verifier.workspace = true
+ serde.workspace = true
+@@ -29,6 +31,7 @@
+ thiserror.workspace = true
+ tokio-rustls.workspace = true
+ tokio-tungstenite.workspace = true
++tokio-util.workspace = true
+ tokio.workspace = true
+ tracing.workspace = true
+ webpki-roots.workspace = true
+@@ -46,6 +49,7 @@
+ irondash_run_loop.workspace = true
+ irondash_texture.workspace = true
+ 
++
+ # One section per system (docs/plans/platforms.md): each session edits only
+ # its own. A crate only one system needs goes here with its version, never
+ # in [workspace.dependencies].
+```
+
+**`src/lib.rs`, `src/http.rs` and `src/connection.rs`:**
+
+```diff
+--- a/crates/opencord-core/src/lib.rs
++++ b/crates/opencord-core/src/lib.rs
+@@ -2,6 +2,8 @@
+ 
+ pub mod api;
+ mod artwork;
++pub mod attachments;
++
+ pub mod client;
+ mod commands;
+ mod connection;
+```
+
+```diff
+--- a/crates/opencord-core/src/http.rs
++++ b/crates/opencord-core/src/http.rs
+@@ -75,7 +75,7 @@
+             .ok_or(CoreError::NotConnected)?;
+         let mut renewed = false;
+         loop {
+-            let token = self.token(key).ok_or(CoreError::NotConnected)?;
++            let token = media_token(&self.tokens, key).ok_or(CoreError::NotConnected)?;
+             let response = request(&address, pin, method, path, &token, body, limit)
+                 .await
+                 .map_err(|error| CoreError::Connection {
+@@ -84,29 +84,40 @@
+             if response.status != 401 || renewed {
+                 return Ok(response);
+             }
+-            let renewal = client
+-                .request(
+-                    key,
+-                    proto::request::Kind::RefreshMediaToken(proto::RefreshMediaToken {}),
+-                )
+-                .await?;
+-            if let proto::response::Result::MediaToken(token) = renewal {
+-                self.tokens
+-                    .lock()
+-                    .unwrap_or_else(PoisonError::into_inner)
+-                    .insert(key.to_owned(), token.token);
+-            }
++            renew_media_token(client, &self.tokens, key).await?;
+             renewed = true;
+         }
+     }
++}
++
++/// This device's media token for the server at `key`.
++pub(crate) fn media_token(tokens: &MediaTokens, key: &str) -> Option<String> {
++    tokens
++        .lock()
++        .unwrap_or_else(PoisonError::into_inner)
++        .get(key)
++        .cloned()
++}
+ 
+-    fn token(&self, key: &str) -> Option<String> {
+-        self.tokens
++/// Asks the server at `key` for a new media token, after one expired.
++pub(crate) async fn renew_media_token(
++    client: &Client,
++    tokens: &MediaTokens,
++    key: &str,
++) -> Result<(), CoreError> {
++    let renewal = client
++        .request(
++            key,
++            proto::request::Kind::RefreshMediaToken(proto::RefreshMediaToken {}),
++        )
++        .await?;
++    if let proto::response::Result::MediaToken(token) = renewal {
++        tokens
+             .lock()
+             .unwrap_or_else(PoisonError::into_inner)
+-            .get(key)
+-            .cloned()
++            .insert(key.to_owned(), token.token);
+     }
++    Ok(())
+ }
+ 
+ /// One request to the server at `address`, whose certificate must match
+```
+
+```diff
+--- a/crates/opencord-core/src/connection.rs
++++ b/crates/opencord-core/src/connection.rs
+@@ -26,8 +26,10 @@
+ use crate::api::types::{
+     ConnectionState, CoreError, CoreEvent, CoreEventPayload, ErrorCode, FailureReason,
+ };
++use crate::attachments::upload::Uploads;
+ use crate::convert;
+ use crate::identity::Identity;
++
+ use crate::mirror::{GuildMirror, PermissionSnapshot};
+ use crate::server_clock::ServerClock;
+ use crate::store::Store;
+@@ -350,6 +352,8 @@
+     pub media_tokens: MediaTokens,
+     pub routes: Routes,
+     pub clocks: Clocks,
++    /// Sends waiting for their uploads' verdicts.
++    pub uploads: Arc<Uploads>,
+ }
+ 
+ /// Each server's clock against this device's, by server key.
+@@ -886,6 +890,22 @@
+             proto::event::Kind::MusicNowPlaying(_) | proto::event::Kind::MusicNotice(_) => {
+                 crate::music::event(kind)
+             }
++            // For the send waiting on them, not for the app.
++            proto::event::Kind::UploadReady(ready) => {
++                if let Some(attachment) = ready.attachment {
++                    self.context.uploads.on_ready(&self.context.key, attachment);
++                }
++                None
++            }
++            proto::event::Kind::UploadFailed(failed) => {
++                self.context.uploads.on_failed(
++                    &self.context.key,
++                    failed.upload_id,
++                    failed.error.unwrap_or_default(),
++                );
++                None
++            }
++
+             kind => convert::event(kind, session_id),
+         };
+         if let Some(payload) = payload {
+```
+
+**`src/attachments/mod.rs`** (new; later tasks add their modules):
+
+```rust
+//! Files in messages (media uploads plan, milestone A4): sending them,
+//! downloading them, the encrypted cache, photo metadata and the clipboard.
+
+pub(crate) mod download;
+pub(crate) mod transfer;
+pub(crate) mod upload;
+```
+
+**`src/attachments/transfer.rs`** (new):
+
+```rust
+//! HTTPS to a server's upload and download endpoints, checked like its
+//! gateway (media uploads plan, Task 18). Unlike `http.rs`, 8 MiB pieces go
+//! up and whole files come down, so each server gets one client whose
+//! connections are kept, and answers are read as they arrive.
+
+use std::collections::HashMap;
+use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
+use std::time::Duration;
+
+use bytes::Bytes;
+use opencord_common::address::format_fingerprint;
+use opencord_proto::v1 as proto;
+use prost::Message as _;
+use reqwest::StatusCode;
+
+use crate::api::types::CoreError;
+use crate::client::Client;
+use crate::connection::{MediaTokens, Route, Routes};
+use crate::convert;
+use crate::http::{media_token, renew_media_token};
+use crate::tofu::{TlsTrust, Verdict};
+
+const CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
+/// The longest wait for more of an answer.
+const READ_TIMEOUT: Duration = Duration::from_secs(60);
+const IDLE_TIMEOUT: Duration = Duration::from_secs(60);
+
+/// One request to a media endpoint.
+pub(crate) struct Call {
+    pub method: reqwest::Method,
+    /// From the root, like `/media/uploads/1`.
+    pub path: String,
+    pub headers: Vec<(&'static str, String)>,
+    pub body: Bytes,
+    /// For the whole request; `None` for downloads, which may take hours.
+    pub timeout: Option<Duration>,
+}
+
+impl Call {
+    pub fn get(path: String, timeout: Option<Duration>) -> Self {
+        Self {
+            method: reqwest::Method::GET,
+            path,
+            headers: Vec::new(),
+            body: Bytes::new(),
+            timeout,
+        }
+    }
+}
+
+pub(crate) struct Transfers {
+    routes: Routes,
+    tokens: MediaTokens,
+    /// Each server's client, built for the route it was last reached by.
+    /// An entry leaves when its server has no route any more.
+    clients: Mutex<HashMap<String, Pooled>>,
+}
+
+#[derive(Clone)]
+struct Pooled {
+    route: Route,
+    http: reqwest::Client,
+    trust: Arc<TlsTrust>,
+}
+
+impl Transfers {
+    pub fn new(routes: Routes, tokens: MediaTokens) -> Self {
+        Self {
+            routes,
+            tokens,
+            clients: Mutex::default(),
+        }
+    }
+
+    /// Sends `call` to the server at `key` with this device's media token,
+    /// renewing an expired token once. Any answer comes back, whatever its
+    /// status; only failing to reach the server is an error.
+    pub async fn send(
+        &self,
+        client: &Client,
+        key: &str,
+        call: Call,
+    ) -> Result<reqwest::Response, CoreError> {
+        let pooled = self.pooled(key)?;
+        let url = format!("https://{}{}", pooled.route.address, call.path);
+        let mut renewed = false;
+        loop {
+            let token = media_token(&self.tokens, key).ok_or(CoreError::NotConnected)?;
+            let mut request = pooled
+                .http
+                .request(call.method.clone(), &url)
+                .bearer_auth(token)
+                .body(call.body.clone());
+            for (name, value) in &call.headers {
+                request = request.header(*name, value);
+            }
+            if let Some(timeout) = call.timeout {
+                request = request.timeout(timeout);
+            }
+            let response = request
+                .send()
+                .await
+                .map_err(|error| failure(&error, &pooled.trust))?;
+            if response.status() != StatusCode::UNAUTHORIZED || renewed {
+                return Ok(response);
+            }
+            renew_media_token(client, &self.tokens, key).await?;
+            renewed = true;
+        }
+    }
+
+    /// The client for the server at `key`, built again when the server
+    /// was reached another way.
+    fn pooled(&self, key: &str) -> Result<Pooled, CoreError> {
+        let route = self
+            .routes
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .get(key)
+            .cloned();
+        let mut clients = self.lock_clients();
+        let Some(route) = route else {
+            clients.remove(key);
+            return Err(CoreError::NotConnected);
+        };
+        if let Some(pooled) = clients.get(key)
+            && pooled.route == route
+        {
+            return Ok(pooled.clone());
+        }
+        let trust = Arc::new(TlsTrust::new(route.pin));
+        let http = reqwest::Client::builder()
+            .tls_backend_preconfigured((*trust.config).clone())
+            .connect_timeout(CONNECT_TIMEOUT)
+            .read_timeout(READ_TIMEOUT)
+            .pool_idle_timeout(IDLE_TIMEOUT)
+            .build()
+            .map_err(|error| network(&error))?;
+        let pooled = Pooled { route, http, trust };
+        clients.insert(key.to_owned(), pooled.clone());
+        Ok(pooled)
+    }
+
+    fn lock_clients(&self) -> MutexGuard<'_, HashMap<String, Pooled>> {
+        self.clients.lock().unwrap_or_else(PoisonError::into_inner)
+    }
+}
+
+/// Why a request didn't reach the server: its certificate changed, or the
+/// network.
+fn failure(error: &reqwest::Error, trust: &TlsTrust) -> CoreError {
+    match trust.verdict() {
+        Some(Verdict::Mismatch {
+            expected,
+            presented,
+        }) => CoreError::FingerprintMismatch {
+            expected: format_fingerprint(&expected),
+            presented: format_fingerprint(&presented),
+        },
+        _ => network(error),
+    }
+}
+
+/// A network failure, said by its first cause: reqwest's own text only
+/// names the request.
+pub(crate) fn network(error: &reqwest::Error) -> CoreError {
+    if error.is_timeout() {
+        return CoreError::Connection {
+            message: "the server stopped answering".to_owned(),
+        };
+    }
+    let mut cause: &dyn std::error::Error = error;
+    while let Some(inner) = cause.source() {
+        cause = inner;
+    }
+    CoreError::Connection {
+        message: cause.to_string(),
+    }
+}
+
+/// A media endpoint's protobuf answer (they are small), or the error it
+/// holds.
+async fn answer(
+    response: reqwest::Response,
+) -> Result<(StatusCode, proto::response::Result), CoreError> {
+    let status = response.status();
+    let body = response.bytes().await.map_err(|error| network(&error))?;
+    let result = proto::Response::decode(body)
+        .ok()
+        .and_then(|response| response.result)
+        .ok_or_else(|| unexpected(status))?;
+    match result {
+        proto::response::Result::Error(error) => Err(convert::error(error)),
+        result => Ok((status, result)),
+    }
+}
+
+/// The upload status an upload endpoint answered with.
+pub(crate) async fn upload_status(
+    response: reqwest::Response,
+) -> Result<(StatusCode, proto::UploadStatus), CoreError> {
+    match answer(response).await? {
+        (status, proto::response::Result::UploadStatus(upload)) => Ok((status, upload)),
+        (status, _) => Err(unexpected(status)),
+    }
+}
+
+/// Why a download was refused.
+pub(crate) async fn refusal(response: reqwest::Response) -> CoreError {
+    match answer(response).await {
+        Ok((status, _)) => unexpected(status),
+        Err(error) => error,
+    }
+}
+
+fn unexpected(status: StatusCode) -> CoreError {
+    CoreError::Connection {
+        message: format!("the server answered {status}"),
+    }
+}
+```
+
+**`src/attachments/upload.rs`** (new; Task 20 adds photo stripping):
+
+```rust
+//! Sending a message with files (media uploads plan, Task 18). Each file
+//! goes up in pieces, two files at a time. When every file is ready, the
+//! message goes out with their ids.
+
+use std::collections::HashMap;
+use std::future::Future;
+use std::io::SeekFrom;
+use std::path::Path;
+use std::sync::{Mutex, MutexGuard, PoisonError};
+use std::time::{Duration, Instant};
+
+use bytes::Bytes;
+use futures_util::{StreamExt, TryStreamExt};
+use opencord_common::upload::{MAX_ATTACHMENTS, PIECE_BYTES};
+use opencord_proto::v1 as proto;
+use proto::request::Kind as Request;
+use proto::response::Result as Response;
+use reqwest::StatusCode;
+use tokio::io::{AsyncReadExt, AsyncSeekExt};
+use tokio::sync::oneshot;
+use tokio_util::sync::CancellationToken;
+
+use super::transfer::{Call, upload_status};
+use crate::api::types::{CoreError, CoreEventPayload, Message, OutgoingFile, UploadPhase};
+use crate::client::{Client, unexpected};
+use crate::convert;
+
+/// Files going up at once, per message.
+const AT_ONCE: usize = 2;
+/// Uploading progress goes out at most this often, per file.
+const PROGRESS_EVERY: Duration = Duration::from_millis(100);
+const PIECE_TIMEOUT: Duration = Duration::from_secs(120);
+const STATUS_TIMEOUT: Duration = Duration::from_secs(30);
+/// How often a file being processed is asked about, in case its event was
+/// lost with the connection.
+const POLL_EVERY: Duration = Duration::from_secs(5);
+/// Tries after a network failure, 1, 2, 4, 8 and 16 seconds apart.
+const TRIES: u32 = 6;
+
+/// The server's verdict on a finished upload.
+type Outcome = Result<proto::Attachment, proto::Error>;
+
+#[derive(Default)]
+pub(crate) struct Uploads {
+    /// Sends that can still be cancelled, by server key and nonce. An entry
+    /// leaves when its send returns.
+    sends: Mutex<HashMap<(String, String), CancellationToken>>,
+    /// Finished uploads waiting for their verdict, by server key and upload
+    /// id. An entry leaves when the verdict comes or its send stops waiting.
+    waiters: Mutex<HashMap<(String, i64), oneshot::Sender<Outcome>>>,
+    /// Test hook: this many answers to pieces are dropped, as if the network
+    /// lost them after the server took the piece.
+    lose_answers: Mutex<u32>,
+}
+
+impl Uploads {
+    /// From an `UploadReady` event.
+    pub fn on_ready(&self, key: &str, attachment: proto::Attachment) {
+        self.settle(key, attachment.id, Ok(attachment));
+    }
+
+    /// From an `UploadFailed` event.
+    pub fn on_failed(&self, key: &str, upload_id: i64, error: proto::Error) {
+        self.settle(key, upload_id, Err(error));
+    }
+
+    fn settle(&self, key: &str, upload_id: i64, outcome: Outcome) {
+        let waiter = self.lock_waiters().remove(&(key.to_owned(), upload_id));
+        if let Some(waiter) = waiter
+            && waiter.send(outcome).is_err()
+        {
+            tracing::debug!(upload_id, "an upload was settled after its send stopped");
+        }
+    }
+
+    /// Stops the send of the message with this nonce, if it is still
+    /// uploading.
+    pub fn cancel(&self, key: &str, nonce: &str) {
+        if let Some(token) = self.lock_sends().get(&(key.to_owned(), nonce.to_owned())) {
+            token.cancel();
+        }
+    }
+
+    pub fn lose_answers(&self, count: u32) {
+        *self
+            .lose_answers
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner) = count;
+    }
+
+    fn answer_lost(&self) -> bool {
+        let mut left = self
+            .lose_answers
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner);
+        let lost = *left > 0;
+        *left = left.saturating_sub(1);
+        lost
+    }
+
+    fn begin(&self, key: &str, nonce: &str) -> Result<SendGuard<'_>, CoreError> {
+        let id = (key.to_owned(), nonce.to_owned());
+        let token = CancellationToken::new();
+        let mut sends = self.lock_sends();
+        if sends.contains_key(&id) {
+            return Err(invalid("this message is already being sent"));
+        }
+        sends.insert(id.clone(), token.clone());
+        Ok(SendGuard {
+            uploads: self,
+            id,
+            token,
+        })
+    }
+
+    fn wait_for(&self, key: &str, upload_id: i64) -> WaitGuard<'_> {
+        let id = (key.to_owned(), upload_id);
+        let (sender, receiver) = oneshot::channel();
+        self.lock_waiters().insert(id.clone(), sender);
+        WaitGuard {
+            uploads: self,
+            id,
+            receiver,
+        }
+    }
+
+    fn lock_sends(&self) -> MutexGuard<'_, HashMap<(String, String), CancellationToken>> {
+        self.sends.lock().unwrap_or_else(PoisonError::into_inner)
+    }
+
+    fn lock_waiters(&self) -> MutexGuard<'_, HashMap<(String, i64), oneshot::Sender<Outcome>>> {
+        self.waiters.lock().unwrap_or_else(PoisonError::into_inner)
+    }
+}
+
+/// A send that can be cancelled until this is dropped.
+struct SendGuard<'a> {
+    uploads: &'a Uploads,
+    id: (String, String),
+    token: CancellationToken,
+}
+
+impl Drop for SendGuard<'_> {
+    fn drop(&mut self) {
+        self.uploads.lock_sends().remove(&self.id);
+    }
+}
+
+/// A verdict to come; nobody waits for it once this is dropped.
+struct WaitGuard<'a> {
+    uploads: &'a Uploads,
+    id: (String, i64),
+    receiver: oneshot::Receiver<Outcome>,
+}
+
+impl Drop for WaitGuard<'_> {
+    fn drop(&mut self) {
+        self.uploads.lock_waiters().remove(&self.id);
+    }
+}
+
+/// Why the uploads stopped.
+enum Stop {
+    Cancelled,
+    Failed { index: usize, error: CoreError },
+}
+
+/// Uploads `files` to the server at `key`, then sends the message with
+/// them. On a failure or a cancel, every upload made so far is cancelled.
+pub(crate) async fn send(
+    client: &Client,
+    key: &str,
+    channel_id: i64,
+    content: String,
+    nonce: String,
+    files: Vec<OutgoingFile>,
+) -> Result<Message, CoreError> {
+    if files.is_empty() || files.len() > MAX_ATTACHMENTS {
+        return Err(invalid(format!(
+            "a message holds 1 to {MAX_ATTACHMENTS} files"
+        )));
+    }
+    if let Some(file) = files
+        .iter()
+        .find(|file| file.path.is_some() == file.bytes.is_some())
+    {
+        return Err(invalid(format!(
+            "{} needs a path or bytes, not both",
+            file.filename
+        )));
+    }
+    let uploads = client.uploads();
+    let guard = uploads.begin(key, &nonce)?;
+    let progress = Progress {
+        client,
+        key,
+        channel_id,
+        nonce: &nonce,
+        files: Mutex::new(vec![FileProgress::default(); files.len()]),
+    };
+    let created = Mutex::new(Vec::new());
+    let uploaded = tokio::select! {
+        () = guard.token.cancelled() => Err(Stop::Cancelled),
+        result = upload_all(client, key, channel_id, files, &progress, &created) => result,
+    };
+    drop(guard);
+    let created = created.into_inner().unwrap_or_else(PoisonError::into_inner);
+    let attachments = match uploaded {
+        Ok(attachments) => attachments,
+        Err(stop) => {
+            cancel_uploads(client, key, &created).await;
+            return Err(progress.stopped(stop));
+        }
+    };
+    progress.all(UploadPhase::Sending);
+    let ids = attachments.iter().map(|attachment| attachment.id).collect();
+    match client
+        .send_message_with_ids(key, channel_id, content, nonce.clone(), ids)
+        .await
+    {
+        Ok(message) => {
+            progress.all(UploadPhase::Done);
+            Ok(message)
+        }
+        Err(error) => {
+            cancel_uploads(client, key, &created).await;
+            progress.all(UploadPhase::Failed {
+                message: error.to_string(),
+            });
+            Err(error)
+        }
+    }
+}
+
+/// Every file, two at a time; their attachments in the files' order.
+async fn upload_all(
+    client: &Client,
+    key: &str,
+    channel_id: i64,
+    files: Vec<OutgoingFile>,
+    progress: &Progress<'_>,
+    created: &Mutex<Vec<i64>>,
+) -> Result<Vec<proto::Attachment>, Stop> {
+    let mut done: Vec<(usize, proto::Attachment)> =
+        futures_util::stream::iter(files.into_iter().enumerate())
+            .map(|(index, file)| async move {
+                upload_one(client, key, channel_id, index, file, progress, created)
+                    .await
+                    .map(|attachment| (index, attachment))
+                    .map_err(|error| Stop::Failed { index, error })
+            })
+            .buffer_unordered(AT_ONCE)
+            .try_collect()
+            .await?;
+    done.sort_by_key(|(index, _)| *index);
+    Ok(done.into_iter().map(|(_, attachment)| attachment).collect())
+}
+
+async fn upload_one(
+    client: &Client,
+    key: &str,
+    channel_id: i64,
+    index: usize,
+    file: OutgoingFile,
+    progress: &Progress<'_>,
+    created: &Mutex<Vec<i64>>,
+) -> Result<proto::Attachment, CoreError> {
+    progress.phase(index, UploadPhase::Preparing);
+    let mut source = Source::prepare(file).await?;
+    progress.sized(index, source.size);
+    let request = Request::CreateUpload(proto::CreateUpload {
+        channel_id,
+        filename: source.filename.clone(),
+        size_bytes: source.size,
+        kind: proto::AttachmentKind::File as i32,
+        width: None,
+        height: None,
+        duration_ms: None,
+    });
+    let upload = match client.request(key, request).await? {
+        Response::Upload(upload) => upload,
+        other => return Err(unexpected(&other)),
+    };
+    created
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .push(upload.upload_id);
+    progress.phase(index, UploadPhase::Uploading);
+    send_pieces(client, key, &mut source, &upload, |sent| {
+        progress.sent(index, sent);
+    })
+    .await?;
+    progress.phase(index, UploadPhase::Processing);
+    finish(client, key, upload.upload_id).await
+}
+
+/// A file to upload, read from memory or from disk.
+struct Source {
+    filename: String,
+    size: u64,
+    body: Body,
+}
+
+enum Body {
+    Bytes(Bytes),
+    File(tokio::fs::File),
+}
+
+impl Source {
+    async fn prepare(file: OutgoingFile) -> Result<Self, CoreError> {
+        let OutgoingFile {
+            path,
+            bytes,
+            filename,
+        } = file;
+        let named = |fallback: Option<&Path>| {
+            let given = filename.trim();
+            if !given.is_empty() {
+                return given.to_owned();
+            }
+            fallback.and_then(Path::file_name).map_or_else(
+                || "file".to_owned(),
+                |name| name.to_string_lossy().into_owned(),
+            )
+        };
+        let (filename, body) = match (path, bytes) {
+            (_, Some(bytes)) => (named(None), Body::Bytes(bytes.into())),
+            (Some(path), None) => {
+                let path = Path::new(&path);
+                let unreadable = |error: std::io::Error| {
+                    invalid(format!("{} can't be read: {error}", path.display()))
+                };
+                let file = tokio::fs::File::open(path).await.map_err(unreadable)?;
+                (named(Some(path)), Body::File(file))
+            }
+            (None, None) => return Err(invalid("a file needs a path or bytes")),
+        };
+        let size = match &body {
+            Body::Bytes(bytes) => bytes.len() as u64,
+            Body::File(file) => file
+                .metadata()
+                .await
+                .map_err(|error| invalid(format!("{filename} can't be read: {error}")))?
+                .len(),
+        };
+        Ok(Self {
+            filename,
+            size,
+            body,
+        })
+    }
+
+    /// `len` bytes from `offset`.
+    async fn piece(&mut self, offset: u64, len: u64) -> Result<Bytes, CoreError> {
+        let unreadable =
+            |error: std::io::Error| invalid(format!("the file can't be read: {error}"));
+        match &mut self.body {
+            Body::Bytes(bytes) => Ok(bytes.slice(offset as usize..(offset + len) as usize)),
+            Body::File(file) => {
+                file.seek(SeekFrom::Start(offset))
+                    .await
+                    .map_err(unreadable)?;
+                let mut piece = vec![0; len as usize];
+                file.read_exact(&mut piece).await.map_err(unreadable)?;
+                Ok(piece.into())
+            }
+        }
+    }
+}
+
+/// Sends the file from the start. A piece whose answer is lost is sent
+/// again, and the server's 409 says where it really is.
+async fn send_pieces(
+    client: &Client,
+    key: &str,
+    source: &mut Source,
+    upload: &proto::Upload,
+    mut sent: impl FnMut(u64),
+) -> Result<(), CoreError> {
+    let piece_bytes = match upload.piece_bytes {
+        0 => u64::from(PIECE_BYTES),
+        bytes => u64::from(bytes),
+    };
+    let path = format!("/media/uploads/{}", upload.upload_id);
+    let mut offset = 0;
+    while offset < source.size {
+        let len = (source.size - offset).min(piece_bytes);
+        let piece = source.piece(offset, len).await?;
+        let status = retrying(|| put_piece(client, key, &path, offset, piece.clone())).await?;
+        if status.state != proto::UploadState::Uploading as i32
+            || status.received_bytes > source.size
+        {
+            return Err(invalid("the server stopped taking this file"));
+        }
+        offset = status.received_bytes;
+        sent(offset);
+    }
+    Ok(())
+}
+
+/// The upload's status after the piece: 200 when taken, 409 when the server
+/// was elsewhere.
+async fn put_piece(
+    client: &Client,
+    key: &str,
+    path: &str,
+    offset: u64,
+    piece: Bytes,
+) -> Result<proto::UploadStatus, CoreError> {
+    let call = Call {
+        method: reqwest::Method::PUT,
+        path: path.to_owned(),
+        headers: vec![("Upload-Offset", offset.to_string())],
+        body: piece,
+        timeout: Some(PIECE_TIMEOUT),
+    };
+    let response = client.transfers().send(client, key, call).await?;
+    let (status, upload) = upload_status(response).await?;
+    if status != StatusCode::OK && status != StatusCode::CONFLICT {
+        return Err(invalid(format!("the server answered {status}")));
+    }
+    if client.uploads().answer_lost() {
+        return Err(CoreError::Connection {
+            message: "the answer was lost (test hook)".to_owned(),
+        });
+    }
+    Ok(upload)
+}
+
+/// Finishes the upload and waits for the server's verdict: its event, or
+/// what asking every 5 seconds says.
+async fn finish(
+    client: &Client,
+    key: &str,
+    upload_id: i64,
+) -> Result<proto::Attachment, CoreError> {
+    let uploads = client.uploads();
+    // Before finishing, so a verdict that comes at once isn't missed.
+    let mut waiter = uploads.wait_for(key, upload_id);
+    let finish_path = format!("/media/uploads/{upload_id}/finish");
+    let status = retrying(|| {
+        let call = Call {
+            method: reqwest::Method::POST,
+            path: finish_path.clone(),
+            headers: Vec::new(),
+            body: Bytes::new(),
+            timeout: Some(STATUS_TIMEOUT),
+        };
+        status_of(client, key, call)
+    })
+    .await?;
+    if let Some(attachment) = settled(status)? {
+        return Ok(attachment);
+    }
+    let status_path = format!("/media/uploads/{upload_id}");
+    loop {
+        tokio::select! {
+            outcome = &mut waiter.receiver => {
+                return match outcome {
+                    Ok(Ok(attachment)) => Ok(attachment),
+                    Ok(Err(error)) => Err(convert::error(error)),
+                    Err(_) => Err(invalid("the upload's verdict was lost")),
+                };
+            }
+            () = tokio::time::sleep(POLL_EVERY) => {
+                let status = retrying(|| {
+                    status_of(client, key, Call::get(status_path.clone(), Some(STATUS_TIMEOUT)))
+                })
+                .await?;
+                if let Some(attachment) = settled(status)? {
+                    return Ok(attachment);
+                }
+            }
+        }
+    }
+}
+
+async fn status_of(
+    client: &Client,
+    key: &str,
+    call: Call,
+) -> Result<proto::UploadStatus, CoreError> {
+    let response = client.transfers().send(client, key, call).await?;
+    upload_status(response).await.map(|(_, status)| status)
+}
+
+/// The attachment once the server is done with the file, `None` while it
+/// still processes it.
+fn settled(status: proto::UploadStatus) -> Result<Option<proto::Attachment>, CoreError> {
+    match proto::UploadState::try_from(status.state) {
+        Ok(proto::UploadState::Ready | proto::UploadState::Sent) => status
+            .attachment
+            .map(Some)
+            .ok_or_else(|| invalid("the server's answer has no attachment")),
+        Ok(proto::UploadState::Processing) => Ok(None),
+        Ok(proto::UploadState::Failed) => Err(status.error.map_or_else(
+            || invalid("the server couldn't take this file"),
+            convert::error,
+        )),
+        _ => Err(invalid("the server's answer has no known state")),
+    }
+}
+
+/// Runs `attempt` again after a network failure, up to six times in all.
+async fn retrying<T, F, Fut>(mut attempt: F) -> Result<T, CoreError>
+where
+    F: FnMut() -> Fut,
+    Fut: Future<Output = Result<T, CoreError>>,
+{
+    let mut tries = 1;
+    loop {
+        match attempt().await {
+            Err(CoreError::Connection { message }) if tries < TRIES => {
+                tracing::debug!(%message, tries, "a transfer failed; trying again");
+                tokio::time::sleep(Duration::from_secs(1 << (tries - 1))).await;
+                tries += 1;
+            }
+            result => return result,
+        }
+    }
+}
+
+/// Uploads that won't be sent; the server would drop them within a day.
+async fn cancel_uploads(client: &Client, key: &str, upload_ids: &[i64]) {
+    for &upload_id in upload_ids {
+        let request = Request::CancelUpload(proto::CancelUpload { upload_id });
+        if let Err(error) = client.request(key, request).await {
+            tracing::warn!(upload_id, %error, "an upload couldn't be cancelled");
+        }
+    }
+}
+
+#[derive(Debug, Clone, Default)]
+struct FileProgress {
+    sent: u64,
+    total: u64,
+    last: Option<Instant>,
+}
+
+/// `UploadProgress` events for one message's files.
+struct Progress<'a> {
+    client: &'a Client,
+    key: &'a str,
+    channel_id: i64,
+    nonce: &'a str,
+    files: Mutex<Vec<FileProgress>>,
+}
+
+impl Progress<'_> {
+    fn sized(&self, index: usize, total: u64) {
+        if let Some(file) = self.lock().get_mut(index) {
+            file.total = total;
+        }
+    }
+
+    /// Bytes sent so far, at most 10 times a second.
+    fn sent(&self, index: usize, sent: u64) {
+        let due = {
+            let mut files = self.lock();
+            let Some(file) = files.get_mut(index) else {
+                return;
+            };
+            file.sent = sent;
+            let due = sent == file.total
+                || file
+                    .last
+                    .is_none_or(|last| last.elapsed() >= PROGRESS_EVERY);
+            if due {
+                file.last = Some(Instant::now());
+            }
+            due
+        };
+        if due {
+            self.phase(index, UploadPhase::Uploading);
+        }
+    }
+
+    fn phase(&self, index: usize, phase: UploadPhase) {
+        let (sent_bytes, total_bytes) = self
+            .lock()
+            .get(index)
+            .map_or((0, 0), |file| (file.sent, file.total));
+        self.client.emit(
+            self.key,
+            CoreEventPayload::UploadProgress {
+                channel_id: self.channel_id,
+                nonce: self.nonce.to_owned(),
+                file_index: index as u32,
+                sent_bytes,
+                total_bytes,
+                phase,
+            },
+        );
+    }
+
+    fn all(&self, phase: UploadPhase) {
+        // Counted first: a guard in the loop's head would be held through it.
+        let count = self.lock().len();
+        for index in 0..count {
+            self.phase(index, phase.clone());
+        }
+    }
+
+    /// The file that failed says why; the others were cancelled.
+    fn stopped(&self, stop: Stop) -> CoreError {
+        match stop {
+            Stop::Cancelled => {
+                self.all(UploadPhase::Cancelled);
+                CoreError::Cancelled
+            }
+            Stop::Failed { index, error } => {
+                let count = self.lock().len();
+                for other in (0..count).filter(|other| *other != index) {
+                    self.phase(other, UploadPhase::Cancelled);
+                }
+                self.phase(
+                    index,
+                    UploadPhase::Failed {
+                        message: error.to_string(),
+                    },
+                );
+                error
+            }
+        }
+    }
+
+    fn lock(&self) -> MutexGuard<'_, Vec<FileProgress>> {
+        self.files.lock().unwrap_or_else(PoisonError::into_inner)
+    }
+}
+
+fn invalid(message: impl Into<String>) -> CoreError {
+    CoreError::InvalidInput {
+        message: message.into(),
+    }
+}
+```
+
+**`src/attachments/download.rs`** (new; Task 19 adds attachment bytes and the cache):
+
+```rust
+//! Attachments coming down (media uploads plan, Task 18): any file streamed
+//! to where the user saves it.
+
+use std::collections::HashMap;
+use std::path::{Path, PathBuf};
+use std::sync::{Mutex, MutexGuard, PoisonError};
+use std::time::{Duration, Instant};
+
+use tokio::io::AsyncWriteExt;
+use tokio_util::sync::CancellationToken;
+
+use super::transfer::{Call, network, refusal};
+use crate::api::types::{AttachmentVariant, CoreError, CoreEventPayload};
+use crate::client::Client;
+
+/// Progress goes out at most this often.
+const PROGRESS_EVERY: Duration = Duration::from_millis(100);
+
+#[derive(Default)]
+pub(crate) struct Downloads {
+    /// Saves that can still be cancelled, by server key and attachment id.
+    /// An entry leaves when its save returns.
+    running: Mutex<HashMap<(String, i64), CancellationToken>>,
+}
+
+impl Downloads {
+    pub fn cancel(&self, key: &str, attachment_id: i64) {
+        if let Some(token) = self.lock().get(&(key.to_owned(), attachment_id)) {
+            token.cancel();
+        }
+    }
+
+    fn begin(&self, key: &str, attachment_id: i64) -> Result<DownloadGuard<'_>, CoreError> {
+        let id = (key.to_owned(), attachment_id);
+        let token = CancellationToken::new();
+        let mut running = self.lock();
+        if running.contains_key(&id) {
+            return Err(CoreError::InvalidInput {
+                message: "this file is already being saved".to_owned(),
+            });
+        }
+        running.insert(id.clone(), token.clone());
+        Ok(DownloadGuard {
+            downloads: self,
+            id,
+            token,
+        })
+    }
+
+    fn lock(&self) -> MutexGuard<'_, HashMap<(String, i64), CancellationToken>> {
+        self.running.lock().unwrap_or_else(PoisonError::into_inner)
+    }
+}
+
+/// A save that can be cancelled until this is dropped.
+struct DownloadGuard<'a> {
+    downloads: &'a Downloads,
+    id: (String, i64),
+    token: CancellationToken,
+}
+
+impl Drop for DownloadGuard<'_> {
+    fn drop(&mut self) {
+        self.downloads.lock().remove(&self.id);
+    }
+}
+
+fn path_of(attachment_id: i64, variant: AttachmentVariant) -> String {
+    match variant {
+        AttachmentVariant::Original => format!("/media/attachments/{attachment_id}"),
+        AttachmentVariant::Thumbnail => format!("/media/attachments/{attachment_id}/thumbnail"),
+    }
+}
+
+/// Streams the attachment to `path`, through `path.part` until it is all
+/// there. `DownloadProgress` events follow it, the last with `done` or
+/// `error`.
+pub(crate) async fn save(
+    client: &Client,
+    key: &str,
+    attachment_id: i64,
+    path: String,
+) -> Result<(), CoreError> {
+    let downloads = client.downloads();
+    let guard = downloads.begin(key, attachment_id)?;
+    let progress = Progress {
+        client,
+        key,
+        attachment_id,
+        last: Mutex::new(None),
+    };
+    let part = PathBuf::from(format!("{path}.part"));
+    let streamed = tokio::select! {
+        () = guard.token.cancelled() => Err(CoreError::Cancelled),
+        result = stream_to(client, key, attachment_id, &part, &progress) => result,
+    };
+    drop(guard);
+    let saved = match streamed {
+        Ok(total) => tokio::fs::rename(&part, &path)
+            .await
+            .map(|()| total)
+            .map_err(|error| CoreError::Storage {
+                message: error.to_string(),
+            }),
+        Err(error) => Err(error),
+    };
+    match saved {
+        Ok(total) => {
+            progress.end(total, total, None);
+            Ok(())
+        }
+        Err(error) => {
+            if let Err(remove) = tokio::fs::remove_file(&part).await
+                && remove.kind() != std::io::ErrorKind::NotFound
+            {
+                tracing::warn!(error = %remove, "a partial download couldn't be removed");
+            }
+            progress.end(0, 0, Some(error.to_string()));
+            Err(error)
+        }
+    }
+}
+
+/// The file's size once it is all in `part`.
+async fn stream_to(
+    client: &Client,
+    key: &str,
+    attachment_id: i64,
+    part: &Path,
+    progress: &Progress<'_>,
+) -> Result<u64, CoreError> {
+    let call = Call::get(path_of(attachment_id, AttachmentVariant::Original), None);
+    let mut response = client.transfers().send(client, key, call).await?;
+    if !response.status().is_success() {
+        return Err(refusal(response).await);
+    }
+    let total = response.content_length().unwrap_or(0);
+    let unwritable = |error: std::io::Error| CoreError::Storage {
+        message: error.to_string(),
+    };
+    let mut file = tokio::fs::File::create(part).await.map_err(unwritable)?;
+    let mut received = 0;
+    while let Some(chunk) = response.chunk().await.map_err(|error| network(&error))? {
+        file.write_all(&chunk).await.map_err(unwritable)?;
+        received += chunk.len() as u64;
+        progress.received(received, total);
+    }
+    file.sync_all().await.map_err(unwritable)?;
+    Ok(received)
+}
+
+/// `DownloadProgress` events for one save.
+struct Progress<'a> {
+    client: &'a Client,
+    key: &'a str,
+    attachment_id: i64,
+    last: Mutex<Option<Instant>>,
+}
+
+impl Progress<'_> {
+    /// At most 10 times a second.
+    fn received(&self, received_bytes: u64, total_bytes: u64) {
+        {
+            let mut last = self.last.lock().unwrap_or_else(PoisonError::into_inner);
+            if last.is_some_and(|last| last.elapsed() < PROGRESS_EVERY) {
+                return;
+            }
+            *last = Some(Instant::now());
+        }
+        self.emit(received_bytes, total_bytes, false, None);
+    }
+
+    fn end(&self, received_bytes: u64, total_bytes: u64, error: Option<String>) {
+        let done = error.is_none();
+        self.emit(received_bytes, total_bytes, done, error);
+    }
+
+    fn emit(&self, received_bytes: u64, total_bytes: u64, done: bool, error: Option<String>) {
+        self.client.emit(
+            self.key,
+            CoreEventPayload::DownloadProgress {
+                attachment_id: self.attachment_id,
+                received_bytes,
+                total_bytes,
+                done,
+                error,
+            },
+        );
+    }
+}
+```
+
+**`src/client.rs`:**
+
+```diff
+--- a/crates/opencord-core/src/client.rs
++++ b/crates/opencord-core/src/client.rs
+@@ -18,14 +18,17 @@
+ use crate::api::types::{
+     AddServerOutcome, AudioSettings, Ban, CameraStarted, Channel, ChannelChanges, ChannelKind,
+     ChannelPosition, CoreError, CoreEvent, CoreEventPayload, ErrorCode, HotkeyBinding,
+-    HotkeySupport, IdentityInfo, Invite, MediaEvent, Member, Message, OverwriteTargetKind,
+-    PermissionOverwrite, PresenceStatus, Role, RoleChanges, S3Config, ScreenProblem,
+-    ScreenShareRequest, ScreenShareStarted, ScreenStream, Server, ServerChanges, ServerInfo,
+-    SoundDraft, SoundSelection, SoundboardSound, SoundboardSoundChanges, StorageInfo,
++    HotkeySupport, IdentityInfo, Invite, MediaEvent, Member, Message, OutgoingFile,
++    OverwriteTargetKind, PermissionOverwrite, PresenceStatus, Role, RoleChanges, S3Config,
++    ScreenProblem, ScreenShareRequest, ScreenShareStarted, ScreenStream, Server, ServerChanges,
++    ServerInfo, SoundDraft, SoundSelection, SoundboardSound, SoundboardSoundChanges, StorageInfo,
+     StorageTestResult, StorageTestTarget, StreamSourceKind, UploadSettings, User, VideoWant,
+     VoiceCue, VoiceSettings, VoiceSettingsChanges, VoiceState,
+ };
+ use crate::artwork::ArtworkCache;
++use crate::attachments::download::{self, Downloads};
++use crate::attachments::transfer::Transfers;
++use crate::attachments::upload::{self, Uploads};
+ use crate::connection::{
+     self, Clocks, Command, Connection, Context, Credentials, Established, HandshakeError,
+     MediaTokens, Route, Routes,
+@@ -86,6 +89,9 @@
+     clocks: Clocks,
+     /// How this person hears music, kept for media that starts later.
+     music_listening: Mutex<MusicListening>,
++    transfers: Transfers,
++    uploads: Arc<Uploads>,
++    downloads: Downloads,
+ }
+ 
+ /// The app's id, as its desktop file names it; the system's portals ask for
+@@ -167,12 +173,15 @@
+                 voice: Mutex::new(Voice::default()),
+                 media: OnceLock::new(),
+                 hotkeys: tokio::sync::Mutex::new(None),
+-                media_tokens,
+-                routes,
++                media_tokens: Arc::clone(&media_tokens),
++                routes: Arc::clone(&routes),
+                 soundboard,
+                 artwork,
+                 clocks: Clocks::default(),
+                 music_listening: Mutex::default(),
++                transfers: Transfers::new(Arc::clone(&routes), Arc::clone(&media_tokens)),
++                uploads: Arc::default(),
++                downloads: Downloads::default(),
+             }),
+         };
+         client.spawn_wake_watch();
+@@ -388,15 +397,46 @@
+         content: String,
+         nonce: String,
+     ) -> Result<Message, CoreError> {
++        self.send_message_with_ids(key, channel_id, content, nonce, Vec::new())
++            .await
++    }
++
++    pub(crate) async fn send_message_with_ids(
++        &self,
++        key: &str,
++        channel_id: i64,
++        content: String,
++        nonce: String,
++        attachment_ids: Vec<i64>,
++    ) -> Result<Message, CoreError> {
+         let request = Request::SendMessage(proto::SendMessage {
+             channel_id,
+             content,
+             nonce,
+-            attachment_ids: Vec::new(),
++            attachment_ids,
+         });
+         expect_message(self.request(key, request).await?)
+     }
+ 
++    /// Uploads the files, then sends the message with them.
++    /// `UploadProgress` events follow each file.
++    pub async fn send_message_with_files(
++        &self,
++        key: &str,
++        channel_id: i64,
++        content: String,
++        nonce: String,
++        files: Vec<OutgoingFile>,
++    ) -> Result<Message, CoreError> {
++        upload::send(self, key, channel_id, content, nonce, files).await
++    }
++
++    /// Stops a `send_message_with_files` that is still uploading; it
++    /// returns `Cancelled`.
++    pub fn cancel_send(&self, key: &str, nonce: &str) {
++        self.inner.uploads.cancel(key, nonce);
++    }
++
+     pub async fn edit_message(
+         &self,
+         key: &str,
+@@ -1617,6 +1657,7 @@
+             media_tokens: Arc::clone(&self.inner.media_tokens),
+             routes: Arc::clone(&self.inner.routes),
+             clocks: Arc::clone(&self.inner.clocks),
++            uploads: Arc::clone(&self.inner.uploads),
+         }
+     }
+ 
+@@ -1856,6 +1897,62 @@
+         expect_storage(self.request(key, request).await?)
+     }
+ 
++    pub(crate) fn transfers(&self) -> &Transfers {
++        &self.inner.transfers
++    }
++
++    pub(crate) fn uploads(&self) -> Arc<Uploads> {
++        Arc::clone(&self.inner.uploads)
++    }
++
++    pub(crate) fn downloads(&self) -> &Downloads {
++        &self.inner.downloads
++    }
++
++    /// An event of this client's own, for the app.
++    pub(crate) fn emit(&self, key: &str, payload: CoreEventPayload) {
++        let event = CoreEvent {
++            server_key: key.to_owned(),
++            payload,
++        };
++        if self.inner.outward.send(event).is_err() {
++            tracing::debug!("an event was dropped: the app stopped listening");
++        }
++    }
++
++    /// Saves the attachment at `path`; `DownloadProgress` events follow it.
++    pub async fn download_attachment(
++        &self,
++        key: &str,
++        attachment_id: i64,
++        path: String,
++    ) -> Result<(), CoreError> {
++        download::save(self, key, attachment_id, path).await
++    }
++
++    /// Stops a `download_attachment`; it returns `Cancelled`.
++    pub fn cancel_download(&self, key: &str, attachment_id: i64) {
++        self.inner.downloads.cancel(key, attachment_id);
++    }
++
++    /// Test hook: the next `count` answers to upload pieces are dropped, as
++    /// if the network lost them after the server took the piece.
++    #[doc(hidden)]
++    pub fn lose_upload_answers(&self, count: u32) {
++        self.inner.uploads.lose_answers(count);
++    }
++
++    /// Test hook: the server at `key` will refuse this device's media token
++    /// until it is renewed.
++    #[doc(hidden)]
++    pub fn spoil_media_token(&self, key: &str) {
++        self.inner
++            .media_tokens
++            .lock()
++            .unwrap_or_else(PoisonError::into_inner)
++            .insert(key.to_owned(), "spoiled".to_owned());
++    }
++
+     /// A request answered with an ack.
+     pub(crate) async fn ack(&self, key: &str, kind: Request) -> Result<(), CoreError> {
+         expect_ack(self.request(key, kind).await?)
+```
+
+**`src/api/attachments.rs`:**
+
+```diff
+--- a/crates/opencord-core/src/api/attachments.rs
++++ b/crates/opencord-core/src/api/attachments.rs
+@@ -1,9 +1,12 @@
+ //! Files in messages, upload settings and storage (media uploads plan,
+ //! milestone A4), for the Flutter app.
+ 
+-use super::client::on_runtime;
++use flutter_rust_bridge::frb;
++
++use super::client::{client, on_runtime};
+ use super::types::{
+-    CoreError, S3Config, StorageInfo, StorageTestResult, StorageTestTarget, UploadSettings,
++    CoreError, Message, OutgoingFile, S3Config, StorageInfo, StorageTestResult, StorageTestTarget,
++    UploadSettings,
+ };
+ 
+ /// MANAGE_SERVER. `None` leaves a setting as it is.
+@@ -78,3 +81,48 @@
+ pub async fn storage_move_stop(server_key: String) -> Result<StorageInfo, CoreError> {
+     on_runtime(move |client| async move { client.storage_move_stop(&server_key).await }).await
+ }
++
++/// Uploads the files, two at a time, then sends the message with them.
++/// UploadProgress events follow each file. On a failure or a cancel, the
++/// uploads made so far are cancelled.
++pub async fn send_message_with_files(
++    server_key: String,
++    channel_id: i64,
++    content: String,
++    nonce: String,
++    files: Vec<OutgoingFile>,
++) -> Result<Message, CoreError> {
++    on_runtime(move |client| async move {
++        client
++            .send_message_with_files(&server_key, channel_id, content, nonce, files)
++            .await
++    })
++    .await
++}
++
++/// Stops a send that is still uploading; it returns `Cancelled`.
++#[frb(sync)]
++pub fn cancel_send(server_key: String, nonce: String) -> Result<(), CoreError> {
++    client()?.cancel_send(&server_key, &nonce);
++    Ok(())
++}
++
++/// Saves the attachment at `path`; DownloadProgress events follow it.
++pub async fn download_attachment(
++    server_key: String,
++    attachment_id: i64,
++    path: String,
++) -> Result<(), CoreError> {
++    on_runtime(move |client| async move {
++        client
++            .download_attachment(&server_key, attachment_id, path)
++            .await
++    })
++    .await
++}
++
++#[frb(sync)]
++pub fn cancel_download(server_key: String, attachment_id: i64) -> Result<(), CoreError> {
++    client()?.cancel_download(&server_key, attachment_id);
++    Ok(())
++}
+```
+
+**`crates/opencord-server/src/server.rs`:**
+
+```diff
+--- a/crates/opencord-server/src/server.rs
++++ b/crates/opencord-server/src/server.rs
+@@ -298,6 +298,15 @@
+     pub async fn drain_blob_deletions(&self, now_ms: i64) {
+         crate::attachments::gc::drain_blobs(&self.state, now_ms).await;
+     }
++
++    /// Intended for tests: how many uploads are in `state` ("uploading",
++    /// "processing", "ready", "failed" or "sent").
++    pub async fn uploads_in_state(&self, state: &str) -> Result<usize, sqlx::Error> {
++        let mut conn = self.state.db.acquire().await?;
++        Ok(crate::db::attachments::in_state(&mut conn, state)
++            .await?
++            .len())
++    }
+ }
+ 
+ /// The voice node inside this server, unless voice is off or on external
+```
+
+**`tests/attachments.rs`:**
+
+```diff
+--- a/crates/opencord-core/tests/attachments.rs
++++ b/crates/opencord-core/tests/attachments.rs
+@@ -5,12 +5,14 @@
+ 
+ use opencord_common::address::format_fingerprint;
+ use opencord_core::api::types::{
+-    CoreEvent, CoreEventPayload, ReadySnapshot, RoleChanges, StorageKind,
++    CoreError, CoreEvent, CoreEventPayload, ErrorCode, OutgoingFile, ReadySnapshot, RoleChanges,
++    StorageKind, UploadPhase,
+ };
+ use opencord_core::client::Client;
+ use opencord_core::identity::Identity;
+ use opencord_server::config::Config;
+ use opencord_server::server::{self, ServerHandle};
++use sha2::{Digest, Sha256};
+ use tokio::sync::mpsc::UnboundedReceiver;
+ 
+ const WAIT: Duration = Duration::from_secs(20);
+@@ -93,6 +95,51 @@
+     }
+ }
+ 
++fn general(ready: &ReadySnapshot) -> i64 {
++    ready
++        .channels
++        .iter()
++        .find(|channel| channel.name == "general")
++        .unwrap()
++        .id
++}
++
++/// Bytes that don't repeat within a piece.
++fn data(len: usize) -> Vec<u8> {
++    let mut state = 0x2545_F491_u32;
++    (0..len)
++        .map(|_| {
++            state ^= state << 13;
++            state ^= state >> 17;
++            state ^= state << 5;
++            state as u8
++        })
++        .collect()
++}
++
++fn bytes_file(name: &str, bytes: Vec<u8>) -> OutgoingFile {
++    OutgoingFile {
++        path: None,
++        bytes: Some(bytes),
++        filename: name.to_owned(),
++    }
++}
++
++fn sha256(bytes: &[u8]) -> Vec<u8> {
++    Sha256::digest(bytes).to_vec()
++}
++
++async fn download(owner: &TestClient, key: &str, attachment_id: i64) -> Vec<u8> {
++    let dir = tempfile::tempdir().unwrap();
++    let path = dir.path().join("saved");
++    owner
++        .client
++        .download_attachment(key, attachment_id, path.to_string_lossy().into_owned())
++        .await
++        .unwrap();
++    std::fs::read(path).unwrap()
++}
++
+ #[tokio::test(flavor = "multi_thread")]
+ async fn ready_carries_upload_settings_and_role_limits() {
+     let server = TestServer::start().await;
+@@ -177,3 +224,232 @@
+         .unwrap();
+     assert_eq!(role.max_upload_bytes, None);
+ }
++
++#[tokio::test(flavor = "multi_thread")]
++async fn send_message_with_files_uploads_and_sends() {
++    let server = TestServer::start().await;
++    let (mut owner, ready) = TestClient::owner(&server).await;
++    let key = server.address();
++    let dir = tempfile::tempdir().unwrap();
++    let big = data(9 * MIB);
++    let path = dir.path().join("big.bin");
++    std::fs::write(&path, &big).unwrap();
++    let small = data(1024);
++    let files = vec![
++        OutgoingFile {
++            path: Some(path.to_string_lossy().into_owned()),
++            bytes: None,
++            filename: String::new(),
++        },
++        bytes_file("small.bin", small.clone()),
++    ];
++
++    let message = owner
++        .client
++        .send_message_with_files(
++            &key,
++            general(&ready),
++            "two files".to_owned(),
++            "n1".to_owned(),
++            files,
++        )
++        .await
++        .unwrap();
++
++    let names: Vec<_> = message
++        .attachments
++        .iter()
++        .map(|a| a.filename.as_str())
++        .collect();
++    assert_eq!(names, ["big.bin", "small.bin"]);
++    assert_eq!(message.attachments[0].size_bytes, big.len() as u64);
++    let mut done = [false, false];
++    while done != [true, true] {
++        let (index, phase) = owner
++            .wait_for(|payload| match payload {
++                CoreEventPayload::UploadProgress {
++                    file_index, phase, ..
++                } => Some((*file_index as usize, phase.clone())),
++                _ => None,
++            })
++            .await;
++        if phase == UploadPhase::Done {
++            done[index] = true;
++        }
++    }
++    let saved = download(&owner, &key, message.attachments[0].id).await;
++    assert_eq!(sha256(&saved), sha256(&big));
++    assert_eq!(
++        download(&owner, &key, message.attachments[1].id).await,
++        small
++    );
++}
++
++/// Review Focus 1: the server took a piece but its answer was lost. The
++/// piece goes again, the server answers 409 with its count, and the upload
++/// carries on.
++#[tokio::test(flavor = "multi_thread")]
++async fn uploads_resume_after_a_lost_answer() {
++    let server = TestServer::start().await;
++    let (owner, ready) = TestClient::owner(&server).await;
++    let key = server.address();
++    let file = data(20 * MIB);
++    owner.client.lose_upload_answers(1);
++
++    let message = owner
++        .client
++        .send_message_with_files(
++            &key,
++            general(&ready),
++            String::new(),
++            "n1".to_owned(),
++            vec![bytes_file("file.bin", file.clone())],
++        )
++        .await
++        .unwrap();
++
++    let saved = download(&owner, &key, message.attachments[0].id).await;
++    assert_eq!(sha256(&saved), sha256(&file));
++}
++
++#[tokio::test(flavor = "multi_thread")]
++async fn cancel_send_cancels_server_uploads() {
++    let server = TestServer::start().await;
++    let (mut owner, ready) = TestClient::owner(&server).await;
++    let key = server.address();
++    server.handle.hold_processing(true);
++    let client = owner.client.clone();
++    let (send_key, channel_id) = (key.clone(), general(&ready));
++    let send = tokio::spawn(async move {
++        client
++            .send_message_with_files(
++                &send_key,
++                channel_id,
++                String::new(),
++                "n1".to_owned(),
++                vec![bytes_file("file.bin", data(1024))],
++            )
++            .await
++    });
++    owner
++        .wait_for(|payload| match payload {
++            CoreEventPayload::UploadProgress {
++                phase: UploadPhase::Processing,
++                ..
++            } => Some(()),
++            _ => None,
++        })
++        .await;
++
++    owner.client.cancel_send(&key, "n1");
++
++    assert!(matches!(send.await.unwrap(), Err(CoreError::Cancelled)));
++    owner
++        .wait_for(|payload| match payload {
++            CoreEventPayload::UploadProgress {
++                phase: UploadPhase::Cancelled,
++                ..
++            } => Some(()),
++            _ => None,
++        })
++        .await;
++    for state in ["uploading", "processing", "ready"] {
++        assert_eq!(server.handle.uploads_in_state(state).await.unwrap(), 0);
++    }
++}
++
++#[tokio::test(flavor = "multi_thread")]
++async fn a_blocked_file_fails_with_the_servers_reason() {
++    let server = TestServer::start().await;
++    let (owner, ready) = TestClient::owner(&server).await;
++    let key = server.address();
++    // The list starts empty; the owner picks what to block.
++    owner
++        .client
++        .update_upload_settings(&key, Some(vec!["exe".to_owned()]), None)
++        .await
++        .unwrap();
++
++    let sent = owner
++        .client
++        .send_message_with_files(
++            &key,
++            general(&ready),
++            String::new(),
++            "n1".to_owned(),
++            vec![bytes_file("setup.exe", data(1024))],
++        )
++        .await;
++
++    assert!(matches!(
++        sent,
++        Err(CoreError::Server {
++            code: ErrorCode::FileTypeBlocked,
++            ..
++        })
++    ));
++}
++
++/// An expired media token is renewed once, then the transfer goes
++/// ahead.
++#[tokio::test(flavor = "multi_thread")]
++async fn an_expired_media_token_is_renewed() {
++    let server = TestServer::start().await;
++    let (owner, ready) = TestClient::owner(&server).await;
++    let key = server.address();
++    owner.client.spoil_media_token(&key);
++
++    let message = owner
++        .client
++        .send_message_with_files(
++            &key,
++            general(&ready),
++            String::new(),
++            "n1".to_owned(),
++            vec![bytes_file("file.bin", data(1024))],
++        )
++        .await
++        .unwrap();
++
++    owner.client.spoil_media_token(&key);
++    assert_eq!(
++        download(&owner, &key, message.attachments[0].id).await,
++        data(1024)
++    );
++}
++
++#[tokio::test(flavor = "multi_thread")]
++async fn download_attachment_writes_the_exact_file() {
++    let server = TestServer::start().await;
++    let (mut owner, ready) = TestClient::owner(&server).await;
++    let key = server.address();
++    let file = data(3 * MIB + 7);
++    let message = owner
++        .client
++        .send_message_with_files(
++            &key,
++            general(&ready),
++            String::new(),
++            "n1".to_owned(),
++            vec![bytes_file("file.bin", file.clone())],
++        )
++        .await
++        .unwrap();
++    let attachment_id = message.attachments[0].id;
++
++    let saved = download(&owner, &key, attachment_id).await;
++
++    assert_eq!(sha256(&saved), sha256(&file));
++    let (received, total) = owner
++        .wait_for(|payload| match payload {
++            CoreEventPayload::DownloadProgress {
++                received_bytes,
++                total_bytes,
++                done: true,
++                ..
++            } => Some((*received_bytes, *total_bytes)),
++            _ => None,
++        })
++        .await;
++    assert_eq!((received, total), (file.len() as u64, file.len() as u64));
++}
+```
+
+- [ ] **Step 1:** Add the tests to `tests/attachments.rs`.
+- [ ] **Step 2:** Run → FAIL: it doesn't compile yet.
+- [ ] **Step 3:** Make the other changes, then regenerate the bindings.
+- [ ] **Step 4:** Run → PASS:
+  - `cargo test -p opencord_core --test attachments`: 10 tests;
+  - `cargo clippy -p opencord_core -p opencord-server --all-targets -- -D warnings`;
+  - `cd app && flutter analyze`.
+- [ ] **Step 5: Commit:** `feat: sending and saving files in the core (A4)`.
+
+### Task 19: Attachment bytes and the encrypted cache
+
+**What it does.**
+- **`attachment_bytes`** reads a thumbnail, or an original of at most 64 MiB, for the image viewer and the voice and audio players. Thumbnails, and originals up to 20 MiB, are cached.
+  - Only those callers use it, so this rule caches what the Global Constraints list: images up to 20 MiB, voice messages and audio up to 20 MiB.
+  - Videos use the media player's ranged reads (Task 33), and other files use `download_attachment`.
+- **The cache** (`attachments/cache.rs`) follows `SoundCache`:
+  - 1 GiB for every server, the least recently used going first, a file's modification time being when it was last used;
+  - each entry sealed as a blob of kind 2 (client cache) under a key from the system keychain;
+  - an entry's name is the SHA-256 of server key, attachment id and variant, and its first 8 bytes are the blob id. So a file copied over another entry's name doesn't open, and is removed;
+  - cache reads and writes run in `spawn_blocking`, since they read and seal up to 20 MiB (Working Rule 18).
+- **The key** (`app/lib/core/rust/media_cache_key_store.dart`):
+  - 32 random bytes in the keychain under `opencord.[<profile>.]media-cache.key`, with `SecureIdentityStore`'s options;
+  - made once, then reused, and replaced if damaged;
+  - `app_start.dart` calls `media_cache_init` with it right after `core.init`. If the keychain fails, the error is logged and nothing is cached on disk.
+
+**Files.**
+- Create: `src/attachments/cache.rs`, `app/lib/core/rust/media_cache_key_store.dart`, `app/test/unit/rust/media_cache_key_store_test.dart`.
+- Modify: `src/attachments/{mod,download}.rs`, `src/client.rs`, `src/api/attachments.rs`, `tests/attachments.rs`, `app/lib/app_start.dart`.
+
+**`src/attachments/cache.rs`** (new, with its unit tests):
+
+```rust
+//! Attachments kept on this device (media uploads plan, Task 19): one cache
+//! for every server, at most 1 GiB, the least recently shown going first.
+//! Each file is sealed with a key the app keeps in the system keychain, so
+//! the folder holds no readable file. A file's modification time is when
+//! it was last shown or fetched.
+
+use std::fs;
+use std::io;
+use std::path::{Path, PathBuf};
+use std::time::SystemTime;
+
+use opencord_common::blob::{self, BlobKey, BlobKind};
+use sha2::{Digest, Sha256};
+
+use crate::api::types::AttachmentVariant;
+
+/// Inside the app's data directory.
+pub(crate) const DIR: &str = "media-cache";
+pub(crate) const LIMIT: u64 = 1024 * 1024 * 1024;
+
+/// One attachment's place in the cache.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct Entry {
+    /// The hash's 64 hex digits.
+    name: String,
+    /// What it is sealed under: the hash's first 8 bytes. A file copied
+    /// over another entry's name doesn't open.
+    blob_id: i64,
+}
+
+impl Entry {
+    pub fn new(server_key: &str, attachment_id: i64, variant: AttachmentVariant) -> Self {
+        let variant = match variant {
+            AttachmentVariant::Original => "original",
+            AttachmentVariant::Thumbnail => "thumbnail",
+        };
+        let hash = Sha256::digest(format!("{server_key}\n{attachment_id}\n{variant}"));
+        let mut id = [0u8; 8];
+        id.copy_from_slice(&hash[..8]);
+        Self {
+            name: hex::encode(hash),
+            blob_id: i64::from_be_bytes(id),
+        }
+    }
+}
+
+pub(crate) struct MediaCache {
+    dir: PathBuf,
+    key: BlobKey,
+    limit: u64,
+}
+
+impl MediaCache {
+    pub fn open(dir: PathBuf, key: BlobKey, limit: u64) -> io::Result<Self> {
+        fs::create_dir_all(&dir)?;
+        Ok(Self { dir, key, limit })
+    }
+
+    /// The entry's bytes, if it is here and opens. One that doesn't open is
+    /// removed. Its time is updated, so it is kept longer.
+    pub fn get(&self, entry: &Entry) -> Option<Vec<u8>> {
+        let path = self.dir.join(&entry.name);
+        let sealed = fs::read(&path).ok()?;
+        match blob::open_all(&self.key, BlobKind::Cache, entry.blob_id, &sealed) {
+            Ok(plain) => {
+                touch(&path);
+                Some(plain)
+            }
+            Err(error) => {
+                tracing::debug!(?error, "a cached file didn't open; removing it");
+                remove(&path);
+                None
+            }
+        }
+    }
+
+    /// Keeps `plain` sealed, then trims the cache to its limit.
+    pub fn put(&self, entry: &Entry, plain: &[u8]) -> io::Result<()> {
+        let sealed = blob::seal_all(&self.key, BlobKind::Cache, entry.blob_id, plain);
+        let path = self.dir.join(&entry.name);
+        let partial = self.dir.join(format!("{}.partial", entry.name));
+        fs::write(&partial, sealed)?;
+        fs::rename(&partial, &path)?;
+        self.trim(&path)
+    }
+
+    pub fn size(&self) -> io::Result<u64> {
+        Ok(self.entries()?.iter().map(|(_, size, _)| size).sum())
+    }
+
+    pub fn clear(&self) -> io::Result<()> {
+        for (_, _, path) in self.entries()? {
+            remove_file(&path)?;
+        }
+        Ok(())
+    }
+
+    /// Removes the least recently used entries until the rest fit, never
+    /// `keep`.
+    fn trim(&self, keep: &Path) -> io::Result<()> {
+        let mut entries = self.entries()?;
+        let mut total: u64 = entries.iter().map(|(_, size, _)| size).sum();
+        entries.sort();
+        for (_, size, path) in entries {
+            if total <= self.limit {
+                break;
+            }
+            if path == keep {
+                continue;
+            }
+            remove_file(&path)?;
+            total -= size;
+        }
+        Ok(())
+    }
+
+    /// Every entry with its time and size. Files being written (`.partial`)
+    /// aren't entries yet.
+    fn entries(&self) -> io::Result<Vec<(SystemTime, u64, PathBuf)>> {
+        let mut entries = Vec::new();
+        for item in fs::read_dir(&self.dir)? {
+            let item = item?;
+            let is_entry = item.file_name().to_str().is_some_and(|name| {
+                name.len() == 64 && name.bytes().all(|b| b.is_ascii_hexdigit())
+            });
+            let metadata = item.metadata()?;
+            if is_entry && metadata.is_file() {
+                let modified = metadata.modified().unwrap_or(SystemTime::UNIX_EPOCH);
+                entries.push((modified, metadata.len(), item.path()));
+            }
+        }
+        Ok(entries)
+    }
+}
+
+/// Removed already counts as removed.
+fn remove_file(path: &Path) -> io::Result<()> {
+    match fs::remove_file(path) {
+        Err(error) if error.kind() != io::ErrorKind::NotFound => Err(error),
+        _ => Ok(()),
+    }
+}
+
+fn remove(path: &Path) {
+    if let Err(error) = remove_file(path) {
+        tracing::warn!(%error, "a cached file couldn't be removed");
+    }
+}
+
+/// Marks the file as just used.
+fn touch(path: &Path) {
+    let touched = fs::File::options()
+        .write(true)
+        .open(path)
+        .and_then(|file| file.set_modified(SystemTime::now()));
+    if let Err(error) = touched {
+        tracing::debug!(%error, "a cached file's time couldn't be updated");
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::time::Duration;
+
+    use super::*;
+
+    fn cache(dir: &Path, limit: u64) -> MediaCache {
+        MediaCache::open(dir.join(DIR), BlobKey::from_bytes([7; 32]), limit).unwrap()
+    }
+
+    fn entry(id: i64) -> Entry {
+        Entry::new("127.0.0.1:8443", id, AttachmentVariant::Original)
+    }
+
+    fn age(cache: &MediaCache, entry: &Entry, seconds: u64) {
+        fs::File::options()
+            .write(true)
+            .open(cache.dir.join(&entry.name))
+            .unwrap()
+            .set_modified(SystemTime::now() - Duration::from_secs(seconds))
+            .unwrap();
+    }
+
+    #[test]
+    fn cache_round_trips_and_evicts_oldest() {
+        let dir = tempfile::tempdir().unwrap();
+        let one = blob::sealed_len(1_000);
+        let cache = cache(dir.path(), one * 3);
+        for id in 1..=3 {
+            cache.put(&entry(id), &[id as u8; 1_000]).unwrap();
+            age(&cache, &entry(id), 100 - id as u64);
+        }
+        assert_eq!(cache.get(&entry(2)), Some(vec![2; 1_000]));
+
+        cache.put(&entry(4), &[4; 1_000]).unwrap();
+
+        assert_eq!(cache.get(&entry(1)), None);
+        assert_eq!(cache.get(&entry(2)), Some(vec![2; 1_000]));
+        assert_eq!(cache.get(&entry(4)), Some(vec![4; 1_000]));
+        assert_eq!(cache.size().unwrap(), one * 3);
+    }
+
+    #[test]
+    fn cache_files_hold_no_plaintext() {
+        let dir = tempfile::tempdir().unwrap();
+        let cache = cache(dir.path(), LIMIT);
+        let marker = b"a very recognisable marker string";
+        cache.put(&entry(1), marker).unwrap();
+
+        for item in fs::read_dir(&cache.dir).unwrap() {
+            let bytes = fs::read(item.unwrap().path()).unwrap();
+            assert!(!bytes.windows(marker.len()).any(|window| window == marker));
+        }
+    }
+
+    #[test]
+    fn a_cache_file_cannot_be_renamed_to_another_entry() {
+        let dir = tempfile::tempdir().unwrap();
+        let cache = cache(dir.path(), LIMIT);
+        let (a, b) = (entry(1), entry(2));
+        cache.put(&a, b"picture a").unwrap();
+        cache.put(&b, b"picture b").unwrap();
+
+        fs::copy(cache.dir.join(&a.name), cache.dir.join(&b.name)).unwrap();
+
+        assert_eq!(cache.get(&b), None);
+        assert!(!cache.dir.join(&b.name).exists());
+        assert_eq!(cache.get(&a), Some(b"picture a".to_vec()));
+    }
+
+    #[test]
+    fn clear_empties_the_cache() {
+        let dir = tempfile::tempdir().unwrap();
+        let cache = cache(dir.path(), LIMIT);
+        cache.put(&entry(1), b"one").unwrap();
+        cache.put(&entry(2), b"two").unwrap();
+
+        cache.clear().unwrap();
+
+        assert_eq!(cache.size().unwrap(), 0);
+        assert_eq!(cache.get(&entry(1)), None);
+    }
+}
+```
+
+**`src/attachments/mod.rs` and `src/attachments/download.rs`:**
+
+```diff
+--- a/crates/opencord-core/src/attachments/mod.rs
++++ b/crates/opencord-core/src/attachments/mod.rs
+@@ -1,6 +1,7 @@
+ //! Files in messages (media uploads plan, milestone A4): sending them,
+ //! downloading them, the encrypted cache, photo metadata and the clipboard.
+ 
++pub(crate) mod cache;
+ pub(crate) mod download;
+ pub(crate) mod transfer;
+ pub(crate) mod upload;
+```
+
+```diff
+--- a/crates/opencord-core/src/attachments/download.rs
++++ b/crates/opencord-core/src/attachments/download.rs
+@@ -1,20 +1,26 @@
+-//! Attachments coming down (media uploads plan, Task 18): any file streamed
+-//! to where the user saves it.
++//! Attachments coming down (media uploads plan, Tasks 18 and 19): small ones whole,
++//! for the image viewer and the players, through the cache; any file
++//! streamed to where the user saves it.
+ 
+ use std::collections::HashMap;
+ use std::path::{Path, PathBuf};
+-use std::sync::{Mutex, MutexGuard, PoisonError};
++use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
+ use std::time::{Duration, Instant};
+ 
+ use tokio::io::AsyncWriteExt;
+ use tokio_util::sync::CancellationToken;
+ 
++use super::cache::{Entry, MediaCache};
+ use super::transfer::{Call, network, refusal};
+ use crate::api::types::{AttachmentVariant, CoreError, CoreEventPayload};
+ use crate::client::Client;
+ 
+ /// Progress goes out at most this often.
+ const PROGRESS_EVERY: Duration = Duration::from_millis(100);
++/// The most `bytes` reads into memory.
++const SHOW_MAX_BYTES: u64 = 64 * 1024 * 1024;
++/// Originals up to this size are cached; thumbnails always are.
++const CACHE_MAX_BYTES: u64 = 20 * 1024 * 1024;
+ 
+ #[derive(Default)]
+ pub(crate) struct Downloads {
+@@ -188,3 +194,97 @@
+         );
+     }
+ }
++
++/// A thumbnail, or an original of at most 64 MiB, from the cache when it
++/// is there. Only images, voice messages and audio are read this way.
++pub(crate) async fn bytes(
++    client: &Client,
++    key: &str,
++    attachment_id: i64,
++    variant: AttachmentVariant,
++) -> Result<Vec<u8>, CoreError> {
++    let entry = Entry::new(key, attachment_id, variant);
++    let cache = client.media_cache();
++    if let Some(cache) = &cache {
++        let (cache, entry) = (Arc::clone(cache), entry.clone());
++        if let Some(bytes) = blocking(move || Ok(cache.get(&entry))).await? {
++            return Ok(bytes);
++        }
++    }
++    let call = Call::get(path_of(attachment_id, variant), None);
++    let mut response = client.transfers().send(client, key, call).await?;
++    if !response.status().is_success() {
++        return Err(refusal(response).await);
++    }
++    let too_large = || CoreError::InvalidInput {
++        message: "the file is too large to show".to_owned(),
++    };
++    if response
++        .content_length()
++        .is_some_and(|length| length > SHOW_MAX_BYTES)
++    {
++        return Err(too_large());
++    }
++    let mut body = Vec::new();
++    while let Some(chunk) = response.chunk().await.map_err(|error| network(&error))? {
++        if (body.len() + chunk.len()) as u64 > SHOW_MAX_BYTES {
++            return Err(too_large());
++        }
++        body.extend_from_slice(&chunk);
++    }
++    let worth_keeping =
++        variant == AttachmentVariant::Thumbnail || body.len() as u64 <= CACHE_MAX_BYTES;
++    if let Some(cache) = cache
++        && worth_keeping
++    {
++        let plain = body.clone();
++        let kept = blocking(move || {
++            cache
++                .put(&entry, &plain)
++                .map_err(|error| CoreError::Storage {
++                    message: error.to_string(),
++                })
++        })
++        .await;
++        if let Err(error) = kept {
++            tracing::warn!(%error, "an attachment couldn't be cached");
++        }
++    }
++    Ok(body)
++}
++
++/// Runs cache work (file reads and sealing) off the async threads.
++async fn blocking<T: Send + 'static>(
++    work: impl FnOnce() -> Result<T, CoreError> + Send + 'static,
++) -> Result<T, CoreError> {
++    tokio::task::spawn_blocking(work)
++        .await
++        .map_err(|error| CoreError::Storage {
++            message: error.to_string(),
++        })?
++}
++
++/// The cache's size, or 0 without one.
++pub(crate) async fn cache_size(cache: Option<Arc<MediaCache>>) -> Result<u64, CoreError> {
++    let Some(cache) = cache else {
++        return Ok(0);
++    };
++    blocking(move || {
++        cache.size().map_err(|error| CoreError::Storage {
++            message: error.to_string(),
++        })
++    })
++    .await
++}
++
++pub(crate) async fn cache_clear(cache: Option<Arc<MediaCache>>) -> Result<(), CoreError> {
++    let Some(cache) = cache else {
++        return Ok(());
++    };
++    blocking(move || {
++        cache.clear().map_err(|error| CoreError::Storage {
++            message: error.to_string(),
++        })
++    })
++    .await
++}
+```
+
+**`src/client.rs` and `src/api/attachments.rs`:**
+
+```diff
+--- a/crates/opencord-core/src/client.rs
++++ b/crates/opencord-core/src/client.rs
+@@ -2,7 +2,7 @@
+ //! server. Every event from every server arrives on one channel.
+ 
+ use std::collections::HashMap;
+-use std::path::Path;
++use std::path::{Path, PathBuf};
+ use std::sync::{Arc, Mutex, MutexGuard, OnceLock, PoisonError, RwLock, Weak};
+ use std::time::{Duration, SystemTime, UNIX_EPOCH};
+ 
+@@ -16,16 +16,17 @@
+ use tokio::sync::{broadcast, mpsc, oneshot};
+ 
+ use crate::api::types::{
+-    AddServerOutcome, AudioSettings, Ban, CameraStarted, Channel, ChannelChanges, ChannelKind,
+-    ChannelPosition, CoreError, CoreEvent, CoreEventPayload, ErrorCode, HotkeyBinding,
+-    HotkeySupport, IdentityInfo, Invite, MediaEvent, Member, Message, OutgoingFile,
+-    OverwriteTargetKind, PermissionOverwrite, PresenceStatus, Role, RoleChanges, S3Config,
+-    ScreenProblem, ScreenShareRequest, ScreenShareStarted, ScreenStream, Server, ServerChanges,
+-    ServerInfo, SoundDraft, SoundSelection, SoundboardSound, SoundboardSoundChanges, StorageInfo,
+-    StorageTestResult, StorageTestTarget, StreamSourceKind, UploadSettings, User, VideoWant,
+-    VoiceCue, VoiceSettings, VoiceSettingsChanges, VoiceState,
++    AddServerOutcome, AttachmentVariant, AudioSettings, Ban, CameraStarted, Channel,
++    ChannelChanges, ChannelKind, ChannelPosition, CoreError, CoreEvent, CoreEventPayload,
++    ErrorCode, HotkeyBinding, HotkeySupport, IdentityInfo, Invite, MediaEvent, Member, Message,
++    OutgoingFile, OverwriteTargetKind, PermissionOverwrite, PresenceStatus, Role, RoleChanges,
++    S3Config, ScreenProblem, ScreenShareRequest, ScreenShareStarted, ScreenStream, Server,
++    ServerChanges, ServerInfo, SoundDraft, SoundSelection, SoundboardSound, SoundboardSoundChanges,
++    StorageInfo, StorageTestResult, StorageTestTarget, StreamSourceKind, UploadSettings, User,
++    VideoWant, VoiceCue, VoiceSettings, VoiceSettingsChanges, VoiceState,
+ };
+ use crate::artwork::ArtworkCache;
++use crate::attachments::cache::{self, MediaCache};
+ use crate::attachments::download::{self, Downloads};
+ use crate::attachments::transfer::Transfers;
+ use crate::attachments::upload::{self, Uploads};
+@@ -89,9 +90,12 @@
+     clocks: Clocks,
+     /// How this person hears music, kept for media that starts later.
+     music_listening: Mutex<MusicListening>,
++    data_dir: PathBuf,
+     transfers: Transfers,
+     uploads: Arc<Uploads>,
+     downloads: Downloads,
++    /// Attachments kept on this device, once the app gave the cache's key.
++    media_cache: RwLock<Option<Arc<MediaCache>>>,
+ }
+ 
+ /// The app's id, as its desktop file names it; the system's portals ask for
+@@ -179,9 +183,11 @@
+                 artwork,
+                 clocks: Clocks::default(),
+                 music_listening: Mutex::default(),
++                data_dir: data_dir.to_owned(),
+                 transfers: Transfers::new(Arc::clone(&routes), Arc::clone(&media_tokens)),
+                 uploads: Arc::default(),
+                 downloads: Downloads::default(),
++                media_cache: RwLock::new(None),
+             }),
+         };
+         client.spawn_wake_watch();
+@@ -1953,6 +1959,53 @@
+             .insert(key.to_owned(), "spoiled".to_owned());
+     }
+ 
++    pub(crate) fn media_cache(&self) -> Option<Arc<MediaCache>> {
++        self.inner
++            .media_cache
++            .read()
++            .unwrap_or_else(PoisonError::into_inner)
++            .clone()
++    }
++
++    /// A thumbnail, or an original of at most 64 MiB, through the cache.
++    pub async fn attachment_bytes(
++        &self,
++        key: &str,
++        attachment_id: i64,
++        variant: AttachmentVariant,
++    ) -> Result<Vec<u8>, CoreError> {
++        download::bytes(self, key, attachment_id, variant).await
++    }
++
++    /// Turns the attachment cache on, sealed with this 32-byte key.
++    pub fn media_cache_init(&self, key: &[u8]) -> Result<(), CoreError> {
++        let key: [u8; 32] = key.try_into().map_err(|_| CoreError::InvalidInput {
++            message: "the media cache's key must be 32 bytes".to_owned(),
++        })?;
++        let cache = MediaCache::open(
++            self.inner.data_dir.join(cache::DIR),
++            opencord_common::blob::BlobKey::from_bytes(key),
++            cache::LIMIT,
++        )
++        .map_err(|error| CoreError::Storage {
++            message: error.to_string(),
++        })?;
++        *self
++            .inner
++            .media_cache
++            .write()
++            .unwrap_or_else(PoisonError::into_inner) = Some(Arc::new(cache));
++        Ok(())
++    }
++
++    pub async fn media_cache_size(&self) -> Result<u64, CoreError> {
++        download::cache_size(self.media_cache()).await
++    }
++
++    pub async fn media_cache_clear(&self) -> Result<(), CoreError> {
++        download::cache_clear(self.media_cache()).await
++    }
++
+     /// A request answered with an ack.
+     pub(crate) async fn ack(&self, key: &str, kind: Request) -> Result<(), CoreError> {
+         expect_ack(self.request(key, kind).await?)
+```
+
+```diff
+--- a/crates/opencord-core/src/api/attachments.rs
++++ b/crates/opencord-core/src/api/attachments.rs
+@@ -5,8 +5,8 @@
+ 
+ use super::client::{client, on_runtime};
+ use super::types::{
+-    CoreError, Message, OutgoingFile, S3Config, StorageInfo, StorageTestResult, StorageTestTarget,
+-    UploadSettings,
++    AttachmentVariant, CoreError, Message, OutgoingFile, S3Config, StorageInfo, StorageTestResult,
++    StorageTestTarget, UploadSettings,
+ };
+ 
+ /// MANAGE_SERVER. `None` leaves a setting as it is.
+@@ -126,3 +126,34 @@
+     client()?.cancel_download(&server_key, attachment_id);
+     Ok(())
+ }
++
++/// A thumbnail, or an original of at most 64 MiB, through the cache. Only
++/// for images, voice messages and audio; other files use
++/// `download_attachment`, videos the media player.
++pub async fn attachment_bytes(
++    server_key: String,
++    attachment_id: i64,
++    variant: AttachmentVariant,
++) -> Result<Vec<u8>, CoreError> {
++    on_runtime(move |client| async move {
++        client
++            .attachment_bytes(&server_key, attachment_id, variant)
++            .await
++    })
++    .await
++}
++
++/// Turns the attachment cache on, with the 32-byte key the app keeps in
++/// the system keychain. Without it nothing is cached on disk.
++#[frb(sync)]
++pub fn media_cache_init(key: Vec<u8>) -> Result<(), CoreError> {
++    client()?.media_cache_init(&key)
++}
++
++pub async fn media_cache_size() -> Result<u64, CoreError> {
++    on_runtime(move |client| async move { client.media_cache_size().await }).await
++}
++
++pub async fn media_cache_clear() -> Result<(), CoreError> {
++    on_runtime(move |client| async move { client.media_cache_clear().await }).await
++}
+```
+
+**`tests/attachments.rs`:**
+
+```diff
+--- a/crates/opencord-core/tests/attachments.rs
++++ b/crates/opencord-core/tests/attachments.rs
+@@ -5,8 +5,8 @@
+ 
+ use opencord_common::address::format_fingerprint;
+ use opencord_core::api::types::{
+-    CoreError, CoreEvent, CoreEventPayload, ErrorCode, OutgoingFile, ReadySnapshot, RoleChanges,
+-    StorageKind, UploadPhase,
++    AttachmentVariant, CoreError, CoreEvent, CoreEventPayload, ErrorCode, OutgoingFile,
++    ReadySnapshot, RoleChanges, StorageKind, UploadPhase,
+ };
+ use opencord_core::client::Client;
+ use opencord_core::identity::Identity;
+@@ -453,3 +453,56 @@
+         .await;
+     assert_eq!((received, total), (file.len() as u64, file.len() as u64));
+ }
++
++#[tokio::test(flavor = "multi_thread")]
++async fn attachment_bytes_uses_the_cache_second_time() {
++    let server = TestServer::start().await;
++    let (owner, ready) = TestClient::owner(&server).await;
++    let key = server.address();
++    owner.client.media_cache_init(&[9; 32]).unwrap();
++    let mut png = Vec::new();
++    image::DynamicImage::ImageRgb8(image::RgbImage::from_pixel(64, 64, image::Rgb([1, 2, 3])))
++        .write_to(&mut std::io::Cursor::new(&mut png), image::ImageFormat::Png)
++        .unwrap();
++    let message = owner
++        .client
++        .send_message_with_files(
++            &key,
++            general(&ready),
++            String::new(),
++            "n1".to_owned(),
++            vec![bytes_file("picture.png", png.clone())],
++        )
++        .await
++        .unwrap();
++    let id = message.attachments[0].id;
++    let original = owner
++        .client
++        .attachment_bytes(&key, id, AttachmentVariant::Original)
++        .await
++        .unwrap();
++    let thumbnail = owner
++        .client
++        .attachment_bytes(&key, id, AttachmentVariant::Thumbnail)
++        .await
++        .unwrap();
++    assert_eq!(original, png);
++    assert!(owner.client.media_cache_size().await.unwrap() > 0);
++
++    server.handle.shutdown().await;
++
++    let cached = owner
++        .client
++        .attachment_bytes(&key, id, AttachmentVariant::Original)
++        .await
++        .unwrap();
++    assert_eq!(cached, png);
++    let cached = owner
++        .client
++        .attachment_bytes(&key, id, AttachmentVariant::Thumbnail)
++        .await
++        .unwrap();
++    assert_eq!(cached, thumbnail);
++    owner.client.media_cache_clear().await.unwrap();
++    assert_eq!(owner.client.media_cache_size().await.unwrap(), 0);
++}
+```
+
+**`app/lib/core/rust/media_cache_key_store.dart`** (new):
+
+```dart
+import 'dart:convert';
+import 'dart:math';
+import 'dart:typed_data';
+
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+
+/// The key the attachment cache on disk is sealed with (media uploads plan,
+/// Task 19). It stays in the system keychain, beside the identity, so the
+/// cache's files can't be read without this user's login. [profile] keeps
+/// a second instance's key apart, as [SecureIdentityStore] does.
+class MediaCacheKeyStore {
+  MediaCacheKeyStore({String profile = ''})
+    : _name = profile.isEmpty
+          ? 'opencord.media-cache.key'
+          : 'opencord.$profile.media-cache.key';
+
+  static const keyLength = 32;
+
+  final String _name;
+
+  // The same options as SecureIdentityStore: on macOS the login keychain.
+  final _storage = const FlutterSecureStorage(
+    mOptions: MacOsOptions(usesDataProtectionKeychain: false),
+  );
+
+  /// The saved key, or a new random one, saved first. Throws the plugin's
+  /// PlatformException when the keychain can't be used.
+  Future<Uint8List> load() async {
+    final saved = await _storage.read(key: _name);
+    if (saved != null) {
+      try {
+        final key = base64Decode(saved);
+        if (key.length == keyLength) return key;
+      } on FormatException {
+        // Replaced below.
+      }
+    }
+    final random = Random.secure();
+    final key = Uint8List.fromList([
+      for (var i = 0; i < keyLength; i++) random.nextInt(256),
+    ]);
+    await _storage.write(key: _name, value: base64Encode(key));
+    return key;
+  }
+}
+```
+
+**`app/test/unit/rust/media_cache_key_store_test.dart`** (new):
+
+```dart
+import 'dart:convert';
+
+import 'package:flutter/services.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:opencord/core/rust/media_cache_key_store.dart';
+
+const _plugin = MethodChannel('plugins.it_nomads.com/flutter_secure_storage');
+
+void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+  final keychain = <String, String>{};
+
+  setUp(() {
+    keychain.clear();
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(_plugin, (call) async {
+          final arguments = call.arguments as Map<Object?, Object?>;
+          final key = arguments['key']! as String;
+          return switch (call.method) {
+            'read' => keychain[key],
+            'write' => keychain[key] = arguments['value']! as String,
+            _ => null,
+          };
+        });
+  });
+
+  tearDown(
+    () => TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(_plugin, null),
+  );
+
+  test('the key is made once, then reused', () async {
+    final first = await MediaCacheKeyStore().load();
+    final second = await MediaCacheKeyStore().load();
+
+    expect(first, hasLength(32));
+    expect(second, first);
+    expect(keychain.keys, ['opencord.media-cache.key']);
+  });
+
+  test('a damaged key is replaced', () async {
+    keychain['opencord.media-cache.key'] = base64Encode([1, 2, 3]);
+
+    final key = await MediaCacheKeyStore().load();
+
+    expect(key, hasLength(32));
+    expect(base64Decode(keychain['opencord.media-cache.key']!), key);
+  });
+
+  test('a profile keeps its own key', () async {
+    final main = await MediaCacheKeyStore().load();
+    final other = await MediaCacheKeyStore(profile: 'b').load();
+
+    expect(other, isNot(main));
+    expect(keychain.keys, contains('opencord.b.media-cache.key'));
+  });
+}
+```
+
+**`app/lib/app_start.dart`:**
+
+```diff
+--- a/app/lib/app_start.dart
++++ b/app/lib/app_start.dart
+@@ -18,6 +18,7 @@
+ import 'package:opencord/core/rust/core_key_value_store.dart';
+ import 'package:opencord/core/rust/core_mapping.dart';
+ import 'package:opencord/core/rust/identity_store.dart';
++import 'package:opencord/core/rust/media_cache_key_store.dart';
+ import 'package:opencord/core/rust/rust_repository.dart';
+ import 'package:opencord/core/settings/app_settings.dart';
+ import 'package:opencord/core/settings/key_value_store.dart';
+@@ -35,6 +36,7 @@
+ import 'package:opencord/features/window/native_window.dart';
+ import 'package:opencord/features/window/window_providers.dart';
+ import 'package:opencord/features/window/window_startup.dart';
++import 'package:opencord/src/rust/api/attachments.dart' as attachments;
+ import 'package:opencord/src/rust/api/client.dart' as core;
+ import 'package:opencord/src/rust/api/system.dart';
+ import 'package:opencord/src/rust/api/types.dart' show CoreError;
+@@ -64,6 +66,7 @@
+   final environment = Platform.environment;
+   final dataDir = await _dataDir(profile);
+   core.init(appDataDir: dataDir.path);
++  if (!mock) await _startMediaCache(profile);
+   registerFontLicenses();
+ 
+   const store = CoreKeyValueStore();
+@@ -165,6 +168,19 @@
+   }
+ }
+ 
++/// Seals the attachment cache with a key from the system keychain (media
++/// uploads plan, Task 19). Without the keychain nothing is cached on disk.
++Future<void> _startMediaCache(String profile) async {
++  try {
++    final key = await MediaCacheKeyStore(profile: profile).load();
++    attachments.mediaCacheInit(key: key);
++  } on PlatformException catch (error) {
++    developer.log('no media cache: ${error.message}', name: 'opencord');
++  } on CoreError catch (error) {
++    developer.log('no media cache: $error', name: 'opencord');
++  }
++}
++
+ /// Lets the core draw video into this engine's textures (Phase 2 plan
+ /// §7.11). Without it, video still flows but nothing is drawn.
+ Future<void> _startVideo() async {
+```
+
+- [ ] **Step 1:** Write the tests: `cache.rs`'s unit tests, the new test in `tests/attachments.rs`, and the Dart test.
+- [ ] **Step 2:** Run → FAIL.
+- [ ] **Step 3:** Make the other changes, then regenerate the bindings.
+- [ ] **Step 4:** Run → PASS:
+  - `cargo test -p opencord_core --lib -- attachments::cache`: 4 tests;
+  - `cargo test -p opencord_core --test attachments`: 11 tests;
+  - clippy as before;
+  - `cd app && flutter analyze && flutter test test/unit/rust/media_cache_key_store_test.dart`.
+- [ ] **Step 5: Commit:** `feat: attachment bytes and the encrypted media cache (A4)`.
+
+### Task 20: Removing photo metadata
+
+**What it does.** Before a JPEG, PNG or WebP of at most 100 MiB leaves the device, its metadata goes. A path is read into memory only when its first 12 bytes say it's one of those.
+- **JPEG:**
+  - APP1 Exif and XMP segments are dropped, and so is APP13 (IPTC).
+  - An orientation other than 1 comes back as a 36-byte APP1 Exif segment holding only that tag, right after SOI: the length field says 34 (0x22), plus the 2 marker bytes.
+  - Everything from the start of scan on is copied as it is.
+- **PNG:** the `eXIf`, `tEXt`, `zTXt`, `iTXt` and `tIME` chunks are dropped. Text chunks carry XMP and camera notes, and the image doesn't need them.
+- **WebP:** the `EXIF` and `XMP ` chunks are dropped, their VP8X flags are cleared, and the RIFF size is rewritten. Odd-sized chunks keep their pad byte.
+- A file that isn't well formed comes back `None` and is sent as it is. The server's processing rejects what it must.
+
+**Files.**
+- Create: `src/attachments/exif.rs`.
+- Modify: `src/attachments/{mod,upload}.rs`, `tests/attachments.rs`.
+
+**`src/attachments/exif.rs`** (new, with its unit tests):
+
+```rust
+//! Removing a photo's metadata before it is sent (media uploads plan,
+//! Task 20): Exif, with its GPS position and camera serial numbers, XMP,
+//! and PNG text. A JPEG keeps its orientation in a minimal Exif block, so
+//! it still shows the right way up.
+
+const JPEG_START: [u8; 3] = [0xFF, 0xD8, 0xFF];
+const PNG_SIGNATURE: [u8; 8] = [0x89, b'P', b'N', b'G', 0x0D, 0x0A, 0x1A, 0x0A];
+const EXIF: &[u8] = b"Exif\0\0";
+const XMP: &[u8] = b"http://ns.adobe.com/xap/1.0/\0";
+/// The TIFF orientation tag.
+const ORIENTATION: u16 = 0x0112;
+/// VP8X flags for Exif and XMP chunks.
+const VP8X_EXIF: u8 = 0x08;
+const VP8X_XMP: u8 = 0x04;
+
+/// Whether a file starting with `head` (its first 12 bytes or more) is a
+/// JPEG, PNG or WebP, which may carry metadata.
+pub fn is_photo(head: &[u8]) -> bool {
+    head.starts_with(&JPEG_START)
+        || head.starts_with(&PNG_SIGNATURE)
+        || (head.len() >= 12 && &head[..4] == b"RIFF" && &head[8..12] == b"WEBP")
+}
+
+/// The bytes without metadata, or `None` when they aren't a well-formed
+/// JPEG, PNG or WebP; the caller then sends the file as it is.
+pub fn strip_metadata(bytes: &[u8]) -> Option<Vec<u8>> {
+    if bytes.starts_with(&JPEG_START) {
+        jpeg(bytes)
+    } else if bytes.starts_with(&PNG_SIGNATURE) {
+        png(bytes)
+    } else if is_photo(bytes) {
+        webp(bytes)
+    } else {
+        None
+    }
+}
+
+/// Copies the segments before the image data except APP1 Exif or XMP and
+/// APP13 (IPTC), then the image data as it is.
+fn jpeg(bytes: &[u8]) -> Option<Vec<u8>> {
+    let mut out = Vec::with_capacity(bytes.len());
+    out.extend_from_slice(&bytes[..2]);
+    let mut orientation = None;
+    let mut at = 2;
+    loop {
+        let start = at;
+        if *bytes.get(at)? != 0xFF {
+            return None;
+        }
+        // Fill bytes may come before a marker.
+        while *bytes.get(at + 1)? == 0xFF {
+            at += 1;
+        }
+        let marker = *bytes.get(at + 1)?;
+        at += 2;
+        match marker {
+            // Start of scan: the rest is image data.
+            0xDA => {
+                out.extend_from_slice(&bytes[start..]);
+                break;
+            }
+            // Markers without a length don't belong before the scan.
+            0x01 | 0xD0..=0xD9 => return None,
+            _ => {
+                let length =
+                    usize::from(u16::from_be_bytes([*bytes.get(at)?, *bytes.get(at + 1)?]));
+                if length < 2 {
+                    return None;
+                }
+                let end = at.checked_add(length)?;
+                let payload = bytes.get(at + 2..end)?;
+                let metadata = match marker {
+                    0xE1 if payload.starts_with(EXIF) => {
+                        orientation =
+                            orientation.or_else(|| exif_orientation(&payload[EXIF.len()..]));
+                        true
+                    }
+                    0xE1 => payload.starts_with(XMP),
+                    0xED => true,
+                    _ => false,
+                };
+                if !metadata {
+                    out.extend_from_slice(&bytes[start..end]);
+                }
+                at = end;
+            }
+        }
+    }
+    if let Some(turn @ 2..=8) = orientation {
+        out.splice(2..2, orientation_segment(turn));
+    }
+    Some(out)
+}
+
+/// An APP1 Exif segment with only the orientation: big-endian TIFF, one
+/// IFD, one SHORT entry.
+fn orientation_segment(turn: u16) -> [u8; 36] {
+    let [high, low] = turn.to_be_bytes();
+    [
+        0xFF, 0xE1, 0x00, 0x22, b'E', b'x', b'i', b'f', 0x00, 0x00, b'M', b'M', 0x00, 0x2A, 0x00,
+        0x00, 0x00, 0x08, 0x00, 0x01, 0x01, 0x12, 0x00, 0x03, 0x00, 0x00, 0x00, 0x01, high, low,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    ]
+}
+
+/// The orientation tag in a TIFF block's first IFD, in either byte order.
+fn exif_orientation(tiff: &[u8]) -> Option<u16> {
+    let big = match tiff.get(..2)? {
+        b"MM" => true,
+        b"II" => false,
+        _ => return None,
+    };
+    let u16_at = |at: usize| -> Option<u16> {
+        let pair = [*tiff.get(at)?, *tiff.get(at + 1)?];
+        Some(if big {
+            u16::from_be_bytes(pair)
+        } else {
+            u16::from_le_bytes(pair)
+        })
+    };
+    let u32_at = |at: usize| -> Option<u32> {
+        let quad = [
+            *tiff.get(at)?,
+            *tiff.get(at + 1)?,
+            *tiff.get(at + 2)?,
+            *tiff.get(at + 3)?,
+        ];
+        Some(if big {
+            u32::from_be_bytes(quad)
+        } else {
+            u32::from_le_bytes(quad)
+        })
+    };
+    if u16_at(2)? != 42 {
+        return None;
+    }
+    let ifd = usize::try_from(u32_at(4)?).ok()?;
+    let count = usize::from(u16_at(ifd)?);
+    (0..count).find_map(|index| {
+        let entry = ifd.checked_add(2 + index * 12)?;
+        // A SHORT sits at the start of the entry's 4-byte value.
+        (u16_at(entry)? == ORIENTATION).then(|| u16_at(entry + 8))?
+    })
+}
+
+/// Copies the chunks up to IEND except `eXIf`, the text chunks (`tEXt`,
+/// `zTXt`, `iTXt`, which hold XMP and camera notes) and `tIME`.
+fn png(bytes: &[u8]) -> Option<Vec<u8>> {
+    let mut out = PNG_SIGNATURE.to_vec();
+    let mut at = PNG_SIGNATURE.len();
+    loop {
+        let length =
+            usize::try_from(u32::from_be_bytes(bytes.get(at..at + 4)?.try_into().ok()?)).ok()?;
+        let kind: [u8; 4] = bytes.get(at + 4..at + 8)?.try_into().ok()?;
+        // Length, type, data and CRC.
+        let end = at.checked_add(12)?.checked_add(length)?;
+        let chunk = bytes.get(at..end)?;
+        if !matches!(&kind, b"eXIf" | b"tEXt" | b"zTXt" | b"iTXt" | b"tIME") {
+            out.extend_from_slice(chunk);
+        }
+        at = end;
+        if &kind == b"IEND" {
+            return Some(out);
+        }
+    }
+}
+
+/// Copies the RIFF chunks except `EXIF` and `XMP `, clears their VP8X
+/// flags, and writes the new RIFF size.
+fn webp(bytes: &[u8]) -> Option<Vec<u8>> {
+    let riff_size = usize::try_from(u32::from_le_bytes(bytes.get(4..8)?.try_into().ok()?)).ok()?;
+    let end = riff_size.checked_add(8)?;
+    if end > bytes.len() {
+        return None;
+    }
+    let mut out = bytes[..12].to_vec();
+    let mut at = 12;
+    while at < end {
+        let kind: [u8; 4] = bytes.get(at..at + 4)?.try_into().ok()?;
+        let length = usize::try_from(u32::from_le_bytes(
+            bytes.get(at + 4..at + 8)?.try_into().ok()?,
+        ))
+        .ok()?;
+        // An odd-sized chunk carries a pad byte.
+        let next = at
+            .checked_add(8)?
+            .checked_add(length)?
+            .checked_add(length & 1)?;
+        let chunk = bytes.get(at..next)?;
+        match &kind {
+            b"EXIF" | b"XMP " => {}
+            b"VP8X" => {
+                let mut chunk = chunk.to_vec();
+                *chunk.get_mut(8)? &= !(VP8X_EXIF | VP8X_XMP);
+                out.extend_from_slice(&chunk);
+            }
+            _ => out.extend_from_slice(chunk),
+        }
+        at = next;
+    }
+    let size = u32::try_from(out.len() - 8).ok()?;
+    out[4..8].copy_from_slice(&size.to_le_bytes());
+    Some(out)
+}
+
+#[cfg(test)]
+mod tests {
+    use std::io::Cursor;
+
+    use image::metadata::Orientation;
+    use image::{ImageDecoder, ImageFormat, RgbImage, RgbaImage};
+
+    use super::*;
+
+    const SECRET: &[u8] = b"GPS 52.5200N 13.4050E";
+
+    fn encoded(format: ImageFormat) -> Vec<u8> {
+        let mut out = Vec::new();
+        let picture = RgbaImage::from_fn(16, 8, |x, y| {
+            image::Rgba([x as u8 * 16, y as u8 * 32, 90, 255])
+        });
+        let picture = match format {
+            ImageFormat::Jpeg => {
+                image::DynamicImage::ImageRgb8(RgbImage::from_fn(16, 8, |x, y| {
+                    image::Rgb([x as u8 * 16, y as u8 * 32, 90])
+                }))
+            }
+            _ => image::DynamicImage::ImageRgba8(picture),
+        };
+        picture
+            .write_to(&mut Cursor::new(&mut out), format)
+            .unwrap();
+        out
+    }
+
+    /// Little-endian TIFF: orientation `turn` in IFD0, then `SECRET` where
+    /// a GPS block would be.
+    fn exif_block(turn: u16) -> Vec<u8> {
+        let mut tiff = b"II\x2A\x00\x08\x00\x00\x00".to_vec();
+        tiff.extend_from_slice(&1u16.to_le_bytes());
+        tiff.extend_from_slice(&ORIENTATION.to_le_bytes());
+        tiff.extend_from_slice(&3u16.to_le_bytes());
+        tiff.extend_from_slice(&1u32.to_le_bytes());
+        tiff.extend_from_slice(&turn.to_le_bytes());
+        tiff.extend_from_slice(&[0, 0, 0, 0, 0, 0]);
+        tiff.extend_from_slice(SECRET);
+        let mut block = EXIF.to_vec();
+        block.extend_from_slice(&tiff);
+        block
+    }
+
+    fn jpeg_segment(marker: u8, payload: &[u8]) -> Vec<u8> {
+        let mut segment = vec![0xFF, marker];
+        segment.extend_from_slice(&u16::try_from(payload.len() + 2).unwrap().to_be_bytes());
+        segment.extend_from_slice(payload);
+        segment
+    }
+
+    fn contains(haystack: &[u8], needle: &[u8]) -> bool {
+        haystack
+            .windows(needle.len())
+            .any(|window| window == needle)
+    }
+
+    fn png_chunk(kind: &[u8; 4], data: &[u8]) -> Vec<u8> {
+        let mut chunk = u32::try_from(data.len()).unwrap().to_be_bytes().to_vec();
+        chunk.extend_from_slice(kind);
+        chunk.extend_from_slice(data);
+        // The CRC is copied, never checked here; image checks it below.
+        let mut crc = crc32(kind);
+        crc = crc32_more(crc, data);
+        chunk.extend_from_slice(&(!crc).to_be_bytes());
+        chunk
+    }
+
+    fn crc32(bytes: &[u8]) -> u32 {
+        crc32_more(0xFFFF_FFFF, bytes)
+    }
+
+    fn crc32_more(mut crc: u32, bytes: &[u8]) -> u32 {
+        for &byte in bytes {
+            crc ^= u32::from(byte);
+            for _ in 0..8 {
+                crc = if crc & 1 == 1 {
+                    (crc >> 1) ^ 0xEDB8_8320
+                } else {
+                    crc >> 1
+                };
+            }
+        }
+        crc
+    }
+
+    #[test]
+    fn jpeg_gps_exif_is_removed_and_orientation_kept() {
+        let plain = encoded(ImageFormat::Jpeg);
+        let mut photo = plain[..2].to_vec();
+        photo.extend(jpeg_segment(0xE1, &exif_block(6)));
+        photo.extend(jpeg_segment(0xE1, &[XMP, SECRET].concat()));
+        photo.extend(jpeg_segment(0xED, SECRET));
+        photo.extend_from_slice(&plain[2..]);
+
+        let stripped = strip_metadata(&photo).unwrap();
+
+        assert!(!contains(&stripped, SECRET));
+        assert_eq!(&stripped[2..38], &orientation_segment(6));
+        assert_eq!(stripped.len(), plain.len() + 36);
+        let mut decoder = image::codecs::jpeg::JpegDecoder::new(Cursor::new(&stripped)).unwrap();
+        assert_eq!(decoder.orientation().unwrap(), Orientation::Rotate90);
+        image::load_from_memory(&stripped).unwrap();
+    }
+
+    #[test]
+    fn jpeg_orientation_1_needs_no_exif() {
+        let plain = encoded(ImageFormat::Jpeg);
+        let mut photo = plain[..2].to_vec();
+        photo.extend(jpeg_segment(0xE1, &exif_block(1)));
+        photo.extend_from_slice(&plain[2..]);
+
+        assert_eq!(strip_metadata(&photo).unwrap(), plain);
+    }
+
+    #[test]
+    fn jpeg_without_exif_is_unchanged() {
+        let plain = encoded(ImageFormat::Jpeg);
+
+        assert_eq!(strip_metadata(&plain).unwrap(), plain);
+    }
+
+    #[test]
+    fn a_truncated_jpeg_is_left_alone() {
+        let plain = encoded(ImageFormat::Jpeg);
+        let mut photo = plain[..2].to_vec();
+        photo.extend(jpeg_segment(0xE1, &exif_block(6)));
+
+        assert_eq!(strip_metadata(&photo[..photo.len() - 4]), None);
+    }
+
+    #[test]
+    fn png_metadata_chunks_are_removed_and_the_png_decodes() {
+        let plain = encoded(ImageFormat::Png);
+        // After the signature and IHDR (8 + 25 bytes).
+        let mut picture = plain[..33].to_vec();
+        picture.extend(png_chunk(b"eXIf", &exif_block(1)[EXIF.len()..]));
+        picture.extend(png_chunk(
+            b"iTXt",
+            &[b"XML:com.adobe.xmp\0\0\0\0\0", SECRET].concat(),
+        ));
+        picture.extend(png_chunk(b"tEXt", &[b"Comment\0", SECRET].concat()));
+        picture.extend_from_slice(&plain[33..]);
+        image::load_from_memory(&picture).unwrap();
+
+        let stripped = strip_metadata(&picture).unwrap();
+
+        assert!(!contains(&stripped, SECRET));
+        assert_eq!(stripped, plain);
+        image::load_from_memory(&stripped).unwrap();
+    }
+
+    #[test]
+    fn webp_exif_is_removed_and_riff_size_fixed() {
+        let plain = encoded(ImageFormat::WebP);
+        // Extended format: VP8X (Exif and XMP flags set), the image, EXIF
+        // and XMP chunks, one of odd size.
+        let mut vp8x = b"VP8X".to_vec();
+        vp8x.extend_from_slice(&10u32.to_le_bytes());
+        vp8x.extend_from_slice(&[VP8X_EXIF | VP8X_XMP | 0x10, 0, 0, 0, 15, 0, 0, 7, 0, 0]);
+        let mut picture = plain[..12].to_vec();
+        picture.extend_from_slice(&vp8x);
+        picture.extend_from_slice(&plain[12..]);
+        for (kind, data) in [
+            (b"EXIF", exif_block(6)[EXIF.len()..].to_vec()),
+            (b"XMP ", [SECRET, b"!"].concat()),
+        ] {
+            picture.extend_from_slice(kind);
+            picture.extend_from_slice(&u32::try_from(data.len()).unwrap().to_le_bytes());
+            picture.extend_from_slice(&data);
+            if data.len() % 2 == 1 {
+                picture.push(0);
+            }
+        }
+        let size = u32::try_from(picture.len() - 8).unwrap();
+        picture[4..8].copy_from_slice(&size.to_le_bytes());
+        image::load_from_memory(&picture).unwrap();
+
+        let stripped = strip_metadata(&picture).unwrap();
+
+        assert!(!contains(&stripped, SECRET));
+        assert_eq!(stripped[20] & (VP8X_EXIF | VP8X_XMP), 0);
+        assert_eq!(stripped[20] & 0x10, 0x10);
+        assert_eq!(
+            u32::from_le_bytes(stripped[4..8].try_into().unwrap()) as usize,
+            stripped.len() - 8
+        );
+        assert_eq!(stripped.len(), plain.len() + vp8x.len());
+        image::load_from_memory(&stripped).unwrap();
+    }
+
+    #[test]
+    fn other_files_are_left_alone() {
+        assert_eq!(strip_metadata(b"PK\x03\x04 a zip file"), None);
+        assert_eq!(strip_metadata(b""), None);
+        assert_eq!(strip_metadata(&PNG_SIGNATURE), None);
+    }
+}
+```
+
+**`src/attachments/mod.rs` and `src/attachments/upload.rs`:**
+
+```diff
+--- a/crates/opencord-core/src/attachments/mod.rs
++++ b/crates/opencord-core/src/attachments/mod.rs
+@@ -3,5 +3,6 @@
+ 
+ pub(crate) mod cache;
+ pub(crate) mod download;
++pub mod exif;
+ pub(crate) mod transfer;
+ pub(crate) mod upload;
+```
+
+```diff
+--- a/crates/opencord-core/src/attachments/upload.rs
++++ b/crates/opencord-core/src/attachments/upload.rs
+@@ -11,7 +11,7 @@
+ 
+ use bytes::Bytes;
+ use futures_util::{StreamExt, TryStreamExt};
+-use opencord_common::upload::{MAX_ATTACHMENTS, PIECE_BYTES};
++use opencord_common::upload::{IMAGE_PROCESS_MAX_BYTES, MAX_ATTACHMENTS, PIECE_BYTES};
+ use opencord_proto::v1 as proto;
+ use proto::request::Kind as Request;
+ use proto::response::Result as Response;
+@@ -20,6 +20,7 @@
+ use tokio::sync::oneshot;
+ use tokio_util::sync::CancellationToken;
+ 
++use super::exif;
+ use super::transfer::{Call, upload_status};
+ use crate::api::types::{CoreError, CoreEventPayload, Message, OutgoingFile, UploadPhase};
+ use crate::client::{Client, unexpected};
+@@ -335,6 +336,7 @@
+             }
+             (None, None) => return Err(invalid("a file needs a path or bytes")),
+         };
++        let body = without_metadata(body).await?;
+         let size = match &body {
+             Body::Bytes(bytes) => bytes.len() as u64,
+             Body::File(file) => file
+@@ -368,6 +370,37 @@
+     }
+ }
+ 
++/// A photo of at most 100 MiB without its metadata (Task 20), read into
++/// memory to strip it. Anything else stays as it is.
++async fn without_metadata(body: Body) -> Result<Body, CoreError> {
++    let unreadable = |error: std::io::Error| invalid(format!("the file can't be read: {error}"));
++    let bytes = match body {
++        Body::Bytes(bytes) => bytes,
++        Body::File(mut file) => {
++            let size = file.metadata().await.map_err(unreadable)?.len();
++            let mut head = [0; 12];
++            let read = file.read(&mut head).await.map_err(unreadable)?;
++            if size > IMAGE_PROCESS_MAX_BYTES || !exif::is_photo(&head[..read]) {
++                return Ok(Body::File(file));
++            }
++            file.seek(SeekFrom::Start(0)).await.map_err(unreadable)?;
++            let mut bytes = Vec::with_capacity(size as usize);
++            file.read_to_end(&mut bytes).await.map_err(unreadable)?;
++            Bytes::from(bytes)
++        }
++    };
++    if bytes.len() as u64 > IMAGE_PROCESS_MAX_BYTES || !exif::is_photo(&bytes) {
++        return Ok(Body::Bytes(bytes));
++    }
++    let stripped = tokio::task::spawn_blocking(move || match exif::strip_metadata(&bytes) {
++        Some(stripped) => Bytes::from(stripped),
++        None => bytes,
++    })
++    .await
++    .map_err(|error| invalid(format!("the file can't be prepared: {error}")))?;
++    Ok(Body::Bytes(stripped))
++}
++
+ /// Sends the file from the start. A piece whose answer is lost is sent
+ /// again, and the server's 409 says where it really is.
+ async fn send_pieces(
+```
+
+**`tests/attachments.rs`:**
+
+```diff
+--- a/crates/opencord-core/tests/attachments.rs
++++ b/crates/opencord-core/tests/attachments.rs
+@@ -506,3 +506,62 @@
+     owner.client.media_cache_clear().await.unwrap();
+     assert_eq!(owner.client.media_cache_size().await.unwrap(), 0);
+ }
++
++const SECRET: &[u8] = b"GPS 52.5200N 13.4050E";
++
++/// A JPEG whose Exif holds orientation 6 and a GPS position.
++fn photo_with_location() -> Vec<u8> {
++    let mut jpeg = Vec::new();
++    image::DynamicImage::ImageRgb8(image::RgbImage::from_pixel(
++        32,
++        16,
++        image::Rgb([200, 80, 40]),
++    ))
++    .write_to(
++        &mut std::io::Cursor::new(&mut jpeg),
++        image::ImageFormat::Jpeg,
++    )
++    .unwrap();
++    let mut exif = b"Exif\0\0II\x2A\x00\x08\x00\x00\x00\x01\x00\x12\x01\x03\x00\x01\x00\x00\x00\x06\x00\x00\x00\x00\x00\x00\x00".to_vec();
++    exif.extend_from_slice(SECRET);
++    let mut photo = jpeg[..2].to_vec();
++    photo.extend_from_slice(&[0xFF, 0xE1]);
++    photo.extend_from_slice(&u16::try_from(exif.len() + 2).unwrap().to_be_bytes());
++    photo.extend_from_slice(&exif);
++    photo.extend_from_slice(&jpeg[2..]);
++    photo
++}
++
++/// Task 20: the photo's GPS position never reaches the server, and it still
++/// shows the right way up.
++#[tokio::test(flavor = "multi_thread")]
++async fn a_photos_location_never_leaves_the_device() {
++    let server = TestServer::start().await;
++    let (owner, ready) = TestClient::owner(&server).await;
++    let key = server.address();
++    let dir = tempfile::tempdir().unwrap();
++    let path = dir.path().join("photo.jpg");
++    std::fs::write(&path, photo_with_location()).unwrap();
++
++    let message = owner
++        .client
++        .send_message_with_files(
++            &key,
++            general(&ready),
++            String::new(),
++            "n1".to_owned(),
++            vec![OutgoingFile {
++                path: Some(path.to_string_lossy().into_owned()),
++                bytes: None,
++                filename: String::new(),
++            }],
++        )
++        .await
++        .unwrap();
++
++    let attachment = &message.attachments[0];
++    let sent = download(&owner, &key, attachment.id).await;
++    assert!(!sent.windows(SECRET.len()).any(|window| window == SECRET));
++    // Orientation 6 turns the 32×16 photo on its side.
++    assert_eq!((attachment.width, attachment.height), (Some(16), Some(32)));
++}
+```
+
+- [ ] **Step 1:** Write the tests: `exif.rs`'s unit tests and `a_photos_location_never_leaves_the_device`.
+- [ ] **Step 2:** Run → FAIL.
+- [ ] **Step 3:** Make the changes. The API doesn't change, so don't regenerate.
+- [ ] **Step 4:** Run → PASS:
+  - `cargo test -p opencord_core --lib -- attachments::exif`: 7 tests;
+  - `cargo test -p opencord_core --test attachments`: 12 tests;
+  - clippy as before.
+- [ ] **Step 5: Commit:** `feat: photos lose their metadata before upload (A4)`.
+
+### Task 21: Clipboard images
+
+**What it does.**
+- `clipboard_image` returns the clipboard's image as PNG. It returns `None` when the clipboard holds text or nothing, so a paste of text stays a paste of text.
+- `clipboard_set_image` decodes PNG, JPEG, GIF or WebP with the server's image limits and puts it on the clipboard. It backs "Copy image" in Task 24.
+- **One `arboard::Clipboard` is kept for the app's life.** On Linux a copied image is served by this process and vanishes when its clipboard is dropped.
+- Both run in `spawn_blocking` on the core's runtime (`on_blocking`), since frb's async functions don't run on Tokio.
+- **Linux only for now.**
+  - `arboard` 3.7.0 goes in the Linux section of `Cargo.toml`, with Wayland support.
+  - On Windows, `arboard` brings in `clipboard-win` and `error-code`, both BSL-1.0, which the Global Constraints' licence list doesn't include. P1 settles Windows.
+  - macOS is added in P2, on the Mac. Other systems return `None`, or an error for a copy.
+
+**Files.**
+- Create: `src/attachments/clipboard.rs`.
+- Modify: `Cargo.toml`, `src/attachments/mod.rs`, `src/api/client.rs`, `src/api/attachments.rs`.
+
+**`Cargo.toml`** (`image` moves from the dev-dependencies to the dependencies):
+
+```diff
+--- a/crates/opencord-core/Cargo.toml
++++ b/crates/opencord-core/Cargo.toml
+@@ -18,6 +18,7 @@
+ futures-util.workspace = true
+ getrandom.workspace = true
+ hex.workspace = true
++image.workspace = true
+ opencord-common.workspace = true
+ opencord-media.workspace = true
+ opencord-proto.workspace = true
+@@ -37,7 +38,6 @@
+ webpki-roots.workspace = true
+ 
+ [dev-dependencies]
+-image.workspace = true
+ opencord-server.workspace = true
+ tempfile.workspace = true
+ 
+@@ -58,6 +58,9 @@
+ # GPU into Flutter's GL textures. EGL loaded at run time, like Flutter's.
+ glow = "0.18.0"
+ khronos-egl = { version = "6.0.0", features = ["dynamic"] }
++# Pasting and copying images (media uploads plan, Task 21), on X11 and
++# Wayland. macOS gets it in P2; on Windows it brings Boost-licensed crates.
++arboard = { version = "3.7.0", default-features = false, features = ["image-data", "wayland-data-control"] }
+ 
+ [target.'cfg(target_os = "macos")'.dependencies]
+ 
+```
+
+**`src/attachments/clipboard.rs`** (new):
+
+```rust
+//! Images on the system clipboard (media uploads plan, Task 21): pasted into
+//! the composer as PNG, and put there by "Copy image".
+
+use crate::api::types::CoreError;
+
+pub use system::{image, set_image};
+
+#[cfg(target_os = "linux")]
+mod system {
+    use std::borrow::Cow;
+    use std::io::Cursor;
+    use std::sync::{Mutex, PoisonError};
+
+    use arboard::{Clipboard, Error, ImageData};
+
+    use super::{CoreError, failed};
+
+    /// The same limits as the server's image processing.
+    const MAX_SIDE: u32 = 16_384;
+    const MAX_PIXELS: u64 = 50_000_000;
+    const MAX_ALLOC: u64 = 512 * 1024 * 1024;
+
+    /// Kept for the app's life: on Linux a copied image is served from this
+    /// process, and goes when its clipboard is dropped.
+    static CLIPBOARD: Mutex<Option<Clipboard>> = Mutex::new(None);
+
+    fn with_clipboard<T>(
+        work: impl FnOnce(&mut Clipboard) -> Result<T, CoreError>,
+    ) -> Result<T, CoreError> {
+        let mut held = CLIPBOARD.lock().unwrap_or_else(PoisonError::into_inner);
+        let clipboard = match &mut *held {
+            Some(clipboard) => clipboard,
+            empty => empty.insert(Clipboard::new().map_err(failed)?),
+        };
+        work(clipboard)
+    }
+
+    /// The clipboard's image as PNG; `None` when it holds text or nothing.
+    pub fn image() -> Result<Option<Vec<u8>>, CoreError> {
+        with_clipboard(|clipboard| {
+            if clipboard.get_text().is_ok_and(|text| !text.is_empty()) {
+                return Ok(None);
+            }
+            let picture = match clipboard.get_image() {
+                Ok(picture) => picture,
+                Err(Error::ContentNotAvailable) => return Ok(None),
+                Err(error) => return Err(failed(error)),
+            };
+            let width = u32::try_from(picture.width).map_err(failed)?;
+            let height = u32::try_from(picture.height).map_err(failed)?;
+            let rgba = image::RgbaImage::from_raw(width, height, picture.bytes.into_owned())
+                .ok_or_else(|| failed("the clipboard's image has the wrong size"))?;
+            let mut png = Vec::new();
+            rgba.write_to(&mut Cursor::new(&mut png), image::ImageFormat::Png)
+                .map_err(failed)?;
+            Ok(Some(png))
+        })
+    }
+
+    /// Puts a PNG, JPEG, GIF or WebP on the clipboard.
+    pub fn set_image(bytes: &[u8]) -> Result<(), CoreError> {
+        let mut limits = image::Limits::default();
+        limits.max_image_width = Some(MAX_SIDE);
+        limits.max_image_height = Some(MAX_SIDE);
+        limits.max_alloc = Some(MAX_ALLOC);
+        let mut reader = image::ImageReader::new(Cursor::new(bytes))
+            .with_guessed_format()
+            .map_err(failed)?;
+        reader.limits(limits);
+        let picture = reader.decode().map_err(failed)?;
+        if u64::from(picture.width()) * u64::from(picture.height()) > MAX_PIXELS {
+            return Err(failed("the image is too large"));
+        }
+        let rgba = picture.to_rgba8();
+        let data = ImageData {
+            width: rgba.width() as usize,
+            height: rgba.height() as usize,
+            bytes: Cow::Owned(rgba.into_raw()),
+        };
+        with_clipboard(|clipboard| clipboard.set_image(data).map_err(failed))
+    }
+}
+
+/// Systems without a clipboard backend yet: macOS gets one in P2, Windows
+/// in P1.
+#[cfg(not(target_os = "linux"))]
+mod system {
+    use super::CoreError;
+
+    pub fn image() -> Result<Option<Vec<u8>>, CoreError> {
+        Ok(None)
+    }
+
+    pub fn set_image(_bytes: &[u8]) -> Result<(), CoreError> {
+        Err(super::failed("this system's clipboard isn't supported"))
+    }
+}
+
+fn failed(error: impl std::fmt::Display) -> CoreError {
+    CoreError::InvalidInput {
+        message: format!("the clipboard couldn't be used: {error}"),
+    }
+}
+```
+
+**`src/attachments/mod.rs`, `src/api/client.rs` and `src/api/attachments.rs`:**
+
+```diff
+--- a/crates/opencord-core/src/attachments/mod.rs
++++ b/crates/opencord-core/src/attachments/mod.rs
+@@ -2,6 +2,7 @@
+ //! downloading them, the encrypted cache, photo metadata and the clipboard.
+ 
+ pub(crate) mod cache;
++pub mod clipboard;
+ pub(crate) mod download;
+ pub mod exif;
+ pub(crate) mod transfer;
+```
+
+```diff
+--- a/crates/opencord-core/src/api/client.rs
++++ b/crates/opencord-core/src/api/client.rs
+@@ -1494,6 +1494,19 @@
+         })?
+ }
+ 
++/// Runs blocking `work` (the clipboard) on the core's runtime.
++pub(crate) async fn on_blocking<T: Send + 'static>(
++    work: impl FnOnce() -> Result<T, CoreError> + Send + 'static,
++) -> Result<T, CoreError> {
++    let runtime = RUNTIME.get().ok_or(CoreError::NotInitialized)?;
++    runtime
++        .spawn_blocking(work)
++        .await
++        .map_err(|error| CoreError::Connection {
++            message: error.to_string(),
++        })?
++}
++
+ fn deliver(event: CoreEvent) {
+     let mut events = lock_events();
+     let undelivered = match &events.sink {
+```
+
+```diff
+--- a/crates/opencord-core/src/api/attachments.rs
++++ b/crates/opencord-core/src/api/attachments.rs
+@@ -3,11 +3,12 @@
+ 
+ use flutter_rust_bridge::frb;
+ 
+-use super::client::{client, on_runtime};
++use super::client::{client, on_blocking, on_runtime};
+ use super::types::{
+     AttachmentVariant, CoreError, Message, OutgoingFile, S3Config, StorageInfo, StorageTestResult,
+     StorageTestTarget, UploadSettings,
+ };
++use crate::attachments::clipboard;
+ 
+ /// MANAGE_SERVER. `None` leaves a setting as it is.
+ pub async fn update_upload_settings(
+@@ -157,3 +158,13 @@
+ pub async fn media_cache_clear() -> Result<(), CoreError> {
+     on_runtime(move |client| async move { client.media_cache_clear().await }).await
+ }
++
++/// The clipboard's image as PNG; `None` when it holds text or nothing.
++pub async fn clipboard_image() -> Result<Option<Vec<u8>>, CoreError> {
++    on_blocking(clipboard::image).await
++}
++
++/// Puts an image (PNG, JPEG, GIF or WebP) on the clipboard.
++pub async fn clipboard_set_image(bytes: Vec<u8>) -> Result<(), CoreError> {
++    on_blocking(move || clipboard::set_image(&bytes)).await
++}
+```
+
+- [ ] **Step 1:** Make the changes, then regenerate the bindings. There are no automated tests: the clipboard needs a desktop session. The live check is in A5.
+- [ ] **Step 2:** Run → PASS: clippy as before, and `app/tool/check_platforms.sh` ("The client crates build off Linux.").
+- [ ] **Step 3: Commit:** `feat: clipboard images in the core (A4)`.
+
+**A4 stop.**
+1. Run the full checks (Milestone stops). Also run `app/tool/check_platforms.sh`.
+2. Write **D56** into `docs/decisions.md` from the text below, then report.
+
+The decisions entry, copied into `docs/decisions.md` after D55 with `<commits>` replaced by the A4 commit range:
+
+```markdown
+## D56: Media uploads: the client core (Phase 4 A4, 2026-10-19)
+
+- **Why.** Milestone A4 of media uploads (`docs/superpowers/plans/2026-10-18-media-uploads.md`) gives the client core what the app needs to send, show and save files. Commits: <commits>.
+- **Types and requests.**
+  - Messages carry their attachments, roles their upload limit, and Ready the upload settings. In RoleChanges, a limit of 0 removes a role's limit.
+  - The core has the requests for upload settings and the owner's storage, and passes UploadSettingsUpdate and StorageUpdate to the app. CoreError gains Cancelled.
+- **Transfers** (`attachments/transfer.rs`).
+  - Uploads and downloads use one `reqwest` client per server, built with the gateway's own certificate check (`TlsTrust`), so a pinned certificate stays pinned. It is rebuilt when the server's route changes.
+  - A changed certificate is FingerprintMismatch. A 401 renews the media token once, with the renewal now shared with `http.rs`.
+  - Connecting may take 10 seconds, and 60 seconds without a byte ends a request. A piece may take 120 seconds, a status or finish 30, and a download has no overall limit.
+- **Sending files** (`attachments/upload.rs`).
+  - `send_message_with_files` takes 1 to 10 files, by path or by bytes. Two go up at a time, in the server's 8 MiB pieces, then SendMessage goes out with their ids in the files' order.
+  - A network failure is tried again 1, 2, 4, 8 and 16 seconds later, six tries in all. A piece whose answer was lost goes again, and the server's 409 says where the upload really is.
+  - Each file's verdict comes by its UploadReady or UploadFailed event, waited for from before the finish request. The status is also asked every 5 seconds, in case the event was lost.
+  - UploadProgress follows each file: Preparing, Uploading (at most 10 a second), Processing, Sending, Done. On a failure the failing file is Failed and the others Cancelled.
+  - `cancel_send` stops a send. After a cancel or a failure, every upload the send made is cancelled on the server.
+- **Photo metadata** (`attachments/exif.rs`). A JPEG, PNG or WebP of at most 100 MiB loses its metadata before it leaves the device.
+  - JPEG loses its Exif, XMP and IPTC segments. An orientation other than 1 comes back as a minimal Exif block, so the photo still shows the right way up.
+  - PNG loses its eXIf, text and tIME chunks. WebP loses its EXIF and XMP chunks, their VP8X flags are cleared, and its RIFF size is rewritten.
+  - A file that isn't well formed is sent as it is.
+- **Downloads and the cache** (`attachments/{download,cache}.rs`).
+  - `download_attachment` streams a file through `path.part` to `path`, with DownloadProgress; `cancel_download` stops it.
+  - `attachment_bytes` reads a thumbnail, or an original of at most 64 MiB, for the image viewer and the voice and audio players. Thumbnails and originals up to 20 MiB are cached.
+  - The cache is 1 GiB for every server, the least recently used going first. Each entry is sealed as a client-cache blob under a key the app keeps in the system keychain (`media_cache_key_store.dart`). The entry's name is a SHA-256 of server, attachment and variant, and its first 8 bytes are the blob id, so a file copied over another entry doesn't open. Without the keychain nothing is cached on disk.
+- **Clipboard** (`attachments/clipboard.rs`).
+  - `clipboard_image` pastes an image as PNG; with text on the clipboard it returns nothing. `clipboard_set_image` copies an image.
+  - It uses `arboard` 3.7.0 on Linux, X11 and Wayland, with one clipboard kept for the app's life so a copied image stays.
+  - macOS follows in P2. On Windows `arboard` needs BSL-1.0 crates, outside the allowed licences, so P1 settles Windows.
+- **Tests.** `tests/attachments.rs` runs the core against a real server: sending, a lost piece answer, cancelling, a blocked file, an expired token, saving, the cache with the server stopped, and a photo's location. ServerHandle gains `uploads_in_state` for them.
+```
 
 ---
 
@@ -3676,7 +8213,7 @@ Future<void> clearMediaCache();
   - `pub fn voice_record_stop() -> Result<VoiceDraft, CoreError>`
   - `pub fn voice_record_cancel()`
   - `pub fn voice_draft_discard(draft_id: u64)`
-  - `pub async fn send_voice_message(server_key: String, channel_id: i64, nonce: String, draft_id: u64) -> Result<Message, CoreError>`: uses Task 19's manager with an in-memory source, kind VOICE_MESSAGE, filename `voice-message.ogg`, empty content; the draft is removed after success.
+  - `pub async fn send_voice_message(server_key: String, channel_id: i64, nonce: String, draft_id: u64) -> Result<Message, CoreError>`: uses Task 18's manager (`attachments::upload::send`, which gains the upload kind as an argument; it sends FILE until then) with an in-memory source, kind VOICE_MESSAGE, filename `voice-message.ogg`, empty content; the draft is removed after success.
 - **Recorder thread** (`opencord-voice-recorder`), with the input source chosen at start:
   - **In a call** (`call_engine()` is Some): `engine.set_capture_tap(Some(producer), true)`; the ticks are already processed. On stop or cancel, `set_capture_tap(None, false)`.
     - The recorder sees the engine only through `pub(crate) trait TapEngine: Send + Sync { fn set_capture_tap(&self, tap: Option<rtrb::Producer<f32>>, silence_call: bool); }`, implemented for `AudioEngine`, so tests can pass a fake.
@@ -3993,7 +8530,8 @@ Branch `phase4-windows` from `phase4-media`.
 1. Check that the shipped FFmpeg DLLs contain the decoders and demuxers from Task 32 (`ffmpeg -decoders` from the same build, or the build's configure line), including `libdav1d`. If any is missing, switch to an LGPL shared build that has them and update `docs/packaging.md` (Windows).
 2. `cargo test --workspace --lib --bins --tests`, `flutter test`, then every live check from A5, A6 and A7.
 3. Fix Windows-only problems in Windows files only. Shared fixes go back through the Linux session.
-4. Ledger, report, push the branch when asked.
+4. The clipboard (Task 21). `arboard` on Windows needs `clipboard-win` and `error-code`, both BSL-1.0, which the licence list doesn't include. Ask the user: allow BSL-1.0 (then add `arboard` to the Windows section of `crates/opencord-core/Cargo.toml` and widen `clipboard.rs`'s `cfg`), or write `image` and `set_image` for Windows with `windows-sys`. Then check pasting and "Copy image".
+5. Ledger, report, push the branch when asked.
 
 # P2: macOS (on the Mac)
 
@@ -4005,4 +8543,5 @@ Branch `phase4-macos` from `phase4-media`.
 2. `crates/opencord-media/Cargo.toml` `[target.'cfg(target_os = "macos")'.dependencies]` gains `ffmpeg-next.workspace = true`; `player`'s cfg includes macOS.
 3. Write the decision entry superseding D34's "no FFmpeg on macOS" for playback only; calls keep VideoToolbox.
 4. Microphone permission: the existing `NSMicrophoneUsageDescription` covers voice messages. Check the first-record prompt.
-5. Tests and every live check from A5, A6 and A7. Ledger, report.
+5. The clipboard (Task 21): add `arboard = { version = "3.7.0", default-features = false, features = ["image-data"] }` to the macOS section of `crates/opencord-core/Cargo.toml` and widen `clipboard.rs`'s `cfg` to `any(target_os = "linux", target_os = "macos")`. Check pasting and "Copy image".
+6. Tests and every live check from A5, A6 and A7. Ledger, report.
