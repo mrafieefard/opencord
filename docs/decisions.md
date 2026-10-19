@@ -778,3 +778,47 @@ The desktop UI plan's §17.5 never arrived, so where Phase 2 §12 says only what
     - the media cache section reports its errors and says what it holds.
   - **Leftovers from before attachments:** the role editor still showed Attach files as "coming later", and Dart's default @everyone lacked it, unlike `Permissions::DEFAULT_EVERYONE`. Both are fixed.
   - **D57 itself** described the plan rather than the code in five places: the preset size, the paste handler, the upload rows, the text preview and a button label.
+
+## D58: Media uploads: voice messages (Phase 4 A6, 2026-10-19)
+
+- **Why.** Milestone A6 of media uploads (`docs/superpowers/plans/2026-10-18-media-uploads.md`) brings voice messages: audio engine capture tap and local media mixing, the core voice recorder and player, holding and locking to record in the app, and voice message bubbles with waveform playback. Commits: bb91e83..7b2c8eb.
+- **Audio engine tap and local media** (`crates/opencord-media/src/audio/{processor.rs,engine.rs}`).
+  - `Processor::set_capture_tap(tap: Option<rtrb::Producer<f32>>, silence_call: bool)` pushes 480-sample ticks to the tap after input volume scaling; with `silence_call`, the tick is zeroed before `capture.push` so the call receives silence while the input level meter continues measuring the real microphone level.
+  - `Processor::set_local_media(source: Option<rtrb::Consumer<f32>>)` pops interleaved stereo 48 kHz samples and adds them directly into `self.stereo` during `play()` (or discards them during `play_unheard()`), automatically including them in the acoustic echo cancellation reference signal.
+  - `AudioEngine::set_capture_tap` and `AudioEngine::set_local_media` forward the commands (`Command::CaptureTap` and `Command::LocalMedia`) to the audio engine thread.
+- **The voice recorder** (`crates/opencord-core/src/voice_message/recorder.rs`, `media.rs`, `client.rs`, `api/{types.rs,attachments.rs}`).
+  - `voice_record_start(max_seconds)` initiates an `opencord-voice-recorder` worker thread using an active call's capture tap via `TapEngine` (silencing call audio) or opening a direct `Microphone` with `FromDevice` and `VoiceProcessing`.
+  - Samples are encoded via `opus::Encoder` at 48 kHz Mono Voip with 32,000 bps bitrate, VBR enabled, DTX disabled, and complexity 10.
+  - Mean square sample powers (`Σx²/480`) are collected per 10 ms tick; at stop, the powers are max-pooled into 128 slices where `rms = sqrt(mean of slice)` and mapped to bytes via `level_byte(rms)`.
+  - Packets are written into an Ogg Opus stream with encoder pre-skip lookahead via `ogg::write(1, pre_skip, &packets, samples)`.
+  - Emits `MediaEvent::VoiceRecordLevel { level }` at most every 33 ms and `MediaEvent::VoiceRecordStopped { reason }` on `VoiceStopReason::MaxLength` or `VoiceStopReason::DeviceLost`.
+  - `voice_record_stop()` returns `VoiceDraft { draft_id, duration_ms, waveform }` and caches `(ogg_bytes, draft)` in memory; `voice_record_cancel()` aborts without a draft; `voice_draft_discard(draft_id)` frees the cached draft.
+  - `send_voice_message(server_key, channel_id, nonce, draft_id)` sends the draft via `attachments::upload::send` using `proto::AttachmentKind::VoiceMessage` as `voice-message.ogg` with empty text, discarding the draft upon completion.
+- **Voice message playback** (`crates/opencord-core/src/voice_message/player.rs`, `now_playing.rs`, `api/{types.rs,attachments.rs}`).
+  - `voice_play(item, position_ms, speed)` accepts `PlaybackItem::Attachment` or `PlaybackItem::Draft` at speeds 1.0, 1.5, or 2.0.
+  - Employs `wsola::TimeStretch` for pitch-preserving time compression/expansion on 48 kHz mono PCM, seeking by calculating packet sample offsets with `opus::packet::get_nb_samples`.
+  - Routes audio to the active call engine via `set_local_media` as interleaved stereo, or plays through `Speaker::open` with `ToDevice` and output volume.
+  - `NowPlaying` manages a stoppable handle, stopping any existing player when a new item starts or when `voice_stop()` is called.
+  - Exposes `voice_pause()`, `voice_resume()`, `voice_seek(position_ms)`, `voice_set_speed(speed)`, and `voice_stop()`.
+  - Emits `MediaEvent::PlaybackUpdate { item, position_ms, duration_ms, playing, buffering }` (at source time rate), `MediaEvent::PlaybackEnded`, and `MediaEvent::PlaybackFailed`.
+- **Permissions and repository** (`app/lib/core/model/{permissions.dart,voice.dart}`, `app/lib/core/repository/{repository.dart,events.dart}`, `app/lib/core/rust/rust_repository.dart`, `app/lib/core/mock/mock_repository.dart`, `app/lib/features/settings/server/permission_info.dart`).
+  - Added `Permissions.sendVoiceMessages = Permissions(1 << 14)` to `Permissions`, `defaultEveryone`, and `allPermissions`, with UI entry "Send voice messages" ("Record and send voice messages") in server permission settings.
+  - Added repository methods for voice recording and playback, mapping FRB calls to Dart types. `MockRepository` implements timer-driven level updates, draft storage, and simulated playback with pause/resume support.
+- **Recording UI and composer bar** (`app/lib/features/chat/voice/{mic_button.dart,recording_bar.dart,waveform_painter.dart,voice_recorder_state.dart}`, `features/chat/composer.dart`, `features/channels/voice_panel.dart`).
+  - `MicButton` uses raw pointer listeners with an inner `OcIconButton` (tooltip "Voice message"). Pressing calls `voiceRecordStart`; dragging left (`dx < -120`) enters cancelling; dragging up (`dy < -60`) locks; releasing under 500 ms displays a toast "Hold to record". Keyboard Space down/up and Escape are handled when focused.
+  - `VoiceRecorderNotifier` manages phases `RecordingPhase.idle`, `holding`, `cancelling`, `locked`, and `preview`. It accumulates live 100 ms max levels and elapsed duration. `isRecordingVoiceProvider` updates `VoiceConnectedPanel` to show "Recording a voice message" during a call.
+  - `RecordingBar` renders inside the composer:
+    - Normal/holding: pulsing 10 px dot in `recording` (0.4 to 1.0 opacity every 600 ms), `m:ss` timer, live waveform scrolling left (3 px bars, 2 px gaps in `voice`), and hint "Release to send · Esc to cancel".
+    - Cancelling: `recording` background at 15% opacity, static dot, and hint "Release to cancel".
+    - Locked: actions Delete (`OcIcons.delete`), Stop (`OcIcons.stop`), and Send (`OcIcons.send`, inverted). Enter sends; Escape deletes.
+    - Preview: play/pause toggle (`OcIcons.playArrow` / `OcIcons.pause`), static draft waveform, duration, Delete, and Send.
+- **Voice message bubbles** (`app/lib/features/chat/voice/{voice_bubble.dart,voice_player_state.dart}`, `features/chat/attachments/attachment_view.dart`).
+  - `VoiceBubble` width scales smoothly from 200 to 320 px via `lerpDouble(200.0, 320.0, clamp((durationSec - 10.0) / 50.0, 0.0, 1.0))`.
+  - Max-pools 128 waveform bytes to `floor(width / 5)` bars via `resampleWaveform`; unplayed bars use `textMuted` (keeping resting dark/light screens monochrome) while played bars use `voice`.
+  - Displays play/pause icon button, time label (`m:ss` idle or `m:ss / m:ss` playing), speed chip cycling `1×` → `1.5×` → `2×` (remembered per bubble), and seeking on tap/drag.
+  - Secondary tap (right-click) shows attachment menu with "Download" via `showAttachmentMenu`.
+  - `AttachmentsView` routes `AttachmentKind.voiceMessage` to `VoiceBubble`.
+- **Tests.**
+  - Rust unit tests: `crates/opencord-media/src/audio/processor.rs` (`the_tap_gets_processed_ticks_and_silence_reaches_the_call`, `local_media_is_played_and_heard_by_the_echo_canceller`); `crates/opencord-core/src/voice_message/recorder.rs` (`a_recording_becomes_valid_ogg_opus`, `the_draft_waveform_matches_the_server_formula`, `recording_stops_at_the_maximum`, `in_call_recording_silences_the_call`); `crates/opencord-core/src/voice_message/player.rs` (`tempo_two_halves_the_output`, `seek_lands_within_a_frame`, `starting_another_item_stops_the_first`, `a_draft_plays_without_network`).
+  - Dart unit and widget tests: `app/test/unit/chat/waveform_test.dart` (`waveform_resampling_uses_max`); `app/test/widget/chat/voice_recording_test.dart` (`hold_shows_the_bar_and_release_sends`, `a_short_press_shows_hold_to_record`, `dragging_left_cancels`, `dragging_up_locks_and_enter_sends`, `max_length_while_locked_opens_the_preview`, `no_permission_hides_the_mic`); `app/test/widget/chat/voice_bubble_test.dart` (`voice_bubble_plays_seeks_and_changes_speed`); `app/test/golden/voice_bar_golden_test.dart` (`recording bar states (dark)`, `recording bar states (light)`).
+
