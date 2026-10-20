@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -5,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:opencord/core/repository/repository.dart';
 import 'package:opencord/core/settings/local_prefs.dart';
 import 'package:opencord/core/providers/providers.dart';
+import 'package:opencord/features/settings/picture_chooser.dart';
 import 'package:opencord/features/settings/settings_dialog.dart';
 import 'package:opencord/ui/theme/oc_colors.dart';
 import 'package:opencord/ui/theme/oc_icons.dart';
@@ -28,7 +31,8 @@ class ProfilePage extends ConsumerStatefulWidget {
 }
 
 class _ProfilePageState extends ConsumerState<ProfilePage> {
-  /// The display name waits for the save bar with the other settings.
+  /// The display name and picture wait for the save bar with the other
+  /// settings.
   SettingsChanges? _changes;
 
   @override
@@ -38,9 +42,9 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
       ?..register(
         this,
         PendingChanges(
-          dirty: () => _changed,
+          dirty: () => _nameChanged || _pictureChanged,
           save: _save,
-          discard: () => _name.text = _saved,
+          discard: _discard,
         ),
       );
   }
@@ -52,8 +56,34 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
   /// is going away, when `ref` can no longer be used.
   late String _saved = ref.read(localIdentityProvider)?.displayName ?? '';
 
-  bool get _changed =>
+  /// The picture as saved on this device, and one chosen or removed here.
+  late String? _savedPicture = ref.read(repositoryProvider).ownAvatarFile();
+  String? _chosenPicture;
+  var _pictureRemoved = false;
+
+  bool get _nameChanged =>
       _name.text.trim().isNotEmpty && _name.text.trim() != _saved;
+
+  bool get _pictureChanged =>
+      _chosenPicture != null || (_pictureRemoved && _savedPicture != null);
+
+  void _choosePicture(String? path) {
+    setState(() {
+      _chosenPicture = path;
+      _pictureRemoved = path == null;
+    });
+    _changes?.touch();
+  }
+
+  void _discard() {
+    _name.text = _saved;
+    if (mounted) {
+      setState(() {
+        _chosenPicture = null;
+        _pictureRemoved = false;
+      });
+    }
+  }
 
   @override
   void initState() {
@@ -74,8 +104,23 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
 
   Future<void> _save() async {
     if (mounted) setState(() => _error = null);
+    final repository = ref.read(repositoryProvider);
     try {
-      await ref.read(repositoryProvider).updateDisplayName(_name.text.trim());
+      if (_nameChanged) await repository.updateDisplayName(_name.text.trim());
+      if (_pictureChanged) {
+        await repository.setAvatar(_pictureRemoved ? null : _chosenPicture);
+        // The file keeps its name: the old picture must not be shown again.
+        if (_savedPicture case final old?) {
+          await FileImage(File(old)).evict();
+        }
+        if (mounted) {
+          setState(() {
+            _savedPicture = repository.ownAvatarFile();
+            _chosenPicture = null;
+            _pictureRemoved = false;
+          });
+        }
+      }
     } on RepoException catch (error) {
       if (mounted) setState(() => _error = error.message);
       rethrow;
@@ -96,21 +141,23 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
           children: [
             Padding(
               padding: const EdgeInsets.all(OcSpace.s16),
-              child: Row(
-                children: [
-                  OcAvatar(
-                    id: identity?.fingerprint ?? 'me',
-                    name: _name.text.isEmpty ? '?' : _name.text,
-                    size: 64,
-                  ),
-                  const SizedBox(width: OcSpace.s16),
-                  Expanded(
-                    child: Text(
-                      'Avatars arrive with file uploads in a later version.',
-                      style: OcText.small.copyWith(color: colors.textMuted),
-                    ),
-                  ),
-                ],
+              child: PictureChooser(
+                id: identity?.fingerprint ?? 'me',
+                name: _name.text,
+                image: switch ((_chosenPicture, _pictureRemoved)) {
+                  (final chosen?, _) => FileImage(File(chosen)),
+                  (_, true) => null,
+                  _ =>
+                    _savedPicture == null
+                        ? null
+                        : FileImage(File(_savedPicture!)),
+                },
+                onPicked: _choosePicture,
+                onRemoved:
+                    _chosenPicture != null ||
+                        (_savedPicture != null && !_pictureRemoved)
+                    ? () => _choosePicture(null)
+                    : null,
               ),
             ),
             Padding(

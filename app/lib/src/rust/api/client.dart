@@ -323,6 +323,42 @@ Future<User> updateProfile({
   displayName: displayName,
 );
 
+/// Makes this person's profile picture from the file at `source_path`, or
+/// removes it (`None`); its hash. Kept on this device, as the display name
+/// is: `upload_avatar` sends it to each server.
+Future<String?> setOwnAvatar({String? sourcePath}) =>
+    RustLib.instance.api.crateApiClientSetOwnAvatar(sourcePath: sourcePath);
+
+/// This person's profile picture's file on this device; `None` without one.
+String? ownAvatarFile() => RustLib.instance.api.crateApiClientOwnAvatarFile();
+
+/// This person's profile picture's hash; `None` without one.
+String? ownAvatarHash() => RustLib.instance.api.crateApiClientOwnAvatarHash();
+
+/// Sends this person's profile picture, or that there is none, to the
+/// server; a server whose `User.avatar_hash` differs from
+/// `own_avatar_hash` missed a change.
+Future<User> uploadAvatar({required String serverKey}) =>
+    RustLib.instance.api.crateApiClientUploadAvatar(serverKey: serverKey);
+
+/// The server's icon, made from the file at `source_path`, or none.
+/// Manage server.
+Future<ServerInfo> setServerIcon({
+  required String serverKey,
+  String? sourcePath,
+}) => RustLib.instance.api.crateApiClientSetServerIcon(
+  serverKey: serverKey,
+  sourcePath: sourcePath,
+);
+
+/// The file of the profile picture or server icon named `hash`, fetched
+/// from the server unless this device has it.
+Future<String> avatarPath({required String serverKey, required String hash}) =>
+    RustLib.instance.api.crateApiClientAvatarPath(
+      serverKey: serverKey,
+      hash: hash,
+    );
+
 Future<void> updatePresence({
   required String serverKey,
   required PresenceStatus status,

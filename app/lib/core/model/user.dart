@@ -11,6 +11,7 @@ class User {
     required this.displayName,
     this.publicKeyHex = '',
     this.fingerprint = '',
+    this.avatarHash,
   });
 
   final int id;
@@ -20,11 +21,15 @@ class User {
   /// Like `ABCD-EFGH-IJKL-MNOP`.
   final String fingerprint;
 
-  User copyWith({String? displayName}) => User(
+  /// The profile picture's hash; null without one.
+  final String? avatarHash;
+
+  User copyWith({String? displayName, String? Function()? avatarHash}) => User(
     id: id,
     displayName: displayName ?? this.displayName,
     publicKeyHex: publicKeyHex,
     fingerprint: fingerprint,
+    avatarHash: avatarHash == null ? this.avatarHash : avatarHash(),
   );
 }
 

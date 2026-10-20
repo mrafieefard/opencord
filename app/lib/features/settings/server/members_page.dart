@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:opencord/features/members/member_avatar.dart';
 import 'package:opencord/core/format.dart';
 import 'package:opencord/core/model/user.dart';
 import 'package:opencord/core/providers/providers.dart';
@@ -9,7 +10,6 @@ import 'package:opencord/ui/theme/oc_colors.dart';
 import 'package:opencord/ui/theme/oc_icons.dart';
 import 'package:opencord/ui/theme/oc_metrics.dart';
 import 'package:opencord/ui/theme/oc_text.dart';
-import 'package:opencord/ui/widgets/avatar.dart';
 import 'package:opencord/ui/widgets/oc_icon_button.dart';
 import 'package:opencord/ui/widgets/oc_text_field.dart';
 import 'package:opencord/ui/widgets/popover.dart';
@@ -142,8 +142,9 @@ class _MemberLine extends StatelessWidget {
             flex: 5,
             child: Row(
               children: [
-                OcAvatar(
-                  id: '${member.id}',
+                MemberAvatar(
+                  serverKey: actions.serverKey,
+                  userId: member.id,
                   name: member.displayName,
                   size: 28,
                 ),

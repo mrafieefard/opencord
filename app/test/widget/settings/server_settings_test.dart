@@ -67,9 +67,22 @@ void main() {
       'Opencord HQ',
     );
     await tester.tap(_inSettings(find.text('Open to anyone with the address')));
-    await tester.pump();
+    // Changes wait for the save bar, which rises from the bottom.
+    await _pumpFor(tester, const Duration(milliseconds: 300));
+    expect(
+      app.read(serverProvider(_dev)).data!.info.name,
+      isNot('Opencord HQ'),
+    );
+    expect(
+      _inSettings(find.widgetWithText(OcButton, 'Add a picture')),
+      findsOneWidget,
+      reason: 'the icon is chosen here too',
+    );
     await tester.tap(
-      _inSettings(find.widgetWithText(OcButton, 'Save changes')),
+      find.descendant(
+        of: find.byType(SaveBar),
+        matching: find.widgetWithText(OcButton, 'Save changes'),
+      ),
     );
     await _pumpFor(tester, const Duration(milliseconds: 600));
 

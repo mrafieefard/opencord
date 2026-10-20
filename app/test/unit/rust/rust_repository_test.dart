@@ -63,6 +63,7 @@ core.ReadySnapshot _ready({
     publicKeyHex: 'abcd',
     fingerprint: 'ABCD-EFGH-IJKL-MNOP',
     displayName: 'Alex',
+    avatarHash: null,
   ),
   server: const core.ServerInfo(
     serverIdHex: 'ff',
@@ -71,6 +72,7 @@ core.ReadySnapshot _ready({
     ownerId: _self,
     openJoin: false,
     everyoneRoleId: 5,
+    iconHash: null,
   ),
   channels: [_text(_general, 'general'), ...more],
   roles: const [],
@@ -445,6 +447,33 @@ void main() {
       );
     },
   );
+
+  test('a profile picture a server missed reaches it at its next session, '
+      'and one it has is not sent again', () async {
+    final harness = await _Harness.start(
+      saved: SavedIdentity(
+        secret: Uint8List.fromList([9]),
+        displayName: 'Alex',
+      ),
+    );
+    // Ready's self has no picture; this device has one.
+    harness.core.avatarHash = 'a' * 64;
+    harness.core.emit(_server, core.CoreEventPayload.ready(_ready()));
+    await harness.settle();
+    await harness.settle();
+    expect(harness.core.calls, contains('avatar:$_server:${'a' * 64}'));
+
+    harness.core
+      ..calls.clear()
+      ..avatarHash = null;
+    harness.core.emit(_server, core.CoreEventPayload.ready(_ready()));
+    await harness.settle();
+    await harness.settle();
+    expect(
+      harness.core.calls.where((call) => call.startsWith('avatar:')),
+      isEmpty,
+    );
+  });
 
   group('a new display name (Phase 1 §9.1)', () {
     const home = core.Server(

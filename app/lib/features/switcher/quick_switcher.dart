@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:opencord/features/members/member_avatar.dart';
 import 'package:opencord/core/model/permissions.dart';
 import 'package:opencord/core/providers/providers.dart';
 import 'package:opencord/features/members/member_profile.dart';
@@ -15,7 +16,6 @@ import 'package:opencord/ui/theme/oc_metrics.dart';
 import 'package:opencord/ui/theme/oc_motion.dart';
 import 'package:opencord/ui/theme/oc_text.dart';
 import 'package:opencord/ui/theme/oc_theme.dart';
-import 'package:opencord/ui/widgets/avatar.dart';
 import 'package:opencord/ui/widgets/channel_glyph.dart';
 import 'package:opencord/ui/widgets/key_hint.dart';
 
@@ -354,11 +354,16 @@ class _ResultRow extends StatelessWidget {
         serverName,
       ),
       SwitcherServer(:final serverKey, :final name) => (
-        OcAvatar(id: serverKey, name: name, size: 30, borderRadius: 9),
+        ServerAvatar(serverKey: serverKey, name: name, size: 30),
         'Server',
       ),
-      SwitcherMember(:final member) => (
-        OcAvatar(id: '${member.id}', name: member.displayName, size: 30),
+      SwitcherMember(:final member, :final serverKey) => (
+        MemberAvatar(
+          serverKey: serverKey,
+          userId: member.id,
+          name: member.displayName,
+          size: 30,
+        ),
         'Member',
       ),
     };

@@ -61,6 +61,8 @@ pub struct User {
     pub public_key_hex: String,
     pub fingerprint: String,
     pub display_name: String,
+    /// The profile picture's hash, for `avatar_path`; `None` without one.
+    pub avatar_hash: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -204,6 +206,8 @@ pub struct ServerInfo {
     pub owner_id: Option<i64>,
     pub open_join: bool,
     pub everyone_role_id: i64,
+    /// The server icon's hash, for `avatar_path`; `None` without one.
+    pub icon_hash: Option<String>,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]

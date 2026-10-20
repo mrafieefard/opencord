@@ -13,8 +13,8 @@ String initialsOf(String name) {
   return (first + last).toUpperCase();
 }
 
-/// Initials on a grey picked from the id (§5.2). Users are circles; servers
-/// and channels are rounded squares.
+/// A picture, or initials on a grey picked from the id (§5.2). Users are
+/// circles; servers and channels are rounded squares.
 class OcAvatar extends StatelessWidget {
   const OcAvatar({
     super.key,
@@ -26,6 +26,7 @@ class OcAvatar extends StatelessWidget {
     this.presence,
     this.speaking = false,
     this.ringColor,
+    this.image,
   });
 
   /// Picks the grey, so the same user or server always looks the same.
@@ -46,6 +47,10 @@ class OcAvatar extends StatelessWidget {
   /// The color behind the avatar, used for the presence badge's ring.
   final Color? ringColor;
 
+  /// A profile picture or server icon; the initials show while it loads
+  /// and if it can't be read.
+  final ImageProvider? image;
+
   @override
   Widget build(BuildContext context) {
     final colors = context.oc;
@@ -54,10 +59,23 @@ class OcAvatar extends StatelessWidget {
         : RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(borderRadius!),
           );
+    final initials = Text(
+      initialsOf(name),
+      maxLines: 1,
+      overflow: TextOverflow.clip,
+      textScaler: TextScaler.noScaling,
+      style: OcText.bodyStrong.copyWith(
+        fontSize: size * 0.38,
+        height: 1,
+        color: inverted ? colors.onAccent : colors.text,
+      ),
+    );
+    final image = this.image;
     final avatar = Container(
       width: size,
       height: size,
       alignment: Alignment.center,
+      clipBehavior: image == null ? Clip.none : Clip.antiAlias,
       decoration: ShapeDecoration(
         shape: shape,
         color: inverted ? colors.accent : colors.avatarShade(id),
@@ -69,17 +87,18 @@ class OcAvatar extends StatelessWidget {
               ),
             )
           : null,
-      child: Text(
-        initialsOf(name),
-        maxLines: 1,
-        overflow: TextOverflow.clip,
-        textScaler: TextScaler.noScaling,
-        style: OcText.bodyStrong.copyWith(
-          fontSize: size * 0.38,
-          height: 1,
-          color: inverted ? colors.onAccent : colors.text,
-        ),
-      ),
+      child: image == null
+          ? initials
+          : Image(
+              image: image,
+              width: size,
+              height: size,
+              fit: BoxFit.cover,
+              gaplessPlayback: true,
+              frameBuilder: (context, child, frame, sync) =>
+                  frame == null && !sync ? initials : child,
+              errorBuilder: (context, error, stack) => initials,
+            ),
     );
     final presence = this.presence;
     if (presence == null) return avatar;

@@ -4,6 +4,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:opencord/features/members/member_avatar.dart';
 import 'package:opencord/core/providers/providers.dart';
 import 'package:opencord/core/repository/repository.dart';
 import 'package:opencord/core/settings/local_prefs.dart';
@@ -71,6 +72,9 @@ class UserPanel extends ConsumerWidget {
                       OcAvatar(
                         id: self?.id ?? name,
                         name: name,
+                        image: server == null
+                            ? null
+                            : avatarImage(ref, server, self?.user.avatarHash),
                         size: 32,
                         presence: presence.shown,
                         ringColor: state.active ? colors.hover : colors.sidebar,

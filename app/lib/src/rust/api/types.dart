@@ -3782,6 +3782,9 @@ class ServerInfo {
   final bool openJoin;
   final PlatformInt64 everyoneRoleId;
 
+  /// The server icon's hash, for `avatar_path`; `None` without one.
+  final String? iconHash;
+
   const ServerInfo({
     required this.serverIdHex,
     required this.name,
@@ -3789,6 +3792,7 @@ class ServerInfo {
     this.ownerId,
     required this.openJoin,
     required this.everyoneRoleId,
+    this.iconHash,
   });
 
   @override
@@ -3798,7 +3802,8 @@ class ServerInfo {
       description.hashCode ^
       ownerId.hashCode ^
       openJoin.hashCode ^
-      everyoneRoleId.hashCode;
+      everyoneRoleId.hashCode ^
+      iconHash.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -3810,7 +3815,8 @@ class ServerInfo {
           description == other.description &&
           ownerId == other.ownerId &&
           openJoin == other.openJoin &&
-          everyoneRoleId == other.everyoneRoleId;
+          everyoneRoleId == other.everyoneRoleId &&
+          iconHash == other.iconHash;
 }
 
 /// Something the owner or admins should know: the public address changed,
@@ -4446,11 +4452,15 @@ class User {
   final String fingerprint;
   final String displayName;
 
+  /// The profile picture's hash, for `avatar_path`; `None` without one.
+  final String? avatarHash;
+
   const User({
     required this.id,
     required this.publicKeyHex,
     required this.fingerprint,
     required this.displayName,
+    this.avatarHash,
   });
 
   @override
@@ -4458,7 +4468,8 @@ class User {
       id.hashCode ^
       publicKeyHex.hashCode ^
       fingerprint.hashCode ^
-      displayName.hashCode;
+      displayName.hashCode ^
+      avatarHash.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -4468,7 +4479,8 @@ class User {
           id == other.id &&
           publicKeyHex == other.publicKeyHex &&
           fingerprint == other.fingerprint &&
-          displayName == other.displayName;
+          displayName == other.displayName &&
+          avatarHash == other.avatarHash;
 }
 
 /// What this system can do with video (Phase 2 plan §7.11, §8, §9).

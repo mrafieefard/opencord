@@ -31,6 +31,7 @@ use crate::attachments::cache::{self, MediaCache};
 use crate::attachments::download::{self, Downloads};
 use crate::attachments::transfer::Transfers;
 use crate::attachments::upload::{self, Uploads};
+use crate::avatars::Avatars;
 use crate::connection::{
     self, Clocks, Command, Connection, Context, Credentials, Established, HandshakeError,
     MediaTokens, Route, Routes,
@@ -91,6 +92,7 @@ struct Inner {
     routes: Routes,
     soundboard: Arc<Soundboard>,
     artwork: Arc<ArtworkCache>,
+    avatars: Arc<Avatars>,
     clocks: Clocks,
     /// How this person hears music, kept for media that starts later.
     music_listening: Mutex<MusicListening>,
@@ -173,6 +175,10 @@ impl Client {
             data_dir,
             MediaHttp::new(Arc::clone(&routes), Arc::clone(&media_tokens)),
         ));
+        let avatars = Arc::new(Avatars::new(
+            data_dir,
+            MediaHttp::new(Arc::clone(&routes), Arc::clone(&media_tokens)),
+        ));
         let client = Self {
             inner: Arc::new(Inner {
                 runtime: runtime.clone(),
@@ -189,6 +195,7 @@ impl Client {
                 routes: Arc::clone(&routes),
                 soundboard,
                 artwork,
+                avatars,
                 clocks: Clocks::default(),
                 music_listening: Mutex::default(),
                 data_dir: data_dir.to_owned(),
@@ -1992,6 +1999,41 @@ impl Client {
 
     pub(crate) fn soundboard(&self) -> Arc<Soundboard> {
         Arc::clone(&self.inner.soundboard)
+    }
+
+    /// Makes this person's profile picture from the file at `source`, or
+    /// removes it; its hash. Kept here; `upload_avatar` sends it.
+    pub fn set_own_avatar(&self, source: Option<&str>) -> Result<Option<String>, CoreError> {
+        self.inner.avatars.set_own(source)
+    }
+
+    pub fn own_avatar_file(&self) -> Option<String> {
+        self.inner.avatars.own_file()
+    }
+
+    pub fn own_avatar_hash(&self) -> Option<String> {
+        self.inner.avatars.own_hash()
+    }
+
+    /// Sends this person's picture, or that there is none, to the server
+    /// at `key`.
+    pub async fn upload_avatar(&self, key: &str) -> Result<User, CoreError> {
+        self.inner.avatars.upload_own(self, key).await
+    }
+
+    /// The icon of the server at `key`, made from the file at `source`,
+    /// or none. Manage server.
+    pub async fn set_server_icon(
+        &self,
+        key: &str,
+        source: Option<String>,
+    ) -> Result<ServerInfo, CoreError> {
+        self.inner.avatars.set_icon(self, key, source).await
+    }
+
+    /// The file of the profile picture or server icon named `hash`.
+    pub async fn avatar_path(&self, key: &str, hash: &str) -> Result<String, CoreError> {
+        self.inner.avatars.get(self, key, hash).await
     }
 
     pub(crate) fn artwork(&self) -> Arc<ArtworkCache> {

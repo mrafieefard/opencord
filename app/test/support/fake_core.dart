@@ -468,6 +468,28 @@ class FakeCoreApi extends Fake implements CoreApi {
       publicKeyHex: identityInfo.publicKeyHex,
       fingerprint: identityInfo.fingerprint,
       displayName: displayName,
+      avatarHash: null,
+    );
+  }
+
+  /// This device's profile picture's hash, as the core keeps it.
+  String? avatarHash;
+
+  @override
+  String? ownAvatarHash() => avatarHash;
+
+  @override
+  String? ownAvatarFile() => null;
+
+  @override
+  Future<core.User> uploadAvatar(String serverKey) async {
+    calls.add('avatar:$serverKey:$avatarHash');
+    return core.User(
+      id: 1,
+      publicKeyHex: identityInfo.publicKeyHex,
+      fingerprint: identityInfo.fingerprint,
+      displayName: 'Me',
+      avatarHash: avatarHash,
     );
   }
 

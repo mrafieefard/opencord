@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:opencord/features/members/member_avatar.dart';
 import 'package:opencord/core/model/server.dart';
 import 'package:opencord/core/model/permissions.dart';
 import 'package:opencord/core/providers/providers.dart';
@@ -145,6 +146,11 @@ class _RailEntry extends ConsumerWidget {
         builder: (context, state) => RailItemView(
           id: key,
           name: name,
+          icon: avatarImage(
+            ref,
+            key,
+            ref.watch(serverProvider(key).select((s) => s.data?.info.iconHash)),
+          ),
           selected: selected,
           hovered: state.active,
           unread: unread && !muted,
@@ -250,10 +256,14 @@ class RailItemView extends StatelessWidget {
     this.unread = false,
     this.mentions = 0,
     this.connection = RailConnection.connected,
+    this.icon,
   });
 
   final Object id;
   final String name;
+
+  /// The server's icon, when it has one.
+  final ImageProvider? icon;
   final bool selected;
   final bool hovered;
   final bool unread;
@@ -310,20 +320,8 @@ class RailItemView extends StatelessWidget {
                     ),
                     duration: motion.morph,
                     curve: OcMotion.curve,
-                    builder: (context, radius, _) => AnimatedContainer(
-                      duration: motion.hover,
-                      width: OcSize.serverIcon,
-                      height: OcSize.serverIcon,
-                      alignment: Alignment.center,
-                      decoration: BoxDecoration(
-                        color: selected
-                            ? colors.accent
-                            : hovered
-                            ? colors.selected
-                            : colors.hover,
-                        borderRadius: BorderRadius.circular(radius),
-                      ),
-                      child: Text(
+                    builder: (context, radius, _) {
+                      final initials = Text(
                         initialsOf(name),
                         textScaler: TextScaler.noScaling,
                         style: OcText.bodyStrong.copyWith(
@@ -331,8 +329,35 @@ class RailItemView extends StatelessWidget {
                           height: 1,
                           color: selected ? colors.onAccent : colors.text,
                         ),
-                      ),
-                    ),
+                      );
+                      final icon = this.icon;
+                      return AnimatedContainer(
+                        duration: motion.hover,
+                        width: OcSize.serverIcon,
+                        height: OcSize.serverIcon,
+                        alignment: Alignment.center,
+                        clipBehavior: icon == null ? Clip.none : Clip.antiAlias,
+                        decoration: BoxDecoration(
+                          color: selected
+                              ? colors.accent
+                              : hovered
+                              ? colors.selected
+                              : colors.hover,
+                          borderRadius: BorderRadius.circular(radius),
+                        ),
+                        child: icon == null
+                            ? initials
+                            : Image(
+                                image: icon,
+                                width: OcSize.serverIcon,
+                                height: OcSize.serverIcon,
+                                fit: BoxFit.cover,
+                                gaplessPlayback: true,
+                                errorBuilder: (context, error, stack) =>
+                                    initials,
+                              ),
+                      );
+                    },
                   ),
                   if (mentions > 0)
                     Positioned(

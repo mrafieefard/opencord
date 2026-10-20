@@ -57,6 +57,7 @@ final _readyPayload = core.CoreEventPayload.ready(
       publicKeyHex: 'abcd',
       fingerprint: 'ABCD-EFGH-IJKL-MNOP',
       displayName: 'Alex',
+      avatarHash: null,
     ),
     server: const core.ServerInfo(
       serverIdHex: 'ff',
@@ -65,6 +66,7 @@ final _readyPayload = core.CoreEventPayload.ready(
       ownerId: 1,
       openJoin: false,
       everyoneRoleId: 5,
+      iconHash: null,
     ),
     channels: [_text(_general, 'general'), _text(_random, 'random')],
     roles: const [],

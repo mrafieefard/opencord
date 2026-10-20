@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:opencord/features/members/member_avatar.dart';
 import 'package:opencord/core/format.dart';
 import 'package:opencord/core/model/music.dart';
 import 'package:opencord/core/providers/providers.dart';
@@ -8,7 +9,6 @@ import 'package:opencord/core/repository/repository.dart';
 import 'package:opencord/ui/theme/oc_colors.dart';
 import 'package:opencord/ui/theme/oc_metrics.dart';
 import 'package:opencord/ui/theme/oc_text.dart';
-import 'package:opencord/ui/widgets/avatar.dart';
 import 'package:opencord/ui/widgets/confirm_dialog.dart';
 import 'package:opencord/ui/widgets/inline_error.dart';
 import 'package:opencord/ui/widgets/oc_button.dart';
@@ -79,8 +79,9 @@ class MusicBlocksSection extends ConsumerWidget {
               ),
               child: Row(
                 children: [
-                  OcAvatar(
-                    id: '${block.userId}',
+                  MemberAvatar(
+                    serverKey: serverKey,
+                    userId: block.userId,
                     name: nameOf(block.userId),
                     size: 32,
                   ),

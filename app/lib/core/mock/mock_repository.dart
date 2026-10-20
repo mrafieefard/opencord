@@ -1324,6 +1324,45 @@ class MockRepository implements OpencordRepository {
     }
   }
 
+  /// This person's picture, as a made-up hash of the file chosen.
+  String? _avatarHash;
+
+  @override
+  String? ownAvatarHash() => _avatarHash;
+
+  /// No file here: initials show.
+  @override
+  String? ownAvatarFile() => null;
+
+  @override
+  Future<void> setAvatar(String? path) async {
+    await _latency();
+    _avatarHash = path?.hashCode.toRadixString(16).padLeft(64, '0');
+    for (final server in _world.servers) {
+      final updated = server.self.copyWith(
+        user: server.self.user.copyWith(avatarHash: () => _avatarHash),
+      );
+      server.members[server.selfId] = updated;
+      _emit(MemberUpserted(server.key, updated));
+    }
+  }
+
+  @override
+  Future<void> setServerIcon(String serverKey, String? path) async {
+    final server = _server(serverKey);
+    _require(server, Permissions.manageServer);
+    await _latency();
+    server.info = server.info.copyWith(
+      iconHash: () => path?.hashCode.toRadixString(16).padLeft(64, '0'),
+    );
+    _emit(ServerInfoChanged(serverKey, server.info));
+  }
+
+  /// Pictures are not fetched here: a path to nothing shows initials.
+  @override
+  Future<String> avatarPath(String serverKey, String hash) async =>
+      'mock-avatars/$hash.png';
+
   @override
   Future<void> updatePresence(SelfPresence presence) async {
     for (final server in _world.servers) {

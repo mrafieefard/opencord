@@ -396,6 +396,24 @@ abstract interface class OpencordRepository {
 
   Future<void> updateDisplayName(String displayName);
 
+  /// This person's profile picture's hash on this device; null without one.
+  String? ownAvatarHash();
+
+  /// This person's profile picture's file on this device; null without one.
+  String? ownAvatarFile();
+
+  /// Makes this person's profile picture from the image at [path], or
+  /// removes it (null), and sends it to every server, as the display name
+  /// is: servers not connected now get it after their next Ready.
+  Future<void> setAvatar(String? path);
+
+  /// The server's icon, made from the image at [path], or none. Manage
+  /// server.
+  Future<void> setServerIcon(String serverKey, String? path);
+
+  /// The file of the profile picture or server icon named [hash].
+  Future<String> avatarPath(String serverKey, String hash);
+
   /// The identity's secret key as a backup text to keep safe (§8.1).
   Future<String> exportIdentityBackup();
 

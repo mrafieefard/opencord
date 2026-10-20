@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'package:opencord/features/members/member_avatar.dart';
 import 'package:opencord/core/format.dart';
 import 'package:opencord/core/model/channel.dart';
 import 'package:opencord/core/model/commands.dart';
@@ -17,7 +18,6 @@ import 'package:opencord/features/chat/message_line.dart';
 import 'package:opencord/features/chat/message_rows.dart';
 import 'package:opencord/ui/theme/oc_colors.dart';
 import 'package:opencord/ui/theme/oc_metrics.dart';
-import 'package:opencord/ui/widgets/avatar.dart';
 import 'package:opencord/ui/widgets/hoverable.dart';
 
 /// What rows look up while they draw: names, roles and replied-to
@@ -222,8 +222,11 @@ class ChatRowView extends StatelessWidget {
               onTap: () => actions.onProfile(message.authorId),
               semanticLabel: '$author, profile',
               focusRadius: BorderRadius.circular(OcSize.messageAvatar / 2),
-              builder: (context, state) =>
-                  OcAvatar(id: '${message.authorId}', name: author),
+              builder: (context, state) => MemberAvatar(
+                serverKey: actions.message.channel.server,
+                userId: message.authorId,
+                name: author,
+              ),
             )
           : null,
       builder: (onSelectionChanged) => MessageBubble(

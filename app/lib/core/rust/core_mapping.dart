@@ -223,6 +223,7 @@ User userFrom(core.User user) => User(
   displayName: user.displayName,
   publicKeyHex: user.publicKeyHex,
   fingerprint: user.fingerprint,
+  avatarHash: user.avatarHash,
 );
 
 Member memberFrom(core.Member member) => Member(
@@ -250,6 +251,7 @@ ServerInfo serverInfoFrom(core.ServerInfo info) => ServerInfo(
   ownerId: info.ownerId,
   openJoin: info.openJoin,
   everyoneRoleId: info.everyoneRoleId,
+  iconHash: info.iconHash,
 );
 
 ServerSummary serverFrom(core.Server server) => ServerSummary(

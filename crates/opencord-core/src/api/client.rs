@@ -438,6 +438,49 @@ pub async fn update_profile(server_key: String, display_name: String) -> Result<
         .await
 }
 
+/// Makes this person's profile picture from the file at `source_path`, or
+/// removes it (`None`); its hash. Kept on this device, as the display name
+/// is: `upload_avatar` sends it to each server.
+pub async fn set_own_avatar(source_path: Option<String>) -> Result<Option<String>, CoreError> {
+    let client = client()?;
+    on_blocking(move || client.set_own_avatar(source_path.as_deref())).await
+}
+
+/// This person's profile picture's file on this device; `None` without one.
+#[frb(sync)]
+pub fn own_avatar_file() -> Result<Option<String>, CoreError> {
+    Ok(client()?.own_avatar_file())
+}
+
+/// This person's profile picture's hash; `None` without one.
+#[frb(sync)]
+pub fn own_avatar_hash() -> Result<Option<String>, CoreError> {
+    Ok(client()?.own_avatar_hash())
+}
+
+/// Sends this person's profile picture, or that there is none, to the
+/// server; a server whose `User.avatar_hash` differs from
+/// `own_avatar_hash` missed a change.
+pub async fn upload_avatar(server_key: String) -> Result<User, CoreError> {
+    on_runtime(move |client| async move { client.upload_avatar(&server_key).await }).await
+}
+
+/// The server's icon, made from the file at `source_path`, or none.
+/// Manage server.
+pub async fn set_server_icon(
+    server_key: String,
+    source_path: Option<String>,
+) -> Result<ServerInfo, CoreError> {
+    on_runtime(move |client| async move { client.set_server_icon(&server_key, source_path).await })
+        .await
+}
+
+/// The file of the profile picture or server icon named `hash`, fetched
+/// from the server unless this device has it.
+pub async fn avatar_path(server_key: String, hash: String) -> Result<String, CoreError> {
+    on_runtime(move |client| async move { client.avatar_path(&server_key, &hash).await }).await
+}
+
 pub async fn update_presence(server_key: String, status: PresenceStatus) -> Result<(), CoreError> {
     on_runtime(move |client| async move { client.update_presence(&server_key, status).await }).await
 }

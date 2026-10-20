@@ -28,6 +28,7 @@ pub fn user(user: proto::User) -> User {
         public_key_hex: hex::encode(&user.public_key),
         fingerprint: public_key_fingerprint(&user.public_key),
         display_name: user.display_name,
+        avatar_hash: (!user.avatar_hash.is_empty()).then_some(user.avatar_hash),
     }
 }
 
@@ -337,6 +338,7 @@ pub fn server_info(info: proto::ServerInfo) -> ServerInfo {
         owner_id: info.owner_id,
         open_join: info.open_join,
         everyone_role_id: info.everyone_role_id,
+        icon_hash: (!info.icon_hash.is_empty()).then_some(info.icon_hash),
     }
 }
 

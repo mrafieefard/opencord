@@ -297,6 +297,45 @@ class RustRepository implements OpencordRepository {
     if (refused != null) throw refused;
   }
 
+  @override
+  String? ownAvatarHash() => _now(_core.ownAvatarHash);
+
+  @override
+  String? ownAvatarFile() => _now(_core.ownAvatarFile);
+
+  @override
+  Future<void> setAvatar(String? path) async {
+    await _call(() => _core.setOwnAvatar(path));
+    RepoException? refused;
+    for (final server in _listServers()) {
+      try {
+        await _core.uploadAvatar(server.key);
+      } on core.CoreError catch (error) {
+        // Servers not connected now get it after their next Ready.
+        if (error is! core.CoreError_NotConnected) refused ??= errorFrom(error);
+      }
+    }
+    if (refused != null) throw refused;
+  }
+
+  @override
+  Future<void> setServerIcon(String serverKey, String? path) =>
+      _call(() => _core.setServerIcon(serverKey, path));
+
+  @override
+  Future<String> avatarPath(String serverKey, String hash) =>
+      _call(() => _core.avatarPath(serverKey, hash));
+
+  /// A server that missed a new profile picture gets it now.
+  Future<void> _catchUpAvatar(String server, core.ReadySnapshot ready) async {
+    try {
+      if (ready.selfUser.avatarHash == _core.ownAvatarHash()) return;
+      await _core.uploadAvatar(server);
+    } on core.CoreError catch (error) {
+      developer.log('$server kept the old picture: $error', name: 'core');
+    }
+  }
+
   /// A server that missed a new name (it changed while that server was
   /// not connected) gets it now.
   Future<void> _catchUpName(String server, core.ReadySnapshot ready) async {
@@ -371,6 +410,7 @@ class RustRepository implements OpencordRepository {
     _refreshServers();
     if (_presence != SelfPresence.online) unawaited(_sendPresence(server));
     unawaited(_catchUpName(server, ready));
+    unawaited(_catchUpAvatar(server, ready));
   }
 
   /// The newest message and unread counts per readable text channel, from

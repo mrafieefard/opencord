@@ -3,6 +3,7 @@
 pub mod api;
 mod artwork;
 pub mod attachments;
+mod avatars;
 
 pub mod client;
 mod commands;

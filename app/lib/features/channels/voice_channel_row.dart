@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:opencord/features/members/member_avatar.dart';
 import 'package:opencord/core/model/channel.dart';
 import 'package:opencord/core/model/misc.dart';
 import 'package:opencord/core/model/permissions.dart';
@@ -20,7 +21,6 @@ import 'package:opencord/ui/theme/oc_icons.dart';
 import 'package:opencord/ui/theme/oc_metrics.dart';
 import 'package:opencord/ui/theme/oc_motion.dart';
 import 'package:opencord/ui/theme/oc_text.dart';
-import 'package:opencord/ui/widgets/avatar.dart';
 import 'package:opencord/ui/widgets/badges.dart';
 import 'package:opencord/ui/widgets/hoverable.dart';
 import 'package:opencord/ui/widgets/oc_menu.dart';
@@ -303,8 +303,9 @@ class _Participant extends ConsumerWidget {
             children: [
               SoundboardRing(
                 playing: sound != null,
-                child: OcAvatar(
-                  id: participant.userId,
+                child: MemberAvatar(
+                  serverKey: serverKey,
+                  userId: participant.userId,
                   name: name,
                   size: OcSize.voiceAvatar,
                   speaking: speaking,

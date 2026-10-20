@@ -253,6 +253,18 @@ abstract interface class CoreApi {
 
   Future<core.User> updateProfile(String serverKey, String displayName);
 
+  Future<String?> setOwnAvatar(String? sourcePath);
+
+  String? ownAvatarHash();
+
+  String? ownAvatarFile();
+
+  Future<core.User> uploadAvatar(String serverKey);
+
+  Future<core.ServerInfo> setServerIcon(String serverKey, String? sourcePath);
+
+  Future<String> avatarPath(String serverKey, String hash);
+
   Future<void> updatePresence(String serverKey, core.PresenceStatus status);
 
   Future<core.Invite> createInvite(
@@ -1063,6 +1075,28 @@ class FrbCoreApi implements CoreApi {
   @override
   Future<core.User> updateProfile(String serverKey, String displayName) =>
       frb.updateProfile(serverKey: serverKey, displayName: displayName);
+
+  @override
+  Future<String?> setOwnAvatar(String? sourcePath) =>
+      frb.setOwnAvatar(sourcePath: sourcePath);
+
+  @override
+  String? ownAvatarHash() => frb.ownAvatarHash();
+
+  @override
+  String? ownAvatarFile() => frb.ownAvatarFile();
+
+  @override
+  Future<core.User> uploadAvatar(String serverKey) =>
+      frb.uploadAvatar(serverKey: serverKey);
+
+  @override
+  Future<core.ServerInfo> setServerIcon(String serverKey, String? sourcePath) =>
+      frb.setServerIcon(serverKey: serverKey, sourcePath: sourcePath);
+
+  @override
+  Future<String> avatarPath(String serverKey, String hash) =>
+      frb.avatarPath(serverKey: serverKey, hash: hash);
 
   @override
   Future<void> updatePresence(String serverKey, core.PresenceStatus status) =>

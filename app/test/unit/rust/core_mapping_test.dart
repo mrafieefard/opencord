@@ -17,6 +17,7 @@ const _user = core.User(
   publicKeyHex: 'ab12',
   fingerprint: 'ABCD-EFGH-IJKL-MNOP',
   displayName: 'Kai',
+  avatarHash: null,
 );
 
 void main() {
@@ -176,6 +177,7 @@ void main() {
           ownerId: 7,
           openJoin: false,
           everyoneRoleId: 1,
+          iconHash: null,
         ),
         channels: const [],
         roles: const [],

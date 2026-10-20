@@ -886,3 +886,47 @@ async fn a_discarded_staged_file_is_not_reused() {
         fresh
     );
 }
+
+/// A profile picture made on this device goes to each server, which names
+/// it by the same hash; others fetch it by that hash. The server icon too.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_profile_picture_and_the_server_icon_reach_the_server() {
+    let server = TestServer::start().await;
+    let (owner, _ready) = TestClient::owner(&server).await;
+    let key = server.address();
+    let dir = tempfile::tempdir().unwrap();
+    let source = dir.path().join("me.png");
+    image::RgbaImage::from_fn(500, 300, |x, y| image::Rgba([x as u8, y as u8, 60, 255]))
+        .save(&source)
+        .unwrap();
+    let source = source.to_string_lossy().into_owned();
+
+    let hash = owner
+        .client
+        .set_own_avatar(Some(&source))
+        .unwrap()
+        .expect("a picture");
+    assert_eq!(owner.client.own_avatar_hash(), Some(hash.clone()));
+    let user = owner.client.upload_avatar(&key).await.unwrap();
+    assert_eq!(user.avatar_hash.as_deref(), Some(hash.as_str()));
+    let path = owner.client.avatar_path(&key, &hash).await.unwrap();
+    let png = std::fs::read(&path).unwrap();
+    assert_eq!(opencord_common::avatar::hash(&png), hash);
+
+    let info = owner
+        .client
+        .set_server_icon(&key, Some(source))
+        .await
+        .unwrap();
+    assert_eq!(
+        info.icon_hash,
+        Some(hash),
+        "the same picture, the same hash"
+    );
+
+    assert_eq!(owner.client.set_own_avatar(None).unwrap(), None);
+    let user = owner.client.upload_avatar(&key).await.unwrap();
+    assert_eq!(user.avatar_hash, None);
+    let info = owner.client.set_server_icon(&key, None).await.unwrap();
+    assert_eq!(info.icon_hash, None);
+}

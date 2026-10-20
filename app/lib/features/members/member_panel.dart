@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:opencord/features/members/member_avatar.dart';
 import 'package:opencord/core/format.dart';
 import 'package:opencord/core/model/misc.dart';
 import 'package:opencord/core/model/presence.dart';
@@ -18,7 +19,6 @@ import 'package:opencord/ui/theme/oc_icons.dart';
 import 'package:opencord/ui/theme/oc_metrics.dart';
 import 'package:opencord/ui/theme/oc_motion.dart';
 import 'package:opencord/ui/theme/oc_text.dart';
-import 'package:opencord/ui/widgets/avatar.dart';
 import 'package:opencord/ui/widgets/hoverable.dart';
 import 'package:opencord/ui/widgets/oc_icon_button.dart';
 import 'package:opencord/ui/widgets/oc_text_field.dart';
@@ -311,8 +311,9 @@ class MemberRow extends StatelessWidget {
           children: [
             Opacity(
               opacity: offline ? 0.55 : 1,
-              child: OcAvatar(
-                id: '${member.id}',
+              child: MemberAvatar(
+                serverKey: actions.serverKey,
+                userId: member.id,
                 name: member.displayName,
                 size: OcSize.memberAvatar,
                 presence: line.presence,
