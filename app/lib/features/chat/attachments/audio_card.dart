@@ -43,6 +43,18 @@ class _AudioCardState extends ConsumerState<AudioCard> {
   AttachmentPlayback get _item =>
       AttachmentPlayback(widget.serverKey, widget.attachment.id);
 
+  /// Its message, for the audio player bar.
+  AudioEntry? get _origin => switch (widget.message) {
+    final message? => AudioEntry(
+      serverKey: widget.serverKey,
+      channelId: message.channelId,
+      messageId: message.id,
+      authorId: message.authorId,
+      attachment: widget.attachment,
+    ),
+    null => null,
+  };
+
   Future<void> _togglePlay(PlaybackState playback) async {
     final notifier = ref.read(playbackProvider.notifier);
     if (playback.item == _item && playback.playing) {
@@ -51,7 +63,7 @@ class _AudioCardState extends ConsumerState<AudioCard> {
       notifier.mediaPlay(_item);
     } else {
       try {
-        await notifier.mediaOpen(_item);
+        await notifier.mediaOpen(_item, origin: _origin);
         notifier.mediaPlay(_item);
       } on RepoException {
         // mediaOpen put the message in the playback state, shown below.

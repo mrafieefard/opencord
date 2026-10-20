@@ -47,9 +47,26 @@ class _VoiceBubbleState extends ConsumerState<VoiceBubble> {
   /// A message still being sent has no file to play yet.
   bool get _sent => widget.attachment.id > 0;
 
-  void _cycleSpeed() {
+  /// Its message, for the audio player bar; null in a draft's preview.
+  AudioEntry? get _origin => switch (widget.message) {
+    final message? => AudioEntry(
+      serverKey: widget.serverKey,
+      channelId: message.channelId,
+      messageId: message.id,
+      authorId: message.authorId,
+      attachment: widget.attachment,
+    ),
+    null => null,
+  };
+
+  /// The speed shown: the player's while this one plays (the audio player
+  /// bar can change it), else the one picked here.
+  double _shownSpeed(PlaybackState playback) =>
+      playback.item == _item ? playback.speed : _speed;
+
+  void _cycleSpeed(PlaybackState playback) {
     setState(
-      () => _speed = switch (_speed) {
+      () => _speed = switch (_shownSpeed(playback)) {
         1.0 => 1.5,
         1.5 => 2.0,
         _ => 1.0,
@@ -61,7 +78,7 @@ class _VoiceBubbleState extends ConsumerState<VoiceBubble> {
   void _togglePlay(PlaybackState playback) {
     final notifier = ref.read(playbackProvider.notifier);
     if (playback.item != _item || playback.error != null) {
-      unawaited(notifier.play(_item, speed: _speed));
+      unawaited(notifier.play(_item, speed: _speed, origin: _origin));
     } else if (playback.playing) {
       notifier.pause(_item);
     } else {
@@ -78,7 +95,14 @@ class _VoiceBubbleState extends ConsumerState<VoiceBubble> {
     if (ref.read(playbackProvider).item == _item) {
       notifier.seek(_item, positionMs);
     } else {
-      unawaited(notifier.play(_item, positionMs: positionMs, speed: _speed));
+      unawaited(
+        notifier.play(
+          _item,
+          positionMs: positionMs,
+          speed: _speed,
+          origin: _origin,
+        ),
+      );
     }
   }
 
@@ -87,6 +111,7 @@ class _VoiceBubbleState extends ConsumerState<VoiceBubble> {
     final colors = context.oc;
     final playback = ref.watch(playbackProvider);
     final isThisItem = playback.item == _item;
+    final speed = _shownSpeed(playback);
     final isPlaying = isThisItem && playback.playing;
     final failure = isThisItem ? playback.error : null;
     final durationMs = widget.attachment.durationMs ?? 0;
@@ -198,8 +223,8 @@ class _VoiceBubbleState extends ConsumerState<VoiceBubble> {
                       // The speed is text, not a hue: `voice` is for the
                       // waveform only.
                       Hoverable(
-                        onTap: _cycleSpeed,
-                        semanticLabel: 'Playback speed ${_speedLabel(_speed)}',
+                        onTap: () => _cycleSpeed(playback),
+                        semanticLabel: 'Playback speed ${_speedLabel(speed)}',
                         focusRadius: BorderRadius.circular(4),
                         builder: (context, hover) => Padding(
                           padding: const EdgeInsets.symmetric(
@@ -207,9 +232,9 @@ class _VoiceBubbleState extends ConsumerState<VoiceBubble> {
                             vertical: 1,
                           ),
                           child: Text(
-                            _speedLabel(_speed),
+                            _speedLabel(speed),
                             style: OcText.meta.copyWith(
-                              color: _speed != 1.0 || hover.hovered
+                              color: speed != 1.0 || hover.hovered
                                   ? colors.text
                                   : colors.textMuted,
                               fontWeight: FontWeight.w600,

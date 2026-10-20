@@ -648,7 +648,8 @@ class _MessageListState extends ConsumerState<MessageList>
           .firstOrNull;
       if (tracked != null) {
         await _reveal(tracked);
-        _flash(messageId);
+        // The channel may have closed while it scrolled.
+        if (mounted) _flash(messageId);
         return;
       }
       _jumpNear(messageId);

@@ -5,6 +5,7 @@ import 'package:opencord/core/model/channel.dart';
 import 'package:opencord/core/providers/providers.dart';
 import 'package:opencord/core/repository/repository.dart';
 import 'package:opencord/core/settings/voice_view_prefs.dart';
+import 'package:opencord/features/chat/audio_player_bar.dart';
 import 'package:opencord/features/chat/attachment_drop.dart';
 import 'package:opencord/features/chat/chat_controller.dart';
 import 'package:opencord/features/chat/connection_banner.dart';
@@ -174,6 +175,7 @@ class _ChatAreaState extends ConsumerState<ChatArea> {
               ),
               if (server != null && !noServers)
                 ConnectionBanner(serverKey: server),
+              const AudioPlayerBar(),
               if (noServers)
                 const Expanded(child: NoServersView())
               else if (open != null && channel!.kind.isTextLike)
