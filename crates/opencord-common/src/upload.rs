@@ -12,8 +12,8 @@ pub const EVERYONE_DEFAULT_BYTES: u64 = 52_428_800;
 pub const MIN_ROLE_LIMIT_BYTES: u64 = MIB;
 pub const MAX_FILE_MB_DEFAULT: u64 = 4096;
 pub const MAX_FILE_MB_RANGE: RangeInclusive<u64> = 1..=102_400;
-pub const VOICE_MAX_SECONDS_DEFAULT: u32 = 300;
-pub const VOICE_MAX_SECONDS_RANGE: RangeInclusive<u32> = 30..=1_800;
+/// A voice message's longest: 30 minutes, the same on every server.
+pub const VOICE_MAX_SECONDS: u32 = 1_800;
 pub const TEMP_HEADROOM_BYTES: u64 = 512 * MIB;
 pub const POSTER_MAX_BYTES: usize = 2 * 1_048_576;
 pub const IMAGE_PROCESS_MAX_BYTES: u64 = 100 * MIB;

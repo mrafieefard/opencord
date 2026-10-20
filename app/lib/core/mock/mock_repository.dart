@@ -4109,7 +4109,6 @@ class MockRepository implements OpencordRepository {
   Future<UploadSettings> updateUploadSettings(
     String serverKey, {
     List<String>? blockedExtensions,
-    int? voiceMessageMaxSeconds,
   }) async {
     final server = _server(serverKey);
     _require(server, Permissions.manageServer);
@@ -4117,9 +4116,7 @@ class MockRepository implements OpencordRepository {
     final updated = UploadSettings(
       blockedExtensions:
           blockedExtensions ?? server.uploadSettings.blockedExtensions,
-      voiceMessageMaxSeconds:
-          voiceMessageMaxSeconds ??
-          server.uploadSettings.voiceMessageMaxSeconds,
+      voiceMessageMaxSeconds: server.uploadSettings.voiceMessageMaxSeconds,
       maxFileBytes: server.uploadSettings.maxFileBytes,
       maxAttachments: server.uploadSettings.maxAttachments,
     );

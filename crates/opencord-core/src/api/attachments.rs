@@ -14,11 +14,10 @@ use crate::attachments::clipboard;
 pub async fn update_upload_settings(
     server_key: String,
     blocked_extensions: Option<Vec<String>>,
-    voice_message_max_seconds: Option<u32>,
 ) -> Result<UploadSettings, CoreError> {
     on_runtime(move |client| async move {
         client
-            .update_upload_settings(&server_key, blocked_extensions, voice_message_max_seconds)
+            .update_upload_settings(&server_key, blocked_extensions)
             .await
     })
     .await

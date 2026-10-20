@@ -337,6 +337,7 @@ message Attachment {
 message UploadSettings {
   // Lowercase, without a leading dot; may hold inner dots ("tar.gz").
   repeated string blocked_extensions = 1;
+  // Always 1800 (30 minutes); servers before it was fixed could set it.
   uint32 voice_message_max_seconds = 2;
   // [uploads] max_file_mb in bytes: the owner's limit and every role
   // limit's ceiling.

@@ -55,7 +55,7 @@ class UploadSettings {
 
   static const fallback = UploadSettings(
     blockedExtensions: [],
-    voiceMessageMaxSeconds: 300,
+    voiceMessageMaxSeconds: 1800,
     maxFileBytes: 4294967296,
     maxAttachments: 10,
   );

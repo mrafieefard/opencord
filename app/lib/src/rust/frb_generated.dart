@@ -763,7 +763,6 @@ abstract class RustLibApi extends BaseApi {
   Future<UploadSettings> crateApiAttachmentsUpdateUploadSettings({
     required String serverKey,
     List<String>? blockedExtensions,
-    int? voiceMessageMaxSeconds,
   });
 
   Future<VoiceSettings> crateApiClientUpdateVoiceSettings({
@@ -6087,7 +6086,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   Future<UploadSettings> crateApiAttachmentsUpdateUploadSettings({
     required String serverKey,
     List<String>? blockedExtensions,
-    int? voiceMessageMaxSeconds,
   }) {
     return handler.executeNormal(
       NormalTask(
@@ -6095,7 +6093,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_String(serverKey, serializer);
           sse_encode_opt_list_String(blockedExtensions, serializer);
-          sse_encode_opt_box_autoadd_u_32(voiceMessageMaxSeconds, serializer);
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
@@ -6108,7 +6105,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           decodeErrorData: sse_decode_core_error,
         ),
         constMeta: kCrateApiAttachmentsUpdateUploadSettingsConstMeta,
-        argValues: [serverKey, blockedExtensions, voiceMessageMaxSeconds],
+        argValues: [serverKey, blockedExtensions],
         apiImpl: this,
       ),
     );
@@ -6117,7 +6114,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   TaskConstMeta get kCrateApiAttachmentsUpdateUploadSettingsConstMeta =>
       const TaskConstMeta(
         debugName: "update_upload_settings",
-        argNames: ["serverKey", "blockedExtensions", "voiceMessageMaxSeconds"],
+        argNames: ["serverKey", "blockedExtensions"],
       );
 
   @override

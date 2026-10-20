@@ -100,7 +100,7 @@ The Docker and systemd files in [deploy/](../deploy) show how to hand the key to
 - **Per message:** at most 10 files. A voice message is sent on its own, without text.
 - **At a time:** each member can have at most 10 uploads not yet sent, and start 20 a minute. An upload left unfinished, or finished and never sent, is deleted after a day; a failed one after an hour.
 - **Blocked extensions** (**Server settings → Uploads**): uploads whose name ends with one of them are refused (`FILE_TYPE_BLOCKED`). Nothing is blocked on a new server. **Block programs** adds the common program and script extensions (`exe`, `msi`, `bat`, `ps1`, `js`, `jar`, `apk`, `dmg`, `deb`, `sh` and others). Up to 100 entries of up to 20 characters; an entry can hold inner dots (`tar.gz`).
-- **Voice messages** last at most `Maximum length`, 5 minutes by default, 30 seconds to 30 minutes. The server checks the length and computes the waveform itself.
+- **Voice messages** last at most 30 minutes, on every server. A recording stops there and waits, unsent, for the member to send or delete it. The server checks the length and computes the waveform itself.
 - **Pictures** are checked and get a thumbnail (at most 800 pixels on a side) when they are at most 100 MiB, 16,384 pixels on a side and 50 megapixels. A picture beyond that, or one that doesn't decode, stays a file people can download. Videos get the thumbnail the sender's app made from their first frame.
 
 Permissions: **Attach files** to send files, **Send voice messages** for voice messages, and **Read message history** in the channel to open either.

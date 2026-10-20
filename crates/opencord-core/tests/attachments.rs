@@ -147,7 +147,7 @@ async fn ready_carries_upload_settings_and_role_limits() {
 
     assert_eq!(ready.upload_settings.max_attachments, 10);
     assert_eq!(ready.upload_settings.max_file_bytes, 4096 * MIB as u64);
-    assert_eq!(ready.upload_settings.voice_message_max_seconds, 300);
+    assert_eq!(ready.upload_settings.voice_message_max_seconds, 1_800);
     let everyone = ready
         .roles
         .iter()
@@ -164,12 +164,13 @@ async fn owner_updates_upload_settings_and_sees_the_event() {
 
     let settings = owner
         .client
-        .update_upload_settings(&key, Some(vec!["psd".to_owned()]), Some(120))
+        .update_upload_settings(&key, Some(vec!["psd".to_owned()]))
         .await
         .unwrap();
 
     assert_eq!(settings.blocked_extensions, ["psd"]);
-    assert_eq!(settings.voice_message_max_seconds, 120);
+    // Fixed at 30 minutes on every server.
+    assert_eq!(settings.voice_message_max_seconds, 1_800);
     let event = owner
         .wait_for(|payload| match payload {
             CoreEventPayload::UploadSettingsUpdate(settings) => Some(settings.clone()),
@@ -366,7 +367,7 @@ async fn a_blocked_file_fails_with_the_servers_reason() {
     // The list starts empty; the owner picks what to block.
     owner
         .client
-        .update_upload_settings(&key, Some(vec!["exe".to_owned()]), None)
+        .update_upload_settings(&key, Some(vec!["exe".to_owned()]))
         .await
         .unwrap();
 

@@ -6,7 +6,9 @@ use std::sync::Arc;
 use opencord_common::blob::{self, BlobKey, BlobKind, SEGMENT_PLAIN};
 use opencord_common::mp4;
 use opencord_common::sniff::{SniffKind, Sniffed, sniff};
-use opencord_common::upload::{IMAGE_PROCESS_MAX_BYTES, VOICE_FILENAME, voice_max_bytes};
+use opencord_common::upload::{
+    IMAGE_PROCESS_MAX_BYTES, VOICE_FILENAME, VOICE_MAX_SECONDS, voice_max_bytes,
+};
 use opencord_proto::v1 as proto;
 
 use crate::attachments::http::attachment_to_proto;
@@ -98,10 +100,7 @@ async fn run_inner(
         && mp4_has_video(temp_path, &key, id, size).await == Some(false);
 
     let (mut fields, thumbnail) = if row.kind == "voice" {
-        (
-            voice_fields(state, row, &key, temp_path, sniffed).await?,
-            None,
-        )
+        (voice_fields(row, &key, temp_path, sniffed).await?, None)
     } else if sniffed.kind() == SniffKind::Image && row.size_bytes as u64 <= IMAGE_PROCESS_MAX_BYTES
     {
         image_fields(row, &key, temp_path, sniffed).await?
@@ -189,7 +188,6 @@ fn base_fields(kind: &str, sniffed: Sniffed, filename: &str) -> ReadyFields {
 }
 
 async fn voice_fields(
-    state: &AppState,
     row: &AttachmentRow,
     key: &BlobKey,
     temp_path: &Path,
@@ -198,11 +196,9 @@ async fn voice_fields(
     if sniffed != Sniffed::Ogg {
         return Err(ApiError::voice_message_invalid("not an ogg file"));
     }
-    let max_seconds = state.guild().upload_settings.voice_message_max_seconds;
     let size = row.size_bytes as u64;
-    // The owner may have shortened the limit since the upload began.
-    if size > voice_max_bytes(max_seconds) {
-        return Err(ApiError::voice_message_too_long(max_seconds));
+    if size > voice_max_bytes(VOICE_MAX_SECONDS) {
+        return Err(ApiError::voice_message_too_long(VOICE_MAX_SECONDS));
     }
     let bytes = temp::read_plain(temp_path, key, row.id, size, size)
         .await
@@ -211,7 +207,7 @@ async fn voice_fields(
             ApiError::internal()
         })?;
     // Decoding minutes of Opus is CPU work.
-    let info = tokio::task::spawn_blocking(move || voice::check(&bytes, max_seconds))
+    let info = tokio::task::spawn_blocking(move || voice::check(&bytes, VOICE_MAX_SECONDS))
         .await
         .map_err(|_| ApiError::internal())??;
     Ok(ReadyFields {

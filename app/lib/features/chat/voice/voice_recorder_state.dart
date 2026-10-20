@@ -107,10 +107,11 @@ class VoiceRecorderNotifier extends Notifier<VoiceRecorderState> {
     switch (event) {
       case VoiceRecordLevel(:final level):
         _loudest = math.max(_loudest, level);
+      // At the 30 minutes the recording stops, unsent: the member decides
+      // in the preview, whether they still hold the button or locked it.
       case VoiceRecordStopped(reason: VoiceStopReason.maxLength):
-        if (state.phase == RecordingPhase.holding) {
-          unawaited(send());
-        } else if (state.phase == RecordingPhase.locked) {
+        if (state.phase == RecordingPhase.holding ||
+            state.phase == RecordingPhase.locked) {
           unawaited(stopForPreview());
         }
       case VoiceRecordStopped(reason: VoiceStopReason.deviceLost):

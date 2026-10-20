@@ -2083,19 +2083,9 @@ async fn upload_settings_are_shared_and_validated() {
             blocked_extensions: Some(proto::BlockedExtensions {
                 extensions: vec!["exe".into()],
             }),
-            voice_message_max_seconds: None,
         }))
         .await;
     assert_eq!(err.code, proto::ErrorCode::Forbidden as i32);
-
-    // 29 seconds -> INVALID_ARGUMENT.
-    let err = owner
-        .error(Req::UpdateUploadSettings(proto::UpdateUploadSettings {
-            blocked_extensions: None,
-            voice_message_max_seconds: Some(29),
-        }))
-        .await;
-    assert_eq!(err.code, proto::ErrorCode::InvalidArgument as i32);
 
     // ["ex e"] -> INVALID_ARGUMENT whose message contains "ex e".
     let err = owner
@@ -2103,7 +2093,6 @@ async fn upload_settings_are_shared_and_validated() {
             blocked_extensions: Some(proto::BlockedExtensions {
                 extensions: vec!["ex e".into()],
             }),
-            voice_message_max_seconds: None,
         }))
         .await;
     assert_eq!(err.code, proto::ErrorCode::InvalidArgument as i32);
@@ -2119,7 +2108,6 @@ async fn upload_settings_are_shared_and_validated() {
             blocked_extensions: Some(proto::BlockedExtensions {
                 extensions: vec!["EXE".into(), ".tar.gz".into()],
             }),
-            voice_message_max_seconds: None,
         }))
         .await;
     let settings = match res {
@@ -2168,7 +2156,6 @@ async fn blocked_extensions_stop_uploads() {
             blocked_extensions: Some(proto::BlockedExtensions {
                 extensions: vec!["exe".into(), "tar.gz".into()],
             }),
-            voice_message_max_seconds: None,
         }))
         .await;
 

@@ -118,9 +118,8 @@ void main() {
     await tester.enterText(addField, '');
     await tester.pump();
 
-    // Adjust voice maximum slider
-    final slider = _inSettings(find.byType(Slider));
-    expect(slider, findsOneWidget);
+    // A voice message's length isn't a setting: 30 minutes everywhere.
+    expect(_inSettings(find.byType(Slider)), findsNothing);
 
     // Save changes
     await tester.tap(

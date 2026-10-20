@@ -139,7 +139,7 @@ Each `Request` gets exactly one `Response`, which is either an `error` or the pa
 | `InstallCloudflared {}` | `network_info`; `tunnel.installing` until done | The owner; Linux |
 | `CreateUpload { channel_id, filename, size_bytes, kind, width?, height?, duration_ms? }` | `upload` | See [Attachments](#attachments) |
 | `CancelUpload { upload_id }` | `ack` | The uploader, until it is sent |
-| `UpdateUploadSettings { blocked_extensions?, voice_message_max_seconds? }` | `upload_settings` | Base `MANAGE_SERVER` |
+| `UpdateUploadSettings { blocked_extensions? }` | `upload_settings` | Base `MANAGE_SERVER`. A voice message's longest is 30 minutes everywhere; `UploadSettings.voice_message_max_seconds` says so (1800) |
 | `GetStorage {}` | `storage` | The owner |
 | `AddStorage { name, s3 }` | `storage` | The owner; the bucket's test must pass |
 | `UpdateStorage { storage_id, name?, s3? }` | `storage` | The owner; new bucket settings must pass the test. An empty access key or secret keeps the saved one; a new access key needs its secret |
@@ -301,7 +301,7 @@ Files and voice messages travel over HTTPS beside the gateway, in pieces, then g
    - the kind (`INVALID_ARGUMENT`);
    - `VIEW_CHANNEL` and `SEND_MESSAGES` in a channel that takes messages, then `ATTACH_FILES` for a file or `SEND_VOICE_MESSAGES` for a voice message (`FORBIDDEN`);
    - the name is cleaned: only what follows the last `/` or `\` is kept, control characters go, leading spaces and trailing dots and spaces are trimmed, Windows device names (`con`, `nul`, `com1`…) get a leading `_`, an empty name becomes `file`, and a name over 200 characters is cut before its extension. Then a file whose name ends with a blocked extension is refused (`FILE_TYPE_BLOCKED`);
-   - the size: a file within the sender's upload limit (`FILE_TOO_LARGE`), a voice message within `voice_message_max_seconds × 8 000 + 65 536` bytes (`VOICE_MESSAGE_TOO_LONG`); only a file may be empty;
+   - the size: a file within the sender's upload limit (`FILE_TOO_LARGE`), a voice message within `1800 × 8 000 + 65 536` bytes (30 minutes) (`VOICE_MESSAGE_TOO_LONG`); only a file may be empty;
    - 20 a minute (`RATE_LIMITED`), and fewer than 10 of the sender's uploads not yet sent (`CONFLICT`);
    - room in the server's upload folder for the file plus 512 MiB (`STORAGE_FULL`).
 

@@ -6051,7 +6051,6 @@ fn wire__crate__api__attachments__update_upload_settings_impl(
                 flutter_rust_bridge::for_generated::SseDeserializer::new(message);
             let api_server_key = <String>::sse_decode(&mut deserializer);
             let api_blocked_extensions = <Option<Vec<String>>>::sse_decode(&mut deserializer);
-            let api_voice_message_max_seconds = <Option<u32>>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| async move {
                 transform_result_sse::<_, crate::api::types::CoreError>(
@@ -6059,7 +6058,6 @@ fn wire__crate__api__attachments__update_upload_settings_impl(
                         let output_ok = crate::api::attachments::update_upload_settings(
                             api_server_key,
                             api_blocked_extensions,
-                            api_voice_message_max_seconds,
                         )
                         .await?;
                         std::result::Result::Ok(output_ok)

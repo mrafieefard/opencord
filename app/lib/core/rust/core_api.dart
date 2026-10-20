@@ -522,7 +522,6 @@ abstract interface class CoreApi {
   Future<core.UploadSettings> updateUploadSettings({
     required String serverKey,
     List<String>? blockedExtensions,
-    int? voiceMessageMaxSeconds,
   });
 
   Future<core.StorageInfo> storageGet({required String serverKey});
@@ -1532,11 +1531,9 @@ class FrbCoreApi implements CoreApi {
   Future<core.UploadSettings> updateUploadSettings({
     required String serverKey,
     List<String>? blockedExtensions,
-    int? voiceMessageMaxSeconds,
   }) => frb_attachments.updateUploadSettings(
     serverKey: serverKey,
     blockedExtensions: blockedExtensions,
-    voiceMessageMaxSeconds: voiceMessageMaxSeconds,
   );
 
   @override

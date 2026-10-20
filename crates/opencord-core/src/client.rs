@@ -1983,12 +1983,10 @@ impl Client {
         &self,
         key: &str,
         blocked_extensions: Option<Vec<String>>,
-        voice_message_max_seconds: Option<u32>,
     ) -> Result<UploadSettings, CoreError> {
         let request = Request::UpdateUploadSettings(proto::UpdateUploadSettings {
             blocked_extensions: blocked_extensions
                 .map(|extensions| proto::BlockedExtensions { extensions }),
-            voice_message_max_seconds,
         });
         match self.request(key, request).await? {
             Response::UploadSettings(settings) => Ok(convert::upload_settings(settings)),

@@ -526,7 +526,9 @@ message BlockedExtensions {
 // -> upload_settings. MANAGE_SERVER. Absent fields stay.
 message UpdateUploadSettings {
   optional BlockedExtensions blocked_extensions = 1;
-  optional uint32 voice_message_max_seconds = 2;
+  // Was voice_message_max_seconds: voice messages now last at most 30
+  // minutes on every server.
+  reserved 2;
 }
 
 // Storage, owner only. Each answers -> storage, except TestStorage.

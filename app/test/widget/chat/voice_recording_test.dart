@@ -178,6 +178,30 @@ void main() {
     await app.dispose(tester);
   });
 
+  testWidgets('max_length_while_holding_opens_the_preview_unsent', (
+    tester,
+  ) async {
+    final app = await MockApp.pump(tester);
+    await _open(tester, app, 'general');
+
+    final gesture = await tester.startGesture(
+      tester.getCenter(find.byType(MicButton)),
+    );
+    await tester.pump(const Duration(milliseconds: 100));
+
+    // Still held when the 30 minutes are up: nothing is sent.
+    app.repository.emitVoiceRecordStopped(VoiceStopReason.maxLength);
+    await _pumpFor(tester, const Duration(milliseconds: 200));
+    expect(find.byIcon(OcIcons.send), findsOneWidget);
+    expect(find.byIcon(OcIcons.delete), findsOneWidget);
+
+    // Letting go afterwards doesn't send it either.
+    await gesture.up();
+    await _pumpFor(tester, const Duration(milliseconds: 200));
+    expect(find.byIcon(OcIcons.send), findsOneWidget);
+    await app.dispose(tester);
+  });
+
   testWidgets('the_preview_plays_the_draft', (tester) async {
     final app = await MockApp.pump(tester);
     await _open(tester, app, 'general');

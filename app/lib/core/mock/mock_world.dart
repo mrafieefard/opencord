@@ -65,7 +65,7 @@ class MockServer {
   VoiceSettings voiceSettings = const VoiceSettings();
   UploadSettings uploadSettings = const UploadSettings(
     blockedExtensions: [],
-    voiceMessageMaxSeconds: 300,
+    voiceMessageMaxSeconds: 1800,
     maxFileBytes: 50 * 1024 * 1024,
     maxAttachments: 10,
   );

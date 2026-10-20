@@ -921,7 +921,6 @@ abstract interface class OpencordRepository {
   Future<UploadSettings> updateUploadSettings(
     String serverKey, {
     List<String>? blockedExtensions,
-    int? voiceMessageMaxSeconds,
   });
 
   Future<StorageInfo> storage(String serverKey);

@@ -17,7 +17,7 @@ import 'package:opencord/ui/widgets/oc_text_field.dart';
 import 'package:opencord/ui/widgets/settings.dart';
 import 'package:opencord/ui/widgets/toast.dart';
 
-/// Server settings → Uploads (§8.2): blocked file extensions and voice message maximum.
+/// Server settings → Uploads (§8.2): blocked file extensions.
 class ServerUploadsPage extends ConsumerStatefulWidget {
   const ServerUploadsPage({super.key, required this.serverKey});
 
@@ -31,7 +31,6 @@ class _ServerUploadsPageState extends ConsumerState<ServerUploadsPage> {
   Map<Object, bool Function()>? _unsaved;
 
   late List<String> _blocked;
-  late int _voiceSeconds;
   late final TextEditingController _addController;
   var _saving = false;
   String? _error;
@@ -44,7 +43,6 @@ class _ServerUploadsPageState extends ConsumerState<ServerUploadsPage> {
     super.initState();
     final s = _settings ?? UploadSettings.fallback;
     _blocked = List.of(s.blockedExtensions);
-    _voiceSeconds = s.voiceMessageMaxSeconds;
     _addController = TextEditingController();
   }
 
@@ -64,7 +62,6 @@ class _ServerUploadsPageState extends ConsumerState<ServerUploadsPage> {
   bool get _changed {
     final s = _settings;
     if (s == null) return false;
-    if (_voiceSeconds != s.voiceMessageMaxSeconds) return true;
     if (_blocked.length != s.blockedExtensions.length) return true;
     for (var i = 0; i < _blocked.length; i++) {
       if (_blocked[i] != s.blockedExtensions[i]) return true;
@@ -116,11 +113,7 @@ class _ServerUploadsPageState extends ConsumerState<ServerUploadsPage> {
     try {
       await ref
           .read(repositoryProvider)
-          .updateUploadSettings(
-            widget.serverKey,
-            blockedExtensions: _blocked,
-            voiceMessageMaxSeconds: _voiceSeconds,
-          );
+          .updateUploadSettings(widget.serverKey, blockedExtensions: _blocked);
       if (mounted) showOcToast(context, 'Upload settings saved');
     } on RepoException catch (error) {
       if (mounted) setState(() => _error = error.message);
@@ -211,22 +204,6 @@ class _ServerUploadsPageState extends ConsumerState<ServerUploadsPage> {
                   ],
                 ],
               ),
-            ),
-          ],
-        ),
-        const SizedBox(height: OcSpace.s24),
-        SettingsSection(
-          title: 'Voice messages',
-          children: [
-            SettingsSliderRow(
-              title: 'Maximum length',
-              value: _voiceSeconds,
-              min: 30,
-              max: 1800,
-              step: 30,
-              shown:
-                  '${_voiceSeconds ~/ 60}:${(_voiceSeconds % 60).toString().padLeft(2, '0')}',
-              onChanged: (val) => setState(() => _voiceSeconds = val),
             ),
           ],
         ),

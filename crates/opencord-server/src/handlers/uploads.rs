@@ -71,10 +71,9 @@ pub async fn create(ctx: &Ctx<'_>, request: proto::CreateUpload) -> Result<Respo
                 }
             }
             proto::AttachmentKind::VoiceMessage => {
-                let max_seconds = guild.upload_settings.voice_message_max_seconds;
-                let limit = upload::voice_max_bytes(max_seconds);
+                let limit = upload::voice_max_bytes(upload::VOICE_MAX_SECONDS);
                 if request.size_bytes > limit {
-                    return Err(ApiError::voice_message_too_long(max_seconds));
+                    return Err(ApiError::voice_message_too_long(upload::VOICE_MAX_SECONDS));
                 }
             }
             _ => unreachable!(),
@@ -223,19 +222,7 @@ pub async fn update_settings(
         }
         None => current.blocked_extensions,
     };
-    let voice_message_max_seconds = match request.voice_message_max_seconds {
-        Some(seconds) if upload::VOICE_MAX_SECONDS_RANGE.contains(&seconds) => seconds,
-        Some(_) => {
-            return Err(ApiError::invalid_argument(
-                "voice messages can be limited to 30 seconds to 30 minutes",
-            ));
-        }
-        None => current.voice_message_max_seconds,
-    };
-    let updated = UploadSettings {
-        blocked_extensions,
-        voice_message_max_seconds,
-    };
+    let updated = UploadSettings { blocked_extensions };
     updated.save(&mut *ctx.state.db.acquire().await?).await?;
     ctx.state.guild_mut().upload_settings = updated.clone();
     let settings = updated.to_proto(ctx.state.attachments.max_file_bytes());

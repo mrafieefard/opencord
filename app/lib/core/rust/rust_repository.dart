@@ -2246,13 +2246,11 @@ class RustRepository implements OpencordRepository {
   Future<UploadSettings> updateUploadSettings(
     String serverKey, {
     List<String>? blockedExtensions,
-    int? voiceMessageMaxSeconds,
   }) async => uploadSettingsFrom(
     await _call(
       () => _core.updateUploadSettings(
         serverKey: serverKey,
         blockedExtensions: blockedExtensions,
-        voiceMessageMaxSeconds: voiceMessageMaxSeconds,
       ),
     ),
   );

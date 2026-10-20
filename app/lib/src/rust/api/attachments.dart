@@ -11,11 +11,9 @@ import 'types.dart';
 Future<UploadSettings> updateUploadSettings({
   required String serverKey,
   List<String>? blockedExtensions,
-  int? voiceMessageMaxSeconds,
 }) => RustLib.instance.api.crateApiAttachmentsUpdateUploadSettings(
   serverKey: serverKey,
   blockedExtensions: blockedExtensions,
-  voiceMessageMaxSeconds: voiceMessageMaxSeconds,
 );
 
 /// The storage requests are the owner's only.
