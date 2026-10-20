@@ -3806,6 +3806,7 @@ dependencies = [
  "ffmpeg-next",
  "futures-util",
  "getrandom 0.4.3",
+ "image",
  "nnnoiseless",
  "objc2 0.6.5",
  "objc2-app-kit",
