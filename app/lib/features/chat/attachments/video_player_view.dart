@@ -18,10 +18,14 @@ class VideoPlayerView extends ConsumerStatefulWidget {
     super.key,
     required this.serverKey,
     required this.attachment,
+    this.pictureKey,
   });
 
   final String serverKey;
   final Attachment attachment;
+
+  /// Marks the picture, for a viewer that closes on clicks beside it.
+  final GlobalKey? pictureKey;
 
   @override
   ConsumerState<VideoPlayerView> createState() => _VideoPlayerViewState();
@@ -144,6 +148,7 @@ class _VideoPlayerViewState extends ConsumerState<VideoPlayerView> {
 
     if (_unsupported) {
       return Container(
+        key: widget.pictureKey,
         width: 480,
         height: 320,
         decoration: BoxDecoration(
@@ -188,6 +193,7 @@ class _VideoPlayerViewState extends ConsumerState<VideoPlayerView> {
 
     if (_error != null || playback.error != null) {
       return Container(
+        key: widget.pictureKey,
         padding: const EdgeInsets.all(OcSpace.s16),
         decoration: BoxDecoration(
           color: colors.surface,
@@ -237,6 +243,7 @@ class _VideoPlayerViewState extends ConsumerState<VideoPlayerView> {
             if (hasVideo && textureId != null)
               Center(
                 child: AspectRatio(
+                  key: widget.pictureKey,
                   aspectRatio: aspectRatio,
                   child: Texture(textureId: textureId),
                 ),
@@ -244,6 +251,7 @@ class _VideoPlayerViewState extends ConsumerState<VideoPlayerView> {
             else
               Center(
                 child: Container(
+                  key: widget.pictureKey,
                   width: 320,
                   height: 240,
                   color: colors.surface,
@@ -264,122 +272,126 @@ class _VideoPlayerViewState extends ConsumerState<VideoPlayerView> {
                 child: CircularProgressIndicator(strokeWidth: 2),
               ),
 
-            // Bottom control bar
+            // Bottom control bar; a click on it stays on it.
             Positioned(
               left: OcSpace.s16,
               right: OcSpace.s16,
               bottom: OcSpace.s16,
-              child: Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: OcSpace.s12,
-                  vertical: OcSpace.s8,
-                ),
-                decoration: BoxDecoration(
-                  color: colors.scrim.withValues(alpha: 0.85),
-                  borderRadius: BorderRadius.circular(OcRadius.bubble),
-                  border: Border.all(
-                    color: colors.border.withValues(alpha: 0.3),
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: () {},
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: OcSpace.s12,
+                    vertical: OcSpace.s8,
                   ),
-                ),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    // Seek slider
-                    SliderTheme(
-                      data: SliderTheme.of(context).copyWith(
-                        trackHeight: 3,
-                        thumbShape: const RoundSliderThumbShape(
-                          enabledThumbRadius: 6,
-                        ),
-                        activeTrackColor: colors.text,
-                        inactiveTrackColor: colors.textSecondary.withValues(
-                          alpha: 0.4,
-                        ),
-                        thumbColor: colors.text,
-                      ),
-                      child: Slider(
-                        value: durationMs > 0
-                            ? currentPosMs.toDouble().clamp(
-                                0.0,
-                                durationMs.toDouble(),
-                              )
-                            : 0.0,
-                        max: durationMs > 0 ? durationMs.toDouble() : 1.0,
-                        onChangeStart: (v) {
-                          setState(() {
-                            _draggingSeek = true;
-                            _dragPositionMs = v;
-                          });
-                        },
-                        onChanged: (v) {
-                          setState(() {
-                            _dragPositionMs = v;
-                          });
-                        },
-                        onChangeEnd: (v) {
-                          setState(() {
-                            _draggingSeek = false;
-                          });
-                          ref
-                              .read(playbackProvider.notifier)
-                              .seek(_item, v.toInt());
-                        },
-                      ),
+                  decoration: BoxDecoration(
+                    color: colors.scrim.withValues(alpha: 0.85),
+                    borderRadius: BorderRadius.circular(OcRadius.bubble),
+                    border: Border.all(
+                      color: colors.border.withValues(alpha: 0.3),
                     ),
-
-                    Row(
-                      children: [
-                        // Play/Pause
-                        OcIconButton(
-                          icon: playback.playing
-                              ? OcIcons.pause
-                              : OcIcons.playArrow,
-                          tooltip: playback.playing ? 'Pause' : 'Play',
-                          onPressed: _togglePlay,
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      // Seek slider
+                      SliderTheme(
+                        data: SliderTheme.of(context).copyWith(
+                          trackHeight: 3,
+                          thumbShape: const RoundSliderThumbShape(
+                            enabledThumbRadius: 6,
+                          ),
+                          activeTrackColor: colors.text,
+                          inactiveTrackColor: colors.textSecondary.withValues(
+                            alpha: 0.4,
+                          ),
+                          thumbColor: colors.text,
                         ),
-                        const SizedBox(width: OcSpace.s8),
-
-                        // m:ss / m:ss
-                        Text(
-                          '${formatDurationMs(currentPosMs)} / ${formatDurationMs(durationMs)}',
-                          style: OcText.small.copyWith(color: colors.text),
+                        child: Slider(
+                          value: durationMs > 0
+                              ? currentPosMs.toDouble().clamp(
+                                  0.0,
+                                  durationMs.toDouble(),
+                                )
+                              : 0.0,
+                          max: durationMs > 0 ? durationMs.toDouble() : 1.0,
+                          onChangeStart: (v) {
+                            setState(() {
+                              _draggingSeek = true;
+                              _dragPositionMs = v;
+                            });
+                          },
+                          onChanged: (v) {
+                            setState(() {
+                              _dragPositionMs = v;
+                            });
+                          },
+                          onChangeEnd: (v) {
+                            setState(() {
+                              _draggingSeek = false;
+                            });
+                            ref
+                                .read(playbackProvider.notifier)
+                                .seek(_item, v.toInt());
+                          },
                         ),
+                      ),
 
-                        const Spacer(),
+                      Row(
+                        children: [
+                          // Play/Pause
+                          OcIconButton(
+                            icon: playback.playing
+                                ? OcIcons.pause
+                                : OcIcons.playArrow,
+                            tooltip: playback.playing ? 'Pause' : 'Play',
+                            onPressed: _togglePlay,
+                          ),
+                          const SizedBox(width: OcSpace.s8),
 
-                        // Mute toggle
-                        OcIconButton(
-                          icon: _muted || _volume == 0
-                              ? OcIcons.volumeOff
-                              : OcIcons.volumeUp,
-                          size: OcIconButtonSize.compact,
-                          tooltip: _muted ? 'Unmute' : 'Mute',
-                          onPressed: _toggleMute,
-                        ),
+                          // m:ss / m:ss
+                          Text(
+                            '${formatDurationMs(currentPosMs)} / ${formatDurationMs(durationMs)}',
+                            style: OcText.small.copyWith(color: colors.text),
+                          ),
 
-                        // Volume slider
-                        SizedBox(
-                          width: 80,
-                          child: SliderTheme(
-                            data: SliderTheme.of(context).copyWith(
-                              trackHeight: 3,
-                              thumbShape: const RoundSliderThumbShape(
-                                enabledThumbRadius: 5,
+                          const Spacer(),
+
+                          // Mute toggle
+                          OcIconButton(
+                            icon: _muted || _volume == 0
+                                ? OcIcons.volumeOff
+                                : OcIcons.volumeUp,
+                            size: OcIconButtonSize.compact,
+                            tooltip: _muted ? 'Unmute' : 'Mute',
+                            onPressed: _toggleMute,
+                          ),
+
+                          // Volume slider
+                          SizedBox(
+                            width: 80,
+                            child: SliderTheme(
+                              data: SliderTheme.of(context).copyWith(
+                                trackHeight: 3,
+                                thumbShape: const RoundSliderThumbShape(
+                                  enabledThumbRadius: 5,
+                                ),
+                                activeTrackColor: colors.text,
+                                inactiveTrackColor: colors.textSecondary
+                                    .withValues(alpha: 0.4),
+                                thumbColor: colors.text,
                               ),
-                              activeTrackColor: colors.text,
-                              inactiveTrackColor: colors.textSecondary
-                                  .withValues(alpha: 0.4),
-                              thumbColor: colors.text,
-                            ),
-                            child: Slider(
-                              value: _muted ? 0.0 : _volume,
-                              onChanged: _onVolumeChanged,
+                              child: Slider(
+                                value: _muted ? 0.0 : _volume,
+                                onChanged: _onVolumeChanged,
+                              ),
                             ),
                           ),
-                        ),
-                      ],
-                    ),
-                  ],
+                        ],
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),
