@@ -101,6 +101,7 @@ message Ready {
   int64 server_time_ms = 18;
   // The chat commands this user may see (Phase 3 plan §17.1).
   Commands commands = 19;
+  UploadSettings upload_settings = 20;
 }
 
 // Sent after the missed events have been replayed.

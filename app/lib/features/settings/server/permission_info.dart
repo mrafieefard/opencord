@@ -94,7 +94,11 @@ const permissionGroups = <(String, List<PermissionInfo>)>[
         Permissions.attachFiles,
         'Attach files',
         'Send files and images',
-        later: true,
+      ),
+      PermissionInfo(
+        Permissions.sendVoiceMessages,
+        'Send voice messages',
+        'Record and send voice messages',
       ),
       PermissionInfo(
         Permissions.mentionEveryone,

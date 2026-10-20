@@ -11,6 +11,7 @@ class User {
     required this.displayName,
     this.publicKeyHex = '',
     this.fingerprint = '',
+    this.avatarHash,
   });
 
   final int id;
@@ -20,11 +21,15 @@ class User {
   /// Like `ABCD-EFGH-IJKL-MNOP`.
   final String fingerprint;
 
-  User copyWith({String? displayName}) => User(
+  /// The profile picture's hash; null without one.
+  final String? avatarHash;
+
+  User copyWith({String? displayName, String? Function()? avatarHash}) => User(
     id: id,
     displayName: displayName ?? this.displayName,
     publicKeyHex: publicKeyHex,
     fingerprint: fingerprint,
+    avatarHash: avatarHash == null ? this.avatarHash : avatarHash(),
   );
 }
 
@@ -70,6 +75,7 @@ class Role {
     this.color = 0,
     this.hoist = false,
     this.mentionable = false,
+    this.maxUploadBytes,
   });
 
   final int id;
@@ -86,12 +92,16 @@ class Role {
   final bool hoist;
   final bool mentionable;
 
+  /// Maximum file size members of this role may upload.
+  final int? maxUploadBytes;
+
   Role copyWith({
     String? name,
     int? position,
     Permissions? permissions,
     bool? hoist,
     bool? mentionable,
+    int? Function()? maxUploadBytes,
   }) => Role(
     id: id,
     name: name ?? this.name,
@@ -100,5 +110,8 @@ class Role {
     permissions: permissions ?? this.permissions,
     hoist: hoist ?? this.hoist,
     mentionable: mentionable ?? this.mentionable,
+    maxUploadBytes: maxUploadBytes == null
+        ? this.maxUploadBytes
+        : maxUploadBytes(),
   );
 }

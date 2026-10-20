@@ -165,6 +165,13 @@ final currentChannelProvider = Provider<int?>((ref) {
   return navigableChannels(channels.values).firstOrNull?.id;
 });
 
+final currentChannelRefProvider = Provider<ChannelRef?>((ref) {
+  final server = ref.watch(currentServerProvider);
+  final channel = ref.watch(currentChannelProvider);
+  if (server == null || channel == null) return null;
+  return (server: server, channel: channel);
+});
+
 const recentChannelsKey = 'ui.recentChannels';
 
 /// How many recent channels are remembered.

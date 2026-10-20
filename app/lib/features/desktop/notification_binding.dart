@@ -7,6 +7,7 @@ import 'package:opencord/core/providers/providers.dart';
 import 'package:opencord/core/repository/repository.dart';
 import 'package:opencord/core/settings/app_settings.dart';
 import 'package:opencord/core/settings/local_prefs.dart';
+import 'package:opencord/features/chat/attachments/summary.dart';
 import 'package:opencord/features/chat/message_actions.dart';
 import 'package:opencord/features/desktop/notification_policy.dart';
 import 'package:opencord/features/desktop/notifications.dart';
@@ -59,7 +60,7 @@ final notificationBindingProvider = Provider<void>((ref) {
         : '${channel.kind.isTextLike ? '#' : ''}${channel.name}, '
               '${data.info.name}';
     final text = copyableText(
-      message.content,
+      messageSummary(message),
       user: (id) => data.members[id]?.displayName,
       channel: (id) => data.channels[id]?.name,
     );

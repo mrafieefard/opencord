@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:opencord/core/model/attachment.dart';
 import 'package:opencord/core/model/channel.dart';
 import 'package:opencord/core/model/commands.dart';
 import 'package:opencord/core/model/lavalink.dart';
@@ -13,6 +14,7 @@ import 'package:opencord/core/model/permissions.dart';
 import 'package:opencord/core/model/presence.dart';
 import 'package:opencord/core/model/server.dart';
 import 'package:opencord/core/model/sound.dart';
+import 'package:opencord/core/model/storage.dart';
 import 'package:opencord/core/model/stream.dart';
 import 'package:opencord/core/model/user.dart';
 import 'package:opencord/core/model/video.dart';
@@ -20,6 +22,10 @@ import 'package:opencord/core/model/voice.dart';
 import 'package:opencord/core/repository/events.dart';
 
 export 'package:opencord/core/repository/events.dart';
+import 'package:opencord/core/model/media_handle.dart';
+export 'package:opencord/core/model/media_handle.dart';
+import 'package:opencord/core/model/voice_message.dart';
+export 'package:opencord/core/model/voice_message.dart';
 
 /// UI features that need protocol support Phase 1 does not have yet. The
 /// mock has them all; the Rust core reports what it can do, and the UI
@@ -161,6 +167,29 @@ enum RepoErrorKind {
   /// set up or no node to play.
   musicStale,
   musicUnavailable,
+
+  /// Media uploads (Phase 4):
+  /// A file larger than the member's or the server's limit.
+  fileTooLarge,
+
+  /// A file whose extension is on the server's blocked list.
+  fileTypeBlocked,
+
+  /// A voice message that is not Opus or has bad metadata.
+  voiceMessageInvalid,
+
+  /// A voice message longer than the server allows.
+  voiceMessageTooLong,
+
+  /// Storage unreachable, bucket test failed, or active storage missing.
+  storageUnavailable,
+
+  /// No space left on the storage backend.
+  storageFull,
+
+  /// The upload, download, or operation was cancelled.
+  cancelled,
+
   unauthorized,
   forbidden,
   notFound,
@@ -332,6 +361,7 @@ abstract interface class OpencordRepository {
     Permissions permissions = Permissions.none,
     bool hoist = false,
     bool mentionable = false,
+    int? maxUploadBytes,
   });
 
   Future<Role> updateRole(
@@ -341,6 +371,7 @@ abstract interface class OpencordRepository {
     Permissions? permissions,
     bool? hoist,
     bool? mentionable,
+    int? maxUploadBytes,
   });
 
   Future<void> deleteRole(String serverKey, int roleId);
@@ -364,6 +395,24 @@ abstract interface class OpencordRepository {
   Future<void> updateNickname(String serverKey, int userId, String? nickname);
 
   Future<void> updateDisplayName(String displayName);
+
+  /// This person's profile picture's hash on this device; null without one.
+  String? ownAvatarHash();
+
+  /// This person's profile picture's file on this device; null without one.
+  String? ownAvatarFile();
+
+  /// Makes this person's profile picture from the image at [path], or
+  /// removes it (null), and sends it to every server, as the display name
+  /// is: servers not connected now get it after their next Ready.
+  Future<void> setAvatar(String? path);
+
+  /// The server's icon, made from the image at [path], or none. Manage
+  /// server.
+  Future<void> setServerIcon(String serverKey, String? path);
+
+  /// The file of the profile picture or server icon named [hash].
+  Future<String> avatarPath(String serverKey, String hash);
 
   /// The identity's secret key as a backup text to keep safe (§8.1).
   Future<String> exportIdentityBackup();
@@ -856,6 +905,127 @@ abstract interface class OpencordRepository {
   });
 
   void closeSoundDraft(int draftId);
+
+  // Media uploads and storage (Phase 4) --------------------------------------
+
+  Future<Message> sendMessageWithFiles(
+    String serverKey,
+    int channelId,
+    String content, {
+    required String nonce,
+    required List<StagedFile> files,
+  });
+
+  void cancelSend(String serverKey, String nonce);
+
+  /// Uploads [file] as soon as it is staged in [channelId]'s composer;
+  /// [StagedUploadEvent]s follow. Completes when it is ready to send;
+  /// throws when it fails. Sending [file] takes its upload over.
+  Future<void> stageUpload(String serverKey, int channelId, StagedFile file);
+
+  /// The staged file was removed: its upload stops, or is cancelled on the
+  /// server once finished.
+  Future<void> discardStagedUpload(String serverKey, String stagedId);
+
+  Future<Uint8List> attachmentBytes(
+    String serverKey,
+    int attachmentId, {
+    bool thumbnail = false,
+  });
+
+  Future<void> downloadAttachment(
+    String serverKey,
+    int attachmentId,
+    String path,
+  );
+
+  void cancelDownload(String serverKey, int attachmentId);
+
+  Future<Uint8List?> clipboardImage();
+
+  Future<void> copyImage(Uint8List bytes);
+
+  Future<UploadSettings> updateUploadSettings(
+    String serverKey, {
+    List<String>? blockedExtensions,
+  });
+
+  Future<StorageInfo> storage(String serverKey);
+
+  Future<StorageInfo> addStorage(String serverKey, String name, S3Config s3);
+
+  Future<StorageInfo> updateStorage(
+    String serverKey,
+    int storageId, {
+    String? name,
+    S3Config? s3,
+  });
+
+  /// Tests a saved storage ([storageId]) or settings ([s3]). With [s3],
+  /// [keysFrom] names the saved storage being edited: the keys [s3] leaves
+  /// empty are its saved ones.
+  Future<StorageTestResult> testStorage(
+    String serverKey, {
+    int? storageId,
+    S3Config? s3,
+    int? keysFrom,
+  });
+
+  Future<StorageInfo> activateStorage(String serverKey, int storageId);
+
+  Future<StorageInfo> removeStorage(String serverKey, int storageId);
+
+  Future<StorageInfo> startStorageMove(String serverKey);
+
+  Future<StorageInfo> stopStorageMove(String serverKey);
+
+  Future<int> mediaCacheSize();
+
+  Future<void> clearMediaCache();
+
+  // Voice messages (Phase 4 A6) ---------------------------------------------
+
+  void voiceRecordStart(int maxSeconds);
+
+  Future<VoiceDraft> voiceRecordStop();
+
+  void voiceRecordCancel();
+
+  void voiceDraftDiscard(int draftId);
+
+  Future<Message> sendVoiceMessage(
+    String serverKey,
+    int channelId,
+    String nonce,
+    int draftId,
+  );
+
+  Future<void> voicePlay(PlaybackItem item, int positionMs, double speed);
+
+  /// Pause, resume, seek and speed act on whatever is playing.
+  void voicePause();
+
+  void voiceResume();
+
+  void voiceSeek(int positionMs);
+
+  void voiceSetSpeed(double speed);
+
+  void voiceStop();
+
+  Future<MediaHandle> mediaOpen(String serverKey, int attachmentId);
+
+  void mediaPlay();
+
+  void mediaPause();
+
+  void mediaSeek(int positionMs);
+
+  void mediaSetVolume(double volume, bool muted);
+
+  void mediaClose();
+
+  bool mediaSupported();
 }
 
 /// Overridden at startup with the mock or the Rust-core repository.

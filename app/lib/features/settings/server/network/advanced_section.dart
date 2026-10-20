@@ -3,12 +3,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:opencord/core/model/network.dart';
 import 'package:opencord/features/settings/server/network/network_dialogs.dart';
+import 'package:opencord/features/settings/settings_dialog.dart';
 import 'package:opencord/ui/widgets/oc_button.dart';
 import 'package:opencord/ui/widgets/settings.dart';
 
 /// What most owners never change (Phase 3 plan §8): the resolvers domain
 /// checks use, Let's Encrypt's test environment, and the local listener
-/// tunnels and proxies forward to.
+/// tunnels and proxies forward to. Changes wait for the save bar.
 class AdvancedNetworkSection extends ConsumerWidget {
   const AdvancedNetworkSection({
     super.key,
@@ -19,19 +20,31 @@ class AdvancedNetworkSection extends ConsumerWidget {
   final String serverKey;
   final NetworkSettings settings;
 
-  Future<void> _save(
-    BuildContext context,
-    WidgetRef ref,
-    NetworkSettingsChanges changes,
-  ) => changeNetwork(
-    context,
-    ref,
-    serverKey,
-    (repository, server) => repository.updateNetworkSettings(server, changes),
-  );
-
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context, WidgetRef ref) =>
+      PendingValue<NetworkSettings>(
+        saved: settings,
+        save: (edited) => saveNetwork(ref, serverKey, (repository, server) {
+          // Only this section's: Ports saves its own.
+          final changes = edited.changesFrom(settings);
+          return repository.updateNetworkSettings(
+            server,
+            NetworkSettingsChanges(
+              localListenerPort: changes.localListenerPort,
+              trustedProxies: changes.trustedProxies,
+              dnsResolvers: changes.dnsResolvers,
+              acmeStaging: changes.acmeStaging,
+            ),
+          );
+        }),
+        builder: _section,
+      );
+
+  Widget _section(
+    BuildContext context,
+    NetworkSettings settings,
+    ValueChanged<NetworkSettings> change,
+  ) {
     return SettingsSection(
       title: 'Advanced',
       children: [
@@ -53,12 +66,8 @@ class AdvancedNetworkSection extends ConsumerWidget {
                 hint: '1.1.1.1',
                 allowEmpty: false,
               );
-              if (resolvers == null || !context.mounted) return;
-              await _save(
-                context,
-                ref,
-                NetworkSettingsChanges(dnsResolvers: resolvers),
-              );
+              if (resolvers == null) return;
+              change(settings.copyWith(dnsResolvers: resolvers));
             },
           ),
         ),
@@ -68,8 +77,7 @@ class AdvancedNetworkSection extends ConsumerWidget {
               'For trying the setup without reaching its limits. Its '
               'certificates are not trusted and show as Test.',
           value: settings.acmeStaging,
-          onChanged: (on) =>
-              _save(context, ref, NetworkSettingsChanges(acmeStaging: on)),
+          onChanged: (on) => change(settings.copyWith(acmeStaging: on)),
         ),
         SettingsRow(
           title: 'Local listener port',
@@ -88,12 +96,8 @@ class AdvancedNetworkSection extends ConsumerWidget {
                     'while a tunnel or reverse-proxy domain exists.',
                 current: settings.localListenerPort,
               );
-              if (port == null || !context.mounted) return;
-              await _save(
-                context,
-                ref,
-                NetworkSettingsChanges(localListenerPort: port),
-              );
+              if (port == null) return;
+              change(settings.copyWith(localListenerPort: port));
             },
           ),
         ),
@@ -117,12 +121,8 @@ class AdvancedNetworkSection extends ConsumerWidget {
                 current: settings.trustedProxies,
                 hint: '127.0.0.1',
               );
-              if (proxies == null || !context.mounted) return;
-              await _save(
-                context,
-                ref,
-                NetworkSettingsChanges(trustedProxies: proxies),
-              );
+              if (proxies == null) return;
+              change(settings.copyWith(trustedProxies: proxies));
             },
           ),
         ),

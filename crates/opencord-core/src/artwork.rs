@@ -119,8 +119,9 @@ impl ArtworkCache {
     }
 }
 
-/// Whether the file is here; if so, it was just used.
-fn touch(path: &Path) -> bool {
+/// Whether the file is here; if so, it was just used. Shared with the
+/// avatar cache.
+pub(crate) fn touch(path: &Path) -> bool {
     let Ok(file) = fs::File::options().write(true).open(path) else {
         return false;
     };
@@ -130,7 +131,7 @@ fn touch(path: &Path) -> bool {
 
 /// Writes the picture, then removes the least recently used until the
 /// rest fit.
-fn store(dir: &Path, path: &Path, bytes: &[u8], limit: u64) -> io::Result<()> {
+pub(crate) fn store(dir: &Path, path: &Path, bytes: &[u8], limit: u64) -> io::Result<()> {
     fs::create_dir_all(dir)?;
     let partial = path.with_extension("partial");
     fs::write(&partial, bytes)?;

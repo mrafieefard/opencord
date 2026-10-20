@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:opencord/features/settings/user/settings_draft.dart';
 import 'package:opencord/core/providers/voice_cues.dart';
-import 'package:opencord/core/settings/local_prefs.dart';
 import 'package:opencord/ui/widgets/settings.dart';
 
 /// User settings → Sounds (Phase 2 plan §11.7, §12): how loud soundboards
@@ -12,9 +12,9 @@ class SoundsPage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final prefs = ref.watch(soundboardPrefsProvider);
-    final notifier = ref.read(soundboardPrefsProvider.notifier);
-    final cuesOff = ref.watch(cuePrefsProvider);
+    final prefs = ref.watch(shownSoundboardProvider);
+    final draft = ref.read(clientSettingsDraftProvider.notifier);
+    final cuesOff = ref.watch(shownCuesOffProvider);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -30,14 +30,16 @@ class SoundsPage extends ConsumerWidget {
               min: 0,
               max: 100,
               shown: '${prefs.volume} %',
-              onChanged: (value) =>
-                  notifier.update((prefs) => prefs.copyWith(volume: value)),
+              onChanged: (value) => draft.updateSoundboard(
+                (prefs) => prefs.copyWith(volume: value),
+              ),
             ),
             SettingsSwitchRow(
               title: 'Mute all soundboards',
               value: prefs.muted,
-              onChanged: (value) =>
-                  notifier.update((prefs) => prefs.copyWith(muted: value)),
+              onChanged: (value) => draft.updateSoundboard(
+                (prefs) => prefs.copyWith(muted: value),
+              ),
             ),
           ],
         ),
@@ -49,8 +51,7 @@ class SoundsPage extends ConsumerWidget {
               SettingsSwitchRow(
                 title: group.label,
                 value: !cuesOff.contains(group),
-                onChanged: (on) =>
-                    ref.read(cuePrefsProvider.notifier).set(group, on: on),
+                onChanged: (on) => draft.setCue(group, on: on),
               ),
           ],
         ),

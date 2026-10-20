@@ -27,6 +27,7 @@ abstract final class OcIcons {
     fontFamily: fontFamily,
   );
   static const IconData arrowUpward = IconData(0xe5d8, fontFamily: fontFamily);
+  static const IconData article = IconData(0xef42, fontFamily: fontFamily);
   static const IconData attachFile = IconData(0xe226, fontFamily: fontFamily);
   static const IconData audioFile = IconData(0xeb82, fontFamily: fontFamily);
   static const IconData badge = IconData(0xea67, fontFamily: fontFamily);
@@ -42,6 +43,7 @@ abstract final class OcIcons {
     0xe835,
     fontFamily: fontFamily,
   );
+  static const IconData chevronLeft = IconData(0xe5cb, fontFamily: fontFamily);
   static const IconData chevronRight = IconData(0xe5cc, fontFamily: fontFamily);
   static const IconData close = IconData(0xe5cd, fontFamily: fontFamily);
   static const IconData closeFullscreen = IconData(
@@ -49,6 +51,7 @@ abstract final class OcIcons {
     fontFamily: fontFamily,
   );
   static const IconData cloudOff = IconData(0xe2c1, fontFamily: fontFamily);
+  static const IconData cloudUpload = IconData(0xe2c3, fontFamily: fontFamily);
   static const IconData code = IconData(0xe86f, fontFamily: fontFamily);
   static const IconData contentCopy = IconData(0xe14d, fontFamily: fontFamily);
   static const IconData contrast = IconData(0xeb37, fontFamily: fontFamily);
@@ -59,6 +62,7 @@ abstract final class OcIcons {
   static const IconData darkMode = IconData(0xe51c, fontFamily: fontFamily);
   static const IconData dashboard = IconData(0xe871, fontFamily: fontFamily);
   static const IconData delete = IconData(0xe92e, fontFamily: fontFamily);
+  static const IconData description = IconData(0xe873, fontFamily: fontFamily);
   static const IconData desktopWindows = IconData(
     0xe30c,
     fontFamily: fontFamily,
@@ -90,7 +94,9 @@ abstract final class OcIcons {
   static const IconData expandMore = IconData(0xe5cf, fontFamily: fontFamily);
   static const IconData fingerprint = IconData(0xe90d, fontFamily: fontFamily);
   static const IconData folder = IconData(0xe2c7, fontFamily: fontFamily);
+  static const IconData folderZip = IconData(0xeb2c, fontFamily: fontFamily);
   static const IconData forum = IconData(0xe8af, fontFamily: fontFamily);
+  static const IconData fullscreen = IconData(0xe5d0, fontFamily: fontFamily);
   static const IconData gavel = IconData(0xe90e, fontFamily: fontFamily);
   static const IconData graphicEq = IconData(0xe1b8, fontFamily: fontFamily);
   static const IconData group = IconData(0xea21, fontFamily: fontFamily);
@@ -101,6 +107,7 @@ abstract final class OcIcons {
     0xe88b,
     fontFamily: fontFamily,
   );
+  static const IconData image = IconData(0xe3f4, fontFamily: fontFamily);
   static const IconData info = IconData(0xe88e, fontFamily: fontFamily);
   static const IconData key = IconData(0xe73c, fontFamily: fontFamily);
   static const IconData keyboard = IconData(0xe312, fontFamily: fontFamily);
@@ -112,6 +119,7 @@ abstract final class OcIcons {
   static const IconData lightMode = IconData(0xe518, fontFamily: fontFamily);
   static const IconData link = IconData(0xe250, fontFamily: fontFamily);
   static const IconData lock = IconData(0xe899, fontFamily: fontFamily);
+  static const IconData lockOpen = IconData(0xe898, fontFamily: fontFamily);
   static const IconData logout = IconData(0xe9ba, fontFamily: fontFamily);
   static const IconData mail = IconData(0xe159, fontFamily: fontFamily);
   static const IconData markChatRead = IconData(0xf18b, fontFamily: fontFamily);
@@ -123,6 +131,7 @@ abstract final class OcIcons {
   static const IconData moreHoriz = IconData(0xe5d3, fontFamily: fontFamily);
   static const IconData moreVert = IconData(0xe5d4, fontFamily: fontFamily);
   static const IconData moveDown = IconData(0xeb61, fontFamily: fontFamily);
+  static const IconData movie = IconData(0xe404, fontFamily: fontFamily);
   static const IconData musicNote = IconData(0xe405, fontFamily: fontFamily);
   static const IconData networkCheck = IconData(0xe640, fontFamily: fontFamily);
   static const IconData notifications = IconData(
@@ -169,12 +178,14 @@ abstract final class OcIcons {
   );
   static const IconData skipNext = IconData(0xe044, fontFamily: fontFamily);
   static const IconData skipPrevious = IconData(0xe045, fontFamily: fontFamily);
+  static const IconData speed = IconData(0xe9e4, fontFamily: fontFamily);
   static const IconData star = IconData(0xf09a, fontFamily: fontFamily);
   static const IconData stop = IconData(0xe047, fontFamily: fontFamily);
   static const IconData stopScreenShare = IconData(
     0xe0e3,
     fontFamily: fontFamily,
   );
+  static const IconData storage = IconData(0xe1db, fontFamily: fontFamily);
   static const IconData sync = IconData(0xe627, fontFamily: fontFamily);
   static const IconData tag = IconData(0xe9ef, fontFamily: fontFamily);
   static const IconData tune = IconData(0xe429, fontFamily: fontFamily);
@@ -195,4 +206,5 @@ abstract final class OcIcons {
   static const IconData volumeUp = IconData(0xe050, fontFamily: fontFamily);
   static const IconData warning = IconData(0xf083, fontFamily: fontFamily);
   static const IconData webAsset = IconData(0xe069, fontFamily: fontFamily);
+  static const IconData zoomIn = IconData(0xe8ff, fontFamily: fontFamily);
 }

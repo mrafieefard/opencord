@@ -23,6 +23,8 @@ pub struct User {
     pub id: i64,
     pub public_key: Vec<u8>,
     pub display_name: String,
+    /// The profile picture's SHA-256, if any.
+    pub avatar_hash: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -43,6 +45,7 @@ pub struct Role {
     pub permissions: Permissions,
     pub hoist: bool,
     pub mentionable: bool,
+    pub max_upload_bytes: Option<u64>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -71,6 +74,7 @@ pub struct Guild {
     pub members: HashMap<i64, Member>,
     /// Soundboard sounds, oldest first.
     pub sounds: BTreeMap<i64, Sound>,
+    pub upload_settings: crate::attachments::settings::UploadSettings,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -97,6 +101,11 @@ impl Guild {
                     permissions: permissions_from_db(row.permissions),
                     hoist: row.hoist,
                     mentionable: row.mentionable,
+                    max_upload_bytes: row
+                        .max_upload_bytes
+                        .map(u64::try_from)
+                        .transpose()
+                        .map_err(|_| corrupt("role", row.id))?,
                 };
                 Ok((role.id, role))
             })
@@ -157,6 +166,7 @@ impl Guild {
                         id: row.user_id,
                         public_key: row.public_key,
                         display_name: row.display_name,
+                        avatar_hash: row.avatar_hash,
                     },
                     nickname: row.nickname,
                     role_ids: role_ids.remove(&row.user_id).unwrap_or_default(),
@@ -184,6 +194,7 @@ impl Guild {
             channels,
             members,
             sounds,
+            upload_settings: crate::attachments::settings::UploadSettings::load(conn).await?,
         })
     }
 
@@ -193,6 +204,26 @@ impl Guild {
 
     pub fn everyone_role(&self) -> Option<&Role> {
         self.roles.get(&self.meta.everyone_role_id)
+    }
+
+    pub fn upload_limit(&self, user_id: i64, ceiling: u64) -> u64 {
+        let is_owner = self.is_owner(user_id);
+        let everyone_limit = self
+            .everyone_role()
+            .and_then(|r| r.max_upload_bytes)
+            .unwrap_or(opencord_common::upload::EVERYONE_DEFAULT_BYTES);
+        let role_limits = self
+            .members
+            .get(&user_id)
+            .into_iter()
+            .flat_map(|m| &m.role_ids)
+            .map(|id| self.roles.get(id).and_then(|r| r.max_upload_bytes));
+        opencord_common::upload::effective_upload_limit(
+            is_owner,
+            everyone_limit,
+            role_limits,
+            ceiling,
+        )
     }
 
     /// Server-wide permissions; empty for non-members.
@@ -268,6 +299,7 @@ impl Guild {
             owner_id: self.meta.owner_id,
             open_join: self.meta.open_join,
             everyone_role_id: self.meta.everyone_role_id,
+            icon_hash: self.meta.icon_hash.clone().unwrap_or_default(),
         }
     }
 }
@@ -278,6 +310,7 @@ impl User {
             id: self.id,
             public_key: self.public_key.clone(),
             display_name: self.display_name.clone(),
+            avatar_hash: self.avatar_hash.clone().unwrap_or_default(),
         }
     }
 }
@@ -303,6 +336,7 @@ impl Role {
             permissions: self.permissions.bits(),
             hoist: self.hoist,
             mentionable: self.mentionable,
+            max_upload_bytes: self.max_upload_bytes,
         }
     }
 }
@@ -317,6 +351,7 @@ impl Role {
             permissions: permissions_to_db(self.permissions),
             hoist: self.hoist,
             mentionable: self.mentionable,
+            max_upload_bytes: self.max_upload_bytes.map(|b| b as i64),
         }
     }
 }
@@ -422,6 +457,7 @@ pub(crate) mod tests {
             id,
             public_key: vec![u8::try_from(id).unwrap(); 32],
             display_name: format!("user{id}"),
+            avatar_hash: None,
         }
     }
 
@@ -453,6 +489,7 @@ pub(crate) mod tests {
                 permissions: Permissions::KICK_MEMBERS,
                 hoist: true,
                 mentionable: false,
+                max_upload_bytes: None,
             },
         );
         guild.members.insert(OWNER, member(OWNER, vec![]));
@@ -530,5 +567,27 @@ pub(crate) mod tests {
         guild.members.get_mut(&ALICE).unwrap().role_ids = vec![MOD_ROLE];
 
         assert_eq!(guild.highest_position(ALICE), 1);
+    }
+
+    #[tokio::test]
+    async fn upload_limit_uses_roles_and_ceiling() {
+        let mut guild = sample_guild().await;
+        const MIB: u64 = 1024 * 1024;
+        const CEILING: u64 = 500 * MIB;
+
+        if let Some(everyone) = guild.roles.get_mut(&guild.meta.everyone_role_id) {
+            everyone.max_upload_bytes = Some(50 * MIB);
+        }
+
+        if let Some(role) = guild.roles.get_mut(&MOD_ROLE) {
+            role.max_upload_bytes = Some(200 * MIB);
+        }
+
+        const BOB: i64 = 99;
+        guild.members.insert(BOB, member(BOB, vec![MOD_ROLE]));
+
+        assert_eq!(guild.upload_limit(BOB, CEILING), 200 * MIB);
+        assert_eq!(guild.upload_limit(ALICE, CEILING), 50 * MIB);
+        assert_eq!(guild.upload_limit(OWNER, CEILING), CEILING);
     }
 }

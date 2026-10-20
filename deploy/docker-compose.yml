@@ -32,6 +32,17 @@ services:
       # - "80:80/tcp"
     volumes:
       - opencord-data:/data
+    # The key that encrypts every uploaded file sits in the data volume as
+    # secrets.key. To keep it apart from the files (docs/attachments.md),
+    # move it next to this file as secrets.key (readable by uid 7710), add
+    # OPENCORD_SECRETS_FILE: /run/secrets/opencord-secrets.key to environment
+    # above, and uncomment these two lines and the secrets block below:
+    # secrets:
+    #   - opencord-secrets.key
 
 volumes:
   opencord-data:
+
+# secrets:
+#   opencord-secrets.key:
+#     file: ./secrets.key

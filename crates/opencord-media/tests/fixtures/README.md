@@ -11,3 +11,14 @@ Recordings used by the voice processing tests (Phase 2 plan §7.2–§7.4, V3). 
 | `noise/dog.wav` (24 kHz) | the whole recording, played twice | [Barking of a dog.ogg](https://commons.wikimedia.org/wiki/File:Barking_of_a_dog.ogg) | Amada44 | [CC BY-SA 3.0](https://creativecommons.org/licenses/by-sa/3.0/) |
 
 `noise/dog.wav` is an adaptation of Amada44's recording and is shared under the same licence, CC BY-SA 3.0. The other files are in the public domain.
+
+# Test videos
+
+Used by the media player tests (`tests/player.rs`) and the core's upload tests (media uploads plan, Task 33; `aac_isom.m4a`: sound alone under a video brand, its track list after the media). Made once with the system `ffmpeg` command from its test pattern and a sine tone, so they carry no third-party content:
+
+```bash
+ffmpeg -f lavfi -i testsrc=size=320x240:rate=25 -f lavfi -i sine=frequency=440:sample_rate=48000 -t 2 -c:v libx264 -pix_fmt yuv420p -c:a aac -b:a 64k -movflags +faststart h264_aac.mp4
+ffmpeg -f lavfi -i testsrc=size=320x240:rate=25 -f lavfi -i sine=frequency=440:sample_rate=48000 -t 2 -c:v libvpx-vp9 -b:v 200k -c:a libopus vp9_opus.webm
+ffmpeg -display_rotation 90 -i h264_aac.mp4 -c copy rotated_90.mp4
+ffmpeg -f lavfi -i sine=frequency=440:sample_rate=48000 -t 1 -c:a aac -b:a 64k -f mp4 aac_isom.m4a
+```

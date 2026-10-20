@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO attachments (\n            id, uploader_id, channel_id, message_id, position, state, kind,\n            filename, content_type, size_bytes, received_bytes, storage_id,\n            key_enc, width, height, duration_ms, animated, waveform,\n            has_thumbnail, thumbnail_width, thumbnail_height, error_code,\n            error_message, created_at, updated_at\n         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13,\n                   $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 25
+    },
+    "nullable": []
+  },
+  "hash": "c11d7fed0402349356f0f371cdea043e7b26e2932a1ff669859c4e07fb94e03d"
+}

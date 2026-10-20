@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:opencord/features/members/member_avatar.dart';
 import 'package:opencord/core/model/music_session.dart';
 import 'package:opencord/core/model/permissions.dart';
 import 'package:opencord/core/providers/providers.dart';
@@ -17,7 +18,6 @@ import 'package:opencord/ui/theme/oc_colors.dart';
 import 'package:opencord/ui/theme/oc_icons.dart';
 import 'package:opencord/ui/theme/oc_metrics.dart';
 import 'package:opencord/ui/theme/oc_text.dart';
-import 'package:opencord/ui/widgets/avatar.dart';
 import 'package:opencord/ui/widgets/choice_chips.dart';
 import 'package:opencord/ui/widgets/hoverable.dart';
 import 'package:opencord/ui/widgets/inline_error.dart';
@@ -555,8 +555,9 @@ class NowPlayingView extends ConsumerWidget {
                   'Added by ',
                   style: OcText.meta.copyWith(color: colors.textMuted),
                 ),
-                OcAvatar(
-                  id: item!.requesterId,
+                MemberAvatar(
+                  serverKey: channel.server,
+                  userId: item!.requesterId,
                   name: requester ?? '?',
                   size: 16,
                 ),

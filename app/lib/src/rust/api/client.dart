@@ -7,7 +7,7 @@ import '../frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 import 'types.dart';
 
-// These functions are ignored because they are not marked as `pub`: `checked_identity`, `client`, `deliver`, `identity_info`, `invalid_input`, `lock_events`, `on_runtime`, `return_large_buffers`
+// These functions are ignored because they are not marked as `pub`: `checked_identity`, `client`, `deliver`, `identity_info`, `invalid_input`, `lock_events`, `on_blocking`, `on_runtime`, `return_large_buffers`
 // These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `Events`
 
 /// Opens local data in `app_data_dir`. Safe to call again (for example
@@ -207,6 +207,7 @@ Future<Channel> deleteChannelOverwrite({
   targetId: targetId,
 );
 
+/// `max_upload_bytes`: `None` leaves uploads to the member's other roles.
 Future<Role> createRole({
   required String serverKey,
   required String name,
@@ -214,6 +215,7 @@ Future<Role> createRole({
   required PlatformInt64 permissions,
   required bool hoist,
   required bool mentionable,
+  BigInt? maxUploadBytes,
 }) => RustLib.instance.api.crateApiClientCreateRole(
   serverKey: serverKey,
   name: name,
@@ -221,6 +223,7 @@ Future<Role> createRole({
   permissions: permissions,
   hoist: hoist,
   mentionable: mentionable,
+  maxUploadBytes: maxUploadBytes,
 );
 
 Future<Role> updateRole({
@@ -319,6 +322,42 @@ Future<User> updateProfile({
   serverKey: serverKey,
   displayName: displayName,
 );
+
+/// Makes this person's profile picture from the file at `source_path`, or
+/// removes it (`None`); its hash. Kept on this device, as the display name
+/// is: `upload_avatar` sends it to each server.
+Future<String?> setOwnAvatar({String? sourcePath}) =>
+    RustLib.instance.api.crateApiClientSetOwnAvatar(sourcePath: sourcePath);
+
+/// This person's profile picture's file on this device; `None` without one.
+String? ownAvatarFile() => RustLib.instance.api.crateApiClientOwnAvatarFile();
+
+/// This person's profile picture's hash; `None` without one.
+String? ownAvatarHash() => RustLib.instance.api.crateApiClientOwnAvatarHash();
+
+/// Sends this person's profile picture, or that there is none, to the
+/// server; a server whose `User.avatar_hash` differs from
+/// `own_avatar_hash` missed a change.
+Future<User> uploadAvatar({required String serverKey}) =>
+    RustLib.instance.api.crateApiClientUploadAvatar(serverKey: serverKey);
+
+/// The server's icon, made from the file at `source_path`, or none.
+/// Manage server.
+Future<ServerInfo> setServerIcon({
+  required String serverKey,
+  String? sourcePath,
+}) => RustLib.instance.api.crateApiClientSetServerIcon(
+  serverKey: serverKey,
+  sourcePath: sourcePath,
+);
+
+/// The file of the profile picture or server icon named `hash`, fetched
+/// from the server unless this device has it.
+Future<String> avatarPath({required String serverKey, required String hash}) =>
+    RustLib.instance.api.crateApiClientAvatarPath(
+      serverKey: serverKey,
+      hash: hash,
+    );
 
 Future<void> updatePresence({
   required String serverKey,

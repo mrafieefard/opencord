@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:opencord/features/settings/user/settings_draft.dart';
 import 'package:opencord/core/app_info.dart';
 import 'package:opencord/core/format.dart';
 import 'package:opencord/core/model/voice.dart';
 import 'package:opencord/core/providers/providers.dart';
 import 'package:opencord/core/repository/repository.dart';
-import 'package:opencord/core/settings/app_settings.dart';
 import 'package:opencord/core/settings/local_prefs.dart';
 import 'package:opencord/features/settings/user/keybind_recorder.dart';
 import 'package:opencord/features/voice/camera_menu.dart';
@@ -28,39 +28,119 @@ class BehaviorPage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final settings = ref.watch(appSettingsProvider);
-    final update = ref.read(appSettingsProvider.notifier).update;
+    final settings = ref.watch(shownAppSettingsProvider);
+    final update = ref.read(clientSettingsDraftProvider.notifier).updateApp;
     // Only Linux has a tray yet (D21); on a Mac, closing the window keeps
     // Opencord in the Dock anyway.
     final tray = Theme.of(context).platform == TargetPlatform.linux;
-    return SettingsSection(
-      title: 'Window',
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        if (tray) ...[
-          SettingsSwitchRow(
-            title: 'Close button minimizes to the tray',
-            subtitle: 'Messages keep arriving in the background',
-            value: settings.closeToTray,
-            onChanged: (value) => update((s) => s.copyWith(closeToTray: value)),
-          ),
-          SettingsSwitchRow(
-            title: 'Start minimized',
-            subtitle: 'When Opencord starts at login',
-            value: settings.startMinimized,
-            onChanged: (value) =>
-                update((s) => s.copyWith(startMinimized: value)),
-          ),
-        ],
-        SettingsSwitchRow(
-          title: 'Launch at login',
-          value: settings.launchAtLogin,
-          onChanged: (value) => update((s) => s.copyWith(launchAtLogin: value)),
+        SettingsSection(
+          title: 'Window',
+          children: [
+            if (tray) ...[
+              SettingsSwitchRow(
+                title: 'Close button minimizes to the tray',
+                subtitle: 'Messages keep arriving in the background',
+                value: settings.closeToTray,
+                onChanged: (value) =>
+                    update((s) => s.copyWith(closeToTray: value)),
+              ),
+              SettingsSwitchRow(
+                title: 'Start minimized',
+                subtitle: 'When Opencord starts at login',
+                value: settings.startMinimized,
+                onChanged: (value) =>
+                    update((s) => s.copyWith(startMinimized: value)),
+              ),
+            ],
+            SettingsSwitchRow(
+              title: 'Launch at login',
+              value: settings.launchAtLogin,
+              onChanged: (value) =>
+                  update((s) => s.copyWith(launchAtLogin: value)),
+            ),
+            SettingsSwitchRow(
+              title: 'Restore the last window position',
+              value: settings.restoreWindowPosition,
+              onChanged: (value) =>
+                  update((s) => s.copyWith(restoreWindowPosition: value)),
+            ),
+          ],
         ),
-        SettingsSwitchRow(
-          title: 'Restore the last window position',
-          value: settings.restoreWindowPosition,
-          onChanged: (value) =>
-              update((s) => s.copyWith(restoreWindowPosition: value)),
+        const SizedBox(height: OcSpace.s24),
+        const _MediaCacheSection(),
+      ],
+    );
+  }
+}
+
+class _MediaCacheSection extends ConsumerStatefulWidget {
+  const _MediaCacheSection();
+
+  @override
+  ConsumerState<_MediaCacheSection> createState() => _MediaCacheSectionState();
+}
+
+class _MediaCacheSectionState extends ConsumerState<_MediaCacheSection> {
+  int? _size;
+  var _clearing = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  String? _error;
+
+  Future<void> _load() async {
+    try {
+      final size = await ref.read(repositoryProvider).mediaCacheSize();
+      if (mounted) setState(() => _size = size);
+    } on RepoException catch (error) {
+      if (mounted) setState(() => _error = error.message);
+    }
+  }
+
+  Future<void> _clear() async {
+    setState(() => _clearing = true);
+    final repository = ref.read(repositoryProvider);
+    try {
+      await repository.clearMediaCache();
+      final size = await repository.mediaCacheSize();
+      if (!mounted) return;
+      setState(() => _size = size);
+      showOcToast(context, 'Media cache cleared');
+    } on RepoException catch (error) {
+      if (mounted) showOcToast(context, error.message);
+    } finally {
+      if (mounted) setState(() => _clearing = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final size = _size;
+    return SettingsSection(
+      title: 'Media cache',
+      footer:
+          'Thumbnails, pictures and voice messages you have seen, kept '
+          'encrypted on this device, up to 1 GB. Saved files are not in it.',
+      children: [
+        SettingsRow(
+          title: switch ((size, _error)) {
+            (final size?, _) => formatFileSize(size),
+            (null, final error?) => error,
+            (null, null) => 'Calculating…',
+          },
+          trailing: OcButton(
+            label: 'Clear',
+            dense: true,
+            busy: _clearing,
+            onPressed: size != null && size > 0 ? _clear : null,
+          ),
         ),
       ],
     );
@@ -86,9 +166,9 @@ class _VoicePageState extends ConsumerState<VoicePage> {
 
   @override
   Widget build(BuildContext context) {
-    final audio = ref.watch(audioSettingsProvider);
+    final audio = ref.watch(shownAudioProvider);
     final devices = ref.watch(audioDeviceListProvider);
-    final update = ref.read(audioSettingsProvider.notifier).update;
+    final update = ref.read(clientSettingsDraftProvider.notifier).updateAudio;
     Widget device(
       String? current,
       String? savedName,
@@ -300,8 +380,8 @@ class _MusicListening extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final listening = ref.watch(musicListeningProvider);
-    final notifier = ref.read(musicListeningProvider.notifier);
+    final listening = ref.watch(shownMusicProvider);
+    final draft = ref.read(clientSettingsDraftProvider.notifier);
     return SettingsSection(
       title: 'Music',
       footer:
@@ -316,20 +396,20 @@ class _MusicListening extends ConsumerWidget {
           step: 1,
           shown: '${listening.volume} %',
           onChanged: (value) =>
-              notifier.update((l) => l.copyWith(volume: value)),
+              draft.updateMusic((l) => l.copyWith(volume: value)),
         ),
         SettingsSwitchRow(
           title: 'Mute music',
           value: listening.muted,
           onChanged: (value) =>
-              notifier.update((l) => l.copyWith(muted: value)),
+              draft.updateMusic((l) => l.copyWith(muted: value)),
         ),
         SettingsSwitchRow(
           title: 'Lower music while people talk',
           subtitle: '10 dB quieter while someone speaks',
           value: listening.duckWhileTalking,
           onChanged: (value) =>
-              notifier.update((l) => l.copyWith(duckWhileTalking: value)),
+              draft.updateMusic((l) => l.copyWith(duckWhileTalking: value)),
         ),
       ],
     );
@@ -344,10 +424,10 @@ class _PushToTalkKeys extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final keybinds = ref.watch(
-      keybindsProvider.select((k) => k.of(HotkeyAction.pushToTalk)),
+      shownKeybindsProvider.select((k) => k.of(HotkeyAction.pushToTalk)),
     );
     final first = keybinds.firstOrNull;
-    final notifier = ref.read(keybindsProvider.notifier);
+    final draft = ref.read(clientSettingsDraftProvider.notifier);
     final more = keybinds.length - 1;
     return SettingsRow(
       title: 'Shortcut',
@@ -360,8 +440,11 @@ class _PushToTalkKeys extends ConsumerWidget {
           keys: first?.keys ?? '',
           semanticLabel: 'Push-to-talk keys',
           onRecorded: (keys) => first == null
-              ? notifier.add(HotkeyAction.pushToTalk, keys: keys)
-              : notifier.change(first.id, (row) => row.copyWith(keys: keys)),
+              ? draft.keybindAdd(HotkeyAction.pushToTalk, keys: keys)
+              : draft.keybindChange(
+                  first.id,
+                  (row) => row.copyWith(keys: keys),
+                ),
         ),
       ),
     );
@@ -433,8 +516,8 @@ class NotificationsPage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final settings = ref.watch(appSettingsProvider);
-    final update = ref.read(appSettingsProvider.notifier).update;
+    final settings = ref.watch(shownAppSettingsProvider);
+    final update = ref.read(clientSettingsDraftProvider.notifier).updateApp;
     return SettingsSection(
       title: 'Notifications',
       footer:

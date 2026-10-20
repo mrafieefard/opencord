@@ -14,6 +14,7 @@ This guide grows with Phase 3. What is here so far:
 - [DNS providers](#dns-providers)
 - [Free subdomains](#free-subdomains)
 - [Cloudflare Tunnel](#cloudflare-tunnel)
+- [Cloudflare proxy](#cloudflare-proxy)
 - [Reverse proxies](#reverse-proxies)
 - [Public address](#public-address)
 - [Ports](#ports)
@@ -32,6 +33,7 @@ This guide grows with Phase 3. What is here so far:
 | **Reverse proxy** | Caddy, Nginx, Traefik, or a tunnel such as ngrok or Tailscale Funnel, handles TLS | HTTPS: the proxy must lead to this server | Straight to the server: proxies carry no UDP |
 | **Free subdomain** | You have no domain: DuckDNS or deSEC | DNS | Straight to the server |
 | **Cloudflare Tunnel** | The server cannot accept incoming connections | HTTPS through the tunnel | Not through the tunnel |
+| **Cloudflare proxy** | The domain's DNS is at Cloudflare and you want its proxy (orange cloud) in front | HTTPS through Cloudflare, to the main port | Straight to the server: the proxy carries no UDP |
 
 Free subdomains and Cloudflare Tunnel have their own buttons on the page, with what they need to set up: see [Free subdomains](#free-subdomains) and [Cloudflare Tunnel](#cloudflare-tunnel).
 
@@ -46,7 +48,7 @@ A     chat.example.com  →  203.0.113.10
 AAAA  chat.example.com  →  2001:db8::10
 ```
 
-The AAAA record appears only when the server has IPv6. If the domain's DNS is at Cloudflare, set the records to **DNS only** (grey cloud): Cloudflare's proxy forwards only web traffic on a few ports, and no UDP, so voice would not work through it.
+The AAAA record appears only when the server has IPv6. If the domain's DNS is at Cloudflare, set the records to **DNS only** (grey cloud), or add the domain [through Cloudflare's proxy](#cloudflare-proxy) instead: the proxy forwards only web traffic on a few ports, and no UDP, so voice still goes straight to the server.
 
 Behind a reverse proxy, the next step shows how to point the proxy at Opencord's local listener. For Caddy:
 
@@ -183,6 +185,18 @@ Opencord runs cloudflared itself for the first two: it starts it again when it s
     command: tunnel --no-autoupdate run
 ```
 
+## Cloudflare proxy
+
+A domain whose DNS is at Cloudflare can keep Cloudflare's proxy on (the orange cloud). People connect to Cloudflare on port 443 and see its certificate, so apps trust the name without a fingerprint, as with a tunnel; Cloudflare then connects to this server. Choose **Through Cloudflare's proxy** under **Add domain**; the next step shows the records to create, proxied:
+
+1. **Records.** An A record (and an AAAA record when the server has IPv6) for the name, pointing to the server's public address, with the proxy on.
+2. **Port.** Cloudflare brings HTTPS only to a few ports, and connects to the server on the port people used: 443. Make Opencord's [main port](#the-main-port) 443, or add an **Origin Rule** in Cloudflare (Rules, then Origin Rules) that sends the name to the main port (Destination port 7710). Either way the port must be open.
+3. **Certificate.** Under SSL/TLS, choose **Full (strict)**: create an origin certificate (SSL/TLS, then Origin Server; free, valid for up to 15 years), and choose **Upload origin certificate** in the domain's menu with the certificate and its private key. Opencord serves it for the name at once, so the check can pass. **Full** also works without one: Cloudflare then accepts Opencord's own certificate, but checks nothing. **Flexible** does not work: Opencord answers only HTTPS.
+
+The check asks `https://<name>/.well-known/opencord/verify` through Cloudflare. When Cloudflare answers with its own error instead, the check says what it means: 521 to 523, it could not reach the server (the port); 525, no secure connection (the SSL mode); 526, a certificate it does not accept (upload the origin certificate, or choose Full).
+
+While such a domain is active, Opencord believes Cloudflare's addresses about who they forward (`X-Forwarded-For`), so rate limits and bans see each person, not Cloudflare. **No UDP**: as with tunnels, apps that connect through it are sent to the server's public address for voice and video, so UDP 7711 must reach the server directly.
+
 ## Reverse proxies
 
 Caddy, Nginx, Traefik, ngrok, Tailscale Funnel and the like handle TLS and forward to Opencord. **Add domain** with "Through a reverse proxy" shows the configuration for the name. For Caddy:
@@ -216,6 +230,8 @@ server {
     }
 }
 ```
+
+Files go up in pieces of 8 MiB, so a proxy must let request bodies of at least 9 MB through: the `client_max_body_size 50m` above does, and Caddy and Traefik have no limit by default. Pieces are that size because Cloudflare refuses requests over 100 MB, on tunnels and proxied records alike, and an 8 MiB piece is quick to send again after a dropped connection.
 
 A proxy on another machine cannot reach the local listener: point it at the main port (`https://<server>:7710`) instead, and add its address to **Trusted proxies** under Advanced. Like tunnels, proxies carry no UDP: 7711 and 7712 must reach the server directly.
 

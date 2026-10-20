@@ -1,3 +1,4 @@
+import 'package:opencord/core/model/attachment.dart';
 import 'package:opencord/core/model/channel.dart';
 import 'package:opencord/core/model/commands.dart';
 import 'package:opencord/core/model/lavalink.dart';
@@ -11,10 +12,12 @@ import 'package:opencord/core/model/presence.dart';
 import 'package:opencord/core/model/server.dart';
 import 'package:opencord/core/model/snapshot.dart';
 import 'package:opencord/core/model/sound.dart';
+import 'package:opencord/core/model/storage.dart';
 import 'package:opencord/core/model/stream.dart';
 import 'package:opencord/core/model/user.dart';
 import 'package:opencord/core/model/video.dart';
 import 'package:opencord/core/model/voice.dart';
+import 'package:opencord/core/model/voice_message.dart';
 
 /// Something that happened on one server. Both repositories (mock and Rust
 /// core) emit these, so the UI cannot tell them apart.
@@ -452,4 +455,122 @@ final class EphemeralMessageReceived extends RepoEvent {
   const EphemeralMessageReceived(super.serverKey, this.note);
 
   final EphemeralNote note;
+}
+
+/// Progress of an outgoing file upload.
+final class UploadProgressEvent extends RepoEvent {
+  const UploadProgressEvent(
+    super.serverKey, {
+    required this.channelId,
+    required this.nonce,
+    required this.fileIndex,
+    required this.sentBytes,
+    required this.totalBytes,
+    required this.phase,
+    this.error,
+  });
+
+  final int channelId;
+  final String nonce;
+  final int fileIndex;
+  final int sentBytes;
+  final int totalBytes;
+  final UploadPhase phase;
+  final String? error;
+}
+
+/// How far the upload of a file staged in a channel's composer got.
+final class StagedUploadEvent extends RepoEvent {
+  const StagedUploadEvent(
+    super.serverKey, {
+    required this.channelId,
+    required this.stagedId,
+    required this.sentBytes,
+    required this.totalBytes,
+    required this.phase,
+    this.error,
+  });
+
+  final int channelId;
+  final String stagedId;
+  final int sentBytes;
+  final int totalBytes;
+  final UploadPhase phase;
+  final String? error;
+}
+
+/// Progress of a file being downloaded.
+final class DownloadProgressEvent extends RepoEvent {
+  const DownloadProgressEvent(
+    super.serverKey, {
+    required this.attachmentId,
+    required this.receivedBytes,
+    required this.totalBytes,
+    required this.done,
+    this.error,
+  });
+
+  final int attachmentId;
+  final int receivedBytes;
+  final int totalBytes;
+  final bool done;
+  final String? error;
+}
+
+/// Upload limits or blocked extensions changed on the server.
+final class UploadSettingsEvent extends RepoEvent {
+  const UploadSettingsEvent(super.serverKey, this.settings);
+
+  final UploadSettings settings;
+}
+
+/// Storage backends or a file move changed on the server (owner only).
+final class StorageEvent extends RepoEvent {
+  const StorageEvent(super.serverKey, this.storage);
+
+  final StorageInfo storage;
+}
+
+/// Voice message recording events (Milestone A6).
+final class VoiceRecordLevel extends RepoEvent {
+  const VoiceRecordLevel(this.level) : super('');
+
+  /// The loudest 20 ms since the last event, 0–1 (the waveform's scale).
+  final double level;
+}
+
+final class VoiceRecordStopped extends RepoEvent {
+  const VoiceRecordStopped(this.reason) : super('');
+
+  final VoiceStopReason reason;
+}
+
+/// Voice message playback events (Milestone A6).
+final class PlaybackUpdate extends RepoEvent {
+  const PlaybackUpdate({
+    required this.item,
+    required this.positionMs,
+    required this.durationMs,
+    required this.playing,
+    required this.buffering,
+  }) : super('');
+
+  final PlaybackItem item;
+  final int positionMs;
+  final int durationMs;
+  final bool playing;
+  final bool buffering;
+}
+
+final class PlaybackEnded extends RepoEvent {
+  const PlaybackEnded(this.item) : super('');
+
+  final PlaybackItem item;
+}
+
+final class PlaybackFailed extends RepoEvent {
+  const PlaybackFailed({required this.item, required this.message}) : super('');
+
+  final PlaybackItem item;
+  final String message;
 }

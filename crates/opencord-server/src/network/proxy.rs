@@ -10,7 +10,7 @@ use axum::http::request::Parts;
 use axum::http::{HeaderMap, StatusCode};
 use tokio_util::sync::CancellationToken;
 
-use super::settings::NetworkSettings;
+use crate::domains::check::is_cloudflare;
 use crate::state::AppState;
 
 const FORWARDED_FOR: &str = "x-forwarded-for";
@@ -33,8 +33,12 @@ impl FromRequestParts<Arc<AppState>> for ClientAddr {
             .get::<ConnectInfo<SocketAddr>>()
             .copied()
             .ok_or(StatusCode::INTERNAL_SERVER_ERROR)?;
+        let settings = state.network.settings();
+        // Cloudflare's proxy forwards from its own addresses while a
+        // domain is proxied by it.
+        let cloudflare = state.domains.cloudflare_proxied();
         Ok(Self(client_address(
-            &state.network.settings(),
+            |ip| settings.trusts(ip) || (cloudflare && is_cloudflare(ip)),
             peer,
             &parts.headers,
         )))
@@ -44,11 +48,11 @@ impl FromRequestParts<Arc<AppState>> for ClientAddr {
 /// The client behind `peer`: the last address in `X-Forwarded-For` that
 /// is not itself a trusted proxy, when `peer` is one.
 pub fn client_address(
-    settings: &NetworkSettings,
+    trusts: impl Fn(IpAddr) -> bool,
     peer: SocketAddr,
     headers: &HeaderMap,
 ) -> SocketAddr {
-    if !settings.trusts(peer.ip()) {
+    if !trusts(peer.ip()) {
         return peer;
     }
     let forwarded: Vec<IpAddr> = headers
@@ -61,7 +65,7 @@ pub fn client_address(
     forwarded
         .into_iter()
         .rev()
-        .find(|ip| !settings.trusts(*ip))
+        .find(|ip| !trusts(*ip))
         .map_or(peer, |ip| SocketAddr::new(ip.to_canonical(), 0))
 }
 
@@ -124,7 +128,7 @@ impl Drop for LocalListener {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::network::settings::IpRange;
+    use crate::network::settings::{IpRange, NetworkSettings};
 
     fn headers(values: &[&str]) -> HeaderMap {
         let mut headers = HeaderMap::new();
@@ -146,7 +150,11 @@ mod tests {
         let settings = settings(&["127.0.0.1", "10.0.0.0/8"]);
         let peer: SocketAddr = "127.0.0.1:5000".parse().unwrap();
 
-        let client = client_address(&settings, peer, &headers(&["198.51.100.7, 10.1.1.1"]));
+        let client = client_address(
+            |ip| settings.trusts(ip),
+            peer,
+            &headers(&["198.51.100.7, 10.1.1.1"]),
+        );
 
         assert_eq!(client, "198.51.100.7:0".parse().unwrap());
     }
@@ -157,7 +165,7 @@ mod tests {
         let peer: SocketAddr = "203.0.113.5:4000".parse().unwrap();
 
         assert_eq!(
-            client_address(&settings, peer, &headers(&["1.2.3.4"])),
+            client_address(|ip| settings.trusts(ip), peer, &headers(&["1.2.3.4"])),
             peer
         );
     }
@@ -168,7 +176,11 @@ mod tests {
         let settings = settings(&["127.0.0.1"]);
         let peer: SocketAddr = "127.0.0.1:5000".parse().unwrap();
 
-        let client = client_address(&settings, peer, &headers(&["6.6.6.6", "198.51.100.7"]));
+        let client = client_address(
+            |ip| settings.trusts(ip),
+            peer,
+            &headers(&["6.6.6.6", "198.51.100.7"]),
+        );
 
         assert_eq!(client.ip(), "198.51.100.7".parse::<IpAddr>().unwrap());
     }
@@ -178,10 +190,30 @@ mod tests {
         let settings = settings(&["127.0.0.1"]);
         let peer: SocketAddr = "127.0.0.1:5000".parse().unwrap();
 
-        assert_eq!(client_address(&settings, peer, &HeaderMap::new()), peer);
         assert_eq!(
-            client_address(&settings, peer, &headers(&["garbage"])),
+            client_address(|ip| settings.trusts(ip), peer, &HeaderMap::new()),
             peer
+        );
+        assert_eq!(
+            client_address(|ip| settings.trusts(ip), peer, &headers(&["garbage"])),
+            peer
+        );
+    }
+
+    #[test]
+    fn cloudflare_names_the_client_only_while_a_domain_is_proxied_by_it() {
+        let settings = settings(&["127.0.0.1"]);
+        let peer: SocketAddr = "104.16.0.10:443".parse().unwrap();
+        let forwarded = headers(&["198.51.100.7"]);
+        let settings = &settings;
+        let trusts = |cloudflare: bool| {
+            move |ip: IpAddr| settings.trusts(ip) || (cloudflare && is_cloudflare(ip))
+        };
+
+        assert_eq!(client_address(trusts(false), peer, &forwarded), peer);
+        assert_eq!(
+            client_address(trusts(true), peer, &forwarded),
+            "198.51.100.7:0".parse().unwrap()
         );
     }
 }

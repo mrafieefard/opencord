@@ -53,6 +53,42 @@ class LinuxWindowButtons extends ConsumerWidget {
   }
 }
 
+/// Minimize and maximize for the window, and a close that calls [onClose]
+/// instead of closing it: for a layer over the whole window that hides the
+/// header's controls (the media viewer). Minimize and maximize show only
+/// where the app draws the window's frame, as the header's do.
+class OverlayWindowButtons extends ConsumerWidget {
+  const OverlayWindowButtons({super.key, required this.onClose});
+
+  final VoidCallback onClose;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final custom = ref.watch(windowChromeProvider) == WindowChrome.custom;
+    final status = ref.watch(windowStatusProvider);
+    final platform = Theme.of(context).platform;
+    final window = ref.watch(nativeWindowProvider);
+    final frameButtons =
+        custom &&
+        !status.fullscreen &&
+        (platform == TargetPlatform.linux ||
+            platform == TargetPlatform.windows);
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (frameButtons) ...[
+          _GnomeButton(glyph: _Glyph.minimize, onPressed: window.minimize),
+          _GnomeButton(
+            glyph: status.maximized ? _Glyph.restore : _Glyph.maximize,
+            onPressed: window.toggleMaximize,
+          ),
+        ],
+        _GnomeButton(glyph: _Glyph.close, onPressed: onClose),
+      ],
+    );
+  }
+}
+
 enum _Glyph {
   minimize('Minimize'),
   maximize('Maximize'),

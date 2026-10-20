@@ -2,7 +2,7 @@
 //! server. Every event from every server arrives on one channel.
 
 use std::collections::HashMap;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, MutexGuard, OnceLock, PoisonError, RwLock, Weak};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
@@ -16,15 +16,22 @@ use tokio::runtime::Handle;
 use tokio::sync::{broadcast, mpsc, oneshot};
 
 use crate::api::types::{
-    AddServerOutcome, AudioSettings, Ban, CameraStarted, Channel, ChannelChanges, ChannelKind,
-    ChannelPosition, CoreError, CoreEvent, CoreEventPayload, ErrorCode, HotkeyBinding,
-    HotkeySupport, IdentityInfo, Invite, MediaEvent, Member, Message, OverwriteTargetKind,
-    PermissionOverwrite, PresenceStatus, Role, RoleChanges, ScreenProblem, ScreenShareRequest,
-    ScreenShareStarted, ScreenStream, Server, ServerChanges, ServerInfo, SoundDraft,
-    SoundSelection, SoundboardSound, SoundboardSoundChanges, StreamSourceKind, User, VideoWant,
-    VoiceCue, VoiceSettings, VoiceSettingsChanges, VoiceState,
+    AddServerOutcome, AttachmentVariant, AudioSettings, Ban, CameraStarted, Channel,
+    ChannelChanges, ChannelKind, ChannelPosition, CoreError, CoreEvent, CoreEventPayload,
+    ErrorCode, HotkeyBinding, HotkeySupport, IdentityInfo, Invite, MediaEvent, MediaHandle, Member,
+    Message, OutgoingFile, OverwriteTargetKind, PermissionOverwrite, PlaybackItem, PresenceStatus,
+    Role, RoleChanges, S3Config, ScreenProblem, ScreenShareRequest, ScreenShareStarted,
+    ScreenStream, Server, ServerChanges, ServerInfo, SoundDraft, SoundSelection, SoundboardSound,
+    SoundboardSoundChanges, StorageInfo, StorageTestResult, StorageTestTarget, StreamSourceKind,
+    UploadSettings, User, VideoWant, VoiceCue, VoiceDraft, VoiceSettings, VoiceSettingsChanges,
+    VoiceState,
 };
 use crate::artwork::ArtworkCache;
+use crate::attachments::cache::{self, MediaCache};
+use crate::attachments::download::{self, Downloads};
+use crate::attachments::transfer::Transfers;
+use crate::attachments::upload::{self, Uploads};
+use crate::avatars::Avatars;
 use crate::connection::{
     self, Clocks, Command, Connection, Context, Credentials, Established, HandshakeError,
     MediaTokens, Route, Routes,
@@ -34,9 +41,12 @@ use crate::http::MediaHttp;
 use crate::identity::Identity;
 use crate::media::{self, Media, MediaOptions, MediaTarget};
 use crate::music_listening::MusicListening;
+use crate::now_playing::{NowPlaying, Player};
 use crate::soundboard::Soundboard;
 use crate::store::{SavedServer, Store, StoreError};
 use crate::voice::VoiceServer;
+use crate::voice_message::player::VoicePlayer;
+use crate::voice_message::recorder::{TapEngine, VoiceRecorder};
 use opencord_media::hotkeys::Hotkeys;
 
 const INVITE_SCHEME: &str = "opencord://";
@@ -82,9 +92,20 @@ struct Inner {
     routes: Routes,
     soundboard: Arc<Soundboard>,
     artwork: Arc<ArtworkCache>,
+    avatars: Arc<Avatars>,
     clocks: Clocks,
     /// How this person hears music, kept for media that starts later.
     music_listening: Mutex<MusicListening>,
+    data_dir: PathBuf,
+    transfers: Transfers,
+    uploads: Arc<Uploads>,
+    downloads: Downloads,
+    /// Attachments kept on this device, once the app gave the cache's key.
+    media_cache: RwLock<Option<Arc<MediaCache>>>,
+    voice_recorder: VoiceRecorder,
+    now_playing: Arc<NowPlaying>,
+    voice_player: Arc<VoicePlayer>,
+    media_player: Arc<crate::media_player::CoreMediaPlayer>,
 }
 
 /// The app's id, as its desktop file names it; the system's portals ask for
@@ -154,6 +175,10 @@ impl Client {
             data_dir,
             MediaHttp::new(Arc::clone(&routes), Arc::clone(&media_tokens)),
         ));
+        let avatars = Arc::new(Avatars::new(
+            data_dir,
+            MediaHttp::new(Arc::clone(&routes), Arc::clone(&media_tokens)),
+        ));
         let client = Self {
             inner: Arc::new(Inner {
                 runtime: runtime.clone(),
@@ -166,12 +191,22 @@ impl Client {
                 voice: Mutex::new(Voice::default()),
                 media: OnceLock::new(),
                 hotkeys: tokio::sync::Mutex::new(None),
-                media_tokens,
-                routes,
+                media_tokens: Arc::clone(&media_tokens),
+                routes: Arc::clone(&routes),
                 soundboard,
                 artwork,
+                avatars,
                 clocks: Clocks::default(),
                 music_listening: Mutex::default(),
+                data_dir: data_dir.to_owned(),
+                transfers: Transfers::new(Arc::clone(&routes), Arc::clone(&media_tokens)),
+                uploads: Arc::default(),
+                downloads: Downloads::default(),
+                media_cache: RwLock::new(None),
+                voice_recorder: VoiceRecorder::default(),
+                now_playing: Arc::default(),
+                voice_player: Arc::default(),
+                media_player: Arc::default(),
             }),
         };
         client.spawn_wake_watch();
@@ -387,12 +422,230 @@ impl Client {
         content: String,
         nonce: String,
     ) -> Result<Message, CoreError> {
+        self.send_message_with_ids(key, channel_id, content, nonce, Vec::new())
+            .await
+    }
+
+    pub(crate) async fn send_message_with_ids(
+        &self,
+        key: &str,
+        channel_id: i64,
+        content: String,
+        nonce: String,
+        attachment_ids: Vec<i64>,
+    ) -> Result<Message, CoreError> {
         let request = Request::SendMessage(proto::SendMessage {
             channel_id,
             content,
             nonce,
+            attachment_ids,
         });
         expect_message(self.request(key, request).await?)
+    }
+
+    /// Uploads the files, then sends the message with them.
+    /// `UploadProgress` events follow each file.
+    pub async fn send_message_with_files(
+        &self,
+        key: &str,
+        channel_id: i64,
+        content: String,
+        nonce: String,
+        files: Vec<OutgoingFile>,
+    ) -> Result<Message, CoreError> {
+        upload::send(
+            self,
+            key,
+            channel_id,
+            content,
+            nonce,
+            files,
+            proto::AttachmentKind::File,
+        )
+        .await
+    }
+
+    /// Uploads a file the composer staged, as soon as it is attached.
+    /// `StagedUploadProgress` events follow it; returns when it is ready,
+    /// failed, or was discarded.
+    pub async fn stage_upload(
+        &self,
+        key: &str,
+        channel_id: i64,
+        staged_id: String,
+        file: OutgoingFile,
+    ) -> Result<(), CoreError> {
+        crate::attachments::staged::stage(self, key, channel_id, staged_id, file).await
+    }
+
+    /// The staged file was removed: its upload stops, or is cancelled on
+    /// the server once finished.
+    pub async fn discard_staged_upload(&self, key: &str, staged_id: &str) {
+        crate::attachments::staged::discard(self, key, staged_id).await;
+    }
+
+    /// Records a voice message from the microphone, or from the call's
+    /// audio engine if in a voice call.
+    pub fn voice_record_start(&self, max_seconds: u32) -> Result<(), CoreError> {
+        let media = self.media().ok_or(CoreError::NotInitialized)?;
+        let engine = media.call_engine().map(|e| e as Arc<dyn TapEngine>);
+        let settings = media.audio_settings();
+        let events = Some(media.events().clone());
+        self.inner
+            .voice_recorder
+            .start(engine, settings, events, max_seconds)
+    }
+
+    pub fn voice_record_stop(&self) -> Result<VoiceDraft, CoreError> {
+        self.inner.voice_recorder.stop()
+    }
+
+    pub fn voice_record_cancel(&self) {
+        self.inner.voice_recorder.cancel();
+    }
+
+    pub fn voice_draft_discard(&self, draft_id: u64) {
+        self.inner.voice_recorder.discard(draft_id);
+    }
+
+    pub async fn send_voice_message(
+        &self,
+        key: &str,
+        channel_id: i64,
+        nonce: String,
+        draft_id: u64,
+    ) -> Result<Message, CoreError> {
+        let ogg_bytes = {
+            let (bytes, _) = self
+                .inner
+                .voice_recorder
+                .get_draft(draft_id)
+                .ok_or_else(|| CoreError::InvalidInput {
+                    message: format!("voice draft {draft_id} not found"),
+                })?;
+            bytes
+        };
+        let file = OutgoingFile {
+            path: None,
+            bytes: Some(ogg_bytes),
+            filename: "voice-message.ogg".to_owned(),
+            staged_id: None,
+        };
+        let message = upload::send(
+            self,
+            key,
+            channel_id,
+            String::new(),
+            nonce,
+            vec![file],
+            proto::AttachmentKind::VoiceMessage,
+        )
+        .await?;
+        self.inner.voice_recorder.discard(draft_id);
+        Ok(message)
+    }
+
+    pub async fn voice_play(
+        &self,
+        item: PlaybackItem,
+        position_ms: u32,
+        speed: f32,
+    ) -> Result<(), CoreError> {
+        let bytes = match &item {
+            PlaybackItem::Draft { draft_id } => {
+                let (bytes, _) =
+                    self.inner
+                        .voice_recorder
+                        .get_draft(*draft_id)
+                        .ok_or_else(|| CoreError::InvalidInput {
+                            message: format!("voice draft {draft_id} not found"),
+                        })?;
+                bytes
+            }
+            PlaybackItem::Attachment {
+                server_key,
+                attachment_id,
+            } => {
+                self.attachment_bytes(server_key, *attachment_id, AttachmentVariant::Original)
+                    .await?
+            }
+        };
+
+        let media = self.media().ok_or(CoreError::NotInitialized)?;
+        let engine = media.call_engine();
+        let settings = media.audio_settings();
+        let events = media.events().clone();
+        let open_devices = media.options().open_devices;
+
+        self.inner.voice_player.play(
+            item,
+            bytes,
+            position_ms,
+            speed,
+            engine,
+            settings,
+            events,
+            open_devices,
+            &self.inner.now_playing,
+        )
+    }
+
+    pub fn voice_pause(&self) {
+        self.inner.voice_player.pause();
+    }
+
+    pub fn voice_resume(&self) {
+        self.inner.voice_player.resume();
+    }
+
+    pub fn voice_seek(&self, position_ms: u32) {
+        self.inner.voice_player.seek(position_ms);
+    }
+
+    pub fn voice_set_speed(&self, speed: f32) -> Result<(), CoreError> {
+        self.inner.voice_player.set_speed(speed)
+    }
+
+    pub fn voice_stop(&self) {
+        self.inner.voice_player.stop();
+        self.inner.now_playing.clear(Player::Voice);
+    }
+
+    pub async fn media_open(
+        &self,
+        server_key: String,
+        attachment_id: i64,
+    ) -> Result<MediaHandle, CoreError> {
+        self.inner
+            .media_player
+            .open(self, server_key, attachment_id)
+            .await
+    }
+
+    pub fn media_play(&self) {
+        self.inner.media_player.play(&self.inner.now_playing);
+    }
+
+    pub fn media_pause(&self) {
+        self.inner.media_player.pause();
+    }
+
+    pub fn media_seek(&self, position_ms: u32) {
+        self.inner.media_player.seek(position_ms);
+    }
+
+    pub fn media_set_volume(&self, volume: f32, muted: bool) {
+        self.inner.media_player.set_volume(volume, muted);
+    }
+
+    pub fn media_close(&self) {
+        self.inner.media_player.close(&self.inner.now_playing);
+    }
+
+    /// Stops a `send_message_with_files` that is still uploading; it
+    /// returns `Cancelled`.
+    pub fn cancel_send(&self, key: &str, nonce: &str) {
+        self.inner.uploads.cancel(key, nonce);
     }
 
     pub async fn edit_message(
@@ -529,6 +782,7 @@ impl Client {
         expect_channel(self.request(key, request).await?)
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub async fn create_role(
         &self,
         key: &str,
@@ -537,6 +791,7 @@ impl Client {
         permissions: i64,
         hoist: bool,
         mentionable: bool,
+        max_upload_bytes: Option<u64>,
     ) -> Result<Role, CoreError> {
         let request = Request::CreateRole(proto::CreateRole {
             name,
@@ -544,6 +799,7 @@ impl Client {
             permissions: convert::bits_from_api(permissions),
             hoist,
             mentionable,
+            max_upload_bytes,
         });
         expect_role(self.request(key, request).await?)
     }
@@ -561,6 +817,7 @@ impl Client {
             permissions: changes.permissions.map(convert::bits_from_api),
             hoist: changes.hoist,
             mentionable: changes.mentionable,
+            max_upload_bytes: changes.max_upload_bytes,
         });
         expect_role(self.request(key, request).await?)
     }
@@ -1611,6 +1868,7 @@ impl Client {
             media_tokens: Arc::clone(&self.inner.media_tokens),
             routes: Arc::clone(&self.inner.routes),
             clocks: Arc::clone(&self.inner.clocks),
+            uploads: Arc::clone(&self.inner.uploads),
         }
     }
 
@@ -1743,8 +2001,253 @@ impl Client {
         Arc::clone(&self.inner.soundboard)
     }
 
+    /// Makes this person's profile picture from the file at `source`, or
+    /// removes it; its hash. Kept here; `upload_avatar` sends it.
+    pub fn set_own_avatar(&self, source: Option<&str>) -> Result<Option<String>, CoreError> {
+        self.inner.avatars.set_own(source)
+    }
+
+    pub fn own_avatar_file(&self) -> Option<String> {
+        self.inner.avatars.own_file()
+    }
+
+    pub fn own_avatar_hash(&self) -> Option<String> {
+        self.inner.avatars.own_hash()
+    }
+
+    /// Sends this person's picture, or that there is none, to the server
+    /// at `key`.
+    pub async fn upload_avatar(&self, key: &str) -> Result<User, CoreError> {
+        self.inner.avatars.upload_own(self, key).await
+    }
+
+    /// The icon of the server at `key`, made from the file at `source`,
+    /// or none. Manage server.
+    pub async fn set_server_icon(
+        &self,
+        key: &str,
+        source: Option<String>,
+    ) -> Result<ServerInfo, CoreError> {
+        self.inner.avatars.set_icon(self, key, source).await
+    }
+
+    /// The file of the profile picture or server icon named `hash`.
+    pub async fn avatar_path(&self, key: &str, hash: &str) -> Result<String, CoreError> {
+        self.inner.avatars.get(self, key, hash).await
+    }
+
     pub(crate) fn artwork(&self) -> Arc<ArtworkCache> {
         Arc::clone(&self.inner.artwork)
+    }
+
+    /// Owner or MANAGE_SERVER. `None` leaves a setting as it is.
+    pub async fn update_upload_settings(
+        &self,
+        key: &str,
+        blocked_extensions: Option<Vec<String>>,
+    ) -> Result<UploadSettings, CoreError> {
+        let request = Request::UpdateUploadSettings(proto::UpdateUploadSettings {
+            blocked_extensions: blocked_extensions
+                .map(|extensions| proto::BlockedExtensions { extensions }),
+        });
+        match self.request(key, request).await? {
+            Response::UploadSettings(settings) => Ok(convert::upload_settings(settings)),
+            other => Err(unexpected(&other)),
+        }
+    }
+
+    pub async fn storage_get(&self, key: &str) -> Result<StorageInfo, CoreError> {
+        expect_storage(
+            self.request(key, Request::GetStorage(proto::GetStorage {}))
+                .await?,
+        )
+    }
+
+    pub async fn storage_add(
+        &self,
+        key: &str,
+        name: String,
+        s3: S3Config,
+    ) -> Result<StorageInfo, CoreError> {
+        let request = Request::AddStorage(proto::AddStorage {
+            name,
+            s3: Some(convert::s3_config_to_proto(s3)),
+        });
+        expect_storage(self.request(key, request).await?)
+    }
+
+    pub async fn storage_update(
+        &self,
+        key: &str,
+        storage_id: i64,
+        name: Option<String>,
+        s3: Option<S3Config>,
+    ) -> Result<StorageInfo, CoreError> {
+        let request = Request::UpdateStorage(proto::UpdateStorage {
+            storage_id,
+            name,
+            s3: s3.map(convert::s3_config_to_proto),
+        });
+        expect_storage(self.request(key, request).await?)
+    }
+
+    pub async fn storage_test(
+        &self,
+        key: &str,
+        target: StorageTestTarget,
+    ) -> Result<StorageTestResult, CoreError> {
+        let (target, keys_from) = match target {
+            StorageTestTarget::Existing { storage_id } => {
+                (proto::test_storage::Target::StorageId(storage_id), None)
+            }
+            StorageTestTarget::Config { s3 } => (
+                proto::test_storage::Target::S3(convert::s3_config_to_proto(s3)),
+                None,
+            ),
+            StorageTestTarget::Edited { storage_id, s3 } => (
+                proto::test_storage::Target::S3(convert::s3_config_to_proto(s3)),
+                Some(storage_id),
+            ),
+        };
+        let request = Request::TestStorage(proto::TestStorage {
+            target: Some(target),
+            keys_from,
+        });
+        match self.request(key, request).await? {
+            Response::StorageTest(test) => Ok(convert::storage_test(test)),
+            other => Err(unexpected(&other)),
+        }
+    }
+
+    pub async fn storage_activate(
+        &self,
+        key: &str,
+        storage_id: i64,
+    ) -> Result<StorageInfo, CoreError> {
+        let request = Request::ActivateStorage(proto::ActivateStorage { storage_id });
+        expect_storage(self.request(key, request).await?)
+    }
+
+    pub async fn storage_remove(
+        &self,
+        key: &str,
+        storage_id: i64,
+    ) -> Result<StorageInfo, CoreError> {
+        let request = Request::RemoveStorage(proto::RemoveStorage { storage_id });
+        expect_storage(self.request(key, request).await?)
+    }
+
+    pub async fn storage_move_start(&self, key: &str) -> Result<StorageInfo, CoreError> {
+        let request = Request::StartStorageMove(proto::StartStorageMove {});
+        expect_storage(self.request(key, request).await?)
+    }
+
+    pub async fn storage_move_stop(&self, key: &str) -> Result<StorageInfo, CoreError> {
+        let request = Request::StopStorageMove(proto::StopStorageMove {});
+        expect_storage(self.request(key, request).await?)
+    }
+
+    pub(crate) fn transfers(&self) -> &Transfers {
+        &self.inner.transfers
+    }
+
+    pub(crate) fn uploads(&self) -> Arc<Uploads> {
+        Arc::clone(&self.inner.uploads)
+    }
+
+    pub(crate) fn downloads(&self) -> &Downloads {
+        &self.inner.downloads
+    }
+
+    /// An event of this client's own, for the app.
+    pub(crate) fn emit(&self, key: &str, payload: CoreEventPayload) {
+        let event = CoreEvent {
+            server_key: key.to_owned(),
+            payload,
+        };
+        if self.inner.outward.send(event).is_err() {
+            tracing::debug!("an event was dropped: the app stopped listening");
+        }
+    }
+
+    /// Saves the attachment at `path`; `DownloadProgress` events follow it.
+    pub async fn download_attachment(
+        &self,
+        key: &str,
+        attachment_id: i64,
+        path: String,
+    ) -> Result<(), CoreError> {
+        download::save(self, key, attachment_id, path).await
+    }
+
+    /// Stops a `download_attachment`; it returns `Cancelled`.
+    pub fn cancel_download(&self, key: &str, attachment_id: i64) {
+        self.inner.downloads.cancel(key, attachment_id);
+    }
+
+    /// Test hook: the next `count` answers to upload pieces are dropped, as
+    /// if the network lost them after the server took the piece.
+    #[doc(hidden)]
+    pub fn lose_upload_answers(&self, count: u32) {
+        self.inner.uploads.lose_answers(count);
+    }
+
+    /// Test hook: the server at `key` will refuse this device's media token
+    /// until it is renewed.
+    #[doc(hidden)]
+    pub fn spoil_media_token(&self, key: &str) {
+        self.inner
+            .media_tokens
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .insert(key.to_owned(), "spoiled".to_owned());
+    }
+
+    pub(crate) fn media_cache(&self) -> Option<Arc<MediaCache>> {
+        self.inner
+            .media_cache
+            .read()
+            .unwrap_or_else(PoisonError::into_inner)
+            .clone()
+    }
+
+    /// A thumbnail, or an original of at most 64 MiB, through the cache.
+    pub async fn attachment_bytes(
+        &self,
+        key: &str,
+        attachment_id: i64,
+        variant: AttachmentVariant,
+    ) -> Result<Vec<u8>, CoreError> {
+        download::bytes(self, key, attachment_id, variant).await
+    }
+
+    /// Turns the attachment cache on, sealed with this 32-byte key.
+    pub fn media_cache_init(&self, key: &[u8]) -> Result<(), CoreError> {
+        let key: [u8; 32] = key.try_into().map_err(|_| CoreError::InvalidInput {
+            message: "the media cache's key must be 32 bytes".to_owned(),
+        })?;
+        let cache = MediaCache::open(
+            self.inner.data_dir.join(cache::DIR),
+            opencord_common::blob::BlobKey::from_bytes(key),
+            cache::LIMIT,
+        )
+        .map_err(|error| CoreError::Storage {
+            message: error.to_string(),
+        })?;
+        *self
+            .inner
+            .media_cache
+            .write()
+            .unwrap_or_else(PoisonError::into_inner) = Some(Arc::new(cache));
+        Ok(())
+    }
+
+    pub async fn media_cache_size(&self) -> Result<u64, CoreError> {
+        download::cache_size(self.media_cache()).await
+    }
+
+    pub async fn media_cache_clear(&self) -> Result<(), CoreError> {
+        download::cache_clear(self.media_cache()).await
     }
 
     /// A request answered with an ack.
@@ -1770,6 +2273,13 @@ fn expect_message(response: Response) -> Result<Message, CoreError> {
 fn expect_channel(response: Response) -> Result<Channel, CoreError> {
     match response {
         Response::Channel(channel) => Ok(convert::channel(channel)),
+        other => Err(unexpected(&other)),
+    }
+}
+
+fn expect_storage(response: Response) -> Result<StorageInfo, CoreError> {
+    match response {
+        Response::Storage(storage) => Ok(convert::storage(storage)),
         other => Err(unexpected(&other)),
     }
 }

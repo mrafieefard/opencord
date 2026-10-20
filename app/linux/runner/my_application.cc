@@ -69,6 +69,21 @@ static void my_application_activate(GApplication* application) {
   fl_register_plugins(FL_PLUGIN_REGISTRY(view));
   window_channel_register(window, view, chrome);
 
+  // Dropped files (desktop_drop) come as a file list first. The plugin asks
+  // for the document portal's transfer key first, then STRING. Plasma's
+  // file manager offers all three, and neither of those two reliably
+  // becomes a path: the key must be resolved through the portal, and
+  // STRING carries bare paths the plugin drops. Sources that offer nothing
+  // but the key still get through.
+  GtkTargetList* targets = gtk_target_list_new(nullptr, 0);
+  gtk_target_list_add_uri_targets(targets, 0);
+  gtk_target_list_add(
+      targets,
+      gdk_atom_intern_static_string("application/vnd.portal.filetransfer"),
+      GTK_TARGET_OTHER_APP, 0);
+  gtk_drag_dest_set_target_list(GTK_WIDGET(view), targets);
+  gtk_target_list_unref(targets);
+
   gtk_widget_grab_focus(GTK_WIDGET(view));
 }
 

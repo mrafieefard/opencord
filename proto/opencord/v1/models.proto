@@ -12,6 +12,9 @@ message User {
   // Ed25519 public key (32 bytes). This is the user's identity.
   bytes public_key = 2;
   string display_name = 3;
+  // SHA-256 (hex) of the profile picture, a 256-pixel square PNG at
+  // GET /media/avatars/{hash}; empty for none.
+  string avatar_hash = 4;
 }
 
 message Member {
@@ -32,6 +35,7 @@ message Role {
   uint64 permissions = 5;
   bool hoist = 6;
   bool mentionable = 7;
+  optional uint64 max_upload_bytes = 8;
 }
 
 enum ChannelKind {
@@ -85,6 +89,7 @@ message Message {
   optional string nonce = 7;
   // A command's public result (Phase 3 plan §17.3): who ran which.
   optional MessageInteraction interaction = 8;
+  repeated Attachment attachments = 9;
 }
 
 message MessageInteraction {
@@ -122,6 +127,9 @@ message ServerInfo {
   optional int64 owner_id = 4;
   bool open_join = 5;
   int64 everyone_role_id = 6;
+  // SHA-256 (hex) of the server's icon, as a profile picture's; empty for
+  // none.
+  string icon_hash = 7;
 }
 
 enum PresenceStatus {
@@ -186,6 +194,14 @@ enum ErrorCode {
   ERROR_CODE_COMMAND_DISABLED = 38;
   ERROR_CODE_COMMAND_NOT_ALLOWED_HERE = 39;
   ERROR_CODE_COMMAND_INVALID_OPTIONS = 40;
+  // Media uploads (design 2026-10-18).
+  ERROR_CODE_FILE_TOO_LARGE = 41;
+  ERROR_CODE_FILE_TYPE_BLOCKED = 42;
+  ERROR_CODE_UPLOAD_OFFSET_MISMATCH = 43;
+  ERROR_CODE_STORAGE_UNAVAILABLE = 44;
+  ERROR_CODE_STORAGE_FULL = 45;
+  ERROR_CODE_VOICE_MESSAGE_INVALID = 46;
+  ERROR_CODE_VOICE_MESSAGE_TOO_LONG = 47;
 }
 
 message Error {
@@ -291,4 +307,135 @@ message SoundboardSound {
 message MediaToken {
   string token = 1;
   int64 expires_at_ms = 2;
+}
+
+// Media uploads (design 2026-10-18).
+enum AttachmentKind {
+  ATTACHMENT_KIND_UNSPECIFIED = 0;
+  ATTACHMENT_KIND_FILE = 1;
+  ATTACHMENT_KIND_IMAGE = 2;
+  ATTACHMENT_KIND_VIDEO = 3;
+  ATTACHMENT_KIND_AUDIO = 4;
+  ATTACHMENT_KIND_VOICE_MESSAGE = 5;
+}
+
+message Attachment {
+  int64 id = 1;
+  string filename = 2;
+  // Chosen by the server from the file's first bytes.
+  string content_type = 3;
+  uint64 size_bytes = 4;
+  AttachmentKind kind = 5;
+  // Images: stored after EXIF orientation. Videos: the sender's hints.
+  optional uint32 width = 6;
+  optional uint32 height = 7;
+  // Videos (hint) and voice messages (measured).
+  optional uint32 duration_ms = 8;
+  // Voice messages: 128 values, 0-255, computed by the server.
+  bytes waveform = 9;
+  bool has_thumbnail = 10;
+  optional uint32 thumbnail_width = 11;
+  optional uint32 thumbnail_height = 12;
+  // Multi-frame GIF or WebP.
+  bool animated = 13;
+}
+
+message UploadSettings {
+  // Lowercase, without a leading dot; may hold inner dots ("tar.gz").
+  repeated string blocked_extensions = 1;
+  // Always 1800 (30 minutes); servers before it was fixed could set it.
+  uint32 voice_message_max_seconds = 2;
+  // [uploads] max_file_mb in bytes: the owner's limit and every role
+  // limit's ceiling.
+  uint64 max_file_bytes = 3;
+  uint32 max_attachments = 4;
+  uint32 piece_bytes = 5;
+}
+
+enum UploadState {
+  UPLOAD_STATE_UNSPECIFIED = 0;
+  UPLOAD_STATE_UPLOADING = 1;
+  UPLOAD_STATE_PROCESSING = 2;
+  UPLOAD_STATE_READY = 3;
+  UPLOAD_STATE_FAILED = 4;
+  UPLOAD_STATE_SENT = 5;
+}
+
+// The answer to CreateUpload.
+message Upload {
+  int64 upload_id = 1;
+  uint32 piece_bytes = 2;
+}
+
+// The HTTP upload endpoints' answer.
+message UploadStatus {
+  int64 upload_id = 1;
+  UploadState state = 2;
+  uint64 received_bytes = 3;
+  // When ready (or sent).
+  optional Attachment attachment = 4;
+  // When failed.
+  optional Error error = 5;
+}
+
+enum StorageKind {
+  STORAGE_KIND_UNSPECIFIED = 0;
+  STORAGE_KIND_LOCAL = 1;
+  STORAGE_KIND_S3 = 2;
+}
+
+message S3Config {
+  // https://… (http:// only with allow_http).
+  string endpoint = 1;
+  string region = 2;
+  string bucket = 3;
+  string key_prefix = 4;
+  bool path_style = 5;
+  bool allow_http = 6;
+  // In answers: masked to its last 4 characters ("••••WXYZ"). Empty in
+  // UpdateStorage keeps the stored one.
+  string access_key_id = 7;
+  // Write-only: always empty in answers. Empty in UpdateStorage keeps the
+  // stored one, unless access_key_id changes.
+  string secret_access_key = 8;
+}
+
+message StorageBackend {
+  int64 id = 1;
+  StorageKind kind = 2;
+  string name = 3;
+  bool active = 4;
+  optional S3Config s3 = 5;
+  bool has_secret = 6;
+  uint64 file_count = 7;
+  uint64 bytes = 8;
+  optional string last_error = 9;
+}
+
+message StorageMove {
+  int64 to_storage_id = 1;
+  bool running = 2;
+  uint64 files_done = 3;
+  uint64 files_total = 4;
+  uint64 bytes_done = 5;
+  uint64 bytes_total = 6;
+  uint32 failed = 7;
+}
+
+message Storage {
+  repeated StorageBackend backends = 1;
+  optional StorageMove move = 2;
+  // Free space where uploads are received.
+  uint64 temp_free_bytes = 3;
+}
+
+message StorageTestStep {
+  string name = 1;
+  bool ok = 2;
+  string detail = 3;
+}
+
+message StorageTest {
+  repeated StorageTestStep steps = 1;
+  bool ok = 2;
 }

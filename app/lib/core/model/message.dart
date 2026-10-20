@@ -1,5 +1,7 @@
 import 'package:flutter/foundation.dart';
 
+import 'package:opencord/core/model/attachment.dart';
+
 /// A small notice in the history instead of a bubble (§4.5).
 enum SystemEvent { memberJoined, channelCreated, messagePinned }
 
@@ -42,6 +44,8 @@ class Message {
     this.systemEvent,
     this.sendState = SendState.sent,
     this.command,
+    this.attachments = const [],
+    this.uploads = const [],
   });
 
   /// A snowflake: larger ids are newer. Pending messages use a placeholder.
@@ -65,6 +69,9 @@ class Message {
   /// A command's public result (Phase 3 §17.3): the command [authorId] ran.
   final String? command;
 
+  final List<Attachment> attachments;
+  final List<PendingUpload> uploads;
+
   bool get isSystem => systemEvent != null;
 
   bool get edited => editedAt != null;
@@ -77,6 +84,8 @@ class Message {
     bool? pinned,
     SendState? sendState,
     DateTime? createdAt,
+    List<Attachment>? attachments,
+    List<PendingUpload>? uploads,
   }) => Message(
     id: id ?? this.id,
     channelId: channelId,
@@ -91,5 +100,7 @@ class Message {
     systemEvent: systemEvent,
     sendState: sendState ?? this.sendState,
     command: command,
+    attachments: attachments ?? this.attachments,
+    uploads: uploads ?? this.uploads,
   );
 }

@@ -6,6 +6,7 @@
 // Static analysis wrongly picks the IO variant, thus ignore this
 // ignore_for_file: argument_type_not_assignable
 
+import 'api/attachments.dart';
 import 'api/client.dart';
 import 'api/system.dart';
 import 'api/types.dart';
@@ -39,6 +40,15 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   AddServerOutcome dco_decode_add_server_outcome(dynamic raw);
+
+  @protected
+  Attachment dco_decode_attachment(dynamic raw);
+
+  @protected
+  AttachmentKind dco_decode_attachment_kind(dynamic raw);
+
+  @protected
+  AttachmentVariant dco_decode_attachment_variant(dynamic raw);
 
   @protected
   AudioDevice dco_decode_audio_device(dynamic raw);
@@ -162,7 +172,13 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  OutgoingFile dco_decode_box_autoadd_outgoing_file(dynamic raw);
+
+  @protected
   PermissionOverwrite dco_decode_box_autoadd_permission_overwrite(dynamic raw);
+
+  @protected
+  PlaybackItem dco_decode_box_autoadd_playback_item(dynamic raw);
 
   @protected
   Presence dco_decode_box_autoadd_presence(dynamic raw);
@@ -175,6 +191,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   RoleChanges dco_decode_box_autoadd_role_changes(dynamic raw);
+
+  @protected
+  S3Config dco_decode_box_autoadd_s_3_config(dynamic raw);
 
   @protected
   ScreenShareRequest dco_decode_box_autoadd_screen_share_request(dynamic raw);
@@ -220,6 +239,15 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  StorageInfo dco_decode_box_autoadd_storage_info(dynamic raw);
+
+  @protected
+  StorageMove dco_decode_box_autoadd_storage_move(dynamic raw);
+
+  @protected
+  StorageTestTarget dco_decode_box_autoadd_storage_test_target(dynamic raw);
+
+  @protected
   TextureStats dco_decode_box_autoadd_texture_stats(dynamic raw);
 
   @protected
@@ -230,6 +258,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   BigInt dco_decode_box_autoadd_u_64(dynamic raw);
+
+  @protected
+  UploadPhase dco_decode_box_autoadd_upload_phase(dynamic raw);
+
+  @protected
+  UploadSettings dco_decode_box_autoadd_upload_settings(dynamic raw);
 
   @protected
   VoiceConnectionState dco_decode_box_autoadd_voice_connection_state(
@@ -425,6 +459,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   List<String> dco_decode_list_String(dynamic raw);
 
   @protected
+  List<Attachment> dco_decode_list_attachment(dynamic raw);
+
+  @protected
   List<AudioDevice> dco_decode_list_audio_device(dynamic raw);
 
   @protected
@@ -500,6 +537,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   List<MusicSearchResult> dco_decode_list_music_search_result(dynamic raw);
 
   @protected
+  List<OutgoingFile> dco_decode_list_outgoing_file(dynamic raw);
+
+  @protected
   List<PermissionOverwrite> dco_decode_list_permission_overwrite(dynamic raw);
 
   @protected
@@ -542,6 +582,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   List<SpeakingChange> dco_decode_list_speaking_change(dynamic raw);
 
   @protected
+  List<StorageBackend> dco_decode_list_storage_backend(dynamic raw);
+
+  @protected
+  List<StorageTestStep> dco_decode_list_storage_test_step(dynamic raw);
+
+  @protected
   List<TrustedFingerprint> dco_decode_list_trusted_fingerprint(dynamic raw);
 
   @protected
@@ -555,6 +601,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   MediaEvent dco_decode_media_event(dynamic raw);
+
+  @protected
+  MediaHandle dco_decode_media_handle(dynamic raw);
 
   @protected
   Member dco_decode_member(dynamic raw);
@@ -658,6 +707,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   MusicRepeat? dco_decode_opt_box_autoadd_music_repeat(dynamic raw);
 
   @protected
+  S3Config? dco_decode_opt_box_autoadd_s_3_config(dynamic raw);
+
+  @protected
   ScreenShareResolution? dco_decode_opt_box_autoadd_screen_share_resolution(
     dynamic raw,
   );
@@ -667,6 +719,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   SoundboardSound? dco_decode_opt_box_autoadd_soundboard_sound(dynamic raw);
+
+  @protected
+  StorageMove? dco_decode_opt_box_autoadd_storage_move(dynamic raw);
 
   @protected
   TextureStats? dco_decode_opt_box_autoadd_texture_stats(dynamic raw);
@@ -687,10 +742,19 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   Int64List? dco_decode_opt_list_prim_i_64_strict(dynamic raw);
 
   @protected
+  Uint8List? dco_decode_opt_list_prim_u_8_strict(dynamic raw);
+
+  @protected
+  OutgoingFile dco_decode_outgoing_file(dynamic raw);
+
+  @protected
   OverwriteTargetKind dco_decode_overwrite_target_kind(dynamic raw);
 
   @protected
   PermissionOverwrite dco_decode_permission_overwrite(dynamic raw);
+
+  @protected
+  PlaybackItem dco_decode_playback_item(dynamic raw);
 
   @protected
   PortProtocol dco_decode_port_protocol(dynamic raw);
@@ -721,6 +785,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   RoleChanges dco_decode_role_changes(dynamic raw);
+
+  @protected
+  S3Config dco_decode_s_3_config(dynamic raw);
 
   @protected
   ScreenAudioApp dco_decode_screen_audio_app(dynamic raw);
@@ -783,6 +850,27 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   SpeakingChange dco_decode_speaking_change(dynamic raw);
 
   @protected
+  StorageBackend dco_decode_storage_backend(dynamic raw);
+
+  @protected
+  StorageInfo dco_decode_storage_info(dynamic raw);
+
+  @protected
+  StorageKind dco_decode_storage_kind(dynamic raw);
+
+  @protected
+  StorageMove dco_decode_storage_move(dynamic raw);
+
+  @protected
+  StorageTestResult dco_decode_storage_test_result(dynamic raw);
+
+  @protected
+  StorageTestStep dco_decode_storage_test_step(dynamic raw);
+
+  @protected
+  StorageTestTarget dco_decode_storage_test_target(dynamic raw);
+
+  @protected
   StreamSourceKind dco_decode_stream_source_kind(dynamic raw);
 
   @protected
@@ -816,6 +904,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void dco_decode_unit(dynamic raw);
 
   @protected
+  UploadPhase dco_decode_upload_phase(dynamic raw);
+
+  @protected
+  UploadSettings dco_decode_upload_settings(dynamic raw);
+
+  @protected
   User dco_decode_user(dynamic raw);
 
   @protected
@@ -834,6 +928,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   VoiceCue dco_decode_voice_cue(dynamic raw);
 
   @protected
+  VoiceDraft dco_decode_voice_draft(dynamic raw);
+
+  @protected
   VoiceSettings dco_decode_voice_settings(dynamic raw);
 
   @protected
@@ -844,6 +941,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   VoiceStats dco_decode_voice_stats(dynamic raw);
+
+  @protected
+  VoiceStopReason dco_decode_voice_stop_reason(dynamic raw);
 
   @protected
   AnyhowException sse_decode_AnyhowException(SseDeserializer deserializer);
@@ -866,6 +966,15 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   AddServerOutcome sse_decode_add_server_outcome(SseDeserializer deserializer);
+
+  @protected
+  Attachment sse_decode_attachment(SseDeserializer deserializer);
+
+  @protected
+  AttachmentKind sse_decode_attachment_kind(SseDeserializer deserializer);
+
+  @protected
+  AttachmentVariant sse_decode_attachment_variant(SseDeserializer deserializer);
 
   @protected
   AudioDevice sse_decode_audio_device(SseDeserializer deserializer);
@@ -1021,7 +1130,17 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  OutgoingFile sse_decode_box_autoadd_outgoing_file(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   PermissionOverwrite sse_decode_box_autoadd_permission_overwrite(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  PlaybackItem sse_decode_box_autoadd_playback_item(
     SseDeserializer deserializer,
   );
 
@@ -1038,6 +1157,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   RoleChanges sse_decode_box_autoadd_role_changes(SseDeserializer deserializer);
+
+  @protected
+  S3Config sse_decode_box_autoadd_s_3_config(SseDeserializer deserializer);
 
   @protected
   ScreenShareRequest sse_decode_box_autoadd_screen_share_request(
@@ -1099,6 +1221,17 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  StorageInfo sse_decode_box_autoadd_storage_info(SseDeserializer deserializer);
+
+  @protected
+  StorageMove sse_decode_box_autoadd_storage_move(SseDeserializer deserializer);
+
+  @protected
+  StorageTestTarget sse_decode_box_autoadd_storage_test_target(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   TextureStats sse_decode_box_autoadd_texture_stats(
     SseDeserializer deserializer,
   );
@@ -1111,6 +1244,14 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   BigInt sse_decode_box_autoadd_u_64(SseDeserializer deserializer);
+
+  @protected
+  UploadPhase sse_decode_box_autoadd_upload_phase(SseDeserializer deserializer);
+
+  @protected
+  UploadSettings sse_decode_box_autoadd_upload_settings(
+    SseDeserializer deserializer,
+  );
 
   @protected
   VoiceConnectionState sse_decode_box_autoadd_voice_connection_state(
@@ -1332,6 +1473,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   List<String> sse_decode_list_String(SseDeserializer deserializer);
 
   @protected
+  List<Attachment> sse_decode_list_attachment(SseDeserializer deserializer);
+
+  @protected
   List<AudioDevice> sse_decode_list_audio_device(SseDeserializer deserializer);
 
   @protected
@@ -1435,6 +1579,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  List<OutgoingFile> sse_decode_list_outgoing_file(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   List<PermissionOverwrite> sse_decode_list_permission_overwrite(
     SseDeserializer deserializer,
   );
@@ -1489,6 +1638,16 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  List<StorageBackend> sse_decode_list_storage_backend(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  List<StorageTestStep> sse_decode_list_storage_test_step(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   List<TrustedFingerprint> sse_decode_list_trusted_fingerprint(
     SseDeserializer deserializer,
   );
@@ -1504,6 +1663,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   MediaEvent sse_decode_media_event(SseDeserializer deserializer);
+
+  @protected
+  MediaHandle sse_decode_media_handle(SseDeserializer deserializer);
 
   @protected
   Member sse_decode_member(SseDeserializer deserializer);
@@ -1629,6 +1791,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  S3Config? sse_decode_opt_box_autoadd_s_3_config(SseDeserializer deserializer);
+
+  @protected
   ScreenShareResolution? sse_decode_opt_box_autoadd_screen_share_resolution(
     SseDeserializer deserializer,
   );
@@ -1640,6 +1805,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   SoundboardSound? sse_decode_opt_box_autoadd_soundboard_sound(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  StorageMove? sse_decode_opt_box_autoadd_storage_move(
     SseDeserializer deserializer,
   );
 
@@ -1666,6 +1836,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   Int64List? sse_decode_opt_list_prim_i_64_strict(SseDeserializer deserializer);
 
   @protected
+  Uint8List? sse_decode_opt_list_prim_u_8_strict(SseDeserializer deserializer);
+
+  @protected
+  OutgoingFile sse_decode_outgoing_file(SseDeserializer deserializer);
+
+  @protected
   OverwriteTargetKind sse_decode_overwrite_target_kind(
     SseDeserializer deserializer,
   );
@@ -1674,6 +1850,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   PermissionOverwrite sse_decode_permission_overwrite(
     SseDeserializer deserializer,
   );
+
+  @protected
+  PlaybackItem sse_decode_playback_item(SseDeserializer deserializer);
 
   @protected
   PortProtocol sse_decode_port_protocol(SseDeserializer deserializer);
@@ -1704,6 +1883,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   RoleChanges sse_decode_role_changes(SseDeserializer deserializer);
+
+  @protected
+  S3Config sse_decode_s_3_config(SseDeserializer deserializer);
 
   @protected
   ScreenAudioApp sse_decode_screen_audio_app(SseDeserializer deserializer);
@@ -1776,6 +1958,31 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   SpeakingChange sse_decode_speaking_change(SseDeserializer deserializer);
 
   @protected
+  StorageBackend sse_decode_storage_backend(SseDeserializer deserializer);
+
+  @protected
+  StorageInfo sse_decode_storage_info(SseDeserializer deserializer);
+
+  @protected
+  StorageKind sse_decode_storage_kind(SseDeserializer deserializer);
+
+  @protected
+  StorageMove sse_decode_storage_move(SseDeserializer deserializer);
+
+  @protected
+  StorageTestResult sse_decode_storage_test_result(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  StorageTestStep sse_decode_storage_test_step(SseDeserializer deserializer);
+
+  @protected
+  StorageTestTarget sse_decode_storage_test_target(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   StreamSourceKind sse_decode_stream_source_kind(SseDeserializer deserializer);
 
   @protected
@@ -1811,6 +2018,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_decode_unit(SseDeserializer deserializer);
 
   @protected
+  UploadPhase sse_decode_upload_phase(SseDeserializer deserializer);
+
+  @protected
+  UploadSettings sse_decode_upload_settings(SseDeserializer deserializer);
+
+  @protected
   User sse_decode_user(SseDeserializer deserializer);
 
   @protected
@@ -1831,6 +2044,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   VoiceCue sse_decode_voice_cue(SseDeserializer deserializer);
 
   @protected
+  VoiceDraft sse_decode_voice_draft(SseDeserializer deserializer);
+
+  @protected
   VoiceSettings sse_decode_voice_settings(SseDeserializer deserializer);
 
   @protected
@@ -1843,6 +2059,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   VoiceStats sse_decode_voice_stats(SseDeserializer deserializer);
+
+  @protected
+  VoiceStopReason sse_decode_voice_stop_reason(SseDeserializer deserializer);
 
   @protected
   void sse_encode_AnyhowException(
@@ -1871,6 +2090,21 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_add_server_outcome(
     AddServerOutcome self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_attachment(Attachment self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_attachment_kind(
+    AttachmentKind self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_attachment_variant(
+    AttachmentVariant self,
     SseSerializer serializer,
   );
 
@@ -2067,8 +2301,20 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_box_autoadd_outgoing_file(
+    OutgoingFile self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_box_autoadd_permission_overwrite(
     PermissionOverwrite self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_box_autoadd_playback_item(
+    PlaybackItem self,
     SseSerializer serializer,
   );
 
@@ -2087,6 +2333,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_box_autoadd_role_changes(
     RoleChanges self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_box_autoadd_s_3_config(
+    S3Config self,
     SseSerializer serializer,
   );
 
@@ -2166,6 +2418,24 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_box_autoadd_storage_info(
+    StorageInfo self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_box_autoadd_storage_move(
+    StorageMove self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_box_autoadd_storage_test_target(
+    StorageTestTarget self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_box_autoadd_texture_stats(
     TextureStats self,
     SseSerializer serializer,
@@ -2182,6 +2452,18 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_box_autoadd_u_64(BigInt self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_box_autoadd_upload_phase(
+    UploadPhase self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_box_autoadd_upload_settings(
+    UploadSettings self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_box_autoadd_voice_connection_state(
@@ -2469,6 +2751,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_list_String(List<String> self, SseSerializer serializer);
 
   @protected
+  void sse_encode_list_attachment(
+    List<Attachment> self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_list_audio_device(
     List<AudioDevice> self,
     SseSerializer serializer,
@@ -2601,6 +2889,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_list_outgoing_file(
+    List<OutgoingFile> self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_list_permission_overwrite(
     List<PermissionOverwrite> self,
     SseSerializer serializer,
@@ -2673,6 +2967,18 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_list_storage_backend(
+    List<StorageBackend> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_storage_test_step(
+    List<StorageTestStep> self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_list_trusted_fingerprint(
     List<TrustedFingerprint> self,
     SseSerializer serializer,
@@ -2695,6 +3001,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_media_event(MediaEvent self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_media_handle(MediaHandle self, SseSerializer serializer);
 
   @protected
   void sse_encode_member(Member self, SseSerializer serializer);
@@ -2853,6 +3162,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_opt_box_autoadd_s_3_config(
+    S3Config? self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_opt_box_autoadd_screen_share_resolution(
     ScreenShareResolution? self,
     SseSerializer serializer,
@@ -2867,6 +3182,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_opt_box_autoadd_soundboard_sound(
     SoundboardSound? self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_opt_box_autoadd_storage_move(
+    StorageMove? self,
     SseSerializer serializer,
   );
 
@@ -2898,6 +3219,15 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_opt_list_prim_u_8_strict(
+    Uint8List? self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_outgoing_file(OutgoingFile self, SseSerializer serializer);
+
+  @protected
   void sse_encode_overwrite_target_kind(
     OverwriteTargetKind self,
     SseSerializer serializer,
@@ -2908,6 +3238,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
     PermissionOverwrite self,
     SseSerializer serializer,
   );
+
+  @protected
+  void sse_encode_playback_item(PlaybackItem self, SseSerializer serializer);
 
   @protected
   void sse_encode_port_protocol(PortProtocol self, SseSerializer serializer);
@@ -2941,6 +3274,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_role_changes(RoleChanges self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_s_3_config(S3Config self, SseSerializer serializer);
 
   @protected
   void sse_encode_screen_audio_app(
@@ -3036,6 +3372,39 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_storage_backend(
+    StorageBackend self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_storage_info(StorageInfo self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_storage_kind(StorageKind self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_storage_move(StorageMove self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_storage_test_result(
+    StorageTestResult self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_storage_test_step(
+    StorageTestStep self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_storage_test_target(
+    StorageTestTarget self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_stream_source_kind(
     StreamSourceKind self,
     SseSerializer serializer,
@@ -3075,6 +3444,15 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_unit(void self, SseSerializer serializer);
 
   @protected
+  void sse_encode_upload_phase(UploadPhase self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_upload_settings(
+    UploadSettings self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_user(User self, SseSerializer serializer);
 
   @protected
@@ -3099,6 +3477,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_voice_cue(VoiceCue self, SseSerializer serializer);
 
   @protected
+  void sse_encode_voice_draft(VoiceDraft self, SseSerializer serializer);
+
+  @protected
   void sse_encode_voice_settings(VoiceSettings self, SseSerializer serializer);
 
   @protected
@@ -3112,6 +3493,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_voice_stats(VoiceStats self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_voice_stop_reason(
+    VoiceStopReason self,
+    SseSerializer serializer,
+  );
 }
 
 // Section: wire_class

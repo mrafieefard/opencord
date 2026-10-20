@@ -270,7 +270,19 @@ void main() {
     await _pumpFor(tester, const Duration(milliseconds: 300));
 
     await tester.tap(_inSettings(find.text('Mute all soundboards')));
-    await tester.pump();
+    await _pumpFor(tester, const Duration(milliseconds: 300));
+    // Waits for the save bar, as every client setting does.
+    expect(
+      app.store.read('ui.soundboard') ?? '',
+      isNot(contains('"muted":true')),
+    );
+    await tester.tap(
+      find.descendant(
+        of: find.byType(SaveBar),
+        matching: find.widgetWithText(OcButton, 'Save changes'),
+      ),
+    );
+    await _pumpFor(tester, const Duration(milliseconds: 300));
 
     expect(app.repository.soundboardListening, (volume: 100, muted: true));
     expect(app.store.read('ui.soundboard'), contains('"muted":true'));

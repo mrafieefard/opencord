@@ -28,6 +28,11 @@ data_dir = "data"
 # Name given to the server on first start. Change it later from the app.
 # OPENCORD_SERVER_NAME
 name = "Opencord"
+# The key that seals certificates, tokens, passwords and every file's key.
+# Back it up: without it, uploaded files cannot be read. To protect files
+# against a stolen disk, keep it on another disk. Default: secrets.key in
+# the data directory. OPENCORD_SECRETS_FILE
+# secrets_file = "/run/secrets/opencord-secrets.key"
 
 [tls]
 # Leave both unset to use a self-signed certificate generated on first start.
@@ -85,6 +90,15 @@ bridge_domain = "primary"
 # fetch any address or file; refused unless this is on.
 allow_unsafe_sources = false
 
+[uploads]
+# The largest file anyone may upload, in MB (1 MB = 1,048,576 bytes): the
+# owner's own limit and the ceiling for every role's limit. 1 to 102400.
+# OPENCORD_UPLOADS_MAX_FILE_MB
+max_file_mb = 4096
+# Where files on this server's own storage are kept. Default: "attachments"
+# in the data directory. OPENCORD_UPLOADS_LOCAL_DIR
+# local_dir = "/mnt/storage/opencord-attachments"
+
 [network]
 # Services that answer with the address a request came from, used to find
 # the server's public address. Empty turns detection off; the owner can
@@ -103,8 +117,26 @@ pub struct Config {
     pub voice: VoiceSection,
     pub music: MusicSection,
     pub network: NetworkSection,
+    pub uploads: UploadsSection,
     pub acme: AcmeSection,
     pub tunnel: TunnelSection,
+}
+
+/// Media uploads (design 2026-10-18).
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct UploadsSection {
+    pub max_file_mb: u64,
+    pub local_dir: Option<PathBuf>,
+}
+
+impl Default for UploadsSection {
+    fn default() -> Self {
+        Self {
+            max_file_mb: 4096,
+            local_dir: None,
+        }
+    }
 }
 
 /// Cloudflare Tunnel (Phase 3 plan §9.2).
@@ -136,6 +168,7 @@ pub struct ServerSection {
     pub public_port: Option<u16>,
     pub data_dir: PathBuf,
     pub name: String,
+    pub secrets_file: Option<PathBuf>,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Deserialize)]
@@ -195,6 +228,7 @@ impl Default for ServerSection {
             public_port: None,
             data_dir: PathBuf::from("data"),
             name: "Opencord".to_owned(),
+            secrets_file: None,
         }
     }
 }
@@ -334,6 +368,8 @@ pub enum ConfigError {
     },
     #[error("environment variable {name} has an invalid value: {value:?}")]
     InvalidEnv { name: &'static str, value: String },
+    #[error("invalid configuration for {key}: {message}")]
+    Invalid { key: &'static str, message: String },
 }
 
 /// A loaded config, and whether the file had to be created.
@@ -378,8 +414,19 @@ impl Config {
     ) -> Result<Loaded, ConfigError> {
         let loaded: Loaded<Config> = read_or_create(path, DEFAULT_CONFIG_TOML)?;
         let base_dir = path.parent().unwrap_or(Path::new(""));
+        let config = loaded.config.with_env(&env)?.resolve_paths(base_dir);
+        if !opencord_common::upload::MAX_FILE_MB_RANGE.contains(&config.uploads.max_file_mb) {
+            return Err(ConfigError::Invalid {
+                key: "uploads.max_file_mb",
+                message: format!(
+                    "must be between {} and {}",
+                    opencord_common::upload::MAX_FILE_MB_RANGE.start(),
+                    opencord_common::upload::MAX_FILE_MB_RANGE.end(),
+                ),
+            });
+        }
         Ok(Loaded {
-            config: loaded.config.with_env(&env)?.resolve_paths(base_dir),
+            config,
             created: loaded.created,
         })
     }
@@ -387,6 +434,28 @@ impl Config {
     /// Port that clients connect to.
     pub fn public_port(&self) -> u16 {
         self.server.public_port.unwrap_or(self.server.bind.port())
+    }
+
+    pub fn secrets_file(&self) -> PathBuf {
+        self.server
+            .secrets_file
+            .clone()
+            .unwrap_or_else(|| self.server.data_dir.join(crate::secrets::SECRETS_FILE))
+    }
+
+    pub fn attachments_dir(&self) -> PathBuf {
+        self.uploads
+            .local_dir
+            .clone()
+            .unwrap_or_else(|| self.server.data_dir.join("attachments"))
+    }
+
+    pub fn uploads_temp_dir(&self) -> PathBuf {
+        self.server.data_dir.join("uploads")
+    }
+
+    pub fn max_file_bytes(&self) -> u64 {
+        self.uploads.max_file_mb * opencord_common::upload::MIB
     }
 
     fn with_env(self, env: &impl Fn(&str) -> Option<String>) -> Result<Self, ConfigError> {
@@ -405,6 +474,9 @@ impl Config {
         }
         if let Some(value) = env("OPENCORD_SERVER_NAME") {
             config.server.name = value;
+        }
+        if let Some(value) = env("OPENCORD_SECRETS_FILE") {
+            config.server.secrets_file = Some(PathBuf::from(value));
         }
         if let Some(value) = env("OPENCORD_TLS_CERT") {
             config.tls.cert = Some(PathBuf::from(value));
@@ -443,6 +515,12 @@ impl Config {
         if let Some(value) = env("OPENCORD_VOICE_PUBLIC_ADDRESS") {
             config.voice.public_address = value;
         }
+        if let Some(value) = env("OPENCORD_UPLOADS_MAX_FILE_MB") {
+            config.uploads.max_file_mb = parse_env("OPENCORD_UPLOADS_MAX_FILE_MB", value)?;
+        }
+        if let Some(value) = env("OPENCORD_UPLOADS_LOCAL_DIR") {
+            config.uploads.local_dir = Some(PathBuf::from(value));
+        }
         Ok(config)
     }
 
@@ -450,7 +528,12 @@ impl Config {
         Self {
             server: ServerSection {
                 data_dir: base_dir.join(&self.server.data_dir),
+                secrets_file: self.server.secrets_file.map(|p| base_dir.join(p)),
                 ..self.server
+            },
+            uploads: UploadsSection {
+                local_dir: self.uploads.local_dir.map(|p| base_dir.join(p)),
+                ..self.uploads
             },
             tls: self.tls.resolve_paths(base_dir),
             voice: VoiceSection {
@@ -658,5 +741,56 @@ mod tests {
             Config::load_or_create(&path, no_env),
             Err(ConfigError::Parse { .. })
         ));
+    }
+
+    #[test]
+    fn uploads_defaults_and_env() {
+        use opencord_common::upload::MIB;
+
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("opencord.toml");
+
+        let loaded = Config::load_or_create(&path, no_env).unwrap();
+        assert_eq!(loaded.config.max_file_bytes(), 4096 * MIB);
+        assert_eq!(
+            loaded.config.attachments_dir(),
+            dir.path().join("data").join("attachments")
+        );
+
+        let env_map = [
+            ("OPENCORD_UPLOADS_MAX_FILE_MB", "10".to_string()),
+            ("OPENCORD_SECRETS_FILE", "keys/s.key".to_string()),
+        ];
+        let get_env = |k: &str| {
+            env_map
+                .iter()
+                .find(|(name, _)| *name == k)
+                .map(|(_, v)| v.clone())
+        };
+        let loaded = Config::load_or_create(&path, get_env).unwrap();
+        assert_eq!(loaded.config.max_file_bytes(), 10 * MIB);
+        assert_eq!(loaded.config.secrets_file(), dir.path().join("keys/s.key"));
+    }
+
+    #[test]
+    fn max_file_mb_out_of_range_is_refused() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("opencord.toml");
+
+        for bad in ["0", "102401"] {
+            let get_env = |k: &str| {
+                if k == "OPENCORD_UPLOADS_MAX_FILE_MB" {
+                    Some(bad.to_string())
+                } else {
+                    None
+                }
+            };
+            match Config::load_or_create(&path, get_env) {
+                Err(ConfigError::Invalid { key, .. }) => {
+                    assert_eq!(key, "uploads.max_file_mb");
+                }
+                other => panic!("expected ConfigError::Invalid, got {:?}", other),
+            }
+        }
     }
 }

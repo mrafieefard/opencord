@@ -9,6 +9,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:opencord/core/hotkeys.dart';
 
+import 'package:opencord/core/model/attachment.dart';
 import 'package:opencord/core/model/message.dart';
 import 'package:opencord/core/model/misc.dart';
 import 'package:opencord/core/model/server.dart';
@@ -32,6 +33,7 @@ import 'package:opencord/core/providers/user_audio.dart';
 import 'package:opencord/core/repository/repository.dart';
 import 'package:opencord/core/settings/local_prefs.dart';
 import 'package:opencord/core/settings/key_value_store.dart';
+import 'package:opencord/core/providers/playback_state.dart';
 
 export 'package:opencord/core/providers/activity_state.dart';
 export 'package:opencord/core/providers/channel_audience.dart';
@@ -48,6 +50,7 @@ export 'package:opencord/core/providers/sound_state.dart';
 export 'package:opencord/core/providers/stream_state.dart';
 export 'package:opencord/core/providers/typing_state.dart';
 export 'package:opencord/core/providers/user_audio.dart';
+export 'package:opencord/core/providers/playback_state.dart';
 
 /// A channel on a server: the key of per-channel providers.
 typedef ChannelRef = ({String server, int channel});
@@ -193,6 +196,10 @@ void _toggle(Ref ref, HotkeyAction action) {
                   : InputMode.pushToTalk,
             ),
           );
+    case HotkeyAction.toggleMusicMute:
+      ref
+          .read(musicListeningProvider.notifier)
+          .update((listening) => listening.copyWith(muted: !listening.muted));
     case HotkeyAction.pushToTalk || HotkeyAction.prioritySpeaker:
       break;
   }
@@ -362,10 +369,14 @@ void _route(Ref ref, RepoEvent event) {
       _toChannel(ref, key, message.channelId, event);
     case MessageDeleted(:final channelId):
       _toChannel(ref, key, channelId, event);
+    case UploadProgressEvent(:final channelId):
+      _toChannel(ref, key, channelId, event);
     case OwnVoiceChanged():
       ref.read(voiceSessionProvider.notifier).apply(event);
     case VoiceConnectionChanged():
       ref.read(voiceConnectionProvider.notifier).apply(event);
+    case PlaybackUpdate() || PlaybackEnded() || PlaybackFailed():
+      ref.read(playbackProvider.notifier).apply(event);
     default:
       break;
   }
@@ -1122,6 +1133,15 @@ class ChannelMessagesNotifier extends Notifier<ChannelMessages> {
   /// after each new session (the server limits requests).
   var _shown = 0;
 
+  /// The files of each message sent with files, kept for Retry. An entry
+  /// leaves when its message is sent, discarded or cancelled.
+  final _stagedByNonce = <String, List<StagedFile>>{};
+
+  /// The draft of each voice message being sent, kept for Retry. An entry
+  /// leaves when its message is sent or discarded; the core frees the
+  /// draft then too.
+  final _draftsByNonce = <String, int>{};
+
   @override
   ChannelMessages build() {
     final server = serverProvider(channel.server);
@@ -1237,6 +1257,68 @@ class ChannelMessagesNotifier extends Notifier<ChannelMessages> {
     await _deliver(pending);
   }
 
+  Future<void> sendWithFiles(
+    String content,
+    List<StagedFile> files, {
+    int? replyToId,
+  }) async {
+    final text = content.trim();
+    if (text.isEmpty && files.isEmpty) return;
+    final now = ref.read(clockProvider)();
+    final nonce =
+        '${now.microsecondsSinceEpoch.toRadixString(36)}'
+        '${_nonces.nextInt(1 << 32).toRadixString(36)}';
+    final uploads = [
+      for (final file in files)
+        PendingUpload(
+          name: file.name,
+          size: file.size,
+          sent: 0,
+          phase: UploadPhase.preparing,
+          preview: file.preview,
+        ),
+    ];
+    final pending = Message(
+      id: -now.microsecondsSinceEpoch,
+      channelId: channel.channel,
+      authorId: ref.read(serverProvider(channel.server)).data?.self.id ?? 0,
+      content: text,
+      createdAt: now,
+      nonce: nonce,
+      replyToId: replyToId,
+      sendState: SendState.pending,
+      uploads: uploads,
+    );
+    _stagedByNonce[nonce] = List.of(files);
+    state = withPending(state, pending);
+    await _deliverWithFiles(pending, files);
+  }
+
+  Future<void> _deliverWithFiles(
+    Message pending,
+    List<StagedFile> files,
+  ) async {
+    try {
+      final sent = await _repository.sendMessageWithFiles(
+        channel.server,
+        channel.channel,
+        pending.content,
+        nonce: pending.nonce!,
+        files: files,
+      );
+      _stagedByNonce.remove(pending.nonce);
+      if (ref.mounted) state = resolvePending(state, sent);
+    } on RepoException catch (error) {
+      if (!ref.mounted) return;
+      state = failPending(state, pending.nonce!);
+      if (error.kind == RepoErrorKind.rateLimited) {
+        ref
+            .read(sendCooldownProvider(channel).notifier)
+            .start(error.retryAfter ?? const Duration(seconds: 5));
+      }
+    }
+  }
+
   Future<void> _deliver(Message pending) async {
     try {
       final sent = await _repository.sendMessage(
@@ -1258,16 +1340,105 @@ class ChannelMessagesNotifier extends Notifier<ChannelMessages> {
     }
   }
 
+  Future<void> sendVoice(VoiceDraft draft) async {
+    final now = ref.read(clockProvider)();
+    final nonce =
+        '${now.microsecondsSinceEpoch.toRadixString(36)}'
+        '${_nonces.nextInt(1 << 32).toRadixString(36)}';
+    final draftId = draft.id;
+    final localAttachment = Attachment(
+      id: -now.microsecondsSinceEpoch,
+      filename: 'voice-message.ogg',
+      contentType: 'audio/ogg',
+      sizeBytes: 0,
+      kind: AttachmentKind.voiceMessage,
+      durationMs: draft.durationMs,
+      waveform: draft.waveform,
+    );
+    final pending = Message(
+      id: -now.microsecondsSinceEpoch,
+      channelId: channel.channel,
+      authorId: ref.read(serverProvider(channel.server)).data?.self.id ?? 0,
+      content: '',
+      createdAt: now,
+      nonce: nonce,
+      sendState: SendState.pending,
+      attachments: [localAttachment],
+    );
+    _draftsByNonce[nonce] = draftId;
+    state = withPending(state, pending);
+    await _deliverVoice(pending, draftId);
+  }
+
+  Future<void> _deliverVoice(Message pending, int draftId) async {
+    try {
+      final sent = await _repository.sendVoiceMessage(
+        channel.server,
+        channel.channel,
+        pending.nonce!,
+        draftId,
+      );
+      _draftsByNonce.remove(pending.nonce);
+      _repository.voiceDraftDiscard(draftId);
+      if (ref.mounted) state = resolvePending(state, sent);
+    } on RepoException catch (error) {
+      if (!ref.mounted) return;
+      state = failPending(state, pending.nonce!);
+      if (error.kind == RepoErrorKind.rateLimited) {
+        ref
+            .read(sendCooldownProvider(channel).notifier)
+            .start(error.retryAfter ?? const Duration(seconds: 5));
+      }
+    }
+  }
+
   /// Sends a failed message again.
   Future<void> retry(String nonce) async {
     final failed = state.pending.where((m) => m.nonce == nonce).firstOrNull;
     if (failed == null) return;
-    final again = failed.copyWith(sendState: SendState.pending);
+    if (_draftsByNonce[nonce] case final draftId?) {
+      final again = failed.copyWith(sendState: SendState.pending);
+      state = withPending(state, again);
+      await _deliverVoice(again, draftId);
+      return;
+    }
+    if (failed.uploads.isEmpty) {
+      final again = failed.copyWith(sendState: SendState.pending);
+      state = withPending(state, again);
+      await _deliver(again);
+      return;
+    }
+    // Without its files the message would go out as something else.
+    final files = _stagedByNonce[nonce];
+    if (files == null) return;
+    final again = failed.copyWith(
+      sendState: SendState.pending,
+      uploads: [
+        for (final upload in failed.uploads)
+          PendingUpload(
+            name: upload.name,
+            size: upload.size,
+            preview: upload.preview,
+          ),
+      ],
+    );
     state = withPending(state, again);
-    await _deliver(again);
+    await _deliverWithFiles(again, files);
   }
 
-  void discard(String nonce) => state = removePending(state, nonce);
+  void discard(String nonce) {
+    _stagedByNonce.remove(nonce);
+    final draftId = _draftsByNonce.remove(nonce);
+    if (draftId != null) {
+      _repository.voiceDraftDiscard(draftId);
+    }
+    state = removePending(state, nonce);
+  }
+
+  void cancelSend(String nonce) {
+    _repository.cancelSend(channel.server, nonce);
+    discard(nonce);
+  }
 
   Future<void> edit(int messageId, String content) => _repository.editMessage(
     channel.server,

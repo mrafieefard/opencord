@@ -326,6 +326,8 @@ pub async fn delete_channel_overwrite(
     .await
 }
 
+/// `max_upload_bytes`: `None` leaves uploads to the member's other roles.
+#[allow(clippy::too_many_arguments)]
 pub async fn create_role(
     server_key: String,
     name: String,
@@ -333,10 +335,19 @@ pub async fn create_role(
     permissions: i64,
     hoist: bool,
     mentionable: bool,
+    max_upload_bytes: Option<u64>,
 ) -> Result<Role, CoreError> {
     on_runtime(move |client| async move {
         client
-            .create_role(&server_key, name, color, permissions, hoist, mentionable)
+            .create_role(
+                &server_key,
+                name,
+                color,
+                permissions,
+                hoist,
+                mentionable,
+                max_upload_bytes,
+            )
             .await
     })
     .await
@@ -425,6 +436,49 @@ pub async fn update_nickname(
 pub async fn update_profile(server_key: String, display_name: String) -> Result<User, CoreError> {
     on_runtime(move |client| async move { client.update_profile(&server_key, display_name).await })
         .await
+}
+
+/// Makes this person's profile picture from the file at `source_path`, or
+/// removes it (`None`); its hash. Kept on this device, as the display name
+/// is: `upload_avatar` sends it to each server.
+pub async fn set_own_avatar(source_path: Option<String>) -> Result<Option<String>, CoreError> {
+    let client = client()?;
+    on_blocking(move || client.set_own_avatar(source_path.as_deref())).await
+}
+
+/// This person's profile picture's file on this device; `None` without one.
+#[frb(sync)]
+pub fn own_avatar_file() -> Result<Option<String>, CoreError> {
+    Ok(client()?.own_avatar_file())
+}
+
+/// This person's profile picture's hash; `None` without one.
+#[frb(sync)]
+pub fn own_avatar_hash() -> Result<Option<String>, CoreError> {
+    Ok(client()?.own_avatar_hash())
+}
+
+/// Sends this person's profile picture, or that there is none, to the
+/// server; a server whose `User.avatar_hash` differs from
+/// `own_avatar_hash` missed a change.
+pub async fn upload_avatar(server_key: String) -> Result<User, CoreError> {
+    on_runtime(move |client| async move { client.upload_avatar(&server_key).await }).await
+}
+
+/// The server's icon, made from the file at `source_path`, or none.
+/// Manage server.
+pub async fn set_server_icon(
+    server_key: String,
+    source_path: Option<String>,
+) -> Result<ServerInfo, CoreError> {
+    on_runtime(move |client| async move { client.set_server_icon(&server_key, source_path).await })
+        .await
+}
+
+/// The file of the profile picture or server icon named `hash`, fetched
+/// from the server unless this device has it.
+pub async fn avatar_path(server_key: String, hash: String) -> Result<String, CoreError> {
+    on_runtime(move |client| async move { client.avatar_path(&server_key, &hash).await }).await
 }
 
 pub async fn update_presence(server_key: String, status: PresenceStatus) -> Result<(), CoreError> {
@@ -1463,12 +1517,12 @@ pub fn soundboard_close_draft(draft_id: u64) -> Result<(), CoreError> {
     Ok(())
 }
 
-fn client() -> Result<Client, CoreError> {
+pub(crate) fn client() -> Result<Client, CoreError> {
     CLIENT.get().cloned().ok_or(CoreError::NotInitialized)
 }
 
 /// Runs `work` on the core's runtime, where connections live.
-async fn on_runtime<T, F>(work: impl FnOnce(Client) -> F) -> Result<T, CoreError>
+pub(crate) async fn on_runtime<T, F>(work: impl FnOnce(Client) -> F) -> Result<T, CoreError>
 where
     F: Future<Output = Result<T, CoreError>> + Send + 'static,
     T: Send + 'static,
@@ -1477,6 +1531,19 @@ where
     let runtime = RUNTIME.get().ok_or(CoreError::NotInitialized)?;
     runtime
         .spawn(work(client))
+        .await
+        .map_err(|error| CoreError::Connection {
+            message: error.to_string(),
+        })?
+}
+
+/// Runs blocking `work` (the clipboard) on the core's runtime.
+pub(crate) async fn on_blocking<T: Send + 'static>(
+    work: impl FnOnce() -> Result<T, CoreError> + Send + 'static,
+) -> Result<T, CoreError> {
+    let runtime = RUNTIME.get().ok_or(CoreError::NotInitialized)?;
+    runtime
+        .spawn_blocking(work)
         .await
         .map_err(|error| CoreError::Connection {
             message: error.to_string(),

@@ -4,11 +4,15 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:opencord/core/format.dart';
 import 'package:opencord/core/mention_tokens.dart';
+import 'package:opencord/core/model/attachment.dart';
 import 'package:opencord/core/model/message.dart';
 import 'package:opencord/core/model/permissions.dart';
 import 'package:opencord/core/providers/providers.dart';
 import 'package:opencord/core/repository/repository.dart';
 import 'package:opencord/features/channels/channel_row.dart';
+import 'package:opencord/features/chat/attachments/download.dart';
+import 'package:opencord/features/chat/attachments/file_icon.dart';
+import 'package:opencord/features/chat/attachments/summary.dart';
 import 'package:opencord/features/chat/chat_controller.dart';
 import 'package:opencord/features/chat/composer_state.dart';
 import 'package:opencord/features/chat/reaction_pill.dart';
@@ -205,7 +209,7 @@ class MessageActions {
       builder: (context) => _DeleteDialog(
         author: data?.members[message.authorId]?.displayName ?? 'Unknown user',
         text: previewText(
-          message.content,
+          messageSummary(message),
           user: (id) => data?.members[id]?.displayName,
           channel: (id) => data?.channels[id]?.name,
         ),
@@ -216,13 +220,71 @@ class MessageActions {
     await _guard(() => _messages.delete(message.id));
   }
 
-  /// The context menu (§4.5): Reply · Add reaction · Edit · Copy text ·
-  /// Pin · Copy message link · Copy message ID · — · Delete, each only when
-  /// it applies. [selection] is text selected inside the message.
+  /// What a message's files offer, above the rest of its menu, as in
+  /// Telegram: copy and save the one right-clicked ([attachment]), or the
+  /// only one; with more than one, a Download submenu to save each or all.
+  List<OcMenuEntry> _attachmentEntries(
+    Message message,
+    Attachment? attachment,
+  ) {
+    final files = message.attachments;
+    if (files.isEmpty || !_sent(message)) return const [];
+    final server = channel.server;
+    final one = attachment ?? (files.length == 1 ? files.single : null);
+    return [
+      if (one != null && one.kind == AttachmentKind.image)
+        OcMenuItem(
+          label: 'Copy image',
+          icon: OcIcons.contentCopy,
+          onSelected: () => copyAttachmentImage(context, ref, server, one),
+        ),
+      if (one != null)
+        OcMenuItem(
+          label: 'Save ${_noun(one.kind)} as…',
+          icon: OcIcons.download,
+          onSelected: () => saveAttachment(context, ref, server, one),
+        ),
+      if (files.length > 1)
+        OcMenuItem(
+          label: 'Download',
+          icon: OcIcons.folder,
+          submenu: [
+            OcMenuItem(
+              label: 'All ${files.length} files…',
+              icon: OcIcons.download,
+              onSelected: () =>
+                  saveAttachmentsToFolder(context, ref, server, files),
+            ),
+            const OcMenuDivider(),
+            for (final file in files)
+              OcMenuItem(
+                label: file.filename,
+                icon: fileIcon(file.filename, kind: file.kind),
+                onSelected: () => saveAttachment(context, ref, server, file),
+              ),
+          ],
+        ),
+      const OcMenuDivider(),
+    ];
+  }
+
+  static String _noun(AttachmentKind kind) => switch (kind) {
+    AttachmentKind.image => 'image',
+    AttachmentKind.video => 'video',
+    AttachmentKind.audio => 'audio',
+    AttachmentKind.voiceMessage => 'voice message',
+    AttachmentKind.file => 'file',
+  };
+
+  /// The context menu (§4.5): what the message's files offer, then Reply ·
+  /// Add reaction · Edit · Copy text · Pin · Copy message link · Copy
+  /// message ID · — · Delete, each only when it applies. [selection] is
+  /// text selected inside the message; [attachment] the file right-clicked.
   List<OcMenuEntry> menu(
     Message message, {
     required Rect anchor,
     String? selection,
+    Attachment? attachment,
   }) {
     if (message.sendState == SendState.failed) {
       return [
@@ -246,6 +308,7 @@ class MessageActions {
     }
     final sent = _sent(message);
     return [
+      ..._attachmentEntries(message, attachment),
       if (selection != null && selection.isNotEmpty)
         OcMenuItem(
           label: 'Copy selection',
@@ -270,7 +333,7 @@ class MessageActions {
           icon: OcIcons.edit,
           onSelected: () => edit(message),
         ),
-      if (!message.isSystem)
+      if (!message.isSystem && message.content.isNotEmpty)
         OcMenuItem(
           label: 'Copy text',
           icon: OcIcons.contentCopy,
@@ -309,11 +372,13 @@ class MessageActions {
     Message message, {
     required Offset position,
     String? selection,
+    Attachment? attachment,
   }) {
     final entries = menu(
       message,
       anchor: Rect.fromCenter(center: position, width: 1, height: 1),
       selection: selection,
+      attachment: attachment,
     );
     if (entries.isEmpty) return Future.value();
     return showOcMenu(context: context, position: position, entries: entries);

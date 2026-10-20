@@ -52,10 +52,11 @@ Future<void> showCreateChannel(
   BuildContext context, {
   required String serverKey,
   int? parentId,
+  ChannelKind kind = ChannelKind.text,
 }) => showOcDialog<void>(
   context: context,
   builder: (context) =>
-      CreateChannelDialog(serverKey: serverKey, parentId: parentId),
+      CreateChannelDialog(serverKey: serverKey, parentId: parentId, kind: kind),
 );
 
 /// Create channel (§4.11): the kind as three cards, the name (kebab case
@@ -65,10 +66,14 @@ class CreateChannelDialog extends ConsumerStatefulWidget {
     super.key,
     required this.serverKey,
     this.parentId,
+    this.kind = ChannelKind.text,
   });
 
   final String serverKey;
   final int? parentId;
+
+  /// The kind chosen to begin with.
+  final ChannelKind kind;
 
   @override
   ConsumerState<CreateChannelDialog> createState() =>
@@ -77,7 +82,7 @@ class CreateChannelDialog extends ConsumerStatefulWidget {
 
 class _CreateChannelDialogState extends ConsumerState<CreateChannelDialog> {
   final _name = TextEditingController();
-  var _kind = ChannelKind.text;
+  late var _kind = widget.kind;
   var _private = false;
   var _busy = false;
   String? _error;

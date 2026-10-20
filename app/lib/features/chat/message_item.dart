@@ -6,7 +6,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 
+import 'package:opencord/core/model/attachment.dart';
 import 'package:opencord/core/model/message.dart';
+import 'package:opencord/features/chat/attachments/download.dart';
 import 'package:opencord/features/chat/hover_bar.dart';
 import 'package:opencord/features/chat/message_actions.dart';
 import 'package:opencord/features/chat/message_line.dart';
@@ -22,7 +24,8 @@ typedef SelectionChanged = void Function(String? selected);
 /// * a hover bar beside the bubble, which lingers 150 ms after the pointer
 ///   leaves so it can be reached;
 /// * double-click to reply, except on buttons and links inside it;
-/// * the context menu by right-click, or Shift+F10 and the Menu key while
+/// * the context menu by right-click, on the message or one of its files
+///   ([AttachmentTarget]), or Shift+F10 and the Menu key while
 ///   the row has keyboard focus.
 ///
 /// Clicks are watched with a [Listener] rather than gesture recognizers, so
@@ -152,16 +155,32 @@ class _MessageItemState extends State<MessageItem> {
     });
   }
 
-  /// Whether [position] is on something clickable inside the message: a
-  /// reaction chip, a link, the reply quote.
-  bool _onControl(Offset position) {
+  HitTestResult _hitTest(Offset position) {
     final result = HitTestResult();
     WidgetsBinding.instance.hitTestInView(
       result,
       position,
       View.of(context).viewId,
     );
-    return result.path.any(
+    return result;
+  }
+
+  /// The file at [position], if any ([AttachmentTarget]).
+  Attachment? _attachmentAt(Offset position) {
+    for (final entry in _hitTest(position).path) {
+      if (entry.target case RenderMetaData(
+        metaData: final Attachment attachment,
+      )) {
+        return attachment;
+      }
+    }
+    return null;
+  }
+
+  /// Whether [position] is on something clickable inside the message: a
+  /// reaction chip, a link, the reply quote.
+  bool _onControl(Offset position) {
+    return _hitTest(position).path.any(
       (entry) =>
           entry.target is MouseTrackerAnnotation &&
           (entry.target as MouseTrackerAnnotation).cursor ==
@@ -194,11 +213,14 @@ class _MessageItemState extends State<MessageItem> {
     final down = _secondaryDown;
     _secondaryDown = null;
     if (down == null || (event.position - down).distance > kTouchSlop) return;
-    if (_onControl(event.position)) return;
+    // A file's menu is the message's, with the file's own items first.
+    final attachment = _attachmentAt(event.position);
+    if (attachment == null && _onControl(event.position)) return;
     widget.actions.showMenu(
       _message,
       position: event.position,
       selection: _selection,
+      attachment: attachment,
     );
   }
 

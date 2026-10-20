@@ -137,6 +137,7 @@ async fn create_server(
             permissions: permissions_to_db(Permissions::DEFAULT_EVERYONE),
             hoist: false,
             mentionable: false,
+            max_upload_bytes: Some(opencord_common::upload::EVERYONE_DEFAULT_BYTES as i64),
         },
     )
     .await?;
@@ -167,6 +168,7 @@ async fn create_server(
         everyone_role_id,
         claim_token_hash: None,
         default_invite: None,
+        icon_hash: None,
     })
 }
 

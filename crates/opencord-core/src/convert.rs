@@ -3,11 +3,13 @@
 use opencord_proto::v1 as proto;
 
 use crate::api::types::{
-    Ban, Channel, ChannelKind, ChannelPermissions, ConnectAddress, CoreError, CoreEventPayload,
-    EphemeralMessage, ErrorCode, Invite, Member, Message, OverwriteTargetKind, PermissionOverwrite,
-    Presence, PresenceStatus, ReadySnapshot, Role, ScreenShareResolution, ScreenStream,
-    ServerAddresses, ServerInfo, SoundEffect, SoundboardSound, StreamSourceKind, User,
-    VoiceSettings, VoiceSettingsChanges, VoiceState,
+    Attachment, AttachmentKind, Ban, Channel, ChannelKind, ChannelPermissions, ConnectAddress,
+    CoreError, CoreEventPayload, EphemeralMessage, ErrorCode, Invite, Member, Message,
+    OverwriteTargetKind, PermissionOverwrite, Presence, PresenceStatus, ReadySnapshot, Role,
+    S3Config, ScreenShareResolution, ScreenStream, ServerAddresses, ServerInfo, SoundEffect,
+    SoundboardSound, StorageBackend, StorageInfo, StorageKind, StorageMove, StorageTestResult,
+    StorageTestStep, StreamSourceKind, UploadSettings, User, VoiceSettings, VoiceSettingsChanges,
+    VoiceState,
 };
 use crate::identity::public_key_fingerprint;
 
@@ -26,6 +28,7 @@ pub fn user(user: proto::User) -> User {
         public_key_hex: hex::encode(&user.public_key),
         fingerprint: public_key_fingerprint(&user.public_key),
         display_name: user.display_name,
+        avatar_hash: (!user.avatar_hash.is_empty()).then_some(user.avatar_hash),
     }
 }
 
@@ -47,6 +50,7 @@ pub fn role(role: proto::Role) -> Role {
         permissions: bits_to_api(role.permissions),
         hoist: role.hoist,
         mentionable: role.mentionable,
+        max_upload_bytes: role.max_upload_bytes,
     }
 }
 
@@ -213,6 +217,116 @@ pub fn message(message: proto::Message) -> Message {
         edited_at_ms: message.edited_at_ms,
         nonce: message.nonce,
         command: message.interaction.map(|interaction| interaction.command),
+        attachments: message.attachments.into_iter().map(attachment).collect(),
+    }
+}
+
+pub fn attachment(attachment: proto::Attachment) -> Attachment {
+    let kind = match proto::AttachmentKind::try_from(attachment.kind) {
+        Ok(proto::AttachmentKind::Image) => AttachmentKind::Image,
+        Ok(proto::AttachmentKind::Video) => AttachmentKind::Video,
+        Ok(proto::AttachmentKind::Audio) => AttachmentKind::Audio,
+        Ok(proto::AttachmentKind::VoiceMessage) => AttachmentKind::VoiceMessage,
+        _ => AttachmentKind::File,
+    };
+    Attachment {
+        id: attachment.id,
+        filename: attachment.filename,
+        content_type: attachment.content_type,
+        size_bytes: attachment.size_bytes,
+        kind,
+        width: attachment.width,
+        height: attachment.height,
+        duration_ms: attachment.duration_ms,
+        waveform: attachment.waveform,
+        has_thumbnail: attachment.has_thumbnail,
+        thumbnail_width: attachment.thumbnail_width,
+        thumbnail_height: attachment.thumbnail_height,
+        animated: attachment.animated,
+    }
+}
+
+pub fn upload_settings(settings: proto::UploadSettings) -> UploadSettings {
+    UploadSettings {
+        blocked_extensions: settings.blocked_extensions,
+        voice_message_max_seconds: settings.voice_message_max_seconds,
+        max_file_bytes: settings.max_file_bytes,
+        max_attachments: settings.max_attachments,
+    }
+}
+
+pub fn storage(storage: proto::Storage) -> StorageInfo {
+    StorageInfo {
+        backends: storage.backends.into_iter().map(storage_backend).collect(),
+        move_status: storage.r#move.map(|status| StorageMove {
+            to_storage_id: status.to_storage_id,
+            running: status.running,
+            files_done: status.files_done,
+            files_total: status.files_total,
+            bytes_done: status.bytes_done,
+            bytes_total: status.bytes_total,
+            failed: status.failed,
+        }),
+        temp_free_bytes: storage.temp_free_bytes,
+    }
+}
+
+fn storage_backend(backend: proto::StorageBackend) -> StorageBackend {
+    let kind = match proto::StorageKind::try_from(backend.kind) {
+        Ok(proto::StorageKind::S3) => StorageKind::S3,
+        _ => StorageKind::Local,
+    };
+    StorageBackend {
+        id: backend.id,
+        kind,
+        name: backend.name,
+        active: backend.active,
+        s3: backend.s3.map(s3_config),
+        has_secret: backend.has_secret,
+        file_count: backend.file_count,
+        bytes: backend.bytes,
+        last_error: backend.last_error,
+    }
+}
+
+fn s3_config(config: proto::S3Config) -> S3Config {
+    S3Config {
+        endpoint: config.endpoint,
+        region: config.region,
+        bucket: config.bucket,
+        key_prefix: config.key_prefix,
+        path_style: config.path_style,
+        allow_http: config.allow_http,
+        access_key_id: config.access_key_id,
+        secret_access_key: config.secret_access_key,
+    }
+}
+
+pub fn s3_config_to_proto(config: S3Config) -> proto::S3Config {
+    proto::S3Config {
+        endpoint: config.endpoint,
+        region: config.region,
+        bucket: config.bucket,
+        key_prefix: config.key_prefix,
+        path_style: config.path_style,
+        allow_http: config.allow_http,
+        access_key_id: config.access_key_id,
+        secret_access_key: config.secret_access_key,
+    }
+}
+
+pub fn storage_test(test: proto::StorageTest) -> StorageTestResult {
+    StorageTestResult {
+        steps: test
+            .steps
+            .into_iter()
+            .map(|step| StorageTestStep {
+                name: step.name,
+                ok: step.ok,
+                detail: step.detail,
+            })
+            .collect(),
+        ok: test.ok,
     }
 }
 
@@ -224,6 +338,7 @@ pub fn server_info(info: proto::ServerInfo) -> ServerInfo {
         owner_id: info.owner_id,
         open_join: info.open_join,
         everyone_role_id: info.everyone_role_id,
+        icon_hash: (!info.icon_hash.is_empty()).then_some(info.icon_hash),
     }
 }
 
@@ -319,6 +434,7 @@ pub fn ready(ready: proto::Ready) -> ReadySnapshot {
             .collect(),
         addresses: server_addresses(ready.server_addresses.unwrap_or_default()),
         commands: crate::commands::list_from(ready.commands.unwrap_or_default()),
+        upload_settings: upload_settings(ready.upload_settings.unwrap_or_default()),
     }
 }
 
@@ -469,11 +585,19 @@ pub fn event(kind: proto::event::Kind, session_id: &str) -> Option<CoreEventPayl
             nonce: message.nonce,
             content: message.content,
         }),
+        Kind::UploadSettingsUpdate(update) => {
+            CoreEventPayload::UploadSettingsUpdate(upload_settings(update.settings?))
+        }
+        Kind::StorageUpdate(update) => CoreEventPayload::StorageUpdate(storage(update.storage?)),
         // With the server's clock: `music::event`.
         Kind::MusicSnapshot(_)
         | Kind::MusicUpdate(_)
         | Kind::MusicNotice(_)
-        | Kind::MusicNowPlaying(_) => return None,
+        | Kind::MusicNowPlaying(_)
+        // For the send waiting on them: `connection.rs` hands them to
+        // `Uploads`.
+        | Kind::UploadReady(_)
+        | Kind::UploadFailed(_) => return None,
     })
 }
 
@@ -519,6 +643,14 @@ pub fn error_code(code: i32) -> ErrorCode {
         Ok(proto::ErrorCode::CommandDisabled) => ErrorCode::CommandDisabled,
         Ok(proto::ErrorCode::CommandNotAllowedHere) => ErrorCode::CommandNotAllowedHere,
         Ok(proto::ErrorCode::CommandInvalidOptions) => ErrorCode::CommandInvalidOptions,
+        Ok(proto::ErrorCode::FileTooLarge) => ErrorCode::FileTooLarge,
+        Ok(proto::ErrorCode::FileTypeBlocked) => ErrorCode::FileTypeBlocked,
+        Ok(proto::ErrorCode::UploadOffsetMismatch) => ErrorCode::UploadOffsetMismatch,
+        Ok(proto::ErrorCode::StorageUnavailable) => ErrorCode::StorageUnavailable,
+        Ok(proto::ErrorCode::StorageFull) => ErrorCode::StorageFull,
+        Ok(proto::ErrorCode::VoiceMessageInvalid) => ErrorCode::VoiceMessageInvalid,
+        Ok(proto::ErrorCode::VoiceMessageTooLong) => ErrorCode::VoiceMessageTooLong,
+
         _ => ErrorCode::Unknown,
     }
 }

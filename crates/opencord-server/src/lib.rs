@@ -1,5 +1,7 @@
 //! The Opencord server: one community per instance.
 
+pub mod attachments;
+pub mod avatars;
 pub mod bootstrap;
 pub mod certs;
 pub mod cli;

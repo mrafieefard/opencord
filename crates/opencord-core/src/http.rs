@@ -75,7 +75,7 @@ impl MediaHttp {
             .ok_or(CoreError::NotConnected)?;
         let mut renewed = false;
         loop {
-            let token = self.token(key).ok_or(CoreError::NotConnected)?;
+            let token = media_token(&self.tokens, key).ok_or(CoreError::NotConnected)?;
             let response = request(&address, pin, method, path, &token, body, limit)
                 .await
                 .map_err(|error| CoreError::Connection {
@@ -84,29 +84,40 @@ impl MediaHttp {
             if response.status != 401 || renewed {
                 return Ok(response);
             }
-            let renewal = client
-                .request(
-                    key,
-                    proto::request::Kind::RefreshMediaToken(proto::RefreshMediaToken {}),
-                )
-                .await?;
-            if let proto::response::Result::MediaToken(token) = renewal {
-                self.tokens
-                    .lock()
-                    .unwrap_or_else(PoisonError::into_inner)
-                    .insert(key.to_owned(), token.token);
-            }
+            renew_media_token(client, &self.tokens, key).await?;
             renewed = true;
         }
     }
+}
 
-    fn token(&self, key: &str) -> Option<String> {
-        self.tokens
+/// This device's media token for the server at `key`.
+pub(crate) fn media_token(tokens: &MediaTokens, key: &str) -> Option<String> {
+    tokens
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .get(key)
+        .cloned()
+}
+
+/// Asks the server at `key` for a new media token, after one expired.
+pub(crate) async fn renew_media_token(
+    client: &Client,
+    tokens: &MediaTokens,
+    key: &str,
+) -> Result<(), CoreError> {
+    let renewal = client
+        .request(
+            key,
+            proto::request::Kind::RefreshMediaToken(proto::RefreshMediaToken {}),
+        )
+        .await?;
+    if let proto::response::Result::MediaToken(token) = renewal {
+        tokens
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
-            .get(key)
-            .cloned()
+            .insert(key.to_owned(), token.token);
     }
+    Ok(())
 }
 
 /// One request to the server at `address`, whose certificate must match

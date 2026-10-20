@@ -568,3 +568,375 @@ The desktop UI plan's §17.5 never arrived, so where Phase 2 §12 says only what
 - **`MusicUpdate` (§14.3), owed since D44.** After the first snapshot, each change goes out as an update by item id: removals, then placements before another item (new items whole, others by id), from the longest run of items still in order, so moving one track sends one placement and no track. The small fields go in full each time. A client holding `base_version` applies it, one holding newer ignores it, and any other asks `FetchMusicSession`, which subscribes to nothing. Diff and apply live in `opencord_proto::music_sync`, shared by the server, the core and the tests; a 2 000-round random test checks that applying the diff of any two sessions gives the second. The core keeps each channel's session from snapshots, answers and updates, and still hands the app whole sessions, so the app is unchanged. Snapshots still go to everyone when someone joins the channel. Tests: `changes_reach_listeners_as_small_updates`, `the_session_can_be_fetched_without_subscribing`, core `changes_from_elsewhere_arrive_whole_from_the_servers_updates`, and `two_people_moving_tracks_at_once_end_with_the_same_order`.
 - **User rulings.** The source logos (`font_awesome_flutter`, 89a95a9) stay, against §15.3: choosing a provider is easier with them. The music volume curve (8f41bcd: 100 % is −6 dB, quadratic) is intended, because Lavalink's music came too loud.
 - **Also.** Unformatted Rust and Dart from L7 and 89a95a9 formatted; a clippy error (`manual_div_ceil` in vote skip) fixed; debug prints left in `commands_test.dart` removed.
+
+## D52: Media uploads: protocol, rules, encryption format, schema (Phase 4 A0, 2026-10-18)
+
+- **Why.** Phase 4 adds file attachments, S3 storage and voice messages (design `docs/superpowers/specs/2026-10-18-media-uploads-design.md`, plan `docs/superpowers/plans/2026-10-18-media-uploads.md`). A0 lays the shared ground the later milestones build on.
+- **Protocol.**
+  - `models.proto`: `Attachment`, `AttachmentKind`, `UploadSettings`, `UploadState`, `Upload`, `UploadStatus`, `StorageKind`, `S3Config`, `StorageBackend`, `StorageMove`, `Storage`, `StorageTestStep` and `StorageTest`; `Role.max_upload_bytes` (8), `Message.attachments` (9); error codes 41–47.
+  - `requests.proto`: `SendMessage.attachment_ids`, `max_upload_bytes` on `CreateRole` (6) and `UpdateRole` (7), requests 160–170 (`CreateUpload` to `StopStorageMove`), responses 29–33.
+  - `events.proto`: 110–113 (`UploadSettingsUpdate`, `UploadReady`, `UploadFailed`, `StorageUpdate`).
+  - `gateway.proto`: `Ready.upload_settings` (20).
+  - Until A1–A3 the server answers the new requests with "not implemented".
+- **Permissions.** `ATTACH_FILES` (bit 10) now means something, and `SEND_VOICE_MESSAGES` is bit 14. Both are in `DEFAULT_EVERYONE`, and migration 0008 gives them to existing servers' @everyone along with a 50 MB limit.
+- **Shared rules** (`opencord-common/src/upload.rs`):
+  - the effective upload limit: the owner gets the ceiling; everyone else gets the highest of @everyone and their roles, capped at the ceiling;
+  - filename sanitizing;
+  - extension normalizing and blocking.
+
+  One JSON fixture (`tests/upload_rules.json`) holds the cases, and the Dart mirror will be tested against it too.
+- **Encryption** (`blob.rs`):
+  - an `OCA1` header, then 64 KiB segments;
+  - XChaCha20-Poly1305 with a random 24-byte nonce per segment;
+  - AAD binding the kind, blob id, segment index and last flag;
+  - `locate` and `open_span` serve byte ranges.
+- **Sniffing and waveform** (`sniff.rs`, `waveform.rs`): 13 formats by magic bytes; 128 waveform values with −60…0 dBFS mapped to 0…255.
+- **Schema** (migration 0008): `storage_backends` (the local storage is id 1 and active), `attachments`, `blob_deletions` filled by the `attachments_queue_blobs` trigger, and `roles.max_upload_bytes`.
+- **Config and the secrets key.**
+  - `[uploads] max_file_mb` (default 4096, 1–102,400) and `local_dir`; `[server] secrets_file` (`OPENCORD_SECRETS_FILE`).
+  - When the key file is missing and the database already holds sealed data, the server refuses to start instead of making a new key.
+- **Also.** The server's gateway frame reader boxes the envelope (clippy `large_enum_variant` after the proto grew).
+- **Review.** A file named only `.exe` got past blocking; `is_blocked` now matches it, and the fixture has the case.
+
+## D53: Media uploads: storage, uploads, processing and downloads (Phase 4 A1, 2026-10-18)
+
+- **Why.** Milestone A1 of media uploads (`docs/superpowers/plans/2026-10-18-media-uploads.md`) implements the complete server lifecycle for file and voice attachments: local storage, chunked upload receiving, thumbnail generation and voice verification, range downloads, and background garbage collection.
+- **Local storage backend** (`crates/opencord-server/src/attachments/storage/local.rs`):
+  - Objects are stored under `{root}/{prefix}/{shard}/{id}`, where prefix is `a` for full attachments and `t` for thumbnails, and `shard` is `{:02x}` of snowflake ID bits `(id >> 22) & 0xff`.
+  - Atomic rename (`tokio::fs::rename`) with fallback to buffered copy and source deletion across filesystem boundaries (handling `EXDEV` / `ErrorKind::CrossesDevices`).
+  - Read ranges via `get_range` and deletion via `delete`.
+- **Upload pipeline** (`crates/opencord-server/src/attachments/http.rs`, `crates/opencord-server/src/handlers/uploads.rs`):
+  - `CreateUpload` validates permissions (`ATTACH_FILES` / `SEND_VOICE_MESSAGES`), enforces rate limit (`UPLOAD_CREATE_RATE`), checks 512 MiB temp disk headroom (`TEMP_HEADROOM_BYTES`), creates an encrypted temporary `.part` file, and inserts an `uploading` row.
+  - `PUT /media/uploads/{id}` requires media token authentication and `Upload-Offset` matching current received bytes. Rejects out-of-order chunks with 409 `UploadStatus` without corrupting files. Receives 8 MiB chunks (`PIECE_BYTES`), seals them into encrypted `OCA1` segments, and streams into the `.part` file.
+  - `GET /media/uploads/{id}` returns `UploadStatus`.
+  - `CancelUpload` deletes the database row and unlinks the `.part` file.
+- **Processing and background workers** (`crates/opencord-server/src/attachments/process.rs`, `images.rs`, `voice.rs`):
+  - `POST /media/uploads/{id}/finish` sets the upload state to `processing` and spawns a background job governed by a 2-permit concurrency semaphore (`jobs`).
+  - Interruptions and restarts: `attachments::start` resumes any pending `processing` rows on boot, and cleans up orphaned `.part` files lacking active DB rows.
+  - Image processing: type sniffing via `sniff::sniff`. Images are decoded with EXIF orientation applied and, when a side is over 800 px, scaled to fit 800×800 keeping the aspect ratio (`DynamicImage::resize`, `FilterType::Triangle`). Images with alpha save as PNG; others as JPEG at quality 82. Animated GIF and WebP files are flagged `animated` and still get a thumbnail of their first frame. An image that fails to decode stays a file.
+  - Voice processing: validates Ogg Opus structure, enforces maximum voice duration (`voice_message_max_seconds`), decodes PCM audio, measures duration, and calculates 128 normalized waveform bars (`waveform::waveform`).
+  - Storage: finishes by encrypting the thumbnail (if generated), moving the attachment file into the active storage backend, marking state `ready`, and broadcasting `UploadReady` (or `UploadFailed` on error).
+- **Downloads** (`crates/opencord-server/src/attachments/range.rs`, `crates/opencord-server/src/attachments/http.rs`):
+  - `GET /media/attachments/{id}` checks media token, requires the attachment row to be `sent`, checks message deletion, and verifies channel permissions (`VIEW_CHANNEL | READ_HISTORY`) at request time.
+  - Range requests: parses `Range: bytes=...` headers (`bytes=a-b`, `bytes=a-`, `bytes=-n`). Errors or invalid ranges return 416 Range Not Satisfiable.
+  - Range streaming: streams decrypted plaintext chunks segment-by-segment using `futures_util::stream::unfold`, reading at most 16 segments per storage batch.
+  - Security headers: sets `Cache-Control: private, no-store`, `X-Content-Type-Options: nosniff`, `Accept-Ranges: bytes`, and `Content-Disposition: attachment; filename*=UTF-8''...` with percent-encoding.
+  - `GET /media/attachments/{id}/thumbnail` returns the decrypted thumbnail with MIME detection.
+- **Garbage collection and blob deletion** (`crates/opencord-server/src/attachments/gc.rs`):
+  - `sweep`: runs every 10 minutes, pruning abandoned uploads (`uploading` and `ready` > 24 hours, `failed` > 1 hour) and removing their temp files.
+  - `drain_blobs`: runs every 30 seconds, deleting pending storage objects queued in `blob_deletions` by database triggers (`attachments_queue_blobs`), applying exponential retry backoff on failures.
+  - Test hooks on `ServerHandle`: `hold_processing`, `db`, `sweep_attachments` and `drain_blob_deletions`.
+- **Review.**
+  - `PUT` and `finish` checked the media token only after buffering the body (up to 8 MiB); the token now comes first.
+  - A poster sent with a non-video upload stayed in memory for good; every job now takes its poster.
+  - An upload cancelled while processing could leave its stored objects behind: `set_ready` only updates a `processing` row, and a job whose row is gone queues what it stored with `queue_blob`. Objects stored before a failure are queued the same way.
+  - A zero-byte upload finished without an empty `PUT` failed; `finish` now writes its empty last segment.
+  - `attachments::start` deleted every temp file when its database query failed; startup now stops instead.
+  - Voice decoding moved to `spawn_blocking`; animation detection runs before the full image decode.
+  - `upload_locks` kept an entry for every upload ever made; unused entries are now dropped.
+  - Blob retry delays overflowed after weeks of failures (`retry_delay_ms` caps them at 6 hours), and storage error details reached members; they now stay in the log.
+
+## D54: Media uploads: messages, upload settings and role limits (Phase 4 A2, 2026-10-18)
+
+- **Why.** Milestone A2 of media uploads (`docs/superpowers/plans/2026-10-18-media-uploads.md`) puts finished uploads on messages and lets the server's managers set the upload rules. Commits: 3b10a2c, 4f9f05a, d22e7ca.
+- **Messages.**
+  - `SendMessage.attachment_ids` takes up to 10 of the sender's own ready uploads from the same channel. The message keeps their order, and its text may then be empty (`validation::message_content_or_empty`).
+  - Attach Files, or Send Voice Messages for a voice message, is checked again when the message is sent, not only when the upload starts.
+  - A voice message stands alone: one attachment and no text, also after an edit.
+  - `db::attachments::mark_sent` moves an upload only while it is still ready, the sender's and in that channel. Otherwise the whole send rolls back with "not found", so a cancel or a second send in between can't put a file on two messages.
+  - `FetchMessages`, `EditMessage` and `MessageUpdate` carry the attachments.
+  - Deleting a message deletes its attachment rows in the same transaction. The `attachments_queue_blobs` trigger then queues their objects, also when a channel's deletion cascades to them.
+- **Upload settings.**
+  - `UpdateUploadSettings` (Manage Server) normalizes the blocked list with `normalize_blocked_list` and takes a voice message limit of 30–1,800 seconds.
+  - Everyone gets `UploadSettingsUpdate`, and `Ready.upload_settings` carries the settings at login.
+  - A blocked upload's error names the list entry it matched ("tar.gz files can't be uploaded here").
+- **Role limits.**
+  - `CreateRole` and `UpdateRole` take `max_upload_bytes`. 0 clears a role's limit but is refused for @everyone.
+  - Other values must be 1 MB up to the server's ceiling.
+  - Only the owner may give a role a larger limit than their own.
+- **Tests.** The A1 tests that put uploads on messages through `ServerHandle::db` now send real messages, and the hook is gone.
+- **Review.** `DeleteMessage` read the message inside its transaction. In WAL mode a transaction that has read can't start writing once another connection has committed, and SQLite fails it at once with `SQLITE_BUSY_SNAPSHOT`, so a delete that raced any message send failed. The read and the permission check now come before `begin`, and the transaction holds only the two writes. The plan gained Working Rule 20 for this.
+
+## D55: Media uploads: S3 storage, storage management and moving files (Phase 4 A3, 2026-10-19)
+
+- **Why.** Milestone A3 of media uploads (`docs/superpowers/plans/2026-10-18-media-uploads.md`) lets the owner keep files in S3-compatible buckets. Commits: 5ad3003..f64bdf1.
+- **The S3 backend** (`attachments/storage/s3.rs`).
+  - Requests are presigned with `rusty-s3` 0.10.2 for 15 minutes and sent with the server's own `reqwest` client, with 300 seconds each. Network errors drop the signed URL (`without_url`), so no URL reaches a log or a reply.
+  - Files up to 64 MiB go up in one request. Larger ones go up as multipart uploads in 16 MiB parts, aborted on failure.
+  - Reads are ranged GETs. A missing object is `NotFound`, and a delete treats 404 as done.
+  - S3 errors become "Code: Message" from the error body, at most 200 characters.
+  - The bucket test writes 1 KiB, reads bytes 100–199 back, uploads 5 MiB + 1 KiB in two parts and deletes both. It stops at the first failed step.
+- **Loading.** `Attachments::load` builds every S3 storage at startup and restores the active one. A storage whose secret can't be opened stops the server, rather than leaving its files unreadable.
+- **Managing storage.**
+  - Only the owner may send the storage requests; an administrator gets FORBIDDEN.
+  - AddStorage, UpdateStorage with new bucket settings, and ActivateStorage of an S3 storage run the bucket test first. A failed step is STORAGE_UNAVAILABLE "the bucket test failed at “step”: detail".
+  - The secret key is sealed as `storage-secret:<id>` and never sent back. An empty secret in UpdateStorage keeps the stored one. Answers show `has_secret` and the access key masked to its last 4 characters.
+  - A storage that holds files can't change its endpoint, bucket or key prefix.
+  - The local storage can't be removed. Another storage can be removed only when it's inactive, holds no files and has no deletions waiting.
+  - Every change goes to the owner as StorageUpdate.
+- **Moving files** (`attachments/move_job.rs`).
+  - StartStorageMove copies every ready or sent file, with its thumbnail, from the other storages to the active one: 50 rows per page, two files at a time, through a temp file in 8 MiB reads. The ciphertext is copied as is.
+  - The row switches with `set_storage_if` in the same transaction that queues the old copies for deletion. A file deleted meanwhile gets its new copies queued instead.
+  - Old copies are deleted an hour after the switch, so downloads already under way can finish.
+  - Each file gets three retries, 2, 4 and 8 seconds apart. After that it counts as failed and stays where it was.
+  - Progress goes to the owner at most every 2 seconds, and once at the end. StopStorageMove stops before the next file, and activating another storage is refused while a move runs.
+  - Startup deletes the temp files a move or a bucket test left behind.
+- **Tests.** The S3 tests in `tests/s3.rs` are ignored by default and run against RustFS 1.0.3 in Docker, because MinIO no longer publishes images.
+- **Review.**
+  - Processing now picks the active storage under the write lock and writes it on the row before storing anything. Before, a file still being stored (minutes for a large one on S3) showed the storage it was created under. So changing the bucket of the storage it was going to, or removing that storage, didn't count it, and the file was lost.
+  - UpdateStorage checks for files again under the write lock, next to the write. It also refuses to change a storage's endpoint, bucket or key prefix while a move runs, since the move may be writing there.
+  - ActivateStorage only tests the bucket now and keeps the backend that startup, AddStorage or UpdateStorage loaded. Installing the one it tested could undo an UpdateStorage that finished meanwhile.
+  - Startup creates the uploads temp folder and stops if it can't. The bucket test and moves write there, and on a fresh server it didn't exist yet. The implementation had created it with the error ignored and didn't report it.
+  - The plan gained Working Rule 21 for the first two.
+
+## D56: Media uploads: the client core (Phase 4 A4, 2026-10-19)
+
+- **Why.** Milestone A4 of media uploads (`docs/superpowers/plans/2026-10-18-media-uploads.md`) gives the client core what the app needs to send, show and save files. Commits: 56089df..f00971f.
+- **Types and requests.**
+  - Messages carry their attachments, roles their upload limit, and Ready the upload settings. In RoleChanges, a limit of 0 removes a role's limit.
+  - The core has the requests for upload settings and the owner's storage, and passes UploadSettingsUpdate and StorageUpdate to the app. CoreError gains Cancelled.
+- **Transfers** (`attachments/transfer.rs`).
+  - Uploads and downloads use one `reqwest` client per server, built with the gateway's own certificate check (`TlsTrust`), so a pinned certificate stays pinned. It is rebuilt when the server's route changes.
+  - A changed certificate is FingerprintMismatch. A 401 renews the media token once, with the renewal now shared with `http.rs`.
+  - Connecting may take 10 seconds, and 60 seconds without a byte ends a request. A piece may take 120 seconds, a status or finish 30, and a download has no overall limit.
+- **Sending files** (`attachments/upload.rs`).
+  - `send_message_with_files` takes 1 to 10 files, by path or by bytes. Two go up at a time, in the server's 8 MiB pieces, then SendMessage goes out with their ids in the files' order.
+  - A network failure is tried again 1, 2, 4, 8 and 16 seconds later, six tries in all. A piece whose answer was lost goes again, and the server's 409 says where the upload really is.
+  - Each file's verdict comes by its UploadReady or UploadFailed event, waited for from before the finish request. The status is also asked every 5 seconds, in case the event was lost.
+  - UploadProgress follows each file: Preparing, Uploading (at most 10 a second), Processing, Sending, Done. On a failure the failing file is Failed and the others Cancelled.
+  - `cancel_send` stops a send. After a cancel or a failure, every upload the send made is cancelled on the server.
+- **Photo metadata** (`attachments/exif.rs`). A JPEG, PNG or WebP of at most 100 MiB loses its metadata before it leaves the device.
+  - JPEG loses its Exif, XMP and IPTC segments. An orientation other than 1 comes back as a minimal Exif block, so the photo still shows the right way up.
+  - PNG loses its eXIf, text and tIME chunks. WebP loses its EXIF and XMP chunks, their VP8X flags are cleared, and its RIFF size is rewritten.
+  - A file that isn't well formed is sent as it is.
+- **Downloads and the cache** (`attachments/{download,cache}.rs`).
+  - `download_attachment` streams a file through `path.part` to `path`, with DownloadProgress; `cancel_download` stops it.
+  - `attachment_bytes` reads a thumbnail, or an original of at most 64 MiB, for the image viewer and the voice and audio players. Thumbnails and originals up to 20 MiB are cached.
+  - The cache is 1 GiB for every server, the least recently used going first. Each entry is sealed as a client-cache blob under a key the app keeps in the system keychain (`media_cache_key_store.dart`). The entry's name is a SHA-256 of server, attachment and variant, and its first 8 bytes are the blob id, so a file copied over another entry doesn't open. Without the keychain nothing is cached on disk.
+- **Clipboard** (`attachments/clipboard.rs`).
+  - `clipboard_image` pastes an image as PNG; with text on the clipboard it returns nothing. `clipboard_set_image` copies an image.
+  - It uses `arboard` 3.7.0 on Linux, X11 and Wayland, with one clipboard kept for the app's life so a copied image stays.
+  - macOS follows in P2. On Windows `arboard` needs BSL-1.0 crates, outside the allowed licences, so P1 settles Windows.
+- **Tests.** `tests/attachments.rs` runs the core against a real server: sending, a lost piece answer, cancelling, a blocked file, an expired token, saving, the cache with the server stopped, and a photo's location. ServerHandle gains `uploads_in_state` for them.
+- **Review.** The code matches the plan exactly, and every check passes, so nothing was changed. The working rules from the A1–A3 reviews moved from the plan to `GEMINI.md`, which now collects every review's lessons. From A5 on, the plan gives behavior and interfaces rather than code.
+
+## D57: Media uploads: the app (Phase 4 A5, 2026-10-19)
+
+- **Why.** Milestone A5 of media uploads (`docs/superpowers/plans/2026-10-18-media-uploads.md`) brings attachment support to the Flutter app: models, upload rules, composer staging, sending, chat attachment views, the media viewer, and server and user settings. Commits: 382bcab..98d96d3.
+- **Models and upload rules** (`core/model/attachment.dart`, `core/model/storage.dart`, `core/upload_rules.dart`, `core/format.dart`).
+  - `Attachment` holds an uploaded file's metadata (`id`, `filename`, `contentType`, `sizeBytes`, `kind`, dimensions, `durationMs`, `waveform`, thumbnail presence and size, and `animated`).
+  - `UploadSettings` stores server limits: `blockedExtensions`, `voiceMessageMaxSeconds`, `maxFileBytes`, and `maxAttachments` (fallback 10). `UploadPhase` tracks `preparing`, `uploading`, `processing`, `sending`, `done`, `failed` and `cancelled`.
+  - `StorageBackend` describes local or S3 storage (`id`, `kind`, `name`, `active`, `s3`, `hasSecret`, `fileCount`, `bytes`, and `lastError`). `StorageMove` reports file move progress (`toStorageId`, `running`, `filesDone`, `filesTotal`, `bytesDone`, `bytesTotal`, `failed`).
+  - `effectiveUploadLimit` calculates member upload limit: the owner gets `ceiling` (`maxFileBytes`); other members take the maximum of `@everyone` or their assigned roles' limits, capped at `ceiling`.
+  - `sanitizeFilename` strips directories, control characters, leading spaces and trailing dots/spaces; prefixes DOS device stems with `_`; caps length to 200 preserving extension; and defaults empty names to `file`. `normalizeExtension` trims, strips a leading dot, and validates 1..20 lowercase alphanumeric or dot characters.
+  - `stageProblem` detects `StageProblem.tooLarge` and `StageProblem.blocked`. `blockProgramsPreset` copies the server's 31 program extensions. `formatFileSize` formats sizes as B, KB, MB, or GB.
+- **Repository and state** (`core/repository/repository.dart`, `core/rust/rust_repository.dart`, `core/mock/mock_repository.dart`, `core/providers/providers.dart`, `core/providers/server_state.dart`).
+  - `OpencordRepository` gains `sendMessageWithFiles`, `cancelSend`, `attachmentBytes`, `downloadAttachment`, `cancelDownload`, `clipboardImage`, `copyImage`, `updateUploadSettings`, `storage`, `addStorage`, `updateStorage`, `testStorage`, `activateStorage`, `removeStorage`, `startStorageMove`, `stopStorageMove`, `mediaCacheSize`, and `clearMediaCache`.
+  - `ServerData` exposes `uploadSettings` and calculates `myUploadLimit`. `ChannelMessagesNotifier` handles `sendWithFiles` with a unique nonce, tracking pending uploads with `UploadProgressEvent` updates and supporting `cancelSend` and `discard`.
+- **Composer, staging and sending** (`features/chat/composer.dart`, `features/chat/composer_state.dart`, `features/chat/attachment_drop.dart`, `features/chat/attachments/staged_tiles.dart`, `features/chat/attachments/upload_progress.dart`).
+  - An `OcIconButton` with `OcIcons.attachFile` opens the system file picker (`openFiles`) when permitted.
+  - `AttachmentDropZone` detects files dragged over chat and stages them in the composer. Ctrl+V (or Cmd+V) with no text on the clipboard checks `clipboardImage` and stages the image as `pasted-image-YYYYMMDD-HHMMSS.png`. Dropping and pasting need Attach Files, like the button.
+  - `StagedTiles` shows previews for image files up to 20 MiB, filenames, sizes, and remove buttons. Files exceeding the limit or blocked show error indicators and disable sending. Beyond 10 files, tiles receive `StageProblem.tooMany`.
+  - Outgoing uploads display `UploadProgressList` with sent and total sizes, a bar, the reason when a file fails, and a cancel button.
+- **Attachments in messages and downloads** (`features/chat/attachments/{attachment_view,image_grid,file_card,download,text_preview_dialog}.dart`, `features/chat/bubble.dart`).
+  - `AttachmentsView` displays attachments in message bubbles.
+  - Images render in `ImageGrid`: up to 4 images in a grid layout, with a `+N` badge on the 4th item when 5 or more images are present.
+  - Non-image files render in `FileCard` with icons by type, filename, size, and download button calling `saveAttachment`. Text files up to 256 KiB (`maxPreviewBytes`) offer a "Preview" button opening `TextPreviewDialog`, which shows the text in `OcText.mono` and never renders it.
+  - `messageSummary` summarizes messages for notifications and pinned banners as text, `Photo`, `count photos`, `Video`, `Voice message (m:ss)`, or `filename`.
+- **In-app media viewer** (`features/chat/attachments/media_viewer.dart`).
+  - `showMediaViewer` opens a transparent fullscreen route with scrim background.
+  - `MediaViewer` displays images with `InteractiveViewer` supporting pan and scroll-wheel zoom between 1.0x and 8.0x.
+  - Top bar shows filename (`middleEllipsis` at 36 characters), index counter (`i / N`), download button, and close button. Left/right buttons and ArrowLeft/ArrowRight keyboard shortcuts navigate; Escape closes.
+- **Settings** (`features/settings/server/{uploads_page,storage_page,storage_dialogs,roles_page}.dart`, `features/settings/user/app_pages.dart`).
+  - `ServerUploadsPage` configures blocked file extensions (with a "Block programs" button) and voice message maximum duration.
+  - `ServerStoragePage` (owner only) lists backends, active status, file counts, and byte sizes. A new bucket, or a change to a bucket's settings, needs its access key and secret and a passing `testStorage` of exactly those values before Save; a rename needs neither. Existing files can be migrated with `startStorageMove` and monitored with progress and `stopStorageMove`.
+  - `_RoleEditor` in `roles_page.dart` provides "Max upload size" with MB/GB units and a "Not set" toggle for non-@everyone roles, validated against server limits and user upload capacity.
+  - `_MediaCacheSection` in `BehaviorPage` shows cached bytes and provides a "Clear" button calling `clearMediaCache`.
+- **Tests.**
+  - Unit tests: `app/test/unit/model/upload_rules_test.dart` (limits, sanitization, normalization, blocking), `app/test/unit/format_test.dart` (`formatFileSize`, `middleEllipsis`), `app/test/unit/mock/mock_repository_test.dart` (`sendMessageWithFiles`), `app/test/unit/rust/core_mapping_test.dart` (error mapping), `app/test/unit/theme/oc_colors_test.dart` (tokens), `app/test/unit/message_summary_test.dart` (summaries).
+  - Widget tests: `app/test/widget/chat/composer_attach_test.dart` (staging, problem blocking, pasting, sending progress, cancel), `app/test/widget/chat/attachment_drop_test.dart` (drag overlay and drop), `app/test/widget/chat/attachments_view_test.dart` (aspect ratio box, grid counter, text preview), `app/test/widget/chat/media_viewer_test.dart` (navigation and close), `app/test/widget/settings/media_settings_test.dart` (uploads page, storage owner/test requirement, role limits, cache clear).
+
+- **Review.** Fixed after A5:
+  - **Editing a bucket.** The dialog filled the access key with the masked value answers carry, and sent it back with every edit, so the server's own bucket test refused even a rename. It also tested the saved bucket instead of the values typed. Now the keys start empty, a rename sends only the name, and changed settings need both keys and a passing test of exactly what Save sends. The mock now masks keys like the server.
+  - **The Dart filename rules** counted UTF-16 units and kept U+0080–U+009F, where Rust counts characters and drops them. The shared fixture gained both cases.
+  - **Sending:**
+    - a retry now starts each file's progress afresh, and never sends a message's text without its files;
+    - a failed file shows why;
+    - staging is one pass that uses the server's `maxAttachments`;
+    - a blocked file names the extension that matched;
+    - paste and drop need Attach Files and report clipboard errors.
+  - **The viewer:**
+    - it is dark in either theme, since it sits on the dark scrim;
+    - it no longer zooms twice per wheel step, because `InteractiveViewer` zooms on the wheel itself (the plan wrongly asked for a `Listener`).
+  - **Conventions:**
+    - one file-type icon mapping in `file_icon.dart`, instead of three;
+    - `ChoiceChips` and `OcSwitch` instead of Material widgets;
+    - `on RepoException` instead of bare `catch`;
+    - `mounted` checks after awaits;
+    - cancels go through `_now`;
+    - the download progress provider no longer hides a missing repository (the test that relied on that now provides one);
+    - the media cache section reports its errors and says what it holds.
+  - **Leftovers from before attachments:** the role editor still showed Attach files as "coming later", and Dart's default @everyone lacked it, unlike `Permissions::DEFAULT_EVERYONE`. Both are fixed.
+  - **D57 itself** described the plan rather than the code in five places: the preset size, the paste handler, the upload rows, the text preview and a button label.
+
+## D58: Media uploads: voice messages (Phase 4 A6, 2026-10-19)
+
+- **Why.** Milestone A6 of media uploads (`docs/superpowers/plans/2026-10-18-media-uploads.md`) brings voice messages: audio engine capture tap and local media mixing, the core voice recorder and player, holding and locking to record in the app, and voice message bubbles with waveform playback. Commits: bb91e83..7b2c8eb.
+- **Audio engine tap and local media** (`crates/opencord-media/src/audio/{processor.rs,engine.rs}`).
+  - `Processor::set_capture_tap(tap: Option<rtrb::Producer<f32>>, silence_call: bool)` pushes 480-sample ticks to the tap after input volume scaling; with `silence_call`, the tick is zeroed before `capture.push` so the call receives silence while the input level meter continues measuring the real microphone level.
+  - `Processor::set_local_media(source: Option<rtrb::Consumer<f32>>)` pops interleaved stereo 48 kHz samples and adds them directly into `self.stereo` during `play()` (or discards them during `play_unheard()`), automatically including them in the acoustic echo cancellation reference signal.
+  - `AudioEngine::set_capture_tap` and `AudioEngine::set_local_media` forward the commands (`Command::CaptureTap` and `Command::LocalMedia`) to the audio engine thread.
+- **The voice recorder** (`crates/opencord-core/src/voice_message/recorder.rs`, `media.rs`, `client.rs`, `api/{types.rs,attachments.rs}`).
+  - `voice_record_start(max_seconds)` initiates an `opencord-voice-recorder` worker thread using an active call's capture tap via `TapEngine` (silencing call audio) or opening a direct `Microphone` with `FromDevice` and `VoiceProcessing`.
+  - Samples are encoded via `opus::Encoder` at 48 kHz Mono Voip with 32,000 bps bitrate, VBR enabled, DTX disabled, and complexity 10.
+  - Mean square sample powers (`Σx²/480`) are collected per 10 ms tick; at stop, they are split into 128 slices the way `waveform()` splits samples, and each slice's `rms = sqrt(mean of slice)` is mapped to a byte with `level_byte(rms)`.
+  - Packets are written into an Ogg Opus stream with encoder pre-skip lookahead via `ogg::write(1, pre_skip, &packets, samples)`.
+  - Emits `MediaEvent::VoiceRecordLevel { level }` at most every 33 ms and `MediaEvent::VoiceRecordStopped { reason }` on `VoiceStopReason::MaxLength` or `VoiceStopReason::DeviceLost`.
+  - `voice_record_stop()` returns `VoiceDraft { draft_id, duration_ms, waveform }` and caches `(ogg_bytes, draft)` in memory; `voice_record_cancel()` aborts without a draft; `voice_draft_discard(draft_id)` frees the cached draft.
+  - `send_voice_message(server_key, channel_id, nonce, draft_id)` sends the draft via `attachments::upload::send` using `proto::AttachmentKind::VoiceMessage` as `voice-message.ogg` with empty text, discarding the draft upon completion.
+- **Voice message playback** (`crates/opencord-core/src/voice_message/player.rs`, `now_playing.rs`, `api/{types.rs,attachments.rs}`).
+  - `voice_play(item, position_ms, speed)` accepts `PlaybackItem::Attachment` or `PlaybackItem::Draft` at speeds 1.0, 1.5, or 2.0.
+  - Employs `wsola::TimeStretch` for pitch-preserving time compression/expansion on 48 kHz mono PCM, seeking by calculating packet sample offsets with `opus::packet::get_nb_samples`.
+  - Routes audio to the active call engine via `set_local_media` as interleaved stereo, or plays through `Speaker::open` with `ToDevice` and output volume.
+  - `NowPlaying` manages a stoppable handle, stopping any existing player when a new item starts or when `voice_stop()` is called.
+  - Exposes `voice_pause()`, `voice_resume()`, `voice_seek(position_ms)`, `voice_set_speed(speed)`, and `voice_stop()`.
+  - Emits `MediaEvent::PlaybackUpdate { item, position_ms, duration_ms, playing, buffering }` (at source time rate), `MediaEvent::PlaybackEnded`, and `MediaEvent::PlaybackFailed`.
+- **Permissions and repository** (`app/lib/core/model/{permissions.dart,voice.dart}`, `app/lib/core/repository/{repository.dart,events.dart}`, `app/lib/core/rust/rust_repository.dart`, `app/lib/core/mock/mock_repository.dart`, `app/lib/features/settings/server/permission_info.dart`).
+  - Added `Permissions.sendVoiceMessages = Permissions(1 << 14)` to `Permissions`, `defaultEveryone` and `Permissions.all`, with UI entry "Send voice messages" ("Record and send voice messages") in server permission settings.
+  - Added repository methods for voice recording and playback, mapping FRB calls to Dart types. `MockRepository` implements timer-driven level updates, draft storage, and simulated playback with pause/resume support.
+- **Recording UI and composer bar** (`app/lib/features/chat/voice/{mic_button.dart,recording_bar.dart,waveform_painter.dart,voice_recorder_state.dart}`, `features/chat/composer.dart`, `features/channels/voice_panel.dart`).
+  - `MicButton` uses raw pointer listeners with an inner `OcIconButton` (tooltip "Voice message"). Pressing calls `voiceRecordStart`; dragging left (`dx < -120`) enters cancelling; dragging up (`dy < -60`) locks; releasing under 500 ms displays a toast "Hold to record". Keyboard Space down/up and Escape are handled when focused.
+  - `VoiceRecorderNotifier` manages phases `RecordingPhase.idle`, `holding`, `cancelling`, `locked`, and `preview`. It accumulates live 100 ms max levels and elapsed duration. `isRecordingVoiceProvider` updates `VoiceConnectedPanel` to show "Recording a voice message" during a call.
+  - `RecordingBar` renders inside the composer:
+    - Normal/holding: pulsing 10 px dot in `recording` (0.4 to 1.0 opacity every 600 ms), `m:ss` timer, live waveform scrolling left (3 px bars, 2 px gaps in `voice`), and hint "Release to send · Esc to cancel".
+    - Cancelling: `recording` background at 15% opacity, static dot, and hint "Release to cancel".
+    - Locked: actions Delete (`OcIcons.delete`), Stop (`OcIcons.stop`), and Send (`OcIcons.send`, inverted). Enter sends; Escape deletes.
+    - Preview: play/pause (`OcIcons.playArrow` / `OcIcons.pause`) plays the draft through the voice player (`DraftPlayback`), with the static draft waveform filling as it plays, the duration, Delete and Send.
+- **Voice message bubbles** (`app/lib/features/chat/voice/voice_bubble.dart`, `app/lib/core/providers/playback_state.dart`, `features/chat/attachments/attachment_view.dart`).
+  - `VoiceBubble` width scales smoothly from 200 to 320 px via `lerpDouble(200.0, 320.0, clamp((durationSec - 10.0) / 50.0, 0.0, 1.0))`.
+  - Max-pools 128 waveform bytes to `floor(width / 5)` bars via `resampleWaveform`; unplayed bars use `textMuted` (keeping resting dark/light screens monochrome) while played bars use `voice`.
+  - Displays play/pause icon button, time label (`m:ss` idle or `m:ss / m:ss` playing), speed chip cycling `1×` → `1.5×` → `2×` (remembered per bubble), and seeking on tap/drag.
+  - Secondary tap (right-click) shows attachment menu with "Download" via `showAttachmentMenu`.
+  - `AttachmentsView` routes `AttachmentKind.voiceMessage` to `VoiceBubble`.
+- **Tests.**
+  - Rust unit tests: `crates/opencord-media/src/audio/processor.rs` (`the_tap_gets_processed_ticks_and_silence_reaches_the_call`, `local_media_is_played_and_heard_by_the_echo_canceller`); `crates/opencord-core/src/voice_message/recorder.rs` (`a_recording_becomes_valid_ogg_opus`, `the_draft_waveform_matches_the_server_formula`, `recording_stops_at_the_maximum`, `in_call_recording_silences_the_call`); `crates/opencord-core/src/voice_message/player.rs` (`tempo_two_halves_the_output`, `seek_lands_within_a_frame`, `starting_another_item_stops_the_first`, `a_draft_plays_without_network`).
+  - Dart unit and widget tests: `app/test/unit/chat/waveform_test.dart` (`waveform_resampling_uses_max`); `app/test/widget/chat/voice_recording_test.dart` (`hold_shows_the_bar_and_release_sends`, `a_short_press_shows_hold_to_record`, `dragging_left_cancels`, `dragging_up_locks_and_enter_sends`, `max_length_while_locked_opens_the_preview`, `no_permission_hides_the_mic`); `app/test/widget/chat/voice_bubble_test.dart` (`voice_bubble_plays_seeks_and_changes_speed`); `app/test/golden/voice_bar_golden_test.dart` (`recording bar states (dark)`, `recording bar states (light)`).
+
+- **Review.** Fixed after A6:
+  - **Playback wasn't paced.**
+    - The player decoded the whole file at once and pushed into the call's or the speaker's ring buffer with `let _ =`, dropping what didn't fit. On a real device a message would have played about its first second while its position raced to the end.
+    - After the end it kept pulling `wsola`, which replays the input it still holds after `flush`, so every message ended with up to 1.4 s played again.
+    - A speed change mid-play applied to nothing, since everything had been stretched already.
+    - Now the player decodes a packet at a time, writes a tick only while the output is under 60 ms ahead, never pulls after the flush, and detaches from the call when it stops. `playing_into_a_call_drops_nothing_and_keeps_time` and `a_new_speed_applies_to_what_follows` feed a call-like sink at real time.
+  - **Recorder errors.**
+    - A microphone that wouldn't open, or an encoder error, became `None`, and `stop` said only "recording produced no draft". Now the error reaches `stop`, and the app hears `DeviceLost` at once.
+    - A lost microphone kept nothing; now it keeps what was heard (`a_lost_microphone_keeps_what_was_heard`).
+    - The encoder's lookahead error no longer becomes a pre-skip of 0.
+    - The capture tap takes whole ticks or none.
+  - **The draft preview's play button was a stub** that only flipped a flag. It now plays the draft, and deleting or sending stops it.
+  - **The app:**
+    - the generated `PlaybackItem` and `VoiceDraft` no longer leak past `core/rust`: the app has its own models in `core/model/voice_message.dart`;
+    - the playback state moved from `features/` into `core/providers/playback_state.dart` and no longer applied each event twice;
+    - the recorder's level was converted to decibels twice;
+    - start and stop failures, and a lost microphone, now reach the member as a toast;
+    - dragging on a bubble started a new player per pointer move and now seeks once on release;
+    - a playback failure is shown;
+    - the speed chip is monochrome (`voice` is for the waveform only) and uses `Hoverable`;
+    - a message still being sent can't be played.
+  - **The mock now refuses what the core refuses:** a second start, a stop with nothing recorded, a missing draft.
+  - **D58 itself:** "max-pooled" (the slices are averaged), `allPermissions` (it is `Permissions.all`), and a working preview that wasn't.
+
+## D59: Media uploads: video and audio playback (Phase 4 A7, 2026-10-20)
+
+- **Why.** Milestone A7 of media uploads (`docs/superpowers/plans/2026-10-18-media-uploads.md`, Tasks 32–35) plays video and audio attachments inside the app, and gives uploaded videos a poster and their size and length. Commits: cd70ef1..6c1c29b, and the review fixes after them.
+- **FFmpeg** (`app/tool/build_ffmpeg.sh`, `.github/workflows/ci.yml`, `docs/packaging.md`).
+  - dav1d 1.5.4 is built first, static, with meson and ninja (pinned SHA-256 `686616b7…a5c5`), and linked into libavcodec.
+  - The decoders: `h264, mjpeg, hevc, vp8, vp9, libdav1d, mpeg4, aac, mp3float, opus, vorbis, flac, pcm_s16le, pcm_s24le, pcm_s32le, pcm_f32le, pcm_u8`. The demuxers: `mov, matroska, ogg, mp3, flac, wav, aac`, with their parsers and the `h264_mp4toannexb`, `hevc_mp4toannexb` and `vp9_superframe_split` bitstream filters.
+  - swresample is now built: FFmpeg's Opus decoder depends on it and is silently left out without it. The core doesn't link it, so CI gives every bundled FFmpeg library `RUNPATH=$ORIGIN` for libavcodec to find it.
+  - There are still no protocols, not even `file`: the player and the upload probe read through `StreamIo`.
+  - CI installs meson and ninja.
+- **The player engine** (`crates/opencord-media/src/player/{mod.rs,ffmpeg.rs,decode.rs,sync.rs,unsupported.rs}`).
+  - `MediaPlayer::open(source, video, audio, events)` runs one `opencord-media-player` thread that demuxes and decodes the best video and audio streams. Video decodes on frame threads.
+  - Pictures are scaled to RGBA, at most 1920 on the long side, and turned upright from the stream's display matrix (`rotate`, by 90, 180 or 270). Up to 8 wait to be shown.
+  - Sound is converted in Rust from any of `u8`, `i16`, `i32`, `f32` or `f64`, planar or packed, to stereo f32: mono is doubled, and of more channels the first two are kept. rubato resamples it to 48 kHz. Half a second of it is decoded ahead, and it is written to `AudioOut` no more than 60 ms (2,880 frames) ahead of the listener, at the volume set at that moment.
+  - The clock (`MediaClock`) is the sound heard: the frames written since the last seek, less those still queued. With no sound, or once the sound has ended, it is the wall clock. A picture is shown once its time is ≤ the clock + 10 ms, and dropped when more than 80 ms late.
+  - A seek flushes the decoders and the resampler, and skips what decodes before the target, pictures and sound alike, the sound to the sample. A seek while paused shows the target's picture. Play after the end starts again from 0.
+  - Events: `Opened { duration_ms, width, height, has_video, has_audio }`, `Position` every 50 ms while playing and after each seek, `Ended`, and `Failed(String)`.
+  - Packets are read with `Packet::read`, so a failed read is `Failed`, not the end. A corrupt packet is skipped. A video stream that can't be decoded fails the open; sound that can't be decoded leaves a video silent.
+  - `probe_and_poster(path, max_side)` returns `Probe { width, height, duration_ms, has_video }` (width and height upright) and the first picture as a JPEG (quality 82) at most `max_side` on its long side.
+  - `supported()` is true on Linux and Windows. macOS gets `unsupported.rs` until P2.
+- **The core** (`crates/opencord-core/src/{media_player.rs,output_sink.rs,now_playing.rs}`, `attachments/{range_reader.rs,upload.rs}`, `api/{attachments.rs,types.rs}`, `video.rs`; `opencord-media/src/audio/engine.rs`).
+  - `RangeReader` reads an attachment with `GET /media/attachments/{id}` ranges: its size comes from a `bytes=0-0` request's `Content-Range`. It reads in 1 MiB blocks, keeps the 8 used last, and fetches the next 2 in the background, on cache hits too. A read waits for a block being fetched ahead instead of fetching it again. Only a `206` of the right length is accepted. `on_wait` tells the core while a read waits for the network.
+  - `media_open(server_key, attachment_id)` → `MediaHandle { texture_id, duration_ms, width, height, has_video }`: the pictures go to a new Flutter texture (`Video::create_texture`), the sound through `OutputSink`. Then `media_play`, `media_pause`, `media_seek(position_ms)`, `media_set_volume(volume, muted)` and `media_close`, and the sync `media_supported()`. Events reuse `MediaEvent::PlaybackUpdate`, `PlaybackEnded` and `PlaybackFailed` with `PlaybackItem::Attachment`. Play, pause and buffering send the last position heard.
+  - `OutputSink` moved to `output_sink.rs` and serves both players. In a call it attaches to the engine's local media slot on its first write and holds the engine weakly. `AudioEngine::attach_local_media` returns an id, and `detach_local_media(id)` and `has_local_media(id)` act only on that source. So a player attaches again when another took the slot, and one stopping no longer cuts off the other. When the call ends, the sound moves to the speaker. The `CallMix` trait is that slot; the tests stand in for it.
+  - `NowPlaying` knows which player (`Player::Voice` or `Player::Media`) holds it. Starting one stops (voice) or pauses (media) the other, and `clear` empties the slot only for the player that holds it.
+  - On upload, a file that sniffs as video gets `probe_and_poster(path, 800)` (on Linux and Windows). The hints go into `CreateUpload`, and a poster of up to 2 MiB is the body of `POST /media/uploads/{id}/finish` (`content-type: image/jpeg`). If the probe fails the video still uploads, without either, and the failure is logged.
+- **The app** (`app/lib/features/chat/attachments/{video_tile.dart,video_player_view.dart,audio_card.dart,attachment_view.dart,media_viewer.dart}`, `app/lib/core/providers/playback_state.dart`, `app/lib/core/model/media_handle.dart`, the repository, `core/format.dart`).
+  - `VideoTile`:
+    - the stored size, scaled to fit 400×300;
+    - the poster, or a `surface` box with `OcIcons.movie`;
+    - a 48 px round play button and an `m:ss` badge, light on dark in both themes.
+    - A tap opens the viewer on the message's images and videos, in order, at this video.
+  - `VideoPlayerView` replaces the viewer's "Video playback coming soon":
+    - it opens the media and plays it, showing a `Texture` at the video's aspect ratio (or `OcIcons.musicNote` without pictures) and a spinner while buffering;
+    - the control bar has play/pause, a seek slider that seeks on release, `m:ss / m:ss`, mute (`OcIcons.volumeOff`/`volumeUp`) and an 80 px volume slider;
+    - Space toggles play, and ←/→ still move between items, closing the media.
+    - Without `mediaSupported()` it shows "This video can't play on this computer yet" and Download. A failure shows its message and Retry.
+  - `AudioCard` (audio attachments):
+    - a 320 px card with play/pause, the filename, the time (or the size until the length is known, or the failure), Download, and a seek slider once the length is known;
+    - scrolled away while paused or finished, it closes the media.
+  - `PlaybackNotifier` keeps the open media apart from what plays now. Pause, resume and seek go to the media player for it and to the voice player otherwise. `mediaPlay` takes playback back from a voice message, and `mediaClose` closes the media even while a voice message plays.
+  - `formatDuration` and `formatDurationMs` (`m:ss`) in `core/format.dart` replace the recording bar's and the voice bubble's copies.
+  - `MockRepository` keeps the open media's place while a voice message plays, and starts it again after its end, as the core does.
+- **Tests.**
+  - `crates/opencord-media/tests/player.rs`: `opens_and_reports_duration_and_size`, `plays_to_the_end_in_real_time` (and plays again from the start), `seeks_accurately` (the sound after a seek to 1 s is 1 s long), `rotation_is_applied`, `probe_and_poster_makes_a_jpeg`, `a_webm_with_opus_opens`, `a_read_that_fails_is_a_failure_not_the_end`, and `the_planned_decoders_are_there`. CI runs them on the FFmpeg it builds.
+  - Unit tests: `player::decode` (`a_quarter_turn_moves_the_top_left_to_the_top_right`, `a_second_at_44_1_khz_comes_out_as_a_second_at_48_khz`), `player::sync` (`the_audio_clock_counts_what_was_heard_from_the_seek`, `when_the_sound_ends_time_goes_on_from_its_last_moment`), and `now_playing::tests::a_player_that_stops_leaves_the_other_playing`.
+  - `crates/opencord-core/tests/attachments.rs`: `range_reader_reads_any_span` (with the wait signal and read-ahead) and `video_uploads_get_hints_and_a_poster`.
+  - `app/test/widget/chat/media_playback_test.dart`: `video_tile_opens_the_viewer_and_plays`, `audio_card_plays_and_seeks`, `unsupported_video_offers_download`, `the_viewer_steps_from_a_video_to_the_messages_image`, and `a_video_a_voice_message_interrupted_plays_again`.
+- **Review.** Fixed after A7:
+  - **The tests ran on the system's FFmpeg**, which has everything, rather than the build the app ships, which had no `file` protocol and no Opus decoder. On the shipped FFmpeg:
+    - no video upload would have had a poster or a size;
+    - a WebM or Ogg file with Opus sound would have played silent.
+  - **Seeking desynchronized sound and picture.** Only pictures before the target were skipped. The sound played from the keyframe before it, up to a whole GOP early, for the rest of playback. The test passed only because the player reported the target the moment it was asked to seek.
+  - **A failed read ended playback as if the file were done**, because ffmpeg-next's packet iterator ends on any error.
+  - **The player:**
+    - slept 5 ms after every packet, so a seek far from a keyframe took seconds;
+    - applied the volume half a second late, as it decoded;
+    - flushed the resampler after every frame at the end of the file;
+    - set frame threading after opening the decoder, where it does nothing;
+    - couldn't play again after the end.
+  - **Playing in a call:**
+    - The voice player and the media player shared the engine's one local media slot, and each cleared it when it stopped, even after the other had taken it. A video could go silent and freeze: its clock follows the sound, and nothing drained the sound any more.
+    - The sink held the call's engine strongly, so leaving the call kept its microphone open until the player closed.
+  - **`NowPlaying::clear` stopped whatever played,** so stopping a voice message paused a video.
+  - **The core's play and pause events said position 0.**
+  - **The range reader** only fetched ahead after a cache miss, so every third block stalled. It fetched a block being read ahead a second time, and it never said it was buffering.
+  - **The app:**
+    - after a voice message, the video's play button did nothing;
+    - closing the viewer after a voice message played left the media open;
+    - videos opened the viewer alone, without their message's images;
+    - the tile's play button and badge were dark on dark in the light theme;
+    - errors other than `RepoException` were caught, and the duration formatter was copied again.
+  - **The fixture README lost the voice test recordings' attribution,** which their CC BY-SA licence requires.
+  - **D59 itself** named a checksum other than the script's, swresample for the resampling (it is rubato), `render_frame` (it is `present`), `seek(Duration)`, `PlayerEvent::Progress`, a `rotation` field `Probe` doesn't have, `POST /attachments/{key}/finish` with `x-attachment-*` headers, and JPEG quality 85.
+
+## D60: Media uploads: hardening and docs (Phase 4 A8, 2026-10-20)
+
+- **Why.** Milestone A8 of media uploads (`docs/superpowers/plans/2026-10-18-media-uploads.md`, Task 36) closes the Linux milestones: a security pass over `git diff pre..phase4-media`, the transfer measurements, and the docs for people who run a server. Claude did this milestone instead of Gemini, at the user's request.
+- **Security pass.** Each check, and what it found:
+  - *Secrets and signed URLs in logs:* none. S3 errors drop the request URL (`without_url`) and keep only the `Code` and `Message` of an error body; `S3Settings` has no `Debug`, and `Credentials` hides the secret. The core logs no tokens.
+  - *Every media endpoint authorizes:* `media::authorize` verifies the signed media token against this server, its expiry and membership. Uploads answer only to their uploader; files and thumbnails need a sent message that still exists and `VIEW_CHANNEL | READ_HISTORY` in its channel.
+  - *Body limits:* every body read is capped: a piece at 8 MiB + 1, a poster at 2 MiB, the older media uploads at their sound limit.
+  - *`Content-Disposition`:* RFC 8187 percent-encoding of every byte outside `A-Za-z0-9-._~`. There was no test; `filenames_cannot_break_out_of_the_header` now feeds it a quote, CR LF, a space and `ü`.
+  - *The 8 storage requests:* each starts with `require_owner`, as `storage_requests_are_owner_only` checks.
+  - *Image limits:* 16,384 pixels a side, 50 megapixels and 512 MiB of allocation, checked from the header before decoding, two jobs at a time; posters at 8,192 a side. **Found:** the animation check opened its GIF and WebP decoders without those limits. It now applies them (`animation_is_found_within_the_limits`).
+  - *`local.rs` keys:* only `a/<id>` or `t/<id>` with a non-negative integer id become a path, so nothing escapes the root (`keys_cannot_escape_the_root`).
+- **Measured** (`app/tool/check_transfer.sh`, new; `crates/opencord-core/examples/transfer_load.rs`, new). A 1 GiB file to a release server on loopback and back, three runs on a busy laptop (load average about 10): upload 77.8, 94.9 and 58.3 MB/s, download 353.5, 91.2 and 77.0 MB/s, the server's memory growing 60, 72 and 51 MiB. The memory target (< 100 MB) holds; the 80 MB/s speed target was met in one upload run and two download runs, so it needs a run on an idle machine (`docs/performance.md`, "Media uploads (A8)"). Uploads go one 8 MiB piece at a time, each encrypted, flushed to disk and recorded before the answer.
+- **Docs.**
+  - `docs/attachments.md` (new): where files go, with a recipe per provider in the app's list (Amazon S3, Cloudflare R2, Backblaze B2, Wasabi, MinIO / Custom) and the minimal IAM policy; encryption and `secrets.key`, what it protects and what it doesn't, backing it up, moving it and the error when it's missing; limits and blocked extensions; what "only in the app" does and doesn't; moving between storages; testing, with the S3 tests and the checks by hand from A5, A6 and A7.
+  - `docs/protocol.md`: the upload, settings and storage requests, `attachment_ids` and role upload limits, the four events, the seven error codes and their HTTP statuses, `SEND_VOICE_MESSAGES` (bit 14) and the new @everyone default, the limits, and an Attachments section with the upload flow and every file endpoint's answers.
+  - `docs/domains.md`: pieces are 8 MiB because Cloudflare refuses requests over 100 MB, so a proxy must pass bodies of at least 9 MB. The plan asked for `client_max_body_size 16m;`; the guide and the app's Add domain dialog already give `50m`, which passes the pieces, so it stays.
+  - `README.md`: "Files and storage".
+  - `deploy/`: the compose file and the systemd unit show, commented, how to give the server `secrets.key` from outside the data directory (a compose secret at `/run/secrets/opencord-secrets.key`; `LoadCredential` with `OPENCORD_SECRETS_FILE=%d/opencord-secrets.key`). The compose form was checked with `docker compose config`.
+- **Also.** `app/tool/e2e_server.sh` starts its servers with `OPENCORD_MUSIC_UDP_PORT=0`, so a check runs while another server holds UDP 7712.
+- **Not done here:** the checks by hand from A5, A6 and A7 (listed in `docs/attachments.md`) and scrolling 200 image messages at 60 fps need a display; the transfer speed on an idle machine; the Windows and macOS work (P1, P2).

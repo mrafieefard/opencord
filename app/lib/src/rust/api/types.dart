@@ -8,7 +8,7 @@ import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 import 'package:freezed_annotation/freezed_annotation.dart' hide protected;
 part 'types.freezed.dart';
 
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `hash`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `hash`
 
 class AcmeAccount {
   /// An account exists with the CA in use.
@@ -53,6 +53,88 @@ sealed class AddServerOutcome with _$AddServerOutcome {
     required String fingerprint,
   }) = AddServerOutcome_NeedsTrust;
 }
+
+/// A file in a message.
+class Attachment {
+  final PlatformInt64 id;
+  final String filename;
+
+  /// Chosen by the server from the file's first bytes.
+  final String contentType;
+  final BigInt sizeBytes;
+  final AttachmentKind kind;
+
+  /// Images: after EXIF rotation. Videos: the sender's hints.
+  final int? width;
+  final int? height;
+
+  /// Videos (hint) and voice messages (measured).
+  final int? durationMs;
+
+  /// Voice messages: 128 values, 0–255. Empty otherwise.
+  final Uint8List waveform;
+  final bool hasThumbnail;
+  final int? thumbnailWidth;
+  final int? thumbnailHeight;
+
+  /// A GIF or WebP with more than one frame.
+  final bool animated;
+
+  const Attachment({
+    required this.id,
+    required this.filename,
+    required this.contentType,
+    required this.sizeBytes,
+    required this.kind,
+    this.width,
+    this.height,
+    this.durationMs,
+    required this.waveform,
+    required this.hasThumbnail,
+    this.thumbnailWidth,
+    this.thumbnailHeight,
+    required this.animated,
+  });
+
+  @override
+  int get hashCode =>
+      id.hashCode ^
+      filename.hashCode ^
+      contentType.hashCode ^
+      sizeBytes.hashCode ^
+      kind.hashCode ^
+      width.hashCode ^
+      height.hashCode ^
+      durationMs.hashCode ^
+      waveform.hashCode ^
+      hasThumbnail.hashCode ^
+      thumbnailWidth.hashCode ^
+      thumbnailHeight.hashCode ^
+      animated.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is Attachment &&
+          runtimeType == other.runtimeType &&
+          id == other.id &&
+          filename == other.filename &&
+          contentType == other.contentType &&
+          sizeBytes == other.sizeBytes &&
+          kind == other.kind &&
+          width == other.width &&
+          height == other.height &&
+          durationMs == other.durationMs &&
+          waveform == other.waveform &&
+          hasThumbnail == other.hasThumbnail &&
+          thumbnailWidth == other.thumbnailWidth &&
+          thumbnailHeight == other.thumbnailHeight &&
+          animated == other.animated;
+}
+
+enum AttachmentKind { file, image, video, audio, voiceMessage }
+
+enum AttachmentVariant { original, thumbnail }
 
 class AudioDevice {
   /// Stable across runs where the system allows; what settings keep.
@@ -875,6 +957,7 @@ sealed class CoreError with _$CoreError implements FrbException {
     required CameraProblem problem,
     required String message,
   }) = CoreError_Camera;
+  const factory CoreError.cancelled() = CoreError_Cancelled;
 }
 
 class CoreEvent {
@@ -1033,6 +1116,45 @@ sealed class CoreEventPayload with _$CoreEventPayload {
   /// A command's reply only this device sees.
   const factory CoreEventPayload.ephemeralMessage(EphemeralMessage field0) =
       CoreEventPayload_EphemeralMessage;
+  const factory CoreEventPayload.uploadSettingsUpdate(UploadSettings field0) =
+      CoreEventPayload_UploadSettingsUpdate;
+
+  /// To the owner only.
+  const factory CoreEventPayload.storageUpdate(StorageInfo field0) =
+      CoreEventPayload_StorageUpdate;
+
+  /// A file staged with `stage_upload`, at most 10 times a second, and
+  /// once at each phase: `Done` when it is ready to send.
+  const factory CoreEventPayload.stagedUploadProgress({
+    required PlatformInt64 channelId,
+    required String stagedId,
+    required BigInt sentBytes,
+    required BigInt totalBytes,
+    required UploadPhase phase,
+  }) = CoreEventPayload_StagedUploadProgress;
+
+  /// A file of a message being sent with `send_message_with_files`, at
+  /// most 10 times a second, and once at each phase.
+  const factory CoreEventPayload.uploadProgress({
+    required PlatformInt64 channelId,
+    required String nonce,
+
+    /// Its place among the message's files.
+    required int fileIndex,
+    required BigInt sentBytes,
+    required BigInt totalBytes,
+    required UploadPhase phase,
+  }) = CoreEventPayload_UploadProgress;
+
+  /// A `download_attachment`, at most 10 times a second, and once at the
+  /// end with `done` or `error`.
+  const factory CoreEventPayload.downloadProgress({
+    required PlatformInt64 attachmentId,
+    required BigInt receivedBytes,
+    required BigInt totalBytes,
+    required bool done,
+    String? error,
+  }) = CoreEventPayload_DownloadProgress;
 }
 
 /// A sound every client has (plan §11.8), played as `default:<id>`.
@@ -1214,6 +1336,9 @@ enum DomainKind {
 
   /// Caddy, Nginx, Traefik, ngrok and the like.
   reverseProxy,
+
+  /// A record proxied by Cloudflare (the orange cloud).
+  cloudflareProxy,
 }
 
 enum DomainStatus {
@@ -1333,6 +1458,13 @@ enum ErrorCode {
   commandDisabled,
   commandNotAllowedHere,
   commandInvalidOptions,
+  fileTooLarge,
+  fileTypeBlocked,
+  uploadOffsetMismatch,
+  storageUnavailable,
+  storageFull,
+  voiceMessageInvalid,
+  voiceMessageTooLong,
   unknown,
 }
 
@@ -1378,6 +1510,9 @@ enum HotkeyAction {
 
   /// Switches between push-to-talk and voice activity.
   toggleInputMode,
+
+  /// Mutes or unmutes music in voice channels, for this person.
+  toggleMusicMute,
 }
 
 /// A hotkey: a key and the modifiers held with it, as the XDG shortcuts
@@ -1992,6 +2127,70 @@ sealed class MediaEvent with _$MediaEvent {
     required PlatformInt64 channelId,
     required VoiceStats stats,
   }) = MediaEvent_ConnectionStats;
+
+  /// The loudness of the voice message being recorded, 0..1.
+  const factory MediaEvent.voiceRecordLevel({required double level}) =
+      MediaEvent_VoiceRecordLevel;
+
+  /// Recording stopped by itself.
+  const factory MediaEvent.voiceRecordStopped({
+    required VoiceStopReason reason,
+  }) = MediaEvent_VoiceRecordStopped;
+
+  /// Voice message or media playback status.
+  const factory MediaEvent.playbackUpdate({
+    required PlaybackItem item,
+    required int positionMs,
+    required int durationMs,
+    required bool playing,
+    required bool buffering,
+  }) = MediaEvent_PlaybackUpdate;
+
+  /// Voice message or media playback reached the end.
+  const factory MediaEvent.playbackEnded({required PlaybackItem item}) =
+      MediaEvent_PlaybackEnded;
+
+  /// Voice message or media playback failed.
+  const factory MediaEvent.playbackFailed({
+    required PlaybackItem item,
+    required String message,
+  }) = MediaEvent_PlaybackFailed;
+}
+
+/// A media attachment opened for playback (Milestone A7, Task 34).
+class MediaHandle {
+  final PlatformInt64? textureId;
+  final int durationMs;
+  final int width;
+  final int height;
+  final bool hasVideo;
+
+  const MediaHandle({
+    this.textureId,
+    required this.durationMs,
+    required this.width,
+    required this.height,
+    required this.hasVideo,
+  });
+
+  @override
+  int get hashCode =>
+      textureId.hashCode ^
+      durationMs.hashCode ^
+      width.hashCode ^
+      height.hashCode ^
+      hasVideo.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is MediaHandle &&
+          runtimeType == other.runtimeType &&
+          textureId == other.textureId &&
+          durationMs == other.durationMs &&
+          width == other.width &&
+          height == other.height &&
+          hasVideo == other.hasVideo;
 }
 
 class Member {
@@ -2041,6 +2240,9 @@ class Message {
   /// A command's public result: the command run, by the author.
   final String? command;
 
+  /// In the order they were attached.
+  final List<Attachment> attachments;
+
   const Message({
     required this.id,
     required this.channelId,
@@ -2050,6 +2252,7 @@ class Message {
     this.editedAtMs,
     this.nonce,
     this.command,
+    required this.attachments,
   });
 
   @override
@@ -2061,7 +2264,8 @@ class Message {
       createdAtMs.hashCode ^
       editedAtMs.hashCode ^
       nonce.hashCode ^
-      command.hashCode;
+      command.hashCode ^
+      attachments.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -2075,7 +2279,8 @@ class Message {
           createdAtMs == other.createdAtMs &&
           editedAtMs == other.editedAtMs &&
           nonce == other.nonce &&
-          command == other.command;
+          command == other.command &&
+          attachments == other.attachments;
 }
 
 enum MusicAction { pause, resume, next, previous, seek, stop }
@@ -2776,6 +2981,41 @@ enum NoiseSuppressionMode {
 
 enum NoticeSeverity { info, warning }
 
+/// A file to send: a path on this device, or bytes (a pasted image).
+/// Exactly one of the two.
+class OutgoingFile {
+  final String? path;
+  final Uint8List? bytes;
+
+  /// Empty uses the path's file name.
+  final String filename;
+
+  /// The id it was staged with (`stage_upload`): sending takes that
+  /// upload over, and uploads the file again only if it failed.
+  final String? stagedId;
+
+  const OutgoingFile({
+    this.path,
+    this.bytes,
+    required this.filename,
+    this.stagedId,
+  });
+
+  @override
+  int get hashCode =>
+      path.hashCode ^ bytes.hashCode ^ filename.hashCode ^ stagedId.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is OutgoingFile &&
+          runtimeType == other.runtimeType &&
+          path == other.path &&
+          bytes == other.bytes &&
+          filename == other.filename &&
+          stagedId == other.stagedId;
+}
+
 enum OverwriteTargetKind { role, member }
 
 class PermissionOverwrite {
@@ -2804,6 +3044,18 @@ class PermissionOverwrite {
           targetId == other.targetId &&
           allow == other.allow &&
           deny == other.deny;
+}
+
+@freezed
+sealed class PlaybackItem with _$PlaybackItem {
+  const PlaybackItem._();
+
+  const factory PlaybackItem.attachment({
+    required String serverKey,
+    required PlatformInt64 attachmentId,
+  }) = PlaybackItem_Attachment;
+  const factory PlaybackItem.draft({required BigInt draftId}) =
+      PlaybackItem_Draft;
 }
 
 enum PortProtocol { tcp, udp }
@@ -2964,6 +3216,7 @@ class ReadySnapshot {
 
   /// The chat commands this user may see (Phase 3 plan §17.1).
   final CommandList commands;
+  final UploadSettings uploadSettings;
 
   const ReadySnapshot({
     required this.selfUser,
@@ -2981,6 +3234,7 @@ class ReadySnapshot {
     required this.soundboardSounds,
     required this.addresses,
     required this.commands,
+    required this.uploadSettings,
   });
 
   @override
@@ -2999,7 +3253,8 @@ class ReadySnapshot {
       voiceSettings.hashCode ^
       soundboardSounds.hashCode ^
       addresses.hashCode ^
-      commands.hashCode;
+      commands.hashCode ^
+      uploadSettings.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -3020,7 +3275,8 @@ class ReadySnapshot {
           voiceSettings == other.voiceSettings &&
           soundboardSounds == other.soundboardSounds &&
           addresses == other.addresses &&
-          commands == other.commands;
+          commands == other.commands &&
+          uploadSettings == other.uploadSettings;
 }
 
 class Role {
@@ -3034,6 +3290,10 @@ class Role {
   final bool hoist;
   final bool mentionable;
 
+  /// The largest file its members may upload; `None` leaves it to their
+  /// other roles.
+  final BigInt? maxUploadBytes;
+
   const Role({
     required this.id,
     required this.name,
@@ -3042,6 +3302,7 @@ class Role {
     required this.permissions,
     required this.hoist,
     required this.mentionable,
+    this.maxUploadBytes,
   });
 
   @override
@@ -3052,7 +3313,8 @@ class Role {
       position.hashCode ^
       permissions.hashCode ^
       hoist.hashCode ^
-      mentionable.hashCode;
+      mentionable.hashCode ^
+      maxUploadBytes.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -3065,7 +3327,8 @@ class Role {
           position == other.position &&
           permissions == other.permissions &&
           hoist == other.hoist &&
-          mentionable == other.mentionable;
+          mentionable == other.mentionable &&
+          maxUploadBytes == other.maxUploadBytes;
 }
 
 class RoleChanges {
@@ -3075,12 +3338,16 @@ class RoleChanges {
   final bool? hoist;
   final bool? mentionable;
 
+  /// `Some(0)` removes the role's limit.
+  final BigInt? maxUploadBytes;
+
   const RoleChanges({
     this.name,
     this.color,
     this.permissions,
     this.hoist,
     this.mentionable,
+    this.maxUploadBytes,
   });
 
   static Future<RoleChanges> default_() =>
@@ -3092,7 +3359,8 @@ class RoleChanges {
       color.hashCode ^
       permissions.hashCode ^
       hoist.hashCode ^
-      mentionable.hashCode;
+      mentionable.hashCode ^
+      maxUploadBytes.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -3103,7 +3371,59 @@ class RoleChanges {
           color == other.color &&
           permissions == other.permissions &&
           hoist == other.hoist &&
-          mentionable == other.mentionable;
+          mentionable == other.mentionable &&
+          maxUploadBytes == other.maxUploadBytes;
+}
+
+/// An S3-compatible bucket. In answers the access key is masked to its
+/// last 4 characters and the secret is empty.
+class S3Config {
+  final String endpoint;
+  final String region;
+  final String bucket;
+  final String keyPrefix;
+  final bool pathStyle;
+  final bool allowHttp;
+  final String accessKeyId;
+
+  /// Empty in an update keeps the saved one.
+  final String secretAccessKey;
+
+  const S3Config({
+    required this.endpoint,
+    required this.region,
+    required this.bucket,
+    required this.keyPrefix,
+    required this.pathStyle,
+    required this.allowHttp,
+    required this.accessKeyId,
+    required this.secretAccessKey,
+  });
+
+  @override
+  int get hashCode =>
+      endpoint.hashCode ^
+      region.hashCode ^
+      bucket.hashCode ^
+      keyPrefix.hashCode ^
+      pathStyle.hashCode ^
+      allowHttp.hashCode ^
+      accessKeyId.hashCode ^
+      secretAccessKey.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is S3Config &&
+          runtimeType == other.runtimeType &&
+          endpoint == other.endpoint &&
+          region == other.region &&
+          bucket == other.bucket &&
+          keyPrefix == other.keyPrefix &&
+          pathStyle == other.pathStyle &&
+          allowHttp == other.allowHttp &&
+          accessKeyId == other.accessKeyId &&
+          secretAccessKey == other.secretAccessKey;
 }
 
 /// An app with sound playing that a window share can send (plan §10.4,
@@ -3468,6 +3788,9 @@ class ServerInfo {
   final bool openJoin;
   final PlatformInt64 everyoneRoleId;
 
+  /// The server icon's hash, for `avatar_path`; `None` without one.
+  final String? iconHash;
+
   const ServerInfo({
     required this.serverIdHex,
     required this.name,
@@ -3475,6 +3798,7 @@ class ServerInfo {
     this.ownerId,
     required this.openJoin,
     required this.everyoneRoleId,
+    this.iconHash,
   });
 
   @override
@@ -3484,7 +3808,8 @@ class ServerInfo {
       description.hashCode ^
       ownerId.hashCode ^
       openJoin.hashCode ^
-      everyoneRoleId.hashCode;
+      everyoneRoleId.hashCode ^
+      iconHash.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -3496,7 +3821,8 @@ class ServerInfo {
           description == other.description &&
           ownerId == other.ownerId &&
           openJoin == other.openJoin &&
-          everyoneRoleId == other.everyoneRoleId;
+          everyoneRoleId == other.everyoneRoleId &&
+          iconHash == other.iconHash;
 }
 
 /// Something the owner or admins should know: the public address changed,
@@ -3755,6 +4081,200 @@ class SpeakingChange {
           speaking == other.speaking;
 }
 
+class StorageBackend {
+  final PlatformInt64 id;
+  final StorageKind kind;
+  final String name;
+
+  /// New files go here.
+  final bool active;
+  final S3Config? s3;
+  final bool hasSecret;
+  final BigInt fileCount;
+  final BigInt bytes;
+
+  /// Why its last test failed.
+  final String? lastError;
+
+  const StorageBackend({
+    required this.id,
+    required this.kind,
+    required this.name,
+    required this.active,
+    this.s3,
+    required this.hasSecret,
+    required this.fileCount,
+    required this.bytes,
+    this.lastError,
+  });
+
+  @override
+  int get hashCode =>
+      id.hashCode ^
+      kind.hashCode ^
+      name.hashCode ^
+      active.hashCode ^
+      s3.hashCode ^
+      hasSecret.hashCode ^
+      fileCount.hashCode ^
+      bytes.hashCode ^
+      lastError.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is StorageBackend &&
+          runtimeType == other.runtimeType &&
+          id == other.id &&
+          kind == other.kind &&
+          name == other.name &&
+          active == other.active &&
+          s3 == other.s3 &&
+          hasSecret == other.hasSecret &&
+          fileCount == other.fileCount &&
+          bytes == other.bytes &&
+          lastError == other.lastError;
+}
+
+/// Where a server keeps its files. Owner only.
+class StorageInfo {
+  final List<StorageBackend> backends;
+
+  /// The running or last move.
+  final StorageMove? moveStatus;
+
+  /// Free space where the server receives uploads.
+  final BigInt tempFreeBytes;
+
+  const StorageInfo({
+    required this.backends,
+    this.moveStatus,
+    required this.tempFreeBytes,
+  });
+
+  @override
+  int get hashCode =>
+      backends.hashCode ^ moveStatus.hashCode ^ tempFreeBytes.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is StorageInfo &&
+          runtimeType == other.runtimeType &&
+          backends == other.backends &&
+          moveStatus == other.moveStatus &&
+          tempFreeBytes == other.tempFreeBytes;
+}
+
+enum StorageKind { local, s3 }
+
+/// Moving every file to the active storage.
+class StorageMove {
+  final PlatformInt64 toStorageId;
+  final bool running;
+  final BigInt filesDone;
+  final BigInt filesTotal;
+  final BigInt bytesDone;
+  final BigInt bytesTotal;
+  final int failed;
+
+  const StorageMove({
+    required this.toStorageId,
+    required this.running,
+    required this.filesDone,
+    required this.filesTotal,
+    required this.bytesDone,
+    required this.bytesTotal,
+    required this.failed,
+  });
+
+  @override
+  int get hashCode =>
+      toStorageId.hashCode ^
+      running.hashCode ^
+      filesDone.hashCode ^
+      filesTotal.hashCode ^
+      bytesDone.hashCode ^
+      bytesTotal.hashCode ^
+      failed.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is StorageMove &&
+          runtimeType == other.runtimeType &&
+          toStorageId == other.toStorageId &&
+          running == other.running &&
+          filesDone == other.filesDone &&
+          filesTotal == other.filesTotal &&
+          bytesDone == other.bytesDone &&
+          bytesTotal == other.bytesTotal &&
+          failed == other.failed;
+}
+
+/// A bucket test: the steps run, up to the first that failed.
+class StorageTestResult {
+  final List<StorageTestStep> steps;
+  final bool ok;
+
+  const StorageTestResult({required this.steps, required this.ok});
+
+  @override
+  int get hashCode => steps.hashCode ^ ok.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is StorageTestResult &&
+          runtimeType == other.runtimeType &&
+          steps == other.steps &&
+          ok == other.ok;
+}
+
+class StorageTestStep {
+  final String name;
+  final bool ok;
+  final String detail;
+
+  const StorageTestStep({
+    required this.name,
+    required this.ok,
+    required this.detail,
+  });
+
+  @override
+  int get hashCode => name.hashCode ^ ok.hashCode ^ detail.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is StorageTestStep &&
+          runtimeType == other.runtimeType &&
+          name == other.name &&
+          ok == other.ok &&
+          detail == other.detail;
+}
+
+@freezed
+sealed class StorageTestTarget with _$StorageTestTarget {
+  const StorageTestTarget._();
+
+  /// A saved storage; its result is saved as its `last_error`.
+  const factory StorageTestTarget.existing({required PlatformInt64 storageId}) =
+      StorageTestTarget_Existing;
+
+  /// Settings not saved yet; nothing is saved.
+  const factory StorageTestTarget.config({required S3Config s3}) =
+      StorageTestTarget_Config;
+
+  /// A saved storage's edited settings, not saved yet: keys left empty
+  /// are its saved ones. Nothing is saved.
+  const factory StorageTestTarget.edited({
+    required PlatformInt64 storageId,
+    required S3Config s3,
+  }) = StorageTestTarget_Edited;
+}
+
 /// What a screen share shows.
 enum StreamSourceKind { screen, window }
 
@@ -3878,17 +4398,75 @@ class TunnelStatus {
           installing == other.installing;
 }
 
+@freezed
+sealed class UploadPhase with _$UploadPhase {
+  const UploadPhase._();
+
+  /// Reading it, and removing a photo's location.
+  const factory UploadPhase.preparing() = UploadPhase_Preparing;
+  const factory UploadPhase.uploading() = UploadPhase_Uploading;
+
+  /// The server checks it and makes its thumbnail.
+  const factory UploadPhase.processing() = UploadPhase_Processing;
+
+  /// Every file is in; the message goes out.
+  const factory UploadPhase.sending() = UploadPhase_Sending;
+  const factory UploadPhase.done() = UploadPhase_Done;
+  const factory UploadPhase.failed({required String message}) =
+      UploadPhase_Failed;
+  const factory UploadPhase.cancelled() = UploadPhase_Cancelled;
+}
+
+/// What may be uploaded to a server.
+class UploadSettings {
+  /// Lowercase, without the dot; may hold inner dots ("tar.gz").
+  final List<String> blockedExtensions;
+  final int voiceMessageMaxSeconds;
+
+  /// The server's ceiling: the owner's limit and the most any role allows.
+  final BigInt maxFileBytes;
+  final int maxAttachments;
+
+  const UploadSettings({
+    required this.blockedExtensions,
+    required this.voiceMessageMaxSeconds,
+    required this.maxFileBytes,
+    required this.maxAttachments,
+  });
+
+  @override
+  int get hashCode =>
+      blockedExtensions.hashCode ^
+      voiceMessageMaxSeconds.hashCode ^
+      maxFileBytes.hashCode ^
+      maxAttachments.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is UploadSettings &&
+          runtimeType == other.runtimeType &&
+          blockedExtensions == other.blockedExtensions &&
+          voiceMessageMaxSeconds == other.voiceMessageMaxSeconds &&
+          maxFileBytes == other.maxFileBytes &&
+          maxAttachments == other.maxAttachments;
+}
+
 class User {
   final PlatformInt64 id;
   final String publicKeyHex;
   final String fingerprint;
   final String displayName;
 
+  /// The profile picture's hash, for `avatar_path`; `None` without one.
+  final String? avatarHash;
+
   const User({
     required this.id,
     required this.publicKeyHex,
     required this.fingerprint,
     required this.displayName,
+    this.avatarHash,
   });
 
   @override
@@ -3896,7 +4474,8 @@ class User {
       id.hashCode ^
       publicKeyHex.hashCode ^
       fingerprint.hashCode ^
-      displayName.hashCode;
+      displayName.hashCode ^
+      avatarHash.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -3906,7 +4485,8 @@ class User {
           id == other.id &&
           publicKeyHex == other.publicKeyHex &&
           fingerprint == other.fingerprint &&
-          displayName == other.displayName;
+          displayName == other.displayName &&
+          avatarHash == other.avatarHash;
 }
 
 /// What this system can do with video (Phase 2 plan §7.11, §8, §9).
@@ -4019,6 +4599,32 @@ enum VoiceCue {
   undeafen,
   streamStart,
   streamStop,
+}
+
+/// A voice message recorded on this device, ready to send or preview.
+class VoiceDraft {
+  final BigInt draftId;
+  final int durationMs;
+  final Uint8List waveform;
+
+  const VoiceDraft({
+    required this.draftId,
+    required this.durationMs,
+    required this.waveform,
+  });
+
+  @override
+  int get hashCode =>
+      draftId.hashCode ^ durationMs.hashCode ^ waveform.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is VoiceDraft &&
+          runtimeType == other.runtimeType &&
+          draftId == other.draftId &&
+          durationMs == other.durationMs &&
+          waveform == other.waveform;
 }
 
 /// Server-wide voice, video and soundboard settings.
@@ -4288,3 +4894,6 @@ class VoiceStats {
           cameraEncoder == other.cameraEncoder &&
           screenEncoder == other.screenEncoder;
 }
+
+/// Why a voice recording stopped by itself.
+enum VoiceStopReason { maxLength, deviceLost }

@@ -78,6 +78,15 @@ message Event {
     CommandsUpdate commands_update = 100;
     // Only to the session that ran the command.
     EphemeralMessage ephemeral_message = 101;
+
+    // Media uploads (design 2026-10-18).
+    // To everyone.
+    UploadSettingsUpdate upload_settings_update = 110;
+    // To the uploader's own sessions.
+    UploadReady upload_ready = 111;
+    UploadFailed upload_failed = 112;
+    // To the owner only.
+    StorageUpdate storage_update = 113;
   }
 }
 
@@ -208,3 +217,9 @@ message SoundboardSoundUpdate {
 message SoundboardSoundDelete {
   int64 sound_id = 1;
 }
+
+message UploadSettingsUpdate { UploadSettings settings = 1; }
+message UploadReady { Attachment attachment = 1; }
+message UploadFailed { int64 upload_id = 1; Error error = 2; }
+message StorageUpdate { Storage storage = 1; }
+

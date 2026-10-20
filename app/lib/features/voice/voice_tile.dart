@@ -38,10 +38,14 @@ class VoiceTileView extends StatelessWidget {
     this.onStopWatching,
     this.viewers,
     this.onViewers,
+    this.picture,
   });
 
   final int userId;
   final String name;
+
+  /// Their profile picture, when they have one.
+  final ImageProvider? picture;
 
   /// The screen [name] shares, not [name] themselves.
   final bool screen;
@@ -142,8 +146,9 @@ class VoiceTileView extends StatelessWidget {
                 LayoutBuilder(
                   builder: (context, constraints) => Center(
                     child: OcAvatar(
-                      id: userId,
+                      id: '$userId',
                       name: name,
+                      image: picture,
                       size: small
                           ? 36
                           : math.min(72, constraints.maxHeight * 0.5),

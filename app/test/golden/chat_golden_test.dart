@@ -56,6 +56,7 @@ Widget _line(
         ? OcAvatar(id: '${message.authorId}', name: author)
         : null,
     bubble: MessageBubble(
+      serverKey: 'golden',
       message: message,
       own: own,
       first: first,
@@ -77,6 +78,7 @@ Widget _compact(
   ReplyPreview? reply,
   bool mentionsMe = false,
 }) => CompactMessage(
+  serverKey: 'golden',
   message: message,
   first: first,
   author: author,

@@ -12,15 +12,20 @@ publish = false
 crate-type = ["cdylib", "staticlib", "rlib"]
 
 [dependencies]
+bytes.workspace = true
 data-encoding.workspace = true
 flutter_rust_bridge.workspace = true
 futures-util.workspace = true
 getrandom.workspace = true
 hex.workspace = true
+image.workspace = true
 opencord-common.workspace = true
 opencord-media.workspace = true
 opencord-proto.workspace = true
+opus.workspace = true
 prost.workspace = true
+reqwest.workspace = true
+rtrb.workspace = true
 rustls.workspace = true
 rustls-platform-verifier.workspace = true
 serde.workspace = true
@@ -29,12 +34,13 @@ sha2.workspace = true
 thiserror.workspace = true
 tokio-rustls.workspace = true
 tokio-tungstenite.workspace = true
+tokio-util.workspace = true
 tokio.workspace = true
 tracing.workspace = true
 webpki-roots.workspace = true
+wsola.workspace = true
 
 [dev-dependencies]
-image.workspace = true
 opencord-server.workspace = true
 tempfile.workspace = true
 
@@ -46,6 +52,7 @@ unexpected_cfgs = { level = "warn", check-cfg = ['cfg(frb_expand)'] }
 irondash_run_loop.workspace = true
 irondash_texture.workspace = true
 
+
 # One section per system (docs/plans/platforms.md): each session edits only
 # its own. A crate only one system needs goes here with its version, never
 # in [workspace.dependencies].
@@ -54,6 +61,9 @@ irondash_texture.workspace = true
 # GPU into Flutter's GL textures. EGL loaded at run time, like Flutter's.
 glow = "0.18.0"
 khronos-egl = { version = "6.0.0", features = ["dynamic"] }
+# Pasting and copying images (media uploads plan, Task 21), on X11 and
+# Wayland. macOS gets it in P2; on Windows it brings Boost-licensed crates.
+arboard = { version = "3.7.0", default-features = false, features = ["image-data", "wayland-data-control"] }
 
 [target.'cfg(target_os = "macos")'.dependencies]
 

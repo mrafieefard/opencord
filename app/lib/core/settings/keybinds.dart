@@ -71,6 +71,33 @@ class Keybinds {
         other,
   ];
 
+  /// With a new row for [action], with [keys] when known; and its id.
+  (Keybinds, int) added(HotkeyAction action, {String keys = ''}) {
+    final id = list.fold(-1, (most, row) => row.id > most ? row.id : most) + 1;
+    return (
+      Keybinds(
+        List.unmodifiable([
+          ...list,
+          Keybind(id: id, action: action, keys: keys),
+        ]),
+      ),
+      id,
+    );
+  }
+
+  Keybinds changed(int id, Keybind Function(Keybind keybind) edit) => Keybinds(
+    List.unmodifiable([
+      for (final keybind in list) keybind.id == id ? edit(keybind) : keybind,
+    ]),
+  );
+
+  Keybinds removed(int id) => Keybinds(
+    List.unmodifiable([
+      for (final keybind in list)
+        if (keybind.id != id) keybind,
+    ]),
+  );
+
   List<Object?> toJson() => [for (final keybind in list) keybind.toJson()];
 
   /// A list of rows; or the earlier one-key-per-action map.
@@ -118,8 +145,9 @@ class KeybindsNotifier extends Notifier<Keybinds> {
     readJson(ref.watch(keyValueStoreProvider), keybindsKey),
   );
 
-  void _save(List<Keybind> list) {
-    state = Keybinds(List.unmodifiable(list));
+  /// Saves [keybinds] as they are: what the settings' save bar applies.
+  void replace(Keybinds keybinds) {
+    state = keybinds;
     ref
         .read(keyValueStoreProvider)
         .write(keybindsKey, jsonEncode(state.toJson()));
@@ -127,21 +155,15 @@ class KeybindsNotifier extends Notifier<Keybinds> {
 
   /// A new row for [action], with [keys] when known; its id.
   int add(HotkeyAction action, {String keys = ''}) {
-    final id =
-        state.list.fold(-1, (most, row) => row.id > most ? row.id : most) + 1;
-    _save([...state.list, Keybind(id: id, action: action, keys: keys)]);
+    final (keybinds, id) = state.added(action, keys: keys);
+    replace(keybinds);
     return id;
   }
 
-  void change(int id, Keybind Function(Keybind keybind) edit) => _save([
-    for (final keybind in state.list)
-      keybind.id == id ? edit(keybind) : keybind,
-  ]);
+  void change(int id, Keybind Function(Keybind keybind) edit) =>
+      replace(state.changed(id, edit));
 
-  void remove(int id) => _save([
-    for (final keybind in state.list)
-      if (keybind.id != id) keybind,
-  ]);
+  void remove(int id) => replace(state.removed(id));
 }
 
 final keybindsProvider = NotifierProvider<KeybindsNotifier, Keybinds>(

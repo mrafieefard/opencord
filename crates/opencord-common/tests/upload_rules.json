@@ -1,0 +1,38 @@
+{
+  "limits": [
+    {"owner": false, "everyone": 52428800, "roles": [], "ceiling": 4294967296, "expected": 52428800},
+    {"owner": false, "everyone": 52428800, "roles": [null, 104857600], "ceiling": 4294967296, "expected": 104857600},
+    {"owner": false, "everyone": 52428800, "roles": [10485760], "ceiling": 4294967296, "expected": 52428800},
+    {"owner": false, "everyone": 52428800, "roles": [9999999999999], "ceiling": 4294967296, "expected": 4294967296},
+    {"owner": true, "everyone": 52428800, "roles": [], "ceiling": 4294967296, "expected": 4294967296}
+  ],
+  "filenames": [
+    {"input": "photo.jpg", "expected": "photo.jpg"},
+    {"input": "../../etc/passwd", "expected": "passwd"},
+    {"input": "C:\\Users\\a\\x.png", "expected": "x.png"},
+    {"input": "evil.exe. . ", "expected": "evil.exe"},
+    {"input": "con.txt", "expected": "_con.txt"},
+    {"input": "Lpt9", "expected": "_Lpt9"},
+    {"input": "a\u0000b\u0007.txt", "expected": "ab.txt"},
+    {"input": "a\u0085b\u009f.txt", "expected": "ab.txt"},
+    {"input": "😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀.txt", "expected": "😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀.txt"},
+    {"input": "   ", "expected": "file"},
+    {"input": "", "expected": "file"}
+  ],
+  "extensions": [
+    {"input": ".EXE", "expected": "exe"},
+    {"input": "tar.gz", "expected": "tar.gz"},
+    {"input": "a..b", "expected": null},
+    {"input": "", "expected": null},
+    {"input": "toolongextension12345", "expected": null},
+    {"input": "ex e", "expected": null}
+  ],
+  "blocked": [
+    {"filename": "setup.EXE", "list": ["exe"], "expected": true},
+    {"filename": "archive.tar.gz", "list": ["tar.gz"], "expected": true},
+    {"filename": "archive.gz", "list": ["tar.gz"], "expected": false},
+    {"filename": "exe", "list": ["exe"], "expected": false},
+    {"filename": ".exe", "list": ["exe"], "expected": true},
+    {"filename": "notes.txt", "list": [], "expected": false}
+  ]
+}

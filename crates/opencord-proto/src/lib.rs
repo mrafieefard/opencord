@@ -37,6 +37,7 @@ mod tests {
                     channel_id: 42,
                     content: "hello".into(),
                     nonce: "n-1".into(),
+                    attachment_ids: Vec::new(),
                 })),
             })),
         };

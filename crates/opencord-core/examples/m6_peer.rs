@@ -105,7 +105,7 @@ async fn run(address: &str, claim: &str, invite_file: &Path) -> Result<(), Failu
         .await?;
 
     let role = client
-        .create_role(&key, ROLE.to_owned(), 0x3B_A5_5C, 0, true, false)
+        .create_role(&key, ROLE.to_owned(), 0x3B_A5_5C, 0, true, false, None)
         .await?;
     client.add_member_role(&key, member_id, role.id).await?;
     client

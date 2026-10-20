@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE storage_backends\n         SET kind = $2, name = $3, endpoint = $4, region = $5,\n             bucket = $6, key_prefix = $7, path_style = $8,\n             allow_http = $9, access_key_id = $10, secret_enc = $11,\n             active = $12, last_error = $13\n         WHERE id = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 13
+    },
+    "nullable": []
+  },
+  "hash": "d8afa6d98c89e4dadfbdcbc7ccfabf291336d1dc2333eeb3485ad9eb86deac71"
+}

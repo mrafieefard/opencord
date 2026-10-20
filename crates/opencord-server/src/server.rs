@@ -71,7 +71,8 @@ pub async fn start(config: Config) -> anyhow::Result<ServerHandle> {
         .unzip();
     let guild = Guild::load(&mut *pool.acquire().await?, bootstrap.meta).await?;
     let invite_code = bootstrap::startup_invite(&pool, now_ms()).await?;
-    let secrets = Secrets::load_or_generate(&data_dir)?;
+    let secrets =
+        Secrets::load_or_generate(&config.secrets_file(), !db::holds_sealed_data(&pool).await?)?;
     let store = Arc::new(CertStore::new(certified_key(
         tls.cert_chain.clone(),
         &tls.key,
@@ -97,6 +98,13 @@ pub async fn start(config: Config) -> anyhow::Result<ServerHandle> {
         .with_certificates(certificates),
     );
     state
+        .attachments
+        .load(
+            &mut *state.db.acquire().await?,
+            state.certificates.secrets(),
+        )
+        .await?;
+    state
         .certificates
         .serve(&state.domains.all(), crate::state::now_ms());
     state.network.restore(network_settings);
@@ -118,6 +126,7 @@ pub async fn start(config: Config) -> anyhow::Result<ServerHandle> {
     music::start(&state).await?;
     state.commands.load(&mut *state.db.acquire().await?).await?;
     crate::lavalink::start(&state).await?;
+    crate::attachments::start(&state).await?;
     if let Some(mut events) = node_events {
         let state = Arc::clone(&state);
         tokio::spawn(async move {
@@ -273,6 +282,30 @@ impl ServerHandle {
         for session in self.state.sessions.for_user(user_id) {
             session.drop_connection(CloseCode::UNKNOWN, Instant::now());
         }
+    }
+
+    /// Intended for tests.
+    pub fn hold_processing(&self, hold: bool) {
+        self.state.attachments.hold_processing(hold);
+    }
+
+    /// Intended for tests.
+    pub async fn sweep_attachments(&self, now_ms: i64) {
+        crate::attachments::gc::sweep(&self.state, now_ms).await;
+    }
+
+    /// Intended for tests.
+    pub async fn drain_blob_deletions(&self, now_ms: i64) {
+        crate::attachments::gc::drain_blobs(&self.state, now_ms).await;
+    }
+
+    /// Intended for tests: how many uploads are in `state` ("uploading",
+    /// "processing", "ready", "failed" or "sent").
+    pub async fn uploads_in_state(&self, state: &str) -> Result<usize, sqlx::Error> {
+        let mut conn = self.state.db.acquire().await?;
+        Ok(crate::db::attachments::in_state(&mut conn, state)
+            .await?
+            .len())
     }
 }
 

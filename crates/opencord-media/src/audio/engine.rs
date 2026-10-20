@@ -6,8 +6,8 @@
 //! out at most every 50 ms (plan §7.5, §7.12).
 
 use std::collections::HashMap;
-use std::sync::Arc;
 use std::sync::mpsc::{self, Receiver, Sender, TryRecvError};
+use std::sync::{Arc, Mutex, PoisonError};
 use std::thread::JoinHandle;
 use std::time::{Duration, Instant};
 
@@ -121,6 +121,8 @@ enum Command {
     LevelMeter(bool),
     PlaySound(Arc<[f32]>, f32),
     StopSounds,
+    CaptureTap(Option<rtrb::Producer<f32>>, bool),
+    LocalMedia(Option<rtrb::Consumer<f32>>),
     Stop,
 }
 
@@ -128,6 +130,8 @@ enum Command {
 pub struct AudioEngine {
     commands: Sender<Command>,
     thread: Option<JoinHandle<()>>,
+    /// The local media source mixed in now (0: none), and the last id given.
+    local_media: Mutex<(u64, u64)>,
 }
 
 impl AudioEngine {
@@ -185,6 +189,7 @@ impl AudioEngine {
             Ok(Ok(())) => Ok(Self {
                 commands,
                 thread: Some(thread),
+                local_media: Mutex::default(),
             }),
             Ok(Err(error)) => {
                 let _ = thread.join();
@@ -370,6 +375,46 @@ impl AudioEngine {
         self.command(Command::LevelMeter(on));
     }
 
+    /// Attaches or detaches a capture tap on the processing tick.
+    pub fn set_capture_tap(&self, tap: Option<rtrb::Producer<f32>>, silence_call: bool) {
+        self.command(Command::CaptureTap(tap, silence_call));
+    }
+
+    /// Mixes an interleaved stereo source (48 kHz) into local playback and
+    /// the echo canceller's reference, in place of any other; returns the
+    /// id that detaches it.
+    pub fn attach_local_media(&self, source: rtrb::Consumer<f32>) -> u64 {
+        let mut local_media = self
+            .local_media
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner);
+        local_media.1 += 1;
+        local_media.0 = local_media.1;
+        self.command(Command::LocalMedia(Some(source)));
+        local_media.0
+    }
+
+    /// Detaches source `id`, unless another source took its place since.
+    pub fn detach_local_media(&self, id: u64) {
+        let mut local_media = self
+            .local_media
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner);
+        if local_media.0 == id {
+            local_media.0 = 0;
+            self.command(Command::LocalMedia(None));
+        }
+    }
+
+    /// Whether source `id` is still the one mixed in.
+    pub fn has_local_media(&self, id: u64) -> bool {
+        self.local_media
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .0
+            == id
+    }
+
     fn command(&self, command: Command) {
         let _ = self.commands.send(command);
     }
@@ -535,6 +580,10 @@ impl Engine {
             Command::PlaySound(samples, gain) => processor.play_sound(samples, gain),
             Command::StopSounds => processor.stop_sounds(),
             Command::LevelMeter(on) => self.level_meter = on,
+            Command::CaptureTap(tap, silence_call) => {
+                processor.set_capture_tap(tap, silence_call);
+            }
+            Command::LocalMedia(source) => processor.set_local_media(source),
             Command::Stop => {}
         }
     }

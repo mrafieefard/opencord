@@ -7,6 +7,7 @@ import 'package:opencord/core/model/lavalink.dart';
 import 'package:opencord/core/model/network.dart';
 import 'package:opencord/core/providers/providers.dart';
 import 'package:opencord/core/repository/repository.dart';
+import 'package:opencord/features/settings/settings_dialog.dart';
 import 'package:opencord/features/settings/server/music/node_dialog.dart';
 import 'package:opencord/features/settings/server/music/node_test_dialog.dart';
 import 'package:opencord/ui/theme/oc_colors.dart';
@@ -384,19 +385,26 @@ class LavalinkNodeRow extends ConsumerWidget {
                 : null,
           ),
           const SizedBox(width: OcSpace.s12),
-          Tooltip(
-            message: settings.enabled ? 'Enabled' : 'Disabled',
-            child: Semantics(
-              label: 'Enabled',
-              toggled: settings.enabled,
-              child: OcSwitch(
-                value: settings.enabled,
-                onChanged: (on) => _update(
-                  context,
-                  ref,
-                  LavalinkNodeChanges(settings: settings.copyWith(enabled: on)),
-                  done: on ? '${settings.name} enabled' : null,
+          // Waits for the save bar.
+          PendingValue<bool>(
+            saved: settings.enabled,
+            save: (on) => ref
+                .read(lavalinkProvider(serverKey).notifier)
+                .change(
+                  (repository, server) => repository.updateLavalinkNode(
+                    server,
+                    nodeId,
+                    LavalinkNodeChanges(
+                      settings: settings.copyWith(enabled: on),
+                    ),
+                  ),
                 ),
+            builder: (context, on, change) => Tooltip(
+              message: on ? 'Enabled' : 'Disabled',
+              child: Semantics(
+                label: 'Enabled',
+                toggled: on,
+                child: OcSwitch(value: on, onChanged: change),
               ),
             ),
           ),

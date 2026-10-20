@@ -13,6 +13,7 @@ import 'package:opencord/ui/widgets/oc_button.dart';
 import 'package:opencord/ui/widgets/settings.dart';
 
 import '../../support/app.dart';
+import '../../support/save_bar.dart';
 
 const _dev = 'opencord.example:7710';
 
@@ -132,8 +133,7 @@ void main() {
     await tester.enterText(_in(find.byType(TextField)).first, 'Support Desk');
     await tester.enterText(_in(find.byType(TextField)).at(1), 'Ask away');
     await tester.pump();
-    await tester.tap(_in(find.widgetWithText(OcButton, 'Save changes')));
-    await _pumpFor(tester, const Duration(milliseconds: 600));
+    await saveSettings(tester);
 
     final channel = _named(app, 'support-desk');
     expect(channel.topic, 'Ask away');
@@ -150,7 +150,9 @@ void main() {
     await tester.tap(_in(find.text('Category')));
     await _pumpFor(tester, const Duration(milliseconds: 300));
     await tester.tap(find.text('Information'));
-    await _pumpFor(tester, const Duration(milliseconds: 600));
+    await _pumpFor(tester, const Duration(milliseconds: 300));
+    expect(_named(app, 'help').parentId, isNot(_named(app, 'Information').id));
+    await saveSettings(tester);
 
     final information = _named(app, 'Information');
     expect(_named(app, 'help').parentId, information.id);
@@ -187,6 +189,7 @@ void main() {
       _tile('off-topic'),
       tester.getCenter(_tile('general')) - const Offset(0, 12),
     );
+    await saveSettings(tester);
 
     expect(
       _named(app, 'off-topic').position,
@@ -204,6 +207,7 @@ void main() {
       _tile('VOICE'),
       tester.getCenter(_tile('INFORMATION')) - const Offset(0, 12),
     );
+    await saveSettings(tester);
 
     expect(
       _named(app, 'Voice').position,
@@ -217,7 +221,7 @@ void main() {
   });
 
   group('permissions', () {
-    testWidgets('Deny on @everyone writes an overwrite at once', (
+    testWidgets('Deny on @everyone writes an overwrite once saved', (
       tester,
     ) async {
       final app = await MockApp.pump(tester);
@@ -228,7 +232,9 @@ void main() {
       final deny = find.bySemanticsLabel('Deny Send messages');
       await tester.ensureVisible(deny);
       await tester.tap(deny);
-      await _pumpFor(tester, const Duration(milliseconds: 600));
+      await _pumpFor(tester, const Duration(milliseconds: 300));
+      expect(_named(app, 'general').overwrites, isEmpty);
+      await saveSettings(tester);
 
       final everyone = app.read(serverProvider(_dev)).data!.info.everyoneRoleId;
       final overwrite = _named(app, 'general').overwrites.singleWhere(
@@ -252,7 +258,9 @@ void main() {
       await _pumpFor(tester, const Duration(milliseconds: 300));
       await tester.enterText(find.byType(TextField).last, 'contri');
       await tester.testTextInput.receiveAction(TextInputAction.done);
-      await _pumpFor(tester, const Duration(milliseconds: 800));
+      await _pumpFor(tester, const Duration(milliseconds: 300));
+      expect(_in(find.text('Remove Contributor')), findsOneWidget);
+      await saveSettings(tester);
 
       final contributor = _roleId(app, 'Contributor');
       expect(
@@ -304,7 +312,7 @@ void main() {
       final remove = _in(find.text('Remove Maintainer'));
       await tester.ensureVisible(remove);
       await tester.tap(remove);
-      await _pumpFor(tester, const Duration(milliseconds: 600));
+      await saveSettings(tester);
 
       final maintainer = _roleId(app, 'Maintainer');
       expect(
@@ -375,8 +383,7 @@ void main() {
     await tester.tap(_in(find.text('Push-to-talk required')));
     await tester.pump();
     expect(_in(find.text('5 people')), findsOneWidget);
-    await tester.tap(_in(find.widgetWithText(OcButton, 'Save changes')));
-    await _pumpFor(tester, const Duration(milliseconds: 600));
+    await saveSettings(tester);
 
     final pairing = _named(app, 'Pairing');
     expect(pairing.userLimit, 5);
@@ -386,7 +393,8 @@ void main() {
       (o) => o.targets(OverwriteTargetKind.role, everyone),
     );
     expect(overwrite.deny.has(Permissions.useVoiceActivity), isTrue);
-    expect(_in(find.widgetWithText(OcButton, 'Save changes')), findsOneWidget);
+    // All saved: the bar goes.
+    expect(find.text('Careful — you have unsaved changes!'), findsNothing);
     await app.dispose(tester);
   });
 }

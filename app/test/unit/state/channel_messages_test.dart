@@ -26,6 +26,7 @@ core.Message _message(int id, {int channel = _general}) => core.Message(
   authorId: 2,
   content: 'm$id',
   createdAtMs: 1760000000000 + id,
+  attachments: const [],
 );
 
 /// Newest first, as the core answers.
@@ -56,6 +57,7 @@ final _readyPayload = core.CoreEventPayload.ready(
       publicKeyHex: 'abcd',
       fingerprint: 'ABCD-EFGH-IJKL-MNOP',
       displayName: 'Alex',
+      avatarHash: null,
     ),
     server: const core.ServerInfo(
       serverIdHex: 'ff',
@@ -64,6 +66,7 @@ final _readyPayload = core.CoreEventPayload.ready(
       ownerId: 1,
       openJoin: false,
       everyoneRoleId: 5,
+      iconHash: null,
     ),
     channels: [_text(_general, 'general'), _text(_random, 'random')],
     roles: const [],
@@ -76,6 +79,7 @@ final _readyPayload = core.CoreEventPayload.ready(
     ],
     addresses: const core.ServerAddresses(domains: []),
     commands: const core.CommandList(commands: [], resultsPublic: true),
+    uploadSettings: coreUploadSettings,
   ),
 );
 

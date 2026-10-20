@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart'
     show Int64List;
 
+import 'package:opencord/src/rust/api/attachments.dart' as frb_attachments;
 import 'package:opencord/src/rust/api/client.dart' as frb;
 import 'package:opencord/src/rust/api/types.dart' as core;
 
@@ -215,6 +216,7 @@ abstract interface class CoreApi {
     required int permissions,
     required bool hoist,
     required bool mentionable,
+    int? maxUploadBytes,
   });
 
   Future<core.Role> updateRole(
@@ -250,6 +252,18 @@ abstract interface class CoreApi {
   );
 
   Future<core.User> updateProfile(String serverKey, String displayName);
+
+  Future<String?> setOwnAvatar(String? sourcePath);
+
+  String? ownAvatarHash();
+
+  String? ownAvatarFile();
+
+  Future<core.User> uploadAvatar(String serverKey);
+
+  Future<core.ServerInfo> setServerIcon(String serverKey, String? sourcePath);
+
+  Future<String> avatarPath(String serverKey, String hash);
 
   Future<void> updatePresence(String serverKey, core.PresenceStatus status);
 
@@ -488,6 +502,130 @@ abstract interface class CoreApi {
   void voiceSetSelfMute(bool muted);
 
   void voiceSetSelfDeaf(bool deafened);
+
+  Future<core.Message> sendMessageWithFiles({
+    required String serverKey,
+    required int channelId,
+    required String content,
+    required String nonce,
+    required List<core.OutgoingFile> files,
+  });
+
+  Future<void> stageUpload({
+    required String serverKey,
+    required int channelId,
+    required String stagedId,
+    required core.OutgoingFile file,
+  });
+
+  Future<void> discardStagedUpload({
+    required String serverKey,
+    required String stagedId,
+  });
+
+  void cancelSend({required String serverKey, required String nonce});
+
+  Future<void> downloadAttachment({
+    required String serverKey,
+    required int attachmentId,
+    required String path,
+  });
+
+  void cancelDownload({required String serverKey, required int attachmentId});
+
+  Future<Uint8List> attachmentBytes({
+    required String serverKey,
+    required int attachmentId,
+    required core.AttachmentVariant variant,
+  });
+
+  Future<Uint8List?> clipboardImage();
+
+  Future<void> clipboardSetImage(Uint8List bytes);
+
+  Future<core.UploadSettings> updateUploadSettings({
+    required String serverKey,
+    List<String>? blockedExtensions,
+  });
+
+  Future<core.StorageInfo> storageGet({required String serverKey});
+
+  Future<core.StorageInfo> storageAdd({
+    required String serverKey,
+    required String name,
+    required core.S3Config s3,
+  });
+
+  Future<core.StorageInfo> storageUpdate({
+    required String serverKey,
+    required int storageId,
+    String? name,
+    core.S3Config? s3,
+  });
+
+  Future<core.StorageTestResult> storageTest({
+    required String serverKey,
+    required core.StorageTestTarget target,
+  });
+
+  Future<core.StorageInfo> storageActivate({
+    required String serverKey,
+    required int storageId,
+  });
+
+  Future<core.StorageInfo> storageRemove({
+    required String serverKey,
+    required int storageId,
+  });
+
+  Future<core.StorageInfo> storageMoveStart({required String serverKey});
+
+  Future<core.StorageInfo> storageMoveStop({required String serverKey});
+
+  Future<BigInt> mediaCacheSize();
+
+  Future<void> mediaCacheClear();
+
+  void voiceRecordStart(int maxSeconds);
+
+  core.VoiceDraft voiceRecordStop();
+
+  void voiceRecordCancel();
+
+  void voiceDraftDiscard(BigInt draftId);
+
+  Future<core.Message> sendVoiceMessage(
+    String serverKey,
+    int channelId,
+    String nonce,
+    BigInt draftId,
+  );
+
+  Future<void> voicePlay(core.PlaybackItem item, int positionMs, double speed);
+
+  void voicePause();
+
+  void voiceResume();
+
+  void voiceSeek(int positionMs);
+
+  void voiceSetSpeed(double speed);
+
+  void voiceStop();
+
+  Future<core.MediaHandle> mediaOpen(String serverKey, int attachmentId);
+
+  void mediaPlay();
+
+  void mediaPause();
+
+  void mediaSeek(int positionMs);
+
+  void mediaSetVolume(double volume, bool muted);
+
+  void mediaClose();
+
+  bool mediaSupported();
 }
 
 /// [CoreApi] over the generated bindings; needs `RustLib.init` first.
@@ -866,6 +1004,7 @@ class FrbCoreApi implements CoreApi {
     required int permissions,
     required bool hoist,
     required bool mentionable,
+    int? maxUploadBytes,
   }) => frb.createRole(
     serverKey: serverKey,
     name: name,
@@ -873,6 +1012,7 @@ class FrbCoreApi implements CoreApi {
     permissions: permissions,
     hoist: hoist,
     mentionable: mentionable,
+    maxUploadBytes: maxUploadBytes != null ? BigInt.from(maxUploadBytes) : null,
   );
 
   @override
@@ -935,6 +1075,28 @@ class FrbCoreApi implements CoreApi {
   @override
   Future<core.User> updateProfile(String serverKey, String displayName) =>
       frb.updateProfile(serverKey: serverKey, displayName: displayName);
+
+  @override
+  Future<String?> setOwnAvatar(String? sourcePath) =>
+      frb.setOwnAvatar(sourcePath: sourcePath);
+
+  @override
+  String? ownAvatarHash() => frb.ownAvatarHash();
+
+  @override
+  String? ownAvatarFile() => frb.ownAvatarFile();
+
+  @override
+  Future<core.User> uploadAvatar(String serverKey) =>
+      frb.uploadAvatar(serverKey: serverKey);
+
+  @override
+  Future<core.ServerInfo> setServerIcon(String serverKey, String? sourcePath) =>
+      frb.setServerIcon(serverKey: serverKey, sourcePath: sourcePath);
+
+  @override
+  Future<String> avatarPath(String serverKey, String hash) =>
+      frb.avatarPath(serverKey: serverKey, hash: hash);
 
   @override
   Future<void> updatePresence(String serverKey, core.PresenceStatus status) =>
@@ -1355,4 +1517,232 @@ class FrbCoreApi implements CoreApi {
   @override
   void voiceSetSelfDeaf(bool deafened) =>
       frb.voiceSetSelfDeaf(deafened: deafened);
+
+  @override
+  Future<core.Message> sendMessageWithFiles({
+    required String serverKey,
+    required int channelId,
+    required String content,
+    required String nonce,
+    required List<core.OutgoingFile> files,
+  }) => frb_attachments.sendMessageWithFiles(
+    serverKey: serverKey,
+    channelId: channelId,
+    content: content,
+    nonce: nonce,
+    files: files,
+  );
+
+  @override
+  Future<void> stageUpload({
+    required String serverKey,
+    required int channelId,
+    required String stagedId,
+    required core.OutgoingFile file,
+  }) => frb_attachments.stageUpload(
+    serverKey: serverKey,
+    channelId: channelId,
+    stagedId: stagedId,
+    file: file,
+  );
+
+  @override
+  Future<void> discardStagedUpload({
+    required String serverKey,
+    required String stagedId,
+  }) => frb_attachments.discardStagedUpload(
+    serverKey: serverKey,
+    stagedId: stagedId,
+  );
+
+  @override
+  void cancelSend({required String serverKey, required String nonce}) =>
+      frb_attachments.cancelSend(serverKey: serverKey, nonce: nonce);
+
+  @override
+  Future<void> downloadAttachment({
+    required String serverKey,
+    required int attachmentId,
+    required String path,
+  }) => frb_attachments.downloadAttachment(
+    serverKey: serverKey,
+    attachmentId: attachmentId,
+    path: path,
+  );
+
+  @override
+  void cancelDownload({required String serverKey, required int attachmentId}) =>
+      frb_attachments.cancelDownload(
+        serverKey: serverKey,
+        attachmentId: attachmentId,
+      );
+
+  @override
+  Future<Uint8List> attachmentBytes({
+    required String serverKey,
+    required int attachmentId,
+    required core.AttachmentVariant variant,
+  }) => frb_attachments.attachmentBytes(
+    serverKey: serverKey,
+    attachmentId: attachmentId,
+    variant: variant,
+  );
+
+  @override
+  Future<Uint8List?> clipboardImage() => frb_attachments.clipboardImage();
+
+  @override
+  Future<void> clipboardSetImage(Uint8List bytes) =>
+      frb_attachments.clipboardSetImage(bytes: bytes);
+
+  @override
+  Future<core.UploadSettings> updateUploadSettings({
+    required String serverKey,
+    List<String>? blockedExtensions,
+  }) => frb_attachments.updateUploadSettings(
+    serverKey: serverKey,
+    blockedExtensions: blockedExtensions,
+  );
+
+  @override
+  Future<core.StorageInfo> storageGet({required String serverKey}) =>
+      frb_attachments.storageGet(serverKey: serverKey);
+
+  @override
+  Future<core.StorageInfo> storageAdd({
+    required String serverKey,
+    required String name,
+    required core.S3Config s3,
+  }) => frb_attachments.storageAdd(serverKey: serverKey, name: name, s3: s3);
+
+  @override
+  Future<core.StorageInfo> storageUpdate({
+    required String serverKey,
+    required int storageId,
+    String? name,
+    core.S3Config? s3,
+  }) => frb_attachments.storageUpdate(
+    serverKey: serverKey,
+    storageId: storageId,
+    name: name,
+    s3: s3,
+  );
+
+  @override
+  Future<core.StorageTestResult> storageTest({
+    required String serverKey,
+    required core.StorageTestTarget target,
+  }) => frb_attachments.storageTest(serverKey: serverKey, target: target);
+
+  @override
+  Future<core.StorageInfo> storageActivate({
+    required String serverKey,
+    required int storageId,
+  }) => frb_attachments.storageActivate(
+    serverKey: serverKey,
+    storageId: storageId,
+  );
+
+  @override
+  Future<core.StorageInfo> storageRemove({
+    required String serverKey,
+    required int storageId,
+  }) =>
+      frb_attachments.storageRemove(serverKey: serverKey, storageId: storageId);
+
+  @override
+  Future<core.StorageInfo> storageMoveStart({required String serverKey}) =>
+      frb_attachments.storageMoveStart(serverKey: serverKey);
+
+  @override
+  Future<core.StorageInfo> storageMoveStop({required String serverKey}) =>
+      frb_attachments.storageMoveStop(serverKey: serverKey);
+
+  @override
+  Future<BigInt> mediaCacheSize() => frb_attachments.mediaCacheSize();
+
+  @override
+  Future<void> mediaCacheClear() => frb_attachments.mediaCacheClear();
+
+  @override
+  void voiceRecordStart(int maxSeconds) =>
+      frb_attachments.voiceRecordStart(maxSeconds: maxSeconds);
+
+  @override
+  core.VoiceDraft voiceRecordStop() => frb_attachments.voiceRecordStop();
+
+  @override
+  void voiceRecordCancel() => frb_attachments.voiceRecordCancel();
+
+  @override
+  void voiceDraftDiscard(BigInt draftId) =>
+      frb_attachments.voiceDraftDiscard(draftId: draftId);
+
+  @override
+  Future<core.Message> sendVoiceMessage(
+    String serverKey,
+    int channelId,
+    String nonce,
+    BigInt draftId,
+  ) => frb_attachments.sendVoiceMessage(
+    serverKey: serverKey,
+    channelId: channelId,
+    nonce: nonce,
+    draftId: draftId,
+  );
+
+  @override
+  Future<void> voicePlay(
+    core.PlaybackItem item,
+    int positionMs,
+    double speed,
+  ) => frb_attachments.voicePlay(
+    item: item,
+    positionMs: positionMs,
+    speed: speed,
+  );
+
+  @override
+  void voicePause() => frb_attachments.voicePause();
+
+  @override
+  void voiceResume() => frb_attachments.voiceResume();
+
+  @override
+  void voiceSeek(int positionMs) =>
+      frb_attachments.voiceSeek(positionMs: positionMs);
+
+  @override
+  void voiceSetSpeed(double speed) =>
+      frb_attachments.voiceSetSpeed(speed: speed);
+
+  @override
+  void voiceStop() => frb_attachments.voiceStop();
+
+  @override
+  Future<core.MediaHandle> mediaOpen(String serverKey, int attachmentId) =>
+      frb_attachments.mediaOpen(
+        serverKey: serverKey,
+        attachmentId: attachmentId,
+      );
+
+  @override
+  void mediaPlay() => frb_attachments.mediaPlay();
+
+  @override
+  void mediaPause() => frb_attachments.mediaPause();
+
+  @override
+  void mediaSeek(int positionMs) =>
+      frb_attachments.mediaSeek(positionMs: positionMs);
+
+  @override
+  void mediaSetVolume(double volume, bool muted) =>
+      frb_attachments.mediaSetVolume(volume: volume, muted: muted);
+
+  @override
+  void mediaClose() => frb_attachments.mediaClose();
+
+  @override
+  bool mediaSupported() => frb_attachments.mediaSupported();
 }

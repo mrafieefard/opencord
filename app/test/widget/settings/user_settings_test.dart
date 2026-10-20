@@ -5,6 +5,7 @@ import 'package:opencord/ui/widgets/settings.dart';
 import 'package:opencord/core/app_info.dart';
 import 'package:opencord/core/model/voice.dart';
 import 'package:opencord/core/providers/providers.dart';
+import 'package:opencord/core/repository/repository.dart';
 import 'package:opencord/core/settings/app_settings.dart';
 import 'package:opencord/core/settings/local_prefs.dart';
 import 'package:opencord/features/settings/settings_dialog.dart';
@@ -47,6 +48,18 @@ Future<void> _page(WidgetTester tester, String label) async {
 Finder _inPage(Finder finder) =>
     find.descendant(of: find.byType(SettingsDialog), matching: finder);
 
+/// Client settings wait for the save bar, as in Discord.
+Future<void> _saveChanges(WidgetTester tester) async {
+  await _pumpFor(tester, const Duration(milliseconds: 300));
+  await tester.tap(
+    find.descendant(
+      of: find.byType(SaveBar),
+      matching: find.widgetWithText(OcButton, 'Save changes'),
+    ),
+  );
+  await _pumpFor(tester, const Duration(milliseconds: 300));
+}
+
 void main() {
   testWidgets('Ctrl+, opens settings on My profile', (tester) async {
     final app = await MockApp.pump(tester, platform: TargetPlatform.linux);
@@ -88,19 +101,33 @@ void main() {
     );
   }
 
-  testWidgets('the theme and density apply at once', (tester) async {
+  testWidgets('the theme and density wait for Save changes; Discard drops '
+      'them', (tester) async {
     final app = await MockApp.pump(tester, platform: TargetPlatform.linux);
     await _openSettings(tester);
     await _page(tester, 'Appearance');
+    final before = app.read(appSettingsProvider);
 
     await tester.tap(_inPage(find.text('Light')));
     await tester.pump();
     await tester.tap(_inPage(find.text('Compact')));
-    await tester.pump();
+    await _pumpFor(tester, const Duration(milliseconds: 300));
+    expect(app.read(appSettingsProvider), before, reason: 'not yet');
+    expect(find.text('Careful — you have unsaved changes!'), findsOneWidget);
 
+    await tester.tap(find.widgetWithText(OcButton, 'Discard'));
+    await _pumpFor(tester, const Duration(milliseconds: 300));
+    expect(app.read(appSettingsProvider), before);
+    expect(find.text('Careful — you have unsaved changes!'), findsNothing);
+
+    await tester.tap(_inPage(find.text('Light')));
+    await tester.pump();
+    await tester.tap(_inPage(find.text('Compact')));
+    await _saveChanges(tester);
     final settings = app.read(appSettingsProvider);
     expect(settings.theme, ThemePreference.light);
     expect(settings.density, MessageDensity.compact);
+    expect(find.text('Careful — you have unsaved changes!'), findsNothing);
     await app.dispose(tester);
   });
 
@@ -127,6 +154,8 @@ void main() {
 
     await tester.tap(_inPage(find.text('Your desktop draws the frame')));
     await tester.pump();
+    expect(saved, isEmpty, reason: 'not before Save changes');
+    await _saveChanges(tester);
 
     expect(
       app.read(appSettingsProvider).windowFrame,
@@ -149,6 +178,7 @@ void main() {
 
     await tester.drag(slider, const Offset(400, 0));
     await tester.pump();
+    await _saveChanges(tester);
 
     expect(app.read(appSettingsProvider).fontSize, AppSettings.maxFontSize);
     await app.dispose(tester);
@@ -160,7 +190,7 @@ void main() {
 
     await tester.enterText(_inPage(find.byType(TextField)), 'Alex R.');
     await tester.pump();
-    await tester.tap(_inPage(find.widgetWithText(OcButton, 'Save')));
+    await _saveChanges(tester);
     await _pumpFor(tester, const Duration(milliseconds: 500));
 
     expect(app.repository.identity?.displayName, 'Alex R.');
@@ -240,6 +270,7 @@ void main() {
     await tester.pump();
     await tester.tap(_inPage(find.text('Only for mentions')));
     await tester.pump();
+    await _saveChanges(tester);
 
     final settings = app.read(appSettingsProvider);
     expect(settings.desktopNotifications, isFalse);
@@ -286,9 +317,11 @@ void main() {
     await tester.ensureVisible(off);
     await tester.tap(off);
     await tester.pump();
+    await _saveChanges(tester);
     final switchedOff = app.repository.audio?.noiseSuppression;
     await tester.tap(_inPage(find.text('Standard')));
     await tester.pump();
+    await _saveChanges(tester);
 
     expect(switchedOff, NoiseSuppression.off);
     expect(app.repository.audio?.noiseSuppression, NoiseSuppression.standard);
@@ -343,11 +376,30 @@ void main() {
     );
     await tester.drag(lowerBy, const Offset(400, 0));
     await tester.pump();
+    await _saveChanges(tester);
 
     final sent = app.repository.audio!;
     expect(sent.attenuationPercent, greaterThan(0));
     expect(sent.attenuateWhenISpeak, isTrue);
     expect(sent.attenuateWhenOthersSpeak, isTrue);
+    await app.dispose(tester);
+  });
+
+  testWidgets('a presence chosen in settings waits for the save bar', (
+    tester,
+  ) async {
+    final app = await MockApp.pump(tester);
+    // Settings open on My profile.
+    await _openSettings(tester);
+
+    final idle = _inPage(find.text('Idle'));
+    await tester.ensureVisible(idle);
+    await tester.tap(idle);
+    await _pumpFor(tester, const Duration(milliseconds: 200));
+    expect(app.read(selfPresenceProvider), SelfPresence.online);
+
+    await _saveChanges(tester);
+    expect(app.read(selfPresenceProvider), SelfPresence.idle);
     await app.dispose(tester);
   });
 }

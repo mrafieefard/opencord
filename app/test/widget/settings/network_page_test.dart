@@ -23,6 +23,7 @@ import 'package:opencord/ui/widgets/oc_switch.dart';
 import 'package:opencord/ui/widgets/settings.dart';
 
 import '../../support/app.dart';
+import '../../support/save_bar.dart';
 
 const _dev = 'opencord.example:7710';
 const _berlin = 'rust-berlin.example:7710';
@@ -144,8 +145,8 @@ void main() {
     await _tapVisible(tester, _changeOn('Set by hand'));
     await _pumpFor(tester, const Duration(milliseconds: 300));
     await tester.enterText(_dialogField, '192.0.2.50');
-    await tester.tap(find.widgetWithText(OcButton, 'Save'));
-    await _pumpFor(tester, const Duration(milliseconds: 600));
+    await tester.tap(find.widgetWithText(OcButton, 'Done'));
+    await saveSettings(tester);
 
     expect(_inSettings(find.text('192.0.2.50')), findsOneWidget);
     expect(_inSettings(find.text('IPv4 · Set by hand')), findsOneWidget);
@@ -154,7 +155,7 @@ void main() {
       tester,
       _inSettings(find.widgetWithText(OcButton, 'Clear')),
     );
-    await _pumpFor(tester, const Duration(milliseconds: 600));
+    await saveSettings(tester);
     expect(_inSettings(find.text('203.0.113.10')), findsOneWidget);
     await app.dispose(tester);
   });
@@ -170,7 +171,7 @@ void main() {
         matching: find.byType(OcSwitch),
       ),
     );
-    await _pumpFor(tester, const Duration(milliseconds: 600));
+    await saveSettings(tester);
 
     expect(
       _inSettings(
@@ -192,12 +193,17 @@ void main() {
     await _tapVisible(tester, _changeOn('Main port'));
     await _pumpFor(tester, const Duration(milliseconds: 300));
     await tester.enterText(_dialogField, '70000');
-    await tester.tap(find.widgetWithText(OcButton, 'Save'));
+    await tester.tap(find.widgetWithText(OcButton, 'Done'));
     await tester.pump();
     expect(find.text('A port is a number from 1 to 65535.'), findsOneWidget);
     await tester.enterText(_dialogField, '443');
-    await tester.tap(find.widgetWithText(OcButton, 'Save'));
-    await _pumpFor(tester, const Duration(milliseconds: 600));
+    await tester.tap(find.widgetWithText(OcButton, 'Done'));
+    await _pumpFor(tester, const Duration(milliseconds: 300));
+    expect(
+      _inSettings(find.text('Port 443, once saved and the server restarts')),
+      findsOneWidget,
+    );
+    await saveSettings(tester);
 
     expect(
       _inSettings(find.text('Port 443 from the next start')),
@@ -750,6 +756,46 @@ void freeDomainAndTunnelTests() {
     expect(find.textContaining('proxy_read_timeout 1h;'), findsOneWidget);
     expect(find.textContaining('carry no UDP'), findsOneWidget);
     await tester.tap(find.widgetWithText(OcButton, 'Later'));
+    await _pumpFor(tester, const Duration(seconds: 2));
+    await app.dispose(tester);
+  });
+
+  testWidgets("a domain behind Cloudflare's proxy shows its proxied records, "
+      'the port and certificate steps, and takes an origin certificate', (
+    tester,
+  ) async {
+    final app = await MockApp.pump(tester);
+    await _openNetwork(tester);
+    await _tapVisible(
+      tester,
+      _inSettings(find.widgetWithText(OcButton, 'Add domain')),
+    );
+    await _pumpFor(tester, const Duration(milliseconds: 300));
+    await tester.enterText(
+      _fieldsOf<AddDomainDialog>().first,
+      'proxied.example.com',
+    );
+    await tester.tap(find.text("Through Cloudflare's proxy"));
+    await tester.pump();
+    await tester.tap(find.widgetWithText(OcButton, 'Next'));
+    await _pumpFor(tester, const Duration(milliseconds: 600));
+
+    expect(find.text('Point Cloudflare here'), findsOneWidget);
+    expect(find.textContaining('orange cloud'), findsOneWidget);
+    expect(find.textContaining('Origin Rule'), findsOneWidget);
+    expect(find.textContaining('Full (strict)'), findsOneWidget);
+    expect(find.textContaining('carry no UDP'), findsOneWidget);
+    await tester.tap(find.widgetWithText(OcButton, 'Later'));
+    await _pumpFor(tester, const Duration(milliseconds: 600));
+
+    await _tapVisible(
+      tester,
+      _inSettings(find.byTooltip('More for proxied.example.com')),
+    );
+    await _pumpFor(tester, const Duration(milliseconds: 200));
+    expect(find.text('Upload origin certificate'), findsOneWidget);
+    expect(find.text('Get certificate'), findsNothing);
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
     await _pumpFor(tester, const Duration(seconds: 2));
     await app.dispose(tester);
   });

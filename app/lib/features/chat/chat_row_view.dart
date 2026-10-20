@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 
+import 'package:opencord/features/members/member_avatar.dart';
 import 'package:opencord/core/format.dart';
 import 'package:opencord/core/model/channel.dart';
 import 'package:opencord/core/model/commands.dart';
 import 'package:opencord/core/model/message.dart';
 import 'package:opencord/core/providers/server_state.dart';
+import 'package:opencord/features/chat/attachments/summary.dart';
 import 'package:opencord/features/chat/bubble.dart';
 import 'package:opencord/features/chat/chat_rows.dart';
 import 'package:opencord/features/chat/command_rows.dart';
@@ -16,7 +18,6 @@ import 'package:opencord/features/chat/message_line.dart';
 import 'package:opencord/features/chat/message_rows.dart';
 import 'package:opencord/ui/theme/oc_colors.dart';
 import 'package:opencord/ui/theme/oc_metrics.dart';
-import 'package:opencord/ui/widgets/avatar.dart';
 import 'package:opencord/ui/widgets/hoverable.dart';
 
 /// What rows look up while they draw: names, roles and replied-to
@@ -61,7 +62,7 @@ class ChatLookups {
     return ReplyPreview(
       author: name(original.authorId),
       text: previewText(
-        original.content,
+        messageSummary(original),
         user: (id) => data.members[id]?.displayName,
         channel: channelName,
       ),
@@ -88,6 +89,7 @@ class ChatRowActions {
     required this.links,
     required this.message,
     required this.onRetry,
+    this.onCancelSend,
     required this.onReaction,
     required this.onJumpTo,
     required this.onProfile,
@@ -99,6 +101,7 @@ class ChatRowActions {
   /// Reply, react, edit, the context menu (§4.5).
   final MessageActions message;
   final void Function(Message message) onRetry;
+  final void Function(Message message)? onCancelSend;
   final void Function(Message message, String emoji) onReaction;
   final void Function(int messageId) onJumpTo;
 
@@ -192,6 +195,7 @@ class ChatRowView extends StatelessWidget {
         compact: true,
         builder: (onSelectionChanged) => CompactMessage(
           message: message,
+          serverKey: actions.message.channel.server,
           first: row.first,
           author: author,
           role: row.first ? lookups.role(message.authorId) : null,
@@ -218,12 +222,16 @@ class ChatRowView extends StatelessWidget {
               onTap: () => actions.onProfile(message.authorId),
               semanticLabel: '$author, profile',
               focusRadius: BorderRadius.circular(OcSize.messageAvatar / 2),
-              builder: (context, state) =>
-                  OcAvatar(id: '${message.authorId}', name: author),
+              builder: (context, state) => MemberAvatar(
+                serverKey: actions.message.channel.server,
+                userId: message.authorId,
+                name: author,
+              ),
             )
           : null,
       builder: (onSelectionChanged) => MessageBubble(
         message: message,
+        serverKey: actions.message.channel.server,
         own: row.own,
         first: row.first,
         last: row.last,
@@ -237,6 +245,9 @@ class ChatRowView extends StatelessWidget {
         onReaction: onReaction,
         onReplyTap: onReplyTap,
         onRetry: () => actions.onRetry(message),
+        onCancelSend: message.nonce != null
+            ? () => actions.onCancelSend?.call(message)
+            : null,
         onSelectionChanged: onSelectionChanged,
         onAuthorTap: () => actions.onProfile(message.authorId),
       ),

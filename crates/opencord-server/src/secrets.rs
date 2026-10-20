@@ -23,6 +23,10 @@ pub enum SecretsError {
     },
     #[error("{0} is not a 32-byte key")]
     BadKey(String),
+    #[error(
+        "the secrets key {path} is missing, but the database holds data sealed with it: restore the file or point [server] secrets_file at it"
+    )]
+    Missing { path: String },
     #[error("a secret could not be opened: the data or secrets.key changed")]
     Open,
 }
@@ -39,25 +43,29 @@ impl std::fmt::Debug for Secrets {
 }
 
 impl Secrets {
-    /// The key in `data_dir`, made on first start (readable by the owner
-    /// only).
-    pub fn load_or_generate(data_dir: &Path) -> Result<Self, SecretsError> {
-        let path = data_dir.join(SECRETS_FILE);
+    /// The key at `path`. If it does not exist and `may_generate` is true,
+    /// a new 32-byte key is created.
+    pub fn load_or_generate(path: &Path, may_generate: bool) -> Result<Self, SecretsError> {
         let io = |source| SecretsError::Io {
             path: path.display().to_string(),
             source,
         };
-        let key: [u8; KEY_LEN] = match fs::read(&path) {
+        let key: [u8; KEY_LEN] = match fs::read(path) {
             Ok(bytes) => bytes
                 .try_into()
                 .map_err(|_| SecretsError::BadKey(path.display().to_string()))?,
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                if !may_generate {
+                    return Err(SecretsError::Missing {
+                        path: path.display().to_string(),
+                    });
+                }
                 let key = crate::random::bytes::<KEY_LEN>();
                 let mut options = fs::OpenOptions::new();
                 options.write(true).create_new(true);
                 #[cfg(unix)]
                 std::os::unix::fs::OpenOptionsExt::mode(&mut options, 0o600);
-                let mut file = options.open(&path).map_err(io)?;
+                let mut file = options.open(path).map_err(io)?;
                 file.write_all(&key).map_err(io)?;
                 file.sync_all().map_err(io)?;
                 key
@@ -138,20 +146,33 @@ mod tests {
     #[test]
     fn the_key_is_made_once_and_kept_private() {
         let dir = tempfile::tempdir().unwrap();
-        let first = Secrets::load_or_generate(dir.path()).unwrap();
+        let key_path = dir.path().join(SECRETS_FILE);
+        let first = Secrets::load_or_generate(&key_path, true).unwrap();
         let sealed = first.seal("x", b"y");
 
-        let again = Secrets::load_or_generate(dir.path()).unwrap();
+        let again = Secrets::load_or_generate(&key_path, false).unwrap();
 
         assert_eq!(again.open("x", &sealed).unwrap(), b"y");
         #[cfg(unix)]
         {
             use std::os::unix::fs::PermissionsExt;
-            let mode = fs::metadata(dir.path().join(SECRETS_FILE))
-                .unwrap()
-                .permissions()
-                .mode();
+            let mode = fs::metadata(&key_path).unwrap().permissions().mode();
             assert_eq!(mode & 0o777, 0o600);
+        }
+    }
+
+    #[test]
+    fn a_missing_key_is_made_only_when_allowed() {
+        let dir = tempfile::tempdir().unwrap();
+        let key_path = dir.path().join(SECRETS_FILE);
+        assert!(Secrets::load_or_generate(&key_path, true).is_ok());
+        assert!(key_path.exists());
+        fs::remove_file(&key_path).unwrap();
+        match Secrets::load_or_generate(&key_path, false) {
+            Err(SecretsError::Missing { path }) => {
+                assert_eq!(path, key_path.display().to_string());
+            }
+            other => panic!("expected Missing, got {:?}", other),
         }
     }
 }

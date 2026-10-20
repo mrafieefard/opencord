@@ -324,6 +324,10 @@ enum DomainKind {
   DOMAIN_KIND_TUNNEL = 3;
   // Caddy, Nginx, Traefik, ngrok and the like: the proxy's certificate.
   DOMAIN_KIND_REVERSE_PROXY = 4;
+  // A record proxied by Cloudflare (the orange cloud): apps see
+  // Cloudflare's certificate on 443, Cloudflare reaches the main port,
+  // where the owner may upload an origin certificate. No UDP.
+  DOMAIN_KIND_CLOUDFLARE_PROXY = 5;
 }
 
 enum DomainStatus {

@@ -49,16 +49,19 @@ pub enum HotkeyAction {
     ToggleDeafen,
     /// Switches between push-to-talk and voice activity.
     ToggleInputMode,
+    /// Mutes or unmutes music in voice channels, for this person.
+    ToggleMusicMute,
 }
 
 impl HotkeyAction {
     #[cfg_attr(not(target_os = "linux"), allow(dead_code))]
-    const ALL: [Self; 5] = [
+    const ALL: [Self; 6] = [
         Self::PushToTalk,
         Self::PrioritySpeaker,
         Self::ToggleMute,
         Self::ToggleDeafen,
         Self::ToggleInputMode,
+        Self::ToggleMusicMute,
     ];
 
     /// The id the portal knows it by.
@@ -70,6 +73,7 @@ impl HotkeyAction {
             Self::ToggleMute => "toggle-mute",
             Self::ToggleDeafen => "toggle-deafen",
             Self::ToggleInputMode => "toggle-input-mode",
+            Self::ToggleMusicMute => "toggle-music-mute",
         }
     }
 
@@ -82,6 +86,7 @@ impl HotkeyAction {
             Self::ToggleMute => "Toggle mute",
             Self::ToggleDeafen => "Toggle deafen",
             Self::ToggleInputMode => "Toggle push-to-talk",
+            Self::ToggleMusicMute => "Toggle music mute",
         }
     }
 }

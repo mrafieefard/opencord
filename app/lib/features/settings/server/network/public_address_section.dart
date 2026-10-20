@@ -6,11 +6,15 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:opencord/core/format.dart';
 import 'package:opencord/core/model/network.dart';
 import 'package:opencord/features/settings/server/network/network_dialogs.dart';
+import 'package:opencord/features/settings/settings_dialog.dart';
 import 'package:opencord/ui/theme/oc_icons.dart';
 import 'package:opencord/ui/widgets/oc_button.dart';
 import 'package:opencord/ui/widgets/oc_dialog.dart';
 import 'package:opencord/ui/widgets/settings.dart';
 import 'package:opencord/ui/widgets/toast.dart';
+
+/// Detecting the address, and the addresses set by hand.
+typedef _Choice = ({bool autoDetect, String ipv4, String ipv6});
 
 /// Where the server is reached from the internet (Phase 3 plan §5.1, §8):
 /// detected with ipify, or set by hand.
@@ -43,40 +47,57 @@ class _PublicAddressSectionState extends ConsumerState<PublicAddressSection> {
     if (mounted) setState(() => _detecting = false);
   }
 
-  Future<void> _set({
-    required bool autoDetect,
-    String ipv4 = '',
-    String ipv6 = '',
-  }) => changeNetwork(
-    context,
+  Future<void> _save(_Choice choice) => saveNetwork(
     ref,
     widget.serverKey,
     (repository, server) => repository.setPublicAddress(
       server,
-      autoDetect: autoDetect,
-      overrideIpv4: ipv4,
-      overrideIpv6: ipv6,
+      autoDetect: choice.autoDetect,
+      overrideIpv4: choice.ipv4,
+      overrideIpv6: choice.ipv6,
     ),
   );
 
-  Future<void> _setByHand() async {
-    final address = widget.address;
+  Future<void> _setByHand(_Choice choice, ValueChanged<_Choice> change) async {
     final chosen = await showOcDialog<({String ipv4, String ipv6})>(
       context: context,
-      builder: (_) => AddressDialog(address: address),
+      builder: (_) => AddressDialog(
+        address: PublicAddress(
+          ipv4: widget.address.ipv4,
+          ipv6: widget.address.ipv6,
+          overrideIpv4: choice.ipv4,
+          overrideIpv6: choice.ipv6,
+        ),
+      ),
     );
     if (chosen == null || !mounted) return;
-    await _set(
-      autoDetect: address.autoDetect,
+    change((
+      autoDetect: choice.autoDetect,
       ipv4: chosen.ipv4,
       ipv6: chosen.ipv6,
-    );
+    ));
   }
 
   @override
   Widget build(BuildContext context) {
     final address = widget.address;
+    // Detecting automatically and the addresses set by hand wait for the
+    // save bar.
+    return PendingValue<_Choice>(
+      saved: (
+        autoDetect: address.autoDetect,
+        ipv4: address.overrideIpv4,
+        ipv6: address.overrideIpv6,
+      ),
+      save: _save,
+      builder: (context, choice, change) => _section(choice, change),
+    );
+  }
+
+  Widget _section(_Choice choice, ValueChanged<_Choice> change) {
+    final address = widget.address;
     final showV6 = address.hasIpv6 || address.ipv6.isNotEmpty;
+    final overridden = choice.ipv4.isNotEmpty || choice.ipv6.isNotEmpty;
     return SettingsSection(
       title: 'Public address',
       footer:
@@ -99,30 +120,35 @@ class _PublicAddressSectionState extends ConsumerState<PublicAddressSection> {
           subtitle: address.detectError.isNotEmpty && address.autoDetect
               ? 'Last try failed: ${address.detectError}'
               : 'Asks api.ipify.org at start-up and every 6 hours',
-          value: address.autoDetect,
-          onChanged: (on) => _set(
-            autoDetect: on,
-            ipv4: address.overrideIpv4,
-            ipv6: address.overrideIpv6,
-          ),
+          value: choice.autoDetect,
+          onChanged: (on) =>
+              change((autoDetect: on, ipv4: choice.ipv4, ipv6: choice.ipv6)),
         ),
         SettingsRow(
           title: 'Set by hand',
-          subtitle: address.overridden
+          subtitle: overridden
               ? 'Used instead of what is detected'
               : 'For a fixed address, or when detection is off',
           trailing: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              if (address.overridden) ...[
+              if (overridden) ...[
                 OcButton.ghost(
                   label: 'Clear',
                   dense: true,
-                  onPressed: () => _set(autoDetect: address.autoDetect),
+                  onPressed: () => change((
+                    autoDetect: choice.autoDetect,
+                    ipv4: '',
+                    ipv6: '',
+                  )),
                 ),
                 const SizedBox(width: 8),
               ],
-              OcButton(label: 'Change', dense: true, onPressed: _setByHand),
+              OcButton(
+                label: 'Change',
+                dense: true,
+                onPressed: () => _setByHand(choice, change),
+              ),
             ],
           ),
         ),

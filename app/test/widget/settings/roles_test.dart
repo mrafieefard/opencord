@@ -8,6 +8,7 @@ import 'package:opencord/features/shell/desktop_shell.dart';
 import 'package:opencord/ui/widgets/oc_button.dart';
 
 import '../../support/app.dart';
+import '../../support/save_bar.dart';
 
 const _dev = 'opencord.example:7710';
 
@@ -74,7 +75,9 @@ void main() {
     await app.dispose(tester);
   });
 
-  testWidgets('a permission switch changes the role at once', (tester) async {
+  testWidgets('a permission switch changes the role once saved', (
+    tester,
+  ) async {
     final app = await MockApp.pump(tester);
     await _openRoles(tester);
     await tester.tap(_in(find.text('Contributor')).first);
@@ -87,7 +90,17 @@ void main() {
     );
 
     await tester.tap(row);
-    await _pumpFor(tester, const Duration(milliseconds: 600));
+    await _pumpFor(tester, const Duration(milliseconds: 200));
+    expect(
+      app
+          .read(serverProvider(_dev))
+          .data!
+          .roles[_roleId(app, 'Contributor')]!
+          .permissions
+          .has(Permissions.manageMessages),
+      isFalse,
+    );
+    await saveSettings(tester);
 
     final role = app
         .read(serverProvider(_dev))
@@ -123,7 +136,7 @@ void main() {
     await app.dispose(tester);
   });
 
-  testWidgets('a renamed role is saved with Save', (tester) async {
+  testWidgets('a renamed role is saved with the save bar', (tester) async {
     final app = await MockApp.pump(tester);
     await _openRoles(tester);
     await tester.tap(_in(find.text('Contributor')).first);
@@ -131,8 +144,7 @@ void main() {
 
     await tester.enterText(_in(find.byType(TextField)).first, 'Helpers');
     await tester.pump();
-    await tester.tap(_in(find.widgetWithText(OcButton, 'Save')));
-    await _pumpFor(tester, const Duration(milliseconds: 600));
+    await saveSettings(tester);
 
     expect(
       app.read(serverProvider(_dev)).data!.roles.values.map((r) => r.name),
@@ -158,7 +170,8 @@ void main() {
 
     await tester.sendKeyEvent(LogicalKeyboardKey.escape);
     await _pumpFor(tester, const Duration(milliseconds: 300));
-    await tester.tap(find.widgetWithText(OcButton, 'Discard'));
+    // The question's Discard, over the save bar's.
+    await tester.tap(find.widgetWithText(OcButton, 'Discard').last);
     await _pumpFor(tester, const Duration(milliseconds: 300));
     expect(find.byType(SettingsDialog), findsNothing);
     await app.dispose(tester);
@@ -180,7 +193,13 @@ void main() {
       await tester.pump(const Duration(milliseconds: 30));
     }
     await gesture.up();
-    await _pumpFor(tester, const Duration(milliseconds: 800));
+    await _pumpFor(tester, const Duration(milliseconds: 300));
+    // Moved in the list, saved with the bar.
+    expect(
+      tester.getCenter(_in(find.text('Contributor')).first).dy,
+      lessThan(tester.getCenter(_in(find.text('Maintainer')).first).dy),
+    );
+    await saveSettings(tester);
 
     final roles = app.read(serverProvider(_dev)).data!.roles;
     expect(

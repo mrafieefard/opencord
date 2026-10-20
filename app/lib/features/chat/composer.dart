@@ -1,16 +1,20 @@
 import 'dart:async';
 
 import 'package:clock/clock.dart';
+import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:opencord/core/model/attachment.dart';
 import 'package:opencord/core/model/commands.dart';
 import 'package:opencord/core/format.dart';
 import 'package:opencord/core/model/message.dart';
 import 'package:opencord/core/model/permissions.dart';
 import 'package:opencord/core/providers/providers.dart';
 import 'package:opencord/core/repository/repository.dart';
+import 'package:opencord/features/chat/attachments/staged_tiles.dart';
+import 'package:opencord/features/chat/attachments/summary.dart';
 import 'package:opencord/features/chat/chat_controller.dart';
 import 'package:opencord/features/chat/composer_bar.dart';
 import 'package:opencord/features/chat/composer_state.dart';
@@ -19,6 +23,9 @@ import 'package:opencord/features/chat/emoji_picker.dart';
 import 'package:opencord/features/chat/mentions.dart';
 import 'package:opencord/features/chat/suggestion_list.dart';
 import 'package:opencord/features/chat/suggestions.dart';
+import 'package:opencord/features/chat/voice/mic_button.dart';
+import 'package:opencord/features/chat/voice/recording_bar.dart';
+import 'package:opencord/features/chat/voice/voice_recorder_state.dart';
 import 'package:opencord/ui/theme/oc_colors.dart';
 import 'package:opencord/ui/theme/oc_icons.dart';
 import 'package:opencord/ui/theme/oc_metrics.dart';
@@ -345,13 +352,33 @@ class _ComposerState extends ConsumerState<Composer> {
     return KeyEventResult.ignored;
   }
 
-  /// Images cannot be sent yet: when what is pasted is not text, say so.
   Future<void> _checkPaste() async {
     final hasText = await Clipboard.hasStrings();
-    if (!hasText && mounted) {
-      showOcToast(context, 'Pasting images is coming in a later version.');
+    if (hasText || !mounted || !_canAttach) return;
+    final Uint8List? bytes;
+    try {
+      bytes = await ref.read(repositoryProvider).clipboardImage();
+    } on RepoException catch (error) {
+      if (mounted) showOcToast(context, error.message);
+      return;
     }
+    if (bytes == null || !mounted) return;
+    final now = ref.read(clockProvider)().toLocal();
+    String two(int value) => value.toString().padLeft(2, '0');
+    final stamp =
+        '${now.year}${two(now.month)}${two(now.day)}'
+        '-${two(now.hour)}${two(now.minute)}${two(now.second)}';
+    _composer.stageBytes('pasted-image-$stamp.png', bytes);
   }
+
+  /// Whether this member may attach files in this channel.
+  bool get _canAttach =>
+      ref
+          .read(serverProvider(_channel.server))
+          .data
+          ?.permissionsIn(_channel.channel)
+          .has(Permissions.attachFiles) ??
+      false;
 
   /// ↑ in an empty composer edits your last message (§4.6, §7).
   bool _editLast() {
@@ -410,9 +437,21 @@ class _ComposerState extends ConsumerState<Composer> {
       }
       return;
     }
-    if (text.isEmpty || _coolingDown) return;
+    if ((text.isEmpty && state.staged.isEmpty) ||
+        _coolingDown ||
+        state.hasProblem) {
+      return;
+    }
+    final staged = List<StagedFile>.of(state.staged);
     _composer.sent();
-    unawaited(_messages.send(encoded, replyToId: state.replyTo?.id));
+    _composer.clearStaged();
+    if (staged.isNotEmpty) {
+      unawaited(
+        _messages.sendWithFiles(encoded, staged, replyToId: state.replyTo?.id),
+      );
+    } else {
+      unawaited(_messages.send(encoded, replyToId: state.replyTo?.id));
+    }
     unawaited(widget.controller.scrollToEnd());
   }
 
@@ -470,6 +509,19 @@ class _ComposerState extends ConsumerState<Composer> {
     final canSend =
         data?.permissionsIn(_channel.channel).has(Permissions.sendMessages) ??
         false;
+    final canVoice =
+        data
+            ?.permissionsIn(_channel.channel)
+            .has(Permissions.sendVoiceMessages) ??
+        false;
+    final voiceState = ref.watch(voiceRecorderProvider(_channel));
+    ref.listen(
+      voiceRecorderProvider(_channel).select((state) => state.problem),
+      (_, problem) {
+        if (problem != null) showOcToast(context, problem.message);
+      },
+    );
+    final isRecording = voiceState.phase != RecordingPhase.idle;
     final state = ref.watch(composerProvider(_channel));
     final cooldown = ref.watch(sendCooldownProvider(_channel));
     final decoration = BoxDecoration(
@@ -518,58 +570,97 @@ class _ComposerState extends ConsumerState<Composer> {
                           ? 'Edit message'
                           : 'Reply to ${data.members[about.authorId]?.displayName ?? 'Unknown user'}',
                       preview: previewText(
-                        about.content,
+                        messageSummary(about),
                         user: (id) => data.members[id]?.displayName,
                         channel: (id) => data.channels[id]?.name,
                       ),
                       onTap: () => widget.controller.jumpToMessage(about.id),
                       onClose: _composer.cancel,
                     ),
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.end,
+                  if (state.staged.isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: OcSpace.s8),
+                      child: StagedTiles(
+                        files: state.staged,
+                        limit: data.myUploadLimit,
+                        blocked: data.uploadSettings.blockedExtensions,
+                        maxFiles: data.uploadSettings.maxAttachments,
+                        onRemove: _composer.removeStaged,
+                      ),
+                    ),
+                  Stack(
                     children: [
-                      const Padding(
-                        padding: EdgeInsets.only(bottom: 2),
-                        child: OcIconButton(
-                          icon: OcIcons.attachFile,
-                          tooltip: 'Attachments are coming in a later version',
-                        ),
-                      ),
-                      const SizedBox(width: OcSpace.s4),
-                      Expanded(child: _input(context, channel.name)),
-                      const SizedBox(width: OcSpace.s6),
-                      if (cooldown != null)
-                        Padding(
-                          padding: const EdgeInsets.only(
-                            right: OcSpace.s6,
-                            bottom: 11,
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 2),
+                            child: OcIconButton(
+                              icon: OcIcons.attachFile,
+                              tooltip:
+                                  data
+                                      .permissionsIn(_channel.channel)
+                                      .has(Permissions.attachFiles)
+                                  ? 'Attach files · up to ${formatFileSize(data.myUploadLimit)} each'
+                                  : "You can't attach files here",
+                              onPressed:
+                                  data
+                                      .permissionsIn(_channel.channel)
+                                      .has(Permissions.attachFiles)
+                                  ? () async {
+                                      final files = await openFiles();
+                                      if (files.isNotEmpty) {
+                                        await _composer.stagePaths(
+                                          files.map((f) => f.path).toList(),
+                                        );
+                                      }
+                                    }
+                                  : null,
+                            ),
                           ),
-                          child: _Countdown(until: cooldown),
-                        ),
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: 2),
-                        child: hasText || editing != null
-                            ? OcIconButton(
-                                icon: editing != null
-                                    ? OcIcons.check
-                                    : OcIcons.send,
-                                tooltip: editing != null ? 'Save' : 'Send',
-                                active: true,
-                                activeStyle: OcActiveStyle.inverted,
-                                onPressed: cooldown != null && editing == null
-                                    ? null
-                                    : _submit,
-                              )
-                            : OcIconButton(
-                                icon: OcIcons.mic,
-                                tooltip: 'Voice message',
-                                color: colors.textMuted,
-                                onPressed: () => showOcToast(
-                                  context,
-                                  'Voice messages are coming in a later version.',
-                                ),
+                          const SizedBox(width: OcSpace.s4),
+                          Expanded(child: _input(context, channel.name)),
+                          const SizedBox(width: OcSpace.s6),
+                          if (cooldown != null)
+                            Padding(
+                              padding: const EdgeInsets.only(
+                                right: OcSpace.s6,
+                                bottom: 11,
                               ),
+                              child: _Countdown(until: cooldown),
+                            ),
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 2),
+                            child:
+                                hasText ||
+                                    editing != null ||
+                                    state.staged.isNotEmpty
+                                ? OcIconButton(
+                                    icon: editing != null
+                                        ? OcIcons.check
+                                        : OcIcons.send,
+                                    tooltip: editing != null ? 'Save' : 'Send',
+                                    active: true,
+                                    activeStyle: OcActiveStyle.inverted,
+                                    onPressed:
+                                        (cooldown != null && editing == null) ||
+                                            state.hasProblem
+                                        ? null
+                                        : _submit,
+                                  )
+                                : (canVoice
+                                      ? MicButton(channel: _channel)
+                                      : const SizedBox.shrink()),
+                          ),
+                        ],
                       ),
+                      if (isRecording)
+                        Positioned.fill(
+                          child: ColoredBox(
+                            color: colors.sidebar,
+                            child: RecordingBar(channel: _channel),
+                          ),
+                        ),
                     ],
                   ),
                 ],
@@ -587,7 +678,11 @@ class _ComposerState extends ConsumerState<Composer> {
   void _measured(double height) {
     if (!mounted || _text.text.isNotEmpty) return;
     final state = ref.read(composerProvider(_channel));
-    if (state.editing != null || state.replyTo != null) return;
+    if (state.editing != null ||
+        state.replyTo != null ||
+        state.staged.isNotEmpty) {
+      return;
+    }
     ref.read(restingComposerHeightProvider.notifier).set(height);
   }
 

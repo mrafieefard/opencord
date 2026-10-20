@@ -129,4 +129,40 @@ void main() {
     );
     expect(expiryLabel(now.add(const Duration(days: 1)), now), 'in 1 day');
   });
+
+  group('formatFileSize', () {
+    test('formats bytes, KB, MB, and GB per spec', () {
+      expect(formatFileSize(0), '0 B');
+      expect(formatFileSize(999), '999 B');
+      expect(formatFileSize(1024), '1.0 KB');
+      expect(formatFileSize((12.5 * 1024 * 1024).round()), '12.5 MB');
+      expect(formatFileSize((1.2 * 1024 * 1024 * 1024).round()), '1.2 GB');
+      expect(formatFileSize(100 * 1024), '100 KB');
+      expect(formatFileSize(100 * 1024 * 1024), '100 MB');
+      expect(formatFileSize(500 * 1024 * 1024), '500 MB');
+    });
+  });
+
+  group('middleEllipsis', () {
+    test('short names are unchanged', () {
+      expect(middleEllipsis('file.png'), 'file.png');
+    });
+
+    test('counts characters, so an emoji is never cut in half', () {
+      expect(
+        middleEllipsis('${'😀' * 30}.png', maxLength: 10),
+        '😀😀😀…😀😀.png',
+      );
+    });
+
+    test('long names are truncated in the middle keeping extension', () {
+      final truncated = middleEllipsis(
+        'very_long_file_name_123456789.png',
+        maxLength: 20,
+      );
+      expect(truncated.length, lessThanOrEqualTo(20));
+      expect(truncated, contains('…'));
+      expect(truncated, endsWith('.png'));
+    });
+  });
 }

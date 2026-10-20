@@ -18,6 +18,7 @@ extension type const Permissions(int bits) {
   static const mentionEveryone = Permissions(1 << 11);
   static const changeNickname = Permissions(1 << 12);
   static const manageNicknames = Permissions(1 << 13);
+  static const sendVoiceMessages = Permissions(1 << 14);
   static const connect = Permissions(1 << 16);
   static const speak = Permissions(1 << 17);
   static const video = Permissions(1 << 18);
@@ -66,6 +67,7 @@ extension type const Permissions(int bits) {
         (1 << 11) |
         (1 << 12) |
         (1 << 13) |
+        (1 << 14) |
         (1 << 16) |
         (1 << 17) |
         (1 << 18) |
@@ -91,7 +93,9 @@ extension type const Permissions(int bits) {
         (1 << 1) |
         (1 << 2) |
         (1 << 8) |
+        (1 << 10) |
         (1 << 12) |
+        (1 << 14) |
         (1 << 16) |
         (1 << 17) |
         (1 << 18) |

@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:opencord/features/members/member_avatar.dart';
 import 'package:opencord/core/model/misc.dart';
 import 'package:opencord/core/model/permissions.dart';
 import 'package:opencord/core/model/user.dart';
@@ -21,7 +22,6 @@ import 'package:opencord/features/voice/voice_tile.dart';
 import 'package:opencord/ui/theme/oc_colors.dart';
 import 'package:opencord/ui/theme/oc_metrics.dart';
 import 'package:opencord/ui/theme/oc_text.dart';
-import 'package:opencord/ui/widgets/avatar.dart';
 import 'package:opencord/ui/widgets/oc_button.dart';
 import 'package:opencord/ui/widgets/oc_menu.dart';
 import 'package:opencord/ui/widgets/popover.dart';
@@ -239,6 +239,11 @@ class _StageState extends ConsumerState<_Stage> {
           key: ValueKey(id),
           userId: id.userId,
           name: members[id.userId]?.displayName ?? 'Someone',
+          picture: avatarImage(
+            ref,
+            widget.channel.server,
+            members[id.userId]?.user.avatarHash,
+          ),
           screen: id.screen,
           muted:
               participant != null &&
@@ -360,8 +365,9 @@ class _StageState extends ConsumerState<_Stage> {
                       padding: const EdgeInsets.symmetric(vertical: OcSpace.s4),
                       child: Row(
                         children: [
-                          OcAvatar(
-                            id: id,
+                          MemberAvatar(
+                            serverKey: widget.channel.server,
+                            userId: id,
                             name: members[id]?.displayName ?? 'Someone',
                             size: 24,
                           ),
@@ -531,8 +537,9 @@ class _JoinPrompt extends ConsumerWidget {
                           shape: BoxShape.circle,
                           border: Border.all(color: colors.chat, width: 3),
                         ),
-                        child: OcAvatar(
-                          id: participant.userId,
+                        child: MemberAvatar(
+                          serverKey: channel.server,
+                          userId: participant.userId,
                           name:
                               data?.members[participant.userId]?.displayName ??
                               'Someone',

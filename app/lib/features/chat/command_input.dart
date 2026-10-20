@@ -95,6 +95,9 @@ class _CommandInputState extends ConsumerState<CommandInput> {
   var _running = false;
   var _asked = 0;
 
+  /// Ctrl+A selected the whole command: Backspace or Delete removes it.
+  var _allSelected = false;
+
   @override
   void initState() {
     super.initState();
@@ -280,11 +283,59 @@ class _CommandInputState extends ConsumerState<CommandInput> {
     }
   }
 
+  /// Backspace from where the focus is, as in Discord: on the chip, or at
+  /// the start of the first option, it takes the command away; at the start
+  /// of a later option it goes back to the end of the one before. Null when
+  /// it is the field's own (there is text before the cursor to delete).
+  VoidCallback? _backspace() {
+    if (_chipFocus.hasFocus) return _close;
+    final options = widget.spec.options;
+    final at = options.indexWhere((option) => _focus[option.name]!.hasFocus);
+    if (at < 0) return null;
+    final field = _fields[options[at].name];
+    final selection = field?.selection;
+    // A text field's own deletion, unless the cursor is at its start.
+    if (selection != null &&
+        !(selection.isCollapsed && selection.baseOffset <= 0)) {
+      return null;
+    }
+    if (at == 0) return _close;
+    final previous = options[at - 1].name;
+    return () {
+      _focus[previous]!.requestFocus();
+      final text = _fields[previous];
+      if (text != null) {
+        text.selection = TextSelection.collapsed(offset: text.text.length);
+      }
+    };
+  }
+
   KeyEventResult _onKey(FocusNode node, KeyEvent event) {
     if (event is! KeyDownEvent && event is! KeyRepeatEvent) {
       return KeyEventResult.ignored;
     }
     final key = event.logicalKey;
+    final keyboard = HardwareKeyboard.instance;
+    if (key == LogicalKeyboardKey.keyA &&
+        (keyboard.isControlPressed || keyboard.isMetaPressed)) {
+      setState(() => _allSelected = true);
+      return KeyEventResult.handled;
+    }
+    if (_allSelected) {
+      if (key == LogicalKeyboardKey.backspace ||
+          key == LogicalKeyboardKey.delete) {
+        _close();
+        return KeyEventResult.handled;
+      }
+      if (!_isModifier(key)) setState(() => _allSelected = false);
+    }
+    if (key == LogicalKeyboardKey.backspace) {
+      if (_backspace() case final action?) {
+        action();
+        return KeyEventResult.handled;
+      }
+      return KeyEventResult.ignored;
+    }
     final suggesting = _popup.isShowing && _choices.isNotEmpty;
     if (suggesting &&
         (key == LogicalKeyboardKey.arrowDown ||
@@ -329,82 +380,88 @@ class _CommandInputState extends ConsumerState<CommandInput> {
     final spec = widget.spec;
     return Focus(
       onKeyEvent: _onKey,
-      child: CompositedTransformTarget(
-        link: _anchor,
-        child: OverlayPortal(
-          controller: _popup,
-          overlayChildBuilder: (context) => Positioned(
-            left: 0,
-            top: 0,
-            child: CompositedTransformFollower(
-              link: _anchor,
-              showWhenUnlinked: false,
-              targetAnchor: Alignment.topLeft,
-              followerAnchor: Alignment.bottomLeft,
-              offset: const Offset(0, -OcSpace.s6),
-              child: _ChoiceList(
-                serverKey: widget.serverKey,
-                choices: _choices,
-                selected: _selected,
-                onHover: (index) => setState(() => _selected = index),
-                onPick: _pickChoice,
+      child: Listener(
+        // A click anywhere in the command ends Ctrl+A's selection.
+        onPointerDown: (_) {
+          if (_allSelected) setState(() => _allSelected = false);
+        },
+        child: CompositedTransformTarget(
+          link: _anchor,
+          child: OverlayPortal(
+            controller: _popup,
+            overlayChildBuilder: (context) => Positioned(
+              left: 0,
+              top: 0,
+              child: CompositedTransformFollower(
+                link: _anchor,
+                showWhenUnlinked: false,
+                targetAnchor: Alignment.topLeft,
+                followerAnchor: Alignment.bottomLeft,
+                offset: const Offset(0, -OcSpace.s6),
+                child: _ChoiceList(
+                  serverKey: widget.serverKey,
+                  choices: _choices,
+                  selected: _selected,
+                  onHover: (index) => setState(() => _selected = index),
+                  onPick: _pickChoice,
+                ),
               ),
             ),
-          ),
-          child: Container(
-            constraints: const BoxConstraints(minHeight: 40),
-            padding: const EdgeInsets.symmetric(
-              horizontal: OcSpace.s8,
-              vertical: OcSpace.s6,
-            ),
-            decoration: BoxDecoration(
-              color: colors.surface,
-              border: Border.all(color: colors.border),
-              borderRadius: BorderRadius.circular(OcRadius.composer),
-            ),
-            child: Wrap(
-              spacing: OcSpace.s8,
-              runSpacing: OcSpace.s6,
-              crossAxisAlignment: WrapCrossAlignment.center,
-              children: [
-                Focus(
-                  focusNode: _chipFocus,
-                  child: Tooltip(
-                    message: spec.description,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: OcSpace.s8,
-                        vertical: 3,
-                      ),
-                      decoration: BoxDecoration(
-                        color: colors.accent,
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(
-                            '/${spec.name}',
-                            style: OcText.bodyStrong.copyWith(
-                              color: colors.onAccent,
+            child: Container(
+              constraints: const BoxConstraints(minHeight: 40),
+              padding: const EdgeInsets.symmetric(
+                horizontal: OcSpace.s8,
+                vertical: OcSpace.s6,
+              ),
+              decoration: BoxDecoration(
+                color: _allSelected ? colors.selected : colors.surface,
+                border: Border.all(color: colors.border),
+                borderRadius: BorderRadius.circular(OcRadius.composer),
+              ),
+              child: Wrap(
+                spacing: OcSpace.s8,
+                runSpacing: OcSpace.s6,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  Focus(
+                    focusNode: _chipFocus,
+                    child: Tooltip(
+                      message: spec.description,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: OcSpace.s8,
+                          vertical: 3,
+                        ),
+                        decoration: BoxDecoration(
+                          color: colors.accent,
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              '/${spec.name}',
+                              style: OcText.bodyStrong.copyWith(
+                                color: colors.onAccent,
+                              ),
                             ),
-                          ),
-                          if (_running) ...[
-                            const SizedBox(width: OcSpace.s6),
-                            OcSpinner(size: 12, color: colors.onAccent),
+                            if (_running) ...[
+                              const SizedBox(width: OcSpace.s6),
+                              OcSpinner(size: 12, color: colors.onAccent),
+                            ],
                           ],
-                        ],
+                        ),
                       ),
                     ),
                   ),
-                ),
-                for (final option in spec.options) _field(option),
-                if (spec.options.isEmpty)
-                  Text(
-                    spec.description,
-                    style: OcText.small.copyWith(color: colors.textMuted),
-                  ),
-              ],
+                  for (final option in spec.options) _field(option),
+                  if (spec.options.isEmpty)
+                    Text(
+                      spec.description,
+                      style: OcText.small.copyWith(color: colors.textMuted),
+                    ),
+                ],
+              ),
             ),
           ),
         ),
@@ -489,6 +546,16 @@ class _CommandInputState extends ConsumerState<CommandInput> {
     }
   }
 }
+
+final _modifiers = {
+  LogicalKeyboardKey.control,
+  LogicalKeyboardKey.shift,
+  LogicalKeyboardKey.alt,
+  LogicalKeyboardKey.meta,
+};
+
+bool _isModifier(LogicalKeyboardKey key) =>
+    LogicalKeyboardKey.collapseSynonyms({key}).any(_modifiers.contains);
 
 class _ChoicePill extends StatelessWidget {
   const _ChoicePill({

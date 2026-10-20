@@ -153,6 +153,39 @@ class NetworkSettings {
   final List<String> dnsResolvers;
   final bool acmeStaging;
 
+  NetworkSettings copyWith({
+    int? mainPort,
+    bool? upnpEnabled,
+    int? localListenerPort,
+    List<String>? trustedProxies,
+    List<String>? dnsResolvers,
+    bool? acmeStaging,
+  }) => NetworkSettings(
+    mainPort: mainPort ?? this.mainPort,
+    upnpEnabled: upnpEnabled ?? this.upnpEnabled,
+    localListenerPort: localListenerPort ?? this.localListenerPort,
+    trustedProxies: trustedProxies ?? this.trustedProxies,
+    dnsResolvers: dnsResolvers ?? this.dnsResolvers,
+    acmeStaging: acmeStaging ?? this.acmeStaging,
+  );
+
+  /// What differs from [saved], to send.
+  NetworkSettingsChanges changesFrom(NetworkSettings saved) =>
+      NetworkSettingsChanges(
+        mainPort: mainPort != saved.mainPort ? mainPort : null,
+        upnpEnabled: upnpEnabled != saved.upnpEnabled ? upnpEnabled : null,
+        localListenerPort: localListenerPort != saved.localListenerPort
+            ? localListenerPort
+            : null,
+        trustedProxies: listEquals(trustedProxies, saved.trustedProxies)
+            ? null
+            : trustedProxies,
+        dnsResolvers: listEquals(dnsResolvers, saved.dnsResolvers)
+            ? null
+            : dnsResolvers,
+        acmeStaging: acmeStaging != saved.acmeStaging ? acmeStaging : null,
+      );
+
   @override
   bool operator ==(Object other) =>
       other is NetworkSettings &&
@@ -582,14 +615,21 @@ enum DomainKind {
   own('Own domain'),
   freeSubdomain('Free subdomain'),
   tunnel('Cloudflare Tunnel'),
-  reverseProxy('Reverse proxy');
+  reverseProxy('Reverse proxy'),
+  cloudflareProxy('Cloudflare proxy');
 
   const DomainKind(this.label);
 
   final String label;
 
   /// Behind a tunnel or proxy: its certificate, its HTTP check.
-  bool get behindProxy => this == tunnel || this == reverseProxy;
+  bool get behindProxy =>
+      this == tunnel || this == reverseProxy || this == cloudflareProxy;
+
+  /// Whether this server can hold a certificate of its own for it: one
+  /// from an authority, or behind Cloudflare's proxy the origin
+  /// certificate.
+  bool get takesOwnCertificate => !behindProxy || this == cloudflareProxy;
 }
 
 enum DomainStatus {

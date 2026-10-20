@@ -114,6 +114,24 @@ void main() {
     await app.dispose(tester);
   });
 
+  testWidgets('toggle music mute mutes and unmutes the music', (tester) async {
+    final app = await MockApp.pump(tester);
+    app
+        .read(keybindsProvider.notifier)
+        .add(HotkeyAction.toggleMusicMute, keys: 'F8');
+    await _settle(tester);
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.f8);
+    final muted = app.read(musicListeningProvider).muted;
+    // Pressed elsewhere, as the system reports it.
+    app.repository.debugHotkeyPressed(HotkeyAction.toggleMusicMute);
+    await _settle(tester);
+
+    expect(muted, isTrue);
+    expect(app.read(musicListeningProvider).muted, isFalse);
+    await app.dispose(tester);
+  });
+
   testWidgets("a keybind on the app's own toggle keys acts once", (
     tester,
   ) async {

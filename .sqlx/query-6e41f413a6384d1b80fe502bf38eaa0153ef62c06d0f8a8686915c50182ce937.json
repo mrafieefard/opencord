@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE storage_backends SET last_error = $1 WHERE id = $2",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "6e41f413a6384d1b80fe502bf38eaa0153ef62c06d0f8a8686915c50182ce937"
+}

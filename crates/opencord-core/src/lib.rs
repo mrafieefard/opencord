@@ -2,6 +2,9 @@
 
 pub mod api;
 mod artwork;
+pub mod attachments;
+mod avatars;
+
 pub mod client;
 mod commands;
 mod connection;
@@ -13,13 +16,17 @@ mod http;
 pub mod identity;
 mod lavalink;
 pub mod media;
+pub mod media_player;
 pub mod mirror;
 mod music;
 pub(crate) mod music_listening;
 mod network;
+pub(crate) mod now_playing;
+pub(crate) mod output_sink;
 mod server_clock;
 mod soundboard;
 pub mod store;
 pub mod tofu;
 pub mod video;
 pub mod voice;
+pub mod voice_message;

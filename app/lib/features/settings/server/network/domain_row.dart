@@ -8,6 +8,7 @@ import 'package:opencord/core/model/network.dart';
 import 'package:opencord/core/repository/repository.dart';
 import 'package:opencord/features/settings/server/network/certificate_dialogs.dart';
 import 'package:opencord/features/settings/server/network/network_dialogs.dart';
+import 'package:opencord/features/settings/settings_dialog.dart';
 import 'package:opencord/ui/theme/oc_colors.dart';
 import 'package:opencord/ui/theme/oc_icons.dart';
 import 'package:opencord/ui/theme/oc_metrics.dart';
@@ -104,9 +105,11 @@ class DomainRow extends ConsumerWidget {
             icon: renewable ? OcIcons.refresh : OcIcons.lock,
             onSelected: () => getCertificate(anchor, ref, serverKey, domain),
           ),
-        if (!domain.kind.behindProxy)
+        if (domain.kind.takesOwnCertificate)
           OcMenuItem(
-            label: 'Upload certificate',
+            label: domain.kind == DomainKind.cloudflareProxy
+                ? 'Upload origin certificate'
+                : 'Upload certificate',
             icon: OcIcons.upload,
             onSelected: () => showOcDialog<void>(
               context: anchor,
@@ -245,14 +248,25 @@ class DomainRow extends ConsumerWidget {
             message: domain.wasVerified
                 ? (domain.active ? 'Active' : 'Inactive')
                 : 'Check it first',
-            child: Semantics(
-              label: 'Active',
-              toggled: domain.active,
-              child: OcSwitch(
-                value: domain.active,
-                onChanged: domain.wasVerified
-                    ? (on) => _update(context, ref, DomainUpdate(active: on))
-                    : null,
+            // Waits for the save bar.
+            child: PendingValue<bool>(
+              saved: domain.active,
+              save: (on) => saveNetwork(
+                ref,
+                serverKey,
+                (repository, server) => repository.updateDomain(
+                  server,
+                  domain.id,
+                  DomainUpdate(active: on),
+                ),
+              ),
+              builder: (context, on, change) => Semantics(
+                label: 'Active',
+                toggled: on,
+                child: OcSwitch(
+                  value: on,
+                  onChanged: domain.wasVerified ? change : null,
+                ),
               ),
             ),
           ),

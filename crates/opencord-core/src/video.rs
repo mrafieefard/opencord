@@ -159,6 +159,14 @@ impl Video {
         lock(&self.hub).textures = Some(textures);
     }
 
+    /// Creates a new texture sink for video playback, if textures are configured.
+    pub fn create_texture(&self) -> Option<Arc<dyn FrameSink>> {
+        lock(&self.hub)
+            .textures
+            .as_ref()
+            .and_then(|textures| textures.create())
+    }
+
     /// A voice connection is live, in this server's channel. The camera, if
     /// on, is published on it.
     pub fn connected(&self, server_key: &str, channel_id: i64, connection: Arc<VoiceConnection>) {

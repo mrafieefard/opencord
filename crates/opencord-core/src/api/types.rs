@@ -61,6 +61,8 @@ pub struct User {
     pub public_key_hex: String,
     pub fingerprint: String,
     pub display_name: String,
+    /// The profile picture's hash, for `avatar_path`; `None` without one.
+    pub avatar_hash: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -82,6 +84,9 @@ pub struct Role {
     pub permissions: i64,
     pub hoist: bool,
     pub mentionable: bool,
+    /// The largest file its members may upload; `None` leaves it to their
+    /// other roles.
+    pub max_upload_bytes: Option<u64>,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -91,6 +96,8 @@ pub struct RoleChanges {
     pub permissions: Option<i64>,
     pub hoist: Option<bool>,
     pub mentionable: Option<bool>,
+    /// `Some(0)` removes the role's limit.
+    pub max_upload_bytes: Option<u64>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -162,6 +169,8 @@ pub struct Message {
     pub nonce: Option<String>,
     /// A command's public result: the command run, by the author.
     pub command: Option<String>,
+    /// In the order they were attached.
+    pub attachments: Vec<Attachment>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -197,6 +206,8 @@ pub struct ServerInfo {
     pub owner_id: Option<i64>,
     pub open_join: bool,
     pub everyone_role_id: i64,
+    /// The server icon's hash, for `avatar_path`; `None` without one.
+    pub icon_hash: Option<String>,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -353,6 +364,7 @@ pub struct ReadySnapshot {
     pub addresses: ServerAddresses,
     /// The chat commands this user may see (Phase 3 plan §17.1).
     pub commands: CommandList,
+    pub upload_settings: UploadSettings,
 }
 
 /// One address a server is reached at.
@@ -579,6 +591,38 @@ pub enum CoreEventPayload {
     CommandsUpdate(CommandList),
     /// A command's reply only this device sees.
     EphemeralMessage(EphemeralMessage),
+    UploadSettingsUpdate(UploadSettings),
+    /// To the owner only.
+    StorageUpdate(StorageInfo),
+    /// A file staged with `stage_upload`, at most 10 times a second, and
+    /// once at each phase: `Done` when it is ready to send.
+    StagedUploadProgress {
+        channel_id: i64,
+        staged_id: String,
+        sent_bytes: u64,
+        total_bytes: u64,
+        phase: UploadPhase,
+    },
+    /// A file of a message being sent with `send_message_with_files`, at
+    /// most 10 times a second, and once at each phase.
+    UploadProgress {
+        channel_id: i64,
+        nonce: String,
+        /// Its place among the message's files.
+        file_index: u32,
+        sent_bytes: u64,
+        total_bytes: u64,
+        phase: UploadPhase,
+    },
+    /// A `download_attachment`, at most 10 times a second, and once at the
+    /// end with `done` or `error`.
+    DownloadProgress {
+        attachment_id: i64,
+        received_bytes: u64,
+        total_bytes: u64,
+        done: bool,
+        error: Option<String>,
+    },
 }
 
 /// Where the server is reached from the internet (Phase 3 plan §5.1).
@@ -803,6 +847,8 @@ pub enum DomainKind {
     Tunnel,
     /// Caddy, Nginx, Traefik, ngrok and the like.
     ReverseProxy,
+    /// A record proxied by Cloudflare (the orange cloud).
+    CloudflareProxy,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -926,6 +972,13 @@ pub enum ErrorCode {
     CommandDisabled,
     CommandNotAllowedHere,
     CommandInvalidOptions,
+    FileTooLarge,
+    FileTypeBlocked,
+    UploadOffsetMismatch,
+    StorageUnavailable,
+    StorageFull,
+    VoiceMessageInvalid,
+    VoiceMessageTooLong,
     Unknown,
 }
 
@@ -1001,6 +1054,8 @@ pub enum HotkeyAction {
     ToggleDeafen,
     /// Switches between push-to-talk and voice activity.
     ToggleInputMode,
+    /// Mutes or unmutes music in voice channels, for this person.
+    ToggleMusicMute,
 }
 
 /// A hotkey: a key and the modifiers held with it, as the XDG shortcuts
@@ -1285,6 +1340,59 @@ pub enum MediaEvent {
         channel_id: i64,
         stats: VoiceStats,
     },
+    /// The loudness of the voice message being recorded, 0..1.
+    VoiceRecordLevel { level: f32 },
+    /// Recording stopped by itself.
+    VoiceRecordStopped { reason: VoiceStopReason },
+    /// Voice message or media playback status.
+    PlaybackUpdate {
+        item: PlaybackItem,
+        position_ms: u32,
+        duration_ms: u32,
+        playing: bool,
+        buffering: bool,
+    },
+    /// Voice message or media playback reached the end.
+    PlaybackEnded { item: PlaybackItem },
+    /// Voice message or media playback failed.
+    PlaybackFailed { item: PlaybackItem, message: String },
+}
+
+/// What is being played: an attachment on a server, or a locally recorded draft.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum PlaybackItem {
+    Attachment {
+        server_key: String,
+        attachment_id: i64,
+    },
+    Draft {
+        draft_id: u64,
+    },
+}
+
+/// Why a voice recording stopped by itself.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum VoiceStopReason {
+    MaxLength,
+    DeviceLost,
+}
+
+/// A voice message recorded on this device, ready to send or preview.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct VoiceDraft {
+    pub draft_id: u64,
+    pub duration_ms: u32,
+    pub waveform: Vec<u8>,
+}
+
+/// A media attachment opened for playback (Milestone A7, Task 34).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MediaHandle {
+    pub texture_id: Option<i64>,
+    pub duration_ms: u32,
+    pub width: u32,
+    pub height: u32,
+    pub has_video: bool,
 }
 
 /// A voice connection over the last second (Phase 2 §12).
@@ -1349,6 +1457,8 @@ pub enum CoreError {
         problem: CameraProblem,
         message: String,
     },
+    #[error("cancelled")]
+    Cancelled,
 }
 
 /// Lavalink nodes (Phase 3 plan §12). Their passwords never reach clients.
@@ -1788,4 +1898,166 @@ pub struct CommandSettingsChanges {
     /// An empty list for every channel.
     pub channel_ids: Option<Vec<i64>>,
     pub results_public: Option<bool>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AttachmentKind {
+    File,
+    Image,
+    Video,
+    Audio,
+    VoiceMessage,
+}
+
+/// A file in a message.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Attachment {
+    pub id: i64,
+    pub filename: String,
+    /// Chosen by the server from the file's first bytes.
+    pub content_type: String,
+    pub size_bytes: u64,
+    pub kind: AttachmentKind,
+    /// Images: after EXIF rotation. Videos: the sender's hints.
+    pub width: Option<u32>,
+    pub height: Option<u32>,
+    /// Videos (hint) and voice messages (measured).
+    pub duration_ms: Option<u32>,
+    /// Voice messages: 128 values, 0–255. Empty otherwise.
+    pub waveform: Vec<u8>,
+    pub has_thumbnail: bool,
+    pub thumbnail_width: Option<u32>,
+    pub thumbnail_height: Option<u32>,
+    /// A GIF or WebP with more than one frame.
+    pub animated: bool,
+}
+
+/// What may be uploaded to a server.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct UploadSettings {
+    /// Lowercase, without the dot; may hold inner dots ("tar.gz").
+    pub blocked_extensions: Vec<String>,
+    pub voice_message_max_seconds: u32,
+    /// The server's ceiling: the owner's limit and the most any role allows.
+    pub max_file_bytes: u64,
+    pub max_attachments: u32,
+}
+
+/// Where a file being sent is.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum UploadPhase {
+    /// Reading it, and removing a photo's location.
+    Preparing,
+    Uploading,
+    /// The server checks it and makes its thumbnail.
+    Processing,
+    /// Every file is in; the message goes out.
+    Sending,
+    Done,
+    Failed {
+        message: String,
+    },
+    Cancelled,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum StorageKind {
+    Local,
+    S3,
+}
+
+/// An S3-compatible bucket. In answers the access key is masked to its
+/// last 4 characters and the secret is empty.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct S3Config {
+    pub endpoint: String,
+    pub region: String,
+    pub bucket: String,
+    pub key_prefix: String,
+    pub path_style: bool,
+    pub allow_http: bool,
+    pub access_key_id: String,
+    /// Empty in an update keeps the saved one.
+    pub secret_access_key: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct StorageBackend {
+    pub id: i64,
+    pub kind: StorageKind,
+    pub name: String,
+    /// New files go here.
+    pub active: bool,
+    pub s3: Option<S3Config>,
+    pub has_secret: bool,
+    pub file_count: u64,
+    pub bytes: u64,
+    /// Why its last test failed.
+    pub last_error: Option<String>,
+}
+
+/// Moving every file to the active storage.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct StorageMove {
+    pub to_storage_id: i64,
+    pub running: bool,
+    pub files_done: u64,
+    pub files_total: u64,
+    pub bytes_done: u64,
+    pub bytes_total: u64,
+    pub failed: u32,
+}
+
+/// Where a server keeps its files. Owner only.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct StorageInfo {
+    pub backends: Vec<StorageBackend>,
+    /// The running or last move.
+    pub move_status: Option<StorageMove>,
+    /// Free space where the server receives uploads.
+    pub temp_free_bytes: u64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct StorageTestStep {
+    pub name: String,
+    pub ok: bool,
+    pub detail: String,
+}
+
+/// A bucket test: the steps run, up to the first that failed.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct StorageTestResult {
+    pub steps: Vec<StorageTestStep>,
+    pub ok: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum StorageTestTarget {
+    /// A saved storage; its result is saved as its `last_error`.
+    Existing { storage_id: i64 },
+    /// Settings not saved yet; nothing is saved.
+    Config { s3: S3Config },
+    /// A saved storage's edited settings, not saved yet: keys left empty
+    /// are its saved ones. Nothing is saved.
+    Edited { storage_id: i64, s3: S3Config },
+}
+
+/// A file to send: a path on this device, or bytes (a pasted image).
+/// Exactly one of the two.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OutgoingFile {
+    pub path: Option<String>,
+    pub bytes: Option<Vec<u8>>,
+    /// Empty uses the path's file name.
+    pub filename: String,
+    /// The id it was staged with (`stage_upload`): sending takes that
+    /// upload over, and uploads the file again only if it failed.
+    pub staged_id: Option<String>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AttachmentVariant {
+    Original,
+    Thumbnail,
 }

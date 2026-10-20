@@ -32,6 +32,7 @@ class ServerInfo {
     this.description = '',
     this.ownerId,
     this.openJoin = false,
+    this.iconHash,
   });
 
   final String serverIdHex;
@@ -41,15 +42,23 @@ class ServerInfo {
   final bool openJoin;
   final int everyoneRoleId;
 
-  ServerInfo copyWith({String? name, String? description, bool? openJoin}) =>
-      ServerInfo(
-        serverIdHex: serverIdHex,
-        name: name ?? this.name,
-        description: description ?? this.description,
-        ownerId: ownerId,
-        openJoin: openJoin ?? this.openJoin,
-        everyoneRoleId: everyoneRoleId,
-      );
+  /// The server icon's hash; null without one.
+  final String? iconHash;
+
+  ServerInfo copyWith({
+    String? name,
+    String? description,
+    bool? openJoin,
+    String? Function()? iconHash,
+  }) => ServerInfo(
+    serverIdHex: serverIdHex,
+    name: name ?? this.name,
+    description: description ?? this.description,
+    ownerId: ownerId,
+    openJoin: openJoin ?? this.openJoin,
+    everyoneRoleId: everyoneRoleId,
+    iconHash: iconHash == null ? this.iconHash : iconHash(),
+  );
 }
 
 enum ConnectionPhase { connecting, connected, reconnecting, failed }

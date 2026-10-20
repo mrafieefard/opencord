@@ -6,6 +6,7 @@ pub mod attenuation;
 pub mod audio;
 pub mod hotkeys;
 pub mod idle;
+pub mod player;
 pub mod share_audio;
 pub mod soundboard;
 pub mod transport;

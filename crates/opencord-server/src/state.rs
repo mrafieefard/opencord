@@ -64,6 +64,8 @@ pub struct AppState {
     pub music: crate::music::Music,
     /// The chat commands' settings (Phase 3 plan §17).
     pub commands: crate::commands::Commands,
+    /// Media attachments and storage backends (Phase 4).
+    pub attachments: crate::attachments::Attachments,
     guild: RwLock<Guild>,
     /// Lock after the guild, never before it.
     voice: StdMutex<VoiceStates>,
@@ -90,6 +92,10 @@ impl AppState {
             crate::tls::http_client().expect("the HTTPS client builds with the ring provider"),
             config.network.dns_name_server_port,
         );
+        let attachments = crate::attachments::Attachments::new(
+            &config,
+            crate::tls::http_client().expect("the HTTPS client builds with the ring provider"),
+        );
         Self {
             config,
             db,
@@ -109,6 +115,7 @@ impl AppState {
             lavalink: crate::lavalink::Lavalink::default(),
             music: crate::music::Music::default(),
             commands: crate::commands::Commands::default(),
+            attachments,
             guild: RwLock::new(guild),
             voice: StdMutex::new(VoiceStates::default()),
             writes: Mutex::new(()),

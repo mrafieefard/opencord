@@ -94,6 +94,8 @@ pub async fn fetch_bans(ctx: &Ctx<'_>) -> Result<Response, ApiError> {
                     id: row.user_id,
                     public_key: row.public_key,
                     display_name: row.display_name,
+                    // Banned members' pictures stay out of the list.
+                    avatar_hash: String::new(),
                 }),
                 reason: row.reason,
                 banned_by: row.banned_by,

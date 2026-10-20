@@ -121,7 +121,7 @@ async fn handshake(
             Err(_) => return close(connection, CloseCode::HANDSHAKE_TIMEOUT),
             Ok(Next::Closed) => return None,
             Ok(Next::Invalid) => return close(connection, CloseCode::INVALID_FRAME),
-            Ok(Next::Envelope(envelope)) => envelope,
+            Ok(Next::Envelope(envelope)) => *envelope,
         };
         match envelope.payload {
             Some(Payload::Identify(message)) => {
@@ -168,7 +168,7 @@ async fn serve(
                 connection.closer.close(CloseCode::INVALID_FRAME);
                 return;
             }
-            Next::Envelope(envelope) => envelope,
+            Next::Envelope(envelope) => *envelope,
         };
         match envelope.payload {
             Some(Payload::Heartbeat(_)) => {
@@ -194,7 +194,7 @@ async fn serve(
 }
 
 enum Next {
-    Envelope(proto::Envelope),
+    Envelope(Box<proto::Envelope>),
     Invalid,
     Closed,
 }
@@ -204,7 +204,7 @@ async fn next_envelope(stream: &mut SplitStream<WebSocket>) -> Next {
         match stream.next().await {
             Some(Ok(Message::Binary(bytes))) => {
                 return match proto::Envelope::decode(bytes) {
-                    Ok(envelope) => Next::Envelope(envelope),
+                    Ok(envelope) => Next::Envelope(Box::new(envelope)),
                     Err(_) => Next::Invalid,
                 };
             }

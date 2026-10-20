@@ -53,6 +53,13 @@ pub async fn check(
             now_ms,
         );
     }
+    if let Some(hint) = cloudflare_hint(status.as_u16()) {
+        return CheckOutcome::new(
+            CheckResult::Failed,
+            format!("Cloudflare answered {status} for {url}: {hint}"),
+            now_ms,
+        );
+    }
     let what = if status.is_success() {
         "another server answered".to_owned()
     } else {
@@ -65,6 +72,30 @@ pub async fn check(
         ),
         now_ms,
     )
+}
+
+/// What Cloudflare's own errors (520–526) mean for a proxied domain.
+fn cloudflare_hint(status: u16) -> Option<&'static str> {
+    Some(match status {
+        521..=523 => {
+            "Cloudflare could not reach this server. It connects to the same port people use, \
+             443, unless an Origin Rule sends it to Opencord's main port: make the main port 443, \
+             or add the rule (Rules, then Origin Rules, Destination port), and open the port."
+        }
+        525 => {
+            "Cloudflare could not make a secure connection to this server. Set SSL/TLS to Full \
+             or Full (strict) in Cloudflare's dashboard."
+        }
+        526 => {
+            "Cloudflare does not accept this server's certificate. Under Full (strict), upload \
+             Cloudflare's origin certificate for the domain here, or set SSL/TLS to Full."
+        }
+        520 | 524 => {
+            "this server answered Cloudflare oddly or too slowly. Check that the domain leads to \
+             Opencord's main port."
+        }
+        _ => return None,
+    })
 }
 
 fn root_cause(error: &reqwest::Error) -> String {
@@ -152,5 +183,13 @@ mod tests {
         assert_eq!(nothing.result, CheckResult::Failed);
         assert!(nothing.message.contains("hairpin"));
         assert_eq!(untrusted.result, CheckResult::Failed);
+    }
+
+    #[test]
+    fn cloudflare_errors_say_what_to_change() {
+        assert!(cloudflare_hint(526).unwrap().contains("origin certificate"));
+        assert!(cloudflare_hint(525).unwrap().contains("Full"));
+        assert!(cloudflare_hint(521).unwrap().contains("443"));
+        assert_eq!(cloudflare_hint(404), None);
     }
 }

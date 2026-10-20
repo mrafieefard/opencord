@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:opencord/features/settings/user/settings_draft.dart';
 import 'package:opencord/core/model/voice.dart';
 import 'package:opencord/core/providers/providers.dart';
 import 'package:opencord/core/settings/local_prefs.dart';
@@ -37,9 +38,9 @@ class _KeybindsPageState extends ConsumerState<KeybindsPage> {
 
   @override
   Widget build(BuildContext context) {
-    final keybinds = ref.watch(keybindsProvider);
+    final keybinds = ref.watch(shownKeybindsProvider);
     final support = ref.watch(hotkeySupportProvider);
-    final notifier = ref.read(keybindsProvider.notifier);
+    final draft = ref.read(clientSettingsDraftProvider.notifier);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -87,7 +88,7 @@ class _KeybindsPageState extends ConsumerState<KeybindsPage> {
                   icon: OcIcons.add,
                   dense: true,
                   onPressed: () => setState(
-                    () => _added = notifier.add(HotkeyAction.pushToTalk),
+                    () => _added = draft.keybindAdd(HotkeyAction.pushToTalk),
                   ),
                 ),
               ),
@@ -120,7 +121,7 @@ class _KeybindRow extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = context.oc;
-    final notifier = ref.read(keybindsProvider.notifier);
+    final draft = ref.read(clientSettingsDraftProvider.notifier);
     return Padding(
       padding: const EdgeInsets.fromLTRB(
         OcSpace.s12,
@@ -149,7 +150,7 @@ class _KeybindRow extends ConsumerWidget {
                           OcMenuItem(
                             label: action.label,
                             checked: action == keybind.action,
-                            onSelected: () => notifier.change(
+                            onSelected: () => draft.keybindChange(
                               keybind.id,
                               (row) => row.copyWith(action: action),
                             ),
@@ -191,7 +192,7 @@ class _KeybindRow extends ConsumerWidget {
                   keys: keybind.keys,
                   autofocus: record,
                   semanticLabel: 'Keys for ${keybind.action.label}',
-                  onRecorded: (keys) => notifier.change(
+                  onRecorded: (keys) => draft.keybindChange(
                     keybind.id,
                     (row) => row.copyWith(keys: keys),
                   ),
@@ -201,7 +202,7 @@ class _KeybindRow extends ConsumerWidget {
               OcIconButton(
                 icon: OcIcons.close,
                 tooltip: 'Remove keybind',
-                onPressed: () => notifier.remove(keybind.id),
+                onPressed: () => draft.keybindRemove(keybind.id),
               ),
             ],
           ),

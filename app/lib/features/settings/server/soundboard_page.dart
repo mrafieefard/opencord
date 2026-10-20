@@ -37,47 +37,34 @@ class ServerSoundboardPage extends ConsumerStatefulWidget {
       _ServerSoundboardPageState();
 }
 
-class _ServerSoundboardPageState extends ConsumerState<ServerSoundboardPage> {
-  Map<Object, bool Function()>? _unsaved;
-  late VoiceSettings _draft = _saved;
-  var _saving = false;
-  String? _error;
-
-  VoiceSettings get _saved =>
+class _ServerSoundboardPageState extends ConsumerState<ServerSoundboardPage>
+    with SaveBarChanges {
+  /// As saved; kept here for the save bar (see [SaveBarChanges]).
+  late VoiceSettings _saved =
       ref.read(serverProvider(widget.serverKey)).data?.voiceSettings ??
       const VoiceSettings();
-
-  bool get _changed => _draft != _saved;
+  late VoiceSettings _draft = _saved;
 
   @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    _unsaved = SettingsScope.of(context)?..[this] = () => _changed;
+  bool get unsavedChanges => _draft != _saved;
+
+  void _edit(VoiceSettings Function(VoiceSettings draft) change) {
+    setState(() => _draft = change(_draft));
+    changesEdited();
   }
 
   @override
-  void dispose() {
-    _unsaved?.remove(this);
-    super.dispose();
+  Future<void> saveChanges() async {
+    final draft = _draft;
+    await ref
+        .read(repositoryProvider)
+        .updateVoiceSettings(widget.serverKey, draft);
+    _saved = draft;
   }
 
-  void _edit(VoiceSettings Function(VoiceSettings draft) change) =>
-      setState(() => _draft = change(_draft));
-
-  Future<void> _save() async {
-    setState(() {
-      _saving = true;
-      _error = null;
-    });
-    try {
-      await ref
-          .read(repositoryProvider)
-          .updateVoiceSettings(widget.serverKey, _draft);
-      if (mounted) showOcToast(context, 'Changes saved');
-    } on RepoException catch (error) {
-      if (mounted) setState(() => _error = error.message);
-    }
-    if (mounted) setState(() => _saving = false);
+  @override
+  void discardChanges() {
+    if (mounted) setState(() => _draft = _saved);
   }
 
   Future<void> _upload() async {
@@ -120,6 +107,11 @@ class _ServerSoundboardPageState extends ConsumerState<ServerSoundboardPage> {
   Widget build(BuildContext context) {
     final colors = context.oc;
     final data = ref.watch(serverProvider(widget.serverKey)).data;
+    if (data != null && data.voiceSettings != _saved) {
+      // Saved here or elsewhere: what is not being edited follows it.
+      if (_draft == _saved) _draft = data.voiceSettings;
+      _saved = data.voiceSettings;
+    }
     final manageServer = data?.can(Permissions.manageServer) ?? false;
     final manageSounds = data?.can(Permissions.manageSoundboard) ?? false;
     final sounds = ref.watch(soundsProvider(widget.serverKey)).values.toList();
@@ -176,19 +168,6 @@ class _ServerSoundboardPageState extends ConsumerState<ServerSoundboardPage> {
                     _edit((d) => d.copyWith(maxSounds: value)),
               ),
             ],
-          ),
-          if (_error case final error?) ...[
-            const SizedBox(height: OcSpace.s12),
-            InlineError(error),
-          ],
-          const SizedBox(height: OcSpace.s16),
-          Align(
-            alignment: Alignment.centerRight,
-            child: OcButton.primary(
-              label: 'Save changes',
-              busy: _saving,
-              onPressed: _changed && !_saving ? _save : null,
-            ),
           ),
           const SizedBox(height: OcSpace.s24),
         ],

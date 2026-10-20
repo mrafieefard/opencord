@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 
 import 'package:opencord/core/format.dart';
 import 'package:opencord/core/model/message.dart';
+import 'package:opencord/features/chat/attachments/attachment_view.dart';
+import 'package:opencord/features/chat/attachments/upload_progress.dart';
 import 'package:opencord/features/chat/markdown.dart';
 import 'package:opencord/features/chat/markdown_view.dart';
 import 'package:opencord/ui/theme/oc_colors.dart';
@@ -52,11 +54,14 @@ class MessageBubble extends StatelessWidget {
     this.onReaction,
     this.onReplyTap,
     this.onRetry,
+    this.onCancelSend,
     this.onSelectionChanged,
     this.onAuthorTap,
+    required this.serverKey,
   });
 
   final Message message;
+  final String serverKey;
   final bool own;
   final bool first;
   final bool last;
@@ -74,6 +79,7 @@ class MessageBubble extends StatelessWidget {
   final ValueChanged<String>? onReaction;
   final VoidCallback? onReplyTap;
   final VoidCallback? onRetry;
+  final VoidCallback? onCancelSend;
 
   /// Makes the text selectable (§4.5) and reports what is selected.
   final ValueChanged<String?>? onSelectionChanged;
@@ -108,7 +114,11 @@ class MessageBubble extends StatelessWidget {
     final colors = context.oc;
     final blocks = parsedContent(message.content);
     final failed = message.sendState == SendState.failed;
-    final separateMeta = endsWithCode(blocks) || failed;
+    final separateMeta =
+        endsWithCode(blocks) ||
+        failed ||
+        message.content.isEmpty ||
+        message.uploads.isNotEmpty;
     final meta = _Meta(message: message, own: own, onRetry: onRetry);
     final background = highlighted
         ? colors.selected
@@ -132,21 +142,33 @@ class MessageBubble extends StatelessWidget {
               ),
             ),
           if (reply != null) _ReplyQuote(reply: reply!, onTap: onReplyTap),
-          Stack(
-            children: [
-              _selectable(
-                MarkdownView(
-                  blocks: blocks,
-                  links: links,
-                  color: colors.text,
-                  trailing: separateMeta
-                      ? Size.zero
-                      : _Meta.size(context, message, own: own),
+          if (message.content.isNotEmpty)
+            Stack(
+              children: [
+                _selectable(
+                  MarkdownView(
+                    blocks: blocks,
+                    links: links,
+                    color: colors.text,
+                    trailing: separateMeta
+                        ? Size.zero
+                        : _Meta.size(context, message, own: own),
+                  ),
                 ),
-              ),
-              if (!separateMeta) Positioned(right: 0, bottom: -1, child: meta),
-            ],
-          ),
+                if (!separateMeta)
+                  Positioned(right: 0, bottom: -1, child: meta),
+              ],
+            ),
+          if (message.attachments.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: AttachmentsView(serverKey: serverKey, message: message),
+            ),
+          if (message.uploads.isNotEmpty)
+            UploadProgressList(
+              uploads: message.uploads,
+              onCancel: onCancelSend,
+            ),
           if (separateMeta)
             Padding(
               padding: const EdgeInsets.only(top: 4),

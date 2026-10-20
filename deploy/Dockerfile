@@ -9,6 +9,7 @@
 
 FROM rust:1.99-trixie AS build
 WORKDIR /src
+RUN apt-get update && apt-get install -y --no-install-recommends cmake && rm -rf /var/lib/apt/lists/*
 COPY . .
 # Builds only the server's crates, never the app's media ones.
 RUN --mount=type=cache,target=/usr/local/cargo/registry \

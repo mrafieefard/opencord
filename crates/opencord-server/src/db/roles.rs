@@ -9,13 +9,15 @@ pub struct RoleRow {
     pub permissions: i64,
     pub hoist: bool,
     pub mentionable: bool,
+    pub max_upload_bytes: Option<i64>,
 }
 
 pub async fn list(conn: &mut SqliteConnection) -> Result<Vec<RoleRow>, sqlx::Error> {
     sqlx::query_as!(
         RoleRow,
         r#"SELECT id, name, color, position, permissions,
-                  hoist AS "hoist: bool", mentionable AS "mentionable: bool"
+                  hoist AS "hoist: bool", mentionable AS "mentionable: bool",
+                  max_upload_bytes
            FROM roles"#
     )
     .fetch_all(conn)
@@ -24,15 +26,16 @@ pub async fn list(conn: &mut SqliteConnection) -> Result<Vec<RoleRow>, sqlx::Err
 
 pub async fn insert(conn: &mut SqliteConnection, role: &RoleRow) -> Result<(), sqlx::Error> {
     sqlx::query!(
-        "INSERT INTO roles (id, name, color, position, permissions, hoist, mentionable)
-         VALUES ($1, $2, $3, $4, $5, $6, $7)",
+        "INSERT INTO roles (id, name, color, position, permissions, hoist, mentionable, max_upload_bytes)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)",
         role.id,
         role.name,
         role.color,
         role.position,
         role.permissions,
         role.hoist,
-        role.mentionable
+        role.mentionable,
+        role.max_upload_bytes
     )
     .execute(conn)
     .await?;
@@ -42,14 +45,15 @@ pub async fn insert(conn: &mut SqliteConnection, role: &RoleRow) -> Result<(), s
 pub async fn update(conn: &mut SqliteConnection, role: &RoleRow) -> Result<(), sqlx::Error> {
     sqlx::query!(
         "UPDATE roles SET name = $1, color = $2, position = $3, permissions = $4,
-                          hoist = $5, mentionable = $6
-         WHERE id = $7",
+                          hoist = $5, mentionable = $6, max_upload_bytes = $7
+         WHERE id = $8",
         role.name,
         role.color,
         role.position,
         role.permissions,
         role.hoist,
         role.mentionable,
+        role.max_upload_bytes,
         role.id
     )
     .execute(conn)

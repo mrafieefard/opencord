@@ -234,4 +234,39 @@ void main() {
     expect(_inSidebar('Jonas Weber'), findsNothing);
     await app.dispose(tester);
   });
+
+  testWidgets('dragging someone onto another voice channel moves them, and '
+      'the channel stays put', (tester) async {
+    final app = await MockApp.pump(tester, size: _size);
+    await _joinGeneral(tester);
+    final data = app.read(serverProvider(_dev)).data!;
+    final general = data.channels.values.firstWhere((c) => c.name == 'General');
+    final pairing = data.channels.values.firstWhere((c) => c.name == 'Pairing');
+    final generalAt = general.position;
+
+    final start = tester.getCenter(_inSidebar('Jonas Weber'));
+    final gesture = await tester.startGesture(
+      start,
+      kind: PointerDeviceKind.mouse,
+    );
+    await tester.pump(const Duration(milliseconds: 50));
+    final end = tester.getCenter(_inSidebar('Pairing'));
+    for (var step = 1; step <= 10; step++) {
+      await gesture.moveTo(Offset.lerp(start, end, step / 10)!);
+      await tester.pump(const Duration(milliseconds: 30));
+    }
+    await gesture.up();
+    await _pumpFor(tester, const Duration(milliseconds: 500));
+
+    final voice = app.read(voiceProvider(_dev));
+    expect([for (final p in voice[pairing.id] ?? const []) p.userId], [_jonas]);
+    expect([
+      for (final p in voice[general.id] ?? const []) p.userId,
+    ], isNot(contains(_jonas)));
+    expect(
+      app.read(serverProvider(_dev)).data!.channels[general.id]!.position,
+      generalAt,
+    );
+    await app.dispose(tester);
+  });
 }

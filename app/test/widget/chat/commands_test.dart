@@ -19,6 +19,7 @@ import 'package:opencord/features/shell/navigation.dart';
 import 'package:opencord/ui/widgets/oc_switch.dart';
 
 import '../../support/app.dart';
+import '../../support/save_bar.dart';
 
 const _server = 'opencord.example:7710';
 
@@ -205,6 +206,62 @@ void main() {
     await app.dispose(tester);
   });
 
+  testWidgets('Backspace at the start of a command takes it away', (
+    tester,
+  ) async {
+    final app = await MockApp.pump(tester);
+    await _open(tester, app, 'general');
+    await _joinVoice(tester, app);
+    await _choose(tester, 'play');
+    final query = _option('query').first;
+    await tester.enterText(query, 'ab');
+    await _press(tester, LogicalKeyboardKey.backspace);
+    expect(find.byType(CommandInput), findsOneWidget, reason: 'deletes "b"');
+    expect(tester.widget<TextField>(query).controller!.text, 'a');
+
+    await _press(tester, LogicalKeyboardKey.backspace);
+    expect(find.byType(CommandInput), findsOneWidget, reason: 'deletes "a"');
+    await _press(tester, LogicalKeyboardKey.backspace);
+    await tester.pump();
+    expect(find.byType(CommandInput), findsNothing);
+    expect(
+      tester.widget<TextField>(_input).focusNode!.hasFocus,
+      isTrue,
+      reason: 'back to the message box',
+    );
+    await app.dispose(tester);
+  });
+
+  testWidgets('Ctrl+A selects the whole command and Backspace removes it', (
+    tester,
+  ) async {
+    final app = await MockApp.pump(tester);
+    await _open(tester, app, 'general');
+    await _joinVoice(tester, app);
+    await _choose(tester, 'play');
+    await tester.enterText(_option('query').first, 'some song');
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+    await _press(tester, LogicalKeyboardKey.keyA);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+    expect(find.byType(CommandInput), findsOneWidget);
+    await _press(tester, LogicalKeyboardKey.backspace);
+    await tester.pump();
+    expect(find.byType(CommandInput), findsNothing);
+    await app.dispose(tester);
+  });
+
+  testWidgets('a command without options goes with one Backspace', (
+    tester,
+  ) async {
+    final app = await MockApp.pump(tester);
+    await _open(tester, app, 'general');
+    await _choose(tester, 'music');
+    await _press(tester, LogicalKeyboardKey.backspace);
+    await tester.pump();
+    expect(find.byType(CommandInput), findsNothing);
+    await app.dispose(tester);
+  });
+
   testWidgets('what the server refuses is an error only for you', (
     tester,
   ) async {
@@ -255,17 +312,23 @@ void main() {
     await tester.ensureVisible(clear);
     await tester.tap(clear);
     await _settle(tester);
+    // Waits for the save bar; Discard puts it back.
+    expect(
+      app.read(serverProvider(_server)).data!.commands.find('clear'),
+      isNotNull,
+    );
+    await tester.tap(saveBarButton('Discard'));
+    await _settle(tester);
+    expect(tester.widget<OcSwitch>(clear).value, isTrue);
+
+    await tester.tap(clear);
+    await tester.ensureVisible(find.text('Only the user'));
+    await tester.tap(find.text('Only the user'));
+    await saveSettings(tester);
     final commands = app.read(serverProvider(_server)).data!.commands;
     expect(commands.find('clear'), isNull);
     expect(commands.find('play'), isNotNull);
-
-    await tester.ensureVisible(find.text('Only the user'));
-    await tester.tap(find.text('Only the user'));
-    await _settle(tester);
-    expect(
-      app.read(serverProvider(_server)).data!.commands.resultsPublic,
-      isFalse,
-    );
+    expect(commands.resultsPublic, isFalse);
     await app.dispose(tester);
   });
 }

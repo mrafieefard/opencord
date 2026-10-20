@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 
+import 'package:opencord/core/model/attachment.dart';
 import 'package:opencord/core/model/channel.dart';
 import 'package:opencord/core/model/commands.dart';
 import 'package:opencord/core/model/network.dart';
@@ -9,6 +10,7 @@ import 'package:opencord/core/model/snapshot.dart';
 import 'package:opencord/core/model/user.dart';
 import 'package:opencord/core/model/voice.dart';
 import 'package:opencord/core/repository/events.dart';
+import 'package:opencord/core/upload_rules.dart';
 
 /// What the current user knows about one server since its last Ready.
 @immutable
@@ -25,6 +27,7 @@ class ServerData {
     this.voiceSettings = const VoiceSettings(),
     this.addresses = const ServerAddresses(),
     this.commands = const CommandList(),
+    this.uploadSettings = UploadSettings.fallback,
   });
 
   factory ServerData.fromSnapshot(ReadySnapshot snapshot) => ServerData(
@@ -39,6 +42,7 @@ class ServerData {
     voiceSettings: snapshot.voiceSettings,
     addresses: snapshot.addresses,
     commands: snapshot.commands,
+    uploadSettings: snapshot.uploadSettings,
   );
 
   final User self;
@@ -59,6 +63,8 @@ class ServerData {
   /// The chat commands members can use (Phase 3 plan §17.1).
   final CommandList commands;
 
+  final UploadSettings uploadSettings;
+
   bool get isOwner => info.ownerId == self.id;
 
   bool can(Permissions permissions) => serverPermissions.has(permissions);
@@ -67,6 +73,23 @@ class ServerData {
       channelPermissions[channelId] ?? Permissions.none;
 
   Member? get selfMember => members[self.id];
+
+  int get myUploadLimit {
+    final everyone =
+        roles[info.everyoneRoleId]?.maxUploadBytes ??
+        uploadSettings.maxFileBytes;
+    final self = selfMember;
+    final roleLimits = [
+      if (self != null)
+        for (final id in self.roleIds) roles[id]?.maxUploadBytes,
+    ];
+    return effectiveUploadLimit(
+      isOwner: isOwner,
+      everyone: everyone,
+      roles: roleLimits,
+      ceiling: uploadSettings.maxFileBytes,
+    );
+  }
 
   /// Highest first; @everyone last.
   List<Role> get rolesDescending =>
@@ -115,6 +138,7 @@ class ServerData {
     VoiceSettings? voiceSettings,
     ServerAddresses? addresses,
     CommandList? commands,
+    UploadSettings? uploadSettings,
   }) => ServerData(
     self: self,
     info: info ?? this.info,
@@ -127,6 +151,7 @@ class ServerData {
     voiceSettings: voiceSettings ?? this.voiceSettings,
     addresses: addresses ?? this.addresses,
     commands: commands ?? this.commands,
+    uploadSettings: uploadSettings ?? this.uploadSettings,
   );
 }
 
@@ -219,6 +244,9 @@ ServerState reduceServer(ServerState state, RepoEvent event) {
     PermissionsChanged(:final server, :final channels) => data.copyWith(
       serverPermissions: server,
       channelPermissions: channels,
+    ),
+    UploadSettingsEvent(:final settings) => data.copyWith(
+      uploadSettings: settings,
     ),
     _ => null,
   };

@@ -123,6 +123,8 @@ impl TestServer {
         stream.write_all(head.as_bytes()).await.unwrap();
         // A server that refuses early may stop reading the body.
         let _ = stream.write_all(body).await;
+        // TLS may still hold the body's tail until flushed.
+        let _ = stream.flush().await;
         let mut response = Vec::new();
         let _ = stream.read_to_end(&mut response).await;
         let status = std::str::from_utf8(&response[9..12])
@@ -134,6 +136,53 @@ impl TestServer {
             .position(|window| window == b"\r\n\r\n")
             .map_or(response.len(), |at| at + 4);
         (status, response[start..].to_vec())
+    }
+
+    /// An HTTPS request with a binary body; returns the status code,
+    /// headers, and the body's bytes.
+    pub async fn send_http_full(
+        &self,
+        method: &str,
+        path: &str,
+        headers: &[(&str, &str)],
+        body: &[u8],
+    ) -> (u16, Vec<(String, String)>, Vec<u8>) {
+        let mut stream = tls_connect(self).await;
+        let extra: String = headers
+            .iter()
+            .map(|(name, value)| format!("{name}: {value}\r\n"))
+            .collect();
+        let head = format!(
+            "{method} {path} HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\
+             Content-Length: {}\r\n{extra}\r\n",
+            body.len()
+        );
+        stream.write_all(head.as_bytes()).await.unwrap();
+        let _ = stream.write_all(body).await;
+        let _ = stream.flush().await;
+        let mut response = Vec::new();
+        let _ = stream.read_to_end(&mut response).await;
+        let status = std::str::from_utf8(&response[9..12])
+            .unwrap()
+            .parse()
+            .unwrap();
+        let header_end = response
+            .windows(4)
+            .position(|window| window == b"\r\n\r\n")
+            .unwrap_or(response.len());
+        let header_str = std::str::from_utf8(&response[..header_end]).unwrap_or_default();
+        let mut parsed_headers = Vec::new();
+        for line in header_str.lines().skip(1) {
+            if let Some((k, v)) = line.split_once(':') {
+                parsed_headers.push((k.trim().to_lowercase(), v.trim().to_owned()));
+            }
+        }
+        let body_start = if header_end + 4 <= response.len() {
+            header_end + 4
+        } else {
+            response.len()
+        };
+        (status, parsed_headers, response[body_start..].to_vec())
     }
 }
 
@@ -151,6 +200,7 @@ pub fn now_ms() -> u64 {
     .unwrap()
 }
 
+#[allow(clippy::large_enum_variant)]
 pub enum Received {
     Envelope(proto::Envelope),
     Closed(Option<u16>),
@@ -401,6 +451,13 @@ pub async fn owner(server: &TestServer) -> (TestClient, proto::Ready) {
     (client, ready)
 }
 
+/// Connects the owner after the server was already claimed.
+pub async fn owner_again(server: &TestServer) -> (TestClient, proto::Ready) {
+    let mut client = TestClient::connect(server, key(1)).await;
+    let ready = client.identify("Owner", None, None).await.unwrap();
+    (client, ready)
+}
+
 pub fn close_code(code: u16) -> CloseCode {
     CloseCode::from(code)
 }
@@ -524,4 +581,119 @@ pub fn channel_id(ready: &proto::Ready, name: &str) -> i64 {
 
 pub fn self_id(ready: &proto::Ready) -> i64 {
     ready.self_user.as_ref().unwrap().id
+}
+
+pub fn decode_response(bytes: &[u8]) -> proto::response::Result {
+    let response = proto::Response::decode(bytes).expect("valid Response proto");
+    response.result.expect("a response result")
+}
+
+pub fn png(width: u32, height: u32) -> Vec<u8> {
+    use image::{ImageBuffer, Rgb};
+    let img: ImageBuffer<Rgb<u8>, Vec<u8>> =
+        ImageBuffer::from_pixel(width, height, Rgb([128, 128, 128]));
+    let mut bytes = std::io::Cursor::new(Vec::new());
+    img.write_to(&mut bytes, image::ImageFormat::Png).unwrap();
+    bytes.into_inner()
+}
+
+pub async fn upload(
+    client: &mut TestClient,
+    server: &TestServer,
+    token: &str,
+    channel_id: i64,
+    name: &str,
+    bytes: &[u8],
+) -> proto::Attachment {
+    let result = client
+        .ok(proto::request::Kind::CreateUpload(proto::CreateUpload {
+            channel_id,
+            filename: name.to_owned(),
+            size_bytes: bytes.len() as u64,
+            kind: proto::AttachmentKind::File.into(),
+            width: None,
+            height: None,
+            duration_ms: None,
+        }))
+        .await;
+    let upload = match result {
+        proto::response::Result::Upload(upload) => upload,
+        other => panic!("expected Upload response, got {other:?}"),
+    };
+    let piece_bytes = upload.piece_bytes as usize;
+    if bytes.is_empty() {
+        let (status, _) = server
+            .send_http(
+                "PUT",
+                &format!("/media/uploads/{}", upload.upload_id),
+                &[
+                    ("Authorization", &format!("Bearer {token}")),
+                    ("Upload-Offset", "0"),
+                ],
+                &[],
+            )
+            .await;
+        assert_eq!(status, 200);
+    } else {
+        for (chunk_idx, chunk) in bytes.chunks(piece_bytes).enumerate() {
+            let offset = (chunk_idx * piece_bytes) as u64;
+            let (status, _) = server
+                .send_http(
+                    "PUT",
+                    &format!("/media/uploads/{}", upload.upload_id),
+                    &[
+                        ("Authorization", &format!("Bearer {token}")),
+                        ("Upload-Offset", &offset.to_string()),
+                    ],
+                    chunk,
+                )
+                .await;
+            assert_eq!(status, 200);
+        }
+    }
+    let (status, _) = server
+        .send_http(
+            "POST",
+            &format!("/media/uploads/{}/finish", upload.upload_id),
+            &[("Authorization", &format!("Bearer {token}"))],
+            &[],
+        )
+        .await;
+    assert_eq!(status, 202);
+    client
+        .wait_for(|kind| match kind {
+            proto::event::Kind::UploadReady(ready) => ready.attachment.clone(),
+            _ => None,
+        })
+        .await
+}
+
+pub fn voice_ogg(seconds_tone: f32, seconds_silence: f32) -> Vec<u8> {
+    use opencord_common::sound::ogg;
+    let mut encoder =
+        opus::Encoder::new(48_000, opus::Channels::Mono, opus::Application::Voip).unwrap();
+    let tone_samples = (seconds_tone * 48_000.0).round() as usize;
+    let silence_samples = (seconds_silence * 48_000.0).round() as usize;
+    let total_samples = tone_samples + silence_samples;
+    let mut pcm = Vec::with_capacity(total_samples);
+    for t in 0..tone_samples {
+        let sample = 0.5 * (2.0 * std::f32::consts::PI * 440.0 * (t as f32) / 48_000.0).sin();
+        pcm.push(sample);
+    }
+    pcm.resize(total_samples, 0.0);
+
+    let frame_size = 960; // 20 ms at 48 kHz
+    let mut packets = Vec::new();
+    let mut out = vec![0u8; 1000];
+    for chunk in pcm.chunks(frame_size) {
+        let mut frame = chunk.to_vec();
+        frame.resize(frame_size, 0.0);
+        let len = encoder.encode_float(&frame, &mut out).unwrap();
+        packets.push(out[..len].to_vec());
+    }
+    ogg::write(1, 0, &packets, total_samples as u64)
+}
+
+pub fn media_token(ready: &proto::Ready) -> String {
+    ready.media_token.as_ref().unwrap().token.clone()
 }

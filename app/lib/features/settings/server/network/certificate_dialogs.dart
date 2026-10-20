@@ -31,9 +31,15 @@ String certificateLabel(Domain domain, DateTime now) {
   return switch (certificate.state) {
     CertificateState.provided => switch (domain.kind) {
       DomainKind.tunnel => 'Certificate provided by Cloudflare',
+      DomainKind.cloudflareProxy =>
+        "Apps see Cloudflare's certificate; no origin certificate uploaded",
       _ => 'Certificate provided by the proxy',
     },
     CertificateState.requesting => 'Getting a certificate',
+    CertificateState.valid
+        when certificate.uploaded &&
+            domain.kind == DomainKind.cloudflareProxy =>
+      'Origin certificate, valid until $until',
     CertificateState.valid when certificate.uploaded =>
       'Uploaded certificate, valid until $until',
     CertificateState.valid when certificate.test =>

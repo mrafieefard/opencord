@@ -1,0 +1,182 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT id, kind, name, endpoint, region, bucket,\n                  key_prefix, path_style AS \"path_style: bool\",\n                  allow_http AS \"allow_http: bool\", access_key_id,\n                  secret_enc, active AS \"active: bool\", last_error,\n                  created_at\n           FROM storage_backends ORDER BY id",
+  "describe": {
+    "columns": [
+      {
+        "name": "id",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "storage_backends",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "name": "kind",
+        "ordinal": 1,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "storage_backends",
+            "name": "kind"
+          }
+        }
+      },
+      {
+        "name": "name",
+        "ordinal": 2,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "storage_backends",
+            "name": "name"
+          }
+        }
+      },
+      {
+        "name": "endpoint",
+        "ordinal": 3,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "storage_backends",
+            "name": "endpoint"
+          }
+        }
+      },
+      {
+        "name": "region",
+        "ordinal": 4,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "storage_backends",
+            "name": "region"
+          }
+        }
+      },
+      {
+        "name": "bucket",
+        "ordinal": 5,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "storage_backends",
+            "name": "bucket"
+          }
+        }
+      },
+      {
+        "name": "key_prefix",
+        "ordinal": 6,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "storage_backends",
+            "name": "key_prefix"
+          }
+        }
+      },
+      {
+        "name": "path_style: bool",
+        "ordinal": 7,
+        "type_info": "Bool",
+        "origin": {
+          "Table": {
+            "table": "storage_backends",
+            "name": "path_style"
+          }
+        }
+      },
+      {
+        "name": "allow_http: bool",
+        "ordinal": 8,
+        "type_info": "Bool",
+        "origin": {
+          "Table": {
+            "table": "storage_backends",
+            "name": "allow_http"
+          }
+        }
+      },
+      {
+        "name": "access_key_id",
+        "ordinal": 9,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "storage_backends",
+            "name": "access_key_id"
+          }
+        }
+      },
+      {
+        "name": "secret_enc",
+        "ordinal": 10,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "storage_backends",
+            "name": "secret_enc"
+          }
+        }
+      },
+      {
+        "name": "active: bool",
+        "ordinal": 11,
+        "type_info": "Bool",
+        "origin": {
+          "Table": {
+            "table": "storage_backends",
+            "name": "active"
+          }
+        }
+      },
+      {
+        "name": "last_error",
+        "ordinal": 12,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "storage_backends",
+            "name": "last_error"
+          }
+        }
+      },
+      {
+        "name": "created_at",
+        "ordinal": 13,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "storage_backends",
+            "name": "created_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      true,
+      true,
+      true,
+      false,
+      false,
+      false,
+      true,
+      true,
+      false,
+      true,
+      false
+    ]
+  },
+  "hash": "d1a514584625194301e80139c4efa781acf9358d2acee3daf5b41c95673c5ce7"
+}

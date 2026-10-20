@@ -9,6 +9,7 @@ import 'package:opencord/core/model/permissions.dart';
 import 'package:opencord/core/providers/providers.dart';
 import 'package:opencord/core/repository/repository.dart';
 import 'package:opencord/core/settings/local_prefs.dart';
+import 'package:opencord/features/chat/attachments/summary.dart';
 import 'package:opencord/features/shell/navigation.dart';
 import 'package:opencord/features/settings/server_settings.dart';
 import 'package:opencord/ui/theme/oc_colors.dart';
@@ -74,7 +75,7 @@ class ChannelRow extends ConsumerWidget {
         SystemEvent.channelCreated => '$author created the channel',
         SystemEvent.messagePinned => '$author pinned a message',
         null =>
-          '$author: ${previewText(last.content, user: (id) => data.members[id]?.displayName, channel: (id) => data.channels[id]?.name)}',
+          '$author: ${previewText(messageSummary(last), user: (id) => data.members[id]?.displayName, channel: (id) => data.channels[id]?.name)}',
       };
     }
 

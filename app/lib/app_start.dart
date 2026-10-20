@@ -18,6 +18,7 @@ import 'package:opencord/core/rust/core_api.dart';
 import 'package:opencord/core/rust/core_key_value_store.dart';
 import 'package:opencord/core/rust/core_mapping.dart';
 import 'package:opencord/core/rust/identity_store.dart';
+import 'package:opencord/core/rust/media_cache_key_store.dart';
 import 'package:opencord/core/rust/rust_repository.dart';
 import 'package:opencord/core/settings/app_settings.dart';
 import 'package:opencord/core/settings/key_value_store.dart';
@@ -35,6 +36,7 @@ import 'package:opencord/features/onboarding/startup_failed_app.dart';
 import 'package:opencord/features/window/native_window.dart';
 import 'package:opencord/features/window/window_providers.dart';
 import 'package:opencord/features/window/window_startup.dart';
+import 'package:opencord/src/rust/api/attachments.dart' as attachments;
 import 'package:opencord/src/rust/api/client.dart' as core;
 import 'package:opencord/src/rust/api/system.dart';
 import 'package:opencord/src/rust/api/types.dart' show CoreError;
@@ -64,6 +66,7 @@ Future<ProviderContainer> startApp({
   final environment = Platform.environment;
   final dataDir = await _dataDir(profile);
   core.init(appDataDir: dataDir.path);
+  if (!mock) await _startMediaCache(profile);
   registerFontLicenses();
 
   const store = CoreKeyValueStore();
@@ -162,6 +165,19 @@ Future<Widget> startupWidget(
       },
       onQuit: shown.quit,
     );
+  }
+}
+
+/// Seals the attachment cache with a key from the system keychain (media
+/// uploads plan, Task 19). Without the keychain nothing is cached on disk.
+Future<void> _startMediaCache(String profile) async {
+  try {
+    final key = await MediaCacheKeyStore(profile: profile).load();
+    attachments.mediaCacheInit(key: key);
+  } on PlatformException catch (error) {
+    developer.log('no media cache: ${error.message}', name: 'opencord');
+  } on CoreError catch (error) {
+    developer.log('no media cache: $error', name: 'opencord');
   }
 }
 

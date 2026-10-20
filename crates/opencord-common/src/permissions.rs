@@ -13,11 +13,11 @@ bitflags::bitflags! {
         const BAN_MEMBERS = 1 << 7;
         const CREATE_INVITE = 1 << 8;
         const MANAGE_SERVER = 1 << 9;
-        /// Reserved for attachments.
         const ATTACH_FILES = 1 << 10;
         const MENTION_EVERYONE = 1 << 11;
         const CHANGE_NICKNAME = 1 << 12;
         const MANAGE_NICKNAMES = 1 << 13;
+        const SEND_VOICE_MESSAGES = 1 << 14;
         const CONNECT = 1 << 16;
         const SPEAK = 1 << 17;
         /// Camera.
@@ -54,6 +54,8 @@ impl Permissions {
         .union(Self::SEND_MESSAGES)
         .union(Self::READ_HISTORY)
         .union(Self::CREATE_INVITE)
+        .union(Self::ATTACH_FILES)
+        .union(Self::SEND_VOICE_MESSAGES)
         .union(Self::CHANGE_NICKNAME)
         .union(Self::CONNECT)
         .union(Self::SPEAK)
@@ -233,7 +235,9 @@ mod tests {
     #[test]
     fn bits_match_the_protocol() {
         assert_eq!(Permissions::VIEW_CHANNEL.bits(), 1);
+        assert_eq!(Permissions::ATTACH_FILES.bits(), 1 << 10);
         assert_eq!(Permissions::MANAGE_NICKNAMES.bits(), 1 << 13);
+        assert_eq!(Permissions::SEND_VOICE_MESSAGES.bits(), 1 << 14);
         assert_eq!(Permissions::CONNECT.bits(), 1 << 16);
         assert_eq!(Permissions::PRIORITY_SPEAKER.bits(), 1 << 23);
         assert_eq!(Permissions::USE_VOICE_ACTIVITY.bits(), 1 << 24);
@@ -241,6 +245,12 @@ mod tests {
         assert_eq!(Permissions::USE_EXTERNAL_SOUNDS.bits(), 1 << 26);
         assert_eq!(Permissions::MANAGE_SOUNDBOARD.bits(), 1 << 27);
         assert_eq!(Permissions::ADMINISTRATOR.bits(), 1 << 63);
+    }
+
+    #[test]
+    fn everyone_may_attach_files_and_send_voice_messages() {
+        let everyone = Permissions::DEFAULT_EVERYONE;
+        assert!(everyone.contains(Permissions::ATTACH_FILES | Permissions::SEND_VOICE_MESSAGES));
     }
 
     #[test]

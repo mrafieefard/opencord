@@ -243,6 +243,7 @@ fn kind_to_proto(kind: DomainKind) -> proto::DomainKind {
         DomainKind::FreeSubdomain => proto::DomainKind::FreeSubdomain,
         DomainKind::Tunnel => proto::DomainKind::Tunnel,
         DomainKind::ReverseProxy => proto::DomainKind::ReverseProxy,
+        DomainKind::CloudflareProxy => proto::DomainKind::CloudflareProxy,
     }
 }
 
@@ -253,6 +254,7 @@ fn domain_from(domain: proto::Domain) -> Option<Domain> {
         proto::DomainKind::FreeSubdomain => DomainKind::FreeSubdomain,
         proto::DomainKind::Tunnel => DomainKind::Tunnel,
         proto::DomainKind::ReverseProxy => DomainKind::ReverseProxy,
+        proto::DomainKind::CloudflareProxy => DomainKind::CloudflareProxy,
         proto::DomainKind::Unspecified => return None,
     };
     let status = match proto::DomainStatus::try_from(domain.status) {

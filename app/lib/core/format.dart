@@ -87,6 +87,16 @@ String expiryLabel(DateTime? expires, DateTime now) {
   return plural(left.inMinutes < 1 ? 1 : left.inMinutes, 'minute');
 }
 
+/// `m:ss`, e.g. `1:05` or `0:08`.
+String formatDuration(Duration d) {
+  final minutes = d.inMinutes;
+  final seconds = (d.inSeconds % 60).toString().padLeft(2, '0');
+  return '$minutes:$seconds';
+}
+
+/// Formats milliseconds into `m:ss`.
+String formatDurationMs(int ms) => formatDuration(Duration(milliseconds: ms));
+
 /// `1,204`.
 String countLabel(int count) {
   final digits = count.abs().toString();
@@ -141,4 +151,50 @@ String previewText(
     channel: (id, _) => '#${channel(id) ?? 'unknown'}',
   ).replaceAll(_quote, '');
   return text.replaceAll(_space, ' ').trim();
+}
+
+/// Formats a byte size: `0 B`, `999 B`, `1.0 KB`, `12.5 MB`, `1.2 GB`.
+/// One decimal from KB up, no decimal for whole numbers ≥ 100.
+String formatFileSize(int bytes) {
+  if (bytes < 1024) return '$bytes B';
+  final double value;
+  final String unit;
+  if (bytes < 1024 * 1024) {
+    value = bytes / 1024;
+    unit = 'KB';
+  } else if (bytes < 1024 * 1024 * 1024) {
+    value = bytes / (1024 * 1024);
+    unit = 'MB';
+  } else {
+    value = bytes / (1024 * 1024 * 1024);
+    unit = 'GB';
+  }
+  if (value >= 100) {
+    final fixed = value.toStringAsFixed(1);
+    final text = fixed.endsWith('.0') ? value.toStringAsFixed(0) : fixed;
+    return '$text $unit';
+  }
+  return '${value.toStringAsFixed(1)} $unit';
+}
+
+/// Truncates a filename in the middle, keeping the extension intact:
+/// `very_long_file_name.png` -> `very_long…ame.png`.
+/// Counts characters, not UTF-16 units, so an emoji is never cut in half.
+String middleEllipsis(String name, {int maxLength = 24}) {
+  final chars = name.runes.toList();
+  if (chars.length <= maxLength) return name;
+  String part(Iterable<int> runes) => String.fromCharCodes(runes);
+  final dot = chars.lastIndexOf(0x2E);
+  final ext = dot != -1 && dot > chars.length - 10
+      ? chars.sublist(dot)
+      : const <int>[];
+  final stem = ext.isNotEmpty ? chars.sublist(0, dot) : chars;
+  final available = maxLength - 1 - ext.length;
+  if (available <= 3) {
+    return '${part(chars.take(maxLength - 1))}…';
+  }
+  final head = (available * 0.55).ceil();
+  final tail = available - head;
+  return '${part(stem.take(head))}…'
+      '${part(stem.skip(stem.length - tail))}${part(ext)}';
 }

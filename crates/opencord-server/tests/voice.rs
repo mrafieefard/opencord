@@ -630,6 +630,7 @@ async fn a_voice_channel_holds_a_chat_for_those_who_can_see_it() {
             channel_id: room.voice,
             content: "can you hear me?".to_owned(),
             nonce: "n1".to_owned(),
+            attachment_ids: Vec::new(),
         }))
         .await
     {
@@ -681,6 +682,7 @@ async fn a_voice_channel_holds_a_chat_for_those_who_can_see_it() {
             channel_id: room.voice,
             content: "and now?".to_owned(),
             nonce: "n2".to_owned(),
+            attachment_ids: Vec::new(),
         }))
         .await;
     assert_eq!(code(&refused), proto::ErrorCode::Forbidden);
@@ -703,6 +705,7 @@ async fn a_voice_channel_with_its_chat_off_takes_no_messages() {
             channel_id: room.voice,
             content: "anyone?".to_owned(),
             nonce: "n1".to_owned(),
+            attachment_ids: Vec::new(),
         }))
         .await;
 

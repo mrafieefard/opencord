@@ -77,6 +77,9 @@ void _mockClipboard(WidgetTester tester) {
       if (call.method == 'Clipboard.setData') {
         _copied = (call.arguments as Map)['text'] as String;
       }
+      if (call.method == 'Clipboard.hasStrings') {
+        return {'value': _copied != null && _copied!.isNotEmpty};
+      }
       return null;
     },
   );

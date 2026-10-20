@@ -91,6 +91,7 @@ pub async fn execute(ctx: &Ctx<'_>, request: proto::ExecuteCommand) -> Result<Re
                     user_id: ctx.user_id,
                     command: spec.name.to_owned(),
                 }),
+                attachments: Vec::new(),
             };
             ctx.state.broadcast(
                 Event::MessageCreate(proto::MessageCreate {

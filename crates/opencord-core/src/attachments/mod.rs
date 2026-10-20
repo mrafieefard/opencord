@@ -1,0 +1,11 @@
+//! Files in messages (media uploads plan, milestone A4): sending them,
+//! downloading them, the encrypted cache, photo metadata and the clipboard.
+
+pub(crate) mod cache;
+pub mod clipboard;
+pub(crate) mod download;
+pub mod exif;
+pub mod range_reader;
+pub(crate) mod staged;
+pub(crate) mod transfer;
+pub(crate) mod upload;

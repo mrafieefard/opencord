@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart';
 
 import 'package:opencord/core/mock/mock_music.dart';
 import 'package:opencord/core/mock/mock_world.dart';
+import 'package:opencord/core/model/attachment.dart';
 import 'package:opencord/core/model/stream.dart';
 import 'package:opencord/core/model/channel.dart';
 import 'package:opencord/core/model/commands.dart';
@@ -19,6 +20,7 @@ import 'package:opencord/core/model/permissions.dart';
 import 'package:opencord/core/model/presence.dart';
 import 'package:opencord/core/model/server.dart';
 import 'package:opencord/core/model/sound.dart';
+import 'package:opencord/core/model/storage.dart';
 import 'package:opencord/core/model/user.dart';
 import 'package:opencord/core/model/video.dart';
 import 'package:opencord/core/model/voice.dart';
@@ -83,6 +85,9 @@ class MockRepository implements OpencordRepository {
   LocalIdentity? _identity;
   RepoException? _identityUnavailable;
   var _disposed = false;
+  final _activeSends = <String, bool>{};
+  final _activeDownloads = <int, bool>{};
+  Uint8List? _clipboardImage;
 
   /// Everything by default; Phase 1's set to see the app as it will be
   /// on the Rust core.
@@ -146,6 +151,8 @@ class MockRepository implements OpencordRepository {
     for (final timer in [..._timers, ..._retryTimers.values]) {
       timer.cancel();
     }
+    _recordingTimer?.cancel();
+    _playbackTimer?.cancel();
     _musicTick?.cancel();
     _speaking?.cancel();
     _levels?.cancel();
@@ -991,6 +998,7 @@ class MockRepository implements OpencordRepository {
     Permissions permissions = Permissions.none,
     bool hoist = false,
     bool mentionable = false,
+    int? maxUploadBytes,
   }) async {
     final server = _server(serverKey);
     _require(server, Permissions.manageRoles);
@@ -1014,6 +1022,7 @@ class MockRepository implements OpencordRepository {
       permissions: permissions,
       hoist: hoist,
       mentionable: mentionable,
+      maxUploadBytes: maxUploadBytes == 0 ? null : maxUploadBytes,
     );
     server.roles[role.id] = role;
     _emit(RoleUpserted(serverKey, role));
@@ -1028,6 +1037,7 @@ class MockRepository implements OpencordRepository {
     Permissions? permissions,
     bool? hoist,
     bool? mentionable,
+    int? maxUploadBytes,
   }) {
     final server = _server(serverKey);
     _require(server, Permissions.manageRoles);
@@ -1044,6 +1054,9 @@ class MockRepository implements OpencordRepository {
         permissions: permissions,
         hoist: hoist,
         mentionable: mentionable,
+        maxUploadBytes: maxUploadBytes == null
+            ? null
+            : () => (maxUploadBytes == 0 ? null : maxUploadBytes),
       );
       server.roles[roleId] = updated;
       _emit(RoleUpserted(serverKey, updated));
@@ -1310,6 +1323,45 @@ class MockRepository implements OpencordRepository {
       _emit(MemberUpserted(server.key, updated));
     }
   }
+
+  /// This person's picture, as a made-up hash of the file chosen.
+  String? _avatarHash;
+
+  @override
+  String? ownAvatarHash() => _avatarHash;
+
+  /// No file here: initials show.
+  @override
+  String? ownAvatarFile() => null;
+
+  @override
+  Future<void> setAvatar(String? path) async {
+    await _latency();
+    _avatarHash = path?.hashCode.toRadixString(16).padLeft(64, '0');
+    for (final server in _world.servers) {
+      final updated = server.self.copyWith(
+        user: server.self.user.copyWith(avatarHash: () => _avatarHash),
+      );
+      server.members[server.selfId] = updated;
+      _emit(MemberUpserted(server.key, updated));
+    }
+  }
+
+  @override
+  Future<void> setServerIcon(String serverKey, String? path) async {
+    final server = _server(serverKey);
+    _require(server, Permissions.manageServer);
+    await _latency();
+    server.info = server.info.copyWith(
+      iconHash: () => path?.hashCode.toRadixString(16).padLeft(64, '0'),
+    );
+    _emit(ServerInfoChanged(serverKey, server.info));
+  }
+
+  /// Pictures are not fetched here: a path to nothing shows initials.
+  @override
+  Future<String> avatarPath(String serverKey, String hash) async =>
+      'mock-avatars/$hash.png';
 
   @override
   Future<void> updatePresence(SelfPresence presence) async {
@@ -3920,6 +3972,878 @@ class MockRepository implements OpencordRepository {
     );
     if (index != -1) participants[index] = _selfVoice;
     _emit(VoiceChanged(session.server, session.channel, List.of(participants)));
+  }
+
+  @override
+  Future<Message> sendMessageWithFiles(
+    String serverKey,
+    int channelId,
+    String content, {
+    required String nonce,
+    required List<StagedFile> files,
+  }) async {
+    final server = _server(serverKey);
+    _require(server, Permissions.sendMessages, channelId);
+    _require(server, Permissions.attachFiles, channelId);
+
+    _activeSends[nonce] = false;
+    try {
+      for (var i = 0; i < files.length; i++) {
+        if (_activeSends[nonce] == true) {
+          throw const RepoException(
+            RepoErrorKind.cancelled,
+            'Upload cancelled',
+          );
+        }
+        final file = files[i];
+        // Like the core: a finished staged upload is taken over.
+        if (_stagedReady.remove(file.id)) {
+          _emit(
+            UploadProgressEvent(
+              serverKey,
+              channelId: channelId,
+              nonce: nonce,
+              fileIndex: i,
+              sentBytes: file.size,
+              totalBytes: file.size,
+              phase: UploadPhase.done,
+            ),
+          );
+          continue;
+        }
+        uploadsStarted++;
+        _emit(
+          UploadProgressEvent(
+            serverKey,
+            channelId: channelId,
+            nonce: nonce,
+            fileIndex: i,
+            sentBytes: file.size ~/ 2,
+            totalBytes: file.size,
+            phase: UploadPhase.uploading,
+          ),
+        );
+        await _latency(40);
+        if (_activeSends[nonce] == true) {
+          throw const RepoException(
+            RepoErrorKind.cancelled,
+            'Upload cancelled',
+          );
+        }
+        _emit(
+          UploadProgressEvent(
+            serverKey,
+            channelId: channelId,
+            nonce: nonce,
+            fileIndex: i,
+            sentBytes: file.size,
+            totalBytes: file.size,
+            phase: UploadPhase.done,
+          ),
+        );
+      }
+
+      final now = _clock();
+      final messageId = _world.ids.at(now);
+      final attachments = [
+        for (var i = 0; i < files.length; i++)
+          Attachment(
+            id: messageId + i + 1,
+            filename: files[i].name,
+            contentType: 'application/octet-stream',
+            sizeBytes: files[i].size,
+            kind:
+                files[i].name.endsWith('.png') || files[i].name.endsWith('.jpg')
+                ? AttachmentKind.image
+                : (files[i].name.endsWith('.ogg')
+                      ? AttachmentKind.voiceMessage
+                      : AttachmentKind.file),
+            hasThumbnail:
+                files[i].name.endsWith('.png') ||
+                files[i].name.endsWith('.jpg'),
+          ),
+      ];
+
+      final message = Message(
+        id: messageId,
+        channelId: channelId,
+        authorId: server.selfId,
+        content: content,
+        createdAt: now,
+        attachments: attachments,
+      );
+      server.messages[channelId]!.add(message);
+      _emit(MessageCreated(serverKey, message));
+      return message;
+    } finally {
+      _activeSends.remove(nonce);
+    }
+  }
+
+  /// Uploads begun, staged or at send: a test can tell a staged file sent
+  /// without uploading it again.
+  int uploadsStarted = 0;
+
+  /// Staged files whose upload finished, not yet sent or removed.
+  final _stagedReady = <String>{};
+
+  /// Staged files removed, for tests.
+  final discardedStaged = <String>[];
+
+  @override
+  Future<void> stageUpload(
+    String serverKey,
+    int channelId,
+    StagedFile file,
+  ) async {
+    final server = _server(serverKey);
+    _require(server, Permissions.attachFiles, channelId);
+    uploadsStarted++;
+    void progress(UploadPhase phase, int sent) => _emit(
+      StagedUploadEvent(
+        serverKey,
+        channelId: channelId,
+        stagedId: file.id,
+        sentBytes: sent,
+        totalBytes: file.size,
+        phase: phase,
+      ),
+    );
+    progress(UploadPhase.preparing, 0);
+    await _latency(40);
+    if (discardedStaged.contains(file.id)) return;
+    progress(UploadPhase.uploading, file.size ~/ 2);
+    await _latency(40);
+    if (discardedStaged.contains(file.id)) return;
+    _stagedReady.add(file.id);
+    progress(UploadPhase.done, file.size);
+  }
+
+  @override
+  Future<void> discardStagedUpload(String serverKey, String stagedId) async {
+    discardedStaged.add(stagedId);
+    _stagedReady.remove(stagedId);
+  }
+
+  @override
+  void cancelSend(String serverKey, String nonce) {
+    if (_activeSends.containsKey(nonce)) {
+      _activeSends[nonce] = true;
+    }
+  }
+
+  @override
+  Future<Uint8List> attachmentBytes(
+    String serverKey,
+    int attachmentId, {
+    bool thumbnail = false,
+  }) async {
+    await _latency(40);
+    return mockGreyPngBytes;
+  }
+
+  @override
+  Future<void> downloadAttachment(
+    String serverKey,
+    int attachmentId,
+    String path,
+  ) async {
+    _activeDownloads[attachmentId] = false;
+    try {
+      _emit(
+        DownloadProgressEvent(
+          serverKey,
+          attachmentId: attachmentId,
+          receivedBytes: 500,
+          totalBytes: 1000,
+          done: false,
+        ),
+      );
+      await _latency(40);
+      if (_activeDownloads[attachmentId] == true) {
+        // Like the core: a download always ends with a last event.
+        _emit(
+          DownloadProgressEvent(
+            serverKey,
+            attachmentId: attachmentId,
+            receivedBytes: 500,
+            totalBytes: 1000,
+            done: false,
+            error: 'Cancelled.',
+          ),
+        );
+        throw const RepoException(RepoErrorKind.cancelled, 'Cancelled.');
+      }
+      _emit(
+        DownloadProgressEvent(
+          serverKey,
+          attachmentId: attachmentId,
+          receivedBytes: 1000,
+          totalBytes: 1000,
+          done: true,
+        ),
+      );
+    } finally {
+      _activeDownloads.remove(attachmentId);
+    }
+  }
+
+  @override
+  void cancelDownload(String serverKey, int attachmentId) {
+    if (_activeDownloads.containsKey(attachmentId)) {
+      _activeDownloads[attachmentId] = true;
+    }
+  }
+
+  @override
+  Future<Uint8List?> clipboardImage() async {
+    return _clipboardImage;
+  }
+
+  @override
+  Future<void> copyImage(Uint8List bytes) async {
+    _clipboardImage = bytes;
+  }
+
+  @override
+  Future<UploadSettings> updateUploadSettings(
+    String serverKey, {
+    List<String>? blockedExtensions,
+  }) async {
+    final server = _server(serverKey);
+    _require(server, Permissions.manageServer);
+    await _latency();
+    final updated = UploadSettings(
+      blockedExtensions:
+          blockedExtensions ?? server.uploadSettings.blockedExtensions,
+      voiceMessageMaxSeconds: server.uploadSettings.voiceMessageMaxSeconds,
+      maxFileBytes: server.uploadSettings.maxFileBytes,
+      maxAttachments: server.uploadSettings.maxAttachments,
+    );
+    server.uploadSettings = updated;
+    _emit(UploadSettingsEvent(serverKey, updated));
+    return updated;
+  }
+
+  @override
+  Future<StorageInfo> storage(String serverKey) async {
+    final server = _server(serverKey);
+    if (server.info.ownerId != server.selfId) {
+      throw const RepoException(
+        RepoErrorKind.forbidden,
+        'Only the owner manages storage.',
+      );
+    }
+    await _latency();
+    return server.storage;
+  }
+
+  @override
+  Future<StorageInfo> addStorage(
+    String serverKey,
+    String name,
+    S3Config s3,
+  ) async {
+    final server = _server(serverKey);
+    if (server.info.ownerId != server.selfId) {
+      throw const RepoException(
+        RepoErrorKind.forbidden,
+        'Only the owner manages storage.',
+      );
+    }
+    _checkKeys(s3);
+    await _latency();
+    final id = server.storage.backends.length + 1;
+    final backend = StorageBackend(
+      id: id,
+      kind: StorageKind.s3,
+      name: name,
+      active: false,
+      s3: _answered(s3),
+      hasSecret: s3.secretAccessKey.isNotEmpty,
+    );
+    final updated = StorageInfo(
+      backends: [...server.storage.backends, backend],
+      moveStatus: server.storage.moveStatus,
+      tempFreeBytes: server.storage.tempFreeBytes,
+    );
+    server.storage = updated;
+    _emit(StorageEvent(serverKey, updated));
+    return updated;
+  }
+
+  @override
+  Future<StorageInfo> updateStorage(
+    String serverKey,
+    int storageId, {
+    String? name,
+    S3Config? s3,
+  }) async {
+    final server = _server(serverKey);
+    if (server.info.ownerId != server.selfId) {
+      throw const RepoException(
+        RepoErrorKind.forbidden,
+        'Only the owner manages storage.',
+      );
+    }
+    final saved = server.storage.backends
+        .where((b) => b.id == storageId)
+        .firstOrNull;
+    if (s3 != null) _checkKeys(s3, saved: saved);
+    await _latency();
+    final backends = server.storage.backends.map((b) {
+      if (b.id != storageId) return b;
+      return StorageBackend(
+        id: b.id,
+        kind: b.kind,
+        name: name ?? b.name,
+        active: b.active,
+        s3: s3 == null ? b.s3 : _answered(s3, saved: b.s3),
+        hasSecret: (s3?.secretAccessKey.isNotEmpty ?? false) || b.hasSecret,
+        fileCount: b.fileCount,
+        bytes: b.bytes,
+      );
+    }).toList();
+    final updated = StorageInfo(
+      backends: backends,
+      moveStatus: server.storage.moveStatus,
+      tempFreeBytes: server.storage.tempFreeBytes,
+    );
+    server.storage = updated;
+    _emit(StorageEvent(serverKey, updated));
+    return updated;
+  }
+
+  /// As the server answers: the access key masked, no secret.
+  /// [s3] as answers carry it: the access key masked (the [saved] one's
+  /// when [s3] keeps it), no secret.
+  S3Config _answered(S3Config s3, {S3Config? saved}) {
+    if (s3.accessKeyId.isEmpty && saved != null) {
+      return S3Config(
+        endpoint: s3.endpoint,
+        region: s3.region,
+        bucket: s3.bucket,
+        keyPrefix: s3.keyPrefix,
+        pathStyle: s3.pathStyle,
+        allowHttp: s3.allowHttp,
+        accessKeyId: saved.accessKeyId,
+        secretAccessKey: '',
+      );
+    }
+    final key = s3.accessKeyId;
+    return S3Config(
+      endpoint: s3.endpoint,
+      region: s3.region,
+      bucket: s3.bucket,
+      keyPrefix: s3.keyPrefix,
+      pathStyle: s3.pathStyle,
+      allowHttp: s3.allowHttp,
+      accessKeyId: '••••${key.length > 4 ? key.substring(key.length - 4) : ''}',
+      secretAccessKey: '',
+    );
+  }
+
+  /// The server tests a bucket before saving it, and a masked or missing
+  /// key fails that test. Like the server, an edit keeps the keys it
+  /// leaves empty, and a new access key needs its secret.
+  void _checkKeys(S3Config s3, {StorageBackend? saved}) {
+    if (s3.accessKeyId.startsWith('•')) {
+      throw const RepoException(
+        RepoErrorKind.invalidArgument,
+        'The bucket refused the access key.',
+      );
+    }
+    final kept = saved?.s3 != null;
+    if (s3.accessKeyId.isEmpty && !kept) {
+      throw const RepoException(
+        RepoErrorKind.invalidArgument,
+        'the access key is 1 to 200 characters',
+      );
+    }
+    if (s3.secretAccessKey.isEmpty && (!kept || s3.accessKeyId.isNotEmpty)) {
+      throw RepoException(
+        RepoErrorKind.invalidArgument,
+        kept
+            ? 'a new access key needs its secret key'
+            : 'the secret key is 1 to 200 characters',
+      );
+    }
+  }
+
+  /// The storage a test last took its saved keys from, for tests.
+  int? lastStorageTestKeysFrom;
+
+  @override
+  Future<StorageTestResult> testStorage(
+    String serverKey, {
+    int? storageId,
+    S3Config? s3,
+    int? keysFrom,
+  }) async {
+    final server = _server(serverKey);
+    if (server.info.ownerId != server.selfId) {
+      throw const RepoException(
+        RepoErrorKind.forbidden,
+        'Only the owner manages storage.',
+      );
+    }
+    if (s3 != null) {
+      _checkKeys(
+        s3,
+        saved: server.storage.backends
+            .where((b) => b.id == keysFrom)
+            .firstOrNull,
+      );
+    }
+    lastStorageTestKeysFrom = keysFrom;
+    await _latency();
+    return const StorageTestResult(
+      steps: [
+        StorageTestStep(name: 'List objects', ok: true, detail: 'OK'),
+        StorageTestStep(name: 'Put object', ok: true, detail: 'OK'),
+        StorageTestStep(name: 'Get object', ok: true, detail: 'OK'),
+        StorageTestStep(name: 'Delete object', ok: true, detail: 'OK'),
+      ],
+      ok: true,
+    );
+  }
+
+  @override
+  Future<StorageInfo> activateStorage(String serverKey, int storageId) async {
+    final server = _server(serverKey);
+    if (server.info.ownerId != server.selfId) {
+      throw const RepoException(
+        RepoErrorKind.forbidden,
+        'Only the owner manages storage.',
+      );
+    }
+    await _latency();
+    final backends = server.storage.backends.map((b) {
+      return StorageBackend(
+        id: b.id,
+        kind: b.kind,
+        name: b.name,
+        active: b.id == storageId,
+        s3: b.s3,
+        hasSecret: b.hasSecret,
+        fileCount: b.fileCount,
+        bytes: b.bytes,
+      );
+    }).toList();
+    final updated = StorageInfo(
+      backends: backends,
+      moveStatus: server.storage.moveStatus,
+      tempFreeBytes: server.storage.tempFreeBytes,
+    );
+    server.storage = updated;
+    _emit(StorageEvent(serverKey, updated));
+    return updated;
+  }
+
+  @override
+  Future<StorageInfo> removeStorage(String serverKey, int storageId) async {
+    final server = _server(serverKey);
+    if (server.info.ownerId != server.selfId) {
+      throw const RepoException(
+        RepoErrorKind.forbidden,
+        'Only the owner manages storage.',
+      );
+    }
+    await _latency();
+    final backends = server.storage.backends
+        .where((b) => b.id != storageId)
+        .toList();
+    final updated = StorageInfo(
+      backends: backends,
+      moveStatus: server.storage.moveStatus,
+      tempFreeBytes: server.storage.tempFreeBytes,
+    );
+    server.storage = updated;
+    _emit(StorageEvent(serverKey, updated));
+    return updated;
+  }
+
+  @override
+  Future<StorageInfo> startStorageMove(String serverKey) async {
+    final server = _server(serverKey);
+    if (server.info.ownerId != server.selfId) {
+      throw const RepoException(
+        RepoErrorKind.forbidden,
+        'Only the owner manages storage.',
+      );
+    }
+    await _latency();
+    final activeId = server.storage.backends.firstWhere((b) => b.active).id;
+    final updated = StorageInfo(
+      backends: server.storage.backends,
+      moveStatus: StorageMove(
+        toStorageId: activeId,
+        running: true,
+        filesDone: 0,
+        filesTotal: 10,
+        bytesDone: 0,
+        bytesTotal: 1024 * 1024,
+        failed: 0,
+      ),
+      tempFreeBytes: server.storage.tempFreeBytes,
+    );
+    server.storage = updated;
+    _emit(StorageEvent(serverKey, updated));
+    return updated;
+  }
+
+  @override
+  Future<StorageInfo> stopStorageMove(String serverKey) async {
+    final server = _server(serverKey);
+    if (server.info.ownerId != server.selfId) {
+      throw const RepoException(
+        RepoErrorKind.forbidden,
+        'Only the owner manages storage.',
+      );
+    }
+    await _latency();
+    final updated = StorageInfo(
+      backends: server.storage.backends,
+      moveStatus: null,
+      tempFreeBytes: server.storage.tempFreeBytes,
+    );
+    server.storage = updated;
+    _emit(StorageEvent(serverKey, updated));
+    return updated;
+  }
+
+  int _mediaCacheSize = 12 * 1024 * 1024;
+
+  @override
+  Future<int> mediaCacheSize() async {
+    return _mediaCacheSize;
+  }
+
+  @override
+  Future<void> clearMediaCache() async {
+    _mediaCacheSize = 0;
+  }
+
+  // Voice messages: answers as the core does, refusing what it refuses.
+
+  int _nextDraftId = 1;
+  final _voiceDrafts = <int, VoiceDraft>{};
+  Timer? _recordingTimer;
+  bool _recording = false;
+
+  void emitVoiceRecordLevel(double level) => _emit(VoiceRecordLevel(level));
+
+  void emitVoiceRecordStopped(VoiceStopReason reason) {
+    _recordingTimer?.cancel();
+    _emit(VoiceRecordStopped(reason));
+  }
+
+  @override
+  void voiceRecordStart(int maxSeconds) {
+    if (_recording) {
+      throw const RepoException(
+        RepoErrorKind.invalidArgument,
+        'already recording',
+      );
+    }
+    _recording = true;
+    _recordingTimer = Timer.periodic(
+      const Duration(milliseconds: 100),
+      (_) => _emit(const VoiceRecordLevel(0.5)),
+    );
+  }
+
+  @override
+  Future<VoiceDraft> voiceRecordStop() async {
+    if (!_recording) {
+      throw const RepoException(
+        RepoErrorKind.invalidArgument,
+        'Nothing was recorded.',
+      );
+    }
+    _recording = false;
+    _recordingTimer?.cancel();
+    final draft = VoiceDraft(
+      id: _nextDraftId++,
+      durationMs: 3000,
+      waveform: List.filled(128, 120),
+    );
+    _voiceDrafts[draft.id] = draft;
+    return draft;
+  }
+
+  @override
+  void voiceRecordCancel() {
+    _recording = false;
+    _recordingTimer?.cancel();
+  }
+
+  @override
+  void voiceDraftDiscard(int draftId) => _voiceDrafts.remove(draftId);
+
+  @override
+  Future<Message> sendVoiceMessage(
+    String serverKey,
+    int channelId,
+    String nonce,
+    int draftId,
+  ) async {
+    final server = _server(serverKey);
+    _require(server, Permissions.sendVoiceMessages, channelId);
+    final draft = _voiceDrafts[draftId];
+    if (draft == null) {
+      throw RepoException(
+        RepoErrorKind.invalidArgument,
+        'voice draft $draftId not found',
+      );
+    }
+    final history = _history(server, channelId);
+    final now = _clock();
+    final messageId = _world.ids.at(now);
+    final message = Message(
+      id: messageId,
+      channelId: channelId,
+      authorId: server.selfId,
+      content: '',
+      createdAt: now,
+      nonce: nonce,
+      attachments: [
+        Attachment(
+          id: messageId + 1,
+          filename: 'voice-message.ogg',
+          contentType: 'audio/ogg',
+          sizeBytes: 12000,
+          kind: AttachmentKind.voiceMessage,
+          durationMs: draft.durationMs,
+          waveform: draft.waveform,
+        ),
+      ],
+    );
+    history.add(message);
+    _voiceDrafts.remove(draftId);
+    _emit(MessageCreated(serverKey, message));
+    return message;
+  }
+
+  PlaybackItem? _playingItem;
+  int _playbackPositionMs = 0;
+  int _playbackDurationMs = 0;
+  bool _playbackPlaying = false;
+  double _playbackSpeed = 1.0;
+  Timer? _playbackTimer;
+
+  /// The speed last asked of the player, for tests.
+  double get lastVoiceSpeed => _playbackSpeed;
+
+  void _emitPlayback() {
+    if (_playingItem case final item?) {
+      _emit(
+        PlaybackUpdate(
+          item: item,
+          positionMs: _playbackPositionMs,
+          durationMs: _playbackDurationMs,
+          playing: _playbackPlaying,
+          buffering: false,
+        ),
+      );
+    }
+  }
+
+  int _durationOf(PlaybackItem item) => switch (item) {
+    DraftPlayback(:final draftId) => _voiceDrafts[draftId]?.durationMs ?? 0,
+    // The attachment's length when this mock holds its message, else 3 s.
+    AttachmentPlayback(:final serverKey, :final attachmentId) =>
+      _world.servers
+              .where((server) => server.key == serverKey)
+              .expand((server) => server.messages.values)
+              .expand((messages) => messages)
+              .expand((message) => message.attachments)
+              .where((attachment) => attachment.id == attachmentId)
+              .firstOrNull
+              ?.durationMs ??
+          3000,
+  };
+
+  @override
+  Future<void> voicePlay(
+    PlaybackItem item,
+    int positionMs,
+    double speed,
+  ) async {
+    if (item case DraftPlayback(
+      :final draftId,
+    ) when !_voiceDrafts.containsKey(draftId)) {
+      throw RepoException(
+        RepoErrorKind.invalidArgument,
+        'voice draft $draftId not found',
+      );
+    }
+    _playbackTimer?.cancel();
+    // Like the core: a voice message pauses the open media, which keeps
+    // its place.
+    if (_playingItem == _media && _media != null) {
+      _mediaPositionMs = _playbackPositionMs;
+    }
+    _playingItem = item;
+    _playbackDurationMs = _durationOf(item);
+    _playbackPositionMs = positionMs;
+    _playbackSpeed = speed;
+    _playbackPlaying = true;
+    _runPlayback(item);
+    _emitPlayback();
+  }
+
+  /// Advances the position every 100 ms while playing.
+  void _runPlayback(PlaybackItem item) {
+    _playbackTimer?.cancel();
+    _playbackTimer = Timer.periodic(const Duration(milliseconds: 100), (timer) {
+      _playbackPositionMs += (100 * _playbackSpeed).toInt();
+      if (_playbackPositionMs >= _playbackDurationMs) {
+        timer.cancel();
+        _playbackPlaying = false;
+        // Like the core: a voice message's player ends with it, so a
+        // resume after the end finds nothing; the media stays open.
+        if (item != _media) _playingItem = null;
+        _emit(PlaybackEnded(item));
+      } else {
+        _emitPlayback();
+      }
+    });
+  }
+
+  @override
+  void voicePause() {
+    _playbackTimer?.cancel();
+    _playbackPlaying = false;
+    _emitPlayback();
+  }
+
+  @override
+  void voiceResume() {
+    if (_playingItem case final item?) {
+      _playbackPlaying = true;
+      _runPlayback(item);
+      _emitPlayback();
+    }
+  }
+
+  @override
+  void voiceSeek(int positionMs) {
+    _playbackPositionMs = positionMs;
+    _emitPlayback();
+  }
+
+  @override
+  void voiceSetSpeed(double speed) {
+    _playbackSpeed = speed;
+    _emitPlayback();
+  }
+
+  @override
+  void voiceStop() {
+    _playbackTimer?.cancel();
+    _playbackPlaying = false;
+    _playingItem = null;
+  }
+
+  bool mockMediaSupported = true;
+
+  /// The media open, its length, and its place while a voice message
+  /// plays.
+  AttachmentPlayback? _media;
+
+  /// The media open in this mock's player, for tests.
+  AttachmentPlayback? get openMediaForTest => _media;
+  int _mediaDurationMs = 0;
+  int _mediaPositionMs = 0;
+
+  @override
+  bool mediaSupported() => mockMediaSupported;
+
+  @override
+  Future<MediaHandle> mediaOpen(String serverKey, int attachmentId) async {
+    if (!mediaSupported()) {
+      throw const RepoException(
+        RepoErrorKind.invalidArgument,
+        "This computer can't play media yet",
+      );
+    }
+    final att = _world.servers
+        .where((server) => server.key == serverKey)
+        .expand((server) => server.messages.values)
+        .expand((messages) => messages)
+        .expand((message) => message.attachments)
+        .where((attachment) => attachment.id == attachmentId)
+        .firstOrNull;
+    final hasVideo = att == null || att.kind == AttachmentKind.video;
+    final handle = MediaHandle(
+      textureId: hasVideo ? (attachmentId > 0 ? attachmentId : 42) : null,
+      durationMs: att?.durationMs ?? 10000,
+      width: att?.width ?? 320,
+      height: att?.height ?? 240,
+      hasVideo: hasVideo,
+    );
+    mediaClose();
+    _media = AttachmentPlayback(serverKey, attachmentId);
+    _mediaDurationMs = handle.durationMs;
+    _mediaPositionMs = 0;
+    return handle;
+  }
+
+  @override
+  void mediaPlay() {
+    final media = _media;
+    if (media == null) return;
+    if (_playingItem != media) {
+      _playbackTimer?.cancel();
+      _playingItem = media;
+      _playbackDurationMs = _mediaDurationMs;
+      _playbackPositionMs = _mediaPositionMs;
+      _playbackSpeed = 1.0;
+    }
+    // After the end it starts again, as the core's player does.
+    if (_playbackPositionMs >= _playbackDurationMs) _playbackPositionMs = 0;
+    _playbackPlaying = true;
+    _runPlayback(media);
+    _emitPlayback();
+  }
+
+  @override
+  void mediaPause() {
+    if (_playingItem != _media) return;
+    _playbackTimer?.cancel();
+    _playbackPlaying = false;
+    _emitPlayback();
+  }
+
+  @override
+  void mediaSeek(int positionMs) {
+    if (_media == null) return;
+    if (_playingItem != _media) {
+      _mediaPositionMs = positionMs;
+      return;
+    }
+    _playbackPositionMs = positionMs;
+    _emitPlayback();
+  }
+
+  /// The last volume asked for, as `(volume, muted)`.
+  (double, bool)? lastMediaVolume;
+
+  @override
+  void mediaSetVolume(double volume, bool muted) {
+    if (_media != null) lastMediaVolume = (volume, muted);
+  }
+
+  @override
+  void mediaClose() {
+    if (_media == null) return;
+    if (_playingItem == _media) {
+      _playbackTimer?.cancel();
+      _playbackPlaying = false;
+      _playingItem = null;
+    }
+    _media = null;
   }
 }
 
