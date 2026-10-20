@@ -326,6 +326,27 @@ void main() {
       findsOneWidget,
     );
 
+    // The field is titled, and its unit is picked inside it.
+    expect(_inSettings(find.text('Maximum file size')), findsOneWidget);
+    final unit = find.descendant(of: limitField, matching: find.text('MB'));
+    expect(unit, findsOneWidget);
+    await tester.enterText(limitField, '1');
+    await Scrollable.ensureVisible(tester.element(unit), alignment: 0.5);
+    await tester.pump();
+    await tester.tap(unit);
+    await _pumpFor(tester, const Duration(milliseconds: 200));
+    await tester.tap(find.text('GB').last);
+    await _pumpFor(tester, const Duration(milliseconds: 200));
+    expect(
+      find.descendant(of: limitField, matching: find.text('GB')),
+      findsOneWidget,
+    );
+    expect(
+      _inSettings(find.byType(InlineError)),
+      findsOneWidget,
+      reason: '1 GB is over what I may give',
+    );
+
     await app.dispose(tester);
   });
 

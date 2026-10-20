@@ -567,6 +567,21 @@ class _RoleEditorState extends ConsumerState<_RoleEditor> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  Text(
+                    'Maximum file size',
+                    style: OcText.bodyStrong.copyWith(color: colors.text),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    widget.everyone
+                        ? 'The largest file anyone can send, unless one of '
+                              'their roles allows more.'
+                        : 'The largest file members with this role can '
+                              'send. Members get the largest limit among '
+                              'their roles.',
+                    style: OcText.small.copyWith(color: colors.textSecondary),
+                  ),
+                  const SizedBox(height: OcSpace.s8),
                   Row(
                     children: [
                       Expanded(
@@ -574,11 +589,16 @@ class _RoleEditorState extends ConsumerState<_RoleEditor> {
                           key: const Key('role-max-upload-size'),
                           controller: _limitController,
                           enabled: editable && !_notSet,
-                          semanticLabel: 'Max upload size',
-                          hint: 'Max upload size',
+                          semanticLabel: 'Maximum file size',
+                          hint: _notSet ? 'No limit of its own' : 'Size',
                           inputFormatters: [
                             FilteringTextInputFormatter.digitsOnly,
                           ],
+                          suffix: _UnitPicker(
+                            unit: _unit,
+                            enabled: editable && !_notSet,
+                            onPicked: (unit) => setState(() => _unit = unit),
+                          ),
                           onSubmitted: (_) {
                             if (editable &&
                                 _limitChanged &&
@@ -586,37 +606,6 @@ class _RoleEditorState extends ConsumerState<_RoleEditor> {
                               _saveLimit();
                             }
                           },
-                        ),
-                      ),
-                      const SizedBox(width: OcSpace.s8),
-                      Builder(
-                        builder: (btnContext) => OcButton(
-                          label: _unit,
-                          dense: true,
-                          icon: OcIcons.expandMore,
-                          onPressed: editable && !_notSet
-                              ? () {
-                                  final rect = globalRectOf(btnContext);
-                                  showOcMenu(
-                                    context: context,
-                                    position: rect.bottomLeft.translate(0, 4),
-                                    entries: [
-                                      OcMenuItem(
-                                        label: 'MB',
-                                        checked: _unit == 'MB',
-                                        onSelected: () =>
-                                            setState(() => _unit = 'MB'),
-                                      ),
-                                      OcMenuItem(
-                                        label: 'GB',
-                                        checked: _unit == 'GB',
-                                        onSelected: () =>
-                                            setState(() => _unit = 'GB'),
-                                      ),
-                                    ],
-                                  );
-                                }
-                              : null,
                         ),
                       ),
                       if (!widget.everyone) ...[
@@ -735,6 +724,74 @@ class _PermissionRow extends StatelessWidget {
     return Tooltip(
       message: "You don't have this permission, so you can't change it",
       child: row,
+    );
+  }
+}
+
+/// MB or GB, picked inside the size field it belongs to.
+class _UnitPicker extends StatelessWidget {
+  const _UnitPicker({
+    required this.unit,
+    required this.enabled,
+    required this.onPicked,
+  });
+
+  final String unit;
+  final bool enabled;
+  final ValueChanged<String> onPicked;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.oc;
+    return Padding(
+      padding: const EdgeInsets.only(right: OcSpace.s4),
+      child: Hoverable(
+        onTap: enabled
+            ? () {
+                final rect = globalRectOf(context);
+                showOcMenu(
+                  context: context,
+                  position: rect.bottomLeft.translate(0, 4),
+                  entries: [
+                    for (final each in const ['MB', 'GB'])
+                      OcMenuItem(
+                        label: each,
+                        checked: unit == each,
+                        onSelected: () => onPicked(each),
+                      ),
+                  ],
+                );
+              }
+            : null,
+        semanticLabel: 'Unit $unit',
+        focusRadius: BorderRadius.circular(6),
+        builder: (context, state) => Container(
+          padding: const EdgeInsets.symmetric(
+            horizontal: OcSpace.s6,
+            vertical: 2,
+          ),
+          decoration: BoxDecoration(
+            color: state.active ? colors.selected : null,
+            borderRadius: BorderRadius.circular(6),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                unit,
+                style: OcText.bodyStrong.copyWith(
+                  color: enabled ? colors.text : colors.textMuted,
+                ),
+              ),
+              Icon(
+                OcIcons.expandMore,
+                size: 16,
+                color: enabled ? colors.textSecondary : colors.textMuted,
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
