@@ -3,11 +3,11 @@
 use std::path::Path;
 use std::sync::Arc;
 
-use opencord_common::blob::{self, BlobKey, BlobKind, HEADER_LEN, SEGMENT_OVERHEAD, SEGMENT_PLAIN};
+use opencord_common::blob::{self, BlobKey, BlobKind, SEGMENT_PLAIN};
+use opencord_common::mp4;
 use opencord_common::sniff::{SniffKind, Sniffed, sniff};
 use opencord_common::upload::{IMAGE_PROCESS_MAX_BYTES, VOICE_FILENAME, voice_max_bytes};
 use opencord_proto::v1 as proto;
-use tokio::io::AsyncReadExt;
 
 use crate::attachments::http::attachment_to_proto;
 use crate::attachments::storage::{Backend, ObjectKind, StorageError, object_key};
@@ -81,7 +81,8 @@ async fn run_inner(
 ) -> Result<(), ApiError> {
     let id = row.id;
     let key = open_key(state.certificates.secrets(), row)?;
-    let first = read_first_segment(temp_path, &key, id, row.size_bytes as u64)
+    let size = row.size_bytes as u64;
+    let first = temp::read_range(temp_path, &key, id, size, 0, size.min(SEGMENT_PLAIN))
         .await
         .map_err(|error| {
             tracing::error!(
@@ -92,6 +93,9 @@ async fn run_inner(
             ApiError::internal()
         })?;
     let sniffed = sniff(&first);
+    // Sound alone in an MP4 is audio, whatever the brand says.
+    let audio_only = matches!(sniffed, Sniffed::Mp4 | Sniffed::QuickTime)
+        && mp4_has_video(temp_path, &key, id, size).await == Some(false);
 
     let (mut fields, thumbnail) = if row.kind == "voice" {
         (
@@ -101,6 +105,12 @@ async fn run_inner(
     } else if sniffed.kind() == SniffKind::Image && row.size_bytes as u64 <= IMAGE_PROCESS_MAX_BYTES
     {
         image_fields(row, &key, temp_path, sniffed).await?
+    } else if audio_only {
+        let fields = ReadyFields {
+            duration_ms: row.duration_ms,
+            ..base_fields("audio", Sniffed::M4a, &row.filename)
+        };
+        (fields, None)
     } else if sniffed.kind() == SniffKind::Video {
         video_fields(row, sniffed, poster).await
     } else if sniffed.kind() == SniffKind::Audio {
@@ -332,25 +342,35 @@ async fn discard_stored(state: &AppState, storage_id: i64, id: i64, thumbnail: b
     }
 }
 
-/// The plaintext of segment 0: enough to sniff the type.
-async fn read_first_segment(
-    path: &Path,
-    key: &BlobKey,
-    id: i64,
-    total: u64,
-) -> std::io::Result<Vec<u8>> {
-    let mut file = tokio::fs::File::open(path).await?;
-    let sealed_len = HEADER_LEN + SEGMENT_OVERHEAD + total.min(SEGMENT_PLAIN);
-    let mut sealed = vec![0u8; sealed_len as usize];
-    file.read_exact(&mut sealed).await?;
-    let last = total <= SEGMENT_PLAIN;
-    blob::open_segment(
-        key,
-        BlobKind::File,
-        id,
-        0,
-        last,
-        &sealed[HEADER_LEN as usize..],
-    )
-    .map_err(|error| std::io::Error::new(std::io::ErrorKind::InvalidData, error.to_string()))
+/// The most of an MP4's track list read to tell its sound from a video;
+/// a longer one stays a video.
+const MOOV_MOST: u64 = 16 * 1024 * 1024;
+/// The top-level boxes looked through for the track list.
+const TOP_BOXES_MOST: usize = 64;
+
+/// Whether an MP4 upload holds a picture, from its track list (`moov`),
+/// which may come before or after the media; `None` when it can't be found
+/// or read within those bounds.
+async fn mp4_has_video(path: &Path, key: &BlobKey, id: i64, total: u64) -> Option<bool> {
+    let mut offset = 0u64;
+    for _ in 0..TOP_BOXES_MOST {
+        let left = total.checked_sub(offset)?;
+        let head = temp::read_range(path, key, id, total, offset, left.min(16))
+            .await
+            .ok()?;
+        let header = mp4::box_header(&head)?;
+        let size = header.size.unwrap_or(left);
+        if header.kind == *b"moov" {
+            let len = size.min(left).checked_sub(header.header_len)?;
+            if len > MOOV_MOST {
+                return None;
+            }
+            let moov = temp::read_range(path, key, id, total, offset + header.header_len, len)
+                .await
+                .ok()?;
+            return mp4::has_video_track(&moov);
+        }
+        offset = offset.checked_add(size)?;
+    }
+    None
 }

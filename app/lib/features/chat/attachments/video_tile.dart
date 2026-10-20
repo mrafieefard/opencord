@@ -35,7 +35,9 @@ class VideoTile extends ConsumerWidget {
     final height = (attachment.height ?? attachment.thumbnailHeight ?? 3)
         .toDouble();
     final (w, h) = width > 0 && height > 0 ? (width, height) : (4.0, 3.0);
-    final scale = [1.0, 400 / w, 300 / h].reduce(min);
+    // The tile fills a 400 × 300 box at the video's shape; a size the sender
+    // got wrong shows as a tile, never a speck.
+    final scale = min(400 / w, 300 / h);
     final tileWidth = w * scale;
     final tileHeight = h * scale;
 

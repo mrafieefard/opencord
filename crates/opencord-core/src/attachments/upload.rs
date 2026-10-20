@@ -264,7 +264,9 @@ async fn upload_one(
     created: &Mutex<Vec<i64>>,
 ) -> Result<proto::Attachment, CoreError> {
     progress.phase(index, UploadPhase::Preparing);
-    let mut video_hints = None;
+    // What the sender's probe finds goes with the upload: a video's size,
+    // length and poster, a sound's length. The server makes none of them.
+    let mut hints = (None, None, None);
     let mut poster_bytes = None;
     if let Some(path_str) = &file.path
         && opencord_media::player::supported()
@@ -273,12 +275,13 @@ async fn upload_one(
         if let Ok(mut f) = tokio::fs::File::open(p).await {
             let mut head = [0u8; 1024];
             let read = f.read(&mut head).await.unwrap_or(0);
-            if opencord_common::sniff::sniff(&head[..read]).kind()
-                == opencord_common::sniff::SniffKind::Video
-            {
+            if matches!(
+                opencord_common::sniff::sniff(&head[..read]).kind(),
+                opencord_common::sniff::SniffKind::Video | opencord_common::sniff::SniffKind::Audio
+            ) {
                 let p_buf = p.to_path_buf();
-                // Without hints and a poster the video still uploads; the
-                // server makes neither, so the tile shows a plain box.
+                // Without them the file still uploads; a video's tile then
+                // shows a plain box.
                 match tokio::task::spawn_blocking(move || {
                     opencord_media::player::probe_and_poster(&p_buf, 800)
                 })
@@ -286,7 +289,13 @@ async fn upload_one(
                 .unwrap_or_else(|e| Err(opencord_media::player::PlayerError::Open(e.to_string())))
                 {
                     Ok((probe, poster)) => {
-                        video_hints = Some((probe.width, probe.height, probe.duration_ms));
+                        // 0: a length FFmpeg couldn't tell.
+                        let duration = (probe.duration_ms > 0).then_some(probe.duration_ms);
+                        hints = if probe.has_video {
+                            (Some(probe.width), Some(probe.height), duration)
+                        } else {
+                            (None, None, duration)
+                        };
                         if let Some(p) = poster
                             && !p.is_empty()
                             && p.len() <= 2 * 1024 * 1024
@@ -294,7 +303,7 @@ async fn upload_one(
                             poster_bytes = Some(Bytes::from(p));
                         }
                     }
-                    Err(error) => tracing::warn!(%error, "a video uploads without a poster"),
+                    Err(error) => tracing::warn!(%error, "a file uploads without its probe"),
                 }
             }
         }
@@ -302,10 +311,7 @@ async fn upload_one(
 
     let mut source = Source::prepare(file).await?;
     progress.sized(index, source.size);
-    let (width, height, duration_ms) = match video_hints {
-        Some((w, h, d)) => (Some(w), Some(h), Some(d)),
-        None => (None, None, None),
-    };
+    let (width, height, duration_ms) = hints;
     let request = Request::CreateUpload(proto::CreateUpload {
         channel_id: progress.channel_id,
         filename: source.filename.clone(),

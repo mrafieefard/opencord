@@ -301,4 +301,41 @@ void main() {
       findsOneWidget,
     );
   });
+
+  testWidgets('a_video_tile_fills_its_box_whatever_size_was_sent', (
+    tester,
+  ) async {
+    Future<Size> tileFor(int width, int height) async {
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [repositoryProvider.overrideWithValue(MockRepository())],
+          child: MaterialApp(
+            theme: buildTheme(OcColors.dark),
+            home: Scaffold(
+              body: AttachmentsView(
+                serverKey: 'server.example:7710',
+                message: _msg([
+                  Attachment(
+                    id: 404,
+                    filename: 'clip.mp4',
+                    contentType: 'video/mp4',
+                    sizeBytes: 1000,
+                    kind: AttachmentKind.video,
+                    width: width,
+                    height: height,
+                  ),
+                ]),
+              ),
+            ),
+          ),
+        ),
+      );
+      return tester.getSize(find.byType(VideoTile));
+    }
+
+    // A file sent with a 1×1 size, as sound-only MP4s once were.
+    expect(await tileFor(1, 1), const Size(300, 300));
+    expect(await tileFor(320, 240), const Size(400, 300));
+    expect(await tileFor(1080, 1920), const Size(168.75, 300));
+  });
 }

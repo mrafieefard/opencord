@@ -5,8 +5,8 @@ use std::time::Duration;
 
 use opencord_common::address::format_fingerprint;
 use opencord_core::api::types::{
-    AttachmentVariant, CoreError, CoreEvent, CoreEventPayload, ErrorCode, OutgoingFile,
-    ReadySnapshot, RoleChanges, StorageKind, UploadPhase,
+    AttachmentKind, AttachmentVariant, CoreError, CoreEvent, CoreEventPayload, ErrorCode,
+    OutgoingFile, ReadySnapshot, RoleChanges, StorageKind, UploadPhase,
 };
 use opencord_core::client::Client;
 use opencord_core::identity::Identity;
@@ -685,4 +685,48 @@ async fn video_uploads_get_hints_and_a_poster() {
         .unwrap();
     assert!(!thumbnail.is_empty());
     assert_eq!(&thumbnail[..2], &[0xFF, 0xD8]);
+}
+
+/// An MP4 with sound and no picture is audio whatever its brand (`isom`
+/// here, as phones and FFmpeg write them): the server reads its tracks.
+/// Sent by path, the sender's probe adds its length.
+#[tokio::test(flavor = "multi_thread")]
+async fn an_mp4_without_a_picture_is_audio() {
+    let server = TestServer::start().await;
+    let (owner, ready) = TestClient::owner(&server).await;
+    let key = server.address();
+    let fixture = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../opencord-media/tests/fixtures/aac_isom.m4a");
+    let by_path = OutgoingFile {
+        path: Some(fixture.to_string_lossy().into_owned()),
+        bytes: None,
+        filename: "song.m4a".to_owned(),
+    };
+    let by_bytes = bytes_file("song.m4a", std::fs::read(&fixture).unwrap());
+
+    for (nonce, file) in [("n1", by_path), ("n2", by_bytes)] {
+        let message = owner
+            .client
+            .send_message_with_files(
+                &key,
+                general(&ready),
+                String::new(),
+                nonce.to_owned(),
+                vec![file],
+            )
+            .await
+            .unwrap();
+        let attachment = &message.attachments[0];
+        assert_eq!(attachment.kind, AttachmentKind::Audio, "{nonce}");
+        assert_eq!(attachment.content_type, "audio/mp4", "{nonce}");
+        assert_eq!(
+            (attachment.width, attachment.height),
+            (None, None),
+            "{nonce}"
+        );
+        if nonce == "n1" {
+            let duration = attachment.duration_ms.expect("the probe's length");
+            assert!((950..=1100).contains(&duration), "{duration} ms");
+        }
+    }
 }

@@ -507,7 +507,8 @@ message CreateUpload {
   string filename = 2;
   uint64 size_bytes = 3;
   AttachmentKind kind = 4;
-  // Videos: what the sender's probe found; used only for layout.
+  // What the sender's probe found, used only for layout: a video's size and
+  // length, a sound's length.
   optional uint32 width = 5;
   optional uint32 height = 6;
   optional uint32 duration_ms = 7;

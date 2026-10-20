@@ -5,6 +5,7 @@ pub mod auth;
 pub mod blob;
 pub mod channel;
 pub mod limits;
+pub mod mp4;
 pub mod permissions;
 pub mod rate;
 pub mod signed;
