@@ -17,7 +17,6 @@ import 'package:opencord/ui/widgets/oc_switch.dart';
 import '../../support/app.dart';
 
 const _dev = 'opencord.example:7710';
-const _berlin = 'rust-berlin.example:7710';
 
 Future<void> _pumpFor(WidgetTester tester, Duration total) async {
   const step = Duration(milliseconds: 50);
@@ -91,7 +90,7 @@ void main() {
   testWidgets('uploads_page_normalizes_and_saves', (tester) async {
     final app = await MockApp.pump(tester);
     await _openServerSettings(tester);
-    await _page(tester, 'Uploads');
+    await _page(tester, 'Upload settings');
 
     // Click "Block programs"
     await tester.tap(
@@ -139,17 +138,27 @@ void main() {
   ) async {
     final app = await MockApp.pump(tester);
 
-    // On non-owner server (Rust Berlin), Storage is not listed
-    final berlinData = app.read(serverProvider(_berlin)).data!;
-    final pages = serverSettingsPages(berlinData, _berlin).map((p) => p.id);
-    expect(pages, isNot(contains('storage')));
+    // Hosting pages have a group of their own.
+    final devData = app.read(serverProvider(_dev)).data!;
+    expect(
+      [
+        for (final page in serverSettingsPages(devData, _dev))
+          if (page.group == 'Hosting') page.label,
+      ],
+      ['Domains & network', 'Music', 'Upload settings'],
+    );
 
-    // On owner server (Opencord Dev), Storage is listed
+    // The owner's Upload settings hold the storage too.
     await _openServerSettings(tester, 'Opencord Dev');
-    await _page(tester, 'Storage');
-
+    await _page(tester, 'Upload settings');
+    expect(
+      _inSettings(find.widgetWithText(OcButton, 'Block programs')),
+      findsOneWidget,
+    );
     expect(_inSettings(find.text('Local disk')), findsOneWidget);
     expect(_inSettings(find.text('Active')), findsOneWidget);
+    // The active local disk alone has nothing to do: no empty menu.
+    expect(_inSettings(find.byTooltip('Actions for Local disk')), findsNothing);
 
     // Connect a bucket opens S3Dialog
     await tester.tap(
@@ -196,7 +205,7 @@ void main() {
   ) async {
     final app = await MockApp.pump(tester);
     await _openServerSettings(tester, 'Opencord Dev');
-    await _page(tester, 'Storage');
+    await _page(tester, 'Upload settings');
     await _connectBucket(tester, 'My Wasabi');
 
     Future<void> openEdit(String name) async {

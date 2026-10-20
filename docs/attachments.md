@@ -11,7 +11,7 @@ Members attach files and voice messages to messages. The server keeps every file
 
 ## Where files go
 
-Files arrive in pieces into `uploads` in the data directory, then go to the **active storage**. A server always has its own storage, and the owner can add buckets under **Server settings → Storage** and make one of them active. New files go to the active storage; each file stays where it was stored until it is [moved](#moving-between-storages).
+Files arrive in pieces into `uploads` in the data directory, then go to the **active storage**. A server always has its own storage, and the owner can add buckets under **Server settings → Upload settings → Storage** and make one of them active. New files go to the active storage; each file stays where it was stored until it is [moved](#moving-between-storages).
 
 ### This server's own storage
 
@@ -23,7 +23,7 @@ Files go to `attachments` in the data directory, or wherever `local_dir` says:
 local_dir = "/mnt/storage/opencord-attachments"
 ```
 
-`uploads` must have room for the files being uploaded: the server refuses an upload (`STORAGE_FULL`) when the folder has less free space than the file plus 512 MiB. The Storage page shows the room left.
+`uploads` must have room for the files being uploaded: the server refuses an upload (`STORAGE_FULL`) when the folder has less free space than the file plus 512 MiB. Upload settings shows the room left.
 
 ### S3-compatible buckets
 
@@ -99,7 +99,7 @@ The Docker and systemd files in [deploy/](../deploy) show how to hand the key to
 
 - **Per message:** at most 10 files. A voice message is sent on its own, without text.
 - **At a time:** each member can have at most 10 uploads not yet sent, and start 20 a minute. An upload left unfinished, or finished and never sent, is deleted after a day; a failed one after an hour.
-- **Blocked extensions** (**Server settings → Uploads**): uploads whose name ends with one of them are refused (`FILE_TYPE_BLOCKED`). Nothing is blocked on a new server. **Block programs** adds the common program and script extensions (`exe`, `msi`, `bat`, `ps1`, `js`, `jar`, `apk`, `dmg`, `deb`, `sh` and others). Up to 100 entries of up to 20 characters; an entry can hold inner dots (`tar.gz`).
+- **Blocked extensions** (**Server settings → Upload settings**): uploads whose name ends with one of them are refused (`FILE_TYPE_BLOCKED`). Nothing is blocked on a new server. **Block programs** adds the common program and script extensions (`exe`, `msi`, `bat`, `ps1`, `js`, `jar`, `apk`, `dmg`, `deb`, `sh` and others). Up to 100 entries of up to 20 characters; an entry can hold inner dots (`tar.gz`).
 - **Voice messages** last at most 30 minutes, on every server. A recording stops there and waits, unsent, for the member to send or delete it. The server checks the length and computes the waveform itself.
 - **Pictures** are checked and get a thumbnail (at most 800 pixels on a side) when they are at most 100 MiB, 16,384 pixels on a side and 50 megapixels. A picture beyond that, or one that doesn't decode, stays a file people can download. Videos get the thumbnail the sender's app made from their first frame.
 
@@ -116,7 +116,7 @@ What it can't do: a member who can open a file can save a copy (**Download**), a
 
 ## Moving between storages
 
-Making another storage active changes only where new files go. To move the old ones, **Move files** on the Storage page copies every file stored elsewhere to the active storage, two at a time. They are copied encrypted, as they are, so the server never decrypts them on the way, and each file switches over once its copy is complete. Progress shows on the page. **Stop** stops after the files in flight; starting again continues with what is left. A file that fails three times stays where it was and is counted as failed.
+Making another storage active changes only where new files go. To move the old ones, **Move files** under Storage in Upload settings copies every file stored elsewhere to the active storage, two at a time. They are copied encrypted, as they are, so the server never decrypts them on the way, and each file switches over once its copy is complete. Progress shows on the page. **Stop** stops after the files in flight; starting again continues with what is left. A file that fails three times stays where it was and is counted as failed.
 
 The old copies are deleted an hour after each switch, so downloads that started before it can finish. While a move runs, no other storage can be activated: finish or stop it first. A storage can be removed once it is not active, holds no files and has nothing left waiting to be deleted; the server's own storage can't be removed.
 

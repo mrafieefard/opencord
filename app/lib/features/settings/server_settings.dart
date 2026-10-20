@@ -12,7 +12,6 @@ import 'package:opencord/features/settings/server/network/network_page.dart';
 import 'package:opencord/features/settings/server/overview_page.dart';
 import 'package:opencord/features/settings/server/roles_page.dart';
 import 'package:opencord/features/settings/server/soundboard_page.dart';
-import 'package:opencord/features/settings/server/storage_page.dart';
 import 'package:opencord/features/settings/server/uploads_page.dart';
 import 'package:opencord/features/settings/server/voice_page.dart';
 import 'package:opencord/features/settings/settings_dialog.dart';
@@ -33,15 +32,6 @@ List<SettingsPage> serverSettingsPages(
       group: 'Server',
       builder: (_) => ServerOverviewPage(serverKey: serverKey),
     ),
-  // The owner's alone (Phase 3 plan §3).
-  if (data.isOwner)
-    SettingsPage(
-      id: 'network',
-      label: 'Domains & network',
-      icon: OcIcons.dns,
-      group: 'Server',
-      builder: (_) => ServerNetworkPage(serverKey: serverKey),
-    ),
   if (data.voiceEnabled && data.can(Permissions.manageServer))
     SettingsPage(
       id: 'voice',
@@ -49,17 +39,6 @@ List<SettingsPage> serverSettingsPages(
       icon: OcIcons.graphicEq,
       group: 'Server',
       builder: (_) => ServerVoicePage(serverKey: serverKey),
-    ),
-  // Music settings need Manage music, Lavalink nodes Manage server (Phase
-  // 3 plan §16.2).
-  if (data.voiceEnabled &&
-      (data.can(Permissions.manageServer) || data.can(Permissions.musicManage)))
-    SettingsPage(
-      id: 'music',
-      label: 'Music',
-      icon: OcIcons.headphones,
-      group: 'Server',
-      builder: (_) => ServerMusicPage(serverKey: serverKey),
     ),
   if (data.can(Permissions.manageServer))
     SettingsPage(
@@ -96,21 +75,35 @@ List<SettingsPage> serverSettingsPages(
       group: 'Server',
       builder: (_) => ServerRolesPage(serverKey: serverKey),
     ),
+  // How the server is hosted, apart from the community's settings: its
+  // domains and network (the owner's alone, Phase 3 plan §3), music, and
+  // uploads with the owner's storage.
+  if (data.isOwner)
+    SettingsPage(
+      id: 'network',
+      label: 'Domains & network',
+      icon: OcIcons.dns,
+      group: 'Hosting',
+      builder: (_) => ServerNetworkPage(serverKey: serverKey),
+    ),
+  // Music settings need Manage music, Lavalink nodes Manage server (Phase
+  // 3 plan §16.2).
+  if (data.voiceEnabled &&
+      (data.can(Permissions.manageServer) || data.can(Permissions.musicManage)))
+    SettingsPage(
+      id: 'music',
+      label: 'Music',
+      icon: OcIcons.headphones,
+      group: 'Hosting',
+      builder: (_) => ServerMusicPage(serverKey: serverKey),
+    ),
   if (data.can(Permissions.manageServer))
     SettingsPage(
       id: 'uploads',
-      label: 'Uploads',
+      label: 'Upload settings',
       icon: OcIcons.upload,
-      group: 'Server',
+      group: 'Hosting',
       builder: (_) => ServerUploadsPage(serverKey: serverKey),
-    ),
-  if (data.isOwner)
-    SettingsPage(
-      id: 'storage',
-      label: 'Storage',
-      icon: OcIcons.storage,
-      group: 'Server',
-      builder: (_) => ServerStoragePage(serverKey: serverKey),
     ),
   if (data.can(Permissions.kickMembers) ||
       data.can(Permissions.banMembers) ||

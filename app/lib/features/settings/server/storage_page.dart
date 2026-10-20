@@ -52,7 +52,8 @@ class StorageNotifier extends AsyncNotifier<StorageInfo> {
 final storageProvider = AsyncNotifierProvider.autoDispose
     .family<StorageNotifier, StorageInfo, String>(StorageNotifier.new);
 
-/// Server settings → Storage (§8.2): backends, move files, free temp space.
+/// Where files are stored (§8.2), the owner's part of Upload settings:
+/// backends, moving files, room for uploads in progress.
 class ServerStoragePage extends ConsumerWidget {
   const ServerStoragePage({super.key, required this.serverKey});
 
@@ -181,44 +182,49 @@ class _StorageContentState extends ConsumerState<_StorageContent> {
     }
   }
 
-  void _showBackendMenu(BuildContext btnContext, StorageBackend backend) {
-    final rect = globalRectOf(btnContext);
+  /// What can be done to [backend]; empty for the server's own storage
+  /// while it is active, which then shows no menu.
+  List<OcMenuItem> _backendActions(StorageBackend backend) {
     final isLocal = backend.kind == StorageKind.local;
     final isS3 = backend.kind == StorageKind.s3;
+    return [
+      if (!backend.active)
+        OcMenuItem(
+          label: 'Activate',
+          icon: OcIcons.check,
+          onSelected: () => _activate(backend),
+        ),
+      if (isS3) ...[
+        OcMenuItem(
+          label: 'Test',
+          icon: OcIcons.sync,
+          onSelected: () => _test(backend),
+        ),
+        OcMenuItem(
+          label: 'Edit',
+          icon: OcIcons.edit,
+          onSelected: () => showOcDialog(
+            context: context,
+            builder: (_) =>
+                S3Dialog(serverKey: widget.serverKey, existing: backend),
+          ),
+        ),
+      ],
+      if (!isLocal && !backend.active && backend.fileCount == 0)
+        OcMenuItem(
+          label: 'Remove',
+          icon: OcIcons.delete,
+          onSelected: () => _remove(backend),
+        ),
+    ];
+  }
 
+  void _showBackendMenu(BuildContext btnContext, List<OcMenuItem> actions) {
+    final rect = globalRectOf(btnContext);
     showOcMenu(
       context: context,
       position: rect.bottomLeft.translate(0, 4),
-      entries: [
-        if (!backend.active)
-          OcMenuItem(
-            label: 'Activate',
-            icon: OcIcons.check,
-            onSelected: () => _activate(backend),
-          ),
-        if (isS3) ...[
-          OcMenuItem(
-            label: 'Test',
-            icon: OcIcons.sync,
-            onSelected: () => _test(backend),
-          ),
-          OcMenuItem(
-            label: 'Edit',
-            icon: OcIcons.edit,
-            onSelected: () => showOcDialog(
-              context: context,
-              builder: (_) =>
-                  S3Dialog(serverKey: widget.serverKey, existing: backend),
-            ),
-          ),
-        ],
-        if (!isLocal && !backend.active && backend.fileCount == 0)
-          OcMenuItem(
-            label: 'Remove',
-            icon: OcIcons.delete,
-            onSelected: () => _remove(backend),
-          ),
-      ],
+      entries: actions,
     );
   }
 
@@ -239,7 +245,7 @@ class _StorageContentState extends ConsumerState<_StorageContent> {
           children: [
             Expanded(
               child: Text(
-                'Storage backends',
+                'Storage',
                 style: OcText.title.copyWith(color: colors.text),
               ),
             ),
@@ -338,13 +344,16 @@ class _StorageContentState extends ConsumerState<_StorageContent> {
                         ],
                       ),
                     ),
-                    Builder(
-                      builder: (btnContext) => OcIconButton(
-                        icon: OcIcons.moreVert,
-                        tooltip: 'Actions for ${backend.name}',
-                        onPressed: () => _showBackendMenu(btnContext, backend),
+                    if (_backendActions(backend) case final actions
+                        when actions.isNotEmpty)
+                      Builder(
+                        builder: (btnContext) => OcIconButton(
+                          icon: OcIcons.moreVert,
+                          tooltip: 'Actions for ${backend.name}',
+                          onPressed: () =>
+                              _showBackendMenu(btnContext, actions),
+                        ),
                       ),
-                    ),
                   ],
                 ),
               ),

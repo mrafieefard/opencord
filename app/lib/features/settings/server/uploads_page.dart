@@ -5,6 +5,7 @@ import 'package:opencord/core/model/attachment.dart';
 import 'package:opencord/core/providers/providers.dart';
 import 'package:opencord/core/repository/repository.dart';
 import 'package:opencord/core/upload_rules.dart';
+import 'package:opencord/features/settings/server/storage_page.dart';
 import 'package:opencord/features/settings/settings_dialog.dart';
 import 'package:opencord/ui/theme/oc_colors.dart';
 import 'package:opencord/ui/theme/oc_icons.dart';
@@ -17,7 +18,8 @@ import 'package:opencord/ui/widgets/oc_text_field.dart';
 import 'package:opencord/ui/widgets/settings.dart';
 import 'package:opencord/ui/widgets/toast.dart';
 
-/// Server settings → Uploads (§8.2): blocked file extensions.
+/// Server settings → Upload settings (§8.2): blocked file extensions, and
+/// for the owner where files are stored.
 class ServerUploadsPage extends ConsumerStatefulWidget {
   const ServerUploadsPage({super.key, required this.serverKey});
 
@@ -216,6 +218,13 @@ class _ServerUploadsPageState extends ConsumerState<ServerUploadsPage> {
             onPressed: _changed ? _save : null,
           ),
         ),
+        if (ref.watch(
+              serverProvider(widget.serverKey).select((s) => s.data?.isOwner),
+            ) ??
+            false) ...[
+          const SizedBox(height: OcSpace.s32),
+          ServerStoragePage(serverKey: widget.serverKey),
+        ],
       ],
     );
   }
