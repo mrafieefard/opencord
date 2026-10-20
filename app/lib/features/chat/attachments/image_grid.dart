@@ -3,7 +3,6 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:opencord/core/model/attachment.dart';
-import 'package:opencord/core/model/message.dart';
 import 'package:opencord/features/chat/attachments/attachment_bytes.dart';
 import 'package:opencord/features/chat/attachments/download.dart';
 import 'package:opencord/features/chat/attachments/media_viewer.dart';
@@ -16,13 +15,11 @@ class ImageGrid extends StatelessWidget {
   const ImageGrid({
     super.key,
     required this.serverKey,
-    required this.message,
     required this.images,
     this.onTap,
   });
 
   final String serverKey;
-  final Message message;
   final List<Attachment> images;
   final void Function(int index)? onTap;
 
@@ -39,7 +36,6 @@ class ImageGrid extends StatelessWidget {
         );
     Widget cell(int index, {int remaining = 0}) => _Cell(
       serverKey: serverKey,
-      message: message,
       attachment: images[index],
       index: index,
       remaining: remaining,
@@ -124,7 +120,6 @@ class ImageGrid extends StatelessWidget {
 class _Cell extends ConsumerWidget {
   const _Cell({
     required this.serverKey,
-    required this.message,
     required this.attachment,
     required this.index,
     this.remaining = 0,
@@ -132,7 +127,6 @@ class _Cell extends ConsumerWidget {
   });
 
   final String serverKey;
-  final Message message;
   final Attachment attachment;
   final int index;
   final int remaining;
@@ -218,17 +212,9 @@ class _Cell extends ConsumerWidget {
 
     return ClipRRect(
       borderRadius: BorderRadius.circular(OcRadius.bubble),
-      child: GestureDetector(
-        onTap: () => onTap?.call(index),
-        onSecondaryTapUp: (details) => showAttachmentMenu(
-          context: context,
-          ref: ref,
-          position: details.globalPosition,
-          serverKey: serverKey,
-          attachment: attachment,
-          message: message,
-        ),
-        child: content,
+      child: AttachmentTarget(
+        attachment: attachment,
+        child: GestureDetector(onTap: () => onTap?.call(index), child: content),
       ),
     );
   }

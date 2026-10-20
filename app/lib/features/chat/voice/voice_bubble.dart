@@ -128,15 +128,8 @@ class _VoiceBubbleState extends ConsumerState<VoiceBubble> {
             ? '${formatDurationMs(positionMs)} / ${formatDurationMs(durationMs)}'
             : formatDurationMs(durationMs));
 
-    return GestureDetector(
-      onSecondaryTapUp: (details) => showAttachmentMenu(
-        context: context,
-        ref: ref,
-        position: details.globalPosition,
-        serverKey: widget.serverKey,
-        attachment: widget.attachment,
-        message: widget.message,
-      ),
+    return AttachmentTarget(
+      attachment: widget.attachment,
       child: Container(
         width: width,
         height: 56,

@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:opencord/core/format.dart';
 import 'package:opencord/core/model/attachment.dart';
-import 'package:opencord/core/model/message.dart';
 import 'package:opencord/core/repository/repository.dart';
 import 'package:opencord/features/chat/attachments/download.dart';
 import 'package:opencord/features/chat/attachments/file_icon.dart';
@@ -19,12 +18,10 @@ class FileCard extends ConsumerWidget {
     super.key,
     required this.serverKey,
     required this.attachment,
-    this.message,
   });
 
   final String serverKey;
   final Attachment attachment;
-  final Message? message;
 
   bool get _canPreview =>
       textPreviewExtensions.contains(fileExtension(attachment.filename)) &&
@@ -36,15 +33,8 @@ class FileCard extends ConsumerWidget {
     final download = ref.watch(downloadProgressProvider)[attachment.id];
     final isDownloading = download != null && !download.done;
 
-    return GestureDetector(
-      onSecondaryTapUp: (details) => showAttachmentMenu(
-        context: context,
-        ref: ref,
-        position: details.globalPosition,
-        serverKey: serverKey,
-        attachment: attachment,
-        message: message,
-      ),
+    return AttachmentTarget(
+      attachment: attachment,
       child: Container(
         width: 320,
         height: 56,

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:opencord/core/model/attachment.dart';
 import 'package:opencord/core/model/message.dart';
 import 'package:opencord/features/chat/attachments/audio_card.dart';
+import 'package:opencord/features/chat/attachments/download.dart';
 import 'package:opencord/features/chat/attachments/file_card.dart';
 import 'package:opencord/features/chat/attachments/image_grid.dart';
 import 'package:opencord/features/chat/attachments/media_viewer.dart';
@@ -50,7 +51,6 @@ class AttachmentsView extends StatelessWidget {
         if (images.isNotEmpty) ...[
           ImageGrid(
             serverKey: serverKey,
-            message: message,
             images: images,
             onTap: (index) => view(images[index]),
           ),
@@ -64,16 +64,18 @@ class AttachmentsView extends StatelessWidget {
               message: message,
             )
           else if (item.kind == AttachmentKind.video)
-            VideoTile(
-              serverKey: serverKey,
+            AttachmentTarget(
               attachment: item,
-              message: message,
-              onTap: () => view(item),
+              child: VideoTile(
+                serverKey: serverKey,
+                attachment: item,
+                onTap: () => view(item),
+              ),
             )
           else if (item.kind == AttachmentKind.audio)
             AudioCard(serverKey: serverKey, attachment: item, message: message)
           else
-            FileCard(serverKey: serverKey, attachment: item, message: message),
+            FileCard(serverKey: serverKey, attachment: item),
           const SizedBox(height: OcSpace.s4),
         ],
       ],

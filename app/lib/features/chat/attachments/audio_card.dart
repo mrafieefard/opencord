@@ -102,15 +102,8 @@ class _AudioCardState extends ConsumerState<AudioCard> {
               : playback.positionMs.clamp(0, durationMs))
         : 0;
 
-    return GestureDetector(
-      onSecondaryTapUp: (details) => showAttachmentMenu(
-        context: context,
-        ref: ref,
-        position: details.globalPosition,
-        serverKey: widget.serverKey,
-        attachment: widget.attachment,
-        message: widget.message,
-      ),
+    return AttachmentTarget(
+      attachment: widget.attachment,
       child: Container(
         width: 320,
         padding: const EdgeInsets.symmetric(

@@ -4,9 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:opencord/core/format.dart';
 import 'package:opencord/core/model/attachment.dart';
-import 'package:opencord/core/model/message.dart';
 import 'package:opencord/features/chat/attachments/attachment_bytes.dart';
-import 'package:opencord/features/chat/attachments/download.dart';
 import 'package:opencord/ui/theme/oc_colors.dart';
 import 'package:opencord/ui/theme/oc_icons.dart';
 import 'package:opencord/ui/theme/oc_metrics.dart';
@@ -17,13 +15,11 @@ class VideoTile extends ConsumerWidget {
     super.key,
     required this.serverKey,
     required this.attachment,
-    required this.message,
     this.onTap,
   });
 
   final String serverKey;
   final Attachment attachment;
-  final Message message;
   final VoidCallback? onTap;
 
   @override
@@ -52,14 +48,6 @@ class VideoTile extends ConsumerWidget {
 
     return GestureDetector(
       onTap: onTap,
-      onSecondaryTapUp: (details) => showAttachmentMenu(
-        context: context,
-        ref: ref,
-        position: details.globalPosition,
-        serverKey: serverKey,
-        attachment: attachment,
-        message: message,
-      ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(OcRadius.bubble),
         child: Container(
