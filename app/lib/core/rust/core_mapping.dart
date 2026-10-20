@@ -745,6 +745,7 @@ core.HotkeyAction hotkeyActionTo(HotkeyAction action) => switch (action) {
   HotkeyAction.toggleMute => core.HotkeyAction.toggleMute,
   HotkeyAction.toggleDeafen => core.HotkeyAction.toggleDeafen,
   HotkeyAction.toggleInputMode => core.HotkeyAction.toggleInputMode,
+  HotkeyAction.toggleMusicMute => core.HotkeyAction.toggleMusicMute,
 };
 
 HotkeyAction hotkeyActionFrom(core.HotkeyAction action) => switch (action) {
@@ -753,6 +754,7 @@ HotkeyAction hotkeyActionFrom(core.HotkeyAction action) => switch (action) {
   core.HotkeyAction.toggleMute => HotkeyAction.toggleMute,
   core.HotkeyAction.toggleDeafen => HotkeyAction.toggleDeafen,
   core.HotkeyAction.toggleInputMode => HotkeyAction.toggleInputMode,
+  core.HotkeyAction.toggleMusicMute => HotkeyAction.toggleMusicMute,
 };
 
 HotkeySupport hotkeySupportFrom(core.HotkeySupport support) =>

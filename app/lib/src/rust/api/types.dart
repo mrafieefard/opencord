@@ -1510,6 +1510,9 @@ enum HotkeyAction {
 
   /// Switches between push-to-talk and voice activity.
   toggleInputMode,
+
+  /// Mutes or unmutes music in voice channels, for this person.
+  toggleMusicMute,
 }
 
 /// A hotkey: a key and the modifiers held with it, as the XDG shortcuts

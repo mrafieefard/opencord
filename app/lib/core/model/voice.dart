@@ -239,7 +239,8 @@ enum HotkeyAction {
   prioritySpeaker('Priority speaker'),
   toggleMute('Toggle mute'),
   toggleDeafen('Toggle deafen'),
-  toggleInputMode('Toggle push-to-talk');
+  toggleInputMode('Toggle push-to-talk'),
+  toggleMusicMute('Toggle music mute');
 
   const HotkeyAction(this.label);
 

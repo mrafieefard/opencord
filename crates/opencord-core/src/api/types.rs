@@ -1054,6 +1054,8 @@ pub enum HotkeyAction {
     ToggleDeafen,
     /// Switches between push-to-talk and voice activity.
     ToggleInputMode,
+    /// Mutes or unmutes music in voice channels, for this person.
+    ToggleMusicMute,
 }
 
 /// A hotkey: a key and the modifiers held with it, as the XDG shortcuts

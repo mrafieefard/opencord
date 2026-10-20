@@ -196,6 +196,10 @@ void _toggle(Ref ref, HotkeyAction action) {
                   : InputMode.pushToTalk,
             ),
           );
+    case HotkeyAction.toggleMusicMute:
+      ref
+          .read(musicListeningProvider.notifier)
+          .update((listening) => listening.copyWith(muted: !listening.muted));
     case HotkeyAction.pushToTalk || HotkeyAction.prioritySpeaker:
       break;
   }
