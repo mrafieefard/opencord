@@ -5,8 +5,8 @@ use flutter_rust_bridge::frb;
 
 use super::client::{client, on_blocking, on_runtime};
 use super::types::{
-    AttachmentVariant, CoreError, Message, OutgoingFile, PlaybackItem, S3Config, StorageInfo,
-    StorageTestResult, StorageTestTarget, UploadSettings, VoiceDraft,
+    AttachmentVariant, CoreError, MediaHandle, Message, OutgoingFile, PlaybackItem, S3Config,
+    StorageInfo, StorageTestResult, StorageTestTarget, UploadSettings, VoiceDraft,
 };
 use crate::attachments::clipboard;
 
@@ -181,6 +181,46 @@ pub fn voice_set_speed(speed: f32) -> Result<(), CoreError> {
 pub fn voice_stop() -> Result<(), CoreError> {
     client()?.voice_stop();
     Ok(())
+}
+
+pub async fn media_open(server_key: String, attachment_id: i64) -> Result<MediaHandle, CoreError> {
+    on_runtime(move |client| async move { client.media_open(server_key, attachment_id).await })
+        .await
+}
+
+#[frb(sync)]
+pub fn media_play() -> Result<(), CoreError> {
+    client()?.media_play();
+    Ok(())
+}
+
+#[frb(sync)]
+pub fn media_pause() -> Result<(), CoreError> {
+    client()?.media_pause();
+    Ok(())
+}
+
+#[frb(sync)]
+pub fn media_seek(position_ms: u32) -> Result<(), CoreError> {
+    client()?.media_seek(position_ms);
+    Ok(())
+}
+
+#[frb(sync)]
+pub fn media_set_volume(volume: f32, muted: bool) -> Result<(), CoreError> {
+    client()?.media_set_volume(volume, muted);
+    Ok(())
+}
+
+#[frb(sync)]
+pub fn media_close() -> Result<(), CoreError> {
+    client()?.media_close();
+    Ok(())
+}
+
+#[frb(sync)]
+pub fn media_supported() -> bool {
+    opencord_media::player::supported()
 }
 
 /// Saves the attachment at `path`; DownloadProgress events follow it.

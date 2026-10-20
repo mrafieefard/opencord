@@ -598,6 +598,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   MediaEvent dco_decode_media_event(dynamic raw);
 
   @protected
+  MediaHandle dco_decode_media_handle(dynamic raw);
+
+  @protected
   Member dco_decode_member(dynamic raw);
 
   @protected
@@ -1650,6 +1653,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   MediaEvent sse_decode_media_event(SseDeserializer deserializer);
+
+  @protected
+  MediaHandle sse_decode_media_handle(SseDeserializer deserializer);
 
   @protected
   Member sse_decode_member(SseDeserializer deserializer);
@@ -2979,6 +2985,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_media_event(MediaEvent self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_media_handle(MediaHandle self, SseSerializer serializer);
 
   @protected
   void sse_encode_member(Member self, SseSerializer serializer);

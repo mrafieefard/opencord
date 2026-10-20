@@ -6,8 +6,6 @@ use std::sync::{Arc, Mutex, PoisonError};
 use std::time::{Duration, Instant};
 
 use opencord_common::sound::ogg::OpusFile;
-use opencord_media::audio::convert::ToDevice;
-use opencord_media::audio::device::Speaker;
 use opencord_media::audio::engine::AudioEngine;
 use opencord_media::audio::{SAMPLE_RATE, TICK};
 use tokio::sync::mpsc;
@@ -15,6 +13,7 @@ use wsola::TimeStretch;
 
 use crate::api::types::{AudioSettings, CoreError, MediaEvent, PlaybackItem};
 use crate::now_playing::{NowPlaying, Stoppable};
+use crate::output_sink::{AHEAD, OutputSink};
 
 pub(crate) enum PlayerCommand {
     Pause,
@@ -147,131 +146,6 @@ impl VoicePlayer {
             .take()
         {
             let _ = cmd.send(PlayerCommand::Stop);
-        }
-    }
-}
-
-/// How far ahead of the listener the player writes: enough to ride out
-/// scheduling, short enough that pause, seek and speed answer at once.
-const AHEAD: Duration = Duration::from_millis(60);
-
-fn ahead(rate: u32, channels: u16) -> usize {
-    rate as usize * AHEAD.as_millis() as usize / 1000 * usize::from(channels)
-}
-
-/// Where the player's sound goes.
-pub(crate) enum OutputSink {
-    /// Mixed into the call's playback, which the echo canceller hears too
-    /// (interleaved stereo, 48 kHz). Dropping it detaches it from the call.
-    Call {
-        producer: rtrb::Producer<f32>,
-        engine: Option<Arc<AudioEngine>>,
-    },
-    Device {
-        speaker: Speaker,
-        to_device: Box<ToDevice>,
-        volume: f32,
-        scratch: Vec<f32>,
-    },
-    /// No device (tests, or devices turned off): time passes as if played.
-    Null,
-}
-
-impl OutputSink {
-    /// The output for the player thread, opened on it (cpal streams aren't
-    /// `Send`): the call when there is one, else the chosen speaker.
-    fn open(
-        engine: Option<Arc<AudioEngine>>,
-        settings: &AudioSettings,
-        open_devices: bool,
-    ) -> Result<Self, CoreError> {
-        if let Some(engine) = engine {
-            let (producer, consumer) = rtrb::RingBuffer::new(2 * ahead(SAMPLE_RATE, 2));
-            engine.set_local_media(Some(consumer));
-            return Ok(Self::Call {
-                producer,
-                engine: Some(engine),
-            });
-        }
-        if !open_devices {
-            return Ok(Self::Null);
-        }
-        let unavailable = |error: &dyn std::fmt::Display| CoreError::InvalidInput {
-            message: format!("The speakers couldn't be opened: {error}"),
-        };
-        let speaker =
-            Speaker::open(settings.output_device.as_deref()).map_err(|e| unavailable(&e))?;
-        let to_device =
-            ToDevice::new(speaker.rate, speaker.channels).map_err(|e| unavailable(&e))?;
-        Ok(Self::Device {
-            speaker,
-            to_device: Box::new(to_device),
-            volume: settings.output_volume,
-            scratch: Vec::new(),
-        })
-    }
-
-    /// Whether one more tick fits without running more than [`AHEAD`] in
-    /// front of the listener. While it doesn't, the player waits; nothing
-    /// is ever dropped.
-    fn has_room(&self) -> bool {
-        match self {
-            Self::Call { producer, .. } => {
-                let queued = producer.buffer().capacity() - producer.slots();
-                queued + 2 * TICK <= ahead(SAMPLE_RATE, 2)
-            }
-            Self::Device { speaker, .. } => {
-                let tick = (speaker.rate as usize / 100 + 1) * usize::from(speaker.channels);
-                speaker.queued() + tick <= ahead(speaker.rate, speaker.channels)
-                    && speaker.samples.slots() >= tick
-            }
-            Self::Null => true,
-        }
-    }
-
-    /// Writes up to one tick of mono samples; a short last tick is padded
-    /// with silence.
-    fn write(&mut self, mono: &[f32]) {
-        let mut stereo = [0.0f32; 2 * TICK];
-        for (frame, &sample) in stereo.as_chunks_mut::<2>().0.iter_mut().zip(mono) {
-            *frame = [sample, sample];
-        }
-        match self {
-            Self::Call { producer, .. } => {
-                if let Ok(chunk) = producer.write_chunk_uninit(stereo.len()) {
-                    chunk.fill_from_iter(stereo.iter().copied());
-                }
-            }
-            Self::Device {
-                speaker,
-                to_device,
-                volume,
-                scratch,
-            } => {
-                to_device.push_tick(&stereo);
-                let channels = usize::from(speaker.channels);
-                scratch.resize(to_device.buffered() * channels, 0.0);
-                let samples = to_device.pop(scratch) * channels;
-                for sample in &mut scratch[..samples] {
-                    *sample *= *volume;
-                }
-                if let Ok(chunk) = speaker.samples.write_chunk_uninit(samples) {
-                    chunk.fill_from_iter(scratch[..samples].iter().copied());
-                }
-            }
-            Self::Null => std::thread::sleep(Duration::from_millis(10)),
-        }
-    }
-}
-
-impl Drop for OutputSink {
-    fn drop(&mut self) {
-        if let Self::Call {
-            engine: Some(engine),
-            ..
-        } = self
-        {
-            engine.set_local_media(None);
         }
     }
 }
@@ -478,6 +352,8 @@ mod tests {
     use super::*;
     use std::f32::consts::PI;
     use std::sync::atomic::{AtomicBool, Ordering};
+
+    use crate::output_sink::ahead;
 
     struct DummyStoppable(Arc<AtomicBool>);
     impl Stoppable for DummyStoppable {

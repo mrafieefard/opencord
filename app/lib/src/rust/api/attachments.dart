@@ -157,6 +157,31 @@ void voiceSetSpeed({required double speed}) =>
 
 void voiceStop() => RustLib.instance.api.crateApiAttachmentsVoiceStop();
 
+Future<MediaHandle> mediaOpen({
+  required String serverKey,
+  required PlatformInt64 attachmentId,
+}) => RustLib.instance.api.crateApiAttachmentsMediaOpen(
+  serverKey: serverKey,
+  attachmentId: attachmentId,
+);
+
+void mediaPlay() => RustLib.instance.api.crateApiAttachmentsMediaPlay();
+
+void mediaPause() => RustLib.instance.api.crateApiAttachmentsMediaPause();
+
+void mediaSeek({required int positionMs}) =>
+    RustLib.instance.api.crateApiAttachmentsMediaSeek(positionMs: positionMs);
+
+void mediaSetVolume({required double volume, required bool muted}) => RustLib
+    .instance
+    .api
+    .crateApiAttachmentsMediaSetVolume(volume: volume, muted: muted);
+
+void mediaClose() => RustLib.instance.api.crateApiAttachmentsMediaClose();
+
+bool mediaSupported() =>
+    RustLib.instance.api.crateApiAttachmentsMediaSupported();
+
 /// Saves the attachment at `path`; DownloadProgress events follow it.
 Future<void> downloadAttachment({
   required String serverKey,

@@ -18,10 +18,10 @@ use tokio::sync::{broadcast, mpsc, oneshot};
 use crate::api::types::{
     AddServerOutcome, AttachmentVariant, AudioSettings, Ban, CameraStarted, Channel,
     ChannelChanges, ChannelKind, ChannelPosition, CoreError, CoreEvent, CoreEventPayload,
-    ErrorCode, HotkeyBinding, HotkeySupport, IdentityInfo, Invite, MediaEvent, Member, Message,
-    OutgoingFile, OverwriteTargetKind, PermissionOverwrite, PlaybackItem, PresenceStatus, Role,
-    RoleChanges, S3Config, ScreenProblem, ScreenShareRequest, ScreenShareStarted, ScreenStream,
-    Server, ServerChanges, ServerInfo, SoundDraft, SoundSelection, SoundboardSound,
+    ErrorCode, HotkeyBinding, HotkeySupport, IdentityInfo, Invite, MediaEvent, MediaHandle, Member,
+    Message, OutgoingFile, OverwriteTargetKind, PermissionOverwrite, PlaybackItem, PresenceStatus,
+    Role, RoleChanges, S3Config, ScreenProblem, ScreenShareRequest, ScreenShareStarted,
+    ScreenStream, Server, ServerChanges, ServerInfo, SoundDraft, SoundSelection, SoundboardSound,
     SoundboardSoundChanges, StorageInfo, StorageTestResult, StorageTestTarget, StreamSourceKind,
     UploadSettings, User, VideoWant, VoiceCue, VoiceDraft, VoiceSettings, VoiceSettingsChanges,
     VoiceState,
@@ -103,6 +103,7 @@ struct Inner {
     voice_recorder: VoiceRecorder,
     now_playing: Arc<NowPlaying>,
     voice_player: Arc<VoicePlayer>,
+    media_player: Arc<crate::media_player::CoreMediaPlayer>,
 }
 
 /// The app's id, as its desktop file names it; the system's portals ask for
@@ -198,6 +199,7 @@ impl Client {
                 voice_recorder: VoiceRecorder::default(),
                 now_playing: Arc::default(),
                 voice_player: Arc::default(),
+                media_player: Arc::default(),
             }),
         };
         client.spawn_wake_watch();
@@ -580,6 +582,39 @@ impl Client {
     pub fn voice_stop(&self) {
         self.inner.voice_player.stop();
         self.inner.now_playing.clear();
+    }
+
+    pub async fn media_open(
+        &self,
+        server_key: String,
+        attachment_id: i64,
+    ) -> Result<MediaHandle, CoreError> {
+        self.inner
+            .media_player
+            .open(self, server_key, attachment_id)
+            .await
+    }
+
+    pub fn media_play(&self) {
+        self.inner
+            .media_player
+            .play(&self.inner.now_playing, &self.inner.media_player);
+    }
+
+    pub fn media_pause(&self) {
+        self.inner.media_player.pause();
+    }
+
+    pub fn media_seek(&self, position_ms: u32) {
+        self.inner.media_player.seek(position_ms);
+    }
+
+    pub fn media_set_volume(&self, volume: f32, muted: bool) {
+        self.inner.media_player.set_volume(volume, muted);
+    }
+
+    pub fn media_close(&self) {
+        self.inner.media_player.close(&self.inner.now_playing);
     }
 
     /// Stops a `send_message_with_files` that is still uploading; it

@@ -565,3 +565,105 @@ async fn a_photos_location_never_leaves_the_device() {
     // Orientation 6 turns the 32×16 photo on its side.
     assert_eq!((attachment.width, attachment.height), (Some(16), Some(32)));
 }
+
+#[tokio::test(flavor = "multi_thread")]
+async fn range_reader_reads_any_span() {
+    use std::io::{Read, Seek, SeekFrom};
+
+    let server = TestServer::start().await;
+    let (owner, ready) = TestClient::owner(&server).await;
+    let key = server.address();
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("test_file.bin");
+
+    let source_data: Vec<u8> = (0..(2500 * 1024)).map(|i| (i % 251) as u8).collect();
+    std::fs::write(&path, &source_data).unwrap();
+
+    let message = owner
+        .client
+        .send_message_with_files(
+            &key,
+            general(&ready),
+            String::new(),
+            "n1".to_owned(),
+            vec![OutgoingFile {
+                path: Some(path.to_string_lossy().into_owned()),
+                bytes: None,
+                filename: "test_file.bin".to_owned(),
+            }],
+        )
+        .await
+        .unwrap();
+
+    let attachment = &message.attachments[0];
+    let mut reader = opencord_core::attachments::range_reader::RangeReader::open(
+        owner.client.clone(),
+        key.clone(),
+        attachment.id,
+    )
+    .await
+    .unwrap();
+
+    let total_size = reader.seek(SeekFrom::End(0)).unwrap();
+    assert_eq!(total_size, source_data.len() as u64);
+
+    let mut rng_state = 123456789u64;
+    let mut rand_u32 = || {
+        rng_state = rng_state.wrapping_mul(6364136223846793005).wrapping_add(1);
+        (rng_state >> 32) as u32
+    };
+
+    for _ in 0..50 {
+        let max_pos = (source_data.len() - 100) as u64;
+        let pos = (rand_u32() as u64) % max_pos;
+        let len = ((rand_u32() as usize) % (128 * 1024)) + 1;
+        let len = len.min(source_data.len() - pos as usize);
+
+        let new_pos = reader.seek(SeekFrom::Start(pos)).unwrap();
+        assert_eq!(new_pos, pos);
+
+        let mut buf = vec![0u8; len];
+        reader.read_exact(&mut buf).unwrap();
+        assert_eq!(&buf[..], &source_data[pos as usize..pos as usize + len]);
+    }
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn video_uploads_get_hints_and_a_poster() {
+    let server = TestServer::start().await;
+    let (owner, ready) = TestClient::owner(&server).await;
+    let key = server.address();
+
+    let fixture_path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../opencord-media/tests/fixtures/h264_aac.mp4");
+
+    let message = owner
+        .client
+        .send_message_with_files(
+            &key,
+            general(&ready),
+            String::new(),
+            "n1".to_owned(),
+            vec![OutgoingFile {
+                path: Some(fixture_path.to_string_lossy().into_owned()),
+                bytes: None,
+                filename: "video.mp4".to_owned(),
+            }],
+        )
+        .await
+        .unwrap();
+
+    let attachment = &message.attachments[0];
+    assert_eq!(attachment.width, Some(320));
+    assert_eq!(attachment.height, Some(240));
+    assert!(attachment.duration_ms.is_some());
+    assert!(attachment.has_thumbnail);
+
+    let thumbnail = owner
+        .client
+        .attachment_bytes(&key, attachment.id, AttachmentVariant::Thumbnail)
+        .await
+        .unwrap();
+    assert!(!thumbnail.is_empty());
+    assert_eq!(&thumbnail[..2], &[0xFF, 0xD8]);
+}

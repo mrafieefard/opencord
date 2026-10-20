@@ -264,16 +264,51 @@ async fn upload_one(
     created: &Mutex<Vec<i64>>,
 ) -> Result<proto::Attachment, CoreError> {
     progress.phase(index, UploadPhase::Preparing);
+    let mut video_hints = None;
+    let mut poster_bytes = None;
+    if let Some(path_str) = &file.path
+        && opencord_media::player::supported()
+    {
+        let p = Path::new(path_str);
+        if let Ok(mut f) = tokio::fs::File::open(p).await {
+            let mut head = [0u8; 1024];
+            let read = f.read(&mut head).await.unwrap_or(0);
+            if opencord_common::sniff::sniff(&head[..read]).kind()
+                == opencord_common::sniff::SniffKind::Video
+            {
+                let p_buf = p.to_path_buf();
+                if let Ok((probe, poster)) = tokio::task::spawn_blocking(move || {
+                    opencord_media::player::probe_and_poster(&p_buf, 800)
+                })
+                .await
+                .unwrap_or_else(|e| Err(opencord_media::player::PlayerError::Open(e.to_string())))
+                {
+                    video_hints = Some((probe.width, probe.height, probe.duration_ms));
+                    if let Some(p) = poster
+                        && !p.is_empty()
+                        && p.len() <= 2 * 1024 * 1024
+                    {
+                        poster_bytes = Some(Bytes::from(p));
+                    }
+                }
+            }
+        }
+    }
+
     let mut source = Source::prepare(file).await?;
     progress.sized(index, source.size);
+    let (width, height, duration_ms) = match video_hints {
+        Some((w, h, d)) => (Some(w), Some(h), Some(d)),
+        None => (None, None, None),
+    };
     let request = Request::CreateUpload(proto::CreateUpload {
         channel_id: progress.channel_id,
         filename: source.filename.clone(),
         size_bytes: source.size,
         kind: kind as i32,
-        width: None,
-        height: None,
-        duration_ms: None,
+        width,
+        height,
+        duration_ms,
     });
     let upload = match progress.client.request(progress.key, request).await? {
         Response::Upload(upload) => upload,
@@ -295,7 +330,13 @@ async fn upload_one(
     )
     .await?;
     progress.phase(index, UploadPhase::Processing);
-    finish(progress.client, progress.key, upload.upload_id).await
+    finish(
+        progress.client,
+        progress.key,
+        upload.upload_id,
+        poster_bytes,
+    )
+    .await
 }
 
 /// A file to upload, read from memory or from disk.
@@ -469,19 +510,23 @@ async fn finish(
     client: &Client,
     key: &str,
     upload_id: i64,
+    poster: Option<Bytes>,
 ) -> Result<proto::Attachment, CoreError> {
     let uploads = client.uploads();
     // Before finishing, so a verdict that comes at once isn't missed.
     let mut waiter = uploads.wait_for(key, upload_id);
     let finish_path = format!("/media/uploads/{upload_id}/finish");
     let status = retrying(|| {
-        let call = Call {
+        let mut call = Call {
             method: reqwest::Method::POST,
             path: finish_path.clone(),
             headers: Vec::new(),
-            body: Bytes::new(),
+            body: poster.clone().unwrap_or_default(),
             timeout: Some(STATUS_TIMEOUT),
         };
+        if poster.is_some() {
+            call.headers.push(("content-type", "image/jpeg".to_owned()));
+        }
         status_of(client, key, call)
     })
     .await?;

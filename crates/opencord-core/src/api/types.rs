@@ -1368,6 +1368,16 @@ pub struct VoiceDraft {
     pub waveform: Vec<u8>,
 }
 
+/// A media attachment opened for playback (Milestone A7, Task 34).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MediaHandle {
+    pub texture_id: Option<i64>,
+    pub duration_ms: u32,
+    pub width: u32,
+    pub height: u32,
+    pub has_video: bool,
+}
+
 /// A voice connection over the last second (Phase 2 §12).
 #[derive(Debug, Clone, PartialEq)]
 pub struct VoiceStats {
