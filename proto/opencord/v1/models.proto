@@ -12,6 +12,9 @@ message User {
   // Ed25519 public key (32 bytes). This is the user's identity.
   bytes public_key = 2;
   string display_name = 3;
+  // SHA-256 (hex) of the profile picture, a 256-pixel square PNG at
+  // GET /media/avatars/{hash}; empty for none.
+  string avatar_hash = 4;
 }
 
 message Member {
@@ -124,6 +127,9 @@ message ServerInfo {
   optional int64 owner_id = 4;
   bool open_join = 5;
   int64 everyone_role_id = 6;
+  // SHA-256 (hex) of the server's icon, as a profile picture's; empty for
+  // none.
+  string icon_hash = 7;
 }
 
 enum PresenceStatus {

@@ -5,6 +5,7 @@ pub struct MemberRow {
     pub user_id: i64,
     pub public_key: Vec<u8>,
     pub display_name: String,
+    pub avatar_hash: Option<String>,
     pub nickname: Option<String>,
     pub joined_at: i64,
 }
@@ -18,7 +19,7 @@ pub struct RoleAssignment {
 pub async fn list(conn: &mut SqliteConnection) -> Result<Vec<MemberRow>, sqlx::Error> {
     sqlx::query_as!(
         MemberRow,
-        "SELECT m.user_id, u.public_key, u.display_name, m.nickname, m.joined_at
+        "SELECT m.user_id, u.public_key, u.display_name, u.avatar_hash, m.nickname, m.joined_at
          FROM members m JOIN users u ON u.id = m.user_id"
     )
     .fetch_all(conn)

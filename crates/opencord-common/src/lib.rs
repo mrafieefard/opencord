@@ -2,6 +2,7 @@
 
 pub mod address;
 pub mod auth;
+pub mod avatar;
 pub mod blob;
 pub mod channel;
 pub mod limits;

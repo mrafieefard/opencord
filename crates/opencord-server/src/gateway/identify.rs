@@ -219,6 +219,7 @@ async fn admit(
                 public_key: identify.public_key.clone(),
                 display_name: validation::display_name(&identify.display_name)
                     .map_err(ApiError::from)?,
+                avatar_hash: None,
             };
             users::insert(&mut tx, &user, now).await?;
             user
@@ -249,6 +250,7 @@ async fn admit(
                     id: user.id,
                     public_key: user.public_key,
                     display_name: user.display_name,
+                    avatar_hash: user.avatar_hash,
                 },
                 nickname: None,
                 role_ids: Vec::new(),

@@ -23,6 +23,8 @@ pub struct User {
     pub id: i64,
     pub public_key: Vec<u8>,
     pub display_name: String,
+    /// The profile picture's SHA-256, if any.
+    pub avatar_hash: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -164,6 +166,7 @@ impl Guild {
                         id: row.user_id,
                         public_key: row.public_key,
                         display_name: row.display_name,
+                        avatar_hash: row.avatar_hash,
                     },
                     nickname: row.nickname,
                     role_ids: role_ids.remove(&row.user_id).unwrap_or_default(),
@@ -296,6 +299,7 @@ impl Guild {
             owner_id: self.meta.owner_id,
             open_join: self.meta.open_join,
             everyone_role_id: self.meta.everyone_role_id,
+            icon_hash: self.meta.icon_hash.clone().unwrap_or_default(),
         }
     }
 }
@@ -306,6 +310,7 @@ impl User {
             id: self.id,
             public_key: self.public_key.clone(),
             display_name: self.display_name.clone(),
+            avatar_hash: self.avatar_hash.clone().unwrap_or_default(),
         }
     }
 }
@@ -452,6 +457,7 @@ pub(crate) mod tests {
             id,
             public_key: vec![u8::try_from(id).unwrap(); 32],
             display_name: format!("user{id}"),
+            avatar_hash: None,
         }
     }
 

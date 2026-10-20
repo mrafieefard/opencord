@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT id, public_key, display_name FROM users WHERE id = $1",
+  "query": "SELECT id, public_key, display_name, avatar_hash FROM users WHERE public_key = $1",
   "describe": {
     "columns": [
       {
@@ -35,6 +35,17 @@
             "name": "display_name"
           }
         }
+      },
+      {
+        "name": "avatar_hash",
+        "ordinal": 3,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "users",
+            "name": "avatar_hash"
+          }
+        }
       }
     ],
     "parameters": {
@@ -43,8 +54,9 @@
     "nullable": [
       false,
       false,
-      false
+      false,
+      true
     ]
   },
-  "hash": "c5d88269c5503db224d152b4755c88a2b04b3055f7905136553083556cf106e7"
+  "hash": "f8924b46659e1d66a6b556b3e03b7425e7a71a9b7cd407810932b39bc135eabc"
 }

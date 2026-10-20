@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT m.user_id, u.public_key, u.display_name, m.nickname, m.joined_at\n         FROM members m JOIN users u ON u.id = m.user_id",
+  "query": "SELECT m.user_id, u.public_key, u.display_name, u.avatar_hash, m.nickname, m.joined_at\n         FROM members m JOIN users u ON u.id = m.user_id",
   "describe": {
     "columns": [
       {
@@ -37,8 +37,19 @@
         }
       },
       {
-        "name": "nickname",
+        "name": "avatar_hash",
         "ordinal": 3,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "users",
+            "name": "avatar_hash"
+          }
+        }
+      },
+      {
+        "name": "nickname",
+        "ordinal": 4,
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -49,7 +60,7 @@
       },
       {
         "name": "joined_at",
-        "ordinal": 4,
+        "ordinal": 5,
         "type_info": "Integer",
         "origin": {
           "Table": {
@@ -67,8 +78,9 @@
       false,
       false,
       true,
+      true,
       false
     ]
   },
-  "hash": "f8cf067db169c38b9a2cd48e238a483ab1a0875bf3fac8f98a03222a9e87045b"
+  "hash": "c26980b8d44a197f836c6b08e46bac52b76db443eb45873f7f1c068e3908fc1d"
 }

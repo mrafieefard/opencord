@@ -13,6 +13,7 @@ const OPEN_JOIN: &str = "open_join";
 const EVERYONE_ROLE_ID: &str = "everyone_role_id";
 const CLAIM_TOKEN_HASH: &str = "claim_token_hash";
 const DEFAULT_INVITE: &str = "default_invite";
+const ICON_HASH: &str = "icon_hash";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ServerMeta {
@@ -26,6 +27,8 @@ pub struct ServerMeta {
     pub claim_token_hash: Option<[u8; 32]>,
     /// Invite printed at startup for the owner to share.
     pub default_invite: Option<String>,
+    /// The server icon's SHA-256 (`opencord_common::avatar`).
+    pub icon_hash: Option<String>,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -78,6 +81,7 @@ impl ServerMeta {
             everyone_role_id: parse_id(EVERYONE_ROLE_ID, &required(EVERYONE_ROLE_ID)?)?,
             claim_token_hash,
             default_invite: values.get(DEFAULT_INVITE).cloned(),
+            icon_hash: values.get(ICON_HASH).cloned(),
         }))
     }
 
@@ -91,6 +95,7 @@ impl ServerMeta {
             (EVERYONE_ROLE_ID, Some(self.everyone_role_id.to_string())),
             (CLAIM_TOKEN_HASH, self.claim_token_hash.map(hex::encode)),
             (DEFAULT_INVITE, self.default_invite.clone()),
+            (ICON_HASH, self.icon_hash.clone()),
         ];
         for (key, value) in entries {
             put(conn, key, value.as_deref()).await?;

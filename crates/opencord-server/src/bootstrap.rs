@@ -168,6 +168,7 @@ async fn create_server(
         everyone_role_id,
         claim_token_hash: None,
         default_invite: None,
+        icon_hash: None,
     })
 }
 
