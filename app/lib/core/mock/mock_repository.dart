@@ -4189,7 +4189,10 @@ class MockRepository implements OpencordRepository {
         'Only the owner manages storage.',
       );
     }
-    if (s3 != null) _checkKeys(s3);
+    final saved = server.storage.backends
+        .where((b) => b.id == storageId)
+        .firstOrNull;
+    if (s3 != null) _checkKeys(s3, saved: saved);
     await _latency();
     final backends = server.storage.backends.map((b) {
       if (b.id != storageId) return b;
@@ -4198,7 +4201,7 @@ class MockRepository implements OpencordRepository {
         kind: b.kind,
         name: name ?? b.name,
         active: b.active,
-        s3: s3 == null ? b.s3 : _answered(s3),
+        s3: s3 == null ? b.s3 : _answered(s3, saved: b.s3),
         hasSecret: (s3?.secretAccessKey.isNotEmpty ?? false) || b.hasSecret,
         fileCount: b.fileCount,
         bytes: b.bytes,
@@ -4215,7 +4218,21 @@ class MockRepository implements OpencordRepository {
   }
 
   /// As the server answers: the access key masked, no secret.
-  S3Config _answered(S3Config s3) {
+  /// [s3] as answers carry it: the access key masked (the [saved] one's
+  /// when [s3] keeps it), no secret.
+  S3Config _answered(S3Config s3, {S3Config? saved}) {
+    if (s3.accessKeyId.isEmpty && saved != null) {
+      return S3Config(
+        endpoint: s3.endpoint,
+        region: s3.region,
+        bucket: s3.bucket,
+        keyPrefix: s3.keyPrefix,
+        pathStyle: s3.pathStyle,
+        allowHttp: s3.allowHttp,
+        accessKeyId: saved.accessKeyId,
+        secretAccessKey: '',
+      );
+    }
     final key = s3.accessKeyId;
     return S3Config(
       endpoint: s3.endpoint,
@@ -4230,21 +4247,41 @@ class MockRepository implements OpencordRepository {
   }
 
   /// The server tests a bucket before saving it, and a masked or missing
-  /// key fails that test.
-  void _checkKeys(S3Config s3) {
-    if (s3.accessKeyId.isEmpty || s3.accessKeyId.startsWith('•')) {
+  /// key fails that test. Like the server, an edit keeps the keys it
+  /// leaves empty, and a new access key needs its secret.
+  void _checkKeys(S3Config s3, {StorageBackend? saved}) {
+    if (s3.accessKeyId.startsWith('•')) {
       throw const RepoException(
         RepoErrorKind.invalidArgument,
         'The bucket refused the access key.',
       );
     }
+    final kept = saved?.s3 != null;
+    if (s3.accessKeyId.isEmpty && !kept) {
+      throw const RepoException(
+        RepoErrorKind.invalidArgument,
+        'the access key is 1 to 200 characters',
+      );
+    }
+    if (s3.secretAccessKey.isEmpty && (!kept || s3.accessKeyId.isNotEmpty)) {
+      throw RepoException(
+        RepoErrorKind.invalidArgument,
+        kept
+            ? 'a new access key needs its secret key'
+            : 'the secret key is 1 to 200 characters',
+      );
+    }
   }
+
+  /// The storage a test last took its saved keys from, for tests.
+  int? lastStorageTestKeysFrom;
 
   @override
   Future<StorageTestResult> testStorage(
     String serverKey, {
     int? storageId,
     S3Config? s3,
+    int? keysFrom,
   }) async {
     final server = _server(serverKey);
     if (server.info.ownerId != server.selfId) {
@@ -4253,6 +4290,15 @@ class MockRepository implements OpencordRepository {
         'Only the owner manages storage.',
       );
     }
+    if (s3 != null) {
+      _checkKeys(
+        s3,
+        saved: server.storage.backends
+            .where((b) => b.id == keysFrom)
+            .firstOrNull,
+      );
+    }
+    lastStorageTestKeysFrom = keysFrom;
     await _latency();
     return const StorageTestResult(
       steps: [

@@ -385,10 +385,11 @@ message S3Config {
   string key_prefix = 4;
   bool path_style = 5;
   bool allow_http = 6;
-  // In answers: masked to its last 4 characters ("••••WXYZ").
+  // In answers: masked to its last 4 characters ("••••WXYZ"). Empty in
+  // UpdateStorage keeps the stored one.
   string access_key_id = 7;
   // Write-only: always empty in answers. Empty in UpdateStorage keeps the
-  // stored one.
+  // stored one, unless access_key_id changes.
   string secret_access_key = 8;
 }
 

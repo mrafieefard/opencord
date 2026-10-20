@@ -107,9 +107,12 @@ pub fn valid_name(name: &str) -> Result<String, ApiError> {
 }
 
 /// Checked, trimmed settings. `stored_secret` fills in an empty secret.
+/// Bucket settings from a request. Editing a saved bucket, `saved` fills
+/// in the keys left empty: the access key, and the secret while the access
+/// key stays the same (a new access key needs its own secret).
 pub fn valid_s3(
     config: &proto::S3Config,
-    stored_secret: Option<String>,
+    saved: Option<&S3Settings>,
 ) -> Result<S3Settings, ApiError> {
     let field = |value: &str, what: &str, max: usize| {
         let value = value.trim();
@@ -120,8 +123,19 @@ pub fn valid_s3(
         }
         Ok(value.to_owned())
     };
-    let secret_access_key = match (config.secret_access_key.trim(), stored_secret) {
-        ("", Some(stored)) => stored,
+    let access_key_id = match (config.access_key_id.trim(), saved) {
+        ("", Some(saved)) => saved.access_key_id.clone(),
+        (key, _) => field(key, "access key", 200)?,
+    };
+    let secret_access_key = match (config.secret_access_key.trim(), saved) {
+        ("", Some(saved)) if saved.access_key_id == access_key_id => {
+            saved.secret_access_key.clone()
+        }
+        ("", Some(_)) => {
+            return Err(ApiError::invalid_argument(
+                "a new access key needs its secret key",
+            ));
+        }
         (secret, _) => field(secret, "secret key", 200)?,
     };
     let key_prefix = config.key_prefix.trim();
@@ -137,7 +151,7 @@ pub fn valid_s3(
         key_prefix: key_prefix.to_owned(),
         path_style: config.path_style,
         allow_http: config.allow_http,
-        access_key_id: field(&config.access_key_id, "access key", 200)?,
+        access_key_id,
         secret_access_key,
     })
 }
@@ -161,18 +175,60 @@ mod tests {
         assert_eq!(mask(""), "••••");
     }
 
+    fn saved() -> S3Settings {
+        S3Settings {
+            endpoint: "https://s3.example.com".into(),
+            region: "auto".into(),
+            bucket: "files".into(),
+            key_prefix: String::new(),
+            path_style: false,
+            allow_http: false,
+            access_key_id: "AKIASAVED".into(),
+            secret_access_key: "saved-secret".into(),
+        }
+    }
+
+    /// An edit keeps the keys it leaves empty; a new access key needs its
+    /// own secret, a new secret alone keeps the access key.
     #[test]
-    fn an_empty_secret_keeps_the_stored_one() {
+    fn an_edit_keeps_the_saved_keys_it_leaves_empty() {
         let config = proto::S3Config {
             endpoint: " https://s3.example.com ".into(),
             region: "auto".into(),
-            bucket: "files".into(),
-            access_key_id: "AKIAEXAMPLE".into(),
+            bucket: "other".into(),
             ..Default::default()
         };
-        let settings = valid_s3(&config, Some("stored".into())).unwrap();
-        assert_eq!(settings.secret_access_key, "stored");
+        let settings = valid_s3(&config, Some(&saved())).unwrap();
+        assert_eq!(settings.access_key_id, "AKIASAVED");
+        assert_eq!(settings.secret_access_key, "saved-secret");
         assert_eq!(settings.endpoint, "https://s3.example.com");
-        assert!(valid_s3(&config, None).is_err());
+        assert_eq!(settings.bucket, "other");
+        assert!(valid_s3(&config, None).is_err(), "adding needs both keys");
+
+        let new_secret = proto::S3Config {
+            secret_access_key: "rotated".into(),
+            ..config.clone()
+        };
+        let settings = valid_s3(&new_secret, Some(&saved())).unwrap();
+        assert_eq!(settings.access_key_id, "AKIASAVED");
+        assert_eq!(settings.secret_access_key, "rotated");
+
+        let new_key = proto::S3Config {
+            access_key_id: "AKIANEW".into(),
+            ..config.clone()
+        };
+        assert!(valid_s3(&new_key, Some(&saved())).is_err());
+        let both = proto::S3Config {
+            secret_access_key: "new-secret".into(),
+            ..new_key
+        };
+        let settings = valid_s3(&both, Some(&saved())).unwrap();
+        assert_eq!(
+            (
+                settings.access_key_id.as_str(),
+                settings.secret_access_key.as_str()
+            ),
+            ("AKIANEW", "new-secret")
+        );
     }
 }

@@ -98,9 +98,17 @@ class _S3DialogState extends ConsumerState<S3Dialog> {
     if (_testResult != null) _dirtySinceTest = true;
   });
 
-  bool get _keysGiven =>
-      _accessKeyId.text.trim().isNotEmpty &&
-      _secretAccessKey.text.trim().isNotEmpty;
+  /// Why the keys as typed can't be used; null when they can. Adding needs
+  /// both; editing keeps the saved ones left empty, but a new access key
+  /// needs its secret.
+  String? get _keysProblem {
+    final key = _accessKeyId.text.trim().isNotEmpty;
+    final secret = _secretAccessKey.text.trim().isNotEmpty;
+    if (widget.existing == null) {
+      return key && secret ? null : 'Enter the access key and its secret key.';
+    }
+    return key && !secret ? 'A new access key needs its secret key.' : null;
+  }
 
   /// Whether the bucket settings differ from the saved ones; always true
   /// when adding. Unchanged, an edit is a rename and needs no test.
@@ -188,7 +196,11 @@ class _S3DialogState extends ConsumerState<S3Dialog> {
       final result = _bucketChanged
           ? await ref
                 .read(repositoryProvider)
-                .testStorage(widget.serverKey, s3: _buildConfig())
+                .testStorage(
+                  widget.serverKey,
+                  s3: _buildConfig(),
+                  keysFrom: widget.existing?.id,
+                )
           : await ref
                 .read(repositoryProvider)
                 .testStorage(widget.serverKey, storageId: widget.existing?.id);
@@ -253,7 +265,9 @@ class _S3DialogState extends ConsumerState<S3Dialog> {
     final colors = context.oc;
     final isEdit = widget.existing != null;
     final bucketChanged = _bucketChanged;
-    final tested = _keysGiven && _testResult?.ok == true && !_dirtySinceTest;
+    final keysProblem = _keysProblem;
+    final tested =
+        keysProblem == null && _testResult?.ok == true && !_dirtySinceTest;
     final canSave =
         _name.text.trim().isNotEmpty &&
         (!bucketChanged || tested) &&
@@ -345,10 +359,16 @@ class _S3DialogState extends ConsumerState<S3Dialog> {
               hint: 'Secret access key',
               obscure: true,
             ),
-            if (isEdit && bucketChanged && !_keysGiven) ...[
+            if (isEdit && keysProblem != null) ...[
               const SizedBox(height: 4),
               Text(
-                'Changing the bucket settings needs its access key and secret again.',
+                keysProblem,
+                style: OcText.small.copyWith(color: colors.textSecondary),
+              ),
+            ] else if (isEdit) ...[
+              const SizedBox(height: 4),
+              Text(
+                'Leave both keys empty to keep the saved ones.',
                 style: OcText.small.copyWith(color: colors.textSecondary),
               ),
             ],

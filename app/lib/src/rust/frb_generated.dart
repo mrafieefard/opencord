@@ -10037,6 +10037,11 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         return StorageTestTarget_Config(
           s3: dco_decode_box_autoadd_s_3_config(raw[1]),
         );
+      case 2:
+        return StorageTestTarget_Edited(
+          storageId: dco_decode_i_64(raw[1]),
+          s3: dco_decode_box_autoadd_s_3_config(raw[2]),
+        );
       default:
         throw Exception("unreachable");
     }
@@ -14148,6 +14153,10 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       case 1:
         var var_s3 = sse_decode_box_autoadd_s_3_config(deserializer);
         return StorageTestTarget_Config(s3: var_s3);
+      case 2:
+        var var_storageId = sse_decode_i_64(deserializer);
+        var var_s3 = sse_decode_box_autoadd_s_3_config(deserializer);
+        return StorageTestTarget_Edited(storageId: var_storageId, s3: var_s3);
       default:
         throw UnimplementedError('');
     }
@@ -17757,6 +17766,10 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         sse_encode_i_64(storageId, serializer);
       case StorageTestTarget_Config(s3: final s3):
         sse_encode_i_32(1, serializer);
+        sse_encode_box_autoadd_s_3_config(s3, serializer);
+      case StorageTestTarget_Edited(storageId: final storageId, s3: final s3):
+        sse_encode_i_32(2, serializer);
+        sse_encode_i_64(storageId, serializer);
         sse_encode_box_autoadd_s_3_config(s3, serializer);
     }
   }

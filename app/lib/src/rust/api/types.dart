@@ -4233,6 +4233,13 @@ sealed class StorageTestTarget with _$StorageTestTarget {
   /// Settings not saved yet; nothing is saved.
   const factory StorageTestTarget.config({required S3Config s3}) =
       StorageTestTarget_Config;
+
+  /// A saved storage's edited settings, not saved yet: keys left empty
+  /// are its saved ones. Nothing is saved.
+  const factory StorageTestTarget.edited({
+    required PlatformInt64 storageId,
+    required S3Config s3,
+  }) = StorageTestTarget_Edited;
 }
 
 /// What a screen share shows.

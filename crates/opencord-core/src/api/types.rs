@@ -2021,6 +2021,9 @@ pub enum StorageTestTarget {
     Existing { storage_id: i64 },
     /// Settings not saved yet; nothing is saved.
     Config { s3: S3Config },
+    /// A saved storage's edited settings, not saved yet: keys left empty
+    /// are its saved ones. Nothing is saved.
+    Edited { storage_id: i64, s3: S3Config },
 }
 
 /// A file to send: a path on this device, or bytes (a pasted image).

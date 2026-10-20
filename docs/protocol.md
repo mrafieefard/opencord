@@ -142,8 +142,8 @@ Each `Request` gets exactly one `Response`, which is either an `error` or the pa
 | `UpdateUploadSettings { blocked_extensions?, voice_message_max_seconds? }` | `upload_settings` | Base `MANAGE_SERVER` |
 | `GetStorage {}` | `storage` | The owner |
 | `AddStorage { name, s3 }` | `storage` | The owner; the bucket's test must pass |
-| `UpdateStorage { storage_id, name?, s3? }` | `storage` | The owner; new bucket settings must pass the test |
-| `TestStorage { storage_id \| s3 }` | `storage_test` | The owner; saves nothing but the storage's last error |
+| `UpdateStorage { storage_id, name?, s3? }` | `storage` | The owner; new bucket settings must pass the test. An empty access key or secret keeps the saved one; a new access key needs its secret |
+| `TestStorage { storage_id \| s3, keys_from? }` | `storage_test` | The owner; saves nothing but the storage's last error. With `s3`, `keys_from` names the bucket being edited: the keys `s3` leaves empty are its saved ones, as in `UpdateStorage` |
 | `ActivateStorage { storage_id }` | `storage` | The owner; a bucket must pass the test; not while files are moving |
 | `RemoveStorage { storage_id }` | `storage` | The owner; not the server's own storage, not the active one, and only once it holds no files and none wait to be deleted |
 | `StartStorageMove {}` / `StopStorageMove {}` | `storage` | The owner |

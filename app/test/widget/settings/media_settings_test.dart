@@ -192,65 +192,64 @@ void main() {
     await app.dispose(tester);
   });
 
-  testWidgets(
-    'editing_a_bucket_renames_without_a_test_and_needs_both_keys_to_change_it',
-    (tester) async {
-      final app = await MockApp.pump(tester);
-      await _openServerSettings(tester, 'Opencord Dev');
-      await _page(tester, 'Storage');
-      await _connectBucket(tester, 'My Wasabi');
+  testWidgets('editing_a_bucket_keeps_its_keys_unless_new_ones_are_typed', (
+    tester,
+  ) async {
+    final app = await MockApp.pump(tester);
+    await _openServerSettings(tester, 'Opencord Dev');
+    await _page(tester, 'Storage');
+    await _connectBucket(tester, 'My Wasabi');
 
-      Future<void> openEdit(String name) async {
-        await tester.tap(_inSettings(find.byTooltip('Actions for $name')));
-        await _pumpFor(tester, const Duration(milliseconds: 200));
-        await tester.tap(find.text('Edit').last);
-        await _pumpFor(tester, const Duration(milliseconds: 300));
-      }
+    Future<void> openEdit(String name) async {
+      await tester.tap(_inSettings(find.byTooltip('Actions for $name')));
+      await _pumpFor(tester, const Duration(milliseconds: 200));
+      await tester.tap(find.text('Edit').last);
+      await _pumpFor(tester, const Duration(milliseconds: 300));
+    }
 
-      // The saved key is only a hint: answers carry it masked.
-      await openEdit('My Wasabi');
-      expect(find.text('Access key ID (saved: ••••TEST)'), findsOneWidget);
+    // The saved key is only a hint: answers carry it masked.
+    await openEdit('My Wasabi');
+    expect(find.text('Access key ID (saved: ••••TEST)'), findsOneWidget);
 
-      // A rename needs no test, and sends no bucket settings.
-      await tester.enterText(find.bySemanticsLabel('Storage name'), 'Archive');
-      await tester.pump();
-      expect(_saveAction(tester), isNotNull);
-      await tester.tap(find.widgetWithText(OcButton, 'Save'));
-      await _pumpFor(tester, const Duration(milliseconds: 500));
-      expect(find.byType(S3Dialog), findsNothing);
-      expect(_inSettings(find.text('Archive')), findsOneWidget);
+    // A rename needs no test, and sends no bucket settings.
+    await tester.enterText(find.bySemanticsLabel('Storage name'), 'Archive');
+    await tester.pump();
+    expect(_saveAction(tester), isNotNull);
+    await tester.tap(find.widgetWithText(OcButton, 'Save'));
+    await _pumpFor(tester, const Duration(milliseconds: 500));
+    expect(find.byType(S3Dialog), findsNothing);
+    expect(_inSettings(find.text('Archive')), findsOneWidget);
 
-      // A new bucket needs both keys, and a passing test of these values.
-      await openEdit('Archive');
-      await tester.enterText(find.bySemanticsLabel('Bucket'), 'other-bucket');
-      await tester.pump();
-      expect(_saveAction(tester), isNull);
-      expect(
-        find.textContaining('needs its access key and secret again'),
-        findsOneWidget,
-      );
-      await tester.enterText(
-        find.bySemanticsLabel('Access key ID'),
-        'AKIANEW1',
-      );
-      await tester.enterText(
-        find.bySemanticsLabel('Secret access key'),
-        'SECRETNEW',
-      );
-      await tester.pump();
-      expect(_saveAction(tester), isNull);
-      await tester.tap(find.widgetWithText(OcButton, 'Test'));
-      await _pumpFor(tester, const Duration(milliseconds: 500));
-      expect(_saveAction(tester), isNotNull);
+    // Another bucket with the saved keys: a passing test, then Save.
+    await openEdit('Archive');
+    await tester.enterText(find.bySemanticsLabel('Bucket'), 'other-bucket');
+    await tester.pump();
+    expect(_saveAction(tester), isNull, reason: 'not tested yet');
+    await tester.tap(find.widgetWithText(OcButton, 'Test'));
+    await _pumpFor(tester, const Duration(milliseconds: 500));
+    expect(_saveAction(tester), isNotNull);
+    expect(app.repository.lastStorageTestKeysFrom, isNotNull);
 
-      // Any change after the test locks Save again.
-      await tester.enterText(find.bySemanticsLabel('Region'), 'eu-west-1');
-      await tester.pump();
-      expect(_saveAction(tester), isNull);
+    // A new access key needs its secret.
+    await tester.enterText(find.bySemanticsLabel('Access key ID'), 'AKIANEW1');
+    await tester.pump();
+    expect(_saveAction(tester), isNull);
+    expect(find.text('A new access key needs its secret key.'), findsOneWidget);
+    await tester.enterText(
+      find.bySemanticsLabel('Secret access key'),
+      'SECRETNEW',
+    );
+    await tester.tap(find.widgetWithText(OcButton, 'Test'));
+    await _pumpFor(tester, const Duration(milliseconds: 500));
+    expect(_saveAction(tester), isNotNull);
 
-      await app.dispose(tester);
-    },
-  );
+    // Any change after the test locks Save again.
+    await tester.enterText(find.bySemanticsLabel('Region'), 'eu-west-1');
+    await tester.pump();
+    expect(_saveAction(tester), isNull);
+
+    await app.dispose(tester);
+  });
 
   testWidgets('role_limit_field_validates_against_my_limit', (tester) async {
     final app = await MockApp.pump(tester);

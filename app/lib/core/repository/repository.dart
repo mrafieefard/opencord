@@ -935,10 +935,14 @@ abstract interface class OpencordRepository {
     S3Config? s3,
   });
 
+  /// Tests a saved storage ([storageId]) or settings ([s3]). With [s3],
+  /// [keysFrom] names the saved storage being edited: the keys [s3] leaves
+  /// empty are its saved ones.
   Future<StorageTestResult> testStorage(
     String serverKey, {
     int? storageId,
     S3Config? s3,
+    int? keysFrom,
   });
 
   Future<StorageInfo> activateStorage(String serverKey, int storageId);

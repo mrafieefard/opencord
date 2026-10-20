@@ -71,7 +71,10 @@ async fn storage_requests_are_owner_only() {
             name: Some("new".into()),
             s3: None,
         }),
-        Request::TestStorage(proto::TestStorage { target: None }),
+        Request::TestStorage(proto::TestStorage {
+            target: None,
+            keys_from: None,
+        }),
         Request::ActivateStorage(proto::ActivateStorage { storage_id: 1 }),
         Request::RemoveStorage(proto::RemoveStorage { storage_id: 1 }),
         Request::StartStorageMove(proto::StartStorageMove {}),
@@ -192,6 +195,7 @@ async fn testing_settings_saves_nothing() {
     let res = client
         .ok(Request::TestStorage(proto::TestStorage {
             target: Some(proto::test_storage::Target::S3(config)),
+            keys_from: None,
         }))
         .await;
     match res {
@@ -205,6 +209,32 @@ async fn testing_settings_saves_nothing() {
 
     let storage = get_storage(client.ok(Request::GetStorage(proto::GetStorage {})).await);
     assert_eq!(storage.backends.len(), 1);
+}
+
+/// Edited settings take their missing keys from a saved bucket, never
+/// from a storage that has none.
+#[tokio::test]
+async fn edited_settings_take_keys_only_from_a_saved_bucket() {
+    let server = TestServer::start().await;
+    let (mut client, _ready) = owner(&server).await;
+    let storage = get_storage(client.ok(Request::GetStorage(proto::GetStorage {})).await);
+    let local = storage.backends[0].id;
+
+    let mut config = failing_s3_config();
+    config.access_key_id.clear();
+    config.secret_access_key.clear();
+    for (keys_from, expected) in [
+        (12345, proto::ErrorCode::NotFound),
+        (local, proto::ErrorCode::InvalidArgument),
+    ] {
+        let error = client
+            .error(Request::TestStorage(proto::TestStorage {
+                target: Some(proto::test_storage::Target::S3(config.clone())),
+                keys_from: Some(keys_from),
+            }))
+            .await;
+        assert_eq!(code(&error), expected, "keys from {keys_from}");
+    }
 }
 
 #[tokio::test]

@@ -2299,10 +2299,16 @@ class RustRepository implements OpencordRepository {
     String serverKey, {
     int? storageId,
     S3Config? s3,
+    int? keysFrom,
   }) async {
     final core.StorageTestTarget target;
     if (storageId != null) {
       target = core.StorageTestTarget.existing(storageId: storageId);
+    } else if (s3 != null && keysFrom != null) {
+      target = core.StorageTestTarget.edited(
+        storageId: keysFrom,
+        s3: s3ConfigTo(s3),
+      );
     } else if (s3 != null) {
       target = core.StorageTestTarget.config(s3: s3ConfigTo(s3));
     } else {

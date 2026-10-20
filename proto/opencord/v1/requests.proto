@@ -547,6 +547,9 @@ message TestStorage {
     int64 storage_id = 1;
     S3Config s3 = 2;
   }
+  // With s3: edited settings of this saved storage. The keys s3 leaves
+  // empty are the saved ones, as UpdateStorage takes them.
+  optional int64 keys_from = 3;
 }
 message ActivateStorage {
   int64 storage_id = 1;

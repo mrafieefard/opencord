@@ -27,7 +27,7 @@ local_dir = "/mnt/storage/opencord-attachments"
 
 ### S3-compatible buckets
 
-**Connect a bucket** asks for a provider, which fills in the endpoint, region and path style, then the bucket, an optional key prefix, and an access key and its secret. **Test** writes a small file, reads part of it back, uploads a file in parts and deletes the test files; **Save** stays off until the test passes on the settings shown. The secret is sealed with [secrets.key](#encryption-and-secretskey) and never sent back: the page shows only the access key's last four characters, and editing the bucket settings needs both keys again.
+**Connect a bucket** asks for a provider, which fills in the endpoint, region and path style, then the bucket, an optional key prefix, and an access key and its secret. **Test** writes a small file, reads part of it back, uploads a file in parts and deletes the test files; **Save** stays off until the test passes on the settings shown. The secret is sealed with [secrets.key](#encryption-and-secretskey) and never sent back: the page shows only the access key's last four characters. Editing a bucket keeps its saved keys when both are left empty; a new access key needs its secret.
 
 | Provider | Endpoint | Region | Path style |
 |---|---|---|---|

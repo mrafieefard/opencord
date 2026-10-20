@@ -87,6 +87,20 @@ async fn check_place_change(
     Ok(())
 }
 
+/// A saved bucket's settings, keys included.
+async fn saved_bucket(ctx: &Ctx<'_>, id: i64) -> Result<S3Settings, ApiError> {
+    let row = {
+        let mut conn = ctx.state.db.acquire().await?;
+        db::storage::find(&mut conn, id)
+            .await?
+            .ok_or_else(|| ApiError::not_found("storage"))?
+    };
+    if row.kind != "s3" {
+        return Err(ApiError::invalid_argument("only S3 storage can be tested"));
+    }
+    saved_settings(ctx, &row)
+}
+
 async fn answer_storage(state: &AppState) -> Result<Response, ApiError> {
     Ok(Response::Storage(manage::broadcast(state).await?))
 }
@@ -157,12 +171,8 @@ pub async fn update(ctx: &Ctx<'_>, request: proto::UpdateStorage) -> Result<Resp
                 "this server's own storage has no bucket settings",
             ));
         }
-        let stored = if config.secret_access_key.trim().is_empty() {
-            Some(saved_settings(ctx, &row)?.secret_access_key)
-        } else {
-            None
-        };
-        let settings = manage::valid_s3(&config, stored)?;
+        let saved = saved_settings(ctx, &row)?;
+        let settings = manage::valid_s3(&config, Some(&saved))?;
         // Checked again under the lock; this one spares a bucket test.
         check_place_change(ctx, &row, &settings).await?;
         let storage = tested(ctx, &settings).await?;
@@ -209,23 +219,18 @@ pub async fn test(ctx: &Ctx<'_>, request: proto::TestStorage) -> Result<Response
     };
     match target {
         proto::test_storage::Target::S3(config) => {
-            let settings = manage::valid_s3(&config, None)?;
+            let saved = match request.keys_from {
+                Some(id) => Some(saved_bucket(ctx, id).await?),
+                None => None,
+            };
+            let settings = manage::valid_s3(&config, saved.as_ref())?;
             let storage = S3Storage::new(&settings, ctx.state.attachments.http().clone())
                 .map_err(ApiError::invalid_argument)?;
             let test = storage.test(ctx.state.attachments.temp_dir()).await;
             Ok(Response::StorageTest(test))
         }
         proto::test_storage::Target::StorageId(id) => {
-            let row = {
-                let mut conn = ctx.state.db.acquire().await?;
-                db::storage::find(&mut conn, id)
-                    .await?
-                    .ok_or_else(|| ApiError::not_found("storage"))?
-            };
-            if row.kind != "s3" {
-                return Err(ApiError::invalid_argument("only S3 storage can be tested"));
-            }
-            let settings = saved_settings(ctx, &row)?;
+            let settings = saved_bucket(ctx, id).await?;
             let storage = S3Storage::new(&settings, ctx.state.attachments.http().clone())
                 .map_err(ApiError::invalid_argument)?;
             let test = storage.test(ctx.state.attachments.temp_dir()).await;

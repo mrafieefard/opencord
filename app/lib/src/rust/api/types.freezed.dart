@@ -7261,12 +7261,13 @@ extension StorageTestTargetPatterns on StorageTestTarget {
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeMap<TResult extends Object?>({TResult Function( StorageTestTarget_Existing value)?  existing,TResult Function( StorageTestTarget_Config value)?  config,required TResult orElse(),}){
+@optionalTypeArgs TResult maybeMap<TResult extends Object?>({TResult Function( StorageTestTarget_Existing value)?  existing,TResult Function( StorageTestTarget_Config value)?  config,TResult Function( StorageTestTarget_Edited value)?  edited,required TResult orElse(),}){
 final _that = this;
 switch (_that) {
 case StorageTestTarget_Existing() when existing != null:
 return existing(_that);case StorageTestTarget_Config() when config != null:
-return config(_that);case _:
+return config(_that);case StorageTestTarget_Edited() when edited != null:
+return edited(_that);case _:
   return orElse();
 
 }
@@ -7284,12 +7285,13 @@ return config(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult map<TResult extends Object?>({required TResult Function( StorageTestTarget_Existing value)  existing,required TResult Function( StorageTestTarget_Config value)  config,}){
+@optionalTypeArgs TResult map<TResult extends Object?>({required TResult Function( StorageTestTarget_Existing value)  existing,required TResult Function( StorageTestTarget_Config value)  config,required TResult Function( StorageTestTarget_Edited value)  edited,}){
 final _that = this;
 switch (_that) {
 case StorageTestTarget_Existing():
 return existing(_that);case StorageTestTarget_Config():
-return config(_that);}
+return config(_that);case StorageTestTarget_Edited():
+return edited(_that);}
 }
 /// A variant of `map` that fallback to returning `null`.
 ///
@@ -7303,12 +7305,13 @@ return config(_that);}
 /// }
 /// ```
 
-@optionalTypeArgs TResult? mapOrNull<TResult extends Object?>({TResult? Function( StorageTestTarget_Existing value)?  existing,TResult? Function( StorageTestTarget_Config value)?  config,}){
+@optionalTypeArgs TResult? mapOrNull<TResult extends Object?>({TResult? Function( StorageTestTarget_Existing value)?  existing,TResult? Function( StorageTestTarget_Config value)?  config,TResult? Function( StorageTestTarget_Edited value)?  edited,}){
 final _that = this;
 switch (_that) {
 case StorageTestTarget_Existing() when existing != null:
 return existing(_that);case StorageTestTarget_Config() when config != null:
-return config(_that);case _:
+return config(_that);case StorageTestTarget_Edited() when edited != null:
+return edited(_that);case _:
   return null;
 
 }
@@ -7325,11 +7328,12 @@ return config(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>({TResult Function( PlatformInt64 storageId)?  existing,TResult Function( S3Config s3)?  config,required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>({TResult Function( PlatformInt64 storageId)?  existing,TResult Function( S3Config s3)?  config,TResult Function( PlatformInt64 storageId,  S3Config s3)?  edited,required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case StorageTestTarget_Existing() when existing != null:
 return existing(_that.storageId);case StorageTestTarget_Config() when config != null:
-return config(_that.s3);case _:
+return config(_that.s3);case StorageTestTarget_Edited() when edited != null:
+return edited(_that.storageId,_that.s3);case _:
   return orElse();
 
 }
@@ -7347,11 +7351,12 @@ return config(_that.s3);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>({required TResult Function( PlatformInt64 storageId)  existing,required TResult Function( S3Config s3)  config,}) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>({required TResult Function( PlatformInt64 storageId)  existing,required TResult Function( S3Config s3)  config,required TResult Function( PlatformInt64 storageId,  S3Config s3)  edited,}) {final _that = this;
 switch (_that) {
 case StorageTestTarget_Existing():
 return existing(_that.storageId);case StorageTestTarget_Config():
-return config(_that.s3);}
+return config(_that.s3);case StorageTestTarget_Edited():
+return edited(_that.storageId,_that.s3);}
 }
 /// A variant of `when` that fallback to returning `null`
 ///
@@ -7365,11 +7370,12 @@ return config(_that.s3);}
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>({TResult? Function( PlatformInt64 storageId)?  existing,TResult? Function( S3Config s3)?  config,}) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>({TResult? Function( PlatformInt64 storageId)?  existing,TResult? Function( S3Config s3)?  config,TResult? Function( PlatformInt64 storageId,  S3Config s3)?  edited,}) {final _that = this;
 switch (_that) {
 case StorageTestTarget_Existing() when existing != null:
 return existing(_that.storageId);case StorageTestTarget_Config() when config != null:
-return config(_that.s3);case _:
+return config(_that.s3);case StorageTestTarget_Edited() when edited != null:
+return edited(_that.storageId,_that.s3);case _:
   return null;
 
 }
@@ -7502,6 +7508,74 @@ class _$StorageTestTarget_ConfigCopyWithImpl<$Res>
 @pragma('vm:prefer-inline') $Res call({Object? s3 = null,}) {
   return _then(StorageTestTarget_Config(
 s3: null == s3 ? _self.s3 : s3 // ignore: cast_nullable_to_non_nullable
+as S3Config,
+  ));
+}
+
+
+}
+
+/// @nodoc
+
+
+class StorageTestTarget_Edited extends StorageTestTarget {
+  const StorageTestTarget_Edited({required this.storageId, required this.s3}): super._();
+  
+
+ final  PlatformInt64 storageId;
+ final  S3Config s3;
+
+/// Create a copy of StorageTestTarget
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$StorageTestTarget_EditedCopyWith<StorageTestTarget_Edited> get copyWith => _$StorageTestTarget_EditedCopyWithImpl<StorageTestTarget_Edited>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is StorageTestTarget_Edited&&(identical(other.storageId, storageId) || other.storageId == storageId)&&(identical(other.s3, s3) || other.s3 == s3));
+}
+
+
+@override
+int get hashCode => Object.hash(runtimeType,storageId,s3);
+
+@override
+String toString() {
+  return 'StorageTestTarget.edited(storageId: $storageId, s3: $s3)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $StorageTestTarget_EditedCopyWith<$Res> implements $StorageTestTargetCopyWith<$Res> {
+  factory $StorageTestTarget_EditedCopyWith(StorageTestTarget_Edited value, $Res Function(StorageTestTarget_Edited) _then) = _$StorageTestTarget_EditedCopyWithImpl;
+@useResult
+$Res call({
+ PlatformInt64 storageId, S3Config s3
+});
+
+
+
+
+}
+/// @nodoc
+class _$StorageTestTarget_EditedCopyWithImpl<$Res>
+    implements $StorageTestTarget_EditedCopyWith<$Res> {
+  _$StorageTestTarget_EditedCopyWithImpl(this._self, this._then);
+
+  final StorageTestTarget_Edited _self;
+  final $Res Function(StorageTestTarget_Edited) _then;
+
+/// Create a copy of StorageTestTarget
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? storageId = null,Object? s3 = null,}) {
+  return _then(StorageTestTarget_Edited(
+storageId: null == storageId ? _self.storageId : storageId // ignore: cast_nullable_to_non_nullable
+as PlatformInt64,s3: null == s3 ? _self.s3 : s3 // ignore: cast_nullable_to_non_nullable
 as S3Config,
   ));
 }

@@ -10944,6 +10944,14 @@ impl SseDecode for crate::api::types::StorageTestTarget {
                 let mut var_s3 = <crate::api::types::S3Config>::sse_decode(deserializer);
                 return crate::api::types::StorageTestTarget::Config { s3: var_s3 };
             }
+            2 => {
+                let mut var_storageId = <i64>::sse_decode(deserializer);
+                let mut var_s3 = <crate::api::types::S3Config>::sse_decode(deserializer);
+                return crate::api::types::StorageTestTarget::Edited {
+                    storage_id: var_storageId,
+                    s3: var_s3,
+                };
+            }
             _ => {
                 unimplemented!("");
             }
@@ -15295,6 +15303,12 @@ impl flutter_rust_bridge::IntoDart for crate::api::types::StorageTestTarget {
             crate::api::types::StorageTestTarget::Config { s3 } => {
                 [1.into_dart(), s3.into_into_dart().into_dart()].into_dart()
             }
+            crate::api::types::StorageTestTarget::Edited { storage_id, s3 } => [
+                2.into_dart(),
+                storage_id.into_into_dart().into_dart(),
+                s3.into_into_dart().into_dart(),
+            ]
+            .into_dart(),
             _ => {
                 unimplemented!("");
             }
@@ -18805,6 +18819,11 @@ impl SseEncode for crate::api::types::StorageTestTarget {
             }
             crate::api::types::StorageTestTarget::Config { s3 } => {
                 <i32>::sse_encode(1, serializer);
+                <crate::api::types::S3Config>::sse_encode(s3, serializer);
+            }
+            crate::api::types::StorageTestTarget::Edited { storage_id, s3 } => {
+                <i32>::sse_encode(2, serializer);
+                <i64>::sse_encode(storage_id, serializer);
                 <crate::api::types::S3Config>::sse_encode(s3, serializer);
             }
             _ => {

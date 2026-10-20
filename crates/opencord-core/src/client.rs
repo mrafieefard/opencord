@@ -2036,16 +2036,22 @@ impl Client {
         key: &str,
         target: StorageTestTarget,
     ) -> Result<StorageTestResult, CoreError> {
-        let target = match target {
+        let (target, keys_from) = match target {
             StorageTestTarget::Existing { storage_id } => {
-                proto::test_storage::Target::StorageId(storage_id)
+                (proto::test_storage::Target::StorageId(storage_id), None)
             }
-            StorageTestTarget::Config { s3 } => {
-                proto::test_storage::Target::S3(convert::s3_config_to_proto(s3))
-            }
+            StorageTestTarget::Config { s3 } => (
+                proto::test_storage::Target::S3(convert::s3_config_to_proto(s3)),
+                None,
+            ),
+            StorageTestTarget::Edited { storage_id, s3 } => (
+                proto::test_storage::Target::S3(convert::s3_config_to_proto(s3)),
+                Some(storage_id),
+            ),
         };
         let request = Request::TestStorage(proto::TestStorage {
             target: Some(target),
+            keys_from,
         });
         match self.request(key, request).await? {
             Response::StorageTest(test) => Ok(convert::storage_test(test)),
