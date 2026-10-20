@@ -87,6 +87,16 @@ String expiryLabel(DateTime? expires, DateTime now) {
   return plural(left.inMinutes < 1 ? 1 : left.inMinutes, 'minute');
 }
 
+/// `m:ss`, e.g. `1:05` or `0:08`.
+String formatDuration(Duration d) {
+  final minutes = d.inMinutes;
+  final seconds = (d.inSeconds % 60).toString().padLeft(2, '0');
+  return '$minutes:$seconds';
+}
+
+/// Formats milliseconds into `m:ss`.
+String formatDurationMs(int ms) => formatDuration(Duration(milliseconds: ms));
+
 /// `1,204`.
 String countLabel(int count) {
   final digits = count.abs().toString();

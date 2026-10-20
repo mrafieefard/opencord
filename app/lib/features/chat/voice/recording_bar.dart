@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:opencord/core/format.dart';
 import 'package:opencord/core/model/voice_message.dart';
 import 'package:opencord/core/providers/providers.dart';
 import 'package:opencord/features/chat/voice/voice_recorder_state.dart';
@@ -11,12 +12,6 @@ import 'package:opencord/ui/theme/oc_colors.dart';
 import 'package:opencord/ui/theme/oc_icons.dart';
 import 'package:opencord/ui/theme/oc_text.dart';
 import 'package:opencord/ui/widgets/oc_icon_button.dart';
-
-String _formatDuration(Duration d) {
-  final minutes = d.inMinutes;
-  final seconds = (d.inSeconds % 60).toString().padLeft(2, '0');
-  return '$minutes:$seconds';
-}
 
 class RecordingBar extends ConsumerStatefulWidget {
   const RecordingBar({required this.channel, super.key});
@@ -129,7 +124,7 @@ class _RecordingBarState extends ConsumerState<RecordingBar>
               const SizedBox(width: 8),
               // Timer m:ss
               Text(
-                _formatDuration(state.elapsed),
+                formatDuration(state.elapsed),
                 style: OcText.body.copyWith(
                   color: isCancelling ? colors.recording : colors.text,
                 ),
@@ -185,7 +180,7 @@ class _RecordingBarState extends ConsumerState<RecordingBar>
               Text(
                 previewing && playback.error != null
                     ? playback.error!
-                    : _formatDuration(Duration(milliseconds: draft.durationMs)),
+                    : formatDuration(Duration(milliseconds: draft.durationMs)),
                 style: OcText.body.copyWith(color: colors.textMuted),
               ),
               const SizedBox(width: 12),

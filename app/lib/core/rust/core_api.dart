@@ -589,6 +589,20 @@ abstract interface class CoreApi {
   void voiceSetSpeed(double speed);
 
   void voiceStop();
+
+  Future<core.MediaHandle> mediaOpen(String serverKey, int attachmentId);
+
+  void mediaPlay();
+
+  void mediaPause();
+
+  void mediaSeek(int positionMs);
+
+  void mediaSetVolume(double volume, bool muted);
+
+  void mediaClose();
+
+  bool mediaSupported();
 }
 
 /// [CoreApi] over the generated bindings; needs `RustLib.init` first.
@@ -1639,4 +1653,31 @@ class FrbCoreApi implements CoreApi {
 
   @override
   void voiceStop() => frb_attachments.voiceStop();
+
+  @override
+  Future<core.MediaHandle> mediaOpen(String serverKey, int attachmentId) =>
+      frb_attachments.mediaOpen(
+        serverKey: serverKey,
+        attachmentId: attachmentId,
+      );
+
+  @override
+  void mediaPlay() => frb_attachments.mediaPlay();
+
+  @override
+  void mediaPause() => frb_attachments.mediaPause();
+
+  @override
+  void mediaSeek(int positionMs) =>
+      frb_attachments.mediaSeek(positionMs: positionMs);
+
+  @override
+  void mediaSetVolume(double volume, bool muted) =>
+      frb_attachments.mediaSetVolume(volume: volume, muted: muted);
+
+  @override
+  void mediaClose() => frb_attachments.mediaClose();
+
+  @override
+  bool mediaSupported() => frb_attachments.mediaSupported();
 }

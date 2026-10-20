@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:opencord/core/model/attachment.dart';
 import 'package:opencord/core/model/message.dart';
+import 'package:opencord/features/chat/attachments/audio_card.dart';
 import 'package:opencord/features/chat/attachments/file_card.dart';
 import 'package:opencord/features/chat/attachments/image_grid.dart';
+import 'package:opencord/features/chat/attachments/media_viewer.dart';
+import 'package:opencord/features/chat/attachments/video_tile.dart';
 import 'package:opencord/features/chat/voice/voice_bubble.dart';
 import 'package:opencord/ui/theme/oc_metrics.dart';
 
@@ -49,6 +52,26 @@ class AttachmentsView extends StatelessWidget {
               attachment: item,
               message: message,
             )
+          else if (item.kind == AttachmentKind.video)
+            VideoTile(
+              serverKey: serverKey,
+              attachment: item,
+              message: message,
+              onTap: () {
+                if (onTapImage != null) {
+                  onTapImage!(message.attachments.indexOf(item));
+                } else {
+                  showMediaViewer(
+                    context,
+                    serverKey: serverKey,
+                    media: [item],
+                    index: 0,
+                  );
+                }
+              },
+            )
+          else if (item.kind == AttachmentKind.audio)
+            AudioCard(serverKey: serverKey, attachment: item, message: message)
           else
             FileCard(serverKey: serverKey, attachment: item, message: message),
           const SizedBox(height: OcSpace.s4),

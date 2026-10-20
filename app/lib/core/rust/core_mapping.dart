@@ -476,6 +476,14 @@ StorageTestResult storageTestResultFrom(core.StorageTestResult r) =>
       ok: r.ok,
     );
 
+MediaHandle mediaHandleFrom(core.MediaHandle handle) => MediaHandle(
+  textureId: handle.textureId?.toInt(),
+  durationMs: handle.durationMs,
+  width: handle.width,
+  height: handle.height,
+  hasVideo: handle.hasVideo,
+);
+
 Sound soundFrom(core.SoundboardSound sound) => Sound(
   id: sound.id,
   name: sound.name,

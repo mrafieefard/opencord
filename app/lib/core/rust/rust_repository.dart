@@ -2407,4 +2407,28 @@ class RustRepository implements OpencordRepository {
 
   @override
   void voiceStop() => _now(() => _core.voiceStop());
+
+  @override
+  Future<MediaHandle> mediaOpen(String serverKey, int attachmentId) => _call(
+    () async => mediaHandleFrom(await _core.mediaOpen(serverKey, attachmentId)),
+  );
+
+  @override
+  void mediaPlay() => _now(_core.mediaPlay);
+
+  @override
+  void mediaPause() => _now(_core.mediaPause);
+
+  @override
+  void mediaSeek(int positionMs) => _now(() => _core.mediaSeek(positionMs));
+
+  @override
+  void mediaSetVolume(double volume, bool muted) =>
+      _now(() => _core.mediaSetVolume(volume, muted));
+
+  @override
+  void mediaClose() => _now(_core.mediaClose);
+
+  @override
+  bool mediaSupported() => _now(_core.mediaSupported);
 }

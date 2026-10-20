@@ -3,8 +3,10 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:opencord/core/format.dart';
 import 'package:opencord/core/model/attachment.dart';
+import 'package:opencord/core/providers/playback_state.dart';
 import 'package:opencord/features/chat/attachments/attachment_bytes.dart';
 import 'package:opencord/features/chat/attachments/download.dart';
+import 'package:opencord/features/chat/attachments/video_player_view.dart';
 import 'package:opencord/ui/theme/oc_colors.dart';
 import 'package:opencord/ui/theme/oc_icons.dart';
 import 'package:opencord/ui/theme/oc_metrics.dart';
@@ -60,6 +62,7 @@ class _MediaViewerState extends ConsumerState<MediaViewer> {
   final TransformationController _transformController =
       TransformationController();
   final FocusNode _focusNode = FocusNode();
+  PlaybackNotifier? _playbackNotifier;
 
   @override
   void initState() {
@@ -68,7 +71,14 @@ class _MediaViewerState extends ConsumerState<MediaViewer> {
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _playbackNotifier = ref.read(playbackProvider.notifier);
+  }
+
+  @override
   void dispose() {
+    _playbackNotifier?.mediaClose();
     _focusNode.dispose();
     _transformController.dispose();
     super.dispose();
@@ -76,6 +86,7 @@ class _MediaViewerState extends ConsumerState<MediaViewer> {
 
   void _previous() {
     if (_currentIndex > 0) {
+      ref.read(playbackProvider.notifier).mediaClose();
       setState(() {
         _currentIndex--;
         _transformController.value = Matrix4.identity();
@@ -85,6 +96,7 @@ class _MediaViewerState extends ConsumerState<MediaViewer> {
 
   void _next() {
     if (_currentIndex < widget.media.length - 1) {
+      ref.read(playbackProvider.notifier).mediaClose();
       setState(() {
         _currentIndex++;
         _transformController.value = Matrix4.identity();
@@ -215,25 +227,9 @@ class _MediaViewerState extends ConsumerState<MediaViewer> {
     final colors = context.oc;
 
     if (attachment.kind == AttachmentKind.video) {
-      return Container(
-        width: 480,
-        height: 320,
-        decoration: BoxDecoration(
-          color: colors.surface,
-          borderRadius: BorderRadius.circular(OcRadius.bubble),
-          border: Border.all(color: colors.border),
-        ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(OcIcons.movie, size: 48, color: colors.textSecondary),
-            const SizedBox(height: OcSpace.s12),
-            Text(
-              'Video playback coming soon',
-              style: OcText.body.copyWith(color: colors.textSecondary),
-            ),
-          ],
-        ),
+      return VideoPlayerView(
+        serverKey: widget.serverKey,
+        attachment: attachment,
       );
     }
 

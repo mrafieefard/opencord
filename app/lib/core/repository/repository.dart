@@ -22,6 +22,8 @@ import 'package:opencord/core/model/voice.dart';
 import 'package:opencord/core/repository/events.dart';
 
 export 'package:opencord/core/repository/events.dart';
+import 'package:opencord/core/model/media_handle.dart';
+export 'package:opencord/core/model/media_handle.dart';
 import 'package:opencord/core/model/voice_message.dart';
 export 'package:opencord/core/model/voice_message.dart';
 
@@ -980,6 +982,20 @@ abstract interface class OpencordRepository {
   void voiceSetSpeed(double speed);
 
   void voiceStop();
+
+  Future<MediaHandle> mediaOpen(String serverKey, int attachmentId);
+
+  void mediaPlay();
+
+  void mediaPause();
+
+  void mediaSeek(int positionMs);
+
+  void mediaSetVolume(double volume, bool muted);
+
+  void mediaClose();
+
+  bool mediaSupported();
 }
 
 /// Overridden at startup with the mock or the Rust-core repository.

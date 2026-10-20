@@ -4594,6 +4594,73 @@ class MockRepository implements OpencordRepository {
     _playbackPlaying = false;
     _playingItem = null;
   }
+
+  bool mockMediaSupported = true;
+
+  @override
+  bool mediaSupported() => mockMediaSupported;
+
+  @override
+  Future<MediaHandle> mediaOpen(String serverKey, int attachmentId) async {
+    if (!mediaSupported()) {
+      throw const RepoException(
+        RepoErrorKind.invalidArgument,
+        'media player is not supported on this platform',
+      );
+    }
+    final att = _world.servers
+        .where((server) => server.key == serverKey)
+        .expand((server) => server.messages.values)
+        .expand((messages) => messages)
+        .expand((message) => message.attachments)
+        .where((attachment) => attachment.id == attachmentId)
+        .firstOrNull;
+    final hasVideo = att == null || att.kind == AttachmentKind.video;
+    final handle = MediaHandle(
+      textureId: hasVideo ? (attachmentId > 0 ? attachmentId : 42) : null,
+      durationMs: att?.durationMs ?? 10000,
+      width: att?.width ?? 320,
+      height: att?.height ?? 240,
+      hasVideo: hasVideo,
+    );
+    _playingItem = AttachmentPlayback(serverKey, attachmentId);
+    _playbackDurationMs = handle.durationMs;
+    _playbackPositionMs = 0;
+    _playbackPlaying = false;
+    return handle;
+  }
+
+  @override
+  void mediaPlay() {
+    if (_playingItem case final item?) {
+      _playbackPlaying = true;
+      _runPlayback(item);
+      _emitPlayback();
+    }
+  }
+
+  @override
+  void mediaPause() {
+    _playbackTimer?.cancel();
+    _playbackPlaying = false;
+    _emitPlayback();
+  }
+
+  @override
+  void mediaSeek(int positionMs) {
+    _playbackPositionMs = positionMs;
+    _emitPlayback();
+  }
+
+  @override
+  void mediaSetVolume(double volume, bool muted) {}
+
+  @override
+  void mediaClose() {
+    _playbackTimer?.cancel();
+    _playbackPlaying = false;
+    _playingItem = null;
+  }
 }
 
 /// [domain] with some fields changed.
