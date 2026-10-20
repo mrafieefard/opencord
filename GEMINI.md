@@ -73,6 +73,7 @@ Every rule here was broken at least once and caught in review.
 - **A slot several owners can take is released only by its holder.**
   - Whatever holds one thing at a time (an output slot, "now playing") gives each holder an id. Releasing checks the id, so one holder stopping never cuts off the one that took over.
   - A holder that comes back after another took the slot takes it again before using it.
+  - A holder taking the slot it already has changes nothing. Taking it never stops the one asking: play after pause must not pause itself.
 - **Hold what has its own lifetime weakly.** A player, a task or a cache that points at something the user can end (a call, a connection) keeps a `Weak`. A strong reference keeps the call's devices open after the user left.
 - **Each event reaches a listener once.** Route it through the existing router (`_route` in `providers.dart`) or subscribe to the repository's events, never both.
 - **After every `await` in a widget's `State`, check `mounted`** before touching `context`, `ref` or `setState`. The page may have closed while it waited.
@@ -88,6 +89,11 @@ Every rule here was broken at least once and caught in review.
 - **One gesture, one action.** A drag moves a preview and acts once, on release; nothing starts work on every pointer move.
 - **A control does what it shows, or it isn't there.** A button that only flips a flag (a play button that plays nothing) is a stub: leave it out and list it under "Left undone".
 - **A control works from every state it can reach:** after the end, after an error, after something else took over. Walk each one: play to the end and press play; start something else and come back.
+  - Each walk is a test that does it twice (play, pause, play; play to the end, play again) and checks the effect afterwards, such as the position moving on. A button that turns to Pause proves nothing.
+- **A size or a length from outside (a probe, the sender) can be 0 or wrong.**
+  - Nothing found is `None`, never `0`. Send it only when it was found.
+  - Layout keeps every element usable whatever it was given: a tile fills its box at the given shape, never shrinks to a speck.
+- **What a file is comes from its content, not its label.** An extension or a container brand doesn't say whether a file has a picture; read its tracks.
 - **Masked values never go back.** Fields the server answers masked (access keys, secrets) start empty in an edit form and are sent only when the user types new ones.
 
 ### Resources
@@ -100,7 +106,9 @@ Every rule here was broken at least once and caught in review.
   - Work in steps the size of the output: decode a packet, make a tick, write it. Decoding a whole file up front costs memory and freezes what later changes (speed, seek) should affect.
   - A loop like this sleeps only when it has nothing to do. A fixed sleep after each piece of work makes catching up (after a seek) take seconds.
   - Settings the user changes while it plays (volume, mute) apply where the output is written, not where it is decoded ahead.
-  - Test it with a sink drained at real time, and check the total length heard.
+  - It keeps up in a debug build, which is what developers run. Time each step per tick in a debug build; a crate doing signal work every tick (filtering, stretching, resampling) gets `opt-level = 3` under `[profile.dev.package]` in the root `Cargo.toml`, as the others there do.
+  - At a neutral setting (1× speed, no effect), skip the processor: many change the sound even then.
+  - Test it with a sink drained at real time: check the total length heard, and at the neutral setting compare what comes out with the decoder's own output, sample for sample.
 - **Know what a library call does to its state** before streaming through it, above all after `flush`, `finish` or `reset` (`wsola::TimeStretch` replays the input it still holds when pulled after `flush`). Test the whole stream's length end to end.
 - **CPU-heavy work runs in `tokio::task::spawn_blocking`:** decoding images, audio or video; hashing, sealing or compressing large data.
 
@@ -138,7 +146,7 @@ Every rule here was broken at least once and caught in review.
 - **A test must be able to fail.** Before trusting one, name a wrong implementation that would still pass it. An assertion on a value the code echoes back (a seek reporting its own target) proves nothing; check an effect only the real behavior produces, such as how much sound came out and how long it took.
 - **A test sets up everything it depends on.** Never rely on a default (an empty list, a setting's starting value) or on another test's data. Set it in the test.
 - **Test every mode of a flow, not just the first.** A form that adds and edits gets a test for editing; a send that can fail and retry gets a test for the retry.
-- **Fakes answer like the real thing.** A mock repository masks what the server masks and sends the last event the core sends (on a cancel, too). Otherwise tests pass on behavior real users never get.
+- **Fakes answer like the real thing.** A mock repository masks what the server masks and sends the last event the core sends (on a cancel, too). It ends like the real thing too: once the core's worker is gone (a player that played to the end), the fake ignores what that worker would have answered. A fake speaker plays silence when it runs dry and never banks the time for later. Otherwise tests pass on behavior real users never get.
 - **Keep what you didn't add.** Editing an existing file, change only what the task needs. An attribution table, a licence note or another milestone's section stays, even when the task "rewrites" the file.
 - **Every commit passes the checks on its own.**
   - Code that only a later task uses goes in with that task. Otherwise `-D warnings` fails on dead code.
