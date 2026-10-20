@@ -847,6 +847,8 @@ pub enum DomainKind {
     Tunnel,
     /// Caddy, Nginx, Traefik, ngrok and the like.
     ReverseProxy,
+    /// A record proxied by Cloudflare (the orange cloud).
+    CloudflareProxy,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

@@ -325,6 +325,62 @@ async fn an_uploaded_certificate_is_checked_then_served() {
     assert_ne!(status, 0);
 }
 
+/// Behind Cloudflare's proxy, apps see Cloudflare's certificate on 443 and
+/// Cloudflare reaches the main port, where the owner's origin certificate
+/// answers for the name. Let's Encrypt is not asked for one.
+#[tokio::test]
+async fn a_cloudflare_proxied_domain_takes_an_origin_certificate() {
+    const PROXIED: &str = "proxied.example.com";
+    let dns = FakeDns::start().await;
+    let server = server_with(&dns).await;
+    let (mut owner, _) = owner_of(&server, &dns).await;
+    let added = info(
+        owner
+            .ok(Kind::AddDomain(proto::AddDomain {
+                hostname: PROXIED.to_owned(),
+                kind: proto::DomainKind::CloudflareProxy as i32,
+                public_port: None,
+            }))
+            .await,
+    );
+    let proxied = domain(&added, PROXIED).clone();
+    assert_eq!(proxied.public_port, 443, "apps use Cloudflare's port");
+    let status = proxied.certificate.clone().unwrap();
+    assert_eq!(status.state, proto::CertificateState::Provided as i32);
+    assert_eq!(status.issuer, "Cloudflare");
+
+    let refused = owner
+        .error(Kind::RequestCertificate(proto::RequestCertificate {
+            domain_id: proxied.id,
+            email: None,
+            agree_terms: true,
+        }))
+        .await;
+    assert!(
+        refused.message.contains("origin certificate"),
+        "{}",
+        refused.message
+    );
+
+    let ca = TestCa::new();
+    let origin = ca.issue(&[PROXIED]);
+    let uploaded = info(
+        owner
+            .ok(Kind::UploadCertificate(proto::UploadCertificate {
+                domain_id: proxied.id,
+                chain_pem: origin.cert_pem.clone(),
+                key_pem: origin.key_pem.clone(),
+            }))
+            .await,
+    );
+    let status = domain(&uploaded, PROXIED).certificate.clone().unwrap();
+    assert_eq!(status.state, proto::CertificateState::Valid as i32);
+    assert!(status.uploaded);
+    // Served at once, before any check: Cloudflare needs it to pass one.
+    let served = served(&server, PROXIED, CertificateDer::from(ca.ca_der())).await;
+    assert_eq!(served, first_der(&origin.cert_pem).to_vec());
+}
+
 #[tokio::test]
 async fn requests_need_a_verified_domain_an_agreement_and_the_owner() {
     let dns = FakeDns::start().await;

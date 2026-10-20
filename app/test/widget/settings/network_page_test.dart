@@ -753,6 +753,46 @@ void freeDomainAndTunnelTests() {
     await _pumpFor(tester, const Duration(seconds: 2));
     await app.dispose(tester);
   });
+
+  testWidgets("a domain behind Cloudflare's proxy shows its proxied records, "
+      'the port and certificate steps, and takes an origin certificate', (
+    tester,
+  ) async {
+    final app = await MockApp.pump(tester);
+    await _openNetwork(tester);
+    await _tapVisible(
+      tester,
+      _inSettings(find.widgetWithText(OcButton, 'Add domain')),
+    );
+    await _pumpFor(tester, const Duration(milliseconds: 300));
+    await tester.enterText(
+      _fieldsOf<AddDomainDialog>().first,
+      'proxied.example.com',
+    );
+    await tester.tap(find.text("Through Cloudflare's proxy"));
+    await tester.pump();
+    await tester.tap(find.widgetWithText(OcButton, 'Next'));
+    await _pumpFor(tester, const Duration(milliseconds: 600));
+
+    expect(find.text('Point Cloudflare here'), findsOneWidget);
+    expect(find.textContaining('orange cloud'), findsOneWidget);
+    expect(find.textContaining('Origin Rule'), findsOneWidget);
+    expect(find.textContaining('Full (strict)'), findsOneWidget);
+    expect(find.textContaining('carry no UDP'), findsOneWidget);
+    await tester.tap(find.widgetWithText(OcButton, 'Later'));
+    await _pumpFor(tester, const Duration(milliseconds: 600));
+
+    await _tapVisible(
+      tester,
+      _inSettings(find.byTooltip('More for proxied.example.com')),
+    );
+    await _pumpFor(tester, const Duration(milliseconds: 200));
+    expect(find.text('Upload origin certificate'), findsOneWidget);
+    expect(find.text('Get certificate'), findsNothing);
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await _pumpFor(tester, const Duration(seconds: 2));
+    await app.dispose(tester);
+  });
 }
 
 /// The invite dialog, opened from code.

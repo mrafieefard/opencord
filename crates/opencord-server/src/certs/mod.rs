@@ -232,7 +232,10 @@ impl Certificates {
     pub fn serve(&self, domains: &[Domain], now: i64) {
         let held = lock(&self.held);
         for domain in domains {
+            // Behind Cloudflare's proxy under Full (strict), the origin
+            // certificate must answer before the check can pass.
             let usable = domain.active
+                || domain.kind == crate::domains::DomainKind::CloudflareProxy
                 || domain
                     .deactivated_at
                     .is_some_and(|at| now - at < DEACTIVATED_GRACE_MS);
@@ -259,11 +262,16 @@ impl Certificates {
     }
 
     pub fn status(&self, domain: &Domain, now: i64) -> proto::CertificateStatus {
-        if domain.kind.behind_proxy() {
+        // Behind Cloudflare's proxy, an uploaded origin certificate shows
+        // like any other; without one, Cloudflare's own is what apps see.
+        let origin = domain.kind == crate::domains::DomainKind::CloudflareProxy
+            && lock(&self.held).contains_key(&domain.id);
+        if domain.kind.behind_proxy() && !origin {
             return proto::CertificateStatus {
                 state: proto::CertificateState::Provided as i32,
                 issuer: match domain.kind {
-                    crate::domains::DomainKind::Tunnel => "Cloudflare".to_owned(),
+                    crate::domains::DomainKind::Tunnel
+                    | crate::domains::DomainKind::CloudflareProxy => "Cloudflare".to_owned(),
                     _ => "the proxy".to_owned(),
                 },
                 ..Default::default()
@@ -402,6 +410,12 @@ impl Certificates {
             .domains
             .get(domain_id)
             .ok_or_else(|| ApiError::not_found("domain"))?;
+        if domain.kind == crate::domains::DomainKind::CloudflareProxy {
+            return Err(ApiError::invalid_argument(
+                "behind Cloudflare's proxy, upload Cloudflare's origin certificate instead \
+                 (SSL/TLS, then Origin Server, in Cloudflare's dashboard)",
+            ));
+        }
         if domain.kind.behind_proxy() {
             return Err(ApiError::invalid_argument(
                 "the tunnel or proxy provides this domain's certificate",
@@ -469,7 +483,7 @@ impl Certificates {
             .domains
             .get(domain_id)
             .ok_or_else(|| ApiError::not_found("domain"))?;
-        if domain.kind.behind_proxy() {
+        if !domain.kind.takes_own_certificate() {
             return Err(ApiError::invalid_argument(
                 "the tunnel or proxy provides this domain's certificate",
             ));

@@ -161,8 +161,9 @@ fn classify(host: &str, found: &Resolved, expected: PublicIps, now_ms: i64) -> C
         if addresses.iter().all(|ip| is_cloudflare(*ip)) {
             return with(
                 CheckResult::CloudflareProxied,
-                "It points to Cloudflare's proxy. Set the record to DNS only (grey cloud): the proxy \
-                 forwards only web traffic on a few ports, and no UDP."
+                "It points to Cloudflare's proxy. Set the record to DNS only (grey cloud), or add it \
+                 again as a domain through Cloudflare's proxy: the proxy forwards only web traffic \
+                 on a few ports, and no UDP."
                     .to_owned(),
             );
         }

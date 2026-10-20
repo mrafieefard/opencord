@@ -8530,6 +8530,7 @@ impl SseDecode for crate::api::types::DomainKind {
             1 => crate::api::types::DomainKind::FreeSubdomain,
             2 => crate::api::types::DomainKind::Tunnel,
             3 => crate::api::types::DomainKind::ReverseProxy,
+            4 => crate::api::types::DomainKind::CloudflareProxy,
             _ => unreachable!("Invalid variant for DomainKind: {}", inner),
         };
     }
@@ -13307,6 +13308,7 @@ impl flutter_rust_bridge::IntoDart for crate::api::types::DomainKind {
             Self::FreeSubdomain => 1.into_dart(),
             Self::Tunnel => 2.into_dart(),
             Self::ReverseProxy => 3.into_dart(),
+            Self::CloudflareProxy => 4.into_dart(),
             _ => unreachable!(),
         }
     }
@@ -17040,6 +17042,7 @@ impl SseEncode for crate::api::types::DomainKind {
                 crate::api::types::DomainKind::FreeSubdomain => 1,
                 crate::api::types::DomainKind::Tunnel => 2,
                 crate::api::types::DomainKind::ReverseProxy => 3,
+                crate::api::types::DomainKind::CloudflareProxy => 4,
                 _ => {
                     unimplemented!("");
                 }

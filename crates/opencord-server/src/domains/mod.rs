@@ -39,6 +39,9 @@ pub enum DomainKind {
     FreeSubdomain,
     Tunnel,
     ReverseProxy,
+    /// Proxied by Cloudflare: Cloudflare's certificate for apps, which it
+    /// brings to the main port.
+    CloudflareProxy,
 }
 
 impl DomainKind {
@@ -48,6 +51,7 @@ impl DomainKind {
             Self::FreeSubdomain => "free_subdomain",
             Self::Tunnel => "tunnel",
             Self::ReverseProxy => "reverse_proxy",
+            Self::CloudflareProxy => "cloudflare_proxy",
         }
     }
 
@@ -57,6 +61,7 @@ impl DomainKind {
             Self::FreeSubdomain,
             Self::Tunnel,
             Self::ReverseProxy,
+            Self::CloudflareProxy,
         ]
         .into_iter()
         .find(|kind| kind.as_str() == text)
@@ -68,6 +73,7 @@ impl DomainKind {
             proto::DomainKind::FreeSubdomain => Some(Self::FreeSubdomain),
             proto::DomainKind::Tunnel => Some(Self::Tunnel),
             proto::DomainKind::ReverseProxy => Some(Self::ReverseProxy),
+            proto::DomainKind::CloudflareProxy => Some(Self::CloudflareProxy),
             proto::DomainKind::Unspecified => None,
         }
     }
@@ -78,6 +84,7 @@ impl DomainKind {
             Self::FreeSubdomain => proto::DomainKind::FreeSubdomain,
             Self::Tunnel => proto::DomainKind::Tunnel,
             Self::ReverseProxy => proto::DomainKind::ReverseProxy,
+            Self::CloudflareProxy => proto::DomainKind::CloudflareProxy,
         }
     }
 
@@ -88,7 +95,23 @@ impl DomainKind {
 
     /// Behind a tunnel or proxy, whose certificate an authority signed.
     pub fn behind_proxy(self) -> bool {
+        matches!(
+            self,
+            Self::Tunnel | Self::ReverseProxy | Self::CloudflareProxy
+        )
+    }
+
+    /// Reached through the plain listener on this machine; Cloudflare's
+    /// proxy comes to the main port over TLS instead.
+    pub fn through_local_listener(self) -> bool {
         matches!(self, Self::Tunnel | Self::ReverseProxy)
+    }
+
+    /// The main port answers for it with a certificate of its own: one from
+    /// an authority, or, behind Cloudflare's proxy, the origin certificate
+    /// the owner uploads.
+    pub fn takes_own_certificate(self) -> bool {
+        !self.behind_proxy() || self == Self::CloudflareProxy
     }
 }
 
@@ -269,6 +292,14 @@ impl Domains {
             .iter()
             .find(|domain| domain.primary && domain.active)
             .cloned()
+    }
+
+    /// Whether an active domain is proxied by Cloudflare: then Cloudflare's
+    /// addresses are believed about who they forward.
+    pub fn cloudflare_proxied(&self) -> bool {
+        lock(&self.list)
+            .iter()
+            .any(|domain| domain.active && domain.kind == DomainKind::CloudflareProxy)
     }
 
     /// Whether `host` is an active tunnel or reverse-proxy domain: what
@@ -672,7 +703,7 @@ pub async fn sync_local_listener(state: &Arc<AppState>) {
             .domains
             .all()
             .iter()
-            .any(|domain| domain.kind.behind_proxy());
+            .any(|domain| domain.kind.through_local_listener());
     if let Err(error) = state.network.set_local_listener(state, wanted).await {
         tracing::warn!(%error, "the local listener for tunnels and proxies could not start");
     }

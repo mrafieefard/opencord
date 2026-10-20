@@ -78,6 +78,7 @@ Domain domainFrom(core.Domain domain) => Domain(
     core.DomainKind.freeSubdomain => DomainKind.freeSubdomain,
     core.DomainKind.tunnel => DomainKind.tunnel,
     core.DomainKind.reverseProxy => DomainKind.reverseProxy,
+    core.DomainKind.cloudflareProxy => DomainKind.cloudflareProxy,
   },
   publicPort: domain.publicPort,
   status: switch (domain.status) {
@@ -150,6 +151,7 @@ core.DomainKind domainKindTo(DomainKind kind) => switch (kind) {
   DomainKind.freeSubdomain => core.DomainKind.freeSubdomain,
   DomainKind.tunnel => core.DomainKind.tunnel,
   DomainKind.reverseProxy => core.DomainKind.reverseProxy,
+  DomainKind.cloudflareProxy => core.DomainKind.cloudflareProxy,
 };
 
 core.DomainUpdate domainUpdateTo(DomainUpdate update) => core.DomainUpdate(

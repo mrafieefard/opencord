@@ -1336,6 +1336,9 @@ enum DomainKind {
 
   /// Caddy, Nginx, Traefik, ngrok and the like.
   reverseProxy,
+
+  /// A record proxied by Cloudflare (the orange cloud).
+  cloudflareProxy,
 }
 
 enum DomainStatus {

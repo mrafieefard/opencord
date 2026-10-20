@@ -582,14 +582,21 @@ enum DomainKind {
   own('Own domain'),
   freeSubdomain('Free subdomain'),
   tunnel('Cloudflare Tunnel'),
-  reverseProxy('Reverse proxy');
+  reverseProxy('Reverse proxy'),
+  cloudflareProxy('Cloudflare proxy');
 
   const DomainKind(this.label);
 
   final String label;
 
   /// Behind a tunnel or proxy: its certificate, its HTTP check.
-  bool get behindProxy => this == tunnel || this == reverseProxy;
+  bool get behindProxy =>
+      this == tunnel || this == reverseProxy || this == cloudflareProxy;
+
+  /// Whether this server can hold a certificate of its own for it: one
+  /// from an authority, or behind Cloudflare's proxy the origin
+  /// certificate.
+  bool get takesOwnCertificate => !behindProxy || this == cloudflareProxy;
 }
 
 enum DomainStatus {

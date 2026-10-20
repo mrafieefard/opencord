@@ -104,9 +104,11 @@ class DomainRow extends ConsumerWidget {
             icon: renewable ? OcIcons.refresh : OcIcons.lock,
             onSelected: () => getCertificate(anchor, ref, serverKey, domain),
           ),
-        if (!domain.kind.behindProxy)
+        if (domain.kind.takesOwnCertificate)
           OcMenuItem(
-            label: 'Upload certificate',
+            label: domain.kind == DomainKind.cloudflareProxy
+                ? 'Upload origin certificate'
+                : 'Upload certificate',
             icon: OcIcons.upload,
             onSelected: () => showOcDialog<void>(
               context: anchor,
