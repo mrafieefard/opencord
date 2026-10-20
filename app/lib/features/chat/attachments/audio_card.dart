@@ -67,7 +67,7 @@ class _AudioCardState extends ConsumerState<AudioCard> {
     if (notifier != null &&
         notifier.openMedia == _item &&
         !(_lastPlayback?.playing ?? false)) {
-      notifier.mediaClose();
+      notifier.mediaCloseOnDispose();
     }
     super.dispose();
   }

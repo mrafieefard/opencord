@@ -69,7 +69,7 @@ class _VideoPlayerViewState extends ConsumerState<VideoPlayerView> {
 
   @override
   void dispose() {
-    _playbackNotifier?.mediaClose();
+    _playbackNotifier?.mediaCloseOnDispose();
     super.dispose();
   }
 

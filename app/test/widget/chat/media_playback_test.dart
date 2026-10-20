@@ -338,4 +338,43 @@ void main() {
     expect(await tileFor(320, 240), const Size(400, 300));
     expect(await tileFor(1080, 1920), const Size(168.75, 300));
   });
+
+  testWidgets('closing_the_viewer_stops_the_video', (tester) async {
+    final mockRepo = MockRepository(random: Random(1), simulateLife: false);
+    const video = Attachment(
+      id: 601,
+      filename: 'clip.mp4',
+      contentType: 'video/mp4',
+      sizeBytes: 1000000,
+      kind: AttachmentKind.video,
+      width: 640,
+      height: 360,
+      durationMs: 15000,
+    );
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [repositoryProvider.overrideWithValue(mockRepo)],
+        child: MaterialApp(
+          theme: buildTheme(OcColors.dark),
+          home: Scaffold(
+            body: AttachmentsView(
+              serverKey: 'server.example:7710',
+              message: _msg([video]),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.byType(VideoTile));
+    await tester.pumpAndSettle();
+    expect(
+      mockRepo.openMediaForTest,
+      const AttachmentPlayback('server.example:7710', 601),
+    );
+
+    await tester.tap(find.byTooltip('Close'));
+    await tester.pumpAndSettle();
+    expect(find.byType(VideoPlayerView), findsNothing);
+    expect(mockRepo.openMediaForTest, isNull);
+  });
 }

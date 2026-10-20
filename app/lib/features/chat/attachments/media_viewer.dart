@@ -78,7 +78,7 @@ class _MediaViewerState extends ConsumerState<MediaViewer> {
 
   @override
   void dispose() {
-    _playbackNotifier?.mediaClose();
+    _playbackNotifier?.mediaCloseOnDispose();
     _focusNode.dispose();
     _transformController.dispose();
     super.dispose();

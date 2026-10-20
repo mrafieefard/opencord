@@ -4608,6 +4608,9 @@ class MockRepository implements OpencordRepository {
   /// The media open, its length, and its place while a voice message
   /// plays.
   AttachmentPlayback? _media;
+
+  /// The media open in this mock's player, for tests.
+  AttachmentPlayback? get openMediaForTest => _media;
   int _mediaDurationMs = 0;
   int _mediaPositionMs = 0;
 

@@ -193,15 +193,34 @@ class PlaybackNotifier extends Notifier<PlaybackState> {
   });
 
   /// Closes the open media, whether or not it is what plays now.
-  void mediaClose() {
+  void mediaClose() => _closeMedia(stateLater: false);
+
+  /// [mediaClose] from a widget's `dispose`. The player stops at once; the
+  /// state follows after the frame, as providers can't change while the
+  /// widget tree is being finalized.
+  void mediaCloseOnDispose() => _closeMedia(stateLater: true);
+
+  void _closeMedia({required bool stateLater}) {
     final media = _media;
     if (media == null) return;
     _media = null;
-    if (state.item == media) state = const PlaybackState();
+    String? failure;
     try {
       _repository.mediaClose();
     } on RepoException catch (error) {
-      state = state.copyWith(error: () => error.message);
+      failure = error.message;
+    }
+    void settle() {
+      if (state.item == media) state = const PlaybackState();
+      if (failure != null) state = state.copyWith(error: () => failure);
+    }
+
+    if (stateLater) {
+      Future.microtask(() {
+        if (ref.mounted) settle();
+      });
+    } else {
+      settle();
     }
   }
 
