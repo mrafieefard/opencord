@@ -2,8 +2,8 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:opencord/features/settings/user/settings_draft.dart';
 import 'package:opencord/core/settings/app_settings.dart';
-import 'package:opencord/features/window/window_startup.dart';
 import 'package:opencord/ui/theme/oc_colors.dart';
 import 'package:opencord/ui/theme/oc_metrics.dart';
 import 'package:opencord/ui/theme/oc_text.dart';
@@ -22,8 +22,8 @@ class AppearancePage extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = context.oc;
-    final settings = ref.watch(appSettingsProvider);
-    final update = ref.read(appSettingsProvider.notifier).update;
+    final settings = ref.watch(shownAppSettingsProvider);
+    final update = ref.read(clientSettingsDraftProvider.notifier).updateApp;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -144,10 +144,9 @@ class AppearancePage extends ConsumerWidget {
                 padding: const EdgeInsets.all(OcSpace.s12),
                 child: SettingsChoiceCards<WindowFramePreference>(
                   value: settings.windowFrame,
-                  onChanged: (frame) {
-                    update((s) => s.copyWith(windowFrame: frame));
-                    ref.read(frameChoiceSaverProvider)(frame);
-                  },
+                  // Saved for the next start with the other changes.
+                  onChanged: (frame) =>
+                      update((s) => s.copyWith(windowFrame: frame)),
                   options: const [
                     ChoiceCardOption(
                       value: WindowFramePreference.auto,

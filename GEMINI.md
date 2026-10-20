@@ -94,6 +94,9 @@ Every rule here was broken at least once and caught in review.
   - Nothing found is `None`, never `0`. Send it only when it was found.
   - Layout keeps every element usable whatever it was given: a tile fills its box at the given shape, never shrinks to a speck.
 - **What a file is comes from its content, not its label.** An extension or a container brand doesn't say whether a file has a picture; read its tracks.
+- **Settings wait for the save bar, as in Discord.** A setting changed in a settings dialog applies only when the bar's Save changes is pressed, and Discard drops it. No page applies a change at once or has a Save button of its own:
+  - client settings edit the drafts in `settings_draft.dart` (`clientSettingsDraftProvider`, read through the `shown…Provider`s);
+  - anything else registers `PendingChanges` (dirty, save, discard) with `SettingsScope.changesOf(context)` in `didChangeDependencies`, unregisters in `dispose`, and calls `touch()` when it may have changed. New server settings do this too.
 - **Masked values never go back.** Fields the server answers masked (access keys, secrets) start empty in an edit form and are sent only when the user types new ones.
 
 ### Resources

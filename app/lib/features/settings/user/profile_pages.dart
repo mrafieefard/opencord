@@ -28,58 +28,66 @@ class ProfilePage extends ConsumerStatefulWidget {
 }
 
 class _ProfilePageState extends ConsumerState<ProfilePage> {
-  Map<Object, bool Function()>? _unsaved;
+  /// The display name waits for the save bar with the other settings.
+  SettingsChanges? _changes;
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    _unsaved = SettingsScope.of(context)
-      ?..[this] = () =>
-          _name.text.trim().isNotEmpty && _name.text.trim() != _saved;
+    _changes = SettingsScope.changesOf(context)
+      ?..register(
+        this,
+        PendingChanges(
+          dirty: () => _changed,
+          save: _save,
+          discard: () => _name.text = _saved,
+        ),
+      );
   }
 
   late final TextEditingController _name;
-  var _saving = false;
   String? _error;
 
-  String get _saved => ref.read(localIdentityProvider)?.displayName ?? '';
+  /// The name as saved; kept here, as the save bar may ask while this page
+  /// is going away, when `ref` can no longer be used.
+  late String _saved = ref.read(localIdentityProvider)?.displayName ?? '';
+
+  bool get _changed =>
+      _name.text.trim().isNotEmpty && _name.text.trim() != _saved;
 
   @override
   void initState() {
     super.initState();
     _name = TextEditingController(text: _saved)
-      ..addListener(() => setState(() {}));
+      ..addListener(() {
+        setState(() {});
+        _changes?.touch();
+      });
   }
 
   @override
   void dispose() {
-    _unsaved?.remove(this);
+    _changes?.unregister(this);
     _name.dispose();
     super.dispose();
   }
 
   Future<void> _save() async {
-    final name = _name.text.trim();
-    if (name.isEmpty || name == _saved) return;
-    setState(() {
-      _saving = true;
-      _error = null;
-    });
+    if (mounted) setState(() => _error = null);
     try {
-      await ref.read(repositoryProvider).updateDisplayName(name);
-      if (mounted) showOcToast(context, 'Display name saved');
+      await ref.read(repositoryProvider).updateDisplayName(_name.text.trim());
     } on RepoException catch (error) {
       if (mounted) setState(() => _error = error.message);
+      rethrow;
     }
-    if (mounted) setState(() => _saving = false);
   }
 
   @override
   Widget build(BuildContext context) {
     final colors = context.oc;
     final identity = ref.watch(localIdentityProvider);
+    _saved = identity?.displayName ?? '';
     final presence = ref.watch(selfPresenceProvider);
-    final changed = _name.text.trim().isNotEmpty && _name.text.trim() != _saved;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -115,23 +123,10 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                     style: OcText.body.copyWith(color: colors.text),
                   ),
                   const SizedBox(height: OcSpace.s8),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: OcTextField(
-                          controller: _name,
-                          semanticLabel: 'Display name',
-                          maxLength: 32,
-                          onSubmitted: (_) => _save(),
-                        ),
-                      ),
-                      const SizedBox(width: OcSpace.s8),
-                      OcButton.primary(
-                        label: 'Save',
-                        busy: _saving,
-                        onPressed: changed ? _save : null,
-                      ),
-                    ],
+                  OcTextField(
+                    controller: _name,
+                    semanticLabel: 'Display name',
+                    maxLength: 32,
                   ),
                   if (_error case final error?) ...[
                     const SizedBox(height: OcSpace.s8),

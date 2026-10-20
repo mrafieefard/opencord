@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:opencord/features/settings/user/settings_draft.dart';
 import 'package:opencord/core/app_info.dart';
 import 'package:opencord/core/format.dart';
 import 'package:opencord/core/model/voice.dart';
 import 'package:opencord/core/providers/providers.dart';
 import 'package:opencord/core/repository/repository.dart';
-import 'package:opencord/core/settings/app_settings.dart';
 import 'package:opencord/core/settings/local_prefs.dart';
 import 'package:opencord/features/settings/user/keybind_recorder.dart';
 import 'package:opencord/features/voice/camera_menu.dart';
@@ -28,8 +28,8 @@ class BehaviorPage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final settings = ref.watch(appSettingsProvider);
-    final update = ref.read(appSettingsProvider.notifier).update;
+    final settings = ref.watch(shownAppSettingsProvider);
+    final update = ref.read(clientSettingsDraftProvider.notifier).updateApp;
     // Only Linux has a tray yet (D21); on a Mac, closing the window keeps
     // Opencord in the Dock anyway.
     final tray = Theme.of(context).platform == TargetPlatform.linux;
@@ -166,9 +166,9 @@ class _VoicePageState extends ConsumerState<VoicePage> {
 
   @override
   Widget build(BuildContext context) {
-    final audio = ref.watch(audioSettingsProvider);
+    final audio = ref.watch(shownAudioProvider);
     final devices = ref.watch(audioDeviceListProvider);
-    final update = ref.read(audioSettingsProvider.notifier).update;
+    final update = ref.read(clientSettingsDraftProvider.notifier).updateAudio;
     Widget device(
       String? current,
       String? savedName,
@@ -380,8 +380,8 @@ class _MusicListening extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final listening = ref.watch(musicListeningProvider);
-    final notifier = ref.read(musicListeningProvider.notifier);
+    final listening = ref.watch(shownMusicProvider);
+    final draft = ref.read(clientSettingsDraftProvider.notifier);
     return SettingsSection(
       title: 'Music',
       footer:
@@ -396,20 +396,20 @@ class _MusicListening extends ConsumerWidget {
           step: 1,
           shown: '${listening.volume} %',
           onChanged: (value) =>
-              notifier.update((l) => l.copyWith(volume: value)),
+              draft.updateMusic((l) => l.copyWith(volume: value)),
         ),
         SettingsSwitchRow(
           title: 'Mute music',
           value: listening.muted,
           onChanged: (value) =>
-              notifier.update((l) => l.copyWith(muted: value)),
+              draft.updateMusic((l) => l.copyWith(muted: value)),
         ),
         SettingsSwitchRow(
           title: 'Lower music while people talk',
           subtitle: '10 dB quieter while someone speaks',
           value: listening.duckWhileTalking,
           onChanged: (value) =>
-              notifier.update((l) => l.copyWith(duckWhileTalking: value)),
+              draft.updateMusic((l) => l.copyWith(duckWhileTalking: value)),
         ),
       ],
     );
@@ -424,10 +424,10 @@ class _PushToTalkKeys extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final keybinds = ref.watch(
-      keybindsProvider.select((k) => k.of(HotkeyAction.pushToTalk)),
+      shownKeybindsProvider.select((k) => k.of(HotkeyAction.pushToTalk)),
     );
     final first = keybinds.firstOrNull;
-    final notifier = ref.read(keybindsProvider.notifier);
+    final draft = ref.read(clientSettingsDraftProvider.notifier);
     final more = keybinds.length - 1;
     return SettingsRow(
       title: 'Shortcut',
@@ -440,8 +440,11 @@ class _PushToTalkKeys extends ConsumerWidget {
           keys: first?.keys ?? '',
           semanticLabel: 'Push-to-talk keys',
           onRecorded: (keys) => first == null
-              ? notifier.add(HotkeyAction.pushToTalk, keys: keys)
-              : notifier.change(first.id, (row) => row.copyWith(keys: keys)),
+              ? draft.keybindAdd(HotkeyAction.pushToTalk, keys: keys)
+              : draft.keybindChange(
+                  first.id,
+                  (row) => row.copyWith(keys: keys),
+                ),
         ),
       ),
     );
@@ -513,8 +516,8 @@ class NotificationsPage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final settings = ref.watch(appSettingsProvider);
-    final update = ref.read(appSettingsProvider.notifier).update;
+    final settings = ref.watch(shownAppSettingsProvider);
+    final update = ref.read(clientSettingsDraftProvider.notifier).updateApp;
     return SettingsSection(
       title: 'Notifications',
       footer:

@@ -5,6 +5,7 @@ import 'package:opencord/features/settings/user/app_pages.dart';
 import 'package:opencord/features/settings/user/keybinds_page.dart';
 import 'package:opencord/features/settings/user/appearance_page.dart';
 import 'package:opencord/features/settings/user/profile_pages.dart';
+import 'package:opencord/features/settings/user/settings_draft.dart';
 import 'package:opencord/features/settings/user/sounds_page.dart';
 import 'package:opencord/ui/theme/oc_icons.dart';
 
@@ -97,4 +98,5 @@ Future<void> showUserSettings(BuildContext context, {String? page}) =>
       title: 'Settings',
       pages: userSettingsPages(Theme.of(context).platform),
       initialPage: page,
+      binding: const ClientSettingsBinding(),
     );

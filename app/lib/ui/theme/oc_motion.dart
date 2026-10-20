@@ -37,4 +37,7 @@ class OcMotion {
   /// The right-side panel widening for music, and queue rows sliding to
   /// their new place (Phase 3 §19.2, §19.5).
   Duration get panel => _maybe(120);
+
+  /// Settings' save bar rising from the bottom, as Discord's does.
+  Duration get saveBar => _maybe(200);
 }

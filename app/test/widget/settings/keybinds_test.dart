@@ -8,6 +8,7 @@ import 'package:opencord/features/chat/links.dart';
 import 'package:opencord/features/settings/settings_dialog.dart';
 import 'package:opencord/features/settings/user/keybind_recorder.dart';
 import 'package:opencord/features/window/native_window.dart';
+import 'package:opencord/ui/widgets/oc_button.dart';
 import 'package:opencord/ui/widgets/oc_icon_button.dart';
 import 'package:opencord/ui/widgets/oc_menu.dart';
 
@@ -40,6 +41,18 @@ Future<void> _addKeybind(WidgetTester tester) async {
   await _pumpFor(tester, const Duration(milliseconds: 100));
 }
 
+/// Keybinds wait for the settings' save bar, as in Discord.
+Future<void> _saveChanges(WidgetTester tester) async {
+  await _pumpFor(tester, const Duration(milliseconds: 300));
+  await tester.tap(
+    find.descendant(
+      of: find.byType(SaveBar),
+      matching: find.widgetWithText(OcButton, 'Save changes'),
+    ),
+  );
+  await _pumpFor(tester, const Duration(milliseconds: 300));
+}
+
 /// The keybinds as saved: (action, keys) in order.
 List<(HotkeyAction, String)> _saved(MockApp app) => [
   for (final row in app.read(keybindsProvider).list) (row.action, row.keys),
@@ -64,6 +77,9 @@ void main() {
     await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
     await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
     await _pumpFor(tester, const Duration(milliseconds: 100));
+    expect(_saved(app), isEmpty, reason: 'not before Save changes');
+    expect(app.repository.hotkeys, isEmpty);
+    await _saveChanges(tester);
 
     expect(_saved(app), [(HotkeyAction.pushToTalk, 'CTRL+SHIFT+k')]);
     expect(_inPage(find.text('Ctrl + Shift + K')), findsOneWidget);
@@ -81,11 +97,13 @@ void main() {
       ),
     );
     await _pumpFor(tester, const Duration(milliseconds: 200));
+    await _saveChanges(tester);
     expect(_saved(app), [(HotkeyAction.toggleDeafen, 'CTRL+SHIFT+k')]);
     expect(app.repository.hotkeys.single.action, HotkeyAction.toggleDeafen);
 
     await tester.tap(_inPage(find.byTooltip('Remove keybind')));
     await _pumpFor(tester, const Duration(milliseconds: 200));
+    await _saveChanges(tester);
     expect(_saved(app), isEmpty);
     expect(app.repository.hotkeys, isEmpty);
     await app.dispose(tester);
@@ -104,6 +122,7 @@ void main() {
     // Right Ctrl, pressed and let go with nothing else.
     await tester.sendKeyEvent(LogicalKeyboardKey.controlRight);
     await _pumpFor(tester, const Duration(milliseconds: 100));
+    await _saveChanges(tester);
 
     expect(_saved(app), [
       (HotkeyAction.pushToTalk, 'grave'),
@@ -186,6 +205,7 @@ void main() {
         )
         .onChanged!(500);
     await tester.pump();
+    await _saveChanges(tester);
 
     expect(_saved(app), [(HotkeyAction.pushToTalk, 'F13')]);
     expect(_inPage(find.text('500 ms')), findsOneWidget);
