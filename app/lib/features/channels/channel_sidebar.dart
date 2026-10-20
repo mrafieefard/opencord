@@ -275,6 +275,67 @@ class _SearchLauncher extends ConsumerWidget {
   }
 }
 
+/// What a right-click on the channel list offers, as in Discord: create a
+/// text or voice channel, in [category] when on one, or a category, and
+/// invite people. Empty for people who may do none of it.
+List<OcMenuEntry> _createEntries(
+  BuildContext context,
+  WidgetRef ref,
+  String serverKey, {
+  Channel? category,
+}) {
+  final data = ref.read(serverProvider(serverKey)).data;
+  final manage = data?.can(Permissions.manageChannels) ?? false;
+  final invite = data?.can(Permissions.createInvite) ?? false;
+  return [
+    if (manage) ...[
+      OcMenuItem(
+        label: 'Create text channel',
+        icon: OcIcons.tag,
+        onSelected: () => showCreateChannel(
+          context,
+          serverKey: serverKey,
+          parentId: category?.id,
+        ),
+      ),
+      OcMenuItem(
+        label: 'Create voice channel',
+        icon: OcIcons.volumeUp,
+        onSelected: () => showCreateChannel(
+          context,
+          serverKey: serverKey,
+          parentId: category?.id,
+          kind: ChannelKind.voice,
+        ),
+      ),
+      OcMenuItem(
+        label: 'Create category',
+        icon: OcIcons.createNewFolder,
+        onSelected: () => showCreateCategory(context, serverKey: serverKey),
+      ),
+    ],
+    if (manage && invite) const OcMenuDivider(),
+    if (invite)
+      OcMenuItem(
+        label: 'Invite people',
+        icon: OcIcons.personAdd,
+        onSelected: () => showInvitePeople(context, serverKey: serverKey),
+      ),
+  ];
+}
+
+Future<void> _showCreateMenu(
+  BuildContext context,
+  WidgetRef ref,
+  String serverKey,
+  Offset position, {
+  Channel? category,
+}) async {
+  final entries = _createEntries(context, ref, serverKey, category: category);
+  if (entries.isEmpty) return;
+  await showOcMenu(context: context, position: position, entries: entries);
+}
+
 class _ChannelList extends ConsumerWidget {
   const _ChannelList({required this.serverKey});
 
@@ -397,8 +458,9 @@ class _ChannelList extends ConsumerWidget {
       for (final group in groups)
         if (group.category case final category?) (category, group),
     ];
-    // Categories drag as blocks, their channels with them (§16).
-    return ReorderableListView(
+    // Categories drag as blocks, their channels with them (§16). A
+    // right-click between channels offers to create one.
+    final list = ReorderableListView(
       padding: const EdgeInsets.only(top: OcSpace.s4, bottom: OcSpace.s12),
       buildDefaultDragHandles: false,
       proxyDecorator: _lift,
@@ -435,6 +497,12 @@ class _ChannelList extends ConsumerWidget {
             ],
           ),
       ],
+    );
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onSecondaryTapUp: (details) =>
+          _showCreateMenu(context, ref, serverKey, details.globalPosition),
+      child: list,
     );
   }
 }
@@ -495,6 +563,13 @@ class _CategoryRow extends ConsumerWidget {
       onTap: () => ref
           .read(collapsedCategoriesProvider.notifier)
           .toggle(serverKey, category.id),
+      onSecondaryTap: (position) => _showCreateMenu(
+        context,
+        ref,
+        serverKey,
+        position,
+        category: category,
+      ),
       semanticLabel:
           '${category.name}, ${collapsed ? 'collapsed' : 'expanded'}',
       cursor: SystemMouseCursors.basic,
