@@ -27,16 +27,40 @@ import 'package:opencord/ui/widgets/oc_menu.dart';
 import 'package:opencord/ui/widgets/toast.dart';
 import 'package:opencord/ui/widgets/ellipsis_text.dart';
 
-/// A voice channel (§4.2): one line, then who is in it.
+/// Someone in voice being dragged to another voice channel: who, from
+/// where, and the channels they may be moved to.
+typedef VoiceMemberDrag = ({int userId, int from, Set<int> targets});
+
+/// A voice channel (§4.2): one line, then who is in it. Moderators drag
+/// people in it onto another voice channel to move them there, as in
+/// Discord.
 class VoiceChannelRow extends ConsumerWidget {
   const VoiceChannelRow({
     super.key,
     required this.serverKey,
     required this.channel,
+    this.reorderIndex,
   });
 
   final String serverKey;
   final Channel channel;
+
+  /// Its place among the channels that reorder by dragging, for people
+  /// who may reorder them. Only its own line drags, not who is in it.
+  final int? reorderIndex;
+
+  void _move(BuildContext context, WidgetRef ref, VoiceMemberDrag drag) {
+    final member = ref
+        .read(serverProvider(serverKey))
+        .data
+        ?.members[drag.userId];
+    if (member == null) return;
+    MemberActions(
+      context: context,
+      ref: ref,
+      serverKey: serverKey,
+    ).moveTo(member, channel.id);
+  }
 
   Future<void> _join(BuildContext context, WidgetRef ref) async {
     ref.read(navigationProvider.notifier).openChannel(serverKey, channel.id);
@@ -45,7 +69,6 @@ class VoiceChannelRow extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final colors = context.oc;
     final participants = ref.watch(
       voiceProvider(
         serverKey,
@@ -63,82 +86,117 @@ class VoiceChannelRow extends ConsumerWidget {
     // Phase 1 servers have no voice: the channel shows, but only opens a
     // note that it is coming (Phase 1 §9.3).
     final voice = ref.read(repositoryProvider).capabilities.voice;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Hoverable(
-          onTap: voice
-              ? () => _join(context, ref)
-              : () => ref
-                    .read(navigationProvider.notifier)
-                    .openChannel(serverKey, channel.id),
-          onSecondaryTap: (position) => _showMenu(context, ref, position),
-          semanticLabel: voice
-              ? '${channel.name}, voice, ${participants.length} connected'
-                    '${read.unread > 0 ? ', ${read.unread} unread' : ''}'
-              : '${channel.name}, voice, coming soon',
-          selected: selected,
-          cursor: SystemMouseCursors.basic,
-          builder: (context, state) => AnimatedContainer(
-            duration: OcMotion.of(context).hover,
-            height: 36,
-            margin: const EdgeInsets.symmetric(horizontal: OcSpace.s8),
-            padding: const EdgeInsets.symmetric(horizontal: OcSpace.s10),
-            decoration: BoxDecoration(
-              color: selected
-                  ? colors.selected
-                  : state.active
-                  ? colors.hover
-                  : null,
-              borderRadius: BorderRadius.circular(OcRadius.row),
-            ),
-            child: Row(
-              children: [
-                Icon(
-                  OcIcons.volumeUp,
-                  size: OcSize.iconRow,
-                  color: selected ? colors.text : colors.textSecondary,
-                ),
-                const SizedBox(width: OcSpace.s8),
-                Expanded(
-                  child: EllipsisText(
-                    channel.name,
-                    style: OcText.body.copyWith(
-                      fontWeight: strong ? FontWeight.w600 : FontWeight.w500,
-                      color: strong ? colors.text : colors.textSecondary,
-                    ),
-                  ),
-                ),
-                if (read.mentions > 0) ...[
-                  const MentionBadge(),
-                  const SizedBox(width: OcSpace.s4),
-                ],
-                if (read.unread > 0) ...[
-                  UnreadBadge(count: read.unread, muted: muted),
-                  const SizedBox(width: OcSpace.s4),
-                ],
-                if (!voice)
-                  Text(
-                    'Soon',
-                    style: OcText.small.copyWith(color: colors.textMuted),
-                  )
-                else if (participants.isNotEmpty)
-                  Text(
-                    '${participants.length}',
-                    style: OcText.small.copyWith(color: colors.textMuted),
-                  ),
-              ],
-            ),
+    return DragTarget<VoiceMemberDrag>(
+      onWillAcceptWithDetails: (details) =>
+          details.data.targets.contains(channel.id),
+      onAcceptWithDetails: (details) => _move(context, ref, details.data),
+      builder: (context, dropping, _) => Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _header(
+            context,
+            ref,
+            participants: participants.length,
+            selected: selected,
+            strong: strong,
+            read: read,
+            muted: muted,
+            voice: voice,
+            dropping: dropping.isNotEmpty,
           ),
-        ),
-        for (final participant in participants)
-          _Participant(
-            serverKey: serverKey,
-            channelId: channel.id,
-            participant: participant,
-          ),
-      ],
+          for (final participant in participants)
+            _Participant(
+              serverKey: serverKey,
+              channelId: channel.id,
+              participant: participant,
+            ),
+        ],
+      ),
     );
+  }
+
+  Widget _header(
+    BuildContext context,
+    WidgetRef ref, {
+    required int participants,
+    required bool selected,
+    required bool strong,
+    required ReadState read,
+    required bool muted,
+    required bool voice,
+    required bool dropping,
+  }) {
+    final colors = context.oc;
+    final header = Hoverable(
+      onTap: voice
+          ? () => _join(context, ref)
+          : () => ref
+                .read(navigationProvider.notifier)
+                .openChannel(serverKey, channel.id),
+      onSecondaryTap: (position) => _showMenu(context, ref, position),
+      semanticLabel: voice
+          ? '${channel.name}, voice, $participants connected'
+                '${read.unread > 0 ? ', ${read.unread} unread' : ''}'
+          : '${channel.name}, voice, coming soon',
+      selected: selected,
+      cursor: SystemMouseCursors.basic,
+      builder: (context, state) => AnimatedContainer(
+        duration: OcMotion.of(context).hover,
+        height: 36,
+        margin: const EdgeInsets.symmetric(horizontal: OcSpace.s8),
+        padding: const EdgeInsets.symmetric(horizontal: OcSpace.s10),
+        decoration: BoxDecoration(
+          color: selected || dropping
+              ? colors.selected
+              : state.active
+              ? colors.hover
+              : null,
+          borderRadius: BorderRadius.circular(OcRadius.row),
+          border: dropping ? Border.all(color: colors.text) : null,
+        ),
+        child: Row(
+          children: [
+            Icon(
+              OcIcons.volumeUp,
+              size: OcSize.iconRow,
+              color: selected ? colors.text : colors.textSecondary,
+            ),
+            const SizedBox(width: OcSpace.s8),
+            Expanded(
+              child: EllipsisText(
+                channel.name,
+                style: OcText.body.copyWith(
+                  fontWeight: strong ? FontWeight.w600 : FontWeight.w500,
+                  color: strong ? colors.text : colors.textSecondary,
+                ),
+              ),
+            ),
+            if (read.mentions > 0) ...[
+              const MentionBadge(),
+              const SizedBox(width: OcSpace.s4),
+            ],
+            if (read.unread > 0) ...[
+              UnreadBadge(count: read.unread, muted: muted),
+              const SizedBox(width: OcSpace.s4),
+            ],
+            if (!voice)
+              Text(
+                'Soon',
+                style: OcText.small.copyWith(color: colors.textMuted),
+              )
+            else if (participants > 0)
+              Text(
+                '$participants',
+                style: OcText.small.copyWith(color: colors.textMuted),
+              ),
+          ],
+        ),
+      ),
+    );
+    return switch (reorderIndex) {
+      final index? => ReorderableDragStartListener(index: index, child: header),
+      null => header,
+    };
   }
 
   Future<void> _showMenu(BuildContext context, WidgetRef ref, Offset position) {
@@ -283,7 +341,7 @@ class _Participant extends ConsumerWidget {
     );
     // Click for the profile, right-click for the member menu with the voice
     // controls (desktop UI plan §17.3), like the member list.
-    return Hoverable(
+    final row = Hoverable(
       onTap: member == null ? null : () => actions.profile(member),
       onSecondaryTap: member == null
           ? null
@@ -353,6 +411,75 @@ class _Participant extends ConsumerWidget {
                   builder: (context, state) => const LivePill(),
                 ),
               ],
+            ],
+          ),
+        ),
+      ),
+    );
+    final targets = member == null
+        ? const <Channel>[]
+        : actions.moveTargets(member, channelId);
+    if (targets.isEmpty) return row;
+    return Draggable<VoiceMemberDrag>(
+      data: (
+        userId: participant.userId,
+        from: channelId,
+        targets: {for (final channel in targets) channel.id},
+      ),
+      dragAnchorStrategy: pointerDragAnchorStrategy,
+      feedback: _DragFeedback(
+        serverKey: serverKey,
+        userId: participant.userId,
+        name: name,
+      ),
+      childWhenDragging: Opacity(opacity: 0.4, child: row),
+      child: row,
+    );
+  }
+}
+
+/// Who is being dragged, under the pointer.
+class _DragFeedback extends StatelessWidget {
+  const _DragFeedback({
+    required this.serverKey,
+    required this.userId,
+    required this.name,
+  });
+
+  final String serverKey;
+  final int userId;
+  final String name;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.oc;
+    return Transform.translate(
+      offset: const Offset(OcSpace.s12, OcSpace.s4),
+      child: Material(
+        color: colors.elevated,
+        borderRadius: BorderRadius.circular(OcRadius.row),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(
+            horizontal: OcSpace.s8,
+            vertical: OcSpace.s4,
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              MemberAvatar(
+                serverKey: serverKey,
+                userId: userId,
+                name: name,
+                size: OcSize.voiceAvatar,
+              ),
+              const SizedBox(width: OcSpace.s8),
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 200),
+                child: EllipsisText(
+                  name,
+                  style: OcText.small.copyWith(color: colors.text),
+                ),
+              ),
             ],
           ),
         ),

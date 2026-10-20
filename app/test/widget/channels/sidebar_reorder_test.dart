@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:opencord/core/model/channel.dart';
 import 'package:opencord/core/providers/providers.dart';
@@ -58,6 +59,22 @@ void main() {
     expect(
       _named(app, _dev, 'off-topic').position,
       lessThan(_named(app, _dev, 'general').position),
+    );
+    await app.dispose(tester);
+  });
+
+  testWidgets('a voice channel drags by its own line', (tester) async {
+    final app = await MockApp.pump(tester, size: const Size(1440, 1300));
+
+    await _drag(
+      tester,
+      _row('Pairing'),
+      tester.getTopLeft(_row('General')) + const Offset(0, 2),
+    );
+
+    expect(
+      _named(app, _dev, 'Pairing').position,
+      lessThan(_named(app, _dev, 'General').position),
     );
     await app.dispose(tester);
   });

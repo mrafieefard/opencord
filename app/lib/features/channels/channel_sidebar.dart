@@ -316,8 +316,13 @@ class _ChannelList extends ConsumerWidget {
     final voice = ref.watch(voiceSessionProvider);
     final inVoiceHere = voice.serverKey == serverKey ? voice.channelId : null;
 
-    Widget row(Channel channel) => channel.kind == ChannelKind.voice
-        ? VoiceChannelRow(serverKey: serverKey, channel: channel)
+    Widget row(Channel channel, {int? reorderIndex}) =>
+        channel.kind == ChannelKind.voice
+        ? VoiceChannelRow(
+            serverKey: serverKey,
+            channel: channel,
+            reorderIndex: reorderIndex,
+          )
         : Padding(
             padding: const EdgeInsets.only(bottom: 2),
             child: ChannelRow(serverKey: serverKey, channel: channel),
@@ -348,11 +353,19 @@ class _ChannelList extends ConsumerWidget {
         },
         children: [
           for (final (index, channel) in group.indexed)
-            ReorderableDragStartListener(
-              key: ValueKey(channel.id),
-              index: index,
-              child: row(channel),
-            ),
+            // A voice channel drags by its own line, so the people in it
+            // can be dragged to other channels.
+            if (channel.kind == ChannelKind.voice)
+              KeyedSubtree(
+                key: ValueKey(channel.id),
+                child: row(channel, reorderIndex: index),
+              )
+            else
+              ReorderableDragStartListener(
+                key: ValueKey(channel.id),
+                index: index,
+                child: row(channel),
+              ),
         ],
       );
     }
