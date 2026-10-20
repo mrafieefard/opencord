@@ -205,6 +205,62 @@ void main() {
     await app.dispose(tester);
   });
 
+  testWidgets('Backspace at the start of a command takes it away', (
+    tester,
+  ) async {
+    final app = await MockApp.pump(tester);
+    await _open(tester, app, 'general');
+    await _joinVoice(tester, app);
+    await _choose(tester, 'play');
+    final query = _option('query').first;
+    await tester.enterText(query, 'ab');
+    await _press(tester, LogicalKeyboardKey.backspace);
+    expect(find.byType(CommandInput), findsOneWidget, reason: 'deletes "b"');
+    expect(tester.widget<TextField>(query).controller!.text, 'a');
+
+    await _press(tester, LogicalKeyboardKey.backspace);
+    expect(find.byType(CommandInput), findsOneWidget, reason: 'deletes "a"');
+    await _press(tester, LogicalKeyboardKey.backspace);
+    await tester.pump();
+    expect(find.byType(CommandInput), findsNothing);
+    expect(
+      tester.widget<TextField>(_input).focusNode!.hasFocus,
+      isTrue,
+      reason: 'back to the message box',
+    );
+    await app.dispose(tester);
+  });
+
+  testWidgets('Ctrl+A selects the whole command and Backspace removes it', (
+    tester,
+  ) async {
+    final app = await MockApp.pump(tester);
+    await _open(tester, app, 'general');
+    await _joinVoice(tester, app);
+    await _choose(tester, 'play');
+    await tester.enterText(_option('query').first, 'some song');
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+    await _press(tester, LogicalKeyboardKey.keyA);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+    expect(find.byType(CommandInput), findsOneWidget);
+    await _press(tester, LogicalKeyboardKey.backspace);
+    await tester.pump();
+    expect(find.byType(CommandInput), findsNothing);
+    await app.dispose(tester);
+  });
+
+  testWidgets('a command without options goes with one Backspace', (
+    tester,
+  ) async {
+    final app = await MockApp.pump(tester);
+    await _open(tester, app, 'general');
+    await _choose(tester, 'music');
+    await _press(tester, LogicalKeyboardKey.backspace);
+    await tester.pump();
+    expect(find.byType(CommandInput), findsNothing);
+    await app.dispose(tester);
+  });
+
   testWidgets('what the server refuses is an error only for you', (
     tester,
   ) async {
