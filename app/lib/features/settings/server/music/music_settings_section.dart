@@ -4,18 +4,15 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:opencord/core/model/music.dart';
 import 'package:opencord/core/model/network.dart';
 import 'package:opencord/core/providers/providers.dart';
-import 'package:opencord/core/repository/repository.dart';
 import 'package:opencord/features/settings/settings_dialog.dart';
 import 'package:opencord/ui/theme/oc_colors.dart';
 import 'package:opencord/ui/theme/oc_icons.dart';
 import 'package:opencord/ui/theme/oc_metrics.dart';
 import 'package:opencord/ui/widgets/choice_chips.dart';
 import 'package:opencord/ui/widgets/inline_error.dart';
-import 'package:opencord/ui/widgets/oc_button.dart';
 import 'package:opencord/ui/widgets/oc_menu.dart';
 import 'package:opencord/ui/widgets/popover.dart';
 import 'package:opencord/ui/widgets/settings.dart';
-import 'package:opencord/ui/widgets/toast.dart';
 
 String _minutes(Duration duration) => switch (duration) {
   Duration.zero => 'No limit',
@@ -25,7 +22,7 @@ String _minutes(Duration duration) => switch (duration) {
 };
 
 /// Server settings → Music, the settings themselves (Phase 3 plan §16.2):
-/// a draft saved together, as on the other settings pages.
+/// a draft the save bar saves, as on the other settings pages.
 class MusicSettingsSection extends ConsumerStatefulWidget {
   const MusicSettingsSection({
     super.key,
@@ -41,52 +38,41 @@ class MusicSettingsSection extends ConsumerStatefulWidget {
       _MusicSettingsSectionState();
 }
 
-class _MusicSettingsSectionState extends ConsumerState<MusicSettingsSection> {
-  Map<Object, bool Function()>? _unsaved;
+class _MusicSettingsSectionState extends ConsumerState<MusicSettingsSection>
+    with SaveBarChanges {
+  late MusicSettings _saved = widget.saved;
   late MusicSettings _draft = widget.saved;
-  var _saving = false;
-  String? _error;
-
-  bool get _changed => _draft != widget.saved;
 
   @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    _unsaved = SettingsScope.of(context)?..[this] = () => _changed;
-  }
+  bool get unsavedChanges => _draft != _saved;
 
   @override
   void didUpdateWidget(MusicSettingsSection old) {
     super.didUpdateWidget(old);
     // Saved elsewhere, and nothing changed here: show what is saved now.
-    if (old.saved != widget.saved && _draft == old.saved) {
-      _draft = widget.saved;
+    if (old.saved != widget.saved) {
+      if (_draft == _saved) _draft = widget.saved;
+      _saved = widget.saved;
     }
+  }
+
+  void _edit(MusicSettings Function(MusicSettings draft) change) {
+    setState(() => _draft = change(_draft));
+    changesEdited();
   }
 
   @override
-  void dispose() {
-    _unsaved?.remove(this);
-    super.dispose();
+  Future<void> saveChanges() async {
+    final draft = _draft;
+    await ref
+        .read(musicSettingsProvider(widget.serverKey).notifier)
+        .save(draft);
+    _saved = draft;
   }
 
-  void _edit(MusicSettings Function(MusicSettings draft) change) =>
-      setState(() => _draft = change(_draft));
-
-  Future<void> _save() async {
-    setState(() {
-      _saving = true;
-      _error = null;
-    });
-    try {
-      await ref
-          .read(musicSettingsProvider(widget.serverKey).notifier)
-          .save(_draft);
-      if (mounted) showOcToast(context, 'Changes saved');
-    } on RepoException catch (error) {
-      if (mounted) setState(() => _error = error.message);
-    }
-    if (mounted) setState(() => _saving = false);
+  @override
+  void discardChanges() {
+    if (mounted) setState(() => _draft = _saved);
   }
 
   /// Turns a source on or off. All on is kept as "every source", so new
@@ -357,19 +343,6 @@ class _MusicSettingsSectionState extends ConsumerState<MusicSettingsSection> {
               ),
             ),
           ],
-        ),
-        if (_error case final error?) ...[
-          const SizedBox(height: OcSpace.s12),
-          InlineError(error),
-        ],
-        const SizedBox(height: OcSpace.s16),
-        Align(
-          alignment: Alignment.centerRight,
-          child: OcButton.primary(
-            label: 'Save changes',
-            busy: _saving,
-            onPressed: _changed && !_saving ? _save : null,
-          ),
         ),
       ],
     );

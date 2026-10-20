@@ -15,12 +15,11 @@ import 'package:opencord/ui/theme/oc_motion.dart';
 import 'package:opencord/ui/theme/oc_text.dart';
 import 'package:opencord/ui/widgets/hoverable.dart';
 import 'package:opencord/ui/widgets/oc_button.dart';
-import 'package:opencord/ui/widgets/toast.dart';
 import 'package:opencord/ui/widgets/ellipsis_text.dart';
 
 /// Channels (§8.2): every category and channel, reordered by dragging
-/// (channels within their group, categories as blocks); the chosen one's
-/// Overview and Permissions on the right.
+/// (channels within their group, categories as blocks), which waits for
+/// the save bar; the chosen one's Overview and Permissions on the right.
 class ServerChannelsPage extends ConsumerStatefulWidget {
   const ServerChannelsPage({
     super.key,
@@ -35,8 +34,32 @@ class ServerChannelsPage extends ConsumerStatefulWidget {
   ConsumerState<ServerChannelsPage> createState() => _ServerChannelsPageState();
 }
 
-class _ServerChannelsPageState extends ConsumerState<ServerChannelsPage> {
+class _ServerChannelsPageState extends ConsumerState<ServerChannelsPage>
+    with SaveBarChanges {
   late int? _selected = widget.initialChannel;
+
+  /// New positions of channels dragged, by channel.
+  final _positions = <int, int>{};
+
+  /// Positions as saved; kept here for the save bar (see [SaveBarChanges]).
+  var _saved = const <int, int>{};
+
+  @override
+  bool get unsavedChanges => _positions.isNotEmpty;
+
+  @override
+  Future<void> saveChanges() async {
+    if (_positions.isEmpty) return;
+    await ref
+        .read(repositoryProvider)
+        .reorderChannels(widget.serverKey, Map.of(_positions));
+    if (mounted) setState(_positions.clear);
+  }
+
+  @override
+  void discardChanges() {
+    if (mounted) setState(_positions.clear);
+  }
 
   /// Another channel's editor, once unsaved changes may go.
   Future<void> _pick(int channel) async {
@@ -45,15 +68,18 @@ class _ServerChannelsPageState extends ConsumerState<ServerChannelsPage> {
     setState(() => _selected = channel);
   }
 
-  /// Saves [order] as the positions of one group of channels.
-  Future<void> _reorder(List<Channel> order) async {
-    try {
-      await ref.read(repositoryProvider).reorderChannels(widget.serverKey, {
-        for (final (index, channel) in order.indexed) channel.id: index,
-      });
-    } on RepoException catch (error) {
-      if (mounted) showOcToast(context, error.message);
-    }
+  /// [order] as the positions of one group of channels, until saved.
+  void _reorder(List<Channel> order) {
+    setState(() {
+      for (final (index, channel) in order.indexed) {
+        if (_saved[channel.id] == index) {
+          _positions.remove(channel.id);
+        } else {
+          _positions[channel.id] = index;
+        }
+      }
+    });
+    changesEdited();
   }
 
   Widget _segment(List<Channel> channels, Channel? selected) {
@@ -88,10 +114,18 @@ class _ServerChannelsPageState extends ConsumerState<ServerChannelsPage> {
   @override
   Widget build(BuildContext context) {
     final colors = context.oc;
-    final channels = ref.watch(
+    final saved = ref.watch(
       serverProvider(widget.serverKey).select((state) => state.data?.channels),
     );
-    if (channels == null) return const SizedBox.shrink();
+    if (saved == null) return const SizedBox.shrink();
+    _saved = {for (final channel in saved.values) channel.id: channel.position};
+    final channels = {
+      for (final channel in saved.values)
+        channel.id: switch (_positions[channel.id]) {
+          final position? => channel.copyWith(position: position),
+          null => channel,
+        },
+    };
     final groups = channelTree(channels.values);
     final loose = groups.where((group) => group.category == null).firstOrNull;
     final categories = [

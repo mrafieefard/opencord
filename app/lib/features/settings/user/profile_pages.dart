@@ -42,7 +42,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
       ?..register(
         this,
         PendingChanges(
-          dirty: () => _nameChanged || _pictureChanged,
+          dirty: () => _nameChanged || _pictureChanged || _presenceChanged,
           save: _save,
           discard: _discard,
         ),
@@ -64,6 +64,12 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
   bool get _nameChanged =>
       _name.text.trim().isNotEmpty && _name.text.trim() != _saved;
 
+  /// The presence as chosen; and as saved, kept for the save bar.
+  SelfPresence? _presence;
+  late SelfPresence _savedPresence = ref.read(selfPresenceProvider);
+
+  bool get _presenceChanged => _presence != null && _presence != _savedPresence;
+
   bool get _pictureChanged =>
       _chosenPicture != null || (_pictureRemoved && _savedPicture != null);
 
@@ -81,6 +87,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
       setState(() {
         _chosenPicture = null;
         _pictureRemoved = false;
+        _presence = null;
       });
     }
   }
@@ -106,6 +113,10 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
     if (mounted) setState(() => _error = null);
     final repository = ref.read(repositoryProvider);
     try {
+      if (_presenceChanged) {
+        ref.read(selfPresenceProvider.notifier).choose(_presence!);
+        _savedPresence = _presence!;
+      }
       if (_nameChanged) await repository.updateDisplayName(_name.text.trim());
       if (_pictureChanged) {
         await repository.setAvatar(_pictureRemoved ? null : _chosenPicture);
@@ -132,7 +143,8 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
     final colors = context.oc;
     final identity = ref.watch(localIdentityProvider);
     _saved = identity?.displayName ?? '';
-    final presence = ref.watch(selfPresenceProvider);
+    _savedPresence = ref.watch(selfPresenceProvider);
+    final presence = _presence ?? _savedPresence;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -197,7 +209,10 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
               padding: const EdgeInsets.all(OcSpace.s12),
               child: SettingsChoiceCards<SelfPresence>(
                 value: presence,
-                onChanged: ref.read(selfPresenceProvider.notifier).choose,
+                onChanged: (chosen) {
+                  setState(() => _presence = chosen);
+                  _changes?.touch();
+                },
                 options: [
                   for (final (option, description) in const [
                     (SelfPresence.online, 'Shown as online'),

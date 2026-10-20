@@ -114,9 +114,7 @@ void main() {
     await app.dispose(tester);
   });
 
-  testWidgets('toggle music mute mutes and unmutes the music', (
-    tester,
-  ) async {
+  testWidgets('toggle music mute mutes and unmutes the music', (tester) async {
     final app = await MockApp.pump(tester);
     app
         .read(keybindsProvider.notifier)

@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -5,6 +6,7 @@ import 'package:opencord/core/model/channel.dart';
 import 'package:opencord/core/model/commands.dart';
 import 'package:opencord/core/providers/providers.dart';
 import 'package:opencord/core/repository/repository.dart';
+import 'package:opencord/features/settings/settings_dialog.dart';
 import 'package:opencord/ui/theme/oc_colors.dart';
 import 'package:opencord/ui/theme/oc_icons.dart';
 import 'package:opencord/ui/theme/oc_metrics.dart';
@@ -18,7 +20,6 @@ import 'package:opencord/ui/widgets/oc_spinner.dart';
 import 'package:opencord/ui/widgets/oc_switch.dart';
 import 'package:opencord/ui/widgets/popover.dart';
 import 'package:opencord/ui/widgets/settings.dart';
-import 'package:opencord/ui/widgets/toast.dart';
 
 /// Every command, on or off, while the Commands page shows them.
 class CommandSettingsNotifier extends AsyncNotifier<CommandList> {
@@ -65,36 +66,95 @@ const _features = {'music': 'Music'};
 
 /// Server settings → Commands (Phase 3 plan §17.4), for who manages the
 /// server: each command on or off and where it works, and where results
-/// go.
-class ServerCommandsPage extends ConsumerWidget {
+/// go. Changes wait for the save bar.
+class ServerCommandsPage extends ConsumerStatefulWidget {
   const ServerCommandsPage({super.key, required this.serverKey});
 
   final String serverKey;
 
-  Future<void> _change(
-    BuildContext context,
-    WidgetRef ref, {
-    String name = '',
-    bool? enabled,
-    List<int>? channelIds,
-    bool? resultsPublic,
-  }) async {
-    try {
-      await ref
-          .read(commandSettingsProvider(serverKey).notifier)
-          .change(
-            name: name,
-            enabled: enabled,
-            channelIds: channelIds,
-            resultsPublic: resultsPublic,
-          );
-    } on RepoException catch (error) {
-      if (context.mounted) showOcToast(context, error.message);
-    }
+  @override
+  ConsumerState<ServerCommandsPage> createState() => _ServerCommandsPageState();
+}
+
+class _ServerCommandsPageState extends ConsumerState<ServerCommandsPage>
+    with SaveBarChanges {
+  bool? _resultsPublic;
+  final _enabled = <String, bool>{};
+  final _channels = <String, List<int>>{};
+
+  /// As saved; kept here for the save bar (see [SaveBarChanges]).
+  CommandList? _saved;
+
+  String get serverKey => widget.serverKey;
+
+  CommandSpec? _savedSpec(String name) =>
+      _saved?.commands.where((spec) => spec.name == name).firstOrNull;
+
+  @override
+  bool get unsavedChanges =>
+      _resultsPublic != null || _enabled.isNotEmpty || _channels.isNotEmpty;
+
+  void _setResultsPublic(bool public) {
+    setState(
+      () => _resultsPublic = public == _saved?.resultsPublic ? null : public,
+    );
+    changesEdited();
+  }
+
+  void _setEnabled(String name, bool on) {
+    setState(() {
+      if (_savedSpec(name)?.enabled == on) {
+        _enabled.remove(name);
+      } else {
+        _enabled[name] = on;
+      }
+    });
+    changesEdited();
+  }
+
+  void _setChannels(String name, List<int> ids) {
+    setState(() {
+      final saved = _savedSpec(name)?.channelIds ?? const <int>[];
+      if (setEquals(saved.toSet(), ids.toSet())) {
+        _channels.remove(name);
+      } else {
+        _channels[name] = ids;
+      }
+    });
+    changesEdited();
   }
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Future<void> saveChanges() async {
+    final settings = ref.read(commandSettingsProvider(serverKey).notifier);
+    if (_resultsPublic case final public?) {
+      await settings.change(resultsPublic: public);
+      _resultsPublic = null;
+    }
+    for (final name in {..._enabled.keys, ..._channels.keys}) {
+      await settings.change(
+        name: name,
+        enabled: _enabled[name],
+        channelIds: _channels[name],
+      );
+      _enabled.remove(name);
+      _channels.remove(name);
+    }
+    if (mounted) setState(() {});
+  }
+
+  @override
+  void discardChanges() {
+    if (!mounted) return;
+    setState(() {
+      _resultsPublic = null;
+      _enabled.clear();
+      _channels.clear();
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final colors = context.oc;
     final value = ref.watch(commandSettingsProvider(serverKey));
     switch (value) {
@@ -116,6 +176,7 @@ class ServerCommandsPage extends ConsumerWidget {
           ],
         );
       case AsyncData(:final value):
+        _saved = value;
         final byFeature = <String, List<CommandSpec>>{};
         for (final spec in value.commands) {
           byFeature.putIfAbsent(spec.feature, () => []).add(spec);
@@ -137,9 +198,8 @@ class ServerCommandsPage extends ConsumerWidget {
                       (true, 'The channel'),
                       (false, 'Only the user'),
                     ],
-                    value: value.resultsPublic,
-                    onChanged: (public) =>
-                        _change(context, ref, resultsPublic: public),
+                    value: _resultsPublic ?? value.resultsPublic,
+                    onChanged: _setResultsPublic,
                   ),
                 ),
               ],
@@ -159,14 +219,10 @@ class ServerCommandsPage extends ConsumerWidget {
                     _CommandRow(
                       serverKey: serverKey,
                       spec: spec,
-                      onEnabled: (on) =>
-                          _change(context, ref, name: spec.name, enabled: on),
-                      onChannels: (ids) => _change(
-                        context,
-                        ref,
-                        name: spec.name,
-                        channelIds: ids,
-                      ),
+                      enabled: _enabled[spec.name] ?? spec.enabled,
+                      channelIds: _channels[spec.name] ?? spec.channelIds,
+                      onEnabled: (on) => _setEnabled(spec.name, on),
+                      onChannels: (ids) => _setChannels(spec.name, ids),
                     ),
                 ],
               ),
@@ -186,17 +242,23 @@ class _CommandRow extends ConsumerWidget {
   const _CommandRow({
     required this.serverKey,
     required this.spec,
+    required this.enabled,
+    required this.channelIds,
     required this.onEnabled,
     required this.onChannels,
   });
 
   final String serverKey;
   final CommandSpec spec;
+
+  /// As edited: [spec] holds them as saved.
+  final bool enabled;
+  final List<int> channelIds;
   final ValueChanged<bool> onEnabled;
   final ValueChanged<List<int>> onChannels;
 
   void _pickChannels(BuildContext anchor, List<Channel> channels) {
-    final chosen = spec.channelIds.toSet();
+    final chosen = channelIds.toSet();
     showOcMenu(
       context: anchor,
       position: globalRectOf(anchor).bottomLeft.translate(0, 4),
@@ -238,9 +300,9 @@ class _CommandRow extends ConsumerWidget {
       ),
     );
     final names = {for (final channel in channels) channel.id: channel.name};
-    final allowed = spec.channelIds.isEmpty
+    final allowed = channelIds.isEmpty
         ? 'All channels'
-        : spec.channelIds.map((id) => names[id] ?? 'deleted').join(', ');
+        : channelIds.map((id) => names[id] ?? 'deleted').join(', ');
     return Padding(
       padding: const EdgeInsets.symmetric(
         horizontal: OcSpace.s16,
@@ -303,7 +365,7 @@ class _CommandRow extends ConsumerWidget {
             ),
           ),
           OcSwitch(
-            value: spec.enabled,
+            value: enabled,
             onChanged: onEnabled,
             semanticLabel: '/${spec.name}',
           ),

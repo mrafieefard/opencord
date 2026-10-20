@@ -19,6 +19,7 @@ import 'package:opencord/features/shell/navigation.dart';
 import 'package:opencord/ui/widgets/oc_switch.dart';
 
 import '../../support/app.dart';
+import '../../support/save_bar.dart';
 
 const _server = 'opencord.example:7710';
 
@@ -311,17 +312,23 @@ void main() {
     await tester.ensureVisible(clear);
     await tester.tap(clear);
     await _settle(tester);
+    // Waits for the save bar; Discard puts it back.
+    expect(
+      app.read(serverProvider(_server)).data!.commands.find('clear'),
+      isNotNull,
+    );
+    await tester.tap(saveBarButton('Discard'));
+    await _settle(tester);
+    expect(tester.widget<OcSwitch>(clear).value, isTrue);
+
+    await tester.tap(clear);
+    await tester.ensureVisible(find.text('Only the user'));
+    await tester.tap(find.text('Only the user'));
+    await saveSettings(tester);
     final commands = app.read(serverProvider(_server)).data!.commands;
     expect(commands.find('clear'), isNull);
     expect(commands.find('play'), isNotNull);
-
-    await tester.ensureVisible(find.text('Only the user'));
-    await tester.tap(find.text('Only the user'));
-    await _settle(tester);
-    expect(
-      app.read(serverProvider(_server)).data!.commands.resultsPublic,
-      isFalse,
-    );
+    expect(commands.resultsPublic, isFalse);
     await app.dispose(tester);
   });
 }

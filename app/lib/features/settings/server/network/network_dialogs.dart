@@ -32,6 +32,14 @@ Future<bool> changeNetwork(
   }
 }
 
+/// Sends a network change for the save bar, which shows what went wrong.
+Future<void> saveNetwork(
+  WidgetRef ref,
+  String serverKey,
+  Future<NetworkInfo> Function(OpencordRepository repository, String server)
+  action,
+) => ref.read(networkProvider(serverKey).notifier).change(action);
+
 /// Asks for a port, 1 to 65535.
 Future<int?> askPort(
   BuildContext context, {
@@ -46,7 +54,7 @@ Future<int?> askPort(
       body: body,
       initial: current == 0 ? '' : '$current',
       hint: 'Port',
-      action: 'Save',
+      action: 'Done',
       digitsOnly: true,
       check: (value) {
         final port = int.tryParse(value);
@@ -75,7 +83,7 @@ Future<List<String>?> askList(
       body: body,
       initial: current.join('\n'),
       hint: hint,
-      action: 'Save',
+      action: 'Done',
       lines: 5,
       check: (value) => !allowEmpty && _lines(value).isEmpty
           ? 'At least one is needed.'
@@ -216,7 +224,7 @@ class _AddressDialogState extends State<AddressDialog> {
     title: 'Set the public address',
     actions: [
       OcButton(label: 'Cancel', onPressed: () => Navigator.pop(context)),
-      OcButton.primary(label: 'Save', onPressed: _save),
+      OcButton.primary(label: 'Done', onPressed: _save),
     ],
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,

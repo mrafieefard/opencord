@@ -103,45 +103,137 @@ class SettingsChanges extends ChangeNotifier {
   }
 }
 
-/// Lets settings pages say they hold changes not saved yet, so closing the
-/// dialog asks first (§16 "never lose input"), and hand changes to the save
-/// bar ([changes]).
-class SettingsScope extends InheritedWidget {
-  const SettingsScope({
+/// A settings page whose changes wait for the save bar: it says whether it
+/// holds any, saves and discards them, and calls [changesEdited] after each
+/// edit so the bar hears of it. Whatever [unsavedChanges] reads must not
+/// need `ref`, as the bar may ask while the page is going away.
+mixin SaveBarChanges<T extends StatefulWidget> on State<T> {
+  SettingsChanges? _barChanges;
+
+  /// Saved, and not edited since: clean even before what the server now
+  /// holds arrives back.
+  var _justSaved = false;
+
+  bool get unsavedChanges;
+
+  /// Applies the changes; a [RepoException] says why it couldn't, and the
+  /// bar shows it.
+  Future<void> saveChanges();
+
+  void discardChanges();
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _barChanges = SettingsScope.changesOf(context)
+      ?..register(
+        this,
+        PendingChanges(
+          dirty: () => !_justSaved && unsavedChanges,
+          save: () async {
+            await saveChanges();
+            _justSaved = true;
+          },
+          discard: () {
+            _justSaved = false;
+            discardChanges();
+          },
+        ),
+      );
+  }
+
+  @override
+  void dispose() {
+    _barChanges?.unregister(this);
+    super.dispose();
+  }
+
+  void changesEdited() {
+    _justSaved = false;
+    _barChanges?.touch();
+  }
+}
+
+/// One setting whose change waits for the save bar: [builder] shows it as
+/// edited and changes it; the bar saves it with [save], which throws a
+/// [RepoException] when it can't.
+class PendingValue<T> extends StatefulWidget {
+  const PendingValue({
     super.key,
-    required this.unsaved,
-    required this.changes,
-    required super.child,
+    required this.saved,
+    required this.save,
+    required this.builder,
   });
 
-  final Map<Object, bool Function()> unsaved;
+  final T saved;
+  final Future<void> Function(T value) save;
+  final Widget Function(BuildContext context, T value, ValueChanged<T> change)
+  builder;
+
+  @override
+  State<PendingValue<T>> createState() => _PendingValueState<T>();
+}
+
+class _PendingValueState<T> extends State<PendingValue<T>> with SaveBarChanges {
+  late T _value = widget.saved;
+  late T _saved = widget.saved;
+
+  @override
+  bool get unsavedChanges => _value != _saved;
+
+  @override
+  void didUpdateWidget(PendingValue<T> old) {
+    super.didUpdateWidget(old);
+    // Saved here or elsewhere: what is not being edited follows it.
+    if (old.saved != widget.saved) {
+      if (_value == _saved) _value = widget.saved;
+      _saved = widget.saved;
+    }
+  }
+
+  @override
+  Future<void> saveChanges() async {
+    final value = _value;
+    await widget.save(value);
+    _saved = value;
+  }
+
+  @override
+  void discardChanges() {
+    if (mounted) setState(() => _value = _saved);
+  }
+
+  void _change(T value) {
+    setState(() => _value = value);
+    changesEdited();
+  }
+
+  @override
+  Widget build(BuildContext context) =>
+      widget.builder(context, _value, _change);
+}
+
+/// Hands settings pages the dialog's save bar ([changes]), so closing the
+/// dialog asks first when changes are not saved yet (§16 "never lose
+/// input").
+class SettingsScope extends InheritedWidget {
+  const SettingsScope({super.key, required this.changes, required super.child});
+
   final SettingsChanges changes;
 
   /// The save bar's changes for the dialog around [context], if any.
   static SettingsChanges? changesOf(BuildContext context) =>
       context.getInheritedWidgetOfExactType<SettingsScope>()?.changes;
 
-  /// The checks of the dialog around [context], if any. Pages add
-  /// themselves in `didChangeDependencies` and remove themselves from the
-  /// same map in `dispose`, when the dialog can no longer be looked up.
-  static Map<Object, bool Function()>? of(BuildContext context) =>
-      context.getInheritedWidgetOfExactType<SettingsScope>()?.unsaved;
-
   @override
   bool updateShouldNotify(SettingsScope oldWidget) => false;
 }
 
-/// Asks before changes not saved yet in [unsaved] or [changes] are dropped
-/// (§16 "never lose input"): true when there are none, or the person lets
-/// them go, which discards [changes].
-Future<bool> _mayDiscard(
-  BuildContext context,
-  Map<Object, bool Function()>? unsaved,
-  SettingsChanges? changes,
-) async {
-  final pageUnsaved = unsaved?.values.any((check) => check()) ?? false;
-  final barUnsaved = changes?.dirty ?? false;
-  if (!pageUnsaved && !barUnsaved) return true;
+/// Asks before [changes] not saved yet are dropped (§16 "never lose
+/// input"): true when there are none, or the person lets them go, which
+/// discards them.
+Future<bool> _mayDiscard(BuildContext context, SettingsChanges? changes) async {
+  if (!(changes?.dirty ?? false)) return true;
   final discard = await confirmAction(
     context,
     title: 'Discard your changes?',
@@ -154,11 +246,8 @@ Future<bool> _mayDiscard(
 
 /// For pages that swap what they edit (a role, a channel): asks first when
 /// the settings around [context] hold unsaved changes.
-Future<bool> confirmLeavingUnsaved(BuildContext context) => _mayDiscard(
-  context,
-  SettingsScope.of(context),
-  SettingsScope.changesOf(context),
-);
+Future<bool> confirmLeavingUnsaved(BuildContext context) =>
+    _mayDiscard(context, SettingsScope.changesOf(context));
 
 /// Opens a settings dialog on [initialPage] (the first page when null).
 Future<void> showSettingsDialog(
@@ -205,7 +294,6 @@ class SettingsDialog extends StatefulWidget {
 }
 
 class _SettingsDialogState extends State<SettingsDialog> {
-  final _unsaved = <Object, bool Function()>{};
   final _changes = SettingsChanges();
 
   @override
@@ -215,13 +303,13 @@ class _SettingsDialogState extends State<SettingsDialog> {
   }
 
   Future<void> _close() async {
-    if (!await _mayDiscard(context, _unsaved, _changes) || !mounted) return;
+    if (!await _mayDiscard(context, _changes) || !mounted) return;
     Navigator.pop(context);
   }
 
   Future<void> _open(String page) async {
     if (page == _page) return;
-    if (!await _mayDiscard(context, _unsaved, _changes) || !mounted) return;
+    if (!await _mayDiscard(context, _changes) || !mounted) return;
     setState(() => _page = page);
   }
 
@@ -250,7 +338,6 @@ class _SettingsDialogState extends State<SettingsDialog> {
         if (!didPop) _close();
       },
       child: SettingsScope(
-        unsaved: _unsaved,
         changes: _changes,
         child: Center(
           child: SizedBox(

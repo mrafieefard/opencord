@@ -25,7 +25,6 @@ import 'package:opencord/ui/widgets/oc_menu.dart';
 import 'package:opencord/ui/widgets/oc_text_field.dart';
 import 'package:opencord/ui/widgets/popover.dart';
 import 'package:opencord/ui/widgets/settings.dart';
-import 'package:opencord/ui/widgets/toast.dart';
 import 'package:opencord/ui/widgets/tri_state.dart';
 
 enum _Tab { overview, permissions }
@@ -107,7 +106,7 @@ class _Overview extends ConsumerStatefulWidget {
   ConsumerState<_Overview> createState() => _OverviewState();
 }
 
-class _OverviewState extends ConsumerState<_Overview> {
+class _OverviewState extends ConsumerState<_Overview> with SaveBarChanges {
   late final _name = TextEditingController(text: widget.channel.name)
     ..addListener(_changedText);
   late final _topic = TextEditingController(text: widget.channel.topic ?? '')
@@ -116,16 +115,19 @@ class _OverviewState extends ConsumerState<_Overview> {
   late var _userLimit = widget.channel.userLimit;
   late var _textInVoice = widget.channel.textInVoice;
   late var _pushToTalk = _pushToTalkSaved;
-  Map<Object, bool Function()>? _unsaved;
-  var _saving = false;
+  late var _parentId = widget.channel.parentId;
   String? _error;
 
   OpencordRepository get _repository => ref.read(repositoryProvider);
 
   bool get _isVoice => widget.channel.kind == ChannelKind.voice;
 
-  int? get _everyoneRoleId =>
-      ref.read(serverProvider(widget.serverKey)).data?.info.everyoneRoleId;
+  /// Kept here for the save bar (see [SaveBarChanges]).
+  late final int? _everyoneRoleId = ref
+      .read(serverProvider(widget.serverKey))
+      .data
+      ?.info
+      .everyoneRoleId;
 
   /// The @everyone overwrite here, if there is one.
   PermissionOverwrite? get _everyoneOverwrite {
@@ -147,61 +149,89 @@ class _OverviewState extends ConsumerState<_Overview> {
       _textInVoice != widget.channel.textInVoice ||
       _pushToTalk != _pushToTalkSaved;
 
-  bool get _changed {
-    final name = _name.text.trim();
-    if (name.isEmpty) return false;
+  bool get _detailsChanged {
     final channel = widget.channel;
-    return name != channel.name ||
+    return _name.text.trim() != channel.name ||
         (channel.kind.isTextLike &&
             _topic.text.trim() != (channel.topic ?? '')) ||
-        (_isVoice && _voiceChanged);
+        (_isVoice && _voiceChanged) ||
+        _parentId != channel.parentId;
   }
 
-  void _changedText() => setState(() {});
-
   @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    _unsaved = SettingsScope.of(context)?..[this] = () => _changed;
+  bool get unsavedChanges =>
+      _detailsChanged || (_isVoice && _pushToTalk != _pushToTalkSaved);
+
+  void _changedText() {
+    setState(() {});
+    changesEdited();
+  }
+
+  /// [change] made to the draft, for the save bar.
+  void _edit(VoidCallback change) {
+    setState(change);
+    changesEdited();
   }
 
   @override
   void dispose() {
-    _unsaved?.remove(this);
     _name.dispose();
     _topic.dispose();
     super.dispose();
   }
 
-  Future<void> _save() async {
-    setState(() {
-      _saving = true;
-      _error = null;
-    });
+  @override
+  Future<void> saveChanges() async {
+    final name = _name.text.trim();
+    if (name.isEmpty) {
+      const problem = 'The channel needs a name.';
+      if (mounted) setState(() => _error = problem);
+      throw const RepoException(RepoErrorKind.invalidArgument, problem);
+    }
+    if (mounted) setState(() => _error = null);
     final channel = widget.channel;
     try {
-      await _repository.updateChannel(
-        widget.serverKey,
-        channel.id,
-        name: _name.text.trim(),
-        topic: channel.kind.isTextLike ? _topic.text.trim() : null,
-        // Only what changed: a bitrate above a since-lowered server cap
-        // stays until someone moves it.
-        bitrate: _isVoice && _bitrate != channel.bitrate ? _bitrate : null,
-        userLimit: _isVoice && _userLimit != channel.userLimit
-            ? _userLimit
-            : null,
-        textInVoice: _isVoice && _textInVoice != channel.textInVoice
-            ? _textInVoice
-            : null,
-      );
+      if (_detailsChanged) {
+        await _repository.updateChannel(
+          widget.serverKey,
+          channel.id,
+          name: name,
+          topic: channel.kind.isTextLike ? _topic.text.trim() : null,
+          // Only what changed: a bitrate above a since-lowered server cap
+          // stays until someone moves it.
+          bitrate: _isVoice && _bitrate != channel.bitrate ? _bitrate : null,
+          userLimit: _isVoice && _userLimit != channel.userLimit
+              ? _userLimit
+              : null,
+          textInVoice: _isVoice && _textInVoice != channel.textInVoice
+              ? _textInVoice
+              : null,
+          parentId: _parentId != channel.parentId ? _parentId ?? 0 : null,
+        );
+      }
       if (_isVoice && _pushToTalk != _pushToTalkSaved) {
         await _savePushToTalk(_pushToTalk);
       }
     } on RepoException catch (error) {
       if (mounted) setState(() => _error = error.message);
+      rethrow;
     }
-    if (mounted) setState(() => _saving = false);
+  }
+
+  @override
+  void discardChanges() {
+    final channel = widget.channel;
+    _name.text = channel.name;
+    _topic.text = channel.topic ?? '';
+    if (!mounted) return;
+    setState(() {
+      _bitrate = channel.bitrate;
+      _userLimit = channel.userLimit;
+      _textInVoice = channel.textInVoice;
+      _pushToTalk = _pushToTalkSaved;
+      _parentId = channel.parentId;
+      _error = null;
+    });
   }
 
   Future<void> _savePushToTalk(bool required) async {
@@ -236,17 +266,7 @@ class _OverviewState extends ConsumerState<_Overview> {
     );
   }
 
-  Future<void> _moveTo(int? categoryId) async {
-    try {
-      await _repository.updateChannel(
-        widget.serverKey,
-        widget.channel.id,
-        parentId: categoryId ?? 0,
-      );
-    } on RepoException catch (error) {
-      if (mounted) showOcToast(context, error.message);
-    }
-  }
+  void _moveTo(int? categoryId) => _edit(() => _parentId = categoryId);
 
   Future<void> _delete() async {
     final deleted = await confirmDeleteChannel(
@@ -259,7 +279,7 @@ class _OverviewState extends ConsumerState<_Overview> {
   }
 
   void _showCategories(BuildContext anchor, List<Channel> categories) {
-    final current = widget.channel.parentId;
+    final current = _parentId;
     final rect = globalRectOf(anchor);
     showOcMenu(
       context: anchor,
@@ -306,7 +326,7 @@ class _OverviewState extends ConsumerState<_Overview> {
             max: maxKbps,
             step: 8,
             shown: '$kbps kbps',
-            onChanged: (value) => setState(() => _bitrate = value * 1000),
+            onChanged: (value) => _edit(() => _bitrate = value * 1000),
           ),
           SettingsSliderRow(
             title: 'User limit',
@@ -316,7 +336,7 @@ class _OverviewState extends ConsumerState<_Overview> {
             shown: _userLimit == 0
                 ? 'No limit'
                 : '$_userLimit ${_userLimit == 1 ? 'person' : 'people'}',
-            onChanged: (value) => setState(() => _userLimit = value),
+            onChanged: (value) => _edit(() => _userLimit = value),
           ),
         ],
       ),
@@ -327,7 +347,7 @@ class _OverviewState extends ConsumerState<_Overview> {
             title: 'Text chat in this channel',
             subtitle: 'People in voice can write messages here',
             value: _textInVoice,
-            onChanged: (value) => setState(() => _textInVoice = value),
+            onChanged: (value) => _edit(() => _textInVoice = value),
           ),
           SettingsSwitchRow(
             title: 'Push-to-talk required',
@@ -336,7 +356,7 @@ class _OverviewState extends ConsumerState<_Overview> {
                 : 'Needs Manage roles and Use voice activity here',
             value: _pushToTalk,
             onChanged: canRequirePushToTalk
-                ? (value) => setState(() => _pushToTalk = value)
+                ? (value) => _edit(() => _pushToTalk = value)
                 : null,
           ),
         ],
@@ -363,7 +383,7 @@ class _OverviewState extends ConsumerState<_Overview> {
         const <int, Channel>{};
     final categories = channels.values.where((c) => c.isCategory).toList()
       ..sort((a, b) => a.position.compareTo(b.position));
-    final parent = channels[channel.parentId];
+    final parent = channels[_parentId];
     Widget label(String text) => Padding(
       padding: const EdgeInsets.only(bottom: OcSpace.s8),
       child: Text(text, style: OcText.label.copyWith(color: colors.textMuted)),
@@ -397,15 +417,6 @@ class _OverviewState extends ConsumerState<_Overview> {
           const SizedBox(height: OcSpace.s12),
           InlineError(error),
         ],
-        const SizedBox(height: OcSpace.s12),
-        Align(
-          alignment: Alignment.centerRight,
-          child: OcButton.primary(
-            label: 'Save changes',
-            busy: _saving,
-            onPressed: _changed && !_saving ? _save : null,
-          ),
-        ),
         const SizedBox(height: OcSpace.s24),
         SettingsSection(
           children: [
@@ -455,23 +466,113 @@ class _Permissions extends ConsumerStatefulWidget {
   ConsumerState<_Permissions> createState() => _PermissionsState();
 }
 
-class _PermissionsState extends ConsumerState<_Permissions> {
+/// The overwrites as edited, waiting for the save bar as in Discord: who
+/// was added or removed, and each permission set differently.
+class _PermissionsState extends ConsumerState<_Permissions>
+    with SaveBarChanges {
   _Target? _selected;
+  final _added = <_Target>{};
+  final _removed = <_Target>{};
+  final _states = <_Target, Map<Permissions, TriState>>{};
+
+  /// The channel's overwrites as saved; kept here for the save bar (see
+  /// [SaveBarChanges]).
+  late List<PermissionOverwrite> _saved = widget.channel.overwrites;
 
   OpencordRepository get _repository => ref.read(repositoryProvider);
 
-  Future<void> _guard(Future<void> Function() action) async {
-    try {
-      await action();
-    } on RepoException catch (error) {
-      if (mounted) showOcToast(context, error.message);
+  PermissionOverwrite? _savedOf(
+    List<PermissionOverwrite> saved,
+    _Target target,
+  ) => saved.where((o) => o.targets(target.kind, target.id)).firstOrNull;
+
+  /// [target]'s overwrite with the edits made here, over [saved].
+  PermissionOverwrite? _editedOf(
+    List<PermissionOverwrite> saved,
+    _Target target,
+  ) {
+    if (_removed.contains(target)) return null;
+    final states = _states[target];
+    var overwrite =
+        _savedOf(saved, target) ??
+        (_added.contains(target) || states != null ? _blank(target) : null);
+    if (overwrite == null) return null;
+    for (final MapEntry(key: bit, value: state)
+        in (states ?? const <Permissions, TriState>{}).entries) {
+      overwrite = withState(overwrite!, bit, state);
     }
+    return overwrite;
+  }
+
+  @override
+  bool get unsavedChanges =>
+      _added.isNotEmpty || _removed.isNotEmpty || _states.isNotEmpty;
+
+  void _edit(VoidCallback change) {
+    setState(change);
+    changesEdited();
+  }
+
+  void _setState(_Target target, Permissions bit, TriState state) => _edit(() {
+    _removed.remove(target);
+    final states = _states.putIfAbsent(target, () => {});
+    if (overwriteState(_savedOf(_saved, target), bit) == state) {
+      states.remove(bit);
+    } else {
+      states[bit] = state;
+    }
+    if (states.isEmpty) _states.remove(target);
+  });
+
+  void _remove(_Target target) => _edit(() {
+    _states.remove(target);
+    if (!_added.remove(target)) _removed.add(target);
+  });
+
+  @override
+  Future<void> saveChanges() async {
+    // Over what is saved now, so edits made meanwhile elsewhere (such as
+    // Push-to-talk required) stay.
+    final saved =
+        ref
+            .read(serverProvider(widget.serverKey))
+            .data
+            ?.channels[widget.channel.id]
+            ?.overwrites ??
+        _saved;
+    final channel = widget.channel.id;
+    for (final target in _removed) {
+      if (_savedOf(saved, target) == null) continue;
+      await _repository.deleteOverwrite(
+        widget.serverKey,
+        channel,
+        target.kind,
+        target.id,
+      );
+    }
+    for (final target in {..._added, ..._states.keys}) {
+      if (_removed.contains(target)) continue;
+      final edited = _editedOf(saved, target);
+      if (edited == null || edited == _savedOf(saved, target)) continue;
+      await _repository.setOverwrite(widget.serverKey, channel, edited);
+    }
+    _added.clear();
+    _removed.clear();
+    _states.clear();
+  }
+
+  @override
+  void discardChanges() {
+    if (!mounted) return;
+    setState(() {
+      _added.clear();
+      _removed.clear();
+      _states.clear();
+    });
   }
 
   Future<void> _add(BuildContext anchor, ServerData data) async {
-    final channel = widget.channel;
-    bool missing(_Target target) =>
-        !channel.overwrites.any((o) => o.targets(target.kind, target.id));
+    bool missing(_Target target) => _editedOf(_saved, target) == null;
     final target = await showPopover<_Target>(
       context: anchor,
       anchor: globalRectOf(anchor),
@@ -490,14 +591,10 @@ class _PermissionsState extends ConsumerState<_Permissions> {
       ),
     );
     if (target == null || !mounted) return;
-    await _guard(
-      () => _repository.setOverwrite(
-        widget.serverKey,
-        channel.id,
-        _blank(target),
-      ),
-    );
-    if (mounted) setState(() => _selected = target);
+    _edit(() {
+      if (!_removed.remove(target)) _added.add(target);
+      _selected = target;
+    });
   }
 
   @override
@@ -508,13 +605,18 @@ class _PermissionsState extends ConsumerState<_Permissions> {
     );
     if (data == null) return const SizedBox.shrink();
     final channel = data.channels[widget.channel.id] ?? widget.channel;
+    _saved = channel.overwrites;
     final everyone = (
       kind: OverwriteTargetKind.role,
       id: data.info.everyoneRoleId,
     );
-    PermissionOverwrite? overwriteOf(_Target target) => channel.overwrites
-        .where((o) => o.targets(target.kind, target.id))
-        .firstOrNull;
+    PermissionOverwrite? overwriteOf(_Target target) =>
+        _editedOf(_saved, target);
+    final shown = [
+      for (final overwrite in _saved)
+        (kind: overwrite.targetKind, id: overwrite.targetId),
+      ..._added,
+    ];
     String nameOf(_Target target) => switch (target.kind) {
       OverwriteTargetKind.role => data.roles[target.id]?.name ?? 'Deleted role',
       OverwriteTargetKind.member =>
@@ -522,9 +624,10 @@ class _PermissionsState extends ConsumerState<_Permissions> {
     };
     final members =
         [
-          for (final overwrite in channel.overwrites)
-            if (overwrite.targetKind == OverwriteTargetKind.member)
-              (kind: OverwriteTargetKind.member, id: overwrite.targetId),
+          for (final target in shown)
+            if (target.kind == OverwriteTargetKind.member &&
+                overwriteOf(target) != null)
+              target,
         ]..sort(
           (a, b) => nameOf(a).toLowerCase().compareTo(nameOf(b).toLowerCase()),
         );
@@ -609,17 +712,7 @@ class _PermissionsState extends ConsumerState<_Permissions> {
                       state,
                 },
                 onChanged: canManage
-                    ? (state) => _guard(
-                        () => _repository.setOverwrite(
-                          widget.serverKey,
-                          channel.id,
-                          withState(
-                            overwrite ?? _blank(target),
-                            info.bit,
-                            state,
-                          ),
-                        ),
-                      )
+                    ? (state) => _setState(target, info.bit, state)
                     : null,
               ),
           ],
@@ -655,14 +748,7 @@ class _PermissionsState extends ConsumerState<_Permissions> {
                   );
                   if (!show || !mounted) return;
                 }
-                await _guard(
-                  () => _repository.deleteOverwrite(
-                    widget.serverKey,
-                    channel.id,
-                    target.kind,
-                    target.id,
-                  ),
-                );
+                _remove(target);
               },
             ),
           ),

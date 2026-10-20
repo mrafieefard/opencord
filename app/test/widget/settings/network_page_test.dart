@@ -23,6 +23,7 @@ import 'package:opencord/ui/widgets/oc_switch.dart';
 import 'package:opencord/ui/widgets/settings.dart';
 
 import '../../support/app.dart';
+import '../../support/save_bar.dart';
 
 const _dev = 'opencord.example:7710';
 const _berlin = 'rust-berlin.example:7710';
@@ -144,8 +145,8 @@ void main() {
     await _tapVisible(tester, _changeOn('Set by hand'));
     await _pumpFor(tester, const Duration(milliseconds: 300));
     await tester.enterText(_dialogField, '192.0.2.50');
-    await tester.tap(find.widgetWithText(OcButton, 'Save'));
-    await _pumpFor(tester, const Duration(milliseconds: 600));
+    await tester.tap(find.widgetWithText(OcButton, 'Done'));
+    await saveSettings(tester);
 
     expect(_inSettings(find.text('192.0.2.50')), findsOneWidget);
     expect(_inSettings(find.text('IPv4 · Set by hand')), findsOneWidget);
@@ -154,7 +155,7 @@ void main() {
       tester,
       _inSettings(find.widgetWithText(OcButton, 'Clear')),
     );
-    await _pumpFor(tester, const Duration(milliseconds: 600));
+    await saveSettings(tester);
     expect(_inSettings(find.text('203.0.113.10')), findsOneWidget);
     await app.dispose(tester);
   });
@@ -170,7 +171,7 @@ void main() {
         matching: find.byType(OcSwitch),
       ),
     );
-    await _pumpFor(tester, const Duration(milliseconds: 600));
+    await saveSettings(tester);
 
     expect(
       _inSettings(
@@ -192,12 +193,17 @@ void main() {
     await _tapVisible(tester, _changeOn('Main port'));
     await _pumpFor(tester, const Duration(milliseconds: 300));
     await tester.enterText(_dialogField, '70000');
-    await tester.tap(find.widgetWithText(OcButton, 'Save'));
+    await tester.tap(find.widgetWithText(OcButton, 'Done'));
     await tester.pump();
     expect(find.text('A port is a number from 1 to 65535.'), findsOneWidget);
     await tester.enterText(_dialogField, '443');
-    await tester.tap(find.widgetWithText(OcButton, 'Save'));
-    await _pumpFor(tester, const Duration(milliseconds: 600));
+    await tester.tap(find.widgetWithText(OcButton, 'Done'));
+    await _pumpFor(tester, const Duration(milliseconds: 300));
+    expect(
+      _inSettings(find.text('Port 443, once saved and the server restarts')),
+      findsOneWidget,
+    );
+    await saveSettings(tester);
 
     expect(
       _inSettings(find.text('Port 443 from the next start')),

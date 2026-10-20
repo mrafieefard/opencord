@@ -96,7 +96,9 @@ Every rule here was broken at least once and caught in review.
 - **What a file is comes from its content, not its label.** An extension or a container brand doesn't say whether a file has a picture; read its tracks.
 - **Settings wait for the save bar, as in Discord.** A setting changed in a settings dialog applies only when the bar's Save changes is pressed, and Discard drops it. No page applies a change at once or has a Save button of its own:
   - client settings edit the drafts in `settings_draft.dart` (`clientSettingsDraftProvider`, read through the `shown…Provider`s);
-  - anything else registers `PendingChanges` (dirty, save, discard) with `SettingsScope.changesOf(context)` in `didChangeDependencies`, unregisters in `dispose`, and calls `touch()` when it may have changed. New server settings do this too.
+  - a page with a draft mixes in `SaveBarChanges` (in `settings_dialog.dart`): `unsavedChanges`, `saveChanges` (throws `RepoException` when it can't), `discardChanges`, and `changesEdited()` after every edit. `unsavedChanges` must not use `ref`: keep what is saved in a field;
+  - one switch or value on its own is a `PendingValue<T>` (saved, save, builder);
+  - this covers switches, reordering by dragging (channels, roles), pickers and values chosen in a small dialog (the dialog's button says Done, not Save). Actions stay immediate: create, delete, invite, ban, test, detect. New server settings do this too.
 - **Masked values never go back.** Fields the server answers masked (access keys, secrets) start empty in an edit form and are sent only when the user types new ones.
 
 ### Resources

@@ -5,6 +5,7 @@ import 'package:opencord/ui/widgets/settings.dart';
 import 'package:opencord/core/app_info.dart';
 import 'package:opencord/core/model/voice.dart';
 import 'package:opencord/core/providers/providers.dart';
+import 'package:opencord/core/repository/repository.dart';
 import 'package:opencord/core/settings/app_settings.dart';
 import 'package:opencord/core/settings/local_prefs.dart';
 import 'package:opencord/features/settings/settings_dialog.dart';
@@ -381,6 +382,24 @@ void main() {
     expect(sent.attenuationPercent, greaterThan(0));
     expect(sent.attenuateWhenISpeak, isTrue);
     expect(sent.attenuateWhenOthersSpeak, isTrue);
+    await app.dispose(tester);
+  });
+
+  testWidgets('a presence chosen in settings waits for the save bar', (
+    tester,
+  ) async {
+    final app = await MockApp.pump(tester);
+    // Settings open on My profile.
+    await _openSettings(tester);
+
+    final idle = _inPage(find.text('Idle'));
+    await tester.ensureVisible(idle);
+    await tester.tap(idle);
+    await _pumpFor(tester, const Duration(milliseconds: 200));
+    expect(app.read(selfPresenceProvider), SelfPresence.online);
+
+    await _saveChanges(tester);
+    expect(app.read(selfPresenceProvider), SelfPresence.idle);
     await app.dispose(tester);
   });
 }

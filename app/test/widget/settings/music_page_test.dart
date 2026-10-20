@@ -17,6 +17,7 @@ import 'package:opencord/ui/widgets/oc_switch.dart';
 import 'package:opencord/ui/widgets/settings.dart';
 
 import '../../support/app.dart';
+import '../../support/save_bar.dart';
 import '../../support/pump.dart';
 
 const _dev = 'opencord.example:7710';
@@ -302,7 +303,10 @@ void main() {
       tester,
       find.descendant(of: _row('Home'), matching: find.byType(OcSwitch)),
     );
-    await _pumpFor(tester, const Duration(milliseconds: 500));
+    await _pumpFor(tester, const Duration(milliseconds: 200));
+    // Off once saved.
+    expect(_subtitleOf(tester, 'Home'), isNot(contains('Disabled')));
+    await saveSettings(tester);
     expect(_subtitleOf(tester, 'Home'), contains('Disabled'));
     expect(
       tester
@@ -462,34 +466,23 @@ void main() {
 
     expect(_inSettings(find.text('Music enabled')), findsOneWidget);
     expect(
-      tester
-          .widget<OcButton>(find.widgetWithText(OcButton, 'Save changes'))
-          .onPressed,
-      isNull,
+      find.text('Careful — you have unsaved changes!'),
+      findsNothing,
       reason: 'nothing changed yet',
     );
     // Off: only YouTube Music; the default moves to the next source on.
     await _tapVisible(tester, _row('YouTube Music'));
     await _tapVisible(tester, _row('Allow live streams'));
-    await _tapVisible(
-      tester,
-      _inSettings(find.widgetWithText(OcButton, 'Save changes')),
-    );
-    await _pumpFor(tester, const Duration(milliseconds: 400));
+    await saveSettings(tester);
 
     final saved = await _settle(tester, app.repository.musicSettings(_dev));
     expect(saved.enabledSources, ['youtube', 'soundcloud', 'bandcamp']);
     expect(saved.defaultSource, 'youtube');
     expect(saved.allowStreams, isFalse);
-    expect(find.text('Changes saved'), findsOneWidget);
 
     // Every source on again is kept as "every source".
     await _tapVisible(tester, _row('YouTube Music'));
-    await _tapVisible(
-      tester,
-      _inSettings(find.widgetWithText(OcButton, 'Save changes')),
-    );
-    await _pumpFor(tester, const Duration(milliseconds: 400));
+    await saveSettings(tester);
     expect(
       (await _settle(
         tester,

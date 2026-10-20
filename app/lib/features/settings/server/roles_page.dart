@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -64,9 +65,14 @@ class ServerRolesPage extends ConsumerStatefulWidget {
   ConsumerState<ServerRolesPage> createState() => _ServerRolesPageState();
 }
 
-class _ServerRolesPageState extends ConsumerState<ServerRolesPage> {
+class _ServerRolesPageState extends ConsumerState<ServerRolesPage>
+    with SaveBarChanges {
   int? _selected;
   var _creating = false;
+
+  /// The roles dragged into a new order (highest first), waiting for the
+  /// save bar; null when none were.
+  List<int>? _order;
 
   OpencordRepository get _repository => ref.read(repositoryProvider);
 
@@ -91,18 +97,53 @@ class _ServerRolesPageState extends ConsumerState<ServerRolesPage> {
     if (mounted) setState(() => _creating = false);
   }
 
-  /// Moves [role] to [index] among [order] (highest first) and saves the
-  /// new order of the roles the user may move.
-  Future<void> _move(List<Role> order, Role role, int index) async {
+  /// The order of the roles the user may move as saved (highest first);
+  /// kept here for the save bar (see [SaveBarChanges]).
+  var _savedOrder = const <int>[];
+
+  @override
+  bool get unsavedChanges => _order != null && !listEquals(_order, _savedOrder);
+
+  /// Moves [role] to [index] among [order] (highest first), the roles the
+  /// user may move.
+  void _move(List<Role> order, Role role, int index) {
     final moved = [...order]..remove(role);
     moved.insert(index.clamp(0, moved.length), role);
-    try {
-      await _repository.reorderRoles(widget.serverKey, [
-        for (final role in moved.reversed) role.id,
-      ]);
-    } on RepoException catch (error) {
-      if (mounted) showOcToast(context, error.message);
-    }
+    setState(() => _order = [for (final role in moved) role.id]);
+    changesEdited();
+  }
+
+  @override
+  Future<void> saveChanges() async {
+    final order = _order;
+    if (order == null) return;
+    await _repository.reorderRoles(widget.serverKey, order.reversed.toList());
+    if (mounted) setState(() => _order = null);
+  }
+
+  @override
+  void discardChanges() {
+    if (mounted) setState(() => _order = null);
+  }
+
+  /// [roles] (highest first) with those the user may move in [_order].
+  List<Role> _ordered(List<Role> roles, List<Role> movable) {
+    final order = _order;
+    if (order == null) return roles;
+    final byId = {for (final role in movable) role.id: role};
+    final moved = [
+      for (final id in order) ?byId[id],
+      for (final role in movable)
+        if (!order.contains(role.id)) role,
+    ].iterator;
+    // The roles the user may not move keep their places.
+    return [
+      for (final role in roles)
+        if (byId.containsKey(role.id) && moved.moveNext())
+          moved.current
+        else
+          role,
+    ];
   }
 
   @override
@@ -114,10 +155,16 @@ class _ServerRolesPageState extends ConsumerState<ServerRolesPage> {
     if (data == null) return const SizedBox.shrink();
     final rules = RoleRules(data);
     final everyone = data.roles[data.info.everyoneRoleId];
-    final roles = [
+    final saved = [
       for (final role in data.rolesDescending)
         if (role.id != data.info.everyoneRoleId) role,
     ];
+    final savedMovable = [
+      for (final role in saved)
+        if (rules.canManage(role)) role,
+    ];
+    _savedOrder = [for (final role in savedMovable) role.id];
+    final roles = _ordered(saved, savedMovable);
     final movable = [
       for (final role in roles)
         if (rules.canManage(role)) role,
@@ -308,22 +355,50 @@ class _RoleEditor extends ConsumerStatefulWidget {
   ConsumerState<_RoleEditor> createState() => _RoleEditorState();
 }
 
-class _RoleEditorState extends ConsumerState<_RoleEditor> {
+/// A role's name, options, upload limit and permissions, waiting for the
+/// save bar as in Discord.
+class _RoleEditorState extends ConsumerState<_RoleEditor> with SaveBarChanges {
   late final _name = TextEditingController(text: widget.role.name)
-    ..addListener(() => setState(() {}));
-  late final _limitController = TextEditingController()
-    ..addListener(() => setState(() {}));
+    ..addListener(_edited);
+  late final _limitController = TextEditingController()..addListener(_edited);
   String _unit = 'MB';
   bool _notSet = false;
-  Map<Object, bool Function()>? _unsaved;
-  var _saving = false;
-  var _savingLimit = false;
+  late var _hoist = widget.role.hoist;
+  late var _mentionable = widget.role.mentionable;
+  late var _permissions = widget.role.permissions;
   String? _error;
+
+  /// What the server allows; kept here for the save bar (see
+  /// [SaveBarChanges]).
+  late ({int ceiling, int own, bool owner}) _limits = _readLimits();
+
+  ({int ceiling, int own, bool owner}) _readLimits() {
+    final data = ref.read(serverProvider(widget.serverKey)).data;
+    return (
+      ceiling: data?.uploadSettings.maxFileBytes ?? 50 * 1024 * 1024,
+      own: data?.myUploadLimit ?? 0,
+      owner: data?.isOwner ?? false,
+    );
+  }
 
   OpencordRepository get _repository => ref.read(repositoryProvider);
 
-  bool get _nameChanged =>
-      _name.text.trim().isNotEmpty && _name.text.trim() != widget.role.name;
+  void _edited() {
+    setState(() {});
+    changesEdited();
+  }
+
+  void _edit(VoidCallback change) {
+    setState(change);
+    changesEdited();
+  }
+
+  bool get _nameChanged => _name.text.trim() != widget.role.name;
+
+  bool get _optionsChanged =>
+      _hoist != widget.role.hoist ||
+      _mentionable != widget.role.mentionable ||
+      _permissions != widget.role.permissions;
 
   int? get _parsedBytes {
     if (_notSet) return 0;
@@ -344,16 +419,13 @@ class _RoleEditorState extends ConsumerState<_RoleEditor> {
     final bytes = num * (_unit == 'GB' ? 1024 * 1024 * 1024 : 1024 * 1024);
     if (bytes < 1024 * 1024) return 'Must be at least 1 MB';
 
-    final data = ref.read(serverProvider(widget.serverKey)).data;
-    if (data == null) return null;
-
-    final ceiling = data.uploadSettings.maxFileBytes;
-    if (bytes > ceiling) {
-      return 'Cannot exceed server maximum (${formatFileSize(ceiling)})';
+    final limits = _limits;
+    if (bytes > limits.ceiling) {
+      return 'Cannot exceed server maximum (${formatFileSize(limits.ceiling)})';
     }
 
-    if (!data.isOwner && bytes > data.myUploadLimit) {
-      return "You can't set more than your own limit (${formatFileSize(data.myUploadLimit)})";
+    if (!limits.owner && bytes > limits.own) {
+      return "You can't set more than your own limit (${formatFileSize(limits.own)})";
     }
 
     return null;
@@ -367,18 +439,18 @@ class _RoleEditorState extends ConsumerState<_RoleEditor> {
     final bytes = _parsedBytes;
     if (bytes == null) return false;
     if (current == null) {
-      if (widget.everyone) {
-        final data = ref.read(serverProvider(widget.serverKey)).data;
-        final defaultCeiling =
-            data?.uploadSettings.maxFileBytes ?? (50 * 1024 * 1024);
-        return bytes != defaultCeiling;
-      }
+      if (widget.everyone) return bytes != _limits.ceiling;
       return true;
     }
     return bytes != current;
   }
 
-  bool get _hasUnsaved => _nameChanged || _limitChanged;
+  /// A limit typed but not a number yet counts as a change, so the bar
+  /// shows and saving says what is wrong.
+  bool get _limitEdited => _limitChanged || (!_notSet && _parsedBytes == null);
+
+  @override
+  bool get unsavedChanges => _nameChanged || _optionsChanged || _limitEdited;
 
   @override
   void initState() {
@@ -401,10 +473,8 @@ class _RoleEditorState extends ConsumerState<_RoleEditor> {
     } else {
       if (widget.everyone) {
         _notSet = false;
-        final data = ref.read(serverProvider(widget.serverKey)).data;
-        final ceiling = data?.uploadSettings.maxFileBytes ?? (50 * 1024 * 1024);
         _unit = 'MB';
-        _limitController.text = (ceiling ~/ (1024 * 1024)).toString();
+        _limitController.text = (_limits.ceiling ~/ (1024 * 1024)).toString();
       } else {
         _notSet = true;
         _unit = 'MB';
@@ -416,67 +486,66 @@ class _RoleEditorState extends ConsumerState<_RoleEditor> {
   @override
   void didUpdateWidget(_RoleEditor oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.role.maxUploadBytes != widget.role.maxUploadBytes) {
-      _initUploadLimit();
+    final (old, role) = (oldWidget.role, widget.role);
+    // Saved here or elsewhere: what is not being edited follows it.
+    if (_hoist == old.hoist) _hoist = role.hoist;
+    if (_mentionable == old.mentionable) _mentionable = role.mentionable;
+    if (_permissions == old.permissions) _permissions = role.permissions;
+    if (_name.text.trim() == old.name && old.name != role.name) {
+      _name.text = role.name;
     }
-  }
-
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    _unsaved = SettingsScope.of(context)?..[this] = () => _hasUnsaved;
+    if (old.maxUploadBytes != role.maxUploadBytes) _initUploadLimit();
   }
 
   @override
   void dispose() {
-    _unsaved?.remove(this);
     _name.dispose();
     _limitController.dispose();
     super.dispose();
   }
 
-  Future<void> _update({
-    String? name,
-    Permissions? permissions,
-    bool? hoist,
-    bool? mentionable,
-  }) async {
-    setState(() {
-      _saving = name != null;
-      _error = null;
-    });
-    try {
-      await _repository.updateRole(
-        widget.serverKey,
-        widget.role.id,
-        name: name,
-        permissions: permissions,
-        hoist: hoist,
-        mentionable: mentionable,
-      );
-    } on RepoException catch (error) {
-      if (mounted) setState(() => _error = error.message);
-    }
-    if (mounted) setState(() => _saving = false);
+  Never _refuse(String problem) {
+    if (mounted) setState(() => _error = problem);
+    throw RepoException(RepoErrorKind.invalidArgument, problem);
   }
 
-  Future<void> _saveLimit() async {
-    if (!_limitChanged || _limitError != null) return;
-    setState(() {
-      _savingLimit = true;
-      _error = null;
-    });
+  @override
+  Future<void> saveChanges() async {
+    final name = _name.text.trim();
+    if (name.isEmpty) _refuse('The role needs a name.');
+    if (_limitEdited) {
+      if (_limitError case final problem?) _refuse(problem);
+    }
+    if (mounted) setState(() => _error = null);
+    final role = widget.role;
     try {
-      final bytes = _parsedBytes ?? 0;
       await _repository.updateRole(
         widget.serverKey,
-        widget.role.id,
-        maxUploadBytes: bytes,
+        role.id,
+        name: _nameChanged ? name : null,
+        permissions: _permissions != role.permissions ? _permissions : null,
+        hoist: _hoist != role.hoist ? _hoist : null,
+        mentionable: _mentionable != role.mentionable ? _mentionable : null,
+        maxUploadBytes: _limitChanged ? _parsedBytes ?? 0 : null,
       );
     } on RepoException catch (error) {
       if (mounted) setState(() => _error = error.message);
+      rethrow;
     }
-    if (mounted) setState(() => _savingLimit = false);
+  }
+
+  @override
+  void discardChanges() {
+    final role = widget.role;
+    _name.text = role.name;
+    if (!mounted) return;
+    setState(() {
+      _hoist = role.hoist;
+      _mentionable = role.mentionable;
+      _permissions = role.permissions;
+      _error = null;
+      _initUploadLimit();
+    });
   }
 
   Future<void> _delete() async {
@@ -501,6 +570,16 @@ class _RoleEditorState extends ConsumerState<_RoleEditor> {
     final role = widget.role;
     final rules = widget.rules;
     final editable = rules.canManage(role);
+    ref.watch(
+      serverProvider(widget.serverKey).select(
+        (s) => (
+          s.data?.uploadSettings.maxFileBytes,
+          s.data?.myUploadLimit,
+          s.data?.isOwner,
+        ),
+      ),
+    );
+    _limits = _readLimits();
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -518,44 +597,27 @@ class _RoleEditorState extends ConsumerState<_RoleEditor> {
           children: [
             Padding(
               padding: const EdgeInsets.all(OcSpace.s16),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: OcTextField(
-                      controller: _name,
-                      enabled: editable && !widget.everyone,
-                      semanticLabel: 'Role name',
-                      maxLength: 100,
-                      onSubmitted: (_) {
-                        if (_nameChanged) _update(name: _name.text.trim());
-                      },
-                    ),
-                  ),
-                  if (!widget.everyone) ...[
-                    const SizedBox(width: OcSpace.s8),
-                    OcButton.primary(
-                      label: 'Save',
-                      busy: _saving,
-                      onPressed: editable && _nameChanged
-                          ? () => _update(name: _name.text.trim())
-                          : null,
-                    ),
-                  ],
-                ],
+              child: OcTextField(
+                controller: _name,
+                enabled: editable && !widget.everyone,
+                semanticLabel: 'Role name',
+                maxLength: 100,
               ),
             ),
             if (!widget.everyone) ...[
               SettingsSwitchRow(
                 title: 'Display separately',
                 subtitle: 'Its members get their own section in the list',
-                value: role.hoist,
-                onChanged: editable ? (value) => _update(hoist: value) : null,
+                value: _hoist,
+                onChanged: editable
+                    ? (value) => _edit(() => _hoist = value)
+                    : null,
               ),
               SettingsSwitchRow(
                 title: 'Allow anyone to @mention it',
-                value: role.mentionable,
+                value: _mentionable,
                 onChanged: editable
-                    ? (value) => _update(mentionable: value)
+                    ? (value) => _edit(() => _mentionable = value)
                     : null,
               ),
             ],
@@ -597,15 +659,8 @@ class _RoleEditorState extends ConsumerState<_RoleEditor> {
                           suffix: _UnitPicker(
                             unit: _unit,
                             enabled: editable && !_notSet,
-                            onPicked: (unit) => setState(() => _unit = unit),
+                            onPicked: (unit) => _edit(() => _unit = unit),
                           ),
-                          onSubmitted: (_) {
-                            if (editable &&
-                                _limitChanged &&
-                                _limitError == null) {
-                              _saveLimit();
-                            }
-                          },
                         ),
                       ),
                       if (!widget.everyone) ...[
@@ -617,7 +672,7 @@ class _RoleEditorState extends ConsumerState<_RoleEditor> {
                               value: _notSet,
                               semanticLabel: 'Not set',
                               onChanged: editable
-                                  ? (value) => setState(() => _notSet = value)
+                                  ? (value) => _edit(() => _notSet = value)
                                   : null,
                             ),
                             const SizedBox(width: OcSpace.s6),
@@ -626,14 +681,6 @@ class _RoleEditorState extends ConsumerState<_RoleEditor> {
                               style: OcText.body.copyWith(color: colors.text),
                             ),
                           ],
-                        ),
-                      ],
-                      if (_limitChanged && _limitError == null) ...[
-                        const SizedBox(width: OcSpace.s8),
-                        OcButton.primary(
-                          label: 'Save',
-                          busy: _savingLimit,
-                          onPressed: editable ? _saveLimit : null,
                         ),
                       ],
                     ],
@@ -667,13 +714,13 @@ class _RoleEditorState extends ConsumerState<_RoleEditor> {
               for (final info in infos)
                 _PermissionRow(
                   info: info,
-                  value: role.permissions.has(info.bit),
+                  value: _permissions.has(info.bit),
                   editable: editable,
                   canChange: rules.canChange(info.bit),
-                  onChanged: (on) => _update(
-                    permissions: on
-                        ? role.permissions | info.bit
-                        : role.permissions - info.bit,
+                  onChanged: (on) => _edit(
+                    () => _permissions = on
+                        ? _permissions | info.bit
+                        : _permissions - info.bit,
                   ),
                 ),
             ],

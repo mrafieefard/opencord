@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -16,7 +17,6 @@ import 'package:opencord/ui/widgets/oc_button.dart';
 import 'package:opencord/ui/widgets/oc_icon_button.dart';
 import 'package:opencord/ui/widgets/oc_text_field.dart';
 import 'package:opencord/ui/widgets/settings.dart';
-import 'package:opencord/ui/widgets/toast.dart';
 
 /// Server settings → Upload settings (§8.2): blocked file extensions, and
 /// for the owner where files are stored.
@@ -29,46 +29,44 @@ class ServerUploadsPage extends ConsumerStatefulWidget {
   ConsumerState<ServerUploadsPage> createState() => _ServerUploadsPageState();
 }
 
-class _ServerUploadsPageState extends ConsumerState<ServerUploadsPage> {
-  Map<Object, bool Function()>? _unsaved;
-
-  late List<String> _blocked;
-  late final TextEditingController _addController;
-  var _saving = false;
+class _ServerUploadsPageState extends ConsumerState<ServerUploadsPage>
+    with SaveBarChanges {
+  /// As saved; kept here for the save bar (see [SaveBarChanges]).
+  late List<String> _saved = _read();
+  late List<String> _blocked = List.of(_saved);
+  final _addController = TextEditingController();
   String? _error;
 
-  UploadSettings? get _settings =>
-      ref.read(serverProvider(widget.serverKey)).data?.uploadSettings;
-
-  @override
-  void initState() {
-    super.initState();
-    final s = _settings ?? UploadSettings.fallback;
-    _blocked = List.of(s.blockedExtensions);
-    _addController = TextEditingController();
-  }
-
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    _unsaved = SettingsScope.of(context)?..[this] = () => _changed;
-  }
+  List<String> _read() =>
+      (ref.read(serverProvider(widget.serverKey)).data?.uploadSettings ??
+              UploadSettings.fallback)
+          .blockedExtensions;
 
   @override
   void dispose() {
-    _unsaved?.remove(this);
     _addController.dispose();
     super.dispose();
   }
 
-  bool get _changed {
-    final s = _settings;
-    if (s == null) return false;
-    if (_blocked.length != s.blockedExtensions.length) return true;
-    for (var i = 0; i < _blocked.length; i++) {
-      if (_blocked[i] != s.blockedExtensions[i]) return true;
-    }
-    return false;
+  @override
+  bool get unsavedChanges => !listEquals(_blocked, _saved);
+
+  @override
+  Future<void> saveChanges() async {
+    final blocked = List.of(_blocked);
+    await ref
+        .read(repositoryProvider)
+        .updateUploadSettings(widget.serverKey, blockedExtensions: blocked);
+    _saved = blocked;
+  }
+
+  @override
+  void discardChanges() {
+    if (!mounted) return;
+    setState(() {
+      _blocked = List.of(_saved);
+      _error = null;
+    });
   }
 
   void _addExtension(String input) {
@@ -88,12 +86,14 @@ class _ServerUploadsPageState extends ConsumerState<ServerUploadsPage> {
       }
       _addController.clear();
     });
+    changesEdited();
   }
 
   void _removeExtension(String ext) {
     setState(() {
       _blocked.remove(ext);
     });
+    changesEdited();
   }
 
   void _blockPrograms() {
@@ -105,27 +105,22 @@ class _ServerUploadsPageState extends ConsumerState<ServerUploadsPage> {
       }
       _blocked.sort();
     });
-  }
-
-  Future<void> _save() async {
-    setState(() {
-      _saving = true;
-      _error = null;
-    });
-    try {
-      await ref
-          .read(repositoryProvider)
-          .updateUploadSettings(widget.serverKey, blockedExtensions: _blocked);
-      if (mounted) showOcToast(context, 'Upload settings saved');
-    } on RepoException catch (error) {
-      if (mounted) setState(() => _error = error.message);
-    }
-    if (mounted) setState(() => _saving = false);
+    changesEdited();
   }
 
   @override
   Widget build(BuildContext context) {
     final colors = context.oc;
+    final saved = ref.watch(
+      serverProvider(
+        widget.serverKey,
+      ).select((s) => s.data?.uploadSettings.blockedExtensions),
+    );
+    if (saved != null && !listEquals(saved, _saved)) {
+      // Saved here or elsewhere: what is not being edited follows it.
+      if (!unsavedChanges) _blocked = List.of(saved);
+      _saved = saved;
+    }
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -208,15 +203,6 @@ class _ServerUploadsPageState extends ConsumerState<ServerUploadsPage> {
               ),
             ),
           ],
-        ),
-        const SizedBox(height: OcSpace.s24),
-        Align(
-          alignment: Alignment.centerLeft,
-          child: OcButton.primary(
-            label: 'Save changes',
-            busy: _saving,
-            onPressed: _changed ? _save : null,
-          ),
         ),
         if (ref.watch(
               serverProvider(widget.serverKey).select((s) => s.data?.isOwner),
