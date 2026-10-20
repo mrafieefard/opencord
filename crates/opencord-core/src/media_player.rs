@@ -215,7 +215,7 @@ impl CoreMediaPlayer {
             opened = true;
         });
         if opened {
-            now_playing.replace(Player::Media, Box::new(PauseOnStop(self.clone())));
+            now_playing.claim(Player::Media, || Box::new(PauseOnStop(self.clone())));
         }
     }
 

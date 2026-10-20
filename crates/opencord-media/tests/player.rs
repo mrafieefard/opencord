@@ -26,10 +26,12 @@ impl VideoOut for TestVideoOut {
     }
 }
 
-/// An AudioOut sink that consumes frames at real time (48 kHz) with a fixed buffer capacity.
+/// An AudioOut that plays at real time (48 kHz) from a queue of fixed
+/// capacity. Like a device, it plays silence when the queue runs dry, and
+/// the time that passes then gives no room later.
 struct RealTimeAudioOut {
-    start: Option<Instant>,
-    frames_written: usize,
+    /// Frames queued as of `checked`.
+    queue: std::cell::Cell<(usize, Instant)>,
     capacity_frames: usize,
     /// Every frame ever accepted, for the test to read.
     total: Arc<AtomicUsize>,
@@ -38,8 +40,7 @@ struct RealTimeAudioOut {
 impl RealTimeAudioOut {
     fn new(capacity_frames: usize) -> Self {
         Self {
-            start: None,
-            frames_written: 0,
+            queue: std::cell::Cell::new((0, Instant::now())),
             capacity_frames,
             total: Arc::default(),
         }
@@ -48,29 +49,20 @@ impl RealTimeAudioOut {
 
 impl AudioOut for RealTimeAudioOut {
     fn write(&mut self, stereo_48k: &[f32]) -> usize {
-        if self.start.is_none() {
-            self.start = Some(Instant::now());
-        }
         let queued = self.queued_frames();
-        if queued >= self.capacity_frames {
-            return 0;
-        }
-        let room_frames = self.capacity_frames - queued;
-        let frames_in_slice = stereo_48k.len() / 2;
-        let to_write_frames = frames_in_slice.min(room_frames);
-        self.frames_written += to_write_frames;
-        self.total.fetch_add(to_write_frames, Ordering::Relaxed);
-        to_write_frames * 2
+        let frames = (stereo_48k.len() / 2).min(self.capacity_frames - queued);
+        self.queue.set((queued + frames, self.queue.get().1));
+        self.total.fetch_add(frames, Ordering::Relaxed);
+        frames * 2
     }
 
     fn queued_frames(&self) -> usize {
-        let Some(start) = self.start else {
-            return 0;
-        };
-        let elapsed_secs = start.elapsed().as_secs_f64();
-        let elapsed_frames = (elapsed_secs * 48000.0) as usize;
-        let consumed = elapsed_frames.min(self.frames_written);
-        self.frames_written.saturating_sub(consumed)
+        let (queued, checked) = self.queue.get();
+        let played = (checked.elapsed().as_secs_f64() * 48_000.0) as usize;
+        let now = if played > 0 { Instant::now() } else { checked };
+        let queued = queued.saturating_sub(played);
+        self.queue.set((queued, now));
+        queued
     }
 }
 
@@ -162,6 +154,57 @@ fn plays_to_the_end_in_real_time() {
         }
     };
     assert!(restarted < 500, "replay started at {restarted} ms");
+}
+
+/// Pausing holds the place; playing again goes on from it to the end.
+#[test]
+fn a_pause_holds_the_place_and_play_goes_on() {
+    if !supported() {
+        return;
+    }
+    let file = std::fs::File::open(fixture_path("h264_aac.mp4")).expect("open fixture");
+    let (event_tx, event_rx) = std::sync::mpsc::channel();
+    let audio = RealTimeAudioOut::new(2880);
+    let written = audio.total.clone();
+    let player = MediaPlayer::open(Box::new(file), None, Box::new(audio), move |event| {
+        let _ = event_tx.send(event);
+    })
+    .expect("media player open");
+
+    let start = Instant::now();
+    player.play();
+    std::thread::sleep(Duration::from_millis(700));
+    player.pause();
+    std::thread::sleep(Duration::from_millis(100));
+    let at_pause = written.load(Ordering::Relaxed);
+    std::thread::sleep(Duration::from_millis(500));
+    assert_eq!(
+        written.load(Ordering::Relaxed),
+        at_pause,
+        "sound went on while paused"
+    );
+    player.play();
+    loop {
+        match event_rx
+            .recv_timeout(Duration::from_secs(5))
+            .expect("event")
+        {
+            PlayerEvent::Ended => break,
+            PlayerEvent::Failed(reason) => panic!("playback failed: {reason}"),
+            _ => {}
+        }
+    }
+    // 2 s of media and 0.6 s paused, nothing replayed or skipped.
+    let elapsed = start.elapsed().as_secs_f64();
+    assert!(
+        (2.3..=2.95).contains(&elapsed),
+        "playback took {elapsed:.2}s, expected ~2.6s"
+    );
+    let heard_ms = written.load(Ordering::Relaxed) / 48;
+    assert!(
+        (1_900..=2_100).contains(&heard_ms),
+        "{heard_ms} ms of sound for 2 s of media"
+    );
 }
 
 #[test]

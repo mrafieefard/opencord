@@ -30,6 +30,25 @@ impl NowPlaying {
         }
     }
 
+    /// `player` plays on: when it already holds the slot nothing changes,
+    /// else it takes the slot with what `make` returns and whatever played
+    /// before stops.
+    pub fn claim(&self, player: Player, make: impl FnOnce() -> Box<dyn Stoppable>) {
+        let previous = {
+            let mut current = self.current.lock().unwrap_or_else(PoisonError::into_inner);
+            if current
+                .as_ref()
+                .is_some_and(|(holder, _)| *holder == player)
+            {
+                return;
+            }
+            (*current).replace((player, make()))
+        };
+        if let Some((_, previous)) = previous {
+            previous.stop();
+        }
+    }
+
     /// `player` stopped: the slot empties, unless another player holds it.
     pub fn clear(&self, player: Player) {
         let previous = {
@@ -73,5 +92,24 @@ mod tests {
         assert!(!media.load(Ordering::Relaxed));
         now_playing.clear(Player::Media);
         assert!(media.load(Ordering::Relaxed));
+    }
+
+    /// Media played again after a pause, or after its end, is the same
+    /// player going on: stopping the one before would pause it at once.
+    #[test]
+    fn playing_again_leaves_the_same_player_going() {
+        let now_playing = NowPlaying::default();
+        let media = Arc::new(AtomicBool::new(false));
+        now_playing.claim(Player::Media, || Box::new(Flag(media.clone())));
+        now_playing.claim(Player::Media, || Box::new(Flag(media.clone())));
+        assert!(!media.load(Ordering::Relaxed));
+
+        let voice = Arc::new(AtomicBool::new(false));
+        now_playing.replace(Player::Voice, Box::new(Flag(voice.clone())));
+        assert!(media.load(Ordering::Relaxed));
+        media.store(false, Ordering::Relaxed);
+        now_playing.claim(Player::Media, || Box::new(Flag(media.clone())));
+        assert!(voice.load(Ordering::Relaxed));
+        assert!(!media.load(Ordering::Relaxed));
     }
 }
