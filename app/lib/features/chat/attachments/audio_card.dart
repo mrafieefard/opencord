@@ -31,26 +31,45 @@ class AudioCard extends ConsumerStatefulWidget {
 class _AudioCardState extends ConsumerState<AudioCard> {
   bool _draggingSeek = false;
   double _dragPositionMs = 0;
+  PlaybackNotifier? _notifier;
+  PlaybackState? _lastPlayback;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _notifier = ref.read(playbackProvider.notifier);
+  }
 
   AttachmentPlayback get _item =>
       AttachmentPlayback(widget.serverKey, widget.attachment.id);
 
   Future<void> _togglePlay(PlaybackState playback) async {
     final notifier = ref.read(playbackProvider.notifier);
-    final isCurrent = playback.item == _item;
-
-    if (!isCurrent || playback.error != null) {
+    if (playback.item == _item && playback.playing) {
+      notifier.pause(_item);
+    } else if (notifier.openMedia == _item && playback.error == null) {
+      notifier.mediaPlay(_item);
+    } else {
       try {
         await notifier.mediaOpen(_item);
         notifier.mediaPlay(_item);
-      } on RepoException catch (_) {
-        // Handled via playbackProvider error state.
+      } on RepoException {
+        // mediaOpen put the message in the playback state, shown below.
       }
-    } else if (playback.playing) {
-      notifier.pause(_item);
-    } else {
-      notifier.resume(_item);
     }
+  }
+
+  @override
+  void dispose() {
+    // Scrolled away while paused or finished: let the player go. Still
+    // playing, it plays on until something else opens.
+    final notifier = _notifier;
+    if (notifier != null &&
+        notifier.openMedia == _item &&
+        !(_lastPlayback?.playing ?? false)) {
+      notifier.mediaClose();
+    }
+    super.dispose();
   }
 
   @override
@@ -58,6 +77,7 @@ class _AudioCardState extends ConsumerState<AudioCard> {
     final colors = context.oc;
     final playback = ref.watch(playbackProvider);
     final isCurrent = playback.item == _item;
+    _lastPlayback = isCurrent ? playback : null;
     final isPlaying = isCurrent && playback.playing;
     final failure = isCurrent ? playback.error : null;
 

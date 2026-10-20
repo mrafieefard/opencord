@@ -3,6 +3,7 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:opencord/core/format.dart';
 import 'package:opencord/core/model/attachment.dart';
 import 'package:opencord/core/model/message.dart';
 import 'package:opencord/core/model/voice_message.dart';
@@ -15,13 +16,6 @@ import 'package:opencord/ui/theme/oc_metrics.dart';
 import 'package:opencord/ui/theme/oc_text.dart';
 import 'package:opencord/ui/widgets/hoverable.dart';
 import 'package:opencord/ui/widgets/oc_icon_button.dart';
-
-String _formatMs(int ms) {
-  final totalSec = (ms / 1000).floor();
-  final minutes = totalSec ~/ 60;
-  final seconds = (totalSec % 60).toString().padLeft(2, '0');
-  return '$minutes:$seconds';
-}
 
 String _speedLabel(double speed) => speed == 1.5 ? '1.5×' : '${speed.toInt()}×';
 
@@ -106,8 +100,8 @@ class _VoiceBubbleState extends ConsumerState<VoiceBubble> {
     final timeLabel =
         failure ??
         (isThisItem && (playback.playing || playback.positionMs > 0)
-            ? '${_formatMs(positionMs)} / ${_formatMs(durationMs)}'
-            : _formatMs(durationMs));
+            ? '${formatDurationMs(positionMs)} / ${formatDurationMs(durationMs)}'
+            : formatDurationMs(durationMs));
 
     return GestureDetector(
       onSecondaryTapUp: (details) => showAttachmentMenu(

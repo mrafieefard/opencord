@@ -6,9 +6,10 @@
 # player use (decisions.md, "Codecs"): FFmpeg's video decoders (H.264, MJPEG,
 # HEVC, VP8, VP9, AV1 via static dav1d, MPEG-4), audio decoders (AAC, MP3,
 # Opus, Vorbis, FLAC, PCM), demuxers, parsers, bitstream filters, VA-API
-# decoding and encoding, NVENC and the MJPEG encoder, plus swscale. It is
-# LGPL, links only to libva and libva-drm, and loads NVIDIA's libraries at
-# run time.
+# decoding and encoding, NVENC and the MJPEG encoder, plus swscale and
+# swresample (FFmpeg's Opus decoder needs it). No protocols: the player
+# reads through its own I/O. It is LGPL, links only to libva and libva-drm,
+# and loads NVIDIA's libraries at run time.
 #
 #   app/tool/build_ffmpeg.sh <prefix>
 #
@@ -61,7 +62,7 @@ PKG_CONFIG_PATH="$prefix/lib/pkgconfig${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}" ./c
   --enable-shared --disable-static --enable-pic \
   --disable-programs --disable-doc --disable-network \
   --disable-autodetect --disable-everything \
-  --disable-avdevice --disable-avfilter --disable-swresample \
+  --disable-avdevice --disable-avfilter \
   --enable-vaapi --enable-ffnvcodec --enable-nvenc \
   --enable-libdav1d \
   --enable-decoder=h264,mjpeg,hevc,vp8,vp9,libdav1d,mpeg4,aac,mp3float,opus,vorbis,flac,pcm_s16le,pcm_s24le,pcm_s32le,pcm_f32le,pcm_u8 \

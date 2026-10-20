@@ -12,8 +12,8 @@ use tokio::sync::mpsc;
 use wsola::TimeStretch;
 
 use crate::api::types::{AudioSettings, CoreError, MediaEvent, PlaybackItem};
-use crate::now_playing::{NowPlaying, Stoppable};
-use crate::output_sink::{AHEAD, OutputSink};
+use crate::now_playing::{NowPlaying, Player, Stoppable};
+use crate::output_sink::{AHEAD, CallMix, OutputSink};
 
 pub(crate) enum PlayerCommand {
     Pause,
@@ -63,9 +63,12 @@ impl VoicePlayer {
         })?;
 
         let (cmd_tx, cmd_rx) = mpsc::unbounded_channel();
-        now_playing.replace(Box::new(VoicePlayerHandle {
-            commands: cmd_tx.clone(),
-        }));
+        now_playing.replace(
+            Player::Voice,
+            Box::new(VoicePlayerHandle {
+                commands: cmd_tx.clone(),
+            }),
+        );
         *self.commands.lock().unwrap_or_else(PoisonError::into_inner) = Some(cmd_tx);
 
         std::thread::Builder::new()
@@ -76,7 +79,10 @@ impl VoicePlayer {
                     item,
                     position_ms,
                     speed,
-                    || OutputSink::open(engine, &settings, open_devices),
+                    || {
+                        let call = engine.map(|e| e as Arc<dyn CallMix>);
+                        OutputSink::open(call, &settings, open_devices)
+                    },
                     events,
                     cmd_rx,
                 );
@@ -353,8 +359,6 @@ mod tests {
     use std::f32::consts::PI;
     use std::sync::atomic::{AtomicBool, Ordering};
 
-    use crate::output_sink::ahead;
-
     struct DummyStoppable(Arc<AtomicBool>);
     impl Stoppable for DummyStoppable {
         fn stop(&self) {
@@ -418,14 +422,14 @@ mod tests {
         let item1 = Arc::new(AtomicBool::new(false));
         let item2 = Arc::new(AtomicBool::new(false));
 
-        now_playing.replace(Box::new(DummyStoppable(item1.clone())));
+        now_playing.replace(Player::Voice, Box::new(DummyStoppable(item1.clone())));
         assert!(!item1.load(Ordering::Relaxed));
 
-        now_playing.replace(Box::new(DummyStoppable(item2.clone())));
+        now_playing.replace(Player::Media, Box::new(DummyStoppable(item2.clone())));
         assert!(item1.load(Ordering::Relaxed));
         assert!(!item2.load(Ordering::Relaxed));
 
-        now_playing.clear();
+        now_playing.clear(Player::Media);
         assert!(item2.load(Ordering::Relaxed));
     }
 
@@ -534,32 +538,47 @@ mod tests {
         panic!("playback never ended");
     }
 
+    /// A call that hands the test whatever the player attaches.
+    struct FakeCall(std::sync::Mutex<std::sync::mpsc::Sender<rtrb::Consumer<f32>>>);
+
+    impl CallMix for FakeCall {
+        fn attach(&self, source: rtrb::Consumer<f32>) -> u64 {
+            let _ = self.0.lock().unwrap().send(source);
+            1
+        }
+
+        fn detach(&self, _id: u64) {}
+
+        fn holds(&self, id: u64) -> bool {
+            id == 1
+        }
+    }
+
     fn play_into_a_call(seconds: f32, commands_first: Vec<PlayerCommand>) -> (usize, Duration) {
         let file = OpusFile::read(&generate_sine_ogg(seconds)).unwrap();
-        let (producer, consumer) = rtrb::RingBuffer::new(2 * ahead(SAMPLE_RATE, 2));
+        let (attached, consumer) = std::sync::mpsc::channel();
+        let call: Arc<dyn CallMix> = Arc::new(FakeCall(std::sync::Mutex::new(attached)));
         let (events_tx, mut events) = mpsc::unbounded_channel();
         let (commands, commands_rx) = mpsc::unbounded_channel();
         for command in commands_first {
             commands.send(command).unwrap();
         }
+        let in_call = call.clone();
         let player = std::thread::spawn(move || {
             run_player(
                 file,
                 PlaybackItem::Draft { draft_id: 1 },
                 0,
                 1.0,
-                || {
-                    Ok(OutputSink::Call {
-                        producer,
-                        engine: None,
-                    })
-                },
+                || OutputSink::open(Some(in_call), &AudioSettings::default(), false),
                 events_tx,
                 commands_rx,
             );
         });
+        let consumer = consumer.recv_timeout(Duration::from_secs(5)).unwrap();
         let heard = hear_in_real_time(consumer, &mut events);
         player.join().unwrap();
+        drop(call);
         heard
     }
 

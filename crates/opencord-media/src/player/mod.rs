@@ -1,8 +1,12 @@
-mod decode;
-mod sync;
+//! Plays a video or audio file from any `Read + Seek` source (media uploads
+//! plan, Task 33): FFmpeg on Linux and Windows, nothing elsewhere yet.
 
 #[cfg(any(target_os = "linux", target_os = "windows"))]
+mod decode;
+#[cfg(any(target_os = "linux", target_os = "windows"))]
 mod ffmpeg;
+#[cfg(any(target_os = "linux", target_os = "windows"))]
+mod sync;
 #[cfg(any(target_os = "linux", target_os = "windows"))]
 pub use self::ffmpeg::*;
 

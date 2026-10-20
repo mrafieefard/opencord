@@ -4536,6 +4536,11 @@ class MockRepository implements OpencordRepository {
       );
     }
     _playbackTimer?.cancel();
+    // Like the core: a voice message pauses the open media, which keeps
+    // its place.
+    if (_playingItem == _media && _media != null) {
+      _mediaPositionMs = _playbackPositionMs;
+    }
     _playingItem = item;
     _playbackDurationMs = _durationOf(item);
     _playbackPositionMs = positionMs;
@@ -4597,6 +4602,12 @@ class MockRepository implements OpencordRepository {
 
   bool mockMediaSupported = true;
 
+  /// The media open, its length, and its place while a voice message
+  /// plays.
+  AttachmentPlayback? _media;
+  int _mediaDurationMs = 0;
+  int _mediaPositionMs = 0;
+
   @override
   bool mediaSupported() => mockMediaSupported;
 
@@ -4605,7 +4616,7 @@ class MockRepository implements OpencordRepository {
     if (!mediaSupported()) {
       throw const RepoException(
         RepoErrorKind.invalidArgument,
-        'media player is not supported on this platform',
+        "This computer can't play media yet",
       );
     }
     final att = _world.servers
@@ -4623,24 +4634,34 @@ class MockRepository implements OpencordRepository {
       height: att?.height ?? 240,
       hasVideo: hasVideo,
     );
-    _playingItem = AttachmentPlayback(serverKey, attachmentId);
-    _playbackDurationMs = handle.durationMs;
-    _playbackPositionMs = 0;
-    _playbackPlaying = false;
+    mediaClose();
+    _media = AttachmentPlayback(serverKey, attachmentId);
+    _mediaDurationMs = handle.durationMs;
+    _mediaPositionMs = 0;
     return handle;
   }
 
   @override
   void mediaPlay() {
-    if (_playingItem case final item?) {
-      _playbackPlaying = true;
-      _runPlayback(item);
-      _emitPlayback();
+    final media = _media;
+    if (media == null) return;
+    if (_playingItem != media) {
+      _playbackTimer?.cancel();
+      _playingItem = media;
+      _playbackDurationMs = _mediaDurationMs;
+      _playbackPositionMs = _mediaPositionMs;
+      _playbackSpeed = 1.0;
     }
+    // After the end it starts again, as the core's player does.
+    if (_playbackPositionMs >= _playbackDurationMs) _playbackPositionMs = 0;
+    _playbackPlaying = true;
+    _runPlayback(media);
+    _emitPlayback();
   }
 
   @override
   void mediaPause() {
+    if (_playingItem != _media) return;
     _playbackTimer?.cancel();
     _playbackPlaying = false;
     _emitPlayback();
@@ -4648,18 +4669,32 @@ class MockRepository implements OpencordRepository {
 
   @override
   void mediaSeek(int positionMs) {
+    if (_media == null) return;
+    if (_playingItem != _media) {
+      _mediaPositionMs = positionMs;
+      return;
+    }
     _playbackPositionMs = positionMs;
     _emitPlayback();
   }
 
+  /// The last volume asked for, as `(volume, muted)`.
+  (double, bool)? lastMediaVolume;
+
   @override
-  void mediaSetVolume(double volume, bool muted) {}
+  void mediaSetVolume(double volume, bool muted) {
+    if (_media != null) lastMediaVolume = (volume, muted);
+  }
 
   @override
   void mediaClose() {
-    _playbackTimer?.cancel();
-    _playbackPlaying = false;
-    _playingItem = null;
+    if (_media == null) return;
+    if (_playingItem == _media) {
+      _playbackTimer?.cancel();
+      _playbackPlaying = false;
+      _playingItem = null;
+    }
+    _media = null;
   }
 }
 

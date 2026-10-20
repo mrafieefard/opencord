@@ -6,30 +6,72 @@ pub(crate) trait Stoppable: Send {
     fn stop(&self);
 }
 
+/// Which player holds the slot.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Player {
+    Voice,
+    Media,
+}
+
 #[derive(Default)]
 pub(crate) struct NowPlaying {
-    current: Mutex<Option<Box<dyn Stoppable>>>,
+    current: Mutex<Option<(Player, Box<dyn Stoppable>)>>,
 }
 
 impl NowPlaying {
-    pub fn replace(&self, next: Box<dyn Stoppable>) {
+    /// `player` starts playing: whatever played before stops.
+    pub fn replace(&self, player: Player, next: Box<dyn Stoppable>) {
         let previous = {
             let mut current = self.current.lock().unwrap_or_else(PoisonError::into_inner);
-            (*current).replace(next)
+            (*current).replace((player, next))
         };
-        if let Some(prev) = previous {
-            prev.stop();
+        if let Some((_, previous)) = previous {
+            previous.stop();
         }
     }
 
-    pub fn clear(&self) {
-        let previous = self
-            .current
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner)
-            .take();
-        if let Some(prev) = previous {
-            prev.stop();
+    /// `player` stopped: the slot empties, unless another player holds it.
+    pub fn clear(&self, player: Player) {
+        let previous = {
+            let mut current = self.current.lock().unwrap_or_else(PoisonError::into_inner);
+            if current
+                .as_ref()
+                .is_some_and(|(holder, _)| *holder == player)
+            {
+                current.take()
+            } else {
+                None
+            }
+        };
+        if let Some((_, previous)) = previous {
+            previous.stop();
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::Arc;
+    use std::sync::atomic::{AtomicBool, Ordering};
+
+    use super::*;
+
+    struct Flag(Arc<AtomicBool>);
+
+    impl Stoppable for Flag {
+        fn stop(&self) {
+            self.0.store(true, Ordering::Relaxed);
+        }
+    }
+
+    #[test]
+    fn a_player_that_stops_leaves_the_other_playing() {
+        let now_playing = NowPlaying::default();
+        let media = Arc::new(AtomicBool::new(false));
+        now_playing.replace(Player::Media, Box::new(Flag(media.clone())));
+        now_playing.clear(Player::Voice);
+        assert!(!media.load(Ordering::Relaxed));
+        now_playing.clear(Player::Media);
+        assert!(media.load(Ordering::Relaxed));
     }
 }

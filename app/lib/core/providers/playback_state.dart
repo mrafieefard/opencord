@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:opencord/core/repository/repository.dart';
 
-/// What the voice player is playing: one item at a time, app-wide.
+/// What plays, a voice message or media: one item at a time, app-wide.
 @immutable
 class PlaybackState {
   const PlaybackState({
@@ -46,7 +46,12 @@ class PlaybackNotifier extends Notifier<PlaybackState> {
   PlaybackState build() => const PlaybackState();
 
   OpencordRepository get _repository => ref.read(repositoryProvider);
-  bool _isMedia = false;
+
+  /// The attachment open in the media player, playing or not. The voice
+  /// player can play meanwhile; the media stays open until closed.
+  AttachmentPlayback? _media;
+
+  bool _isMedia(PlaybackItem item) => item == _media;
 
   void apply(RepoEvent event) {
     switch (event) {
@@ -75,7 +80,6 @@ class PlaybackNotifier extends Notifier<PlaybackState> {
     int positionMs = 0,
     double speed = 1.0,
   }) async {
-    _isMedia = false;
     state = PlaybackState(
       item: item,
       positionMs: positionMs,
@@ -96,7 +100,7 @@ class PlaybackNotifier extends Notifier<PlaybackState> {
   }
 
   Future<MediaHandle> mediaOpen(AttachmentPlayback item) async {
-    _isMedia = true;
+    _media = item;
     state = PlaybackState(item: item, buffering: true);
     try {
       final handle = await _repository.mediaOpen(
@@ -117,32 +121,46 @@ class PlaybackNotifier extends Notifier<PlaybackState> {
     }
   }
 
-  void mediaPlay(AttachmentPlayback item) => _whilePlaying(item, () {
-    state = state.copyWith(playing: true);
-    _repository.mediaPlay();
-  });
+  /// The attachment open in the media player, if any.
+  AttachmentPlayback? get openMedia => _media;
+
+  /// Plays the open media [item], taking over from a voice message if one
+  /// plays; after the end it starts again.
+  void mediaPlay(AttachmentPlayback item) {
+    if (item != _media) return;
+    state = state.item == item
+        ? state.copyWith(playing: true, error: () => null)
+        : PlaybackState(item: item, playing: true);
+    try {
+      _repository.mediaPlay();
+    } on RepoException catch (error) {
+      state = state.copyWith(playing: false, error: () => error.message);
+    }
+  }
 
   void pause(PlaybackItem item) => _whilePlaying(item, () {
     state = state.copyWith(playing: false);
-    if (_isMedia) {
+    if (_isMedia(item)) {
       _repository.mediaPause();
     } else {
       _repository.voicePause();
     }
   });
 
-  void resume(PlaybackItem item) => _whilePlaying(item, () {
-    state = state.copyWith(playing: true);
-    if (_isMedia) {
-      _repository.mediaPlay();
-    } else {
-      _repository.voiceResume();
+  void resume(PlaybackItem item) {
+    if (item case final AttachmentPlayback media when _isMedia(media)) {
+      mediaPlay(media);
+      return;
     }
-  });
+    _whilePlaying(item, () {
+      state = state.copyWith(playing: true);
+      _repository.voiceResume();
+    });
+  }
 
   void seek(PlaybackItem item, int positionMs) => _whilePlaying(item, () {
     state = state.copyWith(positionMs: positionMs);
-    if (_isMedia) {
+    if (_isMedia(item)) {
       _repository.mediaSeek(positionMs);
     } else {
       _repository.voiceSeek(positionMs);
@@ -162,24 +180,24 @@ class PlaybackNotifier extends Notifier<PlaybackState> {
 
   /// Stops [item] if it is the one playing.
   void stop(PlaybackItem item) => _whilePlaying(item, () {
-    state = const PlaybackState();
-    if (_isMedia) {
-      _isMedia = false;
-      _repository.mediaClose();
+    if (_isMedia(item)) {
+      mediaClose();
     } else {
+      state = const PlaybackState();
       _repository.voiceStop();
     }
   });
 
+  /// Closes the open media, whether or not it is what plays now.
   void mediaClose() {
-    if (_isMedia) {
-      _isMedia = false;
-      state = const PlaybackState();
-      try {
-        _repository.mediaClose();
-      } on RepoException catch (error) {
-        state = state.copyWith(error: () => error.message);
-      }
+    final media = _media;
+    if (media == null) return;
+    _media = null;
+    if (state.item == media) state = const PlaybackState();
+    try {
+      _repository.mediaClose();
+    } on RepoException catch (error) {
+      state = state.copyWith(error: () => error.message);
     }
   }
 

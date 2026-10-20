@@ -277,19 +277,24 @@ async fn upload_one(
                 == opencord_common::sniff::SniffKind::Video
             {
                 let p_buf = p.to_path_buf();
-                if let Ok((probe, poster)) = tokio::task::spawn_blocking(move || {
+                // Without hints and a poster the video still uploads; the
+                // server makes neither, so the tile shows a plain box.
+                match tokio::task::spawn_blocking(move || {
                     opencord_media::player::probe_and_poster(&p_buf, 800)
                 })
                 .await
                 .unwrap_or_else(|e| Err(opencord_media::player::PlayerError::Open(e.to_string())))
                 {
-                    video_hints = Some((probe.width, probe.height, probe.duration_ms));
-                    if let Some(p) = poster
-                        && !p.is_empty()
-                        && p.len() <= 2 * 1024 * 1024
-                    {
-                        poster_bytes = Some(Bytes::from(p));
+                    Ok((probe, poster)) => {
+                        video_hints = Some((probe.width, probe.height, probe.duration_ms));
+                        if let Some(p) = poster
+                            && !p.is_empty()
+                            && p.len() <= 2 * 1024 * 1024
+                        {
+                            poster_bytes = Some(Bytes::from(p));
+                        }
                     }
+                    Err(error) => tracing::warn!(%error, "a video uploads without a poster"),
                 }
             }
         }

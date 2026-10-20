@@ -1,11 +1,17 @@
+//! Systems without a media player yet (macOS until P2): opening fails, so
+//! no player ever exists.
+
+use std::convert::Infallible;
 use std::path::Path;
 use std::sync::Arc;
 
-use super::{AudioOut, MediaPlayer, MediaSource, PlayerError, PlayerEvent, Probe, VideoOut};
+use super::{AudioOut, MediaSource, PlayerError, PlayerEvent, Probe, VideoOut};
 
 pub fn supported() -> bool {
     false
 }
+
+pub struct MediaPlayer(Infallible);
 
 impl MediaPlayer {
     pub fn open(
@@ -17,11 +23,25 @@ impl MediaPlayer {
         Err(PlayerError::Unsupported)
     }
 
-    pub fn play(&self) {}
-    pub fn pause(&self) {}
-    pub fn seek(&self, _position_ms: u32) {}
-    pub fn set_volume(&self, _volume: f32, _muted: bool) {}
-    pub fn close(self) {}
+    pub fn play(&self) {
+        match self.0 {}
+    }
+
+    pub fn pause(&self) {
+        match self.0 {}
+    }
+
+    pub fn seek(&self, _position_ms: u32) {
+        match self.0 {}
+    }
+
+    pub fn set_volume(&self, _volume: f32, _muted: bool) {
+        match self.0 {}
+    }
+
+    pub fn close(self) {
+        match self.0 {}
+    }
 }
 
 pub fn probe_and_poster(

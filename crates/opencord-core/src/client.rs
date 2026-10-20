@@ -40,7 +40,7 @@ use crate::http::MediaHttp;
 use crate::identity::Identity;
 use crate::media::{self, Media, MediaOptions, MediaTarget};
 use crate::music_listening::MusicListening;
-use crate::now_playing::NowPlaying;
+use crate::now_playing::{NowPlaying, Player};
 use crate::soundboard::Soundboard;
 use crate::store::{SavedServer, Store, StoreError};
 use crate::voice::VoiceServer;
@@ -581,7 +581,7 @@ impl Client {
 
     pub fn voice_stop(&self) {
         self.inner.voice_player.stop();
-        self.inner.now_playing.clear();
+        self.inner.now_playing.clear(Player::Voice);
     }
 
     pub async fn media_open(
@@ -596,9 +596,7 @@ impl Client {
     }
 
     pub fn media_play(&self) {
-        self.inner
-            .media_player
-            .play(&self.inner.now_playing, &self.inner.media_player);
+        self.inner.media_player.play(&self.inner.now_playing);
     }
 
     pub fn media_pause(&self) {

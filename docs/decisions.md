@@ -846,34 +846,76 @@ The desktop UI plan's §17.5 never arrived, so where Phase 2 §12 says only what
   - **The mock now refuses what the core refuses:** a second start, a stop with nothing recorded, a missing draft.
   - **D58 itself:** "max-pooled" (the slices are averaged), `allPermissions` (it is `Permissions.all`), and a working preview that wasn't.
 
-## D59: Video and audio playback (2026-10-20)
+## D59: Media uploads: video and audio playback (Phase 4 A7, 2026-10-20)
 
-Why:
-Milestone A7 of the media uploads plan (`docs/superpowers/plans/2026-10-18-media-uploads.md`, Tasks 32–35, commits `cd70ef1`, `a8e90cc`, `a22038f`, `6c1c29b`) adds in-app video and audio playback for chat attachments, poster extraction for uploaded videos, and an FFmpeg build supporting H.264, HEVC, VP8, VP9, AV1 (via static dav1d 1.5.4), AAC, Opus, Vorbis, MP3, and FLAC.
-
-- **FFmpeg build and CI** (`app/tool/build_ffmpeg.sh`, `.github/workflows/ci.yml`, `docs/packaging.md`).
-  - Added build of static dav1d 1.5.4 pinned to SHA-256 `60aa688e14e9f73752e5055041ff34e0626b9cc46e9df073b64fca1e34ffbc06`.
-  - Configured FFmpeg 9.0.2 with `--enable-libdav1d`, decoders (`h264`, `hevc`, `vp8`, `vp9`, `av1`, `aac`, `opus`, `vorbis`, `mp3`, `flac`, `mjpeg`), demuxers (`mov`, `matroska`, `ogg`, `mp3`, `flac`, `wav`, `image2`), parsers, and bitstream filters (`h264_mp4toannexb`, `hevc_mp4toannexb`).
-  - Updated CI dependencies with `nasm`, `meson`, and `ninja-build`.
-- **Media player engine** (`crates/opencord-media/src/player/`, `crates/opencord-media/tests/player.rs`).
-  - `MediaPlayer` decodes streams via background worker thread, driving playback from a shared master clock (`MediaClock`) paced by audio output (or wall-clock for video-only streams).
-  - Audio frames are resampled to 48 kHz interleaved 16-bit stereo PCM via `StereoResampler` (`swresample`) and paced into `AudioOut` with 60 ms pacing (`buffered_duration`).
-  - Video frames are converted to RGBA via `swscale`, transformed for display matrix rotation (90, 180, 270 degrees) with `rotate_rgba`, and pushed to `VideoOut::render_frame`.
-  - `probe_and_poster` extracts stream metadata (`Probe { duration, width, height, has_video, has_audio, rotation }`) and generates an initial keyframe poster encoded as JPEG at quality 85.
-  - Supports `play()`, `pause()`, `seek(Duration)`, `set_volume(volume, muted)`, and `stop()`. Emits `PlayerEvent::Progress`, `PlayerEvent::Ended`, and `PlayerEvent::Failed`.
-- **Core media player glue and range reader** (`crates/opencord-core/src/attachments/range_reader.rs`, `crates/opencord-core/src/media_player.rs`, `crates/opencord-core/src/output_sink.rs`, `crates/opencord-core/src/attachments/upload.rs`).
-  - Extracted `OutputSink` (`AudioOut`) to shared module with 60 ms output pacing into `Speaker` or active call engine.
-  - `RangeReader` implements `Read + Seek` over HTTP range requests (`GET /attachments/{key}`), reading in 1 MiB blocks with an 8-block LRU cache and 2-block sequential read-ahead.
-  - `CoreMediaPlayer` wraps `MediaPlayer` and texture management, returning `MediaHandle { texture_id, duration_ms, width, height, has_video }`.
-  - Exposes `media_open`, `media_play`, `media_pause`, `media_seek`, `media_set_volume`, and `media_close`. Emits `MediaEvent::PlaybackUpdate`, `MediaEvent::PlaybackEnded`, and `MediaEvent::PlaybackFailed`.
-  - `attachments::upload::send` calls `probe_and_poster(path, 800)` on finish, sending JPEG poster bytes in the body of `POST /attachments/{key}/finish` with `x-attachment-width`, `x-attachment-height`, and `x-attachment-duration-ms` headers.
-- **App UI and playback** (`app/lib/features/chat/attachments/{video_tile.dart,video_player_view.dart,audio_card.dart,attachment_view.dart,media_viewer.dart}`, `app/lib/core/providers/playback_state.dart`, `app/lib/core/repository/repository.dart`, `app/lib/core/mock/mock_repository.dart`).
-  - `VideoTile` renders video thumbnail/poster clamped to 400×300 aspect ratio, centered play button (`OcIcons.playArrow`), and duration badge (`m:ss`). Tapping opens `MediaViewer`.
-  - `VideoPlayerView` displays video using `Texture(textureId: textureId)` or audio placeholder (`OcIcons.musicNote`), seek slider, play/pause (`OcIcons.playArrow` / `OcIcons.pause`), time display `m:ss / m:ss`, mute toggle (`OcIcons.volumeOff` / `OcIcons.volumeUp`), and volume slider. Spacebar toggles play/pause. Shows "This video can't play on this computer yet" with Download button when unsupported.
-  - `AudioCard` renders in-line audio with play/pause button (`OcIconButton`), filename, subtitle (time or error), download button, and seek slider.
-  - `MediaViewer` replaces the coming-soon placeholder with `VideoPlayerView`.
-  - `PlaybackNotifier` coordinates voice and media playback (`AttachmentPlayback`), ensuring one item plays at a time.
+- **Why.** Milestone A7 of media uploads (`docs/superpowers/plans/2026-10-18-media-uploads.md`, Tasks 32–35) plays video and audio attachments inside the app, and gives uploaded videos a poster and their size and length. Commits: cd70ef1..6c1c29b, and the review fixes after them.
+- **FFmpeg** (`app/tool/build_ffmpeg.sh`, `.github/workflows/ci.yml`, `docs/packaging.md`).
+  - dav1d 1.5.4 is built first, static, with meson and ninja (pinned SHA-256 `686616b7…a5c5`), and linked into libavcodec.
+  - The decoders: `h264, mjpeg, hevc, vp8, vp9, libdav1d, mpeg4, aac, mp3float, opus, vorbis, flac, pcm_s16le, pcm_s24le, pcm_s32le, pcm_f32le, pcm_u8`. The demuxers: `mov, matroska, ogg, mp3, flac, wav, aac`, with their parsers and the `h264_mp4toannexb`, `hevc_mp4toannexb` and `vp9_superframe_split` bitstream filters.
+  - swresample is now built: FFmpeg's Opus decoder depends on it and is silently left out without it. The core doesn't link it, so CI gives every bundled FFmpeg library `RUNPATH=$ORIGIN` for libavcodec to find it.
+  - There are still no protocols, not even `file`: the player and the upload probe read through `StreamIo`.
+  - CI installs meson and ninja.
+- **The player engine** (`crates/opencord-media/src/player/{mod.rs,ffmpeg.rs,decode.rs,sync.rs,unsupported.rs}`).
+  - `MediaPlayer::open(source, video, audio, events)` runs one `opencord-media-player` thread that demuxes and decodes the best video and audio streams. Video decodes on frame threads.
+  - Pictures are scaled to RGBA, at most 1920 on the long side, and turned upright from the stream's display matrix (`rotate`, by 90, 180 or 270). Up to 8 wait to be shown.
+  - Sound is converted in Rust from any of `u8`, `i16`, `i32`, `f32` or `f64`, planar or packed, to stereo f32: mono is doubled, and of more channels the first two are kept. rubato resamples it to 48 kHz. Half a second of it is decoded ahead, and it is written to `AudioOut` no more than 60 ms (2,880 frames) ahead of the listener, at the volume set at that moment.
+  - The clock (`MediaClock`) is the sound heard: the frames written since the last seek, less those still queued. With no sound, or once the sound has ended, it is the wall clock. A picture is shown once its time is ≤ the clock + 10 ms, and dropped when more than 80 ms late.
+  - A seek flushes the decoders and the resampler, and skips what decodes before the target, pictures and sound alike, the sound to the sample. A seek while paused shows the target's picture. Play after the end starts again from 0.
+  - Events: `Opened { duration_ms, width, height, has_video, has_audio }`, `Position` every 50 ms while playing and after each seek, `Ended`, and `Failed(String)`.
+  - Packets are read with `Packet::read`, so a failed read is `Failed`, not the end. A corrupt packet is skipped. A video stream that can't be decoded fails the open; sound that can't be decoded leaves a video silent.
+  - `probe_and_poster(path, max_side)` returns `Probe { width, height, duration_ms, has_video }` (width and height upright) and the first picture as a JPEG (quality 82) at most `max_side` on its long side.
+  - `supported()` is true on Linux and Windows. macOS gets `unsupported.rs` until P2.
+- **The core** (`crates/opencord-core/src/{media_player.rs,output_sink.rs,now_playing.rs}`, `attachments/{range_reader.rs,upload.rs}`, `api/{attachments.rs,types.rs}`, `video.rs`; `opencord-media/src/audio/engine.rs`).
+  - `RangeReader` reads an attachment with `GET /media/attachments/{id}` ranges: its size comes from a `bytes=0-0` request's `Content-Range`. It reads in 1 MiB blocks, keeps the 8 used last, and fetches the next 2 in the background, on cache hits too. A read waits for a block being fetched ahead instead of fetching it again. Only a `206` of the right length is accepted. `on_wait` tells the core while a read waits for the network.
+  - `media_open(server_key, attachment_id)` → `MediaHandle { texture_id, duration_ms, width, height, has_video }`: the pictures go to a new Flutter texture (`Video::create_texture`), the sound through `OutputSink`. Then `media_play`, `media_pause`, `media_seek(position_ms)`, `media_set_volume(volume, muted)` and `media_close`, and the sync `media_supported()`. Events reuse `MediaEvent::PlaybackUpdate`, `PlaybackEnded` and `PlaybackFailed` with `PlaybackItem::Attachment`. Play, pause and buffering send the last position heard.
+  - `OutputSink` moved to `output_sink.rs` and serves both players. In a call it attaches to the engine's local media slot on its first write and holds the engine weakly. `AudioEngine::attach_local_media` returns an id, and `detach_local_media(id)` and `has_local_media(id)` act only on that source. So a player attaches again when another took the slot, and one stopping no longer cuts off the other. When the call ends, the sound moves to the speaker. The `CallMix` trait is that slot; the tests stand in for it.
+  - `NowPlaying` knows which player (`Player::Voice` or `Player::Media`) holds it. Starting one stops (voice) or pauses (media) the other, and `clear` empties the slot only for the player that holds it.
+  - On upload, a file that sniffs as video gets `probe_and_poster(path, 800)` (on Linux and Windows). The hints go into `CreateUpload`, and a poster of up to 2 MiB is the body of `POST /media/uploads/{id}/finish` (`content-type: image/jpeg`). If the probe fails the video still uploads, without either, and the failure is logged.
+- **The app** (`app/lib/features/chat/attachments/{video_tile.dart,video_player_view.dart,audio_card.dart,attachment_view.dart,media_viewer.dart}`, `app/lib/core/providers/playback_state.dart`, `app/lib/core/model/media_handle.dart`, the repository, `core/format.dart`).
+  - `VideoTile`:
+    - the stored size, scaled to fit 400×300;
+    - the poster, or a `surface` box with `OcIcons.movie`;
+    - a 48 px round play button and an `m:ss` badge, light on dark in both themes.
+    - A tap opens the viewer on the message's images and videos, in order, at this video.
+  - `VideoPlayerView` replaces the viewer's "Video playback coming soon":
+    - it opens the media and plays it, showing a `Texture` at the video's aspect ratio (or `OcIcons.musicNote` without pictures) and a spinner while buffering;
+    - the control bar has play/pause, a seek slider that seeks on release, `m:ss / m:ss`, mute (`OcIcons.volumeOff`/`volumeUp`) and an 80 px volume slider;
+    - Space toggles play, and ←/→ still move between items, closing the media.
+    - Without `mediaSupported()` it shows "This video can't play on this computer yet" and Download. A failure shows its message and Retry.
+  - `AudioCard` (audio attachments):
+    - a 320 px card with play/pause, the filename, the time (or the size until the length is known, or the failure), Download, and a seek slider once the length is known;
+    - scrolled away while paused or finished, it closes the media.
+  - `PlaybackNotifier` keeps the open media apart from what plays now. Pause, resume and seek go to the media player for it and to the voice player otherwise. `mediaPlay` takes playback back from a voice message, and `mediaClose` closes the media even while a voice message plays.
+  - `formatDuration` and `formatDurationMs` (`m:ss`) in `core/format.dart` replace the recording bar's and the voice bubble's copies.
+  - `MockRepository` keeps the open media's place while a voice message plays, and starts it again after its end, as the core does.
 - **Tests.**
-  - Rust player engine tests: `crates/opencord-media/tests/player.rs` (`opens_and_reports_duration_and_size`, `plays_to_the_end_in_real_time`, `seeks_accurately`, `rotation_is_applied`, `probe_and_poster_makes_a_jpeg`).
-  - Rust core tests: `crates/opencord-core/tests/attachments.rs` (`range_reader_reads_any_span`, `video_uploads_get_hints_and_a_poster`).
-  - Dart widget tests: `app/test/widget/chat/media_playback_test.dart` (`video_tile_opens_the_viewer_and_plays`, `audio_card_plays_and_seeks`, `unsupported_video_offers_download`).
+  - `crates/opencord-media/tests/player.rs`: `opens_and_reports_duration_and_size`, `plays_to_the_end_in_real_time` (and plays again from the start), `seeks_accurately` (the sound after a seek to 1 s is 1 s long), `rotation_is_applied`, `probe_and_poster_makes_a_jpeg`, `a_webm_with_opus_opens`, `a_read_that_fails_is_a_failure_not_the_end`, and `the_planned_decoders_are_there`. CI runs them on the FFmpeg it builds.
+  - Unit tests: `player::decode` (`a_quarter_turn_moves_the_top_left_to_the_top_right`, `a_second_at_44_1_khz_comes_out_as_a_second_at_48_khz`), `player::sync` (`the_audio_clock_counts_what_was_heard_from_the_seek`, `when_the_sound_ends_time_goes_on_from_its_last_moment`), and `now_playing::tests::a_player_that_stops_leaves_the_other_playing`.
+  - `crates/opencord-core/tests/attachments.rs`: `range_reader_reads_any_span` (with the wait signal and read-ahead) and `video_uploads_get_hints_and_a_poster`.
+  - `app/test/widget/chat/media_playback_test.dart`: `video_tile_opens_the_viewer_and_plays`, `audio_card_plays_and_seeks`, `unsupported_video_offers_download`, `the_viewer_steps_from_a_video_to_the_messages_image`, and `a_video_a_voice_message_interrupted_plays_again`.
+- **Review.** Fixed after A7:
+  - **The tests ran on the system's FFmpeg**, which has everything, rather than the build the app ships, which had no `file` protocol and no Opus decoder. On the shipped FFmpeg:
+    - no video upload would have had a poster or a size;
+    - a WebM or Ogg file with Opus sound would have played silent.
+  - **Seeking desynchronized sound and picture.** Only pictures before the target were skipped. The sound played from the keyframe before it, up to a whole GOP early, for the rest of playback. The test passed only because the player reported the target the moment it was asked to seek.
+  - **A failed read ended playback as if the file were done**, because ffmpeg-next's packet iterator ends on any error.
+  - **The player:**
+    - slept 5 ms after every packet, so a seek far from a keyframe took seconds;
+    - applied the volume half a second late, as it decoded;
+    - flushed the resampler after every frame at the end of the file;
+    - set frame threading after opening the decoder, where it does nothing;
+    - couldn't play again after the end.
+  - **Playing in a call:**
+    - The voice player and the media player shared the engine's one local media slot, and each cleared it when it stopped, even after the other had taken it. A video could go silent and freeze: its clock follows the sound, and nothing drained the sound any more.
+    - The sink held the call's engine strongly, so leaving the call kept its microphone open until the player closed.
+  - **`NowPlaying::clear` stopped whatever played,** so stopping a voice message paused a video.
+  - **The core's play and pause events said position 0.**
+  - **The range reader** only fetched ahead after a cache miss, so every third block stalled. It fetched a block being read ahead a second time, and it never said it was buffering.
+  - **The app:**
+    - after a voice message, the video's play button did nothing;
+    - closing the viewer after a voice message played left the media open;
+    - videos opened the viewer alone, without their message's images;
+    - the tile's play button and badge were dark on dark in the light theme;
+    - errors other than `RepoException` were caught, and the duration formatter was copied again.
+  - **The fixture README lost the voice test recordings' attribution,** which their CC BY-SA licence requires.
+  - **D59 itself** named a checksum other than the script's, swresample for the resampling (it is rubato), `render_frame` (it is `present`), `seek(Duration)`, `PlayerEvent::Progress`, a `rotation` field `Probe` doesn't have, `POST /attachments/{key}/finish` with `x-attachment-*` headers, and JPEG quality 85.

@@ -107,22 +107,16 @@ class _VideoPlayerViewState extends ConsumerState<VideoPlayerView> {
         _error = e.message;
         _loading = false;
       });
-    } catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _error = e.toString();
-        _loading = false;
-      });
     }
   }
 
   void _togglePlay() {
     final playback = ref.read(playbackProvider);
     final notifier = ref.read(playbackProvider.notifier);
-    if (playback.playing) {
+    if (playback.item == _item && playback.playing) {
       notifier.pause(_item);
     } else {
-      notifier.resume(_item);
+      notifier.mediaPlay(_item);
     }
   }
 
@@ -144,7 +138,9 @@ class _VideoPlayerViewState extends ConsumerState<VideoPlayerView> {
   @override
   Widget build(BuildContext context) {
     final colors = context.oc;
-    final playback = ref.watch(playbackProvider);
+    final all = ref.watch(playbackProvider);
+    // Another item (a voice message) may play meanwhile: show only ours.
+    final playback = all.item == _item ? all : const PlaybackState();
 
     if (_unsupported) {
       return Container(
@@ -259,6 +255,13 @@ class _VideoPlayerViewState extends ConsumerState<VideoPlayerView> {
                     ),
                   ),
                 ),
+              ),
+
+            if (playback.buffering)
+              const SizedBox(
+                width: 48,
+                height: 48,
+                child: CircularProgressIndicator(strokeWidth: 2),
               ),
 
             // Bottom control bar

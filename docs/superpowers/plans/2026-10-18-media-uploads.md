@@ -8476,7 +8476,7 @@ ffmpeg -display_rotation 90 -i h264_aac.mp4 -c copy rotated_90.mp4
 
 **Files:**
 - Create `docs/attachments.md`.
-- Modify `docs/protocol.md` (requests, events, HTTP endpoints with status codes), `docs/domains.md` (reverse proxies: nginx `client_max_body_size 16m;` in the Opencord location; Caddy needs nothing; Cloudflare's 100 MB request limit is why pieces are 8 MiB), `docs/packaging.md` (FFmpeg on all three systems once P2 lands), `README.md` (a short "Files and storage" paragraph linking `docs/attachments.md`), `docs/decisions.md`, `deploy/` (Docker comment: mount or secret for `secrets_file`; systemd: `LoadCredential=opencord-secrets.key:/etc/opencord/secrets.key` plus `OPENCORD_SECRETS_FILE=%d/opencord-secrets.key`).
+- Modify `docs/protocol.md` (requests, events, HTTP endpoints with status codes), `docs/domains.md` (reverse proxies: nginx `client_max_body_size 16m;` in the Opencord location; Caddy needs nothing; Cloudflare's 100 MB request limit is why pieces are 8 MiB), `README.md` (a short "Files and storage" paragraph linking `docs/attachments.md`), `docs/decisions.md`, `deploy/` (Docker comment: mount or secret for `secrets_file`; systemd: `LoadCredential=opencord-secrets.key:/etc/opencord/secrets.key` plus `OPENCORD_SECRETS_FILE=%d/opencord-secrets.key`).
 
 **`docs/attachments.md` sections:**
 1. **Where files go:** local storage, `local_dir`, S3 providers (one setup recipe each for AWS, R2, B2, Wasabi and MinIO, with this minimal IAM policy JSON):
@@ -8492,7 +8492,7 @@ ffmpeg -display_rotation 90 -i h264_aac.mp4 -c copy rotated_90.mp4
 6. **Testing:** the S3 test server and command from the top of Milestone A3, and a manual checklist (the live checks listed at A5, A6 and A7).
 
 **Steps:**
-- [ ] **Step 1: Security pass.** Run the `security-review` checklist over the diff of `phase4-media` against `pre`. Fix every finding, adding a regression test for each. Must-checks:
+- [ ] **Step 1: Security pass.** Go through `git diff pre..phase4-media` against each must-check below, and against `GEMINI.md`'s rules. Fix every finding, adding a regression test for each, and list each check in the report with what you found. Must-checks:
   - no signed URL or secret in logs (grep `tracing::` calls in `attachments/`);
   - every media endpoint authorizes and checks permissions;
   - body limits on every upload read;
@@ -8501,14 +8501,14 @@ ffmpeg -display_rotation 90 -i h264_aac.mp4 -c copy rotated_90.mp4
   - image limits;
   - the `local.rs` key parsing.
 - [ ] **Step 2: Performance.**
-  - Upload and download a 1 GiB file to a local server: throughput ≥ 80 MB/s on loopback, server RSS growth < 100 MB during the transfer.
-  - Scrolling a channel with 200 image messages stays at 60 fps in profile mode.
-  - Record the results in `docs/performance.md`.
-- [ ] **Step 3:** Write the docs. Add `cmake` to the Docker build stage if Task 9 didn't.
-- [ ] **Step 4:** Full checks, plus the S3 tests (Milestone A3) and `app/tool/check_platforms.sh`.
+  - Upload and download a 1 GiB file to a local server: throughput ≥ 80 MB/s on loopback, server RSS growth < 100 MB during the transfer. This needs about 3 GB free (the file, its encrypted copy, the download): check `df -h /` first and delete all three afterwards. Put the commands in a script under `app/tool/`, like the other `check_*.sh` there, so the user can run it again.
+  - Scrolling a channel with 200 image messages stays at 60 fps in profile mode. This needs a display: list it as a live check for the user, not measured.
+  - Record the measured results in `docs/performance.md`, in the shape of its existing sections.
+- [ ] **Step 3:** Write the docs, each fact from the code (`GEMINI.md`, "Write docs from the code"). `docs/packaging.md` stays as A7 left it: P1 and P2 update their systems. The Docker build stage already installs `cmake`.
+- [ ] **Step 4:** Full checks, plus the S3 tests (Milestone A3) and `app/tool/check_platforms.sh`. The Rust tests run on the app's FFmpeg, as CI does (`GEMINI.md`, "Test against what ships").
 - [ ] **Step 5: Commit:** `docs: attachments, storage and voice messages; hardening (A8)`.
 
-**A8 stop.** Write **D60** (summary and measured numbers) and report.
+**A8 stop.** Write **D60** ("Media uploads: hardening and docs (Phase 4 A8, <date>)") from `git diff`, in D59's shape, with the measured numbers, then report. List the live checks from A5, A6 and A7 and the scrolling measurement as not done: this machine has no display.
 
 ---
 

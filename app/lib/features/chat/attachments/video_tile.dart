@@ -84,20 +84,24 @@ class VideoTile extends ConsumerWidget {
               else
                 _buildFallback(colors),
 
-              // Centered play button
+              // The play button and badge sit on the poster: light on dark in
+              // either theme, like the image grid's overlay.
               Center(
                 child: Container(
                   width: 48,
                   height: 48,
                   decoration: BoxDecoration(
-                    color: colors.scrim.withValues(alpha: 0.7),
+                    color: OcColors.dark.scrim,
                     shape: BoxShape.circle,
                   ),
-                  child: Icon(OcIcons.playArrow, size: 28, color: colors.text),
+                  child: Icon(
+                    OcIcons.playArrow,
+                    size: 28,
+                    color: OcColors.dark.text,
+                  ),
                 ),
               ),
 
-              // Duration badge m:ss
               if (durationText != null)
                 Positioned(
                   bottom: OcSpace.s8,
@@ -108,13 +112,13 @@ class VideoTile extends ConsumerWidget {
                       vertical: OcSpace.s2,
                     ),
                     decoration: BoxDecoration(
-                      color: colors.scrim.withValues(alpha: 0.8),
+                      color: OcColors.dark.scrim,
                       borderRadius: BorderRadius.circular(4),
                     ),
                     child: Text(
                       durationText,
                       style: OcText.small.copyWith(
-                        color: colors.text,
+                        color: OcColors.dark.text,
                         fontWeight: FontWeight.w600,
                       ),
                     ),

@@ -1,5 +1,6 @@
-//! Core media player glue (Milestone A7, Task 34): connects RangeReader,
-//! Flutter textures, OutputSink, and NowPlaying for video and audio attachment playback.
+//! Plays video and audio attachments (Milestone A7, Task 34): the media
+//! engine reads the attachment over HTTP ranges, shows pictures on a Flutter
+//! texture, and plays sound into the call or through the speaker.
 
 use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use std::sync::{Arc, Mutex, PoisonError};
@@ -10,8 +11,8 @@ use tokio::sync::mpsc;
 use crate::api::types::{CoreError, MediaEvent, MediaHandle, PlaybackItem};
 use crate::attachments::range_reader::RangeReader;
 use crate::client::Client;
-use crate::now_playing::{NowPlaying, Stoppable};
-use crate::output_sink::OutputSink;
+use crate::now_playing::{NowPlaying, Player, Stoppable};
+use crate::output_sink::{CallMix, OutputSink};
 use crate::video::FrameSink;
 
 struct TextureVideoOut {
@@ -24,24 +25,44 @@ impl VideoOut for TextureVideoOut {
     }
 }
 
-struct MediaPlayerHandle {
-    media_player: Arc<CoreMediaPlayer>,
+/// What the app last heard about the open media, kept for the events the
+/// core sends itself (play, pause, seek, buffering).
+struct Status {
+    item: PlaybackItem,
+    events: mpsc::UnboundedSender<MediaEvent>,
+    playing: AtomicBool,
+    position_ms: AtomicU32,
+    duration_ms: AtomicU32,
+    buffering: AtomicBool,
 }
 
-impl Stoppable for MediaPlayerHandle {
-    fn stop(&self) {
-        self.media_player.pause();
+impl Status {
+    fn send(&self) {
+        let _ = self.events.send(MediaEvent::PlaybackUpdate {
+            item: self.item.clone(),
+            position_ms: self.position_ms.load(Ordering::Relaxed),
+            duration_ms: self.duration_ms.load(Ordering::Relaxed),
+            playing: self.playing.load(Ordering::Relaxed),
+            buffering: self.buffering.load(Ordering::Relaxed),
+        });
     }
 }
 
 struct ActiveMedia {
     player: MediaPlayer,
-    is_playing: Arc<AtomicBool>,
-    duration_ms: Arc<AtomicU32>,
-    item: PlaybackItem,
-    events: mpsc::UnboundedSender<MediaEvent>,
+    status: Arc<Status>,
 }
 
+/// Pauses the media when something else starts playing.
+struct PauseOnStop(Arc<CoreMediaPlayer>);
+
+impl Stoppable for PauseOnStop {
+    fn stop(&self) {
+        self.0.pause();
+    }
+}
+
+/// One media attachment open at a time.
 #[derive(Default)]
 pub(crate) struct CoreMediaPlayer {
     active: Mutex<Option<ActiveMedia>>,
@@ -56,46 +77,47 @@ impl CoreMediaPlayer {
     ) -> Result<MediaHandle, CoreError> {
         if !opencord_media::player::supported() {
             return Err(CoreError::InvalidInput {
-                message: "media player is not supported on this platform".to_owned(),
+                message: "This computer can't play media yet".to_owned(),
             });
         }
-
-        // Close any currently active media
-        {
-            let mut active = self.active.lock().unwrap_or_else(PoisonError::into_inner);
-            if let Some(a) = active.take() {
-                a.player.close();
-            }
+        if let Some(previous) = self.take() {
+            previous.player.close();
         }
 
-        let reader = RangeReader::open(client.clone(), server_key.clone(), attachment_id).await?;
-
+        let mut reader =
+            RangeReader::open(client.clone(), server_key.clone(), attachment_id).await?;
         let media = client.media().ok_or(CoreError::NotInitialized)?;
-        let texture_sink = media.video().create_texture();
-        let raw_texture_id = texture_sink.as_ref().map(|s| s.id());
-        let video_out: Option<Arc<dyn VideoOut>> =
-            texture_sink.map(|sink| Arc::new(TextureVideoOut { sink }) as Arc<dyn VideoOut>);
+        let texture = media.video().create_texture();
+        let texture_id = texture.as_ref().map(|sink| sink.id());
+        let video_out = texture.map(|sink| Arc::new(TextureVideoOut { sink }) as Arc<dyn VideoOut>);
+        let call = media.call_engine().map(|e| e as Arc<dyn CallMix>);
+        let audio_out: Box<dyn AudioOut> = Box::new(OutputSink::open(
+            call,
+            &media.audio_settings(),
+            media.options().open_devices,
+        )?);
 
-        let engine = media.call_engine();
-        let settings = media.audio_settings();
-        let open_devices = media.options().open_devices;
-        let audio_out: Box<dyn AudioOut> =
-            Box::new(OutputSink::open(engine, &settings, open_devices)?);
+        let status = Arc::new(Status {
+            item: PlaybackItem::Attachment {
+                server_key,
+                attachment_id,
+            },
+            events: media.events().clone(),
+            playing: AtomicBool::new(false),
+            position_ms: AtomicU32::new(0),
+            duration_ms: AtomicU32::new(0),
+            buffering: AtomicBool::new(false),
+        });
+        let waiting = status.clone();
+        reader.on_wait(move |buffering| {
+            waiting.buffering.store(buffering, Ordering::Relaxed);
+            waiting.send();
+        });
 
-        let (open_tx, open_rx) = tokio::sync::oneshot::channel();
-        let mut open_tx = Some(open_tx);
-        let is_playing = Arc::new(AtomicBool::new(false));
-        let duration_ms = Arc::new(AtomicU32::new(0));
-        let item = PlaybackItem::Attachment {
-            server_key,
-            attachment_id,
-        };
-        let events_out = media.events().clone();
-
-        let item_clone = item.clone();
-        let is_playing_flag = is_playing.clone();
-        let duration_flag = duration_ms.clone();
-        let events_callback = move |event: PlayerEvent| match event {
+        let (opened_tx, opened) = tokio::sync::oneshot::channel();
+        let mut opened_tx = Some(opened_tx);
+        let heard = status.clone();
+        let events = move |event: PlayerEvent| match event {
             PlayerEvent::Opened {
                 duration_ms,
                 width,
@@ -103,8 +125,8 @@ impl CoreMediaPlayer {
                 has_video,
                 ..
             } => {
-                duration_flag.store(duration_ms, Ordering::Relaxed);
-                if let Some(tx) = open_tx.take() {
+                heard.duration_ms.store(duration_ms, Ordering::Relaxed);
+                if let Some(tx) = opened_tx.take() {
                     let _ = tx.send(Ok((duration_ms, width, height, has_video)));
                 }
             }
@@ -112,132 +134,117 @@ impl CoreMediaPlayer {
                 position_ms,
                 buffering,
             } => {
-                let playing = is_playing_flag.load(Ordering::Relaxed);
-                let duration = duration_flag.load(Ordering::Relaxed);
-                let _ = events_out.send(MediaEvent::PlaybackUpdate {
-                    item: item_clone.clone(),
-                    position_ms,
-                    duration_ms: duration,
-                    playing,
-                    buffering,
-                });
+                heard.position_ms.store(position_ms, Ordering::Relaxed);
+                heard.buffering.store(buffering, Ordering::Relaxed);
+                heard.send();
             }
             PlayerEvent::Ended => {
-                is_playing_flag.store(false, Ordering::Relaxed);
-                let _ = events_out.send(MediaEvent::PlaybackEnded {
-                    item: item_clone.clone(),
+                heard.playing.store(false, Ordering::Relaxed);
+                let _ = heard.events.send(MediaEvent::PlaybackEnded {
+                    item: heard.item.clone(),
                 });
             }
-            PlayerEvent::Failed(err) => {
-                if let Some(tx) = open_tx.take() {
-                    let _ = tx.send(Err(err.clone()));
+            PlayerEvent::Failed(message) => {
+                heard.playing.store(false, Ordering::Relaxed);
+                match opened_tx.take() {
+                    Some(tx) => {
+                        let _ = tx.send(Err(message));
+                    }
+                    None => {
+                        let _ = heard.events.send(MediaEvent::PlaybackFailed {
+                            item: heard.item.clone(),
+                            message,
+                        });
+                    }
                 }
-                let _ = events_out.send(MediaEvent::PlaybackFailed {
-                    item: item_clone.clone(),
-                    message: err,
-                });
             }
         };
 
-        let player = MediaPlayer::open(Box::new(reader), video_out, audio_out, events_callback)
-            .map_err(|e| CoreError::InvalidInput {
-                message: e.to_string(),
+        let player =
+            MediaPlayer::open(Box::new(reader), video_out, audio_out, events).map_err(|e| {
+                CoreError::InvalidInput {
+                    message: e.to_string(),
+                }
             })?;
-
-        let (dur, w, h, has_video) = match open_rx.await {
+        let (duration_ms, width, height, has_video) = match opened.await {
             Ok(Ok(info)) => info,
-            Ok(Err(err)) => return Err(CoreError::InvalidInput { message: err }),
+            Ok(Err(message)) => return Err(CoreError::InvalidInput { message }),
             Err(_) => {
                 return Err(CoreError::InvalidInput {
-                    message: "media player thread terminated without opening".to_owned(),
+                    message: "the media player stopped before opening".to_owned(),
                 });
             }
         };
-
-        let texture_id = if has_video { raw_texture_id } else { None };
-        let handle = MediaHandle {
-            texture_id,
-            duration_ms: dur,
-            width: w,
-            height: h,
-            has_video,
-        };
-
-        let mut active = self.active.lock().unwrap_or_else(PoisonError::into_inner);
-        *active = Some(ActiveMedia {
-            player,
-            is_playing,
+        let replaced = self
+            .active
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .replace(ActiveMedia { player, status });
+        if let Some(replaced) = replaced {
+            replaced.player.close();
+        }
+        Ok(MediaHandle {
+            texture_id: if has_video { texture_id } else { None },
             duration_ms,
-            item,
-            events: media.events().clone(),
-        });
-
-        Ok(handle)
+            width,
+            height,
+            has_video,
+        })
     }
 
-    pub fn play(&self, now_playing: &NowPlaying, this: &Arc<CoreMediaPlayer>) {
-        let mut active = self.active.lock().unwrap_or_else(PoisonError::into_inner);
-        if let Some(a) = &mut *active {
-            a.is_playing.store(true, Ordering::Relaxed);
-            a.player.play();
-            let _ = a.events.send(MediaEvent::PlaybackUpdate {
-                item: a.item.clone(),
-                position_ms: 0,
-                duration_ms: a.duration_ms.load(Ordering::Relaxed),
-                playing: true,
-                buffering: false,
-            });
-            now_playing.replace(Box::new(MediaPlayerHandle {
-                media_player: this.clone(),
-            }));
+    fn take(&self) -> Option<ActiveMedia> {
+        self.active
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .take()
+    }
+
+    /// Runs `action` on the open media, if any.
+    fn with_active(&self, action: impl FnOnce(&ActiveMedia)) {
+        if let Some(active) = &*self.active.lock().unwrap_or_else(PoisonError::into_inner) {
+            action(active);
+        }
+    }
+
+    pub fn play(self: &Arc<Self>, now_playing: &NowPlaying) {
+        let mut opened = false;
+        self.with_active(|active| {
+            active.status.playing.store(true, Ordering::Relaxed);
+            active.player.play();
+            active.status.send();
+            opened = true;
+        });
+        if opened {
+            now_playing.replace(Player::Media, Box::new(PauseOnStop(self.clone())));
         }
     }
 
     pub fn pause(&self) {
-        let mut active = self.active.lock().unwrap_or_else(PoisonError::into_inner);
-        if let Some(a) = &mut *active {
-            a.is_playing.store(false, Ordering::Relaxed);
-            a.player.pause();
-            let _ = a.events.send(MediaEvent::PlaybackUpdate {
-                item: a.item.clone(),
-                position_ms: 0,
-                duration_ms: a.duration_ms.load(Ordering::Relaxed),
-                playing: false,
-                buffering: false,
-            });
-        }
+        self.with_active(|active| {
+            active.status.playing.store(false, Ordering::Relaxed);
+            active.player.pause();
+            active.status.send();
+        });
     }
 
     pub fn seek(&self, position_ms: u32) {
-        let active = self.active.lock().unwrap_or_else(PoisonError::into_inner);
-        if let Some(a) = &*active {
-            a.player.seek(position_ms);
-            let _ = a.events.send(MediaEvent::PlaybackUpdate {
-                item: a.item.clone(),
-                position_ms,
-                duration_ms: a.duration_ms.load(Ordering::Relaxed),
-                playing: a.is_playing.load(Ordering::Relaxed),
-                buffering: false,
-            });
-        }
+        self.with_active(|active| {
+            active
+                .status
+                .position_ms
+                .store(position_ms, Ordering::Relaxed);
+            active.player.seek(position_ms);
+        });
     }
 
     pub fn set_volume(&self, volume: f32, muted: bool) {
-        let active = self.active.lock().unwrap_or_else(PoisonError::into_inner);
-        if let Some(a) = &*active {
-            a.player.set_volume(volume, muted);
-        }
+        self.with_active(|active| active.player.set_volume(volume, muted));
     }
 
     pub fn close(&self, now_playing: &NowPlaying) {
-        let active = self
-            .active
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner)
-            .take();
-        if let Some(a) = active {
-            a.player.close();
+        if let Some(active) = self.take() {
+            active.player.close();
         }
-        now_playing.clear();
+        now_playing.clear(Player::Media);
     }
 }

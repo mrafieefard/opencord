@@ -604,8 +604,27 @@ async fn range_reader_reads_any_span() {
     .await
     .unwrap();
 
+    let waits = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
+    let heard = waits.clone();
+    reader.on_wait(move |waiting| heard.lock().unwrap().push(waiting));
+
     let total_size = reader.seek(SeekFrom::End(0)).unwrap();
     assert_eq!(total_size, source_data.len() as u64);
+
+    // The first block waits for the network; the next was fetched ahead.
+    let mut byte = [0u8; 1];
+    reader.seek(SeekFrom::Start(0)).unwrap();
+    reader.read_exact(&mut byte).unwrap();
+    assert_eq!(*waits.lock().unwrap(), [true, false]);
+    tokio::time::sleep(Duration::from_secs(1)).await;
+    reader.seek(SeekFrom::Start(1024 * 1024 + 5)).unwrap();
+    reader.read_exact(&mut byte).unwrap();
+    assert_eq!(byte[0], source_data[1024 * 1024 + 5]);
+    assert_eq!(
+        *waits.lock().unwrap(),
+        [true, false],
+        "block 1 wasn't read ahead"
+    );
 
     let mut rng_state = 123456789u64;
     let mut rand_u32 = || {

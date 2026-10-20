@@ -14,12 +14,10 @@ class AttachmentsView extends StatelessWidget {
     super.key,
     required this.serverKey,
     required this.message,
-    this.onTapImage,
   });
 
   final String serverKey;
   final Message message;
-  final void Function(int index)? onTapImage;
 
   @override
   Widget build(BuildContext context) {
@@ -31,6 +29,19 @@ class AttachmentsView extends StatelessWidget {
     final nonImages = message.attachments
         .where((a) => a.kind != AttachmentKind.image)
         .toList();
+    // The viewer steps through the message's images and videos in order.
+    final viewable = message.attachments
+        .where(
+          (a) =>
+              a.kind == AttachmentKind.image || a.kind == AttachmentKind.video,
+        )
+        .toList();
+    void view(Attachment attachment) => showMediaViewer(
+      context,
+      serverKey: serverKey,
+      media: viewable,
+      index: viewable.indexOf(attachment),
+    );
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -41,7 +52,7 @@ class AttachmentsView extends StatelessWidget {
             serverKey: serverKey,
             message: message,
             images: images,
-            onTap: onTapImage,
+            onTap: (index) => view(images[index]),
           ),
           if (nonImages.isNotEmpty) const SizedBox(height: OcSpace.s8),
         ],
@@ -57,18 +68,7 @@ class AttachmentsView extends StatelessWidget {
               serverKey: serverKey,
               attachment: item,
               message: message,
-              onTap: () {
-                if (onTapImage != null) {
-                  onTapImage!(message.attachments.indexOf(item));
-                } else {
-                  showMediaViewer(
-                    context,
-                    serverKey: serverKey,
-                    media: [item],
-                    index: 0,
-                  );
-                }
-              },
+              onTap: () => view(item),
             )
           else if (item.kind == AttachmentKind.audio)
             AudioCard(serverKey: serverKey, attachment: item, message: message)

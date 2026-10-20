@@ -1,9 +1,10 @@
-//! HTTP range reader for streaming attachments (media uploads plan, Task 34).
-//! Fetches 1 MiB blocks on demand with an 8-block LRU cache and 2-block read-ahead.
+//! Reads an attachment over HTTP ranges, for the media player (Milestone A7,
+//! Task 34): 1 MiB blocks fetched on demand, the 8 used last kept, and the
+//! next 2 fetched ahead in the background.
 
-use std::collections::HashSet;
+use std::collections::{HashSet, VecDeque};
 use std::io::{Read, Seek, SeekFrom};
-use std::sync::{Arc, Mutex, PoisonError};
+use std::sync::{Arc, Condvar, Mutex, MutexGuard, PoisonError};
 
 use bytes::Bytes;
 use reqwest::StatusCode;
@@ -13,51 +14,98 @@ use super::transfer::{Call, network, refusal};
 use crate::api::types::CoreError;
 use crate::client::Client;
 
-const BLOCK_SIZE: u64 = 1024 * 1024; // 1 MiB
-const LRU_CAPACITY: usize = 8;
+const BLOCK_SIZE: u64 = 1024 * 1024;
+const KEPT_BLOCKS: usize = 8;
 const READ_AHEAD_BLOCKS: usize = 2;
 
-struct LruCache {
-    blocks: Vec<(usize, Bytes)>, // most recently used at back
-    in_flight: HashSet<usize>,
+#[derive(Default)]
+struct Blocks {
+    /// Most recently used last.
+    kept: VecDeque<(usize, Bytes)>,
+    fetching: HashSet<usize>,
 }
 
-impl LruCache {
-    fn new() -> Self {
-        Self {
-            blocks: Vec::with_capacity(LRU_CAPACITY),
-            in_flight: HashSet::new(),
-        }
+impl Blocks {
+    fn get(&mut self, index: usize) -> Option<Bytes> {
+        let at = self.kept.iter().position(|(i, _)| *i == index)?;
+        let entry = self.kept.remove(at)?;
+        let bytes = entry.1.clone();
+        self.kept.push_back(entry);
+        Some(bytes)
     }
 
-    fn get(&mut self, block_idx: usize) -> Option<Bytes> {
-        if let Some(pos) = self.blocks.iter().position(|(idx, _)| *idx == block_idx) {
-            let entry = self.blocks.remove(pos);
-            self.blocks.push(entry);
-            Some(self.blocks.last().unwrap().1.clone())
-        } else {
-            None
+    fn keep(&mut self, index: usize, bytes: Bytes) {
+        self.kept.retain(|(i, _)| *i != index);
+        if self.kept.len() >= KEPT_BLOCKS {
+            self.kept.pop_front();
         }
+        self.kept.push_back((index, bytes));
+    }
+}
+
+/// The blocks, and the signal that a fetch finished.
+#[derive(Default)]
+struct Shared {
+    blocks: Mutex<Blocks>,
+    fetched: Condvar,
+}
+
+impl Shared {
+    fn lock(&self) -> MutexGuard<'_, Blocks> {
+        self.blocks.lock().unwrap_or_else(PoisonError::into_inner)
     }
 
-    fn insert(&mut self, block_idx: usize, data: Bytes) {
-        if let Some(pos) = self.blocks.iter().position(|(idx, _)| *idx == block_idx) {
-            self.blocks.remove(pos);
-        } else if self.blocks.len() >= LRU_CAPACITY {
-            self.blocks.remove(0); // evict oldest
+    fn finish(&self, index: usize, bytes: Option<Bytes>) {
+        let mut blocks = self.lock();
+        blocks.fetching.remove(&index);
+        if let Some(bytes) = bytes {
+            blocks.keep(index, bytes);
         }
-        self.blocks.push((block_idx, data));
+        self.fetched.notify_all();
+    }
+}
+
+/// Where to fetch from.
+#[derive(Clone)]
+struct Origin {
+    client: Client,
+    server_key: String,
+    attachment_id: i64,
+    total_size: u64,
+}
+
+impl Origin {
+    async fn fetch(&self, index: usize) -> Result<Bytes, CoreError> {
+        let start = index as u64 * BLOCK_SIZE;
+        let end = (start + BLOCK_SIZE).min(self.total_size) - 1;
+        let path = format!("/media/attachments/{}", self.attachment_id);
+        let mut call = Call::get(path, None);
+        call.headers.push(("range", format!("bytes={start}-{end}")));
+        let response = self
+            .client
+            .transfers()
+            .send(&self.client, &self.server_key, call)
+            .await?;
+        if response.status() != StatusCode::PARTIAL_CONTENT {
+            return Err(refusal(response).await);
+        }
+        let bytes = response.bytes().await.map_err(|e| network(&e))?;
+        if bytes.len() as u64 != end - start + 1 {
+            return Err(CoreError::Connection {
+                message: format!("block {index} came back with {} bytes", bytes.len()),
+            });
+        }
+        Ok(bytes)
     }
 }
 
 pub struct RangeReader {
-    client: Client,
-    server_key: String,
-    attachment_id: i64,
+    origin: Origin,
     handle: Handle,
-    total_size: u64,
     position: u64,
-    cache: Arc<Mutex<LruCache>>,
+    shared: Arc<Shared>,
+    /// Told `true` while a read waits for the network, then `false`.
+    on_wait: Option<Box<dyn Fn(bool) + Send>>,
 }
 
 impl RangeReader {
@@ -66,205 +114,129 @@ impl RangeReader {
         server_key: String,
         attachment_id: i64,
     ) -> Result<Self, CoreError> {
-        let handle = Handle::current();
         let path = format!("/media/attachments/{attachment_id}");
         let mut call = Call::get(path, None);
         call.headers.push(("range", "bytes=0-0".to_owned()));
-
         let response = client.transfers().send(&client, &server_key, call).await?;
-        let status = response.status();
-        if !status.is_success() && status != StatusCode::PARTIAL_CONTENT {
-            return Err(refusal(response).await);
-        }
-
-        let total_size = if let Some(content_range) = response.headers().get("content-range") {
-            let s = content_range
-                .to_str()
-                .map_err(|e| CoreError::InvalidInput {
-                    message: format!("invalid Content-Range: {e}"),
-                })?;
-            let total_str = s
-                .rsplit('/')
-                .next()
-                .ok_or_else(|| CoreError::InvalidInput {
-                    message: format!("malformed Content-Range: {s}"),
-                })?;
-            total_str
-                .trim()
-                .parse::<u64>()
-                .map_err(|e| CoreError::InvalidInput {
-                    message: format!("invalid size in Content-Range {s}: {e}"),
-                })?
-        } else if let Some(content_length) = response.headers().get("content-length") {
-            content_length
-                .to_str()
-                .unwrap_or("0")
-                .parse::<u64>()
-                .unwrap_or(0)
-        } else {
-            0
+        // `bytes 0-0/<size>`, or `bytes */0` for an empty file.
+        let total_size = match response.status() {
+            StatusCode::PARTIAL_CONTENT | StatusCode::RANGE_NOT_SATISFIABLE => response
+                .headers()
+                .get("content-range")
+                .and_then(|value| value.to_str().ok())
+                .and_then(|value| value.rsplit('/').next())
+                .and_then(|total| total.trim().parse::<u64>().ok())
+                .ok_or_else(|| CoreError::Connection {
+                    message: "the server sent no usable Content-Range".to_owned(),
+                })?,
+            _ => return Err(refusal(response).await),
         };
-
-        let mut cache = LruCache::new();
-        if status == StatusCode::OK {
-            let body = response.bytes().await.map_err(|e| network(&e))?;
-            cache.insert(0, body);
-        }
-
         Ok(Self {
-            client,
-            server_key,
-            attachment_id,
-            handle,
-            total_size,
+            origin: Origin {
+                client,
+                server_key,
+                attachment_id,
+                total_size,
+            },
+            handle: Handle::current(),
             position: 0,
-            cache: Arc::new(Mutex::new(cache)),
+            shared: Arc::default(),
+            on_wait: None,
         })
     }
 
     pub fn total_size(&self) -> u64 {
-        self.total_size
+        self.origin.total_size
     }
 
-    fn get_or_fetch_block(&mut self, block_idx: usize) -> std::io::Result<Bytes> {
-        // 1. Check cache
-        {
-            let mut cache = self.cache.lock().unwrap_or_else(PoisonError::into_inner);
-            if let Some(data) = cache.get(block_idx) {
-                return Ok(data);
+    /// `on_wait(true)` while a read waits for the network, `false` after.
+    pub fn on_wait(&mut self, on_wait: impl Fn(bool) + Send + 'static) {
+        self.on_wait = Some(Box::new(on_wait));
+    }
+
+    fn block(&mut self, index: usize) -> std::io::Result<Bytes> {
+        let mut waited = false;
+        let result = loop {
+            let mut blocks = self.shared.lock();
+            if let Some(bytes) = blocks.get(index) {
+                break Ok(bytes);
             }
-        }
-
-        // 2. Fetch block synchronously on runtime handle
-        let client = self.client.clone();
-        let server_key = self.server_key.clone();
-        let attachment_id = self.attachment_id;
-        let total_size = self.total_size;
-
-        let block = if tokio::runtime::Handle::try_current().is_ok() {
-            tokio::task::block_in_place(|| {
-                self.handle.block_on(async move {
-                    fetch_block_remote(&client, &server_key, attachment_id, block_idx, total_size)
-                        .await
-                })
-            })
-        } else {
-            self.handle.block_on(async move {
-                fetch_block_remote(&client, &server_key, attachment_id, block_idx, total_size).await
-            })
-        }
-        .map_err(|e| std::io::Error::other(e.to_string()))?;
-
-        // 3. Insert into cache
-        {
-            let mut cache = self.cache.lock().unwrap_or_else(PoisonError::into_inner);
-            cache.insert(block_idx, block.clone());
-        }
-
-        // 4. Trigger read-ahead for next 2 blocks in the background
-        self.trigger_read_ahead(block_idx);
-
-        Ok(block)
-    }
-
-    fn trigger_read_ahead(&self, current_block: usize) {
-        if self.total_size == 0 {
-            return;
-        }
-        let max_block = (self.total_size.saturating_sub(1) / BLOCK_SIZE) as usize;
-        for ahead_idx in (current_block + 1)..=(current_block + READ_AHEAD_BLOCKS).min(max_block) {
-            let mut cache = self.cache.lock().unwrap_or_else(PoisonError::into_inner);
-            if cache.get(ahead_idx).is_none() && cache.in_flight.insert(ahead_idx) {
-                let cache_clone = self.cache.clone();
-                let client = self.client.clone();
-                let server_key = self.server_key.clone();
-                let attachment_id = self.attachment_id;
-                let total_size = self.total_size;
-
-                self.handle.spawn(async move {
-                    if let Ok(data) = fetch_block_remote(
-                        &client,
-                        &server_key,
-                        attachment_id,
-                        ahead_idx,
-                        total_size,
-                    )
-                    .await
-                    {
-                        let mut c = cache_clone.lock().unwrap_or_else(PoisonError::into_inner);
-                        c.in_flight.remove(&ahead_idx);
-                        c.insert(ahead_idx, data);
-                    } else {
-                        let mut c = cache_clone.lock().unwrap_or_else(PoisonError::into_inner);
-                        c.in_flight.remove(&ahead_idx);
-                    }
-                });
+            if !waited && let Some(on_wait) = &self.on_wait {
+                on_wait(true);
             }
+            waited = true;
+            if blocks.fetching.contains(&index) {
+                // Fetched ahead already: wait for it rather than fetch twice.
+                drop(
+                    self.shared
+                        .fetched
+                        .wait_while(blocks, |b| b.fetching.contains(&index))
+                        .unwrap_or_else(PoisonError::into_inner),
+                );
+                continue;
+            }
+            blocks.fetching.insert(index);
+            drop(blocks);
+            let origin = self.origin.clone();
+            let fetch = async move { origin.fetch(index).await };
+            let fetched = if Handle::try_current().is_ok() {
+                tokio::task::block_in_place(|| self.handle.block_on(fetch))
+            } else {
+                self.handle.block_on(fetch)
+            };
+            self.shared.finish(index, fetched.as_ref().ok().cloned());
+            break fetched.map_err(|e| std::io::Error::other(e.to_string()));
+        };
+        if waited && let Some(on_wait) = &self.on_wait {
+            on_wait(false);
+        }
+        self.read_ahead(index);
+        result
+    }
+
+    fn read_ahead(&self, index: usize) {
+        let last = (self.origin.total_size.saturating_sub(1) / BLOCK_SIZE) as usize;
+        let mut blocks = self.shared.lock();
+        for ahead in (index + 1)..=(index + READ_AHEAD_BLOCKS).min(last) {
+            if blocks.kept.iter().any(|(i, _)| *i == ahead) || !blocks.fetching.insert(ahead) {
+                continue;
+            }
+            let origin = self.origin.clone();
+            let shared = self.shared.clone();
+            self.handle.spawn(async move {
+                // A failure here is retried by the read that needs the block.
+                shared.finish(ahead, origin.fetch(ahead).await.ok());
+            });
         }
     }
-}
-
-async fn fetch_block_remote(
-    client: &Client,
-    server_key: &str,
-    attachment_id: i64,
-    block_idx: usize,
-    total_size: u64,
-) -> Result<Bytes, CoreError> {
-    let start = block_idx as u64 * BLOCK_SIZE;
-    if start >= total_size {
-        return Ok(Bytes::new());
-    }
-    let end = ((block_idx as u64 + 1) * BLOCK_SIZE - 1).min(total_size.saturating_sub(1));
-    let path = format!("/media/attachments/{attachment_id}");
-    let mut call = Call::get(path, None);
-    call.headers.push(("range", format!("bytes={start}-{end}")));
-
-    let response = client.transfers().send(client, server_key, call).await?;
-    let status = response.status();
-    if !status.is_success() && status != StatusCode::PARTIAL_CONTENT {
-        return Err(refusal(response).await);
-    }
-    let bytes = response.bytes().await.map_err(|e| network(&e))?;
-    Ok(bytes)
 }
 
 impl Read for RangeReader {
     fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
-        if self.position >= self.total_size || buf.is_empty() {
+        if self.position >= self.origin.total_size || buf.is_empty() {
             return Ok(0);
         }
-
-        let block_idx = (self.position / BLOCK_SIZE) as usize;
+        let index = (self.position / BLOCK_SIZE) as usize;
         let offset = (self.position % BLOCK_SIZE) as usize;
-
-        let block_data = self.get_or_fetch_block(block_idx)?;
-        if offset >= block_data.len() {
-            return Ok(0);
-        }
-
-        let available = &block_data[offset..];
-        let to_copy = buf.len().min(available.len());
-        buf[..to_copy].copy_from_slice(&available[..to_copy]);
-        self.position += to_copy as u64;
-        Ok(to_copy)
+        let block = self.block(index)?;
+        let available = &block[offset.min(block.len())..];
+        let count = buf.len().min(available.len());
+        buf[..count].copy_from_slice(&available[..count]);
+        self.position += count as u64;
+        Ok(count)
     }
 }
 
 impl Seek for RangeReader {
     fn seek(&mut self, pos: SeekFrom) -> std::io::Result<u64> {
-        let new_pos = match pos {
-            SeekFrom::Start(offset) => offset as i64,
-            SeekFrom::Current(offset) => self.position as i64 + offset,
-            SeekFrom::End(offset) => self.total_size as i64 + offset,
+        let target = match pos {
+            SeekFrom::Start(offset) => Some(offset),
+            SeekFrom::Current(offset) => self.position.checked_add_signed(offset),
+            SeekFrom::End(offset) => self.origin.total_size.checked_add_signed(offset),
         };
-        if new_pos < 0 {
-            return Err(std::io::Error::new(
-                std::io::ErrorKind::InvalidInput,
-                "cannot seek before byte 0",
-            ));
-        }
-        self.position = new_pos as u64;
+        self.position = target.ok_or_else(|| {
+            std::io::Error::new(std::io::ErrorKind::InvalidInput, "seek before byte 0")
+        })?;
         Ok(self.position)
     }
 }

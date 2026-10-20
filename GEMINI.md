@@ -49,7 +49,8 @@ Every rule here was broken at least once and caught in review.
 - **A worker thread's error reaches its caller.**
   - A thread that can fail (opening a device, encoding) stores its error where the caller's next call returns it, and says so at once through the event stream.
   - `Err(_) => None` on a thread is the same swallowed error as anywhere else.
-- **Production code never bends for tests.** No `try`/`catch` "for tests where X isn't set up": fix the test's setup instead.
+- **Know how a library reports failure.** Iterators that just end, an `Option`, a default value: where an error and "nothing more" look the same, call the lower-level function that tells them apart. A download that fails halfway is a failure, not the end of the file.
+- **Production code never bends for tests.** No `try`/`catch` "for tests where X isn't set up": fix the test's setup instead. When a test needs to stand in for something (a call, a device), put a small trait in front of it, as `TapEngine` does, and give the test a fake.
 
 ### Shared state and races
 
@@ -69,18 +70,24 @@ Every rule here was broken at least once and caught in review.
 - **Std locks:**
   - Use `.lock().unwrap_or_else(PoisonError::into_inner)`, and the same for `read()` and `write()`, as `state.rs` does.
   - Never hold one across `.await`.
+- **A slot several owners can take is released only by its holder.**
+  - Whatever holds one thing at a time (an output slot, "now playing") gives each holder an id. Releasing checks the id, so one holder stopping never cuts off the one that took over.
+  - A holder that comes back after another took the slot takes it again before using it.
+- **Hold what has its own lifetime weakly.** A player, a task or a cache that points at something the user can end (a call, a connection) keeps a `Weak`. A strong reference keeps the call's devices open after the user left.
 - **Each event reaches a listener once.** Route it through the existing router (`_route` in `providers.dart`) or subscribe to the repository's events, never both.
 - **After every `await` in a widget's `State`, check `mounted`** before touching `context`, `ref` or `setState`. The page may have closed while it waited.
 
 ### What the user sees
 
 - **Every failure is shown.** If a model has an `error` or `failed` field, some widget renders it.
+- **Events carry the real state.** An update sent for play, pause or a setting change carries the last known position and values, never a placeholder `0` or empty value.
 - **A retry starts clean and sends the same thing.**
   - It resets what belongs to one attempt: progress, errors.
   - If part of the original request is gone, it refuses rather than sending less (a message without its files).
 - **A gate checks what it guards.** When an action is allowed only after a check (Save after Test), the check runs on exactly the values the action will send, and any change locks it again.
 - **One gesture, one action.** A drag moves a preview and acts once, on release; nothing starts work on every pointer move.
 - **A control does what it shows, or it isn't there.** A button that only flips a flag (a play button that plays nothing) is a stub: leave it out and list it under "Left undone".
+- **A control works from every state it can reach:** after the end, after an error, after something else took over. Walk each one: play to the end and press play; start something else and come back.
 - **Masked values never go back.** Fields the server answers masked (access keys, secrets) start empty in an edit form and are sent only when the user types new ones.
 
 ### Resources
@@ -91,6 +98,8 @@ Every rule here was broken at least once and caught in review.
 - **Feeding something that plays in real time (a speaker, the call), wait for room.**
   - Write only while the queue is under a small target (tens of milliseconds), as the audio engine does with its speaker. Never push with `let _ =` and drop what doesn't fit.
   - Work in steps the size of the output: decode a packet, make a tick, write it. Decoding a whole file up front costs memory and freezes what later changes (speed, seek) should affect.
+  - A loop like this sleeps only when it has nothing to do. A fixed sleep after each piece of work makes catching up (after a seek) take seconds.
+  - Settings the user changes while it plays (volume, mute) apply where the output is written, not where it is decoded ahead.
   - Test it with a sink drained at real time, and check the total length heard.
 - **Know what a library call does to its state** before streaming through it, above all after `flush`, `finish` or `reset` (`wsola::TimeStretch` replays the input it still holds when pulled after `flush`). Test the whole stream's length end to end.
 - **CPU-heavy work runs in `tokio::task::spawn_blocking`:** decoding images, audio or video; hashing, sealing or compressing large data.
@@ -107,6 +116,7 @@ Every rule here was broken at least once and caught in review.
   - `core/` never imports `features/`: shared state goes in `core/providers`.
   - The repository's methods mirror the core's: no parameters the core ignores.
 - **The two hues are for their one use each:** `voice` for the voice waveform, `recording` for the recording dot and the cancel state. Everything else is monochrome, even a selected chip.
+- **Check both themes.** Theme colours (`colors.text`, `colors.scrim`) flip with the theme. Anything drawn on a photo or a video uses the fixed dark set, `OcColors.dark`, as the image grid's overlay does.
 - **Finishing a feature removes what stood in for it.** Grep for its "coming later" markers, placeholder toasts and `later:` flags, and remove them in the same task.
 - **A value kept on both sides changes on both sides.** A permission set, a default, a limit or a list that exists in Rust and in Dart is updated in both, in the same task.
 - **A rule ported from another language matches its meaning, not its look.**
@@ -124,9 +134,12 @@ Every rule here was broken at least once and caught in review.
 
 ### Tests and task boundaries
 
+- **Test against what ships.** When the app carries its own build of a library (FFmpeg in `target/ffmpeg`), run the tests that use it with that build, as CI does: prefix the command with `PKG_CONFIG_PATH=$PWD/target/ffmpeg/lib/pkgconfig LD_LIBRARY_PATH=$PWD/target/ffmpeg/lib`. The system's copy has everything; a test that passes on it says nothing about the app.
+- **A test must be able to fail.** Before trusting one, name a wrong implementation that would still pass it. An assertion on a value the code echoes back (a seek reporting its own target) proves nothing; check an effect only the real behavior produces, such as how much sound came out and how long it took.
 - **A test sets up everything it depends on.** Never rely on a default (an empty list, a setting's starting value) or on another test's data. Set it in the test.
 - **Test every mode of a flow, not just the first.** A form that adds and edits gets a test for editing; a send that can fail and retry gets a test for the retry.
 - **Fakes answer like the real thing.** A mock repository masks what the server masks and sends the last event the core sends (on a cancel, too). Otherwise tests pass on behavior real users never get.
+- **Keep what you didn't add.** Editing an existing file, change only what the task needs. An attribution table, a licence note or another milestone's section stays, even when the task "rewrites" the file.
 - **Every commit passes the checks on its own.**
   - Code that only a later task uses goes in with that task. Otherwise `-D warnings` fails on dead code.
   - Don't add `#[allow(dead_code)]` to get past it.
@@ -143,7 +156,7 @@ Every milestone ends with a decisions entry in `docs/decisions.md`.
   - one bullet per part, saying what it does;
   - **Tests**.
 - **Describe the code, not the plan.** For each sentence, open the code it describes, and copy labels, counts and messages from there. The plan says what was asked for; only the code says what was built.
-- **Numbers and behavior count too:** a wrong quality setting, a wrong count or a wrong "X doesn't happen" is as bad as a wrong name.
+- **Numbers and behavior count too:** a wrong quality setting, a wrong count or a wrong "X doesn't happen" is as bad as a wrong name. Checksums, versions and hashes are copied from the file, never typed from memory.
 - **Name only things that exist.** Copy every message, request, event, function and file name, and every number, from the code or the diff. This covers the decisions entry, the progress ledger and your report.
 - **Search before you finish.** Grep for each name you wrote (`grep -rn`). If a name isn't found, it doesn't go in.
 

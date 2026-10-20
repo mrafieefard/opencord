@@ -1,320 +1,101 @@
+//! Turning decoded frames into what the outputs take: RGBA pictures turned
+//! upright, and stereo 48 kHz sound.
+
 use std::collections::VecDeque;
 
 use audioadapter_buffers::direct::InterleavedSlice;
 use ffmpeg_next::format::Sample;
-use ffmpeg_next::format::sample::Type as SampleType;
 use ffmpeg_next::frame::Audio;
 use rubato::{Fft, FixedSync, Resampler};
 
-/// Calculates target dimensions scaled proportionally so that `max(width, height) <= max_side`.
+/// The size that fits `max_side` on the long side, keeping the shape.
 pub fn target_video_size(width: u32, height: u32, max_side: u32) -> (u32, u32) {
     let long_side = width.max(height);
     if long_side <= max_side {
         return (width, height);
     }
-    let scale = max_side as f64 / long_side as f64;
-    let target_w = ((width as f64 * scale).round() as u32).max(1);
-    let target_h = ((height as f64 * scale).round() as u32).max(1);
-    // Align to even dimensions for scaling
+    let scale = f64::from(max_side) / f64::from(long_side);
+    let target_w = ((f64::from(width) * scale).round() as u32).max(2);
+    let target_h = ((f64::from(height) * scale).round() as u32).max(2);
+    // Even sizes, as the scaler's chroma subsampling wants.
     (target_w & !1, target_h & !1)
 }
 
-/// Rotates an RGBA image buffer by 0, 90, 180, or 270 degrees clockwise.
-pub fn rotate_rgba(width: u32, height: u32, rgba: &[u8], rotation: i32) -> (u32, u32, Vec<u8>) {
-    let rot = rotation.rem_euclid(360);
-    match rot {
-        90 => {
-            let (w, h) = (width as usize, height as usize);
-            let mut out = vec![0u8; w * h * 4];
-            for y in 0..h {
-                for x in 0..w {
-                    let src_idx = (y * w + x) * 4;
-                    let dst_x = h - 1 - y;
-                    let dst_y = x;
-                    let dst_idx = (dst_y * h + dst_x) * 4;
-                    out[dst_idx..dst_idx + 4].copy_from_slice(&rgba[src_idx..src_idx + 4]);
-                }
-            }
-            (height, width, out)
+/// `pixels` (rows of `width` pixels of `bytes` bytes each) turned
+/// clockwise by `rotation` degrees: 0, 90, 180 or 270.
+pub fn rotate(
+    width: u32,
+    height: u32,
+    pixels: &[u8],
+    bytes: usize,
+    rotation: i32,
+) -> (u32, u32, Vec<u8>) {
+    let (w, h) = (width as usize, height as usize);
+    let turn = rotation.rem_euclid(360);
+    if !matches!(turn, 90 | 180 | 270) {
+        return (width, height, pixels.to_vec());
+    }
+    let mut out = vec![0u8; pixels.len()];
+    for y in 0..h {
+        for x in 0..w {
+            let (to_x, to_y, to_w) = match turn {
+                90 => (h - 1 - y, x, h),
+                180 => (w - 1 - x, h - 1 - y, w),
+                _ => (y, w - 1 - x, h),
+            };
+            let from = (y * w + x) * bytes;
+            let to = (to_y * to_w + to_x) * bytes;
+            out[to..to + bytes].copy_from_slice(&pixels[from..from + bytes]);
         }
-        180 => {
-            let (w, h) = (width as usize, height as usize);
-            let mut out = vec![0u8; w * h * 4];
-            for y in 0..h {
-                for x in 0..w {
-                    let src_idx = (y * w + x) * 4;
-                    let dst_x = w - 1 - x;
-                    let dst_y = h - 1 - y;
-                    let dst_idx = (dst_y * w + dst_x) * 4;
-                    out[dst_idx..dst_idx + 4].copy_from_slice(&rgba[src_idx..src_idx + 4]);
-                }
-            }
-            (width, height, out)
-        }
-        270 => {
-            let (w, h) = (width as usize, height as usize);
-            let mut out = vec![0u8; w * h * 4];
-            for y in 0..h {
-                for x in 0..w {
-                    let src_idx = (y * w + x) * 4;
-                    let dst_x = y;
-                    let dst_y = w - 1 - x;
-                    let dst_idx = (dst_y * h + dst_x) * 4;
-                    out[dst_idx..dst_idx + 4].copy_from_slice(&rgba[src_idx..src_idx + 4]);
-                }
-            }
-            (height, width, out)
-        }
-        _ => (width, height, rgba.to_vec()),
+    }
+    if turn == 180 {
+        (width, height, out)
+    } else {
+        (height, width, out)
     }
 }
 
-/// Rotates an RGB24 image buffer by 0, 90, 180, or 270 degrees clockwise.
-pub fn rotate_rgb(width: u32, height: u32, rgb: &[u8], rotation: i32) -> (u32, u32, Vec<u8>) {
-    let rot = rotation.rem_euclid(360);
-    match rot {
-        90 => {
-            let (w, h) = (width as usize, height as usize);
-            let mut out = vec![0u8; w * h * 3];
-            for y in 0..h {
-                for x in 0..w {
-                    let src_idx = (y * w + x) * 3;
-                    let dst_x = h - 1 - y;
-                    let dst_y = x;
-                    let dst_idx = (dst_y * h + dst_x) * 3;
-                    out[dst_idx..dst_idx + 3].copy_from_slice(&rgb[src_idx..src_idx + 3]);
-                }
-            }
-            (height, width, out)
-        }
-        180 => {
-            let (w, h) = (width as usize, height as usize);
-            let mut out = vec![0u8; w * h * 3];
-            for y in 0..h {
-                for x in 0..w {
-                    let src_idx = (y * w + x) * 3;
-                    let dst_x = w - 1 - x;
-                    let dst_y = h - 1 - y;
-                    let dst_idx = (dst_y * w + dst_x) * 3;
-                    out[dst_idx..dst_idx + 3].copy_from_slice(&rgb[src_idx..src_idx + 3]);
-                }
-            }
-            (width, height, out)
-        }
-        270 => {
-            let (w, h) = (width as usize, height as usize);
-            let mut out = vec![0u8; w * h * 3];
-            for y in 0..h {
-                for x in 0..w {
-                    let src_idx = (y * w + x) * 3;
-                    let dst_x = y;
-                    let dst_y = w - 1 - x;
-                    let dst_idx = (dst_y * h + dst_x) * 3;
-                    out[dst_idx..dst_idx + 3].copy_from_slice(&rgb[src_idx..src_idx + 3]);
-                }
-            }
-            (height, width, out)
-        }
-        _ => (width, height, rgb.to_vec()),
-    }
-}
-
-/// Converts a decoded FFmpeg audio frame to interleaved stereo f32 samples.
-pub fn convert_audio_frame(frame: &Audio) -> Vec<f32> {
+/// A decoded frame as interleaved stereo f32 at its own rate: mono is
+/// doubled, and of more than two channels the first two are kept.
+pub fn convert_audio_frame(frame: &Audio) -> Result<Vec<f32>, String> {
     let samples = frame.samples();
-    let channels = frame.channels() as usize;
+    let channels = usize::from(frame.channels());
     if samples == 0 || channels == 0 {
-        return Vec::new();
+        return Ok(Vec::new());
     }
-
+    let (bytes, read): (usize, fn(&[u8]) -> f32) = match frame.format() {
+        Sample::U8(_) => (1, |b| (f32::from(b[0]) - 128.0) / 128.0),
+        Sample::I16(_) => (2, |b| {
+            f32::from(i16::from_ne_bytes([b[0], b[1]])) / 32_768.0
+        }),
+        Sample::I32(_) => (4, |b| {
+            i32::from_ne_bytes([b[0], b[1], b[2], b[3]]) as f32 / 2_147_483_648.0
+        }),
+        Sample::F32(_) => (4, |b| f32::from_ne_bytes([b[0], b[1], b[2], b[3]])),
+        Sample::F64(_) => (8, |b| {
+            f64::from_ne_bytes([b[0], b[1], b[2], b[3], b[4], b[5], b[6], b[7]]) as f32
+        }),
+        other => return Err(format!("unsupported sample format {other:?}")),
+    };
+    let right = usize::from(channels > 1);
+    let planar = frame.is_planar();
+    let sample = |channel: usize, index: usize| {
+        let at = if planar {
+            &frame.data(channel)[index * bytes..]
+        } else {
+            &frame.data(0)[(index * channels + channel) * bytes..]
+        };
+        read(at)
+    };
     let mut stereo = Vec::with_capacity(samples * 2);
-    let format = frame.format();
-
-    match format {
-        Sample::U8(SampleType::Planar) => {
-            let p0 = frame.data(0);
-            let p1 = if channels > 1 { frame.data(1) } else { p0 };
-            for s in 0..samples {
-                stereo.push((p0[s] as f32 - 128.0) / 128.0);
-                stereo.push((p1[s] as f32 - 128.0) / 128.0);
-            }
-        }
-        Sample::U8(SampleType::Packed) => {
-            let data = frame.data(0);
-            for s in 0..samples {
-                let base = s * channels;
-                stereo.push((data[base] as f32 - 128.0) / 128.0);
-                let r = if channels > 1 {
-                    data[base + 1]
-                } else {
-                    data[base]
-                };
-                stereo.push((r as f32 - 128.0) / 128.0);
-            }
-        }
-        Sample::I16(SampleType::Planar) => {
-            let p0 = frame.data(0);
-            let p1 = if channels > 1 { frame.data(1) } else { p0 };
-            for s in 0..samples {
-                let s0 = i16::from_ne_bytes([p0[s * 2], p0[s * 2 + 1]]);
-                let s1 = i16::from_ne_bytes([p1[s * 2], p1[s * 2 + 1]]);
-                stereo.push(s0 as f32 / 32768.0);
-                stereo.push(s1 as f32 / 32768.0);
-            }
-        }
-        Sample::I16(SampleType::Packed) => {
-            let data = frame.data(0);
-            for s in 0..samples {
-                let base = s * channels * 2;
-                let s0 = i16::from_ne_bytes([data[base], data[base + 1]]);
-                let s1 = if channels > 1 {
-                    i16::from_ne_bytes([data[base + 2], data[base + 3]])
-                } else {
-                    s0
-                };
-                stereo.push(s0 as f32 / 32768.0);
-                stereo.push(s1 as f32 / 32768.0);
-            }
-        }
-        Sample::I32(SampleType::Planar) => {
-            let p0 = frame.data(0);
-            let p1 = if channels > 1 { frame.data(1) } else { p0 };
-            for s in 0..samples {
-                let s0 =
-                    i32::from_ne_bytes([p0[s * 4], p0[s * 4 + 1], p0[s * 4 + 2], p0[s * 4 + 3]]);
-                let s1 =
-                    i32::from_ne_bytes([p1[s * 4], p1[s * 4 + 1], p1[s * 4 + 2], p1[s * 4 + 3]]);
-                stereo.push(s0 as f32 / 2147483648.0);
-                stereo.push(s1 as f32 / 2147483648.0);
-            }
-        }
-        Sample::I32(SampleType::Packed) => {
-            let data = frame.data(0);
-            for s in 0..samples {
-                let base = s * channels * 4;
-                let s0 = i32::from_ne_bytes([
-                    data[base],
-                    data[base + 1],
-                    data[base + 2],
-                    data[base + 3],
-                ]);
-                let s1 = if channels > 1 {
-                    i32::from_ne_bytes([
-                        data[base + 4],
-                        data[base + 5],
-                        data[base + 6],
-                        data[base + 7],
-                    ])
-                } else {
-                    s0
-                };
-                stereo.push(s0 as f32 / 2147483648.0);
-                stereo.push(s1 as f32 / 2147483648.0);
-            }
-        }
-        Sample::F32(SampleType::Planar) => {
-            let p0 = frame.data(0);
-            let p1 = if channels > 1 { frame.data(1) } else { p0 };
-            for s in 0..samples {
-                let s0 =
-                    f32::from_ne_bytes([p0[s * 4], p0[s * 4 + 1], p0[s * 4 + 2], p0[s * 4 + 3]]);
-                let s1 =
-                    f32::from_ne_bytes([p1[s * 4], p1[s * 4 + 1], p1[s * 4 + 2], p1[s * 4 + 3]]);
-                stereo.push(s0);
-                stereo.push(s1);
-            }
-        }
-        Sample::F32(SampleType::Packed) => {
-            let data = frame.data(0);
-            for s in 0..samples {
-                let base = s * channels * 4;
-                let s0 = f32::from_ne_bytes([
-                    data[base],
-                    data[base + 1],
-                    data[base + 2],
-                    data[base + 3],
-                ]);
-                let s1 = if channels > 1 {
-                    f32::from_ne_bytes([
-                        data[base + 4],
-                        data[base + 5],
-                        data[base + 6],
-                        data[base + 7],
-                    ])
-                } else {
-                    s0
-                };
-                stereo.push(s0);
-                stereo.push(s1);
-            }
-        }
-        Sample::F64(SampleType::Planar) => {
-            let p0 = frame.data(0);
-            let p1 = if channels > 1 { frame.data(1) } else { p0 };
-            for s in 0..samples {
-                let s0 = f64::from_ne_bytes([
-                    p0[s * 8],
-                    p0[s * 8 + 1],
-                    p0[s * 8 + 2],
-                    p0[s * 8 + 3],
-                    p0[s * 8 + 4],
-                    p0[s * 8 + 5],
-                    p0[s * 8 + 6],
-                    p0[s * 8 + 7],
-                ]);
-                let s1 = f64::from_ne_bytes([
-                    p1[s * 8],
-                    p1[s * 8 + 1],
-                    p1[s * 8 + 2],
-                    p1[s * 8 + 3],
-                    p1[s * 8 + 4],
-                    p1[s * 8 + 5],
-                    p1[s * 8 + 6],
-                    p1[s * 8 + 7],
-                ]);
-                stereo.push(s0 as f32);
-                stereo.push(s1 as f32);
-            }
-        }
-        Sample::F64(SampleType::Packed) => {
-            let data = frame.data(0);
-            for s in 0..samples {
-                let base = s * channels * 8;
-                let s0 = f64::from_ne_bytes([
-                    data[base],
-                    data[base + 1],
-                    data[base + 2],
-                    data[base + 3],
-                    data[base + 4],
-                    data[base + 5],
-                    data[base + 6],
-                    data[base + 7],
-                ]);
-                let s1 = if channels > 1 {
-                    f64::from_ne_bytes([
-                        data[base + 8],
-                        data[base + 9],
-                        data[base + 10],
-                        data[base + 11],
-                        data[base + 12],
-                        data[base + 13],
-                        data[base + 14],
-                        data[base + 15],
-                    ])
-                } else {
-                    s0
-                };
-                stereo.push(s0 as f32);
-                stereo.push(s1 as f32);
-            }
-        }
-        _ => {}
+    for index in 0..samples {
+        stereo.push(sample(0, index));
+        stereo.push(sample(right, index));
     }
-
-    stereo
+    Ok(stereo)
 }
 
-/// Resamples stereo audio to 48 kHz using rubato.
+/// Resamples interleaved stereo to 48 kHz with rubato; 48 kHz passes through.
 pub struct StereoResampler {
     resampler: Option<Fft<f32>>,
     chunk_frames: usize,
@@ -324,7 +105,7 @@ pub struct StereoResampler {
 
 impl StereoResampler {
     pub fn new(input_rate: u32) -> Result<Self, String> {
-        if input_rate == 48000 {
+        if input_rate == 48_000 {
             return Ok(Self {
                 resampler: None,
                 chunk_frames: 0,
@@ -332,20 +113,16 @@ impl StereoResampler {
                 output: Vec::new(),
             });
         }
-
         let chunk_frames = (input_rate / 100).max(1) as usize;
         let resampler = Fft::<f32>::new(
             input_rate as usize,
-            48000,
+            48_000,
             chunk_frames,
             2,
             FixedSync::Input,
         )
         .map_err(|e| e.to_string())?;
-
-        let output_frames = resampler.output_frames_max();
-        let output = vec![0.0f32; output_frames * 2];
-
+        let output = vec![0.0f32; resampler.output_frames_max() * 2];
         Ok(Self {
             resampler: Some(resampler),
             chunk_frames,
@@ -354,44 +131,83 @@ impl StereoResampler {
         })
     }
 
-    pub fn process(&mut self, stereo_input: &[f32], out: &mut VecDeque<f32>) {
-        let Some(resampler) = &mut self.resampler else {
-            out.extend(stereo_input);
-            return;
-        };
-
-        for sample in stereo_input {
-            self.pending.push(*sample);
+    pub fn process(&mut self, stereo: &[f32], out: &mut VecDeque<f32>) -> Result<(), String> {
+        if self.resampler.is_none() {
+            out.extend(stereo);
+            return Ok(());
+        }
+        for &sample in stereo {
+            self.pending.push(sample);
             if self.pending.len() == self.chunk_frames * 2 {
-                let frames_out = self.output.len() / 2;
-                let input = InterleavedSlice::new(&self.pending[..], 2, self.chunk_frames);
-                let output = InterleavedSlice::new_mut(&mut self.output[..], 2, frames_out);
-                if let (Ok(input), Ok(mut output)) = (input, output)
-                    && let Ok((_, produced)) =
-                        resampler.process_into_buffer(&input, &mut output, None)
-                {
-                    out.extend(&self.output[..produced * 2]);
-                }
-                self.pending.clear();
+                self.run_chunk(out)?;
             }
+        }
+        Ok(())
+    }
+
+    /// Pushes out what is held, padded with silence to a whole chunk.
+    pub fn flush(&mut self, out: &mut VecDeque<f32>) -> Result<(), String> {
+        if self.resampler.is_none() || self.pending.is_empty() {
+            return Ok(());
+        }
+        self.pending.resize(self.chunk_frames * 2, 0.0);
+        self.run_chunk(out)
+    }
+
+    /// Forgets everything held, for a seek.
+    pub fn reset(&mut self) {
+        self.pending.clear();
+        if let Some(resampler) = &mut self.resampler {
+            resampler.reset();
         }
     }
 
-    pub fn flush(&mut self, out: &mut VecDeque<f32>) {
-        if let Some(resampler) = &mut self.resampler
-            && !self.pending.is_empty()
-        {
-            // Pad remaining frames with silence up to chunk_frames
-            self.pending.resize(self.chunk_frames * 2, 0.0);
-            let frames_out = self.output.len() / 2;
-            let input = InterleavedSlice::new(&self.pending[..], 2, self.chunk_frames);
-            let output = InterleavedSlice::new_mut(&mut self.output[..], 2, frames_out);
-            if let (Ok(input), Ok(mut output)) = (input, output)
-                && let Ok((_, produced)) = resampler.process_into_buffer(&input, &mut output, None)
-            {
-                out.extend(&self.output[..produced * 2]);
-            }
-            self.pending.clear();
-        }
+    fn run_chunk(&mut self, out: &mut VecDeque<f32>) -> Result<(), String> {
+        let Some(resampler) = &mut self.resampler else {
+            return Ok(());
+        };
+        let frames_out = self.output.len() / 2;
+        let input = InterleavedSlice::new(&self.pending[..], 2, self.chunk_frames)
+            .map_err(|e| e.to_string())?;
+        let mut output = InterleavedSlice::new_mut(&mut self.output[..], 2, frames_out)
+            .map_err(|e| e.to_string())?;
+        let (_, produced) = resampler
+            .process_into_buffer(&input, &mut output, None)
+            .map_err(|e| e.to_string())?;
+        out.extend(&self.output[..produced * 2]);
+        self.pending.clear();
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_quarter_turn_moves_the_top_left_to_the_top_right() {
+        // 2×1: red, green.
+        let pixels = [1, 0, 0, 2, 0, 0];
+        assert_eq!(rotate(2, 1, &pixels, 3, 90), (1, 2, vec![1, 0, 0, 2, 0, 0]));
+        assert_eq!(
+            rotate(2, 1, &pixels, 3, 270),
+            (1, 2, vec![2, 0, 0, 1, 0, 0])
+        );
+        assert_eq!(
+            rotate(2, 1, &pixels, 3, 180),
+            (2, 1, vec![2, 0, 0, 1, 0, 0])
+        );
+    }
+
+    #[test]
+    fn a_second_at_44_1_khz_comes_out_as_a_second_at_48_khz() {
+        let mut resampler = StereoResampler::new(44_100).unwrap();
+        let mut out = VecDeque::new();
+        resampler
+            .process(&vec![0.25; 2 * 44_100], &mut out)
+            .unwrap();
+        resampler.flush(&mut out).unwrap();
+        let frames = out.len() / 2;
+        assert!((47_500..=48_500).contains(&frames), "{frames} frames");
     }
 }

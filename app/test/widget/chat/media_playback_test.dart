@@ -1,6 +1,7 @@
 import 'dart:math';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:opencord/core/mock/mock_repository.dart';
@@ -125,11 +126,132 @@ void main() {
       findsOneWidget,
     );
 
-    // Seek
+    // Seek: the time moves to where the slider was let go.
+    expect(find.text('0:00 / 1:00'), findsOneWidget);
     final slider = find.byType(Slider);
     expect(slider, findsOneWidget);
     await tester.drag(slider, const Offset(50, 0));
+    await tester.pump();
+    expect(find.text('0:00 / 1:00'), findsNothing);
+    final playback = ProviderScope.containerOf(
+      tester.element(find.byType(AudioCard)),
+    ).read(playbackProvider);
+    expect(playback.positionMs, greaterThan(0));
+    mockRepo.mediaClose();
+  });
+
+  testWidgets('the_viewer_steps_from_a_video_to_the_messages_image', (
+    tester,
+  ) async {
+    final mockRepo = MockRepository(random: Random(1), simulateLife: false);
+    const image = Attachment(
+      id: 401,
+      filename: 'photo.png',
+      contentType: 'image/png',
+      sizeBytes: 1000,
+      kind: AttachmentKind.image,
+      width: 64,
+      height: 64,
+    );
+    const video = Attachment(
+      id: 402,
+      filename: 'clip.mp4',
+      contentType: 'video/mp4',
+      sizeBytes: 1000000,
+      kind: AttachmentKind.video,
+      width: 640,
+      height: 360,
+      durationMs: 15000,
+    );
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [repositoryProvider.overrideWithValue(mockRepo)],
+        child: MaterialApp(
+          theme: buildTheme(OcColors.dark),
+          home: Scaffold(
+            body: AttachmentsView(
+              serverKey: 'server.example:7710',
+              message: _msg([image, video]),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.byType(VideoTile));
     await tester.pumpAndSettle();
+    expect(find.byType(VideoPlayerView), findsOneWidget);
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(MediaViewer)),
+    );
+    expect(container.read(playbackProvider).playing, isTrue);
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowLeft);
+    await tester.pumpAndSettle();
+    expect(find.byType(VideoPlayerView), findsNothing);
+    expect(container.read(playbackProvider).item, isNull);
+  });
+
+  testWidgets('a_video_a_voice_message_interrupted_plays_again', (
+    tester,
+  ) async {
+    final mockRepo = MockRepository(random: Random(1), simulateLife: false);
+    const video = Attachment(
+      id: 501,
+      filename: 'clip.mp4',
+      contentType: 'video/mp4',
+      sizeBytes: 1000000,
+      kind: AttachmentKind.video,
+      width: 640,
+      height: 360,
+      durationMs: 15000,
+    );
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [repositoryProvider.overrideWithValue(mockRepo)],
+        child: MaterialApp(
+          theme: buildTheme(OcColors.dark),
+          home: Scaffold(
+            body: AttachmentsView(
+              serverKey: 'server.example:7710',
+              message: _msg([video]),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.byType(VideoTile));
+    await tester.pumpAndSettle();
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(VideoPlayerView)),
+    );
+    const item = AttachmentPlayback('server.example:7710', 501);
+    expect(container.read(playbackProvider).item, item);
+
+    // A voice message starts: the video pauses and shows play.
+    await container
+        .read(playbackProvider.notifier)
+        .play(const AttachmentPlayback('server.example:7710', 777));
+    await tester.pump();
+    expect(
+      find.descendant(
+        of: find.byType(VideoPlayerView),
+        matching: find.byIcon(OcIcons.playArrow),
+      ),
+      findsOneWidget,
+    );
+
+    await tester.tap(
+      find.descendant(
+        of: find.byType(VideoPlayerView),
+        matching: find.byIcon(OcIcons.playArrow),
+      ),
+    );
+    await tester.pump();
+    final playback = container.read(playbackProvider);
+    expect(playback.item, item);
+    expect(playback.playing, isTrue);
+    container.read(playbackProvider.notifier).mediaClose();
   });
 
   testWidgets('unsupported_video_offers_download', (tester) async {
