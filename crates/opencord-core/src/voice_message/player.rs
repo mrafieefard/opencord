@@ -163,16 +163,71 @@ struct Cursor {
     source_sample: usize,
 }
 
-/// Restarts decoding so the next stretched sample is at `target_ms`. Decodes
-/// from 80 ms earlier, so the decoder has settled when the sound starts.
+/// Decoded sound on its way out: as it is at 1×, through the time
+/// stretcher at the other speeds. The stretcher re-splices the sound even
+/// at 1×, which is heard, and costs a tenth of a core.
+struct Tempo {
+    speed: f32,
+    stretch: TimeStretch,
+}
+
+impl Tempo {
+    fn new(speed: f32) -> Result<Self, CoreError> {
+        let mut stretch = TimeStretch::new(
+            const { NonZeroU32::new(SAMPLE_RATE).unwrap() },
+            const { NonZeroU16::new(1).unwrap() },
+        )
+        .map_err(decoding)?;
+        stretch.set_tempo(speed);
+        Ok(Self { speed, stretch })
+    }
+
+    fn stretching(&self) -> bool {
+        self.speed != 1.0
+    }
+
+    fn set_speed(&mut self, speed: f32) {
+        self.speed = speed;
+        self.stretch.set_tempo(speed);
+    }
+
+    /// Decoded samples in: straight to `out` at 1×, else into the stretcher.
+    fn push(&mut self, samples: &[f32], out: &mut Vec<f32>) {
+        if self.stretching() {
+            self.stretch.push(samples);
+        } else {
+            out.extend_from_slice(samples);
+        }
+    }
+
+    /// Up to `most` stretched samples into `out`.
+    fn pull(&mut self, most: usize, out: &mut Vec<f32>) {
+        if self.stretching() {
+            out.extend(self.stretch.pull(most));
+        }
+    }
+
+    /// What the stretcher still holds, at the end.
+    fn flush(&mut self, out: &mut Vec<f32>) {
+        if self.stretching() {
+            out.extend(self.stretch.flush());
+        }
+    }
+}
+
+/// Restarts decoding so the next sample out is at `target_ms`, into
+/// `pending`. Decodes from 80 ms earlier, so the decoder has settled when
+/// the sound starts.
+#[allow(clippy::too_many_arguments)]
 fn seek(
     file: &OpusFile,
     packet_starts: &[usize],
     pre_skip: usize,
     target_ms: u32,
-    stretch: &mut TimeStretch,
+    tempo: &mut Tempo,
     decoder: &mut opus::Decoder,
     pcm: &mut [f32],
+    pending: &mut Vec<f32>,
 ) -> Result<Cursor, CoreError> {
     let target = pre_skip + target_ms.min(file.info.duration_ms) as usize * 48;
     let warmup = target.saturating_sub(80 * 48);
@@ -181,7 +236,8 @@ fn seek(
         .rposition(|&start| start <= warmup)
         .unwrap_or(0);
     decoder.reset_state().map_err(decoding)?;
-    stretch.reset();
+    tempo.stretch.reset();
+    pending.clear();
     while next_packet < file.packets.len() {
         let start = packet_starts[next_packet];
         let count = decoder
@@ -189,7 +245,7 @@ fn seek(
             .map_err(decoding)?;
         next_packet += 1;
         if start + count > target {
-            stretch.push(&pcm[target.saturating_sub(start)..count]);
+            tempo.push(&pcm[target.saturating_sub(start)..count], pending);
             break;
         }
     }
@@ -237,7 +293,7 @@ fn play_file(
     file: &OpusFile,
     item: &PlaybackItem,
     position_ms: u32,
-    mut speed: f32,
+    speed: f32,
     open_output: impl FnOnce() -> Result<OutputSink, CoreError>,
     events: &mpsc::UnboundedSender<MediaEvent>,
     mut commands: mpsc::UnboundedReceiver<PlayerCommand>,
@@ -251,28 +307,24 @@ fn play_file(
         total += opus::packet::get_nb_samples(packet, SAMPLE_RATE).map_err(decoding)?;
     }
 
-    let mut stretch = TimeStretch::new(
-        const { NonZeroU32::new(SAMPLE_RATE).unwrap() },
-        const { NonZeroU16::new(1).unwrap() },
-    )
-    .map_err(decoding)?;
-    stretch.set_tempo(speed);
+    let mut tempo = Tempo::new(speed)?;
     let mut decoder = opus::Decoder::new(SAMPLE_RATE, opus::Channels::Mono).map_err(decoding)?;
     let mut pcm = vec![0.0f32; 5760];
+    let mut pending: Vec<f32> = Vec::with_capacity(pcm.len() + TICK);
     let mut cursor = seek(
         file,
         &packet_starts,
         pre_skip,
         position_ms,
-        &mut stretch,
+        &mut tempo,
         &mut decoder,
         &mut pcm,
+        &mut pending,
     )?;
     let mut output = open_output()?;
 
     let mut playing = true;
     let mut flushed = false;
-    let mut pending: Vec<f32> = Vec::with_capacity(2 * TICK);
     let mut last_update = Instant::now();
     let update = |position: usize, playing: bool| MediaEvent::PlaybackUpdate {
         item: item.clone(),
@@ -285,27 +337,37 @@ fn play_file(
 
     loop {
         while let Ok(command) = commands.try_recv() {
-            match command {
-                PlayerCommand::Pause => playing = false,
-                PlayerCommand::Resume => playing = true,
-                PlayerCommand::SetSpeed(new) => {
-                    speed = new;
-                    stretch.set_tempo(new);
+            // A seek, or a new speed: decoding starts again where the
+            // listener is, at that speed.
+            let restart_at = match command {
+                PlayerCommand::Pause => {
+                    playing = false;
+                    None
                 }
-                PlayerCommand::Seek(target_ms) => {
-                    cursor = seek(
-                        file,
-                        &packet_starts,
-                        pre_skip,
-                        target_ms,
-                        &mut stretch,
-                        &mut decoder,
-                        &mut pcm,
-                    )?;
-                    flushed = false;
-                    pending.clear();
+                PlayerCommand::Resume => {
+                    playing = true;
+                    None
                 }
+                PlayerCommand::SetSpeed(new) if new != tempo.speed => {
+                    tempo.set_speed(new);
+                    Some((cursor.source_sample / 48) as u32)
+                }
+                PlayerCommand::SetSpeed(_) => None,
+                PlayerCommand::Seek(target_ms) => Some(target_ms),
                 PlayerCommand::Stop => return Ok(()),
+            };
+            if let Some(target_ms) = restart_at {
+                cursor = seek(
+                    file,
+                    &packet_starts,
+                    pre_skip,
+                    target_ms,
+                    &mut tempo,
+                    &mut decoder,
+                    &mut pcm,
+                    &mut pending,
+                )?;
+                flushed = false;
             }
             let _ = events.send(update(cursor.source_sample, playing));
         }
@@ -314,24 +376,24 @@ fn play_file(
             continue;
         }
 
-        // One tick of stretched sound, decoding a packet at a time, so a
-        // new speed applies from the next packet on. After `flush` the
-        // stretcher is never pulled again until a seek resets it: it would
-        // replay the input it still holds.
+        // One tick of sound, decoding a packet at a time, so a new speed
+        // applies from the next packet on. After `flush` the stretcher is
+        // never pulled again until a seek resets it: it would replay the
+        // input it still holds.
         while pending.len() < TICK && !flushed {
-            pending.extend(stretch.pull(TICK - pending.len()));
-            if pending.len() == TICK {
+            tempo.pull(TICK - pending.len(), &mut pending);
+            if pending.len() >= TICK {
                 break;
             }
             if let Some(packet) = file.packets.get(cursor.next_packet) {
                 let count = decoder
                     .decode_float(packet, &mut pcm, false)
                     .map_err(decoding)?;
-                stretch.push(&pcm[..count]);
+                tempo.push(&pcm[..count], &mut pending);
                 cursor.next_packet += 1;
             } else {
                 flushed = true;
-                pending.extend(stretch.flush());
+                tempo.flush(&mut pending);
             }
         }
 
@@ -345,7 +407,7 @@ fn play_file(
         let take = pending.len().min(TICK);
         output.write(&pending[..take]);
         pending.drain(..take);
-        cursor.source_sample += (take as f32 * speed) as usize;
+        cursor.source_sample += (take as f32 * tempo.speed) as usize;
         if last_update.elapsed() >= Duration::from_millis(50) {
             let _ = events.send(update(cursor.source_sample, true));
             last_update = Instant::now();
@@ -509,25 +571,28 @@ mod tests {
     }
 
     /// Pops the call's side of `consumer` the way the engine does, one tick
-    /// every 10 ms, until playback ends; returns the frames heard and how
-    /// long it took.
+    /// every 10 ms, until playback ends; returns the left side of what was
+    /// heard and how long it took.
     fn hear_in_real_time(
         mut consumer: rtrb::Consumer<f32>,
         events: &mut mpsc::UnboundedReceiver<MediaEvent>,
-    ) -> (usize, Duration) {
+    ) -> (Vec<f32>, Duration) {
         let started = Instant::now();
-        let mut samples = 0;
+        let mut heard = Vec::new();
         while started.elapsed() < Duration::from_secs(10) {
             std::thread::sleep(Duration::from_millis(10));
-            for _ in 0..2 * TICK {
-                if consumer.pop().is_err() {
+            for _ in 0..TICK {
+                let (Ok(left), Ok(_right)) = (consumer.pop(), consumer.pop()) else {
                     break;
-                }
-                samples += 1;
+                };
+                heard.push(left);
             }
             while let Ok(event) = events.try_recv() {
                 if matches!(event, MediaEvent::PlaybackEnded { .. }) {
-                    return (samples / 2, started.elapsed());
+                    while let (Ok(left), Ok(_right)) = (consumer.pop(), consumer.pop()) {
+                        heard.push(left);
+                    }
+                    return (heard, started.elapsed());
                 }
                 assert!(
                     !matches!(event, MediaEvent::PlaybackFailed { .. }),
@@ -554,8 +619,8 @@ mod tests {
         }
     }
 
-    fn play_into_a_call(seconds: f32, commands_first: Vec<PlayerCommand>) -> (usize, Duration) {
-        let file = OpusFile::read(&generate_sine_ogg(seconds)).unwrap();
+    fn play_into_a_call(ogg: Vec<u8>, commands_first: Vec<PlayerCommand>) -> (Vec<f32>, Duration) {
+        let file = OpusFile::read(&ogg).unwrap();
         let (attached, consumer) = std::sync::mpsc::channel();
         let call: Arc<dyn CallMix> = Arc::new(FakeCall(std::sync::Mutex::new(attached)));
         let (events_tx, mut events) = mpsc::unbounded_channel();
@@ -584,8 +649,8 @@ mod tests {
 
     #[test]
     fn playing_into_a_call_drops_nothing_and_keeps_time() {
-        let (frames, took) = play_into_a_call(1.0, Vec::new());
-        let heard_ms = frames / 48;
+        let (heard, took) = play_into_a_call(generate_sine_ogg(1.0), Vec::new());
+        let heard_ms = heard.len() / 48;
         assert!(
             (950..=1100).contains(&heard_ms),
             "heard {heard_ms} ms of a 1 s message"
@@ -595,11 +660,36 @@ mod tests {
 
     #[test]
     fn a_new_speed_applies_to_what_follows() {
-        let (frames, _) = play_into_a_call(2.0, vec![PlayerCommand::SetSpeed(2.0)]);
-        let heard_ms = frames / 48;
+        let (heard, _) =
+            play_into_a_call(generate_sine_ogg(2.0), vec![PlayerCommand::SetSpeed(2.0)]);
+        let heard_ms = heard.len() / 48;
         assert!(
             (900..=1200).contains(&heard_ms),
             "heard {heard_ms} ms of a 2 s message at 2×"
         );
+    }
+
+    /// At 1× the listener hears the decoder's output as it is: the time
+    /// stretcher re-splices sound even at 1×, which is heard as warble.
+    #[test]
+    fn one_speed_plays_the_sound_as_recorded() {
+        let ogg = generate_sine_ogg(1.0);
+        let file = OpusFile::read(&ogg).unwrap();
+        let mut decoder = opus::Decoder::new(SAMPLE_RATE, opus::Channels::Mono).unwrap();
+        let mut pcm = vec![0.0f32; 5760];
+        let mut decoded = Vec::new();
+        for packet in &file.packets {
+            let count = decoder.decode_float(packet, &mut pcm, false).unwrap();
+            decoded.extend_from_slice(&pcm[..count]);
+        }
+        let decoded = &decoded[usize::from(file.info.pre_skip)..];
+
+        let (heard, _) = play_into_a_call(ogg, Vec::new());
+        let compared = 46_000;
+        assert!(heard.len() >= compared, "heard {} samples", heard.len());
+        let differing = (0..compared)
+            .filter(|&i| (heard[i] - decoded[i]).abs() > 1e-6)
+            .count();
+        assert_eq!(differing, 0, "{differing} of {compared} samples differ");
     }
 }
