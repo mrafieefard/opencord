@@ -120,8 +120,12 @@ class StagedFile {
     this.bytes,
     this.preview,
     this.problem,
+    this.upload,
+    this.uploadSent = 0,
+    this.uploadError,
   });
 
+  /// Unique in the app: the core knows the file's upload by it.
   final String id;
   final String name;
   final int size;
@@ -129,6 +133,12 @@ class StagedFile {
   final Uint8List? bytes;
   final Uint8List? preview;
   final StageProblem? problem;
+
+  /// How far its upload, started when it was attached, got; null until it
+  /// starts (never, while it has a problem).
+  final UploadPhase? upload;
+  final int uploadSent;
+  final String? uploadError;
 
   StagedFile copyWith({
     String? id,
@@ -138,6 +148,9 @@ class StagedFile {
     Uint8List? Function()? bytes,
     Uint8List? Function()? preview,
     StageProblem? Function()? problem,
+    UploadPhase? Function()? upload,
+    int? uploadSent,
+    String? Function()? uploadError,
   }) => StagedFile(
     id: id ?? this.id,
     name: name ?? this.name,
@@ -146,5 +159,8 @@ class StagedFile {
     bytes: bytes == null ? this.bytes : bytes(),
     preview: preview == null ? this.preview : preview(),
     problem: problem == null ? this.problem : problem(),
+    upload: upload == null ? this.upload : upload(),
+    uploadSent: uploadSent ?? this.uploadSent,
+    uploadError: uploadError == null ? this.uploadError : uploadError(),
   );
 }

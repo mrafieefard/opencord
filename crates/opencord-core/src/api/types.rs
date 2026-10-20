@@ -590,6 +590,15 @@ pub enum CoreEventPayload {
     UploadSettingsUpdate(UploadSettings),
     /// To the owner only.
     StorageUpdate(StorageInfo),
+    /// A file staged with `stage_upload`, at most 10 times a second, and
+    /// once at each phase: `Done` when it is ready to send.
+    StagedUploadProgress {
+        channel_id: i64,
+        staged_id: String,
+        sent_bytes: u64,
+        total_bytes: u64,
+        phase: UploadPhase,
+    },
     /// A file of a message being sent with `send_message_with_files`, at
     /// most 10 times a second, and once at each phase.
     UploadProgress {
@@ -2034,6 +2043,9 @@ pub struct OutgoingFile {
     pub bytes: Option<Vec<u8>>,
     /// Empty uses the path's file name.
     pub filename: String,
+    /// The id it was staged with (`stage_upload`): sending takes that
+    /// upload over, and uploads the file again only if it failed.
+    pub staged_id: Option<String>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

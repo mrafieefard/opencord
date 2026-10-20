@@ -458,6 +458,25 @@ impl Client {
         .await
     }
 
+    /// Uploads a file the composer staged, as soon as it is attached.
+    /// `StagedUploadProgress` events follow it; returns when it is ready,
+    /// failed, or was discarded.
+    pub async fn stage_upload(
+        &self,
+        key: &str,
+        channel_id: i64,
+        staged_id: String,
+        file: OutgoingFile,
+    ) -> Result<(), CoreError> {
+        crate::attachments::staged::stage(self, key, channel_id, staged_id, file).await
+    }
+
+    /// The staged file was removed: its upload stops, or is cancelled on
+    /// the server once finished.
+    pub async fn discard_staged_upload(&self, key: &str, staged_id: &str) {
+        crate::attachments::staged::discard(self, key, staged_id).await;
+    }
+
     /// Records a voice message from the microphone, or from the call's
     /// audio engine if in a voice call.
     pub fn voice_record_start(&self, max_seconds: u32) -> Result<(), CoreError> {
@@ -503,6 +522,7 @@ impl Client {
             path: None,
             bytes: Some(ogg_bytes),
             filename: "voice-message.ogg".to_owned(),
+            staged_id: None,
         };
         let message = upload::send(
             self,

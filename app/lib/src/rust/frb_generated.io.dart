@@ -170,6 +170,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  OutgoingFile dco_decode_box_autoadd_outgoing_file(dynamic raw);
+
+  @protected
   PermissionOverwrite dco_decode_box_autoadd_permission_overwrite(dynamic raw);
 
   @protected
@@ -1121,6 +1124,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   NetworkSettingsChanges sse_decode_box_autoadd_network_settings_changes(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  OutgoingFile sse_decode_box_autoadd_outgoing_file(
     SseDeserializer deserializer,
   );
 
@@ -2287,6 +2295,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_box_autoadd_network_settings_changes(
     NetworkSettingsChanges self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_box_autoadd_outgoing_file(
+    OutgoingFile self,
     SseSerializer serializer,
   );
 

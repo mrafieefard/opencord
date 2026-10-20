@@ -81,6 +81,54 @@ void main() {
     await app.dispose(tester);
   });
 
+  testWidgets('an attached file uploads at once and sends without uploading '
+      'again', (tester) async {
+    final app = await MockApp.pump(tester);
+    final channel = await _open(tester, app, 'general');
+    final composer = app.read(composerProvider(channel).notifier);
+    final before = app.repository.uploadsStarted;
+
+    composer.stageFile(
+      const StagedFile(id: 'early-1', name: 'notes.txt', size: 4096),
+    );
+    await tester.pump();
+    expect(find.text('Preparing…'), findsOneWidget);
+    await _pumpFor(tester, const Duration(milliseconds: 700));
+    expect(find.text('Uploaded · 4.0 KB'), findsOneWidget);
+    expect(app.repository.uploadsStarted, before + 1);
+
+    await tester.tap(find.byTooltip('Send'));
+    await _pumpFor(tester, const Duration(milliseconds: 300));
+    final messages = app.read(channelMessagesProvider(channel)).messages;
+    expect(
+      messages.any((m) => m.attachments.any((a) => a.filename == 'notes.txt')),
+      isTrue,
+    );
+    expect(app.repository.uploadsStarted, before + 1, reason: 'taken over');
+    await app.dispose(tester);
+  });
+
+  testWidgets('removing an attached file drops its upload; a file with a '
+      'problem never uploads', (tester) async {
+    final app = await MockApp.pump(tester);
+    final channel = await _open(tester, app, 'general');
+    final composer = app.read(composerProvider(channel).notifier);
+    final before = app.repository.uploadsStarted;
+
+    composer
+      ..stageFile(const StagedFile(id: 'drop-1', name: 'draft.txt', size: 100))
+      ..stageFile(
+        const StagedFile(id: 'big-2', name: 'giant.zip', size: 60 << 20),
+      );
+    await _pumpFor(tester, const Duration(milliseconds: 700));
+    expect(app.repository.uploadsStarted, before + 1, reason: 'not giant.zip');
+
+    await tester.tap(find.byTooltip('Remove draft.txt'));
+    await _pumpFor(tester, const Duration(milliseconds: 100));
+    expect(app.repository.discardedStaged, ['drop-1']);
+    await app.dispose(tester);
+  });
+
   testWidgets('pasting an image stages it', (tester) async {
     ClipboardSpy(tester);
     final app = await MockApp.pump(tester);

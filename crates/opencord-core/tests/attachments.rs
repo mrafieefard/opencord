@@ -122,6 +122,7 @@ fn bytes_file(name: &str, bytes: Vec<u8>) -> OutgoingFile {
         path: None,
         bytes: Some(bytes),
         filename: name.to_owned(),
+        staged_id: None,
     }
 }
 
@@ -241,6 +242,7 @@ async fn send_message_with_files_uploads_and_sends() {
             path: Some(path.to_string_lossy().into_owned()),
             bytes: None,
             filename: String::new(),
+            staged_id: None,
         },
         bytes_file("small.bin", small.clone()),
     ];
@@ -555,6 +557,7 @@ async fn a_photos_location_never_leaves_the_device() {
                 path: Some(path.to_string_lossy().into_owned()),
                 bytes: None,
                 filename: String::new(),
+                staged_id: None,
             }],
         )
         .await
@@ -591,6 +594,7 @@ async fn range_reader_reads_any_span() {
                 path: Some(path.to_string_lossy().into_owned()),
                 bytes: None,
                 filename: "test_file.bin".to_owned(),
+                staged_id: None,
             }],
         )
         .await
@@ -668,6 +672,7 @@ async fn video_uploads_get_hints_and_a_poster() {
                 path: Some(fixture_path.to_string_lossy().into_owned()),
                 bytes: None,
                 filename: "video.mp4".to_owned(),
+                staged_id: None,
             }],
         )
         .await
@@ -702,6 +707,7 @@ async fn an_mp4_without_a_picture_is_audio() {
         path: Some(fixture.to_string_lossy().into_owned()),
         bytes: None,
         filename: "song.m4a".to_owned(),
+        staged_id: None,
     };
     let by_bytes = bytes_file("song.m4a", std::fs::read(&fixture).unwrap());
 
@@ -730,4 +736,153 @@ async fn an_mp4_without_a_picture_is_audio() {
             assert!((950..=1100).contains(&duration), "{duration} ms");
         }
     }
+}
+
+/// A file staged in the composer uploads at once; sending takes the
+/// finished upload over without reading the file again.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_staged_file_is_sent_without_uploading_again() {
+    let server = TestServer::start().await;
+    let (mut owner, ready) = TestClient::owner(&server).await;
+    let key = server.address();
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("report.bin");
+    let contents = data(3 * MIB);
+    std::fs::write(&path, &contents).unwrap();
+    let file = OutgoingFile {
+        path: Some(path.to_string_lossy().into_owned()),
+        bytes: None,
+        filename: String::new(),
+        staged_id: Some("s1".to_owned()),
+    };
+
+    owner
+        .client
+        .stage_upload(&key, general(&ready), "s1".to_owned(), file.clone())
+        .await
+        .unwrap();
+    let done = owner
+        .wait_for(|payload| match payload {
+            CoreEventPayload::StagedUploadProgress {
+                staged_id,
+                phase: UploadPhase::Done,
+                sent_bytes,
+                ..
+            } if staged_id == "s1" => Some(*sent_bytes),
+            _ => None,
+        })
+        .await;
+    assert_eq!(done, contents.len() as u64);
+
+    // Gone from the disk: only the staged upload can be sent now.
+    std::fs::remove_file(&path).unwrap();
+    let message = owner
+        .client
+        .send_message_with_files(
+            &key,
+            general(&ready),
+            String::new(),
+            "n1".to_owned(),
+            vec![file],
+        )
+        .await
+        .unwrap();
+    let saved = download(&owner, &key, message.attachments[0].id).await;
+    assert_eq!(sha256(&saved), sha256(&contents));
+}
+
+/// Sent while still uploading, the message waits for the staged upload
+/// and goes out with it.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_message_sent_mid_upload_takes_the_upload_over() {
+    let server = TestServer::start().await;
+    let (mut owner, ready) = TestClient::owner(&server).await;
+    let key = server.address();
+    let contents = data(17 * MIB);
+    let file = OutgoingFile {
+        path: None,
+        bytes: Some(contents.clone()),
+        filename: "big.bin".to_owned(),
+        staged_id: Some("s2".to_owned()),
+    };
+    let staging = {
+        let client = owner.client.clone();
+        let (key, file) = (key.clone(), file.clone());
+        let channel = general(&ready);
+        tokio::spawn(async move {
+            client
+                .stage_upload(&key, channel, "s2".to_owned(), file)
+                .await
+        })
+    };
+    owner
+        .wait_for(|payload| match payload {
+            CoreEventPayload::StagedUploadProgress {
+                staged_id,
+                phase: UploadPhase::Uploading,
+                ..
+            } if staged_id == "s2" => Some(()),
+            _ => None,
+        })
+        .await;
+
+    // The bytes sent with the message are not the staged ones: had it
+    // uploaded them again, the saved copy would differ.
+    let other = OutgoingFile {
+        bytes: Some(data(1024)),
+        ..file
+    };
+    let message = owner
+        .client
+        .send_message_with_files(
+            &key,
+            general(&ready),
+            String::new(),
+            "n2".to_owned(),
+            vec![other],
+        )
+        .await
+        .unwrap();
+    staging.await.unwrap().unwrap();
+    let saved = download(&owner, &key, message.attachments[0].id).await;
+    assert_eq!(sha256(&saved), sha256(&contents));
+}
+
+/// A staged file removed before sending is gone: sending it uploads it
+/// again, from the file.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_discarded_staged_file_is_not_reused() {
+    let server = TestServer::start().await;
+    let (owner, ready) = TestClient::owner(&server).await;
+    let key = server.address();
+    let file = OutgoingFile {
+        staged_id: Some("s3".to_owned()),
+        ..bytes_file("old.bin", data(2048))
+    };
+    owner
+        .client
+        .stage_upload(&key, general(&ready), "s3".to_owned(), file.clone())
+        .await
+        .unwrap();
+    owner.client.discard_staged_upload(&key, "s3").await;
+
+    let fresh = data(4096);
+    let message = owner
+        .client
+        .send_message_with_files(
+            &key,
+            general(&ready),
+            String::new(),
+            "n3".to_owned(),
+            vec![OutgoingFile {
+                bytes: Some(fresh.clone()),
+                ..file
+            }],
+        )
+        .await
+        .unwrap();
+    assert_eq!(
+        download(&owner, &key, message.attachments[0].id).await,
+        fresh
+    );
 }

@@ -499,6 +499,18 @@ abstract interface class CoreApi {
     required List<core.OutgoingFile> files,
   });
 
+  Future<void> stageUpload({
+    required String serverKey,
+    required int channelId,
+    required String stagedId,
+    required core.OutgoingFile file,
+  });
+
+  Future<void> discardStagedUpload({
+    required String serverKey,
+    required String stagedId,
+  });
+
   void cancelSend({required String serverKey, required String nonce});
 
   Future<void> downloadAttachment({
@@ -1485,6 +1497,28 @@ class FrbCoreApi implements CoreApi {
     content: content,
     nonce: nonce,
     files: files,
+  );
+
+  @override
+  Future<void> stageUpload({
+    required String serverKey,
+    required int channelId,
+    required String stagedId,
+    required core.OutgoingFile file,
+  }) => frb_attachments.stageUpload(
+    serverKey: serverKey,
+    channelId: channelId,
+    stagedId: stagedId,
+    file: file,
+  );
+
+  @override
+  Future<void> discardStagedUpload({
+    required String serverKey,
+    required String stagedId,
+  }) => frb_attachments.discardStagedUpload(
+    serverKey: serverKey,
+    stagedId: stagedId,
   );
 
   @override

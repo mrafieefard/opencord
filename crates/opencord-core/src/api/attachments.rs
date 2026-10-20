@@ -100,6 +100,35 @@ pub async fn send_message_with_files(
     .await
 }
 
+/// Starts uploading a file as soon as the composer stages it, as
+/// `staged_id` (unique per server). `StagedUploadProgress` events follow;
+/// it returns when the file is ready to send, failed, or was discarded.
+/// Sending a message with the file (its `staged_id` set) takes the upload
+/// over.
+pub async fn stage_upload(
+    server_key: String,
+    channel_id: i64,
+    staged_id: String,
+    file: OutgoingFile,
+) -> Result<(), CoreError> {
+    on_runtime(move |client| async move {
+        client
+            .stage_upload(&server_key, channel_id, staged_id, file)
+            .await
+    })
+    .await
+}
+
+/// The staged file was removed: its upload stops, or is cancelled on the
+/// server once finished.
+pub async fn discard_staged_upload(server_key: String, staged_id: String) -> Result<(), CoreError> {
+    on_runtime(move |client| async move {
+        client.discard_staged_upload(&server_key, &staged_id).await;
+        Ok(())
+    })
+    .await
+}
+
 /// Stops a send that is still uploading; it returns `Cancelled`.
 #[frb(sync)]
 pub fn cancel_send(server_key: String, nonce: String) -> Result<(), CoreError> {

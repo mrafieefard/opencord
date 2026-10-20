@@ -88,6 +88,7 @@ async fn run(address: &str, claim: &str, size: u64, folder: &Path) -> Result<(),
                 path: Some(original.to_string_lossy().into_owned()),
                 bytes: None,
                 filename: "load.bin".to_owned(),
+                staged_id: None,
             }],
         )
         .await?;

@@ -1123,6 +1123,16 @@ sealed class CoreEventPayload with _$CoreEventPayload {
   const factory CoreEventPayload.storageUpdate(StorageInfo field0) =
       CoreEventPayload_StorageUpdate;
 
+  /// A file staged with `stage_upload`, at most 10 times a second, and
+  /// once at each phase: `Done` when it is ready to send.
+  const factory CoreEventPayload.stagedUploadProgress({
+    required PlatformInt64 channelId,
+    required String stagedId,
+    required BigInt sentBytes,
+    required BigInt totalBytes,
+    required UploadPhase phase,
+  }) = CoreEventPayload_StagedUploadProgress;
+
   /// A file of a message being sent with `send_message_with_files`, at
   /// most 10 times a second, and once at each phase.
   const factory CoreEventPayload.uploadProgress({
@@ -2974,10 +2984,20 @@ class OutgoingFile {
   /// Empty uses the path's file name.
   final String filename;
 
-  const OutgoingFile({this.path, this.bytes, required this.filename});
+  /// The id it was staged with (`stage_upload`): sending takes that
+  /// upload over, and uploads the file again only if it failed.
+  final String? stagedId;
+
+  const OutgoingFile({
+    this.path,
+    this.bytes,
+    required this.filename,
+    this.stagedId,
+  });
 
   @override
-  int get hashCode => path.hashCode ^ bytes.hashCode ^ filename.hashCode;
+  int get hashCode =>
+      path.hashCode ^ bytes.hashCode ^ filename.hashCode ^ stagedId.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -2986,7 +3006,8 @@ class OutgoingFile {
           runtimeType == other.runtimeType &&
           path == other.path &&
           bytes == other.bytes &&
-          filename == other.filename;
+          filename == other.filename &&
+          stagedId == other.stagedId;
 }
 
 enum OverwriteTargetKind { role, member }

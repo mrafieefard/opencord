@@ -1,6 +1,8 @@
 import 'package:fake_async/fake_async.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:opencord/core/mock/mock_repository.dart';
+import 'package:opencord/core/repository/repository.dart';
 import 'package:opencord/core/settings/key_value_store.dart';
 import 'package:opencord/features/chat/composer_state.dart';
 
@@ -15,7 +17,12 @@ void main() {
 
   ProviderContainer fresh() {
     final next = ProviderContainer(
-      overrides: [keyValueStoreProvider.overrideWithValue(store)],
+      overrides: [
+        keyValueStoreProvider.overrideWithValue(store),
+        repositoryProvider.overrideWithValue(
+          MockRepository(simulateLife: false),
+        ),
+      ],
     );
     addTearDown(next.dispose);
     return next;

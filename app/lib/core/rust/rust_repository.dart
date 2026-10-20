@@ -651,6 +651,25 @@ class RustRepository implements OpencordRepository {
             _ => null,
           },
         ),
+      core.CoreEventPayload_StagedUploadProgress(
+        :final channelId,
+        :final stagedId,
+        :final sentBytes,
+        :final totalBytes,
+        :final phase,
+      ) =>
+        StagedUploadEvent(
+          server,
+          channelId: channelId.toInt(),
+          stagedId: stagedId,
+          sentBytes: sentBytes.toInt(),
+          totalBytes: totalBytes.toInt(),
+          phase: uploadPhaseFrom(phase),
+          error: switch (phase) {
+            core.UploadPhase_Failed(:final message) => message,
+            _ => null,
+          },
+        ),
       core.CoreEventPayload_DownloadProgress(
         :final attachmentId,
         :final receivedBytes,
@@ -2189,10 +2208,7 @@ class RustRepository implements OpencordRepository {
         channelId: channelId,
         content: content,
         nonce: nonce,
-        files: [
-          for (final f in files)
-            core.OutgoingFile(filename: f.name, path: f.path, bytes: f.bytes),
-        ],
+        files: [for (final f in files) _outgoing(f)],
       ),
     ),
   );
@@ -2200,6 +2216,31 @@ class RustRepository implements OpencordRepository {
   @override
   void cancelSend(String serverKey, String nonce) =>
       _now(() => _core.cancelSend(serverKey: serverKey, nonce: nonce));
+
+  /// A staged file as the core sends it: by its staged upload once that
+  /// started.
+  core.OutgoingFile _outgoing(StagedFile file) => core.OutgoingFile(
+    filename: file.name,
+    path: file.path,
+    bytes: file.bytes,
+    stagedId: file.upload == null ? null : file.id,
+  );
+
+  @override
+  Future<void> stageUpload(String serverKey, int channelId, StagedFile file) =>
+      _call(
+        () => _core.stageUpload(
+          serverKey: serverKey,
+          channelId: channelId,
+          stagedId: file.id,
+          file: _outgoing(file.copyWith(upload: () => UploadPhase.preparing)),
+        ),
+      );
+
+  @override
+  Future<void> discardStagedUpload(String serverKey, String stagedId) => _call(
+    () => _core.discardStagedUpload(serverKey: serverKey, stagedId: stagedId),
+  );
 
   @override
   Future<Uint8List> attachmentBytes(

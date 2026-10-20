@@ -3957,6 +3957,22 @@ class MockRepository implements OpencordRepository {
           );
         }
         final file = files[i];
+        // Like the core: a finished staged upload is taken over.
+        if (_stagedReady.remove(file.id)) {
+          _emit(
+            UploadProgressEvent(
+              serverKey,
+              channelId: channelId,
+              nonce: nonce,
+              fileIndex: i,
+              sentBytes: file.size,
+              totalBytes: file.size,
+              phase: UploadPhase.done,
+            ),
+          );
+          continue;
+        }
+        uploadsStarted++;
         _emit(
           UploadProgressEvent(
             serverKey,
@@ -4023,6 +4039,51 @@ class MockRepository implements OpencordRepository {
     } finally {
       _activeSends.remove(nonce);
     }
+  }
+
+  /// Uploads begun, staged or at send: a test can tell a staged file sent
+  /// without uploading it again.
+  int uploadsStarted = 0;
+
+  /// Staged files whose upload finished, not yet sent or removed.
+  final _stagedReady = <String>{};
+
+  /// Staged files removed, for tests.
+  final discardedStaged = <String>[];
+
+  @override
+  Future<void> stageUpload(
+    String serverKey,
+    int channelId,
+    StagedFile file,
+  ) async {
+    final server = _server(serverKey);
+    _require(server, Permissions.attachFiles, channelId);
+    uploadsStarted++;
+    void progress(UploadPhase phase, int sent) => _emit(
+      StagedUploadEvent(
+        serverKey,
+        channelId: channelId,
+        stagedId: file.id,
+        sentBytes: sent,
+        totalBytes: file.size,
+        phase: phase,
+      ),
+    );
+    progress(UploadPhase.preparing, 0);
+    await _latency(40);
+    if (discardedStaged.contains(file.id)) return;
+    progress(UploadPhase.uploading, file.size ~/ 2);
+    await _latency(40);
+    if (discardedStaged.contains(file.id)) return;
+    _stagedReady.add(file.id);
+    progress(UploadPhase.done, file.size);
+  }
+
+  @override
+  Future<void> discardStagedUpload(String serverKey, String stagedId) async {
+    discardedStaged.add(stagedId);
+    _stagedReady.remove(stagedId);
   }
 
   @override

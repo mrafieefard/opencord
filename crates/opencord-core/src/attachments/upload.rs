@@ -29,7 +29,7 @@ use crate::convert;
 /// Files going up at once, per message.
 const AT_ONCE: usize = 2;
 /// Uploading progress goes out at most this often, per file.
-const PROGRESS_EVERY: Duration = Duration::from_millis(100);
+pub(super) const PROGRESS_EVERY: Duration = Duration::from_millis(100);
 const PIECE_TIMEOUT: Duration = Duration::from_secs(120);
 const STATUS_TIMEOUT: Duration = Duration::from_secs(30);
 /// How often a file being processed is asked about, in case its event was
@@ -52,6 +52,10 @@ pub(crate) struct Uploads {
     /// Test hook: this many answers to pieces are dropped, as if the network
     /// lost them after the server took the piece.
     lose_answers: Mutex<u32>,
+    /// Files the composer staged, uploading or ready, by server key and
+    /// staged id. An entry leaves when a message takes it over, when it
+    /// fails, or when the file is removed.
+    pub(super) staged: Mutex<HashMap<(String, String), super::staged::Staged>>,
 }
 
 impl Uploads {
@@ -244,7 +248,8 @@ async fn upload_all(
     let mut done: Vec<(usize, proto::Attachment)> =
         futures_util::stream::iter(files.into_iter().enumerate())
             .map(|(index, file)| async move {
-                upload_one(index, file, kind, progress, created)
+                let report = FileReport { progress, index };
+                upload_or_take(file, kind, &report, created)
                     .await
                     .map(|attachment| (index, attachment))
                     .map_err(|error| Stop::Failed { index, error })
@@ -256,14 +261,79 @@ async fn upload_all(
     Ok(done.into_iter().map(|(_, attachment)| attachment).collect())
 }
 
-async fn upload_one(
+/// Where one file's upload says how far it got.
+pub(super) trait Report: Sync {
+    fn client(&self) -> &Client;
+    fn key(&self) -> &str;
+    fn channel_id(&self) -> i64;
+    fn sized(&self, total: u64);
+    fn sent(&self, sent: u64);
+    fn phase(&self, phase: UploadPhase);
+}
+
+/// One file of a message being sent.
+struct FileReport<'a> {
+    progress: &'a Progress<'a>,
     index: usize,
+}
+
+impl Report for FileReport<'_> {
+    fn client(&self) -> &Client {
+        self.progress.client
+    }
+
+    fn key(&self) -> &str {
+        self.progress.key
+    }
+
+    fn channel_id(&self) -> i64 {
+        self.progress.channel_id
+    }
+
+    fn sized(&self, total: u64) {
+        self.progress.sized(self.index, total);
+    }
+
+    fn sent(&self, sent: u64) {
+        self.progress.sent(self.index, sent);
+    }
+
+    fn phase(&self, phase: UploadPhase) {
+        self.progress.phase(self.index, phase);
+    }
+}
+
+/// The file's staged upload when there is one to take over (going, or
+/// done); otherwise it uploads now.
+async fn upload_or_take(
     file: OutgoingFile,
     kind: proto::AttachmentKind,
-    progress: &Progress<'_>,
+    report: &impl Report,
     created: &Mutex<Vec<i64>>,
 ) -> Result<proto::Attachment, CoreError> {
-    progress.phase(index, UploadPhase::Preparing);
+    if let Some(staged_id) = &file.staged_id
+        && let Some(staged) = report
+            .client()
+            .uploads()
+            .take_staged(report.key(), staged_id)
+        && let Some(attachment) = staged.finish(report).await
+    {
+        created
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .push(attachment.id);
+        return Ok(attachment);
+    }
+    upload_one(file, kind, report, created).await
+}
+
+pub(super) async fn upload_one(
+    file: OutgoingFile,
+    kind: proto::AttachmentKind,
+    report: &impl Report,
+    created: &Mutex<Vec<i64>>,
+) -> Result<proto::Attachment, CoreError> {
+    report.phase(UploadPhase::Preparing);
     // What the sender's probe finds goes with the upload: a video's size,
     // length and poster, a sound's length. The server makes none of them.
     let mut hints = (None, None, None);
@@ -310,10 +380,10 @@ async fn upload_one(
     }
 
     let mut source = Source::prepare(file).await?;
-    progress.sized(index, source.size);
+    report.sized(source.size);
     let (width, height, duration_ms) = hints;
     let request = Request::CreateUpload(proto::CreateUpload {
-        channel_id: progress.channel_id,
+        channel_id: report.channel_id(),
         filename: source.filename.clone(),
         size_bytes: source.size,
         kind: kind as i32,
@@ -321,7 +391,7 @@ async fn upload_one(
         height,
         duration_ms,
     });
-    let upload = match progress.client.request(progress.key, request).await? {
+    let upload = match report.client().request(report.key(), request).await? {
         Response::Upload(upload) => upload,
         other => return Err(unexpected(&other)),
     };
@@ -329,21 +399,21 @@ async fn upload_one(
         .lock()
         .unwrap_or_else(PoisonError::into_inner)
         .push(upload.upload_id);
-    progress.phase(index, UploadPhase::Uploading);
+    report.phase(UploadPhase::Uploading);
     send_pieces(
-        progress.client,
-        progress.key,
+        report.client(),
+        report.key(),
         &mut source,
         &upload,
         |sent| {
-            progress.sent(index, sent);
+            report.sent(sent);
         },
     )
     .await?;
-    progress.phase(index, UploadPhase::Processing);
+    report.phase(UploadPhase::Processing);
     finish(
-        progress.client,
-        progress.key,
+        report.client(),
+        report.key(),
         upload.upload_id,
         poster_bytes,
     )
@@ -368,6 +438,7 @@ impl Source {
             path,
             bytes,
             filename,
+            ..
         } = file;
         let named = |fallback: Option<&Path>| {
             let given = filename.trim();
@@ -613,7 +684,7 @@ where
 }
 
 /// Uploads that won't be sent; the server would drop them within a day.
-async fn cancel_uploads(client: &Client, key: &str, upload_ids: &[i64]) {
+pub(super) async fn cancel_uploads(client: &Client, key: &str, upload_ids: &[i64]) {
     for &upload_id in upload_ids {
         let request = Request::CancelUpload(proto::CancelUpload { upload_id });
         if let Err(error) = client.request(key, request).await {

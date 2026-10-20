@@ -97,6 +97,33 @@ Future<Message> sendMessageWithFiles({
   files: files,
 );
 
+/// Starts uploading a file as soon as the composer stages it, as
+/// `staged_id` (unique per server). `StagedUploadProgress` events follow;
+/// it returns when the file is ready to send, failed, or was discarded.
+/// Sending a message with the file (its `staged_id` set) takes the upload
+/// over.
+Future<void> stageUpload({
+  required String serverKey,
+  required PlatformInt64 channelId,
+  required String stagedId,
+  required OutgoingFile file,
+}) => RustLib.instance.api.crateApiAttachmentsStageUpload(
+  serverKey: serverKey,
+  channelId: channelId,
+  stagedId: stagedId,
+  file: file,
+);
+
+/// The staged file was removed: its upload stops, or is cancelled on the
+/// server once finished.
+Future<void> discardStagedUpload({
+  required String serverKey,
+  required String stagedId,
+}) => RustLib.instance.api.crateApiAttachmentsDiscardStagedUpload(
+  serverKey: serverKey,
+  stagedId: stagedId,
+);
+
 /// Stops a send that is still uploading; it returns `Cancelled`.
 void cancelSend({required String serverKey, required String nonce}) => RustLib
     .instance

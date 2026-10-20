@@ -900,6 +900,15 @@ abstract interface class OpencordRepository {
 
   void cancelSend(String serverKey, String nonce);
 
+  /// Uploads [file] as soon as it is staged in [channelId]'s composer;
+  /// [StagedUploadEvent]s follow. Completes when it is ready to send;
+  /// throws when it fails. Sending [file] takes its upload over.
+  Future<void> stageUpload(String serverKey, int channelId, StagedFile file);
+
+  /// The staged file was removed: its upload stops, or is cancelled on the
+  /// server once finished.
+  Future<void> discardStagedUpload(String serverKey, String stagedId);
+
   Future<Uint8List> attachmentBytes(
     String serverKey,
     int attachmentId, {

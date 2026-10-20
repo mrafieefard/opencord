@@ -8,6 +8,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:opencord/core/model/attachment.dart';
 import 'package:opencord/core/model/message.dart';
 import 'package:opencord/core/providers/providers.dart';
+import 'package:opencord/core/repository/repository.dart';
 import 'package:opencord/core/settings/key_value_store.dart';
 import 'package:opencord/core/upload_rules.dart';
 import 'package:opencord/features/chat/attachments/file_icon.dart';
@@ -81,6 +82,8 @@ class ComposerNotifier extends Notifier<ComposerState> {
   /// when `ref` can no longer be used.
   late KeyValueStore _store;
 
+  OpencordRepository get _repository => ref.read(repositoryProvider);
+
   Map<String, String> _drafts() {
     final saved = _store.read(draftsKey);
     if (saved == null) return {};
@@ -99,6 +102,15 @@ class ComposerNotifier extends Notifier<ComposerState> {
   @override
   ComposerState build() {
     _store = ref.watch(keyValueStoreProvider);
+    // This channel's staged files' uploads; nothing else routes these.
+    final uploads = ref.watch(repositoryProvider).events.listen((event) {
+      if (event is StagedUploadEvent &&
+          event.serverKey == channel.server &&
+          event.channelId == channel.channel) {
+        _applyUpload(event);
+      }
+    });
+    ref.onDispose(uploads.cancel);
     ref.onDispose(() {
       if (_save?.isActive ?? false) {
         _save!.cancel();
@@ -163,10 +175,12 @@ class ComposerNotifier extends Notifier<ComposerState> {
     state = ComposerState(draft: _savedText, staged: state.staged);
   }
 
-  /// Numbers staged files, so two with one name stay apart.
-  var _nextStaged = 0;
+  /// Staged files' ids, unique in the app: the core tells their uploads
+  /// apart by server and id, whatever the channel.
+  static var _nextStaged = 0;
 
-  String _stagedId() => 'staged-${_nextStaged++}';
+  String _stagedId() =>
+      'staged-${DateTime.now().microsecondsSinceEpoch}-${_nextStaged++}';
 
   /// Each file's problem, worked out again for the whole list: a removal
   /// can bring a file back under the server's attachment limit.
@@ -189,13 +203,69 @@ class ComposerNotifier extends Notifier<ComposerState> {
     ];
   }
 
-  void _setStaged(List<StagedFile> staged) => state = ComposerState(
+  void _setStaged(List<StagedFile> staged) {
+    _replaceStaged(_checked(staged));
+    _startUploads();
+  }
+
+  void _replaceStaged(List<StagedFile> staged) => state = ComposerState(
     draft: state.draft,
     replyTo: state.replyTo,
     editing: state.editing,
     stashedDraft: state.stashedDraft,
-    staged: _checked(staged),
+    staged: staged,
   );
+
+  /// Uploads each staged file that can be sent, as soon as it is staged
+  /// (or its problem goes), so that sending is at once.
+  void _startUploads() {
+    final starting = {
+      for (final file in state.staged)
+        if (file.problem == null && file.upload == null) file.id,
+    };
+    if (starting.isEmpty) return;
+    _replaceStaged([
+      for (final file in state.staged)
+        starting.contains(file.id)
+            ? file.copyWith(upload: () => UploadPhase.preparing)
+            : file,
+    ]);
+    for (final file in state.staged) {
+      if (starting.contains(file.id)) unawaited(_upload(file));
+    }
+  }
+
+  Future<void> _upload(StagedFile file) async {
+    try {
+      await _repository.stageUpload(channel.server, channel.channel, file);
+    } on RepoException catch (error) {
+      // Sending it uploads it again.
+      if (!ref.mounted) return;
+      _updateStaged(
+        file.id,
+        (file) => file.copyWith(
+          upload: () => UploadPhase.failed,
+          uploadError: () => error.message,
+        ),
+      );
+    }
+  }
+
+  void _applyUpload(StagedUploadEvent event) => _updateStaged(
+    event.stagedId,
+    (file) => file.copyWith(
+      upload: () => event.phase,
+      uploadSent: event.sentBytes,
+      uploadError: () => event.error,
+    ),
+  );
+
+  void _updateStaged(String id, StagedFile Function(StagedFile) change) {
+    if (!state.staged.any((file) => file.id == id)) return;
+    _replaceStaged([
+      for (final file in state.staged) file.id == id ? change(file) : file,
+    ]);
+  }
 
   /// Stages a file built by the caller; its id must differ from every
   /// staged file's.
@@ -248,11 +318,24 @@ class ComposerNotifier extends Notifier<ComposerState> {
     _setStaged([...state.staged, ...files]);
   }
 
-  void removeStaged(String id) => _setStaged([
-    for (final file in state.staged)
-      if (file.id != id) file,
-  ]);
+  /// Removes a staged file, and stops or drops its upload.
+  void removeStaged(String id) {
+    final removed = state.staged.where((file) => file.id == id).firstOrNull;
+    if (removed?.upload != null) {
+      unawaited(
+        _repository
+            .discardStagedUpload(channel.server, id)
+            .catchError((Object _) {}, test: (error) => error is RepoException),
+      );
+    }
+    _setStaged([
+      for (final file in state.staged)
+        if (file.id != id) file,
+    ]);
+  }
 
+  /// Empties the staged list once a message took the files: their uploads
+  /// are the message's now.
   void clearStaged() {
     state = ComposerState(
       draft: state.draft,

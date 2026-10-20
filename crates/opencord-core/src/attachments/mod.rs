@@ -6,5 +6,6 @@ pub mod clipboard;
 pub(crate) mod download;
 pub mod exif;
 pub mod range_reader;
+pub(crate) mod staged;
 pub(crate) mod transfer;
 pub(crate) mod upload;

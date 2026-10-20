@@ -479,6 +479,26 @@ final class UploadProgressEvent extends RepoEvent {
   final String? error;
 }
 
+/// How far the upload of a file staged in a channel's composer got.
+final class StagedUploadEvent extends RepoEvent {
+  const StagedUploadEvent(
+    super.serverKey, {
+    required this.channelId,
+    required this.stagedId,
+    required this.sentBytes,
+    required this.totalBytes,
+    required this.phase,
+    this.error,
+  });
+
+  final int channelId;
+  final String stagedId;
+  final int sentBytes;
+  final int totalBytes;
+  final UploadPhase phase;
+  final String? error;
+}
+
 /// Progress of a file being downloaded.
 final class DownloadProgressEvent extends RepoEvent {
   const DownloadProgressEvent(
