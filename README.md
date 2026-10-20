@@ -133,6 +133,10 @@ cargo run -p opencord-voicebot -- --server "opencord://chat.example.com:7710/inv
 
 Ports, hosting behind a home router and what to check when a call does not work are in `docs/voice.md`.
 
+### Files and storage
+
+Members attach files and voice messages; the server keeps each one encrypted with its own key, sealed by `secrets.key` in the data directory, and serves it only to members who can read the channel. Files stay on the server's disk (`[uploads] local_dir`) or go to an S3-compatible bucket the owner connects in the app. **Back up `secrets.key`:** without it no file can be read again. Limits, buckets, moving files and the key are in [docs/attachments.md](docs/attachments.md).
+
 ### Docker
 
 `deploy/` has a Dockerfile, a compose file and a systemd unit. In `deploy/`:

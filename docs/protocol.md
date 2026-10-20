@@ -79,7 +79,7 @@ Each `Request` gets exactly one `Response`, which is either an `error` or the pa
 
 | Request | Response | Who may send it |
 |---|---|---|
-| `SendMessage { channel_id, content, nonce }` | `message` | `SEND_MESSAGES` in a text channel |
+| `SendMessage { channel_id, content, nonce, attachment_ids }` | `message` | `SEND_MESSAGES` in a text channel; with files, see [Attachments](#attachments) |
 | `EditMessage { message_id, content }` | `message` | The author, if they can still view the channel |
 | `DeleteMessage { message_id }` | `ack` | The author, or `MANAGE_MESSAGES` in the channel |
 | `FetchMessages { channel_id, before?, limit }` | `messages`, newest first | `VIEW_CHANNEL` and `READ_HISTORY` in the channel |
@@ -90,7 +90,7 @@ Each `Request` gets exactly one `Response`, which is either an `error` or the pa
 | `ReorderChannels { positions }` | `ack` | Base `MANAGE_CHANNELS` |
 | `SetChannelOverwrite { channel_id, overwrite }` | `channel` | `MANAGE_ROLES` in the channel; can only allow or deny permissions the caller has there |
 | `DeleteChannelOverwrite { channel_id, target_kind, target_id }` | `channel` | `MANAGE_ROLES` in the channel |
-| `CreateRole { name, color, permissions, hoist, mentionable }` | `role` | Base `MANAGE_ROLES`; can only grant permissions the caller has |
+| `CreateRole { name, color, permissions, hoist, mentionable, max_upload_bytes? }` | `role` | Base `MANAGE_ROLES`; can only grant permissions the caller has; see [Attachments](#attachments) for the upload limit |
 | `UpdateRole { role_id, … }` | `role` | Base `MANAGE_ROLES`; the role ranks below the caller; can only grant permissions the caller has |
 | `DeleteRole { role_id }` | `ack` | Base `MANAGE_ROLES`; the role ranks below the caller; not @everyone |
 | `ReorderRoles { role_ids }` | `ack` | Base `MANAGE_ROLES`; every listed role ranks below the caller |
@@ -137,6 +137,16 @@ Each `Request` gets exactly one `Response`, which is either an `error` or the pa
 | `StopTunnel {}` | `network_info` | The owner |
 | `FetchTunnelLog {}` | `tunnel_log`, cloudflared's last 200 lines, the token hidden | The owner |
 | `InstallCloudflared {}` | `network_info`; `tunnel.installing` until done | The owner; Linux |
+| `CreateUpload { channel_id, filename, size_bytes, kind, width?, height?, duration_ms? }` | `upload` | See [Attachments](#attachments) |
+| `CancelUpload { upload_id }` | `ack` | The uploader, until it is sent |
+| `UpdateUploadSettings { blocked_extensions?, voice_message_max_seconds? }` | `upload_settings` | Base `MANAGE_SERVER` |
+| `GetStorage {}` | `storage` | The owner |
+| `AddStorage { name, s3 }` | `storage` | The owner; the bucket's test must pass |
+| `UpdateStorage { storage_id, name?, s3? }` | `storage` | The owner; new bucket settings must pass the test |
+| `TestStorage { storage_id \| s3 }` | `storage_test` | The owner; saves nothing but the storage's last error |
+| `ActivateStorage { storage_id }` | `storage` | The owner; a bucket must pass the test; not while files are moving |
+| `RemoveStorage { storage_id }` | `storage` | The owner; not the server's own storage, not the active one, and only once it holds no files and none wait to be deleted |
+| `StartStorageMove {}` / `StopStorageMove {}` | `storage` | The owner |
 
 Details:
 - **Messages:** the content is trimmed and must be 1–4 000 characters. Only text channels accept messages.
@@ -150,7 +160,7 @@ Details:
 - **Kicks and bans** end all of the target's sessions; those sessions cannot be resumed.
 - **Cleanup:** deleting a role removes it from every member and deletes its channel overwrites. Kicking or banning a member deletes their member overwrites.
 - **Deleted messages** disappear from history. They are kept in the database, marked as deleted.
-- **Rate limits** are per user: 50 requests per 10 s, plus 5 messages per 5 s per channel and 10 `UpdateVoiceState` or `RefreshVoiceServer` per 10 s. Over the limit, the response is `RATE_LIMITED` with `retry_after_ms`.
+- **Rate limits** are per user: 50 requests per 10 s, plus 5 messages per 5 s per channel, 10 `UpdateVoiceState` or `RefreshVoiceServer` per 10 s, and 20 `CreateUpload` per minute. Over the limit, the response is `RATE_LIMITED` with `retry_after_ms`.
 
 ## Events
 
@@ -169,6 +179,8 @@ Every event goes to every session of the server, with these exceptions:
 | `NetworkStatus` | The owner's sessions that sent `WatchNetwork { watch: true }`, until they stop or end |
 | `ServerAddressesUpdate` | Everyone, when the active domains, the primary or the public address change |
 | `ServerNotice` | Whom it concerns: the owner for the network, domains and certificates |
+| `UploadReady`, `UploadFailed` | The uploader's sessions |
+| `StorageUpdate` | The owner's sessions |
 
 Other events:
 - `RoleCreate`, `RoleUpdate`, `RoleDelete`, `ServerUpdate` and `PresenceUpdate` behave as their names say.
@@ -176,6 +188,7 @@ Other events:
 - `MemberUpdate` is sent when a member's roles, nickname or display name change.
 - Reordering sends one `ChannelUpdate` or `RoleUpdate` per moved item.
 - `SoundboardSoundCreate`, `SoundboardSoundUpdate` and `SoundboardSoundDelete` go to every session: everyone sees the soundboard.
+- `UploadSettingsUpdate` goes to every session when the blocked extensions or the voice message length change.
 
 When roles, member roles or overwrites change, the server recomputes visibility for every session and sends `ChannelCreate` or `ChannelDelete` accordingly. Clients recompute their own permissions from the roles, member and overwrite events with the shared resolver.
 
@@ -199,6 +212,12 @@ When roles, member roles or overwrites change, the server recomputes visibility 
 | `SOUND_COOLDOWN` | Wait before playing another sound, or too many are playing |
 | `SOUND_TOO_LONG`, `SOUND_INVALID` | An uploaded sound is over 5 seconds, or not a valid Ogg Opus file |
 | `SOUNDBOARD_FULL` | The server holds as many sounds as it allows |
+| `FILE_TOO_LARGE` | The file is over the sender's upload limit |
+| `FILE_TYPE_BLOCKED` | The file's extension is blocked on this server |
+| `UPLOAD_OFFSET_MISMATCH` | A piece doesn't start where the upload stands |
+| `STORAGE_UNAVAILABLE` | The bucket failed its test or can't be reached |
+| `STORAGE_FULL` | No room to receive the upload, or the storage is full |
+| `VOICE_MESSAGE_INVALID`, `VOICE_MESSAGE_TOO_LONG` | A voice message isn't Ogg Opus, or is over the server's length |
 
 ## Close codes
 
@@ -219,7 +238,7 @@ When roles, member roles or overwrites change, the server recomputes visibility 
 
 ## Permissions
 
-The bits are listed below. `ATTACH_FILES` is reserved for a later phase.
+The bits are listed below.
 
 | Bit | Name | Bit | Name |
 |---|---|---|---|
@@ -237,6 +256,7 @@ The bits are listed below. `ATTACH_FILES` is reserved for a later phase.
 | 11 | `MENTION_EVERYONE` | 27 | `MANAGE_SOUNDBOARD` |
 | 12 | `CHANGE_NICKNAME` | 63 | `ADMINISTRATOR` |
 | 13 | `MANAGE_NICKNAMES` | | |
+| 14 | `SEND_VOICE_MESSAGES` | | |
 
 Resolution:
 1. The owner has every permission.
@@ -253,7 +273,7 @@ Hierarchy:
 - Members can only manage roles below their rank, and only kick, ban or rename members of lower rank. The owner outranks everyone; nobody outranks the owner.
 - Nobody can grant or deny a permission they do not have, unless they are an administrator or the owner.
 
-A new server's @everyone has `VIEW_CHANNEL | SEND_MESSAGES | READ_HISTORY | CREATE_INVITE | CHANGE_NICKNAME | CONNECT | SPEAK | VIDEO | SCREENSHARE | USE_VOICE_ACTIVITY | USE_SOUNDBOARD | USE_EXTERNAL_SOUNDS`. Servers created before voice existed get the last three added to @everyone when they upgrade. The server starts with a `#general` text channel and a `General` voice channel.
+A new server's @everyone has `VIEW_CHANNEL | SEND_MESSAGES | READ_HISTORY | CREATE_INVITE | ATTACH_FILES | SEND_VOICE_MESSAGES | CHANGE_NICKNAME | CONNECT | SPEAK | VIDEO | SCREENSHARE | USE_VOICE_ACTIVITY | USE_SOUNDBOARD | USE_EXTERNAL_SOUNDS`. Servers created before voice existed get the last three added to @everyone when they upgrade, and servers from before attachments get `ATTACH_FILES`, `SEND_VOICE_MESSAGES` and a 50 MB upload limit. The server starts with a `#general` text channel and a `General` voice channel.
 
 ## Limits
 
@@ -268,6 +288,52 @@ A new server's @everyone has `VIEW_CHANNEL | SEND_MESSAGES | READ_HISTORY | CREA
 | Roles per server, including @everyone | 250 |
 | Channels per server | 500 |
 | `FetchMessages` limit | 1–100; 0 means 50, larger values are capped |
+| Files per message | 10; a voice message is sent alone, without text |
+| Uploads not yet sent, per user | 10 |
+| File name | 200 characters after cleaning |
+| Blocked extensions | 100 entries of 1–20 characters |
+
+## Attachments
+
+Files and voice messages travel over HTTPS beside the gateway, in pieces, then go out with a message. Which storage holds them, and how they're encrypted, is in [attachments.md](attachments.md).
+
+1. **`CreateUpload`** names the channel, the file's name and size, and its kind: `FILE`, or `VOICE_MESSAGE` (an Ogg Opus file, sent as `voice-message.ogg`). The server decides `IMAGE`, `VIDEO` and `AUDIO` itself, from the file's first bytes. For a video, the sender's app may add `width`, `height` and `duration_ms` from its own probe; they are used only for layout. It is checked in this order:
+   - the kind (`INVALID_ARGUMENT`);
+   - `VIEW_CHANNEL` and `SEND_MESSAGES` in a channel that takes messages, then `ATTACH_FILES` for a file or `SEND_VOICE_MESSAGES` for a voice message (`FORBIDDEN`);
+   - the name is cleaned: only what follows the last `/` or `\` is kept, control characters go, leading spaces and trailing dots and spaces are trimmed, Windows device names (`con`, `nul`, `com1`…) get a leading `_`, an empty name becomes `file`, and a name over 200 characters is cut before its extension. Then a file whose name ends with a blocked extension is refused (`FILE_TYPE_BLOCKED`);
+   - the size: a file within the sender's upload limit (`FILE_TOO_LARGE`), a voice message within `voice_message_max_seconds × 8 000 + 65 536` bytes (`VOICE_MESSAGE_TOO_LONG`); only a file may be empty;
+   - 20 a minute (`RATE_LIMITED`), and fewer than 10 of the sender's uploads not yet sent (`CONFLICT`);
+   - room in the server's upload folder for the file plus 512 MiB (`STORAGE_FULL`).
+
+   The answer is `Upload { upload_id, piece_bytes }`.
+2. **Pieces** go to `PUT /media/uploads/{id}` with `Upload-Offset: <bytes received so far>`, each exactly `piece_bytes` (8 MiB) long except the last. `GET /media/uploads/{id}` says how far an upload got, to continue after a dropped connection.
+3. **`POST /media/uploads/{id}/finish`** once every byte is in. Its body is empty, or, for a video, the sender's poster: a JPEG of at most 2 MiB, made from the first frame. The answer is 202 while the server processes the file; an upload already past that answers 200 with its state.
+4. **Processing** checks the file and stores it: pictures get their size and a thumbnail, voice messages their length and a 128-value waveform. `UploadReady { attachment }` or `UploadFailed { upload_id, error }` goes to the uploader's sessions.
+5. **`SendMessage`** with up to 10 `attachment_ids` (content may then be empty) sends them: each must be the sender's, ready, and for that channel (`NOT_FOUND`), and the sender needs `ATTACH_FILES`, or `SEND_VOICE_MESSAGES` for a voice message, which goes alone. Messages carry their `attachments`.
+
+An upload not sent within a day of its last piece or of being ready is deleted, as is a failed one after an hour. `CancelUpload` deletes one sooner. Deleting a message deletes its files.
+
+### Upload limits
+
+A member's upload limit is the largest of @everyone's `max_upload_bytes` and their roles', never above the server's `max_file_bytes` (`[uploads] max_file_mb`); the owner's is `max_file_bytes`. In `CreateRole` and `UpdateRole`, `max_upload_bytes` is 1 MiB to `max_file_bytes`, or 0 to clear it (not for @everyone, which always has one). Nobody but the owner can set a limit above their own (`FORBIDDEN`). `Ready` carries `upload_settings`: the blocked extensions, the voice message length, `max_file_bytes`, `max_attachments` and `piece_bytes`.
+
+### File endpoints
+
+These are [media endpoints](#media-endpoints): they need the media token, and answer 401 without a valid one and 403 to someone no longer a member. Answers other than file bytes are an encoded `Response` (`application/x-protobuf`): `upload_status`, or `error`.
+
+| Request | Answers |
+|---|---|
+| `PUT /media/uploads/{id}` | 200 with the new `UploadStatus`. 409 with the current one when the upload isn't receiving pieces any more or `Upload-Offset` isn't where it stands. 400 for a missing or bad `Upload-Offset`, a piece of the wrong length, or a piece over 8 MiB. 404 for someone else's upload |
+| `GET /media/uploads/{id}` | 200 with the `UploadStatus`; 404 for someone else's |
+| `POST /media/uploads/{id}/finish` | 202 while processing, 200 when already past that; 400 when bytes are missing or the poster is over 2 MiB; 404 for someone else's |
+| `GET /media/attachments/{id}` | The file, as `Content-Disposition: attachment` with its name percent-encoded (RFC 8187), `Cache-Control: private, no-store` and `X-Content-Type-Options: nosniff`. `Range: bytes=` gives 206 with `Content-Range`, or 416 with `Content-Range: bytes */<size>`. 404 unless the file was sent in a message that still exists; 403 without `VIEW_CHANNEL` and `READ_HISTORY` there; 502 when its storage can't be read |
+| `GET /media/attachments/{id}/thumbnail` | The thumbnail, JPEG (PNG when it has transparency), at most 800 pixels a side, under the same rules; 404 when it has none |
+
+Error codes map to statuses: `FILE_TOO_LARGE` 413, `FILE_TYPE_BLOCKED` 415, `UPLOAD_OFFSET_MISMATCH` and `CONFLICT` 409, `STORAGE_UNAVAILABLE` 503, `STORAGE_FULL` 507, `RATE_LIMITED` 429, invalid input and voice message errors 400.
+
+### Storage
+
+Storage is the owner's alone: every storage request answers `FORBIDDEN` to anyone else. `Storage` lists the backends (the server's own, kind `LOCAL`, and S3 buckets), each with its file count and bytes, a running or last move, and the free space where uploads arrive. A bucket's `S3Config` comes back with the access key masked to its last 4 characters and no secret; an `UpdateStorage` with an empty secret keeps the saved one. `TestStorage` writes, reads, uploads in parts and deletes test files, and answers each step. `StorageUpdate` reaches the owner's sessions when anything there changes, and every 2 seconds while files move.
 
 ## Voice
 

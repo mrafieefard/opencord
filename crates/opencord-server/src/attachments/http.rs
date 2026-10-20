@@ -438,3 +438,16 @@ fn percent_encode_filename(name: &str) -> String {
     }
     out
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn filenames_cannot_break_out_of_the_header() {
+        assert_eq!(
+            disposition("a\"b\r\nc ü.txt"),
+            "attachment; filename*=UTF-8''a%22b%0D%0Ac%20%C3%BC.txt"
+        );
+    }
+}

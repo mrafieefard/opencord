@@ -35,7 +35,7 @@ mkdir -p "$work/server"
 (
   cd "$work/server"
   OPENCORD_BIND="127.0.0.1:$port" OPENCORD_PUBLIC_HOST=127.0.0.1 OPENCORD_IDENTIFY_PER_MINUTE=100 \
-    OPENCORD_VOICE_UDP_PORT=0 \
+    OPENCORD_VOICE_UDP_PORT=0 OPENCORD_MUSIC_UDP_PORT=0 \
     exec "$server"
 ) >"$work/server.log" 2>&1 &
 background+=("$!")
@@ -67,7 +67,7 @@ claim_and_invite() {
   (
     cd "$work/server"
     OPENCORD_BIND="127.0.0.1:$port" OPENCORD_PUBLIC_HOST=127.0.0.1 OPENCORD_IDENTIFY_PER_MINUTE=100 \
-      OPENCORD_VOICE_UDP_PORT=0 \
+      OPENCORD_VOICE_UDP_PORT=0 OPENCORD_MUSIC_UDP_PORT=0 \
       exec "$server"
   ) >"$work/server2.log" 2>&1 &
   background+=("$!")

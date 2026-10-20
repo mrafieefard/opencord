@@ -43,7 +43,7 @@ pub fn process(bytes: &[u8]) -> Result<ImageInfo, ImageError> {
     }
 
     // 2. Animation, before the full decode so their buffers never coexist.
-    let animated = is_animated(bytes);
+    let animated = is_animated(bytes, &limits);
 
     // 3. Decode with orientation
     let mut reader = ImageReader::new(Cursor::new(bytes)).with_guessed_format()?;
@@ -83,15 +83,17 @@ pub fn process(bytes: &[u8]) -> Result<ImageInfo, ImageError> {
     })
 }
 
-fn is_animated(bytes: &[u8]) -> bool {
-    // Try GIF first
-    if let Ok(decoder) = image::codecs::gif::GifDecoder::new(Cursor::new(bytes))
-        && decoder.into_frames().take(2).count() == 2
+/// Whether the image has a second frame, decoded within `limits` like the
+/// image itself.
+fn is_animated(bytes: &[u8], limits: &Limits) -> bool {
+    if let Ok(mut decoder) = image::codecs::gif::GifDecoder::new(Cursor::new(bytes))
+        && decoder.set_limits(limits.clone()).is_ok()
+        && decoder.into_frames().take(2).filter(Result::is_ok).count() == 2
     {
         return true;
     }
-    // Try WebP
-    if let Ok(decoder) = image::codecs::webp::WebPDecoder::new(Cursor::new(bytes))
+    if let Ok(mut decoder) = image::codecs::webp::WebPDecoder::new(Cursor::new(bytes))
+        && decoder.set_limits(limits.clone()).is_ok()
         && decoder.has_animation()
     {
         return true;
@@ -162,6 +164,28 @@ mod tests {
             .with_guessed_format()
             .unwrap();
         assert_eq!(thumb_reader.format(), Some(image::ImageFormat::Png));
+    }
+
+    fn two_frame_gif() -> Vec<u8> {
+        let mut bytes = Vec::new();
+        {
+            let mut encoder = image::codecs::gif::GifEncoder::new(&mut bytes);
+            for shade in [0u8, 255] {
+                let frame = image::RgbaImage::from_pixel(64, 64, Rgba([shade, 0, 0, 255]));
+                encoder.encode_frame(image::Frame::new(frame)).unwrap();
+            }
+        }
+        bytes
+    }
+
+    #[test]
+    fn animation_is_found_within_the_limits() {
+        let gif = two_frame_gif();
+        assert!(process(&gif).unwrap().animated);
+        // The frames are decoded under the same limits as the image.
+        let mut tight = Limits::default();
+        tight.max_alloc = Some(1024);
+        assert!(!is_animated(&gif, &tight));
     }
 
     #[test]

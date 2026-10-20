@@ -217,6 +217,8 @@ server {
 }
 ```
 
+Files go up in pieces of 8 MiB, so a proxy must let request bodies of at least 9 MB through: the `client_max_body_size 50m` above does, and Caddy and Traefik have no limit by default. Pieces are that size because Cloudflare refuses requests over 100 MB, on tunnels and proxied records alike, and an 8 MiB piece is quick to send again after a dropped connection.
+
 A proxy on another machine cannot reach the local listener: point it at the main port (`https://<server>:7710`) instead, and add its address to **Trusted proxies** under Advanced. Like tunnels, proxies carry no UDP: 7711 and 7712 must reach the server directly.
 
 ## Public address

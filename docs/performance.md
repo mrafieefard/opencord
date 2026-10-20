@@ -108,6 +108,21 @@ Not measured yet:
 - **A real screen.** The numbers come from the virtual screen at a fixed 1920×1080.
 - **Watching** is measured in V10 above.
 
+## Media uploads (A8)
+
+Targets from the media uploads plan (Task 36), measured by `app/tool/check_transfer.sh`: a release server on loopback, and the core's `transfer_load` example sending a 1 GiB file to #general and saving it back (the copy is compared with the original). Upload time runs until the message is sent, so it includes the server storing the file. The server's memory is sampled every 0.2 s from `/proc`.
+
+| Target | Measured, three runs (2026-10-20) |
+|---|---|
+| Upload ≥ 80 MB/s on loopback | 77.8, 94.9 and 58.3 MB/s |
+| Download ≥ 80 MB/s on loopback | 353.5, 91.2 and 77.0 MB/s |
+| Server memory grows < 100 MB during the transfer | 60, 72 and 51 MiB |
+
+- **Memory** stays within the target: pieces are 8 MiB, downloads are read 16 segments (1 MiB) at a time, and nothing holds a whole file.
+- **Speed** met the target in one run of three for uploads and two for downloads. The laptop was busy during all three (load average about 10, with VS Code, a browser and Spotify running), and the runs spread from 58 to 95 MB/s, so they say more about the machine than the code. A run on an idle machine is still owed.
+- **What sets the upload speed:** pieces go one at a time, and the server encrypts each, flushes it to disk (`sync_data`, so an upload that continues after a crash starts from bytes that are really there) and records it in the database before answering. About 90–145 ms per 8 MiB piece in these runs.
+- **Scrolling a channel with 200 image messages at 60 fps** (profile mode) needs a display and is not measured yet.
+
 ## macOS (D34)
 
 An Intel MacBook Pro 2019 (i7-9750H, 6 cores, 12 threads) on macOS 15.8, release builds unless stated. VideoToolbox's hardware encoding runs in a process of its own, so it is not in the app's CPU. The machine throttles hard when hot (its CPU was held at 22 % of its speed in one run), so its timing tests are logged, not chased.

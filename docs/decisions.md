@@ -919,3 +919,24 @@ The desktop UI plan's §17.5 never arrived, so where Phase 2 §12 says only what
     - errors other than `RepoException` were caught, and the duration formatter was copied again.
   - **The fixture README lost the voice test recordings' attribution,** which their CC BY-SA licence requires.
   - **D59 itself** named a checksum other than the script's, swresample for the resampling (it is rubato), `render_frame` (it is `present`), `seek(Duration)`, `PlayerEvent::Progress`, a `rotation` field `Probe` doesn't have, `POST /attachments/{key}/finish` with `x-attachment-*` headers, and JPEG quality 85.
+
+## D60: Media uploads: hardening and docs (Phase 4 A8, 2026-10-20)
+
+- **Why.** Milestone A8 of media uploads (`docs/superpowers/plans/2026-10-18-media-uploads.md`, Task 36) closes the Linux milestones: a security pass over `git diff pre..phase4-media`, the transfer measurements, and the docs for people who run a server. Claude did this milestone instead of Gemini, at the user's request.
+- **Security pass.** Each check, and what it found:
+  - *Secrets and signed URLs in logs:* none. S3 errors drop the request URL (`without_url`) and keep only the `Code` and `Message` of an error body; `S3Settings` has no `Debug`, and `Credentials` hides the secret. The core logs no tokens.
+  - *Every media endpoint authorizes:* `media::authorize` verifies the signed media token against this server, its expiry and membership. Uploads answer only to their uploader; files and thumbnails need a sent message that still exists and `VIEW_CHANNEL | READ_HISTORY` in its channel.
+  - *Body limits:* every body read is capped: a piece at 8 MiB + 1, a poster at 2 MiB, the older media uploads at their sound limit.
+  - *`Content-Disposition`:* RFC 8187 percent-encoding of every byte outside `A-Za-z0-9-._~`. There was no test; `filenames_cannot_break_out_of_the_header` now feeds it a quote, CR LF, a space and `ü`.
+  - *The 8 storage requests:* each starts with `require_owner`, as `storage_requests_are_owner_only` checks.
+  - *Image limits:* 16,384 pixels a side, 50 megapixels and 512 MiB of allocation, checked from the header before decoding, two jobs at a time; posters at 8,192 a side. **Found:** the animation check opened its GIF and WebP decoders without those limits. It now applies them (`animation_is_found_within_the_limits`).
+  - *`local.rs` keys:* only `a/<id>` or `t/<id>` with a non-negative integer id become a path, so nothing escapes the root (`keys_cannot_escape_the_root`).
+- **Measured** (`app/tool/check_transfer.sh`, new; `crates/opencord-core/examples/transfer_load.rs`, new). A 1 GiB file to a release server on loopback and back, three runs on a busy laptop (load average about 10): upload 77.8, 94.9 and 58.3 MB/s, download 353.5, 91.2 and 77.0 MB/s, the server's memory growing 60, 72 and 51 MiB. The memory target (< 100 MB) holds; the 80 MB/s speed target was met in one upload run and two download runs, so it needs a run on an idle machine (`docs/performance.md`, "Media uploads (A8)"). Uploads go one 8 MiB piece at a time, each encrypted, flushed to disk and recorded before the answer.
+- **Docs.**
+  - `docs/attachments.md` (new): where files go, with a recipe per provider in the app's list (Amazon S3, Cloudflare R2, Backblaze B2, Wasabi, MinIO / Custom) and the minimal IAM policy; encryption and `secrets.key`, what it protects and what it doesn't, backing it up, moving it and the error when it's missing; limits and blocked extensions; what "only in the app" does and doesn't; moving between storages; testing, with the S3 tests and the checks by hand from A5, A6 and A7.
+  - `docs/protocol.md`: the upload, settings and storage requests, `attachment_ids` and role upload limits, the four events, the seven error codes and their HTTP statuses, `SEND_VOICE_MESSAGES` (bit 14) and the new @everyone default, the limits, and an Attachments section with the upload flow and every file endpoint's answers.
+  - `docs/domains.md`: pieces are 8 MiB because Cloudflare refuses requests over 100 MB, so a proxy must pass bodies of at least 9 MB. The plan asked for `client_max_body_size 16m;`; the guide and the app's Add domain dialog already give `50m`, which passes the pieces, so it stays.
+  - `README.md`: "Files and storage".
+  - `deploy/`: the compose file and the systemd unit show, commented, how to give the server `secrets.key` from outside the data directory (a compose secret at `/run/secrets/opencord-secrets.key`; `LoadCredential` with `OPENCORD_SECRETS_FILE=%d/opencord-secrets.key`). The compose form was checked with `docker compose config`.
+- **Also.** `app/tool/e2e_server.sh` starts its servers with `OPENCORD_MUSIC_UDP_PORT=0`, so a check runs while another server holds UDP 7712.
+- **Not done here:** the checks by hand from A5, A6 and A7 (listed in `docs/attachments.md`) and scrolling 200 image messages at 60 fps need a display; the transfer speed on an idle machine; the Windows and macOS work (P1, P2).

@@ -20,6 +20,11 @@ DynamicUser=yes
 StateDirectory=opencord
 WorkingDirectory=/var/lib/opencord
 Restart=on-failure
+# The key that encrypts every uploaded file is secrets.key in the data
+# directory. To keep it apart from the files (docs/attachments.md), move it
+# to /etc/opencord/secrets.key and uncomment these:
+# LoadCredential=opencord-secrets.key:/etc/opencord/secrets.key
+# Environment=OPENCORD_SECRETS_FILE=%d/opencord-secrets.key
 # Its own data only.
 ProtectSystem=strict
 ProtectHome=yes
