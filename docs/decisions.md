@@ -845,3 +845,35 @@ The desktop UI plan's §17.5 never arrived, so where Phase 2 §12 says only what
     - a message still being sent can't be played.
   - **The mock now refuses what the core refuses:** a second start, a stop with nothing recorded, a missing draft.
   - **D58 itself:** "max-pooled" (the slices are averaged), `allPermissions` (it is `Permissions.all`), and a working preview that wasn't.
+
+## D59: Video and audio playback (2026-10-20)
+
+Why:
+Milestone A7 of the media uploads plan (`docs/superpowers/plans/2026-10-18-media-uploads.md`, Tasks 32–35, commits `cd70ef1`, `a8e90cc`, `a22038f`, `6c1c29b`) adds in-app video and audio playback for chat attachments, poster extraction for uploaded videos, and an FFmpeg build supporting H.264, HEVC, VP8, VP9, AV1 (via static dav1d 1.5.4), AAC, Opus, Vorbis, MP3, and FLAC.
+
+- **FFmpeg build and CI** (`app/tool/build_ffmpeg.sh`, `.github/workflows/ci.yml`, `docs/packaging.md`).
+  - Added build of static dav1d 1.5.4 pinned to SHA-256 `60aa688e14e9f73752e5055041ff34e0626b9cc46e9df073b64fca1e34ffbc06`.
+  - Configured FFmpeg 9.0.2 with `--enable-libdav1d`, decoders (`h264`, `hevc`, `vp8`, `vp9`, `av1`, `aac`, `opus`, `vorbis`, `mp3`, `flac`, `mjpeg`), demuxers (`mov`, `matroska`, `ogg`, `mp3`, `flac`, `wav`, `image2`), parsers, and bitstream filters (`h264_mp4toannexb`, `hevc_mp4toannexb`).
+  - Updated CI dependencies with `nasm`, `meson`, and `ninja-build`.
+- **Media player engine** (`crates/opencord-media/src/player/`, `crates/opencord-media/tests/player.rs`).
+  - `MediaPlayer` decodes streams via background worker thread, driving playback from a shared master clock (`MediaClock`) paced by audio output (or wall-clock for video-only streams).
+  - Audio frames are resampled to 48 kHz interleaved 16-bit stereo PCM via `StereoResampler` (`swresample`) and paced into `AudioOut` with 60 ms pacing (`buffered_duration`).
+  - Video frames are converted to RGBA via `swscale`, transformed for display matrix rotation (90, 180, 270 degrees) with `rotate_rgba`, and pushed to `VideoOut::render_frame`.
+  - `probe_and_poster` extracts stream metadata (`Probe { duration, width, height, has_video, has_audio, rotation }`) and generates an initial keyframe poster encoded as JPEG at quality 85.
+  - Supports `play()`, `pause()`, `seek(Duration)`, `set_volume(volume, muted)`, and `stop()`. Emits `PlayerEvent::Progress`, `PlayerEvent::Ended`, and `PlayerEvent::Failed`.
+- **Core media player glue and range reader** (`crates/opencord-core/src/attachments/range_reader.rs`, `crates/opencord-core/src/media_player.rs`, `crates/opencord-core/src/output_sink.rs`, `crates/opencord-core/src/attachments/upload.rs`).
+  - Extracted `OutputSink` (`AudioOut`) to shared module with 60 ms output pacing into `Speaker` or active call engine.
+  - `RangeReader` implements `Read + Seek` over HTTP range requests (`GET /attachments/{key}`), reading in 1 MiB blocks with an 8-block LRU cache and 2-block sequential read-ahead.
+  - `CoreMediaPlayer` wraps `MediaPlayer` and texture management, returning `MediaHandle { texture_id, duration_ms, width, height, has_video }`.
+  - Exposes `media_open`, `media_play`, `media_pause`, `media_seek`, `media_set_volume`, and `media_close`. Emits `MediaEvent::PlaybackUpdate`, `MediaEvent::PlaybackEnded`, and `MediaEvent::PlaybackFailed`.
+  - `attachments::upload::send` calls `probe_and_poster(path, 800)` on finish, sending JPEG poster bytes in the body of `POST /attachments/{key}/finish` with `x-attachment-width`, `x-attachment-height`, and `x-attachment-duration-ms` headers.
+- **App UI and playback** (`app/lib/features/chat/attachments/{video_tile.dart,video_player_view.dart,audio_card.dart,attachment_view.dart,media_viewer.dart}`, `app/lib/core/providers/playback_state.dart`, `app/lib/core/repository/repository.dart`, `app/lib/core/mock/mock_repository.dart`).
+  - `VideoTile` renders video thumbnail/poster clamped to 400×300 aspect ratio, centered play button (`OcIcons.playArrow`), and duration badge (`m:ss`). Tapping opens `MediaViewer`.
+  - `VideoPlayerView` displays video using `Texture(textureId: textureId)` or audio placeholder (`OcIcons.musicNote`), seek slider, play/pause (`OcIcons.playArrow` / `OcIcons.pause`), time display `m:ss / m:ss`, mute toggle (`OcIcons.volumeOff` / `OcIcons.volumeUp`), and volume slider. Spacebar toggles play/pause. Shows "This video can't play on this computer yet" with Download button when unsupported.
+  - `AudioCard` renders in-line audio with play/pause button (`OcIconButton`), filename, subtitle (time or error), download button, and seek slider.
+  - `MediaViewer` replaces the coming-soon placeholder with `VideoPlayerView`.
+  - `PlaybackNotifier` coordinates voice and media playback (`AttachmentPlayback`), ensuring one item plays at a time.
+- **Tests.**
+  - Rust player engine tests: `crates/opencord-media/tests/player.rs` (`opens_and_reports_duration_and_size`, `plays_to_the_end_in_real_time`, `seeks_accurately`, `rotation_is_applied`, `probe_and_poster_makes_a_jpeg`).
+  - Rust core tests: `crates/opencord-core/tests/attachments.rs` (`range_reader_reads_any_span`, `video_uploads_get_hints_and_a_poster`).
+  - Dart widget tests: `app/test/widget/chat/media_playback_test.dart` (`video_tile_opens_the_viewer_and_plays`, `audio_card_plays_and_seeks`, `unsupported_video_offers_download`).
