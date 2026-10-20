@@ -63,8 +63,12 @@ class PlaybackNotifier extends Notifier<PlaybackState> {
           playing: event.playing,
           buffering: event.buffering,
         );
+      // The open media replays from the start on play; a voice message's
+      // player ends with it, so the next play starts a new one.
       case PlaybackEnded(:final item) when item == state.item:
-        state = state.copyWith(playing: false, positionMs: 0);
+        state = _isMedia(item)
+            ? state.copyWith(playing: false, positionMs: 0)
+            : const PlaybackState();
       case PlaybackFailed(:final item, :final message) when item == state.item:
         state = state.copyWith(
           playing: false,

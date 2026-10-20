@@ -4558,6 +4558,9 @@ class MockRepository implements OpencordRepository {
       if (_playbackPositionMs >= _playbackDurationMs) {
         timer.cancel();
         _playbackPlaying = false;
+        // Like the core: a voice message's player ends with it, so a
+        // resume after the end finds nothing; the media stays open.
+        if (item != _media) _playingItem = null;
         _emit(PlaybackEnded(item));
       } else {
         _emitPlayback();

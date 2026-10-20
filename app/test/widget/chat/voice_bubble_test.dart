@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:opencord/core/mock/mock_repository.dart';
 import 'package:opencord/core/model/attachment.dart';
 import 'package:opencord/core/model/message.dart';
+import 'package:opencord/core/providers/playback_state.dart';
 import 'package:opencord/core/repository/repository.dart';
 import 'package:opencord/features/chat/attachments/attachment_view.dart';
 import 'package:opencord/features/chat/voice/voice_bubble.dart';
@@ -100,5 +101,63 @@ void main() {
     await tester.tap(find.byIcon(OcIcons.pause));
     await tester.pump();
     expect(find.byIcon(OcIcons.playArrow), findsOneWidget);
+  });
+
+  testWidgets('a_voice_message_plays_again_after_it_ends', (tester) async {
+    final repository = MockRepository();
+    addTearDown(repository.dispose);
+    final attachment = Attachment(
+      id: 42,
+      filename: 'voice-message.ogg',
+      contentType: 'audio/ogg',
+      sizeBytes: 12000,
+      kind: AttachmentKind.voiceMessage,
+      durationMs: 3000,
+      waveform: Uint8List.fromList(List.filled(128, 120)),
+    );
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [repositoryProvider.overrideWithValue(repository)],
+        child: MaterialApp(
+          theme: buildTheme(OcColors.dark),
+          home: Scaffold(
+            body: AttachmentsView(
+              serverKey: 'server.example:7710',
+              message: _msg(attachment),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    // The core's playback events reach the playback state, as in the app.
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(VoiceBubble)),
+    );
+    final routed = repository.events.listen((event) {
+      if (event is PlaybackUpdate ||
+          event is PlaybackEnded ||
+          event is PlaybackFailed) {
+        container.read(playbackProvider.notifier).apply(event);
+      }
+    });
+    addTearDown(routed.cancel);
+
+    await tester.tap(find.byIcon(OcIcons.playArrow));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 3200));
+    await tester.pump();
+    expect(find.byIcon(OcIcons.playArrow), findsOneWidget);
+
+    // Played to the end: Play starts it again from the start.
+    await tester.tap(find.byIcon(OcIcons.playArrow));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 1100));
+    await tester.pump();
+    expect(find.byIcon(OcIcons.pause), findsOneWidget);
+    expect(find.text('0:01 / 0:03'), findsOneWidget);
+
+    await tester.tap(find.byIcon(OcIcons.pause));
+    await tester.pump();
   });
 }
