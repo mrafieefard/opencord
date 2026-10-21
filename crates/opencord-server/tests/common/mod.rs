@@ -499,6 +499,23 @@ impl TestClient {
         }
     }
 
+    /// Like [`Self::ok`], but waits out the rate limit as the app does, for
+    /// tests that send many requests at once without testing the limit.
+    pub async fn ok_paced(&mut self, kind: proto::request::Kind) -> proto::response::Result {
+        loop {
+            match self.request(kind.clone()).await {
+                proto::response::Result::Error(error)
+                    if error.code == proto::ErrorCode::RateLimited as i32 =>
+                {
+                    let wait = error.retry_after_ms.unwrap_or(100);
+                    tokio::time::sleep(Duration::from_millis(wait)).await;
+                }
+                proto::response::Result::Error(error) => panic!("request failed: {error:?}"),
+                result => return result,
+            }
+        }
+    }
+
     /// Sends a request that must fail; returns the error.
     pub async fn error(&mut self, kind: proto::request::Kind) -> proto::Error {
         match self.request(kind).await {

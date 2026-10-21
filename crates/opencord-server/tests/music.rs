@@ -948,11 +948,13 @@ async fn twenty_channels_play_together_under_load() {
         }))
         .await;
 
+    // About 40 requests in a burst: `ok_paced` waits out the rate limit,
+    // which a slow runner can reach.
     // Create 19 more voice channels (total 20 voice channels).
     let mut channels = vec![voice];
     for i in 1..20 {
         let channel = match owner
-            .ok(Kind::CreateChannel(proto::CreateChannel {
+            .ok_paced(Kind::CreateChannel(proto::CreateChannel {
                 kind: proto::ChannelKind::Voice as i32,
                 name: format!("Voice {i}"),
                 topic: None,
@@ -981,7 +983,9 @@ async fn twenty_channels_play_together_under_load() {
             _ => &mut user4,
         };
         let found = search(client, *channel, &format!("track-{i}")).await;
-        client.ok(enqueue(*channel, found[..1].to_vec())).await;
+        client
+            .ok_paced(enqueue(*channel, found[..1].to_vec()))
+            .await;
     }
 
     // Verify all 20 channels have active players in FakeLavalink.
@@ -1006,7 +1010,7 @@ async fn twenty_channels_play_together_under_load() {
     // Verify node channels count in FetchLavalinkNodes.
     let list = nodes(
         owner
-            .ok(Kind::FetchLavalinkNodes(proto::FetchLavalinkNodes {
+            .ok_paced(Kind::FetchLavalinkNodes(proto::FetchLavalinkNodes {
                 watch: false,
             }))
             .await,
@@ -1018,7 +1022,7 @@ async fn twenty_channels_play_together_under_load() {
     // Channel 0 has the owner listening -> Playing.
     // Channels 1..19 have no listeners -> Paused (paused_empty), ready with track loaded.
     for (i, channel) in channels.iter().enumerate() {
-        let s = session(owner.ok(snapshot_request(*channel)).await);
+        let s = session(owner.ok_paced(snapshot_request(*channel)).await);
         assert_eq!(title(s.now_playing.as_ref()), format!("track-{i} 1"));
         if i == 0 {
             assert_eq!(s.state, Play::Playing as i32);

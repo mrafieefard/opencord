@@ -654,6 +654,12 @@ async fn range_reader_reads_any_span() {
 
 #[tokio::test(flavor = "multi_thread")]
 async fn video_uploads_get_hints_and_a_poster() {
+    // The sender reads a video's size and makes its poster with the media
+    // player, which macOS doesn't have until P2.
+    if !opencord_media::player::supported() {
+        eprintln!("skipped: no media player on this system yet");
+        return;
+    }
     let server = TestServer::start().await;
     let (owner, ready) = TestClient::owner(&server).await;
     let key = server.address();
@@ -731,7 +737,8 @@ async fn an_mp4_without_a_picture_is_audio() {
             (None, None),
             "{nonce}"
         );
-        if nonce == "n1" {
+        // The length comes from the media player's probe, where there is one.
+        if nonce == "n1" && opencord_media::player::supported() {
             let duration = attachment.duration_ms.expect("the probe's length");
             assert!((950..=1100).contains(&duration), "{duration} ms");
         }

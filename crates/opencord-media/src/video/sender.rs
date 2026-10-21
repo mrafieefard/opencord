@@ -872,7 +872,6 @@ mod tests {
 
     #[test]
     fn the_planners_cuts_shrink_and_slow_a_screens_main_layer() {
-        crate::needs_own_machine!();
         crate::video::codec::needs_codec!();
         let (sender, frames, received) = started_screen();
         feed_sized(&frames, 0, 5, (1280, 720));
@@ -892,6 +891,8 @@ mod tests {
             main.iter().all(|size| (size.0, size.1) == (640, 360)),
             "{main:?}"
         );
+        // How many go out in a second is timing, which a shared runner skews.
+        crate::needs_own_machine!();
         assert!(
             (12..=17).contains(&main.len()),
             "{} pictures in 1 s",
@@ -920,6 +921,8 @@ mod tests {
             (first.layer, first.width, first.height, first.keyframe),
             (0, 852, 480, true)
         );
+        // How many go out in a second is timing, which a shared runner skews.
+        crate::needs_own_machine!();
         assert!((13..=17).contains(&sent.len()), "{} at 15 fps", sent.len());
     }
 }
