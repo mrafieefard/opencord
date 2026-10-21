@@ -95,7 +95,10 @@ impl Software {
             // It can only hold the bitrate if it may skip a picture.
             .skip_frames(true)
             // Only the first picture is an IDR; later ones come on request.
-            .intra_frame_period(IntraFramePeriod::from_num_frames(0));
+            .intra_frame_period(IntraFramePeriod::from_num_frames(0))
+            // Nor on a scene change, which a source that dropped frames
+            // looks like: an IDR nobody asked for is a burst of bitrate.
+            .scene_change_detect(false);
         let encoder = Encoder::with_api_config(api()?, config)
             .map_err(|error| CodecError::OpenH264(error.to_string()))?;
         Ok(Self {
@@ -152,5 +155,30 @@ mod tests {
         let nv12 = Picture::from_data(PixelFormat::Nv12, 4, 2, data, Instant::now()).unwrap();
 
         assert_eq!(&to_i420(&nv12)[8..], &[1, 3, 2, 4]);
+    }
+
+    /// A picture that jumps, as when frames are dropped, still gets no IDR
+    /// of its own.
+    #[test]
+    fn a_jumpy_source_gets_keyframes_only_on_request() {
+        use crate::video::codec::{NAL_IDR, annexb, nal_type};
+        use crate::video::pattern::scene;
+
+        let Ok(mut encoder) = Software::open(640, 360, 30, 500_000) else {
+            eprintln!("skipped: no OpenH264 here");
+            return;
+        };
+        let start = Instant::now();
+        let keyframes: Vec<u64> = (0..40)
+            .filter(|&number| {
+                let picture = scene(640, 360, number * 10, start);
+                let stream = encoder.encode(&picture, number == 0).unwrap();
+                annexb::split(&stream)
+                    .iter()
+                    .any(|unit| nal_type(unit) == Some(NAL_IDR))
+            })
+            .collect();
+
+        assert_eq!(keyframes, [0]);
     }
 }
