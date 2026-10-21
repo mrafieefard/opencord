@@ -61,7 +61,8 @@ enum Route {
         attached: Option<(u64, rtrb::Producer<f32>)>,
     },
     Device {
-        speaker: Speaker,
+        // Boxed: WASAPI's speaker is far larger than the other routes.
+        speaker: Box<Speaker>,
         to_device: Box<ToDevice>,
         volume: f32,
         scratch: Vec<f32>,
@@ -246,7 +247,7 @@ impl Route {
         let to_device =
             ToDevice::new(speaker.rate, speaker.channels).map_err(|e| unavailable(&e))?;
         Ok(Self::Device {
-            speaker,
+            speaker: Box::new(speaker),
             to_device: Box::new(to_device),
             volume: settings.output_volume,
             scratch: Vec::new(),

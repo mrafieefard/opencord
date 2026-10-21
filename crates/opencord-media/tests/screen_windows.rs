@@ -20,10 +20,13 @@ use opencord_media::video::screen::{Capture, SourceKind, StartRequest, sources, 
 const WATCH: Duration = Duration::from_secs(4);
 /// The rate asked for, and the one §9.2 shares a screen at.
 const FPS: u32 = 30;
+/// The 1080p budget §9.2 shares a screen within.
+const MAX_PIXELS: u32 = 1920 * 1080;
 
 fn request(source_id: &str) -> StartRequest {
     StartRequest {
         fps: FPS,
+        max_pixels: MAX_PIXELS,
         restore_token: None,
         source_id: Some(source_id.to_owned()),
     }
@@ -233,6 +236,7 @@ async fn a_capture_that_never_started_is_an_error_not_a_hang() {
     let nothing = start(
         StartRequest {
             fps: FPS,
+            max_pixels: MAX_PIXELS,
             restore_token: None,
             source_id: None,
         },

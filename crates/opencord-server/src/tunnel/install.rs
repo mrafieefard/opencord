@@ -153,13 +153,17 @@ async fn download(state: &AppState) -> Result<String, String> {
 }
 
 fn write_executable(target: &Path, bytes: &[u8]) -> std::io::Result<()> {
-    use std::os::unix::fs::PermissionsExt;
     if let Some(dir) = target.parent() {
         std::fs::create_dir_all(dir)?;
     }
     let partial = target.with_extension("partial");
     std::fs::write(&partial, bytes)?;
-    std::fs::set_permissions(&partial, std::fs::Permissions::from_mode(0o755))?;
+    // Only Linux downloads it (`asset_name`); elsewhere this is never called.
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(&partial, std::fs::Permissions::from_mode(0o755))?;
+    }
     std::fs::rename(&partial, target)
 }
 
