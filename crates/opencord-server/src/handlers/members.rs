@@ -51,7 +51,7 @@ pub async fn ban(ctx: &Ctx<'_>, request: proto::BanMember) -> Result<Response, A
             channels_with_member_overwrite(&guild, request.user_id),
         )
     };
-    let mut tx = ctx.state.db.begin().await?;
+    let mut tx = crate::db::begin_read_write(&ctx.state.db).await?;
     if users::find(&mut tx, request.user_id).await?.is_none() {
         return Err(ApiError::not_found("user"));
     }

@@ -656,6 +656,7 @@ The desktop UI plan's §17.5 never arrived, so where Phase 2 §12 says only what
   - Only the owner may give a role a larger limit than their own.
 - **Tests.** The A1 tests that put uploads on messages through `ServerHandle::db` now send real messages, and the hook is gone.
 - **Review.** `DeleteMessage` read the message inside its transaction. In WAL mode a transaction that has read can't start writing once another connection has committed, and SQLite fails it at once with `SQLITE_BUSY_SNAPSHOT`, so a delete that raced any message send failed. The read and the permission check now come before `begin`, and the transaction holds only the two writes. The plan gained Working Rule 20 for this.
+- **2026-10-21, CI on macOS and Windows.** `identify` hit the same failure: it reads the user, the invite and the claim token in its transaction, and the public address detection committed in between, so the owner's first sign-in failed with "internal server error" (code 517). Its reads have to stay inside, as the claim token is used up atomically even against `reset-claim-token` from another process, so transactions that read and then write start with `BEGIN IMMEDIATE` (`db::begin_read_write`): identify, the three CLI commands in `bootstrap.rs`, and the ban. They wait the busy timeout for the write lock instead of failing.
 
 ## D55: Media uploads: S3 storage, storage management and moving files (Phase 4 A3, 2026-10-19)
 

@@ -160,7 +160,9 @@ async fn admit(
     identify: &proto::Identify,
     now: i64,
 ) -> Result<Joined, Rejection> {
-    let mut tx = state.db.begin().await?;
+    // Reads, then writes: the claim token is checked and used up in one
+    // transaction, even against `reset-claim-token` from another process.
+    let mut tx = crate::db::begin_read_write(&state.db).await?;
     let existing = users::find_by_public_key(&mut tx, &identify.public_key).await?;
     if let Some(user) = &existing
         && bans::is_banned(&mut tx, user.id).await?

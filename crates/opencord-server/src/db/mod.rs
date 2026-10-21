@@ -44,6 +44,18 @@ pub async fn connect(path: &Path) -> Result<SqlitePool, sqlx::Error> {
     Ok(pool)
 }
 
+/// Starts a transaction that reads and then writes. `BEGIN IMMEDIATE` takes
+/// the write lock now, waiting the busy timeout for it. A plain transaction
+/// takes it at its first write, and in WAL mode one that has read by then
+/// fails at once with `SQLITE_BUSY_SNAPSHOT` if another connection committed
+/// in between. A transaction that only writes doesn't need this (Working
+/// Rule 20, D-log of `DeleteMessage`).
+pub async fn begin_read_write(
+    pool: &SqlitePool,
+) -> Result<sqlx::Transaction<'static, sqlx::Sqlite>, sqlx::Error> {
+    pool.begin_with("BEGIN IMMEDIATE").await
+}
+
 /// Permission sets are stored as their bits reinterpreted as `i64`.
 pub fn permissions_to_db(permissions: Permissions) -> i64 {
     i64::from_ne_bytes(permissions.bits().to_ne_bytes())
@@ -104,6 +116,36 @@ mod tests {
 
         assert_eq!(journal, "wal");
         assert_eq!(foreign_keys, 1);
+    }
+
+    /// identify's race (it read the user, the address detection committed,
+    /// and its insert failed with SQLITE_BUSY_SNAPSHOT): the transaction now
+    /// waits for the other writer instead.
+    #[tokio::test]
+    async fn a_read_write_transaction_survives_a_commit_in_between() {
+        let (pool, _dir) = test_pool().await;
+        let mut tx = begin_read_write(&pool).await.unwrap();
+        let _: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM users")
+            .fetch_one(&mut *tx)
+            .await
+            .unwrap();
+        let other = {
+            let pool = pool.clone();
+            tokio::spawn(async move {
+                sqlx::query("INSERT INTO lavalink_nodes (id, name, host, port, secure, password_enc, created_at) VALUES (1, 'n', 'h', 1, FALSE, X'00', 0)")
+                    .execute(&pool)
+                    .await
+            })
+        };
+        // Long enough for the other connection to commit, if it can.
+        tokio::time::sleep(Duration::from_millis(200)).await;
+
+        sqlx::query("INSERT INTO lavalink_nodes (id, name, host, port, secure, password_enc, created_at) VALUES (2, 'n', 'h', 1, FALSE, X'00', 0)")
+            .execute(&mut *tx)
+            .await
+            .unwrap();
+        tx.commit().await.unwrap();
+        other.await.unwrap().unwrap();
     }
 
     #[test]

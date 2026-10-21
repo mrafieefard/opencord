@@ -43,7 +43,7 @@ pub async fn initialize(
     ids: &SnowflakeGenerator,
     now_ms: i64,
 ) -> Result<Bootstrap, BootstrapError> {
-    let mut tx = pool.begin().await?;
+    let mut tx = crate::db::begin_read_write(pool).await?;
     let meta = match ServerMeta::load(&mut tx).await? {
         Some(meta) => meta,
         None => create_server(&mut tx, server_name, ids, now_ms).await?,
@@ -67,7 +67,7 @@ pub async fn initialize(
 /// the current one, so operators can recover a server whose owner lost
 /// their identity.
 pub async fn reset_claim_token(pool: &SqlitePool) -> Result<String, BootstrapError> {
-    let mut tx = pool.begin().await?;
+    let mut tx = crate::db::begin_read_write(pool).await?;
     let meta = ServerMeta::load(&mut tx)
         .await?
         .ok_or(BootstrapError::NotInitialized)?;
@@ -88,7 +88,7 @@ pub async fn startup_invite(
     pool: &SqlitePool,
     now_ms: i64,
 ) -> Result<Option<String>, BootstrapError> {
-    let mut tx = pool.begin().await?;
+    let mut tx = crate::db::begin_read_write(pool).await?;
     let meta = ServerMeta::load(&mut tx)
         .await?
         .ok_or(BootstrapError::NotInitialized)?;
