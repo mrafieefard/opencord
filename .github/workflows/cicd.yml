@@ -30,10 +30,11 @@ env:
   # Runners are shared virtual machines: tests that time things to the
   # millisecond or measure a hardware encoder skip there.
   OPENCORD_SHARED_RUNNER: "1"
-  # The server's crates, and the app's (opencord-common and opencord-proto
-  # are tested with the server's).
-  SERVER_CRATES: -p opencord-server -p opencord-voice -p opencord-common -p opencord-proto
-  CLIENT_CRATES: -p opencord_core -p opencord-media -p opencord-voicebot
+  # The server's crates, and the app's. opencord-common and opencord-proto
+  # are tested with the server's; opencord-voice with the app's, as its tests
+  # call in through the app's media crate and need its native libraries.
+  SERVER_CRATES: -p opencord-server -p opencord-common -p opencord-proto
+  CLIENT_CRATES: -p opencord_core -p opencord-media -p opencord-voicebot -p opencord-voice
   FLUTTER_VERSION: 3.44.0
   # Native libraries the app's crates build against on Linux: cpal's PipeWire
   # and ALSA backends (libspa-sys runs bindgen, hence libclang) and the D-Bus
@@ -104,7 +105,7 @@ jobs:
         run: cargo clippy --locked $SERVER_CRATES --all-targets -- -D warnings
 
       - name: Test
-        run: cargo test --locked $SERVER_CRATES
+        run: cargo test --locked --no-fail-fast $SERVER_CRATES
 
       - name: Build
         run: cargo build --locked --release -p opencord-server --bins
@@ -149,7 +150,7 @@ jobs:
         run: cargo clippy --locked $SERVER_CRATES --all-targets -- -D warnings
 
       - name: Test
-        run: cargo test --locked $SERVER_CRATES
+        run: cargo test --locked --no-fail-fast $SERVER_CRATES
 
       - name: Build
         run: cargo build --locked --release -p opencord-server --bins
@@ -193,7 +194,7 @@ jobs:
         run: cargo clippy --locked $SERVER_CRATES --all-targets -- -D warnings
 
       - name: Test
-        run: cargo test --locked $SERVER_CRATES
+        run: cargo test --locked --no-fail-fast $SERVER_CRATES
 
       # Universal, like the app: Apple silicon and Intel in one binary.
       - name: Build
@@ -341,7 +342,7 @@ jobs:
         run: cargo clippy --locked $CLIENT_CRATES --all-targets -- -D warnings
 
       - name: Test
-        run: LD_LIBRARY_PATH="$OPENH264_DIR:$LD_LIBRARY_PATH" cargo test --locked $CLIENT_CRATES
+        run: LD_LIBRARY_PATH="$OPENH264_DIR:$LD_LIBRARY_PATH" cargo test --locked --no-fail-fast $CLIENT_CRATES
 
       - uses: subosito/flutter-action@v2
         with:
@@ -430,6 +431,17 @@ jobs:
       - name: Use FFmpeg
         uses: ./.github/actions/windows-ffmpeg
 
+      # Cisco's OpenH264 for the video tests, as on Linux: runners have no
+      # GPU encoder. The zip doesn't carry it.
+      - name: Use OpenH264
+        run: |
+          dir="$RUNNER_TEMP/openh264"
+          mkdir -p "$dir"
+          curl -fsSL -o "$dir/openh264.dll.bz2" https://ciscobinary.openh264.org/openh264-2.6.0-win64.dll.bz2
+          echo "dab5f2a872777f9a58b69bfa9fbcf20d9f82f2d6ec91383fd70bff49bd34ac9f  $dir/openh264.dll.bz2" | sha256sum -c -
+          bunzip2 -c "$dir/openh264.dll.bz2" > "$dir/openh264-2.6.0-win64.dll"
+          echo "OPENH264_DIR=$(cygpath -w "$dir")" >> "$GITHUB_ENV"
+
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy
@@ -442,7 +454,7 @@ jobs:
         run: cargo clippy --locked $CLIENT_CRATES --all-targets -- -D warnings
 
       - name: Test
-        run: cargo test --locked $CLIENT_CRATES
+        run: PATH="$(cygpath -u "$OPENH264_DIR"):$PATH" cargo test --locked --no-fail-fast $CLIENT_CRATES
 
       - uses: subosito/flutter-action@v2
         with:
@@ -509,7 +521,7 @@ jobs:
         run: cargo clippy --locked $CLIENT_CRATES --all-targets -- -D warnings
 
       - name: Test
-        run: cargo test --locked $CLIENT_CRATES
+        run: cargo test --locked --no-fail-fast $CLIENT_CRATES
 
       - uses: subosito/flutter-action@v2
         with:
