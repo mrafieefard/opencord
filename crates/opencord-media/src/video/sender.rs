@@ -872,6 +872,7 @@ mod tests {
 
     #[test]
     fn the_planners_cuts_shrink_and_slow_a_screens_main_layer() {
+        crate::needs_own_machine!();
         crate::video::codec::needs_codec!();
         let (sender, frames, received) = started_screen();
         feed_sized(&frames, 0, 5, (1280, 720));

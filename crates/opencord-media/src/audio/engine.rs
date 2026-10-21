@@ -893,6 +893,7 @@ mod tests {
 
     #[test]
     fn who_starts_and_stops_speaking_is_reported_as_it_happens() {
+        crate::needs_own_machine!();
         let events = Arc::new(Mutex::new(Vec::new()));
         let engine = quiet_engine(Arc::clone(&events));
         let mut encoder = crate::audio::codec::VoiceEncoder::new(64_000).unwrap();

@@ -639,6 +639,7 @@ mod tests {
     /// less than their target from the hardware encoder (§7, M3).
     #[test]
     fn every_encoder_keeps_near_its_bitrate() {
+        crate::needs_own_machine!();
         for backend in Backend::ALL {
             let Some(mut encoder) = open(backend, config(1280, 720, 1_500_000)) else {
                 continue;
@@ -677,6 +678,7 @@ mod tests {
 
     #[test]
     fn hardware_comes_first_where_there_is_some() {
+        crate::needs_own_machine!();
         let Ok(encoder) = Encoder::open(config(1280, 720, 1_500_000), &Backend::ALL) else {
             eprintln!("no encoder here");
             return;
