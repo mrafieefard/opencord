@@ -14,12 +14,17 @@
 # An invite for others:
 #
 #   docker compose exec opencord opencord-server invite create
+#
+# The image is the one each release publishes (docs/releasing.md): `latest`
+# is the newest stable release; put OPENCORD_TAG=beta or canary in .env for
+# those channels, or a version such as 0.0.2 to stay on it. To build it from
+# this checkout instead, replace `image:` with the commented `build:`.
 services:
   opencord:
-    build:
-      context: ..
-      dockerfile: deploy/Dockerfile
-    image: opencord-server
+    image: ghcr.io/mrafieefard/opencord-server:${OPENCORD_TAG:-latest}
+    # build:
+    #   context: ..
+    #   dockerfile: deploy/Dockerfile
     restart: unless-stopped
     environment:
       OPENCORD_PUBLIC_HOST: ${OPENCORD_PUBLIC_HOST:?set it to the name or address clients reach this server at}

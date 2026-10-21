@@ -1,0 +1,24 @@
+name: Stamp the version
+description: >
+  Writes the release version the Version job worked out into Cargo.toml,
+  Cargo.lock, pubspec.yaml and the app's app_info.dart, so every build of the
+  run reports it (docs/releasing.md). Does nothing when the run releases
+  nothing.
+inputs:
+  version:
+    description: The version, like 0.0.2-beta.3; empty for none.
+    required: true
+runs:
+  using: composite
+  steps:
+    - name: Stamp the version
+      if: inputs.version != ''
+      shell: bash
+      env:
+        VERSION: ${{ inputs.version }}
+      run: |
+        # Windows runners have no python3, only python.
+        python=python3
+        [[ "$RUNNER_OS" == Windows ]] && python=python
+        "$python" .github/release/version.py stamp "$VERSION" --build "$GITHUB_RUN_NUMBER"
+        echo "Building $VERSION (build $GITHUB_RUN_NUMBER)"

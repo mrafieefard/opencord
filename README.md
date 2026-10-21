@@ -139,7 +139,7 @@ Members attach files and voice messages; the server keeps each one encrypted wit
 
 ### Docker
 
-`deploy/` has a Dockerfile, a compose file and a systemd unit. In `deploy/`:
+`deploy/` has a Dockerfile, a compose file and a systemd unit. Each release publishes the server's image as `ghcr.io/mrafieefard/opencord-server` (`latest` for stable, `beta` and `canary` for those channels; docs/releasing.md), which the compose file runs. In `deploy/`:
 
 ```bash
 echo OPENCORD_PUBLIC_HOST=chat.example.com > .env

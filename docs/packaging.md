@@ -1,6 +1,6 @@
 # Packaging
 
-What each desktop build carries, what it needs on the machine, and what is still to decide before a public release. CI builds all three (`.github/workflows/ci.yml`); a version tag attaches them to a GitHub release. The server's packaging is `deploy/` (docs/voice.md, "Docker").
+What each desktop build carries, what it needs on the machine, and what is still to decide before a public release. CI builds all three (`.github/workflows/cicd.yml`) on every push to `beta`, `canary` and `main`, and attaches them to that push's GitHub release (docs/releasing.md). The server's packaging is `deploy/` (docs/voice.md, "Docker").
 
 ## Linux
 

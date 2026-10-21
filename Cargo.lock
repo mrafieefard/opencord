@@ -3776,7 +3776,7 @@ checksum = "384b8ab6d37215f3c5301a95a4accb5d64aa607f1fcb26a11b5303878451b4fe"
 
 [[package]]
 name = "opencord-common"
-version = "0.1.0"
+version = "0.0.1"
 dependencies = [
  "bitflags 2.13.2",
  "chacha20poly1305",
@@ -3793,7 +3793,7 @@ dependencies = [
 
 [[package]]
 name = "opencord-media"
-version = "0.1.0"
+version = "0.0.1"
 dependencies = [
  "aec3",
  "ashpd",
@@ -3856,7 +3856,7 @@ dependencies = [
 
 [[package]]
 name = "opencord-proto"
-version = "0.1.0"
+version = "0.0.1"
 dependencies = [
  "prost",
  "prost-build",
@@ -3865,7 +3865,7 @@ dependencies = [
 
 [[package]]
 name = "opencord-server"
-version = "0.1.0"
+version = "0.0.1"
 dependencies = [
  "anyhow",
  "axum",
@@ -3913,7 +3913,7 @@ dependencies = [
 
 [[package]]
 name = "opencord-voice"
-version = "0.1.0"
+version = "0.0.1"
 dependencies = [
  "aes-gcm",
  "axum",
@@ -3943,7 +3943,7 @@ dependencies = [
 
 [[package]]
 name = "opencord-voicebot"
-version = "0.1.0"
+version = "0.0.1"
 dependencies = [
  "anyhow",
  "clap",
@@ -3962,7 +3962,7 @@ dependencies = [
 
 [[package]]
 name = "opencord_core"
-version = "0.1.0"
+version = "0.0.1"
 dependencies = [
  "arboard",
  "bytes",

@@ -4,7 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 final coreVersionProvider = Provider<String>((ref) => 'unknown');
 
 /// The app's own version, as in pubspec.yaml (a test keeps them equal).
-const appVersion = '0.1.0';
+const appVersion = '0.0.1';
 
 /// How to host a server: the README's guide, until there is a docs site.
 const hostingGuideUrl =
