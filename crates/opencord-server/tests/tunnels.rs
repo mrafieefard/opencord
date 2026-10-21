@@ -2,6 +2,9 @@
 //! started again by the server, with a fake cloudflared (a shell script)
 //! that prints what the real one does; and downloading cloudflared with
 //! its checksum checked, from a fake release.
+//!
+//! Unix only: the fake is a shell script.
+#![cfg(unix)]
 
 mod common;
 
