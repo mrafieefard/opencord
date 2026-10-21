@@ -369,7 +369,10 @@ fn explain_transport(chain: &str, endpoint: &Endpoint) -> String {
         || lower.contains("no address associated")
     {
         format!("{} could not be found: check the host name", endpoint.host)
-    } else if lower.contains("connection refused") {
+    } else if lower.contains("connection refused")
+        // Windows: "the target machine actively refused it".
+        || lower.contains("actively refused")
+    {
         format!("Nothing is listening on {authority}: check the port, and that Lavalink is running")
     } else if lower.contains("timed out") {
         format!("{authority} did not answer within {} s", TIMEOUT.as_secs())
