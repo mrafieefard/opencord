@@ -32,6 +32,8 @@ const OUTBOUND_CAPACITY: usize = 256;
 /// Larger fields are refused.
 const MAX_TOKEN_BYTES: usize = 4096;
 const MAX_ICE_FIELD: usize = 256;
+/// How long a closed connection is read on for the client's answering close.
+const CLOSE_GRACE: Duration = Duration::from_secs(1);
 
 static NEXT_CONNECTION_ID: AtomicU64 = AtomicU64::new(1);
 
@@ -65,6 +67,18 @@ pub async fn serve(node: VoiceNode, socket: WebSocket, media_host: Option<String
         }
     }
     drop(connection);
+    // Read on until the client answers the close (RFC 6455 §7.1.1). Dropped
+    // with the client's frames still unread, the socket is reset, and on
+    // Windows the reset discards the close frame on its way: the client
+    // never learns why (a rate limit, say).
+    let _ = tokio::time::timeout(CLOSE_GRACE, async {
+        while let Some(Ok(message)) = stream.next().await {
+            if matches!(message, Message::Close(_)) {
+                break;
+            }
+        }
+    })
+    .await;
     let _ = writer.await;
 }
 
