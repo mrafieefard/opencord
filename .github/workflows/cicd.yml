@@ -607,11 +607,13 @@ jobs:
         with:
           fetch-depth: 0
 
+      # The release files as they are: the zips must stay zips.
       - uses: actions/download-artifact@v8
         with:
           pattern: opencord-*
           path: dist
           merge-multiple: true
+          skip-decompress: true
 
       # release.json is what the app's updater reads (docs/releasing.md).
       - name: Manifest
