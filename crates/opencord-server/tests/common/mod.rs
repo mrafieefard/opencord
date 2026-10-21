@@ -28,7 +28,10 @@ use tokio_tungstenite::WebSocketStream;
 use tokio_tungstenite::tungstenite::Message;
 use tokio_tungstenite::tungstenite::protocol::frame::coding::CloseCode;
 
-pub const TIMEOUT: Duration = Duration::from_secs(5);
+/// The longest to wait for a frame the server owes. Generous: on Windows a
+/// connection to a closed local port takes about 2 s to be refused, and a
+/// request that tries several (a failing storage test) answers after that.
+pub const TIMEOUT: Duration = Duration::from_secs(15);
 
 pub struct TestServer {
     pub handle: ServerHandle,
@@ -51,6 +54,17 @@ impl TestServer {
     }
 
     async fn start_in(dir: tempfile::TempDir, customize: impl FnOnce(&mut Config)) -> Self {
+        // The server's warnings and errors, shown with a failing test's
+        // output (RUST_LOG for more).
+        static LOG: std::sync::Once = std::sync::Once::new();
+        LOG.call_once(|| {
+            let filter = tracing_subscriber::EnvFilter::try_from_default_env()
+                .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("warn"));
+            let _ = tracing_subscriber::fmt()
+                .with_env_filter(filter)
+                .with_test_writer()
+                .try_init();
+        });
         let mut config = Config::default();
         config.server.bind = "127.0.0.1:0".parse().unwrap();
         config.server.data_dir = dir.path().join("data");

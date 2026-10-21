@@ -3,8 +3,9 @@
 //! that prints what the real one does; and downloading cloudflared with
 //! its checksum checked, from a fake release.
 //!
-//! Unix only: the fake is a shell script.
-#![cfg(unix)]
+//! Linux only: the fake is a shell script found alive through /proc, and
+//! only Linux downloads cloudflared.
+#![cfg(target_os = "linux")]
 
 mod common;
 

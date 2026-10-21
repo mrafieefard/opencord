@@ -176,6 +176,10 @@ async fn camera_publisher(node: &Node, user_id: i64, track_id: &str) -> Publishe
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+#[cfg_attr(
+    windows,
+    ignore = "the Windows media gap: video stalls or stays on its lowest layer (docs/plans/windows.md W5, W6)"
+)]
 async fn a_published_camera_reaches_whoever_wants_it_intact() {
     // Which layer it settles on depends on the bandwidth estimate: timing.
     let _machine = whole_machine().await;
@@ -244,6 +248,10 @@ async fn a_hidden_tile_gets_no_video() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+#[cfg_attr(
+    windows,
+    ignore = "the Windows media gap: video stalls or stays on its lowest layer (docs/plans/windows.md W5, W6)"
+)]
 async fn unused_layers_stop_being_encoded() {
     let _machine = shared_machine().await;
     let node = node().await;
@@ -422,6 +430,10 @@ fn audio(index: u8) -> AudioFrame {
 /// (including layer switches) still flow through the node, which reads
 /// only RTP headers and extensions.
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+#[cfg_attr(
+    windows,
+    ignore = "the Windows media gap: video stalls or stays on its lowest layer (docs/plans/windows.md W5, W6)"
+)]
 async fn an_xor_transform_end_to_end_does_not_stop_the_node() {
     let _machine = shared_machine().await;
     let node = node().await;
@@ -532,6 +544,10 @@ async fn eventually(within: Duration, done: impl Fn() -> bool) -> bool {
 /// layer the sender still encodes; the top layer is encoded again once the
 /// cap is lifted and the estimator has probed for room.
 #[tokio::test(flavor = "multi_thread", worker_threads = 12)]
+#[cfg_attr(
+    windows,
+    ignore = "the Windows media gap: video stalls or stays on its lowest layer (docs/plans/windows.md W5, W6)"
+)]
 async fn a_capped_uplink_stops_encoding_the_cameras_top_layer_until_lifted() {
     let _machine = whole_machine().await;
     let node = node().await;

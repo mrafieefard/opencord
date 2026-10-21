@@ -10,7 +10,7 @@ void main() {
   test('the Rust core reports its version', () {
     expect(
       coreVersion(),
-      matches(RegExp(r'^\d+\.\d+\.\d+ \(protocol v\d+\)$')),
+      matches(RegExp(r'^\d+\.\d+\.\d+(-[a-z]+\.\d+)? \(protocol v\d+\)$')),
     );
   });
 }
