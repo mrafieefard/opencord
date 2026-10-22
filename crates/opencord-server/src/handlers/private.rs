@@ -1,11 +1,12 @@
-//! Gateway handlers for private messages: devices and their keys, privacy
-//! settings and blocks (design 2026-10-22).
+//! Gateway handlers for private messages: devices and their keys, the
+//! events waiting for them, privacy settings and blocks (design 2026-10-22).
 
 use std::collections::HashSet;
 
 use opencord_common::private::{
-    self as rules, DEVICE_ID_LEN, KEY_LEN, MAX_BLOCKED_IDS, MAX_CLAIM_DEVICES,
-    MAX_DEVICES_PER_USER, MAX_FETCH_DEVICES_USERS, MAX_STORED_ONE_TIME_KEYS, SIGNATURE_LEN,
+    self as rules, DEVICE_ID_LEN, KEY_LEN, MAX_ACK_IDS, MAX_BLOCKED_IDS, MAX_CLAIM_DEVICES,
+    MAX_DEVICES_PER_USER, MAX_FETCH_DEVICES_USERS, MAX_STORED_ONE_TIME_KEYS, PENDING_PAGE_BYTES,
+    PENDING_PAGE_EVENTS, SIGNATURE_LEN,
 };
 use opencord_proto::v1 as proto;
 use proto::response::Result as Response;
@@ -260,6 +261,81 @@ pub async fn claim_keys(ctx: &Ctx<'_>, request: proto::ClaimKeys) -> Result<Resp
         });
     }
     Ok(Response::ClaimedKeys(proto::ClaimedKeys { bundles }))
+}
+
+pub async fn fetch_pending_events(
+    ctx: &Ctx<'_>,
+    request: proto::FetchPendingEvents,
+) -> Result<Response, ApiError> {
+    require_enabled(ctx)?;
+    // 1.
+    let device_id = require_device(ctx)?;
+    // 2.
+    let limit = match request.limit {
+        0 => PENDING_PAGE_EVENTS,
+        limit => limit.min(PENDING_PAGE_EVENTS),
+    };
+    // 3. One more than the page, to tell whether more wait.
+    let mut conn = ctx.state.db.acquire().await?;
+    let rows = db::pending_after(
+        &mut conn,
+        ctx.user_id,
+        &device_id,
+        request.after_id,
+        i64::from(limit) + 1,
+    )
+    .await?;
+    // 4. Within the byte budget, but never empty.
+    let mut bytes = 0;
+    let mut taken = 0;
+    for row in rows.iter().take(limit as usize) {
+        bytes += row.event.len();
+        if taken > 0 && bytes > PENDING_PAGE_BYTES {
+            break;
+        }
+        taken += 1;
+    }
+    // 5.
+    let more = rows.len() > taken;
+    // 6.
+    if !db::touch_device(&mut conn, ctx.user_id, &device_id, now_ms()).await? {
+        return Err(unbind_removed_device(ctx));
+    }
+    let events = rows[..taken]
+        .iter()
+        .map(|row| crate::private::decode_pending(&row.event))
+        .collect::<Result<_, _>>()?;
+    Ok(Response::PendingEvents(proto::PendingEvents {
+        events,
+        more,
+    }))
+}
+
+pub async fn ack_pending_events(
+    ctx: &Ctx<'_>,
+    request: proto::AckPendingEvents,
+) -> Result<Response, ApiError> {
+    require_enabled(ctx)?;
+    // 1.
+    let device_id = require_device(ctx)?;
+    // 2.
+    if request.ids.len() > MAX_ACK_IDS {
+        return Err(ApiError::invalid_argument(format!(
+            "acknowledge at most {MAX_ACK_IDS} events at once"
+        )));
+    }
+    // 3. Only this device's.
+    let ids = serde_json::to_string(&request.ids).map_err(|error| {
+        tracing::error!(%error, "could not encode the acknowledged ids");
+        ApiError::internal()
+    })?;
+    let mut conn = ctx.state.db.acquire().await?;
+    db::delete_pending(&mut conn, ctx.user_id, &device_id, &ids).await?;
+    // 4.
+    if !db::touch_device(&mut conn, ctx.user_id, &device_id, now_ms()).await? {
+        return Err(unbind_removed_device(ctx));
+    }
+    Ok(ack())
 }
 
 pub async fn update_privacy(

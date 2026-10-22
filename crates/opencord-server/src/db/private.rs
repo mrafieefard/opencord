@@ -1,4 +1,5 @@
-//! Private messages: devices, their keys, and privacy settings and blocks.
+//! Private messages: devices, their keys, privacy settings and blocks, and
+//! the events waiting for each device.
 
 use sqlx::SqliteConnection;
 
@@ -336,6 +337,190 @@ pub async fn count_pending(
     )
     .fetch_one(conn)
     .await
+}
+
+/// The member's device ids, oldest first.
+pub async fn device_ids(
+    conn: &mut SqliteConnection,
+    user_id: i64,
+) -> Result<Vec<Vec<u8>>, sqlx::Error> {
+    sqlx::query_scalar!(
+        "SELECT device_id FROM private_devices WHERE user_id = $1 ORDER BY created_at, rowid",
+        user_id
+    )
+    .fetch_all(conn)
+    .await
+}
+
+/// Fails on a foreign key when the device is gone.
+pub async fn insert_pending(
+    conn: &mut SqliteConnection,
+    id: i64,
+    user_id: i64,
+    device_id: &[u8],
+    event: &[u8],
+    friend_request_id: Option<i64>,
+    now_ms: i64,
+) -> Result<(), sqlx::Error> {
+    sqlx::query!(
+        "INSERT INTO private_pending (id, user_id, device_id, event, friend_request_id, created_at)
+         VALUES ($1, $2, $3, $4, $5, $6)",
+        id,
+        user_id,
+        device_id,
+        event,
+        friend_request_id,
+        now_ms
+    )
+    .execute(conn)
+    .await?;
+    Ok(())
+}
+
+/// Deletes the device's oldest events beyond `keep`.
+pub async fn trim_pending(
+    conn: &mut SqliteConnection,
+    user_id: i64,
+    device_id: &[u8],
+    keep: i64,
+) -> Result<(), sqlx::Error> {
+    sqlx::query!(
+        "DELETE FROM private_pending WHERE id IN (
+             SELECT id FROM private_pending
+             WHERE user_id = $1 AND device_id = $2
+             ORDER BY id DESC
+             LIMIT -1 OFFSET $3)",
+        user_id,
+        device_id,
+        keep
+    )
+    .execute(conn)
+    .await?;
+    Ok(())
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PendingRow {
+    pub id: i64,
+    /// An encoded `PendingEvent`.
+    pub event: Vec<u8>,
+}
+
+/// The device's events after `after_id`, oldest first, at most `limit`.
+pub async fn pending_after(
+    conn: &mut SqliteConnection,
+    user_id: i64,
+    device_id: &[u8],
+    after_id: i64,
+    limit: i64,
+) -> Result<Vec<PendingRow>, sqlx::Error> {
+    sqlx::query_as!(
+        PendingRow,
+        "SELECT id, event FROM private_pending
+         WHERE user_id = $1 AND device_id = $2 AND id > $3
+         ORDER BY id
+         LIMIT $4",
+        user_id,
+        device_id,
+        after_id,
+        limit
+    )
+    .fetch_all(conn)
+    .await
+}
+
+/// Deletes those of `ids` that wait for this device; `ids` is a JSON array.
+pub async fn delete_pending(
+    conn: &mut SqliteConnection,
+    user_id: i64,
+    device_id: &[u8],
+    ids: &str,
+) -> Result<(), sqlx::Error> {
+    sqlx::query!(
+        "DELETE FROM private_pending
+         WHERE user_id = $1 AND device_id = $2
+           AND id IN (SELECT value FROM json_each($3))",
+        user_id,
+        device_id,
+        ids
+    )
+    .execute(conn)
+    .await?;
+    Ok(())
+}
+
+pub async fn delete_pending_before(
+    conn: &mut SqliteConnection,
+    before_ms: i64,
+) -> Result<(), sqlx::Error> {
+    sqlx::query!(
+        "DELETE FROM private_pending WHERE created_at < $1",
+        before_ms
+    )
+    .execute(conn)
+    .await?;
+    Ok(())
+}
+
+/// Deletes the devices last seen before `before_ms`, with their keys and
+/// events. Returns them as (user id, device id).
+pub async fn delete_devices_unseen_since(
+    conn: &mut SqliteConnection,
+    before_ms: i64,
+) -> Result<Vec<(i64, Vec<u8>)>, sqlx::Error> {
+    let rows = sqlx::query!(
+        r#"DELETE FROM private_devices WHERE last_seen_at < $1
+           RETURNING user_id AS "user_id!", device_id"#,
+        before_ms
+    )
+    .fetch_all(conn)
+    .await?;
+    Ok(rows
+        .into_iter()
+        .map(|row| (row.user_id, row.device_id))
+        .collect())
+}
+
+pub async fn delete_recent_sends_before(
+    conn: &mut SqliteConnection,
+    before_ms: i64,
+) -> Result<(), sqlx::Error> {
+    sqlx::query!(
+        "DELETE FROM private_recent_sends WHERE created_at < $1",
+        before_ms
+    )
+    .execute(conn)
+    .await?;
+    Ok(())
+}
+
+/// Deletes the member's devices (with their keys and events), settings,
+/// own blocks, and friend requests to or from them with the events that
+/// carry those requests. Run it in a transaction.
+pub async fn forget_member(conn: &mut SqliteConnection, user_id: i64) -> Result<(), sqlx::Error> {
+    sqlx::query!(
+        "DELETE FROM private_pending WHERE friend_request_id IN (
+             SELECT id FROM private_friend_requests WHERE from_id = $1 OR to_id = $1)",
+        user_id
+    )
+    .execute(&mut *conn)
+    .await?;
+    sqlx::query!(
+        "DELETE FROM private_friend_requests WHERE from_id = $1 OR to_id = $1",
+        user_id
+    )
+    .execute(&mut *conn)
+    .await?;
+    sqlx::query!("DELETE FROM private_devices WHERE user_id = $1", user_id)
+        .execute(&mut *conn)
+        .await?;
+    sqlx::query!("DELETE FROM private_privacy WHERE user_id = $1", user_id)
+        .execute(&mut *conn)
+        .await?;
+    sqlx::query!("DELETE FROM private_blocks WHERE owner_id = $1", user_id)
+        .execute(&mut *conn)
+        .await?;
+    Ok(())
 }
 
 /// Everything stored for the member. Intended for tests.

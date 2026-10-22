@@ -828,3 +828,20 @@ impl TestClient {
         }
     }
 }
+
+/// A private message copy from a made-up sender, with a body of `body_len`
+/// bytes.
+pub fn private_message_kind(body_len: usize) -> proto::pending_event::Kind {
+    proto::pending_event::Kind::PrivateMessage(proto::PrivateMessage {
+        sender: Some(proto::User {
+            id: 4_242,
+            public_key: vec![42; 32],
+            display_name: "sender".to_owned(),
+            avatar_hash: String::new(),
+        }),
+        sender_device_id: vec![42; 16],
+        olm_type: 1,
+        body: vec![7; body_len],
+        sent_at_ms: 1,
+    })
+}

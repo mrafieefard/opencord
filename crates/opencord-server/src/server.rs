@@ -31,6 +31,7 @@ use opencord_voice::node::{NodeConfig, NodeEvent, VoiceNode};
 use tokio::sync::mpsc::UnboundedReceiver;
 
 const REAP_INTERVAL: Duration = Duration::from_secs(5);
+const PRIVATE_SWEEP_INTERVAL: Duration = Duration::from_secs(3_600);
 /// How often voice clients send a heartbeat.
 pub(crate) const VOICE_HEARTBEAT: Duration = Duration::from_secs(5);
 const SHUTDOWN_GRACE: Duration = Duration::from_secs(5);
@@ -155,6 +156,7 @@ pub async fn start(config: Config) -> anyhow::Result<ServerHandle> {
         }
     };
     let reaper = tokio::spawn(reap_sessions(Arc::clone(&state)));
+    tokio::spawn(sweep_private_messages(Arc::clone(&state)));
     state.network.set_listening(
         local_addr.port(),
         Listening {
@@ -329,6 +331,56 @@ impl ServerHandle {
             .expect("the private message counts")
     }
 
+    /// Runs the private messages sweep as if it were `now_ms`. Intended for
+    /// tests.
+    pub async fn sweep_private(&self, now_ms: i64) {
+        crate::private::sweep(&self.state, now_ms)
+            .await
+            .expect("the private messages sweep");
+    }
+
+    /// Delivers these events to the device as a sender would. Intended for
+    /// tests.
+    pub async fn queue_private_events(
+        &self,
+        user_id: i64,
+        device_id: [u8; 16],
+        kinds: Vec<opencord_proto::v1::pending_event::Kind>,
+    ) {
+        let items = kinds
+            .into_iter()
+            .map(|kind| crate::private::Pending {
+                user_id,
+                device_id,
+                kind,
+                friend_request_id: None,
+            })
+            .collect();
+        crate::private::deliver(&self.state, items)
+            .await
+            .expect("the events are stored");
+    }
+
+    /// The events waiting for the device, oldest first. Intended for tests.
+    pub async fn private_pending_for(
+        &self,
+        user_id: i64,
+        device_id: [u8; 16],
+    ) -> Vec<opencord_proto::v1::PendingEvent> {
+        let mut conn = self
+            .state
+            .db
+            .acquire()
+            .await
+            .expect("a database connection");
+        crate::db::private::pending_after(&mut conn, user_id, &device_id, 0, i64::MAX)
+            .await
+            .expect("the pending events")
+            .iter()
+            .map(|row| crate::private::decode_pending(&row.event).expect("a stored event"))
+            .collect()
+    }
+
     /// Intended for tests: how many uploads are in `state` ("uploading",
     /// "processing", "ready", "failed" or "sent").
     pub async fn uploads_in_state(&self, state: &str) -> Result<usize, sqlx::Error> {
@@ -460,5 +512,21 @@ async fn reap_sessions(state: Arc<AppState>) {
         state.rate_limits.prune();
         let longest_cooldown = Duration::from_secs(u64::from(SOUND_COOLDOWN_MAX_S));
         state.voice().sounds.prune(Instant::now(), longest_cooldown);
+    }
+}
+
+/// Drops undelivered private events, unseen devices and old send ids,
+/// at start and then hourly, until shutdown.
+async fn sweep_private_messages(state: Arc<AppState>) {
+    let mut interval = tokio::time::interval(PRIVATE_SWEEP_INTERVAL);
+    loop {
+        tokio::select! {
+            _ = interval.tick() => {
+                if let Err(error) = crate::private::sweep(&state, now_ms()).await {
+                    tracing::warn!(%error, "could not sweep private messages");
+                }
+            }
+            () = state.shutdown.cancelled() => return,
+        }
     }
 }

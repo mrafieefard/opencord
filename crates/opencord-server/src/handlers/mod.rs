@@ -164,9 +164,9 @@ async fn dispatch(ctx: &Ctx<'_>, request: proto::Request) -> Result<Response, Ap
         Kind::FetchDevices(request) => private::fetch_devices(ctx, request).await,
         Kind::ClaimKeys(request) => private::claim_keys(ctx, request).await,
         Kind::UpdatePrivacy(request) => private::update_privacy(ctx, request).await,
-        Kind::FetchPendingEvents(_)
-        | Kind::AckPendingEvents(_)
-        | Kind::SendPrivateMessage(_)
+        Kind::FetchPendingEvents(request) => private::fetch_pending_events(ctx, request).await,
+        Kind::AckPendingEvents(request) => private::ack_pending_events(ctx, request).await,
+        Kind::SendPrivateMessage(_)
         | Kind::StartPrivateTyping(_)
         | Kind::SendFriendRequest(_)
         | Kind::AnswerFriendRequest(_)
