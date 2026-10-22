@@ -968,44 +968,53 @@ The desktop UI plan's §17.5 never arrived, so where Phase 2 §12 says only what
   - `crates/opencord-server/tests/private.rs`: `ready_says_whether_private_messages_are_on`.
 
 
-## D62: Private messages: server devices, keys, pending delivery, relay and friends (Phase 5 E1, 2026-10-22)
+## D62: Private messages: the server's devices, keys, waiting events, relay and friends (Phase 5 E1, 2026-10-22)
 
-- **Why.** Milestone E1 of private messages (`docs/superpowers/plans/2026-10-22-private-messages.md`, Tasks 4–7, commits `65af9b1..de85f04`) builds the server-side infrastructure for end-to-end encrypted messaging and friends: device registration and cryptographic prekey bundles, privacy settings and in-memory block lists, an offline pending event queue with hourly pruning, message and typing relays, and friend request lifecycles.
-- **Devices, keys and privacy (Task 4, `65af9b1`).**
-  - Handlers in `crates/opencord-server/src/handlers/private.rs`:
-    - `register_device`: validates `device_id` (16 bytes, `DEVICE_ID_LEN`), `identity_key` (32 bytes, `KEY_LEN`), `curve25519_key` (32 bytes), `ed25519_key` (32 bytes), `device_signature` (64 bytes, `SIGNATURE_LEN`, via `verify_device`), signed prekey (`prekey_id`, 32-byte `key`, 64-byte `signature` via `verify_prekey`), and up to 100 `one_time_prekeys` (`MAX_STORED_ONE_TIME_KEYS`). Capped at 10 devices per user (`MAX_DEVICES_PER_USER`); registering an 11th device evicts the one with the oldest `last_seen_at_ms`. Re-registering an existing device replaces its keys and discards previously uploaded one-time prekeys. Associates the registered device ID with the connection session via `session.set_private_device`.
-    - `upload_keys`: uploads additional one-time prekeys for the session's registered device, capped at `MAX_STORED_ONE_TIME_KEYS` (100).
-    - `unregister_device`: deletes the session's device, its one-time prekeys, and queued pending events from the database, and clears the session device (`session.set_private_device(None)`).
-    - `fetch_devices`: returns `DeviceLists` for requested user IDs, capped at 2 users (`MAX_FETCH_DEVICES_USERS`).
-    - `claim_keys`: claims prekey bundles for up to 20 devices (`MAX_CLAIM_DEVICES`), consuming one one-time prekey per device (in `prekey_id ASC` order) or returning `fallback: true` with the signed prekey when exhausted. Enforces rate limiting via `RateLimits::check_key_claim` (`KEY_CLAIM_RATE`).
-    - `update_privacy`: updates `allow_friend_requests`, `allow_message_requests`, and blocked user IDs (capped at 10,000 via `MAX_BLOCKED_IDS`) in `private_privacy` and `private_blocks` tables, and updates `state.private.set_privacy`.
-  - In-memory state: `PrivateMessages` in `crates/opencord-server/src/private/mod.rs` maintains `Privacy` with `blocked: HashSet<i64>`. Initialized from SQLite at server startup via `state.private.load` (`server.rs`), and cleared on member kick or ban via `state.private.forget` (`handlers/members.rs`).
-- **Pending events and offline delivery (Task 5, `4c0ba47`).**
-  - Event store in `crates/opencord-server/src/private/mod.rs`:
-    - `insert_pending`: stores each pending event under a snowflake ID in `private_pending`, and trims each device's stored queue to `config.private_messages.max_pending_per_device` (default 5,000) by dropping the oldest events.
-    - `push_pending`: broadcasts live `PendingEvent` instances directly to active sessions holding the target device (`session.private_device()`).
-    - `deliver`: transactional helper that calls `insert_pending`, commits, and invokes `push_pending`.
-    - `devices_of`: queries all 16-byte device IDs registered for a user.
-    - `sweep`: background task (`sweep_private_messages` in `server.rs`) running at startup and every hour (3,600 s); removes pending events older than `undelivered_days` (default 30 days), devices unseen for `device_expiry_days` (default 60 days) along with their keys and pending events, and send records older than 24 hours (`RECENT_SEND_TTL_MS` = 86,400,000 ms). Disassociates deleted devices from active sessions.
-    - `forget_member`: removes all private table records (devices, keys, privacy, blocks, pending events, friend requests, recent sends) when a user is kicked or banned.
-  - Gateway handlers:
-    - `fetch_pending_events`: retrieves events for the session's device starting after `after_id`, bounded by `limit` (max 100 via `PENDING_PAGE_EVENTS`) and 768 KiB (`PENDING_PAGE_BYTES` = 786,432 bytes).
-    - `ack_pending_events`: deletes acknowledged event IDs for the session's device, capped at 500 IDs (`MAX_ACK_IDS`).
-- **Private message and typing relay (Task 6, `9d6b4f1`).**
-  - Message relay in `crates/opencord-server/src/handlers/private.rs`:
-    - `send_private_message`: requires a registered device (`require_device`); rate limited per sender-recipient pair via `RateLimits::check_private_message` (`PRIVATE_MESSAGE_RATE`); enforces idempotent sends via `private_recent_sends` (`send_id`, returning `PrivateMessageSent { stored: false }` on duplicate); checks bidirectional blocks in memory (`has_blocked` returns `ApiError::undeliverable()`); enforces message requests permissions (if recipient's `allow_message_requests == false` and not friends, requires a signed slip from recipient via `verify_slip`, else returns `ApiError::message_requests_closed()`); checks recipient has devices (else `ApiError::private_messages_unavailable("they have no devices registered yet")`); verifies ciphertext copies match exactly recipient's devices and sender's other devices (else `ApiError::device_list_changed()`); bounds ciphertext size to 32 KiB (`MAX_CIPHERTEXT_BYTES` = 32,768); enqueues `PrivateMessage` pending events to all recipient devices and sender's other devices.
-    - `start_private_typing`: silently ignores if sender has no registered device, sender or recipient is blocked, or message requests are closed without a friendship or valid slip; otherwise relays `PrivateTypingStart` pending events to recipient devices without disclosing blocks.
-- **Friend requests and relations (Task 7, `de85f04`).**
-  - Handlers in `crates/opencord-server/src/handlers/friends.rs`:
-    - `send_friend_request`: requires a registered device; cannot friend self (`ApiError::invalid_input("you cannot send a friend request to yourself")`); rate limited via `RateLimits::check_friend_request` (`FRIEND_REQUEST_RATE`); verifies neither user blocked the other (`ApiError::undeliverable()`); checks target's `allow_friend_requests` (`ApiError::friend_requests_closed()`); verifies grantee slip from target via `verify_slip`; checks existing friendship (`ApiError::conflict("already friends")`) or existing pending request in either direction (`ApiError::conflict("a friend request is already pending")`); inserts row into `private_friend_requests`; delivers `FriendRequestReceived` (recording `friend_request_id`) to all target devices and `FriendRequestSent` to requester's other devices.
-    - `answer_friend_request`: looks up pending request by ID; verifies caller is the recipient (`ApiError::forbidden("only the recipient can answer this friend request")`); if accepting (`accept == true`), verifies recipient's slip for requester via `verify_slip`, conditionally updates `accepted_at_ms` (`UPDATE private_friend_requests SET accepted_at_ms = $1 WHERE id = $2 AND accepted_at_ms IS NULL`), and delivers `FriendRequestAnswered { accepted: true }` to requester and answerer's other devices; if declining (`accept == false`), conditionally deletes the pending row (`DELETE FROM private_friend_requests WHERE id = $1 AND accepted_at_ms IS NULL`) and delivers `FriendRequestAnswered { accepted: false }` to requester. Answering an already answered or cancelled request returns `ApiError::not_found("friend request not found")`.
-    - `cancel_friend_request`: verifies caller is the requester (`ApiError::forbidden("only the requester can cancel this friend request")`); conditionally deletes the pending row (`DELETE FROM private_friend_requests WHERE id = $1 AND accepted_at_ms IS NULL`); removes unread `FriendRequestReceived` pending events from `private_pending` using `friend_request_id`; delivers `FriendRequestCancelled` to all target devices and requester's other devices.
-    - `remove_friend`: conditionally deletes the accepted friend row from `private_friend_requests`; delivers `FriendRemoved` to all devices of both members.
-- **Tests.**
-  - `crates/opencord-server/tests/private.rs` (44 tests passing):
-    - Devices and keys: `ready_says_whether_private_messages_are_on`, `a_device_registers_and_reports_its_keys`, `a_device_signed_by_someone_else_is_refused`, `a_prekey_signed_by_another_key_is_refused`, `claims_use_up_one_time_keys_then_the_fallback`, `a_session_registers_one_device`, `an_eleventh_device_pushes_out_the_one_seen_longest_ago`, `a_new_registration_with_new_keys_drops_the_old_one_time_keys`, `unregistering_removes_the_device_and_its_keys`, `requests_need_a_registered_device`, `a_disabled_server_refuses_registration`, `privacy_and_blocks_replace_earlier_ones_and_survive_a_restart`, `too_many_blocked_ids_are_refused`.
-    - Pending events: `an_offline_device_gets_its_events_after_reconnecting_in_order`, `events_stay_until_acknowledged`, `catch_up_pages_by_count_and_by_bytes`, `too_many_acknowledgements_are_refused`, `a_live_event_reaches_the_session_holding_the_device`, `a_new_session_takes_the_device_from_the_old_one`, `the_cap_drops_the_oldest`, `expiry_removes_old_events_and_unseen_devices`, `a_kicked_member_leaves_nothing_behind`.
-    - Message relay: `a_message_reaches_every_device_of_both_people_but_the_senders_own`, `a_stale_device_set_is_refused`, `a_repeated_send_id_stores_nothing`, `blocked_senders_get_undeliverable`, `closed_message_requests_need_a_slip`, `a_recipient_without_devices_is_unavailable`, `malformed_copies_are_refused`, `typing_never_reveals_a_block`, `messages_are_rate_limited_per_recipient`.
-    - Friend requests: `a_friend_request_waits_for_an_offline_target`, `an_online_target_gets_the_request_at_once`, `accepting_reaches_the_requester_and_the_answerers_other_devices`, `declining_reaches_the_requester_too`, `answering_twice_is_not_found`, `cancelling_takes_back_the_undelivered_request`, `closed_friend_requests_give_their_error`, `blocked_requesters_get_undeliverable`, `a_second_request_between_the_pair_conflicts`, `a_request_needs_a_valid_slip`, `removing_a_friend_reaches_both_sides`, `friend_requests_are_rate_limited`, `a_kick_removes_the_kicked_persons_requests`.
-  - Full workspace clippy, `cargo fmt`, `app/tool/check_platforms.sh`, `flutter analyze`, and full `flutter test` (957 passed, 1 skipped) all pass.
+- **Why.** Milestone E1 of private messages (`docs/superpowers/plans/2026-10-22-private-messages.md`, Tasks 4–7, commits `65af9b1..de85f04`). The server registers each person's devices and their keys, keeps events for devices that are offline, relays encrypted messages it can't read, and carries friend requests. Tasks 4–6 were done by Claude through claude-bridge, Task 7 by Gemini.
+- **Devices, keys and privacy (Task 4, `65af9b1`).** In `handlers/private.rs`, `private/mod.rs` and `db/private.rs`.
+  - `RegisterDevice` takes a `DeviceKeys` (16-byte id, Curve25519 and Ed25519 keys, the identity's signature over them, checked with `verify_device` against the member's own key), one-time keys and a fallback key, each signed by the device (`verify_prekey`). The session then holds that device. Re-registering with new keys drops the old one-time keys in one conditional `DELETE`. An 11th device pushes out the one seen longest ago (ties by `rowid`), and any session holding it lets it go.
+  - `UploadKeys` adds one-time keys and may replace the fallback key; the 100-key limit is checked inside the transaction after inserting, and the transaction rolls back if it's over. `UnregisterDevice` deletes the device; its keys and waiting events go with it (`ON DELETE CASCADE`).
+  - `FetchDevices` (2 users at most) lists devices. `ClaimKeys` (20 devices at most, `KEY_CLAIM_RATE`) hands out one one-time key per device, oldest first, removed with `DELETE … RETURNING`. When none is left, it hands out the fallback key, marked `fallback`.
+  - `UpdatePrivacy` replaces both switches and the block list (10,000 ids at most, repeats dropped) under `state.write_lock()`. `PrivateMessages` keeps them in memory, loaded at startup. Kick and ban call `forget_member` in their transaction, then `PrivateMessages::forget`.
+  - `Ctx` gained `session: &Arc<Session>`, so handlers reach the session's device slot.
+- **Waiting events (Task 5, `4c0ba47`).** In `private/mod.rs`.
+  - `insert_pending` stores each event under a Snowflake id for one device, inside the caller's transaction, and drops a device's oldest events past `max_pending_per_device`. `push_pending`, after the commit, sends each one live to the session holding that device. `deliver` does both in its own transaction.
+  - `FetchPendingEvents` pages by `after_id`, 100 events or 786,432 bytes at most, with `more` set when there are more. `AckPendingEvents` (500 ids at most) deletes only the caller's own device's events.
+  - An hourly sweep (`sweep_private_messages` in `server.rs`) deletes events older than `undelivered_days`, devices unseen for `device_expiry_days` (sessions holding them let them go), and send ids older than 24 hours.
+  - `forget_member` deletes the member's friend requests and the events for them, devices, privacy and blocks.
+- **Messages and typing (Task 6, `9d6b4f1`).**
+  - `SendPrivateMessage` checks, in order:
+    - a device is required, and the rate is limited per sender and recipient (`PRIVATE_MESSAGE_RATE`);
+    - the recipient is a member and not the sender;
+    - the recipient hasn't blocked the sender (`UNDELIVERABLE`);
+    - if the recipient turned message requests off, the sender has the recipient's slip (`MESSAGE_REQUESTS_CLOSED`), since the server keeps no friend list;
+    - the copies have their shape: 1 to 20 copies, 32,768 bytes each, no device twice.
 
+    Then, in one transaction:
+    - the same `send_id` from the same device within 24 hours stores nothing and answers with the first send's time;
+    - the recipient must have devices;
+    - the copies must name exactly the recipient's devices and the sender's other devices (`DEVICE_LIST_CHANGED`).
+
+    Each copy goes to its device as a `PrivateMessage` waiting event, and the answer gives the server's time.
+  - `StartPrivateTyping` passes the same checks but answers success either way, so typing never reveals a block. It sends a live `PrivateTypingStart` event to the recipient's sessions, never stored.
+- **Friend requests (Task 7, `de85f04`).** In `handlers/friends.rs`.
+  - `SendFriendRequest` checks, in order:
+    - a device is required, and the rate is limited (`FRIEND_REQUEST_RATE`);
+    - the target is a member and not the caller;
+    - the target hasn't blocked the caller (`UNDELIVERABLE`) and takes friend requests (`FRIEND_REQUESTS_CLOSED`);
+    - the target has devices;
+    - the slip (the caller's permission for the target) verifies;
+    - the caller has fewer than 100 requests waiting, and no request exists between the two in either direction (`CONFLICT`, worded for who sent it).
+
+    In one transaction, it then stores the request, sends `FriendRequestReceived` to the target's devices (tagged with the request id) and `FriendRequestSent` to the caller's other devices.
+  - `AnswerFriendRequest`: only the target can answer, else `NOT_FOUND`. An accept needs the answerer's slip for the requester. The request is deleted with `WHERE id = ? AND to_id = ?`; if no row was deleted, the answer is `NOT_FOUND` and nothing is sent. `FriendRequestAnswered` (the slip is empty on a decline) goes to the requester's devices and the answerer's other devices.
+  - `CancelFriendRequest`: deleted with `WHERE id = ? AND from_id = ?`, together with its undelivered `FriendRequestReceived` events. `FriendRequestCancelled` goes to the target's devices and the caller's other devices.
+  - `RemoveFriend` stores nothing, since the server keeps no friend list. It sends `FriendRemoved` to the target's devices and the caller's other devices.
+- **Tests.** `crates/opencord-server/tests/private.rs`, 44 tests, all passing:
+  - 13 on devices, keys and privacy;
+  - 9 on waiting events;
+  - 9 on messages and typing;
+  - 13 on friend requests.
+
+  Workspace clippy, `check_platforms.sh`, `flutter analyze` and `flutter test` (957 passed, 1 skipped) also pass.
+- **Review.** E1 was checked against the plan on 2026-10-22. The code matched; this entry was rewritten because the first version described a different design for Task 7 (an `accepted_at_ms` column, `FORBIDDEN` errors, a stored friend list) and wrong details for Tasks 4 and 6.
