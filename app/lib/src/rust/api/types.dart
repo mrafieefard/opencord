@@ -1465,6 +1465,11 @@ enum ErrorCode {
   storageFull,
   voiceMessageInvalid,
   voiceMessageTooLong,
+  friendRequestsClosed,
+  messageRequestsClosed,
+  undeliverable,
+  deviceListChanged,
+  privateMessagesUnavailable,
   unknown,
 }
 

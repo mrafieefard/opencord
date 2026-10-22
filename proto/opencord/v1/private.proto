@@ -1,0 +1,282 @@
+// SPDX-License-Identifier: MPL-2.0
+syntax = "proto3";
+
+package opencord.v1;
+
+import "opencord/v1/models.proto";
+
+// Private messages, friends and offline delivery (design 2026-10-22).
+
+// A device's long-term keys, signed by its owner's identity key over
+// "opencord-device-v1" || device_id || curve25519 || ed25519.
+message DeviceKeys {
+  // 16 random bytes, chosen by the device.
+  bytes device_id = 1;
+  // 32 bytes each.
+  bytes curve25519 = 2;
+  bytes ed25519 = 3;
+  // 64 bytes, by the user's identity key.
+  bytes signature = 4;
+}
+
+// A one-time key or a fallback key (32 bytes), signed by the device's
+// Ed25519 key over "opencord-prekey-v1" || device_id || key || fallback.
+message Prekey {
+  bytes key = 1;
+  bytes signature = 2;
+}
+
+message UserDevices {
+  int64 user_id = 1;
+  repeated DeviceKeys devices = 2;
+}
+
+message DeviceRef {
+  int64 user_id = 1;
+  bytes device_id = 2;
+}
+
+// What a sender needs to start a session with one device.
+message DeviceBundle {
+  int64 user_id = 1;
+  DeviceKeys device = 2;
+  // A one-time key, used up by this claim; the fallback key when none are
+  // left.
+  Prekey prekey = 3;
+  bool fallback = 4;
+}
+
+// One device's encrypted copy of a private message.
+message DeviceCiphertext {
+  int64 user_id = 1;
+  bytes device_id = 2;
+  // 0: a prekey message (it starts a session); 1: a normal message.
+  uint32 olm_type = 3;
+  bytes body = 4;
+}
+
+// Requests.
+
+// After Ready, once per session: binds the session to this device.
+message RegisterDevice {
+  DeviceKeys device = 1;
+  repeated Prekey one_time_keys = 2;
+  Prekey fallback_key = 3;
+}
+
+message UploadKeys {
+  repeated Prekey one_time_keys = 1;
+  // A new fallback key; absent keeps the current one.
+  Prekey fallback_key = 2;
+}
+
+message UnregisterDevice {}
+
+message DeviceRegistration {
+  uint32 one_time_keys_left = 1;
+  uint32 pending_events = 2;
+}
+
+// One or two members: the caller and the person they write to.
+message FetchDevices {
+  repeated int64 user_ids = 1;
+}
+
+message DeviceLists {
+  repeated UserDevices users = 1;
+}
+
+message ClaimKeys {
+  repeated DeviceRef devices = 1;
+}
+
+message ClaimedKeys {
+  repeated DeviceBundle bundles = 1;
+}
+
+message FetchPendingEvents {
+  // Events with a larger id; 0 for the oldest.
+  int64 after_id = 1;
+  // 1 to 100; 0 means 100.
+  uint32 limit = 2;
+}
+
+message PendingEvents {
+  // Oldest first.
+  repeated PendingEvent events = 1;
+  // More are waiting after the last one.
+  bool more = 2;
+}
+
+message AckPendingEvents {
+  repeated int64 ids = 1;
+}
+
+message SendPrivateMessage {
+  int64 recipient_id = 1;
+  // 16 bytes: the message's id. A repeat within 24 hours stores nothing.
+  bytes send_id = 2;
+  // One per device of the recipient, and one per other device of the caller.
+  repeated DeviceCiphertext ciphertexts = 3;
+  // The recipient's permission slip for the caller, when held.
+  bytes slip = 4;
+}
+
+message PrivateMessageSent {
+  // The server's time: the message's time on every device.
+  int64 sent_at_ms = 1;
+}
+
+message StartPrivateTyping {
+  int64 recipient_id = 1;
+  bytes slip = 2;
+}
+
+// Replaces the caller's settings and block list on this server.
+message UpdatePrivacy {
+  bool allow_friend_requests = 1;
+  bool allow_message_requests = 2;
+  repeated int64 blocked_user_ids = 3;
+}
+
+message SendFriendRequest {
+  int64 user_id = 1;
+  // The caller's permission slip for the target.
+  bytes slip = 2;
+}
+
+message FriendRequestCreated {
+  int64 request_id = 1;
+  int64 created_at_ms = 2;
+}
+
+message AnswerFriendRequest {
+  int64 request_id = 1;
+  bool accept = 2;
+  // With an accept: the caller's permission slip for the requester.
+  bytes slip = 3;
+}
+
+message CancelFriendRequest {
+  int64 request_id = 1;
+}
+
+message RemoveFriend {
+  int64 user_id = 1;
+}
+
+// Events.
+
+// Something waiting on the server for one device until it acknowledges it.
+message PendingEvent {
+  int64 id = 1;
+  int64 created_at_ms = 2;
+  oneof kind {
+    FriendRequestReceived friend_request_received = 10;
+    FriendRequestSent friend_request_sent = 11;
+    FriendRequestAnswered friend_request_answered = 12;
+    FriendRequestCancelled friend_request_cancelled = 13;
+    FriendRemoved friend_removed = 14;
+    PrivateMessage private_message = 15;
+  }
+}
+
+// To the target's devices.
+message FriendRequestReceived {
+  int64 request_id = 1;
+  User from = 2;
+  // The requester's permission slip for the target.
+  bytes slip = 3;
+}
+
+// To the requester's other devices.
+message FriendRequestSent {
+  int64 request_id = 1;
+  User to = 2;
+}
+
+// To the requester's devices and the answerer's other devices.
+message FriendRequestAnswered {
+  int64 request_id = 1;
+  User requester = 2;
+  User answerer = 3;
+  bool accepted = 4;
+  // With an accept: the answerer's permission slip for the requester.
+  bytes slip = 5;
+}
+
+// To the target's devices and the requester's other devices.
+message FriendRequestCancelled {
+  int64 request_id = 1;
+  User requester = 2;
+  User target = 3;
+}
+
+// To the removed person's devices and the remover's other devices.
+message FriendRemoved {
+  User remover = 1;
+  User removed = 2;
+}
+
+// One device's copy of a private message.
+message PrivateMessage {
+  User sender = 1;
+  bytes sender_device_id = 2;
+  uint32 olm_type = 3;
+  bytes body = 4;
+  // The server's time when it accepted the message.
+  int64 sent_at_ms = 5;
+}
+
+// To the recipient's sessions; never stored.
+message PrivateTypingStart {
+  int64 user_id = 1;
+}
+
+// Inside the encryption: servers never decode these.
+
+// An Olm message's plaintext.
+message PrivatePayload {
+  // 16 random bytes from the author's device.
+  bytes message_id = 1;
+  // The author's clock, for information only.
+  int64 sent_at_ms = 2;
+  // The conversation's other person (32 bytes).
+  bytes recipient_public_key = 3;
+  // The author's permission slip for the recipient (64 bytes), or empty.
+  bytes slip = 4;
+  oneof body {
+    PrivateText text = 10;
+    PrivateEdit edit = 11;
+    PrivateDelete delete = 12;
+    RelayMoved relay_moved = 13;
+    RequestAccepted request_accepted = 14;
+    SessionReset session_reset = 15;
+  }
+}
+
+message PrivateText {
+  string content = 1;
+}
+
+// Of the author's own message.
+message PrivateEdit {
+  bytes message_id = 1;
+  string content = 2;
+}
+
+// Of the author's own message, for everyone.
+message PrivateDelete {
+  bytes message_id = 1;
+}
+
+// The author now writes through this server.
+message RelayMoved {
+  // The server's id from Hello (16 bytes).
+  bytes server_id = 1;
+  string server_name = 2;
+}
+
+message RequestAccepted {}
+
+message SessionReset {}

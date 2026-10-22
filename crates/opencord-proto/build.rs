@@ -1,5 +1,5 @@
 const PROTO_ROOT: &str = "../../proto";
-const PROTO_FILES: [&str; 9] = [
+const PROTO_FILES: [&str; 10] = [
     "opencord/v1/commands.proto",
     "opencord/v1/gateway.proto",
     "opencord/v1/models.proto",
@@ -9,6 +9,7 @@ const PROTO_FILES: [&str; 9] = [
     "opencord/v1/events.proto",
     "opencord/v1/voice.proto",
     "opencord/v1/internal.proto",
+    "opencord/v1/private.proto",
 ];
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {

@@ -155,6 +155,23 @@ async fn dispatch(ctx: &Ctx<'_>, request: proto::Request) -> Result<Response, Ap
         Kind::RemoveStorage(request) => storage::remove(ctx, request).await,
         Kind::StartStorageMove(_) => storage::start_move(ctx).await,
         Kind::StopStorageMove(_) => storage::stop_move(ctx).await,
+        Kind::RegisterDevice(_)
+        | Kind::UploadKeys(_)
+        | Kind::UnregisterDevice(_)
+        | Kind::FetchDevices(_)
+        | Kind::ClaimKeys(_)
+        | Kind::FetchPendingEvents(_)
+        | Kind::AckPendingEvents(_)
+        | Kind::SendPrivateMessage(_)
+        | Kind::StartPrivateTyping(_)
+        | Kind::UpdatePrivacy(_)
+        | Kind::SendFriendRequest(_)
+        | Kind::AnswerFriendRequest(_)
+        | Kind::CancelFriendRequest(_)
+        | Kind::RemoveFriend(_) => Err(ApiError::new(
+            proto::ErrorCode::PrivateMessagesUnavailable,
+            "private messages are not yet available",
+        )),
     }
 }
 

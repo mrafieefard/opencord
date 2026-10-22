@@ -597,7 +597,9 @@ pub fn event(kind: proto::event::Kind, session_id: &str) -> Option<CoreEventPayl
         // For the send waiting on them: `connection.rs` hands them to
         // `Uploads`.
         | Kind::UploadReady(_)
-        | Kind::UploadFailed(_) => return None,
+        | Kind::UploadFailed(_)
+        | Kind::PendingEvent(_)
+        | Kind::PrivateTypingStart(_) => return None,
     })
 }
 
@@ -650,6 +652,11 @@ pub fn error_code(code: i32) -> ErrorCode {
         Ok(proto::ErrorCode::StorageFull) => ErrorCode::StorageFull,
         Ok(proto::ErrorCode::VoiceMessageInvalid) => ErrorCode::VoiceMessageInvalid,
         Ok(proto::ErrorCode::VoiceMessageTooLong) => ErrorCode::VoiceMessageTooLong,
+        Ok(proto::ErrorCode::FriendRequestsClosed) => ErrorCode::FriendRequestsClosed,
+        Ok(proto::ErrorCode::MessageRequestsClosed) => ErrorCode::MessageRequestsClosed,
+        Ok(proto::ErrorCode::Undeliverable) => ErrorCode::Undeliverable,
+        Ok(proto::ErrorCode::DeviceListChanged) => ErrorCode::DeviceListChanged,
+        Ok(proto::ErrorCode::PrivateMessagesUnavailable) => ErrorCode::PrivateMessagesUnavailable,
 
         _ => ErrorCode::Unknown,
     }

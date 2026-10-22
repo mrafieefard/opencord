@@ -979,6 +979,11 @@ pub enum ErrorCode {
     StorageFull,
     VoiceMessageInvalid,
     VoiceMessageTooLong,
+    FriendRequestsClosed,
+    MessageRequestsClosed,
+    Undeliverable,
+    DeviceListChanged,
+    PrivateMessagesUnavailable,
     Unknown,
 }
 

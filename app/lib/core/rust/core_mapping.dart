@@ -582,6 +582,12 @@ RepoErrorKind _kindFrom(core.ErrorCode code) => switch (code) {
   core.ErrorCode.uploadOffsetMismatch => RepoErrorKind.conflict,
   core.ErrorCode.storageUnavailable => RepoErrorKind.storageUnavailable,
   core.ErrorCode.storageFull => RepoErrorKind.storageFull,
+  core.ErrorCode.friendRequestsClosed => RepoErrorKind.friendRequestsClosed,
+  core.ErrorCode.messageRequestsClosed => RepoErrorKind.messageRequestsClosed,
+  core.ErrorCode.undeliverable => RepoErrorKind.undeliverable,
+  core.ErrorCode.privateMessagesUnavailable =>
+    RepoErrorKind.privateMessagesUnavailable,
+  core.ErrorCode.deviceListChanged => RepoErrorKind.other,
   core.ErrorCode.internal || core.ErrorCode.unknown => RepoErrorKind.other,
 };
 

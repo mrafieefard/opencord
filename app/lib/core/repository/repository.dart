@@ -190,6 +190,18 @@ enum RepoErrorKind {
   /// The upload, download, or operation was cancelled.
   cancelled,
 
+  /// The target is not accepting friend requests (§6.7).
+  friendRequestsClosed,
+
+  /// The target only accepts messages from friends (§6.7).
+  messageRequestsClosed,
+
+  /// The message or friend request could not be delivered (§6.7).
+  undeliverable,
+
+  /// Private messages are unavailable or not relayed on this server (§6.7).
+  privateMessagesUnavailable,
+
   unauthorized,
   forbidden,
   notFound,

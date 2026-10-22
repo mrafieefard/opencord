@@ -8631,7 +8631,12 @@ impl SseDecode for crate::api::types::ErrorCode {
             44 => crate::api::types::ErrorCode::StorageFull,
             45 => crate::api::types::ErrorCode::VoiceMessageInvalid,
             46 => crate::api::types::ErrorCode::VoiceMessageTooLong,
-            47 => crate::api::types::ErrorCode::Unknown,
+            47 => crate::api::types::ErrorCode::FriendRequestsClosed,
+            48 => crate::api::types::ErrorCode::MessageRequestsClosed,
+            49 => crate::api::types::ErrorCode::Undeliverable,
+            50 => crate::api::types::ErrorCode::DeviceListChanged,
+            51 => crate::api::types::ErrorCode::PrivateMessagesUnavailable,
+            52 => crate::api::types::ErrorCode::Unknown,
             _ => unreachable!("Invalid variant for ErrorCode: {}", inner),
         };
     }
@@ -13440,7 +13445,12 @@ impl flutter_rust_bridge::IntoDart for crate::api::types::ErrorCode {
             Self::StorageFull => 44.into_dart(),
             Self::VoiceMessageInvalid => 45.into_dart(),
             Self::VoiceMessageTooLong => 46.into_dart(),
-            Self::Unknown => 47.into_dart(),
+            Self::FriendRequestsClosed => 47.into_dart(),
+            Self::MessageRequestsClosed => 48.into_dart(),
+            Self::Undeliverable => 49.into_dart(),
+            Self::DeviceListChanged => 50.into_dart(),
+            Self::PrivateMessagesUnavailable => 51.into_dart(),
+            Self::Unknown => 52.into_dart(),
             _ => unreachable!(),
         }
     }
@@ -17142,7 +17152,12 @@ impl SseEncode for crate::api::types::ErrorCode {
                 crate::api::types::ErrorCode::StorageFull => 44,
                 crate::api::types::ErrorCode::VoiceMessageInvalid => 45,
                 crate::api::types::ErrorCode::VoiceMessageTooLong => 46,
-                crate::api::types::ErrorCode::Unknown => 47,
+                crate::api::types::ErrorCode::FriendRequestsClosed => 47,
+                crate::api::types::ErrorCode::MessageRequestsClosed => 48,
+                crate::api::types::ErrorCode::Undeliverable => 49,
+                crate::api::types::ErrorCode::DeviceListChanged => 50,
+                crate::api::types::ErrorCode::PrivateMessagesUnavailable => 51,
+                crate::api::types::ErrorCode::Unknown => 52,
                 _ => {
                     unimplemented!("");
                 }
