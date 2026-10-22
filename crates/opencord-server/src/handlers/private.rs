@@ -4,18 +4,20 @@
 use std::collections::HashSet;
 
 use opencord_common::private::{
-    self as rules, DEVICE_ID_LEN, KEY_LEN, MAX_ACK_IDS, MAX_BLOCKED_IDS, MAX_CLAIM_DEVICES,
-    MAX_DEVICES_PER_USER, MAX_FETCH_DEVICES_USERS, MAX_STORED_ONE_TIME_KEYS, PENDING_PAGE_BYTES,
-    PENDING_PAGE_EVENTS, SIGNATURE_LEN,
+    self as rules, DEVICE_ID_LEN, KEY_LEN, MAX_ACK_IDS, MAX_BLOCKED_IDS, MAX_CIPHERTEXT_BYTES,
+    MAX_CIPHERTEXTS, MAX_CLAIM_DEVICES, MAX_DEVICES_PER_USER, MAX_FETCH_DEVICES_USERS,
+    MAX_STORED_ONE_TIME_KEYS, PENDING_PAGE_BYTES, PENDING_PAGE_EVENTS, SEND_ID_LEN, SIGNATURE_LEN,
 };
 use opencord_proto::v1 as proto;
+use proto::event::Kind as Event;
 use proto::response::Result as Response;
+use sqlx::SqliteConnection;
 
 use super::{Ctx, ack};
 use crate::db::private::{self as db, DeviceRow, PrivacyRow};
 use crate::error::ApiError;
-use crate::private::Privacy;
-use crate::state::now_ms;
+use crate::private::{Pending, Privacy, devices_of, insert_pending, push_pending};
+use crate::state::{Audience, now_ms};
 
 /// The session's device, or `PRIVATE_MESSAGES_UNAVAILABLE` when it has none
 /// (or private messages are off).
@@ -336,6 +338,228 @@ pub async fn ack_pending_events(
         return Err(unbind_removed_device(ctx));
     }
     Ok(ack())
+}
+
+pub async fn send_private_message(
+    ctx: &Ctx<'_>,
+    request: proto::SendPrivateMessage,
+) -> Result<Response, ApiError> {
+    require_enabled(ctx)?;
+    // 1.
+    let device_id = require_device(ctx)?;
+    let recipient_id = request.recipient_id;
+    // 2.
+    ctx.state
+        .rate_limits
+        .check_private_message(ctx.user_id, recipient_id)
+        .map_err(ApiError::rate_limited)?;
+    // 3.
+    let people = people(ctx, recipient_id)?;
+    // 4–5.
+    may_reach(ctx, recipient_id, &people, &request.slip)?;
+    // 6.
+    let targets = check_copies(&request)?;
+    // 7. A repeat stores nothing and answers the first time.
+    let mut conn = ctx.state.db.acquire().await?;
+    if let Some(sent_at_ms) =
+        db::recent_send(&mut conn, ctx.user_id, &device_id, &request.send_id).await?
+    {
+        return Ok(sent(sent_at_ms));
+    }
+    // 8.
+    check_targets(&mut conn, ctx.user_id, recipient_id, &device_id, &targets).await?;
+    drop(conn);
+    // 9. Recording the send id first takes the write lock, so a repeat
+    // sent meanwhile is seen, and the devices checked again below can't
+    // change before the commit.
+    let now = now_ms();
+    let items = copies_to_deliver(
+        request.ciphertexts,
+        &targets,
+        &people.caller,
+        &device_id,
+        now,
+    );
+    let mut tx = ctx.state.db.begin().await?;
+    if !db::insert_recent_send(&mut tx, ctx.user_id, &device_id, &request.send_id, now).await? {
+        let sent_at_ms = db::recent_send(&mut tx, ctx.user_id, &device_id, &request.send_id)
+            .await?
+            .ok_or_else(ApiError::internal)?;
+        return Ok(sent(sent_at_ms));
+    }
+    check_targets(&mut tx, ctx.user_id, recipient_id, &device_id, &targets).await?;
+    let pushed = match insert_pending(&mut tx, ctx.state, items, now).await {
+        Ok(pushed) => pushed,
+        Err(sqlx::Error::Database(error)) if error.is_foreign_key_violation() => {
+            return Err(ApiError::device_list_changed());
+        }
+        Err(error) => return Err(error.into()),
+    };
+    tx.commit().await?;
+    push_pending(ctx.state, &pushed);
+    Ok(sent(now))
+}
+
+pub fn start_private_typing(
+    ctx: &Ctx<'_>,
+    request: &proto::StartPrivateTyping,
+) -> Result<Response, ApiError> {
+    require_enabled(ctx)?;
+    // 1.
+    let people = people(ctx, request.recipient_id)?;
+    // 2. A refusal looks like success, so typing never reveals a block.
+    if may_reach(ctx, request.recipient_id, &people, &request.slip).is_ok() {
+        // 3.
+        ctx.state.broadcast(
+            Event::PrivateTypingStart(proto::PrivateTypingStart {
+                user_id: ctx.user_id,
+            }),
+            Audience::User(request.recipient_id),
+        );
+    }
+    Ok(ack())
+}
+
+/// The caller, and the person they write to.
+struct People {
+    caller: proto::User,
+    recipient_key: Vec<u8>,
+}
+
+/// The recipient is a member and not the caller.
+fn people(ctx: &Ctx<'_>, recipient_id: i64) -> Result<People, ApiError> {
+    let guild = ctx.state.guild();
+    let recipient = guild
+        .members
+        .get(&recipient_id)
+        .ok_or_else(|| ApiError::not_found("member"))?;
+    if recipient_id == ctx.user_id {
+        return Err(ApiError::invalid_argument("you can't message yourself"));
+    }
+    let caller = guild
+        .members
+        .get(&ctx.user_id)
+        .ok_or_else(|| ApiError::not_found("member"))?;
+    Ok(People {
+        caller: caller.user.to_proto(),
+        recipient_key: recipient.user.public_key.clone(),
+    })
+}
+
+/// The recipient hasn't blocked the caller, and takes messages from them:
+/// from anyone, or with the recipient's permission slip for the caller.
+fn may_reach(
+    ctx: &Ctx<'_>,
+    recipient_id: i64,
+    people: &People,
+    slip: &[u8],
+) -> Result<(), ApiError> {
+    let private = &ctx.state.private;
+    if private.has_blocked(recipient_id, ctx.user_id) {
+        return Err(ApiError::undeliverable());
+    }
+    let open = private.privacy(recipient_id).allow_message_requests;
+    if !open && !rules::verify_slip(&people.recipient_key, &people.caller.public_key, slip) {
+        return Err(ApiError::message_requests_closed());
+    }
+    Ok(())
+}
+
+/// Each copy's (user, device), in the copies' order, once every copy has
+/// its shape and no device has two.
+fn check_copies(request: &proto::SendPrivateMessage) -> Result<Vec<(i64, [u8; 16])>, ApiError> {
+    check_len(&request.send_id, SEND_ID_LEN, "a send id")?;
+    let copies = &request.ciphertexts;
+    if copies.is_empty() || copies.len() > MAX_CIPHERTEXTS {
+        return Err(ApiError::invalid_argument(format!(
+            "a message has 1 to {MAX_CIPHERTEXTS} encrypted copies"
+        )));
+    }
+    let mut targets = Vec::with_capacity(copies.len());
+    for copy in copies {
+        let device: [u8; 16] = copy.device_id.as_slice().try_into().map_err(|_| {
+            ApiError::invalid_argument(format!("a device id must be {DEVICE_ID_LEN} bytes"))
+        })?;
+        if copy.olm_type > 1 {
+            return Err(ApiError::invalid_argument(
+                "an encrypted copy's type must be 0 or 1",
+            ));
+        }
+        if copy.body.is_empty() || copy.body.len() > MAX_CIPHERTEXT_BYTES {
+            return Err(ApiError::invalid_argument(format!(
+                "an encrypted copy must be 1 to {MAX_CIPHERTEXT_BYTES} bytes"
+            )));
+        }
+        if targets.contains(&(copy.user_id, device)) {
+            return Err(ApiError::invalid_argument("two copies for one device"));
+        }
+        targets.push((copy.user_id, device));
+    }
+    Ok(targets)
+}
+
+/// The copies go to exactly the recipient's devices and the caller's
+/// other ones.
+async fn check_targets(
+    conn: &mut SqliteConnection,
+    caller: i64,
+    recipient: i64,
+    device_id: &[u8; 16],
+    targets: &[(i64, [u8; 16])],
+) -> Result<(), ApiError> {
+    let recipient_devices = devices_of(conn, recipient).await?;
+    if recipient_devices.is_empty() {
+        return Err(ApiError::private_messages_unavailable(
+            "they can't get private messages on this server",
+        ));
+    }
+    let own_devices = devices_of(conn, caller).await?;
+    let expected: HashSet<(i64, [u8; 16])> = recipient_devices
+        .into_iter()
+        .map(|device| (recipient, device))
+        .chain(
+            own_devices
+                .into_iter()
+                .filter(|device| device != device_id)
+                .map(|device| (caller, device)),
+        )
+        .collect();
+    let given: HashSet<(i64, [u8; 16])> = targets.iter().copied().collect();
+    if given == expected {
+        Ok(())
+    } else {
+        Err(ApiError::device_list_changed())
+    }
+}
+
+/// One `PrivateMessage` per copy, for the device it was encrypted for.
+fn copies_to_deliver(
+    copies: Vec<proto::DeviceCiphertext>,
+    targets: &[(i64, [u8; 16])],
+    sender: &proto::User,
+    sender_device: &[u8; 16],
+    sent_at_ms: i64,
+) -> Vec<Pending> {
+    copies
+        .into_iter()
+        .zip(targets.iter().copied())
+        .map(|(copy, (user_id, device_id))| Pending {
+            user_id,
+            device_id,
+            kind: proto::pending_event::Kind::PrivateMessage(proto::PrivateMessage {
+                sender: Some(sender.clone()),
+                sender_device_id: sender_device.to_vec(),
+                olm_type: copy.olm_type,
+                body: copy.body,
+                sent_at_ms,
+            }),
+            friend_request_id: None,
+        })
+        .collect()
+}
+
+fn sent(sent_at_ms: i64) -> Response {
+    Response::PrivateMessageSent(proto::PrivateMessageSent { sent_at_ms })
 }
 
 pub async fn update_privacy(

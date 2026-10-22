@@ -7,6 +7,7 @@ use std::time::Duration;
 use common::{
     TestClient, TestDevice, TestServer, device_keys, fallback_key, invite, join, key, now_ms,
     one_time_key, owner, owner_again, prekey, private_message_kind, register_request, self_id,
+    slip,
 };
 use opencord_proto::v1 as proto;
 use opencord_server::private::PrivateCounts;
@@ -789,4 +790,381 @@ async fn a_kicked_member_leaves_nothing_behind() {
         assert_eq!(server.handle.private_counts(member_id).await, nothing);
         assert_eq!(server.handle.private_privacy(member_id), None);
     }
+}
+
+const A1: u8 = 10;
+const A2: u8 = 11;
+const B1: u8 = 20;
+const B2: u8 = 21;
+const C1: u8 = 30;
+
+fn public_key(seed: u8) -> [u8; 32] {
+    key(seed).verifying_key().to_bytes()
+}
+
+/// A, the owner (`key(1)`), on device `A1`, and B (`key(2)`) on `B1`.
+async fn people(server: &TestServer) -> (TestClient, i64, TestClient, i64) {
+    let (mut a1, a_ready) = owner(server).await;
+    let code = invite(&mut a1, None).await;
+    let (mut b1, b_ready) = join(server, 2, &code).await;
+    a1.register_device(&key(1), &TestDevice::new(A1), 0).await;
+    b1.register_device(&key(2), &TestDevice::new(B1), 0).await;
+    (a1, self_id(&a_ready), b1, self_id(&b_ready))
+}
+
+/// Another session of the member who joined with `key(seed)`.
+async fn member_again(server: &TestServer, seed: u8) -> TestClient {
+    let mut client = TestClient::connect(server, key(seed)).await;
+    client
+        .identify(&format!("user{seed}"), None, None)
+        .await
+        .unwrap();
+    client
+}
+
+fn copy(user_id: i64, device: u8, body: Vec<u8>) -> proto::DeviceCiphertext {
+    proto::DeviceCiphertext {
+        user_id,
+        device_id: TestDevice::new(device).id.to_vec(),
+        olm_type: 1,
+        body,
+    }
+}
+
+fn message(
+    recipient_id: i64,
+    send_id: u8,
+    ciphertexts: Vec<proto::DeviceCiphertext>,
+    slip: Vec<u8>,
+) -> Kind {
+    Kind::SendPrivateMessage(proto::SendPrivateMessage {
+        recipient_id,
+        send_id: vec![send_id; 16],
+        ciphertexts,
+        slip,
+    })
+}
+
+/// Sends a message that must be accepted; returns its `sent_at_ms`.
+async fn send(client: &mut TestClient, request: Kind) -> i64 {
+    match client.ok(request).await {
+        Response::PrivateMessageSent(sent) => sent.sent_at_ms,
+        other => panic!("expected PrivateMessageSent, got {other:?}"),
+    }
+}
+
+fn privacy(allow_message_requests: bool, blocked_user_ids: Vec<i64>) -> Kind {
+    Kind::UpdatePrivacy(proto::UpdatePrivacy {
+        allow_friend_requests: true,
+        allow_message_requests,
+        blocked_user_ids,
+    })
+}
+
+fn typing(recipient_id: i64, slip: Vec<u8>) -> Kind {
+    Kind::StartPrivateTyping(proto::StartPrivateTyping { recipient_id, slip })
+}
+
+fn is_typing(kind: &Event) -> bool {
+    matches!(kind, Event::PrivateTypingStart(_))
+}
+
+async fn pending_total(server: &TestServer, users: [i64; 2]) -> i64 {
+    let mut total = 0;
+    for user_id in users {
+        total += server.handle.private_counts(user_id).await.pending;
+    }
+    total
+}
+
+#[tokio::test]
+async fn a_message_reaches_every_device_of_both_people_but_the_senders_own() {
+    let server = TestServer::start().await;
+    let (mut a1, a, mut b1, b) = people(&server).await;
+    let (mut a2, _) = owner_again(&server).await;
+    a2.register_device(&key(1), &TestDevice::new(A2), 0).await;
+    let mut b2 = member_again(&server, 2).await;
+    b2.register_device(&key(2), &TestDevice::new(B2), 0).await;
+    let first = proto::DeviceCiphertext {
+        olm_type: 0,
+        ..copy(b, B1, vec![1])
+    };
+
+    let sent_at = send(
+        &mut a1,
+        message(
+            b,
+            1,
+            vec![first, copy(b, B2, vec![2; 2]), copy(a, A2, vec![3; 3])],
+            Vec::new(),
+        ),
+    )
+    .await;
+
+    for (user_id, device, olm_type, body) in [
+        (b, B1, 0, vec![1]),
+        (b, B2, 1, vec![2; 2]),
+        (a, A2, 1, vec![3; 3]),
+    ] {
+        let events = server
+            .handle
+            .private_pending_for(user_id, TestDevice::new(device).id)
+            .await;
+        assert_eq!(events.len(), 1, "device {device}");
+        let Some(proto::pending_event::Kind::PrivateMessage(copy)) = &events[0].kind else {
+            panic!("expected a private message, got {:?}", events[0].kind);
+        };
+        let sender = copy.sender.as_ref().expect("the sender");
+        assert_eq!(
+            (sender.id, sender.public_key.as_slice()),
+            (a, public_key(1).as_slice())
+        );
+        assert_eq!(copy.sender_device_id, TestDevice::new(A1).id.to_vec());
+        assert_eq!((copy.olm_type, &copy.body), (olm_type, &body));
+        assert_eq!(copy.sent_at_ms, sent_at);
+    }
+    assert!(
+        server
+            .handle
+            .private_pending_for(a, TestDevice::new(A1).id)
+            .await
+            .is_empty()
+    );
+    // Online devices get theirs at once; the sender's own gets nothing.
+    let live = b1
+        .wait_for(|kind| match kind {
+            Event::PendingEvent(event) => Some(event.clone()),
+            _ => None,
+        })
+        .await;
+    assert_eq!(
+        vec![live],
+        server
+            .handle
+            .private_pending_for(b, TestDevice::new(B1).id)
+            .await
+    );
+    a1.assert_no_event(Duration::from_millis(300), is_pending)
+        .await;
+}
+
+#[tokio::test]
+async fn a_stale_device_set_is_refused() {
+    let server = TestServer::start().await;
+    let (mut a1, a, _b1, b) = people(&server).await;
+    let (mut a2, _) = owner_again(&server).await;
+    a2.register_device(&key(1), &TestDevice::new(A2), 0).await;
+    let lists = fetch_devices(&mut a1, vec![b]).await;
+    assert_eq!(device_ids(&lists, b).len(), 1);
+    let mut b2 = member_again(&server, 2).await;
+    b2.register_device(&key(2), &TestDevice::new(B2), 0).await;
+
+    let error = a1
+        .error(message(
+            b,
+            1,
+            vec![copy(b, B1, vec![1]), copy(a, A2, vec![2])],
+            Vec::new(),
+        ))
+        .await;
+
+    assert_code(&error, proto::ErrorCode::DeviceListChanged);
+    assert_eq!(pending_total(&server, [a, b]).await, 0);
+    // A copy for the sender's own device, or none for its other one: the
+    // same.
+    for copies in [
+        vec![
+            copy(b, B1, vec![1]),
+            copy(b, B2, vec![1]),
+            copy(a, A1, vec![1]),
+            copy(a, A2, vec![1]),
+        ],
+        vec![copy(b, B1, vec![1]), copy(b, B2, vec![1])],
+    ] {
+        let error = a1.error(message(b, 1, copies, Vec::new())).await;
+        assert_code(&error, proto::ErrorCode::DeviceListChanged);
+    }
+    assert_eq!(pending_total(&server, [a, b]).await, 0);
+}
+
+#[tokio::test]
+async fn a_repeated_send_id_stores_nothing() {
+    let server = TestServer::start().await;
+    let (mut a1, _, _b1, b) = people(&server).await;
+    let request = message(b, 7, vec![copy(b, B1, vec![1])], Vec::new());
+
+    let first = send(&mut a1, request.clone()).await;
+    tokio::time::sleep(Duration::from_millis(5)).await;
+    let second = send(&mut a1, request).await;
+
+    assert_eq!(first, second);
+    let events = server
+        .handle
+        .private_pending_for(b, TestDevice::new(B1).id)
+        .await;
+    assert_eq!(events.len(), 1);
+}
+
+#[tokio::test]
+async fn blocked_senders_get_undeliverable() {
+    let server = TestServer::start().await;
+    let (mut a1, a, mut b1, b) = people(&server).await;
+    b1.ok(privacy(true, vec![a])).await;
+
+    let error = a1
+        .error(message(b, 1, vec![copy(b, B1, vec![1])], Vec::new()))
+        .await;
+
+    assert_code(&error, proto::ErrorCode::Undeliverable);
+    assert_eq!(pending_total(&server, [a, b]).await, 0);
+}
+
+#[tokio::test]
+async fn closed_message_requests_need_a_slip() {
+    let server = TestServer::start().await;
+    let (mut a1, a, mut b1, b) = people(&server).await;
+    b1.ok(privacy(false, Vec::new())).await;
+
+    for (send_id, wrong) in [
+        (1, Vec::new()),
+        // A's slip for B, and B's slip for someone else.
+        (2, slip(&key(1), &public_key(2))),
+        (3, slip(&key(2), &public_key(4))),
+    ] {
+        let error = a1
+            .error(message(b, send_id, vec![copy(b, B1, vec![1])], wrong))
+            .await;
+        assert_code(&error, proto::ErrorCode::MessageRequestsClosed);
+    }
+    assert_eq!(pending_total(&server, [a, b]).await, 0);
+
+    send(
+        &mut a1,
+        message(
+            b,
+            4,
+            vec![copy(b, B1, vec![1])],
+            slip(&key(2), &public_key(1)),
+        ),
+    )
+    .await;
+    assert_eq!(server.handle.private_counts(b).await.pending, 1);
+}
+
+#[tokio::test]
+async fn a_recipient_without_devices_is_unavailable() {
+    let server = TestServer::start().await;
+    let (mut a1, ready) = owner(&server).await;
+    let a = self_id(&ready);
+    let code = invite(&mut a1, None).await;
+    let (_b1, b_ready) = join(&server, 2, &code).await;
+    let b = self_id(&b_ready);
+    a1.register_device(&key(1), &TestDevice::new(A1), 0).await;
+
+    let error = a1
+        .error(message(b, 1, vec![copy(b, B1, vec![1])], Vec::new()))
+        .await;
+
+    assert_code(&error, proto::ErrorCode::PrivateMessagesUnavailable);
+    assert_eq!(pending_total(&server, [a, b]).await, 0);
+}
+
+#[tokio::test]
+async fn malformed_copies_are_refused() {
+    let server = TestServer::start().await;
+    let (mut a1, a, _b1, b) = people(&server).await;
+    let short_send_id = Kind::SendPrivateMessage(proto::SendPrivateMessage {
+        recipient_id: b,
+        send_id: vec![1; 15],
+        ciphertexts: vec![copy(b, B1, vec![1])],
+        slip: Vec::new(),
+    });
+
+    for request in [
+        message(b, 1, vec![copy(b, B1, vec![1; 32_769])], Vec::new()),
+        message(
+            b,
+            1,
+            (0..21).map(|seed| copy(b, seed, vec![1])).collect(),
+            Vec::new(),
+        ),
+        message(
+            b,
+            1,
+            vec![copy(b, B1, vec![1]), copy(b, B1, vec![2])],
+            Vec::new(),
+        ),
+        short_send_id,
+        message(
+            b,
+            1,
+            vec![proto::DeviceCiphertext {
+                olm_type: 2,
+                ..copy(b, B1, vec![1])
+            }],
+            Vec::new(),
+        ),
+    ] {
+        let error = a1.error(request).await;
+        assert_code(&error, proto::ErrorCode::InvalidArgument);
+    }
+    assert_eq!(pending_total(&server, [a, b]).await, 0);
+}
+
+#[tokio::test]
+async fn typing_never_reveals_a_block() {
+    let server = TestServer::start().await;
+    let (mut a1, a, mut b1, b) = people(&server).await;
+    b1.ok(privacy(true, vec![a])).await;
+
+    a1.ok(typing(b, Vec::new())).await;
+    b1.assert_no_event(Duration::from_millis(500), is_typing)
+        .await;
+
+    b1.ok(privacy(true, Vec::new())).await;
+    a1.ok(typing(b, Vec::new())).await;
+    let typing_user = b1
+        .wait_for(|kind| match kind {
+            Event::PrivateTypingStart(start) => Some(start.user_id),
+            _ => None,
+        })
+        .await;
+    assert_eq!(typing_user, a);
+
+    // Closed message requests: only with B's slip.
+    b1.ok(privacy(false, Vec::new())).await;
+    a1.ok(typing(b, Vec::new())).await;
+    b1.assert_no_event(Duration::from_millis(500), is_typing)
+        .await;
+    a1.ok(typing(b, slip(&key(2), &public_key(1)))).await;
+    b1.wait_for(|kind| is_typing(kind).then_some(())).await;
+}
+
+#[tokio::test]
+async fn messages_are_rate_limited_per_recipient() {
+    let server = TestServer::start().await;
+    let (mut a1, _, _b1, b) = people(&server).await;
+    let code = invite(&mut a1, None).await;
+    let (mut c1, c_ready) = join(&server, 3, &code).await;
+    let c = self_id(&c_ready);
+    c1.register_device(&key(3), &TestDevice::new(C1), 0).await;
+
+    for send_id in 1..=5 {
+        send(
+            &mut a1,
+            message(b, send_id, vec![copy(b, B1, vec![1])], Vec::new()),
+        )
+        .await;
+    }
+    let error = a1
+        .error(message(b, 6, vec![copy(b, B1, vec![1])], Vec::new()))
+        .await;
+
+    assert_code(&error, proto::ErrorCode::RateLimited);
+    send(
+        &mut a1,
+        message(c, 7, vec![copy(c, C1, vec![1])], Vec::new()),
+    )
+    .await;
+    assert_eq!(server.handle.private_counts(b).await.pending, 5);
 }

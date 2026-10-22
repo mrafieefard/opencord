@@ -481,6 +481,46 @@ pub async fn delete_devices_unseen_since(
         .collect())
 }
 
+/// When the device sent this send id, if it did within the last day.
+pub async fn recent_send(
+    conn: &mut SqliteConnection,
+    user_id: i64,
+    device_id: &[u8],
+    send_id: &[u8],
+) -> Result<Option<i64>, sqlx::Error> {
+    sqlx::query_scalar!(
+        "SELECT created_at FROM private_recent_sends
+         WHERE user_id = $1 AND device_id = $2 AND send_id = $3",
+        user_id,
+        device_id,
+        send_id
+    )
+    .fetch_optional(conn)
+    .await
+}
+
+/// Records a send id; `false` when it is already recorded.
+pub async fn insert_recent_send(
+    conn: &mut SqliteConnection,
+    user_id: i64,
+    device_id: &[u8],
+    send_id: &[u8],
+    now_ms: i64,
+) -> Result<bool, sqlx::Error> {
+    let result = sqlx::query!(
+        "INSERT INTO private_recent_sends (user_id, device_id, send_id, created_at)
+         VALUES ($1, $2, $3, $4)
+         ON CONFLICT (user_id, device_id, send_id) DO NOTHING",
+        user_id,
+        device_id,
+        send_id,
+        now_ms
+    )
+    .execute(conn)
+    .await?;
+    Ok(result.rows_affected() == 1)
+}
+
 pub async fn delete_recent_sends_before(
     conn: &mut SqliteConnection,
     before_ms: i64,

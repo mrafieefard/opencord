@@ -166,9 +166,9 @@ async fn dispatch(ctx: &Ctx<'_>, request: proto::Request) -> Result<Response, Ap
         Kind::UpdatePrivacy(request) => private::update_privacy(ctx, request).await,
         Kind::FetchPendingEvents(request) => private::fetch_pending_events(ctx, request).await,
         Kind::AckPendingEvents(request) => private::ack_pending_events(ctx, request).await,
-        Kind::SendPrivateMessage(_)
-        | Kind::StartPrivateTyping(_)
-        | Kind::SendFriendRequest(_)
+        Kind::SendPrivateMessage(request) => private::send_private_message(ctx, request).await,
+        Kind::StartPrivateTyping(request) => private::start_private_typing(ctx, &request),
+        Kind::SendFriendRequest(_)
         | Kind::AnswerFriendRequest(_)
         | Kind::CancelFriendRequest(_)
         | Kind::RemoveFriend(_) => Err(ApiError::new(
