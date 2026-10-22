@@ -587,3 +587,116 @@ pub async fn counts(
         friend_requests: row.friend_requests,
     })
 }
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FriendRequestRow {
+    pub id: i64,
+    pub from_id: i64,
+    pub to_id: i64,
+    pub created_at: i64,
+}
+
+pub async fn outgoing_friend_request_count(
+    conn: &mut SqliteConnection,
+    from_id: i64,
+) -> Result<i64, sqlx::Error> {
+    let row = sqlx::query!(
+        r#"SELECT COUNT(*) AS "count!: i64" FROM private_friend_requests WHERE from_id = $1"#,
+        from_id
+    )
+    .fetch_one(conn)
+    .await?;
+    Ok(row.count)
+}
+
+pub async fn friend_request(
+    conn: &mut SqliteConnection,
+    id: i64,
+) -> Result<Option<FriendRequestRow>, sqlx::Error> {
+    sqlx::query_as!(
+        FriendRequestRow,
+        "SELECT id, from_id, to_id, created_at FROM private_friend_requests WHERE id = $1",
+        id
+    )
+    .fetch_optional(conn)
+    .await
+}
+
+pub async fn friend_request_between(
+    conn: &mut SqliteConnection,
+    a: i64,
+    b: i64,
+) -> Result<Option<FriendRequestRow>, sqlx::Error> {
+    sqlx::query_as!(
+        FriendRequestRow,
+        "SELECT id, from_id, to_id, created_at FROM private_friend_requests
+         WHERE (from_id = $1 AND to_id = $2) OR (from_id = $2 AND to_id = $1)",
+        a,
+        b
+    )
+    .fetch_optional(conn)
+    .await
+}
+
+pub async fn insert_friend_request(
+    conn: &mut SqliteConnection,
+    id: i64,
+    from_id: i64,
+    to_id: i64,
+    now_ms: i64,
+) -> Result<(), sqlx::Error> {
+    sqlx::query!(
+        "INSERT INTO private_friend_requests (id, from_id, to_id, created_at)
+         VALUES ($1, $2, $3, $4)",
+        id,
+        from_id,
+        to_id,
+        now_ms
+    )
+    .execute(conn)
+    .await?;
+    Ok(())
+}
+
+pub async fn delete_friend_request_by_target(
+    conn: &mut SqliteConnection,
+    id: i64,
+    to_id: i64,
+) -> Result<bool, sqlx::Error> {
+    let result = sqlx::query!(
+        "DELETE FROM private_friend_requests WHERE id = $1 AND to_id = $2",
+        id,
+        to_id
+    )
+    .execute(conn)
+    .await?;
+    Ok(result.rows_affected() == 1)
+}
+
+pub async fn delete_friend_request_by_requester(
+    conn: &mut SqliteConnection,
+    id: i64,
+    from_id: i64,
+) -> Result<bool, sqlx::Error> {
+    let result = sqlx::query!(
+        "DELETE FROM private_friend_requests WHERE id = $1 AND from_id = $2",
+        id,
+        from_id
+    )
+    .execute(conn)
+    .await?;
+    Ok(result.rows_affected() == 1)
+}
+
+pub async fn delete_pending_by_friend_request(
+    conn: &mut SqliteConnection,
+    friend_request_id: i64,
+) -> Result<(), sqlx::Error> {
+    sqlx::query!(
+        "DELETE FROM private_pending WHERE friend_request_id = $1",
+        friend_request_id
+    )
+    .execute(conn)
+    .await?;
+    Ok(())
+}

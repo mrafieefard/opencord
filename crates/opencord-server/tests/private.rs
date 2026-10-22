@@ -1168,3 +1168,454 @@ async fn messages_are_rate_limited_per_recipient() {
     .await;
     assert_eq!(server.handle.private_counts(b).await.pending, 5);
 }
+
+fn friend_request(user_id: i64, slip: Vec<u8>) -> Kind {
+    Kind::SendFriendRequest(proto::SendFriendRequest { user_id, slip })
+}
+
+fn answer_request(request_id: i64, accept: bool, slip: Vec<u8>) -> Kind {
+    Kind::AnswerFriendRequest(proto::AnswerFriendRequest {
+        request_id,
+        accept,
+        slip,
+    })
+}
+
+fn cancel_request(request_id: i64) -> Kind {
+    Kind::CancelFriendRequest(proto::CancelFriendRequest { request_id })
+}
+
+fn remove_friend(user_id: i64) -> Kind {
+    Kind::RemoveFriend(proto::RemoveFriend { user_id })
+}
+
+async fn send_friend_request(
+    client: &mut TestClient,
+    user_id: i64,
+    slip: Vec<u8>,
+) -> proto::FriendRequestCreated {
+    match client.ok(friend_request(user_id, slip)).await {
+        Response::FriendRequestCreated(created) => created,
+        other => panic!("expected FriendRequestCreated, got {other:?}"),
+    }
+}
+
+#[tokio::test]
+async fn a_friend_request_waits_for_an_offline_target() {
+    let server = TestServer::start().await;
+    let (mut a1, a_ready) = owner(&server).await;
+    let a = self_id(&a_ready);
+    let code = invite(&mut a1, None).await;
+    let (mut b1, b_ready) = join(&server, 2, &code).await;
+    let b = self_id(&b_ready);
+
+    a1.register_device(&key(1), &TestDevice::new(A1), 0).await;
+    let mut a2 = member_again(&server, 1).await;
+    a2.register_device(&key(1), &TestDevice::new(A2), 0).await;
+    b1.register_device(&key(2), &TestDevice::new(B1), 0).await;
+
+    drop(b1);
+
+    let created = send_friend_request(&mut a1, b, slip(&key(1), &public_key(2))).await;
+
+    let sent = a2
+        .wait_for(|kind| match kind {
+            Event::PendingEvent(p) => match &p.kind {
+                Some(proto::pending_event::Kind::FriendRequestSent(sent)) => Some(sent.clone()),
+                _ => None,
+            },
+            _ => None,
+        })
+        .await;
+    assert_eq!(sent.request_id, created.request_id);
+    assert_eq!(sent.to.as_ref().map(|u| u.id), Some(b));
+
+    let mut b1_again = member_again(&server, 2).await;
+    b1_again
+        .register_device(&key(2), &TestDevice::new(B1), 0)
+        .await;
+    let page = fetch_pending(&mut b1_again, 0, 100).await;
+    assert_eq!(page.events.len(), 1);
+    match &page.events[0].kind {
+        Some(proto::pending_event::Kind::FriendRequestReceived(received)) => {
+            assert_eq!(received.request_id, created.request_id);
+            let from = received.from.as_ref().expect("from user");
+            assert_eq!(from.id, a);
+            assert!(opencord_common::private::verify_slip(
+                &from.public_key,
+                &public_key(2),
+                &received.slip
+            ));
+        }
+        other => panic!("expected FriendRequestReceived, got {other:?}"),
+    }
+}
+
+#[tokio::test]
+async fn an_online_target_gets_the_request_at_once() {
+    let server = TestServer::start().await;
+    let (mut a1, a, mut b1, b) = people(&server).await;
+
+    let created = send_friend_request(&mut a1, b, slip(&key(1), &public_key(2))).await;
+
+    let received = b1
+        .wait_for(|kind| match kind {
+            Event::PendingEvent(p) => match &p.kind {
+                Some(proto::pending_event::Kind::FriendRequestReceived(r)) => Some(r.clone()),
+                _ => None,
+            },
+            _ => None,
+        })
+        .await;
+    assert_eq!(received.request_id, created.request_id);
+    assert_eq!(received.from.as_ref().map(|u| u.id), Some(a));
+}
+
+#[tokio::test]
+async fn accepting_reaches_the_requester_and_the_answerers_other_devices() {
+    let server = TestServer::start().await;
+    let (mut a1, a, mut b1, b) = people(&server).await;
+    let mut a2 = member_again(&server, 1).await;
+    a2.register_device(&key(1), &TestDevice::new(A2), 0).await;
+    let mut b2 = member_again(&server, 2).await;
+    b2.register_device(&key(2), &TestDevice::new(B2), 0).await;
+
+    let created = send_friend_request(&mut a1, b, slip(&key(1), &public_key(2))).await;
+    b1.wait_for(|kind| match kind {
+        Event::PendingEvent(p) => matches!(
+            p.kind,
+            Some(proto::pending_event::Kind::FriendRequestReceived(_))
+        )
+        .then_some(()),
+        _ => None,
+    })
+    .await;
+
+    let b_slip = slip(&key(2), &public_key(1));
+    b1.ok(answer_request(created.request_id, true, b_slip))
+        .await;
+
+    let ans_a1 = a1
+        .wait_for(|kind| match kind {
+            Event::PendingEvent(p) => match &p.kind {
+                Some(proto::pending_event::Kind::FriendRequestAnswered(ans)) => Some(ans.clone()),
+                _ => None,
+            },
+            _ => None,
+        })
+        .await;
+    assert_eq!(ans_a1.request_id, created.request_id);
+    assert!(ans_a1.accepted);
+    assert_eq!(ans_a1.requester.as_ref().map(|u| u.id), Some(a));
+    assert_eq!(ans_a1.answerer.as_ref().map(|u| u.id), Some(b));
+    assert!(opencord_common::private::verify_slip(
+        &public_key(2),
+        &public_key(1),
+        &ans_a1.slip
+    ));
+
+    let ans_a2 = a2
+        .wait_for(|kind| match kind {
+            Event::PendingEvent(p) => match &p.kind {
+                Some(proto::pending_event::Kind::FriendRequestAnswered(ans)) => Some(ans.clone()),
+                _ => None,
+            },
+            _ => None,
+        })
+        .await;
+    assert_eq!(ans_a2.request_id, created.request_id);
+
+    let ans_b2 = b2
+        .wait_for(|kind| match kind {
+            Event::PendingEvent(p) => match &p.kind {
+                Some(proto::pending_event::Kind::FriendRequestAnswered(ans)) => Some(ans.clone()),
+                _ => None,
+            },
+            _ => None,
+        })
+        .await;
+    assert_eq!(ans_b2.request_id, created.request_id);
+
+    b1.assert_no_event(Duration::from_millis(500), |kind| {
+        matches!(kind, Event::PendingEvent(_))
+    })
+    .await;
+}
+
+#[tokio::test]
+async fn declining_reaches_the_requester_too() {
+    let server = TestServer::start().await;
+    let (mut a1, a, mut b1, b) = people(&server).await;
+
+    let created = send_friend_request(&mut a1, b, slip(&key(1), &public_key(2))).await;
+    b1.wait_for(|kind| match kind {
+        Event::PendingEvent(p) => matches!(
+            p.kind,
+            Some(proto::pending_event::Kind::FriendRequestReceived(_))
+        )
+        .then_some(()),
+        _ => None,
+    })
+    .await;
+
+    b1.ok(answer_request(created.request_id, false, Vec::new()))
+        .await;
+
+    let ans = a1
+        .wait_for(|kind| match kind {
+            Event::PendingEvent(p) => match &p.kind {
+                Some(proto::pending_event::Kind::FriendRequestAnswered(ans)) => Some(ans.clone()),
+                _ => None,
+            },
+            _ => None,
+        })
+        .await;
+    assert_eq!(ans.request_id, created.request_id);
+    assert!(!ans.accepted);
+    assert!(ans.slip.is_empty());
+    assert_eq!(ans.requester.as_ref().map(|u| u.id), Some(a));
+    assert_eq!(ans.answerer.as_ref().map(|u| u.id), Some(b));
+}
+
+#[tokio::test]
+async fn answering_twice_is_not_found() {
+    let server = TestServer::start().await;
+    let (mut a1, _a, mut b1, b) = people(&server).await;
+    let code = invite(&mut a1, None).await;
+    let (mut c1, c_ready) = join(&server, 3, &code).await;
+    let _c = self_id(&c_ready);
+    c1.register_device(&key(3), &TestDevice::new(C1), 0).await;
+
+    let created = send_friend_request(&mut a1, b, slip(&key(1), &public_key(2))).await;
+
+    let error = c1
+        .error(answer_request(
+            created.request_id,
+            true,
+            slip(&key(3), &public_key(1)),
+        ))
+        .await;
+    assert_code(&error, proto::ErrorCode::NotFound);
+
+    b1.ok(answer_request(
+        created.request_id,
+        true,
+        slip(&key(2), &public_key(1)),
+    ))
+    .await;
+
+    let error = b1
+        .error(answer_request(
+            created.request_id,
+            true,
+            slip(&key(2), &public_key(1)),
+        ))
+        .await;
+    assert_code(&error, proto::ErrorCode::NotFound);
+}
+
+#[tokio::test]
+async fn cancelling_takes_back_the_undelivered_request() {
+    let server = TestServer::start().await;
+    let (mut a1, a_ready) = owner(&server).await;
+    let a = self_id(&a_ready);
+    let code = invite(&mut a1, None).await;
+    let (mut b1, b_ready) = join(&server, 2, &code).await;
+    let b = self_id(&b_ready);
+
+    a1.register_device(&key(1), &TestDevice::new(A1), 0).await;
+    b1.register_device(&key(2), &TestDevice::new(B1), 0).await;
+    drop(b1);
+
+    let created = send_friend_request(&mut a1, b, slip(&key(1), &public_key(2))).await;
+
+    a1.ok(cancel_request(created.request_id)).await;
+
+    let mut b1_again = member_again(&server, 2).await;
+    b1_again
+        .register_device(&key(2), &TestDevice::new(B1), 0)
+        .await;
+    let page = fetch_pending(&mut b1_again, 0, 100).await;
+
+    assert_eq!(page.events.len(), 1);
+    match &page.events[0].kind {
+        Some(proto::pending_event::Kind::FriendRequestCancelled(cancelled)) => {
+            assert_eq!(cancelled.request_id, created.request_id);
+            assert_eq!(cancelled.requester.as_ref().map(|u| u.id), Some(a));
+            assert_eq!(cancelled.target.as_ref().map(|u| u.id), Some(b));
+        }
+        other => panic!("expected FriendRequestCancelled, got {other:?}"),
+    }
+}
+
+#[tokio::test]
+async fn closed_friend_requests_give_their_error() {
+    let server = TestServer::start().await;
+    let (mut a1, _, mut b1, b) = people(&server).await;
+
+    b1.ok(Kind::UpdatePrivacy(proto::UpdatePrivacy {
+        allow_friend_requests: false,
+        allow_message_requests: true,
+        blocked_user_ids: Vec::new(),
+    }))
+    .await;
+
+    let error = a1
+        .error(friend_request(b, slip(&key(1), &public_key(2))))
+        .await;
+    assert_code(&error, proto::ErrorCode::FriendRequestsClosed);
+}
+
+#[tokio::test]
+async fn blocked_requesters_get_undeliverable() {
+    let server = TestServer::start().await;
+    let (mut a1, a, mut b1, b) = people(&server).await;
+
+    b1.ok(privacy(true, vec![a])).await;
+
+    let error = a1
+        .error(friend_request(b, slip(&key(1), &public_key(2))))
+        .await;
+    assert_code(&error, proto::ErrorCode::Undeliverable);
+}
+
+#[tokio::test]
+async fn a_second_request_between_the_pair_conflicts() {
+    let server = TestServer::start().await;
+    let (mut a1, a, mut b1, b) = people(&server).await;
+
+    send_friend_request(&mut a1, b, slip(&key(1), &public_key(2))).await;
+
+    let error = a1
+        .error(friend_request(b, slip(&key(1), &public_key(2))))
+        .await;
+    assert_code(&error, proto::ErrorCode::Conflict);
+    assert_eq!(error.message, "you already sent them a friend request");
+
+    let error = b1
+        .error(friend_request(a, slip(&key(2), &public_key(1))))
+        .await;
+    assert_code(&error, proto::ErrorCode::Conflict);
+    assert_eq!(error.message, "they already sent you a friend request");
+}
+
+#[tokio::test]
+async fn a_request_needs_a_valid_slip() {
+    let server = TestServer::start().await;
+    let (mut a1, _, _b1, b) = people(&server).await;
+
+    for wrong_slip in [
+        Vec::new(),
+        slip(&key(2), &public_key(1)),
+        slip(&key(1), &public_key(3)),
+        vec![0; 64],
+    ] {
+        let error = a1.error(friend_request(b, wrong_slip)).await;
+        assert_code(&error, proto::ErrorCode::InvalidArgument);
+        assert_eq!(error.message, "the permission slip is not valid");
+    }
+}
+
+#[tokio::test]
+async fn removing_a_friend_reaches_both_sides() {
+    let server = TestServer::start().await;
+    let (mut a1, a, mut b1, b) = people(&server).await;
+    let mut a2 = member_again(&server, 1).await;
+    a2.register_device(&key(1), &TestDevice::new(A2), 0).await;
+    let mut b2 = member_again(&server, 2).await;
+    b2.register_device(&key(2), &TestDevice::new(B2), 0).await;
+
+    a1.ok(remove_friend(b)).await;
+
+    let rem_b1 = b1
+        .wait_for(|kind| match kind {
+            Event::PendingEvent(p) => match &p.kind {
+                Some(proto::pending_event::Kind::FriendRemoved(r)) => Some(r.clone()),
+                _ => None,
+            },
+            _ => None,
+        })
+        .await;
+    assert_eq!(rem_b1.remover.as_ref().map(|u| u.id), Some(a));
+    assert_eq!(rem_b1.removed.as_ref().map(|u| u.id), Some(b));
+
+    let rem_b2 = b2
+        .wait_for(|kind| match kind {
+            Event::PendingEvent(p) => match &p.kind {
+                Some(proto::pending_event::Kind::FriendRemoved(r)) => Some(r.clone()),
+                _ => None,
+            },
+            _ => None,
+        })
+        .await;
+    assert_eq!(rem_b2.remover.as_ref().map(|u| u.id), Some(a));
+    assert_eq!(rem_b2.removed.as_ref().map(|u| u.id), Some(b));
+
+    let rem_a2 = a2
+        .wait_for(|kind| match kind {
+            Event::PendingEvent(p) => match &p.kind {
+                Some(proto::pending_event::Kind::FriendRemoved(r)) => Some(r.clone()),
+                _ => None,
+            },
+            _ => None,
+        })
+        .await;
+    assert_eq!(rem_a2.remover.as_ref().map(|u| u.id), Some(a));
+    assert_eq!(rem_a2.removed.as_ref().map(|u| u.id), Some(b));
+
+    a1.assert_no_event(Duration::from_millis(500), |kind| {
+        matches!(kind, Event::PendingEvent(_))
+    })
+    .await;
+}
+
+#[tokio::test]
+async fn friend_requests_are_rate_limited() {
+    let server = TestServer::start().await;
+    let (mut a1, _, _, b) = people(&server).await;
+
+    send_friend_request(&mut a1, b, slip(&key(1), &public_key(2))).await;
+    for _ in 2..=10 {
+        let _ = a1
+            .error(friend_request(b, slip(&key(1), &public_key(2))))
+            .await;
+    }
+    let error = a1
+        .error(friend_request(b, slip(&key(1), &public_key(2))))
+        .await;
+    assert_code(&error, proto::ErrorCode::RateLimited);
+}
+
+#[tokio::test]
+async fn a_kick_removes_the_kicked_persons_requests() {
+    let server = TestServer::start().await;
+    let (mut a1, a_ready) = owner(&server).await;
+    let _a = self_id(&a_ready);
+    let code = invite(&mut a1, None).await;
+    let (mut b1, b_ready) = join(&server, 2, &code).await;
+    let b = self_id(&b_ready);
+    let (mut c1, c_ready) = join(&server, 3, &code).await;
+    let c = self_id(&c_ready);
+
+    b1.register_device(&key(2), &TestDevice::new(B1), 0).await;
+    c1.register_device(&key(3), &TestDevice::new(C1), 0).await;
+    drop(b1);
+
+    send_friend_request(&mut c1, b, slip(&key(3), &public_key(2))).await;
+    assert_eq!(server.handle.private_counts(c).await.friend_requests, 1);
+
+    a1.ok(Kind::KickMember(proto::KickMember {
+        user_id: c,
+        reason: None,
+    }))
+    .await;
+
+    assert_eq!(server.handle.private_counts(c).await.friend_requests, 0);
+
+    let mut b1_again = member_again(&server, 2).await;
+    b1_again
+        .register_device(&key(2), &TestDevice::new(B1), 0)
+        .await;
+    let page = fetch_pending(&mut b1_again, 0, 100).await;
+    assert_eq!(page.events.len(), 0);
+}

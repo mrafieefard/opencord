@@ -13,6 +13,7 @@ use crate::state::AppState;
 mod channels;
 mod commands;
 mod domains;
+mod friends;
 mod invites;
 mod lavalink;
 mod members;
@@ -168,13 +169,10 @@ async fn dispatch(ctx: &Ctx<'_>, request: proto::Request) -> Result<Response, Ap
         Kind::AckPendingEvents(request) => private::ack_pending_events(ctx, request).await,
         Kind::SendPrivateMessage(request) => private::send_private_message(ctx, request).await,
         Kind::StartPrivateTyping(request) => private::start_private_typing(ctx, &request),
-        Kind::SendFriendRequest(_)
-        | Kind::AnswerFriendRequest(_)
-        | Kind::CancelFriendRequest(_)
-        | Kind::RemoveFriend(_) => Err(ApiError::new(
-            proto::ErrorCode::PrivateMessagesUnavailable,
-            "private messages are not yet available",
-        )),
+        Kind::SendFriendRequest(request) => friends::send_friend_request(ctx, request).await,
+        Kind::AnswerFriendRequest(request) => friends::answer_friend_request(ctx, request).await,
+        Kind::CancelFriendRequest(request) => friends::cancel_friend_request(ctx, request).await,
+        Kind::RemoveFriend(request) => friends::remove_friend(ctx, request).await,
     }
 }
 
