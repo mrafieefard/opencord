@@ -23,6 +23,7 @@ pub(crate) mod music_listening;
 mod network;
 pub(crate) mod now_playing;
 pub(crate) mod output_sink;
+pub mod private;
 mod server_clock;
 mod soundboard;
 pub mod store;

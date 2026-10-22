@@ -1,0 +1,41 @@
+//! Private messages (design 2026-10-22): end-to-end encrypted messages
+//! between people, relayed by any server they share, and kept in this
+//! device's own encrypted database.
+
+pub mod seal;
+pub mod store;
+
+use crate::api::types::CoreError;
+
+#[derive(Debug, thiserror::Error)]
+pub enum PrivateError {
+    #[error("private messages storage failed: {0}")]
+    Storage(String),
+    #[error("{0}")]
+    Invalid(String),
+    #[error("private messages encryption failed: {0}")]
+    Crypto(String),
+}
+
+impl From<sqlx::Error> for PrivateError {
+    fn from(error: sqlx::Error) -> Self {
+        Self::Storage(error.to_string())
+    }
+}
+
+impl From<std::io::Error> for PrivateError {
+    fn from(error: std::io::Error) -> Self {
+        Self::Storage(error.to_string())
+    }
+}
+
+impl From<PrivateError> for CoreError {
+    fn from(error: PrivateError) -> Self {
+        match error {
+            PrivateError::Invalid(message) => Self::InvalidInput { message },
+            PrivateError::Storage(_) | PrivateError::Crypto(_) => Self::Storage {
+                message: error.to_string(),
+            },
+        }
+    }
+}
