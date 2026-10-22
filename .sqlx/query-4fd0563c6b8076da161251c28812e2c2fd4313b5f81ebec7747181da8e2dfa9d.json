@@ -1,0 +1,62 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT user_id, reason, blocked_by, created_at FROM music_blocks ORDER BY created_at",
+  "describe": {
+    "columns": [
+      {
+        "name": "user_id",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "music_blocks",
+            "name": "user_id"
+          }
+        }
+      },
+      {
+        "name": "reason",
+        "ordinal": 1,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "music_blocks",
+            "name": "reason"
+          }
+        }
+      },
+      {
+        "name": "blocked_by",
+        "ordinal": 2,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "music_blocks",
+            "name": "blocked_by"
+          }
+        }
+      },
+      {
+        "name": "created_at",
+        "ordinal": 3,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "music_blocks",
+            "name": "created_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "4fd0563c6b8076da161251c28812e2c2fd4313b5f81ebec7747181da8e2dfa9d"
+}

@@ -1,0 +1,200 @@
+/// Text formats the UI shares (§4.2, §4.3, §4.5): times, days, counts,
+/// fingerprints, typing and message previews. English for now.
+library;
+
+import 'package:opencord/core/mention_tokens.dart';
+
+const _weekdays = [
+  'Monday',
+  'Tuesday',
+  'Wednesday',
+  'Thursday',
+  'Friday',
+  'Saturday',
+  'Sunday',
+];
+
+const _months = [
+  'January',
+  'February',
+  'March',
+  'April',
+  'May',
+  'June',
+  'July',
+  'August',
+  'September',
+  'October',
+  'November',
+  'December',
+];
+
+String _two(int value) => value.toString().padLeft(2, '0');
+
+DateTime _day(DateTime time) => DateTime(time.year, time.month, time.day);
+
+int _daysBetween(DateTime earlier, DateTime later) =>
+    _day(later).difference(_day(earlier)).inHours ~/ 24;
+
+/// `HH:mm`.
+String clockTime(DateTime time) => '${_two(time.hour)}:${_two(time.minute)}';
+
+/// A channel row's time (§4.2): `HH:mm` today, the weekday this week,
+/// `dd.MM.yy` before that.
+String rowTime(DateTime time, DateTime now) {
+  final days = _daysBetween(time, now);
+  if (days <= 0) return clockTime(time);
+  if (days < 7) return _weekdays[time.weekday - 1].substring(0, 3);
+  return '${_two(time.day)}.${_two(time.month)}.${_two(time.year % 100)}';
+}
+
+/// A date separator (§4.5): Today, Yesterday, the weekday within the past
+/// week, then `5 October` (with the year when it is not this year).
+String dayLabel(DateTime day, DateTime now) {
+  final days = _daysBetween(day, now);
+  if (days <= 0) return 'Today';
+  if (days == 1) return 'Yesterday';
+  if (days < 7) return _weekdays[day.weekday - 1];
+  final date = '${day.day} ${_months[day.month - 1]}';
+  return day.year == now.year ? date : '$date ${day.year}';
+}
+
+/// `12 Jan`, with the year when it is not [now]'s: `12 Jan 2027`.
+String shortDate(DateTime time, DateTime now) {
+  final date = '${time.day} ${_months[time.month - 1].substring(0, 3)}';
+  return time.year == now.year ? date : '$date ${time.year}';
+}
+
+/// `7 October 2026`, for "member since" (§4.8).
+String longDate(DateTime time) =>
+    '${time.day} ${_months[time.month - 1]} ${time.year}';
+
+/// `Wednesday, 7 October 2026 at 09:05`, for timestamp tooltips (§16).
+String fullTimestamp(DateTime time) =>
+    '${_weekdays[time.weekday - 1]}, ${time.day} ${_months[time.month - 1]} '
+    '${time.year} at ${clockTime(time)}';
+
+/// When an invite stops working, from [now] (§8.2): "in 6 days",
+/// "in 5 hours", "Never" or "Expired".
+String expiryLabel(DateTime? expires, DateTime now) {
+  if (expires == null) return 'Never';
+  final left = expires.difference(now);
+  if (left.isNegative || left == Duration.zero) return 'Expired';
+  String plural(int count, String unit) =>
+      'in $count $unit${count == 1 ? '' : 's'}';
+  if (left.inDays >= 1) return plural(left.inDays, 'day');
+  if (left.inHours >= 1) return plural(left.inHours, 'hour');
+  return plural(left.inMinutes < 1 ? 1 : left.inMinutes, 'minute');
+}
+
+/// `m:ss`, e.g. `1:05` or `0:08`.
+String formatDuration(Duration d) {
+  final minutes = d.inMinutes;
+  final seconds = (d.inSeconds % 60).toString().padLeft(2, '0');
+  return '$minutes:$seconds';
+}
+
+/// Formats milliseconds into `m:ss`.
+String formatDurationMs(int ms) => formatDuration(Duration(milliseconds: ms));
+
+/// `1,204`.
+String countLabel(int count) {
+  final digits = count.abs().toString();
+  final buffer = StringBuffer(count < 0 ? '-' : '');
+  for (var i = 0; i < digits.length; i++) {
+    if (i > 0 && (digits.length - i) % 3 == 0) buffer.write(',');
+    buffer.write(digits[i]);
+  }
+  return buffer.toString();
+}
+
+/// A hex fingerprint in groups of four, upper case, for comparing by eye
+/// (§4.11).
+String groupedFingerprint(String hex) {
+  final clean = hex.replaceAll(RegExp(r'[^0-9a-fA-F]'), '').toUpperCase();
+  return [
+    for (var i = 0; i < clean.length; i += 4)
+      clean.substring(i, i + 4 > clean.length ? clean.length : i + 4),
+  ].join(' ');
+}
+
+/// The chat header's typing line (§4.3).
+String typingLabel(List<String> names) => switch (names.length) {
+  0 => '',
+  1 => '${names.first} is typing',
+  2 => '${names.first} and ${names.last} are typing',
+  _ => 'Several people are typing',
+};
+
+final _codeBlock = RegExp(r'```[^\n]*\n?([\s\S]*?)```');
+final _inlineCode = RegExp('`([^`]*)`');
+final _emphasis = RegExp(r'(\*\*|__|~~|\*|_)(\S(?:[\s\S]*?\S)?)\1');
+final _quote = RegExp(r'^>\s?', multiLine: true);
+final _space = RegExp(r'\s+');
+
+/// A message as one line of plain text, for channel-row previews (§4.2)
+/// and reply quotes: markdown removed, mentions shown by name.
+String previewText(
+  String content, {
+  required String? Function(int id) user,
+  required String? Function(int id) channel,
+}) {
+  var text = content.replaceAllMapped(_codeBlock, (m) => ' ${m[1]} ');
+  text = text.replaceAllMapped(_inlineCode, (m) => m[1]!);
+  for (var previous = ''; previous != text;) {
+    previous = text;
+    text = text.replaceAllMapped(_emphasis, (m) => m[2]!);
+  }
+  text = replaceMentionTokens(
+    text,
+    user: (id, _) => '@${user(id) ?? 'unknown'}',
+    channel: (id, _) => '#${channel(id) ?? 'unknown'}',
+  ).replaceAll(_quote, '');
+  return text.replaceAll(_space, ' ').trim();
+}
+
+/// Formats a byte size: `0 B`, `999 B`, `1.0 KB`, `12.5 MB`, `1.2 GB`.
+/// One decimal from KB up, no decimal for whole numbers ≥ 100.
+String formatFileSize(int bytes) {
+  if (bytes < 1024) return '$bytes B';
+  final double value;
+  final String unit;
+  if (bytes < 1024 * 1024) {
+    value = bytes / 1024;
+    unit = 'KB';
+  } else if (bytes < 1024 * 1024 * 1024) {
+    value = bytes / (1024 * 1024);
+    unit = 'MB';
+  } else {
+    value = bytes / (1024 * 1024 * 1024);
+    unit = 'GB';
+  }
+  if (value >= 100) {
+    final fixed = value.toStringAsFixed(1);
+    final text = fixed.endsWith('.0') ? value.toStringAsFixed(0) : fixed;
+    return '$text $unit';
+  }
+  return '${value.toStringAsFixed(1)} $unit';
+}
+
+/// Truncates a filename in the middle, keeping the extension intact:
+/// `very_long_file_name.png` -> `very_long…ame.png`.
+/// Counts characters, not UTF-16 units, so an emoji is never cut in half.
+String middleEllipsis(String name, {int maxLength = 24}) {
+  final chars = name.runes.toList();
+  if (chars.length <= maxLength) return name;
+  String part(Iterable<int> runes) => String.fromCharCodes(runes);
+  final dot = chars.lastIndexOf(0x2E);
+  final ext = dot != -1 && dot > chars.length - 10
+      ? chars.sublist(dot)
+      : const <int>[];
+  final stem = ext.isNotEmpty ? chars.sublist(0, dot) : chars;
+  final available = maxLength - 1 - ext.length;
+  if (available <= 3) {
+    return '${part(chars.take(maxLength - 1))}…';
+  }
+  final head = (available * 0.55).ceil();
+  final tail = available - head;
+  return '${part(stem.take(head))}…'
+      '${part(stem.skip(stem.length - tail))}${part(ext)}';
+}

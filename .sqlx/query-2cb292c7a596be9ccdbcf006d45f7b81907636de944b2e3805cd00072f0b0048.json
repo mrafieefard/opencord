@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE domains SET public_port = $2, status = $3, active = $4, is_primary = $5,\n                problem_since = $6, deactivated_at = $7, last_checked_at = $8,\n                last_result = $9\n         WHERE id = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 9
+    },
+    "nullable": []
+  },
+  "hash": "2cb292c7a596be9ccdbcf006d45f7b81907636de944b2e3805cd00072f0b0048"
+}

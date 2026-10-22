@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "DELETE FROM domain_checks WHERE domain_id = $1 AND id NOT IN (\n             SELECT id FROM domain_checks WHERE domain_id = $1\n             ORDER BY checked_at DESC, id DESC LIMIT $2\n         )",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "e509a8523695d2eddd952abd4791eb12870471885d184a804667dce0413cc48d"
+}

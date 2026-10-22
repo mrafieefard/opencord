@@ -1,0 +1,86 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT b.user_id, u.public_key, u.display_name, b.reason, b.banned_by, b.created_at\n         FROM bans b JOIN users u ON u.id = b.user_id ORDER BY b.created_at",
+  "describe": {
+    "columns": [
+      {
+        "name": "user_id",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "bans",
+            "name": "user_id"
+          }
+        }
+      },
+      {
+        "name": "public_key",
+        "ordinal": 1,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "users",
+            "name": "public_key"
+          }
+        }
+      },
+      {
+        "name": "display_name",
+        "ordinal": 2,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "users",
+            "name": "display_name"
+          }
+        }
+      },
+      {
+        "name": "reason",
+        "ordinal": 3,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "bans",
+            "name": "reason"
+          }
+        }
+      },
+      {
+        "name": "banned_by",
+        "ordinal": 4,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "bans",
+            "name": "banned_by"
+          }
+        }
+      },
+      {
+        "name": "created_at",
+        "ordinal": 5,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "bans",
+            "name": "created_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      true,
+      true,
+      false
+    ]
+  },
+  "hash": "afceb81e68699c325957ce4eb217118f7f7c7c58ab1d9f0a1b3f48764d74f117"
+}

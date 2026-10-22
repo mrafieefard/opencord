@@ -1,0 +1,966 @@
+//! The audio engine (plan §7.1): one thread, at raised priority where the
+//! system allows, that runs the processing tick between the devices and
+//! the network every 5 ms. It owns the microphone and the speaker; when a
+//! chosen device goes away it falls back to the default one and says so.
+//! Who is speaking, and the microphone's level while a meter is open, go
+//! out at most every 50 ms (plan §7.5, §7.12).
+
+use std::collections::HashMap;
+use std::sync::mpsc::{self, Receiver, Sender, TryRecvError};
+use std::sync::{Arc, Mutex, PoisonError};
+use std::thread::JoinHandle;
+use std::time::{Duration, Instant};
+
+use super::SAMPLE_RATE;
+use super::capture::{EncodedFrame, InputMode};
+use super::device::{DeviceError, Microphone, Speaker};
+use super::processing::ProcessingSettings;
+use super::processor::{Processor, ProcessorError, ProcessorSettings};
+
+/// How often the engine wakes.
+const WAKE_EVERY: Duration = Duration::from_millis(5);
+/// Audio kept queued for the speaker: enough to ride out a late wake.
+const SPEAKER_QUEUE: Duration = Duration::from_millis(30);
+/// The real-time budget asked for, in frames: how long the thread may run
+/// without sleeping before the kernel sends SIGXCPU, which ends the
+/// process. 100 ms leaves room for a slow tick (or a debug build) while a
+/// runaway thread is still stopped; RTKit's own limit is 200 ms.
+const REAL_TIME_BUDGET_FRAMES: u32 = SAMPLE_RATE / 10;
+/// At most this much microphone audio is processed per wake; more waits for
+/// the next one, so a backlog is worked off in short steps.
+const CAPTURE_PER_WAKE: Duration = Duration::from_millis(40);
+/// Speaking changes and the input level go out at most this often.
+const REPORT_EVERY: Duration = Duration::from_millis(50);
+/// A stream's sound delay is reported again once it moved this much.
+const DELAY_STEP: Duration = Duration::from_millis(10);
+/// A device that would not open is tried again after this, the wait
+/// doubling up to [`RETRY_FAILED_MOST`]. Only the first failure is reported.
+const RETRY_FAILED: Duration = Duration::from_secs(1);
+const RETRY_FAILED_MOST: Duration = Duration::from_secs(10);
+
+/// Which device to use.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub enum DeviceChoice {
+    /// The system's default, following it when it changes.
+    #[default]
+    Default,
+    /// A device id from [`super::device::devices`]; the default stands in
+    /// while it is missing.
+    Id(String),
+    /// None at all: nothing is captured, and playback runs on the clock.
+    Off,
+}
+
+/// Where audio goes in and out, and how.
+#[derive(Debug, Clone, PartialEq)]
+pub struct EngineSettings {
+    pub input_device: DeviceChoice,
+    pub output_device: DeviceChoice,
+    pub processor: ProcessorSettings,
+}
+
+/// What the engine reports, from its own thread.
+#[derive(Debug, Clone, PartialEq)]
+pub enum EngineEvent {
+    /// The chosen device is missing; the default one plays or listens.
+    DeviceFellBack { output: bool, device: String },
+    /// No device could be opened.
+    DeviceFailed { output: bool, message: String },
+    /// The microphone started or stopped sending, and whether as the
+    /// priority speaker.
+    Talking { talking: bool, priority: bool },
+    /// Who started or stopped speaking (user, speaking), since the last.
+    Speaking(Vec<(i64, bool)>),
+    /// The microphone's loudest tick in dBFS, while a meter is open.
+    InputLevel(f32),
+    /// Someone spoke while muted (at most every 30 s).
+    SpeakingWhileMuted,
+    /// High noise suppression could not keep up; Standard took over.
+    NoiseSuppressionFellBack,
+    /// How long after arriving a watched stream's sound plays now, when
+    /// it changed: its pictures wait as long (plan §10.5).
+    StreamDelay { user_id: i64, delay: Duration },
+}
+
+enum Command {
+    Receive {
+        user_id: i64,
+        timestamp: u32,
+        marker: bool,
+        payload: Arc<[u8]>,
+        arrived: Instant,
+    },
+    RemoveUser(i64),
+    ReceiveStream {
+        user_id: i64,
+        timestamp: u32,
+        marker: bool,
+        payload: Arc<[u8]>,
+        arrived: Instant,
+    },
+    RemoveStream(i64),
+    StreamVolume(i64, f32),
+    StreamMute(i64, bool),
+    SharedSound(Vec<f32>),
+    Muted(bool),
+    Deafened(bool),
+    Mode(InputMode),
+    PushToTalk(bool),
+    InputVolume(f32),
+    OutputVolume(f32),
+    UserVolume(i64, f32),
+    LocalMute(i64, bool),
+    Bitrate(u32),
+    ExpectedLoss(u8),
+    InputDevice(DeviceChoice),
+    OutputDevice(DeviceChoice),
+    Processing(ProcessingSettings),
+    PriorityHeld(bool),
+    Priority(i64, bool),
+    MicTest(bool),
+    LevelMeter(bool),
+    PlaySound(Arc<[f32]>, f32),
+    StopSounds,
+    CaptureTap(Option<rtrb::Producer<f32>>, bool),
+    LocalMedia(Option<rtrb::Consumer<f32>>),
+    Stop,
+}
+
+/// A running engine. Dropping it stops it and closes the devices.
+pub struct AudioEngine {
+    commands: Sender<Command>,
+    thread: Option<JoinHandle<()>>,
+    /// The local media source mixed in now (0: none), and the last id given.
+    local_media: Mutex<(u64, u64)>,
+}
+
+impl AudioEngine {
+    /// Opens the devices and starts. `send` gets each frame for the
+    /// network; `events` hears about devices and talking. Both are called
+    /// on the engine's thread and must not block.
+    pub fn start(
+        settings: EngineSettings,
+        send: impl FnMut(EncodedFrame) + Send + 'static,
+        events: impl FnMut(EngineEvent) + Send + 'static,
+    ) -> Result<Self, ProcessorError> {
+        let (commands, receiver) = mpsc::channel();
+        let (started, start_result) = mpsc::sync_channel(1);
+        let thread = std::thread::Builder::new()
+            .name("opencord-audio".to_owned())
+            .spawn(move || {
+                // The processor stays on this thread (its processing graph
+                // cannot move between threads). Device rates are known once
+                // they are open; until then it assumes 48 kHz stereo.
+                let processor =
+                    match Processor::new(settings.processor, (SAMPLE_RATE, 2), (SAMPLE_RATE, 2)) {
+                        Ok(processor) => {
+                            let _ = started.send(Ok(()));
+                            processor
+                        }
+                        Err(error) => {
+                            let _ = started.send(Err(error));
+                            return;
+                        }
+                    };
+                let mut engine = Engine {
+                    level_meter: false,
+                    reported_at: Instant::now(),
+                    changes: Vec::new(),
+                    stream_delays: HashMap::new(),
+                    processor,
+                    microphone: None,
+                    speaker: None,
+                    input_device: settings.input_device,
+                    output_device: settings.output_device,
+                    send: Box::new(send),
+                    events: Box::new(events),
+                    talking: (false, false),
+                    unplayed_since: Instant::now(),
+                    scratch: Vec::new(),
+                    microphone_retry: Retry::default(),
+                    speaker_retry: Retry::default(),
+                };
+                engine.open_microphone();
+                engine.open_speaker();
+                engine.run(receiver);
+            })
+            .expect("the system can start a thread");
+        match start_result.recv() {
+            Ok(Ok(())) => Ok(Self {
+                commands,
+                thread: Some(thread),
+                local_media: Mutex::default(),
+            }),
+            Ok(Err(error)) => {
+                let _ = thread.join();
+                Err(error)
+            }
+            Err(_) => {
+                let _ = thread.join();
+                Err(ProcessorError::Stopped)
+            }
+        }
+    }
+
+    /// A packet from `user_id`.
+    pub fn receive(
+        &self,
+        user_id: i64,
+        timestamp: u32,
+        marker: bool,
+        payload: Arc<[u8]>,
+        arrived: Instant,
+    ) {
+        self.command(Command::Receive {
+            user_id,
+            timestamp,
+            marker,
+            payload,
+            arrived,
+        });
+    }
+
+    pub fn remove_user(&self, user_id: i64) {
+        self.command(Command::RemoveUser(user_id));
+    }
+
+    /// A packet of `user_id`'s screen share sound (plan §10.5).
+    pub fn receive_stream(
+        &self,
+        user_id: i64,
+        timestamp: u32,
+        marker: bool,
+        payload: Arc<[u8]>,
+        arrived: Instant,
+    ) {
+        self.command(Command::ReceiveStream {
+            user_id,
+            timestamp,
+            marker,
+            payload,
+            arrived,
+        });
+    }
+
+    /// A packet of the channel's music (Phase 3 plan §13.3): stereo, like
+    /// a screen share's sound, under its own source key.
+    pub fn receive_music(
+        &self,
+        timestamp: u32,
+        marker: bool,
+        payload: Arc<[u8]>,
+        arrived: Instant,
+    ) {
+        self.receive_stream(
+            crate::transport::MUSIC_SOURCE,
+            timestamp,
+            marker,
+            payload,
+            arrived,
+        );
+    }
+
+    /// The channel's music stream ended.
+    pub fn remove_music(&self) {
+        self.remove_stream(crate::transport::MUSIC_SOURCE);
+    }
+
+    /// This listener's music volume, 0–2 (200 %), and mute (plan §19.8).
+    pub fn set_music_volume(&self, volume: f32, muted: bool) {
+        self.set_stream_volume(crate::transport::MUSIC_SOURCE, volume);
+        self.set_stream_mute(crate::transport::MUSIC_SOURCE, muted);
+    }
+
+    /// `user_id`'s screen share is no longer watched here.
+    pub fn remove_stream(&self, user_id: i64) {
+        self.command(Command::RemoveStream(user_id));
+    }
+
+    /// 0–2 (200 %), apart from their voice.
+    pub fn set_stream_volume(&self, user_id: i64, volume: f32) {
+        self.command(Command::StreamVolume(user_id, volume));
+    }
+
+    pub fn set_stream_mute(&self, user_id: i64, muted: bool) {
+        self.command(Command::StreamMute(user_id, muted));
+    }
+
+    /// The sound this device shares (interleaved stereo at 48 kHz): the
+    /// echo canceller removes it from the microphone (plan §10.6).
+    pub fn shared_sound(&self, stereo: Vec<f32>) {
+        self.command(Command::SharedSound(stereo));
+    }
+
+    pub fn set_muted(&self, muted: bool) {
+        self.command(Command::Muted(muted));
+    }
+
+    pub fn set_deafened(&self, deafened: bool) {
+        self.command(Command::Deafened(deafened));
+    }
+
+    pub fn set_mode(&self, mode: InputMode) {
+        self.command(Command::Mode(mode));
+    }
+
+    pub fn set_push_to_talk(&self, held: bool) {
+        self.command(Command::PushToTalk(held));
+    }
+
+    pub fn set_input_volume(&self, volume: f32) {
+        self.command(Command::InputVolume(volume));
+    }
+
+    pub fn set_output_volume(&self, volume: f32) {
+        self.command(Command::OutputVolume(volume));
+    }
+
+    pub fn set_user_volume(&self, user_id: i64, volume: f32) {
+        self.command(Command::UserVolume(user_id, volume));
+    }
+
+    pub fn set_local_mute(&self, user_id: i64, muted: bool) {
+        self.command(Command::LocalMute(user_id, muted));
+    }
+
+    pub fn set_bitrate(&self, bitrate: u32) {
+        self.command(Command::Bitrate(bitrate));
+    }
+
+    /// Loss the receivers report, in percent.
+    pub fn set_expected_loss(&self, percent: u8) {
+        self.command(Command::ExpectedLoss(percent));
+    }
+
+    pub fn set_input_device(&self, choice: DeviceChoice) {
+        self.command(Command::InputDevice(choice));
+    }
+
+    pub fn set_output_device(&self, choice: DeviceChoice) {
+        self.command(Command::OutputDevice(choice));
+    }
+
+    /// Echo cancellation, noise suppression and gain control.
+    pub fn set_processing(&self, settings: ProcessingSettings) {
+        self.command(Command::Processing(settings));
+    }
+
+    /// The priority speaker key, held or let go.
+    pub fn set_priority_held(&self, held: bool) {
+        self.command(Command::PriorityHeld(held));
+    }
+
+    /// Whether `user_id` speaks as the priority speaker now.
+    pub fn set_priority(&self, user_id: i64, priority: bool) {
+        self.command(Command::Priority(user_id, priority));
+    }
+
+    /// Hear what would be sent.
+    pub fn set_mic_test(&self, on: bool) {
+        self.command(Command::MicTest(on));
+    }
+
+    /// Report the microphone's level 20 times a second while on.
+    /// Plays a soundboard sound or a preview, mono at 48 kHz, at `gain`
+    /// (0–1), mixed with the voices.
+    pub fn play_sound(&self, samples: Arc<[f32]>, gain: f32) {
+        self.command(Command::PlaySound(samples, gain));
+    }
+
+    pub fn stop_sounds(&self) {
+        self.command(Command::StopSounds);
+    }
+
+    pub fn set_level_meter(&self, on: bool) {
+        self.command(Command::LevelMeter(on));
+    }
+
+    /// Attaches or detaches a capture tap on the processing tick.
+    pub fn set_capture_tap(&self, tap: Option<rtrb::Producer<f32>>, silence_call: bool) {
+        self.command(Command::CaptureTap(tap, silence_call));
+    }
+
+    /// Mixes an interleaved stereo source (48 kHz) into local playback and
+    /// the echo canceller's reference, in place of any other; returns the
+    /// id that detaches it.
+    pub fn attach_local_media(&self, source: rtrb::Consumer<f32>) -> u64 {
+        let mut local_media = self
+            .local_media
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner);
+        local_media.1 += 1;
+        local_media.0 = local_media.1;
+        self.command(Command::LocalMedia(Some(source)));
+        local_media.0
+    }
+
+    /// Detaches source `id`, unless another source took its place since.
+    pub fn detach_local_media(&self, id: u64) {
+        let mut local_media = self
+            .local_media
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner);
+        if local_media.0 == id {
+            local_media.0 = 0;
+            self.command(Command::LocalMedia(None));
+        }
+    }
+
+    /// Whether source `id` is still the one mixed in.
+    pub fn has_local_media(&self, id: u64) -> bool {
+        self.local_media
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .0
+            == id
+    }
+
+    fn command(&self, command: Command) {
+        let _ = self.commands.send(command);
+    }
+}
+
+impl Drop for AudioEngine {
+    fn drop(&mut self) {
+        let _ = self.commands.send(Command::Stop);
+        if let Some(thread) = self.thread.take() {
+            let _ = thread.join();
+        }
+    }
+}
+
+struct Engine {
+    processor: Processor,
+    microphone: Option<Microphone>,
+    speaker: Option<Speaker>,
+    input_device: DeviceChoice,
+    output_device: DeviceChoice,
+    send: Box<dyn FnMut(EncodedFrame) + Send>,
+    events: Box<dyn FnMut(EngineEvent) + Send>,
+    /// Talking, and as the priority speaker.
+    talking: (bool, bool),
+    level_meter: bool,
+    reported_at: Instant,
+    changes: Vec<(i64, bool)>,
+    /// Each watched stream's sound delay, as last reported.
+    stream_delays: HashMap<i64, Duration>,
+    /// Without a speaker, playing follows the clock from here.
+    unplayed_since: Instant,
+    scratch: Vec<f32>,
+    /// When to try a device again that would not open: a device busy or
+    /// changing its rate for a moment would otherwise stay silent for the
+    /// rest of the call.
+    microphone_retry: Retry,
+    speaker_retry: Retry,
+}
+
+/// Retries of a device that would not open.
+#[derive(Debug, Default)]
+struct Retry {
+    at: Option<Instant>,
+    wait: Duration,
+}
+
+impl Retry {
+    /// It failed again at `now`. True the first time, which is reported.
+    fn failed(&mut self, now: Instant) -> bool {
+        let first = self.at.is_none();
+        self.wait = if first {
+            RETRY_FAILED
+        } else {
+            (self.wait * 2).min(RETRY_FAILED_MOST)
+        };
+        self.at = Some(now + self.wait);
+        first
+    }
+
+    fn due(&self, now: Instant) -> bool {
+        self.at.is_some_and(|at| now >= at)
+    }
+
+    fn clear(&mut self) {
+        self.at = None;
+    }
+}
+
+impl Engine {
+    fn run(&mut self, commands: Receiver<Command>) {
+        let _priority = match audio_thread_priority::promote_current_thread_to_real_time(
+            REAL_TIME_BUDGET_FRAMES,
+            SAMPLE_RATE,
+        ) {
+            Ok(handle) => Some(handle),
+            Err(error) => {
+                tracing::warn!(%error, "the audio thread runs at normal priority");
+                None
+            }
+        };
+        let mut wake = Instant::now();
+        loop {
+            loop {
+                match commands.try_recv() {
+                    Ok(Command::Stop) | Err(TryRecvError::Disconnected) => return,
+                    Ok(command) => self.apply(command),
+                    Err(TryRecvError::Empty) => break,
+                }
+            }
+            self.replace_lost_devices();
+            self.capture();
+            let now = Instant::now();
+            self.play(now);
+            self.report(now);
+            wake += WAKE_EVERY;
+            let now = Instant::now();
+            if wake <= now {
+                // Late; start over rather than catch up.
+                wake = now + WAKE_EVERY;
+            }
+            std::thread::sleep(wake - now);
+        }
+    }
+
+    fn apply(&mut self, command: Command) {
+        let processor = &mut self.processor;
+        match command {
+            Command::Receive {
+                user_id,
+                timestamp,
+                marker,
+                payload,
+                arrived,
+            } => processor.receive(user_id, timestamp, marker, payload, arrived),
+            Command::RemoveUser(user_id) => processor.remove_user(user_id),
+            Command::ReceiveStream {
+                user_id,
+                timestamp,
+                marker,
+                payload,
+                arrived,
+            } => processor.receive_stream(user_id, timestamp, marker, payload, arrived),
+            Command::RemoveStream(user_id) => {
+                processor.remove_stream(user_id);
+                self.stream_delays.remove(&user_id);
+            }
+            Command::StreamVolume(user_id, volume) => processor.set_stream_volume(user_id, volume),
+            Command::StreamMute(user_id, muted) => processor.set_stream_mute(user_id, muted),
+            Command::SharedSound(stereo) => processor.shared_sound(&stereo),
+            Command::Muted(muted) => processor.set_muted(muted),
+            Command::Deafened(deafened) => processor.set_deafened(deafened),
+            Command::Mode(mode) => processor.set_mode(mode),
+            Command::PushToTalk(held) => processor.set_push_to_talk(held),
+            Command::InputVolume(volume) => processor.set_input_volume(volume),
+            Command::OutputVolume(volume) => processor.set_output_volume(volume),
+            Command::UserVolume(user_id, volume) => processor.set_user_volume(user_id, volume),
+            Command::LocalMute(user_id, muted) => processor.set_local_mute(user_id, muted),
+            Command::Bitrate(bitrate) => {
+                if let Err(error) = processor.set_bitrate(bitrate) {
+                    tracing::warn!(%error, bitrate, "could not change the voice bitrate");
+                }
+            }
+            Command::ExpectedLoss(percent) => {
+                let _ = processor.set_expected_loss(percent);
+            }
+            Command::InputDevice(choice) => {
+                self.input_device = choice;
+                self.microphone = None;
+                self.microphone_retry.clear();
+                self.open_microphone();
+            }
+            Command::OutputDevice(choice) => {
+                self.output_device = choice;
+                self.speaker = None;
+                self.speaker_retry.clear();
+                self.unplayed_since = Instant::now();
+                self.open_speaker();
+            }
+            Command::Processing(settings) => processor.set_processing(settings),
+            Command::PriorityHeld(held) => processor.set_priority_held(held),
+            Command::Priority(user_id, priority) => processor.set_priority(user_id, priority),
+            Command::MicTest(on) => processor.set_mic_test(on),
+            Command::PlaySound(samples, gain) => processor.play_sound(samples, gain),
+            Command::StopSounds => processor.stop_sounds(),
+            Command::LevelMeter(on) => self.level_meter = on,
+            Command::CaptureTap(tap, silence_call) => {
+                processor.set_capture_tap(tap, silence_call);
+            }
+            Command::LocalMedia(source) => processor.set_local_media(source),
+            Command::Stop => {}
+        }
+    }
+
+    fn report(&mut self, now: Instant) {
+        let talking = (self.processor.is_talking(), self.processor.is_priority());
+        if talking != self.talking {
+            self.talking = talking;
+            (self.events)(EngineEvent::Talking {
+                talking: talking.0,
+                priority: talking.1,
+            });
+        }
+        if self.processor.take_speaking_while_muted() {
+            (self.events)(EngineEvent::SpeakingWhileMuted);
+        }
+        if self.processor.take_noise_suppression_fallback() {
+            (self.events)(EngineEvent::NoiseSuppressionFellBack);
+        }
+        if now < self.reported_at + REPORT_EVERY {
+            return;
+        }
+        self.reported_at = now;
+        self.processor.speaking_changes(&mut self.changes);
+        if !self.changes.is_empty() {
+            (self.events)(EngineEvent::Speaking(std::mem::take(&mut self.changes)));
+        }
+        for (user_id, delay) in self.processor.stream_delays() {
+            let before = self.stream_delays.insert(user_id, delay);
+            let moved = before.is_none_or(|before| before.abs_diff(delay) >= DELAY_STEP);
+            if moved {
+                (self.events)(EngineEvent::StreamDelay { user_id, delay });
+            } else if let Some(before) = before {
+                // Small moves are not reported; the last one stands.
+                self.stream_delays.insert(user_id, before);
+            }
+        }
+        let level = self.processor.take_input_level();
+        if let Some(level) = level.filter(|_| self.level_meter) {
+            (self.events)(EngineEvent::InputLevel(level));
+        }
+    }
+
+    fn replace_lost_devices(&mut self) {
+        let now = Instant::now();
+        if self.microphone.is_none() && self.microphone_retry.due(now) {
+            self.open_microphone();
+        }
+        if self.speaker.is_none() && self.speaker_retry.due(now) {
+            self.open_speaker();
+        }
+        if self
+            .microphone
+            .as_ref()
+            .is_some_and(|microphone| microphone.health.is_lost())
+        {
+            self.microphone = None;
+            self.open_microphone();
+        }
+        if self
+            .speaker
+            .as_ref()
+            .is_some_and(|speaker| speaker.health.is_lost())
+        {
+            self.speaker = None;
+            self.open_speaker();
+        }
+    }
+
+    /// The chosen microphone, or the default one when it is missing.
+    fn open_microphone(&mut self) {
+        let Some(opened) = open_or_default(&self.input_device, Microphone::open) else {
+            return;
+        };
+        match opened {
+            Ok((microphone, fell_back)) => {
+                if let Err(error) = self
+                    .processor
+                    .set_input_device(microphone.rate, microphone.channels)
+                {
+                    tracing::warn!(%error, "the microphone's format is not usable");
+                    return;
+                }
+                if fell_back {
+                    (self.events)(EngineEvent::DeviceFellBack {
+                        output: false,
+                        device: microphone.name.clone(),
+                    });
+                }
+                self.microphone_retry.clear();
+                self.microphone = Some(microphone);
+            }
+            Err(error) => {
+                if self.microphone_retry.failed(Instant::now()) {
+                    (self.events)(EngineEvent::DeviceFailed {
+                        output: false,
+                        message: error.to_string(),
+                    });
+                }
+            }
+        }
+    }
+
+    fn open_speaker(&mut self) {
+        let Some(opened) = open_or_default(&self.output_device, Speaker::open) else {
+            return;
+        };
+        match opened {
+            Ok((speaker, fell_back)) => {
+                if let Err(error) = self
+                    .processor
+                    .set_output_device(speaker.rate, speaker.channels)
+                {
+                    tracing::warn!(%error, "the speaker's format is not usable");
+                    return;
+                }
+                if fell_back {
+                    (self.events)(EngineEvent::DeviceFellBack {
+                        output: true,
+                        device: speaker.name.clone(),
+                    });
+                }
+                self.speaker_retry.clear();
+                self.speaker = Some(speaker);
+            }
+            Err(error) => {
+                let now = Instant::now();
+                if self.speaker_retry.at.is_none() {
+                    self.unplayed_since = now;
+                }
+                if self.speaker_retry.failed(now) {
+                    (self.events)(EngineEvent::DeviceFailed {
+                        output: true,
+                        message: error.to_string(),
+                    });
+                }
+            }
+        }
+    }
+
+    fn capture(&mut self) {
+        let Some(microphone) = self.microphone.as_mut() else {
+            return;
+        };
+        let most = (microphone.rate as usize * usize::from(microphone.channels.max(1)))
+            * CAPTURE_PER_WAKE.as_millis() as usize
+            / 1000;
+        let ready = microphone.samples.slots().min(most);
+        if ready == 0 {
+            return;
+        }
+        self.scratch.clear();
+        if let Ok(chunk) = microphone.samples.read_chunk(ready) {
+            self.scratch.extend(chunk);
+        }
+        self.processor.capture(&self.scratch, &mut self.send);
+    }
+
+    /// Keeps the speaker's queue topped up; without a speaker, plays to
+    /// nowhere at the clock's pace so incoming audio does not pile up.
+    fn play(&mut self, now: Instant) {
+        let Some(speaker) = self.speaker.as_mut() else {
+            let ticks = now
+                .saturating_duration_since(self.unplayed_since)
+                .as_millis()
+                / 10;
+            for _ in 0..ticks {
+                self.processor.play_unheard(now);
+            }
+            self.unplayed_since += Duration::from_millis(10 * ticks as u64);
+            return;
+        };
+        let channels = usize::from(speaker.channels.max(1));
+        let ten_ms = speaker.rate as usize / 100 * channels;
+        let target = (speaker.rate as usize * SPEAKER_QUEUE.as_millis() as usize / 1000) * channels;
+        while speaker.queued() < target && speaker.samples.slots() >= ten_ms {
+            self.scratch.resize(ten_ms, 0.0);
+            let frames = self.processor.play(now, &mut self.scratch[..ten_ms]);
+            let samples = frames * channels;
+            if let Ok(chunk) = speaker.samples.write_chunk_uninit(samples) {
+                chunk.fill_from_iter(self.scratch[..samples].iter().copied());
+            }
+            if samples == 0 {
+                break;
+            }
+        }
+    }
+}
+
+/// Opens the chosen device, or the default one when that fails, and says
+/// whether it fell back; `None` when the choice is no device.
+fn open_or_default<T>(
+    choice: &DeviceChoice,
+    open: impl Fn(Option<&str>) -> Result<T, DeviceError>,
+) -> Option<Result<(T, bool), DeviceError>> {
+    Some(match choice {
+        DeviceChoice::Off => return None,
+        DeviceChoice::Default => open(None).map(|device| (device, false)),
+        DeviceChoice::Id(id) => match open(Some(id)) {
+            Ok(device) => Ok((device, false)),
+            Err(error) => {
+                tracing::info!(%error, "using the default device instead");
+                open(None).map(|device| (device, true))
+            }
+        },
+    })
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::Mutex;
+
+    use super::*;
+    use crate::audio::capture::Sensitivity;
+    use crate::audio::processing::ProcessingSettings;
+
+    #[test]
+    fn a_device_that_would_not_open_is_tried_again_more_and_more_slowly() {
+        let start = Instant::now();
+        let mut retry = Retry::default();
+        assert!(!retry.due(start), "nothing failed yet");
+
+        assert!(retry.failed(start), "the first failure is reported");
+        assert!(!retry.due(start + Duration::from_millis(999)));
+        assert!(retry.due(start + Duration::from_secs(1)));
+        let waits: Vec<Duration> = (0..5)
+            .map(|_| {
+                assert!(!retry.failed(start), "later ones are not");
+                retry.wait
+            })
+            .collect();
+        assert_eq!(
+            waits,
+            [2, 4, 8, 10, 10].map(Duration::from_secs),
+            "doubling up to 10 s"
+        );
+
+        retry.clear();
+        assert!(!retry.due(start + Duration::from_secs(60)));
+        assert!(
+            retry.failed(start),
+            "after it opened, a failure is news again"
+        );
+    }
+
+    /// Needs a microphone and a speaker; run with `--ignored` on a machine
+    /// that has them.
+    #[test]
+    #[ignore = "needs audio devices"]
+    fn an_open_microphone_sends_frames_and_a_missing_device_falls_back() {
+        let frames = Arc::new(Mutex::new(0usize));
+        let events = Arc::new(Mutex::new(Vec::new()));
+        let counted = Arc::clone(&frames);
+        let heard = Arc::clone(&events);
+        let engine = AudioEngine::start(
+            EngineSettings {
+                input_device: DeviceChoice::Id("pipewire:no-such-microphone".to_owned()),
+                output_device: DeviceChoice::Default,
+                processor: ProcessorSettings {
+                    // Everything passes, so the room's noise is sent.
+                    mode: InputMode::VoiceActivity(Sensitivity::Manual {
+                        threshold_dbfs: -130.0,
+                    }),
+                    processing: ProcessingSettings::default(),
+                    bitrate: 64_000,
+                    input_volume: 1.0,
+                    output_volume: 1.0,
+                },
+            },
+            move |_| *counted.lock().unwrap() += 1,
+            move |event| heard.lock().unwrap().push(event),
+        )
+        .unwrap();
+
+        std::thread::sleep(Duration::from_millis(600));
+        drop(engine);
+
+        let sent = *frames.lock().unwrap();
+        assert!(sent >= 15, "{sent} frames in 600 ms");
+        let events = events.lock().unwrap();
+        assert!(
+            events
+                .iter()
+                .any(|event| matches!(event, EngineEvent::DeviceFellBack { output: false, .. })),
+            "{events:?}"
+        );
+    }
+
+    fn quiet_engine(events: Arc<Mutex<Vec<(Instant, EngineEvent)>>>) -> AudioEngine {
+        AudioEngine::start(
+            EngineSettings {
+                input_device: DeviceChoice::Off,
+                output_device: DeviceChoice::Off,
+                processor: ProcessorSettings {
+                    mode: InputMode::VoiceActivity(Sensitivity::Automatic),
+                    processing: ProcessingSettings::default(),
+                    bitrate: 64_000,
+                    input_volume: 1.0,
+                    output_volume: 1.0,
+                },
+            },
+            |_| {},
+            move |event| events.lock().unwrap().push((Instant::now(), event)),
+        )
+        .unwrap()
+    }
+
+    #[test]
+    fn who_starts_and_stops_speaking_is_reported_as_it_happens() {
+        crate::needs_own_machine!();
+        let events = Arc::new(Mutex::new(Vec::new()));
+        let engine = quiet_engine(Arc::clone(&events));
+        let mut encoder = crate::audio::codec::VoiceEncoder::new(64_000).unwrap();
+        let mut packet = [0u8; crate::audio::codec::MAX_PACKET];
+
+        // Half a second of a tone from user 7, as it would arrive.
+        for frame in 0..25 {
+            let tone: Vec<f32> = (0..crate::audio::FRAME)
+                .map(|i| {
+                    let t = (frame * crate::audio::FRAME + i) as f32 / SAMPLE_RATE as f32;
+                    0.2 * (std::f32::consts::TAU * 300.0 * t).sin()
+                })
+                .collect();
+            let size = encoder.encode(&tone, &mut packet).unwrap();
+            engine.receive(
+                7,
+                (frame * crate::audio::FRAME) as u32,
+                frame == 0,
+                Arc::from(&packet[..size]),
+                Instant::now(),
+            );
+            std::thread::sleep(Duration::from_millis(20));
+        }
+        std::thread::sleep(Duration::from_millis(600));
+        drop(engine);
+
+        let events = events.lock().unwrap();
+        let speaking: Vec<&(Instant, EngineEvent)> = events
+            .iter()
+            .filter(|(_, event)| matches!(event, EngineEvent::Speaking(_)))
+            .collect();
+        let changes: Vec<&Vec<(i64, bool)>> = speaking
+            .iter()
+            .map(|(_, event)| match event {
+                EngineEvent::Speaking(changes) => changes,
+                _ => unreachable!(),
+            })
+            .collect();
+        assert_eq!(
+            changes,
+            vec![&vec![(7, true)], &vec![(7, false)]],
+            "{events:?}"
+        );
+        assert!(speaking[1].0 - speaking[0].0 >= Duration::from_millis(400));
+    }
+
+    #[test]
+    fn the_input_level_is_only_reported_while_a_meter_is_open() {
+        let events = Arc::new(Mutex::new(Vec::new()));
+        let engine = quiet_engine(Arc::clone(&events));
+
+        engine.set_level_meter(true);
+        engine.set_mic_test(true);
+        engine.set_priority_held(true);
+        engine.set_priority(7, true);
+        engine.set_processing(ProcessingSettings::default());
+        std::thread::sleep(Duration::from_millis(200));
+        drop(engine);
+
+        // Without a microphone there is no level to report, and nothing
+        // else goes wrong.
+        let events = events.lock().unwrap();
+        assert!(
+            !events
+                .iter()
+                .any(|(_, event)| matches!(event, EngineEvent::InputLevel(_))),
+            "{events:?}"
+        );
+    }
+}

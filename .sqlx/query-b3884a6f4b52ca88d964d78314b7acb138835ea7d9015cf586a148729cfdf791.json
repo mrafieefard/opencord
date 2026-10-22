@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO invites (code, created_by, created_at, max_uses, uses, expires_at, domain_id)\n         VALUES ($1, $2, $3, $4, $5, $6, $7)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 7
+    },
+    "nullable": []
+  },
+  "hash": "b3884a6f4b52ca88d964d78314b7acb138835ea7d9015cf586a148729cfdf791"
+}

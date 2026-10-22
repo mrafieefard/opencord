@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE channels SET name = $1, topic = $2, parent_id = $3, position = $4,\n                             bitrate = $5, user_limit = $6, text_in_voice = $7\n         WHERE id = $8",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 8
+    },
+    "nullable": []
+  },
+  "hash": "405589f05d27d74c558a809e378f33f40d5ee3339e1ae1c8832e5c2bb240c3aa"
+}

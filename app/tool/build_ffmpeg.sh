@@ -1,0 +1,75 @@
+#!/usr/bin/env bash
+# Builds the FFmpeg that ships inside the Linux bundle. Distributions ship
+# different FFmpeg majors (libavutil.so.58 on Ubuntu 24.04, .59 on 25.04,
+# .60 and up elsewhere), so a bundle linked against the build machine's
+# FFmpeg runs only there. This one has just what the media engine and media
+# player use (decisions.md, "Codecs"): FFmpeg's video decoders (H.264, MJPEG,
+# HEVC, VP8, VP9, AV1 via static dav1d, MPEG-4), audio decoders (AAC, MP3,
+# Opus, Vorbis, FLAC, PCM), demuxers, parsers, bitstream filters, VA-API
+# decoding and encoding, NVENC and the MJPEG encoder, plus swscale and
+# swresample (FFmpeg's Opus decoder needs it). No protocols: the player
+# reads through its own I/O. It is LGPL, links only to libva and libva-drm,
+# and loads NVIDIA's libraries at run time.
+#
+#   app/tool/build_ffmpeg.sh <prefix>
+#
+# Then build the app with PKG_CONFIG_PATH=<prefix>/lib/pkgconfig and copy
+# <prefix>/lib/*.so.* next to libopencord_core.so (CI does both). Needs a C
+# compiler, make, nasm, pkg-config, meson, ninja and libva's headers.
+set -euo pipefail
+
+dav1d_version=1.5.4
+dav1d_sha256=686616b7c69eb88d44459391ab25cac13b6647a3b288835c5784e71c1514a5c5
+ffmpeg_version=9.0.2
+ffmpeg_sha256=8c3850283eb25fa026482078a04051e0be17347b09ef81a0849bec15a96e002e
+nvcodec_version=13.0.19.0
+nvcodec_sha256=86d15d1a7c0ac73a0eafdfc57bebfeba7da8264595bf531cf4d8db1c22940116
+
+prefix=${1:?usage: build_ffmpeg.sh <prefix>}
+mkdir -p "$prefix"
+prefix=$(cd "$prefix" && pwd)
+work=$(mktemp -d)
+trap 'rm -rf "$work"' EXIT
+
+fetch() { # url sha256 file
+  curl -fsSL --retry 3 -o "$work/$3" "$1"
+  echo "$2  $work/$3" | sha256sum --check --quiet
+}
+
+fetch "https://downloads.videolan.org/pub/videolan/dav1d/$dav1d_version/dav1d-$dav1d_version.tar.xz" \
+  "$dav1d_sha256" dav1d.tar.xz
+fetch "https://github.com/FFmpeg/nv-codec-headers/archive/refs/tags/n$nvcodec_version.tar.gz" \
+  "$nvcodec_sha256" nv-codec-headers.tar.gz
+fetch "https://ffmpeg.org/releases/ffmpeg-$ffmpeg_version.tar.xz" \
+  "$ffmpeg_sha256" ffmpeg.tar.xz
+
+# dav1d is built first as a static library so libavcodec links it in.
+tar -C "$work" -xf "$work/dav1d.tar.xz"
+(
+  cd "$work/dav1d-$dav1d_version"
+  meson setup build --prefix="$prefix" --libdir=lib --buildtype=release --default-library=static -Denable_tools=false -Denable_tests=false
+  ninja -C build install
+)
+
+# NVENC's headers only declare what FFmpeg loads at run time.
+tar -C "$work" -xf "$work/nv-codec-headers.tar.gz"
+make -C "$work/nv-codec-headers-n$nvcodec_version" install PREFIX="$prefix" > /dev/null
+
+tar -C "$work" -xf "$work/ffmpeg.tar.xz"
+cd "$work/ffmpeg-$ffmpeg_version"
+PKG_CONFIG_PATH="$prefix/lib/pkgconfig${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}" ./configure \
+  --prefix="$prefix" --libdir="$prefix/lib" \
+  --enable-shared --disable-static --enable-pic \
+  --disable-programs --disable-doc --disable-network \
+  --disable-autodetect --disable-everything \
+  --disable-avdevice --disable-avfilter \
+  --enable-vaapi --enable-ffnvcodec --enable-nvenc \
+  --enable-libdav1d \
+  --enable-decoder=h264,mjpeg,hevc,vp8,vp9,libdav1d,mpeg4,aac,mp3float,opus,vorbis,flac,pcm_s16le,pcm_s24le,pcm_s32le,pcm_f32le,pcm_u8 \
+  --enable-encoder=h264_vaapi,h264_nvenc,mjpeg \
+  --enable-hwaccel=h264_vaapi \
+  --enable-demuxer=mov,matroska,ogg,mp3,flac,wav,aac \
+  --enable-parser=h264,hevc,vp8,vp9,av1,mpeg4video,aac,mpegaudio,opus,vorbis,flac \
+  --enable-bsf=h264_mp4toannexb,hevc_mp4toannexb,vp9_superframe_split > /dev/null
+make -j"$(nproc)" > /dev/null
+make install > /dev/null

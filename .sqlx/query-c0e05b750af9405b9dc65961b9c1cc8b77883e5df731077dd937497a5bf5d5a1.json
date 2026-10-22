@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE attachments\n         SET state = 'ready',\n             kind = $2,\n             content_type = $3,\n             filename = $4,\n             storage_id = $5,\n             width = $6,\n             height = $7,\n             duration_ms = $8,\n             animated = $9,\n             waveform = $10,\n             has_thumbnail = $11,\n             thumbnail_width = $12,\n             thumbnail_height = $13,\n             updated_at = $14\n         WHERE id = $1 AND state = 'processing'",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 14
+    },
+    "nullable": []
+  },
+  "hash": "c0e05b750af9405b9dc65961b9c1cc8b77883e5df731077dd937497a5bf5d5a1"
+}

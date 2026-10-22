@@ -1,0 +1,247 @@
+// Rebuilds the app's icon font and its Dart constants from the upstream
+// Material Symbols Rounded variable font, keeping only the icons listed in
+// [icons]. Run from app/ after changing the list:
+//
+//   dart run tool/build_icons.dart
+//
+// The upstream font (15 MB) is downloaded once into .dart_tool/ and subset
+// with the font-subset tool that ships with the Flutter SDK, so the app
+// carries only the glyphs it uses. Variation axes (FILL, wght, GRAD, opsz)
+// are kept.
+
+import 'dart:convert';
+import 'dart:io';
+
+/// google/material-design-icons commit the font is taken from.
+const upstreamCommit = '737e3324305806514d7909874fa1818ae1808232';
+const upstreamName = 'MaterialSymbolsRounded[FILL,GRAD,opsz,wght]';
+
+/// Dart constant name → Material Symbols icon name.
+const icons = <String, String>{
+  'accountCircle': 'account_circle',
+  'add': 'add',
+  'addReaction': 'add_reaction',
+  'alternateEmail': 'alternate_email',
+  'article': 'article',
+  'arrowBack': 'arrow_back',
+  'arrowDownward': 'arrow_downward',
+  'arrowDropDown': 'arrow_drop_down',
+  'arrowUpward': 'arrow_upward',
+  'attachFile': 'attach_file',
+  'audioFile': 'audio_file',
+  'badge': 'badge',
+  'bedtime': 'bedtime',
+  'block': 'block',
+  'bugReport': 'bug_report',
+  'callEnd': 'call_end',
+  'campaign': 'campaign',
+  'chat': 'chat',
+  'check': 'check',
+  'checkBox': 'check_box',
+  'checkBoxOutlineBlank': 'check_box_outline_blank',
+  'chevronLeft': 'chevron_left',
+  'chevronRight': 'chevron_right',
+  'close': 'close',
+  'closeFullscreen': 'close_fullscreen',
+  'cloudOff': 'cloud_off',
+  'cloudUpload': 'cloud_upload',
+  'code': 'code',
+  'contentCopy': 'content_copy',
+  'contrast': 'contrast',
+  'createNewFolder': 'create_new_folder',
+  'darkMode': 'dark_mode',
+  'dashboard': 'dashboard',
+  'delete': 'delete',
+  'description': 'description',
+  'desktopWindows': 'desktop_windows',
+  'dns': 'dns',
+  'doneAll': 'done_all',
+  'download': 'download',
+  'dragIndicator': 'drag_indicator',
+  'edit': 'edit',
+  'emojiEvents': 'emoji_events',
+  'emojiFlags': 'emoji_flags',
+  'emojiFoodBeverage': 'emoji_food_beverage',
+  'emojiNature': 'emoji_nature',
+  'emojiObjects': 'emoji_objects',
+  'emojiPeople': 'emoji_people',
+  'emojiSymbols': 'emoji_symbols',
+  'emojiTransportation': 'emoji_transportation',
+  'error': 'error',
+  'expandLess': 'expand_less',
+  'expandMore': 'expand_more',
+  'fingerprint': 'fingerprint',
+  'folder': 'folder',
+  'folderZip': 'folder_zip',
+  'forum': 'forum',
+  'fullscreen': 'fullscreen',
+  'gavel': 'gavel',
+  'graphicEq': 'graphic_eq',
+  'group': 'group',
+  'headphones': 'headphones',
+  'headsetOff': 'headset_off',
+  'history': 'history',
+  'hourglassEmpty': 'hourglass_empty',
+  'image': 'image',
+  'info': 'info',
+  'key': 'key',
+  'keyboard': 'keyboard',
+  'keyboardArrowDown': 'keyboard_arrow_down',
+  'libraryMusic': 'library_music',
+  'lightMode': 'light_mode',
+  'link': 'link',
+  'lock': 'lock',
+  'lockOpen': 'lock_open',
+  'logout': 'logout',
+  'mail': 'mail',
+  'markChatRead': 'mark_chat_read',
+  'menu': 'menu',
+  'mic': 'mic',
+  'micOff': 'mic_off',
+  'monitor': 'monitor',
+  'mood': 'mood',
+  'moreHoriz': 'more_horiz',
+  'moreVert': 'more_vert',
+  'moveDown': 'move_down',
+  'movie': 'movie',
+  'musicNote': 'music_note',
+  'networkCheck': 'network_check',
+  'notifications': 'notifications',
+  'notificationsOff': 'notifications_off',
+  'openInFull': 'open_in_full',
+  'openInNew': 'open_in_new',
+  'palette': 'palette',
+  'pause': 'pause',
+  'person': 'person',
+  'personAdd': 'person_add',
+  'personRemove': 'person_remove',
+  'playArrow': 'play_arrow',
+  'pushPin': 'push_pin',
+  'queueMusic': 'queue_music',
+  'refresh': 'refresh',
+  'remove': 'remove',
+  'repeat': 'repeat',
+  'repeatOne': 'repeat_one',
+  'reply': 'reply',
+  'schedule': 'schedule',
+  'screenShare': 'screen_share',
+  'search': 'search',
+  'send': 'send',
+  'settings': 'settings',
+  'shieldPerson': 'shield_person',
+  'shuffle': 'shuffle',
+  'signalCellularAlt': 'signal_cellular_alt',
+  'signalCellularAlt1Bar': 'signal_cellular_alt_1_bar',
+  'signalCellularAlt2Bar': 'signal_cellular_alt_2_bar',
+  'skipNext': 'skip_next',
+  'skipPrevious': 'skip_previous',
+  'speed': 'speed',
+  'star': 'star',
+  'stop': 'stop',
+  'stopScreenShare': 'stop_screen_share',
+  'storage': 'storage',
+  'sync': 'sync',
+  'tag': 'tag',
+  'tune': 'tune',
+  'upload': 'upload',
+  'verifiedUser': 'verified_user',
+  'verticalAlignTop': 'vertical_align_top',
+  'videocam': 'videocam',
+  'videocamOff': 'videocam_off',
+  'visibility': 'visibility',
+  'visibilityOff': 'visibility_off',
+  'volumeOff': 'volume_off',
+  'volumeUp': 'volume_up',
+  'warning': 'warning',
+  'webAsset': 'web_asset',
+  'zoomIn': 'zoom_in',
+};
+
+const fontAsset = 'assets/fonts/MaterialSymbolsRounded.ttf';
+const dartOutput = 'lib/ui/theme/oc_icons.dart';
+
+Future<void> main() async {
+  final cache = Directory('.dart_tool/material_symbols/$upstreamCommit');
+  await cache.create(recursive: true);
+  final font = await download('$upstreamName.ttf', cache);
+  final codepointsFile = await download('$upstreamName.codepoints', cache);
+
+  final codepoints = <String, int>{};
+  for (final line in await codepointsFile.readAsLines()) {
+    final parts = line.split(' ');
+    if (parts.length == 2) {
+      codepoints[parts[0]] = int.parse(parts[1], radix: 16);
+    }
+  }
+  final missing = icons.values.where((name) => !codepoints.containsKey(name));
+  if (missing.isNotEmpty) {
+    stderr.writeln('Not in Material Symbols Rounded: ${missing.join(', ')}');
+    exit(1);
+  }
+
+  final subset = await Process.start(fontSubsetTool(), [fontAsset, font.path]);
+  subset.stdin.writeln(icons.values.map((name) => codepoints[name]).join(' '));
+  await subset.stdin.close();
+  final output = await subset.stdout.transform(utf8.decoder).join();
+  final errors = await subset.stderr.transform(utf8.decoder).join();
+  if (await subset.exitCode != 0) {
+    stderr.writeln('font-subset failed:\n$output$errors');
+    exit(1);
+  }
+
+  final constants = (icons.keys.toList()..sort())
+      .map((key) {
+        final hex = codepoints[icons[key]]!.toRadixString(16);
+        return '  static const IconData $key = IconData(0x$hex, fontFamily: fontFamily);';
+      })
+      .join('\n');
+  await File(dartOutput).writeAsString('''
+// GENERATED by tool/build_icons.dart from Material Symbols Rounded
+// ($upstreamCommit). Edit the list there and rerun it.
+
+import 'package:flutter/widgets.dart';
+
+/// Material Symbols Rounded, the only icon family the app uses.
+abstract final class OcIcons {
+  static const String fontFamily = 'MaterialSymbolsRounded';
+
+$constants
+}
+''');
+  await Process.run(Platform.resolvedExecutable, ['format', dartOutput]);
+  final size = await File(fontAsset).length();
+  stdout.writeln('${icons.length} icons, $fontAsset is ${size ~/ 1024} KiB');
+}
+
+Future<File> download(String name, Directory cache) async {
+  final file = File('${cache.path}/$name');
+  if (await file.exists()) return file;
+  final url = Uri.https(
+    'raw.githubusercontent.com',
+    '/google/material-design-icons/$upstreamCommit/variablefont/$name',
+  );
+  final client = HttpClient();
+  try {
+    final response = await (await client.getUrl(url)).close();
+    if (response.statusCode != 200) {
+      throw HttpException('HTTP ${response.statusCode}', uri: url);
+    }
+    await response.pipe(file.openWrite());
+  } finally {
+    client.close();
+  }
+  return file;
+}
+
+/// The font-subset binary bundled with the Flutter SDK running this script.
+String fontSubsetTool() {
+  final dart = File(Platform.resolvedExecutable);
+  final flutterRoot = dart.parent.parent.parent.parent.parent;
+  final platform = Platform.isMacOS
+      ? 'darwin-x64'
+      : Platform.isWindows
+      ? 'windows-x64'
+      : 'linux-x64';
+  final binary = Platform.isWindows ? 'font-subset.exe' : 'font-subset';
+  return '${flutterRoot.path}/bin/cache/artifacts/engine/$platform/$binary';
+}

@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "DELETE FROM external_sounds WHERE sha256 = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": []
+  },
+  "hash": "701a6622ba03c526f952a6a36c687872c867711422c87323bca35fdcff13239c"
+}

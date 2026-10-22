@@ -1,0 +1,9 @@
+# Only the Rust workspace goes into the server image.
+target
+app
+.git
+.github
+.superpowers
+.codegraph
+docs
+**/*.log

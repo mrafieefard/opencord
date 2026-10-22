@@ -1,0 +1,685 @@
+name: CI/CD
+
+# Every push to a release branch tests and builds the server and the app on
+# Linux, Windows and macOS, publishes the server's Docker image to GHCR, and
+# releases it all on GitHub (docs/releasing.md):
+#
+#   beta   -> v0.0.2-beta.N    pre-release, image :beta
+#   canary -> v0.0.2-canary.N  pre-release, image :canary
+#   main   -> v0.0.2           release,     image :latest
+#
+# Nothing else runs it: work happens on other branches and reaches these by
+# merging.
+on:
+  push:
+    branches: [beta, canary, main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# A newer push to the same branch replaces the run, so two runs never number
+# the same release.
+concurrency:
+  group: cicd-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  SQLX_OFFLINE: "true"
+  # Runners are shared virtual machines: tests that time things to the
+  # millisecond or measure a hardware encoder skip there.
+  OPENCORD_SHARED_RUNNER: "1"
+  # The server's crates, and the app's. opencord-common and opencord-proto
+  # are tested with the server's; opencord-voice with the app's, as its tests
+  # call in through the app's media crate and need its native libraries.
+  SERVER_CRATES: -p opencord-server -p opencord-common -p opencord-proto
+  CLIENT_CRATES: -p opencord_core -p opencord-media -p opencord-voicebot -p opencord-voice
+  FLUTTER_VERSION: 3.44.0
+  # Native libraries the app's crates build against on Linux: cpal's PipeWire
+  # and ALSA backends (libspa-sys runs bindgen, hence libclang) and the D-Bus
+  # client audio_thread_priority uses for RtKit; GLib for irondash's Linux
+  # textures. FFmpeg is not the system's: nasm, meson, ninja and libva build our own (see
+  # app/tool/build_ffmpeg.sh), which the Linux bundle carries.
+  RUST_LINUX_DEPS: clang libclang-dev pkg-config libasound2-dev libpipewire-0.3-dev libspa-0.2-dev libdbus-1-dev nasm libva-dev libglib2.0-dev libgtk-3-dev meson ninja-build
+
+jobs:
+  version:
+    name: Version
+    if: contains(fromJSON('["beta", "canary", "main"]'), github.ref_name)
+    runs-on: ubuntu-latest
+    outputs:
+      release: ${{ steps.next.outputs.release }}
+      existing: ${{ steps.next.outputs.existing }}
+      version: ${{ steps.next.outputs.version }}
+      core: ${{ steps.next.outputs.core }}
+      tag: ${{ steps.next.outputs.tag }}
+      channel: ${{ steps.next.outputs.channel }}
+      prerelease: ${{ steps.next.outputs.prerelease }}
+      docker_tags: ${{ steps.next.outputs.docker_tags }}
+      image: ${{ steps.image.outputs.image }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Next version
+        id: next
+        run: |
+          python3 .github/release/version.py next --branch "$GITHUB_REF_NAME" --github-output
+          {
+            echo '### Version'
+            echo '```json'
+            python3 .github/release/version.py next --branch "$GITHUB_REF_NAME"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      # GHCR names are lower case.
+      - name: Image name
+        id: image
+        run: echo "image=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/opencord-server" >> "$GITHUB_OUTPUT"
+
+  server-linux:
+    name: Server (Linux)
+    needs: version
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: ./.github/actions/stamp-version
+        with:
+          version: ${{ needs.version.outputs.version }}
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: server
+
+      - name: Format
+        run: cargo fmt --all -- --check
+
+      - name: Clippy
+        run: cargo clippy --locked $SERVER_CRATES --all-targets -- -D warnings
+
+      - name: Test
+        run: cargo test --locked --no-fail-fast $SERVER_CRATES
+
+      - name: Build
+        run: cargo build --locked --release -p opencord-server --bins
+
+      - name: Package
+        run: |
+          stage="$RUNNER_TEMP/opencord-server"
+          mkdir -p "$stage" "$RUNNER_TEMP/dist"
+          cp target/release/opencord-server target/release/opencord-voice-node LICENSE "$stage/"
+          tar -C "$RUNNER_TEMP" -czf "$RUNNER_TEMP/dist/opencord-server-linux-x64.tar.gz" opencord-server
+
+      - uses: actions/upload-artifact@v7
+        with:
+          path: ${{ runner.temp }}/dist/opencord-server-linux-x64.tar.gz
+          archive: false
+          if-no-files-found: error
+          retention-days: 30
+
+  server-windows:
+    name: Server (Windows)
+    needs: version
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: ./.github/actions/stamp-version
+        with:
+          version: ${{ needs.version.outputs.version }}
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: server
+
+      - name: Clippy
+        run: cargo clippy --locked $SERVER_CRATES --all-targets -- -D warnings
+
+      - name: Test
+        run: cargo test --locked --no-fail-fast $SERVER_CRATES
+
+      - name: Build
+        run: cargo build --locked --release -p opencord-server --bins
+
+      - name: Package
+        shell: pwsh
+        run: |
+          $stage = Join-Path $env:RUNNER_TEMP 'opencord-server'
+          New-Item -ItemType Directory -Force $stage, (Join-Path $env:RUNNER_TEMP 'dist') | Out-Null
+          Copy-Item target/release/opencord-server.exe, target/release/opencord-voice-node.exe, LICENSE $stage
+          Compress-Archive -Path $stage -DestinationPath (Join-Path $env:RUNNER_TEMP 'dist/opencord-server-windows-x64.zip')
+
+      - uses: actions/upload-artifact@v7
+        with:
+          path: ${{ runner.temp }}/dist/opencord-server-windows-x64.zip
+          archive: false
+          if-no-files-found: error
+          retention-days: 30
+
+  server-macos:
+    name: Server (macOS)
+    needs: version
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: ./.github/actions/stamp-version
+        with:
+          version: ${{ needs.version.outputs.version }}
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+          targets: aarch64-apple-darwin, x86_64-apple-darwin
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: server
+
+      - name: Clippy
+        run: cargo clippy --locked $SERVER_CRATES --all-targets -- -D warnings
+
+      - name: Test
+        run: cargo test --locked --no-fail-fast $SERVER_CRATES
+
+      # Universal, like the app: Apple silicon and Intel in one binary.
+      - name: Build
+        run: |
+          cargo build --locked --release -p opencord-server --bins \
+            --target aarch64-apple-darwin --target x86_64-apple-darwin
+          mkdir -p target/universal
+          for bin in opencord-server opencord-voice-node; do
+            lipo -create -output "target/universal/$bin" \
+              "target/aarch64-apple-darwin/release/$bin" "target/x86_64-apple-darwin/release/$bin"
+          done
+
+      - name: Package
+        run: |
+          stage="$RUNNER_TEMP/opencord-server"
+          mkdir -p "$stage" "$RUNNER_TEMP/dist"
+          cp target/universal/opencord-server target/universal/opencord-voice-node LICENSE "$stage/"
+          tar -C "$RUNNER_TEMP" -czf "$RUNNER_TEMP/dist/opencord-server-macos.tar.gz" opencord-server
+
+      - uses: actions/upload-artifact@v7
+        with:
+          path: ${{ runner.temp }}/dist/opencord-server-macos.tar.gz
+          archive: false
+          if-no-files-found: error
+          retention-days: 30
+
+  # The server's image for each architecture on its own runner, pushed by
+  # digest only; the Docker job tags them once every test has passed.
+  docker:
+    name: Docker (${{ matrix.arch }})
+    needs: version
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: amd64
+            runner: ubuntu-24.04
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: ./.github/actions/stamp-version
+        with:
+          version: ${{ needs.version.outputs.version }}
+
+      - uses: docker/setup-buildx-action@v4
+
+      - uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push by digest
+        id: build
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: deploy/Dockerfile
+          platforms: linux/${{ matrix.arch }}
+          labels: |
+            org.opencontainers.image.title=Opencord server
+            org.opencontainers.image.description=Self-hostable Opencord community server with voice.
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.licenses=AGPL-3.0-or-later
+            org.opencontainers.image.version=${{ needs.version.outputs.version }}
+            org.opencontainers.image.revision=${{ github.sha }}
+          outputs: type=image,name=${{ needs.version.outputs.image }},push-by-digest=true,name-canonical=true,push=true
+          cache-from: type=gha,scope=docker-${{ matrix.arch }}
+          cache-to: type=gha,scope=docker-${{ matrix.arch }},mode=max
+
+      - name: Keep the digest
+        run: |
+          mkdir -p "$RUNNER_TEMP/digests"
+          digest='${{ steps.build.outputs.digest }}'
+          touch "$RUNNER_TEMP/digests/${digest#sha256:}"
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: digest-${{ matrix.arch }}
+          path: ${{ runner.temp }}/digests/*
+          if-no-files-found: error
+          retention-days: 1
+
+  client-linux:
+    name: Client (Linux)
+    needs: version
+    # Pinned: the bundle runs on systems with this release's glibc or newer.
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: ./.github/actions/stamp-version
+        with:
+          version: ${{ needs.version.outputs.version }}
+
+      # libsecret is for flutter_secure_storage's Linux plugin.
+      - name: Install Linux build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y $RUST_LINUX_DEPS cmake ninja-build libgtk-3-dev liblzma-dev libstdc++-12-dev libsecret-1-dev patchelf xvfb
+
+      - name: Cache FFmpeg
+        id: ffmpeg-cache
+        uses: actions/cache@v6
+        with:
+          path: ~/ffmpeg
+          key: ffmpeg-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('app/tool/build_ffmpeg.sh') }}
+
+      - name: Build FFmpeg
+        if: steps.ffmpeg-cache.outputs.cache-hit != 'true'
+        run: app/tool/build_ffmpeg.sh ~/ffmpeg
+
+      - name: Use FFmpeg
+        run: |
+          echo "PKG_CONFIG_PATH=$HOME/ffmpeg/lib/pkgconfig" >> "$GITHUB_ENV"
+          echo "LD_LIBRARY_PATH=$HOME/ffmpeg/lib" >> "$GITHUB_ENV"
+
+      # Cisco's OpenH264, the software encoder the video tests fall back to
+      # without a GPU. Downloaded from Cisco, as its patent licence asks;
+      # only the tests use it, the bundle doesn't carry it.
+      - name: Use OpenH264
+        run: |
+          dir="$RUNNER_TEMP/openh264"
+          mkdir -p "$dir"
+          curl -fsSL -o "$dir/openh264.so.bz2" https://ciscobinary.openh264.org/libopenh264-2.6.0-linux64.8.so.bz2
+          echo "27ab53323c110b76214c1c72222f459d17febbcd1e252136cadc292b0308d75b  $dir/openh264.so.bz2" | sha256sum -c -
+          bunzip2 -c "$dir/openh264.so.bz2" > "$dir/libopenh264.so.8"
+          echo "OPENH264_DIR=$dir" >> "$GITHUB_ENV"
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: client
+
+      - name: Clippy
+        run: cargo clippy --locked $CLIENT_CRATES --all-targets -- -D warnings
+
+      - name: Test
+        run: LD_LIBRARY_PATH="$OPENH264_DIR:$LD_LIBRARY_PATH" cargo test --locked --no-fail-fast $CLIENT_CRATES
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          cache: true
+
+      - name: Get packages
+        working-directory: app
+        run: flutter pub get
+
+      - name: Analyze
+        working-directory: app
+        run: flutter analyze
+
+      - name: Test the app
+        working-directory: app
+        run: flutter test
+
+      - name: Build
+        working-directory: app
+        env:
+          CORE: ${{ needs.version.outputs.core }}
+        run: flutter build linux --release ${CORE:+--build-name="$CORE"} --build-number="$GITHUB_RUN_NUMBER"
+
+      # The bundle carries its FFmpeg next to libopencord_core.so, which
+      # finds it there. Started without the build's paths, the app must find
+      # every library, and FFmpeg only in the bundle.
+      - name: Bundle FFmpeg
+        working-directory: app
+        run: |
+          bundle=build/linux/x64/release/bundle
+          cp -P ~/ffmpeg/lib/lib*.so.* "$bundle/lib/"
+          patchelf --set-rpath '$ORIGIN' "$bundle/lib/libopencord_core.so"
+          # libavcodec needs libswresample, which the core doesn't link.
+          for lib in "$bundle"/lib/lib{av,sw}*.so.*.*.*; do
+            patchelf --set-rpath '$ORIGIN' "$lib"
+          done
+          libs=$(env -u LD_LIBRARY_PATH ldd "$bundle/opencord")
+          echo "$libs"
+          if grep -E 'not found|lib(av|sw)[a-z]*\.so\.[0-9]+ => /(usr|lib)' <<< "$libs"; then
+            echo "::error::The Linux bundle needs libraries it does not carry"
+            exit 1
+          fi
+
+      - name: Package
+        working-directory: app
+        run: |
+          mkdir -p "$RUNNER_TEMP/dist"
+          tar -C build/linux/x64/release --transform 's,^bundle,opencord,' \
+            -czf "$RUNNER_TEMP/dist/opencord-linux-x64.tar.gz" bundle
+
+      - uses: actions/upload-artifact@v7
+        with:
+          path: ${{ runner.temp }}/dist/opencord-linux-x64.tar.gz
+          archive: false
+          if-no-files-found: error
+          retention-days: 30
+
+      # One file per run: on desktop, flutter test can start only the first
+      # file's app ("The log reader stopped unexpectedly"); the rest fail.
+      - name: Integration test
+        working-directory: app
+        run: |
+          status=0
+          for test in integration_test/*_test.dart; do
+            xvfb-run -a flutter test "$test" -d linux || status=1
+          done
+          exit $status
+
+  client-windows:
+    name: Client (Windows)
+    needs: version
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: ./.github/actions/stamp-version
+        with:
+          version: ${{ needs.version.outputs.version }}
+
+      # FFmpeg for the Windows codec layer, pinned in one place.
+      - name: Use FFmpeg
+        uses: ./.github/actions/windows-ffmpeg
+
+      # Cisco's OpenH264 for the video tests, as on Linux: runners have no
+      # GPU encoder. The zip doesn't carry it.
+      - name: Use OpenH264
+        run: |
+          dir="$RUNNER_TEMP/openh264"
+          mkdir -p "$dir"
+          curl -fsSL -o "$dir/openh264.dll.bz2" https://ciscobinary.openh264.org/openh264-2.6.0-win64.dll.bz2
+          echo "dab5f2a872777f9a58b69bfa9fbcf20d9f82f2d6ec91383fd70bff49bd34ac9f  $dir/openh264.dll.bz2" | sha256sum -c -
+          bunzip2 -c "$dir/openh264.dll.bz2" > "$dir/openh264-2.6.0-win64.dll"
+          echo "OPENH264_DIR=$(cygpath -w "$dir")" >> "$GITHUB_ENV"
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: client
+
+      - name: Clippy
+        run: cargo clippy --locked $CLIENT_CRATES --all-targets -- -D warnings
+
+      - name: Test
+        run: PATH="$(cygpath -u "$OPENH264_DIR"):$PATH" cargo test --locked --no-fail-fast $CLIENT_CRATES
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          cache: true
+
+      - name: Get packages
+        working-directory: app
+        run: flutter pub get
+
+      - name: Build
+        working-directory: app
+        env:
+          CORE: ${{ needs.version.outputs.core }}
+        run: flutter build windows --release ${CORE:+--build-name="$CORE"} --build-number="$GITHUB_RUN_NUMBER"
+
+      # The Visual C++ runtime goes next to the exe so the zip also runs on
+      # machines without the redistributable installed. FFmpeg's DLLs are
+      # already there: the rust_builder bundles them (windows.md W3 step 5),
+      # and its licence goes beside them, which LGPL §4 asks for.
+      - name: Package
+        working-directory: app
+        shell: pwsh
+        run: |
+          $stage = Join-Path $env:RUNNER_TEMP 'opencord'
+          Copy-Item build/windows/x64/runner/Release $stage -Recurse
+          foreach ($dll in 'msvcp140.dll', 'vcruntime140.dll', 'vcruntime140_1.dll') {
+            Copy-Item (Join-Path $env:WINDIR "System32/$dll") $stage
+          }
+          Copy-Item (Join-Path $env:FFMPEG_DIR 'LICENSE.txt') (Join-Path $stage 'FFMPEG-LICENSE.txt')
+          New-Item -ItemType Directory -Force (Join-Path $env:RUNNER_TEMP 'dist') | Out-Null
+          Compress-Archive -Path $stage -DestinationPath (Join-Path $env:RUNNER_TEMP 'dist/opencord-windows-x64.zip')
+
+      - uses: actions/upload-artifact@v7
+        with:
+          path: ${{ runner.temp }}/dist/opencord-windows-x64.zip
+          archive: false
+          if-no-files-found: error
+          retention-days: 30
+
+  client-macos:
+    name: Client (macOS)
+    needs: version
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: ./.github/actions/stamp-version
+        with:
+          version: ${{ needs.version.outputs.version }}
+
+      # The release is universal: Rust builds for both architectures.
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+          targets: aarch64-apple-darwin, x86_64-apple-darwin
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: client
+
+      - name: Clippy
+        run: cargo clippy --locked $CLIENT_CRATES --all-targets -- -D warnings
+
+      - name: Test
+        run: cargo test --locked --no-fail-fast $CLIENT_CRATES
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          cache: true
+
+      - name: Get packages
+        working-directory: app
+        run: flutter pub get
+
+      - name: Build
+        working-directory: app
+        env:
+          CORE: ${{ needs.version.outputs.core }}
+        run: flutter build macos --release ${CORE:+--build-name="$CORE"} --build-number="$GITHUB_RUN_NUMBER"
+
+      - name: Package
+        working-directory: app
+        run: |
+          mkdir -p "$RUNNER_TEMP/dist"
+          ditto -c -k --sequesterRsrc --keepParent build/macos/Build/Products/Release/Opencord.app \
+            "$RUNNER_TEMP/dist/opencord-macos.zip"
+
+      - uses: actions/upload-artifact@v7
+        with:
+          path: ${{ runner.temp }}/dist/opencord-macos.zip
+          archive: false
+          if-no-files-found: error
+          retention-days: 30
+
+  # Tags the image only once everything passed, so :beta, :canary and
+  # :latest never point at a build whose tests failed.
+  docker-publish:
+    name: Docker
+    needs: [version, docker, server-linux, server-windows, server-macos, client-linux, client-windows, client-macos]
+    if: needs.version.outputs.release == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: digest-*
+          path: ${{ runner.temp }}/digests
+          merge-multiple: true
+
+      - uses: docker/setup-buildx-action@v4
+
+      - uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Tag the image
+        working-directory: ${{ runner.temp }}/digests
+        env:
+          IMAGE: ${{ needs.version.outputs.image }}
+          TAGS: ${{ needs.version.outputs.docker_tags }}
+        run: |
+          tags=()
+          for tag in ${TAGS//,/ }; do tags+=(-t "$IMAGE:$tag"); done
+          sources=()
+          for digest in *; do sources+=("$IMAGE@sha256:$digest"); done
+          docker buildx imagetools create "${tags[@]}" "${sources[@]}"
+          docker buildx imagetools inspect "$IMAGE:${TAGS%%,*}"
+          {
+            echo '### Docker'
+            for tag in ${TAGS//,/ }; do echo "- \`$IMAGE:$tag\`"; done
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  release:
+    name: Release
+    needs: [version, docker-publish]
+    if: needs.version.outputs.release == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      # The release files as they are: the zips must stay zips.
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: opencord-*
+          path: dist
+          merge-multiple: true
+          skip-decompress: true
+
+      # release.json is what the app's updater reads (docs/releasing.md).
+      - name: Manifest
+        env:
+          VERSION: ${{ needs.version.outputs.version }}
+          IMAGE: ${{ needs.version.outputs.image }}
+        run: python3 .github/release/version.py manifest --version "$VERSION" --image "$IMAGE" dist
+
+      - name: Notes
+        env:
+          VERSION: ${{ needs.version.outputs.version }}
+          TAG: ${{ needs.version.outputs.tag }}
+          CHANNEL: ${{ needs.version.outputs.channel }}
+          IMAGE: ${{ needs.version.outputs.image }}
+        run: |
+          base="https://github.com/$GITHUB_REPOSITORY/releases/download/$TAG"
+          case "$CHANNEL" in
+            beta) about="A **beta** build: the newest work, for testing. Expect rough edges." ;;
+            canary) about="A **canary** build: past beta, on its way to the next release." ;;
+            *) about="A stable release." ;;
+          esac
+          {
+            echo "$about"
+            echo
+            echo "## App"
+            echo
+            echo "| Platform | File |"
+            echo "| --- | --- |"
+            echo "| Linux (x64) | [opencord-linux-x64.tar.gz]($base/opencord-linux-x64.tar.gz) |"
+            echo "| Windows (x64) | [opencord-windows-x64.zip]($base/opencord-windows-x64.zip) |"
+            echo "| macOS (Apple silicon and Intel) | [opencord-macos.zip]($base/opencord-macos.zip) |"
+            echo
+            echo "- **Linux:** extract and run \`opencord/opencord\`. Needs GTK 3, libsecret, PipeWire, ALSA and libva, which most desktops already have."
+            echo "- **Windows:** extract and run \`opencord\\opencord.exe\`."
+            echo "- **macOS:** the app isn't notarized yet. After unzipping, run \`xattr -dr com.apple.quarantine Opencord.app\` or allow it under System Settings > Privacy & Security."
+            echo
+            echo "## Server"
+            echo
+            echo '```sh'
+            echo "docker pull $IMAGE:$VERSION"
+            echo '```'
+            echo
+            echo "Or the binaries: [Linux (x64)]($base/opencord-server-linux-x64.tar.gz), [Windows (x64)]($base/opencord-server-windows-x64.zip), [macOS]($base/opencord-server-macos.tar.gz). See [deploy/](https://github.com/$GITHUB_REPOSITORY/tree/$TAG/deploy) for Docker Compose."
+            echo
+            echo "## Changes"
+            echo
+            python3 .github/release/version.py notes --version "$VERSION" | sed 's/^### /#### /'
+            echo
+            echo "Checksums are in \`SHA256SUMS\`."
+          } > notes.md
+          cat notes.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.version.outputs.version }}
+          TAG: ${{ needs.version.outputs.tag }}
+          PRERELEASE: ${{ needs.version.outputs.prerelease }}
+        run: |
+          if gh release view "$TAG" > /dev/null 2>&1; then
+            # A re-run replaces the files of the release it made before.
+            gh release upload "$TAG" dist/* --clobber
+            gh release edit "$TAG" --notes-file notes.md
+          else
+            kind=(--latest)
+            [[ "$PRERELEASE" == true ]] && kind=(--prerelease --latest=false)
+            gh release create "$TAG" dist/* --target "$GITHUB_SHA" \
+              --title "Opencord $VERSION" --notes-file notes.md "${kind[@]}"
+          fi

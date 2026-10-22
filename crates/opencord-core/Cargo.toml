@@ -1,0 +1,70 @@
+[package]
+# Underscore on purpose: cargokit derives the native library filename from the package name.
+name = "opencord_core"
+description = "Opencord client core, exposed to the Flutter app through flutter_rust_bridge."
+version.workspace = true
+edition.workspace = true
+repository.workspace = true
+license = "MPL-2.0"
+publish = false
+
+[lib]
+crate-type = ["cdylib", "staticlib", "rlib"]
+
+[dependencies]
+bytes.workspace = true
+data-encoding.workspace = true
+flutter_rust_bridge.workspace = true
+futures-util.workspace = true
+getrandom.workspace = true
+hex.workspace = true
+image.workspace = true
+opencord-common.workspace = true
+opencord-media.workspace = true
+opencord-proto.workspace = true
+opus.workspace = true
+prost.workspace = true
+reqwest.workspace = true
+rtrb.workspace = true
+rustls.workspace = true
+rustls-platform-verifier.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+thiserror.workspace = true
+tokio-rustls.workspace = true
+tokio-tungstenite.workspace = true
+tokio-util.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+webpki-roots.workspace = true
+wsola.workspace = true
+
+[dev-dependencies]
+opencord-server.workspace = true
+tempfile.workspace = true
+
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(frb_expand)'] }
+
+# Video textures, on every desktop system.
+[target.'cfg(any(target_os = "linux", target_os = "macos", target_os = "windows"))'.dependencies]
+irondash_run_loop.workspace = true
+irondash_texture.workspace = true
+
+
+# One section per system (docs/plans/platforms.md): each session edits only
+# its own. A crate only one system needs goes here with its version, never
+# in [workspace.dependencies].
+[target.'cfg(target_os = "linux")'.dependencies]
+# Zero-copy video textures (plan §7.11): decoded pictures drawn from the
+# GPU into Flutter's GL textures. EGL loaded at run time, like Flutter's.
+glow = "0.18.0"
+khronos-egl = { version = "6.0.0", features = ["dynamic"] }
+# Pasting and copying images (media uploads plan, Task 21), on X11 and
+# Wayland. macOS gets it in P2; on Windows it brings Boost-licensed crates.
+arboard = { version = "3.7.0", default-features = false, features = ["image-data", "wayland-data-control"] }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+
+[target.'cfg(target_os = "windows")'.dependencies]

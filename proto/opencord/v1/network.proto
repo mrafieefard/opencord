@@ -1,0 +1,447 @@
+// SPDX-License-Identifier: MPL-2.0
+syntax = "proto3";
+
+package opencord.v1;
+
+// Domains & network (Phase 3 plan §5, §8): the server's public address,
+// its ports and how they are reached. Only the owner sees or changes it.
+
+// Where the server is reached from the internet (§5.1).
+message PublicAddress {
+  // In use: the override when there is one, else what was detected. Empty
+  // when unknown.
+  string ipv4 = 1;
+  string ipv6 = 2;
+  string detected_ipv4 = 3;
+  string detected_ipv6 = 4;
+  string override_ipv4 = 5;
+  string override_ipv6 = 6;
+  // Asks api.ipify.org at start-up and every 6 hours.
+  bool auto_detect = 7;
+  // When detection last succeeded; 0 for never.
+  int64 detected_at_ms = 8;
+  // Why the last detection failed, if it did.
+  string detect_error = 9;
+  // Whether this machine has a global IPv6 address.
+  bool has_ipv6 = 10;
+}
+
+enum PortPurpose {
+  PORT_PURPOSE_UNSPECIFIED = 0;
+  // Everything over TLS: chat, voice signalling, media, invites, Lavalink.
+  PORT_PURPOSE_MAIN = 1;
+  PORT_PURPOSE_VOICE = 2;
+  PORT_PURPOSE_MUSIC = 3;
+  // Let's Encrypt's HTTP challenge, only while a certificate is requested.
+  PORT_PURPOSE_ACME_HTTP = 4;
+  // Plain, on this machine only, for tunnels and reverse proxies.
+  PORT_PURPOSE_LOCAL_PROXY = 5;
+}
+
+enum PortProtocol {
+  PORT_PROTOCOL_UNSPECIFIED = 0;
+  PORT_PROTOCOL_TCP = 1;
+  PORT_PROTOCOL_UDP = 2;
+}
+
+enum PortState {
+  PORT_STATE_UNSPECIFIED = 0;
+  // Opencord listens on it.
+  PORT_STATE_LISTENING = 1;
+  // Not used: the feature is off.
+  PORT_STATE_OFF = 2;
+  // Not in use now; Opencord can take it when needed.
+  PORT_STATE_FREE = 3;
+  // Another program has it.
+  PORT_STATE_IN_USE = 4;
+  // The system does not let Opencord use it (ports below 1024 on Linux).
+  PORT_STATE_NOT_PERMITTED = 5;
+}
+
+enum MappingState {
+  MAPPING_STATE_UNSPECIFIED = 0;
+  // UPnP is off, or the port needs no mapping.
+  MAPPING_STATE_NOT_USED = 1;
+  MAPPING_STATE_MAPPED = 2;
+  MAPPING_STATE_FAILED = 3;
+}
+
+message PortStatus {
+  PortPurpose purpose = 1;
+  PortProtocol protocol = 2;
+  uint32 port = 3;
+  PortState state = 4;
+  // The router's mapping, with UPnP.
+  MappingState mapping = 5;
+  string mapping_error = 6;
+}
+
+message NetworkSettings {
+  // The main port from the next start; 0 keeps the configured one.
+  uint32 main_port = 1;
+  // Open the ports on the router with UPnP (§5.2).
+  bool upnp_enabled = 2;
+  // The plain local listener for tunnels and reverse proxies.
+  uint32 local_listener_port = 3;
+  // Addresses or CIDR ranges whose X-Forwarded-For is believed.
+  repeated string trusted_proxies = 4;
+  // Resolvers domain checks find name servers with (§6.2).
+  repeated string dns_resolvers = 5;
+  // Certificates from Let's Encrypt's test environment (§7.2).
+  bool acme_staging = 6;
+}
+
+message NetworkInfo {
+  PublicAddress public_address = 1;
+  repeated PortStatus ports = 2;
+  NetworkSettings settings = 3;
+  // The main port in use now; it differs from settings.main_port until the
+  // next start.
+  uint32 listening_port = 4;
+  // Whether settings.main_port can be used, when it differs.
+  PortState next_main_port = 5;
+  // The router UPnP found: its address, and the public address it reports.
+  string upnp_gateway = 6;
+  string upnp_external_ip = 7;
+  string upnp_error = 8;
+  // Phase 3 D2: the domains attached, in the order they were added.
+  repeated Domain domains = 9;
+  // D3: DNS providers connected, for the DNS challenge.
+  repeated DnsProviderInfo dns_providers = 10;
+  AcmeAccount acme = 11;
+  // D4: the Cloudflare Tunnel this server runs.
+  TunnelStatus tunnel = 12;
+}
+
+enum CertificateState {
+  CERTIFICATE_STATE_UNSPECIFIED = 0;
+  CERTIFICATE_STATE_NONE = 1;
+  CERTIFICATE_STATE_REQUESTING = 2;
+  CERTIFICATE_STATE_VALID = 3;
+  // Valid, but renewing it fails.
+  CERTIFICATE_STATE_RENEWAL_FAILED = 4;
+  // None; the last request failed.
+  CERTIFICATE_STATE_FAILED = 5;
+  // Cloudflare's or the proxy's.
+  CERTIFICATE_STATE_PROVIDED = 6;
+  CERTIFICATE_STATE_EXPIRED = 7;
+}
+
+enum CertificateStep {
+  CERTIFICATE_STEP_UNSPECIFIED = 0;
+  CERTIFICATE_STEP_ACCOUNT = 1;
+  CERTIFICATE_STEP_ORDER = 2;
+  CERTIFICATE_STEP_CHALLENGE = 3;
+  CERTIFICATE_STEP_VALIDATION = 4;
+  CERTIFICATE_STEP_ISSUING = 5;
+}
+
+message CertificateStatus {
+  CertificateState state = 1;
+  string issuer = 2;
+  int64 not_after_ms = 3;
+  // From Let's Encrypt's test environment: kept, not served.
+  bool test = 4;
+  // Uploaded by the owner: not renewed here.
+  bool uploaded = 5;
+  // While requesting.
+  CertificateStep step = 6;
+  // Why the last request or renewal failed.
+  string error = 7;
+  // After too many failures, or the CA's limit: when it may be tried again.
+  int64 retry_at_ms = 8;
+}
+
+message DnsProviderInfo {
+  // cloudflare, duckdns or desec.
+  string kind = 1;
+  // The token's last characters.
+  string masked = 2;
+}
+
+message AcmeAccount {
+  // An account exists for the CA in use (the test environment's or not).
+  bool exists = 1;
+  string email = 2;
+  // The subscriber agreement to accept before the first certificate.
+  string terms_url = 3;
+}
+
+// Starts getting a Let's Encrypt certificate; progress follows as
+// NetworkStatus. Owner only.
+message RequestCertificate {
+  int64 domain_id = 1;
+  // For account recovery and notices; the first request, or to change it.
+  optional string email = 2;
+  // Needed when no account exists yet.
+  bool agree_terms = 3;
+}
+
+// The owner's own certificate (plan §7.4).
+message UploadCertificate {
+  int64 domain_id = 1;
+  string chain_pem = 2;
+  string key_pem = 3;
+}
+
+// An empty token disconnects the provider.
+message SetDnsProvider {
+  string kind = 1;
+  string token = 2;
+}
+
+// A free subdomain (plan §9.1): Opencord points it here, keeps it pointed
+// here, verifies it and gets its certificate. Owner only.
+message AddFreeSubdomain {
+  // duckdns or desec.
+  string provider = 1;
+  // `name` or `name.duckdns.org` / `name.dedyn.io`.
+  string name = 2;
+  // Connects or replaces the provider's token; empty keeps the one saved.
+  string token = 3;
+  // For the certificate's account, when none exists yet.
+  optional string email = 4;
+  bool agree_terms = 5;
+}
+
+enum TunnelKind {
+  TUNNEL_KIND_UNSPECIFIED = 0;
+  // A random *.trycloudflare.com address; for testing.
+  TUNNEL_KIND_QUICK = 1;
+  // The owner's tunnel, by its token.
+  TUNNEL_KIND_NAMED = 2;
+}
+
+enum TunnelState {
+  TUNNEL_STATE_UNSPECIFIED = 0;
+  TUNNEL_STATE_OFF = 1;
+  TUNNEL_STATE_STARTING = 2;
+  TUNNEL_STATE_RUNNING = 3;
+  // cloudflared stopped; started again after a pause.
+  TUNNEL_STATE_RESTARTING = 4;
+  // cloudflared cannot run: missing, or refused to start.
+  TUNNEL_STATE_FAILED = 5;
+}
+
+message TunnelStatus {
+  TunnelState state = 1;
+  TunnelKind kind = 2;
+  // The tunnel's domain: a quick tunnel's once Cloudflare gave it.
+  string hostname = 3;
+  int64 domain_id = 4;
+  string error = 5;
+  // Times cloudflared was started again since the tunnel started.
+  uint32 restarts = 6;
+  // The cloudflared found; empty when there is none.
+  string cloudflared_version = 7;
+  // Downloading cloudflared now.
+  bool installing = 8;
+}
+
+// Starts the tunnel, replacing any running one. Owner only.
+message StartTunnel {
+  TunnelKind kind = 1;
+  // Named: the tunnel token from Cloudflare's dashboard; empty keeps the
+  // one saved.
+  string token = 2;
+  // Named: the public hostname set up for it in Cloudflare.
+  string hostname = 3;
+}
+
+// Stops the tunnel; a quick tunnel's domain goes with it. Owner only.
+message StopTunnel {}
+
+// cloudflared's last lines of output. Owner only.
+message FetchTunnelLog {}
+
+message TunnelLog {
+  repeated string lines = 1;
+}
+
+// Downloads Cloudflare's cloudflared release for this machine and checks
+// its SHA-256 before using it. Owner only.
+message InstallCloudflared {}
+
+// Starts or stops NetworkStatus events for this session; answers with
+// NetworkInfo. Owner only.
+message WatchNetwork {
+  bool watch = 1;
+}
+
+message SetPublicAddress {
+  bool auto_detect = 1;
+  // Empty clears the override.
+  string override_ipv4 = 2;
+  string override_ipv6 = 3;
+}
+
+// Asks ipify now; answers with NetworkInfo.
+message DetectPublicAddress {}
+
+// Each field set changes that setting; answers with NetworkInfo.
+message UpdateNetworkSettings {
+  optional uint32 main_port = 1;
+  optional bool upnp_enabled = 2;
+  optional uint32 local_listener_port = 3;
+  optional StringList trusted_proxies = 4;
+  optional StringList dns_resolvers = 5;
+  optional bool acme_staging = 6;
+}
+
+message StringList {
+  repeated string values = 1;
+}
+
+// The network changed, to sessions watching it.
+message NetworkStatus {
+  NetworkInfo info = 1;
+}
+
+enum NoticeSeverity {
+  NOTICE_SEVERITY_UNSPECIFIED = 0;
+  NOTICE_SEVERITY_INFO = 1;
+  NOTICE_SEVERITY_WARNING = 2;
+}
+
+// Something the owner or admins should know (Phase 3): the public address
+// changed, a domain's DNS broke, a certificate is about to expire.
+message ServerNotice {
+  // Stable for one subject, so a newer notice replaces an older one.
+  string key = 1;
+  NoticeSeverity severity = 2;
+  string title = 3;
+  string body = 4;
+}
+
+// Domains (Phase 3 plan §4, §6).
+enum DomainKind {
+  DOMAIN_KIND_UNSPECIFIED = 0;
+  // A domain of the owner's, pointed at this server with A/AAAA records.
+  DOMAIN_KIND_OWN = 1;
+  // A DuckDNS or deSEC name that Opencord keeps pointed at this server.
+  DOMAIN_KIND_FREE_SUBDOMAIN = 2;
+  // Cloudflare Tunnel: Cloudflare's certificate, no UDP.
+  DOMAIN_KIND_TUNNEL = 3;
+  // Caddy, Nginx, Traefik, ngrok and the like: the proxy's certificate.
+  DOMAIN_KIND_REVERSE_PROXY = 4;
+  // A record proxied by Cloudflare (the orange cloud): apps see
+  // Cloudflare's certificate on 443, Cloudflare reaches the main port,
+  // where the owner may upload an origin certificate. No UDP.
+  DOMAIN_KIND_CLOUDFLARE_PROXY = 5;
+}
+
+enum DomainStatus {
+  DOMAIN_STATUS_UNSPECIFIED = 0;
+  // Not verified yet.
+  DOMAIN_STATUS_PENDING = 1;
+  DOMAIN_STATUS_VERIFIED = 2;
+  // Verified once; its checks fail since `problem_since_ms`. It stays active.
+  DOMAIN_STATUS_DNS_PROBLEM = 3;
+}
+
+enum CheckResult {
+  CHECK_RESULT_UNSPECIFIED = 0;
+  CHECK_RESULT_VERIFIED = 1;
+  CHECK_RESULT_POINTS_ELSEWHERE = 2;
+  CHECK_RESULT_NO_RECORD = 3;
+  CHECK_RESULT_CLOUDFLARE_PROXIED = 4;
+  CHECK_RESULT_PARTLY_CORRECT = 5;
+  // The check could not be made.
+  CHECK_RESULT_FAILED = 6;
+  CHECK_RESULT_CONFIRMED_BY_OWNER = 7;
+}
+
+message DomainCheck {
+  CheckResult result = 1;
+  // What happened, in plain words.
+  string message = 2;
+  // Worth knowing even when it passed.
+  string note = 3;
+  // The addresses its records gave.
+  repeated string found = 4;
+  int64 checked_at_ms = 5;
+}
+
+message Domain {
+  int64 id = 1;
+  string hostname = 2;
+  DomainKind kind = 3;
+  // Where clients connect: the main port, or 443 behind a tunnel or proxy.
+  uint32 public_port = 4;
+  DomainStatus status = 5;
+  bool active = 6;
+  bool primary = 7;
+  int64 problem_since_ms = 8;
+  optional DomainCheck last_check = 9;
+  // A check is running now.
+  bool checking = 10;
+  // People who connected through it in the last 24 hours.
+  uint32 users_24h = 11;
+  int64 created_at_ms = 12;
+  // When it was turned off; connections through it work for 7 days after.
+  int64 deactivated_at_ms = 13;
+  // Clients check it like a website: a certificate from an authority.
+  bool trusted_certificate = 14;
+  CertificateStatus certificate = 15;
+}
+
+// Answers with NetworkInfo. Owner only.
+message AddDomain {
+  // Internationalised names are turned into punycode.
+  string hostname = 1;
+  DomainKind kind = 2;
+  // Absent: the main port, or 443 for tunnels and proxies.
+  optional uint32 public_port = 3;
+}
+
+message UpdateDomain {
+  int64 domain_id = 1;
+  optional bool active = 2;
+  // Only true: makes it the primary.
+  optional bool primary = 3;
+  optional uint32 public_port = 4;
+  // For a tunnel or proxy whose HTTP check cannot loop back to this
+  // server's own address: the owner vouches for it.
+  bool confirm = 5;
+}
+
+message DeleteDomain {
+  int64 domain_id = 1;
+}
+
+// Starts a check; the result arrives as NetworkStatus.
+message CheckDomain {
+  int64 domain_id = 1;
+}
+
+message FetchDomainChecks {
+  int64 domain_id = 1;
+}
+
+message DomainChecks {
+  // Newest first, up to 10.
+  repeated DomainCheck checks = 1;
+}
+
+// Where clients reach the server (Phase 3 plan §7.5).
+message ConnectAddress {
+  string host = 1;
+  uint32 port = 2;
+  // Check it like a website (no fingerprint), not by the pinned one.
+  bool trusted_certificate = 3;
+  // The domain's id; 0 for the IP address.
+  int64 domain_id = 4;
+}
+
+message ServerAddresses {
+  // The primary domain, when one is active.
+  optional ConnectAddress primary = 1;
+  // Every active domain, the primary first.
+  repeated ConnectAddress domains = 2;
+  // The server's public IP address, when known.
+  optional ConnectAddress ip = 3;
+}
+
+message ServerAddressesUpdate {
+  ServerAddresses addresses = 1;
+}

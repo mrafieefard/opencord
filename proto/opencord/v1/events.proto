@@ -1,0 +1,225 @@
+// SPDX-License-Identifier: MPL-2.0
+syntax = "proto3";
+
+package opencord.v1;
+
+import "opencord/v1/commands.proto";
+import "opencord/v1/models.proto";
+import "opencord/v1/music.proto";
+import "opencord/v1/network.proto";
+
+// Events about a channel are only sent to sessions that can view it.
+message Event {
+  oneof kind {
+    MessageCreate message_create = 1;
+    MessageUpdate message_update = 2;
+    MessageDelete message_delete = 3;
+
+    // Also sent when a permission change makes a channel visible.
+    ChannelCreate channel_create = 10;
+    ChannelUpdate channel_update = 11;
+    // Also sent when a permission change hides a channel.
+    ChannelDelete channel_delete = 12;
+
+    RoleCreate role_create = 20;
+    RoleUpdate role_update = 21;
+    RoleDelete role_delete = 22;
+
+    MemberJoin member_join = 30;
+    MemberLeave member_leave = 31;
+    MemberUpdate member_update = 32;
+
+    PresenceUpdate presence_update = 40;
+    TypingStart typing_start = 41;
+
+    ServerUpdate server_update = 50;
+    VoiceSettingsUpdate voice_settings_update = 51;
+
+    // To sessions that can view the channel joined or left.
+    VoiceStateUpdate voice_state_update = 60;
+    // To the one session that joined or was moved.
+    VoiceServerUpdate voice_server_update = 61;
+    StreamCreate stream_create = 62;
+    StreamUpdate stream_update = 63;
+    StreamDelete stream_delete = 64;
+    // To the streamer only.
+    StreamViewersUpdate stream_viewers_update = 65;
+
+    // To everyone connected to the voice channel, the player included.
+    VoiceChannelEffect voice_channel_effect = 70;
+    SoundboardSoundCreate soundboard_sound_create = 71;
+    SoundboardSoundUpdate soundboard_sound_update = 72;
+    SoundboardSoundDelete soundboard_sound_delete = 73;
+
+    // Phase 3: to sessions watching the network (WatchNetwork).
+    NetworkStatus network_status = 80;
+    // To those it concerns: the owner, or members who manage the server.
+    ServerNotice server_notice = 81;
+    // Where the server is reached changed: to everyone.
+    ServerAddressesUpdate server_addresses_update = 82;
+
+    // Phase 3 music: to sessions watching the Lavalink nodes.
+    LavalinkNodeStatus lavalink_node_status = 90;
+    LavalinkNodeEvent lavalink_node_event = 91;
+    // To the session that started the test.
+    LavalinkTestProgress lavalink_test_progress = 92;
+    // To a channel's subscribers: users connected to it, and sessions that
+    // subscribed.
+    MusicSnapshot music_snapshot = 93;
+    // The same audience, for every change after the first snapshot.
+    MusicUpdate music_update = 97;
+    MusicNotice music_notice = 94;
+    // To everyone who can see the channel.
+    MusicNowPlaying music_now_playing = 95;
+    // To everyone.
+    MusicSettingsUpdate music_settings_update = 96;
+
+    // Chat commands (Phase 3 plan §17).
+    CommandsUpdate commands_update = 100;
+    // Only to the session that ran the command.
+    EphemeralMessage ephemeral_message = 101;
+
+    // Media uploads (design 2026-10-18).
+    // To everyone.
+    UploadSettingsUpdate upload_settings_update = 110;
+    // To the uploader's own sessions.
+    UploadReady upload_ready = 111;
+    UploadFailed upload_failed = 112;
+    // To the owner only.
+    StorageUpdate storage_update = 113;
+  }
+}
+
+message MessageCreate {
+  Message message = 1;
+}
+
+message MessageUpdate {
+  Message message = 1;
+}
+
+message MessageDelete {
+  int64 channel_id = 1;
+  int64 message_id = 2;
+}
+
+message ChannelCreate {
+  Channel channel = 1;
+}
+
+message ChannelUpdate {
+  Channel channel = 1;
+}
+
+message ChannelDelete {
+  int64 channel_id = 1;
+}
+
+message RoleCreate {
+  Role role = 1;
+}
+
+message RoleUpdate {
+  Role role = 1;
+}
+
+message RoleDelete {
+  int64 role_id = 1;
+}
+
+message MemberJoin {
+  Member member = 1;
+}
+
+// Sent when a member leaves, is kicked, or is banned.
+message MemberLeave {
+  int64 user_id = 1;
+}
+
+// Sent when a member's roles, nickname, or profile change.
+message MemberUpdate {
+  Member member = 1;
+}
+
+message PresenceUpdate {
+  Presence presence = 1;
+}
+
+message TypingStart {
+  int64 channel_id = 1;
+  int64 user_id = 2;
+}
+
+message ServerUpdate {
+  ServerInfo server = 1;
+}
+
+message VoiceSettingsUpdate {
+  VoiceSettings settings = 1;
+}
+
+// A channel_id-less state means the user left.
+message VoiceStateUpdate {
+  VoiceState voice_state = 1;
+}
+
+// Where to connect for voice, and the token to identify with there.
+message VoiceServerUpdate {
+  int64 channel_id = 1;
+  // wss:// URL of the voice gateway. Empty for the server's own voice node:
+  // the same host and port as this gateway, at /voice.
+  string endpoint = 2;
+  // SHA-256 of the voice node's TLS certificate, to pin for that
+  // connection. It arrives over the already pinned gateway.
+  bytes certificate_fingerprint = 3;
+  // Single use, valid for 60 seconds.
+  bytes token = 4;
+}
+
+message StreamCreate {
+  Stream stream = 1;
+}
+
+message StreamUpdate {
+  Stream stream = 1;
+}
+
+message StreamDelete {
+  string stream_key = 1;
+  int64 channel_id = 2;
+}
+
+message StreamViewersUpdate {
+  string stream_key = 1;
+  repeated int64 viewer_ids = 2;
+}
+
+message VoiceChannelEffect {
+  int64 channel_id = 1;
+  int64 user_id = 2;
+  string sound_ref = 3;
+  string name = 4;
+  optional string emoji = 5;
+  uint32 volume = 6;
+  int64 started_at_ms = 7;
+  // How long the sound plays, for the player's soundboard ring.
+  uint32 duration_ms = 8;
+}
+
+message SoundboardSoundCreate {
+  SoundboardSound sound = 1;
+}
+
+message SoundboardSoundUpdate {
+  SoundboardSound sound = 1;
+}
+
+message SoundboardSoundDelete {
+  int64 sound_id = 1;
+}
+
+message UploadSettingsUpdate { UploadSettings settings = 1; }
+message UploadReady { Attachment attachment = 1; }
+message UploadFailed { int64 upload_id = 1; Error error = 2; }
+message StorageUpdate { Storage storage = 1; }
+

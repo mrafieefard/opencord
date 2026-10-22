@@ -1,0 +1,159 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import 'package:opencord/core/model/permissions.dart';
+import 'package:opencord/core/providers/providers.dart';
+import 'package:opencord/features/settings/server/channels_page.dart';
+import 'package:opencord/features/settings/server/invites_bans_pages.dart';
+import 'package:opencord/features/settings/server/members_page.dart';
+import 'package:opencord/features/settings/server/commands_page.dart';
+import 'package:opencord/features/settings/server/music/music_page.dart';
+import 'package:opencord/features/settings/server/network/network_page.dart';
+import 'package:opencord/features/settings/server/overview_page.dart';
+import 'package:opencord/features/settings/server/roles_page.dart';
+import 'package:opencord/features/settings/server/soundboard_page.dart';
+import 'package:opencord/features/settings/server/uploads_page.dart';
+import 'package:opencord/features/settings/server/voice_page.dart';
+import 'package:opencord/features/settings/settings_dialog.dart';
+import 'package:opencord/ui/theme/oc_icons.dart';
+
+/// The server settings pages the current user may open (§8.2): each only
+/// with the permission it needs. [channel] is the one Channels starts on.
+List<SettingsPage> serverSettingsPages(
+  ServerData data,
+  String serverKey, {
+  int? channel,
+}) => [
+  if (data.can(Permissions.manageServer))
+    SettingsPage(
+      id: 'overview',
+      label: 'Overview',
+      icon: OcIcons.info,
+      group: 'Server',
+      builder: (_) => ServerOverviewPage(serverKey: serverKey),
+    ),
+  if (data.voiceEnabled && data.can(Permissions.manageServer))
+    SettingsPage(
+      id: 'voice',
+      label: 'Voice & video',
+      icon: OcIcons.graphicEq,
+      group: 'Server',
+      builder: (_) => ServerVoicePage(serverKey: serverKey),
+    ),
+  if (data.can(Permissions.manageServer))
+    SettingsPage(
+      id: 'commands',
+      label: 'Commands',
+      icon: OcIcons.code,
+      group: 'Server',
+      builder: (_) => ServerCommandsPage(serverKey: serverKey),
+    ),
+  if (data.voiceEnabled &&
+      (data.can(Permissions.manageServer) ||
+          data.can(Permissions.manageSoundboard)))
+    SettingsPage(
+      id: 'soundboard',
+      label: 'Soundboard',
+      icon: OcIcons.musicNote,
+      group: 'Server',
+      builder: (_) => ServerSoundboardPage(serverKey: serverKey),
+    ),
+  if (data.can(Permissions.manageChannels))
+    SettingsPage(
+      id: 'channels',
+      label: 'Channels',
+      icon: OcIcons.tag,
+      group: 'Server',
+      builder: (_) =>
+          ServerChannelsPage(serverKey: serverKey, initialChannel: channel),
+    ),
+  if (data.can(Permissions.manageRoles))
+    SettingsPage(
+      id: 'roles',
+      label: 'Roles',
+      icon: OcIcons.shieldPerson,
+      group: 'Server',
+      builder: (_) => ServerRolesPage(serverKey: serverKey),
+    ),
+  // How the server is hosted, apart from the community's settings: its
+  // domains and network (the owner's alone, Phase 3 plan §3), music, and
+  // uploads with the owner's storage.
+  if (data.isOwner)
+    SettingsPage(
+      id: 'network',
+      label: 'Domains & network',
+      icon: OcIcons.dns,
+      group: 'Hosting',
+      builder: (_) => ServerNetworkPage(serverKey: serverKey),
+    ),
+  // Music settings need Manage music, Lavalink nodes Manage server (Phase
+  // 3 plan §16.2).
+  if (data.voiceEnabled &&
+      (data.can(Permissions.manageServer) || data.can(Permissions.musicManage)))
+    SettingsPage(
+      id: 'music',
+      label: 'Music',
+      icon: OcIcons.headphones,
+      group: 'Hosting',
+      builder: (_) => ServerMusicPage(serverKey: serverKey),
+    ),
+  if (data.can(Permissions.manageServer))
+    SettingsPage(
+      id: 'uploads',
+      label: 'Upload settings',
+      icon: OcIcons.upload,
+      group: 'Hosting',
+      builder: (_) => ServerUploadsPage(serverKey: serverKey),
+    ),
+  if (data.can(Permissions.kickMembers) ||
+      data.can(Permissions.banMembers) ||
+      data.can(Permissions.manageRoles))
+    SettingsPage(
+      id: 'members',
+      label: 'Members',
+      icon: OcIcons.group,
+      group: 'People',
+      builder: (_) => ServerMembersPage(serverKey: serverKey),
+    ),
+  // Listing (and revoking) invites needs Manage server; anyone allowed to
+  // can still make one from Invite people.
+  if (data.can(Permissions.manageServer))
+    SettingsPage(
+      id: 'invites',
+      label: 'Invites',
+      icon: OcIcons.personAdd,
+      group: 'People',
+      builder: (_) => ServerInvitesPage(serverKey: serverKey),
+    ),
+  if (data.can(Permissions.banMembers))
+    SettingsPage(
+      id: 'bans',
+      label: 'Bans',
+      icon: OcIcons.block,
+      group: 'People',
+      builder: (_) => ServerBansPage(serverKey: serverKey),
+    ),
+];
+
+/// Whether the current user may open any server settings page.
+bool canOpenServerSettings(ServerData? data) =>
+    data != null && serverSettingsPages(data, '').isNotEmpty;
+
+Future<void> showServerSettings(
+  BuildContext context,
+  WidgetRef ref, {
+  required String serverKey,
+  String? page,
+  int? channel,
+}) async {
+  final data = ref.read(serverProvider(serverKey)).data;
+  if (data == null) return;
+  final pages = serverSettingsPages(data, serverKey, channel: channel);
+  if (pages.isEmpty) return;
+  await showSettingsDialog(
+    context,
+    title: data.info.name,
+    pages: pages,
+    initialPage: page,
+  );
+}

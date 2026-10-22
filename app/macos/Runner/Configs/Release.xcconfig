@@ -1,0 +1,6 @@
+#include "../../Flutter/Flutter-Release.xcconfig"
+#include "Warnings.xcconfig"
+
+// Xcode adds get-task-allow (a debugger may attach) to whatever it signs
+// unless told not to; a release carries only Release.entitlements.
+CODE_SIGN_INJECT_BASE_ENTITLEMENTS = NO

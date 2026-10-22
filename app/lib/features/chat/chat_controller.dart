@@ -1,0 +1,72 @@
+import 'dart:ui' show VoidCallback;
+
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import 'package:opencord/core/providers/providers.dart';
+
+/// What the message list offers the rest of the chat area.
+abstract interface class MessageListHandle {
+  /// Scrolls to a message, loading older history if it is not loaded yet,
+  /// and highlights it briefly.
+  Future<void> jumpToMessage(int messageId);
+
+  Future<void> scrollToEnd();
+
+  /// One screen up (-1) or down (1), for Page Up and Page Down (§7).
+  void scrollPage(int direction);
+}
+
+/// Connects the pieces of one open channel: the pinned bar and reply
+/// quotes jump to messages, the composer brings the list back to the
+/// newest message after sending.
+class ChatController implements MessageListHandle {
+  MessageListHandle? _list;
+  VoidCallback? _focusComposer;
+
+  void attachComposer(VoidCallback focus) => _focusComposer = focus;
+
+  /// Equality, not identity: two tear-offs of one method are equal only.
+  void detachComposer(VoidCallback focus) {
+    if (_focusComposer == focus) _focusComposer = null;
+  }
+
+  /// After choosing Reply or Edit, typing goes straight to the composer.
+  void focusComposer() => _focusComposer?.call();
+
+  ({ChannelRef channel, int message})? _pendingJump;
+
+  /// Jumps to [messageId] once [channel]'s list has opened, for links to
+  /// messages in other channels.
+  void jumpWhenOpened(ChannelRef channel, int messageId) =>
+      _pendingJump = (channel: channel, message: messageId);
+
+  /// The jump waiting for [channel], handed over once.
+  int? takeJump(ChannelRef channel) {
+    final pending = _pendingJump;
+    if (pending == null || pending.channel != channel) return null;
+    _pendingJump = null;
+    return pending.message;
+  }
+
+  void attach(MessageListHandle list) => _list = list;
+
+  void detach(MessageListHandle list) {
+    if (identical(_list, list)) _list = null;
+  }
+
+  @override
+  Future<void> jumpToMessage(int messageId) async =>
+      _list?.jumpToMessage(messageId);
+
+  @override
+  Future<void> scrollToEnd() async => _list?.scrollToEnd();
+
+  @override
+  void scrollPage(int direction) => _list?.scrollPage(direction);
+}
+
+/// The one controller of the open channel's chat area: the list and the
+/// composer attach to it, and the member panel uses it to mention someone.
+final chatControllerProvider = Provider<ChatController>(
+  (ref) => ChatController(),
+);

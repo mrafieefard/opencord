@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "DELETE FROM dns_providers WHERE kind = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": []
+  },
+  "hash": "214690020ffd5c0c5de1739b03eb0e3618992a975bf9c40d3101db101bb1dc16"
+}

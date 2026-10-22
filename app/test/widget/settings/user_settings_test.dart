@@ -1,0 +1,405 @@
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:opencord/ui/widgets/settings.dart';
+import 'package:opencord/core/app_info.dart';
+import 'package:opencord/core/model/voice.dart';
+import 'package:opencord/core/providers/providers.dart';
+import 'package:opencord/core/repository/repository.dart';
+import 'package:opencord/core/settings/app_settings.dart';
+import 'package:opencord/core/settings/local_prefs.dart';
+import 'package:opencord/features/settings/settings_dialog.dart';
+import 'package:opencord/features/voice/input_level_meter.dart';
+import 'package:opencord/features/window/window_startup.dart';
+import 'package:opencord/ui/widgets/key_hint.dart';
+import 'package:opencord/ui/widgets/oc_button.dart';
+import 'package:opencord/ui/widgets/oc_dialog.dart';
+import 'package:opencord/ui/widgets/oc_icon_button.dart';
+
+import '../../support/app.dart';
+
+Future<void> _pumpFor(WidgetTester tester, Duration total) async {
+  const step = Duration(milliseconds: 50);
+  for (var waited = Duration.zero; waited < total; waited += step) {
+    await tester.pump(step);
+  }
+}
+
+Future<void> _openSettings(WidgetTester tester) async {
+  await tester.tap(
+    find.byWidgetPredicate(
+      (widget) => widget is OcIconButton && widget.tooltip == 'User settings',
+    ),
+  );
+  await _pumpFor(tester, const Duration(milliseconds: 200));
+  expect(find.byType(SettingsDialog), findsOneWidget);
+}
+
+Future<void> _page(WidgetTester tester, String label) async {
+  await tester.tap(
+    find.descendant(
+      of: find.byType(SettingsDialog),
+      matching: find.text(label),
+    ),
+  );
+  await _pumpFor(tester, const Duration(milliseconds: 200));
+}
+
+Finder _inPage(Finder finder) =>
+    find.descendant(of: find.byType(SettingsDialog), matching: finder);
+
+/// Client settings wait for the save bar, as in Discord.
+Future<void> _saveChanges(WidgetTester tester) async {
+  await _pumpFor(tester, const Duration(milliseconds: 300));
+  await tester.tap(
+    find.descendant(
+      of: find.byType(SaveBar),
+      matching: find.widgetWithText(OcButton, 'Save changes'),
+    ),
+  );
+  await _pumpFor(tester, const Duration(milliseconds: 300));
+}
+
+void main() {
+  testWidgets('Ctrl+, opens settings on My profile', (tester) async {
+    final app = await MockApp.pump(tester, platform: TargetPlatform.linux);
+
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+    await tester.sendKeyEvent(LogicalKeyboardKey.comma);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+    await _pumpFor(tester, const Duration(milliseconds: 200));
+
+    expect(find.byType(SettingsDialog), findsOneWidget);
+    expect(_inPage(find.text('Display name')), findsOneWidget);
+    await app.dispose(tester);
+  });
+
+  for (final (platform, tray) in [
+    (TargetPlatform.linux, true),
+    (TargetPlatform.windows, false),
+    (TargetPlatform.macOS, false),
+  ]) {
+    testWidgets(
+      'tray switches show only where there is a tray (${platform.name})',
+      (tester) async {
+        final app = await MockApp.pump(tester, platform: platform);
+        await _openSettings(tester);
+        await _page(tester, 'Windows & behavior');
+
+        final rows = [
+          _inPage(find.textContaining('minimizes to the tray')),
+          _inPage(find.textContaining('menu bar')),
+          _inPage(find.text('Start minimized')),
+        ];
+        expect(
+          rows.where((row) => row.evaluate().isNotEmpty),
+          hasLength(tray ? 2 : 0),
+        );
+        expect(_inPage(find.text('Launch at login')), findsOneWidget);
+        await app.dispose(tester);
+      },
+    );
+  }
+
+  testWidgets('the theme and density wait for Save changes; Discard drops '
+      'them', (tester) async {
+    final app = await MockApp.pump(tester, platform: TargetPlatform.linux);
+    await _openSettings(tester);
+    await _page(tester, 'Appearance');
+    final before = app.read(appSettingsProvider);
+
+    await tester.tap(_inPage(find.text('Light')));
+    await tester.pump();
+    await tester.tap(_inPage(find.text('Compact')));
+    await _pumpFor(tester, const Duration(milliseconds: 300));
+    expect(app.read(appSettingsProvider), before, reason: 'not yet');
+    expect(find.text('Careful — you have unsaved changes!'), findsOneWidget);
+
+    await tester.tap(find.widgetWithText(OcButton, 'Discard'));
+    await _pumpFor(tester, const Duration(milliseconds: 300));
+    expect(app.read(appSettingsProvider), before);
+    expect(find.text('Careful — you have unsaved changes!'), findsNothing);
+
+    await tester.tap(_inPage(find.text('Light')));
+    await tester.pump();
+    await tester.tap(_inPage(find.text('Compact')));
+    await _saveChanges(tester);
+    final settings = app.read(appSettingsProvider);
+    expect(settings.theme, ThemePreference.light);
+    expect(settings.density, MessageDensity.compact);
+    expect(find.text('Careful — you have unsaved changes!'), findsNothing);
+    await app.dispose(tester);
+  });
+
+  testWidgets('a window frame choice is saved for the next start', (
+    tester,
+  ) async {
+    final saved = <WindowFramePreference>[];
+    final app = await MockApp.pump(
+      tester,
+      platform: TargetPlatform.linux,
+      overrides: [
+        frameChoiceSaverProvider.overrideWithValue((frame) async {
+          saved.add(frame);
+        }),
+      ],
+    );
+    await _openSettings(tester);
+    await _page(tester, 'Appearance');
+    await tester.scrollUntilVisible(
+      _inPage(find.text('System').last),
+      200,
+      scrollable: _inPage(find.byType(Scrollable)).last,
+    );
+
+    await tester.tap(_inPage(find.text('Your desktop draws the frame')));
+    await tester.pump();
+    expect(saved, isEmpty, reason: 'not before Save changes');
+    await _saveChanges(tester);
+
+    expect(
+      app.read(appSettingsProvider).windowFrame,
+      WindowFramePreference.system,
+    );
+    expect(saved, [WindowFramePreference.system]);
+    await app.dispose(tester);
+  });
+
+  testWidgets('the font size slider scales text', (tester) async {
+    final app = await MockApp.pump(tester, platform: TargetPlatform.linux);
+    await _openSettings(tester);
+    await _page(tester, 'Appearance');
+    final slider = _inPage(find.byType(Slider)).first;
+    await tester.scrollUntilVisible(
+      slider,
+      200,
+      scrollable: _inPage(find.byType(Scrollable)).last,
+    );
+
+    await tester.drag(slider, const Offset(400, 0));
+    await tester.pump();
+    await _saveChanges(tester);
+
+    expect(app.read(appSettingsProvider).fontSize, AppSettings.maxFontSize);
+    await app.dispose(tester);
+  });
+
+  testWidgets('a new display name is saved', (tester) async {
+    final app = await MockApp.pump(tester, platform: TargetPlatform.linux);
+    await _openSettings(tester);
+
+    await tester.enterText(_inPage(find.byType(TextField)), 'Alex R.');
+    await tester.pump();
+    await _saveChanges(tester);
+    await _pumpFor(tester, const Duration(milliseconds: 500));
+
+    expect(app.repository.identity?.displayName, 'Alex R.');
+    await _pumpFor(tester, const Duration(seconds: 2));
+    await app.dispose(tester);
+  });
+
+  testWidgets('the identity backup goes out and comes back in', (tester) async {
+    final app = await MockApp.pump(tester, platform: TargetPlatform.linux);
+    final before = app.repository.identity!.fingerprint;
+    await _openSettings(tester);
+    await _page(tester, 'Identity & keys');
+
+    await tester.tap(_inPage(find.text('Export identity backup')));
+    await _pumpFor(tester, const Duration(milliseconds: 500));
+    final backup = tester
+        .widget<SelectableText>(
+          find.descendant(
+            of: find.byType(OcDialog),
+            matching: find.byType(SelectableText),
+          ),
+        )
+        .data!;
+    expect(backup, startsWith('opencord-identity-v1:'));
+    await tester.tap(find.widgetWithText(OcButton, 'Done'));
+    await _pumpFor(tester, const Duration(milliseconds: 300));
+
+    await tester.tap(_inPage(find.text('Import identity')));
+    await _pumpFor(tester, const Duration(milliseconds: 300));
+    await tester.tap(find.widgetWithText(OcButton, 'Continue'));
+    await _pumpFor(tester, const Duration(milliseconds: 300));
+    final field = find.descendant(
+      of: find.byType(OcDialog),
+      matching: find.byType(TextField),
+    );
+    await tester.enterText(field, 'not a backup');
+    await tester.tap(find.widgetWithText(OcButton, 'Import'));
+    await _pumpFor(tester, const Duration(milliseconds: 500));
+    expect(
+      find.text('That is not an Opencord identity backup.'),
+      findsOneWidget,
+    );
+
+    final other = 'opencord-identity-v1:${'ab' * 32}';
+    await tester.enterText(field, other);
+    await tester.tap(find.widgetWithText(OcButton, 'Import'));
+    await _pumpFor(tester, const Duration(milliseconds: 500));
+
+    expect(app.repository.identity!.fingerprint, isNot(before));
+    await _pumpFor(tester, const Duration(seconds: 2));
+    await app.dispose(tester);
+  });
+
+  testWidgets('keybinds show this platform’s keys', (tester) async {
+    final app = await MockApp.pump(tester, platform: TargetPlatform.macOS);
+    await _openSettings(tester);
+    await _page(tester, 'Keybinds');
+
+    final hints = [
+      for (final hint in tester.widgetList<KeyHint>(
+        _inPage(find.byType(KeyHint)),
+      ))
+        shortcutLabel(hint.shortcut, TargetPlatform.macOS),
+    ];
+    expect(hints, contains('⌘K'));
+    await app.dispose(tester);
+  });
+
+  testWidgets('turning notifications off disables "only for mentions"', (
+    tester,
+  ) async {
+    final app = await MockApp.pump(tester, platform: TargetPlatform.linux);
+    await _openSettings(tester);
+    await _page(tester, 'Notifications');
+
+    await tester.tap(_inPage(find.text('Desktop notifications')));
+    await tester.pump();
+    await tester.tap(_inPage(find.text('Only for mentions')));
+    await tester.pump();
+    await _saveChanges(tester);
+
+    final settings = app.read(appSettingsProvider);
+    expect(settings.desktopNotifications, isFalse);
+    expect(settings.mentionsOnly, isFalse);
+    await app.dispose(tester);
+  });
+
+  testWidgets('a trusted server can be forgotten', (tester) async {
+    final app = await MockApp.pump(tester, platform: TargetPlatform.linux);
+    await _openSettings(tester);
+    await _page(tester, 'Trusted servers');
+
+    await tester.tap(_inPage(find.widgetWithText(OcButton, 'Forget')).last);
+    await _pumpFor(tester, const Duration(milliseconds: 300));
+    await tester.tap(find.widgetWithText(OcButton, 'Forget server'));
+    await _pumpFor(tester, const Duration(milliseconds: 500));
+
+    expect(app.read(serverListProvider), hasLength(2));
+    await app.dispose(tester);
+  });
+
+  testWidgets('About shows the versions', (tester) async {
+    final app = await MockApp.pump(tester, platform: TargetPlatform.linux);
+    await _openSettings(tester);
+    await _page(tester, 'About');
+
+    expect(_inPage(find.text(appVersion)), findsOneWidget);
+    expect(
+      _inPage(find.text('App: MPL-2.0 · Server: AGPL-3.0')),
+      findsOneWidget,
+    );
+    await app.dispose(tester);
+  });
+
+  testWidgets('noise suppression can be switched off and on again', (
+    tester,
+  ) async {
+    final app = await MockApp.pump(tester);
+    await _openSettings(tester);
+    await _page(tester, 'Voice & audio');
+
+    // Noise suppression's Off; Attenuation further down says Off too.
+    final off = _inPage(find.text('Off')).first;
+    await tester.ensureVisible(off);
+    await tester.tap(off);
+    await tester.pump();
+    await _saveChanges(tester);
+    final switchedOff = app.repository.audio?.noiseSuppression;
+    await tester.tap(_inPage(find.text('Standard')));
+    await tester.pump();
+    await _saveChanges(tester);
+
+    expect(switchedOff, NoiseSuppression.off);
+    expect(app.repository.audio?.noiseSuppression, NoiseSuppression.standard);
+    expect(
+      app.container.read(audioSettingsProvider).noiseSuppression,
+      NoiseSuppression.standard,
+      reason: 'kept with the other audio choices',
+    );
+    await app.dispose(tester);
+  });
+
+  testWidgets('voice settings show the microphone level under its volume', (
+    tester,
+  ) async {
+    final app = await MockApp.pump(tester);
+    await _openSettings(tester);
+
+    await _page(tester, 'Voice & audio');
+    final meters = _inPage(find.byType(InputLevelMeter)).evaluate().length;
+    final on = app.repository.levelMeterOn;
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await _pumpFor(tester, const Duration(milliseconds: 300));
+
+    expect(meters, 1);
+    expect(on, isTrue);
+    expect(
+      app.repository.levelMeterOn,
+      isFalse,
+      reason: 'closed with the page',
+    );
+    await app.dispose(tester);
+  });
+
+  testWidgets('attenuation lowers other apps by the share chosen, for whom', (
+    tester,
+  ) async {
+    final app = await MockApp.pump(tester);
+    await _openSettings(tester);
+    await _page(tester, 'Voice & audio');
+
+    await tester.ensureVisible(_inPage(find.text('When I speak')));
+    await tester.pump();
+    expect(_inPage(find.text('Off')), findsWidgets, reason: 'off at first');
+    await tester.tap(_inPage(find.text('When I speak')));
+    await tester.pump();
+    final lowerBy = find.descendant(
+      of: find.ancestor(
+        of: find.text('Lower other apps by'),
+        matching: find.byType(SettingsSliderRow),
+      ),
+      matching: find.byType(Slider),
+    );
+    await tester.drag(lowerBy, const Offset(400, 0));
+    await tester.pump();
+    await _saveChanges(tester);
+
+    final sent = app.repository.audio!;
+    expect(sent.attenuationPercent, greaterThan(0));
+    expect(sent.attenuateWhenISpeak, isTrue);
+    expect(sent.attenuateWhenOthersSpeak, isTrue);
+    await app.dispose(tester);
+  });
+
+  testWidgets('a presence chosen in settings waits for the save bar', (
+    tester,
+  ) async {
+    final app = await MockApp.pump(tester);
+    // Settings open on My profile.
+    await _openSettings(tester);
+
+    final idle = _inPage(find.text('Idle'));
+    await tester.ensureVisible(idle);
+    await tester.tap(idle);
+    await _pumpFor(tester, const Duration(milliseconds: 200));
+    expect(app.read(selfPresenceProvider), SelfPresence.online);
+
+    await _saveChanges(tester);
+    expect(app.read(selfPresenceProvider), SelfPresence.idle);
+    await app.dispose(tester);
+  });
+}

@@ -1,0 +1,10 @@
+# Flutter-related
+**/Flutter/ephemeral/
+**/Pods/
+
+# Xcode-related
+**/dgph
+**/xcuserdata/
+
+# A developer's own signing identity (Runner/Configs/Debug.xcconfig).
+**/Signing.local.xcconfig

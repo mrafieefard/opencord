@@ -1,0 +1,38 @@
+# The Opencord server as a systemd service. Install the binary as
+# /usr/local/bin/opencord-server, copy this file to
+# /etc/systemd/system/, set OPENCORD_PUBLIC_HOST below, then:
+#
+#   systemctl enable --now opencord-server
+#   journalctl -u opencord-server | grep claim_token
+#
+# Its config, database, certificate and keys live in /var/lib/opencord.
+
+[Unit]
+Description=Opencord server
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+ExecStart=/usr/local/bin/opencord-server --config /var/lib/opencord/opencord.toml
+Environment=OPENCORD_DATA_DIR=/var/lib/opencord
+Environment=OPENCORD_PUBLIC_HOST=chat.example.com
+DynamicUser=yes
+StateDirectory=opencord
+WorkingDirectory=/var/lib/opencord
+Restart=on-failure
+# The key that encrypts every uploaded file is secrets.key in the data
+# directory. To keep it apart from the files (docs/attachments.md), move it
+# to /etc/opencord/secrets.key and uncomment these:
+# LoadCredential=opencord-secrets.key:/etc/opencord/secrets.key
+# Environment=OPENCORD_SECRETS_FILE=%d/opencord-secrets.key
+# Its own data only.
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+NoNewPrivileges=yes
+# To listen on 443, or on 80 for Let's Encrypt's check (docs/domains.md):
+# AmbientCapabilities=CAP_NET_BIND_SERVICE
+# CapabilityBoundingSet=CAP_NET_BIND_SERVICE
+
+[Install]
+WantedBy=multi-user.target

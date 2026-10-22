@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO domain_checks (domain_id, checked_at, result, details)\n         VALUES ($1, $2, $3, $4)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 4
+    },
+    "nullable": []
+  },
+  "hash": "9c136ff477d70cc8b6c32422104b14843fbc3264ff73a41b30b6413f3ac54c77"
+}

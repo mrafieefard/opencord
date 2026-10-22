@@ -1,0 +1,524 @@
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import 'package:opencord/core/settings/voice_view_prefs.dart';
+import 'package:opencord/core/providers/providers.dart';
+import 'package:opencord/core/providers/voice_cues.dart';
+import 'package:opencord/core/settings/local_prefs.dart';
+import 'package:opencord/core/repository/repository.dart';
+import 'package:opencord/features/channels/channel_sidebar.dart';
+import 'package:opencord/features/chat/chat_area.dart';
+import 'package:opencord/features/dialogs/identity_changed_dialog.dart';
+import 'package:opencord/features/members/member_panel.dart';
+import 'package:opencord/features/music/music_access.dart';
+import 'package:opencord/features/music/music_panel.dart';
+import 'package:opencord/features/servers/server_rail.dart';
+import 'package:opencord/features/shell/debug_menu.dart';
+import 'package:opencord/features/shell/navigation.dart';
+import 'package:opencord/features/shell/shell_layout.dart';
+import 'package:opencord/features/shell/shortcuts.dart';
+import 'package:opencord/features/shell/window_title.dart';
+import 'package:opencord/features/settings/user_settings.dart';
+import 'package:opencord/features/soundboard/soundboard_picker.dart';
+import 'package:opencord/features/switcher/quick_switcher.dart';
+import 'package:opencord/features/window/window_providers.dart';
+import 'package:opencord/features/voice/voice_focus.dart';
+import 'package:opencord/features/links/app_links.dart';
+import 'package:opencord/features/shell/mac_menu_bar.dart';
+import 'package:opencord/ui/theme/oc_colors.dart';
+import 'package:opencord/ui/theme/oc_metrics.dart';
+import 'package:opencord/ui/theme/oc_motion.dart';
+import 'package:opencord/ui/widgets/toast.dart';
+
+/// The desktop window: rail, channel sidebar, main column and member panel
+/// (§3), with the responsive rules and the app-wide shortcuts (§7).
+class DesktopShell extends ConsumerStatefulWidget {
+  const DesktopShell({super.key});
+
+  static const railKey = Key('shell-rail');
+  static const sidebarKey = Key('shell-sidebar');
+  static const mainKey = Key('shell-main');
+  static const membersKey = Key('shell-members');
+
+  @override
+  ConsumerState<DesktopShell> createState() => _DesktopShellState();
+}
+
+class _DesktopShellState extends ConsumerState<DesktopShell> {
+  bool _sidebarDrawer = false;
+  bool _membersDrawer = false;
+  ShellLayout _layout = ShellLayout.wide;
+
+  @override
+  void initState() {
+    super.initState();
+    ref.listenManual(
+      windowTitleProvider,
+      (previous, title) => ref.read(nativeWindowProvider).setTitle(title),
+      fireImmediately: true,
+    );
+    ref.listenManual(identityChangesProvider, (previous, next) {
+      for (final MapEntry(key: server, value: status) in next.entries) {
+        if (previous?.containsKey(server) ?? false) continue;
+        final name =
+            ref.read(serverProvider(server)).data?.info.name ??
+            ref
+                .read(serverListProvider)
+                .where((summary) => summary.key == server)
+                .firstOrNull
+                ?.name ??
+            server;
+        showIdentityChanged(
+          context,
+          serverKey: server,
+          name: name,
+          status: status,
+        );
+      }
+    });
+    ref.listenManual(appLinkInboxProvider, (_, links) {
+      if (links.isNotEmpty) _openLinks();
+    }, fireImmediately: true);
+    // Voice sounds play while the shell is up (Phase 2 §12).
+    ref.listenManual(voiceCuesProvider, (_, _) {});
+    // The Music buttons open the overlay where the panel is one (§19.2).
+    ref.listenManual(rightPanelModeProvider, (_, mode) {
+      if (mode == RightPanelMode.music && !_layout.membersInline && mounted) {
+        setState(() => _membersDrawer = true);
+      }
+    });
+    ref.listenManual(audioNoticeProvider, (_, notice) {
+      if (notice != null && mounted) {
+        showOcToast(
+          context,
+          notice.message,
+          actionLabel: notice.actionLabel,
+          onAction: notice.onAction,
+        );
+      }
+    });
+  }
+
+  /// Opens the `opencord://` links waiting in the inbox (§15), after the
+  /// frame, since they may open dialogs.
+  void _openLinks() {
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!mounted) return;
+      for (final text in ref.read(appLinkInboxProvider.notifier).takeAll()) {
+        final link = parseAppLink(text);
+        if (link == null) {
+          showOcToast(context, 'Opencord cannot open that link.');
+          continue;
+        }
+        await openAppLink(context, ref, link);
+        if (!mounted) return;
+      }
+    });
+  }
+
+  void _toggleFullscreen() {
+    final fullscreen = ref.read(windowStatusProvider).fullscreen;
+    ref.read(nativeWindowProvider).setFullscreen(!fullscreen);
+  }
+
+  void _selectMusic() => _showRightPanel(RightPanelMode.music);
+
+  void _selectMembers() => _showRightPanel(RightPanelMode.people);
+
+  /// Opens the right-side panel on [mode]. A voice channel's chat holds
+  /// that place while it is open, so it closes.
+  void _showRightPanel(RightPanelMode mode) {
+    ref.read(rightPanelModeProvider.notifier).set(mode);
+    if (_layout.membersInline) {
+      if (ref.read(voiceChatShownProvider)) {
+        ref.read(voiceViewPrefsProvider.notifier).toggleChat();
+      }
+      ref.read(memberPanelProvider.notifier).open();
+    } else {
+      setState(() => _membersDrawer = true);
+    }
+  }
+
+  void _closeRightPanel() {
+    if (_layout.membersInline) {
+      ref.read(memberPanelProvider.notifier).close();
+    } else {
+      setState(() => _membersDrawer = false);
+    }
+  }
+
+  /// The users list, or the music panel in its place (§19.2), 340 px wide
+  /// after one 120 ms resize.
+  Widget _rightPanel({
+    required bool music,
+    required VoidCallback onClose,
+    bool isOverlay = false,
+    bool trailingControls = false,
+  }) {
+    final channel = ref.read(musicChannelProvider);
+    return AnimatedContainer(
+      key: DesktopShell.membersKey,
+      duration: OcMotion.of(context).panel,
+      curve: OcMotion.curve,
+      width: music ? OcSize.musicPanelWidth : OcSize.memberPanelWidth,
+      child: music && channel != null
+          ? MusicPanel(
+              channel: channel,
+              onClose: onClose,
+              isOverlay: isOverlay,
+              onSelectMembers: _selectMembers,
+              onSelectMusic: _selectMusic,
+              trailingControls: trailingControls,
+            )
+          : MemberPanel(
+              onClose: onClose,
+              isOverlay: isOverlay,
+              onSelectMembers: _selectMembers,
+              onSelectMusic: _selectMusic,
+              trailingControls: trailingControls,
+            ),
+    );
+  }
+
+  void _toggleMembers() {
+    final panelOpen = _layout.membersInline
+        ? ref.read(memberPanelProvider) &&
+              ref.read(serverListProvider).isNotEmpty &&
+              !ref.read(voiceChatShownProvider)
+        : _membersDrawer;
+    final mode = ref.read(rightPanelModeProvider);
+    if (panelOpen && mode == RightPanelMode.people) {
+      _closeRightPanel();
+    } else {
+      _selectMembers();
+    }
+  }
+
+  void _stepChannel(int delta, {bool unreadOnly = false}) {
+    final server = ref.read(currentServerProvider);
+    if (server == null) return;
+    final channels = ref.read(serverProvider(server)).data?.channels;
+    if (channels == null) return;
+    final order = [
+      for (final channel in navigableChannels(channels.values)) channel.id,
+    ];
+    final current = ref.read(currentChannelProvider);
+    final activity = ref.read(activityProvider(server));
+    final next = unreadOnly
+        ? neighborWhere(order, current, delta, (id) => activity.of(id).unread)
+        : neighbor(order, current, delta);
+    if (next != null) {
+      ref.read(navigationProvider.notifier).openChannel(server, next);
+    }
+  }
+
+  void _stepServer(int delta) {
+    final order = [
+      for (final server in ref.read(serverListProvider)) server.key,
+    ];
+    final next = neighbor(order, ref.read(currentServerProvider), delta);
+    if (next != null) ref.read(navigationProvider.notifier).openServer(next);
+  }
+
+  /// Escape with nothing else to close: leaves voice focus mode, or marks
+  /// the open channel read (§7).
+  void _escape() {
+    final server = ref.read(currentServerProvider);
+    final channel = ref.read(currentChannelProvider);
+    if (server == null || channel == null) return;
+    final focus = voiceFocusProvider((server: server, channel: channel));
+    if (ref.read(focus) != null) {
+      ref.read(focus.notifier).clear();
+      return;
+    }
+    ref.read(activityProvider(server).notifier).markRead(channel);
+  }
+
+  Map<Type, Action<Intent>> _actions() => {
+    ChannelStepIntent: CallbackAction<ChannelStepIntent>(
+      onInvoke: (intent) => _stepChannel(intent.delta),
+    ),
+    UnreadStepIntent: CallbackAction<UnreadStepIntent>(
+      onInvoke: (intent) => _stepChannel(intent.delta, unreadOnly: true),
+    ),
+    ServerStepIntent: CallbackAction<ServerStepIntent>(
+      onInvoke: (intent) => _stepServer(intent.delta),
+    ),
+    ToggleMuteIntent: CallbackAction<ToggleMuteIntent>(
+      onInvoke: (_) => ref.read(voiceSessionProvider.notifier).toggleMute(),
+    ),
+    ToggleDeafenIntent: CallbackAction<ToggleDeafenIntent>(
+      onInvoke: (_) => ref.read(voiceSessionProvider.notifier).toggleDeafen(),
+    ),
+    ToggleMembersIntent: CallbackAction<ToggleMembersIntent>(
+      onInvoke: (_) => _toggleMembers(),
+    ),
+    OpenSoundboardIntent: CallbackAction<OpenSoundboardIntent>(
+      onInvoke: (_) => _openSoundboard(),
+    ),
+    MarkReadIntent: CallbackAction<MarkReadIntent>(onInvoke: (_) => _escape()),
+    UserSettingsIntent: CallbackAction<UserSettingsIntent>(
+      onInvoke: (_) => showUserSettings(context),
+    ),
+    QuickSwitcherIntent: CallbackAction<QuickSwitcherIntent>(
+      onInvoke: (_) => showQuickSwitcher(context, ref),
+    ),
+    DebugMenuIntent: CallbackAction<DebugMenuIntent>(
+      onInvoke: (_) => showDebugMenu(context, ref),
+    ),
+    FullscreenIntent: CallbackAction<FullscreenIntent>(
+      onInvoke: (_) => _toggleFullscreen(),
+    ),
+  };
+
+  /// From the keyboard there is no button to open it from: it opens above
+  /// the window's bottom middle.
+  void _openSoundboard() {
+    final voice = ref.read(voiceSessionProvider);
+    if (!voice.connected ||
+        !ref.read(repositoryProvider).capabilities.soundboard) {
+      return;
+    }
+    final size = MediaQuery.sizeOf(context);
+    showSoundboardPicker(
+      context,
+      anchor: Rect.fromCenter(
+        center: Offset(size.width / 2, size.height - OcSpace.s24),
+        width: 1,
+        height: 1,
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.oc;
+    final panelOpen = _layout.membersInline
+        ? ref.watch(memberPanelProvider) &&
+              ref.watch(
+                serverListProvider.select((servers) => servers.isNotEmpty),
+              ) &&
+              !ref.watch(voiceChatShownProvider)
+        : _membersDrawer;
+
+    // The voice channel open, or else the one this device is in: the
+    // now-playing card opens its music from a text channel too (§19.3).
+    final musicChannel = ref.watch(musicChannelProvider);
+    final musicOffered =
+        musicChannel != null && ref.watch(musicOfferedProvider(musicChannel));
+    final mode = ref.watch(rightPanelModeProvider);
+
+    final musicShown =
+        panelOpen && musicOffered && mode == RightPanelMode.music;
+    final membersActive =
+        panelOpen && (!musicOffered || mode == RightPanelMode.people);
+    final musicActive =
+        panelOpen && musicOffered && mode == RightPanelMode.music;
+
+    // Text fields (the composer, searches) need Material underneath.
+    return Material(
+      type: MaterialType.transparency,
+      child: Shortcuts(
+        shortcuts: leavingKeybinds(
+          shellShortcuts(Theme.of(context).platform),
+          ref.watch(keybindsProvider.select((keybinds) => keybinds.bound)),
+        ),
+        child: Actions(
+          actions: _actions(),
+          child: MacMenuBar(
+            child: Focus(
+              autofocus: true,
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  final layout = ShellLayout.forWidth(constraints.maxWidth);
+                  _layout = layout;
+                  final border = VerticalDivider(
+                    width: 1,
+                    thickness: 1,
+                    color: colors.border,
+                  );
+                  final membersInline = layout.membersInline && panelOpen;
+                  return Stack(
+                    children: [
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          const SizedBox(
+                            key: DesktopShell.railKey,
+                            width: OcSize.railWidth,
+                            child: ServerRail(),
+                          ),
+                          border,
+                          if (layout.sidebarInline) ...[
+                            SizedBox(
+                              key: DesktopShell.sidebarKey,
+                              width: layout.sidebarWidth,
+                              child: const ChannelSidebar(
+                                leadingControls: true,
+                              ),
+                            ),
+                            border,
+                          ],
+                          Expanded(
+                            key: DesktopShell.mainKey,
+                            child: ChatArea(
+                              membersShown: membersActive,
+                              onToggleMembers: _selectMembers,
+                              musicShown: musicActive,
+                              onSelectMusic: _selectMusic,
+                              onOpenSidebar: layout.sidebarInline
+                                  ? null
+                                  : () => setState(() => _sidebarDrawer = true),
+                              leadingControls: !layout.sidebarInline,
+                              trailingControls: !membersInline,
+                            ),
+                          ),
+                          if (membersInline) ...[
+                            border,
+                            _rightPanel(
+                              music: musicShown,
+                              onClose: _closeRightPanel,
+                              trailingControls: true,
+                            ),
+                          ],
+                        ],
+                      ),
+                      if (!layout.sidebarInline && _sidebarDrawer)
+                        _Drawer(
+                          fromRight: false,
+                          inset: OcSize.railWidth + 1,
+                          onClose: () => setState(() => _sidebarDrawer = false),
+                          child: SizedBox(
+                            key: DesktopShell.sidebarKey,
+                            width: layout.sidebarWidth,
+                            child: const ChannelSidebar(),
+                          ),
+                        ),
+                      if (!layout.membersInline && _membersDrawer)
+                        _Drawer(
+                          fromRight: true,
+                          onClose: _closeRightPanel,
+                          child: _rightPanel(
+                            music: musicShown,
+                            onClose: _closeRightPanel,
+                            isOverlay: true,
+                          ),
+                        ),
+                    ],
+                  );
+                },
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// A panel over the layout with a scrim behind it. Escape or a click on
+/// the scrim closes it.
+class _Drawer extends StatefulWidget {
+  const _Drawer({
+    required this.fromRight,
+    required this.onClose,
+    required this.child,
+    this.inset = 0,
+  });
+
+  final bool fromRight;
+  final VoidCallback onClose;
+  final Widget child;
+
+  /// Space left uncovered on the opening side (the rail stays usable).
+  final double inset;
+
+  @override
+  State<_Drawer> createState() => _DrawerState();
+}
+
+class _DrawerState extends State<_Drawer> {
+  final _scope = FocusScopeNode(debugLabel: 'drawer');
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _scope.requestFocus();
+    });
+  }
+
+  @override
+  void dispose() {
+    _scope.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.oc;
+    final motion = OcMotion.of(context);
+    final fromRight = widget.fromRight;
+    final onClose = widget.onClose;
+    return Positioned.fill(
+      left: fromRight ? 0 : widget.inset,
+      child: Shortcuts(
+        shortcuts: const {
+          SingleActivator(LogicalKeyboardKey.escape): DismissIntent(),
+        },
+        child: Actions(
+          actions: {
+            DismissIntent: CallbackAction<DismissIntent>(
+              onInvoke: (_) => onClose(),
+            ),
+          },
+          child: FocusScope(
+            node: _scope,
+            child: Stack(
+              children: [
+                Positioned.fill(
+                  child: GestureDetector(
+                    onTap: onClose,
+                    child: ColoredBox(
+                      color: colors.scrim.withValues(
+                        alpha: colors.scrim.a * 0.6,
+                      ),
+                    ),
+                  ),
+                ),
+                Align(
+                  alignment: fromRight
+                      ? Alignment.centerRight
+                      : Alignment.centerLeft,
+                  child: TweenAnimationBuilder<double>(
+                    tween: Tween(begin: 1, end: 0),
+                    duration: motion.morph,
+                    curve: OcMotion.curve,
+                    builder: (context, offset, child) => FractionalTranslation(
+                      translation: Offset(fromRight ? offset : -offset, 0),
+                      child: child,
+                    ),
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        border: Border(
+                          left: fromRight
+                              ? BorderSide(color: colors.border)
+                              : BorderSide.none,
+                          right: fromRight
+                              ? BorderSide.none
+                              : BorderSide(color: colors.border),
+                        ),
+                      ),
+                      child: widget.child,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}

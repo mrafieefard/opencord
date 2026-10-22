@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE soundboard_sounds SET name = $1, emoji = $2, volume = $3 WHERE id = $4",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 4
+    },
+    "nullable": []
+  },
+  "hash": "0014ccc5611f089003099ca4f2aa7d73c4934f7c9c87f4e609ab9d86cb0548fb"
+}

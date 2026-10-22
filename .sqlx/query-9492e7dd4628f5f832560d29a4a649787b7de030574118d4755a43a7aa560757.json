@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE blob_deletions SET attempts = $1, next_attempt_at = $2 WHERE id = $3",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": []
+  },
+  "hash": "9492e7dd4628f5f832560d29a4a649787b7de030574118d4755a43a7aa560757"
+}

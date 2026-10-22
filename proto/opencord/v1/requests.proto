@@ -1,0 +1,565 @@
+// SPDX-License-Identifier: MPL-2.0
+syntax = "proto3";
+
+package opencord.v1;
+
+import "opencord/v1/commands.proto";
+import "opencord/v1/models.proto";
+import "opencord/v1/music.proto";
+import "opencord/v1/network.proto";
+
+message Request {
+  oneof kind {
+    SendMessage send_message = 1;
+    EditMessage edit_message = 2;
+    DeleteMessage delete_message = 3;
+    FetchMessages fetch_messages = 4;
+    StartTyping start_typing = 5;
+
+    CreateChannel create_channel = 10;
+    UpdateChannel update_channel = 11;
+    DeleteChannel delete_channel = 12;
+    ReorderChannels reorder_channels = 13;
+    SetChannelOverwrite set_channel_overwrite = 14;
+    DeleteChannelOverwrite delete_channel_overwrite = 15;
+
+    CreateRole create_role = 20;
+    UpdateRole update_role = 21;
+    DeleteRole delete_role = 22;
+    ReorderRoles reorder_roles = 23;
+    AddMemberRole add_member_role = 24;
+    RemoveMemberRole remove_member_role = 25;
+
+    KickMember kick_member = 30;
+    BanMember ban_member = 31;
+    UnbanMember unban_member = 32;
+    FetchBans fetch_bans = 33;
+    UpdateNickname update_nickname = 34;
+
+    UpdateProfile update_profile = 40;
+    UpdatePresence update_presence = 41;
+
+    CreateInvite create_invite = 50;
+    FetchInvites fetch_invites = 51;
+    RevokeInvite revoke_invite = 52;
+
+    UpdateServer update_server = 60;
+    UpdateVoiceSettings update_voice_settings = 61;
+    RefreshMediaToken refresh_media_token = 62;
+
+    UpdateVoiceState update_voice_state = 70;
+    ServerMuteMember server_mute_member = 71;
+    ServerDeafenMember server_deafen_member = 72;
+    MoveMember move_member = 73;
+    DisconnectMember disconnect_member = 74;
+    RefreshVoiceServer refresh_voice_server = 75;
+    UpdateVoiceActivity update_voice_activity = 76;
+
+    CreateStream create_stream = 80;
+    UpdateStream update_stream = 81;
+    DeleteStream delete_stream = 82;
+    WatchStream watch_stream = 83;
+    UnwatchStream unwatch_stream = 84;
+
+    PlaySoundboardSound play_soundboard_sound = 90;
+    UpdateSoundboardSound update_soundboard_sound = 91;
+    DeleteSoundboardSound delete_soundboard_sound = 92;
+
+    // Domains & network (Phase 3), owner only.
+    WatchNetwork watch_network = 100;
+    SetPublicAddress set_public_address = 101;
+    DetectPublicAddress detect_public_address = 102;
+    UpdateNetworkSettings update_network_settings = 103;
+    AddDomain add_domain = 104;
+    UpdateDomain update_domain = 105;
+    DeleteDomain delete_domain = 106;
+    CheckDomain check_domain = 107;
+    FetchDomainChecks fetch_domain_checks = 108;
+    RequestCertificate request_certificate = 109;
+    UploadCertificate upload_certificate = 110;
+    SetDnsProvider set_dns_provider = 111;
+    AddFreeSubdomain add_free_subdomain = 112;
+    StartTunnel start_tunnel = 113;
+    StopTunnel stop_tunnel = 114;
+    FetchTunnelLog fetch_tunnel_log = 115;
+    InstallCloudflared install_cloudflared = 116;
+
+    // Lavalink nodes (Phase 3 plan §12), MANAGE_SERVER.
+    FetchLavalinkNodes fetch_lavalink_nodes = 120;
+    CreateLavalinkNode create_lavalink_node = 121;
+    UpdateLavalinkNode update_lavalink_node = 122;
+    DeleteLavalinkNode delete_lavalink_node = 123;
+    TestLavalinkNode test_lavalink_node = 124;
+    MoveLavalinkPlayers move_lavalink_players = 125;
+
+    // Music sessions (Phase 3 plan §14, §18.1).
+    MusicSubscribe music_subscribe = 130;
+    MusicSearch music_search = 131;
+    MusicEnqueue music_enqueue = 132;
+    MusicPlayback music_playback = 133;
+    MusicSetMode music_set_mode = 134;
+    MusicQueueMove music_queue_move = 135;
+    MusicQueueRemove music_queue_remove = 136;
+    MusicQueueClear music_queue_clear = 137;
+    FetchMusicSettings fetch_music_settings = 138;
+    UpdateMusicSettings update_music_settings = 139;
+    FetchMusicBlocks fetch_music_blocks = 140;
+    MusicBlockMember music_block_member = 141;
+    MusicVoteSkip music_vote_skip = 142;
+    FetchMusicSession fetch_music_session = 143;
+
+    // Chat commands (Phase 3 plan §17).
+    ExecuteCommand execute_command = 150;
+    AutocompleteCommand autocomplete_command = 151;
+    FetchCommandSettings fetch_command_settings = 152;
+    UpdateCommandSettings update_command_settings = 153;
+
+    // Media uploads (design 2026-10-18).
+    CreateUpload create_upload = 160;
+    CancelUpload cancel_upload = 161;
+    UpdateUploadSettings update_upload_settings = 162;
+    GetStorage get_storage = 163;
+    AddStorage add_storage = 164;
+    UpdateStorage update_storage = 165;
+    TestStorage test_storage = 166;
+    ActivateStorage activate_storage = 167;
+    RemoveStorage remove_storage = 168;
+    StartStorageMove start_storage_move = 169;
+    StopStorageMove stop_storage_move = 170;
+  }
+}
+
+// Exactly one result per request: an error, or the payload listed next to
+// each request below.
+message Response {
+  oneof result {
+    Error error = 1;
+    Ack ack = 2;
+    Message message = 3;
+    MessageList messages = 4;
+    Channel channel = 5;
+    Role role = 6;
+    Member member = 7;
+    User user = 8;
+    BanList bans = 9;
+    Invite invite = 10;
+    InviteList invites = 11;
+    ServerInfo server = 12;
+    VoiceState voice_state = 13;
+    VoiceSettings voice_settings = 14;
+    MediaToken media_token = 15;
+    Stream stream = 16;
+    SoundboardSound soundboard_sound = 17;
+    NetworkInfo network_info = 18;
+    DomainChecks domain_checks = 19;
+    TunnelLog tunnel_log = 20;
+    LavalinkNodes lavalink_nodes = 21;
+    MusicSession music_session = 22;
+    MusicSearchResults music_search_results = 23;
+    MusicSettings music_settings = 24;
+    MusicBlocks music_blocks = 25;
+    CommandResult command_result = 26;
+    CommandChoices command_choices = 27;
+    Commands commands = 28;
+    Upload upload = 29;
+    UploadSettings upload_settings = 30;
+    Storage storage = 31;
+    StorageTest storage_test = 32;
+    UploadStatus upload_status = 33;
+  }
+}
+
+message Ack {}
+
+message MessageList {
+  // Newest first.
+  repeated Message messages = 1;
+}
+
+message BanList {
+  repeated Ban bans = 1;
+}
+
+message InviteList {
+  repeated Invite invites = 1;
+}
+
+// -> message
+message SendMessage {
+  int64 channel_id = 1;
+  string content = 2;
+  // Client-chosen, echoed on the created message.
+  string nonce = 3;
+  repeated int64 attachment_ids = 4;
+}
+
+// -> message. Authors can only edit their own messages.
+message EditMessage {
+  int64 message_id = 1;
+  string content = 2;
+}
+
+// -> ack
+message DeleteMessage {
+  int64 message_id = 1;
+}
+
+// -> messages
+message FetchMessages {
+  int64 channel_id = 1;
+  // Only messages with an id below this one.
+  optional int64 before = 2;
+  // 1 to 100. 0 means the default of 50.
+  uint32 limit = 3;
+}
+
+// -> ack
+message StartTyping {
+  int64 channel_id = 1;
+}
+
+// -> channel
+message CreateChannel {
+  ChannelKind kind = 1;
+  string name = 2;
+  optional string topic = 3;
+  optional int64 parent_id = 4;
+}
+
+// -> channel. Absent fields are left unchanged. An empty topic clears it,
+// and parent_id 0 moves the channel out of its category.
+message UpdateChannel {
+  int64 channel_id = 1;
+  optional string name = 2;
+  optional string topic = 3;
+  optional int64 parent_id = 4;
+  // Voice channels only.
+  optional uint32 bitrate = 5;
+  optional uint32 user_limit = 6;
+  optional bool text_in_voice = 7;
+}
+
+// -> ack
+message DeleteChannel {
+  int64 channel_id = 1;
+}
+
+// -> ack
+message ReorderChannels {
+  repeated ChannelPosition positions = 1;
+}
+
+message ChannelPosition {
+  int64 channel_id = 1;
+  int32 position = 2;
+}
+
+// -> channel. Creates or replaces the overwrite for that target.
+message SetChannelOverwrite {
+  int64 channel_id = 1;
+  PermissionOverwrite overwrite = 2;
+}
+
+// -> channel
+message DeleteChannelOverwrite {
+  int64 channel_id = 1;
+  OverwriteTarget target_kind = 2;
+  int64 target_id = 3;
+}
+
+// -> role. New roles are placed directly above @everyone.
+message CreateRole {
+  string name = 1;
+  uint32 color = 2;
+  uint64 permissions = 3;
+  bool hoist = 4;
+  bool mentionable = 5;
+  optional uint64 max_upload_bytes = 6;
+}
+
+// -> role. Absent fields are left unchanged.
+message UpdateRole {
+  int64 role_id = 1;
+  optional string name = 2;
+  optional uint32 color = 3;
+  optional uint64 permissions = 4;
+  optional bool hoist = 5;
+  optional bool mentionable = 6;
+  optional uint64 max_upload_bytes = 7;
+}
+
+// -> ack
+message DeleteRole {
+  int64 role_id = 1;
+}
+
+// -> ack. The listed roles, lowest first, are rearranged among the positions
+// they already occupy. Every listed role must rank below the caller's
+// highest role.
+message ReorderRoles {
+  repeated int64 role_ids = 1;
+}
+
+// -> member
+message AddMemberRole {
+  int64 user_id = 1;
+  int64 role_id = 2;
+}
+
+// -> member
+message RemoveMemberRole {
+  int64 user_id = 1;
+  int64 role_id = 2;
+}
+
+// -> ack
+message KickMember {
+  int64 user_id = 1;
+  optional string reason = 2;
+}
+
+// -> ack
+message BanMember {
+  int64 user_id = 1;
+  optional string reason = 2;
+}
+
+// -> ack
+message UnbanMember {
+  int64 user_id = 1;
+}
+
+// -> bans
+message FetchBans {}
+
+// -> member. Absent or empty nickname clears it.
+message UpdateNickname {
+  int64 user_id = 1;
+  optional string nickname = 2;
+}
+
+// -> user
+message UpdateProfile {
+  string display_name = 1;
+}
+
+// -> ack. PRESENCE_STATUS_OFFLINE makes the user appear offline.
+message UpdatePresence {
+  PresenceStatus status = 1;
+}
+
+// -> invite
+message CreateInvite {
+  // Absent or 0 means unlimited.
+  optional uint32 max_uses = 1;
+  // Absent or 0 means it never expires.
+  optional uint32 expires_in_s = 2;
+  // The active domain the link uses. Absent: the primary, if there is one.
+  optional int64 domain_id = 3;
+}
+
+// -> invites
+message FetchInvites {}
+
+// -> ack
+message RevokeInvite {
+  string code = 1;
+}
+
+// -> server. Absent fields are left unchanged.
+message UpdateServer {
+  optional string name = 1;
+  optional string description = 2;
+  optional bool open_join = 3;
+}
+
+// -> voice_settings. Absent fields are left unchanged; afk_channel_id 0
+// clears the AFK channel.
+message UpdateVoiceSettings {
+  optional ScreenShareResolution screen_share_max_resolution = 1;
+  optional uint32 screen_share_max_fps = 2;
+  optional uint32 max_stream_viewers = 3;
+  optional bool camera_allowed = 4;
+  optional uint32 max_camera_participants = 5;
+  optional uint32 max_voice_bitrate = 6;
+  optional int64 afk_channel_id = 7;
+  optional uint32 afk_timeout_s = 8;
+  optional bool soundboard_enabled = 9;
+  optional bool allow_default_sounds = 10;
+  optional bool allow_external_sounds = 11;
+  optional uint32 sound_cooldown_s = 12;
+  optional uint32 max_sounds = 13;
+}
+
+// -> media_token
+message RefreshMediaToken {}
+
+// -> voice_state. Joins, moves within the server, changes the self flags,
+// or leaves (channel_id absent). Joining from another session takes the
+// voice state over from it.
+message UpdateVoiceState {
+  optional int64 channel_id = 1;
+  bool self_mute = 2;
+  bool self_deaf = 3;
+  bool self_video = 4;
+  bool self_stream = 5;
+}
+
+// -> ack. How long this device's keyboard and mouse have been idle, for
+// AFK moves (Phase 2 §12): sent once it passes a minute, and again,
+// without input_idle_ms, when input comes back. Ignored unless this
+// session holds the user's voice state.
+message UpdateVoiceActivity {
+  optional uint64 input_idle_ms = 1;
+}
+
+// -> voice_state
+message ServerMuteMember {
+  int64 user_id = 1;
+  bool value = 2;
+}
+
+// -> voice_state
+message ServerDeafenMember {
+  int64 user_id = 1;
+  bool value = 2;
+}
+
+// -> voice_state
+message MoveMember {
+  int64 user_id = 1;
+  int64 channel_id = 2;
+}
+
+// -> ack
+message DisconnectMember {
+  int64 user_id = 1;
+}
+
+// -> ack, then a fresh VoiceServerUpdate on this session, for a client whose
+// voice connection failed and needs a new token. Only the session holding
+// the voice state may ask.
+message RefreshVoiceServer {}
+
+// -> stream
+message CreateStream {
+  int64 channel_id = 1;
+  StreamSourceKind source_kind = 2;
+  ScreenShareResolution resolution = 3;
+  uint32 fps = 4;
+  bool has_audio = 5;
+}
+
+// -> stream. Absent fields are left unchanged.
+message UpdateStream {
+  string stream_key = 1;
+  optional ScreenShareResolution resolution = 2;
+  optional uint32 fps = 3;
+  optional bool has_audio = 4;
+}
+
+// -> ack
+message DeleteStream {
+  string stream_key = 1;
+}
+
+// -> ack
+message WatchStream {
+  string stream_key = 1;
+}
+
+// -> ack
+message UnwatchStream {
+  string stream_key = 1;
+}
+
+// -> ack. sound_ref is "server:<sha256 hex>", "external:<sha256 hex>" or
+// "default:<id>". An external sound must have been uploaded to this server
+// first (POST /media/external-sounds); until then the answer is NOT_FOUND.
+// Its name, emoji and volume are what its own server says, which this one
+// cannot know; they are ignored for other sounds.
+message PlaySoundboardSound {
+  int64 channel_id = 1;
+  string sound_ref = 2;
+  optional string name = 3;
+  optional string emoji = 4;
+  optional uint32 volume = 5;
+}
+
+// -> soundboard_sound. Absent fields are left unchanged; an empty emoji
+// clears it. New sounds are uploaded over HTTP.
+message UpdateSoundboardSound {
+  int64 sound_id = 1;
+  optional string name = 2;
+  optional string emoji = 3;
+  optional uint32 volume = 4;
+}
+
+// -> ack
+message DeleteSoundboardSound {
+  int64 sound_id = 1;
+}
+
+// -> upload. kind is FILE or VOICE_MESSAGE; the server decides IMAGE,
+// VIDEO and AUDIO itself.
+message CreateUpload {
+  int64 channel_id = 1;
+  string filename = 2;
+  uint64 size_bytes = 3;
+  AttachmentKind kind = 4;
+  // What the sender's probe found, used only for layout: a video's size and
+  // length, a sound's length.
+  optional uint32 width = 5;
+  optional uint32 height = 6;
+  optional uint32 duration_ms = 7;
+}
+
+// -> ack. One's own upload that is not sent yet.
+message CancelUpload {
+  int64 upload_id = 1;
+}
+
+message BlockedExtensions {
+  repeated string extensions = 1;
+}
+
+// -> upload_settings. MANAGE_SERVER. Absent fields stay.
+message UpdateUploadSettings {
+  optional BlockedExtensions blocked_extensions = 1;
+  // Was voice_message_max_seconds: voice messages now last at most 30
+  // minutes on every server.
+  reserved 2;
+}
+
+// Storage, owner only. Each answers -> storage, except TestStorage.
+message GetStorage {}
+// Tests the bucket first; refused if the test fails.
+message AddStorage {
+  string name = 1;
+  S3Config s3 = 2;
+}
+message UpdateStorage {
+  int64 storage_id = 1;
+  optional string name = 2;
+  optional S3Config s3 = 3;
+}
+// -> storage_test. Saves nothing.
+message TestStorage {
+  oneof target {
+    int64 storage_id = 1;
+    S3Config s3 = 2;
+  }
+  // With s3: edited settings of this saved storage. The keys s3 leaves
+  // empty are the saved ones, as UpdateStorage takes them.
+  optional int64 keys_from = 3;
+}
+message ActivateStorage {
+  int64 storage_id = 1;
+}
+message RemoveStorage {
+  int64 storage_id = 1;
+}
+// Moves every file to the active storage.
+message StartStorageMove {}
+message StopStorageMove {}
+

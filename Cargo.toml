@@ -1,0 +1,121 @@
+[workspace]
+resolver = "3"
+members = ["crates/*"]
+
+[workspace.package]
+version = "0.0.1"
+edition = "2024"
+repository = "https://github.com/mrafieefard/opencord"
+
+[workspace.dependencies]
+opencord-common = { path = "crates/opencord-common" }
+opencord-core = { package = "opencord_core", path = "crates/opencord-core" }
+opencord-media = { path = "crates/opencord-media" }
+opencord-proto = { path = "crates/opencord-proto" }
+opencord-server = { path = "crates/opencord-server" }
+opencord-voice = { path = "crates/opencord-voice" }
+
+aec3 = "0.4.0"
+aes-gcm = "0.11.1"
+anyhow = "1.0.104"
+ashpd = { version = "0.13.13", default-features = false, features = ["tokio", "camera", "global_shortcuts", "screencast"] }
+audio_thread_priority = "0.38.0"
+audioadapter-buffers = "5.2.0"
+axum = { version = "0.8.9", features = ["ws"] }
+axum-server = { version = "0.8.0", features = ["tls-rustls-no-provider"] }
+bitflags = "2.13.2"
+bytes = "1.12.1"
+clap = { version = "4.6.7", features = ["derive", "env"] }
+chacha20poly1305 = "0.11.0"
+cpal = { version = "0.18.2", features = ["pipewire"] }
+data-encoding = "2.11.1"
+ebur128 = "0.1.10"
+ed25519-dalek = "3.0.0"
+ffmpeg-next = { version = "9.0.0", default-features = false, features = ["codec", "format", "software-scaling"] }
+flutter_rust_bridge = "=2.13.0"
+futures-util = "0.3.34"
+getrandom = "0.4.3"
+governor = "0.10.4"
+hex = "0.4.3"
+hickory-proto = { version = "0.26.3", default-features = false, features = ["std"] }
+hmac = "0.13.0"
+instant-acme = { version = "0.8.5", default-features = false, features = ["ring", "hyper-rustls", "time", "x509-parser"] }
+image = { version = "0.25.10", default-features = false, features = ["jpeg", "png", "webp", "gif"] }
+igd-next = { version = "0.18.0", default-features = false, features = ["aio_tokio"] }
+irondash_run_loop = "0.5.0"
+irondash_texture = "0.5.0"
+nnnoiseless = { version = "0.5.2", default-features = false }
+openh264 = { version = "0.9.8", default-features = false, features = ["libloading"] }
+openh264-sys2 = { version = "0.9.8", default-features = false, features = ["libloading"] }
+opus = "0.4.0"
+pipewire = "0.10.1"
+prost = "0.14.4"
+prost-build = "0.14.4"
+protox = "0.9.1"
+rubato = "5.0.1"
+rtrb = "0.4.0"
+rcgen = "0.14.10"
+realfft = "3.5.0"
+reqwest = { version = "0.13.5", default-features = false, features = ["rustls-no-provider", "json", "query"] }
+rustls-platform-verifier = "0.7.1"
+rustls = { version = "0.23.45", default-features = false, features = ["ring", "std", "tls12", "logging"] }
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.151"
+sha1 = "0.11.0"
+sha2 = "0.11.0"
+socket2 = "0.6.5"
+str0m = { version = "0.24.1", default-features = false, features = ["aws-lc-rs"] }
+str0m-netem = "0.4.0"
+symphonia = { version = "0.6.1", default-features = false, features = ["aac", "flac", "isomp4", "mp3", "ogg", "pcm", "vorbis", "wav"] }
+sqlx = { version = "0.9.0", default-features = false, features = ["runtime-tokio", "sqlite", "macros", "migrate"] }
+tempfile = "3.27.0"
+thiserror = "2.0.21"
+tokio = { version = "1.53.2", features = ["full"] }
+tokio-rustls = { version = "0.26.6", default-features = false, features = ["ring", "logging", "tls12"] }
+tokio-tungstenite = "0.30.0"
+tokio-util = "0.7.19"
+toml = "1.1.6"
+tract-onnx = "0.23.8"
+tract-pulse = "0.23.8"
+tracing = "0.1.44"
+tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
+v4l = "0.14.0"
+x509-parser = "0.18.1"
+webpki-roots = "1.0.9"
+wsola = "0.2.0"
+x11rb = { version = "0.14.0", features = ["screensaver", "xinput", "xtest"] }
+
+# DeepFilterNet (High noise suppression) runs a network every 10 ms. Even
+# debug builds optimize its inference and FFT crates, so it keeps up and
+# does not fall back to Standard while developing.
+[profile.dev.package.tract-core]
+opt-level = 3
+[profile.dev.package.tract-data]
+opt-level = 3
+[profile.dev.package.tract-linalg]
+opt-level = 3
+[profile.dev.package.tract-hir]
+opt-level = 3
+[profile.dev.package.tract-onnx]
+opt-level = 3
+[profile.dev.package.tract-pulse]
+opt-level = 3
+[profile.dev.package.rustfft]
+opt-level = 3
+[profile.dev.package.realfft]
+opt-level = 3
+# The echo canceller (aec3) and Standard noise suppression (nnnoiseless) run
+# every 10 ms too: unoptimized, a debug app's audio thread spent 79 % of its
+# time in them on a throttled Mac and the call cut out (D34).
+[profile.dev.package.aec3]
+opt-level = 3
+[profile.dev.package.nnnoiseless]
+opt-level = 3
+# The voice message player's time stretcher, at every speed: unoptimized,
+# it took 13.7 s to stretch 10 s of sound and playback broke up.
+[profile.dev.package.wsola]
+opt-level = 3
+[profile.dev.package.pic-scale]
+opt-level = 3
+[profile.dev.package.yuv]
+opt-level = 3

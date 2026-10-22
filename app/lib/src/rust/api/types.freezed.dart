@@ -1,0 +1,8571 @@
+// GENERATED CODE - DO NOT MODIFY BY HAND
+// coverage:ignore-file
+// ignore_for_file: type=lint
+// ignore_for_file: unused_element, deprecated_member_use, deprecated_member_use_from_same_package, use_function_type_syntax_for_parameters, unnecessary_const, avoid_init_to_null, invalid_override_different_default_values_named, prefer_expression_function_bodies, annotate_overrides, invalid_annotation_target, unnecessary_question_mark
+
+part of 'types.dart';
+
+// **************************************************************************
+// FreezedGenerator
+// **************************************************************************
+
+// dart format off
+T _$identity<T>(T value) => value;
+/// @nodoc
+mixin _$AddServerOutcome {
+
+
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is AddServerOutcome);
+}
+
+
+@override
+int get hashCode => runtimeType.hashCode;
+
+@override
+String toString() {
+  return 'AddServerOutcome()';
+}
+
+
+}
+
+/// @nodoc
+class $AddServerOutcomeCopyWith<$Res>  {
+$AddServerOutcomeCopyWith(AddServerOutcome _, $Res Function(AddServerOutcome) __);
+}
+
+
+/// Adds pattern-matching-related methods to [AddServerOutcome].
+extension AddServerOutcomePatterns on AddServerOutcome {
+/// A variant of `map` that fallback to returning `orElse`.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case _:
+///     return orElse();
+/// }
+/// ```
+
+@optionalTypeArgs TResult maybeMap<TResult extends Object?>({TResult Function( AddServerOutcome_Added value)?  added,TResult Function( AddServerOutcome_NeedsTrust value)?  needsTrust,required TResult orElse(),}){
+final _that = this;
+switch (_that) {
+case AddServerOutcome_Added() when added != null:
+return added(_that);case AddServerOutcome_NeedsTrust() when needsTrust != null:
+return needsTrust(_that);case _:
+  return orElse();
+
+}
+}
+/// A `switch`-like method, using callbacks.
+///
+/// Callbacks receives the raw object, upcasted.
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case final Subclass2 value:
+///     return ...;
+/// }
+/// ```
+
+@optionalTypeArgs TResult map<TResult extends Object?>({required TResult Function( AddServerOutcome_Added value)  added,required TResult Function( AddServerOutcome_NeedsTrust value)  needsTrust,}){
+final _that = this;
+switch (_that) {
+case AddServerOutcome_Added():
+return added(_that);case AddServerOutcome_NeedsTrust():
+return needsTrust(_that);}
+}
+/// A variant of `map` that fallback to returning `null`.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case _:
+///     return null;
+/// }
+/// ```
+
+@optionalTypeArgs TResult? mapOrNull<TResult extends Object?>({TResult? Function( AddServerOutcome_Added value)?  added,TResult? Function( AddServerOutcome_NeedsTrust value)?  needsTrust,}){
+final _that = this;
+switch (_that) {
+case AddServerOutcome_Added() when added != null:
+return added(_that);case AddServerOutcome_NeedsTrust() when needsTrust != null:
+return needsTrust(_that);case _:
+  return null;
+
+}
+}
+/// A variant of `when` that fallback to an `orElse` callback.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case _:
+///     return orElse();
+/// }
+/// ```
+
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>({TResult Function( Server field0)?  added,TResult Function( String address,  String fingerprint)?  needsTrust,required TResult orElse(),}) {final _that = this;
+switch (_that) {
+case AddServerOutcome_Added() when added != null:
+return added(_that.field0);case AddServerOutcome_NeedsTrust() when needsTrust != null:
+return needsTrust(_that.address,_that.fingerprint);case _:
+  return orElse();
+
+}
+}
+/// A `switch`-like method, using callbacks.
+///
+/// As opposed to `map`, this offers destructuring.
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case Subclass2(:final field2):
+///     return ...;
+/// }
+/// ```
+
+@optionalTypeArgs TResult when<TResult extends Object?>({required TResult Function( Server field0)  added,required TResult Function( String address,  String fingerprint)  needsTrust,}) {final _that = this;
+switch (_that) {
+case AddServerOutcome_Added():
+return added(_that.field0);case AddServerOutcome_NeedsTrust():
+return needsTrust(_that.address,_that.fingerprint);}
+}
+/// A variant of `when` that fallback to returning `null`
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case _:
+///     return null;
+/// }
+/// ```
+
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>({TResult? Function( Server field0)?  added,TResult? Function( String address,  String fingerprint)?  needsTrust,}) {final _that = this;
+switch (_that) {
+case AddServerOutcome_Added() when added != null:
+return added(_that.field0);case AddServerOutcome_NeedsTrust() when needsTrust != null:
+return needsTrust(_that.address,_that.fingerprint);case _:
+  return null;
+
+}
+}
+
+}
+
+/// @nodoc
+
+
+class AddServerOutcome_Added extends AddServerOutcome {
+  const AddServerOutcome_Added(this.field0): super._();
+  
+
+ final  Server field0;
+
+/// Create a copy of AddServerOutcome
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$AddServerOutcome_AddedCopyWith<AddServerOutcome_Added> get copyWith => _$AddServerOutcome_AddedCopyWithImpl<AddServerOutcome_Added>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is AddServerOutcome_Added&&(identical(other.field0, field0) || other.field0 == field0));
+}
+
+
+@override
+int get hashCode => Object.hash(runtimeType,field0);
+
+@override
+String toString() {
+  return 'AddServerOutcome.added(field0: $field0)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $AddServerOutcome_AddedCopyWith<$Res> implements $AddServerOutcomeCopyWith<$Res> {
+  factory $AddServerOutcome_AddedCopyWith(AddServerOutcome_Added value, $Res Function(AddServerOutcome_Added) _then) = _$AddServerOutcome_AddedCopyWithImpl;
+@useResult
+$Res call({
+ Server field0
+});
+
+
+
+
+}
+/// @nodoc
+class _$AddServerOutcome_AddedCopyWithImpl<$Res>
+    implements $AddServerOutcome_AddedCopyWith<$Res> {
+  _$AddServerOutcome_AddedCopyWithImpl(this._self, this._then);
+
+  final AddServerOutcome_Added _self;
+  final $Res Function(AddServerOutcome_Added) _then;
+
+/// Create a copy of AddServerOutcome
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? field0 = null,}) {
+  return _then(AddServerOutcome_Added(
+null == field0 ? _self.field0 : field0 // ignore: cast_nullable_to_non_nullable
+as Server,
+  ));
+}
+
+
+}
+
+/// @nodoc
+
+
+class AddServerOutcome_NeedsTrust extends AddServerOutcome {
+  const AddServerOutcome_NeedsTrust({required this.address, required this.fingerprint}): super._();
+  
+
+ final  String address;
+ final  String fingerprint;
+
+/// Create a copy of AddServerOutcome
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$AddServerOutcome_NeedsTrustCopyWith<AddServerOutcome_NeedsTrust> get copyWith => _$AddServerOutcome_NeedsTrustCopyWithImpl<AddServerOutcome_NeedsTrust>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is AddServerOutcome_NeedsTrust&&(identical(other.address, address) || other.address == address)&&(identical(other.fingerprint, fingerprint) || other.fingerprint == fingerprint));
+}
+
+
+@override
+int get hashCode => Object.hash(runtimeType,address,fingerprint);
+
+@override
+String toString() {
+  return 'AddServerOutcome.needsTrust(address: $address, fingerprint: $fingerprint)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $AddServerOutcome_NeedsTrustCopyWith<$Res> implements $AddServerOutcomeCopyWith<$Res> {
+  factory $AddServerOutcome_NeedsTrustCopyWith(AddServerOutcome_NeedsTrust value, $Res Function(AddServerOutcome_NeedsTrust) _then) = _$AddServerOutcome_NeedsTrustCopyWithImpl;
+@useResult
+$Res call({
+ String address, String fingerprint
+});
+
+
+
+
+}
+/// @nodoc
+class _$AddServerOutcome_NeedsTrustCopyWithImpl<$Res>
+    implements $AddServerOutcome_NeedsTrustCopyWith<$Res> {
+  _$AddServerOutcome_NeedsTrustCopyWithImpl(this._self, this._then);
+
+  final AddServerOutcome_NeedsTrust _self;
+  final $Res Function(AddServerOutcome_NeedsTrust) _then;
+
+/// Create a copy of AddServerOutcome
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? address = null,Object? fingerprint = null,}) {
+  return _then(AddServerOutcome_NeedsTrust(
+address: null == address ? _self.address : address // ignore: cast_nullable_to_non_nullable
+as String,fingerprint: null == fingerprint ? _self.fingerprint : fingerprint // ignore: cast_nullable_to_non_nullable
+as String,
+  ));
+}
+
+
+}
+
+/// @nodoc
+mixin _$ConnectionState {
+
+
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is ConnectionState);
+}
+
+
+@override
+int get hashCode => runtimeType.hashCode;
+
+@override
+String toString() {
+  return 'ConnectionState()';
+}
+
+
+}
+
+/// @nodoc
+class $ConnectionStateCopyWith<$Res>  {
+$ConnectionStateCopyWith(ConnectionState _, $Res Function(ConnectionState) __);
+}
+
+
+/// Adds pattern-matching-related methods to [ConnectionState].
+extension ConnectionStatePatterns on ConnectionState {
+/// A variant of `map` that fallback to returning `orElse`.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case _:
+///     return orElse();
+/// }
+/// ```
+
+@optionalTypeArgs TResult maybeMap<TResult extends Object?>({TResult Function( ConnectionState_Connecting value)?  connecting,TResult Function( ConnectionState_Connected value)?  connected,TResult Function( ConnectionState_Reconnecting value)?  reconnecting,TResult Function( ConnectionState_Failed value)?  failed,required TResult orElse(),}){
+final _that = this;
+switch (_that) {
+case ConnectionState_Connecting() when connecting != null:
+return connecting(_that);case ConnectionState_Connected() when connected != null:
+return connected(_that);case ConnectionState_Reconnecting() when reconnecting != null:
+return reconnecting(_that);case ConnectionState_Failed() when failed != null:
+return failed(_that);case _:
+  return orElse();
+
+}
+}
+/// A `switch`-like method, using callbacks.
+///
+/// Callbacks receives the raw object, upcasted.
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case final Subclass2 value:
+///     return ...;
+/// }
+/// ```
+
+@optionalTypeArgs TResult map<TResult extends Object?>({required TResult Function( ConnectionState_Connecting value)  connecting,required TResult Function( ConnectionState_Connected value)  connected,required TResult Function( ConnectionState_Reconnecting value)  reconnecting,required TResult Function( ConnectionState_Failed value)  failed,}){
+final _that = this;
+switch (_that) {
+case ConnectionState_Connecting():
+return connecting(_that);case ConnectionState_Connected():
+return connected(_that);case ConnectionState_Reconnecting():
+return reconnecting(_that);case ConnectionState_Failed():
+return failed(_that);}
+}
+/// A variant of `map` that fallback to returning `null`.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case _:
+///     return null;
+/// }
+/// ```
+
+@optionalTypeArgs TResult? mapOrNull<TResult extends Object?>({TResult? Function( ConnectionState_Connecting value)?  connecting,TResult? Function( ConnectionState_Connected value)?  connected,TResult? Function( ConnectionState_Reconnecting value)?  reconnecting,TResult? Function( ConnectionState_Failed value)?  failed,}){
+final _that = this;
+switch (_that) {
+case ConnectionState_Connecting() when connecting != null:
+return connecting(_that);case ConnectionState_Connected() when connected != null:
+return connected(_that);case ConnectionState_Reconnecting() when reconnecting != null:
+return reconnecting(_that);case ConnectionState_Failed() when failed != null:
+return failed(_that);case _:
+  return null;
+
+}
+}
+/// A variant of `when` that fallback to an `orElse` callback.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case _:
+///     return orElse();
+/// }
+/// ```
+
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>({TResult Function()?  connecting,TResult Function()?  connected,TResult Function( int attempt,  int retryInMs)?  reconnecting,TResult Function( FailureReason reason,  String message,  String? expectedFingerprint,  String? presentedFingerprint)?  failed,required TResult orElse(),}) {final _that = this;
+switch (_that) {
+case ConnectionState_Connecting() when connecting != null:
+return connecting();case ConnectionState_Connected() when connected != null:
+return connected();case ConnectionState_Reconnecting() when reconnecting != null:
+return reconnecting(_that.attempt,_that.retryInMs);case ConnectionState_Failed() when failed != null:
+return failed(_that.reason,_that.message,_that.expectedFingerprint,_that.presentedFingerprint);case _:
+  return orElse();
+
+}
+}
+/// A `switch`-like method, using callbacks.
+///
+/// As opposed to `map`, this offers destructuring.
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case Subclass2(:final field2):
+///     return ...;
+/// }
+/// ```
+
+@optionalTypeArgs TResult when<TResult extends Object?>({required TResult Function()  connecting,required TResult Function()  connected,required TResult Function( int attempt,  int retryInMs)  reconnecting,required TResult Function( FailureReason reason,  String message,  String? expectedFingerprint,  String? presentedFingerprint)  failed,}) {final _that = this;
+switch (_that) {
+case ConnectionState_Connecting():
+return connecting();case ConnectionState_Connected():
+return connected();case ConnectionState_Reconnecting():
+return reconnecting(_that.attempt,_that.retryInMs);case ConnectionState_Failed():
+return failed(_that.reason,_that.message,_that.expectedFingerprint,_that.presentedFingerprint);}
+}
+/// A variant of `when` that fallback to returning `null`
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case _:
+///     return null;
+/// }
+/// ```
+
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>({TResult? Function()?  connecting,TResult? Function()?  connected,TResult? Function( int attempt,  int retryInMs)?  reconnecting,TResult? Function( FailureReason reason,  String message,  String? expectedFingerprint,  String? presentedFingerprint)?  failed,}) {final _that = this;
+switch (_that) {
+case ConnectionState_Connecting() when connecting != null:
+return connecting();case ConnectionState_Connected() when connected != null:
+return connected();case ConnectionState_Reconnecting() when reconnecting != null:
+return reconnecting(_that.attempt,_that.retryInMs);case ConnectionState_Failed() when failed != null:
+return failed(_that.reason,_that.message,_that.expectedFingerprint,_that.presentedFingerprint);case _:
+  return null;
+
+}
+}
+
+}
+
+/// @nodoc
+
+
+class ConnectionState_Connecting extends ConnectionState {
+  const ConnectionState_Connecting(): super._();
+  
+
+
+
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is ConnectionState_Connecting);
+}
+
+
+@override
+int get hashCode => runtimeType.hashCode;
+
+@override
+String toString() {
+  return 'ConnectionState.connecting()';
+}
+
+
+}
+
+
+
+
+/// @nodoc
+
+
+class ConnectionState_Connected extends ConnectionState {
+  const ConnectionState_Connected(): super._();
+  
+
+
+
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is ConnectionState_Connected);
+}
+
+
+@override
+int get hashCode => runtimeType.hashCode;
+
+@override
+String toString() {
+  return 'ConnectionState.connected()';
+}
+
+
+}
+
+
+
+
+/// @nodoc
+
+
+class ConnectionState_Reconnecting extends ConnectionState {
+  const ConnectionState_Reconnecting({required this.attempt, required this.retryInMs}): super._();
+  
+
+ final  int attempt;
+ final  int retryInMs;
+
+/// Create a copy of ConnectionState
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$ConnectionState_ReconnectingCopyWith<ConnectionState_Reconnecting> get copyWith => _$ConnectionState_ReconnectingCopyWithImpl<ConnectionState_Reconnecting>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is ConnectionState_Reconnecting&&(identical(other.attempt, attempt) || other.attempt == attempt)&&(identical(other.retryInMs, retryInMs) || other.retryInMs == retryInMs));
+}
+
+
+@override
+int get hashCode => Object.hash(runtimeType,attempt,retryInMs);
+
+@override
+String toString() {
+  return 'ConnectionState.reconnecting(attempt: $attempt, retryInMs: $retryInMs)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $ConnectionState_ReconnectingCopyWith<$Res> implements $ConnectionStateCopyWith<$Res> {
+  factory $ConnectionState_ReconnectingCopyWith(ConnectionState_Reconnecting value, $Res Function(ConnectionState_Reconnecting) _then) = _$ConnectionState_ReconnectingCopyWithImpl;
+@useResult
+$Res call({
+ int attempt, int retryInMs
+});
+
+
+
+
+}
+/// @nodoc
+class _$ConnectionState_ReconnectingCopyWithImpl<$Res>
+    implements $ConnectionState_ReconnectingCopyWith<$Res> {
+  _$ConnectionState_ReconnectingCopyWithImpl(this._self, this._then);
+
+  final ConnectionState_Reconnecting _self;
+  final $Res Function(ConnectionState_Reconnecting) _then;
+
+/// Create a copy of ConnectionState
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? attempt = null,Object? retryInMs = null,}) {
+  return _then(ConnectionState_Reconnecting(
+attempt: null == attempt ? _self.attempt : attempt // ignore: cast_nullable_to_non_nullable
+as int,retryInMs: null == retryInMs ? _self.retryInMs : retryInMs // ignore: cast_nullable_to_non_nullable
+as int,
+  ));
+}
+
+
+}
+
+/// @nodoc
+
+
+class ConnectionState_Failed extends ConnectionState {
+  const ConnectionState_Failed({required this.reason, required this.message, this.expectedFingerprint, this.presentedFingerprint}): super._();
+  
+
+ final  FailureReason reason;
+ final  String message;
+/// With `FingerprintChanged`: the pinned fingerprint (when there is
+/// one) and the one the server showed instead, as lowercase hex.
+ final  String? expectedFingerprint;
+ final  String? presentedFingerprint;
+
+/// Create a copy of ConnectionState
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$ConnectionState_FailedCopyWith<ConnectionState_Failed> get copyWith => _$ConnectionState_FailedCopyWithImpl<ConnectionState_Failed>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is ConnectionState_Failed&&(identical(other.reason, reason) || other.reason == reason)&&(identical(other.message, message) || other.message == message)&&(identical(other.expectedFingerprint, expectedFingerprint) || other.expectedFingerprint == expectedFingerprint)&&(identical(other.presentedFingerprint, presentedFingerprint) || other.presentedFingerprint == presentedFingerprint));
+}
+
+
+@override
+int get hashCode => Object.hash(runtimeType,reason,message,expectedFingerprint,presentedFingerprint);
+
+@override
+String toString() {
+  return 'ConnectionState.failed(reason: $reason, message: $message, expectedFingerprint: $expectedFingerprint, presentedFingerprint: $presentedFingerprint)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $ConnectionState_FailedCopyWith<$Res> implements $ConnectionStateCopyWith<$Res> {
+  factory $ConnectionState_FailedCopyWith(ConnectionState_Failed value, $Res Function(ConnectionState_Failed) _then) = _$ConnectionState_FailedCopyWithImpl;
+@useResult
+$Res call({
+ FailureReason reason, String message, String? expectedFingerprint, String? presentedFingerprint
+});
+
+
+
+
+}
+/// @nodoc
+class _$ConnectionState_FailedCopyWithImpl<$Res>
+    implements $ConnectionState_FailedCopyWith<$Res> {
+  _$ConnectionState_FailedCopyWithImpl(this._self, this._then);
+
+  final ConnectionState_Failed _self;
+  final $Res Function(ConnectionState_Failed) _then;
+
+/// Create a copy of ConnectionState
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? reason = null,Object? message = null,Object? expectedFingerprint = freezed,Object? presentedFingerprint = freezed,}) {
+  return _then(ConnectionState_Failed(
+reason: null == reason ? _self.reason : reason // ignore: cast_nullable_to_non_nullable
+as FailureReason,message: null == message ? _self.message : message // ignore: cast_nullable_to_non_nullable
+as String,expectedFingerprint: freezed == expectedFingerprint ? _self.expectedFingerprint : expectedFingerprint // ignore: cast_nullable_to_non_nullable
+as String?,presentedFingerprint: freezed == presentedFingerprint ? _self.presentedFingerprint : presentedFingerprint // ignore: cast_nullable_to_non_nullable
+as String?,
+  ));
+}
+
+
+}
+
+/// @nodoc
+mixin _$CoreError {
+
+
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is CoreError);
+}
+
+
+@override
+int get hashCode => runtimeType.hashCode;
+
+@override
+String toString() {
+  return 'CoreError()';
+}
+
+
+}
+
+/// @nodoc
+class $CoreErrorCopyWith<$Res>  {
+$CoreErrorCopyWith(CoreError _, $Res Function(CoreError) __);
+}
+
+
+/// Adds pattern-matching-related methods to [CoreError].
+extension CoreErrorPatterns on CoreError {
+/// A variant of `map` that fallback to returning `orElse`.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case _:
+///     return orElse();
+/// }
+/// ```
+
+@optionalTypeArgs TResult maybeMap<TResult extends Object?>({TResult Function( CoreError_NotInitialized value)?  notInitialized,TResult Function( CoreError_NoIdentity value)?  noIdentity,TResult Function( CoreError_UnknownServer value)?  unknownServer,TResult Function( CoreError_NotConnected value)?  notConnected,TResult Function( CoreError_Timeout value)?  timeout,TResult Function( CoreError_InvalidInput value)?  invalidInput,TResult Function( CoreError_Server value)?  server,TResult Function( CoreError_FingerprintMismatch value)?  fingerprintMismatch,TResult Function( CoreError_Rejected value)?  rejected,TResult Function( CoreError_Connection value)?  connection,TResult Function( CoreError_Storage value)?  storage,TResult Function( CoreError_Screen value)?  screen,TResult Function( CoreError_Camera value)?  camera,TResult Function( CoreError_Cancelled value)?  cancelled,required TResult orElse(),}){
+final _that = this;
+switch (_that) {
+case CoreError_NotInitialized() when notInitialized != null:
+return notInitialized(_that);case CoreError_NoIdentity() when noIdentity != null:
+return noIdentity(_that);case CoreError_UnknownServer() when unknownServer != null:
+return unknownServer(_that);case CoreError_NotConnected() when notConnected != null:
+return notConnected(_that);case CoreError_Timeout() when timeout != null:
+return timeout(_that);case CoreError_InvalidInput() when invalidInput != null:
+return invalidInput(_that);case CoreError_Server() when server != null:
+return server(_that);case CoreError_FingerprintMismatch() when fingerprintMismatch != null:
+return fingerprintMismatch(_that);case CoreError_Rejected() when rejected != null:
+return rejected(_that);case CoreError_Connection() when connection != null:
+return connection(_that);case CoreError_Storage() when storage != null:
+return storage(_that);case CoreError_Screen() when screen != null:
+return screen(_that);case CoreError_Camera() when camera != null:
+return camera(_that);case CoreError_Cancelled() when cancelled != null:
+return cancelled(_that);case _:
+  return orElse();
+
+}
+}
+/// A `switch`-like method, using callbacks.
+///
+/// Callbacks receives the raw object, upcasted.
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case final Subclass2 value:
+///     return ...;
+/// }
+/// ```
+
+@optionalTypeArgs TResult map<TResult extends Object?>({required TResult Function( CoreError_NotInitialized value)  notInitialized,required TResult Function( CoreError_NoIdentity value)  noIdentity,required TResult Function( CoreError_UnknownServer value)  unknownServer,required TResult Function( CoreError_NotConnected value)  notConnected,required TResult Function( CoreError_Timeout value)  timeout,required TResult Function( CoreError_InvalidInput value)  invalidInput,required TResult Function( CoreError_Server value)  server,required TResult Function( CoreError_FingerprintMismatch value)  fingerprintMismatch,required TResult Function( CoreError_Rejected value)  rejected,required TResult Function( CoreError_Connection value)  connection,required TResult Function( CoreError_Storage value)  storage,required TResult Function( CoreError_Screen value)  screen,required TResult Function( CoreError_Camera value)  camera,required TResult Function( CoreError_Cancelled value)  cancelled,}){
+final _that = this;
+switch (_that) {
+case CoreError_NotInitialized():
+return notInitialized(_that);case CoreError_NoIdentity():
+return noIdentity(_that);case CoreError_UnknownServer():
+return unknownServer(_that);case CoreError_NotConnected():
+return notConnected(_that);case CoreError_Timeout():
+return timeout(_that);case CoreError_InvalidInput():
+return invalidInput(_that);case CoreError_Server():
+return server(_that);case CoreError_FingerprintMismatch():
+return fingerprintMismatch(_that);case CoreError_Rejected():
+return rejected(_that);case CoreError_Connection():
+return connection(_that);case CoreError_Storage():
+return storage(_that);case CoreError_Screen():
+return screen(_that);case CoreError_Camera():
+return camera(_that);case CoreError_Cancelled():
+return cancelled(_that);}
+}
+/// A variant of `map` that fallback to returning `null`.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case _:
+///     return null;
+/// }
+/// ```
+
+@optionalTypeArgs TResult? mapOrNull<TResult extends Object?>({TResult? Function( CoreError_NotInitialized value)?  notInitialized,TResult? Function( CoreError_NoIdentity value)?  noIdentity,TResult? Function( CoreError_UnknownServer value)?  unknownServer,TResult? Function( CoreError_NotConnected value)?  notConnected,TResult? Function( CoreError_Timeout value)?  timeout,TResult? Function( CoreError_InvalidInput value)?  invalidInput,TResult? Function( CoreError_Server value)?  server,TResult? Function( CoreError_FingerprintMismatch value)?  fingerprintMismatch,TResult? Function( CoreError_Rejected value)?  rejected,TResult? Function( CoreError_Connection value)?  connection,TResult? Function( CoreError_Storage value)?  storage,TResult? Function( CoreError_Screen value)?  screen,TResult? Function( CoreError_Camera value)?  camera,TResult? Function( CoreError_Cancelled value)?  cancelled,}){
+final _that = this;
+switch (_that) {
+case CoreError_NotInitialized() when notInitialized != null:
+return notInitialized(_that);case CoreError_NoIdentity() when noIdentity != null:
+return noIdentity(_that);case CoreError_UnknownServer() when unknownServer != null:
+return unknownServer(_that);case CoreError_NotConnected() when notConnected != null:
+return notConnected(_that);case CoreError_Timeout() when timeout != null:
+return timeout(_that);case CoreError_InvalidInput() when invalidInput != null:
+return invalidInput(_that);case CoreError_Server() when server != null:
+return server(_that);case CoreError_FingerprintMismatch() when fingerprintMismatch != null:
+return fingerprintMismatch(_that);case CoreError_Rejected() when rejected != null:
+return rejected(_that);case CoreError_Connection() when connection != null:
+return connection(_that);case CoreError_Storage() when storage != null:
+return storage(_that);case CoreError_Screen() when screen != null:
+return screen(_that);case CoreError_Camera() when camera != null:
+return camera(_that);case CoreError_Cancelled() when cancelled != null:
+return cancelled(_that);case _:
+  return null;
+
+}
+}
+/// A variant of `when` that fallback to an `orElse` callback.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case _:
+///     return orElse();
+/// }
+/// ```
+
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>({TResult Function()?  notInitialized,TResult Function()?  noIdentity,TResult Function()?  unknownServer,TResult Function()?  notConnected,TResult Function()?  timeout,TResult Function( String message)?  invalidInput,TResult Function( ErrorCode code,  String message,  int? retryAfterMs)?  server,TResult Function( String expected,  String presented)?  fingerprintMismatch,TResult Function( FailureReason reason,  String message)?  rejected,TResult Function( String message)?  connection,TResult Function( String message)?  storage,TResult Function( ScreenProblem problem,  String message)?  screen,TResult Function( CameraProblem problem,  String message)?  camera,TResult Function()?  cancelled,required TResult orElse(),}) {final _that = this;
+switch (_that) {
+case CoreError_NotInitialized() when notInitialized != null:
+return notInitialized();case CoreError_NoIdentity() when noIdentity != null:
+return noIdentity();case CoreError_UnknownServer() when unknownServer != null:
+return unknownServer();case CoreError_NotConnected() when notConnected != null:
+return notConnected();case CoreError_Timeout() when timeout != null:
+return timeout();case CoreError_InvalidInput() when invalidInput != null:
+return invalidInput(_that.message);case CoreError_Server() when server != null:
+return server(_that.code,_that.message,_that.retryAfterMs);case CoreError_FingerprintMismatch() when fingerprintMismatch != null:
+return fingerprintMismatch(_that.expected,_that.presented);case CoreError_Rejected() when rejected != null:
+return rejected(_that.reason,_that.message);case CoreError_Connection() when connection != null:
+return connection(_that.message);case CoreError_Storage() when storage != null:
+return storage(_that.message);case CoreError_Screen() when screen != null:
+return screen(_that.problem,_that.message);case CoreError_Camera() when camera != null:
+return camera(_that.problem,_that.message);case CoreError_Cancelled() when cancelled != null:
+return cancelled();case _:
+  return orElse();
+
+}
+}
+/// A `switch`-like method, using callbacks.
+///
+/// As opposed to `map`, this offers destructuring.
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case Subclass2(:final field2):
+///     return ...;
+/// }
+/// ```
+
+@optionalTypeArgs TResult when<TResult extends Object?>({required TResult Function()  notInitialized,required TResult Function()  noIdentity,required TResult Function()  unknownServer,required TResult Function()  notConnected,required TResult Function()  timeout,required TResult Function( String message)  invalidInput,required TResult Function( ErrorCode code,  String message,  int? retryAfterMs)  server,required TResult Function( String expected,  String presented)  fingerprintMismatch,required TResult Function( FailureReason reason,  String message)  rejected,required TResult Function( String message)  connection,required TResult Function( String message)  storage,required TResult Function( ScreenProblem problem,  String message)  screen,required TResult Function( CameraProblem problem,  String message)  camera,required TResult Function()  cancelled,}) {final _that = this;
+switch (_that) {
+case CoreError_NotInitialized():
+return notInitialized();case CoreError_NoIdentity():
+return noIdentity();case CoreError_UnknownServer():
+return unknownServer();case CoreError_NotConnected():
+return notConnected();case CoreError_Timeout():
+return timeout();case CoreError_InvalidInput():
+return invalidInput(_that.message);case CoreError_Server():
+return server(_that.code,_that.message,_that.retryAfterMs);case CoreError_FingerprintMismatch():
+return fingerprintMismatch(_that.expected,_that.presented);case CoreError_Rejected():
+return rejected(_that.reason,_that.message);case CoreError_Connection():
+return connection(_that.message);case CoreError_Storage():
+return storage(_that.message);case CoreError_Screen():
+return screen(_that.problem,_that.message);case CoreError_Camera():
+return camera(_that.problem,_that.message);case CoreError_Cancelled():
+return cancelled();}
+}
+/// A variant of `when` that fallback to returning `null`
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case _:
+///     return null;
+/// }
+/// ```
+
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>({TResult? Function()?  notInitialized,TResult? Function()?  noIdentity,TResult? Function()?  unknownServer,TResult? Function()?  notConnected,TResult? Function()?  timeout,TResult? Function( String message)?  invalidInput,TResult? Function( ErrorCode code,  String message,  int? retryAfterMs)?  server,TResult? Function( String expected,  String presented)?  fingerprintMismatch,TResult? Function( FailureReason reason,  String message)?  rejected,TResult? Function( String message)?  connection,TResult? Function( String message)?  storage,TResult? Function( ScreenProblem problem,  String message)?  screen,TResult? Function( CameraProblem problem,  String message)?  camera,TResult? Function()?  cancelled,}) {final _that = this;
+switch (_that) {
+case CoreError_NotInitialized() when notInitialized != null:
+return notInitialized();case CoreError_NoIdentity() when noIdentity != null:
+return noIdentity();case CoreError_UnknownServer() when unknownServer != null:
+return unknownServer();case CoreError_NotConnected() when notConnected != null:
+return notConnected();case CoreError_Timeout() when timeout != null:
+return timeout();case CoreError_InvalidInput() when invalidInput != null:
+return invalidInput(_that.message);case CoreError_Server() when server != null:
+return server(_that.code,_that.message,_that.retryAfterMs);case CoreError_FingerprintMismatch() when fingerprintMismatch != null:
+return fingerprintMismatch(_that.expected,_that.presented);case CoreError_Rejected() when rejected != null:
+return rejected(_that.reason,_that.message);case CoreError_Connection() when connection != null:
+return connection(_that.message);case CoreError_Storage() when storage != null:
+return storage(_that.message);case CoreError_Screen() when screen != null:
+return screen(_that.problem,_that.message);case CoreError_Camera() when camera != null:
+return camera(_that.problem,_that.message);case CoreError_Cancelled() when cancelled != null:
+return cancelled();case _:
+  return null;
+
+}
+}
+
+}
+
+/// @nodoc
+
+
+class CoreError_NotInitialized extends CoreError {
+  const CoreError_NotInitialized(): super._();
+  
+
+
+
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is CoreError_NotInitialized);
+}
+
+
+@override
+int get hashCode => runtimeType.hashCode;
+
+@override
+String toString() {
+  return 'CoreError.notInitialized()';
+}
+
+
+}
+
+
+
+
+/// @nodoc
+
+
+class CoreError_NoIdentity extends CoreError {
+  const CoreError_NoIdentity(): super._();
+  
+
+
+
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is CoreError_NoIdentity);
+}
+
+
+@override
+int get hashCode => runtimeType.hashCode;
+
+@override
+String toString() {
+  return 'CoreError.noIdentity()';
+}
+
+
+}
+
+
+
+
+/// @nodoc
+
+
+class CoreError_UnknownServer extends CoreError {
+  const CoreError_UnknownServer(): super._();
+  
+
+
+
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is CoreError_UnknownServer);
+}
+
+
+@override
+int get hashCode => runtimeType.hashCode;
+
+@override
+String toString() {
+  return 'CoreError.unknownServer()';
+}
+
+
+}
+
+
+
+
+/// @nodoc
+
+
+class CoreError_NotConnected extends CoreError {
+  const CoreError_NotConnected(): super._();
+  
+
+
+
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is CoreError_NotConnected);
+}
+
+
+@override
+int get hashCode => runtimeType.hashCode;
+
+@override
+String toString() {
+  return 'CoreError.notConnected()';
+}
+
+
+}
+
+
+
+
+/// @nodoc
+
+
+class CoreError_Timeout extends CoreError {
+  const CoreError_Timeout(): super._();
+  
+
+
+
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is CoreError_Timeout);
+}
+
+
+@override
+int get hashCode => runtimeType.hashCode;
+
+@override
+String toString() {
+  return 'CoreError.timeout()';
+}
+
+
+}
+
+
+
+
+/// @nodoc
+
+
+class CoreError_InvalidInput extends CoreError {
+  const CoreError_InvalidInput({required this.message}): super._();
+  
+
+ final  String message;
+
+/// Create a copy of CoreError
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$CoreError_InvalidInputCopyWith<CoreError_InvalidInput> get copyWith => _$CoreError_InvalidInputCopyWithImpl<CoreError_InvalidInput>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is CoreError_InvalidInput&&(identical(other.message, message) || other.message == message));
+}
+
+
+@override
+int get hashCode => Object.hash(runtimeType,message);
+
+@override
+String toString() {
+  return 'CoreError.invalidInput(message: $message)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $CoreError_InvalidInputCopyWith<$Res> implements $CoreErrorCopyWith<$Res> {
+  factory $CoreError_InvalidInputCopyWith(CoreError_InvalidInput value, $Res Function(CoreError_InvalidInput) _then) = _$CoreError_InvalidInputCopyWithImpl;
+@useResult
+$Res call({
+ String message
+});
+
+
+
+
+}
+/// @nodoc
+class _$CoreError_InvalidInputCopyWithImpl<$Res>
+    implements $CoreError_InvalidInputCopyWith<$Res> {
+  _$CoreError_InvalidInputCopyWithImpl(this._self, this._then);
+
+  final CoreError_InvalidInput _self;
+  final $Res Function(CoreError_InvalidInput) _then;
+
+/// Create a copy of CoreError
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? message = null,}) {
+  return _then(CoreError_InvalidInput(
+message: null == message ? _self.message : message // ignore: cast_nullable_to_non_nullable
+as String,
+  ));
+}
+
+
+}
+
+/// @nodoc
+
+
+class CoreError_Server extends CoreError {
+  const CoreError_Server({required this.code, required this.message, this.retryAfterMs}): super._();
+  
+
+ final  ErrorCode code;
+ final  String message;
+ final  int? retryAfterMs;
+
+/// Create a copy of CoreError
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$CoreError_ServerCopyWith<CoreError_Server> get copyWith => _$CoreError_ServerCopyWithImpl<CoreError_Server>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is CoreError_Server&&(identical(other.code, code) || other.code == code)&&(identical(other.message, message) || other.message == message)&&(identical(other.retryAfterMs, retryAfterMs) || other.retryAfterMs == retryAfterMs));
+}
+
+
+@override
+int get hashCode => Object.hash(runtimeType,code,message,retryAfterMs);
+
+@override
+String toString() {
+  return 'CoreError.server(code: $code, message: $message, retryAfterMs: $retryAfterMs)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $CoreError_ServerCopyWith<$Res> implements $CoreErrorCopyWith<$Res> {
+  factory $CoreError_ServerCopyWith(CoreError_Server value, $Res Function(CoreError_Server) _then) = _$CoreError_ServerCopyWithImpl;
+@useResult
+$Res call({
+ ErrorCode code, String message, int? retryAfterMs
+});
+
+
+
+
+}
+/// @nodoc
+class _$CoreError_ServerCopyWithImpl<$Res>
+    implements $CoreError_ServerCopyWith<$Res> {
+  _$CoreError_ServerCopyWithImpl(this._self, this._then);
+
+  final CoreError_Server _self;
+  final $Res Function(CoreError_Server) _then;
+
+/// Create a copy of CoreError
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? code = null,Object? message = null,Object? retryAfterMs = freezed,}) {
+  return _then(CoreError_Server(
+code: null == code ? _self.code : code // ignore: cast_nullable_to_non_nullable
+as ErrorCode,message: null == message ? _self.message : message // ignore: cast_nullable_to_non_nullable
+as String,retryAfterMs: freezed == retryAfterMs ? _self.retryAfterMs : retryAfterMs // ignore: cast_nullable_to_non_nullable
+as int?,
+  ));
+}
+
+
+}
+
+/// @nodoc
+
+
+class CoreError_FingerprintMismatch extends CoreError {
+  const CoreError_FingerprintMismatch({required this.expected, required this.presented}): super._();
+  
+
+ final  String expected;
+ final  String presented;
+
+/// Create a copy of CoreError
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$CoreError_FingerprintMismatchCopyWith<CoreError_FingerprintMismatch> get copyWith => _$CoreError_FingerprintMismatchCopyWithImpl<CoreError_FingerprintMismatch>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is CoreError_FingerprintMismatch&&(identical(other.expected, expected) || other.expected == expected)&&(identical(other.presented, presented) || other.presented == presented));
+}
+
+
+@override
+int get hashCode => Object.hash(runtimeType,expected,presented);
+
+@override
+String toString() {
+  return 'CoreError.fingerprintMismatch(expected: $expected, presented: $presented)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $CoreError_FingerprintMismatchCopyWith<$Res> implements $CoreErrorCopyWith<$Res> {
+  factory $CoreError_FingerprintMismatchCopyWith(CoreError_FingerprintMismatch value, $Res Function(CoreError_FingerprintMismatch) _then) = _$CoreError_FingerprintMismatchCopyWithImpl;
+@useResult
+$Res call({
+ String expected, String presented
+});
+
+
+
+
+}
+/// @nodoc
+class _$CoreError_FingerprintMismatchCopyWithImpl<$Res>
+    implements $CoreError_FingerprintMismatchCopyWith<$Res> {
+  _$CoreError_FingerprintMismatchCopyWithImpl(this._self, this._then);
+
+  final CoreError_FingerprintMismatch _self;
+  final $Res Function(CoreError_FingerprintMismatch) _then;
+
+/// Create a copy of CoreError
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? expected = null,Object? presented = null,}) {
+  return _then(CoreError_FingerprintMismatch(
+expected: null == expected ? _self.expected : expected // ignore: cast_nullable_to_non_nullable
+as String,presented: null == presented ? _self.presented : presented // ignore: cast_nullable_to_non_nullable
+as String,
+  ));
+}
+
+
+}
+
+/// @nodoc
+
+
+class CoreError_Rejected extends CoreError {
+  const CoreError_Rejected({required this.reason, required this.message}): super._();
+  
+
+ final  FailureReason reason;
+ final  String message;
+
+/// Create a copy of CoreError
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$CoreError_RejectedCopyWith<CoreError_Rejected> get copyWith => _$CoreError_RejectedCopyWithImpl<CoreError_Rejected>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is CoreError_Rejected&&(identical(other.reason, reason) || other.reason == reason)&&(identical(other.message, message) || other.message == message));
+}
+
+
+@override
+int get hashCode => Object.hash(runtimeType,reason,message);
+
+@override
+String toString() {
+  return 'CoreError.rejected(reason: $reason, message: $message)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $CoreError_RejectedCopyWith<$Res> implements $CoreErrorCopyWith<$Res> {
+  factory $CoreError_RejectedCopyWith(CoreError_Rejected value, $Res Function(CoreError_Rejected) _then) = _$CoreError_RejectedCopyWithImpl;
+@useResult
+$Res call({
+ FailureReason reason, String message
+});
+
+
+
+
+}
+/// @nodoc
+class _$CoreError_RejectedCopyWithImpl<$Res>
+    implements $CoreError_RejectedCopyWith<$Res> {
+  _$CoreError_RejectedCopyWithImpl(this._self, this._then);
+
+  final CoreError_Rejected _self;
+  final $Res Function(CoreError_Rejected) _then;
+
+/// Create a copy of CoreError
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? reason = null,Object? message = null,}) {
+  return _then(CoreError_Rejected(
+reason: null == reason ? _self.reason : reason // ignore: cast_nullable_to_non_nullable
+as FailureReason,message: null == message ? _self.message : message // ignore: cast_nullable_to_non_nullable
+as String,
+  ));
+}
+
+
+}
+
+/// @nodoc
+
+
+class CoreError_Connection extends CoreError {
+  const CoreError_Connection({required this.message}): super._();
+  
+
+ final  String message;
+
+/// Create a copy of CoreError
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$CoreError_ConnectionCopyWith<CoreError_Connection> get copyWith => _$CoreError_ConnectionCopyWithImpl<CoreError_Connection>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is CoreError_Connection&&(identical(other.message, message) || other.message == message));
+}
+
+
+@override
+int get hashCode => Object.hash(runtimeType,message);
+
+@override
+String toString() {
+  return 'CoreError.connection(message: $message)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $CoreError_ConnectionCopyWith<$Res> implements $CoreErrorCopyWith<$Res> {
+  factory $CoreError_ConnectionCopyWith(CoreError_Connection value, $Res Function(CoreError_Connection) _then) = _$CoreError_ConnectionCopyWithImpl;
+@useResult
+$Res call({
+ String message
+});
+
+
+
+
+}
+/// @nodoc
+class _$CoreError_ConnectionCopyWithImpl<$Res>
+    implements $CoreError_ConnectionCopyWith<$Res> {
+  _$CoreError_ConnectionCopyWithImpl(this._self, this._then);
+
+  final CoreError_Connection _self;
+  final $Res Function(CoreError_Connection) _then;
+
+/// Create a copy of CoreError
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? message = null,}) {
+  return _then(CoreError_Connection(
+message: null == message ? _self.message : message // ignore: cast_nullable_to_non_nullable
+as String,
+  ));
+}
+
+
+}
+
+/// @nodoc
+
+
+class CoreError_Storage extends CoreError {
+  const CoreError_Storage({required this.message}): super._();
+  
+
+ final  String message;
+
+/// Create a copy of CoreError
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$CoreError_StorageCopyWith<CoreError_Storage> get copyWith => _$CoreError_StorageCopyWithImpl<CoreError_Storage>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is CoreError_Storage&&(identical(other.message, message) || other.message == message));
+}
+
+
+@override
+int get hashCode => Object.hash(runtimeType,message);
+
+@override
+String toString() {
+  return 'CoreError.storage(message: $message)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $CoreError_StorageCopyWith<$Res> implements $CoreErrorCopyWith<$Res> {
+  factory $CoreError_StorageCopyWith(CoreError_Storage value, $Res Function(CoreError_Storage) _then) = _$CoreError_StorageCopyWithImpl;
+@useResult
+$Res call({
+ String message
+});
+
+
+
+
+}
+/// @nodoc
+class _$CoreError_StorageCopyWithImpl<$Res>
+    implements $CoreError_StorageCopyWith<$Res> {
+  _$CoreError_StorageCopyWithImpl(this._self, this._then);
+
+  final CoreError_Storage _self;
+  final $Res Function(CoreError_Storage) _then;
+
+/// Create a copy of CoreError
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? message = null,}) {
+  return _then(CoreError_Storage(
+message: null == message ? _self.message : message // ignore: cast_nullable_to_non_nullable
+as String,
+  ));
+}
+
+
+}
+
+/// @nodoc
+
+
+class CoreError_Screen extends CoreError {
+  const CoreError_Screen({required this.problem, required this.message}): super._();
+  
+
+ final  ScreenProblem problem;
+ final  String message;
+
+/// Create a copy of CoreError
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$CoreError_ScreenCopyWith<CoreError_Screen> get copyWith => _$CoreError_ScreenCopyWithImpl<CoreError_Screen>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is CoreError_Screen&&(identical(other.problem, problem) || other.problem == problem)&&(identical(other.message, message) || other.message == message));
+}
+
+
+@override
+int get hashCode => Object.hash(runtimeType,problem,message);
+
+@override
+String toString() {
+  return 'CoreError.screen(problem: $problem, message: $message)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $CoreError_ScreenCopyWith<$Res> implements $CoreErrorCopyWith<$Res> {
+  factory $CoreError_ScreenCopyWith(CoreError_Screen value, $Res Function(CoreError_Screen) _then) = _$CoreError_ScreenCopyWithImpl;
+@useResult
+$Res call({
+ ScreenProblem problem, String message
+});
+
+
+
+
+}
+/// @nodoc
+class _$CoreError_ScreenCopyWithImpl<$Res>
+    implements $CoreError_ScreenCopyWith<$Res> {
+  _$CoreError_ScreenCopyWithImpl(this._self, this._then);
+
+  final CoreError_Screen _self;
+  final $Res Function(CoreError_Screen) _then;
+
+/// Create a copy of CoreError
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? problem = null,Object? message = null,}) {
+  return _then(CoreError_Screen(
+problem: null == problem ? _self.problem : problem // ignore: cast_nullable_to_non_nullable
+as ScreenProblem,message: null == message ? _self.message : message // ignore: cast_nullable_to_non_nullable
+as String,
+  ));
+}
+
+
+}
+
+/// @nodoc
+
+
+class CoreError_Camera extends CoreError {
+  const CoreError_Camera({required this.problem, required this.message}): super._();
+  
+
+ final  CameraProblem problem;
+ final  String message;
+
+/// Create a copy of CoreError
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$CoreError_CameraCopyWith<CoreError_Camera> get copyWith => _$CoreError_CameraCopyWithImpl<CoreError_Camera>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is CoreError_Camera&&(identical(other.problem, problem) || other.problem == problem)&&(identical(other.message, message) || other.message == message));
+}
+
+
+@override
+int get hashCode => Object.hash(runtimeType,problem,message);
+
+@override
+String toString() {
+  return 'CoreError.camera(problem: $problem, message: $message)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $CoreError_CameraCopyWith<$Res> implements $CoreErrorCopyWith<$Res> {
+  factory $CoreError_CameraCopyWith(CoreError_Camera value, $Res Function(CoreError_Camera) _then) = _$CoreError_CameraCopyWithImpl;
+@useResult
+$Res call({
+ CameraProblem problem, String message
+});
+
+
+
+
+}
+/// @nodoc
+class _$CoreError_CameraCopyWithImpl<$Res>
+    implements $CoreError_CameraCopyWith<$Res> {
+  _$CoreError_CameraCopyWithImpl(this._self, this._then);
+
+  final CoreError_Camera _self;
+  final $Res Function(CoreError_Camera) _then;
+
+/// Create a copy of CoreError
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? problem = null,Object? message = null,}) {
+  return _then(CoreError_Camera(
+problem: null == problem ? _self.problem : problem // ignore: cast_nullable_to_non_nullable
+as CameraProblem,message: null == message ? _self.message : message // ignore: cast_nullable_to_non_nullable
+as String,
+  ));
+}
+
+
+}
+
+/// @nodoc
+
+
+class CoreError_Cancelled extends CoreError {
+  const CoreError_Cancelled(): super._();
+  
+
+
+
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is CoreError_Cancelled);
+}
+
+
+@override
+int get hashCode => runtimeType.hashCode;
+
+@override
+String toString() {
+  return 'CoreError.cancelled()';
+}
+
+
+}
+
+
+
+
+/// @nodoc
+mixin _$CoreEventPayload {
+
+
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is CoreEventPayload);
+}
+
+
+@override
+int get hashCode => runtimeType.hashCode;
+
+@override
+String toString() {
+  return 'CoreEventPayload()';
+}
+
+
+}
+
+/// @nodoc
+class $CoreEventPayloadCopyWith<$Res>  {
+$CoreEventPayloadCopyWith(CoreEventPayload _, $Res Function(CoreEventPayload) __);
+}
+
+
+/// Adds pattern-matching-related methods to [CoreEventPayload].
+extension CoreEventPayloadPatterns on CoreEventPayload {
+/// A variant of `map` that fallback to returning `orElse`.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case _:
+///     return orElse();
+/// }
+/// ```
+
+@optionalTypeArgs TResult maybeMap<TResult extends Object?>({TResult Function( CoreEventPayload_ConnectionState value)?  connectionState,TResult Function( CoreEventPayload_Ready value)?  ready,TResult Function( CoreEventPayload_MessageCreate value)?  messageCreate,TResult Function( CoreEventPayload_MessageUpdate value)?  messageUpdate,TResult Function( CoreEventPayload_MessageDelete value)?  messageDelete,TResult Function( CoreEventPayload_ChannelCreate value)?  channelCreate,TResult Function( CoreEventPayload_ChannelUpdate value)?  channelUpdate,TResult Function( CoreEventPayload_ChannelDelete value)?  channelDelete,TResult Function( CoreEventPayload_RoleCreate value)?  roleCreate,TResult Function( CoreEventPayload_RoleUpdate value)?  roleUpdate,TResult Function( CoreEventPayload_RoleDelete value)?  roleDelete,TResult Function( CoreEventPayload_MemberJoin value)?  memberJoin,TResult Function( CoreEventPayload_MemberLeave value)?  memberLeave,TResult Function( CoreEventPayload_MemberUpdate value)?  memberUpdate,TResult Function( CoreEventPayload_PresenceUpdate value)?  presenceUpdate,TResult Function( CoreEventPayload_TypingStart value)?  typingStart,TResult Function( CoreEventPayload_ServerUpdate value)?  serverUpdate,TResult Function( CoreEventPayload_PermissionsUpdate value)?  permissionsUpdate,TResult Function( CoreEventPayload_VoiceStateUpdate value)?  voiceStateUpdate,TResult Function( CoreEventPayload_VoiceSettingsUpdate value)?  voiceSettingsUpdate,TResult Function( CoreEventPayload_StreamCreate value)?  streamCreate,TResult Function( CoreEventPayload_StreamUpdate value)?  streamUpdate,TResult Function( CoreEventPayload_StreamDelete value)?  streamDelete,TResult Function( CoreEventPayload_StreamViewersUpdate value)?  streamViewersUpdate,TResult Function( CoreEventPayload_SoundboardSoundCreate value)?  soundboardSoundCreate,TResult Function( CoreEventPayload_SoundboardSoundUpdate value)?  soundboardSoundUpdate,TResult Function( CoreEventPayload_SoundboardSoundDelete value)?  soundboardSoundDelete,TResult Function( CoreEventPayload_VoiceChannelEffect value)?  voiceChannelEffect,TResult Function( CoreEventPayload_ServerAddressesUpdate value)?  serverAddressesUpdate,TResult Function( CoreEventPayload_NetworkStatus value)?  networkStatus,TResult Function( CoreEventPayload_ServerNotice value)?  serverNotice,TResult Function( CoreEventPayload_LavalinkNodeStatus value)?  lavalinkNodeStatus,TResult Function( CoreEventPayload_LavalinkNodeRemoved value)?  lavalinkNodeRemoved,TResult Function( CoreEventPayload_LavalinkNodeEvent value)?  lavalinkNodeEvent,TResult Function( CoreEventPayload_LavalinkTestProgress value)?  lavalinkTestProgress,TResult Function( CoreEventPayload_MusicSettingsUpdate value)?  musicSettingsUpdate,TResult Function( CoreEventPayload_MusicSession value)?  musicSession,TResult Function( CoreEventPayload_MusicNowPlaying value)?  musicNowPlaying,TResult Function( CoreEventPayload_MusicNotice value)?  musicNotice,TResult Function( CoreEventPayload_CommandsUpdate value)?  commandsUpdate,TResult Function( CoreEventPayload_EphemeralMessage value)?  ephemeralMessage,TResult Function( CoreEventPayload_UploadSettingsUpdate value)?  uploadSettingsUpdate,TResult Function( CoreEventPayload_StorageUpdate value)?  storageUpdate,TResult Function( CoreEventPayload_StagedUploadProgress value)?  stagedUploadProgress,TResult Function( CoreEventPayload_UploadProgress value)?  uploadProgress,TResult Function( CoreEventPayload_DownloadProgress value)?  downloadProgress,required TResult orElse(),}){
+final _that = this;
+switch (_that) {
+case CoreEventPayload_ConnectionState() when connectionState != null:
+return connectionState(_that);case CoreEventPayload_Ready() when ready != null:
+return ready(_that);case CoreEventPayload_MessageCreate() when messageCreate != null:
+return messageCreate(_that);case CoreEventPayload_MessageUpdate() when messageUpdate != null:
+return messageUpdate(_that);case CoreEventPayload_MessageDelete() when messageDelete != null:
+return messageDelete(_that);case CoreEventPayload_ChannelCreate() when channelCreate != null:
+return channelCreate(_that);case CoreEventPayload_ChannelUpdate() when channelUpdate != null:
+return channelUpdate(_that);case CoreEventPayload_ChannelDelete() when channelDelete != null:
+return channelDelete(_that);case CoreEventPayload_RoleCreate() when roleCreate != null:
+return roleCreate(_that);case CoreEventPayload_RoleUpdate() when roleUpdate != null:
+return roleUpdate(_that);case CoreEventPayload_RoleDelete() when roleDelete != null:
+return roleDelete(_that);case CoreEventPayload_MemberJoin() when memberJoin != null:
+return memberJoin(_that);case CoreEventPayload_MemberLeave() when memberLeave != null:
+return memberLeave(_that);case CoreEventPayload_MemberUpdate() when memberUpdate != null:
+return memberUpdate(_that);case CoreEventPayload_PresenceUpdate() when presenceUpdate != null:
+return presenceUpdate(_that);case CoreEventPayload_TypingStart() when typingStart != null:
+return typingStart(_that);case CoreEventPayload_ServerUpdate() when serverUpdate != null:
+return serverUpdate(_that);case CoreEventPayload_PermissionsUpdate() when permissionsUpdate != null:
+return permissionsUpdate(_that);case CoreEventPayload_VoiceStateUpdate() when voiceStateUpdate != null:
+return voiceStateUpdate(_that);case CoreEventPayload_VoiceSettingsUpdate() when voiceSettingsUpdate != null:
+return voiceSettingsUpdate(_that);case CoreEventPayload_StreamCreate() when streamCreate != null:
+return streamCreate(_that);case CoreEventPayload_StreamUpdate() when streamUpdate != null:
+return streamUpdate(_that);case CoreEventPayload_StreamDelete() when streamDelete != null:
+return streamDelete(_that);case CoreEventPayload_StreamViewersUpdate() when streamViewersUpdate != null:
+return streamViewersUpdate(_that);case CoreEventPayload_SoundboardSoundCreate() when soundboardSoundCreate != null:
+return soundboardSoundCreate(_that);case CoreEventPayload_SoundboardSoundUpdate() when soundboardSoundUpdate != null:
+return soundboardSoundUpdate(_that);case CoreEventPayload_SoundboardSoundDelete() when soundboardSoundDelete != null:
+return soundboardSoundDelete(_that);case CoreEventPayload_VoiceChannelEffect() when voiceChannelEffect != null:
+return voiceChannelEffect(_that);case CoreEventPayload_ServerAddressesUpdate() when serverAddressesUpdate != null:
+return serverAddressesUpdate(_that);case CoreEventPayload_NetworkStatus() when networkStatus != null:
+return networkStatus(_that);case CoreEventPayload_ServerNotice() when serverNotice != null:
+return serverNotice(_that);case CoreEventPayload_LavalinkNodeStatus() when lavalinkNodeStatus != null:
+return lavalinkNodeStatus(_that);case CoreEventPayload_LavalinkNodeRemoved() when lavalinkNodeRemoved != null:
+return lavalinkNodeRemoved(_that);case CoreEventPayload_LavalinkNodeEvent() when lavalinkNodeEvent != null:
+return lavalinkNodeEvent(_that);case CoreEventPayload_LavalinkTestProgress() when lavalinkTestProgress != null:
+return lavalinkTestProgress(_that);case CoreEventPayload_MusicSettingsUpdate() when musicSettingsUpdate != null:
+return musicSettingsUpdate(_that);case CoreEventPayload_MusicSession() when musicSession != null:
+return musicSession(_that);case CoreEventPayload_MusicNowPlaying() when musicNowPlaying != null:
+return musicNowPlaying(_that);case CoreEventPayload_MusicNotice() when musicNotice != null:
+return musicNotice(_that);case CoreEventPayload_CommandsUpdate() when commandsUpdate != null:
+return commandsUpdate(_that);case CoreEventPayload_EphemeralMessage() when ephemeralMessage != null:
+return ephemeralMessage(_that);case CoreEventPayload_UploadSettingsUpdate() when uploadSettingsUpdate != null:
+return uploadSettingsUpdate(_that);case CoreEventPayload_StorageUpdate() when storageUpdate != null:
+return storageUpdate(_that);case CoreEventPayload_StagedUploadProgress() when stagedUploadProgress != null:
+return stagedUploadProgress(_that);case CoreEventPayload_UploadProgress() when uploadProgress != null:
+return uploadProgress(_that);case CoreEventPayload_DownloadProgress() when downloadProgress != null:
+return downloadProgress(_that);case _:
+  return orElse();
+
+}
+}
+/// A `switch`-like method, using callbacks.
+///
+/// Callbacks receives the raw object, upcasted.
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case final Subclass2 value:
+///     return ...;
+/// }
+/// ```
+
+@optionalTypeArgs TResult map<TResult extends Object?>({required TResult Function( CoreEventPayload_ConnectionState value)  connectionState,required TResult Function( CoreEventPayload_Ready value)  ready,required TResult Function( CoreEventPayload_MessageCreate value)  messageCreate,required TResult Function( CoreEventPayload_MessageUpdate value)  messageUpdate,required TResult Function( CoreEventPayload_MessageDelete value)  messageDelete,required TResult Function( CoreEventPayload_ChannelCreate value)  channelCreate,required TResult Function( CoreEventPayload_ChannelUpdate value)  channelUpdate,required TResult Function( CoreEventPayload_ChannelDelete value)  channelDelete,required TResult Function( CoreEventPayload_RoleCreate value)  roleCreate,required TResult Function( CoreEventPayload_RoleUpdate value)  roleUpdate,required TResult Function( CoreEventPayload_RoleDelete value)  roleDelete,required TResult Function( CoreEventPayload_MemberJoin value)  memberJoin,required TResult Function( CoreEventPayload_MemberLeave value)  memberLeave,required TResult Function( CoreEventPayload_MemberUpdate value)  memberUpdate,required TResult Function( CoreEventPayload_PresenceUpdate value)  presenceUpdate,required TResult Function( CoreEventPayload_TypingStart value)  typingStart,required TResult Function( CoreEventPayload_ServerUpdate value)  serverUpdate,required TResult Function( CoreEventPayload_PermissionsUpdate value)  permissionsUpdate,required TResult Function( CoreEventPayload_VoiceStateUpdate value)  voiceStateUpdate,required TResult Function( CoreEventPayload_VoiceSettingsUpdate value)  voiceSettingsUpdate,required TResult Function( CoreEventPayload_StreamCreate value)  streamCreate,required TResult Function( CoreEventPayload_StreamUpdate value)  streamUpdate,required TResult Function( CoreEventPayload_StreamDelete value)  streamDelete,required TResult Function( CoreEventPayload_StreamViewersUpdate value)  streamViewersUpdate,required TResult Function( CoreEventPayload_SoundboardSoundCreate value)  soundboardSoundCreate,required TResult Function( CoreEventPayload_SoundboardSoundUpdate value)  soundboardSoundUpdate,required TResult Function( CoreEventPayload_SoundboardSoundDelete value)  soundboardSoundDelete,required TResult Function( CoreEventPayload_VoiceChannelEffect value)  voiceChannelEffect,required TResult Function( CoreEventPayload_ServerAddressesUpdate value)  serverAddressesUpdate,required TResult Function( CoreEventPayload_NetworkStatus value)  networkStatus,required TResult Function( CoreEventPayload_ServerNotice value)  serverNotice,required TResult Function( CoreEventPayload_LavalinkNodeStatus value)  lavalinkNodeStatus,required TResult Function( CoreEventPayload_LavalinkNodeRemoved value)  lavalinkNodeRemoved,required TResult Function( CoreEventPayload_LavalinkNodeEvent value)  lavalinkNodeEvent,required TResult Function( CoreEventPayload_LavalinkTestProgress value)  lavalinkTestProgress,required TResult Function( CoreEventPayload_MusicSettingsUpdate value)  musicSettingsUpdate,required TResult Function( CoreEventPayload_MusicSession value)  musicSession,required TResult Function( CoreEventPayload_MusicNowPlaying value)  musicNowPlaying,required TResult Function( CoreEventPayload_MusicNotice value)  musicNotice,required TResult Function( CoreEventPayload_CommandsUpdate value)  commandsUpdate,required TResult Function( CoreEventPayload_EphemeralMessage value)  ephemeralMessage,required TResult Function( CoreEventPayload_UploadSettingsUpdate value)  uploadSettingsUpdate,required TResult Function( CoreEventPayload_StorageUpdate value)  storageUpdate,required TResult Function( CoreEventPayload_StagedUploadProgress value)  stagedUploadProgress,required TResult Function( CoreEventPayload_UploadProgress value)  uploadProgress,required TResult Function( CoreEventPayload_DownloadProgress value)  downloadProgress,}){
+final _that = this;
+switch (_that) {
+case CoreEventPayload_ConnectionState():
+return connectionState(_that);case CoreEventPayload_Ready():
+return ready(_that);case CoreEventPayload_MessageCreate():
+return messageCreate(_that);case CoreEventPayload_MessageUpdate():
+return messageUpdate(_that);case CoreEventPayload_MessageDelete():
+return messageDelete(_that);case CoreEventPayload_ChannelCreate():
+return channelCreate(_that);case CoreEventPayload_ChannelUpdate():
+return channelUpdate(_that);case CoreEventPayload_ChannelDelete():
+return channelDelete(_that);case CoreEventPayload_RoleCreate():
+return roleCreate(_that);case CoreEventPayload_RoleUpdate():
+return roleUpdate(_that);case CoreEventPayload_RoleDelete():
+return roleDelete(_that);case CoreEventPayload_MemberJoin():
+return memberJoin(_that);case CoreEventPayload_MemberLeave():
+return memberLeave(_that);case CoreEventPayload_MemberUpdate():
+return memberUpdate(_that);case CoreEventPayload_PresenceUpdate():
+return presenceUpdate(_that);case CoreEventPayload_TypingStart():
+return typingStart(_that);case CoreEventPayload_ServerUpdate():
+return serverUpdate(_that);case CoreEventPayload_PermissionsUpdate():
+return permissionsUpdate(_that);case CoreEventPayload_VoiceStateUpdate():
+return voiceStateUpdate(_that);case CoreEventPayload_VoiceSettingsUpdate():
+return voiceSettingsUpdate(_that);case CoreEventPayload_StreamCreate():
+return streamCreate(_that);case CoreEventPayload_StreamUpdate():
+return streamUpdate(_that);case CoreEventPayload_StreamDelete():
+return streamDelete(_that);case CoreEventPayload_StreamViewersUpdate():
+return streamViewersUpdate(_that);case CoreEventPayload_SoundboardSoundCreate():
+return soundboardSoundCreate(_that);case CoreEventPayload_SoundboardSoundUpdate():
+return soundboardSoundUpdate(_that);case CoreEventPayload_SoundboardSoundDelete():
+return soundboardSoundDelete(_that);case CoreEventPayload_VoiceChannelEffect():
+return voiceChannelEffect(_that);case CoreEventPayload_ServerAddressesUpdate():
+return serverAddressesUpdate(_that);case CoreEventPayload_NetworkStatus():
+return networkStatus(_that);case CoreEventPayload_ServerNotice():
+return serverNotice(_that);case CoreEventPayload_LavalinkNodeStatus():
+return lavalinkNodeStatus(_that);case CoreEventPayload_LavalinkNodeRemoved():
+return lavalinkNodeRemoved(_that);case CoreEventPayload_LavalinkNodeEvent():
+return lavalinkNodeEvent(_that);case CoreEventPayload_LavalinkTestProgress():
+return lavalinkTestProgress(_that);case CoreEventPayload_MusicSettingsUpdate():
+return musicSettingsUpdate(_that);case CoreEventPayload_MusicSession():
+return musicSession(_that);case CoreEventPayload_MusicNowPlaying():
+return musicNowPlaying(_that);case CoreEventPayload_MusicNotice():
+return musicNotice(_that);case CoreEventPayload_CommandsUpdate():
+return commandsUpdate(_that);case CoreEventPayload_EphemeralMessage():
+return ephemeralMessage(_that);case CoreEventPayload_UploadSettingsUpdate():
+return uploadSettingsUpdate(_that);case CoreEventPayload_StorageUpdate():
+return storageUpdate(_that);case CoreEventPayload_StagedUploadProgress():
+return stagedUploadProgress(_that);case CoreEventPayload_UploadProgress():
+return uploadProgress(_that);case CoreEventPayload_DownloadProgress():
+return downloadProgress(_that);}
+}
+/// A variant of `map` that fallback to returning `null`.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case _:
+///     return null;
+/// }
+/// ```
+
+@optionalTypeArgs TResult? mapOrNull<TResult extends Object?>({TResult? Function( CoreEventPayload_ConnectionState value)?  connectionState,TResult? Function( CoreEventPayload_Ready value)?  ready,TResult? Function( CoreEventPayload_MessageCreate value)?  messageCreate,TResult? Function( CoreEventPayload_MessageUpdate value)?  messageUpdate,TResult? Function( CoreEventPayload_MessageDelete value)?  messageDelete,TResult? Function( CoreEventPayload_ChannelCreate value)?  channelCreate,TResult? Function( CoreEventPayload_ChannelUpdate value)?  channelUpdate,TResult? Function( CoreEventPayload_ChannelDelete value)?  channelDelete,TResult? Function( CoreEventPayload_RoleCreate value)?  roleCreate,TResult? Function( CoreEventPayload_RoleUpdate value)?  roleUpdate,TResult? Function( CoreEventPayload_RoleDelete value)?  roleDelete,TResult? Function( CoreEventPayload_MemberJoin value)?  memberJoin,TResult? Function( CoreEventPayload_MemberLeave value)?  memberLeave,TResult? Function( CoreEventPayload_MemberUpdate value)?  memberUpdate,TResult? Function( CoreEventPayload_PresenceUpdate value)?  presenceUpdate,TResult? Function( CoreEventPayload_TypingStart value)?  typingStart,TResult? Function( CoreEventPayload_ServerUpdate value)?  serverUpdate,TResult? Function( CoreEventPayload_PermissionsUpdate value)?  permissionsUpdate,TResult? Function( CoreEventPayload_VoiceStateUpdate value)?  voiceStateUpdate,TResult? Function( CoreEventPayload_VoiceSettingsUpdate value)?  voiceSettingsUpdate,TResult? Function( CoreEventPayload_StreamCreate value)?  streamCreate,TResult? Function( CoreEventPayload_StreamUpdate value)?  streamUpdate,TResult? Function( CoreEventPayload_StreamDelete value)?  streamDelete,TResult? Function( CoreEventPayload_StreamViewersUpdate value)?  streamViewersUpdate,TResult? Function( CoreEventPayload_SoundboardSoundCreate value)?  soundboardSoundCreate,TResult? Function( CoreEventPayload_SoundboardSoundUpdate value)?  soundboardSoundUpdate,TResult? Function( CoreEventPayload_SoundboardSoundDelete value)?  soundboardSoundDelete,TResult? Function( CoreEventPayload_VoiceChannelEffect value)?  voiceChannelEffect,TResult? Function( CoreEventPayload_ServerAddressesUpdate value)?  serverAddressesUpdate,TResult? Function( CoreEventPayload_NetworkStatus value)?  networkStatus,TResult? Function( CoreEventPayload_ServerNotice value)?  serverNotice,TResult? Function( CoreEventPayload_LavalinkNodeStatus value)?  lavalinkNodeStatus,TResult? Function( CoreEventPayload_LavalinkNodeRemoved value)?  lavalinkNodeRemoved,TResult? Function( CoreEventPayload_LavalinkNodeEvent value)?  lavalinkNodeEvent,TResult? Function( CoreEventPayload_LavalinkTestProgress value)?  lavalinkTestProgress,TResult? Function( CoreEventPayload_MusicSettingsUpdate value)?  musicSettingsUpdate,TResult? Function( CoreEventPayload_MusicSession value)?  musicSession,TResult? Function( CoreEventPayload_MusicNowPlaying value)?  musicNowPlaying,TResult? Function( CoreEventPayload_MusicNotice value)?  musicNotice,TResult? Function( CoreEventPayload_CommandsUpdate value)?  commandsUpdate,TResult? Function( CoreEventPayload_EphemeralMessage value)?  ephemeralMessage,TResult? Function( CoreEventPayload_UploadSettingsUpdate value)?  uploadSettingsUpdate,TResult? Function( CoreEventPayload_StorageUpdate value)?  storageUpdate,TResult? Function( CoreEventPayload_StagedUploadProgress value)?  stagedUploadProgress,TResult? Function( CoreEventPayload_UploadProgress value)?  uploadProgress,TResult? Function( CoreEventPayload_DownloadProgress value)?  downloadProgress,}){
+final _that = this;
+switch (_that) {
+case CoreEventPayload_ConnectionState() when connectionState != null:
+return connectionState(_that);case CoreEventPayload_Ready() when ready != null:
+return ready(_that);case CoreEventPayload_MessageCreate() when messageCreate != null:
+return messageCreate(_that);case CoreEventPayload_MessageUpdate() when messageUpdate != null:
+return messageUpdate(_that);case CoreEventPayload_MessageDelete() when messageDelete != null:
+return messageDelete(_that);case CoreEventPayload_ChannelCreate() when channelCreate != null:
+return channelCreate(_that);case CoreEventPayload_ChannelUpdate() when channelUpdate != null:
+return channelUpdate(_that);case CoreEventPayload_ChannelDelete() when channelDelete != null:
+return channelDelete(_that);case CoreEventPayload_RoleCreate() when roleCreate != null:
+return roleCreate(_that);case CoreEventPayload_RoleUpdate() when roleUpdate != null:
+return roleUpdate(_that);case CoreEventPayload_RoleDelete() when roleDelete != null:
+return roleDelete(_that);case CoreEventPayload_MemberJoin() when memberJoin != null:
+return memberJoin(_that);case CoreEventPayload_MemberLeave() when memberLeave != null:
+return memberLeave(_that);case CoreEventPayload_MemberUpdate() when memberUpdate != null:
+return memberUpdate(_that);case CoreEventPayload_PresenceUpdate() when presenceUpdate != null:
+return presenceUpdate(_that);case CoreEventPayload_TypingStart() when typingStart != null:
+return typingStart(_that);case CoreEventPayload_ServerUpdate() when serverUpdate != null:
+return serverUpdate(_that);case CoreEventPayload_PermissionsUpdate() when permissionsUpdate != null:
+return permissionsUpdate(_that);case CoreEventPayload_VoiceStateUpdate() when voiceStateUpdate != null:
+return voiceStateUpdate(_that);case CoreEventPayload_VoiceSettingsUpdate() when voiceSettingsUpdate != null:
+return voiceSettingsUpdate(_that);case CoreEventPayload_StreamCreate() when streamCreate != null:
+return streamCreate(_that);case CoreEventPayload_StreamUpdate() when streamUpdate != null:
+return streamUpdate(_that);case CoreEventPayload_StreamDelete() when streamDelete != null:
+return streamDelete(_that);case CoreEventPayload_StreamViewersUpdate() when streamViewersUpdate != null:
+return streamViewersUpdate(_that);case CoreEventPayload_SoundboardSoundCreate() when soundboardSoundCreate != null:
+return soundboardSoundCreate(_that);case CoreEventPayload_SoundboardSoundUpdate() when soundboardSoundUpdate != null:
+return soundboardSoundUpdate(_that);case CoreEventPayload_SoundboardSoundDelete() when soundboardSoundDelete != null:
+return soundboardSoundDelete(_that);case CoreEventPayload_VoiceChannelEffect() when voiceChannelEffect != null:
+return voiceChannelEffect(_that);case CoreEventPayload_ServerAddressesUpdate() when serverAddressesUpdate != null:
+return serverAddressesUpdate(_that);case CoreEventPayload_NetworkStatus() when networkStatus != null:
+return networkStatus(_that);case CoreEventPayload_ServerNotice() when serverNotice != null:
+return serverNotice(_that);case CoreEventPayload_LavalinkNodeStatus() when lavalinkNodeStatus != null:
+return lavalinkNodeStatus(_that);case CoreEventPayload_LavalinkNodeRemoved() when lavalinkNodeRemoved != null:
+return lavalinkNodeRemoved(_that);case CoreEventPayload_LavalinkNodeEvent() when lavalinkNodeEvent != null:
+return lavalinkNodeEvent(_that);case CoreEventPayload_LavalinkTestProgress() when lavalinkTestProgress != null:
+return lavalinkTestProgress(_that);case CoreEventPayload_MusicSettingsUpdate() when musicSettingsUpdate != null:
+return musicSettingsUpdate(_that);case CoreEventPayload_MusicSession() when musicSession != null:
+return musicSession(_that);case CoreEventPayload_MusicNowPlaying() when musicNowPlaying != null:
+return musicNowPlaying(_that);case CoreEventPayload_MusicNotice() when musicNotice != null:
+return musicNotice(_that);case CoreEventPayload_CommandsUpdate() when commandsUpdate != null:
+return commandsUpdate(_that);case CoreEventPayload_EphemeralMessage() when ephemeralMessage != null:
+return ephemeralMessage(_that);case CoreEventPayload_UploadSettingsUpdate() when uploadSettingsUpdate != null:
+return uploadSettingsUpdate(_that);case CoreEventPayload_StorageUpdate() when storageUpdate != null:
+return storageUpdate(_that);case CoreEventPayload_StagedUploadProgress() when stagedUploadProgress != null:
+return stagedUploadProgress(_that);case CoreEventPayload_UploadProgress() when uploadProgress != null:
+return uploadProgress(_that);case CoreEventPayload_DownloadProgress() when downloadProgress != null:
+return downloadProgress(_that);case _:
+  return null;
+
+}
+}
+/// A variant of `when` that fallback to an `orElse` callback.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case _:
+///     return orElse();
+/// }
+/// ```
+
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>({TResult Function( ConnectionState field0)?  connectionState,TResult Function( ReadySnapshot field0)?  ready,TResult Function( Message field0)?  messageCreate,TResult Function( Message field0)?  messageUpdate,TResult Function( PlatformInt64 channelId,  PlatformInt64 messageId)?  messageDelete,TResult Function( Channel field0)?  channelCreate,TResult Function( Channel field0)?  channelUpdate,TResult Function( PlatformInt64 channelId)?  channelDelete,TResult Function( Role field0)?  roleCreate,TResult Function( Role field0)?  roleUpdate,TResult Function( PlatformInt64 roleId)?  roleDelete,TResult Function( Member field0)?  memberJoin,TResult Function( PlatformInt64 userId)?  memberLeave,TResult Function( Member field0)?  memberUpdate,TResult Function( Presence field0)?  presenceUpdate,TResult Function( PlatformInt64 channelId,  PlatformInt64 userId)?  typingStart,TResult Function( ServerInfo field0)?  serverUpdate,TResult Function( PlatformInt64 serverPermissions,  List<ChannelPermissions> channelPermissions)?  permissionsUpdate,TResult Function( VoiceState field0)?  voiceStateUpdate,TResult Function( VoiceSettings field0)?  voiceSettingsUpdate,TResult Function( ScreenStream field0)?  streamCreate,TResult Function( ScreenStream field0)?  streamUpdate,TResult Function( String streamKey,  PlatformInt64 channelId)?  streamDelete,TResult Function( String streamKey,  Int64List viewerIds)?  streamViewersUpdate,TResult Function( SoundboardSound field0)?  soundboardSoundCreate,TResult Function( SoundboardSound field0)?  soundboardSoundUpdate,TResult Function( PlatformInt64 soundId)?  soundboardSoundDelete,TResult Function( SoundEffect field0)?  voiceChannelEffect,TResult Function( ServerAddresses field0)?  serverAddressesUpdate,TResult Function( NetworkInfo field0)?  networkStatus,TResult Function( ServerNotice field0)?  serverNotice,TResult Function( LavalinkNode node,  int channelsPlaying)?  lavalinkNodeStatus,TResult Function( PlatformInt64 nodeId,  int channelsPlaying)?  lavalinkNodeRemoved,TResult Function( LavalinkNodeEvent field0)?  lavalinkNodeEvent,TResult Function( LavalinkTestProgress field0)?  lavalinkTestProgress,TResult Function( MusicSettings field0)?  musicSettingsUpdate,TResult Function( MusicSession field0)?  musicSession,TResult Function( MusicNowPlaying field0)?  musicNowPlaying,TResult Function( MusicNotice field0)?  musicNotice,TResult Function( CommandList field0)?  commandsUpdate,TResult Function( EphemeralMessage field0)?  ephemeralMessage,TResult Function( UploadSettings field0)?  uploadSettingsUpdate,TResult Function( StorageInfo field0)?  storageUpdate,TResult Function( PlatformInt64 channelId,  String stagedId,  BigInt sentBytes,  BigInt totalBytes,  UploadPhase phase)?  stagedUploadProgress,TResult Function( PlatformInt64 channelId,  String nonce,  int fileIndex,  BigInt sentBytes,  BigInt totalBytes,  UploadPhase phase)?  uploadProgress,TResult Function( PlatformInt64 attachmentId,  BigInt receivedBytes,  BigInt totalBytes,  bool done,  String? error)?  downloadProgress,required TResult orElse(),}) {final _that = this;
+switch (_that) {
+case CoreEventPayload_ConnectionState() when connectionState != null:
+return connectionState(_that.field0);case CoreEventPayload_Ready() when ready != null:
+return ready(_that.field0);case CoreEventPayload_MessageCreate() when messageCreate != null:
+return messageCreate(_that.field0);case CoreEventPayload_MessageUpdate() when messageUpdate != null:
+return messageUpdate(_that.field0);case CoreEventPayload_MessageDelete() when messageDelete != null:
+return messageDelete(_that.channelId,_that.messageId);case CoreEventPayload_ChannelCreate() when channelCreate != null:
+return channelCreate(_that.field0);case CoreEventPayload_ChannelUpdate() when channelUpdate != null:
+return channelUpdate(_that.field0);case CoreEventPayload_ChannelDelete() when channelDelete != null:
+return channelDelete(_that.channelId);case CoreEventPayload_RoleCreate() when roleCreate != null:
+return roleCreate(_that.field0);case CoreEventPayload_RoleUpdate() when roleUpdate != null:
+return roleUpdate(_that.field0);case CoreEventPayload_RoleDelete() when roleDelete != null:
+return roleDelete(_that.roleId);case CoreEventPayload_MemberJoin() when memberJoin != null:
+return memberJoin(_that.field0);case CoreEventPayload_MemberLeave() when memberLeave != null:
+return memberLeave(_that.userId);case CoreEventPayload_MemberUpdate() when memberUpdate != null:
+return memberUpdate(_that.field0);case CoreEventPayload_PresenceUpdate() when presenceUpdate != null:
+return presenceUpdate(_that.field0);case CoreEventPayload_TypingStart() when typingStart != null:
+return typingStart(_that.channelId,_that.userId);case CoreEventPayload_ServerUpdate() when serverUpdate != null:
+return serverUpdate(_that.field0);case CoreEventPayload_PermissionsUpdate() when permissionsUpdate != null:
+return permissionsUpdate(_that.serverPermissions,_that.channelPermissions);case CoreEventPayload_VoiceStateUpdate() when voiceStateUpdate != null:
+return voiceStateUpdate(_that.field0);case CoreEventPayload_VoiceSettingsUpdate() when voiceSettingsUpdate != null:
+return voiceSettingsUpdate(_that.field0);case CoreEventPayload_StreamCreate() when streamCreate != null:
+return streamCreate(_that.field0);case CoreEventPayload_StreamUpdate() when streamUpdate != null:
+return streamUpdate(_that.field0);case CoreEventPayload_StreamDelete() when streamDelete != null:
+return streamDelete(_that.streamKey,_that.channelId);case CoreEventPayload_StreamViewersUpdate() when streamViewersUpdate != null:
+return streamViewersUpdate(_that.streamKey,_that.viewerIds);case CoreEventPayload_SoundboardSoundCreate() when soundboardSoundCreate != null:
+return soundboardSoundCreate(_that.field0);case CoreEventPayload_SoundboardSoundUpdate() when soundboardSoundUpdate != null:
+return soundboardSoundUpdate(_that.field0);case CoreEventPayload_SoundboardSoundDelete() when soundboardSoundDelete != null:
+return soundboardSoundDelete(_that.soundId);case CoreEventPayload_VoiceChannelEffect() when voiceChannelEffect != null:
+return voiceChannelEffect(_that.field0);case CoreEventPayload_ServerAddressesUpdate() when serverAddressesUpdate != null:
+return serverAddressesUpdate(_that.field0);case CoreEventPayload_NetworkStatus() when networkStatus != null:
+return networkStatus(_that.field0);case CoreEventPayload_ServerNotice() when serverNotice != null:
+return serverNotice(_that.field0);case CoreEventPayload_LavalinkNodeStatus() when lavalinkNodeStatus != null:
+return lavalinkNodeStatus(_that.node,_that.channelsPlaying);case CoreEventPayload_LavalinkNodeRemoved() when lavalinkNodeRemoved != null:
+return lavalinkNodeRemoved(_that.nodeId,_that.channelsPlaying);case CoreEventPayload_LavalinkNodeEvent() when lavalinkNodeEvent != null:
+return lavalinkNodeEvent(_that.field0);case CoreEventPayload_LavalinkTestProgress() when lavalinkTestProgress != null:
+return lavalinkTestProgress(_that.field0);case CoreEventPayload_MusicSettingsUpdate() when musicSettingsUpdate != null:
+return musicSettingsUpdate(_that.field0);case CoreEventPayload_MusicSession() when musicSession != null:
+return musicSession(_that.field0);case CoreEventPayload_MusicNowPlaying() when musicNowPlaying != null:
+return musicNowPlaying(_that.field0);case CoreEventPayload_MusicNotice() when musicNotice != null:
+return musicNotice(_that.field0);case CoreEventPayload_CommandsUpdate() when commandsUpdate != null:
+return commandsUpdate(_that.field0);case CoreEventPayload_EphemeralMessage() when ephemeralMessage != null:
+return ephemeralMessage(_that.field0);case CoreEventPayload_UploadSettingsUpdate() when uploadSettingsUpdate != null:
+return uploadSettingsUpdate(_that.field0);case CoreEventPayload_StorageUpdate() when storageUpdate != null:
+return storageUpdate(_that.field0);case CoreEventPayload_StagedUploadProgress() when stagedUploadProgress != null:
+return stagedUploadProgress(_that.channelId,_that.stagedId,_that.sentBytes,_that.totalBytes,_that.phase);case CoreEventPayload_UploadProgress() when uploadProgress != null:
+return uploadProgress(_that.channelId,_that.nonce,_that.fileIndex,_that.sentBytes,_that.totalBytes,_that.phase);case CoreEventPayload_DownloadProgress() when downloadProgress != null:
+return downloadProgress(_that.attachmentId,_that.receivedBytes,_that.totalBytes,_that.done,_that.error);case _:
+  return orElse();
+
+}
+}
+/// A `switch`-like method, using callbacks.
+///
+/// As opposed to `map`, this offers destructuring.
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case Subclass2(:final field2):
+///     return ...;
+/// }
+/// ```
+
+@optionalTypeArgs TResult when<TResult extends Object?>({required TResult Function( ConnectionState field0)  connectionState,required TResult Function( ReadySnapshot field0)  ready,required TResult Function( Message field0)  messageCreate,required TResult Function( Message field0)  messageUpdate,required TResult Function( PlatformInt64 channelId,  PlatformInt64 messageId)  messageDelete,required TResult Function( Channel field0)  channelCreate,required TResult Function( Channel field0)  channelUpdate,required TResult Function( PlatformInt64 channelId)  channelDelete,required TResult Function( Role field0)  roleCreate,required TResult Function( Role field0)  roleUpdate,required TResult Function( PlatformInt64 roleId)  roleDelete,required TResult Function( Member field0)  memberJoin,required TResult Function( PlatformInt64 userId)  memberLeave,required TResult Function( Member field0)  memberUpdate,required TResult Function( Presence field0)  presenceUpdate,required TResult Function( PlatformInt64 channelId,  PlatformInt64 userId)  typingStart,required TResult Function( ServerInfo field0)  serverUpdate,required TResult Function( PlatformInt64 serverPermissions,  List<ChannelPermissions> channelPermissions)  permissionsUpdate,required TResult Function( VoiceState field0)  voiceStateUpdate,required TResult Function( VoiceSettings field0)  voiceSettingsUpdate,required TResult Function( ScreenStream field0)  streamCreate,required TResult Function( ScreenStream field0)  streamUpdate,required TResult Function( String streamKey,  PlatformInt64 channelId)  streamDelete,required TResult Function( String streamKey,  Int64List viewerIds)  streamViewersUpdate,required TResult Function( SoundboardSound field0)  soundboardSoundCreate,required TResult Function( SoundboardSound field0)  soundboardSoundUpdate,required TResult Function( PlatformInt64 soundId)  soundboardSoundDelete,required TResult Function( SoundEffect field0)  voiceChannelEffect,required TResult Function( ServerAddresses field0)  serverAddressesUpdate,required TResult Function( NetworkInfo field0)  networkStatus,required TResult Function( ServerNotice field0)  serverNotice,required TResult Function( LavalinkNode node,  int channelsPlaying)  lavalinkNodeStatus,required TResult Function( PlatformInt64 nodeId,  int channelsPlaying)  lavalinkNodeRemoved,required TResult Function( LavalinkNodeEvent field0)  lavalinkNodeEvent,required TResult Function( LavalinkTestProgress field0)  lavalinkTestProgress,required TResult Function( MusicSettings field0)  musicSettingsUpdate,required TResult Function( MusicSession field0)  musicSession,required TResult Function( MusicNowPlaying field0)  musicNowPlaying,required TResult Function( MusicNotice field0)  musicNotice,required TResult Function( CommandList field0)  commandsUpdate,required TResult Function( EphemeralMessage field0)  ephemeralMessage,required TResult Function( UploadSettings field0)  uploadSettingsUpdate,required TResult Function( StorageInfo field0)  storageUpdate,required TResult Function( PlatformInt64 channelId,  String stagedId,  BigInt sentBytes,  BigInt totalBytes,  UploadPhase phase)  stagedUploadProgress,required TResult Function( PlatformInt64 channelId,  String nonce,  int fileIndex,  BigInt sentBytes,  BigInt totalBytes,  UploadPhase phase)  uploadProgress,required TResult Function( PlatformInt64 attachmentId,  BigInt receivedBytes,  BigInt totalBytes,  bool done,  String? error)  downloadProgress,}) {final _that = this;
+switch (_that) {
+case CoreEventPayload_ConnectionState():
+return connectionState(_that.field0);case CoreEventPayload_Ready():
+return ready(_that.field0);case CoreEventPayload_MessageCreate():
+return messageCreate(_that.field0);case CoreEventPayload_MessageUpdate():
+return messageUpdate(_that.field0);case CoreEventPayload_MessageDelete():
+return messageDelete(_that.channelId,_that.messageId);case CoreEventPayload_ChannelCreate():
+return channelCreate(_that.field0);case CoreEventPayload_ChannelUpdate():
+return channelUpdate(_that.field0);case CoreEventPayload_ChannelDelete():
+return channelDelete(_that.channelId);case CoreEventPayload_RoleCreate():
+return roleCreate(_that.field0);case CoreEventPayload_RoleUpdate():
+return roleUpdate(_that.field0);case CoreEventPayload_RoleDelete():
+return roleDelete(_that.roleId);case CoreEventPayload_MemberJoin():
+return memberJoin(_that.field0);case CoreEventPayload_MemberLeave():
+return memberLeave(_that.userId);case CoreEventPayload_MemberUpdate():
+return memberUpdate(_that.field0);case CoreEventPayload_PresenceUpdate():
+return presenceUpdate(_that.field0);case CoreEventPayload_TypingStart():
+return typingStart(_that.channelId,_that.userId);case CoreEventPayload_ServerUpdate():
+return serverUpdate(_that.field0);case CoreEventPayload_PermissionsUpdate():
+return permissionsUpdate(_that.serverPermissions,_that.channelPermissions);case CoreEventPayload_VoiceStateUpdate():
+return voiceStateUpdate(_that.field0);case CoreEventPayload_VoiceSettingsUpdate():
+return voiceSettingsUpdate(_that.field0);case CoreEventPayload_StreamCreate():
+return streamCreate(_that.field0);case CoreEventPayload_StreamUpdate():
+return streamUpdate(_that.field0);case CoreEventPayload_StreamDelete():
+return streamDelete(_that.streamKey,_that.channelId);case CoreEventPayload_StreamViewersUpdate():
+return streamViewersUpdate(_that.streamKey,_that.viewerIds);case CoreEventPayload_SoundboardSoundCreate():
+return soundboardSoundCreate(_that.field0);case CoreEventPayload_SoundboardSoundUpdate():
+return soundboardSoundUpdate(_that.field0);case CoreEventPayload_SoundboardSoundDelete():
+return soundboardSoundDelete(_that.soundId);case CoreEventPayload_VoiceChannelEffect():
+return voiceChannelEffect(_that.field0);case CoreEventPayload_ServerAddressesUpdate():
+return serverAddressesUpdate(_that.field0);case CoreEventPayload_NetworkStatus():
+return networkStatus(_that.field0);case CoreEventPayload_ServerNotice():
+return serverNotice(_that.field0);case CoreEventPayload_LavalinkNodeStatus():
+return lavalinkNodeStatus(_that.node,_that.channelsPlaying);case CoreEventPayload_LavalinkNodeRemoved():
+return lavalinkNodeRemoved(_that.nodeId,_that.channelsPlaying);case CoreEventPayload_LavalinkNodeEvent():
+return lavalinkNodeEvent(_that.field0);case CoreEventPayload_LavalinkTestProgress():
+return lavalinkTestProgress(_that.field0);case CoreEventPayload_MusicSettingsUpdate():
+return musicSettingsUpdate(_that.field0);case CoreEventPayload_MusicSession():
+return musicSession(_that.field0);case CoreEventPayload_MusicNowPlaying():
+return musicNowPlaying(_that.field0);case CoreEventPayload_MusicNotice():
+return musicNotice(_that.field0);case CoreEventPayload_CommandsUpdate():
+return commandsUpdate(_that.field0);case CoreEventPayload_EphemeralMessage():
+return ephemeralMessage(_that.field0);case CoreEventPayload_UploadSettingsUpdate():
+return uploadSettingsUpdate(_that.field0);case CoreEventPayload_StorageUpdate():
+return storageUpdate(_that.field0);case CoreEventPayload_StagedUploadProgress():
+return stagedUploadProgress(_that.channelId,_that.stagedId,_that.sentBytes,_that.totalBytes,_that.phase);case CoreEventPayload_UploadProgress():
+return uploadProgress(_that.channelId,_that.nonce,_that.fileIndex,_that.sentBytes,_that.totalBytes,_that.phase);case CoreEventPayload_DownloadProgress():
+return downloadProgress(_that.attachmentId,_that.receivedBytes,_that.totalBytes,_that.done,_that.error);}
+}
+/// A variant of `when` that fallback to returning `null`
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case _:
+///     return null;
+/// }
+/// ```
+
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>({TResult? Function( ConnectionState field0)?  connectionState,TResult? Function( ReadySnapshot field0)?  ready,TResult? Function( Message field0)?  messageCreate,TResult? Function( Message field0)?  messageUpdate,TResult? Function( PlatformInt64 channelId,  PlatformInt64 messageId)?  messageDelete,TResult? Function( Channel field0)?  channelCreate,TResult? Function( Channel field0)?  channelUpdate,TResult? Function( PlatformInt64 channelId)?  channelDelete,TResult? Function( Role field0)?  roleCreate,TResult? Function( Role field0)?  roleUpdate,TResult? Function( PlatformInt64 roleId)?  roleDelete,TResult? Function( Member field0)?  memberJoin,TResult? Function( PlatformInt64 userId)?  memberLeave,TResult? Function( Member field0)?  memberUpdate,TResult? Function( Presence field0)?  presenceUpdate,TResult? Function( PlatformInt64 channelId,  PlatformInt64 userId)?  typingStart,TResult? Function( ServerInfo field0)?  serverUpdate,TResult? Function( PlatformInt64 serverPermissions,  List<ChannelPermissions> channelPermissions)?  permissionsUpdate,TResult? Function( VoiceState field0)?  voiceStateUpdate,TResult? Function( VoiceSettings field0)?  voiceSettingsUpdate,TResult? Function( ScreenStream field0)?  streamCreate,TResult? Function( ScreenStream field0)?  streamUpdate,TResult? Function( String streamKey,  PlatformInt64 channelId)?  streamDelete,TResult? Function( String streamKey,  Int64List viewerIds)?  streamViewersUpdate,TResult? Function( SoundboardSound field0)?  soundboardSoundCreate,TResult? Function( SoundboardSound field0)?  soundboardSoundUpdate,TResult? Function( PlatformInt64 soundId)?  soundboardSoundDelete,TResult? Function( SoundEffect field0)?  voiceChannelEffect,TResult? Function( ServerAddresses field0)?  serverAddressesUpdate,TResult? Function( NetworkInfo field0)?  networkStatus,TResult? Function( ServerNotice field0)?  serverNotice,TResult? Function( LavalinkNode node,  int channelsPlaying)?  lavalinkNodeStatus,TResult? Function( PlatformInt64 nodeId,  int channelsPlaying)?  lavalinkNodeRemoved,TResult? Function( LavalinkNodeEvent field0)?  lavalinkNodeEvent,TResult? Function( LavalinkTestProgress field0)?  lavalinkTestProgress,TResult? Function( MusicSettings field0)?  musicSettingsUpdate,TResult? Function( MusicSession field0)?  musicSession,TResult? Function( MusicNowPlaying field0)?  musicNowPlaying,TResult? Function( MusicNotice field0)?  musicNotice,TResult? Function( CommandList field0)?  commandsUpdate,TResult? Function( EphemeralMessage field0)?  ephemeralMessage,TResult? Function( UploadSettings field0)?  uploadSettingsUpdate,TResult? Function( StorageInfo field0)?  storageUpdate,TResult? Function( PlatformInt64 channelId,  String stagedId,  BigInt sentBytes,  BigInt totalBytes,  UploadPhase phase)?  stagedUploadProgress,TResult? Function( PlatformInt64 channelId,  String nonce,  int fileIndex,  BigInt sentBytes,  BigInt totalBytes,  UploadPhase phase)?  uploadProgress,TResult? Function( PlatformInt64 attachmentId,  BigInt receivedBytes,  BigInt totalBytes,  bool done,  String? error)?  downloadProgress,}) {final _that = this;
+switch (_that) {
+case CoreEventPayload_ConnectionState() when connectionState != null:
+return connectionState(_that.field0);case CoreEventPayload_Ready() when ready != null:
+return ready(_that.field0);case CoreEventPayload_MessageCreate() when messageCreate != null:
+return messageCreate(_that.field0);case CoreEventPayload_MessageUpdate() when messageUpdate != null:
+return messageUpdate(_that.field0);case CoreEventPayload_MessageDelete() when messageDelete != null:
+return messageDelete(_that.channelId,_that.messageId);case CoreEventPayload_ChannelCreate() when channelCreate != null:
+return channelCreate(_that.field0);case CoreEventPayload_ChannelUpdate() when channelUpdate != null:
+return channelUpdate(_that.field0);case CoreEventPayload_ChannelDelete() when channelDelete != null:
+return channelDelete(_that.channelId);case CoreEventPayload_RoleCreate() when roleCreate != null:
+return roleCreate(_that.field0);case CoreEventPayload_RoleUpdate() when roleUpdate != null:
+return roleUpdate(_that.field0);case CoreEventPayload_RoleDelete() when roleDelete != null:
+return roleDelete(_that.roleId);case CoreEventPayload_MemberJoin() when memberJoin != null:
+return memberJoin(_that.field0);case CoreEventPayload_MemberLeave() when memberLeave != null:
+return memberLeave(_that.userId);case CoreEventPayload_MemberUpdate() when memberUpdate != null:
+return memberUpdate(_that.field0);case CoreEventPayload_PresenceUpdate() when presenceUpdate != null:
+return presenceUpdate(_that.field0);case CoreEventPayload_TypingStart() when typingStart != null:
+return typingStart(_that.channelId,_that.userId);case CoreEventPayload_ServerUpdate() when serverUpdate != null:
+return serverUpdate(_that.field0);case CoreEventPayload_PermissionsUpdate() when permissionsUpdate != null:
+return permissionsUpdate(_that.serverPermissions,_that.channelPermissions);case CoreEventPayload_VoiceStateUpdate() when voiceStateUpdate != null:
+return voiceStateUpdate(_that.field0);case CoreEventPayload_VoiceSettingsUpdate() when voiceSettingsUpdate != null:
+return voiceSettingsUpdate(_that.field0);case CoreEventPayload_StreamCreate() when streamCreate != null:
+return streamCreate(_that.field0);case CoreEventPayload_StreamUpdate() when streamUpdate != null:
+return streamUpdate(_that.field0);case CoreEventPayload_StreamDelete() when streamDelete != null:
+return streamDelete(_that.streamKey,_that.channelId);case CoreEventPayload_StreamViewersUpdate() when streamViewersUpdate != null:
+return streamViewersUpdate(_that.streamKey,_that.viewerIds);case CoreEventPayload_SoundboardSoundCreate() when soundboardSoundCreate != null:
+return soundboardSoundCreate(_that.field0);case CoreEventPayload_SoundboardSoundUpdate() when soundboardSoundUpdate != null:
+return soundboardSoundUpdate(_that.field0);case CoreEventPayload_SoundboardSoundDelete() when soundboardSoundDelete != null:
+return soundboardSoundDelete(_that.soundId);case CoreEventPayload_VoiceChannelEffect() when voiceChannelEffect != null:
+return voiceChannelEffect(_that.field0);case CoreEventPayload_ServerAddressesUpdate() when serverAddressesUpdate != null:
+return serverAddressesUpdate(_that.field0);case CoreEventPayload_NetworkStatus() when networkStatus != null:
+return networkStatus(_that.field0);case CoreEventPayload_ServerNotice() when serverNotice != null:
+return serverNotice(_that.field0);case CoreEventPayload_LavalinkNodeStatus() when lavalinkNodeStatus != null:
+return lavalinkNodeStatus(_that.node,_that.channelsPlaying);case CoreEventPayload_LavalinkNodeRemoved() when lavalinkNodeRemoved != null:
+return lavalinkNodeRemoved(_that.nodeId,_that.channelsPlaying);case CoreEventPayload_LavalinkNodeEvent() when lavalinkNodeEvent != null:
+return lavalinkNodeEvent(_that.field0);case CoreEventPayload_LavalinkTestProgress() when lavalinkTestProgress != null:
+return lavalinkTestProgress(_that.field0);case CoreEventPayload_MusicSettingsUpdate() when musicSettingsUpdate != null:
+return musicSettingsUpdate(_that.field0);case CoreEventPayload_MusicSession() when musicSession != null:
+return musicSession(_that.field0);case CoreEventPayload_MusicNowPlaying() when musicNowPlaying != null:
+return musicNowPlaying(_that.field0);case CoreEventPayload_MusicNotice() when musicNotice != null:
+return musicNotice(_that.field0);case CoreEventPayload_CommandsUpdate() when commandsUpdate != null:
+return commandsUpdate(_that.field0);case CoreEventPayload_EphemeralMessage() when ephemeralMessage != null:
+return ephemeralMessage(_that.field0);case CoreEventPayload_UploadSettingsUpdate() when uploadSettingsUpdate != null:
+return uploadSettingsUpdate(_that.field0);case CoreEventPayload_StorageUpdate() when storageUpdate != null:
+return storageUpdate(_that.field0);case CoreEventPayload_StagedUploadProgress() when stagedUploadProgress != null:
+return stagedUploadProgress(_that.channelId,_that.stagedId,_that.sentBytes,_that.totalBytes,_that.phase);case CoreEventPayload_UploadProgress() when uploadProgress != null:
+return uploadProgress(_that.channelId,_that.nonce,_that.fileIndex,_that.sentBytes,_that.totalBytes,_that.phase);case CoreEventPayload_DownloadProgress() when downloadProgress != null:
+return downloadProgress(_that.attachmentId,_that.receivedBytes,_that.totalBytes,_that.done,_that.error);case _:
+  return null;
+
+}
+}
+
+}
+
+/// @nodoc
+
+
+class CoreEventPayload_ConnectionState extends CoreEventPayload {
+  const CoreEventPayload_ConnectionState(this.field0): super._();
+  
+
+ final  ConnectionState field0;
+
+/// Create a copy of CoreEventPayload
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$CoreEventPayload_ConnectionStateCopyWith<CoreEventPayload_ConnectionState> get copyWith => _$CoreEventPayload_ConnectionStateCopyWithImpl<CoreEventPayload_ConnectionState>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is CoreEventPayload_ConnectionState&&(identical(other.field0, field0) || other.field0 == field0));
+}
+
+
+@override
+int get hashCode => Object.hash(runtimeType,field0);
+
+@override
+String toString() {
+  return 'CoreEventPayload.connectionState(field0: $field0)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $CoreEventPayload_ConnectionStateCopyWith<$Res> implements $CoreEventPayloadCopyWith<$Res> {
+  factory $CoreEventPayload_ConnectionStateCopyWith(CoreEventPayload_ConnectionState value, $Res Function(CoreEventPayload_ConnectionState) _then) = _$CoreEventPayload_ConnectionStateCopyWithImpl;
+@useResult
+$Res call({
+ ConnectionState field0
+});
+
+
+$ConnectionStateCopyWith<$Res> get field0;
+
+}
+/// @nodoc
+class _$CoreEventPayload_ConnectionStateCopyWithImpl<$Res>
+    implements $CoreEventPayload_ConnectionStateCopyWith<$Res> {
+  _$CoreEventPayload_ConnectionStateCopyWithImpl(this._self, this._then);
+
+  final CoreEventPayload_ConnectionState _self;
+  final $Res Function(CoreEventPayload_ConnectionState) _then;
+
+/// Create a copy of CoreEventPayload
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? field0 = null,}) {
+  return _then(CoreEventPayload_ConnectionState(
+null == field0 ? _self.field0 : field0 // ignore: cast_nullable_to_non_nullable
+as ConnectionState,
+  ));
+}
+
+/// Create a copy of CoreEventPayload
+/// with the given fields replaced by the non-null parameter values.
+@override
+@pragma('vm:prefer-inline')
+$ConnectionStateCopyWith<$Res> get field0 {
+  
+  return $ConnectionStateCopyWith<$Res>(_self.field0, (value) {
+    return _then(_self.copyWith(field0: value));
+  });
+}
+}
+
+/// @nodoc
+
+
+class CoreEventPayload_Ready extends CoreEventPayload {
+  const CoreEventPayload_Ready(this.field0): super._();
+  
+
+ final  ReadySnapshot field0;
+
+/// Create a copy of CoreEventPayload
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$CoreEventPayload_ReadyCopyWith<CoreEventPayload_Ready> get copyWith => _$CoreEventPayload_ReadyCopyWithImpl<CoreEventPayload_Ready>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is CoreEventPayload_Ready&&(identical(other.field0, field0) || other.field0 == field0));
+}
+
+
+@override
+int get hashCode => Object.hash(runtimeType,field0);
+
+@override
+String toString() {
+  return 'CoreEventPayload.ready(field0: $field0)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $CoreEventPayload_ReadyCopyWith<$Res> implements $CoreEventPayloadCopyWith<$Res> {
+  factory $CoreEventPayload_ReadyCopyWith(CoreEventPayload_Ready value, $Res Function(CoreEventPayload_Ready) _then) = _$CoreEventPayload_ReadyCopyWithImpl;
+@useResult
+$Res call({
+ ReadySnapshot field0
+});
+
+
+
+
+}
+/// @nodoc
+class _$CoreEventPayload_ReadyCopyWithImpl<$Res>
+    implements $CoreEventPayload_ReadyCopyWith<$Res> {
+  _$CoreEventPayload_ReadyCopyWithImpl(this._self, this._then);
+
+  final CoreEventPayload_Ready _self;
+  final $Res Function(CoreEventPayload_Ready) _then;
+
+/// Create a copy of CoreEventPayload
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? field0 = null,}) {
+  return _then(CoreEventPayload_Ready(
+null == field0 ? _self.field0 : field0 // ignore: cast_nullable_to_non_nullable
+as ReadySnapshot,
+  ));
+}
+
+
+}
+
+/// @nodoc
+
+
+class CoreEventPayload_MessageCreate extends CoreEventPayload {
+  const CoreEventPayload_MessageCreate(this.field0): super._();
+  
+
+ final  Message field0;
+
+/// Create a copy of CoreEventPayload
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$CoreEventPayload_MessageCreateCopyWith<CoreEventPayload_MessageCreate> get copyWith => _$CoreEventPayload_MessageCreateCopyWithImpl<CoreEventPayload_MessageCreate>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is CoreEventPayload_MessageCreate&&(identical(other.field0, field0) || other.field0 == field0));
+}
+
+
+@override
+int get hashCode => Object.hash(runtimeType,field0);
+
+@override
+String toString() {
+  return 'CoreEventPayload.messageCreate(field0: $field0)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $CoreEventPayload_MessageCreateCopyWith<$Res> implements $CoreEventPayloadCopyWith<$Res> {
+  factory $CoreEventPayload_MessageCreateCopyWith(CoreEventPayload_MessageCreate value, $Res Function(CoreEventPayload_MessageCreate) _then) = _$CoreEventPayload_MessageCreateCopyWithImpl;
+@useResult
+$Res call({
+ Message field0
+});
+
+
+
+
+}
+/// @nodoc
+class _$CoreEventPayload_MessageCreateCopyWithImpl<$Res>
+    implements $CoreEventPayload_MessageCreateCopyWith<$Res> {
+  _$CoreEventPayload_MessageCreateCopyWithImpl(this._self, this._then);
+
+  final CoreEventPayload_MessageCreate _self;
+  final $Res Function(CoreEventPayload_MessageCreate) _then;
+
+/// Create a copy of CoreEventPayload
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? field0 = null,}) {
+  return _then(CoreEventPayload_MessageCreate(
+null == field0 ? _self.field0 : field0 // ignore: cast_nullable_to_non_nullable
+as Message,
+  ));
+}
+
+
+}
+
+/// @nodoc
+
+
+class CoreEventPayload_MessageUpdate extends CoreEventPayload {
+  const CoreEventPayload_MessageUpdate(this.field0): super._();
+  
+
+ final  Message field0;
+
+/// Create a copy of CoreEventPayload
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$CoreEventPayload_MessageUpdateCopyWith<CoreEventPayload_MessageUpdate> get copyWith => _$CoreEventPayload_MessageUpdateCopyWithImpl<CoreEventPayload_MessageUpdate>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is CoreEventPayload_MessageUpdate&&(identical(other.field0, field0) || other.field0 == field0));
+}
+
+
+@override
+int get hashCode => Object.hash(runtimeType,field0);
+
+@override
+String toString() {
+  return 'CoreEventPayload.messageUpdate(field0: $field0)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $CoreEventPayload_MessageUpdateCopyWith<$Res> implements $CoreEventPayloadCopyWith<$Res> {
+  factory $CoreEventPayload_MessageUpdateCopyWith(CoreEventPayload_MessageUpdate value, $Res Function(CoreEventPayload_MessageUpdate) _then) = _$CoreEventPayload_MessageUpdateCopyWithImpl;
+@useResult
+$Res call({
+ Message field0
+});
+
+
+
+
+}
+/// @nodoc
+class _$CoreEventPayload_MessageUpdateCopyWithImpl<$Res>
+    implements $CoreEventPayload_MessageUpdateCopyWith<$Res> {
+  _$CoreEventPayload_MessageUpdateCopyWithImpl(this._self, this._then);
+
+  final CoreEventPayload_MessageUpdate _self;
+  final $Res Function(CoreEventPayload_MessageUpdate) _then;
+
+/// Create a copy of CoreEventPayload
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? field0 = null,}) {
+  return _then(CoreEventPayload_MessageUpdate(
+null == field0 ? _self.field0 : field0 // ignore: cast_nullable_to_non_nullable
+as Message,
+  ));
+}
+
+
+}
+
+/// @nodoc
+
+
+class CoreEventPayload_MessageDelete extends CoreEventPayload {
+  const CoreEventPayload_MessageDelete({required this.channelId, required this.messageId}): super._();
+  
+
+ final  PlatformInt64 channelId;
+ final  PlatformInt64 messageId;
+
+/// Create a copy of CoreEventPayload
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$CoreEventPayload_MessageDeleteCopyWith<CoreEventPayload_MessageDelete> get copyWith => _$CoreEventPayload_MessageDeleteCopyWithImpl<CoreEventPayload_MessageDelete>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is CoreEventPayload_MessageDelete&&(identical(other.channelId, channelId) || other.channelId == channelId)&&(identical(other.messageId, messageId) || other.messageId == messageId));
+}
+
+
+@override
+int get hashCode => Object.hash(runtimeType,channelId,messageId);
+
+@override
+String toString() {
+  return 'CoreEventPayload.messageDelete(channelId: $channelId, messageId: $messageId)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $CoreEventPayload_MessageDeleteCopyWith<$Res> implements $CoreEventPayloadCopyWith<$Res> {
+  factory $CoreEventPayload_MessageDeleteCopyWith(CoreEventPayload_MessageDelete value, $Res Function(CoreEventPayload_MessageDelete) _then) = _$CoreEventPayload_MessageDeleteCopyWithImpl;
+@useResult
+$Res call({
+ PlatformInt64 channelId, PlatformInt64 messageId
+});
+
+
+
+
+}
+/// @nodoc
+class _$CoreEventPayload_MessageDeleteCopyWithImpl<$Res>
+    implements $CoreEventPayload_MessageDeleteCopyWith<$Res> {
+  _$CoreEventPayload_MessageDeleteCopyWithImpl(this._self, this._then);
+
+  final CoreEventPayload_MessageDelete _self;
+  final $Res Function(CoreEventPayload_MessageDelete) _then;
+
+/// Create a copy of CoreEventPayload
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? channelId = null,Object? messageId = null,}) {
+  return _then(CoreEventPayload_MessageDelete(
+channelId: null == channelId ? _self.channelId : channelId // ignore: cast_nullable_to_non_nullable
+as PlatformInt64,messageId: null == messageId ? _self.messageId : messageId // ignore: cast_nullable_to_non_nullable
+as PlatformInt64,
+  ));
+}
+
+
+}
+
+/// @nodoc
+
+
+class CoreEventPayload_ChannelCreate extends CoreEventPayload {
+  const CoreEventPayload_ChannelCreate(this.field0): super._();
+  
+
+ final  Channel field0;
+
+/// Create a copy of CoreEventPayload
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$CoreEventPayload_ChannelCreateCopyWith<CoreEventPayload_ChannelCreate> get copyWith => _$CoreEventPayload_ChannelCreateCopyWithImpl<CoreEventPayload_ChannelCreate>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is CoreEventPayload_ChannelCreate&&(identical(other.field0, field0) || other.field0 == field0));
+}
+
+
+@override
+int get hashCode => Object.hash(runtimeType,field0);
+
+@override
+String toString() {
+  return 'CoreEventPayload.channelCreate(field0: $field0)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $CoreEventPayload_ChannelCreateCopyWith<$Res> implements $CoreEventPayloadCopyWith<$Res> {
+  factory $CoreEventPayload_ChannelCreateCopyWith(CoreEventPayload_ChannelCreate value, $Res Function(CoreEventPayload_ChannelCreate) _then) = _$CoreEventPayload_ChannelCreateCopyWithImpl;
+@useResult
+$Res call({
+ Channel field0
+});
+
+
+
+
+}
+/// @nodoc
+class _$CoreEventPayload_ChannelCreateCopyWithImpl<$Res>
+    implements $CoreEventPayload_ChannelCreateCopyWith<$Res> {
+  _$CoreEventPayload_ChannelCreateCopyWithImpl(this._self, this._then);
+
+  final CoreEventPayload_ChannelCreate _self;
+  final $Res Function(CoreEventPayload_ChannelCreate) _then;
+
+/// Create a copy of CoreEventPayload
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? field0 = null,}) {
+  return _then(CoreEventPayload_ChannelCreate(
+null == field0 ? _self.field0 : field0 // ignore: cast_nullable_to_non_nullable
+as Channel,
+  ));
+}
+
+
+}
+
+/// @nodoc
+
+
+class CoreEventPayload_ChannelUpdate extends CoreEventPayload {
+  const CoreEventPayload_ChannelUpdate(this.field0): super._();
+  
+
+ final  Channel field0;
+
+/// Create a copy of CoreEventPayload
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$CoreEventPayload_ChannelUpdateCopyWith<CoreEventPayload_ChannelUpdate> get copyWith => _$CoreEventPayload_ChannelUpdateCopyWithImpl<CoreEventPayload_ChannelUpdate>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is CoreEventPayload_ChannelUpdate&&(identical(other.field0, field0) || other.field0 == field0));
+}
+
+
+@override
+int get hashCode => Object.hash(runtimeType,field0);
+
+@override
+String toString() {
+  return 'CoreEventPayload.channelUpdate(field0: $field0)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $CoreEventPayload_ChannelUpdateCopyWith<$Res> implements $CoreEventPayloadCopyWith<$Res> {
+  factory $CoreEventPayload_ChannelUpdateCopyWith(CoreEventPayload_ChannelUpdate value, $Res Function(CoreEventPayload_ChannelUpdate) _then) = _$CoreEventPayload_ChannelUpdateCopyWithImpl;
+@useResult
+$Res call({
+ Channel field0
+});
+
+
+
+
+}
+/// @nodoc
+class _$CoreEventPayload_ChannelUpdateCopyWithImpl<$Res>
+    implements $CoreEventPayload_ChannelUpdateCopyWith<$Res> {
+  _$CoreEventPayload_ChannelUpdateCopyWithImpl(this._self, this._then);
+
+  final CoreEventPayload_ChannelUpdate _self;
+  final $Res Function(CoreEventPayload_ChannelUpdate) _then;
+
+/// Create a copy of CoreEventPayload
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? field0 = null,}) {
+  return _then(CoreEventPayload_ChannelUpdate(
+null == field0 ? _self.field0 : field0 // ignore: cast_nullable_to_non_nullable
+as Channel,
+  ));
+}
+
+
+}
+
+/// @nodoc
+
+
+class CoreEventPayload_ChannelDelete extends CoreEventPayload {
+  const CoreEventPayload_ChannelDelete({required this.channelId}): super._();
+  
+
+ final  PlatformInt64 channelId;
+
+/// Create a copy of CoreEventPayload
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$CoreEventPayload_ChannelDeleteCopyWith<CoreEventPayload_ChannelDelete> get copyWith => _$CoreEventPayload_ChannelDeleteCopyWithImpl<CoreEventPayload_ChannelDelete>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is CoreEventPayload_ChannelDelete&&(identical(other.channelId, channelId) || other.channelId == channelId));
+}
+
+
+@override
+int get hashCode => Object.hash(runtimeType,channelId);
+
+@override
+String toString() {
+  return 'CoreEventPayload.channelDelete(channelId: $channelId)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $CoreEventPayload_ChannelDeleteCopyWith<$Res> implements $CoreEventPayloadCopyWith<$Res> {
+  factory $CoreEventPayload_ChannelDeleteCopyWith(CoreEventPayload_ChannelDelete value, $Res Function(CoreEventPayload_ChannelDelete) _then) = _$CoreEventPayload_ChannelDeleteCopyWithImpl;
+@useResult
+$Res call({
+ PlatformInt64 channelId
+});
+
+
+
+
+}
+/// @nodoc
+class _$CoreEventPayload_ChannelDeleteCopyWithImpl<$Res>
+    implements $CoreEventPayload_ChannelDeleteCopyWith<$Res> {
+  _$CoreEventPayload_ChannelDeleteCopyWithImpl(this._self, this._then);
+
+  final CoreEventPayload_ChannelDelete _self;
+  final $Res Function(CoreEventPayload_ChannelDelete) _then;
+
+/// Create a copy of CoreEventPayload
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? channelId = null,}) {
+  return _then(CoreEventPayload_ChannelDelete(
+channelId: null == channelId ? _self.channelId : channelId // ignore: cast_nullable_to_non_nullable
+as PlatformInt64,
+  ));
+}
+
+
+}
+
+/// @nodoc
+
+
+class CoreEventPayload_RoleCreate extends CoreEventPayload {
+  const CoreEventPayload_RoleCreate(this.field0): super._();
+  
+
+ final  Role field0;
+
+/// Create a copy of CoreEventPayload
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$CoreEventPayload_RoleCreateCopyWith<CoreEventPayload_RoleCreate> get copyWith => _$CoreEventPayload_RoleCreateCopyWithImpl<CoreEventPayload_RoleCreate>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is CoreEventPayload_RoleCreate&&(identical(other.field0, field0) || other.field0 == field0));
+}
+
+
+@override
+int get hashCode => Object.hash(runtimeType,field0);
+
+@override
+String toString() {
+  return 'CoreEventPayload.roleCreate(field0: $field0)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $CoreEventPayload_RoleCreateCopyWith<$Res> implements $CoreEventPayloadCopyWith<$Res> {
+  factory $CoreEventPayload_RoleCreateCopyWith(CoreEventPayload_RoleCreate value, $Res Function(CoreEventPayload_RoleCreate) _then) = _$CoreEventPayload_RoleCreateCopyWithImpl;
+@useResult
+$Res call({
+ Role field0
+});
+
+
+
+
+}
+/// @nodoc
+class _$CoreEventPayload_RoleCreateCopyWithImpl<$Res>
+    implements $CoreEventPayload_RoleCreateCopyWith<$Res> {
+  _$CoreEventPayload_RoleCreateCopyWithImpl(this._self, this._then);
+
+  final CoreEventPayload_RoleCreate _self;
+  final $Res Function(CoreEventPayload_RoleCreate) _then;
+
+/// Create a copy of CoreEventPayload
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? field0 = null,}) {
+  return _then(CoreEventPayload_RoleCreate(
+null == field0 ? _self.field0 : field0 // ignore: cast_nullable_to_non_nullable
+as Role,
+  ));
+}
+
+
+}
+
+/// @nodoc
+
+
+class CoreEventPayload_RoleUpdate extends CoreEventPayload {
+  const CoreEventPayload_RoleUpdate(this.field0): super._();
+  
+
+ final  Role field0;
+
+/// Create a copy of CoreEventPayload
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$CoreEventPayload_RoleUpdateCopyWith<CoreEventPayload_RoleUpdate> get copyWith => _$CoreEventPayload_RoleUpdateCopyWithImpl<CoreEventPayload_RoleUpdate>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is CoreEventPayload_RoleUpdate&&(identical(other.field0, field0) || other.field0 == field0));
+}
+
+
+@override
+int get hashCode => Object.hash(runtimeType,field0);
+
+@override
+String toString() {
+  return 'CoreEventPayload.roleUpdate(field0: $field0)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $CoreEventPayload_RoleUpdateCopyWith<$Res> implements $CoreEventPayloadCopyWith<$Res> {
+  factory $CoreEventPayload_RoleUpdateCopyWith(CoreEventPayload_RoleUpdate value, $Res Function(CoreEventPayload_RoleUpdate) _then) = _$CoreEventPayload_RoleUpdateCopyWithImpl;
+@useResult
+$Res call({
+ Role field0
+});
+
+
+
+
+}
+/// @nodoc
+class _$CoreEventPayload_RoleUpdateCopyWithImpl<$Res>
+    implements $CoreEventPayload_RoleUpdateCopyWith<$Res> {
+  _$CoreEventPayload_RoleUpdateCopyWithImpl(this._self, this._then);
+
+  final CoreEventPayload_RoleUpdate _self;
+  final $Res Function(CoreEventPayload_RoleUpdate) _then;
+
+/// Create a copy of CoreEventPayload
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? field0 = null,}) {
+  return _then(CoreEventPayload_RoleUpdate(
+null == field0 ? _self.field0 : field0 // ignore: cast_nullable_to_non_nullable
+as Role,
+  ));
+}
+
+
+}
+
+/// @nodoc
+
+
+class CoreEventPayload_RoleDelete extends CoreEventPayload {
+  const CoreEventPayload_RoleDelete({required this.roleId}): super._();
+  
+
+ final  PlatformInt64 roleId;
+
+/// Create a copy of CoreEventPayload
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$CoreEventPayload_RoleDeleteCopyWith<CoreEventPayload_RoleDelete> get copyWith => _$CoreEventPayload_RoleDeleteCopyWithImpl<CoreEventPayload_RoleDelete>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is CoreEventPayload_RoleDelete&&(identical(other.roleId, roleId) || other.roleId == roleId));
+}
+
+
+@override
+int get hashCode => Object.hash(runtimeType,roleId);
+
+@override
+String toString() {
+  return 'CoreEventPayload.roleDelete(roleId: $roleId)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $CoreEventPayload_RoleDeleteCopyWith<$Res> implements $CoreEventPayloadCopyWith<$Res> {
+  factory $CoreEventPayload_RoleDeleteCopyWith(CoreEventPayload_RoleDelete value, $Res Function(CoreEventPayload_RoleDelete) _then) = _$CoreEventPayload_RoleDeleteCopyWithImpl;
+@useResult
+$Res call({
+ PlatformInt64 roleId
+});
+
+
+
+
+}
+/// @nodoc
+class _$CoreEventPayload_RoleDeleteCopyWithImpl<$Res>
+    implements $CoreEventPayload_RoleDeleteCopyWith<$Res> {
+  _$CoreEventPayload_RoleDeleteCopyWithImpl(this._self, this._then);
+
+  final CoreEventPayload_RoleDelete _self;
+  final $Res Function(CoreEventPayload_RoleDelete) _then;
+
+/// Create a copy of CoreEventPayload
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? roleId = null,}) {
+  return _then(CoreEventPayload_RoleDelete(
+roleId: null == roleId ? _self.roleId : roleId // ignore: cast_nullable_to_non_nullable
+as PlatformInt64,
+  ));
+}
+
+
+}
+
+/// @nodoc
+
+
+class CoreEventPayload_MemberJoin extends CoreEventPayload {
+  const CoreEventPayload_MemberJoin(this.field0): super._();
+  
+
+ final  Member field0;
+
+/// Create a copy of CoreEventPayload
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$CoreEventPayload_MemberJoinCopyWith<CoreEventPayload_MemberJoin> get copyWith => _$CoreEventPayload_MemberJoinCopyWithImpl<CoreEventPayload_MemberJoin>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is CoreEventPayload_MemberJoin&&(identical(other.field0, field0) || other.field0 == field0));
+}
+
+
+@override
+int get hashCode => Object.hash(runtimeType,field0);
+
+@override
+String toString() {
+  return 'CoreEventPayload.memberJoin(field0: $field0)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $CoreEventPayload_MemberJoinCopyWith<$Res> implements $CoreEventPayloadCopyWith<$Res> {
+  factory $CoreEventPayload_MemberJoinCopyWith(CoreEventPayload_MemberJoin value, $Res Function(CoreEventPayload_MemberJoin) _then) = _$CoreEventPayload_MemberJoinCopyWithImpl;
+@useResult
+$Res call({
+ Member field0
+});
+
+
+
+
+}
+/// @nodoc
+class _$CoreEventPayload_MemberJoinCopyWithImpl<$Res>
+    implements $CoreEventPayload_MemberJoinCopyWith<$Res> {
+  _$CoreEventPayload_MemberJoinCopyWithImpl(this._self, this._then);
+
+  final CoreEventPayload_MemberJoin _self;
+  final $Res Function(CoreEventPayload_MemberJoin) _then;
+
+/// Create a copy of CoreEventPayload
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? field0 = null,}) {
+  return _then(CoreEventPayload_MemberJoin(
+null == field0 ? _self.field0 : field0 // ignore: cast_nullable_to_non_nullable
+as Member,
+  ));
+}
+
+
+}
+
+/// @nodoc
+
+
+class CoreEventPayload_MemberLeave extends CoreEventPayload {
+  const CoreEventPayload_MemberLeave({required this.userId}): super._();
+  
+
+ final  PlatformInt64 userId;
+
+/// Create a copy of CoreEventPayload
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$CoreEventPayload_MemberLeaveCopyWith<CoreEventPayload_MemberLeave> get copyWith => _$CoreEventPayload_MemberLeaveCopyWithImpl<CoreEventPayload_MemberLeave>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is CoreEventPayload_MemberLeave&&(identical(other.userId, userId) || other.userId == userId));
+}
+
+
+@override
+int get hashCode => Object.hash(runtimeType,userId);
+
+@override
+String toString() {
+  return 'CoreEventPayload.memberLeave(userId: $userId)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $CoreEventPayload_MemberLeaveCopyWith<$Res> implements $CoreEventPayloadCopyWith<$Res> {
+  factory $CoreEventPayload_MemberLeaveCopyWith(CoreEventPayload_MemberLeave value, $Res Function(CoreEventPayload_MemberLeave) _then) = _$CoreEventPayload_MemberLeaveCopyWithImpl;
+@useResult
+$Res call({
+ PlatformInt64 userId
+});
+
+
+
+
+}
+/// @nodoc
+class _$CoreEventPayload_MemberLeaveCopyWithImpl<$Res>
+    implements $CoreEventPayload_MemberLeaveCopyWith<$Res> {
+  _$CoreEventPayload_MemberLeaveCopyWithImpl(this._self, this._then);
+
+  final CoreEventPayload_MemberLeave _self;
+  final $Res Function(CoreEventPayload_MemberLeave) _then;
+
+/// Create a copy of CoreEventPayload
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? userId = null,}) {
+  return _then(CoreEventPayload_MemberLeave(
+userId: null == userId ? _self.userId : userId // ignore: cast_nullable_to_non_nullable
+as PlatformInt64,
+  ));
+}
+
+
+}
+
+/// @nodoc
+
+
+class CoreEventPayload_MemberUpdate extends CoreEventPayload {
+  const CoreEventPayload_MemberUpdate(this.field0): super._();
+  
+
+ final  Member field0;
+
+/// Create a copy of CoreEventPayload
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$CoreEventPayload_MemberUpdateCopyWith<CoreEventPayload_MemberUpdate> get copyWith => _$CoreEventPayload_MemberUpdateCopyWithImpl<CoreEventPayload_MemberUpdate>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is CoreEventPayload_MemberUpdate&&(identical(other.field0, field0) || other.field0 == field0));
+}
+
+
+@override
+int get hashCode => Object.hash(runtimeType,field0);
+
+@override
+String toString() {
+  return 'CoreEventPayload.memberUpdate(field0: $field0)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $CoreEventPayload_MemberUpdateCopyWith<$Res> implements $CoreEventPayloadCopyWith<$Res> {
+  factory $CoreEventPayload_MemberUpdateCopyWith(CoreEventPayload_MemberUpdate value, $Res Function(CoreEventPayload_MemberUpdate) _then) = _$CoreEventPayload_MemberUpdateCopyWithImpl;
+@useResult
+$Res call({
+ Member field0
+});
+
+
+
+
+}
+/// @nodoc
+class _$CoreEventPayload_MemberUpdateCopyWithImpl<$Res>
+    implements $CoreEventPayload_MemberUpdateCopyWith<$Res> {
+  _$CoreEventPayload_MemberUpdateCopyWithImpl(this._self, this._then);
+
+  final CoreEventPayload_MemberUpdate _self;
+  final $Res Function(CoreEventPayload_MemberUpdate) _then;
+
+/// Create a copy of CoreEventPayload
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? field0 = null,}) {
+  return _then(CoreEventPayload_MemberUpdate(
+null == field0 ? _self.field0 : field0 // ignore: cast_nullable_to_non_nullable
+as Member,
+  ));
+}
+
+
+}
+
+/// @nodoc
+
+
+class CoreEventPayload_PresenceUpdate extends CoreEventPayload {
+  const CoreEventPayload_PresenceUpdate(this.field0): super._();
+  
+
+ final  Presence field0;
+
+/// Create a copy of CoreEventPayload
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$CoreEventPayload_PresenceUpdateCopyWith<CoreEventPayload_PresenceUpdate> get copyWith => _$CoreEventPayload_PresenceUpdateCopyWithImpl<CoreEventPayload_PresenceUpdate>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is CoreEventPayload_PresenceUpdate&&(identical(other.field0, field0) || other.field0 == field0));
+}
+
+
+@override
+int get hashCode => Object.hash(runtimeType,field0);
+
+@override
+String toString() {
+  return 'CoreEventPayload.presenceUpdate(field0: $field0)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $CoreEventPayload_PresenceUpdateCopyWith<$Res> implements $CoreEventPayloadCopyWith<$Res> {
+  factory $CoreEventPayload_PresenceUpdateCopyWith(CoreEventPayload_PresenceUpdate value, $Res Function(CoreEventPayload_PresenceUpdate) _then) = _$CoreEventPayload_PresenceUpdateCopyWithImpl;
+@useResult
+$Res call({
+ Presence field0
+});
+
+
+
+
+}
+/// @nodoc
+class _$CoreEventPayload_PresenceUpdateCopyWithImpl<$Res>
+    implements $CoreEventPayload_PresenceUpdateCopyWith<$Res> {
+  _$CoreEventPayload_PresenceUpdateCopyWithImpl(this._self, this._then);
+
+  final CoreEventPayload_PresenceUpdate _self;
+  final $Res Function(CoreEventPayload_PresenceUpdate) _then;
+
+/// Create a copy of CoreEventPayload
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? field0 = null,}) {
+  return _then(CoreEventPayload_PresenceUpdate(
+null == field0 ? _self.field0 : field0 // ignore: cast_nullable_to_non_nullable
+as Presence,
+  ));
+}
+
+
+}
+
+/// @nodoc
+
+
+class CoreEventPayload_TypingStart extends CoreEventPayload {
+  const CoreEventPayload_TypingStart({required this.channelId, required this.userId}): super._();
+  
+
+ final  PlatformInt64 channelId;
+ final  PlatformInt64 userId;
+
+/// Create a copy of CoreEventPayload
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$CoreEventPayload_TypingStartCopyWith<CoreEventPayload_TypingStart> get copyWith => _$CoreEventPayload_TypingStartCopyWithImpl<CoreEventPayload_TypingStart>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is CoreEventPayload_TypingStart&&(identical(other.channelId, channelId) || other.channelId == channelId)&&(identical(other.userId, userId) || other.userId == userId));
+}
+
+
+@override
+int get hashCode => Object.hash(runtimeType,channelId,userId);
+
+@override
+String toString() {
+  return 'CoreEventPayload.typingStart(channelId: $channelId, userId: $userId)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $CoreEventPayload_TypingStartCopyWith<$Res> implements $CoreEventPayloadCopyWith<$Res> {
+  factory $CoreEventPayload_TypingStartCopyWith(CoreEventPayload_TypingStart value, $Res Function(CoreEventPayload_TypingStart) _then) = _$CoreEventPayload_TypingStartCopyWithImpl;
+@useResult
+$Res call({
+ PlatformInt64 channelId, PlatformInt64 userId
+});
+
+
+
+
+}
+/// @nodoc
+class _$CoreEventPayload_TypingStartCopyWithImpl<$Res>
+    implements $CoreEventPayload_TypingStartCopyWith<$Res> {
+  _$CoreEventPayload_TypingStartCopyWithImpl(this._self, this._then);
+
+  final CoreEventPayload_TypingStart _self;
+  final $Res Function(CoreEventPayload_TypingStart) _then;
+
+/// Create a copy of CoreEventPayload
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? channelId = null,Object? userId = null,}) {
+  return _then(CoreEventPayload_TypingStart(
+channelId: null == channelId ? _self.channelId : channelId // ignore: cast_nullable_to_non_nullable
+as PlatformInt64,userId: null == userId ? _self.userId : userId // ignore: cast_nullable_to_non_nullable
+as PlatformInt64,
+  ));
+}
+
+
+}
+
+/// @nodoc
+
+
+class CoreEventPayload_ServerUpdate extends CoreEventPayload {
+  const CoreEventPayload_ServerUpdate(this.field0): super._();
+  
+
+ final  ServerInfo field0;
+
+/// Create a copy of CoreEventPayload
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$CoreEventPayload_ServerUpdateCopyWith<CoreEventPayload_ServerUpdate> get copyWith => _$CoreEventPayload_ServerUpdateCopyWithImpl<CoreEventPayload_ServerUpdate>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is CoreEventPayload_ServerUpdate&&(identical(other.field0, field0) || other.field0 == field0));
+}
+
+
+@override
+int get hashCode => Object.hash(runtimeType,field0);
+
+@override
+String toString() {
+  return 'CoreEventPayload.serverUpdate(field0: $field0)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $CoreEventPayload_ServerUpdateCopyWith<$Res> implements $CoreEventPayloadCopyWith<$Res> {
+  factory $CoreEventPayload_ServerUpdateCopyWith(CoreEventPayload_ServerUpdate value, $Res Function(CoreEventPayload_ServerUpdate) _then) = _$CoreEventPayload_ServerUpdateCopyWithImpl;
+@useResult
+$Res call({
+ ServerInfo field0
+});
+
+
+
+
+}
+/// @nodoc
+class _$CoreEventPayload_ServerUpdateCopyWithImpl<$Res>
+    implements $CoreEventPayload_ServerUpdateCopyWith<$Res> {
+  _$CoreEventPayload_ServerUpdateCopyWithImpl(this._self, this._then);
+
+  final CoreEventPayload_ServerUpdate _self;
+  final $Res Function(CoreEventPayload_ServerUpdate) _then;
+
+/// Create a copy of CoreEventPayload
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? field0 = null,}) {
+  return _then(CoreEventPayload_ServerUpdate(
+null == field0 ? _self.field0 : field0 // ignore: cast_nullable_to_non_nullable
+as ServerInfo,
+  ));
+}
+
+
+}
+
+/// @nodoc
+
+
+class CoreEventPayload_PermissionsUpdate extends CoreEventPayload {
+  const CoreEventPayload_PermissionsUpdate({required this.serverPermissions, required final  List<ChannelPermissions> channelPermissions}): _channelPermissions = channelPermissions,super._();
+  
+
+ final  PlatformInt64 serverPermissions;
+ final  List<ChannelPermissions> _channelPermissions;
+ List<ChannelPermissions> get channelPermissions {
+  if (_channelPermissions is EqualUnmodifiableListView) return _channelPermissions;
+  // ignore: implicit_dynamic_type
+  return EqualUnmodifiableListView(_channelPermissions);
+}
+
+
+/// Create a copy of CoreEventPayload
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$CoreEventPayload_PermissionsUpdateCopyWith<CoreEventPayload_PermissionsUpdate> get copyWith => _$CoreEventPayload_PermissionsUpdateCopyWithImpl<CoreEventPayload_PermissionsUpdate>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is CoreEventPayload_PermissionsUpdate&&(identical(other.serverPermissions, serverPermissions) || other.serverPermissions == serverPermissions)&&const DeepCollectionEquality().equals(other._channelPermissions, _channelPermissions));
+}
+
+
+@override
+int get hashCode => Object.hash(runtimeType,serverPermissions,const DeepCollectionEquality().hash(_channelPermissions));
+
+@override
+String toString() {
+  return 'CoreEventPayload.permissionsUpdate(serverPermissions: $serverPermissions, channelPermissions: $channelPermissions)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $CoreEventPayload_PermissionsUpdateCopyWith<$Res> implements $CoreEventPayloadCopyWith<$Res> {
+  factory $CoreEventPayload_PermissionsUpdateCopyWith(CoreEventPayload_PermissionsUpdate value, $Res Function(CoreEventPayload_PermissionsUpdate) _then) = _$CoreEventPayload_PermissionsUpdateCopyWithImpl;
+@useResult
+$Res call({
+ PlatformInt64 serverPermissions, List<ChannelPermissions> channelPermissions
+});
+
+
+
+
+}
+/// @nodoc
+class _$CoreEventPayload_PermissionsUpdateCopyWithImpl<$Res>
+    implements $CoreEventPayload_PermissionsUpdateCopyWith<$Res> {
+  _$CoreEventPayload_PermissionsUpdateCopyWithImpl(this._self, this._then);
+
+  final CoreEventPayload_PermissionsUpdate _self;
+  final $Res Function(CoreEventPayload_PermissionsUpdate) _then;
+
+/// Create a copy of CoreEventPayload
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? serverPermissions = null,Object? channelPermissions = null,}) {
+  return _then(CoreEventPayload_PermissionsUpdate(
+serverPermissions: null == serverPermissions ? _self.serverPermissions : serverPermissions // ignore: cast_nullable_to_non_nullable
+as PlatformInt64,channelPermissions: null == channelPermissions ? _self._channelPermissions : channelPermissions // ignore: cast_nullable_to_non_nullable
+as List<ChannelPermissions>,
+  ));
+}
+
+
+}
+
+/// @nodoc
+
+
+class CoreEventPayload_VoiceStateUpdate extends CoreEventPayload {
+  const CoreEventPayload_VoiceStateUpdate(this.field0): super._();
+  
+
+ final  VoiceState field0;
+
+/// Create a copy of CoreEventPayload
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$CoreEventPayload_VoiceStateUpdateCopyWith<CoreEventPayload_VoiceStateUpdate> get copyWith => _$CoreEventPayload_VoiceStateUpdateCopyWithImpl<CoreEventPayload_VoiceStateUpdate>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is CoreEventPayload_VoiceStateUpdate&&(identical(other.field0, field0) || other.field0 == field0));
+}
+
+
+@override
+int get hashCode => Object.hash(runtimeType,field0);
+
+@override
+String toString() {
+  return 'CoreEventPayload.voiceStateUpdate(field0: $field0)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $CoreEventPayload_VoiceStateUpdateCopyWith<$Res> implements $CoreEventPayloadCopyWith<$Res> {
+  factory $CoreEventPayload_VoiceStateUpdateCopyWith(CoreEventPayload_VoiceStateUpdate value, $Res Function(CoreEventPayload_VoiceStateUpdate) _then) = _$CoreEventPayload_VoiceStateUpdateCopyWithImpl;
+@useResult
+$Res call({
+ VoiceState field0
+});
+
+
+
+
+}
+/// @nodoc
+class _$CoreEventPayload_VoiceStateUpdateCopyWithImpl<$Res>
+    implements $CoreEventPayload_VoiceStateUpdateCopyWith<$Res> {
+  _$CoreEventPayload_VoiceStateUpdateCopyWithImpl(this._self, this._then);
+
+  final CoreEventPayload_VoiceStateUpdate _self;
+  final $Res Function(CoreEventPayload_VoiceStateUpdate) _then;
+
+/// Create a copy of CoreEventPayload
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? field0 = null,}) {
+  return _then(CoreEventPayload_VoiceStateUpdate(
+null == field0 ? _self.field0 : field0 // ignore: cast_nullable_to_non_nullable
+as VoiceState,
+  ));
+}
+
+
+}
+
+/// @nodoc
+
+
+class CoreEventPayload_VoiceSettingsUpdate extends CoreEventPayload {
+  const CoreEventPayload_VoiceSettingsUpdate(this.field0): super._();
+  
+
+ final  VoiceSettings field0;
+
+/// Create a copy of CoreEventPayload
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$CoreEventPayload_VoiceSettingsUpdateCopyWith<CoreEventPayload_VoiceSettingsUpdate> get copyWith => _$CoreEventPayload_VoiceSettingsUpdateCopyWithImpl<CoreEventPayload_VoiceSettingsUpdate>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is CoreEventPayload_VoiceSettingsUpdate&&(identical(other.field0, field0) || other.field0 == field0));
+}
+
+
+@override
+int get hashCode => Object.hash(runtimeType,field0);
+
+@override
+String toString() {
+  return 'CoreEventPayload.voiceSettingsUpdate(field0: $field0)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $CoreEventPayload_VoiceSettingsUpdateCopyWith<$Res> implements $CoreEventPayloadCopyWith<$Res> {
+  factory $CoreEventPayload_VoiceSettingsUpdateCopyWith(CoreEventPayload_VoiceSettingsUpdate value, $Res Function(CoreEventPayload_VoiceSettingsUpdate) _then) = _$CoreEventPayload_VoiceSettingsUpdateCopyWithImpl;
+@useResult
+$Res call({
+ VoiceSettings field0
+});
+
+
+
+
+}
+/// @nodoc
+class _$CoreEventPayload_VoiceSettingsUpdateCopyWithImpl<$Res>
+    implements $CoreEventPayload_VoiceSettingsUpdateCopyWith<$Res> {
+  _$CoreEventPayload_VoiceSettingsUpdateCopyWithImpl(this._self, this._then);
+
+  final CoreEventPayload_VoiceSettingsUpdate _self;
+  final $Res Function(CoreEventPayload_VoiceSettingsUpdate) _then;
+
+/// Create a copy of CoreEventPayload
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? field0 = null,}) {
+  return _then(CoreEventPayload_VoiceSettingsUpdate(
+null == field0 ? _self.field0 : field0 // ignore: cast_nullable_to_non_nullable
+as VoiceSettings,
+  ));
+}
+
+
+}
+
+/// @nodoc
+
+
+class CoreEventPayload_StreamCreate extends CoreEventPayload {
+  const CoreEventPayload_StreamCreate(this.field0): super._();
+  
+
+ final  ScreenStream field0;
+
+/// Create a copy of CoreEventPayload
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$CoreEventPayload_StreamCreateCopyWith<CoreEventPayload_StreamCreate> get copyWith => _$CoreEventPayload_StreamCreateCopyWithImpl<CoreEventPayload_StreamCreate>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is CoreEventPayload_StreamCreate&&(identical(other.field0, field0) || other.field0 == field0));
+}
+
+
+@override
+int get hashCode => Object.hash(runtimeType,field0);
+
+@override
+String toString() {
+  return 'CoreEventPayload.streamCreate(field0: $field0)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $CoreEventPayload_StreamCreateCopyWith<$Res> implements $CoreEventPayloadCopyWith<$Res> {
+  factory $CoreEventPayload_StreamCreateCopyWith(CoreEventPayload_StreamCreate value, $Res Function(CoreEventPayload_StreamCreate) _then) = _$CoreEventPayload_StreamCreateCopyWithImpl;
+@useResult
+$Res call({
+ ScreenStream field0
+});
+
+
+
+
+}
+/// @nodoc
+class _$CoreEventPayload_StreamCreateCopyWithImpl<$Res>
+    implements $CoreEventPayload_StreamCreateCopyWith<$Res> {
+  _$CoreEventPayload_StreamCreateCopyWithImpl(this._self, this._then);
+
+  final CoreEventPayload_StreamCreate _self;
+  final $Res Function(CoreEventPayload_StreamCreate) _then;
+
+/// Create a copy of CoreEventPayload
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? field0 = null,}) {
+  return _then(CoreEventPayload_StreamCreate(
+null == field0 ? _self.field0 : field0 // ignore: cast_nullable_to_non_nullable
+as ScreenStream,
+  ));
+}
+
+
+}
+
+/// @nodoc
+
+
+class CoreEventPayload_StreamUpdate extends CoreEventPayload {
+  const CoreEventPayload_StreamUpdate(this.field0): super._();
+  
+
+ final  ScreenStream field0;
+
+/// Create a copy of CoreEventPayload
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$CoreEventPayload_StreamUpdateCopyWith<CoreEventPayload_StreamUpdate> get copyWith => _$CoreEventPayload_StreamUpdateCopyWithImpl<CoreEventPayload_StreamUpdate>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is CoreEventPayload_StreamUpdate&&(identical(other.field0, field0) || other.field0 == field0));
+}
+
+
+@override
+int get hashCode => Object.hash(runtimeType,field0);
+
+@override
+String toString() {
+  return 'CoreEventPayload.streamUpdate(field0: $field0)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $CoreEventPayload_StreamUpdateCopyWith<$Res> implements $CoreEventPayloadCopyWith<$Res> {
+  factory $CoreEventPayload_StreamUpdateCopyWith(CoreEventPayload_StreamUpdate value, $Res Function(CoreEventPayload_StreamUpdate) _then) = _$CoreEventPayload_StreamUpdateCopyWithImpl;
+@useResult
+$Res call({
+ ScreenStream field0
+});
+
+
+
+
+}
+/// @nodoc
+class _$CoreEventPayload_StreamUpdateCopyWithImpl<$Res>
+    implements $CoreEventPayload_StreamUpdateCopyWith<$Res> {
+  _$CoreEventPayload_StreamUpdateCopyWithImpl(this._self, this._then);
+
+  final CoreEventPayload_StreamUpdate _self;
+  final $Res Function(CoreEventPayload_StreamUpdate) _then;
+
+/// Create a copy of CoreEventPayload
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? field0 = null,}) {
+  return _then(CoreEventPayload_StreamUpdate(
+null == field0 ? _self.field0 : field0 // ignore: cast_nullable_to_non_nullable
+as ScreenStream,
+  ));
+}
+
+
+}
+
+/// @nodoc
+
+
+class CoreEventPayload_StreamDelete extends CoreEventPayload {
+  const CoreEventPayload_StreamDelete({required this.streamKey, required this.channelId}): super._();
+  
+
+ final  String streamKey;
+ final  PlatformInt64 channelId;
+
+/// Create a copy of CoreEventPayload
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$CoreEventPayload_StreamDeleteCopyWith<CoreEventPayload_StreamDelete> get copyWith => _$CoreEventPayload_StreamDeleteCopyWithImpl<CoreEventPayload_StreamDelete>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is CoreEventPayload_StreamDelete&&(identical(other.streamKey, streamKey) || other.streamKey == streamKey)&&(identical(other.channelId, channelId) || other.channelId == channelId));
+}
+
+
+@override
+int get hashCode => Object.hash(runtimeType,streamKey,channelId);
+
+@override
+String toString() {
+  return 'CoreEventPayload.streamDelete(streamKey: $streamKey, channelId: $channelId)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $CoreEventPayload_StreamDeleteCopyWith<$Res> implements $CoreEventPayloadCopyWith<$Res> {
+  factory $CoreEventPayload_StreamDeleteCopyWith(CoreEventPayload_StreamDelete value, $Res Function(CoreEventPayload_StreamDelete) _then) = _$CoreEventPayload_StreamDeleteCopyWithImpl;
+@useResult
+$Res call({
+ String streamKey, PlatformInt64 channelId
+});
+
+
+
+
+}
+/// @nodoc
+class _$CoreEventPayload_StreamDeleteCopyWithImpl<$Res>
+    implements $CoreEventPayload_StreamDeleteCopyWith<$Res> {
+  _$CoreEventPayload_StreamDeleteCopyWithImpl(this._self, this._then);
+
+  final CoreEventPayload_StreamDelete _self;
+  final $Res Function(CoreEventPayload_StreamDelete) _then;
+
+/// Create a copy of CoreEventPayload
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? streamKey = null,Object? channelId = null,}) {
+  return _then(CoreEventPayload_StreamDelete(
+streamKey: null == streamKey ? _self.streamKey : streamKey // ignore: cast_nullable_to_non_nullable
+as String,channelId: null == channelId ? _self.channelId : channelId // ignore: cast_nullable_to_non_nullable
+as PlatformInt64,
+  ));
+}
+
+
+}
+
+/// @nodoc
+
+
+class CoreEventPayload_StreamViewersUpdate extends CoreEventPayload {
+  const CoreEventPayload_StreamViewersUpdate({required this.streamKey, required this.viewerIds}): super._();
+  
+
+ final  String streamKey;
+ final  Int64List viewerIds;
+
+/// Create a copy of CoreEventPayload
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$CoreEventPayload_StreamViewersUpdateCopyWith<CoreEventPayload_StreamViewersUpdate> get copyWith => _$CoreEventPayload_StreamViewersUpdateCopyWithImpl<CoreEventPayload_StreamViewersUpdate>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is CoreEventPayload_StreamViewersUpdate&&(identical(other.streamKey, streamKey) || other.streamKey == streamKey)&&const DeepCollectionEquality().equals(other.viewerIds, viewerIds));
+}
+
+
+@override
+int get hashCode => Object.hash(runtimeType,streamKey,const DeepCollectionEquality().hash(viewerIds));
+
+@override
+String toString() {
+  return 'CoreEventPayload.streamViewersUpdate(streamKey: $streamKey, viewerIds: $viewerIds)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $CoreEventPayload_StreamViewersUpdateCopyWith<$Res> implements $CoreEventPayloadCopyWith<$Res> {
+  factory $CoreEventPayload_StreamViewersUpdateCopyWith(CoreEventPayload_StreamViewersUpdate value, $Res Function(CoreEventPayload_StreamViewersUpdate) _then) = _$CoreEventPayload_StreamViewersUpdateCopyWithImpl;
+@useResult
+$Res call({
+ String streamKey, Int64List viewerIds
+});
+
+
+
+
+}
+/// @nodoc
+class _$CoreEventPayload_StreamViewersUpdateCopyWithImpl<$Res>
+    implements $CoreEventPayload_StreamViewersUpdateCopyWith<$Res> {
+  _$CoreEventPayload_StreamViewersUpdateCopyWithImpl(this._self, this._then);
+
+  final CoreEventPayload_StreamViewersUpdate _self;
+  final $Res Function(CoreEventPayload_StreamViewersUpdate) _then;
+
+/// Create a copy of CoreEventPayload
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? streamKey = null,Object? viewerIds = null,}) {
+  return _then(CoreEventPayload_StreamViewersUpdate(
+streamKey: null == streamKey ? _self.streamKey : streamKey // ignore: cast_nullable_to_non_nullable
+as String,viewerIds: null == viewerIds ? _self.viewerIds : viewerIds // ignore: cast_nullable_to_non_nullable
+as Int64List,
+  ));
+}
+
+
+}
+
+/// @nodoc
+
+
+class CoreEventPayload_SoundboardSoundCreate extends CoreEventPayload {
+  const CoreEventPayload_SoundboardSoundCreate(this.field0): super._();
+  
+
+ final  SoundboardSound field0;
+
+/// Create a copy of CoreEventPayload
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$CoreEventPayload_SoundboardSoundCreateCopyWith<CoreEventPayload_SoundboardSoundCreate> get copyWith => _$CoreEventPayload_SoundboardSoundCreateCopyWithImpl<CoreEventPayload_SoundboardSoundCreate>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is CoreEventPayload_SoundboardSoundCreate&&(identical(other.field0, field0) || other.field0 == field0));
+}
+
+
+@override
+int get hashCode => Object.hash(runtimeType,field0);
+
+@override
+String toString() {
+  return 'CoreEventPayload.soundboardSoundCreate(field0: $field0)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $CoreEventPayload_SoundboardSoundCreateCopyWith<$Res> implements $CoreEventPayloadCopyWith<$Res> {
+  factory $CoreEventPayload_SoundboardSoundCreateCopyWith(CoreEventPayload_SoundboardSoundCreate value, $Res Function(CoreEventPayload_SoundboardSoundCreate) _then) = _$CoreEventPayload_SoundboardSoundCreateCopyWithImpl;
+@useResult
+$Res call({
+ SoundboardSound field0
+});
+
+
+
+
+}
+/// @nodoc
+class _$CoreEventPayload_SoundboardSoundCreateCopyWithImpl<$Res>
+    implements $CoreEventPayload_SoundboardSoundCreateCopyWith<$Res> {
+  _$CoreEventPayload_SoundboardSoundCreateCopyWithImpl(this._self, this._then);
+
+  final CoreEventPayload_SoundboardSoundCreate _self;
+  final $Res Function(CoreEventPayload_SoundboardSoundCreate) _then;
+
+/// Create a copy of CoreEventPayload
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? field0 = null,}) {
+  return _then(CoreEventPayload_SoundboardSoundCreate(
+null == field0 ? _self.field0 : field0 // ignore: cast_nullable_to_non_nullable
+as SoundboardSound,
+  ));
+}
+
+
+}
+
+/// @nodoc
+
+
+class CoreEventPayload_SoundboardSoundUpdate extends CoreEventPayload {
+  const CoreEventPayload_SoundboardSoundUpdate(this.field0): super._();
+  
+
+ final  SoundboardSound field0;
+
+/// Create a copy of CoreEventPayload
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$CoreEventPayload_SoundboardSoundUpdateCopyWith<CoreEventPayload_SoundboardSoundUpdate> get copyWith => _$CoreEventPayload_SoundboardSoundUpdateCopyWithImpl<CoreEventPayload_SoundboardSoundUpdate>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is CoreEventPayload_SoundboardSoundUpdate&&(identical(other.field0, field0) || other.field0 == field0));
+}
+
+
+@override
+int get hashCode => Object.hash(runtimeType,field0);
+
+@override
+String toString() {
+  return 'CoreEventPayload.soundboardSoundUpdate(field0: $field0)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $CoreEventPayload_SoundboardSoundUpdateCopyWith<$Res> implements $CoreEventPayloadCopyWith<$Res> {
+  factory $CoreEventPayload_SoundboardSoundUpdateCopyWith(CoreEventPayload_SoundboardSoundUpdate value, $Res Function(CoreEventPayload_SoundboardSoundUpdate) _then) = _$CoreEventPayload_SoundboardSoundUpdateCopyWithImpl;
+@useResult
+$Res call({
+ SoundboardSound field0
+});
+
+
+
+
+}
+/// @nodoc
+class _$CoreEventPayload_SoundboardSoundUpdateCopyWithImpl<$Res>
+    implements $CoreEventPayload_SoundboardSoundUpdateCopyWith<$Res> {
+  _$CoreEventPayload_SoundboardSoundUpdateCopyWithImpl(this._self, this._then);
+
+  final CoreEventPayload_SoundboardSoundUpdate _self;
+  final $Res Function(CoreEventPayload_SoundboardSoundUpdate) _then;
+
+/// Create a copy of CoreEventPayload
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? field0 = null,}) {
+  return _then(CoreEventPayload_SoundboardSoundUpdate(
+null == field0 ? _self.field0 : field0 // ignore: cast_nullable_to_non_nullable
+as SoundboardSound,
+  ));
+}
+
+
+}
+
+/// @nodoc
+
+
+class CoreEventPayload_SoundboardSoundDelete extends CoreEventPayload {
+  const CoreEventPayload_SoundboardSoundDelete({required this.soundId}): super._();
+  
+
+ final  PlatformInt64 soundId;
+
+/// Create a copy of CoreEventPayload
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$CoreEventPayload_SoundboardSoundDeleteCopyWith<CoreEventPayload_SoundboardSoundDelete> get copyWith => _$CoreEventPayload_SoundboardSoundDeleteCopyWithImpl<CoreEventPayload_SoundboardSoundDelete>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is CoreEventPayload_SoundboardSoundDelete&&(identical(other.soundId, soundId) || other.soundId == soundId));
+}
+
+
+@override
+int get hashCode => Object.hash(runtimeType,soundId);
+
+@override
+String toString() {
+  return 'CoreEventPayload.soundboardSoundDelete(soundId: $soundId)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $CoreEventPayload_SoundboardSoundDeleteCopyWith<$Res> implements $CoreEventPayloadCopyWith<$Res> {
+  factory $CoreEventPayload_SoundboardSoundDeleteCopyWith(CoreEventPayload_SoundboardSoundDelete value, $Res Function(CoreEventPayload_SoundboardSoundDelete) _then) = _$CoreEventPayload_SoundboardSoundDeleteCopyWithImpl;
+@useResult
+$Res call({
+ PlatformInt64 soundId
+});
+
+
+
+
+}
+/// @nodoc
+class _$CoreEventPayload_SoundboardSoundDeleteCopyWithImpl<$Res>
+    implements $CoreEventPayload_SoundboardSoundDeleteCopyWith<$Res> {
+  _$CoreEventPayload_SoundboardSoundDeleteCopyWithImpl(this._self, this._then);
+
+  final CoreEventPayload_SoundboardSoundDelete _self;
+  final $Res Function(CoreEventPayload_SoundboardSoundDelete) _then;
+
+/// Create a copy of CoreEventPayload
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? soundId = null,}) {
+  return _then(CoreEventPayload_SoundboardSoundDelete(
+soundId: null == soundId ? _self.soundId : soundId // ignore: cast_nullable_to_non_nullable
+as PlatformInt64,
+  ));
+}
+
+
+}
+
+/// @nodoc
+
+
+class CoreEventPayload_VoiceChannelEffect extends CoreEventPayload {
+  const CoreEventPayload_VoiceChannelEffect(this.field0): super._();
+  
+
+ final  SoundEffect field0;
+
+/// Create a copy of CoreEventPayload
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$CoreEventPayload_VoiceChannelEffectCopyWith<CoreEventPayload_VoiceChannelEffect> get copyWith => _$CoreEventPayload_VoiceChannelEffectCopyWithImpl<CoreEventPayload_VoiceChannelEffect>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is CoreEventPayload_VoiceChannelEffect&&(identical(other.field0, field0) || other.field0 == field0));
+}
+
+
+@override
+int get hashCode => Object.hash(runtimeType,field0);
+
+@override
+String toString() {
+  return 'CoreEventPayload.voiceChannelEffect(field0: $field0)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $CoreEventPayload_VoiceChannelEffectCopyWith<$Res> implements $CoreEventPayloadCopyWith<$Res> {
+  factory $CoreEventPayload_VoiceChannelEffectCopyWith(CoreEventPayload_VoiceChannelEffect value, $Res Function(CoreEventPayload_VoiceChannelEffect) _then) = _$CoreEventPayload_VoiceChannelEffectCopyWithImpl;
+@useResult
+$Res call({
+ SoundEffect field0
+});
+
+
+
+
+}
+/// @nodoc
+class _$CoreEventPayload_VoiceChannelEffectCopyWithImpl<$Res>
+    implements $CoreEventPayload_VoiceChannelEffectCopyWith<$Res> {
+  _$CoreEventPayload_VoiceChannelEffectCopyWithImpl(this._self, this._then);
+
+  final CoreEventPayload_VoiceChannelEffect _self;
+  final $Res Function(CoreEventPayload_VoiceChannelEffect) _then;
+
+/// Create a copy of CoreEventPayload
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? field0 = null,}) {
+  return _then(CoreEventPayload_VoiceChannelEffect(
+null == field0 ? _self.field0 : field0 // ignore: cast_nullable_to_non_nullable
+as SoundEffect,
+  ));
+}
+
+
+}
+
+/// @nodoc
+
+
+class CoreEventPayload_ServerAddressesUpdate extends CoreEventPayload {
+  const CoreEventPayload_ServerAddressesUpdate(this.field0): super._();
+  
+
+ final  ServerAddresses field0;
+
+/// Create a copy of CoreEventPayload
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$CoreEventPayload_ServerAddressesUpdateCopyWith<CoreEventPayload_ServerAddressesUpdate> get copyWith => _$CoreEventPayload_ServerAddressesUpdateCopyWithImpl<CoreEventPayload_ServerAddressesUpdate>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is CoreEventPayload_ServerAddressesUpdate&&(identical(other.field0, field0) || other.field0 == field0));
+}
+
+
+@override
+int get hashCode => Object.hash(runtimeType,field0);
+
+@override
+String toString() {
+  return 'CoreEventPayload.serverAddressesUpdate(field0: $field0)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $CoreEventPayload_ServerAddressesUpdateCopyWith<$Res> implements $CoreEventPayloadCopyWith<$Res> {
+  factory $CoreEventPayload_ServerAddressesUpdateCopyWith(CoreEventPayload_ServerAddressesUpdate value, $Res Function(CoreEventPayload_ServerAddressesUpdate) _then) = _$CoreEventPayload_ServerAddressesUpdateCopyWithImpl;
+@useResult
+$Res call({
+ ServerAddresses field0
+});
+
+
+
+
+}
+/// @nodoc
+class _$CoreEventPayload_ServerAddressesUpdateCopyWithImpl<$Res>
+    implements $CoreEventPayload_ServerAddressesUpdateCopyWith<$Res> {
+  _$CoreEventPayload_ServerAddressesUpdateCopyWithImpl(this._self, this._then);
+
+  final CoreEventPayload_ServerAddressesUpdate _self;
+  final $Res Function(CoreEventPayload_ServerAddressesUpdate) _then;
+
+/// Create a copy of CoreEventPayload
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? field0 = null,}) {
+  return _then(CoreEventPayload_ServerAddressesUpdate(
+null == field0 ? _self.field0 : field0 // ignore: cast_nullable_to_non_nullable
+as ServerAddresses,
+  ));
+}
+
+
+}
+
+/// @nodoc
+
+
+class CoreEventPayload_NetworkStatus extends CoreEventPayload {
+  const CoreEventPayload_NetworkStatus(this.field0): super._();
+  
+
+ final  NetworkInfo field0;
+
+/// Create a copy of CoreEventPayload
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$CoreEventPayload_NetworkStatusCopyWith<CoreEventPayload_NetworkStatus> get copyWith => _$CoreEventPayload_NetworkStatusCopyWithImpl<CoreEventPayload_NetworkStatus>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is CoreEventPayload_NetworkStatus&&(identical(other.field0, field0) || other.field0 == field0));
+}
+
+
+@override
+int get hashCode => Object.hash(runtimeType,field0);
+
+@override
+String toString() {
+  return 'CoreEventPayload.networkStatus(field0: $field0)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $CoreEventPayload_NetworkStatusCopyWith<$Res> implements $CoreEventPayloadCopyWith<$Res> {
+  factory $CoreEventPayload_NetworkStatusCopyWith(CoreEventPayload_NetworkStatus value, $Res Function(CoreEventPayload_NetworkStatus) _then) = _$CoreEventPayload_NetworkStatusCopyWithImpl;
+@useResult
+$Res call({
+ NetworkInfo field0
+});
+
+
+
+
+}
+/// @nodoc
+class _$CoreEventPayload_NetworkStatusCopyWithImpl<$Res>
+    implements $CoreEventPayload_NetworkStatusCopyWith<$Res> {
+  _$CoreEventPayload_NetworkStatusCopyWithImpl(this._self, this._then);
+
+  final CoreEventPayload_NetworkStatus _self;
+  final $Res Function(CoreEventPayload_NetworkStatus) _then;
+
+/// Create a copy of CoreEventPayload
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? field0 = null,}) {
+  return _then(CoreEventPayload_NetworkStatus(
+null == field0 ? _self.field0 : field0 // ignore: cast_nullable_to_non_nullable
+as NetworkInfo,
+  ));
+}
+
+
+}
+
+/// @nodoc
+
+
+class CoreEventPayload_ServerNotice extends CoreEventPayload {
+  const CoreEventPayload_ServerNotice(this.field0): super._();
+  
+
+ final  ServerNotice field0;
+
+/// Create a copy of CoreEventPayload
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$CoreEventPayload_ServerNoticeCopyWith<CoreEventPayload_ServerNotice> get copyWith => _$CoreEventPayload_ServerNoticeCopyWithImpl<CoreEventPayload_ServerNotice>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is CoreEventPayload_ServerNotice&&(identical(other.field0, field0) || other.field0 == field0));
+}
+
+
+@override
+int get hashCode => Object.hash(runtimeType,field0);
+
+@override
+String toString() {
+  return 'CoreEventPayload.serverNotice(field0: $field0)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $CoreEventPayload_ServerNoticeCopyWith<$Res> implements $CoreEventPayloadCopyWith<$Res> {
+  factory $CoreEventPayload_ServerNoticeCopyWith(CoreEventPayload_ServerNotice value, $Res Function(CoreEventPayload_ServerNotice) _then) = _$CoreEventPayload_ServerNoticeCopyWithImpl;
+@useResult
+$Res call({
+ ServerNotice field0
+});
+
+
+
+
+}
+/// @nodoc
+class _$CoreEventPayload_ServerNoticeCopyWithImpl<$Res>
+    implements $CoreEventPayload_ServerNoticeCopyWith<$Res> {
+  _$CoreEventPayload_ServerNoticeCopyWithImpl(this._self, this._then);
+
+  final CoreEventPayload_ServerNotice _self;
+  final $Res Function(CoreEventPayload_ServerNotice) _then;
+
+/// Create a copy of CoreEventPayload
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? field0 = null,}) {
+  return _then(CoreEventPayload_ServerNotice(
+null == field0 ? _self.field0 : field0 // ignore: cast_nullable_to_non_nullable
+as ServerNotice,
+  ));
+}
+
+
+}
+
+/// @nodoc
+
+
+class CoreEventPayload_LavalinkNodeStatus extends CoreEventPayload {
+  const CoreEventPayload_LavalinkNodeStatus({required this.node, required this.channelsPlaying}): super._();
+  
+
+ final  LavalinkNode node;
+ final  int channelsPlaying;
+
+/// Create a copy of CoreEventPayload
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$CoreEventPayload_LavalinkNodeStatusCopyWith<CoreEventPayload_LavalinkNodeStatus> get copyWith => _$CoreEventPayload_LavalinkNodeStatusCopyWithImpl<CoreEventPayload_LavalinkNodeStatus>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is CoreEventPayload_LavalinkNodeStatus&&(identical(other.node, node) || other.node == node)&&(identical(other.channelsPlaying, channelsPlaying) || other.channelsPlaying == channelsPlaying));
+}
+
+
+@override
+int get hashCode => Object.hash(runtimeType,node,channelsPlaying);
+
+@override
+String toString() {
+  return 'CoreEventPayload.lavalinkNodeStatus(node: $node, channelsPlaying: $channelsPlaying)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $CoreEventPayload_LavalinkNodeStatusCopyWith<$Res> implements $CoreEventPayloadCopyWith<$Res> {
+  factory $CoreEventPayload_LavalinkNodeStatusCopyWith(CoreEventPayload_LavalinkNodeStatus value, $Res Function(CoreEventPayload_LavalinkNodeStatus) _then) = _$CoreEventPayload_LavalinkNodeStatusCopyWithImpl;
+@useResult
+$Res call({
+ LavalinkNode node, int channelsPlaying
+});
+
+
+
+
+}
+/// @nodoc
+class _$CoreEventPayload_LavalinkNodeStatusCopyWithImpl<$Res>
+    implements $CoreEventPayload_LavalinkNodeStatusCopyWith<$Res> {
+  _$CoreEventPayload_LavalinkNodeStatusCopyWithImpl(this._self, this._then);
+
+  final CoreEventPayload_LavalinkNodeStatus _self;
+  final $Res Function(CoreEventPayload_LavalinkNodeStatus) _then;
+
+/// Create a copy of CoreEventPayload
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? node = null,Object? channelsPlaying = null,}) {
+  return _then(CoreEventPayload_LavalinkNodeStatus(
+node: null == node ? _self.node : node // ignore: cast_nullable_to_non_nullable
+as LavalinkNode,channelsPlaying: null == channelsPlaying ? _self.channelsPlaying : channelsPlaying // ignore: cast_nullable_to_non_nullable
+as int,
+  ));
+}
+
+
+}
+
+/// @nodoc
+
+
+class CoreEventPayload_LavalinkNodeRemoved extends CoreEventPayload {
+  const CoreEventPayload_LavalinkNodeRemoved({required this.nodeId, required this.channelsPlaying}): super._();
+  
+
+ final  PlatformInt64 nodeId;
+ final  int channelsPlaying;
+
+/// Create a copy of CoreEventPayload
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$CoreEventPayload_LavalinkNodeRemovedCopyWith<CoreEventPayload_LavalinkNodeRemoved> get copyWith => _$CoreEventPayload_LavalinkNodeRemovedCopyWithImpl<CoreEventPayload_LavalinkNodeRemoved>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is CoreEventPayload_LavalinkNodeRemoved&&(identical(other.nodeId, nodeId) || other.nodeId == nodeId)&&(identical(other.channelsPlaying, channelsPlaying) || other.channelsPlaying == channelsPlaying));
+}
+
+
+@override
+int get hashCode => Object.hash(runtimeType,nodeId,channelsPlaying);
+
+@override
+String toString() {
+  return 'CoreEventPayload.lavalinkNodeRemoved(nodeId: $nodeId, channelsPlaying: $channelsPlaying)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $CoreEventPayload_LavalinkNodeRemovedCopyWith<$Res> implements $CoreEventPayloadCopyWith<$Res> {
+  factory $CoreEventPayload_LavalinkNodeRemovedCopyWith(CoreEventPayload_LavalinkNodeRemoved value, $Res Function(CoreEventPayload_LavalinkNodeRemoved) _then) = _$CoreEventPayload_LavalinkNodeRemovedCopyWithImpl;
+@useResult
+$Res call({
+ PlatformInt64 nodeId, int channelsPlaying
+});
+
+
+
+
+}
+/// @nodoc
+class _$CoreEventPayload_LavalinkNodeRemovedCopyWithImpl<$Res>
+    implements $CoreEventPayload_LavalinkNodeRemovedCopyWith<$Res> {
+  _$CoreEventPayload_LavalinkNodeRemovedCopyWithImpl(this._self, this._then);
+
+  final CoreEventPayload_LavalinkNodeRemoved _self;
+  final $Res Function(CoreEventPayload_LavalinkNodeRemoved) _then;
+
+/// Create a copy of CoreEventPayload
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? nodeId = null,Object? channelsPlaying = null,}) {
+  return _then(CoreEventPayload_LavalinkNodeRemoved(
+nodeId: null == nodeId ? _self.nodeId : nodeId // ignore: cast_nullable_to_non_nullable
+as PlatformInt64,channelsPlaying: null == channelsPlaying ? _self.channelsPlaying : channelsPlaying // ignore: cast_nullable_to_non_nullable
+as int,
+  ));
+}
+
+
+}
+
+/// @nodoc
+
+
+class CoreEventPayload_LavalinkNodeEvent extends CoreEventPayload {
+  const CoreEventPayload_LavalinkNodeEvent(this.field0): super._();
+  
+
+ final  LavalinkNodeEvent field0;
+
+/// Create a copy of CoreEventPayload
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$CoreEventPayload_LavalinkNodeEventCopyWith<CoreEventPayload_LavalinkNodeEvent> get copyWith => _$CoreEventPayload_LavalinkNodeEventCopyWithImpl<CoreEventPayload_LavalinkNodeEvent>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is CoreEventPayload_LavalinkNodeEvent&&(identical(other.field0, field0) || other.field0 == field0));
+}
+
+
+@override
+int get hashCode => Object.hash(runtimeType,field0);
+
+@override
+String toString() {
+  return 'CoreEventPayload.lavalinkNodeEvent(field0: $field0)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $CoreEventPayload_LavalinkNodeEventCopyWith<$Res> implements $CoreEventPayloadCopyWith<$Res> {
+  factory $CoreEventPayload_LavalinkNodeEventCopyWith(CoreEventPayload_LavalinkNodeEvent value, $Res Function(CoreEventPayload_LavalinkNodeEvent) _then) = _$CoreEventPayload_LavalinkNodeEventCopyWithImpl;
+@useResult
+$Res call({
+ LavalinkNodeEvent field0
+});
+
+
+
+
+}
+/// @nodoc
+class _$CoreEventPayload_LavalinkNodeEventCopyWithImpl<$Res>
+    implements $CoreEventPayload_LavalinkNodeEventCopyWith<$Res> {
+  _$CoreEventPayload_LavalinkNodeEventCopyWithImpl(this._self, this._then);
+
+  final CoreEventPayload_LavalinkNodeEvent _self;
+  final $Res Function(CoreEventPayload_LavalinkNodeEvent) _then;
+
+/// Create a copy of CoreEventPayload
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? field0 = null,}) {
+  return _then(CoreEventPayload_LavalinkNodeEvent(
+null == field0 ? _self.field0 : field0 // ignore: cast_nullable_to_non_nullable
+as LavalinkNodeEvent,
+  ));
+}
+
+
+}
+
+/// @nodoc
+
+
+class CoreEventPayload_LavalinkTestProgress extends CoreEventPayload {
+  const CoreEventPayload_LavalinkTestProgress(this.field0): super._();
+  
+
+ final  LavalinkTestProgress field0;
+
+/// Create a copy of CoreEventPayload
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$CoreEventPayload_LavalinkTestProgressCopyWith<CoreEventPayload_LavalinkTestProgress> get copyWith => _$CoreEventPayload_LavalinkTestProgressCopyWithImpl<CoreEventPayload_LavalinkTestProgress>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is CoreEventPayload_LavalinkTestProgress&&(identical(other.field0, field0) || other.field0 == field0));
+}
+
+
+@override
+int get hashCode => Object.hash(runtimeType,field0);
+
+@override
+String toString() {
+  return 'CoreEventPayload.lavalinkTestProgress(field0: $field0)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $CoreEventPayload_LavalinkTestProgressCopyWith<$Res> implements $CoreEventPayloadCopyWith<$Res> {
+  factory $CoreEventPayload_LavalinkTestProgressCopyWith(CoreEventPayload_LavalinkTestProgress value, $Res Function(CoreEventPayload_LavalinkTestProgress) _then) = _$CoreEventPayload_LavalinkTestProgressCopyWithImpl;
+@useResult
+$Res call({
+ LavalinkTestProgress field0
+});
+
+
+
+
+}
+/// @nodoc
+class _$CoreEventPayload_LavalinkTestProgressCopyWithImpl<$Res>
+    implements $CoreEventPayload_LavalinkTestProgressCopyWith<$Res> {
+  _$CoreEventPayload_LavalinkTestProgressCopyWithImpl(this._self, this._then);
+
+  final CoreEventPayload_LavalinkTestProgress _self;
+  final $Res Function(CoreEventPayload_LavalinkTestProgress) _then;
+
+/// Create a copy of CoreEventPayload
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? field0 = null,}) {
+  return _then(CoreEventPayload_LavalinkTestProgress(
+null == field0 ? _self.field0 : field0 // ignore: cast_nullable_to_non_nullable
+as LavalinkTestProgress,
+  ));
+}
+
+
+}
+
+/// @nodoc
+
+
+class CoreEventPayload_MusicSettingsUpdate extends CoreEventPayload {
+  const CoreEventPayload_MusicSettingsUpdate(this.field0): super._();
+  
+
+ final  MusicSettings field0;
+
+/// Create a copy of CoreEventPayload
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$CoreEventPayload_MusicSettingsUpdateCopyWith<CoreEventPayload_MusicSettingsUpdate> get copyWith => _$CoreEventPayload_MusicSettingsUpdateCopyWithImpl<CoreEventPayload_MusicSettingsUpdate>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is CoreEventPayload_MusicSettingsUpdate&&(identical(other.field0, field0) || other.field0 == field0));
+}
+
+
+@override
+int get hashCode => Object.hash(runtimeType,field0);
+
+@override
+String toString() {
+  return 'CoreEventPayload.musicSettingsUpdate(field0: $field0)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $CoreEventPayload_MusicSettingsUpdateCopyWith<$Res> implements $CoreEventPayloadCopyWith<$Res> {
+  factory $CoreEventPayload_MusicSettingsUpdateCopyWith(CoreEventPayload_MusicSettingsUpdate value, $Res Function(CoreEventPayload_MusicSettingsUpdate) _then) = _$CoreEventPayload_MusicSettingsUpdateCopyWithImpl;
+@useResult
+$Res call({
+ MusicSettings field0
+});
+
+
+
+
+}
+/// @nodoc
+class _$CoreEventPayload_MusicSettingsUpdateCopyWithImpl<$Res>
+    implements $CoreEventPayload_MusicSettingsUpdateCopyWith<$Res> {
+  _$CoreEventPayload_MusicSettingsUpdateCopyWithImpl(this._self, this._then);
+
+  final CoreEventPayload_MusicSettingsUpdate _self;
+  final $Res Function(CoreEventPayload_MusicSettingsUpdate) _then;
+
+/// Create a copy of CoreEventPayload
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? field0 = null,}) {
+  return _then(CoreEventPayload_MusicSettingsUpdate(
+null == field0 ? _self.field0 : field0 // ignore: cast_nullable_to_non_nullable
+as MusicSettings,
+  ));
+}
+
+
+}
+
+/// @nodoc
+
+
+class CoreEventPayload_MusicSession extends CoreEventPayload {
+  const CoreEventPayload_MusicSession(this.field0): super._();
+  
+
+ final  MusicSession field0;
+
+/// Create a copy of CoreEventPayload
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$CoreEventPayload_MusicSessionCopyWith<CoreEventPayload_MusicSession> get copyWith => _$CoreEventPayload_MusicSessionCopyWithImpl<CoreEventPayload_MusicSession>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is CoreEventPayload_MusicSession&&(identical(other.field0, field0) || other.field0 == field0));
+}
+
+
+@override
+int get hashCode => Object.hash(runtimeType,field0);
+
+@override
+String toString() {
+  return 'CoreEventPayload.musicSession(field0: $field0)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $CoreEventPayload_MusicSessionCopyWith<$Res> implements $CoreEventPayloadCopyWith<$Res> {
+  factory $CoreEventPayload_MusicSessionCopyWith(CoreEventPayload_MusicSession value, $Res Function(CoreEventPayload_MusicSession) _then) = _$CoreEventPayload_MusicSessionCopyWithImpl;
+@useResult
+$Res call({
+ MusicSession field0
+});
+
+
+
+
+}
+/// @nodoc
+class _$CoreEventPayload_MusicSessionCopyWithImpl<$Res>
+    implements $CoreEventPayload_MusicSessionCopyWith<$Res> {
+  _$CoreEventPayload_MusicSessionCopyWithImpl(this._self, this._then);
+
+  final CoreEventPayload_MusicSession _self;
+  final $Res Function(CoreEventPayload_MusicSession) _then;
+
+/// Create a copy of CoreEventPayload
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? field0 = null,}) {
+  return _then(CoreEventPayload_MusicSession(
+null == field0 ? _self.field0 : field0 // ignore: cast_nullable_to_non_nullable
+as MusicSession,
+  ));
+}
+
+
+}
+
+/// @nodoc
+
+
+class CoreEventPayload_MusicNowPlaying extends CoreEventPayload {
+  const CoreEventPayload_MusicNowPlaying(this.field0): super._();
+  
+
+ final  MusicNowPlaying field0;
+
+/// Create a copy of CoreEventPayload
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$CoreEventPayload_MusicNowPlayingCopyWith<CoreEventPayload_MusicNowPlaying> get copyWith => _$CoreEventPayload_MusicNowPlayingCopyWithImpl<CoreEventPayload_MusicNowPlaying>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is CoreEventPayload_MusicNowPlaying&&(identical(other.field0, field0) || other.field0 == field0));
+}
+
+
+@override
+int get hashCode => Object.hash(runtimeType,field0);
+
+@override
+String toString() {
+  return 'CoreEventPayload.musicNowPlaying(field0: $field0)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $CoreEventPayload_MusicNowPlayingCopyWith<$Res> implements $CoreEventPayloadCopyWith<$Res> {
+  factory $CoreEventPayload_MusicNowPlayingCopyWith(CoreEventPayload_MusicNowPlaying value, $Res Function(CoreEventPayload_MusicNowPlaying) _then) = _$CoreEventPayload_MusicNowPlayingCopyWithImpl;
+@useResult
+$Res call({
+ MusicNowPlaying field0
+});
+
+
+
+
+}
+/// @nodoc
+class _$CoreEventPayload_MusicNowPlayingCopyWithImpl<$Res>
+    implements $CoreEventPayload_MusicNowPlayingCopyWith<$Res> {
+  _$CoreEventPayload_MusicNowPlayingCopyWithImpl(this._self, this._then);
+
+  final CoreEventPayload_MusicNowPlaying _self;
+  final $Res Function(CoreEventPayload_MusicNowPlaying) _then;
+
+/// Create a copy of CoreEventPayload
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? field0 = null,}) {
+  return _then(CoreEventPayload_MusicNowPlaying(
+null == field0 ? _self.field0 : field0 // ignore: cast_nullable_to_non_nullable
+as MusicNowPlaying,
+  ));
+}
+
+
+}
+
+/// @nodoc
+
+
+class CoreEventPayload_MusicNotice extends CoreEventPayload {
+  const CoreEventPayload_MusicNotice(this.field0): super._();
+  
+
+ final  MusicNotice field0;
+
+/// Create a copy of CoreEventPayload
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$CoreEventPayload_MusicNoticeCopyWith<CoreEventPayload_MusicNotice> get copyWith => _$CoreEventPayload_MusicNoticeCopyWithImpl<CoreEventPayload_MusicNotice>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is CoreEventPayload_MusicNotice&&(identical(other.field0, field0) || other.field0 == field0));
+}
+
+
+@override
+int get hashCode => Object.hash(runtimeType,field0);
+
+@override
+String toString() {
+  return 'CoreEventPayload.musicNotice(field0: $field0)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $CoreEventPayload_MusicNoticeCopyWith<$Res> implements $CoreEventPayloadCopyWith<$Res> {
+  factory $CoreEventPayload_MusicNoticeCopyWith(CoreEventPayload_MusicNotice value, $Res Function(CoreEventPayload_MusicNotice) _then) = _$CoreEventPayload_MusicNoticeCopyWithImpl;
+@useResult
+$Res call({
+ MusicNotice field0
+});
+
+
+
+
+}
+/// @nodoc
+class _$CoreEventPayload_MusicNoticeCopyWithImpl<$Res>
+    implements $CoreEventPayload_MusicNoticeCopyWith<$Res> {
+  _$CoreEventPayload_MusicNoticeCopyWithImpl(this._self, this._then);
+
+  final CoreEventPayload_MusicNotice _self;
+  final $Res Function(CoreEventPayload_MusicNotice) _then;
+
+/// Create a copy of CoreEventPayload
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? field0 = null,}) {
+  return _then(CoreEventPayload_MusicNotice(
+null == field0 ? _self.field0 : field0 // ignore: cast_nullable_to_non_nullable
+as MusicNotice,
+  ));
+}
+
+
+}
+
+/// @nodoc
+
+
+class CoreEventPayload_CommandsUpdate extends CoreEventPayload {
+  const CoreEventPayload_CommandsUpdate(this.field0): super._();
+  
+
+ final  CommandList field0;
+
+/// Create a copy of CoreEventPayload
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$CoreEventPayload_CommandsUpdateCopyWith<CoreEventPayload_CommandsUpdate> get copyWith => _$CoreEventPayload_CommandsUpdateCopyWithImpl<CoreEventPayload_CommandsUpdate>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is CoreEventPayload_CommandsUpdate&&(identical(other.field0, field0) || other.field0 == field0));
+}
+
+
+@override
+int get hashCode => Object.hash(runtimeType,field0);
+
+@override
+String toString() {
+  return 'CoreEventPayload.commandsUpdate(field0: $field0)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $CoreEventPayload_CommandsUpdateCopyWith<$Res> implements $CoreEventPayloadCopyWith<$Res> {
+  factory $CoreEventPayload_CommandsUpdateCopyWith(CoreEventPayload_CommandsUpdate value, $Res Function(CoreEventPayload_CommandsUpdate) _then) = _$CoreEventPayload_CommandsUpdateCopyWithImpl;
+@useResult
+$Res call({
+ CommandList field0
+});
+
+
+
+
+}
+/// @nodoc
+class _$CoreEventPayload_CommandsUpdateCopyWithImpl<$Res>
+    implements $CoreEventPayload_CommandsUpdateCopyWith<$Res> {
+  _$CoreEventPayload_CommandsUpdateCopyWithImpl(this._self, this._then);
+
+  final CoreEventPayload_CommandsUpdate _self;
+  final $Res Function(CoreEventPayload_CommandsUpdate) _then;
+
+/// Create a copy of CoreEventPayload
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? field0 = null,}) {
+  return _then(CoreEventPayload_CommandsUpdate(
+null == field0 ? _self.field0 : field0 // ignore: cast_nullable_to_non_nullable
+as CommandList,
+  ));
+}
+
+
+}
+
+/// @nodoc
+
+
+class CoreEventPayload_EphemeralMessage extends CoreEventPayload {
+  const CoreEventPayload_EphemeralMessage(this.field0): super._();
+  
+
+ final  EphemeralMessage field0;
+
+/// Create a copy of CoreEventPayload
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$CoreEventPayload_EphemeralMessageCopyWith<CoreEventPayload_EphemeralMessage> get copyWith => _$CoreEventPayload_EphemeralMessageCopyWithImpl<CoreEventPayload_EphemeralMessage>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is CoreEventPayload_EphemeralMessage&&(identical(other.field0, field0) || other.field0 == field0));
+}
+
+
+@override
+int get hashCode => Object.hash(runtimeType,field0);
+
+@override
+String toString() {
+  return 'CoreEventPayload.ephemeralMessage(field0: $field0)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $CoreEventPayload_EphemeralMessageCopyWith<$Res> implements $CoreEventPayloadCopyWith<$Res> {
+  factory $CoreEventPayload_EphemeralMessageCopyWith(CoreEventPayload_EphemeralMessage value, $Res Function(CoreEventPayload_EphemeralMessage) _then) = _$CoreEventPayload_EphemeralMessageCopyWithImpl;
+@useResult
+$Res call({
+ EphemeralMessage field0
+});
+
+
+
+
+}
+/// @nodoc
+class _$CoreEventPayload_EphemeralMessageCopyWithImpl<$Res>
+    implements $CoreEventPayload_EphemeralMessageCopyWith<$Res> {
+  _$CoreEventPayload_EphemeralMessageCopyWithImpl(this._self, this._then);
+
+  final CoreEventPayload_EphemeralMessage _self;
+  final $Res Function(CoreEventPayload_EphemeralMessage) _then;
+
+/// Create a copy of CoreEventPayload
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? field0 = null,}) {
+  return _then(CoreEventPayload_EphemeralMessage(
+null == field0 ? _self.field0 : field0 // ignore: cast_nullable_to_non_nullable
+as EphemeralMessage,
+  ));
+}
+
+
+}
+
+/// @nodoc
+
+
+class CoreEventPayload_UploadSettingsUpdate extends CoreEventPayload {
+  const CoreEventPayload_UploadSettingsUpdate(this.field0): super._();
+  
+
+ final  UploadSettings field0;
+
+/// Create a copy of CoreEventPayload
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$CoreEventPayload_UploadSettingsUpdateCopyWith<CoreEventPayload_UploadSettingsUpdate> get copyWith => _$CoreEventPayload_UploadSettingsUpdateCopyWithImpl<CoreEventPayload_UploadSettingsUpdate>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is CoreEventPayload_UploadSettingsUpdate&&(identical(other.field0, field0) || other.field0 == field0));
+}
+
+
+@override
+int get hashCode => Object.hash(runtimeType,field0);
+
+@override
+String toString() {
+  return 'CoreEventPayload.uploadSettingsUpdate(field0: $field0)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $CoreEventPayload_UploadSettingsUpdateCopyWith<$Res> implements $CoreEventPayloadCopyWith<$Res> {
+  factory $CoreEventPayload_UploadSettingsUpdateCopyWith(CoreEventPayload_UploadSettingsUpdate value, $Res Function(CoreEventPayload_UploadSettingsUpdate) _then) = _$CoreEventPayload_UploadSettingsUpdateCopyWithImpl;
+@useResult
+$Res call({
+ UploadSettings field0
+});
+
+
+
+
+}
+/// @nodoc
+class _$CoreEventPayload_UploadSettingsUpdateCopyWithImpl<$Res>
+    implements $CoreEventPayload_UploadSettingsUpdateCopyWith<$Res> {
+  _$CoreEventPayload_UploadSettingsUpdateCopyWithImpl(this._self, this._then);
+
+  final CoreEventPayload_UploadSettingsUpdate _self;
+  final $Res Function(CoreEventPayload_UploadSettingsUpdate) _then;
+
+/// Create a copy of CoreEventPayload
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? field0 = null,}) {
+  return _then(CoreEventPayload_UploadSettingsUpdate(
+null == field0 ? _self.field0 : field0 // ignore: cast_nullable_to_non_nullable
+as UploadSettings,
+  ));
+}
+
+
+}
+
+/// @nodoc
+
+
+class CoreEventPayload_StorageUpdate extends CoreEventPayload {
+  const CoreEventPayload_StorageUpdate(this.field0): super._();
+  
+
+ final  StorageInfo field0;
+
+/// Create a copy of CoreEventPayload
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$CoreEventPayload_StorageUpdateCopyWith<CoreEventPayload_StorageUpdate> get copyWith => _$CoreEventPayload_StorageUpdateCopyWithImpl<CoreEventPayload_StorageUpdate>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is CoreEventPayload_StorageUpdate&&(identical(other.field0, field0) || other.field0 == field0));
+}
+
+
+@override
+int get hashCode => Object.hash(runtimeType,field0);
+
+@override
+String toString() {
+  return 'CoreEventPayload.storageUpdate(field0: $field0)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $CoreEventPayload_StorageUpdateCopyWith<$Res> implements $CoreEventPayloadCopyWith<$Res> {
+  factory $CoreEventPayload_StorageUpdateCopyWith(CoreEventPayload_StorageUpdate value, $Res Function(CoreEventPayload_StorageUpdate) _then) = _$CoreEventPayload_StorageUpdateCopyWithImpl;
+@useResult
+$Res call({
+ StorageInfo field0
+});
+
+
+
+
+}
+/// @nodoc
+class _$CoreEventPayload_StorageUpdateCopyWithImpl<$Res>
+    implements $CoreEventPayload_StorageUpdateCopyWith<$Res> {
+  _$CoreEventPayload_StorageUpdateCopyWithImpl(this._self, this._then);
+
+  final CoreEventPayload_StorageUpdate _self;
+  final $Res Function(CoreEventPayload_StorageUpdate) _then;
+
+/// Create a copy of CoreEventPayload
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? field0 = null,}) {
+  return _then(CoreEventPayload_StorageUpdate(
+null == field0 ? _self.field0 : field0 // ignore: cast_nullable_to_non_nullable
+as StorageInfo,
+  ));
+}
+
+
+}
+
+/// @nodoc
+
+
+class CoreEventPayload_StagedUploadProgress extends CoreEventPayload {
+  const CoreEventPayload_StagedUploadProgress({required this.channelId, required this.stagedId, required this.sentBytes, required this.totalBytes, required this.phase}): super._();
+  
+
+ final  PlatformInt64 channelId;
+ final  String stagedId;
+ final  BigInt sentBytes;
+ final  BigInt totalBytes;
+ final  UploadPhase phase;
+
+/// Create a copy of CoreEventPayload
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$CoreEventPayload_StagedUploadProgressCopyWith<CoreEventPayload_StagedUploadProgress> get copyWith => _$CoreEventPayload_StagedUploadProgressCopyWithImpl<CoreEventPayload_StagedUploadProgress>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is CoreEventPayload_StagedUploadProgress&&(identical(other.channelId, channelId) || other.channelId == channelId)&&(identical(other.stagedId, stagedId) || other.stagedId == stagedId)&&(identical(other.sentBytes, sentBytes) || other.sentBytes == sentBytes)&&(identical(other.totalBytes, totalBytes) || other.totalBytes == totalBytes)&&(identical(other.phase, phase) || other.phase == phase));
+}
+
+
+@override
+int get hashCode => Object.hash(runtimeType,channelId,stagedId,sentBytes,totalBytes,phase);
+
+@override
+String toString() {
+  return 'CoreEventPayload.stagedUploadProgress(channelId: $channelId, stagedId: $stagedId, sentBytes: $sentBytes, totalBytes: $totalBytes, phase: $phase)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $CoreEventPayload_StagedUploadProgressCopyWith<$Res> implements $CoreEventPayloadCopyWith<$Res> {
+  factory $CoreEventPayload_StagedUploadProgressCopyWith(CoreEventPayload_StagedUploadProgress value, $Res Function(CoreEventPayload_StagedUploadProgress) _then) = _$CoreEventPayload_StagedUploadProgressCopyWithImpl;
+@useResult
+$Res call({
+ PlatformInt64 channelId, String stagedId, BigInt sentBytes, BigInt totalBytes, UploadPhase phase
+});
+
+
+$UploadPhaseCopyWith<$Res> get phase;
+
+}
+/// @nodoc
+class _$CoreEventPayload_StagedUploadProgressCopyWithImpl<$Res>
+    implements $CoreEventPayload_StagedUploadProgressCopyWith<$Res> {
+  _$CoreEventPayload_StagedUploadProgressCopyWithImpl(this._self, this._then);
+
+  final CoreEventPayload_StagedUploadProgress _self;
+  final $Res Function(CoreEventPayload_StagedUploadProgress) _then;
+
+/// Create a copy of CoreEventPayload
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? channelId = null,Object? stagedId = null,Object? sentBytes = null,Object? totalBytes = null,Object? phase = null,}) {
+  return _then(CoreEventPayload_StagedUploadProgress(
+channelId: null == channelId ? _self.channelId : channelId // ignore: cast_nullable_to_non_nullable
+as PlatformInt64,stagedId: null == stagedId ? _self.stagedId : stagedId // ignore: cast_nullable_to_non_nullable
+as String,sentBytes: null == sentBytes ? _self.sentBytes : sentBytes // ignore: cast_nullable_to_non_nullable
+as BigInt,totalBytes: null == totalBytes ? _self.totalBytes : totalBytes // ignore: cast_nullable_to_non_nullable
+as BigInt,phase: null == phase ? _self.phase : phase // ignore: cast_nullable_to_non_nullable
+as UploadPhase,
+  ));
+}
+
+/// Create a copy of CoreEventPayload
+/// with the given fields replaced by the non-null parameter values.
+@override
+@pragma('vm:prefer-inline')
+$UploadPhaseCopyWith<$Res> get phase {
+  
+  return $UploadPhaseCopyWith<$Res>(_self.phase, (value) {
+    return _then(_self.copyWith(phase: value));
+  });
+}
+}
+
+/// @nodoc
+
+
+class CoreEventPayload_UploadProgress extends CoreEventPayload {
+  const CoreEventPayload_UploadProgress({required this.channelId, required this.nonce, required this.fileIndex, required this.sentBytes, required this.totalBytes, required this.phase}): super._();
+  
+
+ final  PlatformInt64 channelId;
+ final  String nonce;
+/// Its place among the message's files.
+ final  int fileIndex;
+ final  BigInt sentBytes;
+ final  BigInt totalBytes;
+ final  UploadPhase phase;
+
+/// Create a copy of CoreEventPayload
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$CoreEventPayload_UploadProgressCopyWith<CoreEventPayload_UploadProgress> get copyWith => _$CoreEventPayload_UploadProgressCopyWithImpl<CoreEventPayload_UploadProgress>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is CoreEventPayload_UploadProgress&&(identical(other.channelId, channelId) || other.channelId == channelId)&&(identical(other.nonce, nonce) || other.nonce == nonce)&&(identical(other.fileIndex, fileIndex) || other.fileIndex == fileIndex)&&(identical(other.sentBytes, sentBytes) || other.sentBytes == sentBytes)&&(identical(other.totalBytes, totalBytes) || other.totalBytes == totalBytes)&&(identical(other.phase, phase) || other.phase == phase));
+}
+
+
+@override
+int get hashCode => Object.hash(runtimeType,channelId,nonce,fileIndex,sentBytes,totalBytes,phase);
+
+@override
+String toString() {
+  return 'CoreEventPayload.uploadProgress(channelId: $channelId, nonce: $nonce, fileIndex: $fileIndex, sentBytes: $sentBytes, totalBytes: $totalBytes, phase: $phase)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $CoreEventPayload_UploadProgressCopyWith<$Res> implements $CoreEventPayloadCopyWith<$Res> {
+  factory $CoreEventPayload_UploadProgressCopyWith(CoreEventPayload_UploadProgress value, $Res Function(CoreEventPayload_UploadProgress) _then) = _$CoreEventPayload_UploadProgressCopyWithImpl;
+@useResult
+$Res call({
+ PlatformInt64 channelId, String nonce, int fileIndex, BigInt sentBytes, BigInt totalBytes, UploadPhase phase
+});
+
+
+$UploadPhaseCopyWith<$Res> get phase;
+
+}
+/// @nodoc
+class _$CoreEventPayload_UploadProgressCopyWithImpl<$Res>
+    implements $CoreEventPayload_UploadProgressCopyWith<$Res> {
+  _$CoreEventPayload_UploadProgressCopyWithImpl(this._self, this._then);
+
+  final CoreEventPayload_UploadProgress _self;
+  final $Res Function(CoreEventPayload_UploadProgress) _then;
+
+/// Create a copy of CoreEventPayload
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? channelId = null,Object? nonce = null,Object? fileIndex = null,Object? sentBytes = null,Object? totalBytes = null,Object? phase = null,}) {
+  return _then(CoreEventPayload_UploadProgress(
+channelId: null == channelId ? _self.channelId : channelId // ignore: cast_nullable_to_non_nullable
+as PlatformInt64,nonce: null == nonce ? _self.nonce : nonce // ignore: cast_nullable_to_non_nullable
+as String,fileIndex: null == fileIndex ? _self.fileIndex : fileIndex // ignore: cast_nullable_to_non_nullable
+as int,sentBytes: null == sentBytes ? _self.sentBytes : sentBytes // ignore: cast_nullable_to_non_nullable
+as BigInt,totalBytes: null == totalBytes ? _self.totalBytes : totalBytes // ignore: cast_nullable_to_non_nullable
+as BigInt,phase: null == phase ? _self.phase : phase // ignore: cast_nullable_to_non_nullable
+as UploadPhase,
+  ));
+}
+
+/// Create a copy of CoreEventPayload
+/// with the given fields replaced by the non-null parameter values.
+@override
+@pragma('vm:prefer-inline')
+$UploadPhaseCopyWith<$Res> get phase {
+  
+  return $UploadPhaseCopyWith<$Res>(_self.phase, (value) {
+    return _then(_self.copyWith(phase: value));
+  });
+}
+}
+
+/// @nodoc
+
+
+class CoreEventPayload_DownloadProgress extends CoreEventPayload {
+  const CoreEventPayload_DownloadProgress({required this.attachmentId, required this.receivedBytes, required this.totalBytes, required this.done, this.error}): super._();
+  
+
+ final  PlatformInt64 attachmentId;
+ final  BigInt receivedBytes;
+ final  BigInt totalBytes;
+ final  bool done;
+ final  String? error;
+
+/// Create a copy of CoreEventPayload
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$CoreEventPayload_DownloadProgressCopyWith<CoreEventPayload_DownloadProgress> get copyWith => _$CoreEventPayload_DownloadProgressCopyWithImpl<CoreEventPayload_DownloadProgress>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is CoreEventPayload_DownloadProgress&&(identical(other.attachmentId, attachmentId) || other.attachmentId == attachmentId)&&(identical(other.receivedBytes, receivedBytes) || other.receivedBytes == receivedBytes)&&(identical(other.totalBytes, totalBytes) || other.totalBytes == totalBytes)&&(identical(other.done, done) || other.done == done)&&(identical(other.error, error) || other.error == error));
+}
+
+
+@override
+int get hashCode => Object.hash(runtimeType,attachmentId,receivedBytes,totalBytes,done,error);
+
+@override
+String toString() {
+  return 'CoreEventPayload.downloadProgress(attachmentId: $attachmentId, receivedBytes: $receivedBytes, totalBytes: $totalBytes, done: $done, error: $error)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $CoreEventPayload_DownloadProgressCopyWith<$Res> implements $CoreEventPayloadCopyWith<$Res> {
+  factory $CoreEventPayload_DownloadProgressCopyWith(CoreEventPayload_DownloadProgress value, $Res Function(CoreEventPayload_DownloadProgress) _then) = _$CoreEventPayload_DownloadProgressCopyWithImpl;
+@useResult
+$Res call({
+ PlatformInt64 attachmentId, BigInt receivedBytes, BigInt totalBytes, bool done, String? error
+});
+
+
+
+
+}
+/// @nodoc
+class _$CoreEventPayload_DownloadProgressCopyWithImpl<$Res>
+    implements $CoreEventPayload_DownloadProgressCopyWith<$Res> {
+  _$CoreEventPayload_DownloadProgressCopyWithImpl(this._self, this._then);
+
+  final CoreEventPayload_DownloadProgress _self;
+  final $Res Function(CoreEventPayload_DownloadProgress) _then;
+
+/// Create a copy of CoreEventPayload
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? attachmentId = null,Object? receivedBytes = null,Object? totalBytes = null,Object? done = null,Object? error = freezed,}) {
+  return _then(CoreEventPayload_DownloadProgress(
+attachmentId: null == attachmentId ? _self.attachmentId : attachmentId // ignore: cast_nullable_to_non_nullable
+as PlatformInt64,receivedBytes: null == receivedBytes ? _self.receivedBytes : receivedBytes // ignore: cast_nullable_to_non_nullable
+as BigInt,totalBytes: null == totalBytes ? _self.totalBytes : totalBytes // ignore: cast_nullable_to_non_nullable
+as BigInt,done: null == done ? _self.done : done // ignore: cast_nullable_to_non_nullable
+as bool,error: freezed == error ? _self.error : error // ignore: cast_nullable_to_non_nullable
+as String?,
+  ));
+}
+
+
+}
+
+/// @nodoc
+mixin _$HotkeySupport {
+
+
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is HotkeySupport);
+}
+
+
+@override
+int get hashCode => runtimeType.hashCode;
+
+@override
+String toString() {
+  return 'HotkeySupport()';
+}
+
+
+}
+
+/// @nodoc
+class $HotkeySupportCopyWith<$Res>  {
+$HotkeySupportCopyWith(HotkeySupport _, $Res Function(HotkeySupport) __);
+}
+
+
+/// Adds pattern-matching-related methods to [HotkeySupport].
+extension HotkeySupportPatterns on HotkeySupport {
+/// A variant of `map` that fallback to returning `orElse`.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case _:
+///     return orElse();
+/// }
+/// ```
+
+@optionalTypeArgs TResult maybeMap<TResult extends Object?>({TResult Function( HotkeySupport_Global value)?  global,TResult Function( HotkeySupport_FocusedOnly value)?  focusedOnly,required TResult orElse(),}){
+final _that = this;
+switch (_that) {
+case HotkeySupport_Global() when global != null:
+return global(_that);case HotkeySupport_FocusedOnly() when focusedOnly != null:
+return focusedOnly(_that);case _:
+  return orElse();
+
+}
+}
+/// A `switch`-like method, using callbacks.
+///
+/// Callbacks receives the raw object, upcasted.
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case final Subclass2 value:
+///     return ...;
+/// }
+/// ```
+
+@optionalTypeArgs TResult map<TResult extends Object?>({required TResult Function( HotkeySupport_Global value)  global,required TResult Function( HotkeySupport_FocusedOnly value)  focusedOnly,}){
+final _that = this;
+switch (_that) {
+case HotkeySupport_Global():
+return global(_that);case HotkeySupport_FocusedOnly():
+return focusedOnly(_that);}
+}
+/// A variant of `map` that fallback to returning `null`.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case _:
+///     return null;
+/// }
+/// ```
+
+@optionalTypeArgs TResult? mapOrNull<TResult extends Object?>({TResult? Function( HotkeySupport_Global value)?  global,TResult? Function( HotkeySupport_FocusedOnly value)?  focusedOnly,}){
+final _that = this;
+switch (_that) {
+case HotkeySupport_Global() when global != null:
+return global(_that);case HotkeySupport_FocusedOnly() when focusedOnly != null:
+return focusedOnly(_that);case _:
+  return null;
+
+}
+}
+/// A variant of `when` that fallback to an `orElse` callback.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case _:
+///     return orElse();
+/// }
+/// ```
+
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>({TResult Function( String method)?  global,TResult Function( String reason,  String? settingsUrl)?  focusedOnly,required TResult orElse(),}) {final _that = this;
+switch (_that) {
+case HotkeySupport_Global() when global != null:
+return global(_that.method);case HotkeySupport_FocusedOnly() when focusedOnly != null:
+return focusedOnly(_that.reason,_that.settingsUrl);case _:
+  return orElse();
+
+}
+}
+/// A `switch`-like method, using callbacks.
+///
+/// As opposed to `map`, this offers destructuring.
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case Subclass2(:final field2):
+///     return ...;
+/// }
+/// ```
+
+@optionalTypeArgs TResult when<TResult extends Object?>({required TResult Function( String method)  global,required TResult Function( String reason,  String? settingsUrl)  focusedOnly,}) {final _that = this;
+switch (_that) {
+case HotkeySupport_Global():
+return global(_that.method);case HotkeySupport_FocusedOnly():
+return focusedOnly(_that.reason,_that.settingsUrl);}
+}
+/// A variant of `when` that fallback to returning `null`
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case _:
+///     return null;
+/// }
+/// ```
+
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>({TResult? Function( String method)?  global,TResult? Function( String reason,  String? settingsUrl)?  focusedOnly,}) {final _that = this;
+switch (_that) {
+case HotkeySupport_Global() when global != null:
+return global(_that.method);case HotkeySupport_FocusedOnly() when focusedOnly != null:
+return focusedOnly(_that.reason,_that.settingsUrl);case _:
+  return null;
+
+}
+}
+
+}
+
+/// @nodoc
+
+
+class HotkeySupport_Global extends HotkeySupport {
+  const HotkeySupport_Global({required this.method}): super._();
+  
+
+ final  String method;
+
+/// Create a copy of HotkeySupport
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$HotkeySupport_GlobalCopyWith<HotkeySupport_Global> get copyWith => _$HotkeySupport_GlobalCopyWithImpl<HotkeySupport_Global>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is HotkeySupport_Global&&(identical(other.method, method) || other.method == method));
+}
+
+
+@override
+int get hashCode => Object.hash(runtimeType,method);
+
+@override
+String toString() {
+  return 'HotkeySupport.global(method: $method)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $HotkeySupport_GlobalCopyWith<$Res> implements $HotkeySupportCopyWith<$Res> {
+  factory $HotkeySupport_GlobalCopyWith(HotkeySupport_Global value, $Res Function(HotkeySupport_Global) _then) = _$HotkeySupport_GlobalCopyWithImpl;
+@useResult
+$Res call({
+ String method
+});
+
+
+
+
+}
+/// @nodoc
+class _$HotkeySupport_GlobalCopyWithImpl<$Res>
+    implements $HotkeySupport_GlobalCopyWith<$Res> {
+  _$HotkeySupport_GlobalCopyWithImpl(this._self, this._then);
+
+  final HotkeySupport_Global _self;
+  final $Res Function(HotkeySupport_Global) _then;
+
+/// Create a copy of HotkeySupport
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? method = null,}) {
+  return _then(HotkeySupport_Global(
+method: null == method ? _self.method : method // ignore: cast_nullable_to_non_nullable
+as String,
+  ));
+}
+
+
+}
+
+/// @nodoc
+
+
+class HotkeySupport_FocusedOnly extends HotkeySupport {
+  const HotkeySupport_FocusedOnly({required this.reason, this.settingsUrl}): super._();
+  
+
+ final  String reason;
+ final  String? settingsUrl;
+
+/// Create a copy of HotkeySupport
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$HotkeySupport_FocusedOnlyCopyWith<HotkeySupport_FocusedOnly> get copyWith => _$HotkeySupport_FocusedOnlyCopyWithImpl<HotkeySupport_FocusedOnly>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is HotkeySupport_FocusedOnly&&(identical(other.reason, reason) || other.reason == reason)&&(identical(other.settingsUrl, settingsUrl) || other.settingsUrl == settingsUrl));
+}
+
+
+@override
+int get hashCode => Object.hash(runtimeType,reason,settingsUrl);
+
+@override
+String toString() {
+  return 'HotkeySupport.focusedOnly(reason: $reason, settingsUrl: $settingsUrl)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $HotkeySupport_FocusedOnlyCopyWith<$Res> implements $HotkeySupportCopyWith<$Res> {
+  factory $HotkeySupport_FocusedOnlyCopyWith(HotkeySupport_FocusedOnly value, $Res Function(HotkeySupport_FocusedOnly) _then) = _$HotkeySupport_FocusedOnlyCopyWithImpl;
+@useResult
+$Res call({
+ String reason, String? settingsUrl
+});
+
+
+
+
+}
+/// @nodoc
+class _$HotkeySupport_FocusedOnlyCopyWithImpl<$Res>
+    implements $HotkeySupport_FocusedOnlyCopyWith<$Res> {
+  _$HotkeySupport_FocusedOnlyCopyWithImpl(this._self, this._then);
+
+  final HotkeySupport_FocusedOnly _self;
+  final $Res Function(HotkeySupport_FocusedOnly) _then;
+
+/// Create a copy of HotkeySupport
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? reason = null,Object? settingsUrl = freezed,}) {
+  return _then(HotkeySupport_FocusedOnly(
+reason: null == reason ? _self.reason : reason // ignore: cast_nullable_to_non_nullable
+as String,settingsUrl: freezed == settingsUrl ? _self.settingsUrl : settingsUrl // ignore: cast_nullable_to_non_nullable
+as String?,
+  ));
+}
+
+
+}
+
+/// @nodoc
+mixin _$MediaEvent {
+
+
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is MediaEvent);
+}
+
+
+@override
+int get hashCode => runtimeType.hashCode;
+
+@override
+String toString() {
+  return 'MediaEvent()';
+}
+
+
+}
+
+/// @nodoc
+class $MediaEventCopyWith<$Res>  {
+$MediaEventCopyWith(MediaEvent _, $Res Function(MediaEvent) __);
+}
+
+
+/// Adds pattern-matching-related methods to [MediaEvent].
+extension MediaEventPatterns on MediaEvent {
+/// A variant of `map` that fallback to returning `orElse`.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case _:
+///     return orElse();
+/// }
+/// ```
+
+@optionalTypeArgs TResult maybeMap<TResult extends Object?>({TResult Function( MediaEvent_ConnectionState value)?  connectionState,TResult Function( MediaEvent_DeviceFellBack value)?  deviceFellBack,TResult Function( MediaEvent_DeviceFailed value)?  deviceFailed,TResult Function( MediaEvent_DevicesChanged value)?  devicesChanged,TResult Function( MediaEvent_Speaking value)?  speaking,TResult Function( MediaEvent_InputLevel value)?  inputLevel,TResult Function( MediaEvent_SpeakingWhileMuted value)?  speakingWhileMuted,TResult Function( MediaEvent_NoiseSuppressionFellBack value)?  noiseSuppressionFellBack,TResult Function( MediaEvent_HotkeyPressed value)?  hotkeyPressed,TResult Function( MediaEvent_VideoTrackAdded value)?  videoTrackAdded,TResult Function( MediaEvent_VideoTrackRemoved value)?  videoTrackRemoved,TResult Function( MediaEvent_CameraStopped value)?  cameraStopped,TResult Function( MediaEvent_ScreenShareStopped value)?  screenShareStopped,TResult Function( MediaEvent_ConnectionStats value)?  connectionStats,TResult Function( MediaEvent_VoiceRecordLevel value)?  voiceRecordLevel,TResult Function( MediaEvent_VoiceRecordStopped value)?  voiceRecordStopped,TResult Function( MediaEvent_PlaybackUpdate value)?  playbackUpdate,TResult Function( MediaEvent_PlaybackEnded value)?  playbackEnded,TResult Function( MediaEvent_PlaybackFailed value)?  playbackFailed,required TResult orElse(),}){
+final _that = this;
+switch (_that) {
+case MediaEvent_ConnectionState() when connectionState != null:
+return connectionState(_that);case MediaEvent_DeviceFellBack() when deviceFellBack != null:
+return deviceFellBack(_that);case MediaEvent_DeviceFailed() when deviceFailed != null:
+return deviceFailed(_that);case MediaEvent_DevicesChanged() when devicesChanged != null:
+return devicesChanged(_that);case MediaEvent_Speaking() when speaking != null:
+return speaking(_that);case MediaEvent_InputLevel() when inputLevel != null:
+return inputLevel(_that);case MediaEvent_SpeakingWhileMuted() when speakingWhileMuted != null:
+return speakingWhileMuted(_that);case MediaEvent_NoiseSuppressionFellBack() when noiseSuppressionFellBack != null:
+return noiseSuppressionFellBack(_that);case MediaEvent_HotkeyPressed() when hotkeyPressed != null:
+return hotkeyPressed(_that);case MediaEvent_VideoTrackAdded() when videoTrackAdded != null:
+return videoTrackAdded(_that);case MediaEvent_VideoTrackRemoved() when videoTrackRemoved != null:
+return videoTrackRemoved(_that);case MediaEvent_CameraStopped() when cameraStopped != null:
+return cameraStopped(_that);case MediaEvent_ScreenShareStopped() when screenShareStopped != null:
+return screenShareStopped(_that);case MediaEvent_ConnectionStats() when connectionStats != null:
+return connectionStats(_that);case MediaEvent_VoiceRecordLevel() when voiceRecordLevel != null:
+return voiceRecordLevel(_that);case MediaEvent_VoiceRecordStopped() when voiceRecordStopped != null:
+return voiceRecordStopped(_that);case MediaEvent_PlaybackUpdate() when playbackUpdate != null:
+return playbackUpdate(_that);case MediaEvent_PlaybackEnded() when playbackEnded != null:
+return playbackEnded(_that);case MediaEvent_PlaybackFailed() when playbackFailed != null:
+return playbackFailed(_that);case _:
+  return orElse();
+
+}
+}
+/// A `switch`-like method, using callbacks.
+///
+/// Callbacks receives the raw object, upcasted.
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case final Subclass2 value:
+///     return ...;
+/// }
+/// ```
+
+@optionalTypeArgs TResult map<TResult extends Object?>({required TResult Function( MediaEvent_ConnectionState value)  connectionState,required TResult Function( MediaEvent_DeviceFellBack value)  deviceFellBack,required TResult Function( MediaEvent_DeviceFailed value)  deviceFailed,required TResult Function( MediaEvent_DevicesChanged value)  devicesChanged,required TResult Function( MediaEvent_Speaking value)  speaking,required TResult Function( MediaEvent_InputLevel value)  inputLevel,required TResult Function( MediaEvent_SpeakingWhileMuted value)  speakingWhileMuted,required TResult Function( MediaEvent_NoiseSuppressionFellBack value)  noiseSuppressionFellBack,required TResult Function( MediaEvent_HotkeyPressed value)  hotkeyPressed,required TResult Function( MediaEvent_VideoTrackAdded value)  videoTrackAdded,required TResult Function( MediaEvent_VideoTrackRemoved value)  videoTrackRemoved,required TResult Function( MediaEvent_CameraStopped value)  cameraStopped,required TResult Function( MediaEvent_ScreenShareStopped value)  screenShareStopped,required TResult Function( MediaEvent_ConnectionStats value)  connectionStats,required TResult Function( MediaEvent_VoiceRecordLevel value)  voiceRecordLevel,required TResult Function( MediaEvent_VoiceRecordStopped value)  voiceRecordStopped,required TResult Function( MediaEvent_PlaybackUpdate value)  playbackUpdate,required TResult Function( MediaEvent_PlaybackEnded value)  playbackEnded,required TResult Function( MediaEvent_PlaybackFailed value)  playbackFailed,}){
+final _that = this;
+switch (_that) {
+case MediaEvent_ConnectionState():
+return connectionState(_that);case MediaEvent_DeviceFellBack():
+return deviceFellBack(_that);case MediaEvent_DeviceFailed():
+return deviceFailed(_that);case MediaEvent_DevicesChanged():
+return devicesChanged(_that);case MediaEvent_Speaking():
+return speaking(_that);case MediaEvent_InputLevel():
+return inputLevel(_that);case MediaEvent_SpeakingWhileMuted():
+return speakingWhileMuted(_that);case MediaEvent_NoiseSuppressionFellBack():
+return noiseSuppressionFellBack(_that);case MediaEvent_HotkeyPressed():
+return hotkeyPressed(_that);case MediaEvent_VideoTrackAdded():
+return videoTrackAdded(_that);case MediaEvent_VideoTrackRemoved():
+return videoTrackRemoved(_that);case MediaEvent_CameraStopped():
+return cameraStopped(_that);case MediaEvent_ScreenShareStopped():
+return screenShareStopped(_that);case MediaEvent_ConnectionStats():
+return connectionStats(_that);case MediaEvent_VoiceRecordLevel():
+return voiceRecordLevel(_that);case MediaEvent_VoiceRecordStopped():
+return voiceRecordStopped(_that);case MediaEvent_PlaybackUpdate():
+return playbackUpdate(_that);case MediaEvent_PlaybackEnded():
+return playbackEnded(_that);case MediaEvent_PlaybackFailed():
+return playbackFailed(_that);}
+}
+/// A variant of `map` that fallback to returning `null`.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case _:
+///     return null;
+/// }
+/// ```
+
+@optionalTypeArgs TResult? mapOrNull<TResult extends Object?>({TResult? Function( MediaEvent_ConnectionState value)?  connectionState,TResult? Function( MediaEvent_DeviceFellBack value)?  deviceFellBack,TResult? Function( MediaEvent_DeviceFailed value)?  deviceFailed,TResult? Function( MediaEvent_DevicesChanged value)?  devicesChanged,TResult? Function( MediaEvent_Speaking value)?  speaking,TResult? Function( MediaEvent_InputLevel value)?  inputLevel,TResult? Function( MediaEvent_SpeakingWhileMuted value)?  speakingWhileMuted,TResult? Function( MediaEvent_NoiseSuppressionFellBack value)?  noiseSuppressionFellBack,TResult? Function( MediaEvent_HotkeyPressed value)?  hotkeyPressed,TResult? Function( MediaEvent_VideoTrackAdded value)?  videoTrackAdded,TResult? Function( MediaEvent_VideoTrackRemoved value)?  videoTrackRemoved,TResult? Function( MediaEvent_CameraStopped value)?  cameraStopped,TResult? Function( MediaEvent_ScreenShareStopped value)?  screenShareStopped,TResult? Function( MediaEvent_ConnectionStats value)?  connectionStats,TResult? Function( MediaEvent_VoiceRecordLevel value)?  voiceRecordLevel,TResult? Function( MediaEvent_VoiceRecordStopped value)?  voiceRecordStopped,TResult? Function( MediaEvent_PlaybackUpdate value)?  playbackUpdate,TResult? Function( MediaEvent_PlaybackEnded value)?  playbackEnded,TResult? Function( MediaEvent_PlaybackFailed value)?  playbackFailed,}){
+final _that = this;
+switch (_that) {
+case MediaEvent_ConnectionState() when connectionState != null:
+return connectionState(_that);case MediaEvent_DeviceFellBack() when deviceFellBack != null:
+return deviceFellBack(_that);case MediaEvent_DeviceFailed() when deviceFailed != null:
+return deviceFailed(_that);case MediaEvent_DevicesChanged() when devicesChanged != null:
+return devicesChanged(_that);case MediaEvent_Speaking() when speaking != null:
+return speaking(_that);case MediaEvent_InputLevel() when inputLevel != null:
+return inputLevel(_that);case MediaEvent_SpeakingWhileMuted() when speakingWhileMuted != null:
+return speakingWhileMuted(_that);case MediaEvent_NoiseSuppressionFellBack() when noiseSuppressionFellBack != null:
+return noiseSuppressionFellBack(_that);case MediaEvent_HotkeyPressed() when hotkeyPressed != null:
+return hotkeyPressed(_that);case MediaEvent_VideoTrackAdded() when videoTrackAdded != null:
+return videoTrackAdded(_that);case MediaEvent_VideoTrackRemoved() when videoTrackRemoved != null:
+return videoTrackRemoved(_that);case MediaEvent_CameraStopped() when cameraStopped != null:
+return cameraStopped(_that);case MediaEvent_ScreenShareStopped() when screenShareStopped != null:
+return screenShareStopped(_that);case MediaEvent_ConnectionStats() when connectionStats != null:
+return connectionStats(_that);case MediaEvent_VoiceRecordLevel() when voiceRecordLevel != null:
+return voiceRecordLevel(_that);case MediaEvent_VoiceRecordStopped() when voiceRecordStopped != null:
+return voiceRecordStopped(_that);case MediaEvent_PlaybackUpdate() when playbackUpdate != null:
+return playbackUpdate(_that);case MediaEvent_PlaybackEnded() when playbackEnded != null:
+return playbackEnded(_that);case MediaEvent_PlaybackFailed() when playbackFailed != null:
+return playbackFailed(_that);case _:
+  return null;
+
+}
+}
+/// A variant of `when` that fallback to an `orElse` callback.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case _:
+///     return orElse();
+/// }
+/// ```
+
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>({TResult Function( String serverKey,  PlatformInt64 channelId,  VoiceConnectionState state)?  connectionState,TResult Function( bool output,  String device)?  deviceFellBack,TResult Function( bool output,  String message)?  deviceFailed,TResult Function( AudioDevices field0)?  devicesChanged,TResult Function( String serverKey,  PlatformInt64 channelId,  List<SpeakingChange> changes)?  speaking,TResult Function( double dbfs)?  inputLevel,TResult Function()?  speakingWhileMuted,TResult Function()?  noiseSuppressionFellBack,TResult Function( HotkeyAction action)?  hotkeyPressed,TResult Function( String serverKey,  PlatformInt64 channelId,  PlatformInt64 userId,  String trackId,  VideoTrackKind kind,  PlatformInt64? textureId,  int width,  int height)?  videoTrackAdded,TResult Function( String serverKey,  PlatformInt64 channelId,  PlatformInt64 userId,  String trackId)?  videoTrackRemoved,TResult Function( String message)?  cameraStopped,TResult Function( String message)?  screenShareStopped,TResult Function( String serverKey,  PlatformInt64 channelId,  VoiceStats stats)?  connectionStats,TResult Function( double level)?  voiceRecordLevel,TResult Function( VoiceStopReason reason)?  voiceRecordStopped,TResult Function( PlaybackItem item,  int positionMs,  int durationMs,  bool playing,  bool buffering)?  playbackUpdate,TResult Function( PlaybackItem item)?  playbackEnded,TResult Function( PlaybackItem item,  String message)?  playbackFailed,required TResult orElse(),}) {final _that = this;
+switch (_that) {
+case MediaEvent_ConnectionState() when connectionState != null:
+return connectionState(_that.serverKey,_that.channelId,_that.state);case MediaEvent_DeviceFellBack() when deviceFellBack != null:
+return deviceFellBack(_that.output,_that.device);case MediaEvent_DeviceFailed() when deviceFailed != null:
+return deviceFailed(_that.output,_that.message);case MediaEvent_DevicesChanged() when devicesChanged != null:
+return devicesChanged(_that.field0);case MediaEvent_Speaking() when speaking != null:
+return speaking(_that.serverKey,_that.channelId,_that.changes);case MediaEvent_InputLevel() when inputLevel != null:
+return inputLevel(_that.dbfs);case MediaEvent_SpeakingWhileMuted() when speakingWhileMuted != null:
+return speakingWhileMuted();case MediaEvent_NoiseSuppressionFellBack() when noiseSuppressionFellBack != null:
+return noiseSuppressionFellBack();case MediaEvent_HotkeyPressed() when hotkeyPressed != null:
+return hotkeyPressed(_that.action);case MediaEvent_VideoTrackAdded() when videoTrackAdded != null:
+return videoTrackAdded(_that.serverKey,_that.channelId,_that.userId,_that.trackId,_that.kind,_that.textureId,_that.width,_that.height);case MediaEvent_VideoTrackRemoved() when videoTrackRemoved != null:
+return videoTrackRemoved(_that.serverKey,_that.channelId,_that.userId,_that.trackId);case MediaEvent_CameraStopped() when cameraStopped != null:
+return cameraStopped(_that.message);case MediaEvent_ScreenShareStopped() when screenShareStopped != null:
+return screenShareStopped(_that.message);case MediaEvent_ConnectionStats() when connectionStats != null:
+return connectionStats(_that.serverKey,_that.channelId,_that.stats);case MediaEvent_VoiceRecordLevel() when voiceRecordLevel != null:
+return voiceRecordLevel(_that.level);case MediaEvent_VoiceRecordStopped() when voiceRecordStopped != null:
+return voiceRecordStopped(_that.reason);case MediaEvent_PlaybackUpdate() when playbackUpdate != null:
+return playbackUpdate(_that.item,_that.positionMs,_that.durationMs,_that.playing,_that.buffering);case MediaEvent_PlaybackEnded() when playbackEnded != null:
+return playbackEnded(_that.item);case MediaEvent_PlaybackFailed() when playbackFailed != null:
+return playbackFailed(_that.item,_that.message);case _:
+  return orElse();
+
+}
+}
+/// A `switch`-like method, using callbacks.
+///
+/// As opposed to `map`, this offers destructuring.
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case Subclass2(:final field2):
+///     return ...;
+/// }
+/// ```
+
+@optionalTypeArgs TResult when<TResult extends Object?>({required TResult Function( String serverKey,  PlatformInt64 channelId,  VoiceConnectionState state)  connectionState,required TResult Function( bool output,  String device)  deviceFellBack,required TResult Function( bool output,  String message)  deviceFailed,required TResult Function( AudioDevices field0)  devicesChanged,required TResult Function( String serverKey,  PlatformInt64 channelId,  List<SpeakingChange> changes)  speaking,required TResult Function( double dbfs)  inputLevel,required TResult Function()  speakingWhileMuted,required TResult Function()  noiseSuppressionFellBack,required TResult Function( HotkeyAction action)  hotkeyPressed,required TResult Function( String serverKey,  PlatformInt64 channelId,  PlatformInt64 userId,  String trackId,  VideoTrackKind kind,  PlatformInt64? textureId,  int width,  int height)  videoTrackAdded,required TResult Function( String serverKey,  PlatformInt64 channelId,  PlatformInt64 userId,  String trackId)  videoTrackRemoved,required TResult Function( String message)  cameraStopped,required TResult Function( String message)  screenShareStopped,required TResult Function( String serverKey,  PlatformInt64 channelId,  VoiceStats stats)  connectionStats,required TResult Function( double level)  voiceRecordLevel,required TResult Function( VoiceStopReason reason)  voiceRecordStopped,required TResult Function( PlaybackItem item,  int positionMs,  int durationMs,  bool playing,  bool buffering)  playbackUpdate,required TResult Function( PlaybackItem item)  playbackEnded,required TResult Function( PlaybackItem item,  String message)  playbackFailed,}) {final _that = this;
+switch (_that) {
+case MediaEvent_ConnectionState():
+return connectionState(_that.serverKey,_that.channelId,_that.state);case MediaEvent_DeviceFellBack():
+return deviceFellBack(_that.output,_that.device);case MediaEvent_DeviceFailed():
+return deviceFailed(_that.output,_that.message);case MediaEvent_DevicesChanged():
+return devicesChanged(_that.field0);case MediaEvent_Speaking():
+return speaking(_that.serverKey,_that.channelId,_that.changes);case MediaEvent_InputLevel():
+return inputLevel(_that.dbfs);case MediaEvent_SpeakingWhileMuted():
+return speakingWhileMuted();case MediaEvent_NoiseSuppressionFellBack():
+return noiseSuppressionFellBack();case MediaEvent_HotkeyPressed():
+return hotkeyPressed(_that.action);case MediaEvent_VideoTrackAdded():
+return videoTrackAdded(_that.serverKey,_that.channelId,_that.userId,_that.trackId,_that.kind,_that.textureId,_that.width,_that.height);case MediaEvent_VideoTrackRemoved():
+return videoTrackRemoved(_that.serverKey,_that.channelId,_that.userId,_that.trackId);case MediaEvent_CameraStopped():
+return cameraStopped(_that.message);case MediaEvent_ScreenShareStopped():
+return screenShareStopped(_that.message);case MediaEvent_ConnectionStats():
+return connectionStats(_that.serverKey,_that.channelId,_that.stats);case MediaEvent_VoiceRecordLevel():
+return voiceRecordLevel(_that.level);case MediaEvent_VoiceRecordStopped():
+return voiceRecordStopped(_that.reason);case MediaEvent_PlaybackUpdate():
+return playbackUpdate(_that.item,_that.positionMs,_that.durationMs,_that.playing,_that.buffering);case MediaEvent_PlaybackEnded():
+return playbackEnded(_that.item);case MediaEvent_PlaybackFailed():
+return playbackFailed(_that.item,_that.message);}
+}
+/// A variant of `when` that fallback to returning `null`
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case _:
+///     return null;
+/// }
+/// ```
+
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>({TResult? Function( String serverKey,  PlatformInt64 channelId,  VoiceConnectionState state)?  connectionState,TResult? Function( bool output,  String device)?  deviceFellBack,TResult? Function( bool output,  String message)?  deviceFailed,TResult? Function( AudioDevices field0)?  devicesChanged,TResult? Function( String serverKey,  PlatformInt64 channelId,  List<SpeakingChange> changes)?  speaking,TResult? Function( double dbfs)?  inputLevel,TResult? Function()?  speakingWhileMuted,TResult? Function()?  noiseSuppressionFellBack,TResult? Function( HotkeyAction action)?  hotkeyPressed,TResult? Function( String serverKey,  PlatformInt64 channelId,  PlatformInt64 userId,  String trackId,  VideoTrackKind kind,  PlatformInt64? textureId,  int width,  int height)?  videoTrackAdded,TResult? Function( String serverKey,  PlatformInt64 channelId,  PlatformInt64 userId,  String trackId)?  videoTrackRemoved,TResult? Function( String message)?  cameraStopped,TResult? Function( String message)?  screenShareStopped,TResult? Function( String serverKey,  PlatformInt64 channelId,  VoiceStats stats)?  connectionStats,TResult? Function( double level)?  voiceRecordLevel,TResult? Function( VoiceStopReason reason)?  voiceRecordStopped,TResult? Function( PlaybackItem item,  int positionMs,  int durationMs,  bool playing,  bool buffering)?  playbackUpdate,TResult? Function( PlaybackItem item)?  playbackEnded,TResult? Function( PlaybackItem item,  String message)?  playbackFailed,}) {final _that = this;
+switch (_that) {
+case MediaEvent_ConnectionState() when connectionState != null:
+return connectionState(_that.serverKey,_that.channelId,_that.state);case MediaEvent_DeviceFellBack() when deviceFellBack != null:
+return deviceFellBack(_that.output,_that.device);case MediaEvent_DeviceFailed() when deviceFailed != null:
+return deviceFailed(_that.output,_that.message);case MediaEvent_DevicesChanged() when devicesChanged != null:
+return devicesChanged(_that.field0);case MediaEvent_Speaking() when speaking != null:
+return speaking(_that.serverKey,_that.channelId,_that.changes);case MediaEvent_InputLevel() when inputLevel != null:
+return inputLevel(_that.dbfs);case MediaEvent_SpeakingWhileMuted() when speakingWhileMuted != null:
+return speakingWhileMuted();case MediaEvent_NoiseSuppressionFellBack() when noiseSuppressionFellBack != null:
+return noiseSuppressionFellBack();case MediaEvent_HotkeyPressed() when hotkeyPressed != null:
+return hotkeyPressed(_that.action);case MediaEvent_VideoTrackAdded() when videoTrackAdded != null:
+return videoTrackAdded(_that.serverKey,_that.channelId,_that.userId,_that.trackId,_that.kind,_that.textureId,_that.width,_that.height);case MediaEvent_VideoTrackRemoved() when videoTrackRemoved != null:
+return videoTrackRemoved(_that.serverKey,_that.channelId,_that.userId,_that.trackId);case MediaEvent_CameraStopped() when cameraStopped != null:
+return cameraStopped(_that.message);case MediaEvent_ScreenShareStopped() when screenShareStopped != null:
+return screenShareStopped(_that.message);case MediaEvent_ConnectionStats() when connectionStats != null:
+return connectionStats(_that.serverKey,_that.channelId,_that.stats);case MediaEvent_VoiceRecordLevel() when voiceRecordLevel != null:
+return voiceRecordLevel(_that.level);case MediaEvent_VoiceRecordStopped() when voiceRecordStopped != null:
+return voiceRecordStopped(_that.reason);case MediaEvent_PlaybackUpdate() when playbackUpdate != null:
+return playbackUpdate(_that.item,_that.positionMs,_that.durationMs,_that.playing,_that.buffering);case MediaEvent_PlaybackEnded() when playbackEnded != null:
+return playbackEnded(_that.item);case MediaEvent_PlaybackFailed() when playbackFailed != null:
+return playbackFailed(_that.item,_that.message);case _:
+  return null;
+
+}
+}
+
+}
+
+/// @nodoc
+
+
+class MediaEvent_ConnectionState extends MediaEvent {
+  const MediaEvent_ConnectionState({required this.serverKey, required this.channelId, required this.state}): super._();
+  
+
+ final  String serverKey;
+ final  PlatformInt64 channelId;
+ final  VoiceConnectionState state;
+
+/// Create a copy of MediaEvent
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$MediaEvent_ConnectionStateCopyWith<MediaEvent_ConnectionState> get copyWith => _$MediaEvent_ConnectionStateCopyWithImpl<MediaEvent_ConnectionState>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is MediaEvent_ConnectionState&&(identical(other.serverKey, serverKey) || other.serverKey == serverKey)&&(identical(other.channelId, channelId) || other.channelId == channelId)&&(identical(other.state, state) || other.state == state));
+}
+
+
+@override
+int get hashCode => Object.hash(runtimeType,serverKey,channelId,state);
+
+@override
+String toString() {
+  return 'MediaEvent.connectionState(serverKey: $serverKey, channelId: $channelId, state: $state)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $MediaEvent_ConnectionStateCopyWith<$Res> implements $MediaEventCopyWith<$Res> {
+  factory $MediaEvent_ConnectionStateCopyWith(MediaEvent_ConnectionState value, $Res Function(MediaEvent_ConnectionState) _then) = _$MediaEvent_ConnectionStateCopyWithImpl;
+@useResult
+$Res call({
+ String serverKey, PlatformInt64 channelId, VoiceConnectionState state
+});
+
+
+$VoiceConnectionStateCopyWith<$Res> get state;
+
+}
+/// @nodoc
+class _$MediaEvent_ConnectionStateCopyWithImpl<$Res>
+    implements $MediaEvent_ConnectionStateCopyWith<$Res> {
+  _$MediaEvent_ConnectionStateCopyWithImpl(this._self, this._then);
+
+  final MediaEvent_ConnectionState _self;
+  final $Res Function(MediaEvent_ConnectionState) _then;
+
+/// Create a copy of MediaEvent
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? serverKey = null,Object? channelId = null,Object? state = null,}) {
+  return _then(MediaEvent_ConnectionState(
+serverKey: null == serverKey ? _self.serverKey : serverKey // ignore: cast_nullable_to_non_nullable
+as String,channelId: null == channelId ? _self.channelId : channelId // ignore: cast_nullable_to_non_nullable
+as PlatformInt64,state: null == state ? _self.state : state // ignore: cast_nullable_to_non_nullable
+as VoiceConnectionState,
+  ));
+}
+
+/// Create a copy of MediaEvent
+/// with the given fields replaced by the non-null parameter values.
+@override
+@pragma('vm:prefer-inline')
+$VoiceConnectionStateCopyWith<$Res> get state {
+  
+  return $VoiceConnectionStateCopyWith<$Res>(_self.state, (value) {
+    return _then(_self.copyWith(state: value));
+  });
+}
+}
+
+/// @nodoc
+
+
+class MediaEvent_DeviceFellBack extends MediaEvent {
+  const MediaEvent_DeviceFellBack({required this.output, required this.device}): super._();
+  
+
+ final  bool output;
+ final  String device;
+
+/// Create a copy of MediaEvent
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$MediaEvent_DeviceFellBackCopyWith<MediaEvent_DeviceFellBack> get copyWith => _$MediaEvent_DeviceFellBackCopyWithImpl<MediaEvent_DeviceFellBack>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is MediaEvent_DeviceFellBack&&(identical(other.output, output) || other.output == output)&&(identical(other.device, device) || other.device == device));
+}
+
+
+@override
+int get hashCode => Object.hash(runtimeType,output,device);
+
+@override
+String toString() {
+  return 'MediaEvent.deviceFellBack(output: $output, device: $device)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $MediaEvent_DeviceFellBackCopyWith<$Res> implements $MediaEventCopyWith<$Res> {
+  factory $MediaEvent_DeviceFellBackCopyWith(MediaEvent_DeviceFellBack value, $Res Function(MediaEvent_DeviceFellBack) _then) = _$MediaEvent_DeviceFellBackCopyWithImpl;
+@useResult
+$Res call({
+ bool output, String device
+});
+
+
+
+
+}
+/// @nodoc
+class _$MediaEvent_DeviceFellBackCopyWithImpl<$Res>
+    implements $MediaEvent_DeviceFellBackCopyWith<$Res> {
+  _$MediaEvent_DeviceFellBackCopyWithImpl(this._self, this._then);
+
+  final MediaEvent_DeviceFellBack _self;
+  final $Res Function(MediaEvent_DeviceFellBack) _then;
+
+/// Create a copy of MediaEvent
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? output = null,Object? device = null,}) {
+  return _then(MediaEvent_DeviceFellBack(
+output: null == output ? _self.output : output // ignore: cast_nullable_to_non_nullable
+as bool,device: null == device ? _self.device : device // ignore: cast_nullable_to_non_nullable
+as String,
+  ));
+}
+
+
+}
+
+/// @nodoc
+
+
+class MediaEvent_DeviceFailed extends MediaEvent {
+  const MediaEvent_DeviceFailed({required this.output, required this.message}): super._();
+  
+
+ final  bool output;
+ final  String message;
+
+/// Create a copy of MediaEvent
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$MediaEvent_DeviceFailedCopyWith<MediaEvent_DeviceFailed> get copyWith => _$MediaEvent_DeviceFailedCopyWithImpl<MediaEvent_DeviceFailed>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is MediaEvent_DeviceFailed&&(identical(other.output, output) || other.output == output)&&(identical(other.message, message) || other.message == message));
+}
+
+
+@override
+int get hashCode => Object.hash(runtimeType,output,message);
+
+@override
+String toString() {
+  return 'MediaEvent.deviceFailed(output: $output, message: $message)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $MediaEvent_DeviceFailedCopyWith<$Res> implements $MediaEventCopyWith<$Res> {
+  factory $MediaEvent_DeviceFailedCopyWith(MediaEvent_DeviceFailed value, $Res Function(MediaEvent_DeviceFailed) _then) = _$MediaEvent_DeviceFailedCopyWithImpl;
+@useResult
+$Res call({
+ bool output, String message
+});
+
+
+
+
+}
+/// @nodoc
+class _$MediaEvent_DeviceFailedCopyWithImpl<$Res>
+    implements $MediaEvent_DeviceFailedCopyWith<$Res> {
+  _$MediaEvent_DeviceFailedCopyWithImpl(this._self, this._then);
+
+  final MediaEvent_DeviceFailed _self;
+  final $Res Function(MediaEvent_DeviceFailed) _then;
+
+/// Create a copy of MediaEvent
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? output = null,Object? message = null,}) {
+  return _then(MediaEvent_DeviceFailed(
+output: null == output ? _self.output : output // ignore: cast_nullable_to_non_nullable
+as bool,message: null == message ? _self.message : message // ignore: cast_nullable_to_non_nullable
+as String,
+  ));
+}
+
+
+}
+
+/// @nodoc
+
+
+class MediaEvent_DevicesChanged extends MediaEvent {
+  const MediaEvent_DevicesChanged(this.field0): super._();
+  
+
+ final  AudioDevices field0;
+
+/// Create a copy of MediaEvent
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$MediaEvent_DevicesChangedCopyWith<MediaEvent_DevicesChanged> get copyWith => _$MediaEvent_DevicesChangedCopyWithImpl<MediaEvent_DevicesChanged>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is MediaEvent_DevicesChanged&&(identical(other.field0, field0) || other.field0 == field0));
+}
+
+
+@override
+int get hashCode => Object.hash(runtimeType,field0);
+
+@override
+String toString() {
+  return 'MediaEvent.devicesChanged(field0: $field0)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $MediaEvent_DevicesChangedCopyWith<$Res> implements $MediaEventCopyWith<$Res> {
+  factory $MediaEvent_DevicesChangedCopyWith(MediaEvent_DevicesChanged value, $Res Function(MediaEvent_DevicesChanged) _then) = _$MediaEvent_DevicesChangedCopyWithImpl;
+@useResult
+$Res call({
+ AudioDevices field0
+});
+
+
+
+
+}
+/// @nodoc
+class _$MediaEvent_DevicesChangedCopyWithImpl<$Res>
+    implements $MediaEvent_DevicesChangedCopyWith<$Res> {
+  _$MediaEvent_DevicesChangedCopyWithImpl(this._self, this._then);
+
+  final MediaEvent_DevicesChanged _self;
+  final $Res Function(MediaEvent_DevicesChanged) _then;
+
+/// Create a copy of MediaEvent
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? field0 = null,}) {
+  return _then(MediaEvent_DevicesChanged(
+null == field0 ? _self.field0 : field0 // ignore: cast_nullable_to_non_nullable
+as AudioDevices,
+  ));
+}
+
+
+}
+
+/// @nodoc
+
+
+class MediaEvent_Speaking extends MediaEvent {
+  const MediaEvent_Speaking({required this.serverKey, required this.channelId, required final  List<SpeakingChange> changes}): _changes = changes,super._();
+  
+
+ final  String serverKey;
+ final  PlatformInt64 channelId;
+ final  List<SpeakingChange> _changes;
+ List<SpeakingChange> get changes {
+  if (_changes is EqualUnmodifiableListView) return _changes;
+  // ignore: implicit_dynamic_type
+  return EqualUnmodifiableListView(_changes);
+}
+
+
+/// Create a copy of MediaEvent
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$MediaEvent_SpeakingCopyWith<MediaEvent_Speaking> get copyWith => _$MediaEvent_SpeakingCopyWithImpl<MediaEvent_Speaking>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is MediaEvent_Speaking&&(identical(other.serverKey, serverKey) || other.serverKey == serverKey)&&(identical(other.channelId, channelId) || other.channelId == channelId)&&const DeepCollectionEquality().equals(other._changes, _changes));
+}
+
+
+@override
+int get hashCode => Object.hash(runtimeType,serverKey,channelId,const DeepCollectionEquality().hash(_changes));
+
+@override
+String toString() {
+  return 'MediaEvent.speaking(serverKey: $serverKey, channelId: $channelId, changes: $changes)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $MediaEvent_SpeakingCopyWith<$Res> implements $MediaEventCopyWith<$Res> {
+  factory $MediaEvent_SpeakingCopyWith(MediaEvent_Speaking value, $Res Function(MediaEvent_Speaking) _then) = _$MediaEvent_SpeakingCopyWithImpl;
+@useResult
+$Res call({
+ String serverKey, PlatformInt64 channelId, List<SpeakingChange> changes
+});
+
+
+
+
+}
+/// @nodoc
+class _$MediaEvent_SpeakingCopyWithImpl<$Res>
+    implements $MediaEvent_SpeakingCopyWith<$Res> {
+  _$MediaEvent_SpeakingCopyWithImpl(this._self, this._then);
+
+  final MediaEvent_Speaking _self;
+  final $Res Function(MediaEvent_Speaking) _then;
+
+/// Create a copy of MediaEvent
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? serverKey = null,Object? channelId = null,Object? changes = null,}) {
+  return _then(MediaEvent_Speaking(
+serverKey: null == serverKey ? _self.serverKey : serverKey // ignore: cast_nullable_to_non_nullable
+as String,channelId: null == channelId ? _self.channelId : channelId // ignore: cast_nullable_to_non_nullable
+as PlatformInt64,changes: null == changes ? _self._changes : changes // ignore: cast_nullable_to_non_nullable
+as List<SpeakingChange>,
+  ));
+}
+
+
+}
+
+/// @nodoc
+
+
+class MediaEvent_InputLevel extends MediaEvent {
+  const MediaEvent_InputLevel({required this.dbfs}): super._();
+  
+
+ final  double dbfs;
+
+/// Create a copy of MediaEvent
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$MediaEvent_InputLevelCopyWith<MediaEvent_InputLevel> get copyWith => _$MediaEvent_InputLevelCopyWithImpl<MediaEvent_InputLevel>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is MediaEvent_InputLevel&&(identical(other.dbfs, dbfs) || other.dbfs == dbfs));
+}
+
+
+@override
+int get hashCode => Object.hash(runtimeType,dbfs);
+
+@override
+String toString() {
+  return 'MediaEvent.inputLevel(dbfs: $dbfs)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $MediaEvent_InputLevelCopyWith<$Res> implements $MediaEventCopyWith<$Res> {
+  factory $MediaEvent_InputLevelCopyWith(MediaEvent_InputLevel value, $Res Function(MediaEvent_InputLevel) _then) = _$MediaEvent_InputLevelCopyWithImpl;
+@useResult
+$Res call({
+ double dbfs
+});
+
+
+
+
+}
+/// @nodoc
+class _$MediaEvent_InputLevelCopyWithImpl<$Res>
+    implements $MediaEvent_InputLevelCopyWith<$Res> {
+  _$MediaEvent_InputLevelCopyWithImpl(this._self, this._then);
+
+  final MediaEvent_InputLevel _self;
+  final $Res Function(MediaEvent_InputLevel) _then;
+
+/// Create a copy of MediaEvent
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? dbfs = null,}) {
+  return _then(MediaEvent_InputLevel(
+dbfs: null == dbfs ? _self.dbfs : dbfs // ignore: cast_nullable_to_non_nullable
+as double,
+  ));
+}
+
+
+}
+
+/// @nodoc
+
+
+class MediaEvent_SpeakingWhileMuted extends MediaEvent {
+  const MediaEvent_SpeakingWhileMuted(): super._();
+  
+
+
+
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is MediaEvent_SpeakingWhileMuted);
+}
+
+
+@override
+int get hashCode => runtimeType.hashCode;
+
+@override
+String toString() {
+  return 'MediaEvent.speakingWhileMuted()';
+}
+
+
+}
+
+
+
+
+/// @nodoc
+
+
+class MediaEvent_NoiseSuppressionFellBack extends MediaEvent {
+  const MediaEvent_NoiseSuppressionFellBack(): super._();
+  
+
+
+
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is MediaEvent_NoiseSuppressionFellBack);
+}
+
+
+@override
+int get hashCode => runtimeType.hashCode;
+
+@override
+String toString() {
+  return 'MediaEvent.noiseSuppressionFellBack()';
+}
+
+
+}
+
+
+
+
+/// @nodoc
+
+
+class MediaEvent_HotkeyPressed extends MediaEvent {
+  const MediaEvent_HotkeyPressed({required this.action}): super._();
+  
+
+ final  HotkeyAction action;
+
+/// Create a copy of MediaEvent
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$MediaEvent_HotkeyPressedCopyWith<MediaEvent_HotkeyPressed> get copyWith => _$MediaEvent_HotkeyPressedCopyWithImpl<MediaEvent_HotkeyPressed>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is MediaEvent_HotkeyPressed&&(identical(other.action, action) || other.action == action));
+}
+
+
+@override
+int get hashCode => Object.hash(runtimeType,action);
+
+@override
+String toString() {
+  return 'MediaEvent.hotkeyPressed(action: $action)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $MediaEvent_HotkeyPressedCopyWith<$Res> implements $MediaEventCopyWith<$Res> {
+  factory $MediaEvent_HotkeyPressedCopyWith(MediaEvent_HotkeyPressed value, $Res Function(MediaEvent_HotkeyPressed) _then) = _$MediaEvent_HotkeyPressedCopyWithImpl;
+@useResult
+$Res call({
+ HotkeyAction action
+});
+
+
+
+
+}
+/// @nodoc
+class _$MediaEvent_HotkeyPressedCopyWithImpl<$Res>
+    implements $MediaEvent_HotkeyPressedCopyWith<$Res> {
+  _$MediaEvent_HotkeyPressedCopyWithImpl(this._self, this._then);
+
+  final MediaEvent_HotkeyPressed _self;
+  final $Res Function(MediaEvent_HotkeyPressed) _then;
+
+/// Create a copy of MediaEvent
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? action = null,}) {
+  return _then(MediaEvent_HotkeyPressed(
+action: null == action ? _self.action : action // ignore: cast_nullable_to_non_nullable
+as HotkeyAction,
+  ));
+}
+
+
+}
+
+/// @nodoc
+
+
+class MediaEvent_VideoTrackAdded extends MediaEvent {
+  const MediaEvent_VideoTrackAdded({required this.serverKey, required this.channelId, required this.userId, required this.trackId, required this.kind, this.textureId, required this.width, required this.height}): super._();
+  
+
+ final  String serverKey;
+ final  PlatformInt64 channelId;
+ final  PlatformInt64 userId;
+ final  String trackId;
+ final  VideoTrackKind kind;
+ final  PlatformInt64? textureId;
+/// Its largest layer's size: the shape to draw it in.
+ final  int width;
+ final  int height;
+
+/// Create a copy of MediaEvent
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$MediaEvent_VideoTrackAddedCopyWith<MediaEvent_VideoTrackAdded> get copyWith => _$MediaEvent_VideoTrackAddedCopyWithImpl<MediaEvent_VideoTrackAdded>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is MediaEvent_VideoTrackAdded&&(identical(other.serverKey, serverKey) || other.serverKey == serverKey)&&(identical(other.channelId, channelId) || other.channelId == channelId)&&(identical(other.userId, userId) || other.userId == userId)&&(identical(other.trackId, trackId) || other.trackId == trackId)&&(identical(other.kind, kind) || other.kind == kind)&&(identical(other.textureId, textureId) || other.textureId == textureId)&&(identical(other.width, width) || other.width == width)&&(identical(other.height, height) || other.height == height));
+}
+
+
+@override
+int get hashCode => Object.hash(runtimeType,serverKey,channelId,userId,trackId,kind,textureId,width,height);
+
+@override
+String toString() {
+  return 'MediaEvent.videoTrackAdded(serverKey: $serverKey, channelId: $channelId, userId: $userId, trackId: $trackId, kind: $kind, textureId: $textureId, width: $width, height: $height)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $MediaEvent_VideoTrackAddedCopyWith<$Res> implements $MediaEventCopyWith<$Res> {
+  factory $MediaEvent_VideoTrackAddedCopyWith(MediaEvent_VideoTrackAdded value, $Res Function(MediaEvent_VideoTrackAdded) _then) = _$MediaEvent_VideoTrackAddedCopyWithImpl;
+@useResult
+$Res call({
+ String serverKey, PlatformInt64 channelId, PlatformInt64 userId, String trackId, VideoTrackKind kind, PlatformInt64? textureId, int width, int height
+});
+
+
+
+
+}
+/// @nodoc
+class _$MediaEvent_VideoTrackAddedCopyWithImpl<$Res>
+    implements $MediaEvent_VideoTrackAddedCopyWith<$Res> {
+  _$MediaEvent_VideoTrackAddedCopyWithImpl(this._self, this._then);
+
+  final MediaEvent_VideoTrackAdded _self;
+  final $Res Function(MediaEvent_VideoTrackAdded) _then;
+
+/// Create a copy of MediaEvent
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? serverKey = null,Object? channelId = null,Object? userId = null,Object? trackId = null,Object? kind = null,Object? textureId = freezed,Object? width = null,Object? height = null,}) {
+  return _then(MediaEvent_VideoTrackAdded(
+serverKey: null == serverKey ? _self.serverKey : serverKey // ignore: cast_nullable_to_non_nullable
+as String,channelId: null == channelId ? _self.channelId : channelId // ignore: cast_nullable_to_non_nullable
+as PlatformInt64,userId: null == userId ? _self.userId : userId // ignore: cast_nullable_to_non_nullable
+as PlatformInt64,trackId: null == trackId ? _self.trackId : trackId // ignore: cast_nullable_to_non_nullable
+as String,kind: null == kind ? _self.kind : kind // ignore: cast_nullable_to_non_nullable
+as VideoTrackKind,textureId: freezed == textureId ? _self.textureId : textureId // ignore: cast_nullable_to_non_nullable
+as PlatformInt64?,width: null == width ? _self.width : width // ignore: cast_nullable_to_non_nullable
+as int,height: null == height ? _self.height : height // ignore: cast_nullable_to_non_nullable
+as int,
+  ));
+}
+
+
+}
+
+/// @nodoc
+
+
+class MediaEvent_VideoTrackRemoved extends MediaEvent {
+  const MediaEvent_VideoTrackRemoved({required this.serverKey, required this.channelId, required this.userId, required this.trackId}): super._();
+  
+
+ final  String serverKey;
+ final  PlatformInt64 channelId;
+ final  PlatformInt64 userId;
+ final  String trackId;
+
+/// Create a copy of MediaEvent
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$MediaEvent_VideoTrackRemovedCopyWith<MediaEvent_VideoTrackRemoved> get copyWith => _$MediaEvent_VideoTrackRemovedCopyWithImpl<MediaEvent_VideoTrackRemoved>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is MediaEvent_VideoTrackRemoved&&(identical(other.serverKey, serverKey) || other.serverKey == serverKey)&&(identical(other.channelId, channelId) || other.channelId == channelId)&&(identical(other.userId, userId) || other.userId == userId)&&(identical(other.trackId, trackId) || other.trackId == trackId));
+}
+
+
+@override
+int get hashCode => Object.hash(runtimeType,serverKey,channelId,userId,trackId);
+
+@override
+String toString() {
+  return 'MediaEvent.videoTrackRemoved(serverKey: $serverKey, channelId: $channelId, userId: $userId, trackId: $trackId)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $MediaEvent_VideoTrackRemovedCopyWith<$Res> implements $MediaEventCopyWith<$Res> {
+  factory $MediaEvent_VideoTrackRemovedCopyWith(MediaEvent_VideoTrackRemoved value, $Res Function(MediaEvent_VideoTrackRemoved) _then) = _$MediaEvent_VideoTrackRemovedCopyWithImpl;
+@useResult
+$Res call({
+ String serverKey, PlatformInt64 channelId, PlatformInt64 userId, String trackId
+});
+
+
+
+
+}
+/// @nodoc
+class _$MediaEvent_VideoTrackRemovedCopyWithImpl<$Res>
+    implements $MediaEvent_VideoTrackRemovedCopyWith<$Res> {
+  _$MediaEvent_VideoTrackRemovedCopyWithImpl(this._self, this._then);
+
+  final MediaEvent_VideoTrackRemoved _self;
+  final $Res Function(MediaEvent_VideoTrackRemoved) _then;
+
+/// Create a copy of MediaEvent
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? serverKey = null,Object? channelId = null,Object? userId = null,Object? trackId = null,}) {
+  return _then(MediaEvent_VideoTrackRemoved(
+serverKey: null == serverKey ? _self.serverKey : serverKey // ignore: cast_nullable_to_non_nullable
+as String,channelId: null == channelId ? _self.channelId : channelId // ignore: cast_nullable_to_non_nullable
+as PlatformInt64,userId: null == userId ? _self.userId : userId // ignore: cast_nullable_to_non_nullable
+as PlatformInt64,trackId: null == trackId ? _self.trackId : trackId // ignore: cast_nullable_to_non_nullable
+as String,
+  ));
+}
+
+
+}
+
+/// @nodoc
+
+
+class MediaEvent_CameraStopped extends MediaEvent {
+  const MediaEvent_CameraStopped({required this.message}): super._();
+  
+
+ final  String message;
+
+/// Create a copy of MediaEvent
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$MediaEvent_CameraStoppedCopyWith<MediaEvent_CameraStopped> get copyWith => _$MediaEvent_CameraStoppedCopyWithImpl<MediaEvent_CameraStopped>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is MediaEvent_CameraStopped&&(identical(other.message, message) || other.message == message));
+}
+
+
+@override
+int get hashCode => Object.hash(runtimeType,message);
+
+@override
+String toString() {
+  return 'MediaEvent.cameraStopped(message: $message)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $MediaEvent_CameraStoppedCopyWith<$Res> implements $MediaEventCopyWith<$Res> {
+  factory $MediaEvent_CameraStoppedCopyWith(MediaEvent_CameraStopped value, $Res Function(MediaEvent_CameraStopped) _then) = _$MediaEvent_CameraStoppedCopyWithImpl;
+@useResult
+$Res call({
+ String message
+});
+
+
+
+
+}
+/// @nodoc
+class _$MediaEvent_CameraStoppedCopyWithImpl<$Res>
+    implements $MediaEvent_CameraStoppedCopyWith<$Res> {
+  _$MediaEvent_CameraStoppedCopyWithImpl(this._self, this._then);
+
+  final MediaEvent_CameraStopped _self;
+  final $Res Function(MediaEvent_CameraStopped) _then;
+
+/// Create a copy of MediaEvent
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? message = null,}) {
+  return _then(MediaEvent_CameraStopped(
+message: null == message ? _self.message : message // ignore: cast_nullable_to_non_nullable
+as String,
+  ));
+}
+
+
+}
+
+/// @nodoc
+
+
+class MediaEvent_ScreenShareStopped extends MediaEvent {
+  const MediaEvent_ScreenShareStopped({required this.message}): super._();
+  
+
+ final  String message;
+
+/// Create a copy of MediaEvent
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$MediaEvent_ScreenShareStoppedCopyWith<MediaEvent_ScreenShareStopped> get copyWith => _$MediaEvent_ScreenShareStoppedCopyWithImpl<MediaEvent_ScreenShareStopped>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is MediaEvent_ScreenShareStopped&&(identical(other.message, message) || other.message == message));
+}
+
+
+@override
+int get hashCode => Object.hash(runtimeType,message);
+
+@override
+String toString() {
+  return 'MediaEvent.screenShareStopped(message: $message)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $MediaEvent_ScreenShareStoppedCopyWith<$Res> implements $MediaEventCopyWith<$Res> {
+  factory $MediaEvent_ScreenShareStoppedCopyWith(MediaEvent_ScreenShareStopped value, $Res Function(MediaEvent_ScreenShareStopped) _then) = _$MediaEvent_ScreenShareStoppedCopyWithImpl;
+@useResult
+$Res call({
+ String message
+});
+
+
+
+
+}
+/// @nodoc
+class _$MediaEvent_ScreenShareStoppedCopyWithImpl<$Res>
+    implements $MediaEvent_ScreenShareStoppedCopyWith<$Res> {
+  _$MediaEvent_ScreenShareStoppedCopyWithImpl(this._self, this._then);
+
+  final MediaEvent_ScreenShareStopped _self;
+  final $Res Function(MediaEvent_ScreenShareStopped) _then;
+
+/// Create a copy of MediaEvent
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? message = null,}) {
+  return _then(MediaEvent_ScreenShareStopped(
+message: null == message ? _self.message : message // ignore: cast_nullable_to_non_nullable
+as String,
+  ));
+}
+
+
+}
+
+/// @nodoc
+
+
+class MediaEvent_ConnectionStats extends MediaEvent {
+  const MediaEvent_ConnectionStats({required this.serverKey, required this.channelId, required this.stats}): super._();
+  
+
+ final  String serverKey;
+ final  PlatformInt64 channelId;
+ final  VoiceStats stats;
+
+/// Create a copy of MediaEvent
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$MediaEvent_ConnectionStatsCopyWith<MediaEvent_ConnectionStats> get copyWith => _$MediaEvent_ConnectionStatsCopyWithImpl<MediaEvent_ConnectionStats>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is MediaEvent_ConnectionStats&&(identical(other.serverKey, serverKey) || other.serverKey == serverKey)&&(identical(other.channelId, channelId) || other.channelId == channelId)&&(identical(other.stats, stats) || other.stats == stats));
+}
+
+
+@override
+int get hashCode => Object.hash(runtimeType,serverKey,channelId,stats);
+
+@override
+String toString() {
+  return 'MediaEvent.connectionStats(serverKey: $serverKey, channelId: $channelId, stats: $stats)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $MediaEvent_ConnectionStatsCopyWith<$Res> implements $MediaEventCopyWith<$Res> {
+  factory $MediaEvent_ConnectionStatsCopyWith(MediaEvent_ConnectionStats value, $Res Function(MediaEvent_ConnectionStats) _then) = _$MediaEvent_ConnectionStatsCopyWithImpl;
+@useResult
+$Res call({
+ String serverKey, PlatformInt64 channelId, VoiceStats stats
+});
+
+
+
+
+}
+/// @nodoc
+class _$MediaEvent_ConnectionStatsCopyWithImpl<$Res>
+    implements $MediaEvent_ConnectionStatsCopyWith<$Res> {
+  _$MediaEvent_ConnectionStatsCopyWithImpl(this._self, this._then);
+
+  final MediaEvent_ConnectionStats _self;
+  final $Res Function(MediaEvent_ConnectionStats) _then;
+
+/// Create a copy of MediaEvent
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? serverKey = null,Object? channelId = null,Object? stats = null,}) {
+  return _then(MediaEvent_ConnectionStats(
+serverKey: null == serverKey ? _self.serverKey : serverKey // ignore: cast_nullable_to_non_nullable
+as String,channelId: null == channelId ? _self.channelId : channelId // ignore: cast_nullable_to_non_nullable
+as PlatformInt64,stats: null == stats ? _self.stats : stats // ignore: cast_nullable_to_non_nullable
+as VoiceStats,
+  ));
+}
+
+
+}
+
+/// @nodoc
+
+
+class MediaEvent_VoiceRecordLevel extends MediaEvent {
+  const MediaEvent_VoiceRecordLevel({required this.level}): super._();
+  
+
+ final  double level;
+
+/// Create a copy of MediaEvent
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$MediaEvent_VoiceRecordLevelCopyWith<MediaEvent_VoiceRecordLevel> get copyWith => _$MediaEvent_VoiceRecordLevelCopyWithImpl<MediaEvent_VoiceRecordLevel>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is MediaEvent_VoiceRecordLevel&&(identical(other.level, level) || other.level == level));
+}
+
+
+@override
+int get hashCode => Object.hash(runtimeType,level);
+
+@override
+String toString() {
+  return 'MediaEvent.voiceRecordLevel(level: $level)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $MediaEvent_VoiceRecordLevelCopyWith<$Res> implements $MediaEventCopyWith<$Res> {
+  factory $MediaEvent_VoiceRecordLevelCopyWith(MediaEvent_VoiceRecordLevel value, $Res Function(MediaEvent_VoiceRecordLevel) _then) = _$MediaEvent_VoiceRecordLevelCopyWithImpl;
+@useResult
+$Res call({
+ double level
+});
+
+
+
+
+}
+/// @nodoc
+class _$MediaEvent_VoiceRecordLevelCopyWithImpl<$Res>
+    implements $MediaEvent_VoiceRecordLevelCopyWith<$Res> {
+  _$MediaEvent_VoiceRecordLevelCopyWithImpl(this._self, this._then);
+
+  final MediaEvent_VoiceRecordLevel _self;
+  final $Res Function(MediaEvent_VoiceRecordLevel) _then;
+
+/// Create a copy of MediaEvent
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? level = null,}) {
+  return _then(MediaEvent_VoiceRecordLevel(
+level: null == level ? _self.level : level // ignore: cast_nullable_to_non_nullable
+as double,
+  ));
+}
+
+
+}
+
+/// @nodoc
+
+
+class MediaEvent_VoiceRecordStopped extends MediaEvent {
+  const MediaEvent_VoiceRecordStopped({required this.reason}): super._();
+  
+
+ final  VoiceStopReason reason;
+
+/// Create a copy of MediaEvent
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$MediaEvent_VoiceRecordStoppedCopyWith<MediaEvent_VoiceRecordStopped> get copyWith => _$MediaEvent_VoiceRecordStoppedCopyWithImpl<MediaEvent_VoiceRecordStopped>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is MediaEvent_VoiceRecordStopped&&(identical(other.reason, reason) || other.reason == reason));
+}
+
+
+@override
+int get hashCode => Object.hash(runtimeType,reason);
+
+@override
+String toString() {
+  return 'MediaEvent.voiceRecordStopped(reason: $reason)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $MediaEvent_VoiceRecordStoppedCopyWith<$Res> implements $MediaEventCopyWith<$Res> {
+  factory $MediaEvent_VoiceRecordStoppedCopyWith(MediaEvent_VoiceRecordStopped value, $Res Function(MediaEvent_VoiceRecordStopped) _then) = _$MediaEvent_VoiceRecordStoppedCopyWithImpl;
+@useResult
+$Res call({
+ VoiceStopReason reason
+});
+
+
+
+
+}
+/// @nodoc
+class _$MediaEvent_VoiceRecordStoppedCopyWithImpl<$Res>
+    implements $MediaEvent_VoiceRecordStoppedCopyWith<$Res> {
+  _$MediaEvent_VoiceRecordStoppedCopyWithImpl(this._self, this._then);
+
+  final MediaEvent_VoiceRecordStopped _self;
+  final $Res Function(MediaEvent_VoiceRecordStopped) _then;
+
+/// Create a copy of MediaEvent
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? reason = null,}) {
+  return _then(MediaEvent_VoiceRecordStopped(
+reason: null == reason ? _self.reason : reason // ignore: cast_nullable_to_non_nullable
+as VoiceStopReason,
+  ));
+}
+
+
+}
+
+/// @nodoc
+
+
+class MediaEvent_PlaybackUpdate extends MediaEvent {
+  const MediaEvent_PlaybackUpdate({required this.item, required this.positionMs, required this.durationMs, required this.playing, required this.buffering}): super._();
+  
+
+ final  PlaybackItem item;
+ final  int positionMs;
+ final  int durationMs;
+ final  bool playing;
+ final  bool buffering;
+
+/// Create a copy of MediaEvent
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$MediaEvent_PlaybackUpdateCopyWith<MediaEvent_PlaybackUpdate> get copyWith => _$MediaEvent_PlaybackUpdateCopyWithImpl<MediaEvent_PlaybackUpdate>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is MediaEvent_PlaybackUpdate&&(identical(other.item, item) || other.item == item)&&(identical(other.positionMs, positionMs) || other.positionMs == positionMs)&&(identical(other.durationMs, durationMs) || other.durationMs == durationMs)&&(identical(other.playing, playing) || other.playing == playing)&&(identical(other.buffering, buffering) || other.buffering == buffering));
+}
+
+
+@override
+int get hashCode => Object.hash(runtimeType,item,positionMs,durationMs,playing,buffering);
+
+@override
+String toString() {
+  return 'MediaEvent.playbackUpdate(item: $item, positionMs: $positionMs, durationMs: $durationMs, playing: $playing, buffering: $buffering)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $MediaEvent_PlaybackUpdateCopyWith<$Res> implements $MediaEventCopyWith<$Res> {
+  factory $MediaEvent_PlaybackUpdateCopyWith(MediaEvent_PlaybackUpdate value, $Res Function(MediaEvent_PlaybackUpdate) _then) = _$MediaEvent_PlaybackUpdateCopyWithImpl;
+@useResult
+$Res call({
+ PlaybackItem item, int positionMs, int durationMs, bool playing, bool buffering
+});
+
+
+$PlaybackItemCopyWith<$Res> get item;
+
+}
+/// @nodoc
+class _$MediaEvent_PlaybackUpdateCopyWithImpl<$Res>
+    implements $MediaEvent_PlaybackUpdateCopyWith<$Res> {
+  _$MediaEvent_PlaybackUpdateCopyWithImpl(this._self, this._then);
+
+  final MediaEvent_PlaybackUpdate _self;
+  final $Res Function(MediaEvent_PlaybackUpdate) _then;
+
+/// Create a copy of MediaEvent
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? item = null,Object? positionMs = null,Object? durationMs = null,Object? playing = null,Object? buffering = null,}) {
+  return _then(MediaEvent_PlaybackUpdate(
+item: null == item ? _self.item : item // ignore: cast_nullable_to_non_nullable
+as PlaybackItem,positionMs: null == positionMs ? _self.positionMs : positionMs // ignore: cast_nullable_to_non_nullable
+as int,durationMs: null == durationMs ? _self.durationMs : durationMs // ignore: cast_nullable_to_non_nullable
+as int,playing: null == playing ? _self.playing : playing // ignore: cast_nullable_to_non_nullable
+as bool,buffering: null == buffering ? _self.buffering : buffering // ignore: cast_nullable_to_non_nullable
+as bool,
+  ));
+}
+
+/// Create a copy of MediaEvent
+/// with the given fields replaced by the non-null parameter values.
+@override
+@pragma('vm:prefer-inline')
+$PlaybackItemCopyWith<$Res> get item {
+  
+  return $PlaybackItemCopyWith<$Res>(_self.item, (value) {
+    return _then(_self.copyWith(item: value));
+  });
+}
+}
+
+/// @nodoc
+
+
+class MediaEvent_PlaybackEnded extends MediaEvent {
+  const MediaEvent_PlaybackEnded({required this.item}): super._();
+  
+
+ final  PlaybackItem item;
+
+/// Create a copy of MediaEvent
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$MediaEvent_PlaybackEndedCopyWith<MediaEvent_PlaybackEnded> get copyWith => _$MediaEvent_PlaybackEndedCopyWithImpl<MediaEvent_PlaybackEnded>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is MediaEvent_PlaybackEnded&&(identical(other.item, item) || other.item == item));
+}
+
+
+@override
+int get hashCode => Object.hash(runtimeType,item);
+
+@override
+String toString() {
+  return 'MediaEvent.playbackEnded(item: $item)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $MediaEvent_PlaybackEndedCopyWith<$Res> implements $MediaEventCopyWith<$Res> {
+  factory $MediaEvent_PlaybackEndedCopyWith(MediaEvent_PlaybackEnded value, $Res Function(MediaEvent_PlaybackEnded) _then) = _$MediaEvent_PlaybackEndedCopyWithImpl;
+@useResult
+$Res call({
+ PlaybackItem item
+});
+
+
+$PlaybackItemCopyWith<$Res> get item;
+
+}
+/// @nodoc
+class _$MediaEvent_PlaybackEndedCopyWithImpl<$Res>
+    implements $MediaEvent_PlaybackEndedCopyWith<$Res> {
+  _$MediaEvent_PlaybackEndedCopyWithImpl(this._self, this._then);
+
+  final MediaEvent_PlaybackEnded _self;
+  final $Res Function(MediaEvent_PlaybackEnded) _then;
+
+/// Create a copy of MediaEvent
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? item = null,}) {
+  return _then(MediaEvent_PlaybackEnded(
+item: null == item ? _self.item : item // ignore: cast_nullable_to_non_nullable
+as PlaybackItem,
+  ));
+}
+
+/// Create a copy of MediaEvent
+/// with the given fields replaced by the non-null parameter values.
+@override
+@pragma('vm:prefer-inline')
+$PlaybackItemCopyWith<$Res> get item {
+  
+  return $PlaybackItemCopyWith<$Res>(_self.item, (value) {
+    return _then(_self.copyWith(item: value));
+  });
+}
+}
+
+/// @nodoc
+
+
+class MediaEvent_PlaybackFailed extends MediaEvent {
+  const MediaEvent_PlaybackFailed({required this.item, required this.message}): super._();
+  
+
+ final  PlaybackItem item;
+ final  String message;
+
+/// Create a copy of MediaEvent
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$MediaEvent_PlaybackFailedCopyWith<MediaEvent_PlaybackFailed> get copyWith => _$MediaEvent_PlaybackFailedCopyWithImpl<MediaEvent_PlaybackFailed>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is MediaEvent_PlaybackFailed&&(identical(other.item, item) || other.item == item)&&(identical(other.message, message) || other.message == message));
+}
+
+
+@override
+int get hashCode => Object.hash(runtimeType,item,message);
+
+@override
+String toString() {
+  return 'MediaEvent.playbackFailed(item: $item, message: $message)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $MediaEvent_PlaybackFailedCopyWith<$Res> implements $MediaEventCopyWith<$Res> {
+  factory $MediaEvent_PlaybackFailedCopyWith(MediaEvent_PlaybackFailed value, $Res Function(MediaEvent_PlaybackFailed) _then) = _$MediaEvent_PlaybackFailedCopyWithImpl;
+@useResult
+$Res call({
+ PlaybackItem item, String message
+});
+
+
+$PlaybackItemCopyWith<$Res> get item;
+
+}
+/// @nodoc
+class _$MediaEvent_PlaybackFailedCopyWithImpl<$Res>
+    implements $MediaEvent_PlaybackFailedCopyWith<$Res> {
+  _$MediaEvent_PlaybackFailedCopyWithImpl(this._self, this._then);
+
+  final MediaEvent_PlaybackFailed _self;
+  final $Res Function(MediaEvent_PlaybackFailed) _then;
+
+/// Create a copy of MediaEvent
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? item = null,Object? message = null,}) {
+  return _then(MediaEvent_PlaybackFailed(
+item: null == item ? _self.item : item // ignore: cast_nullable_to_non_nullable
+as PlaybackItem,message: null == message ? _self.message : message // ignore: cast_nullable_to_non_nullable
+as String,
+  ));
+}
+
+/// Create a copy of MediaEvent
+/// with the given fields replaced by the non-null parameter values.
+@override
+@pragma('vm:prefer-inline')
+$PlaybackItemCopyWith<$Res> get item {
+  
+  return $PlaybackItemCopyWith<$Res>(_self.item, (value) {
+    return _then(_self.copyWith(item: value));
+  });
+}
+}
+
+/// @nodoc
+mixin _$PlaybackItem {
+
+
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is PlaybackItem);
+}
+
+
+@override
+int get hashCode => runtimeType.hashCode;
+
+@override
+String toString() {
+  return 'PlaybackItem()';
+}
+
+
+}
+
+/// @nodoc
+class $PlaybackItemCopyWith<$Res>  {
+$PlaybackItemCopyWith(PlaybackItem _, $Res Function(PlaybackItem) __);
+}
+
+
+/// Adds pattern-matching-related methods to [PlaybackItem].
+extension PlaybackItemPatterns on PlaybackItem {
+/// A variant of `map` that fallback to returning `orElse`.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case _:
+///     return orElse();
+/// }
+/// ```
+
+@optionalTypeArgs TResult maybeMap<TResult extends Object?>({TResult Function( PlaybackItem_Attachment value)?  attachment,TResult Function( PlaybackItem_Draft value)?  draft,required TResult orElse(),}){
+final _that = this;
+switch (_that) {
+case PlaybackItem_Attachment() when attachment != null:
+return attachment(_that);case PlaybackItem_Draft() when draft != null:
+return draft(_that);case _:
+  return orElse();
+
+}
+}
+/// A `switch`-like method, using callbacks.
+///
+/// Callbacks receives the raw object, upcasted.
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case final Subclass2 value:
+///     return ...;
+/// }
+/// ```
+
+@optionalTypeArgs TResult map<TResult extends Object?>({required TResult Function( PlaybackItem_Attachment value)  attachment,required TResult Function( PlaybackItem_Draft value)  draft,}){
+final _that = this;
+switch (_that) {
+case PlaybackItem_Attachment():
+return attachment(_that);case PlaybackItem_Draft():
+return draft(_that);}
+}
+/// A variant of `map` that fallback to returning `null`.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case _:
+///     return null;
+/// }
+/// ```
+
+@optionalTypeArgs TResult? mapOrNull<TResult extends Object?>({TResult? Function( PlaybackItem_Attachment value)?  attachment,TResult? Function( PlaybackItem_Draft value)?  draft,}){
+final _that = this;
+switch (_that) {
+case PlaybackItem_Attachment() when attachment != null:
+return attachment(_that);case PlaybackItem_Draft() when draft != null:
+return draft(_that);case _:
+  return null;
+
+}
+}
+/// A variant of `when` that fallback to an `orElse` callback.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case _:
+///     return orElse();
+/// }
+/// ```
+
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>({TResult Function( String serverKey,  PlatformInt64 attachmentId)?  attachment,TResult Function( BigInt draftId)?  draft,required TResult orElse(),}) {final _that = this;
+switch (_that) {
+case PlaybackItem_Attachment() when attachment != null:
+return attachment(_that.serverKey,_that.attachmentId);case PlaybackItem_Draft() when draft != null:
+return draft(_that.draftId);case _:
+  return orElse();
+
+}
+}
+/// A `switch`-like method, using callbacks.
+///
+/// As opposed to `map`, this offers destructuring.
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case Subclass2(:final field2):
+///     return ...;
+/// }
+/// ```
+
+@optionalTypeArgs TResult when<TResult extends Object?>({required TResult Function( String serverKey,  PlatformInt64 attachmentId)  attachment,required TResult Function( BigInt draftId)  draft,}) {final _that = this;
+switch (_that) {
+case PlaybackItem_Attachment():
+return attachment(_that.serverKey,_that.attachmentId);case PlaybackItem_Draft():
+return draft(_that.draftId);}
+}
+/// A variant of `when` that fallback to returning `null`
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case _:
+///     return null;
+/// }
+/// ```
+
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>({TResult? Function( String serverKey,  PlatformInt64 attachmentId)?  attachment,TResult? Function( BigInt draftId)?  draft,}) {final _that = this;
+switch (_that) {
+case PlaybackItem_Attachment() when attachment != null:
+return attachment(_that.serverKey,_that.attachmentId);case PlaybackItem_Draft() when draft != null:
+return draft(_that.draftId);case _:
+  return null;
+
+}
+}
+
+}
+
+/// @nodoc
+
+
+class PlaybackItem_Attachment extends PlaybackItem {
+  const PlaybackItem_Attachment({required this.serverKey, required this.attachmentId}): super._();
+  
+
+ final  String serverKey;
+ final  PlatformInt64 attachmentId;
+
+/// Create a copy of PlaybackItem
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$PlaybackItem_AttachmentCopyWith<PlaybackItem_Attachment> get copyWith => _$PlaybackItem_AttachmentCopyWithImpl<PlaybackItem_Attachment>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is PlaybackItem_Attachment&&(identical(other.serverKey, serverKey) || other.serverKey == serverKey)&&(identical(other.attachmentId, attachmentId) || other.attachmentId == attachmentId));
+}
+
+
+@override
+int get hashCode => Object.hash(runtimeType,serverKey,attachmentId);
+
+@override
+String toString() {
+  return 'PlaybackItem.attachment(serverKey: $serverKey, attachmentId: $attachmentId)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $PlaybackItem_AttachmentCopyWith<$Res> implements $PlaybackItemCopyWith<$Res> {
+  factory $PlaybackItem_AttachmentCopyWith(PlaybackItem_Attachment value, $Res Function(PlaybackItem_Attachment) _then) = _$PlaybackItem_AttachmentCopyWithImpl;
+@useResult
+$Res call({
+ String serverKey, PlatformInt64 attachmentId
+});
+
+
+
+
+}
+/// @nodoc
+class _$PlaybackItem_AttachmentCopyWithImpl<$Res>
+    implements $PlaybackItem_AttachmentCopyWith<$Res> {
+  _$PlaybackItem_AttachmentCopyWithImpl(this._self, this._then);
+
+  final PlaybackItem_Attachment _self;
+  final $Res Function(PlaybackItem_Attachment) _then;
+
+/// Create a copy of PlaybackItem
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? serverKey = null,Object? attachmentId = null,}) {
+  return _then(PlaybackItem_Attachment(
+serverKey: null == serverKey ? _self.serverKey : serverKey // ignore: cast_nullable_to_non_nullable
+as String,attachmentId: null == attachmentId ? _self.attachmentId : attachmentId // ignore: cast_nullable_to_non_nullable
+as PlatformInt64,
+  ));
+}
+
+
+}
+
+/// @nodoc
+
+
+class PlaybackItem_Draft extends PlaybackItem {
+  const PlaybackItem_Draft({required this.draftId}): super._();
+  
+
+ final  BigInt draftId;
+
+/// Create a copy of PlaybackItem
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$PlaybackItem_DraftCopyWith<PlaybackItem_Draft> get copyWith => _$PlaybackItem_DraftCopyWithImpl<PlaybackItem_Draft>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is PlaybackItem_Draft&&(identical(other.draftId, draftId) || other.draftId == draftId));
+}
+
+
+@override
+int get hashCode => Object.hash(runtimeType,draftId);
+
+@override
+String toString() {
+  return 'PlaybackItem.draft(draftId: $draftId)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $PlaybackItem_DraftCopyWith<$Res> implements $PlaybackItemCopyWith<$Res> {
+  factory $PlaybackItem_DraftCopyWith(PlaybackItem_Draft value, $Res Function(PlaybackItem_Draft) _then) = _$PlaybackItem_DraftCopyWithImpl;
+@useResult
+$Res call({
+ BigInt draftId
+});
+
+
+
+
+}
+/// @nodoc
+class _$PlaybackItem_DraftCopyWithImpl<$Res>
+    implements $PlaybackItem_DraftCopyWith<$Res> {
+  _$PlaybackItem_DraftCopyWithImpl(this._self, this._then);
+
+  final PlaybackItem_Draft _self;
+  final $Res Function(PlaybackItem_Draft) _then;
+
+/// Create a copy of PlaybackItem
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? draftId = null,}) {
+  return _then(PlaybackItem_Draft(
+draftId: null == draftId ? _self.draftId : draftId // ignore: cast_nullable_to_non_nullable
+as BigInt,
+  ));
+}
+
+
+}
+
+/// @nodoc
+mixin _$StorageTestTarget {
+
+
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is StorageTestTarget);
+}
+
+
+@override
+int get hashCode => runtimeType.hashCode;
+
+@override
+String toString() {
+  return 'StorageTestTarget()';
+}
+
+
+}
+
+/// @nodoc
+class $StorageTestTargetCopyWith<$Res>  {
+$StorageTestTargetCopyWith(StorageTestTarget _, $Res Function(StorageTestTarget) __);
+}
+
+
+/// Adds pattern-matching-related methods to [StorageTestTarget].
+extension StorageTestTargetPatterns on StorageTestTarget {
+/// A variant of `map` that fallback to returning `orElse`.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case _:
+///     return orElse();
+/// }
+/// ```
+
+@optionalTypeArgs TResult maybeMap<TResult extends Object?>({TResult Function( StorageTestTarget_Existing value)?  existing,TResult Function( StorageTestTarget_Config value)?  config,TResult Function( StorageTestTarget_Edited value)?  edited,required TResult orElse(),}){
+final _that = this;
+switch (_that) {
+case StorageTestTarget_Existing() when existing != null:
+return existing(_that);case StorageTestTarget_Config() when config != null:
+return config(_that);case StorageTestTarget_Edited() when edited != null:
+return edited(_that);case _:
+  return orElse();
+
+}
+}
+/// A `switch`-like method, using callbacks.
+///
+/// Callbacks receives the raw object, upcasted.
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case final Subclass2 value:
+///     return ...;
+/// }
+/// ```
+
+@optionalTypeArgs TResult map<TResult extends Object?>({required TResult Function( StorageTestTarget_Existing value)  existing,required TResult Function( StorageTestTarget_Config value)  config,required TResult Function( StorageTestTarget_Edited value)  edited,}){
+final _that = this;
+switch (_that) {
+case StorageTestTarget_Existing():
+return existing(_that);case StorageTestTarget_Config():
+return config(_that);case StorageTestTarget_Edited():
+return edited(_that);}
+}
+/// A variant of `map` that fallback to returning `null`.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case _:
+///     return null;
+/// }
+/// ```
+
+@optionalTypeArgs TResult? mapOrNull<TResult extends Object?>({TResult? Function( StorageTestTarget_Existing value)?  existing,TResult? Function( StorageTestTarget_Config value)?  config,TResult? Function( StorageTestTarget_Edited value)?  edited,}){
+final _that = this;
+switch (_that) {
+case StorageTestTarget_Existing() when existing != null:
+return existing(_that);case StorageTestTarget_Config() when config != null:
+return config(_that);case StorageTestTarget_Edited() when edited != null:
+return edited(_that);case _:
+  return null;
+
+}
+}
+/// A variant of `when` that fallback to an `orElse` callback.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case _:
+///     return orElse();
+/// }
+/// ```
+
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>({TResult Function( PlatformInt64 storageId)?  existing,TResult Function( S3Config s3)?  config,TResult Function( PlatformInt64 storageId,  S3Config s3)?  edited,required TResult orElse(),}) {final _that = this;
+switch (_that) {
+case StorageTestTarget_Existing() when existing != null:
+return existing(_that.storageId);case StorageTestTarget_Config() when config != null:
+return config(_that.s3);case StorageTestTarget_Edited() when edited != null:
+return edited(_that.storageId,_that.s3);case _:
+  return orElse();
+
+}
+}
+/// A `switch`-like method, using callbacks.
+///
+/// As opposed to `map`, this offers destructuring.
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case Subclass2(:final field2):
+///     return ...;
+/// }
+/// ```
+
+@optionalTypeArgs TResult when<TResult extends Object?>({required TResult Function( PlatformInt64 storageId)  existing,required TResult Function( S3Config s3)  config,required TResult Function( PlatformInt64 storageId,  S3Config s3)  edited,}) {final _that = this;
+switch (_that) {
+case StorageTestTarget_Existing():
+return existing(_that.storageId);case StorageTestTarget_Config():
+return config(_that.s3);case StorageTestTarget_Edited():
+return edited(_that.storageId,_that.s3);}
+}
+/// A variant of `when` that fallback to returning `null`
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case _:
+///     return null;
+/// }
+/// ```
+
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>({TResult? Function( PlatformInt64 storageId)?  existing,TResult? Function( S3Config s3)?  config,TResult? Function( PlatformInt64 storageId,  S3Config s3)?  edited,}) {final _that = this;
+switch (_that) {
+case StorageTestTarget_Existing() when existing != null:
+return existing(_that.storageId);case StorageTestTarget_Config() when config != null:
+return config(_that.s3);case StorageTestTarget_Edited() when edited != null:
+return edited(_that.storageId,_that.s3);case _:
+  return null;
+
+}
+}
+
+}
+
+/// @nodoc
+
+
+class StorageTestTarget_Existing extends StorageTestTarget {
+  const StorageTestTarget_Existing({required this.storageId}): super._();
+  
+
+ final  PlatformInt64 storageId;
+
+/// Create a copy of StorageTestTarget
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$StorageTestTarget_ExistingCopyWith<StorageTestTarget_Existing> get copyWith => _$StorageTestTarget_ExistingCopyWithImpl<StorageTestTarget_Existing>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is StorageTestTarget_Existing&&(identical(other.storageId, storageId) || other.storageId == storageId));
+}
+
+
+@override
+int get hashCode => Object.hash(runtimeType,storageId);
+
+@override
+String toString() {
+  return 'StorageTestTarget.existing(storageId: $storageId)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $StorageTestTarget_ExistingCopyWith<$Res> implements $StorageTestTargetCopyWith<$Res> {
+  factory $StorageTestTarget_ExistingCopyWith(StorageTestTarget_Existing value, $Res Function(StorageTestTarget_Existing) _then) = _$StorageTestTarget_ExistingCopyWithImpl;
+@useResult
+$Res call({
+ PlatformInt64 storageId
+});
+
+
+
+
+}
+/// @nodoc
+class _$StorageTestTarget_ExistingCopyWithImpl<$Res>
+    implements $StorageTestTarget_ExistingCopyWith<$Res> {
+  _$StorageTestTarget_ExistingCopyWithImpl(this._self, this._then);
+
+  final StorageTestTarget_Existing _self;
+  final $Res Function(StorageTestTarget_Existing) _then;
+
+/// Create a copy of StorageTestTarget
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? storageId = null,}) {
+  return _then(StorageTestTarget_Existing(
+storageId: null == storageId ? _self.storageId : storageId // ignore: cast_nullable_to_non_nullable
+as PlatformInt64,
+  ));
+}
+
+
+}
+
+/// @nodoc
+
+
+class StorageTestTarget_Config extends StorageTestTarget {
+  const StorageTestTarget_Config({required this.s3}): super._();
+  
+
+ final  S3Config s3;
+
+/// Create a copy of StorageTestTarget
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$StorageTestTarget_ConfigCopyWith<StorageTestTarget_Config> get copyWith => _$StorageTestTarget_ConfigCopyWithImpl<StorageTestTarget_Config>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is StorageTestTarget_Config&&(identical(other.s3, s3) || other.s3 == s3));
+}
+
+
+@override
+int get hashCode => Object.hash(runtimeType,s3);
+
+@override
+String toString() {
+  return 'StorageTestTarget.config(s3: $s3)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $StorageTestTarget_ConfigCopyWith<$Res> implements $StorageTestTargetCopyWith<$Res> {
+  factory $StorageTestTarget_ConfigCopyWith(StorageTestTarget_Config value, $Res Function(StorageTestTarget_Config) _then) = _$StorageTestTarget_ConfigCopyWithImpl;
+@useResult
+$Res call({
+ S3Config s3
+});
+
+
+
+
+}
+/// @nodoc
+class _$StorageTestTarget_ConfigCopyWithImpl<$Res>
+    implements $StorageTestTarget_ConfigCopyWith<$Res> {
+  _$StorageTestTarget_ConfigCopyWithImpl(this._self, this._then);
+
+  final StorageTestTarget_Config _self;
+  final $Res Function(StorageTestTarget_Config) _then;
+
+/// Create a copy of StorageTestTarget
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? s3 = null,}) {
+  return _then(StorageTestTarget_Config(
+s3: null == s3 ? _self.s3 : s3 // ignore: cast_nullable_to_non_nullable
+as S3Config,
+  ));
+}
+
+
+}
+
+/// @nodoc
+
+
+class StorageTestTarget_Edited extends StorageTestTarget {
+  const StorageTestTarget_Edited({required this.storageId, required this.s3}): super._();
+  
+
+ final  PlatformInt64 storageId;
+ final  S3Config s3;
+
+/// Create a copy of StorageTestTarget
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$StorageTestTarget_EditedCopyWith<StorageTestTarget_Edited> get copyWith => _$StorageTestTarget_EditedCopyWithImpl<StorageTestTarget_Edited>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is StorageTestTarget_Edited&&(identical(other.storageId, storageId) || other.storageId == storageId)&&(identical(other.s3, s3) || other.s3 == s3));
+}
+
+
+@override
+int get hashCode => Object.hash(runtimeType,storageId,s3);
+
+@override
+String toString() {
+  return 'StorageTestTarget.edited(storageId: $storageId, s3: $s3)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $StorageTestTarget_EditedCopyWith<$Res> implements $StorageTestTargetCopyWith<$Res> {
+  factory $StorageTestTarget_EditedCopyWith(StorageTestTarget_Edited value, $Res Function(StorageTestTarget_Edited) _then) = _$StorageTestTarget_EditedCopyWithImpl;
+@useResult
+$Res call({
+ PlatformInt64 storageId, S3Config s3
+});
+
+
+
+
+}
+/// @nodoc
+class _$StorageTestTarget_EditedCopyWithImpl<$Res>
+    implements $StorageTestTarget_EditedCopyWith<$Res> {
+  _$StorageTestTarget_EditedCopyWithImpl(this._self, this._then);
+
+  final StorageTestTarget_Edited _self;
+  final $Res Function(StorageTestTarget_Edited) _then;
+
+/// Create a copy of StorageTestTarget
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? storageId = null,Object? s3 = null,}) {
+  return _then(StorageTestTarget_Edited(
+storageId: null == storageId ? _self.storageId : storageId // ignore: cast_nullable_to_non_nullable
+as PlatformInt64,s3: null == s3 ? _self.s3 : s3 // ignore: cast_nullable_to_non_nullable
+as S3Config,
+  ));
+}
+
+
+}
+
+/// @nodoc
+mixin _$UploadPhase {
+
+
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is UploadPhase);
+}
+
+
+@override
+int get hashCode => runtimeType.hashCode;
+
+@override
+String toString() {
+  return 'UploadPhase()';
+}
+
+
+}
+
+/// @nodoc
+class $UploadPhaseCopyWith<$Res>  {
+$UploadPhaseCopyWith(UploadPhase _, $Res Function(UploadPhase) __);
+}
+
+
+/// Adds pattern-matching-related methods to [UploadPhase].
+extension UploadPhasePatterns on UploadPhase {
+/// A variant of `map` that fallback to returning `orElse`.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case _:
+///     return orElse();
+/// }
+/// ```
+
+@optionalTypeArgs TResult maybeMap<TResult extends Object?>({TResult Function( UploadPhase_Preparing value)?  preparing,TResult Function( UploadPhase_Uploading value)?  uploading,TResult Function( UploadPhase_Processing value)?  processing,TResult Function( UploadPhase_Sending value)?  sending,TResult Function( UploadPhase_Done value)?  done,TResult Function( UploadPhase_Failed value)?  failed,TResult Function( UploadPhase_Cancelled value)?  cancelled,required TResult orElse(),}){
+final _that = this;
+switch (_that) {
+case UploadPhase_Preparing() when preparing != null:
+return preparing(_that);case UploadPhase_Uploading() when uploading != null:
+return uploading(_that);case UploadPhase_Processing() when processing != null:
+return processing(_that);case UploadPhase_Sending() when sending != null:
+return sending(_that);case UploadPhase_Done() when done != null:
+return done(_that);case UploadPhase_Failed() when failed != null:
+return failed(_that);case UploadPhase_Cancelled() when cancelled != null:
+return cancelled(_that);case _:
+  return orElse();
+
+}
+}
+/// A `switch`-like method, using callbacks.
+///
+/// Callbacks receives the raw object, upcasted.
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case final Subclass2 value:
+///     return ...;
+/// }
+/// ```
+
+@optionalTypeArgs TResult map<TResult extends Object?>({required TResult Function( UploadPhase_Preparing value)  preparing,required TResult Function( UploadPhase_Uploading value)  uploading,required TResult Function( UploadPhase_Processing value)  processing,required TResult Function( UploadPhase_Sending value)  sending,required TResult Function( UploadPhase_Done value)  done,required TResult Function( UploadPhase_Failed value)  failed,required TResult Function( UploadPhase_Cancelled value)  cancelled,}){
+final _that = this;
+switch (_that) {
+case UploadPhase_Preparing():
+return preparing(_that);case UploadPhase_Uploading():
+return uploading(_that);case UploadPhase_Processing():
+return processing(_that);case UploadPhase_Sending():
+return sending(_that);case UploadPhase_Done():
+return done(_that);case UploadPhase_Failed():
+return failed(_that);case UploadPhase_Cancelled():
+return cancelled(_that);}
+}
+/// A variant of `map` that fallback to returning `null`.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case _:
+///     return null;
+/// }
+/// ```
+
+@optionalTypeArgs TResult? mapOrNull<TResult extends Object?>({TResult? Function( UploadPhase_Preparing value)?  preparing,TResult? Function( UploadPhase_Uploading value)?  uploading,TResult? Function( UploadPhase_Processing value)?  processing,TResult? Function( UploadPhase_Sending value)?  sending,TResult? Function( UploadPhase_Done value)?  done,TResult? Function( UploadPhase_Failed value)?  failed,TResult? Function( UploadPhase_Cancelled value)?  cancelled,}){
+final _that = this;
+switch (_that) {
+case UploadPhase_Preparing() when preparing != null:
+return preparing(_that);case UploadPhase_Uploading() when uploading != null:
+return uploading(_that);case UploadPhase_Processing() when processing != null:
+return processing(_that);case UploadPhase_Sending() when sending != null:
+return sending(_that);case UploadPhase_Done() when done != null:
+return done(_that);case UploadPhase_Failed() when failed != null:
+return failed(_that);case UploadPhase_Cancelled() when cancelled != null:
+return cancelled(_that);case _:
+  return null;
+
+}
+}
+/// A variant of `when` that fallback to an `orElse` callback.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case _:
+///     return orElse();
+/// }
+/// ```
+
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>({TResult Function()?  preparing,TResult Function()?  uploading,TResult Function()?  processing,TResult Function()?  sending,TResult Function()?  done,TResult Function( String message)?  failed,TResult Function()?  cancelled,required TResult orElse(),}) {final _that = this;
+switch (_that) {
+case UploadPhase_Preparing() when preparing != null:
+return preparing();case UploadPhase_Uploading() when uploading != null:
+return uploading();case UploadPhase_Processing() when processing != null:
+return processing();case UploadPhase_Sending() when sending != null:
+return sending();case UploadPhase_Done() when done != null:
+return done();case UploadPhase_Failed() when failed != null:
+return failed(_that.message);case UploadPhase_Cancelled() when cancelled != null:
+return cancelled();case _:
+  return orElse();
+
+}
+}
+/// A `switch`-like method, using callbacks.
+///
+/// As opposed to `map`, this offers destructuring.
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case Subclass2(:final field2):
+///     return ...;
+/// }
+/// ```
+
+@optionalTypeArgs TResult when<TResult extends Object?>({required TResult Function()  preparing,required TResult Function()  uploading,required TResult Function()  processing,required TResult Function()  sending,required TResult Function()  done,required TResult Function( String message)  failed,required TResult Function()  cancelled,}) {final _that = this;
+switch (_that) {
+case UploadPhase_Preparing():
+return preparing();case UploadPhase_Uploading():
+return uploading();case UploadPhase_Processing():
+return processing();case UploadPhase_Sending():
+return sending();case UploadPhase_Done():
+return done();case UploadPhase_Failed():
+return failed(_that.message);case UploadPhase_Cancelled():
+return cancelled();}
+}
+/// A variant of `when` that fallback to returning `null`
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case _:
+///     return null;
+/// }
+/// ```
+
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>({TResult? Function()?  preparing,TResult? Function()?  uploading,TResult? Function()?  processing,TResult? Function()?  sending,TResult? Function()?  done,TResult? Function( String message)?  failed,TResult? Function()?  cancelled,}) {final _that = this;
+switch (_that) {
+case UploadPhase_Preparing() when preparing != null:
+return preparing();case UploadPhase_Uploading() when uploading != null:
+return uploading();case UploadPhase_Processing() when processing != null:
+return processing();case UploadPhase_Sending() when sending != null:
+return sending();case UploadPhase_Done() when done != null:
+return done();case UploadPhase_Failed() when failed != null:
+return failed(_that.message);case UploadPhase_Cancelled() when cancelled != null:
+return cancelled();case _:
+  return null;
+
+}
+}
+
+}
+
+/// @nodoc
+
+
+class UploadPhase_Preparing extends UploadPhase {
+  const UploadPhase_Preparing(): super._();
+  
+
+
+
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is UploadPhase_Preparing);
+}
+
+
+@override
+int get hashCode => runtimeType.hashCode;
+
+@override
+String toString() {
+  return 'UploadPhase.preparing()';
+}
+
+
+}
+
+
+
+
+/// @nodoc
+
+
+class UploadPhase_Uploading extends UploadPhase {
+  const UploadPhase_Uploading(): super._();
+  
+
+
+
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is UploadPhase_Uploading);
+}
+
+
+@override
+int get hashCode => runtimeType.hashCode;
+
+@override
+String toString() {
+  return 'UploadPhase.uploading()';
+}
+
+
+}
+
+
+
+
+/// @nodoc
+
+
+class UploadPhase_Processing extends UploadPhase {
+  const UploadPhase_Processing(): super._();
+  
+
+
+
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is UploadPhase_Processing);
+}
+
+
+@override
+int get hashCode => runtimeType.hashCode;
+
+@override
+String toString() {
+  return 'UploadPhase.processing()';
+}
+
+
+}
+
+
+
+
+/// @nodoc
+
+
+class UploadPhase_Sending extends UploadPhase {
+  const UploadPhase_Sending(): super._();
+  
+
+
+
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is UploadPhase_Sending);
+}
+
+
+@override
+int get hashCode => runtimeType.hashCode;
+
+@override
+String toString() {
+  return 'UploadPhase.sending()';
+}
+
+
+}
+
+
+
+
+/// @nodoc
+
+
+class UploadPhase_Done extends UploadPhase {
+  const UploadPhase_Done(): super._();
+  
+
+
+
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is UploadPhase_Done);
+}
+
+
+@override
+int get hashCode => runtimeType.hashCode;
+
+@override
+String toString() {
+  return 'UploadPhase.done()';
+}
+
+
+}
+
+
+
+
+/// @nodoc
+
+
+class UploadPhase_Failed extends UploadPhase {
+  const UploadPhase_Failed({required this.message}): super._();
+  
+
+ final  String message;
+
+/// Create a copy of UploadPhase
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$UploadPhase_FailedCopyWith<UploadPhase_Failed> get copyWith => _$UploadPhase_FailedCopyWithImpl<UploadPhase_Failed>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is UploadPhase_Failed&&(identical(other.message, message) || other.message == message));
+}
+
+
+@override
+int get hashCode => Object.hash(runtimeType,message);
+
+@override
+String toString() {
+  return 'UploadPhase.failed(message: $message)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $UploadPhase_FailedCopyWith<$Res> implements $UploadPhaseCopyWith<$Res> {
+  factory $UploadPhase_FailedCopyWith(UploadPhase_Failed value, $Res Function(UploadPhase_Failed) _then) = _$UploadPhase_FailedCopyWithImpl;
+@useResult
+$Res call({
+ String message
+});
+
+
+
+
+}
+/// @nodoc
+class _$UploadPhase_FailedCopyWithImpl<$Res>
+    implements $UploadPhase_FailedCopyWith<$Res> {
+  _$UploadPhase_FailedCopyWithImpl(this._self, this._then);
+
+  final UploadPhase_Failed _self;
+  final $Res Function(UploadPhase_Failed) _then;
+
+/// Create a copy of UploadPhase
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? message = null,}) {
+  return _then(UploadPhase_Failed(
+message: null == message ? _self.message : message // ignore: cast_nullable_to_non_nullable
+as String,
+  ));
+}
+
+
+}
+
+/// @nodoc
+
+
+class UploadPhase_Cancelled extends UploadPhase {
+  const UploadPhase_Cancelled(): super._();
+  
+
+
+
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is UploadPhase_Cancelled);
+}
+
+
+@override
+int get hashCode => runtimeType.hashCode;
+
+@override
+String toString() {
+  return 'UploadPhase.cancelled()';
+}
+
+
+}
+
+
+
+
+/// @nodoc
+mixin _$VoiceConnectionState {
+
+
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is VoiceConnectionState);
+}
+
+
+@override
+int get hashCode => runtimeType.hashCode;
+
+@override
+String toString() {
+  return 'VoiceConnectionState()';
+}
+
+
+}
+
+/// @nodoc
+class $VoiceConnectionStateCopyWith<$Res>  {
+$VoiceConnectionStateCopyWith(VoiceConnectionState _, $Res Function(VoiceConnectionState) __);
+}
+
+
+/// Adds pattern-matching-related methods to [VoiceConnectionState].
+extension VoiceConnectionStatePatterns on VoiceConnectionState {
+/// A variant of `map` that fallback to returning `orElse`.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case _:
+///     return orElse();
+/// }
+/// ```
+
+@optionalTypeArgs TResult maybeMap<TResult extends Object?>({TResult Function( VoiceConnectionState_AwaitingEndpoint value)?  awaitingEndpoint,TResult Function( VoiceConnectionState_Authenticating value)?  authenticating,TResult Function( VoiceConnectionState_RtcConnecting value)?  rtcConnecting,TResult Function( VoiceConnectionState_Connected value)?  connected,TResult Function( VoiceConnectionState_Reconnecting value)?  reconnecting,TResult Function( VoiceConnectionState_NoRoute value)?  noRoute,TResult Function( VoiceConnectionState_Disconnected value)?  disconnected,required TResult orElse(),}){
+final _that = this;
+switch (_that) {
+case VoiceConnectionState_AwaitingEndpoint() when awaitingEndpoint != null:
+return awaitingEndpoint(_that);case VoiceConnectionState_Authenticating() when authenticating != null:
+return authenticating(_that);case VoiceConnectionState_RtcConnecting() when rtcConnecting != null:
+return rtcConnecting(_that);case VoiceConnectionState_Connected() when connected != null:
+return connected(_that);case VoiceConnectionState_Reconnecting() when reconnecting != null:
+return reconnecting(_that);case VoiceConnectionState_NoRoute() when noRoute != null:
+return noRoute(_that);case VoiceConnectionState_Disconnected() when disconnected != null:
+return disconnected(_that);case _:
+  return orElse();
+
+}
+}
+/// A `switch`-like method, using callbacks.
+///
+/// Callbacks receives the raw object, upcasted.
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case final Subclass2 value:
+///     return ...;
+/// }
+/// ```
+
+@optionalTypeArgs TResult map<TResult extends Object?>({required TResult Function( VoiceConnectionState_AwaitingEndpoint value)  awaitingEndpoint,required TResult Function( VoiceConnectionState_Authenticating value)  authenticating,required TResult Function( VoiceConnectionState_RtcConnecting value)  rtcConnecting,required TResult Function( VoiceConnectionState_Connected value)  connected,required TResult Function( VoiceConnectionState_Reconnecting value)  reconnecting,required TResult Function( VoiceConnectionState_NoRoute value)  noRoute,required TResult Function( VoiceConnectionState_Disconnected value)  disconnected,}){
+final _that = this;
+switch (_that) {
+case VoiceConnectionState_AwaitingEndpoint():
+return awaitingEndpoint(_that);case VoiceConnectionState_Authenticating():
+return authenticating(_that);case VoiceConnectionState_RtcConnecting():
+return rtcConnecting(_that);case VoiceConnectionState_Connected():
+return connected(_that);case VoiceConnectionState_Reconnecting():
+return reconnecting(_that);case VoiceConnectionState_NoRoute():
+return noRoute(_that);case VoiceConnectionState_Disconnected():
+return disconnected(_that);}
+}
+/// A variant of `map` that fallback to returning `null`.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case _:
+///     return null;
+/// }
+/// ```
+
+@optionalTypeArgs TResult? mapOrNull<TResult extends Object?>({TResult? Function( VoiceConnectionState_AwaitingEndpoint value)?  awaitingEndpoint,TResult? Function( VoiceConnectionState_Authenticating value)?  authenticating,TResult? Function( VoiceConnectionState_RtcConnecting value)?  rtcConnecting,TResult? Function( VoiceConnectionState_Connected value)?  connected,TResult? Function( VoiceConnectionState_Reconnecting value)?  reconnecting,TResult? Function( VoiceConnectionState_NoRoute value)?  noRoute,TResult? Function( VoiceConnectionState_Disconnected value)?  disconnected,}){
+final _that = this;
+switch (_that) {
+case VoiceConnectionState_AwaitingEndpoint() when awaitingEndpoint != null:
+return awaitingEndpoint(_that);case VoiceConnectionState_Authenticating() when authenticating != null:
+return authenticating(_that);case VoiceConnectionState_RtcConnecting() when rtcConnecting != null:
+return rtcConnecting(_that);case VoiceConnectionState_Connected() when connected != null:
+return connected(_that);case VoiceConnectionState_Reconnecting() when reconnecting != null:
+return reconnecting(_that);case VoiceConnectionState_NoRoute() when noRoute != null:
+return noRoute(_that);case VoiceConnectionState_Disconnected() when disconnected != null:
+return disconnected(_that);case _:
+  return null;
+
+}
+}
+/// A variant of `when` that fallback to an `orElse` callback.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case _:
+///     return orElse();
+/// }
+/// ```
+
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>({TResult Function()?  awaitingEndpoint,TResult Function()?  authenticating,TResult Function()?  rtcConnecting,TResult Function()?  connected,TResult Function()?  reconnecting,TResult Function()?  noRoute,TResult Function( String reason)?  disconnected,required TResult orElse(),}) {final _that = this;
+switch (_that) {
+case VoiceConnectionState_AwaitingEndpoint() when awaitingEndpoint != null:
+return awaitingEndpoint();case VoiceConnectionState_Authenticating() when authenticating != null:
+return authenticating();case VoiceConnectionState_RtcConnecting() when rtcConnecting != null:
+return rtcConnecting();case VoiceConnectionState_Connected() when connected != null:
+return connected();case VoiceConnectionState_Reconnecting() when reconnecting != null:
+return reconnecting();case VoiceConnectionState_NoRoute() when noRoute != null:
+return noRoute();case VoiceConnectionState_Disconnected() when disconnected != null:
+return disconnected(_that.reason);case _:
+  return orElse();
+
+}
+}
+/// A `switch`-like method, using callbacks.
+///
+/// As opposed to `map`, this offers destructuring.
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case Subclass2(:final field2):
+///     return ...;
+/// }
+/// ```
+
+@optionalTypeArgs TResult when<TResult extends Object?>({required TResult Function()  awaitingEndpoint,required TResult Function()  authenticating,required TResult Function()  rtcConnecting,required TResult Function()  connected,required TResult Function()  reconnecting,required TResult Function()  noRoute,required TResult Function( String reason)  disconnected,}) {final _that = this;
+switch (_that) {
+case VoiceConnectionState_AwaitingEndpoint():
+return awaitingEndpoint();case VoiceConnectionState_Authenticating():
+return authenticating();case VoiceConnectionState_RtcConnecting():
+return rtcConnecting();case VoiceConnectionState_Connected():
+return connected();case VoiceConnectionState_Reconnecting():
+return reconnecting();case VoiceConnectionState_NoRoute():
+return noRoute();case VoiceConnectionState_Disconnected():
+return disconnected(_that.reason);}
+}
+/// A variant of `when` that fallback to returning `null`
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case _:
+///     return null;
+/// }
+/// ```
+
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>({TResult? Function()?  awaitingEndpoint,TResult? Function()?  authenticating,TResult? Function()?  rtcConnecting,TResult? Function()?  connected,TResult? Function()?  reconnecting,TResult? Function()?  noRoute,TResult? Function( String reason)?  disconnected,}) {final _that = this;
+switch (_that) {
+case VoiceConnectionState_AwaitingEndpoint() when awaitingEndpoint != null:
+return awaitingEndpoint();case VoiceConnectionState_Authenticating() when authenticating != null:
+return authenticating();case VoiceConnectionState_RtcConnecting() when rtcConnecting != null:
+return rtcConnecting();case VoiceConnectionState_Connected() when connected != null:
+return connected();case VoiceConnectionState_Reconnecting() when reconnecting != null:
+return reconnecting();case VoiceConnectionState_NoRoute() when noRoute != null:
+return noRoute();case VoiceConnectionState_Disconnected() when disconnected != null:
+return disconnected(_that.reason);case _:
+  return null;
+
+}
+}
+
+}
+
+/// @nodoc
+
+
+class VoiceConnectionState_AwaitingEndpoint extends VoiceConnectionState {
+  const VoiceConnectionState_AwaitingEndpoint(): super._();
+  
+
+
+
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is VoiceConnectionState_AwaitingEndpoint);
+}
+
+
+@override
+int get hashCode => runtimeType.hashCode;
+
+@override
+String toString() {
+  return 'VoiceConnectionState.awaitingEndpoint()';
+}
+
+
+}
+
+
+
+
+/// @nodoc
+
+
+class VoiceConnectionState_Authenticating extends VoiceConnectionState {
+  const VoiceConnectionState_Authenticating(): super._();
+  
+
+
+
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is VoiceConnectionState_Authenticating);
+}
+
+
+@override
+int get hashCode => runtimeType.hashCode;
+
+@override
+String toString() {
+  return 'VoiceConnectionState.authenticating()';
+}
+
+
+}
+
+
+
+
+/// @nodoc
+
+
+class VoiceConnectionState_RtcConnecting extends VoiceConnectionState {
+  const VoiceConnectionState_RtcConnecting(): super._();
+  
+
+
+
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is VoiceConnectionState_RtcConnecting);
+}
+
+
+@override
+int get hashCode => runtimeType.hashCode;
+
+@override
+String toString() {
+  return 'VoiceConnectionState.rtcConnecting()';
+}
+
+
+}
+
+
+
+
+/// @nodoc
+
+
+class VoiceConnectionState_Connected extends VoiceConnectionState {
+  const VoiceConnectionState_Connected(): super._();
+  
+
+
+
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is VoiceConnectionState_Connected);
+}
+
+
+@override
+int get hashCode => runtimeType.hashCode;
+
+@override
+String toString() {
+  return 'VoiceConnectionState.connected()';
+}
+
+
+}
+
+
+
+
+/// @nodoc
+
+
+class VoiceConnectionState_Reconnecting extends VoiceConnectionState {
+  const VoiceConnectionState_Reconnecting(): super._();
+  
+
+
+
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is VoiceConnectionState_Reconnecting);
+}
+
+
+@override
+int get hashCode => runtimeType.hashCode;
+
+@override
+String toString() {
+  return 'VoiceConnectionState.reconnecting()';
+}
+
+
+}
+
+
+
+
+/// @nodoc
+
+
+class VoiceConnectionState_NoRoute extends VoiceConnectionState {
+  const VoiceConnectionState_NoRoute(): super._();
+  
+
+
+
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is VoiceConnectionState_NoRoute);
+}
+
+
+@override
+int get hashCode => runtimeType.hashCode;
+
+@override
+String toString() {
+  return 'VoiceConnectionState.noRoute()';
+}
+
+
+}
+
+
+
+
+/// @nodoc
+
+
+class VoiceConnectionState_Disconnected extends VoiceConnectionState {
+  const VoiceConnectionState_Disconnected({required this.reason}): super._();
+  
+
+ final  String reason;
+
+/// Create a copy of VoiceConnectionState
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$VoiceConnectionState_DisconnectedCopyWith<VoiceConnectionState_Disconnected> get copyWith => _$VoiceConnectionState_DisconnectedCopyWithImpl<VoiceConnectionState_Disconnected>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is VoiceConnectionState_Disconnected&&(identical(other.reason, reason) || other.reason == reason));
+}
+
+
+@override
+int get hashCode => Object.hash(runtimeType,reason);
+
+@override
+String toString() {
+  return 'VoiceConnectionState.disconnected(reason: $reason)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $VoiceConnectionState_DisconnectedCopyWith<$Res> implements $VoiceConnectionStateCopyWith<$Res> {
+  factory $VoiceConnectionState_DisconnectedCopyWith(VoiceConnectionState_Disconnected value, $Res Function(VoiceConnectionState_Disconnected) _then) = _$VoiceConnectionState_DisconnectedCopyWithImpl;
+@useResult
+$Res call({
+ String reason
+});
+
+
+
+
+}
+/// @nodoc
+class _$VoiceConnectionState_DisconnectedCopyWithImpl<$Res>
+    implements $VoiceConnectionState_DisconnectedCopyWith<$Res> {
+  _$VoiceConnectionState_DisconnectedCopyWithImpl(this._self, this._then);
+
+  final VoiceConnectionState_Disconnected _self;
+  final $Res Function(VoiceConnectionState_Disconnected) _then;
+
+/// Create a copy of VoiceConnectionState
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? reason = null,}) {
+  return _then(VoiceConnectionState_Disconnected(
+reason: null == reason ? _self.reason : reason // ignore: cast_nullable_to_non_nullable
+as String,
+  ));
+}
+
+
+}
+
+// dart format on
