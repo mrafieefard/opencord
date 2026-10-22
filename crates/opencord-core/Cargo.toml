@@ -40,6 +40,9 @@ tokio-tungstenite.workspace = true
 tokio-util.workspace = true
 tokio.workspace = true
 tracing.workspace = true
+# Olm for private messages (design 2026-10-22 §10). Never write ratchet or
+# key agreement code here.
+vodozemac = "0.11.1"
 webpki-roots.workspace = true
 wsola.workspace = true
 
