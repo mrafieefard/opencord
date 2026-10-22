@@ -372,6 +372,6 @@ fn ready(
                 .upload_settings
                 .to_proto(state.attachments.max_file_bytes()),
         ),
-        private_messages: false,
+        private_messages: state.config.private_messages.enabled,
     }
 }
