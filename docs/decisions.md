@@ -941,3 +941,28 @@ The desktop UI plan's §17.5 never arrived, so where Phase 2 §12 says only what
   - `deploy/`: the compose file and the systemd unit show, commented, how to give the server `secrets.key` from outside the data directory (a compose secret at `/run/secrets/opencord-secrets.key`; `LoadCredential` with `OPENCORD_SECRETS_FILE=%d/opencord-secrets.key`). The compose form was checked with `docker compose config`.
 - **Also.** `app/tool/e2e_server.sh` starts its servers with `OPENCORD_MUSIC_UDP_PORT=0`, so a check runs while another server holds UDP 7712.
 - **Not done here:** the checks by hand from A5, A6 and A7 (listed in `docs/attachments.md`) and scrolling 200 image messages at 60 fps need a display; the transfer speed on an idle machine; the Windows and macOS work (P1, P2).
+
+
+## D61: Private messages: protocol, shared rules, config and schema (Phase 5 E0, 2026-10-22)
+
+- **Why.** Milestone E0 of private messages (`docs/superpowers/plans/2026-10-22-private-messages.md`, Tasks 1–3, commits `f424002..5911218`) adds the protocol messages, shared cryptographic signing rules and constants, server config section, schema migration, and Ready capability flag that the private messages and friend delivery architecture builds on.
+- **Protocol messages.**
+  - `proto/opencord/v1/private.proto` defines `DeviceKeys`, `Prekey`, `UserDevices`, `DeviceRef`, `DeviceBundle`, `DeviceCiphertext`, device registration and key claim requests/responses (`RegisterDevice`, `UploadKeys`, `UnregisterDevice`, `DeviceRegistration`, `FetchDevices`, `DeviceLists`, `ClaimKeys`, `ClaimedKeys`), pending offline delivery messages (`FetchPendingEvents`, `PendingEvents`, `AckPendingEvents`), messaging and privacy requests (`SendPrivateMessage`, `PrivateMessageSent`, `StartPrivateTyping`, `UpdatePrivacy`), friend requests and answers (`SendFriendRequest`, `FriendRequestCreated`, `AnswerFriendRequest`, `CancelFriendRequest`, `RemoveFriend`), pending event envelopes (`PendingEvent`, `FriendRequestReceived`, `FriendRequestSent`, `FriendRequestAnswered`, `FriendRequestCancelled`, `FriendRemoved`, `PrivateMessage`, `PrivateTypingStart`), and end-to-end payload bodies (`PrivatePayload`, `PrivateText`, `PrivateEdit`, `PrivateDelete`, `RelayMoved`, `RequestAccepted`, `SessionReset`).
+  - Wire formats are integrated into `requests.proto` (Request kinds 180–193, Response results 34–39), `events.proto` (Event kinds 120–121), `gateway.proto` (`Ready.private_messages` = 21), and `models.proto` (ErrorCodes 48–52: `ERROR_CODE_FRIEND_REQUESTS_CLOSED`, `ERROR_CODE_MESSAGE_REQUESTS_CLOSED`, `ERROR_CODE_UNDELIVERABLE`, `ERROR_CODE_DEVICE_LIST_CHANGED`, `ERROR_CODE_PRIVATE_MESSAGES_UNAVAILABLE`).
+  - Bridge error codes are mapped across Rust `opencord_core::api::types::ErrorCode` and Dart `RepoErrorKind` (`friendRequestsClosed`, `messageRequestsClosed`, `undeliverable`, `privateMessagesUnavailable`).
+- **Signing payloads and shared limits.**
+  - `opencord_common::private` defines fixed binary signing layouts using strict Ed25519 verification (`verify_strict`):
+    - `device_payload` (`b"opencord-device-v1"` || 16-byte device ID || 32-byte Curve25519 key || 32-byte Ed25519 key = 98 bytes), signed by the owner's identity key via `sign_device` and verified via `verify_device`;
+    - `prekey_payload` (`b"opencord-prekey-v1"` || 16-byte device ID || 32-byte key || 1-byte fallback flag = 67 bytes), signed by the device's Ed25519 key via `sign_prekey` and verified via `verify_prekey`;
+    - `slip_payload` (`b"opencord-dm-allow-v1"` || 32-byte granter || 32-byte grantee = 84 bytes), signed by the granter via `sign_slip` and verified via `verify_slip`.
+  - Slice length checks ensure non-matching lengths return `false` without panicking.
+  - Rate limits in `opencord_common::limits`: `FRIEND_REQUEST_RATE` (burst 10, period 600 s), `PRIVATE_MESSAGE_RATE` (burst 5, period 5 s), and `KEY_CLAIM_RATE` (burst 30, period 60 s).
+- **Server configuration, migration, and Ready flag.**
+  - `[private_messages]` section in `Config` and `DEFAULT_CONFIG_TOML`: `enabled` (default `true`), `undelivered_days` (default `30`, range 1–365), `max_pending_per_device` (default `5000`, range 100–100,000), `device_expiry_days` (default `60`, range 7–365). Overrides via `OPENCORD_PRIVATE_ENABLED`, `OPENCORD_PRIVATE_UNDELIVERED_DAYS`, `OPENCORD_PRIVATE_MAX_PENDING_PER_DEVICE`, and `OPENCORD_PRIVATE_DEVICE_EXPIRY_DAYS`.
+  - Migration `0010_private_messages.sql` creates tables `private_privacy`, `private_blocks`, `private_devices`, `private_one_time_keys`, `private_friend_requests`, `private_pending`, and `private_recent_sends`, with indexes for pair uniqueness, pending device queues, and request-based removal.
+  - `Ready.private_messages` is populated from `state.config.private_messages.enabled`.
+- **Tests.**
+  - `crates/opencord-proto/tests/private.rs`: `field_numbers_are_the_planned_ones` pins encoded tags for Request 180, Event 120, Response 34, Ready 21, and error codes 48–52; `pending_events_and_payloads_round_trip` tests encoding/decoding of each `PendingEvent` kind and `PrivatePayload` body variant.
+  - `crates/opencord-common/src/private.rs`: `payload_layouts_are_fixed`, `device_signatures_bind_every_field`, `prekey_signatures_bind_the_fallback_flag`, `slips_name_both_people_in_order`, `wrong_lengths_never_verify`.
+  - `crates/opencord-server/src/config.rs`: `environment_overrides_the_file`, `private_message_limits_out_of_range_are_refused`, `default_file_matches_default_config`.
+  - `crates/opencord-server/tests/private.rs`: `ready_says_whether_private_messages_are_on`.
