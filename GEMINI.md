@@ -2,11 +2,12 @@
 
 ## Current work
 
-You are implementing `docs/superpowers/plans/2026-10-18-media-uploads.md`. The design it builds on is `docs/superpowers/specs/2026-10-18-media-uploads-design.md`.
+You are implementing `docs/superpowers/plans/2026-10-22-private-messages.md`: private messages, friends and offline delivery. The design it builds on is `docs/superpowers/specs/2026-10-22-private-messages-design.md`. The media uploads plan before it is finished.
 
 - The plan's **Working Rules** and this file apply to everything you do in this repository. Read "How to write code here" before each milestone: it grows after every review.
-- Each milestone's code was reviewed and fixed after you finished it, and its decisions entry has a **Review** bullet. Read the latest one before starting, and build on the fixed code, not on what you remember writing.
-- From A5 on, the plan gives behavior, interfaces, names and tests, not finished code. You write the code, and the rules below are what the review checks it against.
+- Each milestone's code is reviewed and fixed after you finish it, and its decisions entry gets a **Review** bullet. Read the latest one before starting, and build on the fixed code, not on what you remember writing.
+- The plan gives behavior, interfaces, names and tests, not finished code. Only the proto, the SQL and a few types are given exactly: copy those as they are. You write the rest, and the rules below are what the review checks it against.
+- Tasks marked **Owner: Claude** aren't yours. Hand each one to Claude and wait, as the plan's "Task owners" section says. You still run their checks and keep the ledger.
 - The user releases one milestone at a time. Stop at the end of each milestone and report.
 
 ## Every build command loads the environment
@@ -193,10 +194,10 @@ Every milestone ends with a decisions entry in `docs/decisions.md`.
 
 If the same step fails **three times in a row**, stop retrying and ask Claude. "Fails" means the same test, build, lint or check still fails, or fails in a new way, after three different fix attempts. Claude is a stronger model that knows this codebase and wrote the plan.
 
-1. **Write the question** to `.superpowers/sdd/media/questions/NN-short-name.md`. `NN` counts up: `01`, `02`, … Use this template and fill in every part:
+1. **Write the question** to `.superpowers/sdd/private/questions/NN-short-name.md`. `NN` counts up: `01`, `02`, … Use this template and fill in every part:
 
    ```
-   I'm Gemini, implementing docs/superpowers/plans/2026-10-18-media-uploads.md in this repository. Don't edit any files: tell me the cause and the exact fix.
+   I'm Gemini, implementing docs/superpowers/plans/2026-10-22-private-messages.md in this repository. Don't edit any files: tell me the cause and the exact fix.
 
    Task and step: Task N, Step M: <title>
    What the plan asks: <quote the relevant lines>
@@ -213,7 +214,7 @@ If the same step fails **three times in a row**, stop retrying and ask Claude. "
 2. **Ask** from the repository root. It can take a few minutes:
 
    ```bash
-   claude -p "$(cat .superpowers/sdd/media/questions/NN-short-name.md)" --model opus --disallowedTools Edit Write NotebookEdit Bash
+   claude -p "$(cat .superpowers/sdd/private/questions/NN-short-name.md)" --model opus --disallowedTools Edit Write NotebookEdit Bash
    ```
 
 3. **Apply the answer.**
