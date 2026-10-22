@@ -19,6 +19,7 @@ mod members;
 mod messages;
 pub(crate) mod music;
 mod network;
+mod private;
 mod profile;
 mod roles;
 pub(crate) mod settings;
@@ -34,6 +35,7 @@ pub struct Ctx<'a> {
     pub user_id: i64,
     /// The gateway session the request came on.
     pub session_id: &'a str,
+    pub session: &'a Arc<Session>,
 }
 
 pub async fn handle(
@@ -45,6 +47,7 @@ pub async fn handle(
         state,
         user_id: session.user_id,
         session_id: &session.id,
+        session,
     };
     let result = match state.rate_limits.check_request(ctx.user_id) {
         Ok(()) => dispatch(&ctx, request).await,
@@ -155,16 +158,16 @@ async fn dispatch(ctx: &Ctx<'_>, request: proto::Request) -> Result<Response, Ap
         Kind::RemoveStorage(request) => storage::remove(ctx, request).await,
         Kind::StartStorageMove(_) => storage::start_move(ctx).await,
         Kind::StopStorageMove(_) => storage::stop_move(ctx).await,
-        Kind::RegisterDevice(_)
-        | Kind::UploadKeys(_)
-        | Kind::UnregisterDevice(_)
-        | Kind::FetchDevices(_)
-        | Kind::ClaimKeys(_)
-        | Kind::FetchPendingEvents(_)
+        Kind::RegisterDevice(request) => private::register_device(ctx, request).await,
+        Kind::UploadKeys(request) => private::upload_keys(ctx, request).await,
+        Kind::UnregisterDevice(_) => private::unregister_device(ctx).await,
+        Kind::FetchDevices(request) => private::fetch_devices(ctx, request).await,
+        Kind::ClaimKeys(request) => private::claim_keys(ctx, request).await,
+        Kind::UpdatePrivacy(request) => private::update_privacy(ctx, request).await,
+        Kind::FetchPendingEvents(_)
         | Kind::AckPendingEvents(_)
         | Kind::SendPrivateMessage(_)
         | Kind::StartPrivateTyping(_)
-        | Kind::UpdatePrivacy(_)
         | Kind::SendFriendRequest(_)
         | Kind::AnswerFriendRequest(_)
         | Kind::CancelFriendRequest(_)

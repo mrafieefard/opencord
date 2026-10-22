@@ -7,9 +7,9 @@ use std::time::Duration;
 use governor::clock::{Clock, DefaultClock};
 use governor::{DefaultKeyedRateLimiter, Quota};
 use opencord_common::limits::{
-    COMMAND_AUTOCOMPLETE_RATE, IDENTIFY_RATE, MESSAGE_RATE, MUSIC_CONTROL_RATE, MUSIC_ENQUEUE_RATE,
-    MUSIC_SEARCH_RATE, REQUEST_RATE, RateLimit, STREAM_CREATE_RATE, UPLOAD_CREATE_RATE,
-    VOICE_NODE_RATE, VOICE_STATE_RATE,
+    COMMAND_AUTOCOMPLETE_RATE, FRIEND_REQUEST_RATE, IDENTIFY_RATE, KEY_CLAIM_RATE, MESSAGE_RATE,
+    MUSIC_CONTROL_RATE, MUSIC_ENQUEUE_RATE, MUSIC_SEARCH_RATE, PRIVATE_MESSAGE_RATE, REQUEST_RATE,
+    RateLimit, STREAM_CREATE_RATE, UPLOAD_CREATE_RATE, VOICE_NODE_RATE, VOICE_STATE_RATE,
 };
 use opencord_common::sound::EXTERNAL_UPLOAD_RATE;
 
@@ -25,6 +25,9 @@ pub struct RateLimits {
     music: [DefaultKeyedRateLimiter<i64>; 3],
     autocomplete: DefaultKeyedRateLimiter<i64>,
     uploads: DefaultKeyedRateLimiter<i64>,
+    friend_requests: DefaultKeyedRateLimiter<i64>,
+    private_messages: DefaultKeyedRateLimiter<(i64, i64)>,
+    key_claims: DefaultKeyedRateLimiter<i64>,
     clock: DefaultClock,
 }
 
@@ -54,6 +57,9 @@ impl RateLimits {
                 .map(|limit| DefaultKeyedRateLimiter::keyed(quota(limit))),
             autocomplete: DefaultKeyedRateLimiter::keyed(quota(COMMAND_AUTOCOMPLETE_RATE)),
             uploads: DefaultKeyedRateLimiter::keyed(quota(UPLOAD_CREATE_RATE)),
+            friend_requests: DefaultKeyedRateLimiter::keyed(quota(FRIEND_REQUEST_RATE)),
+            private_messages: DefaultKeyedRateLimiter::keyed(quota(PRIVATE_MESSAGE_RATE)),
+            key_claims: DefaultKeyedRateLimiter::keyed(quota(KEY_CLAIM_RATE)),
             clock: DefaultClock::default(),
         }
     }
@@ -122,6 +128,25 @@ impl RateLimits {
             .map_err(|not_until| not_until.wait_time_from(self.clock.now()))
     }
 
+    pub fn check_friend_request(&self, user_id: i64) -> Result<(), Duration> {
+        self.friend_requests
+            .check_key(&user_id)
+            .map_err(|not_until| not_until.wait_time_from(self.clock.now()))
+    }
+
+    /// Per sender and recipient.
+    pub fn check_private_message(&self, sender: i64, recipient: i64) -> Result<(), Duration> {
+        self.private_messages
+            .check_key(&(sender, recipient))
+            .map_err(|not_until| not_until.wait_time_from(self.clock.now()))
+    }
+
+    pub fn check_key_claim(&self, user_id: i64) -> Result<(), Duration> {
+        self.key_claims
+            .check_key(&user_id)
+            .map_err(|not_until| not_until.wait_time_from(self.clock.now()))
+    }
+
     /// Forgets keys whose limits have fully recovered.
     pub fn prune(&self) {
         self.identify.retain_recent();
@@ -136,6 +161,9 @@ impl RateLimits {
         }
         self.autocomplete.retain_recent();
         self.uploads.retain_recent();
+        self.friend_requests.retain_recent();
+        self.private_messages.retain_recent();
+        self.key_claims.retain_recent();
     }
 }
 

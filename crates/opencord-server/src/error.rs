@@ -174,6 +174,38 @@ impl ApiError {
         )
     }
 
+    pub fn friend_requests_closed() -> Self {
+        Self::new(
+            proto::ErrorCode::FriendRequestsClosed,
+            "they aren't accepting friend requests",
+        )
+    }
+
+    pub fn message_requests_closed() -> Self {
+        Self::new(
+            proto::ErrorCode::MessageRequestsClosed,
+            "they only accept messages from friends",
+        )
+    }
+
+    pub fn undeliverable() -> Self {
+        Self::new(
+            proto::ErrorCode::Undeliverable,
+            "this could not be delivered",
+        )
+    }
+
+    pub fn device_list_changed() -> Self {
+        Self::new(
+            proto::ErrorCode::DeviceListChanged,
+            "the devices changed; fetch them again",
+        )
+    }
+
+    pub fn private_messages_unavailable(message: impl Into<String>) -> Self {
+        Self::new(proto::ErrorCode::PrivateMessagesUnavailable, message)
+    }
+
     pub fn internal() -> Self {
         Self::new(proto::ErrorCode::Internal, "internal server error")
     }

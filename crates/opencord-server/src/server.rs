@@ -104,6 +104,7 @@ pub async fn start(config: Config) -> anyhow::Result<ServerHandle> {
             state.certificates.secrets(),
         )
         .await?;
+    state.private.load(&mut *state.db.acquire().await?).await?;
     state
         .certificates
         .serve(&state.domains.all(), crate::state::now_ms());
@@ -297,6 +298,35 @@ impl ServerHandle {
     /// Intended for tests.
     pub async fn drain_blob_deletions(&self, now_ms: i64) {
         crate::attachments::gc::drain_blobs(&self.state, now_ms).await;
+    }
+
+    /// The member's own privacy settings, as (allow friend requests, allow
+    /// message requests, blocked ids sorted), if they sent any. Intended
+    /// for tests.
+    pub fn private_privacy(&self, user_id: i64) -> Option<(bool, bool, Vec<i64>)> {
+        self.state.private.saved(user_id).map(|privacy| {
+            let mut blocked: Vec<i64> = privacy.blocked.into_iter().collect();
+            blocked.sort_unstable();
+            (
+                privacy.allow_friend_requests,
+                privacy.allow_message_requests,
+                blocked,
+            )
+        })
+    }
+
+    /// What the database holds for the member's private messages. Intended
+    /// for tests.
+    pub async fn private_counts(&self, user_id: i64) -> crate::private::PrivateCounts {
+        let mut conn = self
+            .state
+            .db
+            .acquire()
+            .await
+            .expect("a database connection");
+        crate::db::private::counts(&mut conn, user_id)
+            .await
+            .expect("the private message counts")
     }
 
     /// Intended for tests: how many uploads are in `state` ("uploading",

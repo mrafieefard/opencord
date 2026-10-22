@@ -1,0 +1,50 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT user_id, allow_friend_requests AS \"allow_friend_requests: bool\",\n                  allow_message_requests AS \"allow_message_requests: bool\"\n           FROM private_privacy",
+  "describe": {
+    "columns": [
+      {
+        "name": "user_id",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "private_privacy",
+            "name": "user_id"
+          }
+        }
+      },
+      {
+        "name": "allow_friend_requests: bool",
+        "ordinal": 1,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "private_privacy",
+            "name": "allow_friend_requests"
+          }
+        }
+      },
+      {
+        "name": "allow_message_requests: bool",
+        "ordinal": 2,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "private_privacy",
+            "name": "allow_message_requests"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": [
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "1e25c1e5e4bda22d480610afb8e0506c1e2be27e028f651521db9dc0001fbceb"
+}

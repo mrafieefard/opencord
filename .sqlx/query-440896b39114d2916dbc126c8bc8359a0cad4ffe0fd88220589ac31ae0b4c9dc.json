@@ -1,0 +1,86 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT device_id, curve25519, ed25519, signature, fallback_key, fallback_signature\n         FROM private_devices WHERE user_id = $1 AND device_id = $2",
+  "describe": {
+    "columns": [
+      {
+        "name": "device_id",
+        "ordinal": 0,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "private_devices",
+            "name": "device_id"
+          }
+        }
+      },
+      {
+        "name": "curve25519",
+        "ordinal": 1,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "private_devices",
+            "name": "curve25519"
+          }
+        }
+      },
+      {
+        "name": "ed25519",
+        "ordinal": 2,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "private_devices",
+            "name": "ed25519"
+          }
+        }
+      },
+      {
+        "name": "signature",
+        "ordinal": 3,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "private_devices",
+            "name": "signature"
+          }
+        }
+      },
+      {
+        "name": "fallback_key",
+        "ordinal": 4,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "private_devices",
+            "name": "fallback_key"
+          }
+        }
+      },
+      {
+        "name": "fallback_signature",
+        "ordinal": 5,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "private_devices",
+            "name": "fallback_signature"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "440896b39114d2916dbc126c8bc8359a0cad4ffe0fd88220589ac31ae0b4c9dc"
+}

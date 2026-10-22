@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "DELETE FROM private_blocks WHERE owner_id = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": []
+  },
+  "hash": "e277cafeccd3d17c1dd067394152694d8c07ff56a1653253392eeabc374e6c40"
+}

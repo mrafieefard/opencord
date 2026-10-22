@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "DELETE FROM private_devices\n         WHERE user_id = $1 AND device_id IN (\n             SELECT device_id FROM private_devices\n             WHERE user_id = $1 AND device_id <> $2\n             ORDER BY last_seen_at DESC, rowid DESC\n             LIMIT -1 OFFSET $3)\n         RETURNING device_id",
+  "describe": {
+    "columns": [
+      {
+        "name": "device_id",
+        "ordinal": 0,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "private_devices",
+            "name": "device_id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "28128040b77bd91bd8d64c1a695dbd0b9508cc8331ff70ad6a87cc3be1fb79dc"
+}
