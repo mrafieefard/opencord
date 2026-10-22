@@ -173,7 +173,7 @@ Opencord runs cloudflared itself for the first two: it starts it again when it s
 
 **cloudflared.** Opencord uses `cloudflared` under `[tunnel]` in `opencord.toml` when it is set, else one it downloaded, else the one on the server's `PATH`. Without one, the page offers **Download**: Opencord fetches Cloudflare's latest release for the machine from GitHub and keeps it only when its SHA-256 matches the checksum Cloudflare lists in the release notes, and GitHub's own digest of the file. It is saved as `bin/cloudflared` in the data directory.
 
-**As a Docker sidecar.** The local listener answers only on the machine itself, so the sidecar shares the Opencord container's network. Add this service to `deploy/docker-compose.yml`, with the tunnel token in `.env` as `TUNNEL_TOKEN`, then add the hostname with "I run cloudflared":
+**As a Docker sidecar.** The sidecar shares the Opencord container's network, so the tunnel's `http://localhost:7719` reaches the local listener as it would on one machine. Add this service to `deploy/docker-compose.yml`, with the tunnel token in `.env` as `TUNNEL_TOKEN`, then add the hostname with "I run cloudflared":
 
 ```yaml
   cloudflared:
@@ -235,6 +235,17 @@ Files go up in pieces of 8 MiB, so a proxy must let request bodies of at least 9
 
 A proxy on another machine cannot reach the local listener: point it at the main port (`https://<server>:7710`) instead, and add its address to **Trusted proxies** under Advanced. Like tunnels, proxies carry no UDP: 7711 and 7712 must reach the server directly.
 
+### In Docker: Traefik, Dokploy, Coolify
+
+A proxy in another container reaches Opencord over their shared Docker network, not over loopback. The Opencord image sets `OPENCORD_LOCAL_LISTENER_BIND=0.0.0.0`, so the local listener answers there:
+
+- Point the proxy at the Opencord service on port 7719, in plain HTTP. In Dokploy, that is the domain's container port.
+- Don't publish 7719 with `ports:`: the proxy reaches it without that, and it serves without TLS.
+- Add the Docker network's range to **Trusted proxies** under Advanced, for example `10.0.0.0/8` or `172.16.0.0/12` (`docker network inspect <network>` shows it). Without it, every person seems to come from the proxy, and rate limits and bans treat them as one.
+- Publish 7711/udp, and 7712/udp for Lavalink on other machines, straight from the Opencord container.
+
+With the host's network (`network_mode: host`), the listener would answer on the machine's own addresses: set `OPENCORD_LOCAL_LISTENER_BIND=127.0.0.1` there. Images from before this setting listen on the container's loopback only, which a proxy in another container cannot reach: it answers with Bad Gateway.
+
 ## Public address
 
 The server finds its public address by asking a lookup service what address its request came from: `https://api.ipify.org`, and `https://api6.ipify.org` when the machine has IPv6. It asks at start-up and every 6 hours. The address is what domains must point to, and where Lavalink nodes on other machines send music.
@@ -260,7 +271,7 @@ When the address changes, the owner gets a notice, and (from the domains milesto
 | 7711 | UDP | Voice and video | Everyone |
 | 7712 | UDP | Music audio from Lavalink | Lavalink nodes on other machines |
 | 80 | TCP | Let's Encrypt's check, only while a certificate is requested or renewed | The internet |
-| 7719 | TCP, this machine only | The local listener for tunnels and reverse proxies | Programs on the same machine |
+| 7719 | TCP, this machine only (or its Docker network) | The local listener for tunnels and reverse proxies | Programs on the same machine, or proxies in other containers |
 
 The page shows each port's state:
 
@@ -307,6 +318,8 @@ The main port can be changed in the app; it takes effect when the server restart
 ## Tunnels and reverse proxies: the local listener
 
 Tunnels (Cloudflare Tunnel, ngrok) and reverse proxies (Caddy, Nginx, Traefik) take care of TLS and forward plain HTTP to Opencord's local listener: `http://127.0.0.1:7719`. It serves the same things as the main port without TLS, and only programs on the same machine can reach it. It runs while a tunnel or reverse-proxy domain exists, or a tunnel runs.
+
+It listens on `127.0.0.1`. `local_listener_bind` under `[network]` in `opencord.toml` (`OPENCORD_LOCAL_LISTENER_BIND`) changes that address, and takes effect at the next start. The Docker image sets it to `0.0.0.0` so a proxy in another container can reach it ([In Docker](#in-docker-traefik-dokploy-coolify)). Its port is set in the app.
 
 Behind a proxy, every connection seems to come from the proxy. Opencord believes the client address in `X-Forwarded-For` only from **trusted proxies**: `127.0.0.1` and `::1` by default, which covers a proxy on the same machine. Add a proxy on another machine under Advanced.
 

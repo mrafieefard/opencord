@@ -1,7 +1,7 @@
 //! `opencord.toml`, with `OPENCORD_*` environment overrides.
 
 use std::fs;
-use std::net::SocketAddr;
+use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 
@@ -105,6 +105,11 @@ max_file_mb = 4096
 # also turn it off in the app. OPENCORD_IP_LOOKUP_V4, OPENCORD_IP_LOOKUP_V6
 ip_lookup_v4 = "https://api.ipify.org"
 ip_lookup_v6 = "https://api6.ipify.org"
+# Address the local listener for tunnels and reverse proxies listens on (its
+# port is set in the app). Keep it on this machine; in a container, use
+# "0.0.0.0" so a proxy in another container can reach it.
+# OPENCORD_LOCAL_LISTENER_BIND
+local_listener_bind = "127.0.0.1"
 "#;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Deserialize)]
@@ -331,6 +336,8 @@ impl Default for AcmeSection {
 pub struct NetworkSection {
     pub ip_lookup_v4: String,
     pub ip_lookup_v6: String,
+    /// Where the local listener for tunnels and reverse proxies listens.
+    pub local_listener_bind: IpAddr,
     /// The port domain checks ask name servers on. Not in the default
     /// file: only tests change it.
     pub dns_name_server_port: u16,
@@ -341,6 +348,7 @@ impl Default for NetworkSection {
         Self {
             ip_lookup_v4: "https://api.ipify.org".to_owned(),
             ip_lookup_v6: "https://api6.ipify.org".to_owned(),
+            local_listener_bind: IpAddr::V4(Ipv4Addr::LOCALHOST),
             dns_name_server_port: 53,
         }
     }
@@ -512,6 +520,9 @@ impl Config {
         if let Some(value) = env("OPENCORD_IP_LOOKUP_V6") {
             config.network.ip_lookup_v6 = value;
         }
+        if let Some(value) = env("OPENCORD_LOCAL_LISTENER_BIND") {
+            config.network.local_listener_bind = parse_env("OPENCORD_LOCAL_LISTENER_BIND", value)?;
+        }
         if let Some(value) = env("OPENCORD_VOICE_PUBLIC_ADDRESS") {
             config.voice.public_address = value;
         }
@@ -649,6 +660,7 @@ mod tests {
             ("OPENCORD_VOICE_ENABLED", "false"),
             ("OPENCORD_VOICE_UDP_PORT", "17711"),
             ("OPENCORD_VOICE_PUBLIC_ADDRESS", "203.0.113.7"),
+            ("OPENCORD_LOCAL_LISTENER_BIND", "0.0.0.0"),
         ]);
 
         let config = Config::load_or_create(&path, |name| env.get(name).map(|v| (*v).to_owned()))
@@ -668,6 +680,10 @@ mod tests {
         assert!(!config.voice.enabled);
         assert_eq!(config.voice.udp_port, 17711);
         assert_eq!(config.voice.public_address, "203.0.113.7");
+        assert_eq!(
+            config.network.local_listener_bind,
+            IpAddr::V4(Ipv4Addr::UNSPECIFIED)
+        );
     }
 
     #[test]

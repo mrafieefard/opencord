@@ -2,7 +2,7 @@
 //! really came from, and the plain listener on this machine they forward
 //! to.
 
-use std::net::{IpAddr, Ipv4Addr, SocketAddr};
+use std::net::{IpAddr, SocketAddr};
 use std::sync::Arc;
 
 use axum::extract::{ConnectInfo, FromRequestParts};
@@ -75,7 +75,8 @@ pub fn client_address(
 pub struct ThroughLocalListener;
 
 /// The plain listener on this machine that tunnels and reverse proxies
-/// forward to: the same routes as the main port, without TLS.
+/// forward to: the same routes as the main port, without TLS. It listens on
+/// loopback unless `local_listener_bind` says otherwise, as in a container.
 #[derive(Debug)]
 pub struct LocalListener {
     pub port: u16,
@@ -85,7 +86,8 @@ pub struct LocalListener {
 
 impl LocalListener {
     pub async fn start(state: Arc<AppState>, port: u16) -> std::io::Result<Self> {
-        let listener = tokio::net::TcpListener::bind((Ipv4Addr::LOCALHOST, port)).await?;
+        let address = state.config.network.local_listener_bind;
+        let listener = tokio::net::TcpListener::bind((address, port)).await?;
         let port = listener.local_addr()?.port();
         let stop = CancellationToken::new();
         let app = crate::http::router(Arc::clone(&state))
