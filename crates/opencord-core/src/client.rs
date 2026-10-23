@@ -43,13 +43,15 @@ use crate::identity::Identity;
 use crate::media::{self, Media, MediaOptions, MediaTarget};
 use crate::music_listening::MusicListening;
 use crate::now_playing::{NowPlaying, Player};
-use crate::private::service::{PrivateService, Transport};
+use crate::private::outbox::{self, SendOptions};
+use crate::private::service::{PrivateService, Transport, parse_hex};
 use crate::soundboard::Soundboard;
 use crate::store::{SavedServer, Store, StoreError};
 use crate::voice::VoiceServer;
 use crate::voice_message::player::VoicePlayer;
 use crate::voice_message::recorder::{TapEngine, VoiceRecorder};
 use opencord_media::hotkeys::Hotkeys;
+use proto::private_payload::Body as PayloadBody;
 
 const INVITE_SCHEME: &str = "opencord://";
 /// Voice server updates kept for a slow listener.
@@ -499,6 +501,49 @@ impl Client {
         limit: u32,
     ) -> Result<Vec<PrivateMessage>, CoreError> {
         self.inner.private.messages(peer, before, limit).await
+    }
+
+    /// Sends a text to `peer` (hex) through the conversation's relay. It
+    /// comes back sent, or still sending when the connection ended first;
+    /// a refusal marks it failed and is returned.
+    pub async fn private_send(
+        &self,
+        peer: &str,
+        content: String,
+    ) -> Result<PrivateMessage, CoreError> {
+        let peer = parse_hex::<32>(peer, "that person isn't valid")?;
+        let body = PayloadBody::Text(proto::PrivateText { content });
+        outbox::send(&self.inner.private, peer, body, SendOptions::default())
+            .await?
+            .ok_or_else(|| CoreError::Storage {
+                message: "a sent text has no stored message".to_owned(),
+            })
+    }
+
+    /// Replaces the text of one's own sent message, once the server
+    /// accepted the edit.
+    pub async fn private_edit(
+        &self,
+        peer: &str,
+        message_id: &str,
+        content: String,
+    ) -> Result<(), CoreError> {
+        let peer = parse_hex::<32>(peer, "that person isn't valid")?;
+        let message_id = parse_hex::<16>(message_id, "that message isn't valid")?;
+        outbox::edit(&self.inner.private, peer, message_id, content).await
+    }
+
+    /// Deletes one's own message for everyone, once the server accepted it.
+    pub async fn private_delete(&self, peer: &str, message_id: &str) -> Result<(), CoreError> {
+        let peer = parse_hex::<32>(peer, "that person isn't valid")?;
+        let message_id = parse_hex::<16>(message_id, "that message isn't valid")?;
+        outbox::delete(&self.inner.private, peer, message_id).await
+    }
+
+    /// Sends a failed or unsent text again.
+    pub async fn private_retry(&self, message_id: &str) -> Result<(), CoreError> {
+        let message_id = parse_hex::<16>(message_id, "that message isn't valid")?;
+        outbox::retry(&self.inner.private, message_id).await
     }
 
     pub async fn send_message(

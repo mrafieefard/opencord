@@ -5,6 +5,8 @@
 pub mod contacts;
 pub mod device;
 pub mod members;
+pub mod outbox;
+pub mod payload;
 pub mod seal;
 pub mod service;
 pub mod sessions;

@@ -361,6 +361,33 @@ impl ServerHandle {
             .expect("the events are stored");
     }
 
+    /// Stores a device for the member without checking any signature, as a
+    /// dishonest server could. Intended for tests.
+    pub async fn insert_private_device_unchecked(
+        &self,
+        user_id: i64,
+        keys: opencord_proto::v1::DeviceKeys,
+        fallback: opencord_proto::v1::Prekey,
+    ) {
+        let device = crate::db::private::DeviceRow {
+            device_id: keys.device_id,
+            curve25519: keys.curve25519,
+            ed25519: keys.ed25519,
+            signature: keys.signature,
+            fallback_key: fallback.key,
+            fallback_signature: fallback.signature,
+        };
+        let mut conn = self
+            .state
+            .db
+            .acquire()
+            .await
+            .expect("a database connection");
+        crate::db::private::upsert_device(&mut conn, user_id, &device, now_ms())
+            .await
+            .expect("the device is stored");
+    }
+
     /// The events waiting for the device, oldest first. Intended for tests.
     pub async fn private_pending_for(
         &self,

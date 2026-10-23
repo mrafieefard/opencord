@@ -24,6 +24,7 @@ use super::PrivateError;
 use super::contacts::{self, Contact, Conversation, FollowUp, FriendEvent, FriendState};
 use super::device::Device;
 use super::members::{MemberIndex, MemberInfo};
+use super::outbox::{self, DeviceCache};
 use super::store::PrivateStore;
 use crate::api::types::{
     ConversationStatus, CoreError, FriendStatus, PrivateContact, PrivateEvent, PrivateMessage,
@@ -72,6 +73,9 @@ struct Shared {
     data_dir: PathBuf,
     transport: Arc<dyn Transport>,
     members: MemberIndex,
+    /// Verified device lists for sending; see `DeviceCache` for when its
+    /// entries leave.
+    devices: DeviceCache,
     events: Mutex<Option<mpsc::UnboundedSender<PrivateEvent>>>,
     /// Opening and closing, one at a time.
     opening: tokio::sync::Mutex<()>,
@@ -144,6 +148,7 @@ impl PrivateService {
                 data_dir,
                 transport,
                 members: MemberIndex::default(),
+                devices: DeviceCache::default(),
                 events: Mutex::new(None),
                 opening: tokio::sync::Mutex::new(()),
                 open: Mutex::new(None),
@@ -159,6 +164,10 @@ impl PrivateService {
 
     pub fn members(&self) -> &MemberIndex {
         &self.shared.members
+    }
+
+    pub fn device_cache(&self) -> &DeviceCache {
+        &self.shared.devices
     }
 
     /// The open database, device and worker.
@@ -532,6 +541,7 @@ impl PrivateService {
                 Err(_) => warn_core("unregistering this device failed", key, &CoreError::Timeout),
             }
         }
+        self.shared.devices.forget_server(key);
         self.shared.members.remove_server(key);
     }
 
@@ -677,7 +687,9 @@ impl PrivateService {
         )
         .await?;
         // 5.
-        self.catch_up(open, key).await
+        self.catch_up(open, key).await?;
+        // Then what waited to be sent through this server.
+        outbox::resend_unsent(self, key).await
     }
 
     /// Fetches what waited for this device, a page at a time: each page
@@ -929,7 +941,11 @@ impl PrivateService {
         Ok(())
     }
 
-    async fn emit_contact(&self, open: &Open, contact: &Contact) -> Result<(), PrivateError> {
+    pub(super) async fn emit_contact(
+        &self,
+        open: &Open,
+        contact: &Contact,
+    ) -> Result<(), PrivateError> {
         let mut conn = open.store.pool().acquire().await?;
         let view = self.contact_view(open, &mut conn, contact).await?;
         self.emit(PrivateEvent::ContactChanged(view));
@@ -956,7 +972,7 @@ impl PrivateService {
         });
     }
 
-    async fn request(&self, key: &str, kind: Request) -> Result<Response, CoreError> {
+    pub(super) async fn request(&self, key: &str, kind: Request) -> Result<Response, CoreError> {
         self.shared.transport.request(key, kind).await
     }
 
@@ -968,7 +984,7 @@ impl PrivateService {
     }
 
     /// The identity, while it's still the one whose database is open.
-    fn identity_for(&self, open: &Open) -> Result<Identity, CoreError> {
+    pub(super) fn identity_for(&self, open: &Open) -> Result<Identity, CoreError> {
         self.shared
             .transport
             .identity()
@@ -1141,7 +1157,11 @@ async fn blocked(open: &Open, peer: [u8; 32]) -> Result<bool, PrivateError> {
         .is_some_and(|contact| contact.blocked))
 }
 
-fn open_text(store: &PrivateStore, id: &[u8], body: &[u8]) -> Result<String, PrivateError> {
+pub(super) fn open_text(
+    store: &PrivateStore,
+    id: &[u8],
+    body: &[u8],
+) -> Result<String, PrivateError> {
     let text = store.sealer().open(MESSAGE_BODY_LABEL, id, body)?;
     String::from_utf8(text)
         .map_err(|_| PrivateError::Invalid("a stored message isn't text".to_owned()))
@@ -1163,7 +1183,7 @@ fn worker_stopped() -> CoreError {
     PrivateError::Storage("the private messages worker stopped".to_owned()).into()
 }
 
-fn parse_hex<const N: usize>(text: &str, message: &str) -> Result<[u8; N], CoreError> {
+pub(crate) fn parse_hex<const N: usize>(text: &str, message: &str) -> Result<[u8; N], CoreError> {
     hex::decode(text)
         .ok()
         .and_then(|bytes| <[u8; N]>::try_from(bytes.as_slice()).ok())
@@ -1172,7 +1192,7 @@ fn parse_hex<const N: usize>(text: &str, message: &str) -> Result<[u8; N], CoreE
         })
 }
 
-fn warn_core(what: &'static str, key: &str, error: &CoreError) {
+pub(super) fn warn_core(what: &'static str, key: &str, error: &CoreError) {
     match error {
         CoreError::Server { code, .. } => {
             tracing::warn!(server = %key, error = core_kind(error), code = ?code, "{what}");
@@ -1213,7 +1233,7 @@ fn lock<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
     mutex.lock().unwrap_or_else(PoisonError::into_inner)
 }
 
-fn now_ms() -> i64 {
+pub(super) fn now_ms() -> i64 {
     let since_epoch = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .unwrap_or_default();
