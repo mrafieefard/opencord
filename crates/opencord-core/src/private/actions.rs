@@ -4,15 +4,29 @@ use opencord_proto::v1 as proto;
 use proto::request::Kind as Request;
 use proto::response::Result as Response;
 
-use sqlx::Row;
+use sqlx::{Row, SqliteConnection};
 
 use crate::api::types::{
     CoreError, PrivacySettingsData, PrivateContact, PrivateEvent, SharedServer,
 };
 use crate::private::PrivateError;
 use crate::private::contacts::{self, Contact, Conversation, FriendState};
-use crate::private::outbox::{self, SendOptions};
+use crate::private::outbox::{self, MOVED, SendOptions};
 use crate::private::service::{Open, PrivateService, now_ms, parse_hex};
+
+/// The contact as it is now. The receive worker may have changed it while a
+/// request was out, so a change made after the server's answer starts here.
+async fn fresh(
+    open: &Open,
+    conn: &mut SqliteConnection,
+    before: Contact,
+) -> Result<Contact, CoreError> {
+    Ok(
+        contacts::load(conn, open.store().sealer(), before.public_key)
+            .await?
+            .unwrap_or(before),
+    )
+}
 
 /// Sends a friend request to `user_id` on server `server_key`.
 pub async fn friend_request_send(
@@ -82,7 +96,7 @@ pub async fn friend_request_answer(
 ) -> Result<(), CoreError> {
     let peer_bytes = parse_hex::<32>(peer, "that person isn't valid")?;
     let open = service.opened()?;
-    let (mut contact, request) = {
+    let (contact, request) = {
         let mut conn = open
             .store()
             .pool()
@@ -146,6 +160,7 @@ pub async fn friend_request_answer(
         .acquire()
         .await
         .map_err(PrivateError::from)?;
+    let mut contact = fresh(&open, &mut conn, contact).await?;
     contacts::after_my_answer(&mut contact, accept, &request.server_id);
     contacts::save(&mut conn, open.store().sealer(), &contact, now_ms()).await?;
     let view = service.contact_view(&open, &mut conn, &contact).await?;
@@ -158,7 +173,7 @@ pub async fn friend_request_answer(
 pub async fn friend_request_cancel(service: &PrivateService, peer: &str) -> Result<(), CoreError> {
     let peer_bytes = parse_hex::<32>(peer, "that person isn't valid")?;
     let open = service.opened()?;
-    let (mut contact, request) = {
+    let (contact, request) = {
         let mut conn = open
             .store()
             .pool()
@@ -194,7 +209,7 @@ pub async fn friend_request_cancel(service: &PrivateService, peer: &str) -> Resu
             .server_name(&server_key)
             .unwrap_or_else(|| "The server".to_owned());
         return Err(CoreError::InvalidInput {
-            message: format!("Couldn't answer: {server_name} isn't connected right now."),
+            message: format!("Couldn't cancel: {server_name} isn't connected right now."),
         });
     }
 
@@ -213,6 +228,7 @@ pub async fn friend_request_cancel(service: &PrivateService, peer: &str) -> Resu
         .acquire()
         .await
         .map_err(PrivateError::from)?;
+    let mut contact = fresh(&open, &mut conn, contact).await?;
     contacts::after_my_cancel(&mut contact);
     contacts::save(&mut conn, open.store().sealer(), &contact, now_ms()).await?;
     let view = service.contact_view(&open, &mut conn, &contact).await?;
@@ -328,6 +344,11 @@ pub async fn message_request_accept(service: &PrivateService, peer: &str) -> Res
         .acquire()
         .await
         .map_err(PrivateError::from)?;
+    let relay_server_id = contact.relay_server_id.clone();
+    let mut contact = fresh(&open, &mut conn, contact).await?;
+    if contact.relay_server_id.is_none() {
+        contact.relay_server_id = relay_server_id;
+    }
     contact.conversation = Conversation::Accepted;
     contacts::save(&mut conn, open.store().sealer(), &contact, now_ms()).await?;
     let view = service.contact_view(&open, &mut conn, &contact).await?;
@@ -717,7 +738,10 @@ pub async fn private_move(
         .acquire()
         .await
         .map_err(PrivateError::from)?;
-    let mut contact = contact.unwrap_or_else(|| Contact::new(peer_bytes));
+    let mut contact = contacts::load(&mut conn, open.store().sealer(), peer_bytes)
+        .await?
+        .or(contact)
+        .unwrap_or_else(|| Contact::new(peer_bytes));
     contact.relay_server_id = Some(relay.server_id.clone());
     contacts::save(&mut conn, open.store().sealer(), &contact, now_ms()).await?;
 
@@ -755,7 +779,7 @@ pub async fn private_move_too(
 
         let kind: i64 = row.try_get("kind").map_err(PrivateError::from)?;
         let outgoing: i64 = row.try_get("outgoing").map_err(PrivateError::from)?;
-        if kind != 2 || outgoing != 0 {
+        if kind != MOVED || outgoing != 0 {
             return Err(CoreError::InvalidInput {
                 message: "not a moved card".to_owned(),
             });
