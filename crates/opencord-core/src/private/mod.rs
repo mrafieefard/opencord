@@ -2,6 +2,7 @@
 //! between people, relayed by any server they share, and kept in this
 //! device's own encrypted database.
 
+pub mod actions;
 pub mod contacts;
 pub mod device;
 pub mod inbox;

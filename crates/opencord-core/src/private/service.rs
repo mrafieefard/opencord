@@ -490,7 +490,27 @@ impl PrivateService {
         };
         self.shared.members.upsert(key, member.clone());
         if let Some(open) = self.open_now() {
-            queue(&open, Job::Names(vec![member]));
+            queue(&open, Job::Names(vec![member.clone()]));
+            if matches!(kind, proto::event::Kind::MemberJoin(_)) {
+                let service = self.clone();
+                let server_key = key.to_owned();
+                let peer = member.public_key;
+                self.shared.runtime.spawn(async move {
+                    let Ok(mut conn) = open.store().pool().acquire().await else {
+                        return;
+                    };
+                    let is_blocked = contacts::load(&mut conn, open.store().sealer(), peer)
+                        .await
+                        .ok()
+                        .flatten()
+                        .is_some_and(|c| c.blocked);
+                    if is_blocked {
+                        let _ =
+                            super::actions::sync_privacy_to_server(&service, &open, &server_key)
+                                .await;
+                    }
+                });
+            }
         }
     }
 

@@ -21,11 +21,12 @@ use crate::api::types::{
     ChannelChanges, ChannelKind, ChannelPosition, CoreError, CoreEvent, CoreEventPayload,
     ErrorCode, HotkeyBinding, HotkeySupport, IdentityInfo, Invite, MediaEvent, MediaHandle, Member,
     Message, OutgoingFile, OverwriteTargetKind, PermissionOverwrite, PlaybackItem, PresenceStatus,
-    PrivateContact, PrivateEvent, PrivateMessage, PrivateOpened, Role, RoleChanges, S3Config,
-    ScreenProblem, ScreenShareRequest, ScreenShareStarted, ScreenStream, Server, ServerChanges,
-    ServerInfo, SoundDraft, SoundSelection, SoundboardSound, SoundboardSoundChanges, StorageInfo,
-    StorageTestResult, StorageTestTarget, StreamSourceKind, UploadSettings, User, VideoWant,
-    VoiceCue, VoiceDraft, VoiceSettings, VoiceSettingsChanges, VoiceState,
+    PrivacySettingsData, PrivateContact, PrivateEvent, PrivateMessage, PrivateOpened, Role,
+    RoleChanges, S3Config, ScreenProblem, ScreenShareRequest, ScreenShareStarted, ScreenStream,
+    Server, ServerChanges, ServerInfo, SoundDraft, SoundSelection, SoundboardSound,
+    SoundboardSoundChanges, StorageInfo, StorageTestResult, StorageTestTarget, StreamSourceKind,
+    UploadSettings, User, VideoWant, VoiceCue, VoiceDraft, VoiceSettings, VoiceSettingsChanges,
+    VoiceState,
 };
 use crate::artwork::ArtworkCache;
 use crate::attachments::cache::{self, MediaCache};
@@ -43,6 +44,7 @@ use crate::identity::Identity;
 use crate::media::{self, Media, MediaOptions, MediaTarget};
 use crate::music_listening::MusicListening;
 use crate::now_playing::{NowPlaying, Player};
+use crate::private::actions;
 use crate::private::outbox::{self, SendOptions};
 use crate::private::service::{PrivateService, Transport, parse_hex};
 use crate::soundboard::Soundboard;
@@ -544,6 +546,53 @@ impl Client {
     pub async fn private_retry(&self, message_id: &str) -> Result<(), CoreError> {
         let message_id = parse_hex::<16>(message_id, "that message isn't valid")?;
         outbox::retry(&self.inner.private, message_id).await
+    }
+
+    pub async fn friend_request_send(
+        &self,
+        server_key: &str,
+        user_id: i64,
+    ) -> Result<(), CoreError> {
+        actions::friend_request_send(&self.inner.private, server_key, user_id).await
+    }
+
+    pub async fn friend_request_answer(&self, peer: &str, accept: bool) -> Result<(), CoreError> {
+        actions::friend_request_answer(&self.inner.private, peer, accept).await
+    }
+
+    pub async fn friend_request_cancel(&self, peer: &str) -> Result<(), CoreError> {
+        actions::friend_request_cancel(&self.inner.private, peer).await
+    }
+
+    pub async fn friend_remove(&self, peer: &str) -> Result<(), CoreError> {
+        actions::friend_remove(&self.inner.private, peer).await
+    }
+
+    pub async fn message_request_accept(&self, peer: &str) -> Result<(), CoreError> {
+        actions::message_request_accept(&self.inner.private, peer).await
+    }
+
+    pub async fn message_request_ignore(&self, peer: &str) -> Result<(), CoreError> {
+        actions::message_request_ignore(&self.inner.private, peer).await
+    }
+
+    pub async fn private_block(&self, peer: &str) -> Result<(), CoreError> {
+        actions::private_block(&self.inner.private, peer).await
+    }
+
+    pub async fn private_unblock(&self, peer: &str) -> Result<(), CoreError> {
+        actions::private_unblock(&self.inner.private, peer).await
+    }
+
+    pub async fn privacy_settings(&self) -> Result<PrivacySettingsData, CoreError> {
+        actions::privacy_settings(&self.inner.private).await
+    }
+
+    pub async fn set_privacy_settings(
+        &self,
+        settings: PrivacySettingsData,
+    ) -> Result<(), CoreError> {
+        actions::set_privacy_settings(&self.inner.private, settings).await
     }
 
     pub async fn send_message(

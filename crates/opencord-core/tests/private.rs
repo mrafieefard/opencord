@@ -7,8 +7,8 @@ use std::time::Duration;
 use opencord_common::address::format_fingerprint;
 use opencord_core::api::types::{
     ConnectionState, ConversationStatus, CoreError, CoreEvent, CoreEventPayload, ErrorCode,
-    FriendStatus, PrivateEvent, PrivateMessage, PrivateMessageKind, PrivateSendState,
-    ReadySnapshot,
+    FriendStatus, PrivacySettingsData, PrivateEvent, PrivateMessage, PrivateMessageKind,
+    PrivateSendState, ReadySnapshot,
 };
 use opencord_core::client::Client;
 use opencord_core::identity::Identity;
@@ -1574,4 +1574,750 @@ async fn a_message_from_a_forged_device_is_not_believed() {
             .all(|message| message.kind == PrivateMessageKind::Undecryptable),
         "{stored:?}"
     );
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn friends_are_made_through_a_shared_server() {
+    let server = TestServer::start().await;
+    let (mut a, a_ready, mut b, b_ready) = owner_and_member(&server).await;
+    let mut a2 = a
+        .another_device(&server.address(), &server.fingerprint(), "Owner")
+        .await;
+    a.open_private(1).await;
+    a2.open_private(3).await;
+    b.open_private(2).await;
+    server
+        .counts_until(a_ready.self_user.id, |c| {
+            c.devices == 2 && c.one_time_keys == 40
+        })
+        .await;
+    server.counts_until(b_ready.self_user.id, registered).await;
+
+    let b_hex = hex::encode(b.identity.public_key());
+    let a_hex = hex::encode(a.identity.public_key());
+    let server_key = a.client.servers()[0].key.clone();
+
+    // A sends friend request to B
+    a.client
+        .friend_request_send(&server_key, b_ready.self_user.id)
+        .await
+        .unwrap();
+
+    // B gets incoming request
+    b.private_event(|event| match event {
+        PrivateEvent::ContactChanged(c)
+            if c.peer == a_hex && c.friend == FriendStatus::Incoming =>
+        {
+            Some(())
+        }
+        _ => None,
+    })
+    .await;
+
+    // B accepts
+    b.client.friend_request_answer(&a_hex, true).await.unwrap();
+
+    // B's contact for A is Friends
+    let b_contacts = b.client.private_contacts().await.unwrap();
+    let b_contact = b_contacts.iter().find(|c| c.peer == a_hex).unwrap();
+    assert_eq!(b_contact.friend, FriendStatus::Friends);
+
+    // A and A2 get ContactChanged to Friends
+    a.private_event(|event| match event {
+        PrivateEvent::ContactChanged(c) if c.peer == b_hex && c.friend == FriendStatus::Friends => {
+            Some(())
+        }
+        _ => None,
+    })
+    .await;
+    a2.private_event(|event| match event {
+        PrivateEvent::ContactChanged(c) if c.peer == b_hex && c.friend == FriendStatus::Friends => {
+            Some(())
+        }
+        _ => None,
+    })
+    .await;
+
+    let a_contacts = a.client.private_contacts().await.unwrap();
+    let a_contact = a_contacts.iter().find(|c| c.peer == b_hex).unwrap();
+    assert_eq!(a_contact.friend, FriendStatus::Friends);
+
+    let a2_contacts = a2.client.private_contacts().await.unwrap();
+    let a2_contact = a2_contacts.iter().find(|c| c.peer == b_hex).unwrap();
+    assert_eq!(a2_contact.friend, FriendStatus::Friends);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_declined_request_quietly_disappears() {
+    let server = TestServer::start().await;
+    let (mut a, a_ready, mut b, b_ready) = owner_and_member(&server).await;
+    a.open_private(1).await;
+    b.open_private(2).await;
+    server.counts_until(a_ready.self_user.id, registered).await;
+    server.counts_until(b_ready.self_user.id, registered).await;
+
+    let a_hex = hex::encode(a.identity.public_key());
+    let b_hex = hex::encode(b.identity.public_key());
+    let server_key = a.client.servers()[0].key.clone();
+
+    a.client
+        .friend_request_send(&server_key, b_ready.self_user.id)
+        .await
+        .unwrap();
+
+    b.private_event(|event| match event {
+        PrivateEvent::ContactChanged(c)
+            if c.peer == a_hex && c.friend == FriendStatus::Incoming =>
+        {
+            Some(())
+        }
+        _ => None,
+    })
+    .await;
+
+    b.client.friend_request_answer(&a_hex, false).await.unwrap();
+
+    // A gets ContactChanged back to None with no error
+    a.private_event(|event| match event {
+        PrivateEvent::ContactChanged(c) if c.peer == b_hex && c.friend == FriendStatus::None => {
+            Some(())
+        }
+        _ => None,
+    })
+    .await;
+
+    let a_contact = a
+        .client
+        .private_contacts()
+        .await
+        .unwrap()
+        .into_iter()
+        .find(|c| c.peer == b_hex)
+        .unwrap();
+    assert_eq!(a_contact.friend, FriendStatus::None);
+
+    let b_contact = b
+        .client
+        .private_contacts()
+        .await
+        .unwrap()
+        .into_iter()
+        .find(|c| c.peer == a_hex)
+        .unwrap();
+    assert_eq!(b_contact.friend, FriendStatus::None);
+    assert!(!b_contact.request_spam);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn crossed_requests_become_a_friendship() {
+    let server_x = TestServer::start().await;
+    let server_y = TestServer::start().await;
+
+    let mut a = TestClient::new("A");
+    let a_x_ready = a.join_as_owner(&server_x).await;
+    let a_y_ready = a.join_as_owner(&server_y).await;
+
+    let invite_x = a
+        .client
+        .create_invite(&server_x.address(), None, None, None)
+        .await
+        .unwrap();
+    let invite_y = a
+        .client
+        .create_invite(&server_y.address(), None, None, None)
+        .await
+        .unwrap();
+
+    let mut b = TestClient::new("B");
+    b.client.add_server(&invite_x.link, None).await.unwrap();
+    let b_x_ready = b.ready().await;
+    b.client.add_server(&invite_y.link, None).await.unwrap();
+    let b_y_ready = b.ready().await;
+
+    a.open_private(1).await;
+    b.open_private(2).await;
+    server_x
+        .counts_until(a_x_ready.self_user.id, registered)
+        .await;
+    server_x
+        .counts_until(b_x_ready.self_user.id, registered)
+        .await;
+    server_y
+        .counts_until(a_y_ready.self_user.id, registered)
+        .await;
+    server_y
+        .counts_until(b_y_ready.self_user.id, registered)
+        .await;
+
+    let a_hex = hex::encode(a.identity.public_key());
+    let b_hex = hex::encode(b.identity.public_key());
+    let a_x_key = a.client.servers()[0].key.clone();
+    let b_y_key = b.client.servers()[1].key.clone();
+
+    // A -> B on server X
+    a.client
+        .friend_request_send(&a_x_key, b_x_ready.self_user.id)
+        .await
+        .unwrap();
+    // B -> A on server Y
+    b.client
+        .friend_request_send(&b_y_key, a_y_ready.self_user.id)
+        .await
+        .unwrap();
+
+    // Wait until both end Friends
+    a.private_event(|event| match event {
+        PrivateEvent::ContactChanged(c) if c.peer == b_hex && c.friend == FriendStatus::Friends => {
+            Some(())
+        }
+        _ => None,
+    })
+    .await;
+    b.private_event(|event| match event {
+        PrivateEvent::ContactChanged(c) if c.peer == a_hex && c.friend == FriendStatus::Friends => {
+            Some(())
+        }
+        _ => None,
+    })
+    .await;
+
+    let a_contact = a
+        .client
+        .private_contacts()
+        .await
+        .unwrap()
+        .into_iter()
+        .find(|c| c.peer == b_hex)
+        .unwrap();
+    assert_eq!(a_contact.friend, FriendStatus::Friends);
+
+    let b_contact = b
+        .client
+        .private_contacts()
+        .await
+        .unwrap()
+        .into_iter()
+        .find(|c| c.peer == a_hex)
+        .unwrap();
+    assert_eq!(b_contact.friend, FriendStatus::Friends);
+
+    // Both servers end with no requests
+    let x_counts = server_x
+        .counts_until(b_x_ready.self_user.id, |c| {
+            c.friend_requests == 0 && c.pending == 0
+        })
+        .await;
+    assert_eq!(x_counts.friend_requests, 0);
+    let y_counts = server_y
+        .counts_until(a_y_ready.self_user.id, |c| {
+            c.friend_requests == 0 && c.pending == 0
+        })
+        .await;
+    assert_eq!(y_counts.friend_requests, 0);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn the_third_decline_sends_the_next_request_to_spam() {
+    let server = TestServer::start().await;
+    let (mut a, a_ready, mut b, b_ready) = owner_and_member(&server).await;
+    a.open_private(1).await;
+    b.open_private(2).await;
+    server.counts_until(a_ready.self_user.id, registered).await;
+    server.counts_until(b_ready.self_user.id, registered).await;
+
+    let a_hex = hex::encode(a.identity.public_key());
+    let server_key = a.client.servers()[0].key.clone();
+
+    for _ in 0..3 {
+        a.client
+            .friend_request_send(&server_key, b_ready.self_user.id)
+            .await
+            .unwrap();
+        b.private_event(|event| match event {
+            PrivateEvent::ContactChanged(c)
+                if c.peer == a_hex && c.friend == FriendStatus::Incoming =>
+            {
+                Some(())
+            }
+            _ => None,
+        })
+        .await;
+        b.private_event(|event| match event {
+            PrivateEvent::FriendRequestReceived { peer, spam } if *peer == a_hex => {
+                assert!(!spam);
+                Some(())
+            }
+            _ => None,
+        })
+        .await;
+        b.client.friend_request_answer(&a_hex, false).await.unwrap();
+        a.private_event(|event| match event {
+            PrivateEvent::ContactChanged(c)
+                if c.peer == hex::encode(b.identity.public_key())
+                    && c.friend == FriendStatus::None =>
+            {
+                Some(())
+            }
+            _ => None,
+        })
+        .await;
+    }
+
+    // 4th request from A
+    a.client
+        .friend_request_send(&server_key, b_ready.self_user.id)
+        .await
+        .unwrap();
+
+    let spam_received = b
+        .private_event(|event| match event {
+            PrivateEvent::FriendRequestReceived { peer, spam } if *peer == a_hex => Some(*spam),
+            _ => None,
+        })
+        .await;
+    assert!(spam_received);
+
+    let b_contact = b
+        .client
+        .private_contacts()
+        .await
+        .unwrap()
+        .into_iter()
+        .find(|c| c.peer == a_hex)
+        .unwrap();
+    assert!(b_contact.request_spam);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn closed_friend_requests_give_their_error() {
+    let server = TestServer::start().await;
+    let (mut a, a_ready, mut b, b_ready) = owner_and_member(&server).await;
+    a.open_private(1).await;
+    b.open_private(2).await;
+    server.counts_until(a_ready.self_user.id, registered).await;
+    server.counts_until(b_ready.self_user.id, registered).await;
+
+    // B closes friend requests
+    b.client
+        .set_privacy_settings(PrivacySettingsData {
+            allow_friend_requests: false,
+            allow_message_requests: true,
+        })
+        .await
+        .unwrap();
+
+    let server_key = a.client.servers()[0].key.clone();
+    let err = a
+        .client
+        .friend_request_send(&server_key, b_ready.self_user.id)
+        .await
+        .unwrap_err();
+
+    assert!(
+        matches!(
+            err,
+            CoreError::Server {
+                code: ErrorCode::FriendRequestsClosed,
+                ..
+            }
+        ),
+        "expected FriendRequestsClosed, got {err:?}"
+    );
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn closed_message_requests_refuse_strangers_but_not_friends() {
+    let server = TestServer::start().await;
+    let (mut a, a_ready, mut b, b_ready) = owner_and_member(&server).await;
+    let invite = a
+        .client
+        .create_invite(&server.address(), None, None, None)
+        .await
+        .unwrap();
+    let mut c = TestClient::new("C");
+    c.client.add_server(&invite.link, None).await.unwrap();
+    let c_ready = c.ready().await;
+
+    a.open_private(1).await;
+    b.open_private(2).await;
+    c.open_private(3).await;
+    server.counts_until(a_ready.self_user.id, registered).await;
+    server.counts_until(b_ready.self_user.id, registered).await;
+    server.counts_until(c_ready.self_user.id, registered).await;
+
+    // Make A and B friends
+    let b_hex = hex::encode(b.identity.public_key());
+    let a_hex = hex::encode(a.identity.public_key());
+    let a_server_key = a.client.servers()[0].key.clone();
+
+    a.client
+        .friend_request_send(&a_server_key, b_ready.self_user.id)
+        .await
+        .unwrap();
+    b.private_event(|event| match event {
+        PrivateEvent::ContactChanged(c)
+            if c.peer == a_hex && c.friend == FriendStatus::Incoming =>
+        {
+            Some(())
+        }
+        _ => None,
+    })
+    .await;
+    b.client.friend_request_answer(&a_hex, true).await.unwrap();
+    a.private_event(|event| match event {
+        PrivateEvent::ContactChanged(c) if c.peer == b_hex && c.friend == FriendStatus::Friends => {
+            Some(())
+        }
+        _ => None,
+    })
+    .await;
+
+    // B closes message requests
+    b.client
+        .set_privacy_settings(PrivacySettingsData {
+            allow_friend_requests: true,
+            allow_message_requests: false,
+        })
+        .await
+        .unwrap();
+
+    // Stranger C tries to send message to B -> MessageRequestsClosed
+    c.set_relay(&b, &c_ready.server.server_id_hex).await;
+    let err = c
+        .client
+        .private_send(&b_hex, "hello stranger".to_owned())
+        .await
+        .unwrap_err();
+    assert!(
+        matches!(
+            err,
+            CoreError::Server {
+                code: ErrorCode::MessageRequestsClosed,
+                ..
+            }
+        ),
+        "expected MessageRequestsClosed, got {err:?}"
+    );
+
+    // Friend A sends message to B -> succeeds!
+    a.set_relay(&b, &a_ready.server.server_id_hex).await;
+    let sent = a
+        .client
+        .private_send(&b_hex, "hello friend".to_owned())
+        .await
+        .unwrap();
+    assert_eq!(sent.state, PrivateSendState::Sent);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn an_accepted_message_request_lets_them_write_after_requests_close() {
+    let server = TestServer::start().await;
+    let (mut c, c_ready, mut b, b_ready) = owner_and_member(&server).await;
+    c.open_private(1).await;
+    b.open_private(2).await;
+    server.counts_until(c_ready.self_user.id, registered).await;
+    server.counts_until(b_ready.self_user.id, registered).await;
+
+    let b_hex = hex::encode(b.identity.public_key());
+    let c_hex = hex::encode(c.identity.public_key());
+    c.set_relay(&b, &c_ready.server.server_id_hex).await;
+
+    // C writes to B
+    c.client
+        .private_send(&b_hex, "first message".to_owned())
+        .await
+        .unwrap();
+
+    // B gets message request
+    b.private_event(|event| match event {
+        PrivateEvent::MessageAdded(m) if m.peer == c_hex => Some(()),
+        _ => None,
+    })
+    .await;
+    let b_contact = b
+        .client
+        .private_contacts()
+        .await
+        .unwrap()
+        .into_iter()
+        .find(|contact| contact.peer == c_hex)
+        .unwrap();
+    assert_eq!(b_contact.conversation, ConversationStatus::Request);
+
+    // Drain C's events from the first message
+    let _ = c.drain_private(Duration::from_millis(100)).await;
+
+    // B accepts message request
+    b.client.message_request_accept(&c_hex).await.unwrap();
+
+    // C receives RequestAccepted and updates contact with B's slip
+    c.private_event(|event| match event {
+        PrivateEvent::ContactChanged(c) if c.peer == b_hex => Some(()),
+        _ => None,
+    })
+    .await;
+
+    // B closes message requests
+    b.client
+        .set_privacy_settings(PrivacySettingsData {
+            allow_friend_requests: true,
+            allow_message_requests: false,
+        })
+        .await
+        .unwrap();
+
+    // C writes again -> succeeds because C has B's slip from RequestAccepted!
+    let sent2 = c
+        .client
+        .private_send(&b_hex, "second message".to_owned())
+        .await
+        .unwrap();
+    assert_eq!(sent2.state, PrivateSendState::Sent);
+
+    let msg = b
+        .private_event(|event| match event {
+            PrivateEvent::MessageAdded(m) if m.peer == c_hex && m.content == "second message" => {
+                Some(m.clone())
+            }
+            _ => None,
+        })
+        .await;
+    assert_eq!(msg.content, "second message");
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn ignoring_a_message_request_deletes_it() {
+    let server = TestServer::start().await;
+    let (mut c, c_ready, mut b, b_ready) = owner_and_member(&server).await;
+    c.open_private(1).await;
+    b.open_private(2).await;
+    server.counts_until(c_ready.self_user.id, registered).await;
+    server.counts_until(b_ready.self_user.id, registered).await;
+
+    let b_hex = hex::encode(b.identity.public_key());
+    let c_hex = hex::encode(c.identity.public_key());
+    c.set_relay(&b, &c_ready.server.server_id_hex).await;
+
+    c.client
+        .private_send(&b_hex, "message to ignore".to_owned())
+        .await
+        .unwrap();
+    b.private_event(|event| match event {
+        PrivateEvent::MessageAdded(m) if m.peer == c_hex => Some(()),
+        _ => None,
+    })
+    .await;
+
+    b.client.message_request_ignore(&c_hex).await.unwrap();
+
+    let removed = b
+        .private_event(|event| match event {
+            PrivateEvent::ContactRemoved { peer } if peer == &c_hex => Some(()),
+            _ => None,
+        })
+        .await;
+    assert_eq!(removed, ());
+
+    let messages = b.client.private_messages(&c_hex, None, 10).await.unwrap();
+    assert!(messages.is_empty());
+    let contacts = b.client.private_contacts().await.unwrap();
+    assert!(!contacts.iter().any(|c| c.peer == c_hex));
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn blocking_ends_everything_and_refuses_them() {
+    let server = TestServer::start().await;
+    let (mut a, a_ready, mut b, b_ready) = owner_and_member(&server).await;
+    a.open_private(1).await;
+    b.open_private(2).await;
+    server.counts_until(a_ready.self_user.id, registered).await;
+    server.counts_until(b_ready.self_user.id, registered).await;
+
+    let b_hex = hex::encode(b.identity.public_key());
+    let a_hex = hex::encode(a.identity.public_key());
+    let server_key = a.client.servers()[0].key.clone();
+
+    // Make A and B friends
+    a.client
+        .friend_request_send(&server_key, b_ready.self_user.id)
+        .await
+        .unwrap();
+    b.private_event(|event| match event {
+        PrivateEvent::ContactChanged(c)
+            if c.peer == a_hex && c.friend == FriendStatus::Incoming =>
+        {
+            Some(())
+        }
+        _ => None,
+    })
+    .await;
+    b.client.friend_request_answer(&a_hex, true).await.unwrap();
+    a.private_event(|event| match event {
+        PrivateEvent::ContactChanged(c) if c.peer == b_hex && c.friend == FriendStatus::Friends => {
+            Some(())
+        }
+        _ => None,
+    })
+    .await;
+
+    // A blocks B
+    a.client.private_block(&b_hex).await.unwrap();
+    let _ = a.drain_private(Duration::from_millis(100)).await;
+
+    // Both stop being friends
+    let a_contacts = a.client.private_contacts().await.unwrap();
+    let a_contact = a_contacts.iter().find(|c| c.peer == b_hex).unwrap();
+    assert_eq!(a_contact.friend, FriendStatus::None);
+    assert!(a_contact.blocked);
+
+    b.private_event(|event| match event {
+        PrivateEvent::ContactChanged(c) if c.peer == a_hex && c.friend == FriendStatus::None => {
+            Some(())
+        }
+        _ => None,
+    })
+    .await;
+
+    // B sends a message to A -> Undeliverable
+    b.set_relay(&a, &b_ready.server.server_id_hex).await;
+    let err = b
+        .client
+        .private_send(&a_hex, "are you there?".to_owned())
+        .await
+        .unwrap_err();
+    assert!(
+        matches!(
+            err,
+            CoreError::Server {
+                code: ErrorCode::Undeliverable,
+                ..
+            }
+        ),
+        "expected Undeliverable for message, got {err:?}"
+    );
+
+    // B sends a friend request to A -> Undeliverable
+    let b_server_key = b.client.servers()[0].key.clone();
+    let err2 = b
+        .client
+        .friend_request_send(&b_server_key, a_ready.self_user.id)
+        .await
+        .unwrap_err();
+    assert!(
+        matches!(
+            err2,
+            CoreError::Server {
+                code: ErrorCode::Undeliverable,
+                ..
+            }
+        ),
+        "expected Undeliverable for friend request, got {err2:?}"
+    );
+
+    // A sees nothing
+    let seen = a.drain_private(Duration::from_millis(300)).await;
+    assert!(seen.is_empty(), "A should see nothing, got {seen:?}");
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn unblocking_lets_them_write_again() {
+    let server = TestServer::start().await;
+    let (mut a, a_ready, mut b, b_ready) = owner_and_member(&server).await;
+    a.open_private(1).await;
+    b.open_private(2).await;
+    server.counts_until(a_ready.self_user.id, registered).await;
+    server.counts_until(b_ready.self_user.id, registered).await;
+
+    let b_hex = hex::encode(b.identity.public_key());
+    let a_hex = hex::encode(a.identity.public_key());
+
+    // A blocks B
+    a.client.private_block(&b_hex).await.unwrap();
+
+    // A unblocks B
+    a.client.private_unblock(&b_hex).await.unwrap();
+
+    // B sends a message to A -> arrives!
+    b.set_relay(&a, &b_ready.server.server_id_hex).await;
+    b.client
+        .private_send(&a_hex, "can write again".to_owned())
+        .await
+        .unwrap();
+
+    let msg = a
+        .private_event(|event| match event {
+            PrivateEvent::MessageAdded(m) if m.peer == b_hex => Some(m.clone()),
+            _ => None,
+        })
+        .await;
+    assert_eq!(msg.content, "can write again");
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn removing_a_friend_reaches_both_sides() {
+    let server = TestServer::start().await;
+    let (mut a, a_ready, mut b, b_ready) = owner_and_member(&server).await;
+    a.open_private(1).await;
+    b.open_private(2).await;
+    server.counts_until(a_ready.self_user.id, registered).await;
+    server.counts_until(b_ready.self_user.id, registered).await;
+
+    let b_hex = hex::encode(b.identity.public_key());
+    let a_hex = hex::encode(a.identity.public_key());
+    let server_key = a.client.servers()[0].key.clone();
+
+    // Make friends
+    a.client
+        .friend_request_send(&server_key, b_ready.self_user.id)
+        .await
+        .unwrap();
+    b.private_event(|event| match event {
+        PrivateEvent::ContactChanged(c)
+            if c.peer == a_hex && c.friend == FriendStatus::Incoming =>
+        {
+            Some(())
+        }
+        _ => None,
+    })
+    .await;
+    b.client.friend_request_answer(&a_hex, true).await.unwrap();
+    a.private_event(|event| match event {
+        PrivateEvent::ContactChanged(c) if c.peer == b_hex && c.friend == FriendStatus::Friends => {
+            Some(())
+        }
+        _ => None,
+    })
+    .await;
+
+    // A removes B as friend
+    a.client.friend_remove(&b_hex).await.unwrap();
+
+    // Both sides see friendship end
+    let a_contact = a
+        .client
+        .private_contacts()
+        .await
+        .unwrap()
+        .into_iter()
+        .find(|c| c.peer == b_hex)
+        .unwrap();
+    assert_eq!(a_contact.friend, FriendStatus::None);
+
+    b.private_event(|event| match event {
+        PrivateEvent::ContactChanged(c) if c.peer == a_hex && c.friend == FriendStatus::None => {
+            Some(())
+        }
+        _ => None,
+    })
+    .await;
+
+    let b_contact = b
+        .client
+        .private_contacts()
+        .await
+        .unwrap()
+        .into_iter()
+        .find(|c| c.peer == a_hex)
+        .unwrap();
+    assert_eq!(b_contact.friend, FriendStatus::None);
 }

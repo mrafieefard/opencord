@@ -395,7 +395,7 @@ async fn undecryptable(
         },
     )
     .await?;
-    arrived(&mut contact, at.sent_at);
+    arrived(&mut contact, at.sent_at, at.server_id);
     contacts::save(conn, sealer, &contact, now).await?;
     Ok(Applied {
         shown: vec![Shown::Added(id)],
@@ -445,7 +445,7 @@ async fn from_peer(
             };
             if insert(conn, sealer, new).await? {
                 shown.push(Shown::Added(id));
-                arrived(&mut contact, at.sent_at);
+                arrived(&mut contact, at.sent_at, at.server_id);
                 changed = true;
             }
         }
@@ -706,9 +706,12 @@ async fn load_or_new(
 
 /// Something new arrived from them: the conversation shows, as a request
 /// if it wasn't one yet.
-fn arrived(contact: &mut Contact, sent_at: i64) {
+fn arrived(contact: &mut Contact, sent_at: i64, server_id: &str) {
     if contact.conversation == Conversation::None {
         contact.conversation = Conversation::Request;
+    }
+    if contact.relay_server_id.is_none() {
+        contact.relay_server_id = Some(server_id.to_string());
     }
     contact.last_activity_at = Some(latest(contact.last_activity_at, sent_at));
     contact.hidden = false;

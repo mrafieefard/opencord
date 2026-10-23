@@ -150,6 +150,22 @@ impl MemberIndex {
             .map(|member| member.public_key)
     }
 
+    pub fn is_connected(&self, key: &str) -> bool {
+        self.lock().get(key).is_some_and(|entry| entry.connected)
+    }
+
+    pub fn name_of(&self, peer: &[u8; 32]) -> Option<String> {
+        for entry in self.lock().values() {
+            if let Some(user_id) = entry.by_key.get(peer)
+                && let Some(member) = entry.by_id.get(user_id)
+                && !member.name.is_empty()
+            {
+                return Some(member.name.clone());
+            }
+        }
+        None
+    }
+
     pub fn user_id_on(&self, key: &str, peer: &[u8; 32]) -> Option<i64> {
         self.lock().get(key)?.by_key.get(peer).copied()
     }
