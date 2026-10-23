@@ -31,6 +31,7 @@ use crate::convert;
 use crate::identity::Identity;
 
 use crate::mirror::{GuildMirror, PermissionSnapshot};
+use crate::private::service::PrivateService;
 use crate::server_clock::ServerClock;
 use crate::store::Store;
 use crate::tofu::{TlsTrust, Verdict};
@@ -354,6 +355,7 @@ pub(crate) struct Context {
     pub clocks: Clocks,
     /// Sends waiting for their uploads' verdicts.
     pub uploads: Arc<Uploads>,
+    pub private: PrivateService,
 }
 
 /// Each server's clock against this device's, by server key.
@@ -822,6 +824,14 @@ impl Task {
         let user_id = ready.self_user.as_ref().map(|user| user.id);
         self.self_id = user_id;
         self.update_saved_server(name, user_id);
+        let server_id = self
+            .lock_store()
+            .server(&self.context.key)
+            .and_then(|saved| saved.server_id.clone())
+            .unwrap_or_default();
+        self.context
+            .private
+            .on_ready(&self.context.key, &server_id, &ready);
         self.emit(CoreEventPayload::Ready(convert::ready(ready)));
     }
 
@@ -861,6 +871,16 @@ impl Task {
         }
         if let proto::event::Kind::VoiceServerUpdate(update) = &kind {
             self.on_voice_server(update);
+        }
+        if matches!(
+            kind,
+            proto::event::Kind::MemberJoin(_)
+                | proto::event::Kind::MemberUpdate(_)
+                | proto::event::Kind::MemberLeave(_)
+        ) {
+            self.context
+                .private
+                .on_member_event(&self.context.key, &kind);
         }
         if let proto::event::Kind::ServerAddressesUpdate(update) = &kind
             && let Some(addresses) = &update.addresses
@@ -903,6 +923,17 @@ impl Task {
                     failed.upload_id,
                     failed.error.unwrap_or_default(),
                 );
+                None
+            }
+            // For the private messages service, not for the app.
+            proto::event::Kind::PendingEvent(event) => {
+                self.context.private.on_pending(&self.context.key, event);
+                None
+            }
+            proto::event::Kind::PrivateTypingStart(typing) => {
+                self.context
+                    .private
+                    .on_typing(&self.context.key, typing.user_id);
                 None
             }
 
@@ -1076,6 +1107,10 @@ impl Task {
     }
 
     fn emit_state(&self, state: ConnectionState) {
+        self.context.private.on_connection(
+            &self.context.key,
+            matches!(state, ConnectionState::Connected),
+        );
         self.emit(CoreEventPayload::ConnectionState(state));
     }
 

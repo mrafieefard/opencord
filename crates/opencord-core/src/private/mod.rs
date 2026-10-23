@@ -4,7 +4,9 @@
 
 pub mod contacts;
 pub mod device;
+pub mod members;
 pub mod seal;
+pub mod service;
 pub mod sessions;
 pub mod store;
 

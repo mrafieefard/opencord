@@ -2066,3 +2066,107 @@ pub enum AttachmentVariant {
     Original,
     Thumbnail,
 }
+
+// Private messages (design 2026-10-22). They reach Dart in Task 16.
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PrivateOpened {
+    /// The old database couldn't be read with the key and was moved aside.
+    pub started_fresh: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FriendStatus {
+    None,
+    Outgoing,
+    Incoming,
+    Friends,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ConversationStatus {
+    None,
+    Request,
+    Accepted,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PrivateMessageKind {
+    Text,
+    Divider,
+    Moved,
+    Undecryptable,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PrivateSendState {
+    Received,
+    Sending,
+    Sent,
+    Failed,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PrivateContact {
+    /// Their public key, lowercase hex.
+    pub peer: String,
+    pub fingerprint: String,
+    /// The name last seen.
+    pub name: Option<String>,
+    pub friend: FriendStatus,
+    pub request_spam: bool,
+    pub blocked: bool,
+    pub conversation: ConversationStatus,
+    /// This device's key for the conversation's relay, if it saved that
+    /// server.
+    pub relay_server_key: Option<String>,
+    pub last_activity_ms: Option<i64>,
+    /// Incoming text after the last read.
+    pub unread: u32,
+    pub muted: bool,
+    pub hidden: bool,
+    /// The first line of the latest text, at most 100 characters.
+    pub preview: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PrivateMessage {
+    /// Hex.
+    pub id: String,
+    pub peer: String,
+    pub outgoing: bool,
+    pub kind: PrivateMessageKind,
+    /// The text; a divider's or card's server name; empty otherwise.
+    pub content: String,
+    /// A divider's or card's server, if this device saved it.
+    pub server_key: Option<String>,
+    pub sent_at_ms: i64,
+    pub edited_at_ms: Option<i64>,
+    pub state: PrivateSendState,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SharedServer {
+    pub server_key: String,
+    pub name: String,
+    pub connected: bool,
+    pub private_messages: bool,
+    pub peer_user_id: i64,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PrivacySettingsData {
+    pub allow_friend_requests: bool,
+    pub allow_message_requests: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum PrivateEvent {
+    ContactChanged(PrivateContact),
+    ContactRemoved { peer: String },
+    MessageAdded(PrivateMessage),
+    MessageChanged(PrivateMessage),
+    MessageDeleted { peer: String, message_id: String },
+    Typing { peer: String },
+    FriendRequestReceived { peer: String, spam: bool },
+}

@@ -6,6 +6,7 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, MutexGuard, OnceLock, PoisonError, RwLock, Weak};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
+use futures_util::future::BoxFuture;
 use opencord_common::address::{
     DEFAULT_PORT, Fingerprint, InviteLink, ServerAddress, format_fingerprint, parse_fingerprint,
 };
@@ -20,11 +21,11 @@ use crate::api::types::{
     ChannelChanges, ChannelKind, ChannelPosition, CoreError, CoreEvent, CoreEventPayload,
     ErrorCode, HotkeyBinding, HotkeySupport, IdentityInfo, Invite, MediaEvent, MediaHandle, Member,
     Message, OutgoingFile, OverwriteTargetKind, PermissionOverwrite, PlaybackItem, PresenceStatus,
-    Role, RoleChanges, S3Config, ScreenProblem, ScreenShareRequest, ScreenShareStarted,
-    ScreenStream, Server, ServerChanges, ServerInfo, SoundDraft, SoundSelection, SoundboardSound,
-    SoundboardSoundChanges, StorageInfo, StorageTestResult, StorageTestTarget, StreamSourceKind,
-    UploadSettings, User, VideoWant, VoiceCue, VoiceDraft, VoiceSettings, VoiceSettingsChanges,
-    VoiceState,
+    PrivateContact, PrivateEvent, PrivateMessage, PrivateOpened, Role, RoleChanges, S3Config,
+    ScreenProblem, ScreenShareRequest, ScreenShareStarted, ScreenStream, Server, ServerChanges,
+    ServerInfo, SoundDraft, SoundSelection, SoundboardSound, SoundboardSoundChanges, StorageInfo,
+    StorageTestResult, StorageTestTarget, StreamSourceKind, UploadSettings, User, VideoWant,
+    VoiceCue, VoiceDraft, VoiceSettings, VoiceSettingsChanges, VoiceState,
 };
 use crate::artwork::ArtworkCache;
 use crate::attachments::cache::{self, MediaCache};
@@ -42,6 +43,7 @@ use crate::identity::Identity;
 use crate::media::{self, Media, MediaOptions, MediaTarget};
 use crate::music_listening::MusicListening;
 use crate::now_playing::{NowPlaying, Player};
+use crate::private::service::{PrivateService, Transport};
 use crate::soundboard::Soundboard;
 use crate::store::{SavedServer, Store, StoreError};
 use crate::voice::VoiceServer;
@@ -106,6 +108,58 @@ struct Inner {
     now_playing: Arc<NowPlaying>,
     voice_player: Arc<VoicePlayer>,
     media_player: Arc<crate::media_player::CoreMediaPlayer>,
+    private: PrivateService,
+}
+
+/// The private messages service's way to the client, held weakly.
+struct ClientTransport(Weak<Inner>);
+
+impl Transport for ClientTransport {
+    fn request(
+        &self,
+        server_key: &str,
+        kind: Request,
+    ) -> BoxFuture<'static, Result<Response, CoreError>> {
+        let client = self.0.upgrade().map(|inner| Client { inner });
+        let key = server_key.to_owned();
+        Box::pin(async move {
+            match client {
+                Some(client) => client.request(&key, kind).await,
+                None => Err(CoreError::NotConnected),
+            }
+        })
+    }
+
+    fn server_key_for(&self, server_id: &str) -> Option<String> {
+        let inner = self.0.upgrade()?;
+        Client { inner }
+            .lock_store()
+            .server_with_id(server_id)
+            .map(|saved| saved.key.clone())
+    }
+
+    fn server_id_of(&self, server_key: &str) -> Option<String> {
+        let inner = self.0.upgrade()?;
+        Client { inner }
+            .lock_store()
+            .server(server_key)
+            .and_then(|saved| saved.server_id.clone())
+    }
+
+    fn server_name(&self, server_key: &str) -> Option<String> {
+        let inner = self.0.upgrade()?;
+        Client { inner }
+            .lock_store()
+            .server(server_key)
+            .map(|saved| saved.name.clone())
+    }
+
+    fn identity(&self) -> Option<Identity> {
+        let inner = self.0.upgrade()?;
+        Client { inner }
+            .credentials()
+            .map(|credentials| credentials.identity)
+    }
 }
 
 /// The app's id, as its desktop file names it; the system's portals ask for
@@ -180,7 +234,7 @@ impl Client {
             MediaHttp::new(Arc::clone(&routes), Arc::clone(&media_tokens)),
         ));
         let client = Self {
-            inner: Arc::new(Inner {
+            inner: Arc::new_cyclic(|weak| Inner {
                 runtime: runtime.clone(),
                 events,
                 outward: outward.clone(),
@@ -207,6 +261,11 @@ impl Client {
                 now_playing: Arc::default(),
                 voice_player: Arc::default(),
                 media_player: Arc::default(),
+                private: PrivateService::new(
+                    runtime.clone(),
+                    data_dir.to_owned(),
+                    Arc::new(ClientTransport(weak.clone())),
+                ),
             }),
         };
         client.spawn_wake_watch();
@@ -386,6 +445,7 @@ impl Client {
 
     /// Disconnects and forgets the server and its pinned certificate.
     pub async fn remove_server(&self, key: &str) -> Result<(), CoreError> {
+        self.inner.private.before_remove(key).await;
         let connection = self.lock_connections().remove(key);
         if let Some(connection) = connection {
             stop(connection).await;
@@ -413,6 +473,32 @@ impl Client {
         for connection in connections {
             stop(connection).await;
         }
+    }
+
+    /// Opens private messages for the identity with the keychain's master
+    /// key, and registers this device on every server ready for them.
+    pub async fn private_open(&self, key: [u8; 32]) -> Result<PrivateOpened, CoreError> {
+        self.inner.private.open(key).await
+    }
+
+    /// Private events from now on; an earlier receiver hears nothing more.
+    pub fn private_events(&self) -> mpsc::UnboundedReceiver<PrivateEvent> {
+        self.inner.private.events()
+    }
+
+    pub async fn private_contacts(&self) -> Result<Vec<PrivateContact>, CoreError> {
+        self.inner.private.contacts().await
+    }
+
+    /// The conversation with `peer` (hex), newest first, before the message
+    /// `before` (hex); at most 100.
+    pub async fn private_messages(
+        &self,
+        peer: &str,
+        before: Option<String>,
+        limit: u32,
+    ) -> Result<Vec<PrivateMessage>, CoreError> {
+        self.inner.private.messages(peer, before, limit).await
     }
 
     pub async fn send_message(
@@ -1869,6 +1955,7 @@ impl Client {
             routes: Arc::clone(&self.inner.routes),
             clocks: Arc::clone(&self.inner.clocks),
             uploads: Arc::clone(&self.inner.uploads),
+            private: self.inner.private.clone(),
         }
     }
 
