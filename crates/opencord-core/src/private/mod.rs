@@ -4,6 +4,7 @@
 
 pub mod contacts;
 pub mod device;
+pub mod inbox;
 pub mod members;
 pub mod outbox;
 pub mod payload;
@@ -22,6 +23,9 @@ pub enum PrivateError {
     Invalid(String),
     #[error("private messages encryption failed: {0}")]
     Crypto(String),
+    /// A request to a server failed.
+    #[error(transparent)]
+    Request(CoreError),
 }
 
 impl From<sqlx::Error> for PrivateError {
@@ -40,6 +44,7 @@ impl From<PrivateError> for CoreError {
     fn from(error: PrivateError) -> Self {
         match error {
             PrivateError::Invalid(message) => Self::InvalidInput { message },
+            PrivateError::Request(error) => error,
             PrivateError::Storage(_) | PrivateError::Crypto(_) => Self::Storage {
                 message: error.to_string(),
             },

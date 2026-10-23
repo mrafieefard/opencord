@@ -23,6 +23,7 @@ use tokio::time::MissedTickBehavior;
 use super::PrivateError;
 use super::contacts::{self, Contact, Conversation, FollowUp, FriendEvent, FriendState};
 use super::device::Device;
+use super::inbox::{self, Reset, ResetLimiter};
 use super::members::{MemberIndex, MemberInfo};
 use super::outbox::{self, DeviceCache};
 use super::store::PrivateStore;
@@ -76,6 +77,8 @@ struct Shared {
     /// Verified device lists for sending; see `DeviceCache` for when its
     /// entries leave.
     devices: DeviceCache,
+    /// Session resets sent; see `ResetLimiter` for when its entries leave.
+    resets: ResetLimiter,
     events: Mutex<Option<mpsc::UnboundedSender<PrivateEvent>>>,
     /// Opening and closing, one at a time.
     opening: tokio::sync::Mutex<()>,
@@ -138,6 +141,8 @@ struct Handled {
     ack: Option<i64>,
     /// For this person.
     follow_ups: Vec<([u8; 32], FollowUp)>,
+    /// A message from that device couldn't be decrypted.
+    reset: Option<Reset>,
 }
 
 impl PrivateService {
@@ -149,6 +154,7 @@ impl PrivateService {
                 transport,
                 members: MemberIndex::default(),
                 devices: DeviceCache::default(),
+                resets: ResetLimiter::default(),
                 events: Mutex::new(None),
                 opening: tokio::sync::Mutex::new(()),
                 open: Mutex::new(None),
@@ -168,6 +174,10 @@ impl PrivateService {
 
     pub fn device_cache(&self) -> &DeviceCache {
         &self.shared.devices
+    }
+
+    pub fn resets(&self) -> &ResetLimiter {
+        &self.shared.resets
     }
 
     /// The open database, device and worker.
@@ -523,6 +533,15 @@ impl PrivateService {
 
     pub fn on_connection(&self, key: &str, connected: bool) {
         self.shared.members.set_connected(key, connected);
+        // Back on a server this device registered on: a resumed session
+        // brings no `Ready`, so catch up on what failed or waited meanwhile.
+        if connected
+            && self
+                .open_now()
+                .is_some_and(|open| lock(&open.registered).contains(key))
+        {
+            self.start_registration(key);
+        }
     }
 
     /// Before the server is removed: this device leaves it.
@@ -765,7 +784,7 @@ impl PrivateService {
         if seen {
             return Ok(Handled {
                 ack: Some(event.id),
-                follow_ups: Vec::new(),
+                ..Handled::default()
             });
         }
         let friend = match &event.kind {
@@ -776,16 +795,29 @@ impl PrivateService {
                 FriendEvent::Cancelled(cancelled)
             }
             Some(PendingKind::FriendRemoved(removed)) => FriendEvent::Removed(removed),
-            // Receiving messages comes with Task 13; until then they wait on
-            // the server.
-            Some(PendingKind::PrivateMessage(_)) => return Ok(Handled::default()),
+            Some(PendingKind::PrivateMessage(message)) => {
+                let reset = inbox::receive(
+                    self,
+                    open,
+                    key,
+                    (&server_id, event.id),
+                    message.clone(),
+                    &privacy,
+                )
+                .await?;
+                return Ok(Handled {
+                    ack: Some(event.id),
+                    follow_ups: Vec::new(),
+                    reset,
+                });
+            }
             // A kind this version doesn't know: nothing to do with it.
             None => {
                 let mut conn = open.store.pool().acquire().await?;
                 record_received(&mut conn, &server_id, event.id, now_ms()).await?;
                 return Ok(Handled {
                     ack: Some(event.id),
-                    follow_ups: Vec::new(),
+                    ..Handled::default()
                 });
             }
         };
@@ -821,6 +853,7 @@ impl PrivateService {
         Ok(Handled {
             ack: Some(event.id),
             follow_ups,
+            reset: None,
         })
     }
 
@@ -1096,6 +1129,11 @@ async fn run_worker(
                                 warn_core("a friend request follow-up failed", &server_key, &error);
                             }
                         }
+                        if let Some(reset) = handled.reset
+                            && let Err(error) = inbox::reset_session(&service, reset).await
+                        {
+                            warn_core("a session reset failed", &server_key, &error);
+                        }
                     }
                     Job::Names(members) => {
                         if let Err(error) = service.update_names(&open, &members).await {
@@ -1132,7 +1170,7 @@ async fn prepare(store: &PrivateStore, now: i64) -> Result<Device, PrivateError>
 }
 
 /// The event was handled: a delivery of it again is only acknowledged.
-async fn record_received(
+pub(super) async fn record_received(
     conn: &mut SqliteConnection,
     server_id: &str,
     event_id: i64,
@@ -1226,6 +1264,7 @@ fn private_kind(error: &PrivateError) -> &'static str {
         PrivateError::Storage(_) => "storage",
         PrivateError::Invalid(_) => "invalid",
         PrivateError::Crypto(_) => "crypto",
+        PrivateError::Request(error) => core_kind(error),
     }
 }
 

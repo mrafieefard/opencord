@@ -152,6 +152,7 @@ struct TestClient {
     identity: Identity,
     dir: tempfile::TempDir,
     key: Option<u8>,
+    name: String,
 }
 
 impl TestClient {
@@ -169,7 +170,66 @@ impl TestClient {
             identity,
             dir,
             key: None,
+            name: name.to_owned(),
         }
+    }
+
+    /// Closes this client and starts it again from its directory, as an app
+    /// started again would: it reconnects, then opens private messages.
+    async fn reopen(&mut self) {
+        let key = self.key.expect("private messages were opened");
+        self.client.shutdown().await;
+        let dir = std::mem::replace(&mut self.dir, tempfile::tempdir().unwrap());
+        let mut back = TestClient::with(self.identity.clone(), dir, &self.name);
+        back.client.connect_saved_servers();
+        back.ready().await;
+        back.open_private(key).await;
+        *self = back;
+    }
+
+    /// Skips private events until a message `pick` accepts is added.
+    async fn message_added(&mut self, pick: impl Fn(&PrivateMessage) -> bool) -> PrivateMessage {
+        self.private_event(|event| match event {
+            PrivateEvent::MessageAdded(message) if pick(message) => Some(message.clone()),
+            _ => None,
+        })
+        .await
+    }
+
+    /// Collects private events until none comes for `wait`.
+    async fn drain_private(&mut self, wait: Duration) -> Vec<PrivateEvent> {
+        let events = self.private.as_mut().expect("private messages are open");
+        let mut seen = Vec::new();
+        while let Ok(Some(event)) = tokio::time::timeout(wait, events.recv()).await {
+            seen.push(event);
+        }
+        seen
+    }
+
+    /// This device's Curve25519 key, read from its own database.
+    async fn curve25519(&self) -> [u8; 32] {
+        let store = self.store().await;
+        let key = Device::load_or_create(&store, 0)
+            .await
+            .unwrap()
+            .curve25519();
+        store.close().await;
+        key
+    }
+
+    /// Encrypts `payload` for the peer device `to` on this device's session
+    /// with it, straight from its database, as its client would.
+    async fn encrypt_for(&self, to: [u8; 32], payload: &[u8]) -> (u32, Vec<u8>) {
+        let store = self.store().await;
+        let mut conn = store.pool().acquire().await.unwrap();
+        let mut sessions = PeerSessions::load(&mut conn, store.pickle_key(), to)
+            .await
+            .unwrap();
+        let encrypted = sessions.encrypt(payload).unwrap();
+        sessions.save(&mut conn, store.pickle_key()).await.unwrap();
+        drop(conn);
+        store.close().await;
+        encrypted
     }
 
     /// Opens private messages with the master key `[key; 32]`.
@@ -621,6 +681,7 @@ async fn pump(
 /// waits on the server.
 struct Pair {
     a: TestClient,
+    a_ready: ReadySnapshot,
     b: TestClient,
     b_ready: ReadySnapshot,
     b_device: [u8; 16],
@@ -642,10 +703,15 @@ impl Pair {
         a.set_relay(&b, &a_ready.server.server_id_hex).await;
         Self {
             a,
+            a_ready,
             b,
             b_ready,
             b_device,
         }
+    }
+
+    fn a_hex(&self) -> String {
+        hex::encode(self.a.identity.public_key())
     }
 
     fn b_hex(&self) -> String {
@@ -956,4 +1022,556 @@ async fn sessions_are_saved_before_sending() {
         }
     }
     assert_eq!(texts, ["one", "two"]);
+}
+
+/// A with two devices and B with one, all open, sharing `server`, with A's
+/// first device writing to B through it.
+async fn three_devices(server: &TestServer) -> ThreeDevices {
+    let (mut a, a_ready, mut b, b_ready) = owner_and_member(server).await;
+    let mut a2 = a
+        .another_device(&server.address(), &server.fingerprint(), "Owner")
+        .await;
+    a.open_private(1).await;
+    a2.open_private(3).await;
+    b.open_private(2).await;
+    server
+        .counts_until(a_ready.self_user.id, |counts| {
+            counts.devices == 2 && counts.one_time_keys == 40
+        })
+        .await;
+    server.counts_until(b_ready.self_user.id, registered).await;
+    a.set_relay(&b, &a_ready.server.server_id_hex).await;
+    ThreeDevices {
+        a,
+        a_id: a_ready.self_user.id,
+        a2,
+        b,
+        b_ready,
+    }
+}
+
+struct ThreeDevices {
+    a: TestClient,
+    a_id: i64,
+    a2: TestClient,
+    b: TestClient,
+    b_ready: ReadySnapshot,
+}
+
+fn text(content: &str) -> proto::private_payload::Body {
+    proto::private_payload::Body::Text(proto::PrivateText {
+        content: content.to_owned(),
+    })
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_message_reaches_the_other_person_and_the_senders_other_device() {
+    let server = TestServer::start().await;
+    let ThreeDevices {
+        a,
+        mut a2,
+        mut b,
+        b_ready,
+        ..
+    } = three_devices(&server).await;
+    let a_hex = hex::encode(a.identity.public_key());
+    let b_hex = hex::encode(b.identity.public_key());
+
+    let sent = a
+        .client
+        .private_send(&b_hex, "hello there".to_owned())
+        .await
+        .unwrap();
+
+    let received = b.message_added(|message| message.peer == a_hex).await;
+    assert_eq!(received.id, sent.id);
+    assert_eq!(received.content, "hello there");
+    assert_eq!(received.kind, PrivateMessageKind::Text);
+    assert!(!received.outgoing);
+    assert_eq!(received.state, PrivateSendState::Received);
+    assert_eq!(received.sent_at_ms, sent.sent_at_ms, "the server's time");
+    let copy = a2.message_added(|message| message.peer == b_hex).await;
+    assert_eq!(copy.id, sent.id);
+    assert_eq!(copy.content, "hello there");
+    assert!(copy.outgoing);
+    assert_eq!(copy.state, PrivateSendState::Sent);
+
+    assert_eq!(
+        b.client.private_messages(&a_hex, None, 10).await.unwrap(),
+        vec![received]
+    );
+    let b_contacts = b.client.private_contacts().await.unwrap();
+    assert_eq!(b_contacts.len(), 1);
+    assert_eq!(b_contacts[0].peer, a_hex);
+    assert_eq!(b_contacts[0].conversation, ConversationStatus::Request);
+    assert_eq!(b_contacts[0].unread, 1);
+    let a2_contacts = a2.client.private_contacts().await.unwrap();
+    assert_eq!(a2_contacts.len(), 1);
+    assert_eq!(a2_contacts[0].peer, b_hex);
+    assert_eq!(a2_contacts[0].conversation, ConversationStatus::Accepted);
+    server
+        .counts_until(b_ready.self_user.id, |counts| counts.pending == 0)
+        .await;
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn messages_wait_for_an_offline_device() {
+    let server = TestServer::start().await;
+    let mut pair = Pair::on(&server).await;
+    let (a_hex, b_hex) = (pair.a_hex(), pair.b_hex());
+    let b_id = pair.b_ready.self_user.id;
+    for content in ["one", "two", "three"] {
+        pair.a
+            .client
+            .private_send(&b_hex, content.to_owned())
+            .await
+            .unwrap();
+    }
+    server.copies_until(b_id, pair.b_device, 3).await;
+
+    pair.b.reopen().await;
+
+    let mut arrived = Vec::new();
+    for _ in 0..3 {
+        arrived.push(pair.b.message_added(|message| message.peer == a_hex).await);
+    }
+    let contents: Vec<&str> = arrived.iter().map(|m| m.content.as_str()).collect();
+    assert_eq!(contents, ["one", "two", "three"]);
+    assert!(
+        arrived
+            .windows(2)
+            .all(|pair| pair[0].sent_at_ms <= pair[1].sent_at_ms)
+    );
+    assert_eq!(
+        pair.b
+            .client
+            .private_messages(&a_hex, None, 10)
+            .await
+            .unwrap()
+            .len(),
+        3
+    );
+    server
+        .counts_until(b_id, |counts| counts.pending == 0)
+        .await;
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_message_delivered_twice_shows_once() {
+    let server = TestServer::start().await;
+    let mut pair = Pair::on(&server).await;
+    let (a_hex, b_hex) = (pair.a_hex(), pair.b_hex());
+    let b_id = pair.b_ready.self_user.id;
+    pair.a
+        .client
+        .private_send(&b_hex, "once".to_owned())
+        .await
+        .unwrap();
+    server.copies_until(b_id, pair.b_device, 1).await;
+    let snapshot = server
+        .handle
+        .private_pending_for(b_id, pair.b_device)
+        .await
+        .remove(0);
+    pair.b.reopen().await;
+    pair.b.message_added(|message| message.peer == a_hex).await;
+    server
+        .counts_until(b_id, |counts| counts.pending == 0)
+        .await;
+
+    // The same event again, as after a lost acknowledgement…
+    server
+        .handle
+        .requeue_private_event(b_id, pair.b_device, snapshot.clone())
+        .await;
+    server
+        .counts_until(b_id, |counts| counts.pending == 0)
+        .await;
+    // …and the same Olm message under another event's id, as a replay.
+    let replay = proto::PendingEvent {
+        id: snapshot.id + 1,
+        ..snapshot
+    };
+    server
+        .handle
+        .requeue_private_event(b_id, pair.b_device, replay)
+        .await;
+    server
+        .counts_until(b_id, |counts| counts.pending == 0)
+        .await;
+
+    let later = pair.b.drain_private(Duration::from_millis(500)).await;
+    assert!(
+        !later
+            .iter()
+            .any(|event| matches!(event, PrivateEvent::MessageAdded(_))),
+        "{later:?}"
+    );
+    let stored = pair
+        .b
+        .client
+        .private_messages(&a_hex, None, 10)
+        .await
+        .unwrap();
+    assert_eq!(stored.len(), 1);
+    assert_eq!(stored[0].kind, PrivateMessageKind::Text);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_crash_before_saving_decrypts_on_redelivery() {
+    let server = TestServer::start().await;
+    let mut pair = Pair::on(&server).await;
+    let (a_hex, b_hex) = (pair.a_hex(), pair.b_hex());
+    let b_id = pair.b_ready.self_user.id;
+    pair.b.reopen().await;
+    server.counts_until(b_id, registered).await;
+    server.privacy_of(b_id).await;
+    // Another connection holds the write lock, so B's save fails after it
+    // decrypted.
+    let store = pair.b.store().await;
+    let mut holder = store.pool().acquire().await.unwrap();
+    sqlx::query("BEGIN EXCLUSIVE")
+        .execute(&mut *holder)
+        .await
+        .unwrap();
+
+    let sent = pair
+        .a
+        .client
+        .private_send(&b_hex, "after the crash".to_owned())
+        .await
+        .unwrap();
+
+    // Longer than the database waits for its lock.
+    let shown = pair.b.drain_private(Duration::from_secs(7)).await;
+    assert!(
+        !shown
+            .iter()
+            .any(|event| matches!(event, PrivateEvent::MessageAdded(_))),
+        "{shown:?}"
+    );
+    assert_eq!(server.handle.private_counts(b_id).await.pending, 1);
+    sqlx::query("ROLLBACK").execute(&mut *holder).await.unwrap();
+    drop(holder);
+    store.close().await;
+
+    server.handle.drop_user_connections(b_id);
+
+    let received = pair.b.message_added(|message| message.peer == a_hex).await;
+    assert_eq!(received.id, sent.id);
+    assert_eq!(received.kind, PrivateMessageKind::Text);
+    assert_eq!(received.content, "after the crash");
+    server
+        .counts_until(b_id, |counts| counts.pending == 0)
+        .await;
+    let later = pair.b.drain_private(Duration::from_millis(500)).await;
+    assert!(
+        !later
+            .iter()
+            .any(|event| matches!(event, PrivateEvent::MessageAdded(_))),
+        "{later:?}"
+    );
+    assert_eq!(
+        pair.b
+            .client
+            .private_messages(&a_hex, None, 10)
+            .await
+            .unwrap(),
+        vec![received]
+    );
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn edits_and_deletes_reach_every_device() {
+    let server = TestServer::start().await;
+    let ThreeDevices {
+        mut a,
+        a_id,
+        mut a2,
+        mut b,
+        b_ready,
+    } = three_devices(&server).await;
+    let a_hex = hex::encode(a.identity.public_key());
+    let b_hex = hex::encode(b.identity.public_key());
+    let first = a
+        .client
+        .private_send(&b_hex, "first".to_owned())
+        .await
+        .unwrap();
+    let second = a
+        .client
+        .private_send(&b_hex, "second".to_owned())
+        .await
+        .unwrap();
+    for id in [&first.id, &second.id] {
+        b.message_added(|message| &message.id == id).await;
+        a2.message_added(|message| &message.id == id).await;
+    }
+
+    a.client
+        .private_edit(&b_hex, &first.id, "first, edited".to_owned())
+        .await
+        .unwrap();
+    a.client.private_delete(&b_hex, &second.id).await.unwrap();
+
+    for (device, peer) in [(&mut b, &a_hex), (&mut a2, &b_hex)] {
+        let edited = device
+            .private_event(|event| match event {
+                PrivateEvent::MessageChanged(message) if message.id == first.id => {
+                    Some(message.clone())
+                }
+                _ => None,
+            })
+            .await;
+        assert_eq!(edited.content, "first, edited");
+        assert!(edited.edited_at_ms.is_some());
+        let deleted = device
+            .private_event(|event| match event {
+                PrivateEvent::MessageDeleted { peer, message_id } => {
+                    Some((peer.clone(), message_id.clone()))
+                }
+                _ => None,
+            })
+            .await;
+        assert_eq!(deleted, (peer.clone(), second.id.clone()));
+        let stored = device
+            .client
+            .private_messages(peer, None, 10)
+            .await
+            .unwrap();
+        assert_eq!(stored.len(), 1);
+        assert_eq!(stored[0].content, "first, edited");
+    }
+
+    // B's device edits A's message: A's device leaves it as it is.
+    b.client.shutdown().await;
+    let b_device = b.device_id().await;
+    let a1_device = a.device_id().await;
+    let first_id: [u8; 16] = hex::decode(&first.id).unwrap().try_into().unwrap();
+    let edit = payload::build(
+        [9; 16],
+        &a.identity.public_key(),
+        None,
+        proto::private_payload::Body::Edit(proto::PrivateEdit {
+            message_id: first_id.to_vec(),
+            content: "not yours".to_owned(),
+        }),
+        0,
+    );
+    let (olm_type, body) = b.encrypt_for(a.curve25519().await, &edit).await;
+    a.drain_private(Duration::from_millis(300)).await;
+    server
+        .handle
+        .queue_private_events(
+            a_id,
+            a1_device,
+            vec![proto::pending_event::Kind::PrivateMessage(
+                proto::PrivateMessage {
+                    sender: Some(b.user(&b_ready, "Member")),
+                    sender_device_id: b_device.to_vec(),
+                    olm_type,
+                    body,
+                    sent_at_ms: 1,
+                },
+            )],
+        )
+        .await;
+    server
+        .counts_until(a_id, |counts| counts.pending == 0)
+        .await;
+
+    let later = a.drain_private(Duration::from_millis(500)).await;
+    assert!(
+        !later
+            .iter()
+            .any(|event| matches!(event, PrivateEvent::MessageChanged(_))),
+        "{later:?}"
+    );
+    let stored = a.client.private_messages(&b_hex, None, 10).await.unwrap();
+    assert_eq!(stored.len(), 1);
+    assert_eq!(stored[0].content, "first, edited");
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_stranger_starts_a_message_request() {
+    let server = TestServer::start().await;
+    let (mut c, c_ready, mut b, b_ready) = owner_and_member(&server).await;
+    c.open_private(1).await;
+    b.open_private(2).await;
+    server.counts_until(c_ready.self_user.id, registered).await;
+    server.counts_until(b_ready.self_user.id, registered).await;
+    c.set_relay(&b, &c_ready.server.server_id_hex).await;
+    let c_hex = hex::encode(c.identity.public_key());
+    let b_hex = hex::encode(b.identity.public_key());
+
+    c.client
+        .private_send(&b_hex, "hi, we haven't met".to_owned())
+        .await
+        .unwrap();
+
+    let request = b.message_added(|message| message.peer == c_hex).await;
+    assert_eq!(request.content, "hi, we haven't met");
+    let contact = b
+        .private_event(|event| match event {
+            PrivateEvent::ContactChanged(contact) if contact.peer == c_hex => Some(contact.clone()),
+            _ => None,
+        })
+        .await;
+    assert_eq!(contact.conversation, ConversationStatus::Request);
+    assert_eq!(contact.friend, FriendStatus::None);
+    assert_eq!(contact.unread, 1);
+    assert_eq!(contact.preview.as_deref(), Some("hi, we haven't met"));
+    assert!(contact.last_activity_ms.is_some());
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_broken_session_recovers_with_a_reset() {
+    let server = TestServer::start().await;
+    let mut pair = Pair::on(&server).await;
+    let (a_hex, b_hex) = (pair.a_hex(), pair.b_hex());
+    let b_id = pair.b_ready.self_user.id;
+    pair.a
+        .client
+        .private_send(&b_hex, "first".to_owned())
+        .await
+        .unwrap();
+    pair.b.reopen().await;
+    pair.b.message_added(|message| message.peer == a_hex).await;
+    server
+        .counts_until(b_id, |counts| counts.pending == 0)
+        .await;
+    pair.b.client.shutdown().await;
+    // B loses its sessions with A's device.
+    let a_curve25519 = pair.a.curve25519().await;
+    let store = pair.b.store().await;
+    sqlx::query("DELETE FROM sessions WHERE peer_curve25519 = $1")
+        .bind(a_curve25519.as_slice())
+        .execute(store.pool())
+        .await
+        .unwrap();
+    store.close().await;
+
+    pair.a
+        .client
+        .private_send(&b_hex, "second".to_owned())
+        .await
+        .unwrap();
+    pair.b.reopen().await;
+
+    let line = pair.b.message_added(|message| message.peer == a_hex).await;
+    assert_eq!(line.kind, PrivateMessageKind::Undecryptable);
+    assert!(!line.outgoing);
+    assert!(line.content.is_empty());
+    // A's device takes the reset: its session with B's device received.
+    let a_store = pair.a.store().await;
+    let deadline = tokio::time::Instant::now() + WAIT;
+    loop {
+        let received: i64 =
+            sqlx::query_scalar("SELECT COUNT(*) FROM sessions WHERE last_received_at IS NOT NULL")
+                .fetch_one(a_store.pool())
+                .await
+                .unwrap();
+        if received > 0 {
+            break;
+        }
+        assert!(
+            tokio::time::Instant::now() < deadline,
+            "A's device never took the reset"
+        );
+        tokio::time::sleep(Duration::from_millis(50)).await;
+    }
+    a_store.close().await;
+
+    pair.a
+        .client
+        .private_send(&b_hex, "third".to_owned())
+        .await
+        .unwrap();
+
+    let third = pair.b.message_added(|message| message.peer == a_hex).await;
+    assert_eq!(third.kind, PrivateMessageKind::Text);
+    assert_eq!(third.content, "third");
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_message_from_a_forged_device_is_not_believed() {
+    let server = TestServer::start().await;
+    let mut pair = Pair::on(&server).await;
+    let a_hex = pair.a_hex();
+    let b_id = pair.b_ready.self_user.id;
+    let a_id = pair.a_ready.self_user.id;
+    pair.b.reopen().await;
+    server.counts_until(b_id, registered).await;
+    // A device with good keys of its own, vouched for by someone else, put
+    // under A's name by the server.
+    let forger = Identity::generate();
+    let forged_dir = tempfile::tempdir().unwrap();
+    let forged_store = PrivateStore::open(forged_dir.path(), &forger.public_key(), &[7; 32], 0)
+        .await
+        .unwrap()
+        .store;
+    let forged = Device::load_or_create(&forged_store, 0).await.unwrap();
+    server
+        .handle
+        .insert_private_device_unchecked(a_id, forged.keys(&forger), forged.fallback_prekey())
+        .await;
+    let b_fallback: [u8; 32] = {
+        let store = pair.b.store().await;
+        let device = Device::load_or_create(&store, 0).await.unwrap();
+        store.close().await;
+        device.fallback_prekey().key.try_into().unwrap()
+    };
+    let mut conn = forged_store.pool().acquire().await.unwrap();
+    let mut sessions = PeerSessions::load(
+        &mut conn,
+        forged_store.pickle_key(),
+        pair.b.curve25519().await,
+    )
+    .await
+    .unwrap();
+    sessions.add_outbound(&forged, b_fallback, 0).unwrap();
+    let payload = payload::build(
+        [5; 16],
+        &pair.b.identity.public_key(),
+        None,
+        text("this is really A"),
+        0,
+    );
+    let (olm_type, body) = sessions.encrypt(&payload).unwrap();
+
+    server
+        .handle
+        .queue_private_events(
+            b_id,
+            pair.b_device,
+            vec![proto::pending_event::Kind::PrivateMessage(
+                proto::PrivateMessage {
+                    sender: Some(pair.a.user(&pair.a_ready, "Owner")),
+                    sender_device_id: forged.id().to_vec(),
+                    olm_type,
+                    body,
+                    sent_at_ms: 1,
+                },
+            )],
+        )
+        .await;
+
+    let line = pair.b.message_added(|message| message.peer == a_hex).await;
+    assert_eq!(line.kind, PrivateMessageKind::Undecryptable);
+    assert!(line.content.is_empty());
+    server
+        .counts_until(b_id, |counts| counts.pending == 0)
+        .await;
+    let stored = pair
+        .b
+        .client
+        .private_messages(&a_hex, None, 10)
+        .await
+        .unwrap();
+    assert!(
+        stored
+            .iter()
+            .all(|message| message.kind == PrivateMessageKind::Undecryptable),
+        "{stored:?}"
+    );
 }

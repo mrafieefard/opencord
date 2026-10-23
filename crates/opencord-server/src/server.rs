@@ -361,6 +361,36 @@ impl ServerHandle {
             .expect("the events are stored");
     }
 
+    /// Stores `event` again under its own id and pushes it, as a delivery
+    /// whose acknowledgement was lost comes again. Intended for tests.
+    pub async fn requeue_private_event(
+        &self,
+        user_id: i64,
+        device_id: [u8; 16],
+        event: opencord_proto::v1::PendingEvent,
+    ) {
+        use prost::Message as _;
+        let mut conn = self
+            .state
+            .db
+            .acquire()
+            .await
+            .expect("a database connection");
+        crate::db::private::insert_pending(
+            &mut conn,
+            event.id,
+            user_id,
+            &device_id,
+            &event.encode_to_vec(),
+            None,
+            now_ms(),
+        )
+        .await
+        .expect("the event is stored");
+        drop(conn);
+        crate::private::push_pending(&self.state, &[(user_id, device_id, event)]);
+    }
+
     /// Stores a device for the member without checking any signature, as a
     /// dishonest server could. Intended for tests.
     pub async fn insert_private_device_unchecked(

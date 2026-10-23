@@ -35,11 +35,15 @@ const DEVICE_LIST_TTL: Duration = Duration::from_millis(DEVICE_LIST_TTL_MS.unsig
 const NO_RELAY: &str = "You don't share a connected server with them right now.";
 
 // `messages.state`.
+pub(super) const RECEIVED: i64 = 0;
 const SENDING: i64 = 1;
-const SENT: i64 = 2;
+pub(super) const SENT: i64 = 2;
 const FAILED: i64 = 3;
 // `messages.kind`.
-const TEXT: i64 = 0;
+pub(super) const TEXT: i64 = 0;
+pub(super) const DIVIDER: i64 = 1;
+pub(super) const MOVED: i64 = 2;
+pub(super) const UNDECRYPTABLE: i64 = 3;
 
 #[derive(Debug, Clone, Default)]
 pub struct SendOptions {
@@ -185,6 +189,7 @@ pub async fn send_timed(
                 payload: &payload,
                 their_slip,
                 text: false,
+                fresh: None,
             },
             None,
         )
@@ -218,6 +223,7 @@ pub async fn send_timed(
             payload: &payload,
             their_slip,
             text: true,
+            fresh: None,
         },
         None,
     )
@@ -289,6 +295,7 @@ pub async fn retry(
             payload: &payload,
             their_slip: contact.and_then(|contact| contact.their_slip),
             text: true,
+            fresh: None,
         },
         first,
     )
@@ -427,6 +434,53 @@ struct Encrypting<'a> {
     their_slip: Option<[u8; SIGNATURE_LEN]>,
     /// A text keeps its request until the server accepts it.
     text: bool,
+    /// A session reset: the device with this Curve25519 key gets it on a
+    /// new session.
+    fresh: Option<[u8; KEY_LEN]>,
+}
+
+/// A session reset (design 2026-10-22 §10.8), after a message from the
+/// peer's device with the Curve25519 key `device` couldn't be decrypted: a
+/// `SessionReset` through `server_key`, on a new session for that device.
+/// The server takes a copy for every device of both people only, so the
+/// others get one too, on their usual sessions; it shows nothing.
+pub async fn reset_session(
+    service: &PrivateService,
+    peer: [u8; KEY_LEN],
+    server_key: &str,
+    device: [u8; KEY_LEN],
+) -> Result<(), CoreError> {
+    let open = service.opened()?;
+    let contact = load_contact(&open, peer).await?;
+    let relay = current_relay(service, contact.as_ref(), &peer, Some(server_key))?;
+    let message_id = new_message_id()?;
+    // A reset grants nothing, so it carries no slip.
+    let payload = payload::build(
+        message_id,
+        &peer,
+        None,
+        Body::SessionReset(proto::SessionReset {}),
+        now_ms(),
+    );
+    let outcome = deliver(
+        service,
+        &open,
+        &relay,
+        &Encrypting {
+            message_id,
+            peer,
+            payload: &payload,
+            their_slip: contact.and_then(|contact| contact.their_slip),
+            text: false,
+            fresh: Some(device),
+        },
+        None,
+    )
+    .await;
+    match outcome {
+        Outcome::Sent(_) => Ok(()),
+        Outcome::Unsent(error) | Outcome::Failed(error) => Err(error),
+    }
 }
 
 /// Steps 3–6: `first` (a saved request) or a fresh encryption goes out. A
@@ -490,7 +544,7 @@ async fn encrypt(
     // 3.
     let targets = devices(service, open, relay, &encrypting.peer, this_device).await?;
     // 4.
-    let prekeys = claim(service, open, relay, &targets).await?;
+    let prekeys = claim(service, open, relay, &targets, encrypting.fresh).await?;
     // 5.
     let pickle_key = open.store().pickle_key();
     let device = open.device().lock().await;
@@ -506,14 +560,22 @@ async fn encrypt(
     for target in &targets {
         let mut sessions =
             PeerSessions::load(&mut conn, pickle_key, target.device.curve25519).await?;
-        if !sessions.has_session() {
-            let Some(prekey) = prekeys.get(&(target.user_id, target.device.device_id)) else {
-                // No usable key for it: it's skipped for this send.
-                continue;
-            };
-            sessions.add_outbound(&device, *prekey, now)?;
-        }
-        let (olm_type, body) = sessions.encrypt(encrypting.payload)?;
+        let prekey = prekeys.get(&(target.user_id, target.device.device_id));
+        let (olm_type, body) = if encrypting.fresh == Some(target.device.curve25519) {
+            let prekey = prekey.ok_or_else(|| {
+                PrivateError::Crypto("no key to reset the session with".to_owned())
+            })?;
+            sessions.encrypt_on_new(&device, *prekey, encrypting.payload, now)?
+        } else {
+            if !sessions.has_session() {
+                let Some(prekey) = prekey else {
+                    // No usable key for it: it's skipped for this send.
+                    continue;
+                };
+                sessions.add_outbound(&device, *prekey, now)?;
+            }
+            sessions.encrypt(encrypting.payload)?
+        };
         copies.push(proto::DeviceCiphertext {
             user_id: target.user_id,
             device_id: target.device.device_id.to_vec(),
@@ -632,7 +694,10 @@ async fn devices(
     Ok(theirs.chain(mine).collect())
 }
 
-fn listed(lists: &proto::DeviceLists, user_id: i64) -> impl Iterator<Item = &proto::DeviceKeys> {
+pub(super) fn listed(
+    lists: &proto::DeviceLists,
+    user_id: i64,
+) -> impl Iterator<Item = &proto::DeviceKeys> {
     lists
         .users
         .iter()
@@ -641,7 +706,7 @@ fn listed(lists: &proto::DeviceLists, user_id: i64) -> impl Iterator<Item = &pro
 }
 
 /// The devices `owner`'s identity key signed, but not `skip`.
-fn verified<'a>(
+pub(super) fn verified<'a>(
     key: &str,
     listed: impl Iterator<Item = &'a proto::DeviceKeys>,
     owner: &[u8; KEY_LEN],
@@ -682,7 +747,7 @@ fn verified<'a>(
 }
 
 /// Verified devices, kept for knowing who sent what.
-async fn remember(
+pub(super) async fn remember(
     open: &Open,
     owner: &[u8; KEY_LEN],
     devices: &[VerifiedDevice],
@@ -711,14 +776,15 @@ async fn remember(
     Ok(())
 }
 
-/// A prekey for each target without a session, by (user id, device id):
-/// only those signed by that device, as one-time or fallback key as the
-/// server says.
+/// A prekey for each target without a session, and for the one getting a
+/// `fresh` session, by (user id, device id): only those signed by that
+/// device, as one-time or fallback key as the server says.
 async fn claim(
     service: &PrivateService,
     open: &Open,
     relay: &Relay,
     targets: &[Target],
+    fresh: Option<[u8; KEY_LEN]>,
 ) -> Result<HashMap<(i64, [u8; DEVICE_ID_LEN]), [u8; KEY_LEN]>, CoreError> {
     let mut wanted = Vec::new();
     {
@@ -735,7 +801,7 @@ async fn claim(
                     .fetch_optional(&mut *conn)
                     .await
                     .map_err(PrivateError::from)?;
-            if session.is_none() {
+            if session.is_none() || fresh == Some(target.device.curve25519) {
                 wanted.push(proto::DeviceRef {
                     user_id: target.user_id,
                     device_id: target.device.device_id.to_vec(),
@@ -926,6 +992,7 @@ async fn resend(
             payload: &payload,
             their_slip,
             text: true,
+            fresh: None,
         },
         Some(first),
     )
@@ -1046,7 +1113,7 @@ async fn own_message(
         .ok_or_else(|| invalid_input("You can only change your own messages."))
 }
 
-async fn view(
+pub(super) async fn view(
     service: &PrivateService,
     open: &Open,
     message_id: [u8; MESSAGE_ID_LEN],

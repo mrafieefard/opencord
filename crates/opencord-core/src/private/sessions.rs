@@ -88,7 +88,29 @@ impl PeerSessions {
         prekey: [u8; 32],
         now_ms: i64,
     ) -> Result<(), PrivateError> {
-        let session = device
+        let session = self.new_outbound(device, prekey)?;
+        self.add(session, now_ms, None);
+        Ok(())
+    }
+
+    /// A session reset: starts a new session from one of the peer device's
+    /// prekeys and encrypts on that one, whatever sessions there were. The
+    /// peer starts its own from this message and sends on it from then on.
+    pub fn encrypt_on_new(
+        &mut self,
+        device: &Device,
+        prekey: [u8; 32],
+        plaintext: &[u8],
+        now_ms: i64,
+    ) -> Result<(u32, Vec<u8>), PrivateError> {
+        let mut session = self.new_outbound(device, prekey)?;
+        let encrypted = encrypt_on(&mut session, plaintext)?;
+        self.add(session, now_ms, None);
+        Ok(encrypted)
+    }
+
+    fn new_outbound(&self, device: &Device, prekey: [u8; 32]) -> Result<Session, PrivateError> {
+        device
             .account()
             .create_outbound_session(
                 SessionConfig::version_1(),
@@ -100,9 +122,7 @@ impl PeerSessions {
                     "a session can't start: {}",
                     creation_failure(&error)
                 ))
-            })?;
-        self.add(session, now_ms, None);
-        Ok(())
+            })
     }
 
     /// Encrypts with the session that last decrypted something from the
@@ -112,15 +132,9 @@ impl PeerSessions {
             .sessions
             .first_mut()
             .ok_or_else(|| PrivateError::Crypto("no session with this device".to_owned()))?;
-        let message = kept
-            .session
-            .encrypt(plaintext)
-            .map_err(|error| PrivateError::Crypto(format!("encrypting failed: {error}")))?;
+        let encrypted = encrypt_on(&mut kept.session, plaintext)?;
         kept.changed = true;
-        let (olm_type, body) = message.to_parts();
-        let olm_type = u32::try_from(olm_type)
-            .map_err(|_| PrivateError::Crypto("an unknown Olm message type".to_owned()))?;
-        Ok((olm_type, body))
+        Ok(encrypted)
     }
 
     /// Decrypts a message from the peer device. A prekey message that starts
@@ -300,6 +314,17 @@ impl Kept {
             .map_or(self.created_at, |at| at.max(self.created_at));
         (active_at, self.created_at, &self.id)
     }
+}
+
+/// The Olm message type and body.
+fn encrypt_on(session: &mut Session, plaintext: &[u8]) -> Result<(u32, Vec<u8>), PrivateError> {
+    let message = session
+        .encrypt(plaintext)
+        .map_err(|error| PrivateError::Crypto(format!("encrypting failed: {error}")))?;
+    let (olm_type, body) = message.to_parts();
+    let olm_type = u32::try_from(olm_type)
+        .map_err(|_| PrivateError::Crypto("an unknown Olm message type".to_owned()))?;
+    Ok((olm_type, body))
 }
 
 /// Why a session couldn't start, without the keys some errors carry.

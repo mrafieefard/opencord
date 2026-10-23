@@ -166,6 +166,16 @@ impl Device {
         &self.account
     }
 
+    /// A copy to change, which replaces this one once it's saved.
+    pub(super) fn duplicate(&self) -> Device {
+        Device {
+            id: self.id,
+            account: Account::from_pickle(self.account.pickle()),
+            fallback: self.fallback,
+            fallback_created_at: self.fallback_created_at,
+        }
+    }
+
     /// Writes the encrypted account inside the caller's transaction.
     pub async fn save(
         &self,
