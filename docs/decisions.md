@@ -1022,11 +1022,11 @@ The desktop UI plan's §17.5 never arrived, so where Phase 2 §12 says only what
 
 ## D63: Private messages: client storage, keys and contacts (Phase 5 E2, 2026-10-23)
 
-- **Why.** Milestone E2 of private messages (`docs/superpowers/plans/2026-10-22-private-messages.md`, Tasks 8–10, commits `aa7eb69..7fde6c6`). The client core stores encrypted data at rest in a SQLite database sealed with keys derived from the user's identity key, manages device keys and Olm sessions via vodozemac, and tracks contacts, privacy settings and friend states. Tasks 8 and 9 were done by Claude through claude-bridge, Task 10 by Gemini.
+- **Why.** Milestone E2 of private messages (`docs/superpowers/plans/2026-10-22-private-messages.md`, Tasks 8–10, commits `aa7eb69..7fde6c6`). The client core stores encrypted data at rest in a SQLite database sealed with keys derived from a master key (kept in the system keychain from Task 16 on, not the identity key), manages device keys and Olm sessions via vodozemac, and tracks contacts, privacy settings and friend states. Tasks 8 and 9 were done by Claude through claude-bridge, Task 10 by Gemini.
 - **The private database and sealing (Task 8, `aa7eb69`).** In `crates/opencord-core/src/private/mod.rs`, `seal.rs` and `store.rs`.
   - Migration `0001_private.sql` creates tables `device`, `peer_devices`, `sessions`, `contacts`, `messages`, `received_events`, and `settings`, with indexes `messages_by_conversation`, `messages_sending`, and `received_events_by_age`.
-  - `derive_keys` derives `DerivedKeys` (`pickle` and `seal` 32-byte keys) from the identity's secret key using HMAC-SHA256 with labels `b"opencord-private-pickle-v1"` and `b"opencord-private-seal-v1"`.
-  - `Sealer` wraps XChaCha20-Poly1305. `seal` encrypts plaintext with a random 24-byte nonce and authenticates `label || row`, prepending the nonce. `open` decrypts and authenticates, returning `PrivateError::Crypto` on mismatch or damage.
+  - `derive_keys` derives `DerivedKeys` (`pickle` and `seal` 32-byte keys) from a 32-byte master key using HMAC-SHA256 with labels `b"opencord-private-pickle-v1"` and `b"opencord-private-seal-v1"`.
+  - `Sealer` wraps XChaCha20-Poly1305. `seal` encrypts plaintext with a random 24-byte nonce and authenticates `"opencord-private:" || label || ":" || row`, so a sealed value can't be moved to another column or row. The nonce goes in front. `open` decrypts and authenticates, returning `PrivateError::Crypto` on mismatch or damage.
   - `PrivateStore` opens or creates a SQLite database under `PRIVATE_DIR` (`"private"`) named `<hex public key>.db`. It verifies a sealed setting `key_check` with label `"settings.key_check"` and row `b""`. An unreadable, corrupt, or wrong-key database is moved aside to `<name>.unreadable-<now_ms>`, logged without the file path, and started fresh (`started_fresh` in `Opened`).
   - `PrivateError` (`Storage`, `Invalid`, `Crypto`) implements `From` for `sqlx::Error` and `std::io::Error`, and converts into `CoreError` (`Invalid` to `CoreError::InvalidInput`, `Storage` and `Crypto` to `CoreError::Storage`).
 - **Keys, the account and sessions (Task 9, `dccd83b`).** In `crates/opencord-core/src/private/device.rs`, `sessions.rs`, `identity.rs`, using `vodozemac` 0.11.1.
@@ -1043,3 +1043,4 @@ The desktop UI plan's §17.5 never arrived, so where Phase 2 §12 says only what
   - 11 on contact states, incoming message/request rules, decline thresholds, slip retention, crossed requests, sealed names, and privacy defaults in `private::contacts`.
 
   Workspace clippy, `app/tool/check_platforms.sh`, `dart format`, `flutter analyze` and `flutter test` (957 passed, 1 skipped) also pass.
+- **Review.** E2 was checked against the plan on 2026-10-23. Task 10 matches the plan's rules and its table of friend events, with all 11 tests. This entry was corrected in two places: the keys come from a master key, not the identity key, and what sealing authenticates.
