@@ -1048,7 +1048,7 @@ The desktop UI plan's §17.5 never arrived, so where Phase 2 §12 says only what
 
 ## D64: Private messages: core private message service (Phase 5 E3, 2026-10-24)
 
-- **Why.** Milestone E3 of private messages (`docs/superpowers/plans/2026-10-22-private-messages.md`, Tasks 11–15, commits `b0b0f7a..52b75b2`). The client core connects client storage to servers: member tracking, device registration and catch-up, end-to-end encryption with Olm outbound/inbound sessions, outbox delivery, inbox decryption, friend requests, message requests, blocking, conversation management, relay moves, dividers, unread tracking, and typing indicators. Tasks 11–13 were done by Claude through claude-bridge, Tasks 14–15 by Gemini, with review fix `52b75b2` by user.
+- **Why.** Milestone E3 of private messages (`docs/superpowers/plans/2026-10-22-private-messages.md`, Tasks 11–15, commits `b0b0f7a..52b75b2`). The client core connects client storage to servers: member tracking, device registration and catch-up, end-to-end encryption with Olm outbound/inbound sessions, outbox delivery, inbox decryption, friend requests, message requests, blocking, conversation management, relay moves, dividers, unread tracking, and typing indicators. Tasks 11–13 were done by Claude through claude-bridge, Tasks 14–15 by Gemini, with review fix `52b75b2` by Claude.
 - **The service: members, registration, catch-up, acknowledgements (Task 11, `b0b0f7a`).** In `crates/opencord-core/src/private/service.rs`, `members.rs`, `client.rs`, `connection.rs`.
   - `PrivateService` manages background registration, worker queues, acknowledgements, and client events. `PrivateService::opened` returns an `Arc<Open>` holding the database store and device lock.
   - `MemberIndex` (`members.rs`) tracks members per server: `user_id`, public key, and display names, updated on `Ready`, `MemberJoin`, `MemberUpdate`, `MemberLeave`, and pruned on `before_remove`. `shared_servers` finds mutual servers for a peer.
@@ -1080,7 +1080,7 @@ The desktop UI plan's §17.5 never arrived, so where Phase 2 §12 says only what
 - **Conversations, relay moves and typing (Task 15, `b3b5de1`, review fix `52b75b2`).** In `crates/opencord-core/src/private/actions.rs`, `outbox.rs`, `inbox.rs`, `client.rs`.
   - `private_open_conversation` looks up peer in `MemberIndex`, creates contact with member name if new, selects usable relay (existing relay, else friendship server, else server key), sets `hidden = false`, saves, and emits `ContactChanged`.
   - `private_shared_servers` returns mutual servers from `MemberIndex::shared_servers` in client server order.
-  - `private_move` validates target server is connected with private messages and peer is member, sends `RelayMoved` payload via `outbox::send`, updates contact relay, inserts outgoing `Divider` at server time, and emits `MessageAdded` and `ContactChanged`.
+  - `private_move` validates target server is connected with private messages and peer is member, sends `RelayMoved` payload via `outbox::send_timed` (for the server's time), updates contact relay, inserts outgoing `Divider` at server time, and emits `MessageAdded` and `ContactChanged`.
   - `private_move_too` verifies message is `MOVED` card from peer and target server is connected on this device with peer as member (else errors "This device isn't on <server name>."), updates contact relay, inserts outgoing `Divider`, and emits.
   - `private_typing` sends `StartPrivateTyping` through contact's relay with peer's slip.
   - `private_mark_read` sets `last_read_at` to newest message timestamp, clearing unread count.
@@ -1094,6 +1094,6 @@ The desktop UI plan's §17.5 never arrived, so where Phase 2 §12 says only what
   - 11 on friend requests, mutual requests, third decline spam, closed requests, accepted message requests, ignoring, blocking, unblocking, and friend removal;
   - 8 on profile server conversation start with first divider, relay moves, move refusal, move too validation, typing through blocks, shared server listing, unhiding on new message, and mark read unread counts.
 
-  Core unit tests (132 passed), workspace tests (281 passed), workspace clippy (0 warnings), `app/tool/check_platforms.sh`, `flutter analyze` (no issues), and `flutter test` (957 passed, 1 skipped) all pass.
+  Core unit tests (132 passed), the workspace's tests, workspace clippy (0 warnings), `app/tool/check_platforms.sh`, `flutter analyze` (no issues), and `flutter test` (957 passed, 1 skipped) all pass.
 - **Review.** E3 was checked against the plan on 2026-10-24. Four actions in `actions.rs` that read contact before server requests and saved stale state were fixed in `52b75b2` by re-reading with `fresh`.
 
