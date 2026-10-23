@@ -1044,3 +1044,56 @@ The desktop UI plan's §17.5 never arrived, so where Phase 2 §12 says only what
 
   Workspace clippy, `app/tool/check_platforms.sh`, `dart format`, `flutter analyze` and `flutter test` (957 passed, 1 skipped) also pass.
 - **Review.** E2 was checked against the plan on 2026-10-23. Task 10 matches the plan's rules and its table of friend events, with all 11 tests. This entry was corrected in two places: the keys come from a master key, not the identity key, and what sealing authenticates.
+
+
+## D64: Private messages: core private message service (Phase 5 E3, 2026-10-24)
+
+- **Why.** Milestone E3 of private messages (`docs/superpowers/plans/2026-10-22-private-messages.md`, Tasks 11–15, commits `b0b0f7a..52b75b2`). The client core connects client storage to servers: member tracking, device registration and catch-up, end-to-end encryption with Olm outbound/inbound sessions, outbox delivery, inbox decryption, friend requests, message requests, blocking, conversation management, relay moves, dividers, unread tracking, and typing indicators. Tasks 11–13 were done by Claude through claude-bridge, Tasks 14–15 by Gemini, with review fix `52b75b2` by user.
+- **The service: members, registration, catch-up, acknowledgements (Task 11, `b0b0f7a`).** In `crates/opencord-core/src/private/service.rs`, `members.rs`, `client.rs`, `connection.rs`.
+  - `PrivateService` manages background registration, worker queues, acknowledgements, and client events. `PrivateService::opened` returns an `Arc<Open>` holding the database store and device lock.
+  - `MemberIndex` (`members.rs`) tracks members per server: `user_id`, public key, and display names, updated on `Ready`, `MemberJoin`, `MemberUpdate`, `MemberLeave`, and pruned on `before_remove`. `shared_servers` finds mutual servers for a peer.
+  - On `Ready` for servers with `private_messages`, background registration rotates fallback prekeys if older than 30 days, sends `RegisterDevice` (device keys and fallback prekey), uploads one-time keys if fewer than 20 remain, syncs `UpdatePrivacy` (settings and blocked IDs on that server), and runs catch-up via `FetchPendingEvents` from `after_id` 0.
+  - Worker task processes events sequentially: duplicate events are skipped via `received_events`; friend events are processed in `BEGIN IMMEDIATE` transactions; `PrivateEvent::ContactChanged` and `FriendRequestReceived` are emitted; acknowledgements are batched per server (sent on 100 pending or 200 ms interval via `AckPendingEvents`).
+  - Follow-up actions: `Answer` sends `AnswerFriendRequest` with permission slip; `Cancel` sends `CancelFriendRequest` (checked against current request to avoid cancelling accepted friendships).
+  - Client methods: `private_open` opens encrypted store and starts worker; `private_events` provides event channel; `private_contacts` lists contacts; `private_messages` queries messages newest-first with `before` and `limit`.
+- **Sending (Task 12, `e63a3b0`).** In `crates/opencord-core/src/private/outbox.rs`, `payload.rs`, `client.rs`, and test hook in `opencord-server`.
+  - `payload::build` packs message ID (16 bytes), recipient (32 bytes), optional slip (64 bytes), timestamp, and body into Protobuf `PrivatePayload`. `payload::parse` validates lengths and contents.
+  - `outbox::send` routes payloads: selects connected relay with private messages where peer is member (or `options.relay`); checks content for text; inserts `sending` text message with sealed body; fetches and caches verified recipient and self devices; claims one-time prekeys; encrypts payload under device lock for each device; saves outbound sessions and outbox payload; sends `SendPrivateMessage` request with recipient's slip.
+  - On success (`Outcome::Sent`), text message marks `sent` with server timestamp, conversation becomes `Accepted`, outbox is cleared, and `MessageChanged` and `ContactChanged` are emitted. On `DeviceListChanged`, drops device cache and retries once.
+  - `outbox::retry` and `resend_unsent` resend pending outbox payloads on reconnection or catch-up; payloads over 24 hours old are marked failed.
+  - `outbox::edit` and `outbox::delete` send `Edit` and `Delete` payloads, updating or deleting local rows on server confirmation. Client methods: `private_send`, `private_edit`, `private_delete`, `private_retry`.
+- **Receiving (Task 13, `2336ba6`).** In `crates/opencord-core/src/private/inbox.rs`, `service.rs`.
+  - Worker processes `PrivateMessage` pending events: verifies sender public key and device signature; decrypts ciphertext under device lock via `PeerSessions::decrypt`.
+  - Duplicates are acknowledged without showing; failed decryptions record an undecryptable line (`Undecryptable`) and schedule rate-limited `SessionReset` payloads (at most once per peer device per hour); successful decryptions parse payload and store sender's slip.
+  - In one transaction (`BEGIN IMMEDIATE`), saves updated sessions, device account, contact state, and event record in `received_events`.
+  - Incoming text creates or updates contact as `Request` if none existed (unless blocked or dropped by privacy), sets `last_activity_at`, unhides conversation, stores message as `Received`, and emits `MessageAdded`. Copies from own devices store message as `Sent` and accept conversation.
+  - Peer edits and deletes apply only if authored by same peer.
+- **Friends, message requests, blocks and privacy (Task 14, `4fdc447`).** In `crates/opencord-core/src/private/actions.rs`, `client.rs`.
+  - `friend_request_send` looks up peer from `MemberIndex`, generates 64-byte permission slip with `Identity::slip_for`, sends `SendFriendRequest`, updates contact via `contacts::after_my_request` on success, and emits `ContactChanged`.
+  - `friend_request_answer` requires incoming request on connected server, sends `AnswerFriendRequest` (with slip if accepted), updates contact via `contacts::after_my_answer`, and emits `ContactChanged`.
+  - `friend_request_cancel` requires outgoing request on connected server, sends `CancelFriendRequest`, updates contact via `contacts::after_my_cancel`, and emits `ContactChanged`.
+  - `friend_remove` sends `RemoveFriend` to all connected shared servers with private messages; if any succeed, resets friendship to `FriendState::None` and emits `ContactChanged`.
+  - `message_request_accept` sends `RequestAccepted` payload via `outbox::send`, sets conversation to `Accepted`, and emits `ContactChanged`.
+  - `message_request_ignore` deletes conversation messages; if contact has no other friend/request/block state, deletes contact and emits `ContactRemoved`; otherwise sets conversation to `None` and emits `ContactChanged`.
+  - `private_block` immediately applies `contacts::after_block` locally without waiting for server, best-effort declines/cancels pending requests, removes friends, emits `ContactChanged`, and broadcasts `UpdatePrivacy` with blocked IDs to connected servers. `private_unblock` unblocks contact and updates server privacy.
+  - `privacy_settings` and `set_privacy_settings` read/write `PrivacySettings` and broadcast `UpdatePrivacy` across connected servers.
+- **Conversations, relay moves and typing (Task 15, `b3b5de1`, review fix `52b75b2`).** In `crates/opencord-core/src/private/actions.rs`, `outbox.rs`, `inbox.rs`, `client.rs`.
+  - `private_open_conversation` looks up peer in `MemberIndex`, creates contact with member name if new, selects usable relay (existing relay, else friendship server, else server key), sets `hidden = false`, saves, and emits `ContactChanged`.
+  - `private_shared_servers` returns mutual servers from `MemberIndex::shared_servers` in client server order.
+  - `private_move` validates target server is connected with private messages and peer is member, sends `RelayMoved` payload via `outbox::send`, updates contact relay, inserts outgoing `Divider` at server time, and emits `MessageAdded` and `ContactChanged`.
+  - `private_move_too` verifies message is `MOVED` card from peer and target server is connected on this device with peer as member (else errors "This device isn't on <server name>."), updates contact relay, inserts outgoing `Divider`, and emits.
+  - `private_typing` sends `StartPrivateTyping` through contact's relay with peer's slip.
+  - `private_mark_read` sets `last_read_at` to newest message timestamp, clearing unread count.
+  - `private_set_muted` toggles muted flag. `private_hide` sets `hidden = true`.
+  - Dividers: inserted before sending the first text message in a conversation (`outbox::send`), and upon receiving the first text message (`inbox::receive` for peer text and own copies).
+  - Review fix `52b75b2`: `fresh` helper re-reads contact after awaiting server response in `friend_request_answer`, `friend_request_cancel`, `message_request_accept`, and `private_move`, preventing overwriting concurrent receive worker writes.
+- **Tests.** 39 integration tests in `crates/opencord-core/tests/private.rs`, all passing:
+  - 6 on service registration, ready events, catch-up, acknowledgements, and server removal;
+  - 6 on message sending, device signing verification, multi-device fan-out, reconnection, and session ratchet saving;
+  - 8 on receiving, decryption, duplicates, redelivery after crash, author-verified edits/deletes, message requests, session resets, and forged device detection;
+  - 11 on friend requests, mutual requests, third decline spam, closed requests, accepted message requests, ignoring, blocking, unblocking, and friend removal;
+  - 8 on profile server conversation start with first divider, relay moves, move refusal, move too validation, typing through blocks, shared server listing, unhiding on new message, and mark read unread counts.
+
+  Core unit tests (132 passed), workspace tests (281 passed), workspace clippy (0 warnings), `app/tool/check_platforms.sh`, `flutter analyze` (no issues), and `flutter test` (957 passed, 1 skipped) all pass.
+- **Review.** E3 was checked against the plan on 2026-10-24. Four actions in `actions.rs` that read contact before server requests and saved stale state were fixed in `52b75b2` by re-reading with `fresh`.
+
