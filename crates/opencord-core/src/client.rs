@@ -23,7 +23,7 @@ use crate::api::types::{
     Message, OutgoingFile, OverwriteTargetKind, PermissionOverwrite, PlaybackItem, PresenceStatus,
     PrivacySettingsData, PrivateContact, PrivateEvent, PrivateMessage, PrivateOpened, Role,
     RoleChanges, S3Config, ScreenProblem, ScreenShareRequest, ScreenShareStarted, ScreenStream,
-    Server, ServerChanges, ServerInfo, SoundDraft, SoundSelection, SoundboardSound,
+    Server, ServerChanges, ServerInfo, SharedServer, SoundDraft, SoundSelection, SoundboardSound,
     SoundboardSoundChanges, StorageInfo, StorageTestResult, StorageTestTarget, StreamSourceKind,
     UploadSettings, User, VideoWant, VoiceCue, VoiceDraft, VoiceSettings, VoiceSettingsChanges,
     VoiceState,
@@ -593,6 +593,48 @@ impl Client {
         settings: PrivacySettingsData,
     ) -> Result<(), CoreError> {
         actions::set_privacy_settings(&self.inner.private, settings).await
+    }
+
+    pub async fn private_open_conversation(
+        &self,
+        server_key: &str,
+        user_id: i64,
+    ) -> Result<PrivateContact, CoreError> {
+        actions::private_open_conversation(&self.inner.private, server_key, user_id).await
+    }
+
+    pub fn private_shared_servers(&self, peer: &str) -> Vec<SharedServer> {
+        let order: Vec<String> = self
+            .lock_store()
+            .servers()
+            .iter()
+            .map(|s| s.key.clone())
+            .collect();
+        actions::private_shared_servers(&self.inner.private, &order, peer)
+    }
+
+    pub async fn private_move(&self, peer: &str, server_key: &str) -> Result<(), CoreError> {
+        actions::private_move(&self.inner.private, peer, server_key).await
+    }
+
+    pub async fn private_move_too(&self, peer: &str, message_id: &str) -> Result<(), CoreError> {
+        actions::private_move_too(&self.inner.private, peer, message_id).await
+    }
+
+    pub async fn private_typing(&self, peer: &str) -> Result<(), CoreError> {
+        actions::private_typing(&self.inner.private, peer).await
+    }
+
+    pub async fn private_mark_read(&self, peer: &str) -> Result<(), CoreError> {
+        actions::private_mark_read(&self.inner.private, peer).await
+    }
+
+    pub async fn private_set_muted(&self, peer: &str, muted: bool) -> Result<(), CoreError> {
+        actions::private_set_muted(&self.inner.private, peer, muted).await
+    }
+
+    pub async fn private_hide(&self, peer: &str) -> Result<(), CoreError> {
+        actions::private_hide(&self.inner.private, peer).await
     }
 
     pub async fn send_message(

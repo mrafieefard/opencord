@@ -772,7 +772,9 @@ async fn a_message_reaches_every_other_device_of_both_people() {
         "nothing goes to the sending device"
     );
     let stored = a.client.private_messages(&b_hex, None, 10).await.unwrap();
-    assert_eq!(stored, vec![sent]);
+    assert_eq!(stored.len(), 2);
+    assert_eq!(stored[0], sent);
+    assert_eq!(stored[1].kind, PrivateMessageKind::Divider);
     let contact = a
         .private_event(|event| match event {
             PrivateEvent::ContactChanged(contact) if contact.peer == b_hex => Some(contact.clone()),
@@ -966,8 +968,9 @@ async fn a_device_the_identity_did_not_sign_is_never_used() {
         .private_messages(&b_hex, None, 10)
         .await
         .unwrap();
-    assert_eq!(stored.len(), 1);
+    assert_eq!(stored.len(), 2);
     assert_eq!(stored[0].state, PrivateSendState::Failed);
+    assert_eq!(stored[1].kind, PrivateMessageKind::Divider);
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -1083,23 +1086,27 @@ async fn a_message_reaches_the_other_person_and_the_senders_other_device() {
         .await
         .unwrap();
 
-    let received = b.message_added(|message| message.peer == a_hex).await;
+    let received = b
+        .message_added(|message| message.peer == a_hex && message.kind == PrivateMessageKind::Text)
+        .await;
     assert_eq!(received.id, sent.id);
     assert_eq!(received.content, "hello there");
     assert_eq!(received.kind, PrivateMessageKind::Text);
     assert!(!received.outgoing);
     assert_eq!(received.state, PrivateSendState::Received);
     assert_eq!(received.sent_at_ms, sent.sent_at_ms, "the server's time");
-    let copy = a2.message_added(|message| message.peer == b_hex).await;
+    let copy = a2
+        .message_added(|message| message.peer == b_hex && message.kind == PrivateMessageKind::Text)
+        .await;
     assert_eq!(copy.id, sent.id);
     assert_eq!(copy.content, "hello there");
     assert!(copy.outgoing);
     assert_eq!(copy.state, PrivateSendState::Sent);
 
-    assert_eq!(
-        b.client.private_messages(&a_hex, None, 10).await.unwrap(),
-        vec![received]
-    );
+    let b_msgs = b.client.private_messages(&a_hex, None, 10).await.unwrap();
+    assert_eq!(b_msgs.len(), 2);
+    assert_eq!(b_msgs[0], received);
+    assert_eq!(b_msgs[1].kind, PrivateMessageKind::Divider);
     let b_contacts = b.client.private_contacts().await.unwrap();
     assert_eq!(b_contacts.len(), 1);
     assert_eq!(b_contacts[0].peer, a_hex);
@@ -1133,7 +1140,13 @@ async fn messages_wait_for_an_offline_device() {
 
     let mut arrived = Vec::new();
     for _ in 0..3 {
-        arrived.push(pair.b.message_added(|message| message.peer == a_hex).await);
+        arrived.push(
+            pair.b
+                .message_added(|message| {
+                    message.peer == a_hex && message.kind == PrivateMessageKind::Text
+                })
+                .await,
+        );
     }
     let contents: Vec<&str> = arrived.iter().map(|m| m.content.as_str()).collect();
     assert_eq!(contents, ["one", "two", "three"]);
@@ -1142,15 +1155,17 @@ async fn messages_wait_for_an_offline_device() {
             .windows(2)
             .all(|pair| pair[0].sent_at_ms <= pair[1].sent_at_ms)
     );
-    assert_eq!(
-        pair.b
-            .client
-            .private_messages(&a_hex, None, 10)
-            .await
-            .unwrap()
-            .len(),
-        3
-    );
+    let msgs = pair
+        .b
+        .client
+        .private_messages(&a_hex, None, 10)
+        .await
+        .unwrap();
+    let text_msgs: Vec<_> = msgs
+        .into_iter()
+        .filter(|m| m.kind == PrivateMessageKind::Text)
+        .collect();
+    assert_eq!(text_msgs.len(), 3);
     server
         .counts_until(b_id, |counts| counts.pending == 0)
         .await;
@@ -1174,7 +1189,9 @@ async fn a_message_delivered_twice_shows_once() {
         .await
         .remove(0);
     pair.b.reopen().await;
-    pair.b.message_added(|message| message.peer == a_hex).await;
+    pair.b
+        .message_added(|message| message.peer == a_hex && message.kind == PrivateMessageKind::Text)
+        .await;
     server
         .counts_until(b_id, |counts| counts.pending == 0)
         .await;
@@ -1213,8 +1230,12 @@ async fn a_message_delivered_twice_shows_once() {
         .private_messages(&a_hex, None, 10)
         .await
         .unwrap();
-    assert_eq!(stored.len(), 1);
-    assert_eq!(stored[0].kind, PrivateMessageKind::Text);
+    let text_stored: Vec<_> = stored
+        .into_iter()
+        .filter(|m| m.kind == PrivateMessageKind::Text)
+        .collect();
+    assert_eq!(text_stored.len(), 1);
+    assert_eq!(text_stored[0].kind, PrivateMessageKind::Text);
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -1257,7 +1278,10 @@ async fn a_crash_before_saving_decrypts_on_redelivery() {
 
     server.handle.drop_user_connections(b_id);
 
-    let received = pair.b.message_added(|message| message.peer == a_hex).await;
+    let received = pair
+        .b
+        .message_added(|message| message.peer == a_hex && message.kind == PrivateMessageKind::Text)
+        .await;
     assert_eq!(received.id, sent.id);
     assert_eq!(received.kind, PrivateMessageKind::Text);
     assert_eq!(received.content, "after the crash");
@@ -1271,14 +1295,17 @@ async fn a_crash_before_saving_decrypts_on_redelivery() {
             .any(|event| matches!(event, PrivateEvent::MessageAdded(_))),
         "{later:?}"
     );
-    assert_eq!(
-        pair.b
-            .client
-            .private_messages(&a_hex, None, 10)
-            .await
-            .unwrap(),
-        vec![received]
-    );
+    let msgs = pair
+        .b
+        .client
+        .private_messages(&a_hex, None, 10)
+        .await
+        .unwrap();
+    let text_msgs: Vec<_> = msgs
+        .into_iter()
+        .filter(|m| m.kind == PrivateMessageKind::Text)
+        .collect();
+    assert_eq!(text_msgs, vec![received]);
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -1339,8 +1366,12 @@ async fn edits_and_deletes_reach_every_device() {
             .private_messages(peer, None, 10)
             .await
             .unwrap();
-        assert_eq!(stored.len(), 1);
-        assert_eq!(stored[0].content, "first, edited");
+        let text_msgs: Vec<_> = stored
+            .into_iter()
+            .filter(|m| m.kind == PrivateMessageKind::Text)
+            .collect();
+        assert_eq!(text_msgs.len(), 1);
+        assert_eq!(text_msgs[0].content, "first, edited");
     }
 
     // B's device edits A's message: A's device leaves it as it is.
@@ -1388,8 +1419,12 @@ async fn edits_and_deletes_reach_every_device() {
         "{later:?}"
     );
     let stored = a.client.private_messages(&b_hex, None, 10).await.unwrap();
-    assert_eq!(stored.len(), 1);
-    assert_eq!(stored[0].content, "first, edited");
+    let text_msgs: Vec<_> = stored
+        .into_iter()
+        .filter(|m| m.kind == PrivateMessageKind::Text)
+        .collect();
+    assert_eq!(text_msgs.len(), 1);
+    assert_eq!(text_msgs[0].content, "first, edited");
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -1409,7 +1444,9 @@ async fn a_stranger_starts_a_message_request() {
         .await
         .unwrap();
 
-    let request = b.message_added(|message| message.peer == c_hex).await;
+    let request = b
+        .message_added(|message| message.peer == c_hex && message.kind == PrivateMessageKind::Text)
+        .await;
     assert_eq!(request.content, "hi, we haven't met");
     let contact = b
         .private_event(|event| match event {
@@ -2246,7 +2283,11 @@ async fn unblocking_lets_them_write_again() {
 
     let msg = a
         .private_event(|event| match event {
-            PrivateEvent::MessageAdded(m) if m.peer == b_hex => Some(m.clone()),
+            PrivateEvent::MessageAdded(m)
+                if m.peer == b_hex && m.kind == PrivateMessageKind::Text =>
+            {
+                Some(m.clone())
+            }
             _ => None,
         })
         .await;
@@ -2320,4 +2361,480 @@ async fn removing_a_friend_reaches_both_sides() {
         .find(|c| c.peer == a_hex)
         .unwrap();
     assert_eq!(b_contact.friend, FriendStatus::None);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_conversation_starts_on_the_profiles_server_with_a_divider() {
+    let server = TestServer::start().await;
+    let (mut a, a_ready, mut b, b_ready) = owner_and_member(&server).await;
+    a.open_private(1).await;
+    b.open_private(2).await;
+    server.counts_until(a_ready.self_user.id, registered).await;
+    server.counts_until(b_ready.self_user.id, registered).await;
+
+    let b_hex = hex::encode(b.identity.public_key());
+    let a_hex = hex::encode(a.identity.public_key());
+    let server_key = a.client.servers()[0].key.clone();
+
+    // A opens conversation on profile server
+    let contact = a
+        .client
+        .private_open_conversation(&server_key, b_ready.self_user.id)
+        .await
+        .unwrap();
+    assert_eq!(contact.peer, b_hex);
+    assert_eq!(
+        contact.relay_server_key.as_deref(),
+        Some(server_key.as_str())
+    );
+
+    // A sends the first text message
+    a.client
+        .private_send(&b_hex, "first hello".to_owned())
+        .await
+        .unwrap();
+
+    // A sees divider then text (newest first: text, then divider)
+    let a_msgs = a.client.private_messages(&b_hex, None, 10).await.unwrap();
+    assert_eq!(a_msgs.len(), 2);
+    assert_eq!(a_msgs[0].kind, PrivateMessageKind::Text);
+    assert_eq!(a_msgs[0].content, "first hello");
+    assert_eq!(a_msgs[1].kind, PrivateMessageKind::Divider);
+
+    // B gets message
+    b.private_event(|event| match event {
+        PrivateEvent::MessageAdded(m) if m.peer == a_hex && m.content == "first hello" => Some(()),
+        _ => None,
+    })
+    .await;
+
+    let b_msgs = b.client.private_messages(&a_hex, None, 10).await.unwrap();
+    assert_eq!(b_msgs.len(), 2);
+    assert_eq!(b_msgs[0].kind, PrivateMessageKind::Text);
+    assert_eq!(b_msgs[0].content, "first hello");
+    assert_eq!(b_msgs[1].kind, PrivateMessageKind::Divider);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn moving_a_chat_takes_effect_for_the_mover_and_offers_the_other() {
+    let server_x = TestServer::start().await;
+    let (mut a, a_x_ready, mut b, b_x_ready) = owner_and_member(&server_x).await;
+    let server_y = TestServer::start().await;
+    let a_y_ready = a.join_as_owner(&server_y).await;
+    let invite_y = a
+        .client
+        .create_invite(&server_y.address(), None, None, None)
+        .await
+        .unwrap();
+    b.client.add_server(&invite_y.link, None).await.unwrap();
+    let b_y_ready = b.ready().await;
+
+    a.open_private(1).await;
+    b.open_private(2).await;
+    server_x
+        .counts_until(a_x_ready.self_user.id, registered)
+        .await;
+    server_x
+        .counts_until(b_x_ready.self_user.id, registered)
+        .await;
+    server_y
+        .counts_until(a_y_ready.self_user.id, registered)
+        .await;
+    server_y
+        .counts_until(b_y_ready.self_user.id, registered)
+        .await;
+
+    let b_hex = hex::encode(b.identity.public_key());
+    let a_hex = hex::encode(a.identity.public_key());
+    let server_x_key = a.client.servers()[0].key.clone();
+    let server_y_key = a.client.servers()[1].key.clone();
+
+    // Start on X
+    a.client
+        .private_open_conversation(&server_x_key, b_x_ready.self_user.id)
+        .await
+        .unwrap();
+    a.client
+        .private_send(&b_hex, "on x".to_owned())
+        .await
+        .unwrap();
+    b.private_event(|e| match e {
+        PrivateEvent::MessageAdded(m) if m.peer == a_hex && m.content == "on x" => Some(()),
+        _ => None,
+    })
+    .await;
+
+    // A moves to Y
+    a.client.private_move(&b_hex, &server_y_key).await.unwrap();
+
+    // A's relay is Y and A has a divider
+    let a_contact = a
+        .client
+        .private_contacts()
+        .await
+        .unwrap()
+        .into_iter()
+        .find(|c| c.peer == b_hex)
+        .unwrap();
+    assert_eq!(
+        a_contact.relay_server_key.as_deref(),
+        Some(server_y_key.as_str())
+    );
+    let a_msgs = a.client.private_messages(&b_hex, None, 10).await.unwrap();
+    let a_dividers: Vec<_> = a_msgs
+        .iter()
+        .filter(|m| m.kind == PrivateMessageKind::Divider)
+        .collect();
+    assert_eq!(a_dividers.len(), 2);
+
+    // B gets a Moved card with Y's server key
+    let moved_card = b
+        .private_event(|event| match event {
+            PrivateEvent::MessageAdded(m)
+                if m.peer == a_hex && m.kind == PrivateMessageKind::Moved =>
+            {
+                Some(m.clone())
+            }
+            _ => None,
+        })
+        .await;
+
+    // B's private_move_too -> B's relay is Y, with a divider
+    b.client
+        .private_move_too(&a_hex, &moved_card.id)
+        .await
+        .unwrap();
+    let b_contact = b
+        .client
+        .private_contacts()
+        .await
+        .unwrap()
+        .into_iter()
+        .find(|c| c.peer == a_hex)
+        .unwrap();
+    assert_eq!(
+        b_contact.relay_server_key.as_deref(),
+        Some(server_y_key.as_str())
+    );
+    let b_msgs = b.client.private_messages(&a_hex, None, 10).await.unwrap();
+    let b_dividers: Vec<_> = b_msgs
+        .iter()
+        .filter(|m| m.kind == PrivateMessageKind::Divider)
+        .collect();
+    assert_eq!(b_dividers.len(), 2);
+
+    // B's next message travels through Y (Y's pending count for A rises)
+    b.client
+        .private_send(&a_hex, "now through y".to_owned())
+        .await
+        .unwrap();
+    server_y
+        .counts_until(a_y_ready.self_user.id, |c| c.pending >= 1)
+        .await;
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn moving_to_a_server_the_other_person_isnt_on_is_refused() {
+    let server_x = TestServer::start().await;
+    let (mut a, a_x_ready, mut b, b_x_ready) = owner_and_member(&server_x).await;
+    let server_z = TestServer::start().await;
+    let _a_z_ready = a.join_as_owner(&server_z).await;
+
+    a.open_private(1).await;
+    b.open_private(2).await;
+    server_x
+        .counts_until(a_x_ready.self_user.id, registered)
+        .await;
+    server_x
+        .counts_until(b_x_ready.self_user.id, registered)
+        .await;
+
+    let b_hex = hex::encode(b.identity.public_key());
+    let server_x_key = a.client.servers()[0].key.clone();
+    let server_z_key = a.client.servers()[1].key.clone();
+
+    a.client
+        .private_open_conversation(&server_x_key, b_x_ready.self_user.id)
+        .await
+        .unwrap();
+
+    let err = a
+        .client
+        .private_move(&b_hex, &server_z_key)
+        .await
+        .unwrap_err();
+    assert!(matches!(err, CoreError::InvalidInput { .. }));
+
+    // A's relay is unchanged
+    let a_contact = a
+        .client
+        .private_contacts()
+        .await
+        .unwrap()
+        .into_iter()
+        .find(|c| c.peer == b_hex)
+        .unwrap();
+    assert_eq!(
+        a_contact.relay_server_key.as_deref(),
+        Some(server_x_key.as_str())
+    );
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn move_too_needs_the_server_on_this_device() {
+    let server_x = TestServer::start().await;
+    let (mut a, a_x_ready, mut b, b_x_ready) = owner_and_member(&server_x).await;
+    let server_y = TestServer::start().await;
+    let a_y_ready = a.join_as_owner(&server_y).await;
+    let invite_y = a
+        .client
+        .create_invite(&server_y.address(), None, None, None)
+        .await
+        .unwrap();
+    b.client.add_server(&invite_y.link, None).await.unwrap();
+    let b_y_ready = b.ready().await;
+
+    a.open_private(1).await;
+    b.open_private(2).await;
+    server_x
+        .counts_until(a_x_ready.self_user.id, registered)
+        .await;
+    server_x
+        .counts_until(b_x_ready.self_user.id, registered)
+        .await;
+    server_y
+        .counts_until(a_y_ready.self_user.id, registered)
+        .await;
+    server_y
+        .counts_until(b_y_ready.self_user.id, registered)
+        .await;
+
+    let b_hex = hex::encode(b.identity.public_key());
+    let a_hex = hex::encode(a.identity.public_key());
+    let server_x_key = a.client.servers()[0].key.clone();
+    let server_y_key = a.client.servers()[1].key.clone();
+    let b_y_key = b.client.servers()[1].key.clone();
+
+    a.client
+        .private_open_conversation(&server_x_key, b_x_ready.self_user.id)
+        .await
+        .unwrap();
+    a.client
+        .private_send(&b_hex, "msg on x".to_owned())
+        .await
+        .unwrap();
+    b.private_event(|e| match e {
+        PrivateEvent::MessageAdded(m) if m.peer == a_hex && m.content == "msg on x" => Some(()),
+        _ => None,
+    })
+    .await;
+
+    // A moves to Y
+    a.client.private_move(&b_hex, &server_y_key).await.unwrap();
+
+    let moved_card = b
+        .private_event(|event| match event {
+            PrivateEvent::MessageAdded(m)
+                if m.peer == a_hex && m.kind == PrivateMessageKind::Moved =>
+            {
+                Some(m.clone())
+            }
+            _ => None,
+        })
+        .await;
+
+    // B removes server Y from this client device
+    b.client.remove_server(&b_y_key).await.unwrap();
+
+    // B cannot move_too because Y is no longer on this device
+    let err = b
+        .client
+        .private_move_too(&a_hex, &moved_card.id)
+        .await
+        .unwrap_err();
+    assert!(matches!(err, CoreError::InvalidInput { .. }));
+    assert!(err.to_string().starts_with("This device isn't on "));
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn typing_reaches_the_other_person_but_not_through_a_block() {
+    let server = TestServer::start().await;
+    let (mut a, a_ready, mut b, b_ready) = owner_and_member(&server).await;
+    a.open_private(1).await;
+    b.open_private(2).await;
+    server.counts_until(a_ready.self_user.id, registered).await;
+    server.counts_until(b_ready.self_user.id, registered).await;
+
+    let b_hex = hex::encode(b.identity.public_key());
+    let a_hex = hex::encode(a.identity.public_key());
+    let server_key = a.client.servers()[0].key.clone();
+
+    a.client
+        .private_open_conversation(&server_key, b_ready.self_user.id)
+        .await
+        .unwrap();
+
+    // A types to B
+    a.client.private_typing(&b_hex).await.unwrap();
+
+    let typing = b
+        .private_event(|event| match event {
+            PrivateEvent::Typing { peer } if peer == &a_hex => Some(()),
+            _ => None,
+        })
+        .await;
+    assert_eq!(typing, ());
+
+    // B blocks A
+    b.client.private_block(&a_hex).await.unwrap();
+    let _ = b.drain_private(Duration::from_millis(100)).await;
+
+    // A types again -> B hears nothing
+    a.client.private_typing(&b_hex).await.unwrap();
+    let seen = b.drain_private(Duration::from_millis(300)).await;
+    assert!(
+        !seen
+            .iter()
+            .any(|e| matches!(e, PrivateEvent::Typing { .. }))
+    );
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn shared_servers_list_only_servers_with_both_people() {
+    let server1 = TestServer::start().await;
+    let (mut a, a1_ready, mut b, _b1_ready) = owner_and_member(&server1).await;
+    let server2 = TestServer::start().await;
+    let _a2_ready = a.join_as_owner(&server2).await;
+    let server3 = TestServer::start().await;
+    let _a3_ready = a.join_as_owner(&server3).await;
+    let invite3 = a
+        .client
+        .create_invite(&server3.address(), None, None, None)
+        .await
+        .unwrap();
+    b.client.add_server(&invite3.link, None).await.unwrap();
+    let _b3_ready = b.ready().await;
+
+    a.open_private(1).await;
+    b.open_private(2).await;
+    server1
+        .counts_until(a1_ready.self_user.id, registered)
+        .await;
+
+    let b_hex = hex::encode(b.identity.public_key());
+    let shared = a.client.private_shared_servers(&b_hex);
+
+    assert_eq!(shared.len(), 2);
+    let s1_key = a.client.servers()[0].key.clone();
+    let s3_key = a.client.servers()[2].key.clone();
+    assert_eq!(shared[0].server_key, s1_key);
+    assert_eq!(shared[1].server_key, s3_key);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_hidden_conversation_comes_back_with_the_next_message() {
+    let server = TestServer::start().await;
+    let (mut a, a_ready, mut b, b_ready) = owner_and_member(&server).await;
+    a.open_private(1).await;
+    b.open_private(2).await;
+    server.counts_until(a_ready.self_user.id, registered).await;
+    server.counts_until(b_ready.self_user.id, registered).await;
+
+    let b_hex = hex::encode(b.identity.public_key());
+    let a_hex = hex::encode(a.identity.public_key());
+    let server_key = a.client.servers()[0].key.clone();
+
+    a.client
+        .private_open_conversation(&server_key, b_ready.self_user.id)
+        .await
+        .unwrap();
+
+    // A hides the conversation
+    a.client.private_hide(&b_hex).await.unwrap();
+    let a_contact = a
+        .client
+        .private_contacts()
+        .await
+        .unwrap()
+        .into_iter()
+        .find(|c| c.peer == b_hex)
+        .unwrap();
+    assert!(a_contact.hidden);
+    let _ = a.drain_private(Duration::from_millis(50)).await;
+
+    // B sends a message to A
+    b.set_relay(&a, &b_ready.server.server_id_hex).await;
+    b.client
+        .private_send(&a_hex, "wake up".to_owned())
+        .await
+        .unwrap();
+
+    // A sees unhide via ContactChanged
+    a.private_event(|event| match event {
+        PrivateEvent::ContactChanged(c) if c.peer == b_hex && !c.hidden => Some(()),
+        _ => None,
+    })
+    .await;
+
+    let a_contact2 = a
+        .client
+        .private_contacts()
+        .await
+        .unwrap()
+        .into_iter()
+        .find(|c| c.peer == b_hex)
+        .unwrap();
+    assert!(!a_contact2.hidden);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn reading_clears_the_unread_count() {
+    let server = TestServer::start().await;
+    let (mut a, a_ready, mut b, b_ready) = owner_and_member(&server).await;
+    a.open_private(1).await;
+    b.open_private(2).await;
+    server.counts_until(a_ready.self_user.id, registered).await;
+    server.counts_until(b_ready.self_user.id, registered).await;
+
+    let b_hex = hex::encode(b.identity.public_key());
+    let a_hex = hex::encode(a.identity.public_key());
+
+    b.set_relay(&a, &b_ready.server.server_id_hex).await;
+    b.client
+        .private_send(&a_hex, "one".to_owned())
+        .await
+        .unwrap();
+    b.client
+        .private_send(&a_hex, "two".to_owned())
+        .await
+        .unwrap();
+
+    a.private_event(|event| match event {
+        PrivateEvent::MessageAdded(m) if m.peer == b_hex && m.content == "two" => Some(()),
+        _ => None,
+    })
+    .await;
+
+    let a_contact = a
+        .client
+        .private_contacts()
+        .await
+        .unwrap()
+        .into_iter()
+        .find(|c| c.peer == b_hex)
+        .unwrap();
+    assert_eq!(a_contact.unread, 2);
+
+    // A marks read
+    a.client.private_mark_read(&b_hex).await.unwrap();
+
+    let a_contact2 = a
+        .client
+        .private_contacts()
+        .await
+        .unwrap()
+        .into_iter()
+        .find(|c| c.peer == b_hex)
+        .unwrap();
+    assert_eq!(a_contact2.unread, 0);
 }

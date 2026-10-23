@@ -77,6 +77,7 @@ pub async fn reset_session(service: &PrivateService, reset: Reset) -> Result<(),
 /// Where and when an event came from.
 struct Arrival<'a> {
     server_id: &'a str,
+    server_name: &'a str,
     event_id: i64,
     /// The server's time.
     sent_at: i64,
@@ -142,8 +143,13 @@ pub async fn receive(
     };
     let sender_id = sender.map_or(0, |user| user.id);
     let me = open.identity();
+    let server_name = service
+        .transport()
+        .server_name(server_key)
+        .unwrap_or_else(|| "The server".to_owned());
     let at = Arrival {
         server_id,
+        server_name: &server_name,
         event_id,
         sent_at: message.sent_at_ms,
         sender: sender_key,
@@ -404,6 +410,39 @@ async fn undecryptable(
     })
 }
 
+async fn first_divider(
+    conn: &mut SqliteConnection,
+    sealer: &Sealer,
+    at: &Arrival<'_>,
+    peer: [u8; KEY_LEN],
+    outgoing: bool,
+    shown: &mut Vec<Shown>,
+) -> Result<(), PrivateError> {
+    let has_any: bool =
+        sqlx::query_scalar::<_, i64>("SELECT 1 FROM messages WHERE peer = $1 LIMIT 1")
+            .bind(peer.as_slice())
+            .fetch_optional(&mut *conn)
+            .await?
+            .is_some();
+    if !has_any {
+        let divider_id = random_id()?;
+        let divider = Insert {
+            id: divider_id,
+            peer,
+            outgoing,
+            kind: DIVIDER,
+            body: Some(at.server_name),
+            server_id: Some(at.server_id),
+            sent_at: at.sent_at.saturating_sub(1),
+            state: if outgoing { SENT } else { RECEIVED },
+        };
+        if insert(conn, sealer, divider).await? {
+            shown.push(Shown::Added(divider_id));
+        }
+    }
+    Ok(())
+}
+
 /// A payload from the conversation's other person, unless the contact's
 /// rules drop what they send.
 async fn from_peer(
@@ -433,6 +472,7 @@ async fn from_peer(
     let mut shown = Vec::new();
     match parsed.body {
         Body::Text(text) => {
+            first_divider(conn, sealer, at, peer, false, &mut shown).await?;
             let new = Insert {
                 id,
                 peer,
@@ -510,6 +550,7 @@ async fn own_copy(
     let mut shown = Vec::new();
     match parsed.body {
         Body::Text(text) => {
+            first_divider(conn, sealer, at, peer, true, &mut shown).await?;
             let new = Insert {
                 id,
                 peer,

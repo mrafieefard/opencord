@@ -4,7 +4,11 @@ use opencord_proto::v1 as proto;
 use proto::request::Kind as Request;
 use proto::response::Result as Response;
 
-use crate::api::types::{CoreError, PrivacySettingsData, PrivateEvent};
+use sqlx::Row;
+
+use crate::api::types::{
+    CoreError, PrivacySettingsData, PrivateContact, PrivateEvent, SharedServer,
+};
 use crate::private::PrivateError;
 use crate::private::contacts::{self, Contact, Conversation, FriendState};
 use crate::private::outbox::{self, SendOptions};
@@ -564,5 +568,358 @@ pub async fn sync_privacy_to_server(
             }),
         )
         .await?;
+    Ok(())
+}
+
+/// Opens a conversation from profile or Friends page.
+pub async fn private_open_conversation(
+    service: &PrivateService,
+    server_key: &str,
+    user_id: i64,
+) -> Result<PrivateContact, CoreError> {
+    let open = service.opened()?;
+    let peer = service
+        .members()
+        .public_key_of(server_key, user_id)
+        .ok_or_else(|| CoreError::InvalidInput {
+            message: format!("unknown user {user_id} on {server_key}"),
+        })?;
+
+    let mut conn = open
+        .store()
+        .pool()
+        .acquire()
+        .await
+        .map_err(PrivateError::from)?;
+    let mut contact = contacts::load(&mut conn, open.store().sealer(), peer)
+        .await?
+        .unwrap_or_else(|| {
+            let mut c = Contact::new(peer);
+            if let Some(name) = service.members().name_of(&peer) {
+                c.name = Some(name);
+            }
+            c
+        });
+
+    let shared = service.members().shared_servers(&peer);
+    let is_usable = |server_id: &str| -> bool {
+        service
+            .transport()
+            .server_key_for(server_id)
+            .and_then(|key| shared.iter().find(|s| s.server_key == key))
+            .is_some_and(|s| s.connected && s.private_messages)
+    };
+
+    let current_usable = contact.relay_server_id.as_deref().is_some_and(is_usable);
+
+    if !current_usable {
+        let friend_usable = contact
+            .friend_server_id
+            .as_deref()
+            .filter(|id| is_usable(id));
+
+        if let Some(friend_id) = friend_usable {
+            contact.relay_server_id = Some(friend_id.to_string());
+        } else {
+            contact.relay_server_id = service
+                .members()
+                .server_id(server_key)
+                .or_else(|| service.transport().server_id_of(server_key));
+        }
+    }
+
+    contact.hidden = false;
+    contacts::save(&mut conn, open.store().sealer(), &contact, now_ms()).await?;
+    let view = service.contact_view(&open, &mut conn, &contact).await?;
+    drop(conn);
+    service.emit(PrivateEvent::ContactChanged(view.clone()));
+    Ok(view)
+}
+
+/// Returns the shared servers with `peer` in the order they were added.
+pub fn private_shared_servers(
+    service: &PrivateService,
+    saved_order: &[String],
+    peer: &str,
+) -> Vec<SharedServer> {
+    let Ok(peer_bytes) = parse_hex::<32>(peer, "invalid peer") else {
+        return Vec::new();
+    };
+    let mut shared = service.members().shared_servers(&peer_bytes);
+    let mut ordered = Vec::with_capacity(shared.len());
+    for key in saved_order {
+        if let Some(pos) = shared.iter().position(|s| &s.server_key == key) {
+            ordered.push(shared.remove(pos));
+        }
+    }
+    ordered.extend(shared);
+    ordered
+}
+
+/// Moves a conversation's relay to `server_key`.
+pub async fn private_move(
+    service: &PrivateService,
+    peer: &str,
+    server_key: &str,
+) -> Result<(), CoreError> {
+    let peer_bytes = parse_hex::<32>(peer, "that person isn't valid")?;
+    let open = service.opened()?;
+
+    let (contact, relay) = {
+        let mut conn = open
+            .store()
+            .pool()
+            .acquire()
+            .await
+            .map_err(PrivateError::from)?;
+        let contact = contacts::load(&mut conn, open.store().sealer(), peer_bytes).await?;
+        let relay =
+            outbox::current_relay(service, contact.as_ref(), &peer_bytes, Some(server_key))?;
+        (contact, relay)
+    };
+
+    let server_id_bytes = hex::decode(&relay.server_id).map_err(|_| CoreError::Storage {
+        message: "invalid server id hex".to_owned(),
+    })?;
+    let server_name = service
+        .transport()
+        .server_name(server_key)
+        .unwrap_or_else(|| "The server".to_owned());
+
+    let outcome = outbox::send_timed(
+        service,
+        peer_bytes,
+        proto::private_payload::Body::RelayMoved(proto::RelayMoved {
+            server_id: server_id_bytes,
+            server_name: server_name.clone(),
+        }),
+        SendOptions {
+            relay: Some(server_key.to_string()),
+        },
+    )
+    .await?;
+
+    let sent_at = outcome.sent_at_ms.unwrap_or_else(now_ms);
+    let divider_id = outbox::new_message_id()?;
+    outbox::insert_divider(
+        &open,
+        divider_id,
+        peer_bytes,
+        &server_name,
+        &relay.server_id,
+        sent_at,
+    )
+    .await?;
+
+    let mut conn = open
+        .store()
+        .pool()
+        .acquire()
+        .await
+        .map_err(PrivateError::from)?;
+    let mut contact = contact.unwrap_or_else(|| Contact::new(peer_bytes));
+    contact.relay_server_id = Some(relay.server_id.clone());
+    contacts::save(&mut conn, open.store().sealer(), &contact, now_ms()).await?;
+
+    let divider_view = outbox::view(service, &open, divider_id).await?;
+    let contact_view = service.contact_view(&open, &mut conn, &contact).await?;
+    drop(conn);
+
+    service.emit(PrivateEvent::MessageAdded(divider_view));
+    service.emit(PrivateEvent::ContactChanged(contact_view));
+    Ok(())
+}
+
+/// Moves this device's relay to match a Moved card.
+pub async fn private_move_too(
+    service: &PrivateService,
+    peer: &str,
+    message_id: &str,
+) -> Result<(), CoreError> {
+    let peer_bytes = parse_hex::<32>(peer, "that person isn't valid")?;
+    let message_id_bytes = parse_hex::<16>(message_id, "that message isn't valid")?;
+    let open = service.opened()?;
+
+    let (server_id, server_name) = {
+        let row = sqlx::query(
+            "SELECT kind, outgoing, body, server_id FROM messages WHERE id = $1 AND peer = $2",
+        )
+        .bind(message_id_bytes.as_slice())
+        .bind(peer_bytes.as_slice())
+        .fetch_optional(open.store().pool())
+        .await
+        .map_err(PrivateError::from)?
+        .ok_or_else(|| CoreError::InvalidInput {
+            message: "message not found".to_owned(),
+        })?;
+
+        let kind: i64 = row.try_get("kind").map_err(PrivateError::from)?;
+        let outgoing: i64 = row.try_get("outgoing").map_err(PrivateError::from)?;
+        if kind != 2 || outgoing != 0 {
+            return Err(CoreError::InvalidInput {
+                message: "not a moved card".to_owned(),
+            });
+        }
+
+        let server_id: String = row
+            .try_get::<Option<String>, _>("server_id")
+            .map_err(PrivateError::from)?
+            .ok_or_else(|| CoreError::InvalidInput {
+                message: "moved card missing server id".to_owned(),
+            })?;
+
+        let body_bytes: Option<Vec<u8>> = row.try_get("body").map_err(PrivateError::from)?;
+        let server_name = match body_bytes {
+            Some(body) => {
+                let decrypted = open.store().sealer().open(
+                    crate::private::service::MESSAGE_BODY_LABEL,
+                    &message_id_bytes,
+                    &body,
+                )?;
+                String::from_utf8(decrypted).unwrap_or_else(|_| "The server".to_owned())
+            }
+            None => "The server".to_owned(),
+        };
+        (server_id, server_name)
+    };
+
+    let server_key = service.transport().server_key_for(&server_id);
+    let shared = service.members().shared_servers(&peer_bytes);
+    let is_valid = server_key
+        .as_ref()
+        .and_then(|key| shared.iter().find(|s| &s.server_key == key))
+        .is_some_and(|s| s.connected && s.private_messages);
+
+    if !is_valid {
+        return Err(CoreError::InvalidInput {
+            message: format!("This device isn't on {server_name}."),
+        });
+    }
+
+    let divider_id = outbox::new_message_id()?;
+    let now = now_ms();
+    outbox::insert_divider(&open, divider_id, peer_bytes, &server_name, &server_id, now).await?;
+
+    let mut conn = open
+        .store()
+        .pool()
+        .acquire()
+        .await
+        .map_err(PrivateError::from)?;
+    let mut contact = contacts::load(&mut conn, open.store().sealer(), peer_bytes)
+        .await?
+        .unwrap_or_else(|| Contact::new(peer_bytes));
+    contact.relay_server_id = Some(server_id);
+    contacts::save(&mut conn, open.store().sealer(), &contact, now).await?;
+
+    let divider_view = outbox::view(service, &open, divider_id).await?;
+    let contact_view = service.contact_view(&open, &mut conn, &contact).await?;
+    drop(conn);
+
+    service.emit(PrivateEvent::MessageAdded(divider_view));
+    service.emit(PrivateEvent::ContactChanged(contact_view));
+    Ok(())
+}
+
+/// Sends typing event for `peer`.
+pub async fn private_typing(service: &PrivateService, peer: &str) -> Result<(), CoreError> {
+    let peer_bytes = parse_hex::<32>(peer, "that person isn't valid")?;
+    let open = service.opened()?;
+    let (contact, relay) = {
+        let mut conn = open
+            .store()
+            .pool()
+            .acquire()
+            .await
+            .map_err(PrivateError::from)?;
+        let contact = contacts::load(&mut conn, open.store().sealer(), peer_bytes).await?;
+        let relay = outbox::current_relay(service, contact.as_ref(), &peer_bytes, None)?;
+        (contact, relay)
+    };
+    let slip = contact
+        .and_then(|c| c.their_slip)
+        .map(|s| s.to_vec())
+        .unwrap_or_default();
+    service
+        .request(
+            &relay.key,
+            Request::StartPrivateTyping(proto::StartPrivateTyping {
+                recipient_id: relay.recipient_id,
+                slip,
+            }),
+        )
+        .await?;
+    Ok(())
+}
+
+/// Marks messages with `peer` read up to the newest message.
+pub async fn private_mark_read(service: &PrivateService, peer: &str) -> Result<(), CoreError> {
+    let peer_bytes = parse_hex::<32>(peer, "that person isn't valid")?;
+    let open = service.opened()?;
+    let mut conn = open
+        .store()
+        .pool()
+        .acquire()
+        .await
+        .map_err(PrivateError::from)?;
+    let newest: Option<i64> = sqlx::query_scalar(
+        "SELECT sent_at FROM messages WHERE peer = $1 ORDER BY sent_at DESC LIMIT 1",
+    )
+    .bind(peer_bytes.as_slice())
+    .fetch_optional(&mut *conn)
+    .await
+    .map_err(PrivateError::from)?;
+    let sent_at = newest.unwrap_or_else(now_ms);
+    if let Some(mut contact) = contacts::load(&mut conn, open.store().sealer(), peer_bytes).await? {
+        contact.last_read_at = sent_at;
+        contacts::save(&mut conn, open.store().sealer(), &contact, now_ms()).await?;
+        let view = service.contact_view(&open, &mut conn, &contact).await?;
+        drop(conn);
+        service.emit(PrivateEvent::ContactChanged(view));
+    }
+    Ok(())
+}
+
+/// Sets whether notifications from `peer` are muted.
+pub async fn private_set_muted(
+    service: &PrivateService,
+    peer: &str,
+    muted: bool,
+) -> Result<(), CoreError> {
+    let peer_bytes = parse_hex::<32>(peer, "that person isn't valid")?;
+    let open = service.opened()?;
+    let mut conn = open
+        .store()
+        .pool()
+        .acquire()
+        .await
+        .map_err(PrivateError::from)?;
+    if let Some(mut contact) = contacts::load(&mut conn, open.store().sealer(), peer_bytes).await? {
+        contact.muted = muted;
+        contacts::save(&mut conn, open.store().sealer(), &contact, now_ms()).await?;
+        let view = service.contact_view(&open, &mut conn, &contact).await?;
+        drop(conn);
+        service.emit(PrivateEvent::ContactChanged(view));
+    }
+    Ok(())
+}
+
+/// Hides conversation with `peer`.
+pub async fn private_hide(service: &PrivateService, peer: &str) -> Result<(), CoreError> {
+    let peer_bytes = parse_hex::<32>(peer, "that person isn't valid")?;
+    let open = service.opened()?;
+    let mut conn = open
+        .store()
+        .pool()
+        .acquire()
+        .await
+        .map_err(PrivateError::from)?;
+    if let Some(mut contact) = contacts::load(&mut conn, open.store().sealer(), peer_bytes).await? {
+        contact.hidden = true;
+        contacts::save(&mut conn, open.store().sealer(), &contact, now_ms()).await?;
+        let view = service.contact_view(&open, &mut conn, &contact).await?;
+        drop(conn);
+        service.emit(PrivateEvent::ContactChanged(view));
+    }
     Ok(())
 }

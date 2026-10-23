@@ -115,12 +115,12 @@ fn fresh(fetched_at: Instant, now: Instant) -> bool {
 }
 
 /// A server that can carry the conversation now.
-struct Relay {
-    key: String,
+pub(crate) struct Relay {
+    pub(crate) key: String,
     /// The server's id, hex: where a saved request belongs.
-    server_id: String,
-    recipient_id: i64,
-    self_id: i64,
+    pub(crate) server_id: String,
+    pub(crate) recipient_id: i64,
+    pub(crate) self_id: i64,
 }
 
 struct Target {
@@ -203,6 +203,31 @@ pub async fn send_timed(
         };
     };
     let content = checked_content(&text.content)?;
+    let has_any: bool =
+        sqlx::query_scalar::<_, i64>("SELECT 1 FROM messages WHERE peer = $1 LIMIT 1")
+            .bind(peer.as_slice())
+            .fetch_optional(open.store().pool())
+            .await
+            .map_err(PrivateError::from)?
+            .is_some();
+    if !has_any {
+        let divider_id = new_message_id()?;
+        let server_name = service
+            .transport()
+            .server_name(&relay.key)
+            .unwrap_or_else(|| "The server".to_owned());
+        insert_divider(
+            &open,
+            divider_id,
+            peer,
+            &server_name,
+            &relay.server_id,
+            now.saturating_sub(1),
+        )
+        .await?;
+        let divider_view = view(service, &open, divider_id).await?;
+        service.emit(PrivateEvent::MessageAdded(divider_view));
+    }
     insert_sending(&open, message_id, peer, &content, now).await?;
     let added = view(service, &open, message_id).await?;
     service.emit(PrivateEvent::MessageAdded(added));
@@ -1003,7 +1028,7 @@ async fn resend(
 
 /// The relay chosen, else the conversation's, when it can carry the
 /// conversation now.
-fn current_relay(
+pub(crate) fn current_relay(
     service: &PrivateService,
     contact: Option<&Contact>,
     peer: &[u8; KEY_LEN],
@@ -1069,6 +1094,34 @@ async fn insert_sending(
     .bind(body)
     .bind(now)
     .bind(SENDING)
+    .execute(open.store().pool())
+    .await?;
+    Ok(())
+}
+
+pub(crate) async fn insert_divider(
+    open: &Open,
+    message_id: [u8; MESSAGE_ID_LEN],
+    peer: [u8; KEY_LEN],
+    server_name: &str,
+    server_id: &str,
+    sent_at: i64,
+) -> Result<(), PrivateError> {
+    let body = open
+        .store()
+        .sealer()
+        .seal(MESSAGE_BODY_LABEL, &message_id, server_name.as_bytes());
+    sqlx::query(
+        "INSERT INTO messages (id, peer, outgoing, kind, body, server_id, sent_at, state) \
+         VALUES ($1, $2, 1, $3, $4, $5, $6, $7) ON CONFLICT (id) DO NOTHING",
+    )
+    .bind(message_id.as_slice())
+    .bind(peer.as_slice())
+    .bind(DIVIDER)
+    .bind(body)
+    .bind(server_id)
+    .bind(sent_at)
+    .bind(SENT)
     .execute(open.store().pool())
     .await?;
     Ok(())
@@ -1168,7 +1221,7 @@ fn checked_content(content: &str) -> Result<String, CoreError> {
     validation::message_content(content).map_err(|error| invalid_input(&error.to_string()))
 }
 
-fn new_message_id() -> Result<[u8; MESSAGE_ID_LEN], PrivateError> {
+pub(crate) fn new_message_id() -> Result<[u8; MESSAGE_ID_LEN], PrivateError> {
     let mut id = [0; MESSAGE_ID_LEN];
     getrandom::fill(&mut id)
         .map_err(|_| PrivateError::Crypto("the random source failed".to_owned()))?;
