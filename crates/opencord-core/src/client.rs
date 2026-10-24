@@ -8,7 +8,8 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use futures_util::future::BoxFuture;
 use opencord_common::address::{
-    DEFAULT_PORT, Fingerprint, InviteLink, ServerAddress, format_fingerprint, parse_fingerprint,
+    AddressError, DEFAULT_PORT, Fingerprint, InviteLink, ServerAddress, format_fingerprint,
+    is_link, parse_fingerprint,
 };
 use opencord_proto::v1 as proto;
 use proto::request::Kind as Request;
@@ -55,7 +56,6 @@ use crate::voice_message::recorder::{TapEngine, VoiceRecorder};
 use opencord_media::hotkeys::Hotkeys;
 use proto::private_payload::Body as PayloadBody;
 
-const INVITE_SCHEME: &str = "opencord://";
 /// Voice server updates kept for a slow listener.
 const VOICE_SERVER_BACKLOG: usize = 16;
 /// A rejoin told to slow down tries this many times in all, waiting at
@@ -2148,15 +2148,24 @@ struct Target {
     fingerprint: Option<Fingerprint>,
 }
 
+/// An invite link, a bare `opencord://` or `opencords://` link, or
+/// `host[:port]`.
 fn parse_target(input: &str) -> Result<Target, CoreError> {
     let input = input.trim();
-    if input.starts_with(INVITE_SCHEME) {
-        let link = InviteLink::parse(input).map_err(invalid_input)?;
-        Ok(Target {
-            address: link.address,
-            invite_code: Some(link.code),
-            fingerprint: link.fingerprint,
-        })
+    if is_link(input) {
+        match InviteLink::parse(input) {
+            Ok(link) => Ok(Target {
+                address: link.address,
+                invite_code: Some(link.code),
+                fingerprint: link.fingerprint,
+            }),
+            Err(AddressError::NotAnInvite) => Ok(Target {
+                address: ServerAddress::parse_link(input).map_err(invalid_input)?,
+                invite_code: None,
+                fingerprint: None,
+            }),
+            Err(error) => Err(invalid_input(error)),
+        }
     } else {
         Ok(Target {
             address: parse_address(input)?,
@@ -2680,6 +2689,20 @@ mod tests {
             parse_target("opencord://host/join/x"),
             Err(CoreError::InvalidInput { .. })
         ));
+    }
+
+    #[test]
+    fn bare_links_name_a_server_on_their_schemes_port() {
+        let plain = parse_target("opencord://chat.example.com").unwrap();
+        let secure = parse_target("opencords://chat.example.com/").unwrap();
+        let invite = parse_target("opencords://chat.example.com/invite/abc").unwrap();
+
+        assert_eq!(plain.address.to_string(), "chat.example.com:7710");
+        assert_eq!(plain.invite_code, None);
+        assert_eq!(secure.address.to_string(), "chat.example.com:443");
+        assert_eq!(secure.invite_code, None);
+        assert_eq!(invite.address.to_string(), "chat.example.com:443");
+        assert_eq!(invite.invite_code.as_deref(), Some("abc"));
     }
 
     #[test]

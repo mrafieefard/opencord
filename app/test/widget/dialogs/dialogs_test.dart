@@ -138,7 +138,7 @@ void main() {
       await _pumpFor(tester, const Duration(milliseconds: 1500));
       expect(
         find.text(
-          'Enter an invite link (opencord://…) or a host:port address.',
+          'Enter an invite link (opencord://…) or a host[:port] address.',
         ),
         findsOneWidget,
       );

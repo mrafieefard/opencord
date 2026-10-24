@@ -8,8 +8,9 @@ import 'package:opencord/features/shell/navigation.dart';
 import 'package:opencord/features/window/window_providers.dart';
 import 'package:opencord/ui/widgets/toast.dart';
 
-/// An `opencord://` link (§15): an invite, or a channel and maybe one of
-/// its messages.
+/// An `opencord://` or `opencords://` link (§15): an invite, or a channel
+/// and maybe one of its messages. Without a port, `opencord://` means 7710
+/// and `opencords://` 443.
 @immutable
 sealed class AppLink {
   const AppLink();
@@ -75,11 +76,20 @@ String privateLink(String peer) => 'opencord://private/$peer';
 /// Formats an `opencord://friends` link.
 String friendsLink() => 'opencord://friends';
 
+/// The port each link scheme stands for when the link names none.
+const _schemePorts = {'opencord': 7710, 'opencords': 443};
+
+/// The `host:port` [uri] names, its scheme's port when it has none.
+String _serverOf(Uri uri) =>
+    '${uri.host}:${uri.hasPort ? uri.port : _schemePorts[uri.scheme]}';
+
 /// The link in [text], or null when it is not one the app opens.
 AppLink? parseAppLink(String text) {
   final trimmed = text.trim();
   final uri = Uri.tryParse(trimmed);
-  if (uri == null || !uri.isScheme('opencord') || uri.host.isEmpty) {
+  if (uri == null ||
+      !_schemePorts.containsKey(uri.scheme) ||
+      uri.host.isEmpty) {
     return null;
   }
   if (uri.host == 'friends' && uri.pathSegments.isEmpty) {
@@ -90,7 +100,7 @@ AppLink? parseAppLink(String text) {
       RegExp(r'^[0-9a-fA-F]{64}$').hasMatch(uri.pathSegments.first)) {
     return PrivateAppLink(uri.pathSegments.first.toLowerCase());
   }
-  final server = uri.hasPort ? '${uri.host}:${uri.port}' : uri.host;
+  final server = _serverOf(uri);
   switch (uri.pathSegments) {
     case ['invite', final code] when code.isNotEmpty:
       return InviteAppLink(trimmed);
@@ -153,11 +163,15 @@ Future<void> openAppLink(
   }
 }
 
-/// The `host:port` of an `opencord://` link.
+/// The `host:port` of an `opencord://` or `opencords://` link.
 String? parseAppLinkServer(String link) {
   final uri = Uri.tryParse(link.trim());
-  if (uri == null || uri.host.isEmpty) return null;
-  return uri.hasPort ? '${uri.host}:${uri.port}' : uri.host;
+  if (uri == null ||
+      !_schemePorts.containsKey(uri.scheme) ||
+      uri.host.isEmpty) {
+    return null;
+  }
+  return _serverOf(uri);
 }
 
 /// Links from the command line and from later launches (§15), waiting for

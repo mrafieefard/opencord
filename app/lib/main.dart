@@ -22,7 +22,8 @@ Future<void> main(List<String> args) async {
         mock: usesMock(args, environment),
         links: [
           for (final arg in args)
-            if (arg.startsWith('opencord:')) arg,
+            if (arg.startsWith('opencord:') || arg.startsWith('opencords:'))
+              arg,
         ],
         atLogin: args.contains(autostartArg),
       ),

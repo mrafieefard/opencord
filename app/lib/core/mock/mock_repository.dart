@@ -413,9 +413,13 @@ class MockRepository implements OpencordRepository {
   // Servers ---------------------------------------------------------------
 
   static final _invite = RegExp(
-    r'^opencord://([^/:#\s]+):(\d+)/invite/([A-Za-z0-9]+)(?:#fp=([0-9a-fA-F]{64}))?$',
+    r'^(?:opencord(s)?://)([^/:#\s]+)(?::(\d+))?/invite/([A-Za-z0-9]+)(?:#fp=([0-9a-fA-F]{64}))?$',
+    caseSensitive: false,
   );
-  static final _address = RegExp(r'^([A-Za-z0-9.-]+):(\d{1,5})$');
+  static final _address = RegExp(
+    r'^(?:opencord(s)?://)?([A-Za-z0-9.-]+)(?::(\d{1,5}))?/?$',
+    caseSensitive: false,
+  );
 
   @override
   Future<AddServerResult> addServer(
@@ -430,22 +434,24 @@ class MockRepository implements OpencordRepository {
     if (match == null) {
       throw const RepoException(
         RepoErrorKind.invalidArgument,
-        'Enter an invite link (opencord://…) or a host:port address.',
+        'Enter an invite link (opencord://…) or a host[:port] address.',
       );
     }
-    final key = '${match.group(1)!.toLowerCase()}:${match.group(2)}';
+    // Without a port: 7710, or 443 for opencords://.
+    final port = match.group(3) ?? (match.group(1) != null ? '443' : '7710');
+    final key = '${match.group(2)!.toLowerCase()}:$port';
     final existing = _world.servers.where((s) => s.key == key).firstOrNull;
     if (existing != null) {
       _connect(existing);
       return ServerAdded(existing.summary);
     }
-    if (match.group(1)!.startsWith('unreachable')) {
+    if (match.group(2)!.startsWith('unreachable')) {
       throw const RepoException(
         RepoErrorKind.connection,
         'Could not connect: connection refused.',
       );
     }
-    final linkFingerprint = invite?.group(4)?.toLowerCase();
+    final linkFingerprint = invite?.group(5)?.toLowerCase();
     if (linkFingerprint == null && !_trusted.contains(key)) {
       return ServerNeedsTrust(address: key, fingerprint: fakeFingerprint(key));
     }

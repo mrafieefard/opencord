@@ -96,7 +96,7 @@ fn contents(app_id: &str, executable: &Path) -> String {
          Icon={app_id}\n\
          Terminal=false\n\
          Categories=Network;InstantMessaging;Chat;\n\
-         MimeType=x-scheme-handler/opencord;\n\
+         MimeType=x-scheme-handler/opencord;x-scheme-handler/opencords;\n\
          StartupWMClass={app_id}\n\
          StartupNotify=true\n\
          {WRITTEN_BY_APP}\n",
