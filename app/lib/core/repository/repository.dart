@@ -633,6 +633,32 @@ abstract interface class OpencordRepository {
     String source = '',
   });
 
+  /// Queues the song at [path] in [channelId], uploading it first when the
+  /// server doesn't have it (design 2026-10-24); [MusicUploadEvent]s follow
+  /// under [uploadId]. [playNow] plays it at once. Completes when it is
+  /// queued; throws when it fails or is cancelled.
+  Future<void> musicUploadSong(
+    String serverKey,
+    int channelId, {
+    required String uploadId,
+    required String path,
+    bool playNow = false,
+  });
+
+  /// Stops a song's upload.
+  void musicCancelSong(String serverKey, String uploadId);
+
+  /// Removes an uploaded song: the caller's own, or (administrators) the
+  /// song for everyone.
+  Future<void> removeLocalSong(String serverKey, int songId);
+
+  /// Every uploaded song, newest first, 50 at a time; administrators only.
+  Future<List<LocalSong>> fetchLocalSongs(
+    String serverKey, {
+    String query = '',
+    int? beforeId,
+  });
+
   /// The channel's player; its changes come as [MusicSessionChanged] from
   /// now on, even when not connected to the channel (§14.3).
   Future<MusicSession> musicSubscribe(String serverKey, int channelId);

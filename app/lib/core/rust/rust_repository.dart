@@ -727,6 +727,27 @@ class RustRepository implements OpencordRepository {
             _ => null,
           },
         ),
+      core.CoreEventPayload_MusicUploadProgress(
+        :final channelId,
+        :final uploadId,
+        :final filename,
+        :final sentBytes,
+        :final totalBytes,
+        :final phase,
+      ) =>
+        MusicUploadEvent(
+          server,
+          channelId: channelId.toInt(),
+          uploadId: uploadId,
+          filename: filename,
+          sentBytes: sentBytes.toInt(),
+          totalBytes: totalBytes.toInt(),
+          phase: uploadPhaseFrom(phase),
+          error: switch (phase) {
+            core.UploadPhase_Failed(:final message) => message,
+            _ => null,
+          },
+        ),
       core.CoreEventPayload_StagedUploadProgress(
         :final channelId,
         :final stagedId,
@@ -1527,6 +1548,44 @@ class RustRepository implements OpencordRepository {
   }) async => musicSearchResultsFrom(
     await _call(() => _core.musicSearch(serverKey, channelId, query, source)),
   );
+
+  @override
+  Future<void> musicUploadSong(
+    String serverKey,
+    int channelId, {
+    required String uploadId,
+    required String path,
+    bool playNow = false,
+  }) => _call(
+    () => _core.musicUploadSong(
+      serverKey: serverKey,
+      channelId: channelId,
+      uploadId: uploadId,
+      path: path,
+      playNow: playNow,
+    ),
+  );
+
+  @override
+  void musicCancelSong(String serverKey, String uploadId) => _now(
+    () => _core.musicCancelSong(serverKey: serverKey, uploadId: uploadId),
+  );
+
+  @override
+  Future<void> removeLocalSong(String serverKey, int songId) =>
+      _call(() => _core.removeLocalSong(serverKey, songId));
+
+  @override
+  Future<List<LocalSong>> fetchLocalSongs(
+    String serverKey, {
+    String query = '',
+    int? beforeId,
+  }) async => [
+    for (final song in await _call(
+      () => _core.fetchLocalSongs(serverKey, query, beforeId),
+    ))
+      localSongFrom(song),
+  ];
 
   @override
   Future<MusicSession> musicSubscribe(String serverKey, int channelId) async =>

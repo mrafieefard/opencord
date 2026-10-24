@@ -418,6 +418,24 @@ abstract interface class CoreApi {
 
   Future<core.MusicSession> musicSubscribe(String serverKey, int channelId);
 
+  Future<void> musicUploadSong({
+    required String serverKey,
+    required int channelId,
+    required String uploadId,
+    required String path,
+    required bool playNow,
+  });
+
+  void musicCancelSong({required String serverKey, required String uploadId});
+
+  Future<void> removeLocalSong(String serverKey, int songId);
+
+  Future<List<core.LocalSong>> fetchLocalSongs(
+    String serverKey,
+    String query,
+    int? beforeId,
+  );
+
   Future<void> musicUnsubscribe(String serverKey, int channelId);
 
   Future<core.MusicSession> musicEnqueue(
@@ -1424,6 +1442,40 @@ class FrbCoreApi implements CoreApi {
     channelId: channelId,
     query: query,
     source: source,
+  );
+
+  @override
+  Future<void> musicUploadSong({
+    required String serverKey,
+    required int channelId,
+    required String uploadId,
+    required String path,
+    required bool playNow,
+  }) => frb.musicUploadSong(
+    serverKey: serverKey,
+    channelId: channelId,
+    uploadId: uploadId,
+    path: path,
+    playNow: playNow,
+  );
+
+  @override
+  void musicCancelSong({required String serverKey, required String uploadId}) =>
+      frb.musicCancelSong(serverKey: serverKey, uploadId: uploadId);
+
+  @override
+  Future<void> removeLocalSong(String serverKey, int songId) =>
+      frb.removeLocalSong(serverKey: serverKey, songId: songId);
+
+  @override
+  Future<List<core.LocalSong>> fetchLocalSongs(
+    String serverKey,
+    String query,
+    int? beforeId,
+  ) => frb.fetchLocalSongs(
+    serverKey: serverKey,
+    query: query,
+    beforeId: beforeId,
   );
 
   @override

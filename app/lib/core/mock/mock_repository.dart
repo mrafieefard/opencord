@@ -2017,9 +2017,123 @@ class MockRepository implements OpencordRepository {
         'a search is 1 to 200 characters',
       );
     }
-    return _musicOf(
-      server,
-    ).search(query, source.isEmpty ? server.music.defaultSource : source);
+    final music = _musicOf(server);
+    final local = music.searchSongs(query);
+    if (!server.music.hasNodes) return MusicSearchResults(results: local);
+    final found = music.search(
+      query,
+      source.isEmpty ? server.music.defaultSource : source,
+    );
+    if (found.playlist != null) return found;
+    return MusicSearchResults(results: [...found.results, ...local]);
+  }
+
+  /// Song uploads cancelled, by upload id.
+  final _cancelledSongs = <String>{};
+
+  @override
+  Future<void> musicUploadSong(
+    String serverKey,
+    int channelId, {
+    required String uploadId,
+    required String path,
+    bool playNow = false,
+  }) async {
+    final server = _server(serverKey);
+    _musicAct(server, channelId, Permissions.musicAdd);
+    final music = _musicOf(server);
+    final filename = path.split(RegExp(r'[/\\]')).last;
+    const size = 4 * 1024 * 1024;
+    void progress(UploadPhase phase, int sent, {String? error}) => _emit(
+      MusicUploadEvent(
+        serverKey,
+        channelId: channelId,
+        uploadId: uploadId,
+        filename: filename,
+        sentBytes: sent,
+        totalBytes: size,
+        phase: phase,
+        error: error,
+      ),
+    );
+    Never fail(RepoException error) {
+      progress(UploadPhase.failed, 0, error: error.message);
+      throw error;
+    }
+
+    void stopIfCancelled() {
+      if (!_cancelledSongs.remove(uploadId)) return;
+      progress(UploadPhase.cancelled, 0);
+      throw const RepoException(RepoErrorKind.cancelled, 'Cancelled');
+    }
+
+    progress(UploadPhase.preparing, 0);
+    await _latency(40);
+    stopIfCancelled();
+    var song = music.songAt(path);
+    if (song == null) {
+      if (!isSongFile(path)) {
+        fail(
+          const RepoException(
+            RepoErrorKind.invalidArgument,
+            'The music player takes MP3, FLAC, M4A, AAC, Ogg and WAV files',
+          ),
+        );
+      }
+      try {
+        _require(server, Permissions.attachFiles, channelId);
+      } on RepoException catch (error) {
+        fail(error);
+      }
+      for (final part in [1, 2]) {
+        await _latency(60);
+        stopIfCancelled();
+        progress(UploadPhase.uploading, size * part ~/ 2);
+      }
+      progress(UploadPhase.processing, size);
+      await _latency(40);
+      song = music.addSong(path, server.selfId, _clock());
+    }
+    await musicEnqueue(
+      serverKey,
+      channelId,
+      [music.localResult(song).id],
+      placement: playNow ? MusicPlacement.now : MusicPlacement.end,
+    );
+    progress(UploadPhase.done, size);
+  }
+
+  @override
+  void musicCancelSong(String serverKey, String uploadId) =>
+      _cancelledSongs.add(uploadId);
+
+  @override
+  Future<void> removeLocalSong(String serverKey, int songId) async {
+    final server = _server(serverKey);
+    await _latency(40);
+    _musicOf(server).removeSong(songId);
+  }
+
+  @override
+  Future<List<LocalSong>> fetchLocalSongs(
+    String serverKey, {
+    String query = '',
+    int? beforeId,
+  }) async {
+    final server = _server(serverKey);
+    _require(server, Permissions.administrator);
+    await _latency(40);
+    final words = query.toLowerCase().split(' ').where((w) => w.isNotEmpty);
+    return [
+      for (final song in _musicOf(server).songs.values.toList().reversed)
+        if ((beforeId == null || song.id < beforeId) &&
+            words.every(
+              (word) => '${song.title} ${song.artist} ${song.filename}'
+                  .toLowerCase()
+                  .contains(word),
+            ))
+          song,
+    ];
   }
 
   @override

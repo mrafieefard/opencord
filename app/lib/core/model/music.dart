@@ -44,6 +44,7 @@ class MusicSettings {
     this.availableSources = const [],
     this.supported = true,
     this.configured = true,
+    this.hasNodes = true,
   });
 
   final bool enabled;
@@ -73,9 +74,12 @@ class MusicSettings {
   /// Music is on in the server's configuration file and runs there.
   final bool supported;
 
-  /// Supported, enabled, and with a Lavalink node: members see music
-  /// (Phase 3 plan §19.1); the server sets it.
+  /// Supported and enabled: members see music (Phase 3 plan §19.1);
+  /// uploaded songs play without a Lavalink node. The server sets it.
   final bool configured;
+
+  /// A Lavalink node is added: search reaches Lavalink's sources.
+  final bool hasNodes;
 
   /// The longest track choices (plan §16.2); zero for no limit.
   static const maxTrackChoices = [
@@ -121,6 +125,7 @@ class MusicSettings {
     Duration? disconnectAfterIdle,
     String? bridgeDomain,
     bool? configured,
+    bool? hasNodes,
   }) => MusicSettings(
     enabled: enabled ?? this.enabled,
     enabledSources: enabledSources ?? this.enabledSources,
@@ -139,6 +144,7 @@ class MusicSettings {
     availableSources: availableSources,
     supported: supported,
     configured: configured ?? this.configured,
+    hasNodes: hasNodes ?? this.hasNodes,
   );
 
   @override
@@ -160,7 +166,8 @@ class MusicSettings {
       other.bridgeDomain == bridgeDomain &&
       listEquals(other.availableSources, availableSources) &&
       other.supported == supported &&
-      other.configured == configured;
+      other.configured == configured &&
+      other.hasNodes == hasNodes;
 
   @override
   int get hashCode => Object.hash(
@@ -181,7 +188,67 @@ class MusicSettings {
     Object.hashAll(availableSources),
     supported,
     configured,
+    hasNodes,
   );
+}
+
+/// A song uploaded for the music player, as administrators list them
+/// (design 2026-10-24).
+@immutable
+class LocalSong {
+  const LocalSong({
+    required this.id,
+    required this.title,
+    required this.artist,
+    required this.duration,
+    required this.sizeBytes,
+    required this.filename,
+    required this.uploaderId,
+    required this.createdAt,
+  });
+
+  final int id;
+  final String title;
+  final String artist;
+  final Duration duration;
+  final int sizeBytes;
+  final String filename;
+  final int uploaderId;
+  final DateTime createdAt;
+
+  @override
+  bool operator ==(Object other) =>
+      other is LocalSong &&
+      other.id == id &&
+      other.title == title &&
+      other.artist == artist &&
+      other.duration == duration &&
+      other.sizeBytes == sizeBytes &&
+      other.filename == filename &&
+      other.uploaderId == uploaderId &&
+      other.createdAt == createdAt;
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    title,
+    artist,
+    duration,
+    sizeBytes,
+    filename,
+    uploaderId,
+    createdAt,
+  );
+}
+
+/// The files the music player takes, by extension (the server's list).
+const musicFileExtensions = {'mp3', 'flac', 'm4a', 'aac', 'ogg', 'oga', 'wav'};
+
+/// Whether the music player takes a file at [path].
+bool isSongFile(String path) {
+  final dot = path.lastIndexOf('.');
+  if (dot < 0) return false;
+  return musicFileExtensions.contains(path.substring(dot + 1).toLowerCase());
 }
 
 /// A member blocked from music, and why.

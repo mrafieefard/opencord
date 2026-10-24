@@ -500,6 +500,30 @@ final class StagedUploadEvent extends RepoEvent {
   final String? error;
 }
 
+/// How far a song dropped on a channel's music player got (design
+/// 2026-10-24): checked against the server's songs (preparing), uploading,
+/// processing, then queued (done), failed or cancelled.
+final class MusicUploadEvent extends RepoEvent {
+  const MusicUploadEvent(
+    super.serverKey, {
+    required this.channelId,
+    required this.uploadId,
+    required this.filename,
+    required this.sentBytes,
+    required this.totalBytes,
+    required this.phase,
+    this.error,
+  });
+
+  final int channelId;
+  final String uploadId;
+  final String filename;
+  final int sentBytes;
+  final int totalBytes;
+  final UploadPhase phase;
+  final String? error;
+}
+
 /// Progress of a file being downloaded.
 final class DownloadProgressEvent extends RepoEvent {
   const DownloadProgressEvent(
