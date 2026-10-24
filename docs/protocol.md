@@ -147,6 +147,20 @@ Each `Request` gets exactly one `Response`, which is either an `error` or the pa
 | `ActivateStorage { storage_id }` | `storage` | The owner; a bucket must pass the test; not while files are moving |
 | `RemoveStorage { storage_id }` | `storage` | The owner; not the server's own storage, not the active one, and only once it holds no files and none wait to be deleted |
 | `StartStorageMove {}` / `StopStorageMove {}` | `storage` | The owner |
+| `RegisterDevice { device, one_time_keys, fallback_key }` | `device_registration` | A session after `Ready` on a server with `private_messages` enabled; once per session |
+| `UploadKeys { one_time_keys, fallback_key? }` | `device_registration` | The session's registered device |
+| `UnregisterDevice {}` | `ack` | The session's registered device |
+| `FetchDevices { user_ids }` | `device_lists` | Any member; 1 or 2 `user_ids` (caller and peer) |
+| `ClaimKeys { devices }` | `claimed_keys` | Any member; up to 20 devices |
+| `FetchPendingEvents { after_id?, limit? }` | `pending_events` | The session's registered device; `limit` 1–100 (0 means 100) |
+| `AckPendingEvents { ids }` | `ack` | The session's registered device; up to 500 ids |
+| `SendPrivateMessage { recipient_id, send_id, ciphertexts, slip? }` | `private_message_sent` | A member with a registered device; recipient must be a member; up to 20 ciphertexts, up to 32,768 bytes each; sender's rate limit |
+| `StartPrivateTyping { recipient_id, slip? }` | `ack` | A member; recipient must be a member |
+| `UpdatePrivacy { allow_friend_requests, allow_message_requests, blocked_user_ids }` | `ack` | Any member; up to 10,000 blocked IDs |
+| `SendFriendRequest { user_id, slip }` | `friend_request_created` | A member with a registered device; target must be a member and not caller; caller's slip required; 10 per minute |
+| `AnswerFriendRequest { request_id, accept, slip? }` | `ack` | The target of the pending request; slip required on accept |
+| `CancelFriendRequest { request_id }` | `ack` | The creator of the pending request |
+| `RemoveFriend { user_id }` | `ack` | Any member |
 
 Details:
 - **Messages:** the content is trimmed and must be 1–4 000 characters. Only text channels accept messages.
@@ -160,7 +174,7 @@ Details:
 - **Kicks and bans** end all of the target's sessions; those sessions cannot be resumed.
 - **Cleanup:** deleting a role removes it from every member and deletes its channel overwrites. Kicking or banning a member deletes their member overwrites.
 - **Deleted messages** disappear from history. They are kept in the database, marked as deleted.
-- **Rate limits** are per user: 50 requests per 10 s, plus 5 messages per 5 s per channel, 10 `UpdateVoiceState` or `RefreshVoiceServer` per 10 s, and 20 `CreateUpload` per minute. Over the limit, the response is `RATE_LIMITED` with `retry_after_ms`.
+- **Rate limits** are per user: 50 requests per 10 s, plus 5 messages per 5 s per channel, 10 `UpdateVoiceState` or `RefreshVoiceServer` per 10 s, 20 `CreateUpload` per minute, 10 `SendFriendRequest` per minute, and 5 `SendPrivateMessage` per 5 s per recipient. Over the limit, the response is `RATE_LIMITED` with `retry_after_ms`.
 
 ## Events
 
@@ -181,6 +195,8 @@ Every event goes to every session of the server, with these exceptions:
 | `ServerNotice` | Whom it concerns: the owner for the network, domains and certificates |
 | `UploadReady`, `UploadFailed` | The uploader's sessions |
 | `StorageUpdate` | The owner's sessions |
+| `PendingEvent` | The session(s) holding that registered device |
+| `PrivateTypingStart` | The recipient's active sessions; never stored |
 
 Other events:
 - `RoleCreate`, `RoleUpdate`, `RoleDelete`, `ServerUpdate` and `PresenceUpdate` behave as their names say.
@@ -218,6 +234,11 @@ When roles, member roles or overwrites change, the server recomputes visibility 
 | `STORAGE_UNAVAILABLE` | The bucket failed its test or can't be reached |
 | `STORAGE_FULL` | No room to receive the upload, or the storage is full |
 | `VOICE_MESSAGE_INVALID`, `VOICE_MESSAGE_TOO_LONG` | A voice message isn't Ogg Opus, or is over the server's length |
+| `FRIEND_REQUESTS_CLOSED` | The target user is not accepting friend requests |
+| `MESSAGE_REQUESTS_CLOSED` | The recipient only accepts messages from friends, and no friendship or valid slip exists |
+| `UNDELIVERABLE` | The recipient has blocked the caller, or has no registered devices |
+| `DEVICE_LIST_CHANGED` | The recipient's or caller's device set changed since the message was encrypted |
+| `PRIVATE_MESSAGES_UNAVAILABLE` | Private messages are disabled on this server, or the device is not registered |
 
 ## Close codes
 
@@ -495,3 +516,97 @@ Phase 3 (`network.proto`). The owner's settings page asks for `NetworkInfo` with
 | Sounds playing at once | 3 per voice channel |
 
 **Music on external voice nodes** (Phase 3). A node whose `Register` has `music` runs an audio bridge at its endpoint. For a channel it serves, the main server sends `ExpectMusicBridge { channel_id, user_id, token, session_id, strict, lavalink_addresses }` before pointing Lavalink at it, and `CancelMusicBridge` when the music stops. The node answers with `MusicBridgeStatus { channel_id, kind, connection, code, address }` (`CONNECTED`, `CLOSED`, `DISCOVERED`, `REFUSED`, `AUDIO`, `SILENT`), which the main server takes only for channels that node serves.
+
+## Private messages
+
+Private messages, friend requests, and offline delivery flow through shared servers when `Ready.private_messages` is `true`. Servers act as untrusted relays: messages are end-to-end encrypted with Olm (`vodozemac`) and stored only while waiting for offline recipient devices.
+
+### Registration and keys
+
+1. After `Ready`, a client sends `RegisterDevice { device, one_time_keys, fallback_key }` once per session to bind the connection to that device.
+2. A user may register up to 10 devices (`MAX_DEVICES_PER_USER`). An 11th registration unregisters the device seen longest ago and purges its waiting events.
+3. The server stores up to 100 one-time keys (`MAX_STORED_ONE_TIME_KEYS`) per device. When fewer than 20 remain (`ONE_TIME_KEYS_TARGET`), the client uploads more using `UploadKeys`. The signed fallback prekey is rotated by the client every 30 days (`FALLBACK_ROTATION_MS`).
+4. `UnregisterDevice` removes the device and its prekeys from the server.
+
+### Pending events and acknowledgements
+
+1. Undelivered events (incoming friend requests, sent copies, answers, cancellations, removals, and encrypted messages) are buffered as `PendingEvent` rows in `private_pending` on the server.
+2. Live events reach the active WebSocket session holding the registered device. Offline devices fetch them on reconnect.
+3. Events remain on the server until confirmed with `AckPendingEvents { ids }` (up to 500 ids, `MAX_ACK_IDS`).
+4. Retention limits from server configuration (`[private_messages]`):
+   - `max_pending_per_device` (default 5,000, range 100–100,000): when exceeded, the oldest pending events for that device are dropped.
+   - `undelivered_days` (default 30, range 1–365): pending events older than this are purged.
+   - `device_expiry_days` (default 60, range 7–365): devices unseen for this duration are deleted along with their waiting events.
+
+### Paging
+
+- Clients fetch waiting events with `FetchPendingEvents { after_id, limit }`.
+- `limit` ranges from 1 to 100 (0 defaults to 100, `PENDING_PAGE_EVENTS`).
+- The server returns events in oldest-first order, capped at 786,432 bytes (`PENDING_PAGE_BYTES`) plus envelope overhead per page. If additional events remain, `PendingEvents.more` is set to `true`.
+
+### Order of checks for messages (`SendPrivateMessage`)
+
+The server verifies, in order:
+1. Private messages are enabled on the server (`private_messages` in server config).
+2. The session has a registered device (otherwise `PRIVATE_MESSAGES_UNAVAILABLE`).
+3. The recipient is a member of the server, and is not the caller.
+4. The recipient has not blocked the caller (otherwise `UNDELIVERABLE`).
+5. The recipient accepts message requests (`allow_message_requests`), or the caller supplies the recipient's verified permission slip (otherwise `MESSAGE_REQUESTS_CLOSED`).
+6. The recipient has registered devices, and the provided ciphertexts cover all registered devices of the recipient and all other registered devices of the caller (otherwise `DEVICE_LIST_CHANGED`).
+7. Shape checks: at most 20 ciphertexts (`MAX_CIPHERTEXTS`), each at most 32,768 bytes (`MAX_CIPHERTEXT_BYTES`), and `send_id` is 16 bytes (`SEND_ID_LEN`).
+8. Rate limit: at most 5 messages per 5 seconds per recipient (`PRIVATE_MESSAGE_RATE`).
+9. Idempotency: a duplicate `send_id` within 24 hours (`RECENT_SEND_TTL_MS`) stores nothing and returns `PrivateMessageSent` with the original timestamp.
+
+### Order of checks for friend requests (`SendFriendRequest`)
+
+The server verifies, in order:
+1. Private messages are enabled on the server.
+2. The session has a registered device.
+3. The target is a member of the server, and is not the caller.
+4. The target has not blocked the caller (otherwise `UNDELIVERABLE`).
+5. The target accepts friend requests (`allow_friend_requests`, otherwise `FRIEND_REQUESTS_CLOSED`).
+6. The target has at least one registered device (otherwise `PRIVATE_MESSAGES_UNAVAILABLE`).
+7. The caller's permission slip for the target verifies against the caller's identity key.
+8. The caller has fewer than 100 pending outgoing friend requests (`MAX_OUTGOING_FRIEND_REQUESTS`).
+9. No request exists between the two users in either direction (otherwise `CONFLICT`).
+10. Rate limit: at most 10 requests per minute per user (`FRIEND_REQUEST_RATE`).
+
+### Permission slips
+
+A permission slip is a 64-byte Ed25519 signature by the granter's identity key over `slip_payload` (84 bytes):
+```
+"opencord-dm-allow-v1" (20 bytes) || granter_public_key (32 bytes) || grantee_public_key (32 bytes)
+```
+Slips allow the grantee to send messages even if the granter has closed message requests (`allow_message_requests = false`). A slip can only be invalidated by blocking the sender.
+
+### Signing payloads
+
+All cryptographic signatures use Ed25519 (`ed25519_dalek`):
+- **Device signature (`device_payload`, 98 bytes):** signed by the user's identity key, producing a 64-byte signature:
+  ```
+  "opencord-device-v1" (18 bytes) || device_id (16 bytes) || curve25519 (32 bytes) || ed25519 (32 bytes)
+  ```
+- **Prekey signature (`prekey_payload`, 67 bytes):** signed by the device's Ed25519 key, producing a 64-byte signature:
+  ```
+  "opencord-prekey-v1" (18 bytes) || device_id (16 bytes) || key (32 bytes) || fallback (1 byte: 1 or 0)
+  ```
+- **Permission slip signature (`slip_payload`, 84 bytes):** signed by the granter's identity key, producing a 64-byte signature:
+  ```
+  "opencord-dm-allow-v1" (20 bytes) || granter (32 bytes) || grantee (32 bytes)
+  ```
+
+### Payload format
+
+Inside Olm message ciphertexts, the decrypted plaintext is a protobuf `PrivatePayload`:
+- `message_id`: 16 random bytes (`MESSAGE_ID_LEN`).
+- `sent_at_ms`: int64 (author's local timestamp).
+- `recipient_public_key`: 32 bytes (recipient's identity public key).
+- `slip`: 64 bytes (optional permission slip from the recipient).
+- `body`: one of:
+  - `PrivateText`: `content` (string).
+  - `PrivateEdit`: `message_id` (16 bytes), `content` (string).
+  - `PrivateDelete`: `message_id` (16 bytes).
+  - `RelayMoved`: `server_id` (16 bytes), `server_name` (string).
+  - `RequestAccepted`: `{}`.
+  - `SessionReset`: `{}`.
+

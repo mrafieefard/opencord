@@ -180,7 +180,7 @@ When "System" is selected (or Auto chooses it), the native title bar and decorat
 
 ### 4.1 Server rail (Telegram folder bar + Discord server list)
 
-- Top: menu button (opens user settings). Then a short divider.
+- Top: the Private messages button (opens the home view). Settings open from the user panel's cog. Then a short divider.
 - One item per server: a **46 px rounded icon** with the server initials (or uploaded icon later), and the **server name as a small label underneath** (11 px, one line, ellipsis) — this is the Telegram folder style.
 - States:
   - Default: icon bg `hover`, circle (radius 23).
