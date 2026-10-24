@@ -204,6 +204,11 @@ class PrivateContactsState {
 }
 
 class PrivateContactsNotifier extends Notifier<PrivateContactsState> {
+  // Peers an event changed or removed while a load was out. The load's copy
+  // of them may be older than the event's, so the event's stays.
+  final _touched = <String>{};
+  var _loads = 0;
+
   @override
   PrivateContactsState build() {
     _load();
@@ -211,15 +216,21 @@ class PrivateContactsNotifier extends Notifier<PrivateContactsState> {
   }
 
   Future<void> _load() async {
+    final load = ++_loads;
+    _touched.clear();
     try {
       final list = await ref.read(repositoryProvider).privateContacts();
-      if (!ref.mounted) return;
-      state = PrivateContactsState(
-        byPeer: {for (final c in list) c.peer: c},
-        loaded: true,
-      );
+      if (!ref.mounted || load != _loads) return;
+      final byPeer = {
+        for (final c in list)
+          if (!_touched.contains(c.peer)) c.peer: c,
+      };
+      for (final peer in _touched) {
+        if (state.byPeer[peer] case final contact?) byPeer[peer] = contact;
+      }
+      state = PrivateContactsState(byPeer: byPeer, loaded: true);
     } on RepoException catch (e) {
-      if (!ref.mounted) return;
+      if (!ref.mounted || load != _loads) return;
       state = PrivateContactsState(
         byPeer: state.byPeer,
         loaded: true,
@@ -229,6 +240,7 @@ class PrivateContactsNotifier extends Notifier<PrivateContactsState> {
   }
 
   void onContactChanged(PrivateContact contact) {
+    _touched.add(contact.peer);
     final next = {...state.byPeer, contact.peer: contact};
     state = PrivateContactsState(
       byPeer: next,
@@ -238,6 +250,7 @@ class PrivateContactsNotifier extends Notifier<PrivateContactsState> {
   }
 
   void onContactRemoved(String peer) {
+    _touched.add(peer);
     if (!state.byPeer.containsKey(peer)) return;
     final next = {...state.byPeer}..remove(peer);
     state = PrivateContactsState(
@@ -283,6 +296,10 @@ class PrivateConversationNotifier extends Notifier<PrivateConversationState> {
 
   final String peer;
 
+  // Messages an event deleted while the first page was loading: the page
+  // may still have them.
+  final _deletedDuringLoad = <String>{};
+
   @override
   PrivateConversationState build() {
     _loadInitial();
@@ -295,7 +312,14 @@ class PrivateConversationNotifier extends Notifier<PrivateConversationState> {
           .read(repositoryProvider)
           .privateMessages(peer, limit: 50);
       if (!ref.mounted) return;
-      final sorted = List<PrivateMessage>.from(batch)..sort(_compareMessages);
+      // Events that arrived during the load are newer than the page's copy.
+      final byId = {
+        for (final m in batch)
+          if (!_deletedDuringLoad.contains(m.id)) m.id: m,
+        for (final m in state.messages) m.id: m,
+      };
+      _deletedDuringLoad.clear();
+      final sorted = byId.values.toList()..sort(_compareMessages);
       state = PrivateConversationState(
         messages: sorted,
         loading: false,
@@ -381,6 +405,7 @@ class PrivateConversationNotifier extends Notifier<PrivateConversationState> {
   }
 
   void onMessageDeleted(String messageId) {
+    if (state.loading) _deletedDuringLoad.add(messageId);
     final idx = state.messages.indexWhere((m) => m.id == messageId);
     if (idx == -1) return;
     final updated = List<PrivateMessage>.from(state.messages)..removeAt(idx);

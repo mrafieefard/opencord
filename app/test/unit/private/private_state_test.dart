@@ -89,6 +89,49 @@ void main() {
       },
     );
 
+    test('a contact changed while the list reloads keeps the change', () {
+      withApp((async, container, repo) {
+        final notifier = container.read(privateContactsProvider.notifier);
+        final before = container.read(privateContactsProvider).all.first;
+        final changed = before.copyWith(unread: before.unread + 7);
+
+        // The reload's copy was read before the change arrived.
+        notifier.onStateChanged();
+        notifier.onContactChanged(changed);
+        async.flushMicrotasks();
+
+        final after = container.read(privateContactsProvider);
+        expect(after.loaded, isTrue);
+        expect(after.byPeer[before.peer], changed);
+      });
+    });
+
+    test('a message that arrives while a conversation loads stays', () {
+      withApp((async, container, repo) {
+        final kaiKey = fakeFingerprint('key-1001');
+        final arriving = PrivateMessage(
+          id: 'ffffffffffffffffffffffffffffffff',
+          peer: kaiKey,
+          outgoing: true,
+          kind: PrivateMessageKind.text,
+          content: 'sent as the chat opened',
+          sentAt: _base.add(const Duration(hours: 1)),
+          state: PrivateSendState.sending,
+        );
+
+        container.read(privateConversationProvider(kaiKey));
+        container
+            .read(privateConversationProvider(kaiKey).notifier)
+            .onMessageAdded(arriving);
+        async.flushMicrotasks();
+
+        final loaded = container.read(privateConversationProvider(kaiKey));
+        expect(loaded.loading, isFalse);
+        expect(loaded.messages.length, greaterThan(1));
+        expect(loaded.messages.last, arriving);
+      });
+    });
+
     test('typing expires after 8 s', () {
       withApp((async, container, repo) {
         final kaiKey = fakeFingerprint('key-1001');
