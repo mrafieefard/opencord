@@ -2688,6 +2688,9 @@ class MusicSettings {
   /// A Lavalink node is added: search reaches Lavalink's sources.
   final bool hasNodes;
 
+  /// The server takes uploaded songs; servers from before them don't.
+  final bool localSongs;
+
   const MusicSettings({
     required this.enabled,
     required this.enabledSources,
@@ -2707,6 +2710,7 @@ class MusicSettings {
     required this.supported,
     required this.configured,
     required this.hasNodes,
+    required this.localSongs,
   });
 
   @override
@@ -2728,7 +2732,8 @@ class MusicSettings {
       availableSources.hashCode ^
       supported.hashCode ^
       configured.hashCode ^
-      hasNodes.hashCode;
+      hasNodes.hashCode ^
+      localSongs.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -2752,7 +2757,8 @@ class MusicSettings {
           availableSources == other.availableSources &&
           supported == other.supported &&
           configured == other.configured &&
-          hasNodes == other.hasNodes;
+          hasNodes == other.hasNodes &&
+          localSongs == other.localSongs;
 }
 
 /// Changes to the music settings; what is `None` stays.

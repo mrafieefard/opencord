@@ -22,6 +22,7 @@ MusicSettings musicSettingsFrom(core.MusicSettings settings) => MusicSettings(
   supported: settings.supported,
   configured: settings.configured,
   hasNodes: settings.hasNodes,
+  localSongs: settings.localSongs,
 );
 
 /// Only what differs from [before]; the rest stays as the server has it.

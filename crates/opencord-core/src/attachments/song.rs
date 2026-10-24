@@ -13,8 +13,13 @@ use proto::response::Result as Response;
 use sha2::{Digest, Sha256};
 
 use super::upload::{PROGRESS_EVERY, Report, cancel_uploads, upload_one};
-use crate::api::types::{CoreError, CoreEventPayload, MusicPlacement, OutgoingFile, UploadPhase};
+use crate::api::types::{
+    CoreError, CoreEventPayload, ErrorCode, MusicPlacement, OutgoingFile, UploadPhase,
+};
 use crate::client::{Client, unexpected};
+
+/// Said when the server runs an Opencord from before uploaded songs.
+const TOO_OLD: &str = "This server runs an older Opencord that can't take uploaded songs";
 
 /// Read at a time while hashing.
 const HASH_CHUNK: usize = 1 << 20;
@@ -160,9 +165,18 @@ async fn find(
         sha256: sha256.to_vec(),
         size_bytes: size,
     });
-    match report.client.request(report.key, request).await? {
-        Response::MusicLocalMatch(found) => Ok(found.result.map(|result| result.result_id)),
-        other => Err(unexpected(&other)),
+    match report.client.request(report.key, request).await {
+        Ok(Response::MusicLocalMatch(found)) => Ok(found.result.map(|result| result.result_id)),
+        Ok(other) => Err(unexpected(&other)),
+        // A server from before uploaded songs can't read the request.
+        Err(CoreError::Server {
+            code: ErrorCode::InvalidArgument,
+            message,
+            ..
+        }) if message == "the request is empty" => Err(CoreError::InvalidInput {
+            message: TOO_OLD.to_owned(),
+        }),
+        Err(error) => Err(error),
     }
 }
 

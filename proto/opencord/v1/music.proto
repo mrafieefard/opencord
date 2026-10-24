@@ -490,6 +490,9 @@ message MusicSettings {
   bool configured = 17;
   // A Lavalink node is added: search reaches Lavalink's sources.
   bool has_nodes = 18;
+  // This server takes uploaded songs (design 2026-10-24); servers from
+  // before them leave it false.
+  bool local_songs = 19;
 }
 
 // -> music_settings. Anyone.

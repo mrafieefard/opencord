@@ -188,6 +188,16 @@ async fn a_song_plays_on_a_server_without_lavalink_and_the_queue_moves_on() {
         voice,
         ..
     } = studio().await;
+    // Clients learn that this server takes uploaded songs, with no node.
+    match owner
+        .ok(Kind::FetchMusicSettings(proto::FetchMusicSettings {}))
+        .await
+    {
+        Response::MusicSettings(settings) => {
+            assert!(settings.local_songs && settings.configured && !settings.has_nodes);
+        }
+        other => panic!("expected the music settings, got {other:?}"),
+    }
     let song = wav(2.0, 440.0);
     upload(&server, &mut owner, &owner_token, voice, "tone.wav", &song)
         .await

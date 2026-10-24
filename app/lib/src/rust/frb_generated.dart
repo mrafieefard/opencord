@@ -10749,8 +10749,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   MusicSettings dco_decode_music_settings(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 18)
-      throw Exception('unexpected arr length: expect 18 but see ${arr.length}');
+    if (arr.length != 19)
+      throw Exception('unexpected arr length: expect 19 but see ${arr.length}');
     return MusicSettings(
       enabled: dco_decode_bool(arr[0]),
       enabledSources: dco_decode_list_String(arr[1]),
@@ -10770,6 +10770,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       supported: dco_decode_bool(arr[15]),
       configured: dco_decode_bool(arr[16]),
       hasNodes: dco_decode_bool(arr[17]),
+      localSongs: dco_decode_bool(arr[18]),
     );
   }
 
@@ -14916,6 +14917,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     var var_supported = sse_decode_bool(deserializer);
     var var_configured = sse_decode_bool(deserializer);
     var var_hasNodes = sse_decode_bool(deserializer);
+    var var_localSongs = sse_decode_bool(deserializer);
     return MusicSettings(
       enabled: var_enabled,
       enabledSources: var_enabledSources,
@@ -14935,6 +14937,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       supported: var_supported,
       configured: var_configured,
       hasNodes: var_hasNodes,
+      localSongs: var_localSongs,
     );
   }
 
@@ -19148,6 +19151,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_bool(self.supported, serializer);
     sse_encode_bool(self.configured, serializer);
     sse_encode_bool(self.hasNodes, serializer);
+    sse_encode_bool(self.localSongs, serializer);
   }
 
   @protected

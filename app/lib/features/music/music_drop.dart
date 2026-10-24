@@ -18,6 +18,11 @@ import 'package:opencord/ui/widgets/confirm_dialog.dart';
 import 'package:opencord/ui/widgets/oc_icon_button.dart';
 import 'package:opencord/ui/widgets/toast.dart';
 
+/// Said where the server runs an Opencord from before uploaded songs.
+const tooOld =
+    'This server runs an older Opencord that can’t take uploaded '
+    'songs yet. Its owner can update it.';
+
 /// Song files dragged onto the music player (design 2026-10-24): queued
 /// last, or played at once when dropped on the cover below it (the one
 /// that marks itself with [coverKeyOf]).
@@ -54,9 +59,13 @@ class _MusicDropZoneState extends ConsumerState<MusicDropZone> {
     return (box.localToGlobal(Offset.zero) & box.size).contains(global);
   }
 
-  void _drop(DropDoneDetails details, MusicAccess access) {
+  void _drop(DropDoneDetails details, MusicAccess access, bool takesSongs) {
     setState(() => _dragging = false);
     if (!access.canAdd) return;
+    if (!takesSongs) {
+      showOcToast(context, tooOld);
+      return;
+    }
     final playNow = access.canManageQueue && _onCover(details.globalPosition);
     final refused = ref
         .read(musicUploadsProvider(widget.channel).notifier)
@@ -76,10 +85,17 @@ class _MusicDropZoneState extends ConsumerState<MusicDropZone> {
   Widget build(BuildContext context) {
     final colors = context.oc;
     final access = ref.watch(musicAccessProvider(widget.channel));
+    // Servers from before uploaded songs can't take them.
+    final takesSongs =
+        ref
+            .watch(musicSettingsProvider(widget.channel.server))
+            .value
+            ?.localSongs ??
+        true;
     return DropTarget(
       onDragEntered: (_) => setState(() => _dragging = true),
       onDragExited: (_) => setState(() => _dragging = false),
-      onDragDone: (details) => _drop(details, access),
+      onDragDone: (details) => _drop(details, access, takesSongs),
       child: Stack(
         fit: StackFit.passthrough,
         children: [
@@ -108,14 +124,18 @@ class _MusicDropZoneState extends ConsumerState<MusicDropZone> {
                           ),
                           const SizedBox(height: OcSpace.s12),
                           Text(
-                            access.canAdd
+                            !takesSongs
+                                ? tooOld
+                                : access.canAdd
                                 ? 'Drop songs to add them to the queue'
                                 : access.why(Permissions.musicAdd) ??
                                       'You can’t add music here',
                             textAlign: TextAlign.center,
                             style: OcText.title.copyWith(color: colors.text),
                           ),
-                          if (access.canAdd && access.canManageQueue) ...[
+                          if (takesSongs &&
+                              access.canAdd &&
+                              access.canManageQueue) ...[
                             const SizedBox(height: OcSpace.s6),
                             Text(
                               'Drop on the cover to play now',

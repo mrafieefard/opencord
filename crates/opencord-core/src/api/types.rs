@@ -1678,6 +1678,8 @@ pub struct MusicSettings {
     pub configured: bool,
     /// A Lavalink node is added: search reaches Lavalink's sources.
     pub has_nodes: bool,
+    /// The server takes uploaded songs; servers from before them don't.
+    pub local_songs: bool,
 }
 
 /// Changes to the music settings; what is `None` stays.

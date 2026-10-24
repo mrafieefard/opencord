@@ -198,6 +198,7 @@ impl MusicSettings {
             supported,
             configured: supported && self.enabled,
             has_nodes,
+            local_songs: true,
         }
     }
 }

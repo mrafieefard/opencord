@@ -11398,6 +11398,7 @@ impl SseDecode for crate::api::types::MusicSettings {
         let mut var_supported = <bool>::sse_decode(deserializer);
         let mut var_configured = <bool>::sse_decode(deserializer);
         let mut var_hasNodes = <bool>::sse_decode(deserializer);
+        let mut var_localSongs = <bool>::sse_decode(deserializer);
         return crate::api::types::MusicSettings {
             enabled: var_enabled,
             enabled_sources: var_enabledSources,
@@ -11417,6 +11418,7 @@ impl SseDecode for crate::api::types::MusicSettings {
             supported: var_supported,
             configured: var_configured,
             has_nodes: var_hasNodes,
+            local_songs: var_localSongs,
         };
     }
 }
@@ -16196,6 +16198,7 @@ impl flutter_rust_bridge::IntoDart for crate::api::types::MusicSettings {
             self.supported.into_into_dart().into_dart(),
             self.configured.into_into_dart().into_dart(),
             self.has_nodes.into_into_dart().into_dart(),
+            self.local_songs.into_into_dart().into_dart(),
         ]
         .into_dart()
     }
@@ -20388,6 +20391,7 @@ impl SseEncode for crate::api::types::MusicSettings {
         <bool>::sse_encode(self.supported, serializer);
         <bool>::sse_encode(self.configured, serializer);
         <bool>::sse_encode(self.has_nodes, serializer);
+        <bool>::sse_encode(self.local_songs, serializer);
     }
 }
 

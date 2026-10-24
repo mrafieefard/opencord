@@ -236,6 +236,8 @@ The plugin's own documentation explains what YouTube needs from time to time, su
 
 Members can play songs they have on their computer. Dragging audio files onto the music panel, or onto the expanded player, adds them to the queue; dropped on the cover, a song plays at once (with Manage the queue). This works on a server with no Lavalink at all: **Opencord plays uploaded songs itself**, never through Lavalink. On a server with Lavalink, both kinds share one queue, and pause, seek, skip, vote skip, repeat, shuffle and Add again work the same on both.
 
+**Servers from before uploaded songs** (0.0.1-beta.1 and older) can't take them: the app says so when a song is dropped there, and the server's owner needs to update it.
+
 **One copy per server.** Before uploading, the app works out the file's SHA-256 and asks the server whether it has it. If it does, the song joins the queue at once and nothing is uploaded. Otherwise the file uploads with a progress bar and a cancel button for each song, and joins the queue once the server has checked it. Two people uploading the same file at once still end up with one copy.
 
 **What the server takes.** MP3, FLAC, AAC/M4A, Ogg Vorbis and WAV files, by their extension (`.mp3`, `.flac`, `.m4a`, `.aac`, `.ogg`, `.oga`, `.wav`), within the member's upload limit (see [attachments.md](attachments.md)). The server decodes every file in full before keeping it: a file that isn't really one of those, or lasts under a second, is refused with the reason. Ogg files with Opus inside aren't supported yet. Uploading needs Add music and Attach files in the voice channel, and being connected to it (or Manage music).

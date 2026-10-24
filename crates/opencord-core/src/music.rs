@@ -381,6 +381,7 @@ pub(crate) fn settings_from(settings: proto::MusicSettings) -> MusicSettings {
         supported: settings.supported,
         configured: settings.configured,
         has_nodes: settings.has_nodes,
+        local_songs: settings.local_songs,
     }
 }
 

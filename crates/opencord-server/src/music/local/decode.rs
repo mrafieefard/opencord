@@ -349,6 +349,15 @@ mod tests {
     }
 
     #[test]
+    fn an_mp3_s_title_and_artist_come_from_its_id3_tags() {
+        let file = written(include_bytes!("../../../tests/fixtures/tagged.mp3"));
+        let probed = probe(file.path()).unwrap();
+        assert_eq!(probed.title.as_deref(), Some("Lantern Song"));
+        assert_eq!(probed.artist.as_deref(), Some("Ana"));
+        assert!((1_400..=1_600).contains(&probed.duration_ms), "{probed:?}");
+    }
+
+    #[test]
     fn a_probe_finds_the_length_by_decoding() {
         let file = written(&wav(44_100, 1, 2.5));
         let probed = probe(file.path()).unwrap();

@@ -45,6 +45,7 @@ class MusicSettings {
     this.supported = true,
     this.configured = true,
     this.hasNodes = true,
+    this.localSongs = true,
   });
 
   final bool enabled;
@@ -80,6 +81,9 @@ class MusicSettings {
 
   /// A Lavalink node is added: search reaches Lavalink's sources.
   final bool hasNodes;
+
+  /// The server takes uploaded songs; servers from before them don't.
+  final bool localSongs;
 
   /// The longest track choices (plan §16.2); zero for no limit.
   static const maxTrackChoices = [
@@ -126,6 +130,7 @@ class MusicSettings {
     String? bridgeDomain,
     bool? configured,
     bool? hasNodes,
+    bool? localSongs,
   }) => MusicSettings(
     enabled: enabled ?? this.enabled,
     enabledSources: enabledSources ?? this.enabledSources,
@@ -145,6 +150,7 @@ class MusicSettings {
     supported: supported,
     configured: configured ?? this.configured,
     hasNodes: hasNodes ?? this.hasNodes,
+    localSongs: localSongs ?? this.localSongs,
   );
 
   @override
@@ -167,7 +173,8 @@ class MusicSettings {
       listEquals(other.availableSources, availableSources) &&
       other.supported == supported &&
       other.configured == configured &&
-      other.hasNodes == hasNodes;
+      other.hasNodes == hasNodes &&
+      other.localSongs == localSongs;
 
   @override
   int get hashCode => Object.hash(
@@ -189,6 +196,7 @@ class MusicSettings {
     supported,
     configured,
     hasNodes,
+    localSongs,
   );
 }
 
