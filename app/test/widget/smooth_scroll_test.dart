@@ -97,4 +97,17 @@ void main() {
     );
     expect(smoother.take(const PointerHoverEvent()), isFalse);
   });
+
+  testWidgets('with reduced motion a wheel step jumps', (tester) async {
+    final controller = await pumpList(tester);
+    final smoother = WheelSmoother(dispatch: tester.binding.handlePointerEvent)
+      ..enabled = false;
+
+    final event = wheel(tester, 120);
+    expect(smoother.take(event), isFalse);
+    tester.binding.handlePointerEvent(event);
+    await tester.pump();
+
+    expect(controller.offset, 120);
+  });
 }

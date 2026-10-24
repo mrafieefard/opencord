@@ -1,13 +1,13 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:opencord/core/smooth_scroll.dart';
 import 'package:opencord/features/chat/chat_scroll.dart';
 
-Future<ChatScrollController> _pump(
-  WidgetTester tester, {
-  Duration wheel = const Duration(milliseconds: 140),
-}) async {
-  final controller = ChatScrollController(wheel: wheel);
+const _frame = Duration(milliseconds: 16);
+
+Future<ChatScrollController> _pump(WidgetTester tester) async {
+  final controller = ChatScrollController();
   addTearDown(controller.dispose);
   await tester.pumpWidget(
     MaterialApp(
@@ -26,60 +26,44 @@ Future<ChatScrollController> _pump(
   return controller;
 }
 
-Future<void> _wheel(WidgetTester tester, double dy) async {
-  final pointer = TestPointer(1, PointerDeviceKind.mouse);
-  final center = tester.getCenter(find.byType(CustomScrollView));
-  await tester.sendEventToBinding(pointer.hover(center));
-  await tester.sendEventToBinding(pointer.scroll(Offset(0, dy)));
+PointerScrollEvent _notch(WidgetTester tester, double dy) => PointerScrollEvent(
+  position: tester.getCenter(find.byType(CustomScrollView)),
+  scrollDelta: Offset(0, dy),
+);
+
+Future<void> _settle(WidgetTester tester) async {
+  for (var i = 0; i < 40; i++) {
+    await tester.pump(_frame);
+  }
 }
 
 void main() {
-  testWidgets('a wheel notch glides instead of jumping (§15)', (tester) async {
+  // The app glides every wheel notch at the binding (WheelSmoother); the
+  // chat once glided notches of its own too, and the two fought: most of
+  // each notch was lost.
+  testWidgets('a wheel notch moves the chat by the whole notch', (
+    tester,
+  ) async {
     final controller = await _pump(tester);
-    final start = controller.position.pixels;
+    controller.jumpTo(2000);
+    final smoother = WheelSmoother(dispatch: tester.binding.handlePointerEvent);
 
-    await _wheel(tester, -100);
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 40));
-    final midway = controller.position.pixels;
+    smoother.take(_notch(tester, -100));
+    await _settle(tester);
 
-    expect(midway, lessThan(start));
-    expect(midway, greaterThan(start - 100));
-    await tester.pump(const Duration(milliseconds: 300));
-    expect(controller.position.pixels, start - 100);
+    expect(controller.position.pixels, closeTo(1900, 0.01));
   });
 
-  testWidgets('quick notches add up', (tester) async {
+  testWidgets('quick notches add up in the chat', (tester) async {
     final controller = await _pump(tester);
-    final start = controller.position.pixels;
+    controller.jumpTo(2000);
+    final smoother = WheelSmoother(dispatch: tester.binding.handlePointerEvent);
 
-    await _wheel(tester, -100);
-    await tester.pump(const Duration(milliseconds: 30));
-    await _wheel(tester, -100);
-    // A first frame starts the glide's clock.
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 400));
+    smoother.take(_notch(tester, -100));
+    await tester.pump(_frame);
+    smoother.take(_notch(tester, -100));
+    await _settle(tester);
 
-    expect(controller.position.pixels, start - 200);
-  });
-
-  testWidgets('small touchpad steps follow at once', (tester) async {
-    final controller = await _pump(tester);
-    final start = controller.position.pixels;
-
-    await _wheel(tester, -6);
-    await tester.pump();
-
-    expect(controller.position.pixels, start - 6);
-  });
-
-  testWidgets('with reduced motion a notch jumps', (tester) async {
-    final controller = await _pump(tester, wheel: Duration.zero);
-    final start = controller.position.pixels;
-
-    await _wheel(tester, -100);
-    await tester.pump();
-
-    expect(controller.position.pixels, start - 100);
+    expect(controller.position.pixels, closeTo(1800, 0.01));
   });
 }

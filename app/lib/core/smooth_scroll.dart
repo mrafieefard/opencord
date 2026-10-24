@@ -14,6 +14,10 @@ class OcBinding extends WidgetsFlutterBinding {
     return WidgetsBinding.instance;
   }
 
+  /// Off with reduce motion (the OS setting or the app's own): each wheel
+  /// step then jumps.
+  static set smoothWheel(bool on) => _created?._wheel.enabled = on;
+
   late final _wheel = WheelSmoother(dispatch: _dispatch);
 
   void _dispatch(PointerEvent event) => super.handlePointerEvent(event);
@@ -33,6 +37,9 @@ class WheelSmoother {
 
   final void Function(PointerEvent event) dispatch;
 
+  /// False leaves every event to Flutter.
+  var enabled = true;
+
   /// How fast what is left runs out: about 95% of a step is done after
   /// three times this.
   static const settle = Duration(milliseconds: 45);
@@ -48,7 +55,9 @@ class WheelSmoother {
   /// Takes [event] if it is a mouse wheel step, to send on bit by bit;
   /// false leaves it to the caller. Trackpads already scroll smoothly.
   bool take(PointerEvent event) {
-    if (event is! PointerScrollEvent || event.kind != PointerDeviceKind.mouse) {
+    if (!enabled ||
+        event is! PointerScrollEvent ||
+        event.kind != PointerDeviceKind.mouse) {
       return false;
     }
     _left = Offset(
