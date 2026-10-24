@@ -1162,3 +1162,36 @@ The desktop UI plan's §17.5 never arrived, so where Phase 2 §12 says only what
   - Workspace clippy (`opencord_core`, `opencord-server`), `app/tool/check_platforms.sh`, `dart format`, and `flutter analyze` pass with 0 errors and 0 warnings.
 
 
+## D66: Private messages: security pass, documentation and manual verification (Phase 5 E5, 2026-10-24)
+
+- **Why.** Milestone E5 of private messages (`docs/superpowers/plans/2026-10-22-private-messages.md`, Tasks 23–24, commits `304920f..7e62e23`). Hardens the private messaging implementation across all nine security items, documents the protocol and user/admin architecture, and specifies manual verification scenarios. Task 23 was done by Claude through claude-bridge, Task 24 by Gemini.
+- **Security pass (Task 23, `304920f`).** In `crates/opencord-core/src/client.rs`, `src/private/actions.rs`, `tests/private.rs`.
+  - Logs: `client::unexpected` (in `crates/opencord-core/src/client.rs`) put the server's whole response into the error text. Private code logs those errors in `actions.rs`. A server sending the wrong kind of response, such as pending events or claimed keys, would have had keys, ciphertext and names printed. It now names only the response's kind. `friend_request_send` in `actions.rs` had its own copy of this and now calls `unexpected`.
+    - New test: `an_unexpected_response_names_only_its_kind`. Before the fix it failed with the name "Zebulon Quartz", the key and the body all in the message.
+    - Every other log call in the server and core private code, and the app, logs only ids, counts, error kinds or messages with no keys, text or names.
+  - Server limits: Every handler checks that private messages are enabled, device registration, membership, shape and rate checks in the specified order. Typing counts against the general request rate. Sizes stay under 1 MiB: a pending page stops at 786,432 bytes plus about 4 bytes per event; 10 devices and 20 bundles are a few KB; the largest send (20 × 32,768 bytes) is about 655 KB, under the gateway's 1 MiB limit.
+  - Client checks: Every `FetchDevices` answer is verified, both when sending and before decrypting. Every claimed prekey is checked against the verified device's key. Slips are checked before they are stored.
+  - Duplicates and replays: Replayed events and duplicate Olm messages are covered by existing tests, as are redelivery after crash, repeated send IDs, and lost answers.
+  - At rest: test added and passing. `the_database_file_holds_no_plaintext` scans the database and its WAL for both people, while open and after closing. To show it reads real rows, it also requires a value the database keeps unsealed (the relay's server id) to be found. A contact created by a message alone has no name until the next Ready, which matches the plan. So the test names the contact "Zebulon Quartz" through a friend request. Claude added helper `owner_and_member_named`, which `owner_and_member_at` now calls.
+  - Maps: Device cache, reset map, member index, server privacy cache, app typing map, and batched acknowledgements all clear entries according to their retention rules.
+  - Blocks: Blocked senders and requesters receive undeliverable responses, and typing indicators never reveal a block.
+  - vodozemac: Both session creations use `SessionConfig::version_1()`. Sealing at rest uses XChaCha20-Poly1305 with HMAC-SHA256 key derivation.
+  - Licences: The check printed nothing outside the allowed list for vodozemac, chacha20poly1305 or hmac.
+  - Formatting: `cargo fmt` and `dart format` formatted files in core and app.
+- **Protocol and user documentation (Task 24, `7e62e23`).** In `docs/private-messages.md`, `docs/protocol.md`, `README.md`, `docs/plans/desktop-ui.md`.
+  - `docs/private-messages.md`: Created user, architecture and administration guide covering Double Ratchet encryption via `vodozemac`, server visibility boundaries, relay server moves (`RelayMoved`, `RelayDivider`, `MoveCard`), offline retention (`undelivered_days`, `max_pending_per_device`, `device_expiry_days`, `MAX_DEVICES_PER_USER`, `private_pending`), 4-state friendships, message requests, spam threshold (`SPAM_AFTER_DECLINES`), blocks (`MAX_BLOCKED_IDS`, `UpdatePrivacy`, `UNDELIVERABLE`), privacy settings (`allow_friend_requests`, `allow_message_requests`), local database sealing at rest (`FlutterSecureStorage`, HMAC-SHA256, XChaCha20-Poly1305), server configuration `[private_messages]`, and step-by-step instructions for 7 manual test scenarios using isolated client profiles.
+  - `docs/protocol.md`: Added 14 private messaging requests to the Requests table (`RegisterDevice`, `UploadKeys`, `UnregisterDevice`, `FetchDevices`, `ClaimKeys`, `FetchPendingEvents`, `AckPendingEvents`, `SendPrivateMessage`, `StartPrivateTyping`, `UpdatePrivacy`, `SendFriendRequest`, `AnswerFriendRequest`, `CancelFriendRequest`, `RemoveFriend`) with responses and permissions; added private rate limits (`FRIEND_REQUEST_RATE`, `PRIVATE_MESSAGE_RATE`); added `PendingEvent` and `PrivateTypingStart` to the Events table; added the 5 private error codes (`FRIEND_REQUESTS_CLOSED`, `MESSAGE_REQUESTS_CLOSED`, `UNDELIVERABLE`, `DEVICE_LIST_CHANGED`, `PRIVATE_MESSAGES_UNAVAILABLE`) to the Errors table; added the "Private messages" section detailing registration, pending queues, paging (`PENDING_PAGE_EVENTS`, `PENDING_PAGE_BYTES`), order of checks, permission slips (`slip_payload`), signing payload byte structures (`device_payload`, `prekey_payload`), and decrypted payload format (`PrivatePayload`, `PrivateText`, `PrivateEdit`, `PrivateDelete`, `RelayMoved`, `RequestAccepted`, `SessionReset`).
+  - `README.md`: Added `### Private messages` under feature sections linking to `docs/private-messages.md`.
+  - `docs/plans/desktop-ui.md`: Updated §4.1 top rail description to reflect that the Private messages button opens the home view while settings open from the user panel cog.
+- **Tests.**
+  - 2 tests added in E5:
+    - 1 unit test: `an_unexpected_response_names_only_its_kind` in `crates/opencord-core/src/client.rs`;
+    - 1 integration test: `the_database_file_holds_no_plaintext` in `crates/opencord-core/tests/private.rs`.
+  - All existing test suites pass:
+    - 40 integration tests in `crates/opencord-core/tests/private.rs`;
+    - 44 server private tests;
+    - 1025 Flutter tests in `app/test` (1 skipped).
+  - Workspace clippy (`opencord_core`, `opencord-server`), `app/tool/check_platforms.sh`, `dart format`, and `flutter analyze` pass with 0 errors and 0 warnings.
+
+
+
