@@ -199,6 +199,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   PrivateMessage dco_decode_box_autoadd_private_message(dynamic raw);
 
   @protected
+  PrivateSettings dco_decode_box_autoadd_private_settings(dynamic raw);
+
+  @protected
   ReadySnapshot dco_decode_box_autoadd_ready_snapshot(dynamic raw);
 
   @protected
@@ -826,6 +829,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   PrivateSendState dco_decode_private_send_state(dynamic raw);
 
   @protected
+  PrivateSettings dco_decode_private_settings(dynamic raw);
+
+  @protected
   PublicAddress dco_decode_public_address(dynamic raw);
 
   @protected
@@ -1218,6 +1224,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   PrivateMessage sse_decode_box_autoadd_private_message(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  PrivateSettings sse_decode_box_autoadd_private_settings(
     SseDeserializer deserializer,
   );
 
@@ -1995,6 +2006,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   PrivateSendState sse_decode_private_send_state(SseDeserializer deserializer);
 
   @protected
+  PrivateSettings sse_decode_private_settings(SseDeserializer deserializer);
+
+  @protected
   PublicAddress sse_decode_public_address(SseDeserializer deserializer);
 
   @protected
@@ -2467,6 +2481,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_box_autoadd_private_message(
     PrivateMessage self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_box_autoadd_private_settings(
+    PrivateSettings self,
     SseSerializer serializer,
   );
 
@@ -3472,6 +3492,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_private_send_state(
     PrivateSendState self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_private_settings(
+    PrivateSettings self,
     SseSerializer serializer,
   );
 

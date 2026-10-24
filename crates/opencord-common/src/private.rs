@@ -27,6 +27,8 @@ pub const PENDING_PAGE_BYTES: usize = 786_432;
 
 pub const MAX_OUTGOING_FRIEND_REQUESTS: i64 = 100;
 pub const MAX_BLOCKED_IDS: usize = 10_000;
+/// Friends listed in one `UpdatePrivacy`.
+pub const MAX_FRIEND_IDS: usize = 10_000;
 
 pub const SPAM_AFTER_DECLINES: u32 = 3;
 

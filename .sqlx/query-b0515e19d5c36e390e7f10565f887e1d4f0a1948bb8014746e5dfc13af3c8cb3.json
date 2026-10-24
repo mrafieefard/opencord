@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT OR IGNORE INTO private_friends (owner_id, friend_id) VALUES ($1, $2), ($2, $1)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "b0515e19d5c36e390e7f10565f887e1d4f0a1948bb8014746e5dfc13af3c8cb3"
+}

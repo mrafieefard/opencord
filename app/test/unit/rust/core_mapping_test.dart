@@ -165,6 +165,11 @@ void main() {
     final snapshot = snapshotFrom(
       core.ReadySnapshot(
         privateMessages: true,
+        privateSettings: const core.PrivateSettings(
+          enabled: true,
+          friendsOnly: false,
+          allowedByConfig: true,
+        ),
         voiceEnabled: true,
         voiceStates: const [],
         streams: const [],
@@ -216,6 +221,35 @@ void main() {
       expect(error.kind, RepoErrorKind.rateLimited);
       expect(error.message, 'slow down');
       expect(error.retryAfter, const Duration(milliseconds: 1500));
+    });
+
+    test('a friends-only refusal keeps its kind', () {
+      expect(
+        errorFrom(
+          const core.CoreError.server(
+            code: core.ErrorCode.friendsOnly,
+            message: 'friends only',
+          ),
+        ).kind,
+        RepoErrorKind.friendsOnly,
+      );
+    });
+
+    test('private settings map field by field', () {
+      expect(
+        privateSettingsFrom(
+          const core.PrivateSettings(
+            enabled: true,
+            friendsOnly: true,
+            allowedByConfig: false,
+          ),
+        ),
+        const ServerPrivateSettings(
+          enabled: true,
+          friendsOnly: true,
+          allowedByConfig: false,
+        ),
+      );
     });
 
     test('local errors read like the app', () {

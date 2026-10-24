@@ -35,6 +35,7 @@ All message bodies, edits, deletions, relay move notifications, and acceptance s
   - The number of registered devices per member.
   - Friend requests, answers, cancellations, and friend removals.
   - User privacy settings and member block lists on that server.
+  - On a server that relays only between friends, each member's friends among its members.
   - Typing signals and 64-byte permission slips.
 - **What servers cannot do:**
   - Read message content, edits, deletions, or relay move notices.
@@ -53,6 +54,12 @@ Private conversations are routed through a mutually shared server where private 
 - **The relay chip:** The chat header displays the current relay server. Clicking the relay chip lists mutual servers shared by both users.
 - **Moving a chat:** Either user can switch the relay to another mutual server. The mover's client sends an encrypted `RelayMoved` payload through the old relay, updates its local relay setting, and inserts a wavy `RelayDivider` with a clickable server link.
 - **Move too:** The recipient sees a `MoveCard` in chat notifying them of the move with a **Move too** button. Clicking "Move too" switches the recipient's outgoing relay to match, provided this device has joined that server.
+
+## Server settings
+
+Owners and anyone with **Manage server** choose in **Server settings → Private messages**:
+- **Private messages:** whether this server relays them at all. Off, it refuses private requests with `PRIVATE_MESSAGES_UNAVAILABLE`; apps stop offering it as a relay. `[private_messages] enabled = false` in the config file overrides this switch, which then can't be turned on.
+- **Only between friends:** messages and typing go only between two members who each list the other as a friend (`FRIENDS_ONLY` otherwise). Friend requests still go through, so people can become friends. Apps send their friend lists (`UpdatePrivacy.friend_user_ids`) only to servers with this on, and again whenever a friendship changes; a request accepted through the server, or a friend removed through it, counts at once. Turning it off forgets every list.
 
 ## Offline delivery and retention limits
 
@@ -231,3 +238,12 @@ You can test private messages end-to-end on a single development machine using t
 3. Send the message.
 4. Restart Bob's app.
 5. Bob connects, catches up, decrypts the message, and marks it read. The conversation history remains intact on both sides without duplicate or lost messages.
+
+### Scenario 8: A server that relays only between friends
+
+1. As the server's owner, open **Server settings → Private messages** and turn on **Only between friends**. Save.
+2. Bob, who isn't Alice's friend, messages Alice through this server. He's told the server only carries private messages between friends, and the server isn't offered in his relay menu for Alice.
+3. Bob sends Alice a friend request; it goes through. Alice accepts.
+4. Bob messages Alice again, at once: it's delivered.
+5. Alice removes Bob as a friend. Bob's next message is refused again.
+6. Turn **Private messages** off. Both apps stop offering the server for private messages; turn it back on and they register again.

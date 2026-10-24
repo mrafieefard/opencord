@@ -156,11 +156,12 @@ Each `Request` gets exactly one `Response`, which is either an `error` or the pa
 | `AckPendingEvents { ids }` | `ack` | The session's registered device; up to 500 ids |
 | `SendPrivateMessage { recipient_id, send_id, ciphertexts, slip? }` | `private_message_sent` | A member with a registered device; recipient must be a member; up to 20 ciphertexts, up to 32,768 bytes each; sender's rate limit |
 | `StartPrivateTyping { recipient_id, slip? }` | `ack` | A member; recipient must be a member |
-| `UpdatePrivacy { allow_friend_requests, allow_message_requests, blocked_user_ids }` | `ack` | Any member; up to 10,000 blocked IDs |
+| `UpdatePrivacy { allow_friend_requests, allow_message_requests, blocked_user_ids, friend_user_ids }` | `ack` | Any member; up to 10,000 blocked IDs and 10,000 friend IDs; friends are kept only while the server's `friends_only` is on, and clients send them only then |
 | `SendFriendRequest { user_id, slip }` | `friend_request_created` | A member with a registered device; target must be a member and not caller; caller's slip required; 10 per minute |
 | `AnswerFriendRequest { request_id, accept, slip? }` | `ack` | The target of the pending request; slip required on accept |
 | `CancelFriendRequest { request_id }` | `ack` | The creator of the pending request |
 | `RemoveFriend { user_id }` | `ack` | Any member |
+| `UpdatePrivateSettings { enabled?, friends_only? }` | `private_settings` | Manage server; `enabled: true` is refused with `INVALID_ARGUMENT` when the config file turns private messages off |
 
 Details:
 - **Messages:** the content is trimmed and must be 1–4 000 characters. Only text channels accept messages.
@@ -197,6 +198,7 @@ Every event goes to every session of the server, with these exceptions:
 | `StorageUpdate` | The owner's sessions |
 | `PendingEvent` | The session(s) holding that registered device |
 | `PrivateTypingStart` | The recipient's active sessions; never stored |
+| `PrivateSettingsUpdate` | Every session |
 
 Other events:
 - `RoleCreate`, `RoleUpdate`, `RoleDelete`, `ServerUpdate` and `PresenceUpdate` behave as their names say.
@@ -205,6 +207,7 @@ Other events:
 - Reordering sends one `ChannelUpdate` or `RoleUpdate` per moved item.
 - `SoundboardSoundCreate`, `SoundboardSoundUpdate` and `SoundboardSoundDelete` go to every session: everyone sees the soundboard.
 - `UploadSettingsUpdate` goes to every session when the blocked extensions or the voice message length change.
+- `PrivateSettingsUpdate` goes to every session when the owner turns private messages, or friends-only, on or off. `Ready.private_settings` carries the same on connect.
 
 When roles, member roles or overwrites change, the server recomputes visibility for every session and sends `ChannelCreate` or `ChannelDelete` accordingly. Clients recompute their own permissions from the roles, member and overwrite events with the shared resolver.
 
@@ -239,6 +242,7 @@ When roles, member roles or overwrites change, the server recomputes visibility 
 | `UNDELIVERABLE` | The recipient has blocked the caller, or has no registered devices |
 | `DEVICE_LIST_CHANGED` | The recipient's or caller's device set changed since the message was encrypted |
 | `PRIVATE_MESSAGES_UNAVAILABLE` | Private messages are disabled on this server, or the device is not registered |
+| `FRIENDS_ONLY` | The server relays private messages only between friends, and the two don't both list each other |
 
 ## Close codes
 
@@ -547,15 +551,16 @@ Private messages, friend requests, and offline delivery flow through shared serv
 ### Order of checks for messages (`SendPrivateMessage`)
 
 The server verifies, in order:
-1. Private messages are enabled on the server (`private_messages` in server config).
+1. Private messages are enabled on the server: the config file allows them and the owner has them on (`PrivateSettings.enabled`).
 2. The session has a registered device (otherwise `PRIVATE_MESSAGES_UNAVAILABLE`).
 3. The recipient is a member of the server, and is not the caller.
 4. The recipient has not blocked the caller (otherwise `UNDELIVERABLE`).
-5. The recipient accepts message requests (`allow_message_requests`), or the caller supplies the recipient's verified permission slip (otherwise `MESSAGE_REQUESTS_CLOSED`).
-6. The recipient has registered devices, and the provided ciphertexts cover all registered devices of the recipient and all other registered devices of the caller (otherwise `DEVICE_LIST_CHANGED`).
-7. Shape checks: at most 20 ciphertexts (`MAX_CIPHERTEXTS`), each at most 32,768 bytes (`MAX_CIPHERTEXT_BYTES`), and `send_id` is 16 bytes (`SEND_ID_LEN`).
-8. Rate limit: at most 5 messages per 5 seconds per recipient (`PRIVATE_MESSAGE_RATE`).
-9. Idempotency: a duplicate `send_id` within 24 hours (`RECENT_SEND_TTL_MS`) stores nothing and returns `PrivateMessageSent` with the original timestamp.
+5. Where `friends_only` is on, each lists the other in `friend_user_ids` (otherwise `FRIENDS_ONLY`). Typing gets the same check and is dropped silently.
+6. The recipient accepts message requests (`allow_message_requests`), or the caller supplies the recipient's verified permission slip (otherwise `MESSAGE_REQUESTS_CLOSED`).
+7. The recipient has registered devices, and the provided ciphertexts cover all registered devices of the recipient and all other registered devices of the caller (otherwise `DEVICE_LIST_CHANGED`).
+8. Shape checks: at most 20 ciphertexts (`MAX_CIPHERTEXTS`), each at most 32,768 bytes (`MAX_CIPHERTEXT_BYTES`), and `send_id` is 16 bytes (`SEND_ID_LEN`).
+9. Rate limit: at most 5 messages per 5 seconds per recipient (`PRIVATE_MESSAGE_RATE`).
+10. Idempotency: a duplicate `send_id` within 24 hours (`RECENT_SEND_TTL_MS`) stores nothing and returns `PrivateMessageSent` with the original timestamp.
 
 ### Order of checks for friend requests (`SendFriendRequest`)
 

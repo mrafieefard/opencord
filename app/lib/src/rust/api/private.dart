@@ -18,6 +18,18 @@ Future<PrivateOpened> privateOpen({required List<int> key}) =>
 Stream<PrivateEvent> privateEventStream() =>
     RustLib.instance.api.crateApiPrivatePrivateEventStream();
 
+/// MANAGE_SERVER: whether the server relays private messages, and only
+/// between friends. `None` leaves a setting as it is.
+Future<PrivateSettings> updatePrivateSettings({
+  required String serverKey,
+  bool? enabled,
+  bool? friendsOnly,
+}) => RustLib.instance.api.crateApiPrivateUpdatePrivateSettings(
+  serverKey: serverKey,
+  enabled: enabled,
+  friendsOnly: friendsOnly,
+);
+
 Future<List<PrivateContact>> privateContacts() =>
     RustLib.instance.api.crateApiPrivatePrivateContacts();
 

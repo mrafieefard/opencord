@@ -94,6 +94,8 @@ message Event {
     PendingEvent pending_event = 120;
     // To the recipient's sessions; never stored.
     PrivateTypingStart private_typing_start = 121;
+    // To everyone.
+    PrivateSettingsUpdate private_settings_update = 122;
   }
 }
 

@@ -700,6 +700,8 @@ class RustRepository implements OpencordRepository {
       ),
       core.CoreEventPayload_UploadSettingsUpdate(:final field0) =>
         UploadSettingsEvent(server, uploadSettingsFrom(field0)),
+      core.CoreEventPayload_PrivateSettingsUpdate(:final field0) =>
+        PrivateSettingsEvent(server, privateSettingsFrom(field0)),
       core.CoreEventPayload_StorageUpdate(:final field0) => StorageEvent(
         server,
         storageInfoFrom(field0),
@@ -2366,6 +2368,21 @@ class RustRepository implements OpencordRepository {
       () => _core.updateUploadSettings(
         serverKey: serverKey,
         blockedExtensions: blockedExtensions,
+      ),
+    ),
+  );
+
+  @override
+  Future<ServerPrivateSettings> updatePrivateSettings(
+    String serverKey, {
+    bool? enabled,
+    bool? friendsOnly,
+  }) async => privateSettingsFrom(
+    await _call(
+      () => _core.updatePrivateSettings(
+        serverKey: serverKey,
+        enabled: enabled,
+        friendsOnly: friendsOnly,
       ),
     ),
   );

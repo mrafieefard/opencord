@@ -144,12 +144,14 @@ pub(crate) fn decode_pending(event: &[u8]) -> Result<proto::PendingEvent, sqlx::
     proto::PendingEvent::decode(event).map_err(|error| sqlx::Error::Decode(Box::new(error)))
 }
 
-/// One member's privacy settings and block list on this server.
+/// One member's privacy settings and block list on this server, and their
+/// friends when the server relays only between friends.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Privacy {
     pub allow_friend_requests: bool,
     pub allow_message_requests: bool,
     pub blocked: HashSet<i64>,
+    pub friends: HashSet<i64>,
 }
 
 impl Default for Privacy {
@@ -158,7 +160,46 @@ impl Default for Privacy {
             allow_friend_requests: true,
             allow_message_requests: true,
             blocked: HashSet::new(),
+            friends: HashSet::new(),
         }
+    }
+}
+
+const SETTINGS_PREFIX: &str = "private.";
+const ENABLED_KEY: &str = "private.enabled";
+const FRIENDS_ONLY_KEY: &str = "private.friends_only";
+
+/// What the owner chose in Server settings, kept in `server_meta`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct OwnerSettings {
+    pub enabled: bool,
+    pub friends_only: bool,
+}
+
+impl Default for OwnerSettings {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            friends_only: false,
+        }
+    }
+}
+
+impl OwnerSettings {
+    pub async fn load(conn: &mut SqliteConnection) -> Result<Self, sqlx::Error> {
+        let values = db::meta::load_prefixed(conn, SETTINGS_PREFIX).await?;
+        let defaults = Self::default();
+        let flag =
+            |key: &str, default: bool| values.get(key).map_or(default, |value| value == "true");
+        Ok(Self {
+            enabled: flag(ENABLED_KEY, defaults.enabled),
+            friends_only: flag(FRIENDS_ONLY_KEY, defaults.friends_only),
+        })
+    }
+
+    pub async fn save(&self, conn: &mut SqliteConnection) -> Result<(), sqlx::Error> {
+        db::meta::put(conn, ENABLED_KEY, Some(&self.enabled.to_string())).await?;
+        db::meta::put(conn, FRIENDS_ONLY_KEY, Some(&self.friends_only.to_string())).await
     }
 }
 
@@ -176,36 +217,66 @@ pub struct PrivateCounts {
 
 #[derive(Debug)]
 pub struct PrivateMessages {
-    enabled: bool,
+    /// `[private_messages] enabled`.
+    allowed_by_config: bool,
+    owner: RwLock<OwnerSettings>,
     /// Members who sent `UpdatePrivacy`. An entry is replaced by the next
     /// one and removed by [`Self::forget`]; everyone else has the default.
     privacy: RwLock<HashMap<i64, Privacy>>,
 }
 
 impl PrivateMessages {
-    pub fn new(enabled: bool) -> Self {
+    pub fn new(allowed_by_config: bool) -> Self {
         Self {
-            enabled,
+            allowed_by_config,
+            owner: RwLock::new(OwnerSettings::default()),
             privacy: RwLock::new(HashMap::new()),
         }
     }
 
-    /// `[private_messages] enabled`.
+    /// Whether this server relays private messages: the config file allows
+    /// them and the owner has them on.
     pub fn enabled(&self) -> bool {
-        self.enabled
+        self.allowed_by_config && self.owner_settings().enabled
     }
 
-    /// Reads the saved settings and blocks, at startup.
+    /// Messages and typing go only between two members who list each other.
+    pub fn friends_only(&self) -> bool {
+        self.owner_settings().friends_only
+    }
+
+    pub fn owner_settings(&self) -> OwnerSettings {
+        *self.owner.read().unwrap_or_else(PoisonError::into_inner)
+    }
+
+    /// After the database has the same.
+    pub fn set_owner_settings(&self, settings: OwnerSettings) {
+        *self.owner.write().unwrap_or_else(PoisonError::into_inner) = settings;
+    }
+
+    pub fn settings_proto(&self) -> proto::PrivateSettings {
+        let owner = self.owner_settings();
+        proto::PrivateSettings {
+            enabled: self.enabled(),
+            friends_only: owner.friends_only,
+            allowed_by_config: self.allowed_by_config,
+        }
+    }
+
+    /// Reads the owner's settings, and every member's saved settings,
+    /// blocks and friends, at startup.
     pub async fn load(&self, conn: &mut SqliteConnection) -> Result<(), sqlx::Error> {
+        self.set_owner_settings(OwnerSettings::load(conn).await?);
         let settings = db::private::privacy_settings(conn).await?;
         let blocks = db::private::blocks(conn).await?;
+        let friends = db::private::friends(conn).await?;
         let mut privacy: HashMap<i64, Privacy> = settings
             .into_iter()
             .map(|row| {
                 let saved = Privacy {
                     allow_friend_requests: row.allow_friend_requests,
                     allow_message_requests: row.allow_message_requests,
-                    blocked: HashSet::new(),
+                    ..Privacy::default()
                 };
                 (row.user_id, saved)
             })
@@ -213,8 +284,44 @@ impl PrivateMessages {
         for (owner, blocked) in blocks {
             privacy.entry(owner).or_default().blocked.insert(blocked);
         }
+        for (owner, friend) in friends {
+            privacy.entry(owner).or_default().friends.insert(friend);
+        }
         *self.privacy.write().unwrap_or_else(PoisonError::into_inner) = privacy;
         Ok(())
+    }
+
+    /// Whether `a` and `b` each list the other as a friend.
+    pub fn are_friends(&self, a: i64, b: i64) -> bool {
+        let privacy = self.privacy.read().unwrap_or_else(PoisonError::into_inner);
+        let lists = |owner: i64, other: i64| {
+            privacy
+                .get(&owner)
+                .is_some_and(|saved| saved.friends.contains(&other))
+        };
+        lists(a, b) && lists(b, a)
+    }
+
+    /// After the database has the same: a request between them was
+    /// accepted here (`true`), or one removed the other (`false`).
+    pub fn set_friends(&self, a: i64, b: i64, friends: bool) {
+        let mut privacy = self.privacy.write().unwrap_or_else(PoisonError::into_inner);
+        for (owner, other) in [(a, b), (b, a)] {
+            let list = &mut privacy.entry(owner).or_default().friends;
+            if friends {
+                list.insert(other);
+            } else {
+                list.remove(&other);
+            }
+        }
+    }
+
+    /// After the database has the same.
+    pub fn clear_friends(&self) {
+        let mut privacy = self.privacy.write().unwrap_or_else(PoisonError::into_inner);
+        for saved in privacy.values_mut() {
+            saved.friends.clear();
+        }
     }
 
     pub fn privacy(&self, user_id: i64) -> Privacy {
@@ -238,12 +345,14 @@ impl PrivateMessages {
             .insert(user_id, privacy);
     }
 
-    /// For a member who was kicked or banned.
+    /// For a member who was kicked or banned: their own entry, and their
+    /// place in others' friend lists.
     pub fn forget(&self, user_id: i64) {
-        self.privacy
-            .write()
-            .unwrap_or_else(PoisonError::into_inner)
-            .remove(&user_id);
+        let mut privacy = self.privacy.write().unwrap_or_else(PoisonError::into_inner);
+        privacy.remove(&user_id);
+        for saved in privacy.values_mut() {
+            saved.friends.remove(&user_id);
+        }
     }
 
     /// The member's own settings, if they sent any.

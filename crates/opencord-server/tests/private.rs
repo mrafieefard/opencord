@@ -370,6 +370,7 @@ async fn privacy_and_blocks_replace_earlier_ones_and_survive_a_restart() {
             allow_friend_requests: true,
             allow_message_requests: true,
             blocked_user_ids: vec![a],
+            friend_user_ids: Vec::new(),
         }))
         .await;
     assert_eq!(
@@ -382,6 +383,7 @@ async fn privacy_and_blocks_replace_earlier_ones_and_survive_a_restart() {
             allow_message_requests: true,
             // Not members, the caller, and a repeat: dropped.
             blocked_user_ids: vec![b, 424_242, me, b],
+            friend_user_ids: Vec::new(),
         }))
         .await;
 
@@ -408,6 +410,7 @@ async fn too_many_blocked_ids_are_refused() {
             allow_friend_requests: true,
             allow_message_requests: true,
             blocked_user_ids: (0..10_001).collect(),
+            friend_user_ids: Vec::new(),
         }))
         .await;
 
@@ -758,6 +761,7 @@ async fn a_kicked_member_leaves_nothing_behind() {
                 allow_friend_requests: false,
                 allow_message_requests: false,
                 blocked_user_ids: vec![owner_id],
+                friend_user_ids: Vec::new(),
             }))
             .await;
         server
@@ -858,6 +862,7 @@ fn privacy(allow_message_requests: bool, blocked_user_ids: Vec<i64>) -> Kind {
         allow_friend_requests: true,
         allow_message_requests,
         blocked_user_ids,
+        friend_user_ids: Vec::new(),
     })
 }
 
@@ -1457,6 +1462,7 @@ async fn closed_friend_requests_give_their_error() {
         allow_friend_requests: false,
         allow_message_requests: true,
         blocked_user_ids: Vec::new(),
+        friend_user_ids: Vec::new(),
     }))
     .await;
 
@@ -1618,4 +1624,146 @@ async fn a_kick_removes_the_kicked_persons_requests() {
         .await;
     let page = fetch_pending(&mut b1_again, 0, 100).await;
     assert_eq!(page.events.len(), 0);
+}
+
+fn private_settings(enabled: Option<bool>, friends_only: Option<bool>) -> Kind {
+    Kind::UpdatePrivateSettings(proto::UpdatePrivateSettings {
+        enabled,
+        friends_only,
+    })
+}
+
+fn friends(friend_user_ids: Vec<i64>) -> Kind {
+    Kind::UpdatePrivacy(proto::UpdatePrivacy {
+        allow_friend_requests: true,
+        allow_message_requests: true,
+        blocked_user_ids: Vec::new(),
+        friend_user_ids,
+    })
+}
+
+async fn change_settings(client: &mut TestClient, request: Kind) -> proto::PrivateSettings {
+    match client.ok(request).await {
+        Response::PrivateSettings(settings) => settings,
+        other => panic!("expected PrivateSettings, got {other:?}"),
+    }
+}
+
+#[tokio::test]
+async fn the_owner_turns_private_messages_off_and_on_for_everyone() {
+    let server = TestServer::start().await;
+    let (mut a1, _a, mut b1, b) = people(&server).await;
+
+    // Only with Manage server.
+    let error = b1.error(private_settings(Some(false), None)).await;
+    assert_code(&error, proto::ErrorCode::Forbidden);
+
+    let off = change_settings(&mut a1, private_settings(Some(false), None)).await;
+    assert!(!off.enabled && !off.friends_only && off.allowed_by_config);
+    let heard = b1
+        .wait_for(|kind| match kind {
+            Event::PrivateSettingsUpdate(update) => update.settings,
+            _ => None,
+        })
+        .await;
+    assert_eq!(heard, off);
+    let error = a1
+        .error(message(b, 1, vec![copy(b, B1, vec![1])], Vec::new()))
+        .await;
+    assert_code(&error, proto::ErrorCode::PrivateMessagesUnavailable);
+
+    // Kept across a restart, and in Ready.
+    drop((a1, b1));
+    let server = server.restart(|_| {}).await;
+    let (mut a1, ready) = owner_again(&server).await;
+    assert!(!ready.private_messages);
+    assert_eq!(ready.private_settings, Some(off));
+
+    let on = change_settings(&mut a1, private_settings(Some(true), None)).await;
+    assert!(on.enabled);
+}
+
+#[tokio::test]
+async fn the_config_file_keeps_them_off_whatever_the_owner_sets() {
+    let server = TestServer::start_with(|config| config.private_messages.enabled = false).await;
+    let (mut a1, ready) = owner(&server).await;
+    let settings = ready.private_settings.expect("private settings");
+    assert!(!settings.enabled && !settings.allowed_by_config);
+
+    let error = a1.error(private_settings(Some(true), None)).await;
+    assert_code(&error, proto::ErrorCode::InvalidArgument);
+}
+
+#[tokio::test]
+async fn friends_only_needs_both_to_list_each_other() {
+    let server = TestServer::start().await;
+    let (mut a1, a, mut b1, b) = people(&server).await;
+    // Lists sent before friends-only are not kept.
+    a1.ok(friends(vec![b])).await;
+    b1.ok(friends(vec![a])).await;
+    change_settings(&mut a1, private_settings(None, Some(true))).await;
+    let to_b = |send_id| message(b, send_id, vec![copy(b, B1, vec![1])], Vec::new());
+
+    let error = a1.error(to_b(1)).await;
+    assert_code(&error, proto::ErrorCode::FriendsOnly);
+    a1.ok(typing(b, Vec::new())).await;
+    b1.assert_no_event(Duration::from_millis(500), is_typing)
+        .await;
+
+    // One side only: still refused.
+    a1.ok(friends(vec![b])).await;
+    let error = a1.error(to_b(2)).await;
+    assert_code(&error, proto::ErrorCode::FriendsOnly);
+
+    b1.ok(friends(vec![a])).await;
+    send(&mut a1, to_b(3)).await;
+    a1.ok(typing(b, Vec::new())).await;
+    b1.wait_for(|kind| is_typing(kind).then_some(())).await;
+
+    // Kept across a restart.
+    drop((a1, b1));
+    let server = server.restart(|_| {}).await;
+    let (mut a1, _) = owner_again(&server).await;
+    a1.register_device(&key(1), &TestDevice::new(A1), 0).await;
+    send(&mut a1, to_b(4)).await;
+
+    // Turning friends-only off forgets the lists.
+    change_settings(&mut a1, private_settings(None, Some(false))).await;
+    send(&mut a1, to_b(5)).await;
+    change_settings(&mut a1, private_settings(None, Some(true))).await;
+    let error = a1.error(to_b(6)).await;
+    assert_code(&error, proto::ErrorCode::FriendsOnly);
+}
+
+#[tokio::test]
+async fn a_request_accepted_here_makes_friends_at_once_where_only_friends_talk() {
+    let server = TestServer::start().await;
+    let (mut a1, a, mut b1, b) = people(&server).await;
+    change_settings(&mut a1, private_settings(None, Some(true))).await;
+
+    // Friend requests still go through.
+    let created = send_friend_request(&mut a1, b, slip(&key(1), &public_key(2))).await;
+    b1.ok(answer_request(
+        created.request_id,
+        true,
+        slip(&key(2), &public_key(1)),
+    ))
+    .await;
+    // Neither app has sent its list yet.
+    send(
+        &mut a1,
+        message(b, 1, vec![copy(b, B1, vec![1])], Vec::new()),
+    )
+    .await;
+    send(
+        &mut b1,
+        message(a, 2, vec![copy(a, A1, vec![1])], Vec::new()),
+    )
+    .await;
+
+    b1.ok(remove_friend(a)).await;
+    let error = a1
+        .error(message(b, 3, vec![copy(b, B1, vec![1])], Vec::new()))
+        .await;
+    assert_code(&error, proto::ErrorCode::FriendsOnly);
 }

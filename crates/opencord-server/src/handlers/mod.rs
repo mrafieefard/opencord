@@ -173,6 +173,9 @@ async fn dispatch(ctx: &Ctx<'_>, request: proto::Request) -> Result<Response, Ap
         Kind::AnswerFriendRequest(request) => friends::answer_friend_request(ctx, request).await,
         Kind::CancelFriendRequest(request) => friends::cancel_friend_request(ctx, request).await,
         Kind::RemoveFriend(request) => friends::remove_friend(ctx, request).await,
+        Kind::UpdatePrivateSettings(request) => {
+            private::update_private_settings(ctx, request).await
+        }
     }
 }
 

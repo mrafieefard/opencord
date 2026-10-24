@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 
+import 'package:opencord/core/model/private.dart';
 import 'package:opencord/core/model/attachment.dart';
 import 'package:opencord/core/model/channel.dart';
 import 'package:opencord/core/model/commands.dart';
@@ -29,6 +30,7 @@ class ServerData {
     this.commands = const CommandList(),
     this.uploadSettings = UploadSettings.fallback,
     this.privateMessages = false,
+    this.privateSettings = const ServerPrivateSettings(),
   });
 
   factory ServerData.fromSnapshot(ReadySnapshot snapshot) => ServerData(
@@ -45,6 +47,7 @@ class ServerData {
     commands: snapshot.commands,
     uploadSettings: snapshot.uploadSettings,
     privateMessages: snapshot.privateMessages,
+    privateSettings: snapshot.privateSettings,
   );
 
   final User self;
@@ -67,6 +70,7 @@ class ServerData {
 
   final UploadSettings uploadSettings;
   final bool privateMessages;
+  final ServerPrivateSettings privateSettings;
 
   bool get isOwner => info.ownerId == self.id;
 
@@ -143,6 +147,7 @@ class ServerData {
     CommandList? commands,
     UploadSettings? uploadSettings,
     bool? privateMessages,
+    ServerPrivateSettings? privateSettings,
   }) => ServerData(
     self: self,
     info: info ?? this.info,
@@ -157,6 +162,7 @@ class ServerData {
     commands: commands ?? this.commands,
     uploadSettings: uploadSettings ?? this.uploadSettings,
     privateMessages: privateMessages ?? this.privateMessages,
+    privateSettings: privateSettings ?? this.privateSettings,
   );
 }
 
@@ -252,6 +258,10 @@ ServerState reduceServer(ServerState state, RepoEvent event) {
     ),
     UploadSettingsEvent(:final settings) => data.copyWith(
       uploadSettings: settings,
+    ),
+    PrivateSettingsEvent(:final settings) => data.copyWith(
+      privateMessages: settings.enabled,
+      privateSettings: settings,
     ),
     _ => null,
   };

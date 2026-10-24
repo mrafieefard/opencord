@@ -519,6 +519,13 @@ final class DownloadProgressEvent extends RepoEvent {
 }
 
 /// Upload limits or blocked extensions changed on the server.
+/// The owner changed private messages on this server.
+final class PrivateSettingsEvent extends RepoEvent {
+  const PrivateSettingsEvent(super.serverKey, this.settings);
+
+  final ServerPrivateSettings settings;
+}
+
 final class UploadSettingsEvent extends RepoEvent {
   const UploadSettingsEvent(super.serverKey, this.settings);
 

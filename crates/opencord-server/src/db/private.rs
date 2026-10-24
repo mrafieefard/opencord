@@ -35,10 +35,61 @@ pub async fn blocks(conn: &mut SqliteConnection) -> Result<Vec<(i64, i64)>, sqlx
 }
 
 /// Replaces the member's settings and block list. Run it in a transaction.
+/// Every (owner, friend) a member listed.
+pub async fn friends(conn: &mut SqliteConnection) -> Result<Vec<(i64, i64)>, sqlx::Error> {
+    let rows = sqlx::query!("SELECT owner_id, friend_id FROM private_friends")
+        .fetch_all(conn)
+        .await?;
+    Ok(rows
+        .into_iter()
+        .map(|row| (row.owner_id, row.friend_id))
+        .collect())
+}
+
+/// Records that `a` and `b` list each other: a request between them was
+/// accepted here.
+pub async fn add_friends(conn: &mut SqliteConnection, a: i64, b: i64) -> Result<(), sqlx::Error> {
+    sqlx::query!(
+        "INSERT OR IGNORE INTO private_friends (owner_id, friend_id) VALUES ($1, $2), ($2, $1)",
+        a,
+        b
+    )
+    .execute(conn)
+    .await?;
+    Ok(())
+}
+
+/// `a` and `b` no longer list each other.
+pub async fn remove_friends(
+    conn: &mut SqliteConnection,
+    a: i64,
+    b: i64,
+) -> Result<(), sqlx::Error> {
+    sqlx::query!(
+        "DELETE FROM private_friends
+         WHERE (owner_id = $1 AND friend_id = $2) OR (owner_id = $2 AND friend_id = $1)",
+        a,
+        b
+    )
+    .execute(conn)
+    .await?;
+    Ok(())
+}
+
+/// Forgets every friend list, when the server stops relaying only between
+/// friends.
+pub async fn clear_friends(conn: &mut SqliteConnection) -> Result<(), sqlx::Error> {
+    sqlx::query!("DELETE FROM private_friends")
+        .execute(conn)
+        .await?;
+    Ok(())
+}
+
 pub async fn save_privacy(
     conn: &mut SqliteConnection,
     privacy: &PrivacyRow,
     blocked: &[i64],
+    friends: &[i64],
     now_ms: i64,
 ) -> Result<(), sqlx::Error> {
     let user_id = privacy.user_id;
@@ -65,6 +116,18 @@ pub async fn save_privacy(
             "INSERT INTO private_blocks (owner_id, blocked_id) VALUES ($1, $2)",
             user_id,
             blocked_id
+        )
+        .execute(&mut *conn)
+        .await?;
+    }
+    sqlx::query!("DELETE FROM private_friends WHERE owner_id = $1", user_id)
+        .execute(&mut *conn)
+        .await?;
+    for friend_id in friends {
+        sqlx::query!(
+            "INSERT INTO private_friends (owner_id, friend_id) VALUES ($1, $2)",
+            user_id,
+            friend_id
         )
         .execute(&mut *conn)
         .await?;
@@ -535,8 +598,9 @@ pub async fn delete_recent_sends_before(
 }
 
 /// Deletes the member's devices (with their keys and events), settings,
-/// own blocks, and friend requests to or from them with the events that
-/// carry those requests. Run it in a transaction.
+/// own blocks, their friend list and others' entries for them, and friend
+/// requests to or from them with the events that carry those requests. Run
+/// it in a transaction.
 pub async fn forget_member(conn: &mut SqliteConnection, user_id: i64) -> Result<(), sqlx::Error> {
     sqlx::query!(
         "DELETE FROM private_pending WHERE friend_request_id IN (
@@ -560,6 +624,12 @@ pub async fn forget_member(conn: &mut SqliteConnection, user_id: i64) -> Result<
     sqlx::query!("DELETE FROM private_blocks WHERE owner_id = $1", user_id)
         .execute(&mut *conn)
         .await?;
+    sqlx::query!(
+        "DELETE FROM private_friends WHERE owner_id = $1 OR friend_id = $1",
+        user_id
+    )
+    .execute(&mut *conn)
+    .await?;
     Ok(())
 }
 

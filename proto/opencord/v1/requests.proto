@@ -143,6 +143,7 @@ message Request {
     AnswerFriendRequest answer_friend_request = 191;
     CancelFriendRequest cancel_friend_request = 192;
     RemoveFriend remove_friend = 193;
+    UpdatePrivateSettings update_private_settings = 194;
   }
 }
 
@@ -191,6 +192,7 @@ message Response {
     PendingEvents pending_events = 37;
     PrivateMessageSent private_message_sent = 38;
     FriendRequestCreated friend_request_created = 39;
+    PrivateSettings private_settings = 40;
   }
 }
 

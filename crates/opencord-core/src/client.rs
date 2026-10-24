@@ -21,12 +21,12 @@ use crate::api::types::{
     ChannelChanges, ChannelKind, ChannelPosition, CoreError, CoreEvent, CoreEventPayload,
     ErrorCode, HotkeyBinding, HotkeySupport, IdentityInfo, Invite, MediaEvent, MediaHandle, Member,
     Message, OutgoingFile, OverwriteTargetKind, PermissionOverwrite, PlaybackItem, PresenceStatus,
-    PrivacySettingsData, PrivateContact, PrivateEvent, PrivateMessage, PrivateOpened, Role,
-    RoleChanges, S3Config, ScreenProblem, ScreenShareRequest, ScreenShareStarted, ScreenStream,
-    Server, ServerChanges, ServerInfo, SharedServer, SoundDraft, SoundSelection, SoundboardSound,
-    SoundboardSoundChanges, StorageInfo, StorageTestResult, StorageTestTarget, StreamSourceKind,
-    UploadSettings, User, VideoWant, VoiceCue, VoiceDraft, VoiceSettings, VoiceSettingsChanges,
-    VoiceState,
+    PrivacySettingsData, PrivateContact, PrivateEvent, PrivateMessage, PrivateOpened,
+    PrivateSettings, Role, RoleChanges, S3Config, ScreenProblem, ScreenShareRequest,
+    ScreenShareStarted, ScreenStream, Server, ServerChanges, ServerInfo, SharedServer, SoundDraft,
+    SoundSelection, SoundboardSound, SoundboardSoundChanges, StorageInfo, StorageTestResult,
+    StorageTestTarget, StreamSourceKind, UploadSettings, User, VideoWant, VoiceCue, VoiceDraft,
+    VoiceSettings, VoiceSettingsChanges, VoiceState,
 };
 use crate::artwork::ArtworkCache;
 use crate::attachments::cache::{self, MediaCache};
@@ -2275,6 +2275,23 @@ impl Client {
         });
         match self.request(key, request).await? {
             Response::UploadSettings(settings) => Ok(convert::upload_settings(settings)),
+            other => Err(unexpected(&other)),
+        }
+    }
+
+    /// MANAGE_SERVER. `None` leaves a setting as it is.
+    pub async fn update_private_settings(
+        &self,
+        key: &str,
+        enabled: Option<bool>,
+        friends_only: Option<bool>,
+    ) -> Result<PrivateSettings, CoreError> {
+        let request = Request::UpdatePrivateSettings(proto::UpdatePrivateSettings {
+            enabled,
+            friends_only,
+        });
+        match self.request(key, request).await? {
+            Response::PrivateSettings(settings) => Ok(convert::private_settings(settings)),
             other => Err(unexpected(&other)),
         }
     }

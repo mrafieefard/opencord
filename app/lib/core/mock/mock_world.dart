@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:opencord/core/mock/mock_commands.dart';
+import 'package:opencord/core/model/private.dart';
 import 'package:opencord/core/model/attachment.dart';
 import 'package:opencord/core/model/commands.dart';
 import 'package:opencord/core/model/stream.dart';
@@ -108,6 +109,9 @@ class MockServer {
   /// Every chat command, on or off (Phase 3 plan §17).
   CommandList commands = CommandList(commands: mockCommandSpecs);
   bool privateMessages = true;
+  ServerPrivateSettings privateSettings = const ServerPrivateSettings(
+    enabled: true,
+  );
 
   /// What members can use: enabled, with music set up.
   CommandList get availableCommands => CommandList(
@@ -252,6 +256,7 @@ class MockServer {
       commands: availableCommands,
       uploadSettings: uploadSettings,
       privateMessages: privateMessages,
+      privateSettings: privateSettings,
     );
   }
 }

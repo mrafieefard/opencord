@@ -366,6 +366,19 @@ pub struct ReadySnapshot {
     pub commands: CommandList,
     pub upload_settings: UploadSettings,
     pub private_messages: bool,
+    pub private_settings: PrivateSettings,
+}
+
+/// What the owner chose for private messages on a server.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct PrivateSettings {
+    /// The server relays private messages.
+    pub enabled: bool,
+    /// Only between two members who are each other's friends.
+    pub friends_only: bool,
+    /// False when the server's config file turns them off; the owner then
+    /// can't turn them on.
+    pub allowed_by_config: bool,
 }
 
 /// One address a server is reached at.
@@ -593,6 +606,7 @@ pub enum CoreEventPayload {
     /// A command's reply only this device sees.
     EphemeralMessage(EphemeralMessage),
     UploadSettingsUpdate(UploadSettings),
+    PrivateSettingsUpdate(PrivateSettings),
     /// To the owner only.
     StorageUpdate(StorageInfo),
     /// A file staged with `stage_upload`, at most 10 times a second, and
@@ -985,6 +999,7 @@ pub enum ErrorCode {
     Undeliverable,
     DeviceListChanged,
     PrivateMessagesUnavailable,
+    FriendsOnly,
     Unknown,
 }
 
@@ -2152,6 +2167,8 @@ pub struct SharedServer {
     pub name: String,
     pub connected: bool,
     pub private_messages: bool,
+    /// Messages go there only between friends.
+    pub friends_only: bool,
     pub peer_user_id: i64,
 }
 

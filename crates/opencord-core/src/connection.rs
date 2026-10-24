@@ -882,6 +882,13 @@ impl Task {
                 .private
                 .on_member_event(&self.context.key, &kind);
         }
+        if let proto::event::Kind::PrivateSettingsUpdate(update) = &kind
+            && let Some(settings) = &update.settings
+        {
+            self.context
+                .private
+                .on_private_settings(&self.context.key, settings);
+        }
         if let proto::event::Kind::ServerAddressesUpdate(update) = &kind
             && let Some(addresses) = &update.addresses
         {

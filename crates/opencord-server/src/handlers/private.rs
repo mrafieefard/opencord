@@ -3,10 +3,12 @@
 
 use std::collections::HashSet;
 
+use opencord_common::permissions::Permissions;
 use opencord_common::private::{
     self as rules, DEVICE_ID_LEN, KEY_LEN, MAX_ACK_IDS, MAX_BLOCKED_IDS, MAX_CIPHERTEXT_BYTES,
     MAX_CIPHERTEXTS, MAX_CLAIM_DEVICES, MAX_DEVICES_PER_USER, MAX_FETCH_DEVICES_USERS,
-    MAX_STORED_ONE_TIME_KEYS, PENDING_PAGE_BYTES, PENDING_PAGE_EVENTS, SEND_ID_LEN, SIGNATURE_LEN,
+    MAX_FRIEND_IDS, MAX_STORED_ONE_TIME_KEYS, PENDING_PAGE_BYTES, PENDING_PAGE_EVENTS, SEND_ID_LEN,
+    SIGNATURE_LEN,
 };
 use opencord_proto::v1 as proto;
 use proto::event::Kind as Event;
@@ -16,7 +18,8 @@ use sqlx::SqliteConnection;
 use super::{Ctx, ack};
 use crate::db::private::{self as db, DeviceRow, PrivacyRow};
 use crate::error::ApiError;
-use crate::private::{Pending, Privacy, devices_of, insert_pending, push_pending};
+use crate::permissions::require_base;
+use crate::private::{OwnerSettings, Pending, Privacy, devices_of, insert_pending, push_pending};
 use crate::state::{Audience, now_ms};
 
 /// The session's device, or `PRIVATE_MESSAGES_UNAVAILABLE` when it has none
@@ -446,8 +449,9 @@ fn people(ctx: &Ctx<'_>, recipient_id: i64) -> Result<People, ApiError> {
     })
 }
 
-/// The recipient hasn't blocked the caller, and takes messages from them:
-/// from anyone, or with the recipient's permission slip for the caller.
+/// The recipient hasn't blocked the caller, the two are friends where the
+/// server relays only between friends, and the recipient takes messages
+/// from the caller: from anyone, or with their permission slip.
 fn may_reach(
     ctx: &Ctx<'_>,
     recipient_id: i64,
@@ -457,6 +461,9 @@ fn may_reach(
     let private = &ctx.state.private;
     if private.has_blocked(recipient_id, ctx.user_id) {
         return Err(ApiError::undeliverable());
+    }
+    if private.friends_only() && !private.are_friends(ctx.user_id, recipient_id) {
+        return Err(ApiError::friends_only());
     }
     let open = private.privacy(recipient_id).allow_message_requests;
     if !open && !rules::verify_slip(&people.recipient_key, &people.caller.public_key, slip) {
@@ -573,21 +580,34 @@ pub async fn update_privacy(
             "at most {MAX_BLOCKED_IDS} members can be blocked"
         )));
     }
+    if request.friend_user_ids.len() > MAX_FRIEND_IDS {
+        return Err(ApiError::invalid_argument(format!(
+            "at most {MAX_FRIEND_IDS} friends can be listed"
+        )));
+    }
     // In step with kicks and bans, which forget a member's settings, and
     // with this member's other sessions.
     let _writes = ctx.state.write_lock().await;
-    // 2. Members only, never the caller.
-    let blocked: HashSet<i64> = {
+    // 2. Members only, never the caller. Friends are kept only where
+    // messages go only between friends.
+    let keep_friends = ctx.state.private.friends_only();
+    let (blocked, friends): (HashSet<i64>, HashSet<i64>) = {
         let guild = ctx.state.guild();
         if !guild.members.contains_key(&ctx.user_id) {
             return Err(ApiError::not_found("member"));
         }
-        request
-            .blocked_user_ids
-            .iter()
-            .copied()
-            .filter(|id| *id != ctx.user_id && guild.members.contains_key(id))
-            .collect()
+        let members = |ids: &[i64]| -> HashSet<i64> {
+            ids.iter()
+                .copied()
+                .filter(|id| *id != ctx.user_id && guild.members.contains_key(id))
+                .collect()
+        };
+        let friends = if keep_friends {
+            members(&request.friend_user_ids)
+        } else {
+            HashSet::new()
+        };
+        (members(&request.blocked_user_ids), friends)
     };
     // 3.
     let row = PrivacyRow {
@@ -596,8 +616,9 @@ pub async fn update_privacy(
         allow_message_requests: request.allow_message_requests,
     };
     let blocked_ids: Vec<i64> = blocked.iter().copied().collect();
+    let friend_ids: Vec<i64> = friends.iter().copied().collect();
     let mut tx = ctx.state.db.begin().await?;
-    db::save_privacy(&mut tx, &row, &blocked_ids, now_ms()).await?;
+    db::save_privacy(&mut tx, &row, &blocked_ids, &friend_ids, now_ms()).await?;
     tx.commit().await?;
     // 4.
     ctx.state.private.set_privacy(
@@ -606,9 +627,54 @@ pub async fn update_privacy(
             allow_friend_requests: row.allow_friend_requests,
             allow_message_requests: row.allow_message_requests,
             blocked,
+            friends,
         },
     );
     Ok(ack())
+}
+
+/// The owner's switches (Manage server): whether this server relays
+/// private messages, and whether only between friends. Turning
+/// friends-only off forgets every friend list it was given.
+pub async fn update_private_settings(
+    ctx: &Ctx<'_>,
+    request: proto::UpdatePrivateSettings,
+) -> Result<Response, ApiError> {
+    let _writes = ctx.state.write_lock().await;
+    {
+        let guild = ctx.state.guild();
+        require_base(&guild, ctx.user_id, Permissions::MANAGE_SERVER)?;
+    }
+    let private = &ctx.state.private;
+    let current = private.owner_settings();
+    let updated = OwnerSettings {
+        enabled: request.enabled.unwrap_or(current.enabled),
+        friends_only: request.friends_only.unwrap_or(current.friends_only),
+    };
+    if request.enabled == Some(true) && !private.settings_proto().allowed_by_config {
+        return Err(ApiError::invalid_argument(
+            "private messages are turned off in this server's config file",
+        ));
+    }
+    let mut tx = ctx.state.db.begin().await?;
+    updated.save(&mut tx).await?;
+    let forget_friends = current.friends_only && !updated.friends_only;
+    if forget_friends {
+        db::clear_friends(&mut tx).await?;
+    }
+    tx.commit().await?;
+    private.set_owner_settings(updated);
+    if forget_friends {
+        private.clear_friends();
+    }
+    let settings = private.settings_proto();
+    ctx.state.broadcast(
+        Event::PrivateSettingsUpdate(proto::PrivateSettingsUpdate {
+            settings: Some(settings),
+        }),
+        Audience::Everyone,
+    );
+    Ok(Response::PrivateSettings(settings))
 }
 
 fn require_enabled(ctx: &Ctx<'_>) -> Result<(), ApiError> {

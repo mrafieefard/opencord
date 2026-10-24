@@ -2949,3 +2949,119 @@ async fn the_database_file_holds_no_plaintext() {
     assert_sealed_on_disk(&a, relay, &[SENTENCE]);
     assert_sealed_on_disk(&b, relay, &[SENTENCE, NAME]);
 }
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_friends_only_server_carries_friends_but_not_strangers() {
+    let server = TestServer::start().await;
+    let (mut a, a_ready, mut b, b_ready) = owner_and_member(&server).await;
+    let invite = a
+        .client
+        .create_invite(&server.address(), None, None, None)
+        .await
+        .unwrap();
+    let mut c = TestClient::new("C");
+    c.client.add_server(&invite.link, None).await.unwrap();
+    let c_ready = c.ready().await;
+
+    a.open_private(1).await;
+    b.open_private(2).await;
+    c.open_private(3).await;
+    server.counts_until(a_ready.self_user.id, registered).await;
+    server.counts_until(b_ready.self_user.id, registered).await;
+    server.counts_until(c_ready.self_user.id, registered).await;
+
+    // A and B become friends while the server still carries everyone, so
+    // it learns of the friendship only from the apps.
+    let b_hex = hex::encode(b.identity.public_key());
+    let a_hex = hex::encode(a.identity.public_key());
+    let server_key = a.client.servers()[0].key.clone();
+    a.client
+        .friend_request_send(&server_key, b_ready.self_user.id)
+        .await
+        .unwrap();
+    b.private_event(|event| match event {
+        PrivateEvent::ContactChanged(c)
+            if c.peer == a_hex && c.friend == FriendStatus::Incoming =>
+        {
+            Some(())
+        }
+        _ => None,
+    })
+    .await;
+    b.client.friend_request_answer(&a_hex, true).await.unwrap();
+    a.private_event(|event| match event {
+        PrivateEvent::ContactChanged(c) if c.peer == b_hex && c.friend == FriendStatus::Friends => {
+            Some(())
+        }
+        _ => None,
+    })
+    .await;
+
+    let settings = a
+        .client
+        .update_private_settings(&server_key, None, Some(true))
+        .await
+        .unwrap();
+    assert!(settings.enabled && settings.friends_only);
+
+    // Each app sends its friends on hearing the change; A's message goes
+    // through once both have.
+    a.set_relay(&b, &a_ready.server.server_id_hex).await;
+    let deadline = tokio::time::Instant::now() + WAIT;
+    loop {
+        match a
+            .client
+            .private_send(&b_hex, "hello friend".to_owned())
+            .await
+        {
+            Ok(sent) if sent.state == PrivateSendState::Sent => break,
+            result => {
+                assert!(
+                    tokio::time::Instant::now() < deadline,
+                    "never sent: {result:?}"
+                );
+                tokio::time::sleep(Duration::from_millis(100)).await;
+            }
+        }
+    }
+
+    c.set_relay(&b, &c_ready.server.server_id_hex).await;
+    let err = c
+        .client
+        .private_send(&b_hex, "hello stranger".to_owned())
+        .await
+        .unwrap_err();
+    assert!(
+        matches!(
+            err,
+            CoreError::Server {
+                code: ErrorCode::FriendsOnly,
+                ..
+            }
+        ),
+        "expected FriendsOnly, got {err:?}"
+    );
+
+    // No longer friends: A is refused too.
+    b.client.friend_remove(&a_hex).await.unwrap();
+    let deadline = tokio::time::Instant::now() + WAIT;
+    loop {
+        match a
+            .client
+            .private_send(&b_hex, "still there?".to_owned())
+            .await
+        {
+            Err(CoreError::Server {
+                code: ErrorCode::FriendsOnly,
+                ..
+            }) => break,
+            result => {
+                assert!(
+                    tokio::time::Instant::now() < deadline,
+                    "still sent: {result:?}"
+                );
+                tokio::time::sleep(Duration::from_millis(100)).await;
+            }
+        }
+    }
+}

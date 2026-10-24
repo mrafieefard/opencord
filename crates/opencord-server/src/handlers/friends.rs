@@ -242,8 +242,19 @@ pub async fn answer_friend_request(
         }
     }
     let pushed = insert_pending(&mut tx, ctx.state, items, now).await?;
+    // Where messages go only between friends, the two are friends from
+    // now on, before either app tells the server.
+    let befriend = request.accept && ctx.state.private.friends_only();
+    if befriend {
+        db::add_friends(&mut tx, requester_id, ctx.user_id).await?;
+    }
     // 5. Commit, push, ack. A requester who is no longer a member has no devices, so only the caller's other devices hear.
     tx.commit().await?;
+    if befriend {
+        ctx.state
+            .private
+            .set_friends(requester_id, ctx.user_id, true);
+    }
     push_pending(ctx.state, &pushed);
     Ok(ack())
 }
@@ -387,6 +398,8 @@ pub async fn remove_friend(
         }
     }
     deliver(ctx.state, items).await?;
-    // 4. ack. The server keeps no friend list.
+    // 4. Off the friend lists kept where messages go only between friends.
+    db::remove_friends(&mut *ctx.state.db.acquire().await?, ctx.user_id, target_id).await?;
+    ctx.state.private.set_friends(ctx.user_id, target_id, false);
     Ok(ack())
 }

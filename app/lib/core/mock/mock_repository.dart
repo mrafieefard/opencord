@@ -240,6 +240,18 @@ class MockRepository implements OpencordRepository {
   NetworkInfo debugNetwork(String serverKey) => _server(serverKey).network;
 
   /// A notice from the server, as the owner would get one.
+  /// As if the owner (or the config file) changed private messages on
+  /// [serverKey] elsewhere.
+  void debugSetPrivateSettings(
+    String serverKey,
+    ServerPrivateSettings settings,
+  ) {
+    _server(serverKey)
+      ..privateSettings = settings
+      ..privateMessages = settings.enabled;
+    _emit(PrivateSettingsEvent(serverKey, settings));
+  }
+
   void debugNotice(String serverKey, ServerNotice notice) =>
       _emit(ServerNoticeReceived(serverKey, notice));
 
@@ -4230,6 +4242,34 @@ class MockRepository implements OpencordRepository {
   @override
   Future<void> copyImage(Uint8List bytes) async {
     _clipboardImage = bytes;
+  }
+
+  @override
+  Future<ServerPrivateSettings> updatePrivateSettings(
+    String serverKey, {
+    bool? enabled,
+    bool? friendsOnly,
+  }) async {
+    final server = _server(serverKey);
+    _require(server, Permissions.manageServer);
+    await _latency();
+    final current = server.privateSettings;
+    if (enabled == true && !current.allowedByConfig) {
+      throw const RepoException(
+        RepoErrorKind.invalidArgument,
+        "Private messages are turned off in this server's config file.",
+      );
+    }
+    final updated = ServerPrivateSettings(
+      enabled: enabled ?? current.enabled,
+      friendsOnly: friendsOnly ?? current.friendsOnly,
+      allowedByConfig: current.allowedByConfig,
+    );
+    server
+      ..privateSettings = updated
+      ..privateMessages = updated.enabled;
+    _emit(PrivateSettingsEvent(serverKey, updated));
+    return updated;
   }
 
   @override

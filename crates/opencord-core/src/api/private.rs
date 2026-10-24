@@ -6,7 +6,7 @@ use crate::frb_generated::StreamSink;
 use super::client::{client, on_runtime, runtime};
 use super::types::{
     CoreError, PrivacySettingsData, PrivateContact, PrivateEvent, PrivateMessage, PrivateOpened,
-    SharedServer,
+    PrivateSettings, SharedServer,
 };
 
 /// Opens private messages for the identity using the master key from the
@@ -33,6 +33,21 @@ pub fn private_event_stream(sink: StreamSink<PrivateEvent>) -> Result<(), CoreEr
         }
     });
     Ok(())
+}
+
+/// MANAGE_SERVER: whether the server relays private messages, and only
+/// between friends. `None` leaves a setting as it is.
+pub async fn update_private_settings(
+    server_key: String,
+    enabled: Option<bool>,
+    friends_only: Option<bool>,
+) -> Result<PrivateSettings, CoreError> {
+    on_runtime(move |client| async move {
+        client
+            .update_private_settings(&server_key, enabled, friends_only)
+            .await
+    })
+    .await
 }
 
 pub async fn private_contacts() -> Result<Vec<PrivateContact>, CoreError> {

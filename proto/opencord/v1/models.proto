@@ -208,6 +208,8 @@ enum ErrorCode {
   ERROR_CODE_UNDELIVERABLE = 50;
   ERROR_CODE_DEVICE_LIST_CHANGED = 51;
   ERROR_CODE_PRIVATE_MESSAGES_UNAVAILABLE = 52;
+  // The server relays private messages only between friends.
+  ERROR_CODE_FRIENDS_ONLY = 53;
 }
 
 message Error {

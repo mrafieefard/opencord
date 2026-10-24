@@ -549,13 +549,16 @@ pub async fn set_privacy_settings(
     Ok(())
 }
 
-/// Sends UpdatePrivacy to `server_key`.
+/// Sends UpdatePrivacy to `server_key`: the settings and blocks, and the
+/// friends when that server relays only between friends (no other server
+/// learns them).
 pub async fn sync_privacy_to_server(
     service: &PrivateService,
     open: &Open,
     server_key: &str,
 ) -> Result<(), CoreError> {
-    let (privacy, blocked) = {
+    let friends_only = service.members().friends_only(server_key);
+    let (privacy, blocked, friends) = {
         let mut conn = open
             .store()
             .pool()
@@ -563,25 +566,34 @@ pub async fn sync_privacy_to_server(
             .await
             .map_err(PrivateError::from)?;
         let privacy = contacts::privacy(&mut conn).await?;
-        let blocked: Vec<[u8; 32]> = contacts::load_all(&mut conn, open.store().sealer())
-            .await?
-            .into_iter()
-            .filter(|contact| contact.blocked)
-            .map(|contact| contact.public_key)
-            .collect();
-        (privacy, blocked)
+        let all = contacts::load_all(&mut conn, open.store().sealer()).await?;
+        let keys = |keep: fn(&Contact) -> bool| -> Vec<[u8; 32]> {
+            all.iter()
+                .filter(|contact| keep(contact))
+                .map(|contact| contact.public_key)
+                .collect()
+        };
+        let friends = if friends_only {
+            keys(|contact| contact.friend_state == FriendState::Friends && !contact.blocked)
+        } else {
+            Vec::new()
+        };
+        (privacy, keys(|contact| contact.blocked), friends)
     };
-    let blocked_user_ids = blocked
-        .iter()
-        .filter_map(|peer| service.members().user_id_on(server_key, peer))
-        .collect();
+    let user_ids = |peers: Vec<[u8; 32]>| -> Vec<i64> {
+        peers
+            .iter()
+            .filter_map(|peer| service.members().user_id_on(server_key, peer))
+            .collect()
+    };
     service
         .request(
             server_key,
             Request::UpdatePrivacy(proto::UpdatePrivacy {
                 allow_friend_requests: privacy.allow_friend_requests,
                 allow_message_requests: privacy.allow_message_requests,
-                blocked_user_ids,
+                blocked_user_ids: user_ids(blocked),
+                friend_user_ids: user_ids(friends),
             }),
         )
         .await?;

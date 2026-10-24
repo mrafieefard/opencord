@@ -37,18 +37,26 @@ class SharedServerView {
 }
 
 /// Servers in rail order where this device has data, it is connected,
-/// privateMessages is enabled, and a member has `user.publicKeyHex == peer`.
+/// privateMessages is enabled, and a member has `user.publicKeyHex == peer`;
+/// a server that carries messages only between friends counts only when
+/// [peer] is a friend.
 final sharedServersProvider = Provider.family<List<SharedServerView>, String>((
   ref,
   peer,
 ) {
   final servers = ref.watch(serverListProvider);
+  final friend = ref.watch(
+    privateContactsProvider.select(
+      (contacts) => contacts.byPeer[peer]?.friend == FriendStatus.friends,
+    ),
+  );
   final shared = <SharedServerView>[];
   for (final summary in servers) {
     final server = ref.watch(serverProvider(summary.key));
     if (server.connection.phase != ConnectionPhase.connected) continue;
     final data = server.data;
     if (data == null || !data.privateMessages) continue;
+    if (data.privateSettings.friendsOnly && !friend) continue;
     final member = data.members.values
         .where((m) => m.user.publicKeyHex == peer)
         .firstOrNull;

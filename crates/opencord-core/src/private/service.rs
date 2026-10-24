@@ -87,6 +87,9 @@ struct Shared {
     /// ends.
     registering: Mutex<HashMap<String, Registration>>,
     next_holder: AtomicU64,
+    /// The peers last told to the app as friends, so a change can be sent
+    /// to the servers that relay only between friends.
+    friends: Mutex<HashSet<String>>,
 }
 
 struct Registration {
@@ -160,6 +163,7 @@ impl PrivateService {
                 open: Mutex::new(None),
                 registering: Mutex::new(HashMap::new()),
                 next_holder: AtomicU64::new(1),
+                friends: Mutex::new(HashSet::new()),
             }),
         }
     }
@@ -198,6 +202,9 @@ impl PrivateService {
     }
 
     pub fn emit(&self, event: PrivateEvent) {
+        if self.friends_changed(&event) {
+            self.sync_friends();
+        }
         if let Some(events) = lock(&self.shared.events).as_ref() {
             // Nobody listening is fine: the app reads the state again when
             // it starts listening.
@@ -471,6 +478,67 @@ impl PrivateService {
         }
     }
 
+    /// Whether `event` adds someone to the friends or takes them off.
+    fn friends_changed(&self, event: &PrivateEvent) -> bool {
+        let mut friends = lock(&self.shared.friends);
+        match event {
+            PrivateEvent::ContactChanged(contact) => {
+                if contact.friend == FriendStatus::Friends && !contact.blocked {
+                    friends.insert(contact.peer.clone())
+                } else {
+                    friends.remove(&contact.peer)
+                }
+            }
+            PrivateEvent::ContactRemoved { peer } => friends.remove(peer),
+            _ => false,
+        }
+    }
+
+    /// Sends the friend list again to each server that relays only between
+    /// friends, in the background.
+    fn sync_friends(&self) {
+        let servers = self.shared.members.friends_only_servers();
+        let Some(open) = self.open_now() else {
+            return;
+        };
+        for key in servers {
+            let service = self.clone();
+            let open = open.clone();
+            self.shared.runtime.spawn(async move {
+                if let Err(error) =
+                    super::actions::sync_privacy_to_server(&service, &open, &key).await
+                {
+                    tracing::warn!(%error, server_key = %key, "could not send the friend list");
+                }
+            });
+        }
+    }
+
+    /// `PrivateSettingsUpdate`: the owner turned private messages on or
+    /// off, or friends-only. A server that starts relaying gets this
+    /// device; one that turns friends-only on gets the friend list.
+    pub fn on_private_settings(&self, key: &str, settings: &proto::PrivateSettings) {
+        let relayed = self.shared.members.on_private_settings(key, settings);
+        if !settings.enabled {
+            return;
+        }
+        if !relayed {
+            self.start_registration(key);
+        } else if settings.friends_only
+            && let Some(open) = self.open_now()
+        {
+            let service = self.clone();
+            let key = key.to_owned();
+            self.shared.runtime.spawn(async move {
+                if let Err(error) =
+                    super::actions::sync_privacy_to_server(&service, &open, &key).await
+                {
+                    tracing::warn!(%error, server_key = %key, "could not send the friend list");
+                }
+            });
+        }
+    }
+
     /// `MemberJoin`, `MemberUpdate` and `MemberLeave`.
     pub fn on_member_event(&self, key: &str, kind: &proto::event::Kind) {
         let member = match kind {
@@ -696,35 +764,7 @@ impl PrivateService {
             .await?;
         }
         // 4.
-        let (privacy, blocked) = {
-            let mut conn = open
-                .store
-                .pool()
-                .acquire()
-                .await
-                .map_err(PrivateError::from)?;
-            let privacy = contacts::privacy(&mut conn).await?;
-            let blocked: Vec<[u8; 32]> = contacts::load_all(&mut conn, open.store.sealer())
-                .await?
-                .into_iter()
-                .filter(|contact| contact.blocked)
-                .map(|contact| contact.public_key)
-                .collect();
-            (privacy, blocked)
-        };
-        let blocked_user_ids = blocked
-            .iter()
-            .filter_map(|peer| self.shared.members.user_id_on(key, peer))
-            .collect();
-        self.request(
-            key,
-            Request::UpdatePrivacy(proto::UpdatePrivacy {
-                allow_friend_requests: privacy.allow_friend_requests,
-                allow_message_requests: privacy.allow_message_requests,
-                blocked_user_ids,
-            }),
-        )
-        .await?;
+        super::actions::sync_privacy_to_server(self, open, key).await?;
         // 5.
         self.catch_up(open, key).await?;
         // Then what waited to be sent through this server.

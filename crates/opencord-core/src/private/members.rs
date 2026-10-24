@@ -41,6 +41,8 @@ struct ServerMembers {
     name: String,
     connected: bool,
     private_messages: bool,
+    /// Messages go only between friends there, so it gets the friend list.
+    friends_only: bool,
     by_id: HashMap<i64, MemberInfo>,
     by_key: HashMap<[u8; 32], i64>,
 }
@@ -83,6 +85,9 @@ impl MemberIndex {
                 .unwrap_or_default(),
             connected: true,
             private_messages: ready.private_messages,
+            friends_only: ready
+                .private_settings
+                .is_some_and(|settings| settings.friends_only),
             ..ServerMembers::default()
         };
         let members: Vec<MemberInfo> = ready
@@ -127,6 +132,33 @@ impl MemberIndex {
             .get(key)
             .map(|entry| entry.server_id.clone())
             .filter(|id| !id.is_empty())
+    }
+
+    /// `PrivateSettingsUpdate`. Returns whether the server relayed
+    /// private messages before.
+    pub fn on_private_settings(&self, key: &str, settings: &proto::PrivateSettings) -> bool {
+        let mut servers = self.lock();
+        let Some(entry) = servers.get_mut(key) else {
+            return false;
+        };
+        let before = entry.private_messages;
+        entry.private_messages = settings.enabled;
+        entry.friends_only = settings.friends_only;
+        before
+    }
+
+    pub fn friends_only(&self, key: &str) -> bool {
+        self.lock().get(key).is_some_and(|entry| entry.friends_only)
+    }
+
+    /// The servers connected now that relay private messages only between
+    /// friends.
+    pub fn friends_only_servers(&self) -> Vec<String> {
+        self.lock()
+            .iter()
+            .filter(|(_, entry)| entry.connected && entry.private_messages && entry.friends_only)
+            .map(|(key, _)| key.clone())
+            .collect()
     }
 
     /// The servers connected now that relay private messages.
@@ -181,6 +213,7 @@ impl MemberIndex {
                     name: entry.name.clone(),
                     connected: entry.connected,
                     private_messages: entry.private_messages,
+                    friends_only: entry.friends_only,
                     peer_user_id: *user_id,
                 })
             })

@@ -137,7 +137,31 @@ message UpdatePrivacy {
   bool allow_friend_requests = 1;
   bool allow_message_requests = 2;
   repeated int64 blocked_user_ids = 3;
+  // The caller's friends among the members. Sent only to a server whose
+  // PrivateSettings.friends_only is on; elsewhere empty.
+  repeated int64 friend_user_ids = 4;
 }
+
+// The owner's choices for private messages on this server.
+message PrivateSettings {
+  // Whether this server relays private messages: the owner's switch, and
+  // never when allowed_by_config is false.
+  bool enabled = 1;
+  // Messages and typing only between two members who each list the other
+  // in UpdatePrivacy.friend_user_ids. Friend requests still go through.
+  bool friends_only = 2;
+  // [private_messages] enabled in the config file. When false the owner
+  // can't turn them on.
+  bool allowed_by_config = 3;
+}
+
+// Manage server.
+message UpdatePrivateSettings {
+  optional bool enabled = 1;
+  optional bool friends_only = 2;
+}
+
+message PrivateSettingsUpdate { PrivateSettings settings = 1; }
 
 message SendFriendRequest {
   int64 user_id = 1;

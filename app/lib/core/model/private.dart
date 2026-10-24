@@ -234,6 +234,37 @@ class PrivateMessage {
 
 /// The user's privacy settings controlling inbound friend and message requests.
 @immutable
+/// What a server's owner chose for private messages there.
+@immutable
+class ServerPrivateSettings {
+  const ServerPrivateSettings({
+    this.enabled = false,
+    this.friendsOnly = false,
+    this.allowedByConfig = true,
+  });
+
+  /// The server relays private messages.
+  final bool enabled;
+
+  /// Only between two members who are each other's friends.
+  final bool friendsOnly;
+
+  /// False when the server's config file turns them off: the owner can't
+  /// turn them on.
+  final bool allowedByConfig;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is ServerPrivateSettings &&
+          other.enabled == enabled &&
+          other.friendsOnly == friendsOnly &&
+          other.allowedByConfig == allowedByConfig;
+
+  @override
+  int get hashCode => Object.hash(enabled, friendsOnly, allowedByConfig);
+}
+
 class PrivacySettings {
   const PrivacySettings({
     this.allowFriendRequests = true,

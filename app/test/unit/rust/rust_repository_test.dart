@@ -54,6 +54,11 @@ core.ReadySnapshot _ready({
   List<core.VoiceState> voice = const [],
 }) => core.ReadySnapshot(
   privateMessages: true,
+  privateSettings: const core.PrivateSettings(
+    enabled: true,
+    friendsOnly: false,
+    allowedByConfig: true,
+  ),
   voiceEnabled: true,
   voiceStates: voice,
   streams: const [],

@@ -1,15 +1,17 @@
+import 'dart:async';
+
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:opencord/core/model/private.dart';
 import 'package:opencord/core/providers/providers.dart';
-import 'package:opencord/core/repository/events.dart';
+import 'package:opencord/core/repository/repository.dart';
 import 'package:opencord/features/chat/composer_bar.dart';
 import 'package:opencord/features/chat/typing_dots.dart';
 import 'package:opencord/features/home/move_card.dart';
 import 'package:opencord/features/home/private_chat.dart';
+import 'package:opencord/features/home/private_errors.dart';
 import 'package:opencord/features/home/relay_divider.dart';
 import 'package:opencord/features/home/request_bar.dart';
 import 'package:opencord/ui/theme/oc_colors.dart';
@@ -20,6 +22,8 @@ import 'package:opencord/ui/widgets/hoverable.dart';
 import 'package:opencord/features/shell/navigation.dart';
 
 import '../../support/app.dart';
+
+const _dev = 'opencord.example:7710';
 
 Future<void> _pumpChat(WidgetTester tester, MockApp app, String peer) async {
   await tester.pumpWidget(
@@ -422,6 +426,55 @@ void main() {
       0,
     );
 
+    await app.dispose(tester);
+  });
+
+  testWidgets('a_friends_only_server_is_offered_only_for_friends', (
+    tester,
+  ) async {
+    final app = await MockApp.pump(tester);
+    final contacts = app.repository.privateWorld.contacts.values;
+    final kai = contacts.firstWhere((c) => c.name == 'Kai Nakamura').peer;
+    final priya = contacts.firstWhere((c) => c.name == 'Priya Shah').peer;
+    List<String> shared(String peer) => [
+      for (final server in app.read(sharedServersProvider(peer)))
+        server.serverKey,
+    ];
+    expect(shared(kai), contains(_dev));
+    expect(shared(priya), contains(_dev));
+
+    app.repository.debugSetPrivateSettings(
+      _dev,
+      const ServerPrivateSettings(enabled: true, friendsOnly: true),
+    );
+    await tester.pump(const Duration(milliseconds: 100));
+
+    expect(shared(kai), contains(_dev));
+    expect(shared(priya), isNot(contains(_dev)));
+    await app.dispose(tester);
+  });
+
+  testWidgets('a_friends_only_refusal_says_what_to_do', (tester) async {
+    final app = await MockApp.pump(tester);
+    final context = tester.element(find.byType(Navigator).first);
+    unawaited(
+      showPrivateFailure(
+        context,
+        const RepoException(RepoErrorKind.friendsOnly, 'friends only'),
+        name: 'Priya Shah',
+        server: 'Opencord Dev',
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byType(OcDialog), findsOneWidget);
+    expect(find.text("Couldn't send message"), findsOneWidget);
+    expect(
+      find.textContaining(
+        'Opencord Dev only carries private messages between friends',
+      ),
+      findsOneWidget,
+    );
     await app.dispose(tester);
   });
 }

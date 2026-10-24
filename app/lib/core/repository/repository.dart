@@ -204,6 +204,9 @@ enum RepoErrorKind {
   /// Private messages are unavailable or not relayed on this server (§6.7).
   privateMessagesUnavailable,
 
+  /// The server relays private messages only between friends.
+  friendsOnly,
+
   unauthorized,
   forbidden,
   notFound,
@@ -962,6 +965,14 @@ abstract interface class OpencordRepository {
   Future<UploadSettings> updateUploadSettings(
     String serverKey, {
     List<String>? blockedExtensions,
+  });
+
+  /// Manage server: whether the server relays private messages, and only
+  /// between friends. Null leaves a setting as it is.
+  Future<ServerPrivateSettings> updatePrivateSettings(
+    String serverKey, {
+    bool? enabled,
+    bool? friendsOnly,
   });
 
   Future<StorageInfo> storage(String serverKey);

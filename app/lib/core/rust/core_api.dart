@@ -549,6 +549,12 @@ abstract interface class CoreApi {
     List<String>? blockedExtensions,
   });
 
+  Future<core.PrivateSettings> updatePrivateSettings({
+    required String serverKey,
+    bool? enabled,
+    bool? friendsOnly,
+  });
+
   Future<core.StorageInfo> storageGet({required String serverKey});
 
   Future<core.StorageInfo> storageAdd({
@@ -1662,6 +1668,17 @@ class FrbCoreApi implements CoreApi {
   }) => frb_attachments.updateUploadSettings(
     serverKey: serverKey,
     blockedExtensions: blockedExtensions,
+  );
+
+  @override
+  Future<core.PrivateSettings> updatePrivateSettings({
+    required String serverKey,
+    bool? enabled,
+    bool? friendsOnly,
+  }) => frb_private.updatePrivateSettings(
+    serverKey: serverKey,
+    enabled: enabled,
+    friendsOnly: friendsOnly,
   );
 
   @override

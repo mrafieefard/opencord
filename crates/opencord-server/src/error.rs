@@ -188,6 +188,13 @@ impl ApiError {
         )
     }
 
+    pub fn friends_only() -> Self {
+        Self::new(
+            proto::ErrorCode::FriendsOnly,
+            "this server relays private messages only between friends",
+        )
+    }
+
     pub fn undeliverable() -> Self {
         Self::new(
             proto::ErrorCode::Undeliverable,

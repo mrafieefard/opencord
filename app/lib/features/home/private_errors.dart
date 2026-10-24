@@ -61,6 +61,15 @@ Future<void> showPrivateFailure(
       }
       break;
 
+    case RepoErrorKind.friendsOnly:
+      title = action == PrivateAction.move
+          ? "Couldn't move the chat"
+          : "Couldn't send message";
+      message =
+          '${server ?? 'This server'} only carries private messages between '
+          'friends. Add $name as a friend, or use another server you share.';
+      break;
+
     case RepoErrorKind.notConnected:
       if (action == PrivateAction.answer) {
         title = "Couldn't answer friend request";

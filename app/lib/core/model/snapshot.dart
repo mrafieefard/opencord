@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 
+import 'package:opencord/core/model/private.dart';
 import 'package:opencord/core/model/attachment.dart';
 import 'package:opencord/core/model/channel.dart';
 import 'package:opencord/core/model/commands.dart';
@@ -39,6 +40,7 @@ class ReadySnapshot {
     this.commands = const CommandList(),
     this.uploadSettings = UploadSettings.fallback,
     this.privateMessages = false,
+    this.privateSettings = const ServerPrivateSettings(),
   });
 
   final User self;
@@ -79,4 +81,5 @@ class ReadySnapshot {
   final ServerAddresses addresses;
   final UploadSettings uploadSettings;
   final bool privateMessages;
+  final ServerPrivateSettings privateSettings;
 }
