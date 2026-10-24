@@ -16,6 +16,7 @@ pub mod channels;
 pub mod domains;
 pub mod invites;
 pub mod lavalink;
+pub mod local_songs;
 pub mod members;
 pub mod messages;
 pub mod meta;
@@ -287,5 +288,48 @@ mod tests {
                 (1, "a/11".to_string())
             ]
         );
+    }
+
+    #[tokio::test]
+    async fn a_song_outlives_the_channel_it_was_uploaded_in() {
+        let dir = tempfile::tempdir().unwrap();
+        let pool = connect(&dir.path().join("test.db")).await.unwrap();
+        sqlx::query(
+            "INSERT INTO users (id, public_key, display_name, created_at)
+             VALUES (100, X'00', 'User', 0)",
+        )
+        .execute(&pool)
+        .await
+        .unwrap();
+        sqlx::query(
+            "INSERT INTO channels (id, kind, name, position, bitrate, user_limit, text_in_voice, created_at)
+             VALUES (200, 'voice', 'General', 0, 64000, 0, TRUE, 0)",
+        )
+        .execute(&pool)
+        .await
+        .unwrap();
+        for (id, state, kind) in [(10, "music", "music"), (11, "uploading", "file")] {
+            sqlx::query(
+                "INSERT INTO attachments (id, uploader_id, channel_id, position, state, kind, filename, size_bytes, storage_id, key_enc, created_at, updated_at)
+                 VALUES ($1, 100, 200, 0, $2, $3, 'a', 10, 1, X'01', 0, 0)",
+            )
+            .bind(id)
+            .bind(state)
+            .bind(kind)
+            .execute(&pool)
+            .await
+            .unwrap();
+        }
+
+        sqlx::query("DELETE FROM channels WHERE id = 200")
+            .execute(&pool)
+            .await
+            .unwrap();
+
+        let left: Vec<(i64,)> = sqlx::query_as("SELECT id FROM attachments")
+            .fetch_all(&pool)
+            .await
+            .unwrap();
+        assert_eq!(left, vec![(10,)]);
     }
 }

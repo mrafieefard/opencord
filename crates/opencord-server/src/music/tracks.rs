@@ -59,6 +59,8 @@ impl Track {
             source_display_name: source_display_name(&info.source_name),
             uri: info.uri.clone(),
             artwork_id: super::artwork::id_of(&info.artwork_url),
+            local_song_id: super::local::song_id(self).unwrap_or(0),
+            removable: false,
         }
     }
 
@@ -76,6 +78,7 @@ fn clip(text: &str, max: usize) -> String {
 pub fn source_display_name(source: &str) -> String {
     match source {
         "youtube" => "YouTube".to_owned(),
+        super::local::SOURCE => "Local".to_owned(),
         "soundcloud" => "SoundCloud".to_owned(),
         "bandcamp" => "Bandcamp".to_owned(),
         "twitch" => "Twitch".to_owned(),

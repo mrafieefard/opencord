@@ -325,6 +325,9 @@ enum AttachmentKind {
   ATTACHMENT_KIND_VIDEO = 3;
   ATTACHMENT_KIND_AUDIO = 4;
   ATTACHMENT_KIND_VOICE_MESSAGE = 5;
+  // A song for the music player (CreateUpload only): channel_id is the
+  // voice channel; no message is made from it.
+  ATTACHMENT_KIND_MUSIC = 6;
 }
 
 message Attachment {

@@ -72,6 +72,15 @@ pub enum NodeCommand {
     /// lets it in (Phase 3 plan §13.4). The embedded node leaves this to
     /// the main server, which runs that bridge itself.
     ExpectMusic(crate::bridge::ExpectedPlayer),
+    /// A frame of music the main server plays itself (an uploaded song):
+    /// it goes to the channel's listeners like the bridge's frames.
+    MusicFrame {
+        channel_id: i64,
+        connection: u64,
+        sequence: u16,
+        timestamp: u32,
+        opus: std::sync::Arc<[u8]>,
+    },
 }
 
 /// To the main server.

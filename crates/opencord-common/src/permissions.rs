@@ -44,6 +44,8 @@ bitflags::bitflags! {
         /// Stop the player, block members from music, bypass music limits,
         /// control music from outside the channel, music settings.
         const MUSIC_MANAGE = 1 << 31;
+        /// Search every uploaded song, not only one's own.
+        const MUSIC_ALL_LOCAL_SONGS = 1 << 32;
         const ADMINISTRATOR = 1 << 63;
     }
 }

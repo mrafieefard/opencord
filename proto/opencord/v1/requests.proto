@@ -144,6 +144,11 @@ message Request {
     CancelFriendRequest cancel_friend_request = 192;
     RemoveFriend remove_friend = 193;
     UpdatePrivateSettings update_private_settings = 194;
+
+    // Uploaded songs (design 2026-10-24).
+    MusicFindLocal music_find_local = 200;
+    RemoveLocalSong remove_local_song = 201;
+    FetchLocalSongs fetch_local_songs = 202;
   }
 }
 
@@ -193,6 +198,10 @@ message Response {
     PrivateMessageSent private_message_sent = 38;
     FriendRequestCreated friend_request_created = 39;
     PrivateSettings private_settings = 40;
+
+    // Uploaded songs (design 2026-10-24).
+    MusicLocalMatch music_local_match = 41;
+    LocalSongs local_songs = 42;
   }
 }
 

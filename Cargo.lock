@@ -3942,6 +3942,7 @@ name = "opencord-server"
 version = "0.0.1"
 dependencies = [
  "anyhow",
+ "audioadapter-buffers",
  "axum",
  "axum-server",
  "bytes",
@@ -3965,6 +3966,7 @@ dependencies = [
  "prost",
  "rcgen",
  "reqwest",
+ "rubato",
  "rustls",
  "rusty-s3",
  "serde",
@@ -3972,6 +3974,7 @@ dependencies = [
  "sha2 0.11.0",
  "socket2",
  "sqlx",
+ "symphonia",
  "tempfile",
  "thiserror 2.0.21",
  "tokio",

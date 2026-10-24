@@ -227,6 +227,11 @@ message MusicTrack {
   string uri = 8;
   // For the artwork proxy (L4); empty without artwork.
   string artwork_id = 9;
+  // An uploaded song's id (source "upload"); 0 for Lavalink's tracks.
+  int64 local_song_id = 10;
+  // In search results only: the searcher may remove this uploaded song
+  // from the server (they own it, or are an administrator).
+  bool removable = 11;
 }
 
 message MusicQueueItem {
@@ -480,9 +485,11 @@ message MusicSettings {
   repeated string available_sources = 15;
   // Music is on in opencord.toml and runs on this server.
   bool supported = 16;
-  // Supported, enabled, and with a Lavalink node added: members see the
-  // music buttons (§19.1).
+  // Supported and enabled: members see the music buttons (§19.1).
+  // Uploaded songs play without a Lavalink node (design 2026-10-24).
   bool configured = 17;
+  // A Lavalink node is added: search reaches Lavalink's sources.
+  bool has_nodes = 18;
 }
 
 // -> music_settings. Anyone.
@@ -530,4 +537,50 @@ message MusicBlockMember {
   int64 user_id = 1;
   bool blocked = 2;
   string reason = 3;
+}
+
+// Uploaded songs (design 2026-10-24). A song is kept once per server, by
+// its SHA-256; whoever uploaded or dropped the same file owns it.
+
+// -> music_local_match. MUSIC_ADD. Whether the server has this file; when
+// it does, the caller becomes one of its owners and gets a search result
+// to queue it with (MusicEnqueue).
+message MusicFindLocal {
+  int64 channel_id = 1;
+  // SHA-256 of the whole file, 32 bytes.
+  bytes sha256 = 2;
+  uint64 size_bytes = 3;
+}
+
+message MusicLocalMatch {
+  optional MusicSearchResult result = 1;
+}
+
+// -> ack. An owner stops owning the song, which is deleted when nobody
+// owns it any more; an administrator deletes it for everyone.
+message RemoveLocalSong {
+  int64 song_id = 1;
+}
+
+// -> local_songs. ADMINISTRATOR. Newest first, 50 at a time.
+message FetchLocalSongs {
+  // Words in the title, artist or filename; empty for all.
+  string query = 1;
+  // Older than this song.
+  optional int64 before_id = 2;
+}
+
+message LocalSong {
+  int64 id = 1;
+  string title = 2;
+  string artist = 3;
+  uint64 duration_ms = 4;
+  uint64 size_bytes = 5;
+  string filename = 6;
+  int64 uploader_id = 7;
+  int64 created_at_ms = 8;
+}
+
+message LocalSongs {
+  repeated LocalSong songs = 1;
 }

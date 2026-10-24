@@ -12,7 +12,8 @@ use crate::error::ApiError;
 use crate::music::queue::{Item, Placement, Repeat};
 use crate::music::session::{Caller, Command};
 use crate::music::settings::QUEUE_MAX;
-use crate::music::{self, search};
+use crate::music::tracks::Track;
+use crate::music::{self, local, search};
 use crate::permissions::{missing, require_base, require_channel, require_outranks_member};
 use crate::rate_limit::MusicLimit;
 use crate::state::now_ms;
@@ -147,15 +148,153 @@ pub async fn fetch_session(
     Ok(session(snapshot))
 }
 
+/// Lavalink's results, then uploaded songs (design 2026-10-24); uploaded
+/// songs alone when there is no Lavalink node. Links only go to Lavalink.
 pub async fn search(ctx: &Ctx<'_>, request: proto::MusicSearch) -> Result<Response, ApiError> {
-    act(
+    let caller = act(
         ctx,
         request.channel_id,
         Permissions::MUSIC_ADD,
         MusicLimit::Search,
     )?;
-    let results = search::search(ctx.state, ctx.user_id, &request).await?;
+    let query = request.query.trim();
+    if query.is_empty() || query.chars().count() > search::QUERY_MAX {
+        return Err(ApiError::invalid_argument(
+            "a search is 1 to 200 characters",
+        ));
+    }
+    let is_link = reqwest::Url::parse(query).is_ok();
+    let lavalink = if ctx.state.lavalink.nodes().is_empty() {
+        None
+    } else {
+        Some(search::search(ctx.state, ctx.user_id, &request).await)
+    };
+    let local = if is_link {
+        Vec::new()
+    } else {
+        local::search(ctx.state, ctx.user_id, caller.permissions, query).await?
+    };
+    let mut results = match lavalink {
+        Some(Ok(results)) => results,
+        Some(Err(error)) if local.is_empty() => return Err(error),
+        None if is_link => {
+            return Err(ApiError::new(
+                proto::ErrorCode::MusicNodeUnavailable,
+                "Links need a music server, and this server has none",
+            ));
+        }
+        _ => proto::MusicSearchResults::default(),
+    };
+    // A playlist's results are its tracks.
+    if results.playlist.is_none() {
+        results.results.extend(local_results(ctx, local));
+    }
     Ok(Response::MusicSearchResults(results))
+}
+
+/// Uploaded songs as search results, kept for the searcher like Lavalink's.
+fn local_results(
+    ctx: &Ctx<'_>,
+    songs: Vec<(Track, bool)>,
+) -> impl Iterator<Item = proto::MusicSearchResult> {
+    let shown: Vec<proto::MusicTrack> = songs
+        .iter()
+        .map(|(track, removable)| proto::MusicTrack {
+            removable: *removable,
+            ..track.to_proto()
+        })
+        .collect();
+    let ids = ctx.state.music.results.keep(
+        ctx.user_id,
+        songs.into_iter().map(|(track, _)| track).collect(),
+    );
+    ids.into_iter()
+        .zip(shown)
+        .map(|(result_id, track)| proto::MusicSearchResult {
+            result_id,
+            track: Some(track),
+        })
+}
+
+/// Whether the server has a dropped file; if so the dropper owns it too
+/// (when they may attach files) and gets a result to queue it with.
+pub async fn find_local(
+    ctx: &Ctx<'_>,
+    request: proto::MusicFindLocal,
+) -> Result<Response, ApiError> {
+    let caller = act(
+        ctx,
+        request.channel_id,
+        Permissions::MUSIC_ADD,
+        MusicLimit::Search,
+    )?;
+    if request.sha256.len() != 32 {
+        return Err(ApiError::invalid_argument("a SHA-256 is 32 bytes"));
+    }
+    let mut conn = ctx.state.db.acquire().await?;
+    let song = db::local_songs::find_by_hash(&mut conn, &request.sha256)
+        .await?
+        .filter(|song| u64::try_from(song.size_bytes).ok() == Some(request.size_bytes));
+    let Some(song) = song else {
+        return Ok(Response::MusicLocalMatch(proto::MusicLocalMatch::default()));
+    };
+    let owner = caller.permissions.contains(Permissions::ATTACH_FILES);
+    if owner {
+        db::local_songs::add_owner(&mut conn, song.id, ctx.user_id, now_ms()).await?;
+    }
+    let removable = owner
+        || caller.permissions.contains(Permissions::ADMINISTRATOR)
+        || db::local_songs::is_owner(&mut conn, song.id, ctx.user_id).await?;
+    drop(conn);
+    let result = local_results(ctx, vec![(local::track(&song), removable)]).next();
+    Ok(Response::MusicLocalMatch(proto::MusicLocalMatch { result }))
+}
+
+/// An owner stops owning a song, which goes when nobody owns it; an
+/// administrator removes it for everyone.
+pub async fn remove_local_song(
+    ctx: &Ctx<'_>,
+    request: proto::RemoveLocalSong,
+) -> Result<Response, ApiError> {
+    let admin = ctx
+        .state
+        .guild()
+        .base_permissions(ctx.user_id)
+        .contains(Permissions::ADMINISTRATOR);
+    let mut conn = ctx.state.db.acquire().await?;
+    let song = db::local_songs::find(&mut conn, request.song_id)
+        .await?
+        .ok_or_else(|| ApiError::not_found("song"))?;
+    let gone = if db::local_songs::is_owner(&mut conn, song.id, ctx.user_id).await? {
+        db::local_songs::remove_owner(&mut conn, song.id, ctx.user_id).await? == 0 || admin
+    } else if admin {
+        true
+    } else {
+        return Err(ApiError::new(
+            proto::ErrorCode::Forbidden,
+            "Only who uploaded a song, or an administrator, can remove it",
+        ));
+    };
+    drop(conn);
+    if gone {
+        local::delete(ctx.state, song.id).await?;
+    }
+    Ok(Response::Ack(proto::Ack {}))
+}
+
+/// Every uploaded song, for administrators: Server settings → Music.
+pub async fn fetch_local_songs(
+    ctx: &Ctx<'_>,
+    request: proto::FetchLocalSongs,
+) -> Result<Response, ApiError> {
+    require_base(&ctx.state.guild(), ctx.user_id, Permissions::ADMINISTRATOR)?;
+    if request.query.chars().count() > search::QUERY_MAX {
+        return Err(ApiError::invalid_argument(
+            "a search is at most 200 characters",
+        ));
+    }
+    let songs = local::page(ctx.state, &request.query, request.before_id).await?;
+    Ok(Response::LocalSongs(songs))
 }
 
 pub async fn enqueue(ctx: &Ctx<'_>, request: proto::MusicEnqueue) -> Result<Response, ApiError> {

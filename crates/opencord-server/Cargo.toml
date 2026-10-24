@@ -48,6 +48,9 @@ opencord-proto.workspace = true
 opencord-voice.workspace = true
 opus.workspace = true
 prost.workspace = true
+rubato.workspace = true
+symphonia.workspace = true
+audioadapter-buffers.workspace = true
 webpki-roots.workspace = true
 x509-parser.workspace = true
 

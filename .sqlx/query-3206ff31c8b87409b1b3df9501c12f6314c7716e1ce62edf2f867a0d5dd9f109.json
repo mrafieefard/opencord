@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT COUNT(*) AS \"count: i64\", COALESCE(SUM(size_bytes), 0) AS \"bytes: i64\"\n           FROM attachments\n           WHERE storage_id != $1 AND state IN ('ready', 'sent')",
+  "query": "SELECT COUNT(*) AS \"count: i64\", COALESCE(SUM(size_bytes), 0) AS \"bytes: i64\"\n           FROM attachments\n           WHERE storage_id != $1 AND state IN ('ready', 'sent', 'music')",
   "describe": {
     "columns": [
       {
@@ -24,5 +24,5 @@
       false
     ]
   },
-  "hash": "996b713b058b94fc232961262de3ab6e452240389b53c722596a6ac88d02b2b1"
+  "hash": "3206ff31c8b87409b1b3df9501c12f6314c7716e1ce62edf2f867a0d5dd9f109"
 }

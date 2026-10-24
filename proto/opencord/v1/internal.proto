@@ -50,6 +50,7 @@ message ControlEnvelope {
     StreamViewers stream_viewers = 16;
     CancelMusicBridge cancel_music_bridge = 17;
     ExpectMusicBridge expect_music_bridge = 18;
+    MusicFrame music_frame = 19;
 
     // Node to main server.
     Register register = 30;
@@ -155,6 +156,17 @@ message SpeakingActivity {
     int64 channel_id = 3;
   }
   repeated Entry entries = 1;
+}
+
+// A frame of a channel's music that the main server plays itself (an
+// uploaded song, design 2026-10-24): 20 ms of 48 kHz stereo Opus.
+message MusicFrame {
+  int64 channel_id = 1;
+  // Changes whenever the stream starts again (a new track, a seek).
+  uint64 connection = 2;
+  uint32 sequence = 3;
+  uint32 timestamp = 4;
+  bytes opus = 5;
 }
 
 // A channel's music stops (Phase 3 plan §18.4): its stream ends, and its

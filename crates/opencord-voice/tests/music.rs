@@ -71,6 +71,33 @@ async fn everyone_in_the_channel_hears_the_music() {
     }
 }
 
+/// An uploaded song the main server plays itself (design 2026-10-24)
+/// reaches an external node as commands; listeners hear it the same.
+#[tokio::test]
+async fn frames_the_main_server_sends_as_commands_are_heard_too() {
+    let _machine = shared_machine().await;
+    let node = node().await;
+    let (_alice, mut events) = join(&node, 1).await;
+
+    let playing = async {
+        let mut every = tokio::time::interval(Duration::from_millis(20));
+        for sequence in 0..25u16 {
+            every.tick().await;
+            node.node.send(NodeCommand::MusicFrame {
+                channel_id: CHANNEL,
+                connection: 7,
+                sequence,
+                timestamp: u32::from(sequence) * 960,
+                opus: Arc::from(&[0xfc, 0xff, 0xfe][..]),
+            });
+        }
+    };
+    let (_, heard) = tokio::join!(playing, music(&mut events, Duration::from_millis(1000)));
+
+    assert!(heard.len() >= 23, "{} of 25 frames", heard.len());
+    assert!(consecutive(&heard));
+}
+
 /// Plan §21.2, L3: a 10-person channel hears each frame within 150 ms of
 /// each other (here on one machine; a LAN adds little).
 #[tokio::test]

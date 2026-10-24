@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT id, uploader_id, channel_id, message_id, position, state, kind,\n                  filename, content_type, size_bytes, received_bytes, storage_id,\n                  key_enc, width, height, duration_ms, animated AS \"animated: bool\",\n                  waveform, has_thumbnail AS \"has_thumbnail: bool\", thumbnail_width,\n                  thumbnail_height, error_code, error_message, created_at, updated_at\n           FROM attachments\n           WHERE storage_id != $1 AND id > $2 AND state IN ('ready', 'sent')\n           ORDER BY id\n           LIMIT $3",
+  "query": "SELECT id, uploader_id, channel_id, message_id, position, state, kind,\n                  filename, content_type, size_bytes, received_bytes, storage_id,\n                  key_enc, width, height, duration_ms, animated AS \"animated: bool\",\n                  waveform, has_thumbnail AS \"has_thumbnail: bool\", thumbnail_width,\n                  thumbnail_height, error_code, error_message, created_at, updated_at\n           FROM attachments\n           WHERE storage_id != $1 AND id > $2 AND state IN ('ready', 'sent', 'music')\n           ORDER BY id\n           LIMIT $3",
   "describe": {
     "columns": [
       {
@@ -310,5 +310,5 @@
       false
     ]
   },
-  "hash": "cab791ca76aef22bd636381f079e9c96be1f3c9b023930452839c2cb79ced224"
+  "hash": "06748ef61bfdc3b71ae19832fb36575e684071ec8b8d824bf0d9394a775d53d8"
 }

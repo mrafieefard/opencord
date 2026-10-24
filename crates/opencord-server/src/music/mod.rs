@@ -31,6 +31,7 @@ use crate::network::ClientAddr;
 use crate::state::AppState;
 
 pub mod artwork;
+pub mod local;
 pub mod player;
 pub mod queue;
 pub mod search;
@@ -219,7 +220,7 @@ impl Music {
     }
 
     /// Sends to a channel's session, if it has one.
-    fn send_existing(&self, channel_id: i64, command: Command) {
+    pub(crate) fn send_existing(&self, channel_id: i64, command: Command) {
         if let Some(sender) = lock(&self.sessions).get(&channel_id) {
             let _ = sender.send(command);
         }
@@ -354,10 +355,11 @@ pub fn supported(state: &AppState) -> bool {
             || state.config.voice.mode == crate::config::VoiceMode::External)
 }
 
-/// Whether music can play here: supported, on in the settings, with a
-/// node added.
+/// Whether music can play here: supported and on in the settings.
+/// Uploaded songs need no Lavalink node (design 2026-10-24); Lavalink's
+/// tracks wait for one.
 pub fn configured(state: &AppState) -> bool {
-    supported(state) && state.music.settings().enabled && !state.lavalink.nodes().is_empty()
+    supported(state) && state.music.settings().enabled
 }
 
 /// The settings with what is available now: search sources at least one
