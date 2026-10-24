@@ -415,7 +415,7 @@ One dialog shell for both user and server settings, styled like Telegram's setti
 ### 8.1 User settings
 - **My profile:** avatar (upload later), display name, presence selector as choice cards.
 - **Identity & keys:** public key fingerprint (mono, grouped), Copy public key, Export identity backup, Import identity, plain warning text about keeping the backup private.
-- **Appearance:** theme choice cards **System · Dark · Light** (each card shows a miniature of the layout in that theme), message density (Comfortable / Compact — compact removes bubbles and uses Discord-like left-aligned lines, still monochrome), font size slider (12–18), reduce motion switch, **window frame** (Auto · Custom · System, §3.1; applies after restart if the platform needs it).
+- **Appearance:** theme choice cards **System · Dark · Light** (each card shows a miniature of the layout in that theme), message density (Comfortable / Compact — compact removes bubbles and lays messages out as Discord does: the avatar, name, role and time over a group's first message, the time beside later ones while hovered, the hovered row highlighted; still monochrome), font size slider (12–18), reduce motion switch, **window frame** (Auto · Custom · System, §3.1; applies after restart if the platform needs it).
 - **Windows & behavior** (desktop only): close button minimizes to tray (on by default on Windows and Linux, off on macOS), start minimized, launch at login, restore last window position.
 - **Voice & audio**, **Video**, **Screen share**, **Sounds** and **Voice diagnostics:** full specification in §17.
 - **Notifications:** desktop notifications, mentions only, message sound, flash taskbar.
@@ -557,7 +557,7 @@ Make the app feel native on each desktop, not like a web page in a window:
 - **Remember everything:** last open server and channel per server, scroll position per channel, drafts per channel, collapsed categories, member panel visibility, window state.
 - **Never lose input:** drafts survive app restarts; a failed send keeps the text with Retry; closing a settings dialog with unsaved changes asks first.
 - **Predictable focus:** typing any printable key anywhere in the main view focuses the composer and inserts the key (Discord behavior). After closing a dialog or menu, focus returns to where it was.
-- **Hover intent:** tooltips after 450 ms, hover action bars appear immediately but disappear with a 150 ms delay so the pointer can reach them.
+- **Hover intent:** tooltips after 450 ms, hover action bars appear and disappear immediately, as Discord's do; moving from the row onto its bar keeps it. Bubbles' bars have no More button (right-click opens the menu); compact lines' bars have More, and Edit on your own messages.
 - **Undo instead of confirm where safe:** leaving a voice channel, unpinning, removing a reaction or hiding a channel show a toast with **Undo** instead of a confirm dialog. Destructive actions on other people (kick, ban, delete others' messages, delete channel) still confirm.
 - **Drag and drop:** reorder servers in the rail, channels and categories in the sidebar (with permission), roles in settings; dropped files on the chat show a "Attachments are coming later" overlay for now.
 - **Context everywhere:** every object (server, channel, message, member, role, invite) has a right-click menu with Copy ID/link at the bottom, so power users never need to dig.
