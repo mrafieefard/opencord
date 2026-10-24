@@ -38,7 +38,10 @@ Goals
   encoded audio to the node serving the channel.
 - Local songs show in the player's search, marked **Local**. With Lavalink
   available they come after Lavalink's results; without it they are the
-  only results.
+  only results. Members search only their own songs unless a role gives
+  them **Access all uploaded songs** (§5.7).
+- Members remove their own songs from the server by right-clicking them;
+  only Administrators can remove anyone's.
 
 Non-goals
 
@@ -92,6 +95,11 @@ Anti-goals (a failure even if it works)
 - Uploaded songs show in search as local and can be queued from there,
   listed after Lavalink's results when Lavalink is available.
 - With voice on external nodes, the server streams the audio to the node.
+- A new permission, **Access all uploaded songs**, off by default: with it
+  a member searches every local song; without it, only their own.
+- A member can remove a song from the server only if they uploaded it,
+  by right-clicking it. Access all uploaded songs does not let them remove
+  anyone else's; only Administrators can.
 
 ## 5. How it works
 
@@ -128,7 +136,11 @@ for, if that channel's player still exists.
 
 A new table, `music_local_songs`: id, sha256 (unique), size, the stored
 file's reference in upload storage, original filename, title, artist,
-duration, artwork, uploader id, created at. The file is kept by the
+duration, artwork, first uploader id, created at. A second table,
+`music_local_song_owners (song_id, user_id, added_at)`, lists who has the
+song as their own: whoever uploaded it, and anyone who later dropped the
+same file (their drop matched the hash, so they have it too; the reviewer's
+call). A song with no owners left is deleted. The file is kept by the
 upload storage backend under a kind of its own, so attachment clean-up
 never touches it.
 
@@ -188,18 +200,30 @@ pasted into search never matches local songs.
 
 - Uploading a song needs MUSIC_ADD and ATTACH_FILES in the voice channel,
   and the file must be within the member's upload size limit.
-- Queuing an existing local song (from a drop or from search) needs
-  MUSIC_ADD, like any track.
-- Members with MUSIC_MANAGE can delete local songs (§5.8); so can the one
-  who uploaded it.
+- Queuing a local song (from a drop, from search, or "Add again" from the
+  channel's history) needs MUSIC_ADD, like any track.
+- **Access all uploaded songs** (`MUSIC_ALL_LOCAL_SONGS`, bit 32, a
+  server-wide permission in the Music group of the role editor; off for
+  @everyone and for new roles): search covers every local song. Without
+  it, search covers only the songs the member owns (§5.2). Songs others
+  play in the channel still show in its queue and history as usual, and
+  "Add again" works on them (the reviewer's call: they were heard there).
+- **Removing a song from the server**: a member removes a song they own by
+  right-clicking it (a Local search result, or a queue or history item)
+  and choosing **Remove from server**, after a confirmation. This drops
+  them from its owners; when no owner is left the file is deleted. Access
+  all uploaded songs does not let them remove other people's songs.
+  Administrators (ADMINISTRATOR) can remove any song, for everyone, from
+  the same menu or from Server settings → Music.
 - Local songs count towards the server's storage like attachments.
 
 ### 5.8 Managing local songs
 
-Server settings → Music gets a **Local songs** list: title, artist,
-length, size, who uploaded it and when, with a search box and a delete
-button. Deleting removes the file; queue items for it are skipped with a
-notice when their turn comes ("This song was removed from the server").
+Server settings → Music gets a **Local songs** list, for Administrators
+only: title, artist, length, size, who uploaded it and when, with a search
+box and a remove button. Removing deletes the file for everyone. Whenever a
+song's file is deleted, queue items for it are skipped with a notice when
+their turn comes ("This song was removed from the server").
 
 ### 5.9 Music without Lavalink
 
@@ -216,8 +240,13 @@ Lavalink searches say no node is available.
 - `CreateUpload` gains a purpose (music); a finished music upload creates
   a local song and is enqueued in `channel_id`.
 - `MusicEnqueue` gains `repeated int64 local_song_ids`.
-- `FetchLocalSongs { query, before_id }`, `DeleteLocalSong { id }`, and a
-  `LocalSongs` reply.
+- `FetchLocalSongs { query, before_id }` (ADMINISTRATOR) and a
+  `LocalSongs` reply, for the settings list.
+- `RemoveLocalSong { id }`: an owner drops their ownership; an
+  Administrator deletes the song for everyone.
+- `MusicTrack` gains whether the caller may remove the song, so the app
+  knows whether to offer **Remove from server**.
+- The new permission bit, `MUSIC_ALL_LOCAL_SONGS = 1 << 32`.
 - `NodeCommand` gains music frames for a channel (§5.5).
 
 The builder chooses field numbers and the exact shapes, following
@@ -236,12 +265,18 @@ The builder chooses field numbers and the exact shapes, following
   of the same bytes keeps one song; a non-audio file is refused at finish;
   the session plays a local song with no Lavalink node, pauses, seeks and
   moves to the next item; a mixed queue hands over between engines;
-  search orders local results after Lavalink's; attachment clean-up leaves
-  local songs alone; deleting a song skips its queue items.
+  search orders local results after Lavalink's; without Access all
+  uploaded songs search finds only one's own songs, with it every song;
+  a second dropper of the same file becomes an owner and finds it; an
+  owner's remove keeps the song for its other owners and deletes it after
+  the last; a member with Access all uploaded songs cannot remove another's
+  song, an Administrator can; attachment clean-up leaves local songs alone;
+  deleting a song skips its queue items.
 - Core tests: hashing, the find-then-upload flow, cancel.
 - App tests: drop → rows with progress and cancel; a known file queued
-  without a progress bar; a refused file; Local in search; the settings
-  list.
+  without a progress bar; a refused file; Local in search; Remove from
+  server offered only where allowed; the permission in the role editor;
+  the settings list for Administrators.
 - By hand: a server with no Lavalink plays an MP3 and a FLAC for two
   listeners; the same file dropped again queues at once; an external voice
   node carries a local song.
