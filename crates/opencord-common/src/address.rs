@@ -98,13 +98,20 @@ impl ServerAddress {
     }
 }
 
+impl ServerAddress {
+    /// The host as a link writes it: IPv6 in brackets.
+    fn link_host(&self) -> String {
+        if self.host.contains(':') {
+            format!("[{}]", self.host)
+        } else {
+            self.host.clone()
+        }
+    }
+}
+
 impl fmt::Display for ServerAddress {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        if self.host.contains(':') {
-            write!(f, "[{}]:{}", self.host, self.port)
-        } else {
-            write!(f, "{}:{}", self.host, self.port)
-        }
+        write!(f, "{}:{}", self.link_host(), self.port)
     }
 }
 
@@ -147,7 +154,14 @@ impl InviteLink {
 
 impl fmt::Display for InviteLink {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{SCHEME}{}/invite/{}", self.address, self.code)?;
+        // The port only when the scheme doesn't imply it.
+        let host = self.address.link_host();
+        match self.address.port {
+            DEFAULT_PORT => write!(f, "{SCHEME}{host}")?,
+            SECURE_PORT => write!(f, "{SECURE_SCHEME}{host}")?,
+            port => write!(f, "{SCHEME}{host}:{port}")?,
+        }
+        write!(f, "/invite/{}", self.code)?;
         match &self.fingerprint {
             Some(fingerprint) => write!(f, "#fp={}", format_fingerprint(fingerprint)),
             None => Ok(()),
@@ -274,9 +288,43 @@ mod tests {
 
         assert_eq!(
             text,
-            format!("opencord://[::1]:7710/invite/xyz#fp={}", "ab".repeat(32))
+            format!("opencord://[::1]/invite/xyz#fp={}", "ab".repeat(32))
         );
         assert_eq!(InviteLink::parse(&text).unwrap(), link);
+    }
+
+    #[test]
+    fn invite_links_name_a_port_only_when_their_scheme_does_not_imply_it() {
+        let link = |host: &str, port| {
+            InviteLink {
+                address: address(host, port),
+                code: "abc".to_owned(),
+                fingerprint: None,
+            }
+            .to_string()
+        };
+
+        assert_eq!(
+            link("chat.example.com", 7710),
+            "opencord://chat.example.com/invite/abc"
+        );
+        assert_eq!(
+            link("chat.example.com", 443),
+            "opencords://chat.example.com/invite/abc"
+        );
+        assert_eq!(
+            link("chat.example.com", 8000),
+            "opencord://chat.example.com:8000/invite/abc"
+        );
+        assert_eq!(link("::1", 443), "opencords://[::1]/invite/abc");
+        for port in [7710, 443, 8000] {
+            let text = link("chat.example.com", port);
+            assert_eq!(
+                InviteLink::parse(&text).unwrap().address.port,
+                port,
+                "{text}"
+            );
+        }
     }
 
     #[test]

@@ -412,6 +412,25 @@ class MockRepository implements OpencordRepository {
 
   // Servers ---------------------------------------------------------------
 
+  /// How an invite link starts, as the core writes it: the port only when
+  /// the scheme doesn't imply it (7710 for opencord://, 443 for
+  /// opencords://).
+  static String _linkStart(String host, int port) {
+    final bracketed = host.contains(':') ? '[$host]' : host;
+    return switch (port) {
+      7710 => 'opencord://$bracketed',
+      443 => 'opencords://$bracketed',
+      _ => 'opencord://$bracketed:$port',
+    };
+  }
+
+  /// [_linkStart] for a server key, `host:port` or `[ipv6]:port`.
+  static String _linkStartOfKey(String key) {
+    final colon = key.lastIndexOf(':');
+    final host = key.substring(0, colon).replaceAll(RegExp(r'[\[\]]'), '');
+    return _linkStart(host, int.parse(key.substring(colon + 1)));
+  }
+
   static final _invite = RegExp(
     r'^(?:opencord(s)?://)([^/:#\s]+)(?::(\d+))?/invite/([A-Za-z0-9]+)(?:#fp=([0-9a-fA-F]{64}))?$',
     caseSensitive: false,
@@ -1456,11 +1475,13 @@ class MockRepository implements OpencordRepository {
       code: code,
       link: switch (domain) {
         final domain? when domain.trustedCertificate =>
-          'opencord://${domain.display}/invite/$code',
+          '${_linkStart(domain.host, domain.port)}/invite/$code',
         final domain? =>
-          'opencord://${domain.display}/invite/$code#fp=${server.fingerprint}',
+          '${_linkStart(domain.host, domain.port)}/invite/$code'
+              '#fp=${server.fingerprint}',
         null =>
-          'opencord://${server.key}/invite/$code#fp=${server.fingerprint}',
+          '${_linkStartOfKey(server.key)}/invite/$code'
+              '#fp=${server.fingerprint}',
       },
       webLink: switch (domain) {
         final domain? when domain.port == 443 =>

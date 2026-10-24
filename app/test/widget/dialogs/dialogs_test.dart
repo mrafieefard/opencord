@@ -219,7 +219,8 @@ void main() {
     expect(find.byType(InviteDialog), findsOneWidget);
     await tester.tap(_button('Copy'));
     await tester.pump();
-    expect(copied, startsWith('opencord://$_dev/invite/'));
+    // Port 7710 is the scheme's own, so the link leaves it out.
+    expect(copied, startsWith('opencord://opencord.example/invite/'));
     expect(copied, contains('#fp='));
     final first = copied;
 

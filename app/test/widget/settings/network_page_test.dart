@@ -353,7 +353,7 @@ void domainTests() {
 
     await invite.open(_dev);
     expect(find.text('THROUGH'), findsNothing, reason: 'one active domain');
-    expect(invite.link, startsWith('opencord://one.example.com:7710/invite/'));
+    expect(invite.link, startsWith('opencord://one.example.com/invite/'));
     await invite.close();
 
     unawaited(
@@ -370,7 +370,7 @@ void domainTests() {
     await tester.tap(find.widgetWithText(OcButton, 'Make a new link'));
     await _pumpFor(tester, const Duration(milliseconds: 600));
 
-    expect(invite.link, startsWith('opencord://two.example.com:7710/invite/'));
+    expect(invite.link, startsWith('opencord://two.example.com/invite/'));
     expect(
       find.textContaining(
         'For a browser: https://two.example.com:7710/invite/',

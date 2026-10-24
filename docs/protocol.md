@@ -15,7 +15,7 @@ Conventions:
 - `Envelope.seq` is set only on server-to-client `Event` envelopes. It starts at 1 and increases by one per event within a session.
 - `Envelope.request_id` is chosen by the client for each `Request` and echoed on the matching `Response`.
 
-Invite links have the form `opencord://host:port/invite/CODE#fp=SHA256HEX`. Without a port, `opencord://` means 7710 and `opencords://` 443, for a server reached through a domain with a public certificate. The connection is TLS either way; only the default port differs. A bare `opencord://host` or `opencords://host` names a server without an invite, and a plain `host` means port 7710. The fingerprint is optional. IPv6 hosts use brackets.
+Invite links have the form `opencord://host:port/invite/CODE#fp=SHA256HEX`. Without a port, `opencord://` means 7710 and `opencords://` 443, for a server reached through a domain with a public certificate. The connection is TLS either way; only the default port differs. A bare `opencord://host` or `opencords://host` names a server without an invite, and a plain `host` means port 7710. Links the server and the app write leave the port out when the scheme implies it: `opencord://host/invite/CODE` for 7710, `opencords://host/invite/CODE` for 443, and `opencord://host:port/invite/CODE` otherwise. The fingerprint is optional. IPv6 hosts use brackets.
 
 ## Handshake
 

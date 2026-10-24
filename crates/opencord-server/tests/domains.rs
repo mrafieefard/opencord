@@ -292,7 +292,7 @@ async fn invites_go_through_a_domain_and_die_with_it() {
     assert!(page.contains("Test Server"));
     assert!(page.contains("1 member"));
     assert!(page.contains(&format!(
-        "opencord://other.example.com:443/invite/{}#fp=",
+        "opencords://other.example.com/invite/{}#fp=",
         through_other.code
     )));
     assert!(page.len() < 20_000);
