@@ -19,10 +19,12 @@ import 'package:opencord/features/home/move_card.dart';
 import 'package:opencord/features/home/private_errors.dart';
 import 'package:opencord/features/home/private_message_adapter.dart';
 import 'package:opencord/features/home/relay_divider.dart';
+import 'package:opencord/features/members/member_avatar.dart';
 import 'package:opencord/ui/theme/oc_colors.dart';
 import 'package:opencord/ui/theme/oc_icons.dart';
 import 'package:opencord/ui/theme/oc_metrics.dart';
 import 'package:opencord/ui/theme/oc_text.dart';
+import 'package:opencord/ui/widgets/avatar.dart';
 import 'package:opencord/ui/widgets/confirm_dialog.dart';
 import 'package:opencord/ui/widgets/hoverable.dart';
 import 'package:opencord/ui/widgets/oc_menu.dart';
@@ -234,7 +236,11 @@ class _PrivateMessageListState extends ConsumerState<PrivateMessageList> {
         messages[index + 1].outgoing != m.outgoing ||
         messages[index + 1].kind != PrivateMessageKind.text;
 
-    final authorName = m.outgoing ? 'You' : peerName;
+    final authorName = m.outgoing
+        ? compact
+              ? ref.read(localIdentityProvider)?.displayName ?? 'You'
+              : 'You'
+        : peerName;
 
     void showMenu(Rect anchor) =>
         _showContextMenu(context, Offset(anchor.right, anchor.bottom), m);
@@ -242,7 +248,6 @@ class _PrivateMessageListState extends ConsumerState<PrivateMessageList> {
       onSecondaryTap: (pos) => _showContextMenu(context, pos, m),
       semanticLabel: m.content,
       builder: (context, state) => _HoverBarAnchor(
-        own: m.outgoing,
         compact: compact,
         onMore: showMenu,
         builder: (anchor) => compact
@@ -252,6 +257,15 @@ class _PrivateMessageListState extends ConsumerState<PrivateMessageList> {
                   serverKey: relayServerKey,
                   first: isFirst,
                   author: authorName,
+                  avatar: !isFirst
+                      ? null
+                      : m.outgoing
+                      ? _SelfAvatar(serverKey: relayServerKey, name: authorName)
+                      : ContactAvatar(
+                          peer: widget.peer,
+                          size: OcSize.messageAvatar,
+                          presenceDot: false,
+                        ),
                   links: links,
                   onRetry: m.state == PrivateSendState.failed
                       ? () => ref
@@ -292,19 +306,37 @@ class _PrivateMessageListState extends ConsumerState<PrivateMessageList> {
   }
 }
 
-/// The hover bar, placed as a channel message's is (`MessageItem`): in an
-/// overlay beside the bubble on its outer side, or on a compact line's top
-/// edge at the right, so it covers no text and can be clicked outside the
-/// row. It stays while the pointer is on the row or on the bar.
+/// Your avatar beside your messages in compact density: your member avatar
+/// on the relay server, or your initials.
+class _SelfAvatar extends ConsumerWidget {
+  const _SelfAvatar({required this.serverKey, required this.name});
+
+  final String serverKey;
+  final String name;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final self = ref.watch(
+      serverProvider(serverKey).select((s) => s.data?.selfMember?.id),
+    );
+    return self == null
+        ? OcAvatar(id: name, name: name, size: OcSize.messageAvatar)
+        : MemberAvatar(serverKey: serverKey, userId: self, name: name);
+  }
+}
+
+/// The hover bar on a compact line's top edge at the right, placed as a
+/// channel message's is (`MessageItem`), so it covers no text and can be
+/// clicked outside the row. It stays while the pointer is on the row or on
+/// the bar. Bubbles get none: their only button would be More, and
+/// right-click opens the same menu.
 class _HoverBarAnchor extends StatefulWidget {
   const _HoverBarAnchor({
-    required this.own,
     required this.compact,
     required this.onMore,
     required this.builder,
   });
 
-  final bool own;
   final bool compact;
   final ValueChanged<Rect> onMore;
 
@@ -318,32 +350,31 @@ class _HoverBarAnchor extends StatefulWidget {
 class _HoverBarAnchorState extends State<_HoverBarAnchor> {
   final _link = LayerLink();
   final _bar = OverlayPortalController();
-  Timer? _hide;
+  final _hovered = ValueNotifier(false);
   var _overRow = false;
   var _overBar = false;
 
   @override
   void dispose() {
-    _hide?.cancel();
+    _hovered.dispose();
     super.dispose();
   }
 
   void _show() {
-    _hide?.cancel();
-    if (!_bar.isShowing) _bar.show();
+    _hovered.value = true;
+    if (widget.compact && !_bar.isShowing) _bar.show();
   }
 
   void _scheduleHide() {
-    _hide?.cancel();
-    _hide = Timer(MessageItem.hideDelay, () {
-      if (mounted && !_overRow && !_overBar && _bar.isShowing) _bar.hide();
+    scheduleMicrotask(() {
+      if (!mounted || _overRow || _overBar) return;
+      _hovered.value = false;
+      if (_bar.isShowing) _bar.hide();
     });
   }
 
   @override
   Widget build(BuildContext context) {
-    final side = widget.own ? -1.0 : 1.0;
-    final compact = widget.compact;
     return MouseRegion(
       onEnter: (_) {
         _overRow = true;
@@ -361,13 +392,9 @@ class _HoverBarAnchorState extends State<_HoverBarAnchor> {
           child: CompositedTransformFollower(
             link: _link,
             showWhenUnlinked: false,
-            targetAnchor: compact ? Alignment.topRight : Alignment(side, -1),
-            followerAnchor: compact
-                ? Alignment.bottomRight
-                : Alignment(-side, -1),
-            offset: compact
-                ? const Offset(-OcSpace.s16, HoverActionBar.overlap)
-                : Offset(side * OcSpace.s6, 0),
+            targetAnchor: Alignment.topRight,
+            followerAnchor: Alignment.bottomRight,
+            offset: const Offset(-OcSpace.s16, HoverActionBar.overlap),
             child: MouseRegion(
               onEnter: (_) {
                 _overBar = true;
@@ -381,8 +408,11 @@ class _HoverBarAnchorState extends State<_HoverBarAnchor> {
             ),
           ),
         ),
-        child: widget.builder(
-          (child) => CompositedTransformTarget(link: _link, child: child),
+        child: MessageHover(
+          hovered: _hovered,
+          child: widget.builder(
+            (child) => CompositedTransformTarget(link: _link, child: child),
+          ),
         ),
       ),
     );
