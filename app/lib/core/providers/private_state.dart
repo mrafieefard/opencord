@@ -201,6 +201,32 @@ class PrivateContactsState {
   final RepoException? error;
 
   List<PrivateContact> get all => byPeer.values.toList();
+
+  List<PrivateContact> get friends =>
+      all.where((c) => c.friend == FriendStatus.friends && !c.blocked).toList();
+
+  List<PrivateContact> get incomingRequests => all
+      .where(
+        (c) =>
+            c.friend == FriendStatus.incoming && !c.requestSpam && !c.blocked,
+      )
+      .toList();
+
+  List<PrivateContact> get outgoingRequests => all
+      .where((c) => c.friend == FriendStatus.outgoing && !c.blocked)
+      .toList();
+
+  List<PrivateContact> get spamRequests => all
+      .where(
+        (c) => c.friend == FriendStatus.incoming && c.requestSpam && !c.blocked,
+      )
+      .toList();
+
+  List<PrivateContact> get messageRequests => all
+      .where((c) => c.conversation == ConversationStatus.request && !c.blocked)
+      .toList();
+
+  List<PrivateContact> get blocked => all.where((c) => c.blocked).toList();
 }
 
 class PrivateContactsNotifier extends Notifier<PrivateContactsState> {

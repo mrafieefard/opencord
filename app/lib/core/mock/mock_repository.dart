@@ -79,6 +79,8 @@ class MockRepository implements OpencordRepository {
 
   late MockWorld _world;
   late final MockPrivateWorld _privateWorld;
+
+  MockPrivateWorld get privateWorld => _privateWorld;
   RepoException? _privateUnavailable;
   var _privateStartedFresh = false;
   final _events = StreamController<RepoEvent>.broadcast();
@@ -4913,6 +4915,9 @@ class MockRepository implements OpencordRepository {
     }
     return _privateWorld.sendFriendRequest(serverKey, userId, now: _clock());
   }
+
+  set answerFriendRequestFailure(RepoException? err) =>
+      _privateWorld.answerFriendRequestFailure = err;
 
   @override
   Future<void> answerFriendRequest(String peer, {required bool accept}) =>

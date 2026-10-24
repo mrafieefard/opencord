@@ -23,6 +23,7 @@ class MockPrivateWorld {
     allowFriendRequests: true,
     allowMessageRequests: true,
   );
+  RepoException? answerFriendRequestFailure;
   var _idSequence = 1000;
 
   String _nextId() => (++_idSequence).toRadixString(16).padLeft(16, '0');
@@ -431,6 +432,10 @@ class MockPrivateWorld {
   }
 
   Future<void> answerFriendRequest(String peer, {required bool accept}) async {
+    if (answerFriendRequestFailure case final err?) {
+      answerFriendRequestFailure = null;
+      throw err;
+    }
     final contact = contacts[peer];
     if (contact == null) return;
     final next = contact.copyWith(
