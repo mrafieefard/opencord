@@ -56,11 +56,17 @@ void main() {
 
     // Messages in order
     expect(
-      find.textContaining('Hey Alex, are you working on private messages?', findRichText: true),
+      find.textContaining(
+        'Hey Alex, are you working on private messages?',
+        findRichText: true,
+      ),
       findsOneWidget,
     );
     expect(
-      find.textContaining('Yeah, wrapping up Milestone E4 right now!', findRichText: true),
+      find.textContaining(
+        'Yeah, wrapping up Milestone E4 right now!',
+        findRichText: true,
+      ),
       findsOneWidget,
     );
 
@@ -79,7 +85,10 @@ void main() {
     await _pumpChat(tester, app, kaiKey);
 
     // Right click on our own message
-    final ownMsg = find.textContaining('Yeah, wrapping up Milestone E4 right now!', findRichText: true);
+    final ownMsg = find.textContaining(
+      'Yeah, wrapping up Milestone E4 right now!',
+      findRichText: true,
+    );
     expect(ownMsg, findsOneWidget);
     await _rightClick(tester, ownMsg);
 
@@ -98,7 +107,10 @@ void main() {
     await tester.sendKeyEvent(LogicalKeyboardKey.enter);
     await tester.pumpAndSettle();
 
-    expect(find.textContaining('Updated message text!', findRichText: true), findsOneWidget);
+    expect(
+      find.textContaining('Updated message text!', findRichText: true),
+      findsOneWidget,
+    );
 
     // Now delete our message
     await _rightClick(
@@ -117,7 +129,10 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.textContaining('Updated message text!', findRichText: true), findsNothing);
+    expect(
+      find.textContaining('Updated message text!', findRichText: true),
+      findsNothing,
+    );
 
     await app.dispose(tester);
   });
@@ -181,9 +196,14 @@ void main() {
     await tester.tap(find.text('Move too'));
     await tester.pumpAndSettle();
 
-    final contact =
-        app.container.read(privateContactsProvider).byPeer[kaiKey]!;
+    final contact = app.container.read(privateContactsProvider).byPeer[kaiKey]!;
     expect(contact.relayServerKey, 'rust-berlin.example:7710');
+    // Once there, the card stays but has nothing more to offer.
+    expect(find.text('Move too'), findsNothing);
+    expect(
+      find.textContaining('Kai Nakamura moved this chat to Rust Berlin'),
+      findsOneWidget,
+    );
 
     await app.dispose(tester);
   });
@@ -253,8 +273,7 @@ void main() {
     await tester.tap(find.text('Opencord Dev').last);
     await tester.pumpAndSettle();
 
-    final contact =
-        app.container.read(privateContactsProvider).byPeer[kaiKey]!;
+    final contact = app.container.read(privateContactsProvider).byPeer[kaiKey]!;
     expect(contact.relayServerKey, 'opencord.example:7710');
 
     await app.dispose(tester);

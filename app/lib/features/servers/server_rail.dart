@@ -48,8 +48,10 @@ class ServerRail extends ConsumerWidget {
         children: [
           if (trafficLights)
             const SizedBox(height: 52, child: WindowDragArea()),
-          SizedBox(
-            height: OcSize.header,
+          // The home entry is a whole rail item, name included, so it
+          // takes the item's height rather than the header's.
+          Padding(
+            padding: const EdgeInsets.only(top: OcSpace.s8),
             child: Stack(
               alignment: Alignment.center,
               children: [

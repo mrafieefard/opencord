@@ -7,11 +7,7 @@ import 'package:opencord/ui/theme/oc_text.dart';
 
 /// A 28 px hatched band showing where a private conversation started or moved (§6.3).
 class RelayDivider extends StatelessWidget {
-  const RelayDivider({
-    super.key,
-    required this.serverName,
-    this.serverKey,
-  });
+  const RelayDivider({super.key, required this.serverName, this.serverKey});
 
   final String serverName;
   final String? serverKey;

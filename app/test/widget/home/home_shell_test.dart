@@ -1,4 +1,8 @@
 import 'package:flutter/gestures.dart';
+import 'package:flutter/material.dart';
+import 'package:opencord/features/home/friends_page.dart';
+import 'package:opencord/features/window/native_window.dart';
+import 'package:opencord/ui/theme/oc_colors.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:opencord/core/model/private.dart';
@@ -15,6 +19,7 @@ import 'package:opencord/ui/widgets/oc_dialog.dart';
 import 'package:opencord/ui/widgets/oc_icon_button.dart';
 
 import '../../support/app.dart';
+import '../../support/fake_window.dart';
 
 void main() {
   testWidgets('the_rail_button_opens_the_home_view_and_shows_its_badge', (
@@ -58,7 +63,9 @@ void main() {
     final homeItem = tester.widget<RailItemView>(
       find.descendant(
         of: find.byType(ServerRail),
-        matching: find.byWidgetPredicate((w) => w is RailItemView && w.name == 'Private'),
+        matching: find.byWidgetPredicate(
+          (w) => w is RailItemView && w.name == 'Private',
+        ),
       ),
     );
     expect(homeItem.selected, isTrue);
@@ -67,7 +74,9 @@ void main() {
     final serverItems = tester.widgetList<RailItemView>(
       find.descendant(
         of: find.byType(ServerRail),
-        matching: find.byWidgetPredicate((w) => w is RailItemView && w.name != 'Private'),
+        matching: find.byWidgetPredicate(
+          (w) => w is RailItemView && w.name != 'Private',
+        ),
       ),
     );
     for (final item in serverItems) {
@@ -291,6 +300,98 @@ void main() {
     // Does not reappear on subsequent pumps
     await tester.pumpAndSettle();
     expect(find.byType(OcDialog), findsNothing);
+
+    await app.dispose(tester);
+  });
+
+  testWidgets('the_home_view_paints_the_chat_surface_in_either_theme', (
+    tester,
+  ) async {
+    final app = await MockApp.pump(tester);
+    await tester.tap(find.byTooltip('Private messages'));
+    await tester.pumpAndSettle();
+
+    final surface = tester.widget<ColoredBox>(
+      find
+          .descendant(
+            of: find.byType(HomeMain),
+            matching: find.byType(ColoredBox),
+          )
+          .first,
+    );
+    expect(surface.color, tester.element(find.byType(HomeMain)).oc.chat);
+
+    await app.dispose(tester);
+  });
+
+  testWidgets('the_message_requests_row_opens_its_tab', (tester) async {
+    final app = await MockApp.pump(tester);
+    await tester.tap(find.byTooltip('Private messages'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(
+      find.descendant(
+        of: find.byType(HomeSidebar),
+        matching: find.text('Message requests'),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(app.read(friendsTabProvider), FriendsTab.requests);
+    expect(
+      find.descendant(
+        of: find.byType(FriendsPage),
+        matching: find.text('Priya Shah'),
+      ),
+      findsOneWidget,
+    );
+
+    // Friends goes back to a friends tab.
+    await tester.tap(
+      find.descendant(
+        of: find.byType(HomeSidebar),
+        matching: find.text('Friends'),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(app.read(friendsTabProvider), FriendsTab.online);
+
+    await app.dispose(tester);
+  });
+
+  testWidgets('the_friends_tabs_fit_a_narrow_window', (tester) async {
+    final app = await MockApp.pump(tester, size: const Size(760, 700));
+    app.read(navigationProvider.notifier).openHome();
+    await tester.pumpAndSettle();
+
+    expect(find.byType(FriendsPage), findsOneWidget);
+    expect(tester.takeException(), isNull);
+
+    await app.dispose(tester);
+  });
+
+  testWidgets('a_chat_opened_while_away_is_read_on_coming_back', (
+    tester,
+  ) async {
+    final window = FakeNativeWindow();
+    final app = await MockApp.pump(
+      tester,
+      window: window,
+      windowInfo: const WindowInfo(status: WindowStatus(focused: false)),
+    );
+    final mira = app
+        .read(privateContactsProvider)
+        .all
+        .firstWhere((c) => c.name == 'Mira Okafor');
+    expect(mira.unread, greaterThan(0));
+
+    app.read(navigationProvider.notifier).openConversation(mira.peer);
+    await tester.pump(const Duration(seconds: 1));
+    expect(app.read(privateContactsProvider).byPeer[mira.peer]!.unread, 1);
+
+    window.statusEvents.add(const WindowStatus());
+    await tester.pump(const Duration(seconds: 1));
+    expect(app.read(privateContactsProvider).byPeer[mira.peer]!.unread, 0);
 
     await app.dispose(tester);
   });

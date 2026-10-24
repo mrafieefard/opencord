@@ -13,14 +13,11 @@ import 'package:opencord/ui/theme/oc_icons.dart';
 import 'package:opencord/ui/theme/oc_metrics.dart';
 import 'package:opencord/ui/theme/oc_text.dart';
 import 'package:opencord/ui/widgets/oc_icon_button.dart';
+import 'package:opencord/ui/widgets/oc_text_field.dart';
 
 /// The text composer for private conversations (§6.3).
 class PrivateComposer extends ConsumerStatefulWidget {
-  const PrivateComposer({
-    super.key,
-    required this.peer,
-    this.onEditMessage,
-  });
+  const PrivateComposer({super.key, required this.peer, this.onEditMessage});
 
   final String peer;
   final void Function(PrivateMessage message)? onEditMessage;
@@ -80,8 +77,9 @@ class PrivateComposerState extends ConsumerState<PrivateComposer> {
   }
 
   bool _editLast() {
-    final messages =
-        ref.read(privateConversationProvider(widget.peer)).messages;
+    final messages = ref
+        .read(privateConversationProvider(widget.peer))
+        .messages;
     final lastMine = messages.reversed
         .where((m) => m.outgoing && m.kind == PrivateMessageKind.text)
         .firstOrNull;
@@ -114,9 +112,7 @@ class PrivateComposerState extends ConsumerState<PrivateComposer> {
 
     _controller.clear();
     try {
-      await ref
-          .read(repositoryProvider)
-          .sendPrivateMessage(widget.peer, text);
+      await ref.read(repositoryProvider).sendPrivateMessage(widget.peer, text);
     } on RepoException catch (e) {
       if (!mounted) return;
       final name = ref.read(contactNameProvider(widget.peer));
@@ -161,76 +157,91 @@ class PrivateComposerState extends ConsumerState<PrivateComposer> {
     final showCounter = runeCount >= 3500;
     final overLimit = runeCount > 4000;
 
+    final name = ref.watch(contactNameProvider(widget.peer));
+    // The channel composer's frame and field (§6.3).
     return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: OcSpace.s16,
-        vertical: OcSpace.s8,
-      ),
       decoration: BoxDecoration(
-        color: colors.surface,
+        color: colors.sidebar,
         border: Border(top: BorderSide(color: colors.border)),
       ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          if (_editing case final editing?)
-            ComposerContextBar(
-              editing: true,
-              title: 'Edit message',
-              preview: editing.content,
-              onClose: _cancelEditing,
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: OcSize.messageColumn),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(
+              OcSpace.s12,
+              OcSpace.s10,
+              OcSpace.s12,
+              OcSpace.s12,
             ),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Expanded(
-                child: Focus(
-                  canRequestFocus: false,
-                  skipTraversal: true,
-                  onKeyEvent: _handleKey,
-                  child: TextField(
-                    controller: _controller,
-                    focusNode: _focusNode,
-                    maxLines: 8,
-                    minLines: 1,
-                    textInputAction: TextInputAction.newline,
-                    style: OcText.body.copyWith(color: colors.text),
-                    decoration: InputDecoration(
-                      hintText: 'Message',
-                      hintStyle:
-                          OcText.body.copyWith(color: colors.textMuted),
-                      isDense: true,
-                      border: InputBorder.none,
-                      contentPadding: const EdgeInsets.symmetric(
-                        vertical: OcSpace.s8,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                if (_editing case final editing?)
+                  ComposerContextBar(
+                    editing: true,
+                    title: 'Edit message',
+                    preview: editing.content,
+                    onClose: _cancelEditing,
+                  ),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Expanded(
+                      child: Focus(
+                        canRequestFocus: false,
+                        skipTraversal: true,
+                        onKeyEvent: _handleKey,
+                        child: TextField(
+                          controller: _controller,
+                          focusNode: _focusNode,
+                          maxLines: 8,
+                          minLines: 1,
+                          textInputAction: TextInputAction.newline,
+                          style: OcText.body.copyWith(color: colors.text),
+                          cursorColor: colors.text,
+                          decoration: ocInputDecoration(
+                            context,
+                            hint: 'Message $name',
+                            radius: OcRadius.composer,
+                            padding: const EdgeInsets.fromLTRB(
+                              OcSpace.s16,
+                              OcSpace.s10,
+                              OcSpace.s8,
+                              OcSpace.s10,
+                            ),
+                          ),
+                        ),
                       ),
                     ),
-                  ),
-                ),
-              ),
-                if (showCounter)
-                  Padding(
-                    padding: const EdgeInsets.only(
-                      bottom: OcSpace.s8,
-                      right: OcSpace.s8,
-                    ),
-                    child: Text(
-                      '${4000 - runeCount}',
-                      style: OcText.meta.copyWith(
-                        color: overLimit ? colors.recording : colors.textMuted,
+                    if (showCounter)
+                      Padding(
+                        padding: const EdgeInsets.only(
+                          bottom: OcSpace.s8,
+                          right: OcSpace.s8,
+                        ),
+                        child: Text(
+                          '${4000 - runeCount}',
+                          style: OcText.meta.copyWith(
+                            color: overLimit
+                                ? colors.recording
+                                : colors.textMuted,
+                          ),
+                        ),
                       ),
+                    OcIconButton(
+                      icon: OcIcons.send,
+                      tooltip: 'Send',
+                      onPressed: overLimit ? null : _submit,
                     ),
-                  ),
-                OcIconButton(
-                  icon: OcIcons.send,
-                  tooltip: 'Send',
-                  onPressed: overLimit ? null : _submit,
+                  ],
                 ),
               ],
             ),
-          ],
+          ),
         ),
-      );
+      ),
+    );
   }
 }

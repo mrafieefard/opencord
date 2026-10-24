@@ -47,9 +47,7 @@ class RequestBar extends ConsumerWidget {
             label: 'Accept',
             onPressed: () async {
               try {
-                await ref
-                    .read(repositoryProvider)
-                    .acceptMessageRequest(peer);
+                await ref.read(repositoryProvider).acceptMessageRequest(peer);
               } on RepoException catch (e) {
                 if (!context.mounted) return;
                 await showPrivateFailure(context, e, name: name);
@@ -68,9 +66,7 @@ class RequestBar extends ConsumerWidget {
               );
               if (!confirmed || !context.mounted) return;
               try {
-                await ref
-                    .read(repositoryProvider)
-                    .ignoreMessageRequest(peer);
+                await ref.read(repositoryProvider).ignoreMessageRequest(peer);
                 if (!context.mounted) return;
                 ref.read(navigationProvider.notifier).openFriends();
               } on RepoException catch (e) {

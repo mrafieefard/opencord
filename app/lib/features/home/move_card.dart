@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import 'package:opencord/core/model/server.dart';
 import 'package:opencord/core/providers/providers.dart';
 import 'package:opencord/core/repository/repository.dart';
 import 'package:opencord/features/home/private_errors.dart';
@@ -30,26 +29,24 @@ class MoveCard extends ConsumerWidget {
     final colors = context.oc;
     final name = ref.watch(contactNameProvider(peer));
 
-    final isSaved = serverKey != null &&
-        ref.watch(serverListProvider).any((s) => s.key == serverKey);
-
-    bool canMoveToo = false;
-    if (isSaved && serverKey != null) {
-      final serverState = ref.watch(serverProvider(serverKey!));
-      final isConnected =
-          serverState.connection.phase == ConnectionPhase.connected &&
-              serverState.data != null;
-      if (isConnected) {
-        final members = serverState.data!.members.values;
-        final peerInServer = members.any((m) =>
-            m.user.publicKeyHex == peer ||
-            m.user.id.toString() == peer ||
-            m.user.displayName == name);
-        if (peerInServer) {
-          canMoveToo = true;
-        }
-      }
-    }
+    final key = serverKey;
+    // Already moved there (this device moved too, or another of its
+    // devices did): nothing to offer.
+    final here =
+        key != null &&
+        ref.watch(
+          privateContactsProvider.select(
+            (state) => state.byPeer[peer]?.relayServerKey == key,
+          ),
+        );
+    // Move too needs the server connected on this device with them in it,
+    // known by their identity key: names aren't unique.
+    final canMoveToo =
+        !here &&
+        key != null &&
+        ref
+            .watch(sharedServersProvider(peer))
+            .any((server) => server.serverKey == key);
 
     return Container(
       margin: const EdgeInsets.symmetric(
@@ -66,7 +63,7 @@ class MoveCard extends ConsumerWidget {
         children: [
           Expanded(
             child: Text(
-              canMoveToo
+              canMoveToo || here
                   ? '$name moved this chat to $serverName'
                   : "$name moved this chat to $serverName, a server this device isn't on.",
               style: OcText.body.copyWith(color: colors.text),

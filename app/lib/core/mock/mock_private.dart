@@ -47,10 +47,10 @@ class MockPrivateWorld {
       name: 'Kai Nakamura',
       friend: FriendStatus.friends,
       conversation: ConversationStatus.accepted,
-      relayServerKey: 'rust-berlin.example:7710',
+      relayServerKey: 'opencord.example:7710',
       lastActivity: _now.subtract(const Duration(minutes: 10)),
       unread: 0,
-      preview: 'Moved the chat over!',
+      preview: 'Sure, I will move over in a bit.',
     );
 
     messages[kaiKey] = [
@@ -106,7 +106,7 @@ class MockPrivateWorld {
         peer: kaiKey,
         outgoing: true,
         kind: PrivateMessageKind.text,
-        content: 'Moved the chat over!',
+        content: 'Sure, I will move over in a bit.',
         sentAt: _now.subtract(const Duration(minutes: 10)),
         state: PrivateSendState.sent,
       ),

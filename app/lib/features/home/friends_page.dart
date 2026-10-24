@@ -18,6 +18,28 @@ const friendsTabKey = 'ui.friendsTab';
 /// The tabs on the Friends page (§6.2).
 enum FriendsTab { online, all, pending, requests, blocked }
 
+/// The Friends page's tab, remembered across launches. The home sidebar's
+/// Message requests row opens [FriendsTab.requests].
+class FriendsTabNotifier extends Notifier<FriendsTab> {
+  @override
+  FriendsTab build() {
+    final saved = ref.read(keyValueStoreProvider).read(friendsTabKey);
+    return FriendsTab.values.firstWhere(
+      (tab) => tab.name == saved,
+      orElse: () => FriendsTab.online,
+    );
+  }
+
+  void select(FriendsTab tab) {
+    state = tab;
+    ref.read(keyValueStoreProvider).write(friendsTabKey, tab.name);
+  }
+}
+
+final friendsTabProvider = NotifierProvider<FriendsTabNotifier, FriendsTab>(
+  FriendsTabNotifier.new,
+);
+
 class FriendsPage extends ConsumerStatefulWidget {
   const FriendsPage({super.key});
 
@@ -26,31 +48,13 @@ class FriendsPage extends ConsumerStatefulWidget {
 }
 
 class _FriendsPageState extends ConsumerState<FriendsPage> {
-  late FriendsTab _tab;
   bool _spamExpanded = false;
-
-  @override
-  void initState() {
-    super.initState();
-    final saved = ref.read(keyValueStoreProvider).read(friendsTabKey);
-    _tab = switch (saved) {
-      'all' => FriendsTab.all,
-      'pending' => FriendsTab.pending,
-      'requests' => FriendsTab.requests,
-      'blocked' => FriendsTab.blocked,
-      _ => FriendsTab.online,
-    };
-  }
-
-  void _onTabChanged(FriendsTab tab) {
-    setState(() => _tab = tab);
-    ref.read(keyValueStoreProvider).write(friendsTabKey, tab.name);
-  }
 
   @override
   Widget build(BuildContext context) {
     final colors = context.oc;
     final contacts = ref.watch(privateContactsProvider);
+    final tab = ref.watch(friendsTabProvider);
 
     return Column(
       children: [
@@ -65,16 +69,22 @@ class _FriendsPageState extends ConsumerState<FriendsPage> {
             children: [
               Text('Friends', style: OcText.title.copyWith(color: colors.text)),
               const SizedBox(width: OcSpace.s20),
-              ChoiceChips<FriendsTab>(
-                value: _tab,
-                onChanged: _onTabChanged,
-                options: const [
-                  (FriendsTab.online, 'Online'),
-                  (FriendsTab.all, 'All'),
-                  (FriendsTab.pending, 'Pending'),
-                  (FriendsTab.requests, 'Message requests'),
-                  (FriendsTab.blocked, 'Blocked'),
-                ],
+              // Scrolls sideways when the window is too narrow for all tabs.
+              Expanded(
+                child: SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: ChoiceChips<FriendsTab>(
+                    value: tab,
+                    onChanged: ref.read(friendsTabProvider.notifier).select,
+                    options: const [
+                      (FriendsTab.online, 'Online'),
+                      (FriendsTab.all, 'All'),
+                      (FriendsTab.pending, 'Pending'),
+                      (FriendsTab.requests, 'Message requests'),
+                      (FriendsTab.blocked, 'Blocked'),
+                    ],
+                  ),
+                ),
               ),
             ],
           ),
@@ -82,7 +92,7 @@ class _FriendsPageState extends ConsumerState<FriendsPage> {
 
         // Main content area
         Expanded(
-          child: switch (_tab) {
+          child: switch (tab) {
             FriendsTab.online => _buildOnlineTab(context, contacts),
             FriendsTab.all => _buildAllTab(context, contacts),
             FriendsTab.pending => _buildPendingTab(context, contacts),

@@ -27,11 +27,7 @@ class PrivateHeader extends ConsumerWidget {
 
   final String peer;
 
-  void _showFingerprint(
-    BuildContext context,
-    String name,
-    String fingerprint,
-  ) {
+  void _showFingerprint(BuildContext context, String name, String fingerprint) {
     final colors = context.oc;
     showOcDialog<void>(
       context: context,
@@ -132,18 +128,18 @@ class PrivateHeader extends ConsumerWidget {
     final relayServer = relayKey != null
         ? ref.watch(serverProvider(relayKey))
         : null;
-    final relayServerName = relayServer?.data?.info.name ??
-        sharedServers
-            .where((s) => s.serverKey == relayKey)
-            .firstOrNull
-            ?.name ??
+    final relayServerName =
+        relayServer?.data?.info.name ??
+        sharedServers.where((s) => s.serverKey == relayKey).firstOrNull?.name ??
         'Server';
 
-    final isRelayConnected = relayServer != null &&
+    final isRelayConnected =
+        relayServer != null &&
         relayServer.connection.phase == ConnectionPhase.connected &&
         relayServer.data != null;
 
-    final unjoinedRelay = relayKey == null &&
+    final unjoinedRelay =
+        relayKey == null &&
         contact?.conversation == ConversationStatus.accepted;
 
     return Column(
@@ -200,12 +196,12 @@ class PrivateHeader extends ConsumerWidget {
                 builder: (btnContext) => Hoverable(
                   onTap: sharedServers.isNotEmpty
                       ? () => _showRelayMenu(
-                            btnContext,
-                            ref,
-                            name,
-                            relayKey,
-                            sharedServers,
-                          )
+                          btnContext,
+                          ref,
+                          name,
+                          relayKey,
+                          sharedServers,
+                        )
                       : null,
                   semanticLabel: 'Relay server',
                   builder: (context, state) => Container(
@@ -215,8 +211,9 @@ class PrivateHeader extends ConsumerWidget {
                     ),
                     decoration: BoxDecoration(
                       color: state.active ? colors.hover : colors.surface,
-                      borderRadius:
-                          BorderRadius.circular(OcRadius.bubbleGrouped),
+                      borderRadius: BorderRadius.circular(
+                        OcRadius.bubbleGrouped,
+                      ),
                       border: Border.all(
                         color: !isRelayConnected && relayKey != null
                             ? colors.textSecondary

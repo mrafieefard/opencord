@@ -3,8 +3,9 @@ import 'package:opencord/core/model/private.dart';
 
 /// Adapts a [PrivateMessage] to the chat [Message] model (§6.3).
 Message asChatMessage(PrivateMessage m) {
-  final hexPrefix =
-      m.id.length >= 16 ? m.id.substring(0, 16) : m.id.padRight(16, '0');
+  final hexPrefix = m.id.length >= 16
+      ? m.id.substring(0, 16)
+      : m.id.padRight(16, '0');
   final intId =
       BigInt.tryParse(hexPrefix, radix: 16)?.toSigned(64).toInt() ??
       m.id.hashCode;

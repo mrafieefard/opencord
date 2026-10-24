@@ -36,6 +36,13 @@ class _PrivateChatState extends ConsumerState<PrivateChat> {
   void initState() {
     super.initState();
     _scheduleMarkRead();
+    // Coming back to the window reads what arrived while it was away.
+    ref.listenManual(windowStatusProvider.select((status) => status.focused), (
+      _,
+      focused,
+    ) {
+      if (focused) _scheduleMarkRead();
+    });
   }
 
   @override
@@ -48,7 +55,7 @@ class _PrivateChatState extends ConsumerState<PrivateChat> {
     _readDebounce?.cancel();
     _readDebounce = Timer(const Duration(milliseconds: 500), () {
       if (!mounted) return;
-      final focused = ref.read(windowInfoProvider).status.focused;
+      final focused = ref.read(windowStatusProvider).focused;
       if (focused) {
         ref.read(repositoryProvider).markPrivateRead(widget.peer);
       }
@@ -64,14 +71,11 @@ class _PrivateChatState extends ConsumerState<PrivateChat> {
     final isTyping = ref.watch(privateTypingProvider).containsKey(widget.peer);
 
     // Listen for new messages to mark read (§6.3)
-    ref.listen(
-      privateConversationProvider(widget.peer),
-      (prev, next) {
-        if (next.messages.length != prev?.messages.length) {
-          _scheduleMarkRead();
-        }
-      },
-    );
+    ref.listen(privateConversationProvider(widget.peer), (prev, next) {
+      if (next.messages.length != prev?.messages.length) {
+        _scheduleMarkRead();
+      }
+    });
 
     final isBlocked = contact?.blocked ?? false;
     final isRequestMode = contact?.conversation == ConversationStatus.request;
@@ -105,9 +109,7 @@ class _PrivateChatState extends ConsumerState<PrivateChat> {
               label: 'Unblock',
               onPressed: () async {
                 try {
-                  await ref
-                      .read(repositoryProvider)
-                      .unblockUser(widget.peer);
+                  await ref.read(repositoryProvider).unblockUser(widget.peer);
                 } on RepoException catch (e) {
                   if (!context.mounted) return;
                   await showPrivateFailure(context, e, name: name);
@@ -146,10 +148,7 @@ class _PrivateChatState extends ConsumerState<PrivateChat> {
         ),
       );
     } else {
-      bottomBar = PrivateComposer(
-        key: _composerKey,
-        peer: widget.peer,
-      );
+      bottomBar = PrivateComposer(key: _composerKey, peer: widget.peer);
     }
 
     return Column(

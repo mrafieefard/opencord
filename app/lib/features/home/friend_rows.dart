@@ -26,11 +26,15 @@ class ContactAvatar extends ConsumerWidget {
     required this.peer,
     this.presence,
     this.size = 36,
+    this.presenceDot = true,
   });
 
   final String peer;
   final Presence? presence;
   final double size;
+
+  /// Off beside messages, as channel messages show none.
+  final bool presenceDot;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -39,7 +43,9 @@ class ContactAvatar extends ConsumerWidget {
     );
     final avatar = ref.read(contactAvatarProvider(peer));
     final name = ref.watch(contactNameProvider(peer));
-    final p = presence ?? ref.watch(contactPresenceProvider(peer));
+    final p = presenceDot
+        ? presence ?? ref.watch(contactPresenceProvider(peer))
+        : null;
     if (avatar != null) {
       return MemberAvatar(
         serverKey: avatar.serverKey,

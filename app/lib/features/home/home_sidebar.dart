@@ -7,6 +7,7 @@ import 'package:opencord/core/repository/repository.dart';
 import 'package:opencord/features/channels/user_panel.dart';
 import 'package:opencord/features/channels/voice_panel.dart';
 import 'package:opencord/features/home/friend_rows.dart';
+import 'package:opencord/features/home/friends_page.dart';
 import 'package:opencord/features/shell/navigation.dart';
 import 'package:opencord/features/window/header_bar.dart';
 import 'package:opencord/ui/theme/oc_colors.dart';
@@ -33,24 +34,28 @@ class HomeSidebar extends ConsumerWidget {
     final currentPeer = ref.watch(currentPeerProvider);
     final isHome = ref.watch(homeShownProvider);
     final isFriends = isHome && currentPeer == null;
+    final requestsTab = ref.watch(friendsTabProvider) == FriendsTab.requests;
 
     final incomingNonSpam = contacts.incomingRequests.length;
     final messageRequests = contacts.messageRequests.length;
 
     // Direct messages: accepted, not hidden, not blocked, newest first
-    final conversations = contacts.all
-        .where(
-          (c) =>
-              c.conversation == ConversationStatus.accepted &&
-              !c.hidden &&
-              !c.blocked,
-        )
-        .toList()
-      ..sort((a, b) {
-        final atA = a.lastActivity ?? DateTime.fromMillisecondsSinceEpoch(0);
-        final atB = b.lastActivity ?? DateTime.fromMillisecondsSinceEpoch(0);
-        return atB.compareTo(atA);
-      });
+    final conversations =
+        contacts.all
+            .where(
+              (c) =>
+                  c.conversation == ConversationStatus.accepted &&
+                  !c.hidden &&
+                  !c.blocked,
+            )
+            .toList()
+          ..sort((a, b) {
+            final atA =
+                a.lastActivity ?? DateTime.fromMillisecondsSinceEpoch(0);
+            final atB =
+                b.lastActivity ?? DateTime.fromMillisecondsSinceEpoch(0);
+            return atB.compareTo(atA);
+          });
 
     return ColoredBox(
       color: colors.sidebar,
@@ -74,10 +79,16 @@ class HomeSidebar extends ConsumerWidget {
             child: _SidebarNavRow(
               icon: OcIcons.group,
               label: 'Friends',
-              selected: isFriends,
+              selected: isFriends && !requestsTab,
               count: incomingNonSpam,
-              onTap: () =>
-                  ref.read(navigationProvider.notifier).openFriends(),
+              onTap: () {
+                if (requestsTab) {
+                  ref
+                      .read(friendsTabProvider.notifier)
+                      .select(FriendsTab.online);
+                }
+                ref.read(navigationProvider.notifier).openFriends();
+              },
             ),
           ),
           Padding(
@@ -85,10 +96,14 @@ class HomeSidebar extends ConsumerWidget {
             child: _SidebarNavRow(
               icon: OcIcons.mail,
               label: 'Message requests',
-              selected: false,
+              selected: isFriends && requestsTab,
               count: messageRequests,
-              onTap: () =>
-                  ref.read(navigationProvider.notifier).openFriends(),
+              onTap: () {
+                ref
+                    .read(friendsTabProvider.notifier)
+                    .select(FriendsTab.requests);
+                ref.read(navigationProvider.notifier).openFriends();
+              },
             ),
           ),
           const SizedBox(height: OcSpace.s8),
@@ -209,15 +224,13 @@ class _ConversationRow extends ConsumerWidget {
         OcMenuItem(
           label: muted ? 'Unmute notifications' : 'Mute notifications',
           icon: muted ? OcIcons.notifications : OcIcons.notificationsOff,
-          onSelected: () => ref
-              .read(repositoryProvider)
-              .setPrivateMuted(peer, muted: !muted),
+          onSelected: () =>
+              ref.read(repositoryProvider).setPrivateMuted(peer, muted: !muted),
         ),
         OcMenuItem(
           label: 'Close conversation',
           icon: OcIcons.close,
-          onSelected: () =>
-              ref.read(repositoryProvider).hideConversation(peer),
+          onSelected: () => ref.read(repositoryProvider).hideConversation(peer),
         ),
         const OcMenuDivider(),
         OcMenuItem(

@@ -379,9 +379,11 @@ class _ProfileActions extends ConsumerWidget {
       spacing: OcSpace.s8,
       runSpacing: OcSpace.s8,
       children: [
+        // An icon, so the friend button's state fits on the line too.
         if (canMention)
-          OcButton(
-            label: 'Mention',
+          OcIconButton(
+            icon: OcIcons.alternateEmail,
+            tooltip: 'Mention',
             onPressed: () {
               Navigator.pop(context);
               actions.mention(member);

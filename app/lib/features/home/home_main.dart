@@ -57,7 +57,11 @@ class _HomeMainState extends ConsumerState<HomeMain> {
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) =>
+      // The same surface as a channel's chat area.
+      ColoredBox(color: context.oc.chat, child: _content(context));
+
+  Widget _content(BuildContext context) {
     final colors = context.oc;
     final repo = ref.watch(repositoryProvider);
     final contactsState = ref.watch(privateContactsProvider);
