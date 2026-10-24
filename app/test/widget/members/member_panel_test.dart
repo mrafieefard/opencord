@@ -150,12 +150,15 @@ void main() {
 
     expect(_menuLabels(tester), [
       'Profile',
+      'Message',
+      'Friends',
       'Mention',
       'Copy identity fingerprint',
       'Roles',
       'Block from music',
       'Kick',
       'Ban',
+      'Block',
     ]);
     await app.dispose(tester);
   });

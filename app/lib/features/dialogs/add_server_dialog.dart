@@ -66,7 +66,10 @@ class _AddServerDialogState extends ConsumerState<AddServerDialog> {
   /// The host the input names, for "Connecting to host…".
   String get _host {
     final address = _trust?.address ?? _link.text.trim();
-    final match = RegExp(r'^(?:opencord://)?([^/:#\s]+)').firstMatch(address);
+    final match = RegExp(
+      r'^(?:opencords?://)?([^/:#\s]+)',
+      caseSensitive: false,
+    ).firstMatch(address);
     return match?.group(1) ?? address;
   }
 
@@ -168,7 +171,7 @@ class _AddServerDialogState extends ConsumerState<AddServerDialog> {
           OcTextField(
             controller: _link,
             autofocus: true,
-            hint: 'opencord://host:port/invite/…  or  host:port',
+            hint: 'opencord://host/invite/…  or  host[:port]',
             semanticLabel: 'Invite link or address',
             onSubmitted: (_) => _join(),
           ),

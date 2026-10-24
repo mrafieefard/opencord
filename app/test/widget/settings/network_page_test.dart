@@ -353,7 +353,7 @@ void domainTests() {
 
     await invite.open(_dev);
     expect(find.text('THROUGH'), findsNothing, reason: 'one active domain');
-    expect(invite.link, startsWith('opencord://one.example.com:7710/invite/'));
+    expect(invite.link, startsWith('opencord://one.example.com/invite/'));
     await invite.close();
 
     unawaited(
@@ -370,7 +370,7 @@ void domainTests() {
     await tester.tap(find.widgetWithText(OcButton, 'Make a new link'));
     await _pumpFor(tester, const Duration(milliseconds: 600));
 
-    expect(invite.link, startsWith('opencord://two.example.com:7710/invite/'));
+    expect(invite.link, startsWith('opencord://two.example.com/invite/'));
     expect(
       find.textContaining(
         'For a browser: https://two.example.com:7710/invite/',
@@ -760,10 +760,8 @@ void freeDomainAndTunnelTests() {
     await app.dispose(tester);
   });
 
-  testWidgets("a domain behind Cloudflare's proxy shows its proxied records, "
-      'the port and certificate steps, and takes an origin certificate', (
-    tester,
-  ) async {
+  testWidgets("Cloudflare's proxy is no longer offered, and a domain added "
+      'that way earlier still takes an origin certificate', (tester) async {
     final app = await MockApp.pump(tester);
     await _openNetwork(tester);
     await _tapVisible(
@@ -771,23 +769,23 @@ void freeDomainAndTunnelTests() {
       _inSettings(find.widgetWithText(OcButton, 'Add domain')),
     );
     await _pumpFor(tester, const Duration(milliseconds: 300));
-    await tester.enterText(
-      _fieldsOf<AddDomainDialog>().first,
-      'proxied.example.com',
+    expect(find.text("Through Cloudflare's proxy"), findsNothing);
+    expect(find.text('Through my Cloudflare Tunnel'), findsOneWidget);
+    await tester.tap(find.widgetWithText(OcButton, 'Cancel'));
+    await _pumpFor(tester, const Duration(milliseconds: 600));
+
+    unawaited(
+      app
+          .read(networkProvider(_dev).notifier)
+          .change(
+            (repository, server) => repository.addDomain(
+              server,
+              hostname: 'proxied.example.com',
+              kind: DomainKind.cloudflareProxy,
+            ),
+          ),
     );
-    await tester.tap(find.text("Through Cloudflare's proxy"));
-    await tester.pump();
-    await tester.tap(find.widgetWithText(OcButton, 'Next'));
     await _pumpFor(tester, const Duration(milliseconds: 600));
-
-    expect(find.text('Point Cloudflare here'), findsOneWidget);
-    expect(find.textContaining('orange cloud'), findsOneWidget);
-    expect(find.textContaining('Origin Rule'), findsOneWidget);
-    expect(find.textContaining('Full (strict)'), findsOneWidget);
-    expect(find.textContaining('carry no UDP'), findsOneWidget);
-    await tester.tap(find.widgetWithText(OcButton, 'Later'));
-    await _pumpFor(tester, const Duration(milliseconds: 600));
-
     await _tapVisible(
       tester,
       _inSettings(find.byTooltip('More for proxied.example.com')),

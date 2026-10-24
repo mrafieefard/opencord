@@ -19,19 +19,21 @@ use proto::response::Result as Response;
 use proto::{MusicAction as Action, MusicPlayState as Play};
 
 #[tokio::test]
-async fn music_needs_a_node_the_channel_and_the_permissions() {
+async fn music_needs_the_channel_and_the_permissions_and_links_need_a_node() {
+    // Without a node, search finds uploaded songs only (design 2026-10-24).
     let server = TestServer::start().await;
     let (mut owner, ready) = owner(&server).await;
     let voice = channel_id(&ready, "General");
     owner.ok(join_voice(voice)).await;
+    assert!(search(&mut owner, voice, "song").await.is_empty());
     let error = owner
         .error(Kind::MusicSearch(proto::MusicSearch {
             channel_id: voice,
-            query: "song".to_owned(),
+            query: "https://www.youtube.com/watch?v=abc".to_owned(),
             source: String::new(),
         }))
         .await;
-    assert_eq!(code(&error), proto::ErrorCode::MusicNotConfigured);
+    assert_eq!(code(&error), proto::ErrorCode::MusicNodeUnavailable);
     drop((owner, server));
 
     let Room {

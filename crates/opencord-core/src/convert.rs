@@ -5,11 +5,11 @@ use opencord_proto::v1 as proto;
 use crate::api::types::{
     Attachment, AttachmentKind, Ban, Channel, ChannelKind, ChannelPermissions, ConnectAddress,
     CoreError, CoreEventPayload, EphemeralMessage, ErrorCode, Invite, Member, Message,
-    OverwriteTargetKind, PermissionOverwrite, Presence, PresenceStatus, ReadySnapshot, Role,
-    S3Config, ScreenShareResolution, ScreenStream, ServerAddresses, ServerInfo, SoundEffect,
-    SoundboardSound, StorageBackend, StorageInfo, StorageKind, StorageMove, StorageTestResult,
-    StorageTestStep, StreamSourceKind, UploadSettings, User, VoiceSettings, VoiceSettingsChanges,
-    VoiceState,
+    OverwriteTargetKind, PermissionOverwrite, Presence, PresenceStatus, PrivateSettings,
+    ReadySnapshot, Role, S3Config, ScreenShareResolution, ScreenStream, ServerAddresses,
+    ServerInfo, SoundEffect, SoundboardSound, StorageBackend, StorageInfo, StorageKind,
+    StorageMove, StorageTestResult, StorageTestStep, StreamSourceKind, UploadSettings, User,
+    VoiceSettings, VoiceSettingsChanges, VoiceState,
 };
 use crate::identity::public_key_fingerprint;
 
@@ -246,6 +246,14 @@ pub fn attachment(attachment: proto::Attachment) -> Attachment {
     }
 }
 
+pub fn private_settings(settings: proto::PrivateSettings) -> PrivateSettings {
+    PrivateSettings {
+        enabled: settings.enabled,
+        friends_only: settings.friends_only,
+        allowed_by_config: settings.allowed_by_config,
+    }
+}
+
 pub fn upload_settings(settings: proto::UploadSettings) -> UploadSettings {
     UploadSettings {
         blocked_extensions: settings.blocked_extensions,
@@ -435,6 +443,8 @@ pub fn ready(ready: proto::Ready) -> ReadySnapshot {
         addresses: server_addresses(ready.server_addresses.unwrap_or_default()),
         commands: crate::commands::list_from(ready.commands.unwrap_or_default()),
         upload_settings: upload_settings(ready.upload_settings.unwrap_or_default()),
+        private_messages: ready.private_messages,
+        private_settings: private_settings(ready.private_settings.unwrap_or_default()),
     }
 }
 
@@ -588,6 +598,9 @@ pub fn event(kind: proto::event::Kind, session_id: &str) -> Option<CoreEventPayl
         Kind::UploadSettingsUpdate(update) => {
             CoreEventPayload::UploadSettingsUpdate(upload_settings(update.settings?))
         }
+        Kind::PrivateSettingsUpdate(update) => {
+            CoreEventPayload::PrivateSettingsUpdate(private_settings(update.settings?))
+        }
         Kind::StorageUpdate(update) => CoreEventPayload::StorageUpdate(storage(update.storage?)),
         // With the server's clock: `music::event`.
         Kind::MusicSnapshot(_)
@@ -597,7 +610,9 @@ pub fn event(kind: proto::event::Kind, session_id: &str) -> Option<CoreEventPayl
         // For the send waiting on them: `connection.rs` hands them to
         // `Uploads`.
         | Kind::UploadReady(_)
-        | Kind::UploadFailed(_) => return None,
+        | Kind::UploadFailed(_)
+        | Kind::PendingEvent(_)
+        | Kind::PrivateTypingStart(_) => return None,
     })
 }
 
@@ -650,6 +665,12 @@ pub fn error_code(code: i32) -> ErrorCode {
         Ok(proto::ErrorCode::StorageFull) => ErrorCode::StorageFull,
         Ok(proto::ErrorCode::VoiceMessageInvalid) => ErrorCode::VoiceMessageInvalid,
         Ok(proto::ErrorCode::VoiceMessageTooLong) => ErrorCode::VoiceMessageTooLong,
+        Ok(proto::ErrorCode::FriendRequestsClosed) => ErrorCode::FriendRequestsClosed,
+        Ok(proto::ErrorCode::MessageRequestsClosed) => ErrorCode::MessageRequestsClosed,
+        Ok(proto::ErrorCode::Undeliverable) => ErrorCode::Undeliverable,
+        Ok(proto::ErrorCode::DeviceListChanged) => ErrorCode::DeviceListChanged,
+        Ok(proto::ErrorCode::PrivateMessagesUnavailable) => ErrorCode::PrivateMessagesUnavailable,
+        Ok(proto::ErrorCode::FriendsOnly) => ErrorCode::FriendsOnly,
 
         _ => ErrorCode::Unknown,
     }

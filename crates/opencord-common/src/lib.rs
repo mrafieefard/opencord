@@ -8,6 +8,7 @@ pub mod channel;
 pub mod limits;
 pub mod mp4;
 pub mod permissions;
+pub mod private;
 pub mod rate;
 pub mod signed;
 pub mod sniff;

@@ -96,6 +96,19 @@ pub fn envelope_for(command: &NodeCommand) -> internal::ControlEnvelope {
                     .collect(),
             })
         }
+        NodeCommand::MusicFrame {
+            channel_id,
+            connection,
+            sequence,
+            timestamp,
+            opus,
+        } => Payload::MusicFrame(internal::MusicFrame {
+            channel_id: *channel_id,
+            connection: *connection,
+            sequence: u32::from(*sequence),
+            timestamp: *timestamp,
+            opus: opus.to_vec(),
+        }),
     };
     internal::ControlEnvelope {
         payload: Some(payload),
@@ -146,6 +159,13 @@ pub fn command_from(envelope: internal::ControlEnvelope) -> Option<NodeCommand> 
                     .collect()
             }),
         }),
+        Payload::MusicFrame(frame) => NodeCommand::MusicFrame {
+            channel_id: frame.channel_id,
+            connection: frame.connection,
+            sequence: u16::try_from(frame.sequence).ok()?,
+            timestamp: frame.timestamp,
+            opus: frame.opus.into(),
+        },
         _ => return None,
     })
 }
@@ -344,6 +364,13 @@ mod tests {
                 viewers: vec![3, 4],
             },
             NodeCommand::StopMusic { channel_id: 2 },
+            NodeCommand::MusicFrame {
+                channel_id: 2,
+                connection: 9,
+                sequence: 65_535,
+                timestamp: 960,
+                opus: vec![0xFC, 1, 2].into(),
+            },
             NodeCommand::ExpectMusic(ExpectedPlayer {
                 channel_id: 2,
                 user_id: 77,

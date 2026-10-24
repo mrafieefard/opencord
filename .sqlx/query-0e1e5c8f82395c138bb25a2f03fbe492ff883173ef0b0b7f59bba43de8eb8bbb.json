@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "DELETE FROM private_one_time_keys WHERE rowid IN (\n             SELECT rowid FROM private_one_time_keys\n             WHERE user_id = $1 AND device_id = $2\n             ORDER BY rowid DESC\n             LIMIT -1 OFFSET $3)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": []
+  },
+  "hash": "0e1e5c8f82395c138bb25a2f03fbe492ff883173ef0b0b7f59bba43de8eb8bbb"
+}

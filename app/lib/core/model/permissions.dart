@@ -49,6 +49,9 @@ extension type const Permissions(int bits) {
   /// Stop the player, block members from music, bypass music limits,
   /// control music from outside the channel, music settings.
   static const musicManage = Permissions(1 << 31);
+
+  /// Search every uploaded song, not only one's own.
+  static const musicAllLocalSongs = Permissions(1 << 32);
   static const administrator = Permissions(1 << 63);
 
   /// Every defined bit.
@@ -84,6 +87,7 @@ extension type const Permissions(int bits) {
         (1 << 29) |
         (1 << 30) |
         (1 << 31) |
+        (1 << 32) |
         (1 << 63),
   );
 

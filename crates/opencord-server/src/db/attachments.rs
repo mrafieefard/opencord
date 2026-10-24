@@ -343,7 +343,7 @@ pub async fn usage(conn: &mut SqliteConnection) -> Result<Vec<(i64, i64, i64)>, 
     let rows = sqlx::query!(
         r#"SELECT storage_id, COUNT(*) AS "count: i64", COALESCE(SUM(size_bytes), 0) AS "bytes: i64"
            FROM attachments
-           WHERE state IN ('ready', 'sent')
+           WHERE state IN ('ready', 'sent', 'music')
            GROUP BY storage_id"#
     )
     .fetch_all(conn)
@@ -368,7 +368,7 @@ pub async fn not_on(
                   waveform, has_thumbnail AS "has_thumbnail: bool", thumbnail_width,
                   thumbnail_height, error_code, error_message, created_at, updated_at
            FROM attachments
-           WHERE storage_id != $1 AND id > $2 AND state IN ('ready', 'sent')
+           WHERE storage_id != $1 AND id > $2 AND state IN ('ready', 'sent', 'music')
            ORDER BY id
            LIMIT $3"#,
         storage_id,
@@ -386,7 +386,7 @@ pub async fn count_not_on(
     let row = sqlx::query!(
         r#"SELECT COUNT(*) AS "count: i64", COALESCE(SUM(size_bytes), 0) AS "bytes: i64"
            FROM attachments
-           WHERE storage_id != $1 AND state IN ('ready', 'sent')"#,
+           WHERE storage_id != $1 AND state IN ('ready', 'sent', 'music')"#,
         storage_id
     )
     .fetch_one(conn)

@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "DELETE FROM music_local_song_owners WHERE song_id = $1 AND user_id = $2",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "a2018e1d887a136803b4b84a0697e3fe4ccaf81039b2c91f2e1d27aa38ecd893"
+}

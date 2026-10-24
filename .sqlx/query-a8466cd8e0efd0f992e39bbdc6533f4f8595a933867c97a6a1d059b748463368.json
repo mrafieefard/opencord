@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT OR IGNORE INTO private_one_time_keys (user_id, device_id, key, signature)\n         VALUES ($1, $2, $3, $4)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 4
+    },
+    "nullable": []
+  },
+  "hash": "a8466cd8e0efd0f992e39bbdc6533f4f8595a933867c97a6a1d059b748463368"
+}

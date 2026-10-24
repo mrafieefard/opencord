@@ -82,6 +82,7 @@ Widget _compact(
   message: message,
   first: first,
   author: author,
+  avatar: first ? OcAvatar(id: author, name: author, size: 36) : null,
   role: role,
   reply: reply,
   mentionsMe: mentionsMe,

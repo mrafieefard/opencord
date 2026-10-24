@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE private_devices SET last_seen_at = $1 WHERE user_id = $2 AND device_id = $3",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": []
+  },
+  "hash": "41e93a9416eeedc9b7a6bf8c80582a8077981a40c90abb2dcf98282bfaf893f3"
+}

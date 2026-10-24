@@ -1,0 +1,38 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT owner_id, friend_id FROM private_friends",
+  "describe": {
+    "columns": [
+      {
+        "name": "owner_id",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "private_friends",
+            "name": "owner_id"
+          }
+        }
+      },
+      {
+        "name": "friend_id",
+        "ordinal": 1,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "private_friends",
+            "name": "friend_id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "b7424fcecdaa909da972d6637615355e3b4c9724a0c91fbf43dbdfe95d5ea8ed"
+}

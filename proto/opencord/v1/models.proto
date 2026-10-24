@@ -202,6 +202,14 @@ enum ErrorCode {
   ERROR_CODE_STORAGE_FULL = 45;
   ERROR_CODE_VOICE_MESSAGE_INVALID = 46;
   ERROR_CODE_VOICE_MESSAGE_TOO_LONG = 47;
+  // Private messages and friends (design 2026-10-22).
+  ERROR_CODE_FRIEND_REQUESTS_CLOSED = 48;
+  ERROR_CODE_MESSAGE_REQUESTS_CLOSED = 49;
+  ERROR_CODE_UNDELIVERABLE = 50;
+  ERROR_CODE_DEVICE_LIST_CHANGED = 51;
+  ERROR_CODE_PRIVATE_MESSAGES_UNAVAILABLE = 52;
+  // The server relays private messages only between friends.
+  ERROR_CODE_FRIENDS_ONLY = 53;
 }
 
 message Error {
@@ -317,6 +325,9 @@ enum AttachmentKind {
   ATTACHMENT_KIND_VIDEO = 3;
   ATTACHMENT_KIND_AUDIO = 4;
   ATTACHMENT_KIND_VOICE_MESSAGE = 5;
+  // A song for the music player (CreateUpload only): channel_id is the
+  // voice channel; no message is made from it.
+  ATTACHMENT_KIND_MUSIC = 6;
 }
 
 message Attachment {

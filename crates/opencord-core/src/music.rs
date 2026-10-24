@@ -9,7 +9,7 @@ use proto::request::Kind as Request;
 use proto::response::Result as Response;
 
 use crate::api::types::{
-    CoreError, CoreEventPayload, LavalinkNodes, MusicAction, MusicBlock, MusicNotice,
+    CoreError, CoreEventPayload, LavalinkNodes, LocalSong, MusicAction, MusicBlock, MusicNotice,
     MusicNowPlaying, MusicPlacement, MusicPlayState, MusicPlaylist, MusicQueueItem, MusicRepeat,
     MusicSearchResult, MusicSearchResults, MusicSession, MusicSettings, MusicSettingsChanges,
     MusicTrack,
@@ -160,6 +160,63 @@ impl Client {
             Response::MusicSession(session) => {
                 Ok(session_from(*session, self.server_clock_offset(key)))
             }
+            other => Err(unexpected(&other)),
+        }
+    }
+
+    /// Queues the song at `path`, uploading it first when the server
+    /// doesn't have it (design 2026-10-24); `MusicUploadProgress` events
+    /// follow, under `upload_id`. `play_now` plays it at once.
+    pub async fn music_upload_song(
+        &self,
+        key: &str,
+        channel_id: i64,
+        upload_id: String,
+        path: String,
+        play_now: bool,
+    ) -> Result<(), CoreError> {
+        crate::attachments::song::upload_song(self, key, channel_id, upload_id, path, play_now)
+            .await
+    }
+
+    /// Stops a song's upload; it returns `Cancelled`.
+    pub fn music_cancel_song(&self, key: &str, upload_id: &str) {
+        crate::attachments::song::cancel_song(self, key, upload_id);
+    }
+
+    /// An owner stops owning the song, which goes when nobody owns it; an
+    /// administrator removes it for everyone.
+    pub async fn remove_local_song(&self, key: &str, song_id: i64) -> Result<(), CoreError> {
+        let request = Request::RemoveLocalSong(proto::RemoveLocalSong { song_id });
+        match self.request(key, request).await? {
+            Response::Ack(_) => Ok(()),
+            other => Err(unexpected(&other)),
+        }
+    }
+
+    /// Every uploaded song, newest first, 50 at a time; administrators only.
+    pub async fn fetch_local_songs(
+        &self,
+        key: &str,
+        query: String,
+        before_id: Option<i64>,
+    ) -> Result<Vec<LocalSong>, CoreError> {
+        let request = Request::FetchLocalSongs(proto::FetchLocalSongs { query, before_id });
+        match self.request(key, request).await? {
+            Response::LocalSongs(songs) => Ok(songs
+                .songs
+                .into_iter()
+                .map(|song| LocalSong {
+                    id: song.id,
+                    title: song.title,
+                    artist: song.artist,
+                    duration_ms: song.duration_ms,
+                    size_bytes: song.size_bytes,
+                    filename: song.filename,
+                    uploader_id: song.uploader_id,
+                    created_at_ms: song.created_at_ms,
+                })
+                .collect()),
             other => Err(unexpected(&other)),
         }
     }
@@ -323,6 +380,8 @@ pub(crate) fn settings_from(settings: proto::MusicSettings) -> MusicSettings {
         available_sources: settings.available_sources,
         supported: settings.supported,
         configured: settings.configured,
+        has_nodes: settings.has_nodes,
+        local_songs: settings.local_songs,
     }
 }
 
@@ -337,6 +396,8 @@ pub(crate) fn track_from(track: proto::MusicTrack) -> MusicTrack {
         source_display_name: track.source_display_name,
         uri: track.uri,
         artwork_id: track.artwork_id,
+        local_song_id: track.local_song_id,
+        removable: track.removable,
     }
 }
 

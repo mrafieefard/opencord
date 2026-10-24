@@ -104,3 +104,103 @@ class ComposerContextBar extends StatelessWidget {
     );
   }
 }
+
+/// The message box's frame (§4.6), as Telegram's: the field runs the whole
+/// width of the chat with no box of its own, and its buttons sit inside the
+/// bar beside it. Reply, edit and staged files go above; [cover] lies over
+/// the row (the voice recording bar).
+class ComposerFrame extends StatelessWidget {
+  const ComposerFrame({
+    super.key,
+    required this.field,
+    this.above = const [],
+    this.leading = const [],
+    this.trailing = const [],
+    this.cover,
+  });
+
+  final Widget field;
+  final List<Widget> above;
+  final List<Widget> leading;
+  final List<Widget> trailing;
+  final Widget? cover;
+
+  /// The field's padding: one line of text plus this is as tall as a
+  /// button plus [_buttonInset] on each side, so they share a middle.
+  static const fieldPadding = EdgeInsets.symmetric(
+    horizontal: OcSpace.s8,
+    vertical: 15,
+  );
+
+  static const double _buttonInset = 7;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.oc;
+    Widget button(Widget child) => Padding(
+      padding: const EdgeInsets.only(bottom: _buttonInset),
+      child: child,
+    );
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: colors.sidebar,
+        border: Border(top: BorderSide(color: colors.border)),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (above.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(
+                OcSpace.s12,
+                OcSpace.s8,
+                OcSpace.s12,
+                0,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: above,
+              ),
+            ),
+          Stack(
+            children: [
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: OcSpace.s8),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    for (final child in leading) button(child),
+                    Expanded(child: field),
+                    for (final child in trailing) button(child),
+                  ],
+                ),
+              ),
+              if (cover case final cover?)
+                Positioned.fill(
+                  child: ColoredBox(color: colors.sidebar, child: cover),
+                ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// The composer field's look inside a [ComposerFrame]: no fill and no
+/// border, as the whole bar is the box.
+InputDecoration composerFieldDecoration(BuildContext context, String hint) =>
+    InputDecoration(
+      hintText: hint,
+      hintStyle: OcText.body.copyWith(color: context.oc.textMuted),
+      isDense: true,
+      filled: false,
+      hoverColor: Colors.transparent,
+      contentPadding: ComposerFrame.fieldPadding,
+      border: InputBorder.none,
+      enabledBorder: InputBorder.none,
+      focusedBorder: InputBorder.none,
+      disabledBorder: InputBorder.none,
+    );

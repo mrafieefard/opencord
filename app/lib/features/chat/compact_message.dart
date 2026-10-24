@@ -5,6 +5,7 @@ import 'package:opencord/core/model/message.dart';
 import 'package:opencord/features/chat/attachments/attachment_view.dart';
 import 'package:opencord/features/chat/bubble.dart';
 import 'package:opencord/features/chat/markdown_view.dart';
+import 'package:opencord/features/chat/message_item.dart';
 import 'package:opencord/ui/theme/oc_colors.dart';
 import 'package:opencord/ui/theme/oc_icons.dart';
 import 'package:opencord/ui/theme/oc_metrics.dart';
@@ -12,9 +13,11 @@ import 'package:opencord/ui/theme/oc_motion.dart';
 import 'package:opencord/ui/theme/oc_text.dart';
 import 'package:opencord/ui/widgets/hoverable.dart';
 
-/// A message in compact density (§8.1): no bubble, a left-aligned line with
-/// the time, the author on the first message of a group, then the text.
-/// Everyone's messages sit on the left, your own too.
+/// A message in compact density (§8.1), laid out as Discord's: the first
+/// message of a group has the author's avatar, then their name, role and
+/// the time above the text; the ones after it are just text, with the time
+/// in the avatar's column while hovered. Everyone's messages sit on the
+/// left, your own too.
 class CompactMessage extends StatelessWidget {
   const CompactMessage({
     super.key,
@@ -22,6 +25,7 @@ class CompactMessage extends StatelessWidget {
     required this.first,
     required this.author,
     required this.links,
+    this.avatar,
     this.role,
     this.reply,
     this.mentionsMe = false,
@@ -39,6 +43,9 @@ class CompactMessage extends StatelessWidget {
   final String serverKey;
   final bool first;
   final String author;
+
+  /// The author's avatar, shown on the first message of a group.
+  final Widget? avatar;
   final String? role;
   final ReplyPreview? reply;
   final bool mentionsMe;
@@ -53,52 +60,26 @@ class CompactMessage extends StatelessWidget {
   /// Opens the author's profile from their name (§16).
   final VoidCallback? onAuthorTap;
 
-  /// Room for "23:59" in the time column.
-  static const double timeWidth = 44;
+  /// The avatar's column, which holds the time on later messages.
+  static const double gutter = OcSize.messageAvatar;
+  static const double _gap = OcSpace.s12;
 
   @override
   Widget build(BuildContext context) {
     final colors = context.oc;
+    final hovered = MessageHover.of(context);
     final failed = message.sendState == SendState.failed;
     final pending = message.sendState == SendState.pending;
     final muted = OcText.meta.copyWith(color: colors.textMuted);
+    final time = Tooltip(
+      message: fullTimestamp(message.createdAt),
+      waitDuration: const Duration(milliseconds: 450),
+      child: Text(clockTime(message.createdAt), style: muted),
+    );
     final text = MarkdownView(
       blocks: parsedContent(message.content),
       links: links,
       color: colors.text,
-      lead: [
-        if (first) ...[
-          if (onAuthorTap case final onTap?)
-            WidgetSpan(
-              alignment: PlaceholderAlignment.baseline,
-              baseline: TextBaseline.alphabetic,
-              child: Hoverable(
-                onTap: onTap,
-                semanticLabel: author,
-                focusRadius: BorderRadius.circular(4),
-                builder: (context, state) => Text(
-                  author,
-                  style: OcText.bodyStrong.copyWith(
-                    color: colors.text,
-                    decoration: state.hovered ? TextDecoration.underline : null,
-                    decorationColor: colors.text,
-                  ),
-                ),
-              ),
-            )
-          else
-            TextSpan(
-              text: author,
-              style: OcText.bodyStrong.copyWith(color: colors.text),
-            ),
-          if (role != null)
-            TextSpan(
-              text: ' · $role',
-              style: OcText.body.copyWith(color: colors.textMuted),
-            ),
-          const TextSpan(text: '  '),
-        ],
-      ],
       tail: [
         if (message.edited) TextSpan(text: '  (edited)', style: muted),
         if (pending)
@@ -117,113 +98,224 @@ class CompactMessage extends StatelessWidget {
       ],
     );
     return AnimatedContainer(
-      duration: OcMotion.of(context).morph,
-      margin: EdgeInsets.only(top: first ? OcSpace.s6 : 0),
-      padding: const EdgeInsets.symmetric(horizontal: OcSpace.s8, vertical: 1),
+      duration: OcMotion.of(context).hover,
+      margin: EdgeInsets.only(top: first ? OcSpace.s16 : 0),
+      padding: EdgeInsets.fromLTRB(
+        OcSpace.s16,
+        first ? OcSpace.s4 : 2,
+        OcSpace.s16,
+        2,
+      ),
       decoration: BoxDecoration(
         color: highlighted
             ? colors.selected
             : mentionsMe
             ? colors.mentionBg
+            : hovered
+            ? colors.hover
             : null,
-        borderRadius: BorderRadius.circular(OcRadius.quote),
       ),
-      // The mention bar is drawn over the edge, so the time column stays
+      // The mention bar is drawn over the edge, so the avatar column stays
       // in line with the other messages.
       foregroundDecoration: mentionsMe
           ? BoxDecoration(
               border: Border(left: BorderSide(color: colors.text, width: 2)),
             )
           : null,
-      child: Row(
+      child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
         children: [
-          SizedBox(
-            width: timeWidth,
-            child: Padding(
-              padding: const EdgeInsets.only(top: 3),
-              child: Tooltip(
-                message: fullTimestamp(message.createdAt),
-                waitDuration: const Duration(milliseconds: 450),
-                child: Text(clockTime(message.createdAt), style: muted),
+          if (reply case final reply?)
+            Padding(
+              padding: const EdgeInsets.only(left: gutter + _gap),
+              child: _CompactReply(reply: reply, onTap: onReplyTap),
+            ),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              SizedBox(
+                width: gutter,
+                child: first
+                    ? Padding(
+                        padding: const EdgeInsets.only(top: 2),
+                        child: SizedBox.square(
+                          dimension: gutter,
+                          child: avatar,
+                        ),
+                      )
+                    : hovered
+                    ? Padding(
+                        padding: const EdgeInsets.only(top: 3),
+                        child: Center(child: time),
+                      )
+                    : null,
+              ),
+              const SizedBox(width: _gap),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (first)
+                      _Header(
+                        author: author,
+                        role: role,
+                        time: time,
+                        onAuthorTap: onAuthorTap,
+                      ),
+                    switch (onSelectionChanged) {
+                      final onChanged? => SelectableMessageText(
+                        onSelectionChanged: onChanged,
+                        child: text,
+                      ),
+                      null => text,
+                    },
+                    if (message.attachments.isNotEmpty)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 4),
+                        child: AttachmentsView(
+                          serverKey: serverKey,
+                          message: message,
+                        ),
+                      ),
+                    if (failed) _Retry(onRetry: onRetry),
+                    if (message.reactions.isNotEmpty)
+                      Padding(
+                        padding: const EdgeInsets.only(
+                          top: OcSpace.s4,
+                          bottom: 2,
+                        ),
+                        child: Wrap(
+                          spacing: OcSpace.s4,
+                          runSpacing: OcSpace.s4,
+                          children: [
+                            for (final reaction in message.reactions)
+                              ReactionChip(
+                                reaction: reaction,
+                                names: reactionNames?.call(reaction.userIds),
+                                onTap: onReaction == null
+                                    ? null
+                                    : () => onReaction!(reaction.emoji),
+                              ),
+                          ],
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// "Kai Nakamura  Maintainer  10:20" over a group's first message.
+class _Header extends StatelessWidget {
+  const _Header({
+    required this.author,
+    required this.role,
+    required this.time,
+    this.onAuthorTap,
+  });
+
+  final String author;
+  final String? role;
+  final Widget time;
+  final VoidCallback? onAuthorTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.oc;
+    Widget name(bool hovered) => Text(
+      author,
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      style: OcText.bodyStrong.copyWith(
+        color: colors.text,
+        decoration: hovered ? TextDecoration.underline : null,
+        decorationColor: colors.text,
+      ),
+    );
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 1),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Flexible(
+            child: switch (onAuthorTap) {
+              final onTap? => Hoverable(
+                onTap: onTap,
+                semanticLabel: author,
+                focusRadius: BorderRadius.circular(4),
+                builder: (context, state) => name(state.hovered),
+              ),
+              null => name(false),
+            },
+          ),
+          if (role case final role?) ...[
+            const SizedBox(width: OcSpace.s6),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+              decoration: BoxDecoration(
+                color: colors.hover,
+                borderRadius: BorderRadius.circular(4),
+                border: Border.all(color: colors.border),
+              ),
+              child: Text(
+                role,
+                maxLines: 1,
+                style: OcText.meta.copyWith(
+                  color: colors.textSecondary,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
             ),
-          ),
+          ],
           const SizedBox(width: OcSpace.s8),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                if (reply case final reply?)
-                  _CompactReply(reply: reply, onTap: onReplyTap),
-                switch (onSelectionChanged) {
-                  final onChanged? => SelectableMessageText(
-                    onSelectionChanged: onChanged,
-                    child: text,
-                  ),
-                  null => text,
-                },
-                if (message.attachments.isNotEmpty)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 4),
-                    child: AttachmentsView(
-                      serverKey: serverKey,
-                      message: message,
-                    ),
-                  ),
-                if (failed)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 2),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          OcIcons.error,
-                          size: 14,
-                          fill: 0,
-                          color: colors.text,
-                          semanticLabel: 'Not sent',
-                        ),
-                        const SizedBox(width: OcSpace.s6),
-                        Hoverable(
-                          onTap: onRetry,
-                          semanticLabel: 'Retry sending',
-                          focusRadius: BorderRadius.circular(4),
-                          builder: (context, state) => Text(
-                            'Retry',
-                            style: OcText.meta.copyWith(
-                              color: colors.text,
-                              fontWeight: FontWeight.w700,
-                              decoration: state.active
-                                  ? TextDecoration.underline
-                                  : null,
-                              decorationColor: colors.text,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                if (message.reactions.isNotEmpty)
-                  Padding(
-                    padding: const EdgeInsets.only(top: OcSpace.s4, bottom: 2),
-                    child: Wrap(
-                      spacing: OcSpace.s4,
-                      runSpacing: OcSpace.s4,
-                      children: [
-                        for (final reaction in message.reactions)
-                          ReactionChip(
-                            reaction: reaction,
-                            names: reactionNames?.call(reaction.userIds),
-                            onTap: onReaction == null
-                                ? null
-                                : () => onReaction!(reaction.emoji),
-                          ),
-                      ],
-                    ),
-                  ),
-              ],
+          time,
+        ],
+      ),
+    );
+  }
+}
+
+/// "Not sent · Retry" under a failed message.
+class _Retry extends StatelessWidget {
+  const _Retry({this.onRetry});
+
+  final VoidCallback? onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.oc;
+    return Padding(
+      padding: const EdgeInsets.only(top: 2),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            OcIcons.error,
+            size: 14,
+            fill: 0,
+            color: colors.text,
+            semanticLabel: 'Not sent',
+          ),
+          const SizedBox(width: OcSpace.s6),
+          Hoverable(
+            onTap: onRetry,
+            semanticLabel: 'Retry sending',
+            focusRadius: BorderRadius.circular(4),
+            builder: (context, state) => Text(
+              'Retry',
+              style: OcText.meta.copyWith(
+                color: colors.text,
+                fontWeight: FontWeight.w700,
+                decoration: state.active ? TextDecoration.underline : null,
+                decorationColor: colors.text,
+              ),
             ),
           ),
         ],

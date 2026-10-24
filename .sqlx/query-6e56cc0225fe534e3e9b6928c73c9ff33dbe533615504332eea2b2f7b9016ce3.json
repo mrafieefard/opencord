@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "DELETE FROM private_recent_sends WHERE created_at < $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": []
+  },
+  "hash": "6e56cc0225fe534e3e9b6928c73c9ff33dbe533615504332eea2b2f7b9016ce3"
+}

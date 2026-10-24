@@ -5,7 +5,12 @@
 #
 # The server keeps its config, database, TLS certificate and voice keys in
 # /data. It listens on 7710/tcp, sends voice and video over 7711/udp, and
-# takes music from Lavalink on 7712/udp.
+# takes music from Lavalink on 7712/udp. The local listener for tunnels and
+# reverse proxies (7719/tcp by default, docs/domains.md) listens on every
+# address of the container, so a proxy in another container can reach it.
+# It serves plain HTTP: don't publish it, and set
+# OPENCORD_LOCAL_LISTENER_BIND=127.0.0.1 when the container uses the host's
+# network.
 
 FROM rust:1.99-trixie AS build
 WORKDIR /src
@@ -32,7 +37,8 @@ ENV OPENCORD_CONFIG=/data/opencord.toml \
     OPENCORD_DATA_DIR=/data \
     OPENCORD_BIND=0.0.0.0:7710 \
     OPENCORD_VOICE_UDP_PORT=7711 \
-    OPENCORD_MUSIC_UDP_PORT=7712
+    OPENCORD_MUSIC_UDP_PORT=7712 \
+    OPENCORD_LOCAL_LISTENER_BIND=0.0.0.0
 VOLUME ["/data"]
 EXPOSE 7710/tcp 7711/udp 7712/udp 80/tcp
 ENTRYPOINT ["opencord-server"]

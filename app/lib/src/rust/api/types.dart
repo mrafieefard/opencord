@@ -8,7 +8,7 @@ import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 import 'package:freezed_annotation/freezed_annotation.dart' hide protected;
 part 'types.freezed.dart';
 
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `hash`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `hash`
 
 class AcmeAccount {
   /// An account exists with the CA in use.
@@ -921,6 +921,8 @@ sealed class ConnectionState with _$ConnectionState {
   }) = ConnectionState_Failed;
 }
 
+enum ConversationStatus { none, request, accepted }
+
 @freezed
 sealed class CoreError with _$CoreError implements FrbException {
   const CoreError._();
@@ -1118,6 +1120,8 @@ sealed class CoreEventPayload with _$CoreEventPayload {
       CoreEventPayload_EphemeralMessage;
   const factory CoreEventPayload.uploadSettingsUpdate(UploadSettings field0) =
       CoreEventPayload_UploadSettingsUpdate;
+  const factory CoreEventPayload.privateSettingsUpdate(PrivateSettings field0) =
+      CoreEventPayload_PrivateSettingsUpdate;
 
   /// To the owner only.
   const factory CoreEventPayload.storageUpdate(StorageInfo field0) =
@@ -1132,6 +1136,18 @@ sealed class CoreEventPayload with _$CoreEventPayload {
     required BigInt totalBytes,
     required UploadPhase phase,
   }) = CoreEventPayload_StagedUploadProgress;
+
+  /// A song dropped on the music player (`music_upload_song`), at most 10
+  /// times a second, and once at each phase: `Preparing` while it is
+  /// checked against the server's songs, `Done` once it is queued.
+  const factory CoreEventPayload.musicUploadProgress({
+    required PlatformInt64 channelId,
+    required String uploadId,
+    required String filename,
+    required BigInt sentBytes,
+    required BigInt totalBytes,
+    required UploadPhase phase,
+  }) = CoreEventPayload_MusicUploadProgress;
 
   /// A file of a message being sent with `send_message_with_files`, at
   /// most 10 times a second, and once at each phase.
@@ -1465,6 +1481,12 @@ enum ErrorCode {
   storageFull,
   voiceMessageInvalid,
   voiceMessageTooLong,
+  friendRequestsClosed,
+  messageRequestsClosed,
+  undeliverable,
+  deviceListChanged,
+  privateMessagesUnavailable,
+  friendsOnly,
   unknown,
 }
 
@@ -1481,6 +1503,8 @@ enum FailureReason {
   /// The server speaks a different protocol version.
   incompatible,
 }
+
+enum FriendStatus { none, outgoing, incoming, friends }
 
 class GeneratedIdentity {
   /// Keep in secure storage; it is the identity.
@@ -2032,6 +2056,54 @@ enum LavalinkTestStepState {
 
   /// Not run: an earlier step failed.
   skipped,
+}
+
+/// An uploaded song, as Server settings → Music lists it.
+class LocalSong {
+  final PlatformInt64 id;
+  final String title;
+  final String artist;
+  final BigInt durationMs;
+  final BigInt sizeBytes;
+  final String filename;
+  final PlatformInt64 uploaderId;
+  final PlatformInt64 createdAtMs;
+
+  const LocalSong({
+    required this.id,
+    required this.title,
+    required this.artist,
+    required this.durationMs,
+    required this.sizeBytes,
+    required this.filename,
+    required this.uploaderId,
+    required this.createdAtMs,
+  });
+
+  @override
+  int get hashCode =>
+      id.hashCode ^
+      title.hashCode ^
+      artist.hashCode ^
+      durationMs.hashCode ^
+      sizeBytes.hashCode ^
+      filename.hashCode ^
+      uploaderId.hashCode ^
+      createdAtMs.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is LocalSong &&
+          runtimeType == other.runtimeType &&
+          id == other.id &&
+          title == other.title &&
+          artist == other.artist &&
+          durationMs == other.durationMs &&
+          sizeBytes == other.sizeBytes &&
+          filename == other.filename &&
+          uploaderId == other.uploaderId &&
+          createdAtMs == other.createdAtMs;
 }
 
 enum MappingState { notUsed, mapped, failed }
@@ -2609,8 +2681,15 @@ class MusicSettings {
   /// Music is on in the server's configuration file and runs there.
   final bool supported;
 
-  /// Supported, enabled, and with a Lavalink node: members see music.
+  /// Supported and enabled: members see music. Uploaded songs play
+  /// without a Lavalink node.
   final bool configured;
+
+  /// A Lavalink node is added: search reaches Lavalink's sources.
+  final bool hasNodes;
+
+  /// The server takes uploaded songs; servers from before them don't.
+  final bool localSongs;
 
   const MusicSettings({
     required this.enabled,
@@ -2630,6 +2709,8 @@ class MusicSettings {
     required this.availableSources,
     required this.supported,
     required this.configured,
+    required this.hasNodes,
+    required this.localSongs,
   });
 
   @override
@@ -2650,7 +2731,9 @@ class MusicSettings {
       bridgeDomain.hashCode ^
       availableSources.hashCode ^
       supported.hashCode ^
-      configured.hashCode;
+      configured.hashCode ^
+      hasNodes.hashCode ^
+      localSongs.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -2673,7 +2756,9 @@ class MusicSettings {
           bridgeDomain == other.bridgeDomain &&
           availableSources == other.availableSources &&
           supported == other.supported &&
-          configured == other.configured;
+          configured == other.configured &&
+          hasNodes == other.hasNodes &&
+          localSongs == other.localSongs;
 }
 
 /// Changes to the music settings; what is `None` stays.
@@ -2772,6 +2857,13 @@ class MusicTrack {
   /// For `music_artwork`; empty without artwork.
   final String artworkId;
 
+  /// An uploaded song's id (source "upload"); 0 for Lavalink's tracks.
+  final PlatformInt64 localSongId;
+
+  /// In search results only: the searcher may remove this uploaded song
+  /// from the server.
+  final bool removable;
+
   const MusicTrack({
     required this.title,
     required this.artist,
@@ -2782,6 +2874,8 @@ class MusicTrack {
     required this.sourceDisplayName,
     required this.uri,
     required this.artworkId,
+    required this.localSongId,
+    required this.removable,
   });
 
   @override
@@ -2794,7 +2888,9 @@ class MusicTrack {
       source.hashCode ^
       sourceDisplayName.hashCode ^
       uri.hashCode ^
-      artworkId.hashCode;
+      artworkId.hashCode ^
+      localSongId.hashCode ^
+      removable.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -2809,7 +2905,9 @@ class MusicTrack {
           source == other.source &&
           sourceDisplayName == other.sourceDisplayName &&
           uri == other.uri &&
-          artworkId == other.artworkId;
+          artworkId == other.artworkId &&
+          localSongId == other.localSongId &&
+          removable == other.removable;
 }
 
 /// Domains & network, as the owner sees it (Phase 3 plan §8).
@@ -3123,6 +3221,241 @@ class Presence {
 
 enum PresenceStatus { online, idle, dnd, offline }
 
+class PrivacySettingsData {
+  final bool allowFriendRequests;
+  final bool allowMessageRequests;
+
+  const PrivacySettingsData({
+    required this.allowFriendRequests,
+    required this.allowMessageRequests,
+  });
+
+  @override
+  int get hashCode =>
+      allowFriendRequests.hashCode ^ allowMessageRequests.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is PrivacySettingsData &&
+          runtimeType == other.runtimeType &&
+          allowFriendRequests == other.allowFriendRequests &&
+          allowMessageRequests == other.allowMessageRequests;
+}
+
+class PrivateContact {
+  /// Their public key, lowercase hex.
+  final String peer;
+  final String fingerprint;
+
+  /// The name last seen.
+  final String? name;
+  final FriendStatus friend;
+  final bool requestSpam;
+  final bool blocked;
+  final ConversationStatus conversation;
+
+  /// This device's key for the conversation's relay, if it saved that
+  /// server.
+  final String? relayServerKey;
+  final PlatformInt64? lastActivityMs;
+
+  /// Incoming text after the last read.
+  final int unread;
+  final bool muted;
+  final bool hidden;
+
+  /// The first line of the latest text, at most 100 characters.
+  final String? preview;
+
+  const PrivateContact({
+    required this.peer,
+    required this.fingerprint,
+    this.name,
+    required this.friend,
+    required this.requestSpam,
+    required this.blocked,
+    required this.conversation,
+    this.relayServerKey,
+    this.lastActivityMs,
+    required this.unread,
+    required this.muted,
+    required this.hidden,
+    this.preview,
+  });
+
+  @override
+  int get hashCode =>
+      peer.hashCode ^
+      fingerprint.hashCode ^
+      name.hashCode ^
+      friend.hashCode ^
+      requestSpam.hashCode ^
+      blocked.hashCode ^
+      conversation.hashCode ^
+      relayServerKey.hashCode ^
+      lastActivityMs.hashCode ^
+      unread.hashCode ^
+      muted.hashCode ^
+      hidden.hashCode ^
+      preview.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is PrivateContact &&
+          runtimeType == other.runtimeType &&
+          peer == other.peer &&
+          fingerprint == other.fingerprint &&
+          name == other.name &&
+          friend == other.friend &&
+          requestSpam == other.requestSpam &&
+          blocked == other.blocked &&
+          conversation == other.conversation &&
+          relayServerKey == other.relayServerKey &&
+          lastActivityMs == other.lastActivityMs &&
+          unread == other.unread &&
+          muted == other.muted &&
+          hidden == other.hidden &&
+          preview == other.preview;
+}
+
+@freezed
+sealed class PrivateEvent with _$PrivateEvent {
+  const PrivateEvent._();
+
+  const factory PrivateEvent.contactChanged(PrivateContact field0) =
+      PrivateEvent_ContactChanged;
+  const factory PrivateEvent.contactRemoved({required String peer}) =
+      PrivateEvent_ContactRemoved;
+  const factory PrivateEvent.messageAdded(PrivateMessage field0) =
+      PrivateEvent_MessageAdded;
+  const factory PrivateEvent.messageChanged(PrivateMessage field0) =
+      PrivateEvent_MessageChanged;
+  const factory PrivateEvent.messageDeleted({
+    required String peer,
+    required String messageId,
+  }) = PrivateEvent_MessageDeleted;
+  const factory PrivateEvent.typing({required String peer}) =
+      PrivateEvent_Typing;
+  const factory PrivateEvent.friendRequestReceived({
+    required String peer,
+    required bool spam,
+  }) = PrivateEvent_FriendRequestReceived;
+}
+
+class PrivateMessage {
+  /// Hex.
+  final String id;
+  final String peer;
+  final bool outgoing;
+  final PrivateMessageKind kind;
+
+  /// The text; a divider's or card's server name; empty otherwise.
+  final String content;
+
+  /// A divider's or card's server, if this device saved it.
+  final String? serverKey;
+  final PlatformInt64 sentAtMs;
+  final PlatformInt64? editedAtMs;
+  final PrivateSendState state;
+
+  const PrivateMessage({
+    required this.id,
+    required this.peer,
+    required this.outgoing,
+    required this.kind,
+    required this.content,
+    this.serverKey,
+    required this.sentAtMs,
+    this.editedAtMs,
+    required this.state,
+  });
+
+  @override
+  int get hashCode =>
+      id.hashCode ^
+      peer.hashCode ^
+      outgoing.hashCode ^
+      kind.hashCode ^
+      content.hashCode ^
+      serverKey.hashCode ^
+      sentAtMs.hashCode ^
+      editedAtMs.hashCode ^
+      state.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is PrivateMessage &&
+          runtimeType == other.runtimeType &&
+          id == other.id &&
+          peer == other.peer &&
+          outgoing == other.outgoing &&
+          kind == other.kind &&
+          content == other.content &&
+          serverKey == other.serverKey &&
+          sentAtMs == other.sentAtMs &&
+          editedAtMs == other.editedAtMs &&
+          state == other.state;
+}
+
+enum PrivateMessageKind { text, divider, moved, undecryptable }
+
+class PrivateOpened {
+  /// The old database couldn't be read with the key and was moved aside.
+  final bool startedFresh;
+
+  const PrivateOpened({required this.startedFresh});
+
+  @override
+  int get hashCode => startedFresh.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is PrivateOpened &&
+          runtimeType == other.runtimeType &&
+          startedFresh == other.startedFresh;
+}
+
+enum PrivateSendState { received, sending, sent, failed }
+
+/// What the owner chose for private messages on a server.
+class PrivateSettings {
+  /// The server relays private messages.
+  final bool enabled;
+
+  /// Only between two members who are each other's friends.
+  final bool friendsOnly;
+
+  /// False when the server's config file turns them off; the owner then
+  /// can't turn them on.
+  final bool allowedByConfig;
+
+  const PrivateSettings({
+    required this.enabled,
+    required this.friendsOnly,
+    required this.allowedByConfig,
+  });
+
+  static Future<PrivateSettings> default_() =>
+      RustLib.instance.api.crateApiTypesPrivateSettingsDefault();
+
+  @override
+  int get hashCode =>
+      enabled.hashCode ^ friendsOnly.hashCode ^ allowedByConfig.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is PrivateSettings &&
+          runtimeType == other.runtimeType &&
+          enabled == other.enabled &&
+          friendsOnly == other.friendsOnly &&
+          allowedByConfig == other.allowedByConfig;
+}
+
 /// Where the server is reached from the internet (Phase 3 plan §5.1).
 /// Addresses are empty when unknown.
 class PublicAddress {
@@ -3217,6 +3550,8 @@ class ReadySnapshot {
   /// The chat commands this user may see (Phase 3 plan §17.1).
   final CommandList commands;
   final UploadSettings uploadSettings;
+  final bool privateMessages;
+  final PrivateSettings privateSettings;
 
   const ReadySnapshot({
     required this.selfUser,
@@ -3235,6 +3570,8 @@ class ReadySnapshot {
     required this.addresses,
     required this.commands,
     required this.uploadSettings,
+    required this.privateMessages,
+    required this.privateSettings,
   });
 
   @override
@@ -3254,7 +3591,9 @@ class ReadySnapshot {
       soundboardSounds.hashCode ^
       addresses.hashCode ^
       commands.hashCode ^
-      uploadSettings.hashCode;
+      uploadSettings.hashCode ^
+      privateMessages.hashCode ^
+      privateSettings.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -3276,7 +3615,9 @@ class ReadySnapshot {
           soundboardSounds == other.soundboardSounds &&
           addresses == other.addresses &&
           commands == other.commands &&
-          uploadSettings == other.uploadSettings;
+          uploadSettings == other.uploadSettings &&
+          privateMessages == other.privateMessages &&
+          privateSettings == other.privateSettings;
 }
 
 class Role {
@@ -3854,6 +4195,47 @@ class ServerNotice {
           severity == other.severity &&
           title == other.title &&
           body == other.body;
+}
+
+class SharedServer {
+  final String serverKey;
+  final String name;
+  final bool connected;
+  final bool privateMessages;
+
+  /// Messages go there only between friends.
+  final bool friendsOnly;
+  final PlatformInt64 peerUserId;
+
+  const SharedServer({
+    required this.serverKey,
+    required this.name,
+    required this.connected,
+    required this.privateMessages,
+    required this.friendsOnly,
+    required this.peerUserId,
+  });
+
+  @override
+  int get hashCode =>
+      serverKey.hashCode ^
+      name.hashCode ^
+      connected.hashCode ^
+      privateMessages.hashCode ^
+      friendsOnly.hashCode ^
+      peerUserId.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is SharedServer &&
+          runtimeType == other.runtimeType &&
+          serverKey == other.serverKey &&
+          name == other.name &&
+          connected == other.connected &&
+          privateMessages == other.privateMessages &&
+          friendsOnly == other.friendsOnly &&
+          peerUserId == other.peerUserId;
 }
 
 /// A file opened for the trim editor (plan §11.3), decoded to 48 kHz mono.

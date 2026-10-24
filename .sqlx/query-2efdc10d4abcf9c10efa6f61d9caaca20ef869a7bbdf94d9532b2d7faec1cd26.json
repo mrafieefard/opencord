@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "DELETE FROM private_pending WHERE created_at < $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": []
+  },
+  "hash": "2efdc10d4abcf9c10efa6f61d9caaca20ef869a7bbdf94d9532b2d7faec1cd26"
+}

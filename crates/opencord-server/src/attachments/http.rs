@@ -357,12 +357,12 @@ async fn get_attachment(
 
 /// The last byte of a read starting at `start`: at most [`READ_SEGMENTS`]
 /// segments, never past `end`.
-fn batch_end(start: u64, end: u64) -> u64 {
+pub(crate) fn batch_end(start: u64, end: u64) -> u64 {
     ((start / SEGMENT_PLAIN + READ_SEGMENTS) * SEGMENT_PLAIN - 1).min(end)
 }
 
 /// Plaintext bytes `start..=end` of a stored file of `len` bytes.
-async fn read_plain(
+pub(crate) async fn read_plain(
     backend: &Backend,
     key: &BlobKey,
     id: i64,

@@ -1,6 +1,6 @@
 # Music
 
-Every voice channel has a music player. Its sound comes from Lavalink, an audio server built for Discord bots, which Opencord talks to as if it were Discord's voice servers: Lavalink connects to Opencord's **audio bridge** and sends it Opus, and the bridge hands the frames, unchanged, to everyone in the channel as the channel's music stream. Nothing joins the channel; there is no bot.
+Every voice channel has a music player. Songs members upload play from this server itself ([Uploaded songs](#uploaded-songs)); everything else comes from Lavalink, an audio server built for Discord bots, which Opencord talks to as if it were Discord's voice servers: Lavalink connects to Opencord's **audio bridge** and sends it Opus, and the bridge hands the frames, unchanged, to everyone in the channel as the channel's music stream. Nothing joins the channel; there is no bot.
 
 This guide grows with Phase 3. What is here so far:
 
@@ -13,6 +13,7 @@ This guide grows with Phase 3. What is here so far:
 - [Music settings](#music-settings)
 - [Vote skip](#vote-skip)
 - [Search, links and artwork](#search-links-and-artwork)
+- [Uploaded songs](#uploaded-songs)
 - [Music in the app](#music-in-the-app)
 - [Chat commands](#chat-commands)
 - [When a node goes down](#when-a-node-goes-down)
@@ -160,6 +161,7 @@ lavalink:
 | Control playback | Pause, resume, seek, next, previous, repeat, shuffle | On |
 | Manage the queue | Reorder, remove anyone's tracks, clear the queue, Play next and Play now | Off |
 | Manage music | Stop the player, block members from music, go past the track length and per-member limits, control music without being in the channel, music settings | Off |
+| Access all uploaded songs | Find every song uploaded to the server in search, not only your own. It doesn't let you remove other people's | Off |
 
 Adding and controlling music needs being connected to that voice channel, except with Manage music. Channel permission overwrites apply, so music can be kept to one channel. The server checks all of it; the app only hides what you can't do.
 
@@ -230,13 +232,33 @@ lavalink:
 
 The plugin's own documentation explains what YouTube needs from time to time, such as a refresh token or a different client.
 
+## Uploaded songs
+
+Members can play songs they have on their computer. Dragging audio files onto the music panel, or onto the expanded player, adds them to the queue; dropped on the cover, a song plays at once (with Manage the queue). This works on a server with no Lavalink at all: **Opencord plays uploaded songs itself**, never through Lavalink. On a server with Lavalink, both kinds share one queue, and pause, seek, skip, vote skip, repeat, shuffle and Add again work the same on both.
+
+**Servers from before uploaded songs** (0.0.1-beta.1 and older) can't take them: the app says so when a song is dropped there, and the server's owner needs to update it.
+
+**One copy per server.** Before uploading, the app works out the file's SHA-256 and asks the server whether it has it. If it does, the song joins the queue at once and nothing is uploaded. Otherwise the file uploads with a progress bar and a cancel button for each song, and joins the queue once the server has checked it. Two people uploading the same file at once still end up with one copy.
+
+**What the server takes.** MP3, FLAC, AAC/M4A, Ogg Vorbis and WAV files, by their extension (`.mp3`, `.flac`, `.m4a`, `.aac`, `.ogg`, `.oga`, `.wav`), within the member's upload limit (see [attachments.md](attachments.md)). The server decodes every file in full before keeping it: a file that isn't really one of those, or lasts under a second, is refused with the reason. Ogg files with Opus inside aren't supported yet. Uploading needs Add music and Attach files in the voice channel, and being connected to it (or Manage music).
+
+**Title and artist** come from the file's tags. Without them, the title is the file name without its extension and the artist is whoever uploaded it. Covers inside the files aren't shown yet.
+
+**Who finds what.** In search, uploaded songs are marked **Local** and come after Lavalink's results. Members find the songs they uploaded, and those they dropped that the server already had (dropping a file you have counts as owning it too). With **Access all uploaded songs**, a member finds every song on the server. Without any Lavalink node, search finds uploaded songs only, and links say a music server is needed. Songs others play still show in the queue and Recently played for everyone, and Add again works on them.
+
+**Removing songs.** Right-clicking one of your own songs in search offers **Remove from server**. It leaves your songs; when nobody else has it, the file is deleted. Access all uploaded songs doesn't let anyone remove other people's songs; only **administrators** can, from the same menu, from a queued song's menu, or from **Server settings → Music → Uploaded songs**, which lists every song with who uploaded it. A removed song still in a queue is skipped with "This song was removed from the server".
+
+**Storage.** Songs are kept, encrypted, in the server's upload storage (local or S3, see [attachments.md](attachments.md)), count towards it, move with it, and are never cleaned up like unsent uploads. A song stays when the voice channel it was dropped in is deleted.
+
+**How it plays.** For each uploaded song the server decodes the file on a thread of its own, makes it 48 kHz stereo, encodes it as Opus at 128 kbps, and sends a frame every 20 ms into the voice node's music input, as Lavalink's audio arrives. When voice runs on [other machines](#voice-on-other-machines), the frames go to the channel's node over its control channel; nothing else needs setting up there. Each channel playing an uploaded song uses one thread and a little CPU on the main server.
+
 ## Music in the app
 
 In a voice channel, the **Music** button (in the voice panel at the bottom left, and in the call's control bar) opens the music panel where the users list is; press it again for the people. The right-side panel switches between **People** and **Music** while a voice channel is open or you are in one. People lists who is in the channel first, under a card of what plays; a click on the card opens the music panel, and a right-click has your music volume and mute.
 
-The music panel shows the cover, the track, who added it and its progress, with shuffle, previous, play or pause, next and repeat (off, the queue, the track). Under them, **Add a song** searches the source chosen beside it, or takes a link; results replace Up next until **Back to queue**. Up next can be reordered by dragging with Manage the queue, and each row's menu has Play next, Move up, Move down, Remove, Copy link and Open link. **Recently played** lists the last 50 tracks, each with Add again. Dropping a result or a recently played track on the cover plays it now. **Expand** in the panel's menu shows the music in the middle of the call, with the people in a strip below.
+The music panel shows the cover, the track, who added it and its progress, with shuffle, previous, play or pause, next and repeat (off, the queue, the track). Under them, **Add a song** searches the source chosen beside it, or takes a link; results replace Up next until **Back to queue**. Up next can be reordered by dragging with Manage the queue, and each row's menu has Play next, Move up, Move down, Remove, Copy link and Open link. **Recently played** lists the last 50 tracks, each with Add again. Dropping a result or a recently played track on the cover plays it now, and song files from your computer can be dropped on the panel too ([Uploaded songs](#uploaded-songs)). **Expand** in the panel's menu shows the music in the middle of the call, with the people in a strip below.
 
-Members not in the channel see the panel read-only, with a Join button; controls a member may not use are off, and say why. Music isn't a participant: it has no tile and no speaking ring. Where music isn't set up, the button shows only for members who manage the server, with **Set up music**.
+Members not in the channel see the panel read-only, with a Join button; controls a member may not use are off, and say why. Music isn't a participant: it has no tile and no speaking ring. Where music isn't set up (off in `opencord.toml` or in the music settings), the button shows only for members who manage the server, with **Set up music**. A server without Lavalink nodes still has music: uploaded songs.
 
 **Your music volume** (0–200 %) and **Mute music** are the same on every server and stay on this device: in the panel, on the card, and in User settings → Voice & audio → Music, with **Lower music while people talk** (10 dB, back 300 ms after the last voice). Muted, the voice node stops sending you the music.
 
@@ -246,7 +268,7 @@ Opencord includes built-in chat commands (Phase 3 §17) in the message composer.
 
 | Command | Options | Permission | Scope / Notes |
 |---|---|---|---|
-| `/play` | `query:` (track name or URL) | Add music | Search autocomplete suggests up to 5 tracks with artwork |
+| `/play` | `query:` (track name or URL) | Add music | Suggestions show up to 10 tracks with artwork: Lavalink's, then [uploaded songs](#uploaded-songs) marked **Local** (up to 5). Typed words play the first result, except that an uploaded song titled exactly as typed wins. Replies mark uploaded songs **(Local)** |
 | `/pause` | — | Control playback | Pauses playback |
 | `/resume` | — | Control playback | Resumes playback |
 | `/skip` | — | Control playback / Add music | Skips current track, or votes to skip if lacking control permission |

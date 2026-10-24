@@ -19,6 +19,7 @@ import 'package:opencord/core/rust/core_key_value_store.dart';
 import 'package:opencord/core/rust/core_mapping.dart';
 import 'package:opencord/core/rust/identity_store.dart';
 import 'package:opencord/core/rust/media_cache_key_store.dart';
+import 'package:opencord/core/rust/private_key_store.dart';
 import 'package:opencord/core/rust/rust_repository.dart';
 import 'package:opencord/core/settings/app_settings.dart';
 import 'package:opencord/core/settings/key_value_store.dart';
@@ -66,7 +67,15 @@ Future<ProviderContainer> startApp({
   final environment = Platform.environment;
   final dataDir = await _dataDir(profile);
   core.init(appDataDir: dataDir.path);
-  if (!mock) await _startMediaCache(profile);
+  Uint8List? privateKey;
+  if (!mock) {
+    await _startMediaCache(profile);
+    try {
+      privateKey = await PrivateKeyStore(profile: profile).load();
+    } on PlatformException catch (e) {
+      developer.log('Private key store failed to load: $e', name: 'core');
+    }
+  }
   registerFontLicenses();
 
   const store = CoreKeyValueStore();
@@ -95,6 +104,7 @@ Future<ProviderContainer> startApp({
           core: const FrbCoreApi(),
           identities: SecureIdentityStore(profile: profile),
           store: store,
+          privateKey: privateKey,
         );
   if (!mock) await _startVideo();
   final container = ProviderContainer(

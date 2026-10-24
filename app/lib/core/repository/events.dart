@@ -9,6 +9,7 @@ import 'package:opencord/core/model/music_session.dart';
 import 'package:opencord/core/model/network.dart';
 import 'package:opencord/core/model/permissions.dart';
 import 'package:opencord/core/model/presence.dart';
+import 'package:opencord/core/model/private.dart';
 import 'package:opencord/core/model/server.dart';
 import 'package:opencord/core/model/snapshot.dart';
 import 'package:opencord/core/model/sound.dart';
@@ -499,6 +500,30 @@ final class StagedUploadEvent extends RepoEvent {
   final String? error;
 }
 
+/// How far a song dropped on a channel's music player got (design
+/// 2026-10-24): checked against the server's songs (preparing), uploading,
+/// processing, then queued (done), failed or cancelled.
+final class MusicUploadEvent extends RepoEvent {
+  const MusicUploadEvent(
+    super.serverKey, {
+    required this.channelId,
+    required this.uploadId,
+    required this.filename,
+    required this.sentBytes,
+    required this.totalBytes,
+    required this.phase,
+    this.error,
+  });
+
+  final int channelId;
+  final String uploadId;
+  final String filename;
+  final int sentBytes;
+  final int totalBytes;
+  final UploadPhase phase;
+  final String? error;
+}
+
 /// Progress of a file being downloaded.
 final class DownloadProgressEvent extends RepoEvent {
   const DownloadProgressEvent(
@@ -518,6 +543,13 @@ final class DownloadProgressEvent extends RepoEvent {
 }
 
 /// Upload limits or blocked extensions changed on the server.
+/// The owner changed private messages on this server.
+final class PrivateSettingsEvent extends RepoEvent {
+  const PrivateSettingsEvent(super.serverKey, this.settings);
+
+  final ServerPrivateSettings settings;
+}
+
 final class UploadSettingsEvent extends RepoEvent {
   const UploadSettingsEvent(super.serverKey, this.settings);
 
@@ -573,4 +605,53 @@ final class PlaybackFailed extends RepoEvent {
 
   final PlaybackItem item;
   final String message;
+}
+
+/// Private messaging events (Milestone E4, Task 17).
+final class PrivateContactChanged extends RepoEvent {
+  const PrivateContactChanged(this.contact) : super('');
+
+  final PrivateContact contact;
+}
+
+final class PrivateContactRemoved extends RepoEvent {
+  const PrivateContactRemoved(this.peer) : super('');
+
+  final String peer;
+}
+
+final class PrivateMessageAdded extends RepoEvent {
+  const PrivateMessageAdded(this.message) : super('');
+
+  final PrivateMessage message;
+}
+
+final class PrivateMessageChanged extends RepoEvent {
+  const PrivateMessageChanged(this.message) : super('');
+
+  final PrivateMessage message;
+}
+
+final class PrivateMessageDeleted extends RepoEvent {
+  const PrivateMessageDeleted(this.peer, this.messageId) : super('');
+
+  final String peer;
+  final String messageId;
+}
+
+final class PrivateTypingStarted extends RepoEvent {
+  const PrivateTypingStarted(this.peer) : super('');
+
+  final String peer;
+}
+
+final class FriendRequestArrived extends RepoEvent {
+  const FriendRequestArrived(this.peer, this.spam) : super('');
+
+  final String peer;
+  final bool spam;
+}
+
+final class PrivateStateChanged extends RepoEvent {
+  const PrivateStateChanged() : super('');
 }

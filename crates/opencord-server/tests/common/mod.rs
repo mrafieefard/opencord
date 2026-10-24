@@ -728,3 +728,120 @@ pub fn voice_ogg(seconds_tone: f32, seconds_silence: f32) -> Vec<u8> {
 pub fn media_token(ready: &proto::Ready) -> String {
     ready.media_token.as_ref().unwrap().token.clone()
 }
+
+/// A private messages device: its id, its Ed25519 key and a stand-in
+/// Curve25519 key (the server never uses it).
+pub struct TestDevice {
+    pub id: [u8; 16],
+    pub ed: SigningKey,
+    pub curve: [u8; 32],
+}
+
+impl TestDevice {
+    pub fn new(seed: u8) -> Self {
+        Self {
+            id: [seed; 16],
+            ed: SigningKey::from_bytes(&[seed ^ 0xa5; 32]),
+            curve: [seed; 32],
+        }
+    }
+
+    fn seed(&self) -> u8 {
+        self.id[0]
+    }
+}
+
+/// The device's keys, signed by `identity`.
+pub fn device_keys(identity: &SigningKey, device: &TestDevice) -> proto::DeviceKeys {
+    let ed25519 = device.ed.verifying_key().to_bytes();
+    proto::DeviceKeys {
+        device_id: device.id.to_vec(),
+        curve25519: device.curve.to_vec(),
+        ed25519: ed25519.to_vec(),
+        signature: opencord_common::private::sign_device(
+            identity,
+            &device.id,
+            &device.curve,
+            &ed25519,
+        )
+        .to_vec(),
+    }
+}
+
+/// A one-time key (`fallback: false`) or a fallback key, signed by the
+/// device.
+pub fn prekey(device: &TestDevice, key: [u8; 32], fallback: bool) -> proto::Prekey {
+    proto::Prekey {
+        key: key.to_vec(),
+        signature: opencord_common::private::sign_prekey(&device.ed, &device.id, &key, fallback)
+            .to_vec(),
+    }
+}
+
+/// `granter`'s permission slip for `grantee`.
+pub fn slip(granter: &SigningKey, grantee: &[u8; 32]) -> Vec<u8> {
+    opencord_common::private::sign_slip(granter, grantee).to_vec()
+}
+
+/// The device's `i`th one-time key, as `register_device` uploads it.
+pub fn one_time_key(device: &TestDevice, i: u8) -> [u8; 32] {
+    let mut key = [0; 32];
+    key[0] = device.seed();
+    key[1] = i;
+    key
+}
+
+/// The device's fallback key, as `register_device` uploads it.
+pub fn fallback_key(device: &TestDevice) -> [u8; 32] {
+    one_time_key(device, 255)
+}
+
+/// A valid `RegisterDevice` with `one_time_keys` keys.
+pub fn register_request(
+    identity: &SigningKey,
+    device: &TestDevice,
+    one_time_keys: u8,
+) -> proto::request::Kind {
+    proto::request::Kind::RegisterDevice(proto::RegisterDevice {
+        device: Some(device_keys(identity, device)),
+        one_time_keys: (0..one_time_keys)
+            .map(|i| prekey(device, one_time_key(device, i), false))
+            .collect(),
+        fallback_key: Some(prekey(device, fallback_key(device), true)),
+    })
+}
+
+impl TestClient {
+    /// Registers `device` for this session, with `one_time_keys` keys.
+    pub async fn register_device(
+        &mut self,
+        identity: &SigningKey,
+        device: &TestDevice,
+        one_time_keys: u8,
+    ) -> proto::DeviceRegistration {
+        match self
+            .ok(register_request(identity, device, one_time_keys))
+            .await
+        {
+            proto::response::Result::DeviceRegistration(registration) => registration,
+            other => panic!("expected a DeviceRegistration, got {other:?}"),
+        }
+    }
+}
+
+/// A private message copy from a made-up sender, with a body of `body_len`
+/// bytes.
+pub fn private_message_kind(body_len: usize) -> proto::pending_event::Kind {
+    proto::pending_event::Kind::PrivateMessage(proto::PrivateMessage {
+        sender: Some(proto::User {
+            id: 4_242,
+            public_key: vec![42; 32],
+            display_name: "sender".to_owned(),
+            avatar_hash: String::new(),
+        }),
+        sender_device_id: vec![42; 16],
+        olm_type: 1,
+        body: vec![7; body_len],
+        sent_at_ms: 1,
+    })
+}

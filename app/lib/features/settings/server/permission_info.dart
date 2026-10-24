@@ -225,6 +225,12 @@ const permissionGroups = <(String, List<PermissionInfo>)>[
         'Manage music',
         'Stop the player, block members from music, and music settings',
       ),
+      PermissionInfo(
+        Permissions.musicAllLocalSongs,
+        'Access all uploaded songs',
+        'Find every song uploaded to this server in music search, not only '
+            'their own. It does not let them remove other people’s songs.',
+      ),
     ],
   ),
   (
