@@ -1097,3 +1097,61 @@ The desktop UI plan's §17.5 never arrived, so where Phase 2 §12 says only what
   Core unit tests (132 passed), the workspace's tests, workspace clippy (0 warnings), `app/tool/check_platforms.sh`, `flutter analyze` (no issues), and `flutter test` (957 passed, 1 skipped) all pass.
 - **Review.** E3 was checked against the plan on 2026-10-24. Four actions in `actions.rs` that read contact before server requests and saved stale state were fixed in `52b75b2` by re-reading with `fresh`.
 
+
+## D65: Private messages: client app, views and notifications (Phase 5 E4, 2026-10-24)
+
+- **Why.** Milestone E4 of private messages (`docs/superpowers/plans/2026-10-22-private-messages.md`, Tasks 16–22, commits `34521f8..fb552d7`). The Flutter desktop app connects to the private messaging core: generated Dart bindings, secure private key store, app models, state providers and event routing, the Friends page with tabs and error dialogs, the conversation view with dividers, relay chips and move cards, the home view, rail button and direct messages sidebar, member profiles and menus, privacy settings, desktop notifications, urgent attention, unread window title badges, and deep links. Tasks 16–22 were implemented by Gemini, with reviewer fix `7abe6e0`.
+- **Core API bindings and key store (Task 16, `34521f8`).** In `crates/opencord-core/src/api/private.rs`, `client.rs`, `frb_generated.rs`, and `app/lib/core/rust/private_key_store.dart`.
+  - Exposed 26 core API functions through `flutter_rust_bridge` in `crates/opencord-core/src/api/private.rs`: `private_open` (validating 32-byte key), `private_event_stream`, `private_contacts`, `private_messages`, `private_send`, `private_edit`, `private_delete`, `private_retry`, `friend_request_send`, `friend_request_answer`, `friend_request_cancel`, `friend_remove`, `message_request_accept`, `message_request_ignore`, `private_block`, `private_unblock`, `privacy_settings`, `set_privacy_settings`, `private_open_conversation`, `private_shared_servers`, `private_move`, `private_move_too`, `private_typing`, `private_mark_read`, `private_set_muted`, and `private_hide`.
+  - `PrivateKeyStore` (`private_key_store.dart`): retrieves or creates the 32-byte master key from `FlutterSecureStorage` under `opencord.private.key` (or `opencord.$profile.private.key`), generating 32 random bytes with `Random.secure()` if missing or invalid, saved as base64. Loaded during `startApp` in `app_start.dart` and passed to `RustRepository`.
+- **State management, repository, and providers (Task 17, `11e5a29`, reviewer fix `7abe6e0`).** In `app/lib/core/model/private.dart`, `app/lib/core/rust/private_mapping.dart`, `app/lib/core/repository/`, `app/lib/core/providers/private_state.dart`, `app/lib/core/mock/mock_private.dart`, `app/lib/features/shell/navigation.dart`.
+  - App models in `core/model/private.dart`: `PrivateContact`, `PrivateMessage`, `PrivacySettings`, and enums `FriendStatus`, `ConversationStatus`, `PrivateMessageKind`, `PrivateSendState`.
+  - Repository events in `core/repository/events.dart`: `PrivateContactChanged`, `PrivateContactRemoved`, `PrivateMessageAdded`, `PrivateMessageChanged`, `PrivateMessageDeleted`, `PrivateTypingStarted`, `FriendRequestArrived`, and `PrivateStateChanged`.
+  - `RustRepository` listens to `_core.privateEventStream`, forwards mapped repository events, calls core methods, initializes private messages with `privateOpen`, records `privateUnavailable` on missing key or open error, and tracks `privateStartedFresh`.
+  - `privateContactsProvider` manages `PrivateContactsState` (`byPeer`, `all`, `friends`, `onlineFriends`, `incomingRequests`, `outgoingRequests`, `spamRequests`, `messageRequests`, `blocked`, `unreadTotal`).
+  - `privateConversationProvider` manages per-peer messages with pagination (`loadOlder`), message insertion, editing, and deletion.
+  - Reviewer fix `7abe6e0`: `PrivateContactsNotifier` tracks `_touched` contacts and `PrivateConversationNotifier` tracks `_deletedDuringLoad` message IDs so asynchronous loads merge with concurrent events rather than overwriting them.
+  - `contactNameProvider` implements 4-step display name resolution: relay server member name, first shared server member name in rail order, `contact.name`, and `contact.fingerprint` (falling back to peer key).
+  - `contactAvatarProvider` resolves member avatar from relay server or first shared server.
+  - `sharedServersProvider` returns `SharedServerView` list for mutual servers where private messages are supported.
+  - `privateUnreadProvider` watches `unreadTotal`; `privateTypingProvider` tracks typing indicators with an 8-second expiry (`privateTypingTimeout`).
+  - `navigationProvider` adds `home` and `peer` to `Selection`, with `openHome`, `openFriends`, and `openConversation`; exposes `homeShownProvider` and `currentPeerProvider`.
+  - `MockPrivateWorld` in `mock_private.dart` simulates private state with 9 mock contacts covering friends, pending requests, spam, message requests, blocked contacts, dividers, and relay moves.
+- **The Friends page and error dialogs (Task 18, `98d94e9`).** In `app/lib/features/home/friends_page.dart`, `friend_rows.dart`, `private_errors.dart`.
+  - `FriendsPage`: 60 px header with title "Friends" and 5 tabs via `ChoiceChips`: **Online**, **All**, **Pending**, **Message requests**, **Blocked** (persisting selection under `ui.friendsTab`). Shows dedicated empty states and section count headers.
+  - In `friend_rows.dart`: list rows (`FriendRow`, `IncomingRequestRow`, `OutgoingRequestRow`, `MessageRequestRow`, `BlockedRow`) with `ContactAvatar`, name, subtitle, and contextual action buttons. Pending tab includes collapsible **Spam** section with chevron toggle.
+  - `showPrivateFailure`: displays dialogs for `friendRequestsClosed`, `messageRequestsClosed`, `undeliverable`, `privateMessagesUnavailable`, `notConnected`, `invalidArgument`, and `conflict`, or toast for general errors; `confirmBlock` and `confirmRemoveFriend` provide confirmation dialogs.
+- **The conversation view (Task 19, `4dd46e7`).** In `app/lib/features/home/private_chat.dart`, `private_header.dart`, `private_message_list.dart`, `private_composer.dart`, `relay_divider.dart`, `move_card.dart`, `request_bar.dart`, `private_message_adapter.dart`.
+  - `PrivateHeader`: 60 px header with contact avatar, name, mutual server or typing indicator subtitle, lock button opening dialog with formatted key fingerprint, and relay server chip button showing current relay with dropdown menu from `sharedServersProvider` to call `moveConversation`.
+  - `PrivateMessageList`: renders message history with `RelayDivider` ("Messages routed through *Server*"), date dividers, text messages via `CompactMessage` and `MessageLine` adapted with `asChatMessage`, move cards, and undecryptable messages. Automatically marks conversation read.
+  - `MoveCard`: displays peer relay move notifications with a "Move too" button.
+  - `RequestBar`: displayed for message requests with **Accept**, **Ignore**, and **Block** buttons.
+  - `PrivateComposer`: text entry supporting multiline, edit mode, retry for failed messages, typing indicators, and disabled states (blocked, requests closed, peer unavailable).
+- **The rail button, home view, and sidebar (Task 20, `4bfb9c2`).** In `app/lib/features/servers/server_rail.dart`, `app/lib/features/shell/desktop_shell.dart`, `app/lib/features/home/home_sidebar.dart`, `app/lib/features/home/home_main.dart`.
+  - `ServerRail`: top item displays Home button (`id: 'private-home'`, `glyph: OcIcons.chat`, tooltip "Private messages", badge from `privateUnreadProvider`), selected when `homeShownProvider` is true; deselects servers when home is active.
+  - `DesktopShell`: displays `HomeSidebar` and `HomeMain` when `homeShownProvider` is true, hides member panel toggle, and suppresses Alt+↑/↓ channel navigation.
+  - `HomeSidebar`: 60 px `HeaderBar` ("Private messages"), nav rows for **Friends** and **Message requests** with badges, `SectionLabel('DIRECT MESSAGES')`, conversation rows sorted newest-first with avatar, name, unread badge, hover close button calling `hideConversation`, right-click menu (Mute/Unmute, Close conversation, Block), and `UserPanel` at bottom.
+  - `HomeMain`: renders error box when `privateUnavailable`, `NoServersView` when no servers and no contacts exist, `PrivateChat` when `currentPeerProvider` is set, or `FriendsPage`. Displays fresh-start dialog on `privateStartedFresh`.
+- **Profiles, member menu and Privacy settings (Task 21, `42fd39d`).** In `app/lib/features/members/member_profile.dart`, `member_actions.dart`, `app/lib/features/settings/user/privacy_page.dart`, `user_settings.dart`.
+  - `MemberProfileDialog`: includes "Message" button (opens conversation via `openConversation`), 4-state friend button ("Add friend", "Request sent", "Accept request", "Friends"), and top-right more menu button with Block/Unblock. Hidden on own profile.
+  - `member_actions.dart`: adds "Message", friend actions, and Block/Unblock to member context menu.
+  - `PrivacyPage`: added under "You" in User Settings (`id: 'privacy'`, `icon: OcIcons.lock`), mixes in `SaveBarChanges` to edit "Friend requests" and "Message requests" switch rows with Save and Discard bar.
+- **Notifications, window title badges, and links (Task 22, `9bef5a5`, test fix `fb552d7`).** In `app/lib/features/desktop/notification_policy.dart`, `notification_binding.dart`, `app/lib/features/shell/window_title.dart`, `app/lib/features/links/app_links.dart`, `app/lib/core/mock/mock_repository.dart`.
+  - `notification_policy.dart`: `notifyPrivate` and `wantsPrivateAttention` evaluate notification eligibility based on desktop notification settings, DND presence, and whether the chat is currently open in the focused window; `typedef PresenceStatus = SelfPresence`.
+  - `notification_binding.dart`: listens to `PrivateMessageAdded` for incoming text messages in accepted, unmuted, unblocked conversations to display desktop notifications and request window urgency (`window.setUrgent(true)`); listens to `FriendRequestArrived` to notify on non-spam requests.
+  - `app_links.dart`: adds `PrivateAppLink` (parsing `opencord://private/<64-hex>`) and `FriendsAppLink` (parsing `opencord://friends`), formatted by `privateLink` and `friendsLink`; `openAppLink` navigates to conversation or friends.
+  - `window_title.dart`: displays `($unread) $name — Opencord` or `($unread) Friends — Opencord` when `homeShownProvider` is true, reflecting `unreadTotalProvider`.
+  - Mock fix `fb552d7`: clears mock `contacts` and `messages` and emits `PrivateStateChanged` when resetting state.
+- **Tests.**
+  - 39 integration tests in `crates/opencord-core/tests/private.rs` and 132 core unit tests pass.
+  - 1019 Flutter tests pass (1 skipped), including 62 new tests added in E4:
+    - 21 unit tests on mock private world, mapping, and state providers in `app/test/unit/private/` (4 in `mock_private_test.dart`, 7 in `private_mapping_test.dart`, 10 in `private_state_test.dart`);
+    - 8 widget tests on friends tabs, spam section, unblocking, and error dialogs in `app/test/widget/home/friends_page_test.dart`;
+    - 11 widget tests on conversation ordering, dividers, edit/delete, retries, relay move, typing, and read tracking in `app/test/widget/home/private_chat_test.dart`;
+    - 8 widget tests on rail home button, sidebar navigation, unread badges, closing conversations, and fresh start dialog in `app/test/widget/home/home_shell_test.dart`;
+    - 6 widget tests on profile buttons, member menus, and privacy settings in `app/test/widget/members/profile_private_test.dart` (4 tests) and `app/test/widget/settings/privacy_page_test.dart` (2 tests);
+    - 8 tests on private notification policy, binding events, window title unread prefixes, and deep links in `app/test/unit/desktop/private_notifications_test.dart` (4 tests) and `app/test/unit/links/private_link_test.dart` (4 tests);
+    - 23 golden tests in `app/test/golden/`.
+  - Workspace clippy (`opencord_core`, `opencord-server`), `app/tool/check_platforms.sh`, `dart format`, and `flutter analyze` pass with 0 errors and 0 warnings.
+
+
