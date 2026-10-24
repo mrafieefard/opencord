@@ -1108,13 +1108,13 @@ The desktop UI plan's §17.5 never arrived, so where Phase 2 §12 says only what
   - App models in `core/model/private.dart`: `PrivateContact`, `PrivateMessage`, `PrivacySettings`, and enums `FriendStatus`, `ConversationStatus`, `PrivateMessageKind`, `PrivateSendState`.
   - Repository events in `core/repository/events.dart`: `PrivateContactChanged`, `PrivateContactRemoved`, `PrivateMessageAdded`, `PrivateMessageChanged`, `PrivateMessageDeleted`, `PrivateTypingStarted`, `FriendRequestArrived`, and `PrivateStateChanged`.
   - `RustRepository` listens to `_core.privateEventStream`, forwards mapped repository events, calls core methods, initializes private messages with `privateOpen`, records `privateUnavailable` on missing key or open error, and tracks `privateStartedFresh`.
-  - `privateContactsProvider` manages `PrivateContactsState` (`byPeer`, `all`, `friends`, `onlineFriends`, `incomingRequests`, `outgoingRequests`, `spamRequests`, `messageRequests`, `blocked`, `unreadTotal`).
+  - `privateContactsProvider` manages `PrivateContactsState`: the `byPeer` map and the getters `all`, `friends`, `incomingRequests`, `outgoingRequests`, `spamRequests`, `messageRequests` and `blocked`. The Online tab filters `friends` by presence in `friends_page.dart`; the unread total is `privateUnreadProvider`.
   - `privateConversationProvider` manages per-peer messages with pagination (`loadOlder`), message insertion, editing, and deletion.
   - Reviewer fix `7abe6e0`: `PrivateContactsNotifier` tracks `_touched` contacts and `PrivateConversationNotifier` tracks `_deletedDuringLoad` message IDs so asynchronous loads merge with concurrent events rather than overwriting them.
   - `contactNameProvider` implements 4-step display name resolution: relay server member name, first shared server member name in rail order, `contact.name`, and `contact.fingerprint` (falling back to peer key).
   - `contactAvatarProvider` resolves member avatar from relay server or first shared server.
   - `sharedServersProvider` returns `SharedServerView` list for mutual servers where private messages are supported.
-  - `privateUnreadProvider` watches `unreadTotal`; `privateTypingProvider` tracks typing indicators with an 8-second expiry (`privateTypingTimeout`).
+  - `privateUnreadProvider` sums `unread` over accepted, unmuted, unblocked contacts; `privateTypingProvider` tracks typing indicators with an 8-second expiry (`privateTypingTimeout`).
   - `navigationProvider` adds `home` and `peer` to `Selection`, with `openHome`, `openFriends`, and `openConversation`; exposes `homeShownProvider` and `currentPeerProvider`.
   - `MockPrivateWorld` in `mock_private.dart` simulates private state with 9 mock contacts covering friends, pending requests, spam, message requests, blocked contacts, dividers, and relay moves.
 - **The Friends page and error dialogs (Task 18, `98d94e9`).** In `app/lib/features/home/friends_page.dart`, `friend_rows.dart`, `private_errors.dart`.
@@ -1123,7 +1123,7 @@ The desktop UI plan's §17.5 never arrived, so where Phase 2 §12 says only what
   - `showPrivateFailure`: displays dialogs for `friendRequestsClosed`, `messageRequestsClosed`, `undeliverable`, `privateMessagesUnavailable`, `notConnected`, `invalidArgument`, and `conflict`, or toast for general errors; `confirmBlock` and `confirmRemoveFriend` provide confirmation dialogs.
 - **The conversation view (Task 19, `4dd46e7`).** In `app/lib/features/home/private_chat.dart`, `private_header.dart`, `private_message_list.dart`, `private_composer.dart`, `relay_divider.dart`, `move_card.dart`, `request_bar.dart`, `private_message_adapter.dart`.
   - `PrivateHeader`: 60 px header with contact avatar, name, mutual server or typing indicator subtitle, lock button opening dialog with formatted key fingerprint, and relay server chip button showing current relay with dropdown menu from `sharedServersProvider` to call `moveConversation`.
-  - `PrivateMessageList`: renders message history with `RelayDivider` ("Messages routed through *Server*"), date dividers, text messages via `CompactMessage` and `MessageLine` adapted with `asChatMessage`, move cards, and undecryptable messages. Automatically marks conversation read.
+  - `PrivateMessageList`: renders message history with `RelayDivider` (a wavy line each side of the server's icon and name; the name opens the server when this device has it, `777adaf`), date dividers, text messages via `CompactMessage` and `MessageLine` adapted with `asChatMessage`, move cards, and undecryptable messages. `PrivateChat` calls `markPrivateRead` when the chat opens, and again when the window regains focus (`f2ace09`).
   - `MoveCard`: displays peer relay move notifications with a "Move too" button.
   - `RequestBar`: displayed for message requests with **Accept**, **Ignore**, and **Block** buttons.
   - `PrivateComposer`: text entry supporting multiline, edit mode, retry for failed messages, typing indicators, and disabled states (blocked, requests closed, peer unavailable).
@@ -1142,6 +1142,13 @@ The desktop UI plan's §17.5 never arrived, so where Phase 2 §12 says only what
   - `app_links.dart`: adds `PrivateAppLink` (parsing `opencord://private/<64-hex>`) and `FriendsAppLink` (parsing `opencord://friends`), formatted by `privateLink` and `friendsLink`; `openAppLink` navigates to conversation or friends.
   - `window_title.dart`: displays `($unread) $name — Opencord` or `($unread) Friends — Opencord` when `homeShownProvider` is true, reflecting `unreadTotalProvider`.
   - Mock fix `fb552d7`: clears mock `contacts` and `messages` and emits `PrivateStateChanged` when resetting state.
+- **Reviewer fixes after E4 (`f2ace09`, `777adaf`).** Found by rendering the screens in both themes and at 760 px wide:
+  - the home view paints the chat surface; the rail's Home entry lines up with server icons;
+  - the Friends tab is kept in `friendsTabProvider`, so the sidebar's Message requests row opens its tab, and the tabs scroll sideways in a narrow window;
+  - the composer uses the channel composer's frame and hint; the hover bar sits beside the bubble; message avatars have no presence dot;
+  - the move card hides Move too once both sides use the same server, and only offers it for servers this device has joined;
+  - a chat opened while the window was away is marked read on focus;
+  - the profile's Mention button is an icon button.
 - **Tests.**
   - 39 integration tests in `crates/opencord-core/tests/private.rs` and 132 core unit tests pass.
   - 1019 Flutter tests pass (1 skipped), including 62 new tests added in E4:
@@ -1150,8 +1157,8 @@ The desktop UI plan's §17.5 never arrived, so where Phase 2 §12 says only what
     - 11 widget tests on conversation ordering, dividers, edit/delete, retries, relay move, typing, and read tracking in `app/test/widget/home/private_chat_test.dart`;
     - 8 widget tests on rail home button, sidebar navigation, unread badges, closing conversations, and fresh start dialog in `app/test/widget/home/home_shell_test.dart`;
     - 6 widget tests on profile buttons, member menus, and privacy settings in `app/test/widget/members/profile_private_test.dart` (4 tests) and `app/test/widget/settings/privacy_page_test.dart` (2 tests);
-    - 8 tests on private notification policy, binding events, window title unread prefixes, and deep links in `app/test/unit/desktop/private_notifications_test.dart` (4 tests) and `app/test/unit/links/private_link_test.dart` (4 tests);
-    - 23 golden tests in `app/test/golden/`.
+    - 8 tests on private notification policy, binding events, window title unread prefixes, and deep links in `app/test/unit/desktop/private_notifications_test.dart` (4 tests) and `app/test/unit/links/private_link_test.dart` (4 tests).
+  - E4 added no golden tests.
   - Workspace clippy (`opencord_core`, `opencord-server`), `app/tool/check_platforms.sh`, `dart format`, and `flutter analyze` pass with 0 errors and 0 warnings.
 
 
