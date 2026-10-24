@@ -34,7 +34,10 @@ class ContactAvatar extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final avatar = ref.watch(contactAvatarProvider(peer));
+    ref.watch(
+      privateContactsProvider.select((c) => c.byPeer[peer]?.relayServerKey),
+    );
+    final avatar = ref.read(contactAvatarProvider(peer));
     final name = ref.watch(contactNameProvider(peer));
     final p = presence ?? ref.watch(contactPresenceProvider(peer));
     if (avatar != null) {

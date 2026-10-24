@@ -81,6 +81,8 @@ class MockRepository implements OpencordRepository {
   late final MockPrivateWorld _privateWorld;
 
   MockPrivateWorld get privateWorld => _privateWorld;
+
+  void emit(RepoEvent event) => _emit(event);
   RepoException? _privateUnavailable;
   var _privateStartedFresh = false;
   final _events = StreamController<RepoEvent>.broadcast();
