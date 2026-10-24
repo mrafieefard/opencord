@@ -164,6 +164,7 @@ void main() {
   test('a Ready snapshot lists presences by user', () {
     final snapshot = snapshotFrom(
       core.ReadySnapshot(
+        privateMessages: true,
         voiceEnabled: true,
         voiceStates: const [],
         streams: const [],

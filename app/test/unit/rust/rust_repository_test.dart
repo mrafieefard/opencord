@@ -53,6 +53,7 @@ core.ReadySnapshot _ready({
   List<core.Channel> more = const [],
   List<core.VoiceState> voice = const [],
 }) => core.ReadySnapshot(
+  privateMessages: true,
   voiceEnabled: true,
   voiceStates: voice,
   streams: const [],

@@ -38,6 +38,7 @@ class ReadySnapshot {
     this.addresses = const ServerAddresses(),
     this.commands = const CommandList(),
     this.uploadSettings = UploadSettings.fallback,
+    this.privateMessages = false,
   });
 
   final User self;
@@ -77,4 +78,5 @@ class ReadySnapshot {
 
   final ServerAddresses addresses;
   final UploadSettings uploadSettings;
+  final bool privateMessages;
 }

@@ -435,6 +435,7 @@ pub fn ready(ready: proto::Ready) -> ReadySnapshot {
         addresses: server_addresses(ready.server_addresses.unwrap_or_default()),
         commands: crate::commands::list_from(ready.commands.unwrap_or_default()),
         upload_settings: upload_settings(ready.upload_settings.unwrap_or_default()),
+        private_messages: ready.private_messages,
     }
 }
 

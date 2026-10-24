@@ -7,7 +7,7 @@ import '../frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 import 'types.dart';
 
-// These functions are ignored because they are not marked as `pub`: `checked_identity`, `client`, `deliver`, `identity_info`, `invalid_input`, `lock_events`, `on_blocking`, `on_runtime`, `return_large_buffers`
+// These functions are ignored because they are not marked as `pub`: `checked_identity`, `client`, `deliver`, `identity_info`, `invalid_input`, `lock_events`, `on_blocking`, `on_runtime`, `return_large_buffers`, `runtime`
 // These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `Events`
 
 /// Opens local data in `app_data_dir`. Safe to call again (for example

@@ -365,6 +365,7 @@ pub struct ReadySnapshot {
     /// The chat commands this user may see (Phase 3 plan §17.1).
     pub commands: CommandList,
     pub upload_settings: UploadSettings,
+    pub private_messages: bool,
 }
 
 /// One address a server is reached at.

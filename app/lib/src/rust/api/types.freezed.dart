@@ -7307,6 +7307,662 @@ as BigInt,
 }
 
 /// @nodoc
+mixin _$PrivateEvent {
+
+
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is PrivateEvent);
+}
+
+
+@override
+int get hashCode => runtimeType.hashCode;
+
+@override
+String toString() {
+  return 'PrivateEvent()';
+}
+
+
+}
+
+/// @nodoc
+class $PrivateEventCopyWith<$Res>  {
+$PrivateEventCopyWith(PrivateEvent _, $Res Function(PrivateEvent) __);
+}
+
+
+/// Adds pattern-matching-related methods to [PrivateEvent].
+extension PrivateEventPatterns on PrivateEvent {
+/// A variant of `map` that fallback to returning `orElse`.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case _:
+///     return orElse();
+/// }
+/// ```
+
+@optionalTypeArgs TResult maybeMap<TResult extends Object?>({TResult Function( PrivateEvent_ContactChanged value)?  contactChanged,TResult Function( PrivateEvent_ContactRemoved value)?  contactRemoved,TResult Function( PrivateEvent_MessageAdded value)?  messageAdded,TResult Function( PrivateEvent_MessageChanged value)?  messageChanged,TResult Function( PrivateEvent_MessageDeleted value)?  messageDeleted,TResult Function( PrivateEvent_Typing value)?  typing,TResult Function( PrivateEvent_FriendRequestReceived value)?  friendRequestReceived,required TResult orElse(),}){
+final _that = this;
+switch (_that) {
+case PrivateEvent_ContactChanged() when contactChanged != null:
+return contactChanged(_that);case PrivateEvent_ContactRemoved() when contactRemoved != null:
+return contactRemoved(_that);case PrivateEvent_MessageAdded() when messageAdded != null:
+return messageAdded(_that);case PrivateEvent_MessageChanged() when messageChanged != null:
+return messageChanged(_that);case PrivateEvent_MessageDeleted() when messageDeleted != null:
+return messageDeleted(_that);case PrivateEvent_Typing() when typing != null:
+return typing(_that);case PrivateEvent_FriendRequestReceived() when friendRequestReceived != null:
+return friendRequestReceived(_that);case _:
+  return orElse();
+
+}
+}
+/// A `switch`-like method, using callbacks.
+///
+/// Callbacks receives the raw object, upcasted.
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case final Subclass2 value:
+///     return ...;
+/// }
+/// ```
+
+@optionalTypeArgs TResult map<TResult extends Object?>({required TResult Function( PrivateEvent_ContactChanged value)  contactChanged,required TResult Function( PrivateEvent_ContactRemoved value)  contactRemoved,required TResult Function( PrivateEvent_MessageAdded value)  messageAdded,required TResult Function( PrivateEvent_MessageChanged value)  messageChanged,required TResult Function( PrivateEvent_MessageDeleted value)  messageDeleted,required TResult Function( PrivateEvent_Typing value)  typing,required TResult Function( PrivateEvent_FriendRequestReceived value)  friendRequestReceived,}){
+final _that = this;
+switch (_that) {
+case PrivateEvent_ContactChanged():
+return contactChanged(_that);case PrivateEvent_ContactRemoved():
+return contactRemoved(_that);case PrivateEvent_MessageAdded():
+return messageAdded(_that);case PrivateEvent_MessageChanged():
+return messageChanged(_that);case PrivateEvent_MessageDeleted():
+return messageDeleted(_that);case PrivateEvent_Typing():
+return typing(_that);case PrivateEvent_FriendRequestReceived():
+return friendRequestReceived(_that);}
+}
+/// A variant of `map` that fallback to returning `null`.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case _:
+///     return null;
+/// }
+/// ```
+
+@optionalTypeArgs TResult? mapOrNull<TResult extends Object?>({TResult? Function( PrivateEvent_ContactChanged value)?  contactChanged,TResult? Function( PrivateEvent_ContactRemoved value)?  contactRemoved,TResult? Function( PrivateEvent_MessageAdded value)?  messageAdded,TResult? Function( PrivateEvent_MessageChanged value)?  messageChanged,TResult? Function( PrivateEvent_MessageDeleted value)?  messageDeleted,TResult? Function( PrivateEvent_Typing value)?  typing,TResult? Function( PrivateEvent_FriendRequestReceived value)?  friendRequestReceived,}){
+final _that = this;
+switch (_that) {
+case PrivateEvent_ContactChanged() when contactChanged != null:
+return contactChanged(_that);case PrivateEvent_ContactRemoved() when contactRemoved != null:
+return contactRemoved(_that);case PrivateEvent_MessageAdded() when messageAdded != null:
+return messageAdded(_that);case PrivateEvent_MessageChanged() when messageChanged != null:
+return messageChanged(_that);case PrivateEvent_MessageDeleted() when messageDeleted != null:
+return messageDeleted(_that);case PrivateEvent_Typing() when typing != null:
+return typing(_that);case PrivateEvent_FriendRequestReceived() when friendRequestReceived != null:
+return friendRequestReceived(_that);case _:
+  return null;
+
+}
+}
+/// A variant of `when` that fallback to an `orElse` callback.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case _:
+///     return orElse();
+/// }
+/// ```
+
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>({TResult Function( PrivateContact field0)?  contactChanged,TResult Function( String peer)?  contactRemoved,TResult Function( PrivateMessage field0)?  messageAdded,TResult Function( PrivateMessage field0)?  messageChanged,TResult Function( String peer,  String messageId)?  messageDeleted,TResult Function( String peer)?  typing,TResult Function( String peer,  bool spam)?  friendRequestReceived,required TResult orElse(),}) {final _that = this;
+switch (_that) {
+case PrivateEvent_ContactChanged() when contactChanged != null:
+return contactChanged(_that.field0);case PrivateEvent_ContactRemoved() when contactRemoved != null:
+return contactRemoved(_that.peer);case PrivateEvent_MessageAdded() when messageAdded != null:
+return messageAdded(_that.field0);case PrivateEvent_MessageChanged() when messageChanged != null:
+return messageChanged(_that.field0);case PrivateEvent_MessageDeleted() when messageDeleted != null:
+return messageDeleted(_that.peer,_that.messageId);case PrivateEvent_Typing() when typing != null:
+return typing(_that.peer);case PrivateEvent_FriendRequestReceived() when friendRequestReceived != null:
+return friendRequestReceived(_that.peer,_that.spam);case _:
+  return orElse();
+
+}
+}
+/// A `switch`-like method, using callbacks.
+///
+/// As opposed to `map`, this offers destructuring.
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case Subclass2(:final field2):
+///     return ...;
+/// }
+/// ```
+
+@optionalTypeArgs TResult when<TResult extends Object?>({required TResult Function( PrivateContact field0)  contactChanged,required TResult Function( String peer)  contactRemoved,required TResult Function( PrivateMessage field0)  messageAdded,required TResult Function( PrivateMessage field0)  messageChanged,required TResult Function( String peer,  String messageId)  messageDeleted,required TResult Function( String peer)  typing,required TResult Function( String peer,  bool spam)  friendRequestReceived,}) {final _that = this;
+switch (_that) {
+case PrivateEvent_ContactChanged():
+return contactChanged(_that.field0);case PrivateEvent_ContactRemoved():
+return contactRemoved(_that.peer);case PrivateEvent_MessageAdded():
+return messageAdded(_that.field0);case PrivateEvent_MessageChanged():
+return messageChanged(_that.field0);case PrivateEvent_MessageDeleted():
+return messageDeleted(_that.peer,_that.messageId);case PrivateEvent_Typing():
+return typing(_that.peer);case PrivateEvent_FriendRequestReceived():
+return friendRequestReceived(_that.peer,_that.spam);}
+}
+/// A variant of `when` that fallback to returning `null`
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case _:
+///     return null;
+/// }
+/// ```
+
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>({TResult? Function( PrivateContact field0)?  contactChanged,TResult? Function( String peer)?  contactRemoved,TResult? Function( PrivateMessage field0)?  messageAdded,TResult? Function( PrivateMessage field0)?  messageChanged,TResult? Function( String peer,  String messageId)?  messageDeleted,TResult? Function( String peer)?  typing,TResult? Function( String peer,  bool spam)?  friendRequestReceived,}) {final _that = this;
+switch (_that) {
+case PrivateEvent_ContactChanged() when contactChanged != null:
+return contactChanged(_that.field0);case PrivateEvent_ContactRemoved() when contactRemoved != null:
+return contactRemoved(_that.peer);case PrivateEvent_MessageAdded() when messageAdded != null:
+return messageAdded(_that.field0);case PrivateEvent_MessageChanged() when messageChanged != null:
+return messageChanged(_that.field0);case PrivateEvent_MessageDeleted() when messageDeleted != null:
+return messageDeleted(_that.peer,_that.messageId);case PrivateEvent_Typing() when typing != null:
+return typing(_that.peer);case PrivateEvent_FriendRequestReceived() when friendRequestReceived != null:
+return friendRequestReceived(_that.peer,_that.spam);case _:
+  return null;
+
+}
+}
+
+}
+
+/// @nodoc
+
+
+class PrivateEvent_ContactChanged extends PrivateEvent {
+  const PrivateEvent_ContactChanged(this.field0): super._();
+  
+
+ final  PrivateContact field0;
+
+/// Create a copy of PrivateEvent
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$PrivateEvent_ContactChangedCopyWith<PrivateEvent_ContactChanged> get copyWith => _$PrivateEvent_ContactChangedCopyWithImpl<PrivateEvent_ContactChanged>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is PrivateEvent_ContactChanged&&(identical(other.field0, field0) || other.field0 == field0));
+}
+
+
+@override
+int get hashCode => Object.hash(runtimeType,field0);
+
+@override
+String toString() {
+  return 'PrivateEvent.contactChanged(field0: $field0)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $PrivateEvent_ContactChangedCopyWith<$Res> implements $PrivateEventCopyWith<$Res> {
+  factory $PrivateEvent_ContactChangedCopyWith(PrivateEvent_ContactChanged value, $Res Function(PrivateEvent_ContactChanged) _then) = _$PrivateEvent_ContactChangedCopyWithImpl;
+@useResult
+$Res call({
+ PrivateContact field0
+});
+
+
+
+
+}
+/// @nodoc
+class _$PrivateEvent_ContactChangedCopyWithImpl<$Res>
+    implements $PrivateEvent_ContactChangedCopyWith<$Res> {
+  _$PrivateEvent_ContactChangedCopyWithImpl(this._self, this._then);
+
+  final PrivateEvent_ContactChanged _self;
+  final $Res Function(PrivateEvent_ContactChanged) _then;
+
+/// Create a copy of PrivateEvent
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? field0 = null,}) {
+  return _then(PrivateEvent_ContactChanged(
+null == field0 ? _self.field0 : field0 // ignore: cast_nullable_to_non_nullable
+as PrivateContact,
+  ));
+}
+
+
+}
+
+/// @nodoc
+
+
+class PrivateEvent_ContactRemoved extends PrivateEvent {
+  const PrivateEvent_ContactRemoved({required this.peer}): super._();
+  
+
+ final  String peer;
+
+/// Create a copy of PrivateEvent
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$PrivateEvent_ContactRemovedCopyWith<PrivateEvent_ContactRemoved> get copyWith => _$PrivateEvent_ContactRemovedCopyWithImpl<PrivateEvent_ContactRemoved>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is PrivateEvent_ContactRemoved&&(identical(other.peer, peer) || other.peer == peer));
+}
+
+
+@override
+int get hashCode => Object.hash(runtimeType,peer);
+
+@override
+String toString() {
+  return 'PrivateEvent.contactRemoved(peer: $peer)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $PrivateEvent_ContactRemovedCopyWith<$Res> implements $PrivateEventCopyWith<$Res> {
+  factory $PrivateEvent_ContactRemovedCopyWith(PrivateEvent_ContactRemoved value, $Res Function(PrivateEvent_ContactRemoved) _then) = _$PrivateEvent_ContactRemovedCopyWithImpl;
+@useResult
+$Res call({
+ String peer
+});
+
+
+
+
+}
+/// @nodoc
+class _$PrivateEvent_ContactRemovedCopyWithImpl<$Res>
+    implements $PrivateEvent_ContactRemovedCopyWith<$Res> {
+  _$PrivateEvent_ContactRemovedCopyWithImpl(this._self, this._then);
+
+  final PrivateEvent_ContactRemoved _self;
+  final $Res Function(PrivateEvent_ContactRemoved) _then;
+
+/// Create a copy of PrivateEvent
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? peer = null,}) {
+  return _then(PrivateEvent_ContactRemoved(
+peer: null == peer ? _self.peer : peer // ignore: cast_nullable_to_non_nullable
+as String,
+  ));
+}
+
+
+}
+
+/// @nodoc
+
+
+class PrivateEvent_MessageAdded extends PrivateEvent {
+  const PrivateEvent_MessageAdded(this.field0): super._();
+  
+
+ final  PrivateMessage field0;
+
+/// Create a copy of PrivateEvent
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$PrivateEvent_MessageAddedCopyWith<PrivateEvent_MessageAdded> get copyWith => _$PrivateEvent_MessageAddedCopyWithImpl<PrivateEvent_MessageAdded>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is PrivateEvent_MessageAdded&&(identical(other.field0, field0) || other.field0 == field0));
+}
+
+
+@override
+int get hashCode => Object.hash(runtimeType,field0);
+
+@override
+String toString() {
+  return 'PrivateEvent.messageAdded(field0: $field0)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $PrivateEvent_MessageAddedCopyWith<$Res> implements $PrivateEventCopyWith<$Res> {
+  factory $PrivateEvent_MessageAddedCopyWith(PrivateEvent_MessageAdded value, $Res Function(PrivateEvent_MessageAdded) _then) = _$PrivateEvent_MessageAddedCopyWithImpl;
+@useResult
+$Res call({
+ PrivateMessage field0
+});
+
+
+
+
+}
+/// @nodoc
+class _$PrivateEvent_MessageAddedCopyWithImpl<$Res>
+    implements $PrivateEvent_MessageAddedCopyWith<$Res> {
+  _$PrivateEvent_MessageAddedCopyWithImpl(this._self, this._then);
+
+  final PrivateEvent_MessageAdded _self;
+  final $Res Function(PrivateEvent_MessageAdded) _then;
+
+/// Create a copy of PrivateEvent
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? field0 = null,}) {
+  return _then(PrivateEvent_MessageAdded(
+null == field0 ? _self.field0 : field0 // ignore: cast_nullable_to_non_nullable
+as PrivateMessage,
+  ));
+}
+
+
+}
+
+/// @nodoc
+
+
+class PrivateEvent_MessageChanged extends PrivateEvent {
+  const PrivateEvent_MessageChanged(this.field0): super._();
+  
+
+ final  PrivateMessage field0;
+
+/// Create a copy of PrivateEvent
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$PrivateEvent_MessageChangedCopyWith<PrivateEvent_MessageChanged> get copyWith => _$PrivateEvent_MessageChangedCopyWithImpl<PrivateEvent_MessageChanged>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is PrivateEvent_MessageChanged&&(identical(other.field0, field0) || other.field0 == field0));
+}
+
+
+@override
+int get hashCode => Object.hash(runtimeType,field0);
+
+@override
+String toString() {
+  return 'PrivateEvent.messageChanged(field0: $field0)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $PrivateEvent_MessageChangedCopyWith<$Res> implements $PrivateEventCopyWith<$Res> {
+  factory $PrivateEvent_MessageChangedCopyWith(PrivateEvent_MessageChanged value, $Res Function(PrivateEvent_MessageChanged) _then) = _$PrivateEvent_MessageChangedCopyWithImpl;
+@useResult
+$Res call({
+ PrivateMessage field0
+});
+
+
+
+
+}
+/// @nodoc
+class _$PrivateEvent_MessageChangedCopyWithImpl<$Res>
+    implements $PrivateEvent_MessageChangedCopyWith<$Res> {
+  _$PrivateEvent_MessageChangedCopyWithImpl(this._self, this._then);
+
+  final PrivateEvent_MessageChanged _self;
+  final $Res Function(PrivateEvent_MessageChanged) _then;
+
+/// Create a copy of PrivateEvent
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? field0 = null,}) {
+  return _then(PrivateEvent_MessageChanged(
+null == field0 ? _self.field0 : field0 // ignore: cast_nullable_to_non_nullable
+as PrivateMessage,
+  ));
+}
+
+
+}
+
+/// @nodoc
+
+
+class PrivateEvent_MessageDeleted extends PrivateEvent {
+  const PrivateEvent_MessageDeleted({required this.peer, required this.messageId}): super._();
+  
+
+ final  String peer;
+ final  String messageId;
+
+/// Create a copy of PrivateEvent
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$PrivateEvent_MessageDeletedCopyWith<PrivateEvent_MessageDeleted> get copyWith => _$PrivateEvent_MessageDeletedCopyWithImpl<PrivateEvent_MessageDeleted>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is PrivateEvent_MessageDeleted&&(identical(other.peer, peer) || other.peer == peer)&&(identical(other.messageId, messageId) || other.messageId == messageId));
+}
+
+
+@override
+int get hashCode => Object.hash(runtimeType,peer,messageId);
+
+@override
+String toString() {
+  return 'PrivateEvent.messageDeleted(peer: $peer, messageId: $messageId)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $PrivateEvent_MessageDeletedCopyWith<$Res> implements $PrivateEventCopyWith<$Res> {
+  factory $PrivateEvent_MessageDeletedCopyWith(PrivateEvent_MessageDeleted value, $Res Function(PrivateEvent_MessageDeleted) _then) = _$PrivateEvent_MessageDeletedCopyWithImpl;
+@useResult
+$Res call({
+ String peer, String messageId
+});
+
+
+
+
+}
+/// @nodoc
+class _$PrivateEvent_MessageDeletedCopyWithImpl<$Res>
+    implements $PrivateEvent_MessageDeletedCopyWith<$Res> {
+  _$PrivateEvent_MessageDeletedCopyWithImpl(this._self, this._then);
+
+  final PrivateEvent_MessageDeleted _self;
+  final $Res Function(PrivateEvent_MessageDeleted) _then;
+
+/// Create a copy of PrivateEvent
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? peer = null,Object? messageId = null,}) {
+  return _then(PrivateEvent_MessageDeleted(
+peer: null == peer ? _self.peer : peer // ignore: cast_nullable_to_non_nullable
+as String,messageId: null == messageId ? _self.messageId : messageId // ignore: cast_nullable_to_non_nullable
+as String,
+  ));
+}
+
+
+}
+
+/// @nodoc
+
+
+class PrivateEvent_Typing extends PrivateEvent {
+  const PrivateEvent_Typing({required this.peer}): super._();
+  
+
+ final  String peer;
+
+/// Create a copy of PrivateEvent
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$PrivateEvent_TypingCopyWith<PrivateEvent_Typing> get copyWith => _$PrivateEvent_TypingCopyWithImpl<PrivateEvent_Typing>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is PrivateEvent_Typing&&(identical(other.peer, peer) || other.peer == peer));
+}
+
+
+@override
+int get hashCode => Object.hash(runtimeType,peer);
+
+@override
+String toString() {
+  return 'PrivateEvent.typing(peer: $peer)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $PrivateEvent_TypingCopyWith<$Res> implements $PrivateEventCopyWith<$Res> {
+  factory $PrivateEvent_TypingCopyWith(PrivateEvent_Typing value, $Res Function(PrivateEvent_Typing) _then) = _$PrivateEvent_TypingCopyWithImpl;
+@useResult
+$Res call({
+ String peer
+});
+
+
+
+
+}
+/// @nodoc
+class _$PrivateEvent_TypingCopyWithImpl<$Res>
+    implements $PrivateEvent_TypingCopyWith<$Res> {
+  _$PrivateEvent_TypingCopyWithImpl(this._self, this._then);
+
+  final PrivateEvent_Typing _self;
+  final $Res Function(PrivateEvent_Typing) _then;
+
+/// Create a copy of PrivateEvent
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? peer = null,}) {
+  return _then(PrivateEvent_Typing(
+peer: null == peer ? _self.peer : peer // ignore: cast_nullable_to_non_nullable
+as String,
+  ));
+}
+
+
+}
+
+/// @nodoc
+
+
+class PrivateEvent_FriendRequestReceived extends PrivateEvent {
+  const PrivateEvent_FriendRequestReceived({required this.peer, required this.spam}): super._();
+  
+
+ final  String peer;
+ final  bool spam;
+
+/// Create a copy of PrivateEvent
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$PrivateEvent_FriendRequestReceivedCopyWith<PrivateEvent_FriendRequestReceived> get copyWith => _$PrivateEvent_FriendRequestReceivedCopyWithImpl<PrivateEvent_FriendRequestReceived>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is PrivateEvent_FriendRequestReceived&&(identical(other.peer, peer) || other.peer == peer)&&(identical(other.spam, spam) || other.spam == spam));
+}
+
+
+@override
+int get hashCode => Object.hash(runtimeType,peer,spam);
+
+@override
+String toString() {
+  return 'PrivateEvent.friendRequestReceived(peer: $peer, spam: $spam)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $PrivateEvent_FriendRequestReceivedCopyWith<$Res> implements $PrivateEventCopyWith<$Res> {
+  factory $PrivateEvent_FriendRequestReceivedCopyWith(PrivateEvent_FriendRequestReceived value, $Res Function(PrivateEvent_FriendRequestReceived) _then) = _$PrivateEvent_FriendRequestReceivedCopyWithImpl;
+@useResult
+$Res call({
+ String peer, bool spam
+});
+
+
+
+
+}
+/// @nodoc
+class _$PrivateEvent_FriendRequestReceivedCopyWithImpl<$Res>
+    implements $PrivateEvent_FriendRequestReceivedCopyWith<$Res> {
+  _$PrivateEvent_FriendRequestReceivedCopyWithImpl(this._self, this._then);
+
+  final PrivateEvent_FriendRequestReceived _self;
+  final $Res Function(PrivateEvent_FriendRequestReceived) _then;
+
+/// Create a copy of PrivateEvent
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? peer = null,Object? spam = null,}) {
+  return _then(PrivateEvent_FriendRequestReceived(
+peer: null == peer ? _self.peer : peer // ignore: cast_nullable_to_non_nullable
+as String,spam: null == spam ? _self.spam : spam // ignore: cast_nullable_to_non_nullable
+as bool,
+  ));
+}
+
+
+}
+
+/// @nodoc
 mixin _$StorageTestTarget {
 
 

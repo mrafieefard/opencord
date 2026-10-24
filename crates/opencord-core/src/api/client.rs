@@ -1521,6 +1521,10 @@ pub(crate) fn client() -> Result<Client, CoreError> {
     CLIENT.get().cloned().ok_or(CoreError::NotInitialized)
 }
 
+pub(crate) fn runtime() -> Result<&'static Runtime, CoreError> {
+    RUNTIME.get().ok_or(CoreError::NotInitialized)
+}
+
 /// Runs `work` on the core's runtime, where connections live.
 pub(crate) async fn on_runtime<T, F>(work: impl FnOnce(Client) -> F) -> Result<T, CoreError>
 where

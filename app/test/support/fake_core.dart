@@ -9,6 +9,7 @@ import 'package:opencord/src/rust/api/types.dart' as core;
 class FakeCoreApi extends Fake implements CoreApi {
   final events = StreamController<core.CoreEvent>.broadcast();
   final media = StreamController<core.MediaEvent>.broadcast();
+  final privateEvents = StreamController<core.PrivateEvent>.broadcast();
 
   /// What audioDevices answers.
   var devices = const core.AudioDevices(inputs: [], outputs: []);
@@ -56,6 +57,14 @@ class FakeCoreApi extends Fake implements CoreApi {
 
   @override
   Stream<core.MediaEvent> mediaEventStream() => media.stream;
+
+  @override
+  Stream<core.PrivateEvent> privateEventStream() => privateEvents.stream;
+
+  var privateOpened = const core.PrivateOpened(startedFresh: false);
+
+  @override
+  Future<core.PrivateOpened> privateOpen(Uint8List key) async => privateOpened;
 
   @override
   Future<core.AudioDevices> audioDevices() async => devices;

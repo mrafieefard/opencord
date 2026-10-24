@@ -8,6 +8,7 @@
 
 import 'api/attachments.dart';
 import 'api/client.dart';
+import 'api/private.dart';
 import 'api/system.dart';
 import 'api/types.dart';
 import 'dart:async';
@@ -31,6 +32,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   RustStreamSink<MediaEvent> dco_decode_StreamSink_media_event_Sse(dynamic raw);
+
+  @protected
+  RustStreamSink<PrivateEvent> dco_decode_StreamSink_private_event_Sse(
+    dynamic raw,
+  );
 
   @protected
   String dco_decode_String(dynamic raw);
@@ -182,6 +188,15 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   Presence dco_decode_box_autoadd_presence(dynamic raw);
+
+  @protected
+  PrivacySettingsData dco_decode_box_autoadd_privacy_settings_data(dynamic raw);
+
+  @protected
+  PrivateContact dco_decode_box_autoadd_private_contact(dynamic raw);
+
+  @protected
+  PrivateMessage dco_decode_box_autoadd_private_message(dynamic raw);
 
   @protected
   ReadySnapshot dco_decode_box_autoadd_ready_snapshot(dynamic raw);
@@ -351,6 +366,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   ConnectionState dco_decode_connection_state(dynamic raw);
 
   @protected
+  ConversationStatus dco_decode_conversation_status(dynamic raw);
+
+  @protected
   CoreError dco_decode_core_error(dynamic raw);
 
   @protected
@@ -391,6 +409,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   FailureReason dco_decode_failure_reason(dynamic raw);
+
+  @protected
+  FriendStatus dco_decode_friend_status(dynamic raw);
 
   @protected
   GeneratedIdentity dco_decode_generated_identity(dynamic raw);
@@ -561,6 +582,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   Uint8List dco_decode_list_prim_u_8_strict(dynamic raw);
 
   @protected
+  List<PrivateContact> dco_decode_list_private_contact(dynamic raw);
+
+  @protected
+  List<PrivateMessage> dco_decode_list_private_message(dynamic raw);
+
+  @protected
   List<Role> dco_decode_list_role(dynamic raw);
 
   @protected
@@ -574,6 +601,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   List<Server> dco_decode_list_server(dynamic raw);
+
+  @protected
+  List<SharedServer> dco_decode_list_shared_server(dynamic raw);
 
   @protected
   List<SoundboardSound> dco_decode_list_soundboard_sound(dynamic raw);
@@ -775,6 +805,27 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   PresenceStatus dco_decode_presence_status(dynamic raw);
 
   @protected
+  PrivacySettingsData dco_decode_privacy_settings_data(dynamic raw);
+
+  @protected
+  PrivateContact dco_decode_private_contact(dynamic raw);
+
+  @protected
+  PrivateEvent dco_decode_private_event(dynamic raw);
+
+  @protected
+  PrivateMessage dco_decode_private_message(dynamic raw);
+
+  @protected
+  PrivateMessageKind dco_decode_private_message_kind(dynamic raw);
+
+  @protected
+  PrivateOpened dco_decode_private_opened(dynamic raw);
+
+  @protected
+  PrivateSendState dco_decode_private_send_state(dynamic raw);
+
+  @protected
   PublicAddress dco_decode_public_address(dynamic raw);
 
   @protected
@@ -830,6 +881,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   ServerNotice dco_decode_server_notice(dynamic raw);
+
+  @protected
+  SharedServer dco_decode_shared_server(dynamic raw);
 
   @protected
   SoundDraft dco_decode_sound_draft(dynamic raw);
@@ -955,6 +1009,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   RustStreamSink<MediaEvent> sse_decode_StreamSink_media_event_Sse(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  RustStreamSink<PrivateEvent> sse_decode_StreamSink_private_event_Sse(
     SseDeserializer deserializer,
   );
 
@@ -1146,6 +1205,21 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   Presence sse_decode_box_autoadd_presence(SseDeserializer deserializer);
+
+  @protected
+  PrivacySettingsData sse_decode_box_autoadd_privacy_settings_data(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  PrivateContact sse_decode_box_autoadd_private_contact(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  PrivateMessage sse_decode_box_autoadd_private_message(
+    SseDeserializer deserializer,
+  );
 
   @protected
   ReadySnapshot sse_decode_box_autoadd_ready_snapshot(
@@ -1351,6 +1425,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   ConnectionState sse_decode_connection_state(SseDeserializer deserializer);
 
   @protected
+  ConversationStatus sse_decode_conversation_status(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   CoreError sse_decode_core_error(SseDeserializer deserializer);
 
   @protected
@@ -1391,6 +1470,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   FailureReason sse_decode_failure_reason(SseDeserializer deserializer);
+
+  @protected
+  FriendStatus sse_decode_friend_status(SseDeserializer deserializer);
 
   @protected
   GeneratedIdentity sse_decode_generated_identity(SseDeserializer deserializer);
@@ -1607,6 +1689,16 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   Uint8List sse_decode_list_prim_u_8_strict(SseDeserializer deserializer);
 
   @protected
+  List<PrivateContact> sse_decode_list_private_contact(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  List<PrivateMessage> sse_decode_list_private_message(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   List<Role> sse_decode_list_role(SseDeserializer deserializer);
 
   @protected
@@ -1626,6 +1718,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   List<Server> sse_decode_list_server(SseDeserializer deserializer);
+
+  @protected
+  List<SharedServer> sse_decode_list_shared_server(
+    SseDeserializer deserializer,
+  );
 
   @protected
   List<SoundboardSound> sse_decode_list_soundboard_sound(
@@ -1873,6 +1970,31 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   PresenceStatus sse_decode_presence_status(SseDeserializer deserializer);
 
   @protected
+  PrivacySettingsData sse_decode_privacy_settings_data(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  PrivateContact sse_decode_private_contact(SseDeserializer deserializer);
+
+  @protected
+  PrivateEvent sse_decode_private_event(SseDeserializer deserializer);
+
+  @protected
+  PrivateMessage sse_decode_private_message(SseDeserializer deserializer);
+
+  @protected
+  PrivateMessageKind sse_decode_private_message_kind(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  PrivateOpened sse_decode_private_opened(SseDeserializer deserializer);
+
+  @protected
+  PrivateSendState sse_decode_private_send_state(SseDeserializer deserializer);
+
+  @protected
   PublicAddress sse_decode_public_address(SseDeserializer deserializer);
 
   @protected
@@ -1936,6 +2058,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   ServerNotice sse_decode_server_notice(SseDeserializer deserializer);
+
+  @protected
+  SharedServer sse_decode_shared_server(SseDeserializer deserializer);
 
   @protected
   SoundDraft sse_decode_sound_draft(SseDeserializer deserializer);
@@ -2078,6 +2203,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_StreamSink_media_event_Sse(
     RustStreamSink<MediaEvent> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_StreamSink_private_event_Sse(
+    RustStreamSink<PrivateEvent> self,
     SseSerializer serializer,
   );
 
@@ -2320,6 +2451,24 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_box_autoadd_presence(Presence self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_box_autoadd_privacy_settings_data(
+    PrivacySettingsData self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_box_autoadd_private_contact(
+    PrivateContact self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_box_autoadd_private_message(
+    PrivateMessage self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_box_autoadd_ready_snapshot(
@@ -2601,6 +2750,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_conversation_status(
+    ConversationStatus self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_core_error(CoreError self, SseSerializer serializer);
 
   @protected
@@ -2647,6 +2802,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_failure_reason(FailureReason self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_friend_status(FriendStatus self, SseSerializer serializer);
 
   @protected
   void sse_encode_generated_identity(
@@ -2931,6 +3089,18 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_list_private_contact(
+    List<PrivateContact> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_private_message(
+    List<PrivateMessage> self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_list_role(List<Role> self, SseSerializer serializer);
 
   @protected
@@ -2953,6 +3123,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_list_server(List<Server> self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_list_shared_server(
+    List<SharedServer> self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_list_soundboard_sound(
@@ -3264,6 +3440,42 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_privacy_settings_data(
+    PrivacySettingsData self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_private_contact(
+    PrivateContact self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_private_event(PrivateEvent self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_private_message(
+    PrivateMessage self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_private_message_kind(
+    PrivateMessageKind self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_private_opened(PrivateOpened self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_private_send_state(
+    PrivateSendState self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_public_address(PublicAddress self, SseSerializer serializer);
 
   @protected
@@ -3340,6 +3552,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_server_notice(ServerNotice self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_shared_server(SharedServer self, SseSerializer serializer);
 
   @protected
   void sse_encode_sound_draft(SoundDraft self, SseSerializer serializer);

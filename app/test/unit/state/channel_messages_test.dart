@@ -47,6 +47,7 @@ core.Channel _text(int id, String name) => core.Channel(
 
 final _readyPayload = core.CoreEventPayload.ready(
   core.ReadySnapshot(
+    privateMessages: true,
     voiceEnabled: true,
     voiceStates: const [],
     streams: const [],

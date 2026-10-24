@@ -367,6 +367,7 @@ ReadySnapshot snapshotFrom(
   addresses: serverAddressesFrom(ready.addresses),
   commands: commandListFrom(ready.commands),
   uploadSettings: uploadSettingsFrom(ready.uploadSettings),
+  privateMessages: ready.privateMessages,
 );
 
 UploadSettings uploadSettingsFrom(core.UploadSettings s) => UploadSettings(
