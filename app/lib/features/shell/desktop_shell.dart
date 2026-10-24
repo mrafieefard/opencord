@@ -10,6 +10,8 @@ import 'package:opencord/core/repository/repository.dart';
 import 'package:opencord/features/channels/channel_sidebar.dart';
 import 'package:opencord/features/chat/chat_area.dart';
 import 'package:opencord/features/dialogs/identity_changed_dialog.dart';
+import 'package:opencord/features/home/home_main.dart';
+import 'package:opencord/features/home/home_sidebar.dart';
 import 'package:opencord/features/members/member_panel.dart';
 import 'package:opencord/features/music/music_access.dart';
 import 'package:opencord/features/music/music_panel.dart';
@@ -196,6 +198,7 @@ class _DesktopShellState extends ConsumerState<DesktopShell> {
   }
 
   void _stepChannel(int delta, {bool unreadOnly = false}) {
+    if (ref.read(homeShownProvider)) return;
     final server = ref.read(currentServerProvider);
     if (server == null) return;
     final channels = ref.read(serverProvider(server)).data?.channels;
@@ -294,13 +297,15 @@ class _DesktopShellState extends ConsumerState<DesktopShell> {
   @override
   Widget build(BuildContext context) {
     final colors = context.oc;
-    final panelOpen = _layout.membersInline
-        ? ref.watch(memberPanelProvider) &&
-              ref.watch(
-                serverListProvider.select((servers) => servers.isNotEmpty),
-              ) &&
-              !ref.watch(voiceChatShownProvider)
-        : _membersDrawer;
+    final homeShown = ref.watch(homeShownProvider);
+    final panelOpen = !homeShown &&
+        (_layout.membersInline
+            ? ref.watch(memberPanelProvider) &&
+                  ref.watch(
+                    serverListProvider.select((servers) => servers.isNotEmpty),
+                  ) &&
+                  !ref.watch(voiceChatShownProvider)
+            : _membersDrawer);
 
     // The voice channel open, or else the one this device is in: the
     // now-playing card opens its music from a text channel too (§19.3).
@@ -354,25 +359,31 @@ class _DesktopShellState extends ConsumerState<DesktopShell> {
                             SizedBox(
                               key: DesktopShell.sidebarKey,
                               width: layout.sidebarWidth,
-                              child: const ChannelSidebar(
-                                leadingControls: true,
-                              ),
+                              child: homeShown
+                                  ? const HomeSidebar(leadingControls: true)
+                                  : const ChannelSidebar(
+                                      leadingControls: true,
+                                    ),
                             ),
                             border,
                           ],
                           Expanded(
                             key: DesktopShell.mainKey,
-                            child: ChatArea(
-                              membersShown: membersActive,
-                              onToggleMembers: _selectMembers,
-                              musicShown: musicActive,
-                              onSelectMusic: _selectMusic,
-                              onOpenSidebar: layout.sidebarInline
-                                  ? null
-                                  : () => setState(() => _sidebarDrawer = true),
-                              leadingControls: !layout.sidebarInline,
-                              trailingControls: !membersInline,
-                            ),
+                            child: homeShown
+                                ? const HomeMain()
+                                : ChatArea(
+                                    membersShown: membersActive,
+                                    onToggleMembers: _selectMembers,
+                                    musicShown: musicActive,
+                                    onSelectMusic: _selectMusic,
+                                    onOpenSidebar: layout.sidebarInline
+                                        ? null
+                                        : () => setState(
+                                            () => _sidebarDrawer = true,
+                                          ),
+                                    leadingControls: !layout.sidebarInline,
+                                    trailingControls: !membersInline,
+                                  ),
                           ),
                           if (membersInline) ...[
                             border,
@@ -392,7 +403,9 @@ class _DesktopShellState extends ConsumerState<DesktopShell> {
                           child: SizedBox(
                             key: DesktopShell.sidebarKey,
                             width: layout.sidebarWidth,
-                            child: const ChannelSidebar(),
+                            child: homeShown
+                                ? const HomeSidebar()
+                                : const ChannelSidebar(),
                           ),
                         ),
                       if (!layout.membersInline && _membersDrawer)

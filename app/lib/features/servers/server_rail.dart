@@ -10,7 +10,6 @@ import 'package:opencord/core/repository/repository.dart';
 import 'package:opencord/core/settings/local_prefs.dart';
 import 'package:opencord/features/dialogs/add_server_dialog.dart';
 import 'package:opencord/features/dialogs/invite_dialog.dart';
-import 'package:opencord/features/settings/user_settings.dart';
 import 'package:opencord/features/shell/navigation.dart';
 import 'package:opencord/features/window/drag_area.dart';
 import 'package:opencord/features/window/window_mode.dart';
@@ -55,10 +54,21 @@ class ServerRail extends ConsumerWidget {
               alignment: Alignment.center,
               children: [
                 const Positioned.fill(child: WindowDragArea()),
-                OcIconButton(
-                  icon: OcIcons.menu,
-                  tooltip: 'Settings',
-                  onPressed: () => showUserSettings(context),
+                Tooltip(
+                  message: 'Private messages',
+                  child: Hoverable(
+                    onTap: () =>
+                        ref.read(navigationProvider.notifier).openHome(),
+                    semanticLabel: 'Private messages',
+                    builder: (context, state) => RailItemView(
+                      id: 'private-home',
+                      name: 'Private',
+                      glyph: OcIcons.chat,
+                      selected: ref.watch(homeShownProvider),
+                      hovered: state.active,
+                      mentions: ref.watch(privateUnreadProvider),
+                    ),
+                  ),
                 ),
               ],
             ),
@@ -118,7 +128,9 @@ class _RailEntry extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final key = server.key;
-    final selected = ref.watch(currentServerProvider) == key;
+    final selected =
+        !ref.watch(homeShownProvider) &&
+        ref.watch(currentServerProvider) == key;
     final status = ref.watch(serverProvider(key).select((s) => s.connection));
     final name =
         ref.watch(serverProvider(key).select((s) => s.data?.info.name)) ??
@@ -251,6 +263,7 @@ class RailItemView extends StatelessWidget {
     super.key,
     required this.id,
     required this.name,
+    this.glyph,
     this.selected = false,
     this.hovered = false,
     this.unread = false,
@@ -261,6 +274,9 @@ class RailItemView extends StatelessWidget {
 
   final Object id;
   final String name;
+
+  /// Optional glyph drawn centered instead of initials.
+  final IconData? glyph;
 
   /// The server's icon, when it has one.
   final ImageProvider? icon;
@@ -330,6 +346,13 @@ class RailItemView extends StatelessWidget {
                           color: selected ? colors.onAccent : colors.text,
                         ),
                       );
+                      final centerContent = glyph != null
+                          ? Icon(
+                              glyph,
+                              size: 20,
+                              color: selected ? colors.onAccent : colors.text,
+                            )
+                          : initials;
                       final icon = this.icon;
                       return AnimatedContainer(
                         duration: motion.hover,
@@ -346,7 +369,7 @@ class RailItemView extends StatelessWidget {
                           borderRadius: BorderRadius.circular(radius),
                         ),
                         child: icon == null
-                            ? initials
+                            ? centerContent
                             : Image(
                                 image: icon,
                                 width: OcSize.serverIcon,
@@ -354,7 +377,7 @@ class RailItemView extends StatelessWidget {
                                 fit: BoxFit.cover,
                                 gaplessPlayback: true,
                                 errorBuilder: (context, error, stack) =>
-                                    initials,
+                                    centerContent,
                               ),
                       );
                     },

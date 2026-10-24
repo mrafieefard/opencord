@@ -85,6 +85,16 @@ class MockRepository implements OpencordRepository {
   void emit(RepoEvent event) => _emit(event);
   RepoException? _privateUnavailable;
   var _privateStartedFresh = false;
+
+  void debugSetPrivateUnavailable(RepoException? error) {
+    _privateUnavailable = error;
+    _emit(const PrivateStateChanged());
+  }
+
+  void debugSetPrivateStartedFresh(bool value) {
+    _privateStartedFresh = value;
+    _emit(const PrivateStateChanged());
+  }
   final _events = StreamController<RepoEvent>.broadcast();
   final _timers = <Timer>{};
   final _retryTimers = <String, Timer>{};
