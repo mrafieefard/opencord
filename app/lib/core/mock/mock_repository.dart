@@ -276,6 +276,9 @@ class MockRepository implements OpencordRepository {
     _retryTimers.clear();
     _leaveVoiceNow();
     _world.servers.clear();
+    _privateWorld.contacts.clear();
+    _privateWorld.messages.clear();
+    _emit(const PrivateStateChanged());
     _emit(const ServersChanged());
   }
 
