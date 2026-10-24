@@ -1,6 +1,16 @@
 # Uploaded songs, played by the server itself: design
 
-Date: 2026-10-24. Status: awaiting the owner's approval.
+Date: 2026-10-24. Status: approved by the owner, then built (D67).
+
+**As built**, where it differs from what follows:
+
+- Uploaded songs use the track source `upload` (shown as Local), not
+  `local`, which Lavalink already uses for files on its own machine.
+- Covers inside files aren't kept or shown yet.
+- Ogg files with Opus inside are refused (symphonia has no Opus decoder).
+- "Remove from server" is on one's own songs in search results; queue
+  items offer it to administrators only. Recently played has no menu.
+- The settings list is called "Uploaded songs".
 
 ## 1. Intent
 
