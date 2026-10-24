@@ -618,6 +618,17 @@ pub enum CoreEventPayload {
         total_bytes: u64,
         phase: UploadPhase,
     },
+    /// A song dropped on the music player (`music_upload_song`), at most 10
+    /// times a second, and once at each phase: `Preparing` while it is
+    /// checked against the server's songs, `Done` once it is queued.
+    MusicUploadProgress {
+        channel_id: i64,
+        upload_id: String,
+        filename: String,
+        sent_bytes: u64,
+        total_bytes: u64,
+        phase: UploadPhase,
+    },
     /// A file of a message being sent with `send_message_with_files`, at
     /// most 10 times a second, and once at each phase.
     UploadProgress {
@@ -1662,8 +1673,11 @@ pub struct MusicSettings {
     pub available_sources: Vec<String>,
     /// Music is on in the server's configuration file and runs there.
     pub supported: bool,
-    /// Supported, enabled, and with a Lavalink node: members see music.
+    /// Supported and enabled: members see music. Uploaded songs play
+    /// without a Lavalink node.
     pub configured: bool,
+    /// A Lavalink node is added: search reaches Lavalink's sources.
+    pub has_nodes: bool,
 }
 
 /// Changes to the music settings; what is `None` stays.
@@ -1711,6 +1725,24 @@ pub struct MusicTrack {
     pub uri: String,
     /// For `music_artwork`; empty without artwork.
     pub artwork_id: String,
+    /// An uploaded song's id (source "upload"); 0 for Lavalink's tracks.
+    pub local_song_id: i64,
+    /// In search results only: the searcher may remove this uploaded song
+    /// from the server.
+    pub removable: bool,
+}
+
+/// An uploaded song, as Server settings → Music lists it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LocalSong {
+    pub id: i64,
+    pub title: String,
+    pub artist: String,
+    pub duration_ms: u64,
+    pub size_bytes: u64,
+    pub filename: String,
+    pub uploader_id: i64,
+    pub created_at_ms: i64,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

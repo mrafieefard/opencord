@@ -16,14 +16,15 @@ use super::types::{
     ChannelChanges, ChannelKind, ChannelPosition, CommandChoice, CommandList, CommandOptionValue,
     CommandOutcome, CommandSettingsChanges, CoreError, CoreEvent, DefaultSound, DomainCheck,
     DomainKind, DomainUpdate, GeneratedIdentity, HotkeyBinding, HotkeySupport, IdentityInfo,
-    Invite, LavalinkNodeChanges, LavalinkNodeSettings, LavalinkNodes, MediaEvent, Member, Message,
-    MusicAction, MusicBlock, MusicPlacement, MusicRepeat, MusicSearchResults, MusicSession,
-    MusicSettings, MusicSettingsChanges, NetworkInfo, NetworkSettingsChanges, NoiseSuppressionMode,
-    OverwriteTargetKind, PermissionOverwrite, PresenceStatus, Role, RoleChanges, ScreenAudioApp,
-    ScreenAudioSupport, ScreenShareRequest, ScreenShareStarted, ScreenSource, ScreenThumbnail,
-    Server, ServerChanges, ServerInfo, SoundDraft, SoundSelection, SoundboardSound,
-    SoundboardSoundChanges, StreamSourceKind, TextureStats, TrustedFingerprint, TunnelKind, User,
-    VideoSupport, VideoWant, VoiceCue, VoiceSettings, VoiceSettingsChanges, VoiceState,
+    Invite, LavalinkNodeChanges, LavalinkNodeSettings, LavalinkNodes, LocalSong, MediaEvent,
+    Member, Message, MusicAction, MusicBlock, MusicPlacement, MusicRepeat, MusicSearchResults,
+    MusicSession, MusicSettings, MusicSettingsChanges, NetworkInfo, NetworkSettingsChanges,
+    NoiseSuppressionMode, OverwriteTargetKind, PermissionOverwrite, PresenceStatus, Role,
+    RoleChanges, ScreenAudioApp, ScreenAudioSupport, ScreenShareRequest, ScreenShareStarted,
+    ScreenSource, ScreenThumbnail, Server, ServerChanges, ServerInfo, SoundDraft, SoundSelection,
+    SoundboardSound, SoundboardSoundChanges, StreamSourceKind, TextureStats, TrustedFingerprint,
+    TunnelKind, User, VideoSupport, VideoWant, VoiceCue, VoiceSettings, VoiceSettingsChanges,
+    VoiceState,
 };
 use crate::client::Client;
 use crate::frb_generated::StreamSink;
@@ -822,6 +823,52 @@ pub async fn music_search(
     on_runtime(move |client| async move {
         client
             .music_search(&server_key, channel_id, query, source)
+            .await
+    })
+    .await
+}
+
+/// Queues the song at `path` in the voice channel, uploading it first when
+/// the server doesn't have it; `MusicUploadProgress` events follow under
+/// `upload_id` (unique per server). `play_now` plays it at once.
+pub async fn music_upload_song(
+    server_key: String,
+    channel_id: i64,
+    upload_id: String,
+    path: String,
+    play_now: bool,
+) -> Result<(), CoreError> {
+    on_runtime(move |client| async move {
+        client
+            .music_upload_song(&server_key, channel_id, upload_id, path, play_now)
+            .await
+    })
+    .await
+}
+
+/// Stops a song's upload; `music_upload_song` returns `Cancelled`.
+#[frb(sync)]
+pub fn music_cancel_song(server_key: String, upload_id: String) -> Result<(), CoreError> {
+    client()?.music_cancel_song(&server_key, &upload_id);
+    Ok(())
+}
+
+/// Removes an uploaded song: the caller's ownership, or (administrators)
+/// the song for everyone.
+pub async fn remove_local_song(server_key: String, song_id: i64) -> Result<(), CoreError> {
+    on_runtime(move |client| async move { client.remove_local_song(&server_key, song_id).await })
+        .await
+}
+
+/// Every uploaded song, newest first, 50 at a time; administrators only.
+pub async fn fetch_local_songs(
+    server_key: String,
+    query: String,
+    before_id: Option<i64>,
+) -> Result<Vec<LocalSong>, CoreError> {
+    on_runtime(move |client| async move {
+        client
+            .fetch_local_songs(&server_key, query, before_id)
             .await
     })
     .await

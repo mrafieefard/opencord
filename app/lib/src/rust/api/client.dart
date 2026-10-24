@@ -695,6 +695,51 @@ Future<MusicSearchResults> musicSearch({
   source: source,
 );
 
+/// Queues the song at `path` in the voice channel, uploading it first when
+/// the server doesn't have it; `MusicUploadProgress` events follow under
+/// `upload_id` (unique per server). `play_now` plays it at once.
+Future<void> musicUploadSong({
+  required String serverKey,
+  required PlatformInt64 channelId,
+  required String uploadId,
+  required String path,
+  required bool playNow,
+}) => RustLib.instance.api.crateApiClientMusicUploadSong(
+  serverKey: serverKey,
+  channelId: channelId,
+  uploadId: uploadId,
+  path: path,
+  playNow: playNow,
+);
+
+/// Stops a song's upload; `music_upload_song` returns `Cancelled`.
+void musicCancelSong({required String serverKey, required String uploadId}) =>
+    RustLib.instance.api.crateApiClientMusicCancelSong(
+      serverKey: serverKey,
+      uploadId: uploadId,
+    );
+
+/// Removes an uploaded song: the caller's ownership, or (administrators)
+/// the song for everyone.
+Future<void> removeLocalSong({
+  required String serverKey,
+  required PlatformInt64 songId,
+}) => RustLib.instance.api.crateApiClientRemoveLocalSong(
+  serverKey: serverKey,
+  songId: songId,
+);
+
+/// Every uploaded song, newest first, 50 at a time; administrators only.
+Future<List<LocalSong>> fetchLocalSongs({
+  required String serverKey,
+  required String query,
+  PlatformInt64? beforeId,
+}) => RustLib.instance.api.crateApiClientFetchLocalSongs(
+  serverKey: serverKey,
+  query: query,
+  beforeId: beforeId,
+);
+
 /// The channel's player; from now on its changes arrive as
 /// `MusicSession` events even when not connected to it (Phase 3 plan
 /// §14.3). Needs only to see the channel.

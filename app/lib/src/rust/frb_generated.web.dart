@@ -546,6 +546,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   List<LavalinkTestStep> dco_decode_list_lavalink_test_step(dynamic raw);
 
   @protected
+  List<LocalSong> dco_decode_list_local_song(dynamic raw);
+
+  @protected
   List<Member> dco_decode_list_member(dynamic raw);
 
   @protected
@@ -628,6 +631,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   List<VoiceState> dco_decode_list_voice_state(dynamic raw);
+
+  @protected
+  LocalSong dco_decode_local_song(dynamic raw);
 
   @protected
   MappingState dco_decode_mapping_state(dynamic raw);
@@ -1653,6 +1659,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  List<LocalSong> sse_decode_list_local_song(SseDeserializer deserializer);
+
+  @protected
   List<Member> sse_decode_list_member(SseDeserializer deserializer);
 
   @protected
@@ -1765,6 +1774,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   List<VoiceState> sse_decode_list_voice_state(SseDeserializer deserializer);
+
+  @protected
+  LocalSong sse_decode_local_song(SseDeserializer deserializer);
 
   @protected
   MappingState sse_decode_mapping_state(SseDeserializer deserializer);
@@ -3043,6 +3055,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_list_local_song(
+    List<LocalSong> self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_list_member(List<Member> self, SseSerializer serializer);
 
   @protected
@@ -3191,6 +3209,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
     List<VoiceState> self,
     SseSerializer serializer,
   );
+
+  @protected
+  void sse_encode_local_song(LocalSong self, SseSerializer serializer);
 
   @protected
   void sse_encode_mapping_state(MappingState self, SseSerializer serializer);
