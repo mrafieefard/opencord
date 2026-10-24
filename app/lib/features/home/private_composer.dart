@@ -4,16 +4,18 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:opencord/core/bidi.dart';
 import 'package:opencord/core/providers/providers.dart';
 import 'package:opencord/core/repository/repository.dart';
 import 'package:opencord/features/chat/composer_bar.dart';
+import 'package:opencord/features/chat/emoji_picker.dart';
 import 'package:opencord/features/home/private_errors.dart';
 import 'package:opencord/ui/theme/oc_colors.dart';
 import 'package:opencord/ui/theme/oc_icons.dart';
 import 'package:opencord/ui/theme/oc_metrics.dart';
 import 'package:opencord/ui/theme/oc_text.dart';
 import 'package:opencord/ui/widgets/oc_icon_button.dart';
-import 'package:opencord/ui/widgets/oc_text_field.dart';
+import 'package:opencord/ui/widgets/popover.dart';
 
 /// The text composer for private conversations (§6.3).
 class PrivateComposer extends ConsumerStatefulWidget {
@@ -158,89 +160,83 @@ class PrivateComposerState extends ConsumerState<PrivateComposer> {
     final overLimit = runeCount > 4000;
 
     final name = ref.watch(contactNameProvider(widget.peer));
+    final hasText = _controller.text.trim().isNotEmpty;
     // The channel composer's frame and field (§6.3).
-    return Container(
-      decoration: BoxDecoration(
-        color: colors.sidebar,
-        border: Border(top: BorderSide(color: colors.border)),
+    return ComposerFrame(
+      above: [
+        if (_editing case final editing?)
+          ComposerContextBar(
+            editing: true,
+            title: 'Edit message',
+            preview: editing.content,
+            onClose: _cancelEditing,
+          ),
+      ],
+      field: Focus(
+        canRequestFocus: false,
+        skipTraversal: true,
+        onKeyEvent: _handleKey,
+        child: TextField(
+          controller: _controller,
+          focusNode: _focusNode,
+          maxLines: 8,
+          minLines: 1,
+          textInputAction: TextInputAction.newline,
+          style: OcText.body.copyWith(color: colors.text),
+          cursorColor: colors.text,
+          textDirection: textDirectionOf(_controller.text),
+          decoration: composerFieldDecoration(context, 'Message $name'),
+        ),
       ),
-      child: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: OcSize.messageColumn),
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(
-              OcSpace.s12,
-              OcSpace.s10,
-              OcSpace.s12,
-              OcSpace.s12,
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                if (_editing case final editing?)
-                  ComposerContextBar(
-                    editing: true,
-                    title: 'Edit message',
-                    preview: editing.content,
-                    onClose: _cancelEditing,
-                  ),
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    Expanded(
-                      child: Focus(
-                        canRequestFocus: false,
-                        skipTraversal: true,
-                        onKeyEvent: _handleKey,
-                        child: TextField(
-                          controller: _controller,
-                          focusNode: _focusNode,
-                          maxLines: 8,
-                          minLines: 1,
-                          textInputAction: TextInputAction.newline,
-                          style: OcText.body.copyWith(color: colors.text),
-                          cursorColor: colors.text,
-                          decoration: ocInputDecoration(
-                            context,
-                            hint: 'Message $name',
-                            radius: OcRadius.composer,
-                            padding: const EdgeInsets.fromLTRB(
-                              OcSpace.s16,
-                              OcSpace.s10,
-                              OcSpace.s8,
-                              OcSpace.s10,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                    if (showCounter)
-                      Padding(
-                        padding: const EdgeInsets.only(
-                          bottom: OcSpace.s8,
-                          right: OcSpace.s8,
-                        ),
-                        child: Text(
-                          '${4000 - runeCount}',
-                          style: OcText.meta.copyWith(
-                            color: overLimit
-                                ? colors.recording
-                                : colors.textMuted,
-                          ),
-                        ),
-                      ),
-                    OcIconButton(
-                      icon: OcIcons.send,
-                      tooltip: 'Send',
-                      onPressed: overLimit ? null : _submit,
-                    ),
-                  ],
-                ),
-              ],
+      trailing: [
+        if (showCounter)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 4, right: OcSpace.s8),
+            child: Text(
+              '${4000 - runeCount}',
+              style: OcText.meta.copyWith(
+                color: overLimit ? colors.recording : colors.textMuted,
+              ),
             ),
           ),
+        Builder(
+          builder: (context) => OcIconButton(
+            icon: OcIcons.mood,
+            tooltip: 'Emoji',
+            onPressed: () async {
+              final emoji = await showEmojiPicker(
+                context,
+                anchor: globalRectOf(context),
+              );
+              if (emoji == null || !mounted) return;
+              _focusNode.requestFocus();
+              _insert(emoji);
+            },
+          ),
         ),
+        OcIconButton(
+          icon: _editing != null ? OcIcons.check : OcIcons.send,
+          tooltip: _editing != null ? 'Save' : 'Send',
+          active: hasText,
+          activeStyle: OcActiveStyle.inverted,
+          onPressed: overLimit ? null : _submit,
+        ),
+      ],
+    );
+  }
+
+  void _insert(String insert) {
+    final selection = _controller.selection.isValid
+        ? _controller.selection
+        : TextSelection.collapsed(offset: _controller.text.length);
+    _controller.value = TextEditingValue(
+      text: _controller.text.replaceRange(
+        selection.start,
+        selection.end,
+        insert,
+      ),
+      selection: TextSelection.collapsed(
+        offset: selection.start + insert.length,
       ),
     );
   }

@@ -265,9 +265,10 @@ When "System" is selected (or Auto chooses it), the native title bar and decorat
 - Text selection inside a single message is allowed (selectable text) without breaking the context menu.
 - Quick reaction popover: a horizontal pill with 8 frequent emoji plus "more" that opens the emoji picker.
 
-### 4.6 Composer (bg `sidebar`, top border, content centered max 880 px)
+### 4.6 Composer (bg `sidebar`, top border, the full width of the chat)
 
-- Telegram arrangement: **attach** button (left) · multiline input in a rounded field (radius 20, bg `hover`, 1–8 lines then scroll) · **emoji** button · **send** button.
+- Telegram arrangement: the bar itself is the input. **attach** button (left) · multiline input with no box of its own, edge to edge (1–8 lines then scroll) · **emoji** button · **send** button, all inside the bar. Private chats have the same bar with emoji and send.
+- **Direction:** the input turns right-to-left as soon as its first letter is Persian, Arabic or Hebrew, and back with a first letter from a left-to-right script, as Telegram's does; digits and symbols before it don't count.
 - Send button is an inverted circle when there is text; when empty it shows a muted mic icon (voice messages are a later phase; clicking shows a "coming later" toast).
 - Placeholder: "Message #general".
 - **Reply / edit bar** above the input: reply or edit icon, 2 px vertical line, "Reply to Kai" / "Edit message" (600) with a one-line preview, and a close button.
