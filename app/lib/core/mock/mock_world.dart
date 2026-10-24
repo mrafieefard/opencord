@@ -107,6 +107,7 @@ class MockServer {
 
   /// Every chat command, on or off (Phase 3 plan §17).
   CommandList commands = CommandList(commands: mockCommandSpecs);
+  bool privateMessages = true;
 
   /// What members can use: enabled, with music set up.
   CommandList get availableCommands => CommandList(
@@ -250,6 +251,7 @@ class MockServer {
       addresses: addresses,
       commands: availableCommands,
       uploadSettings: uploadSettings,
+      privateMessages: privateMessages,
     );
   }
 }
@@ -447,6 +449,7 @@ class _Builder {
     Presence presence = Presence.online,
     String? activity,
     int joinedDaysAgo = 40,
+    String? publicKeyHex,
   }) {
     server.members[id] = Member(
       user: User(
@@ -455,7 +458,7 @@ class _Builder {
         fingerprint: id == server.selfId
             ? selfFingerprint
             : _keyFingerprint(id),
-        publicKeyHex: fakeFingerprint('key-$id'),
+        publicKeyHex: publicKeyHex ?? fakeFingerprint('key-$id'),
       ),
       roleIds: roles,
       joinedAt: daysAgo(joinedDaysAgo, 10, 0),
@@ -1035,7 +1038,7 @@ MockServer _opencordDev(DateTime now, MockIds ids) {
 
 MockServer _rustBerlin(DateTime now, MockIds ids) {
   const self = 2000, greta = 2001, lukas = 2002, kai = 2003, marta = 2004;
-  const felix = 2005, elif = 2006, paul = 2007, hannah = 2008;
+  const felix = 2005, elif = 2006, paul = 2007, hannah = 2008, quinn = 2009;
   const everyone = 20, speaker = 21, organizer = 22;
   final server = MockServer(
     key: 'rust-berlin.example:7710',
@@ -1067,12 +1070,19 @@ MockServer _rustBerlin(DateTime now, MockIds ids) {
   b.person(self, selfName, joinedDaysAgo: 60);
   b.person(greta, 'Greta Hoffmann', roles: [organizer]);
   b.person(lukas, 'Lukas Braun', roles: [organizer], presence: Presence.idle);
-  b.person(kai, 'Kai Nakamura', roles: [speaker], activity: 'Preparing slides');
+  b.person(
+    kai,
+    'Kai Nakamura',
+    roles: [speaker],
+    activity: 'Preparing slides',
+    publicKeyHex: fakeFingerprint('key-1001'),
+  );
   b.person(marta, 'Marta Nowak', roles: [speaker], presence: Presence.offline);
   b.person(felix, 'Felix Schulz', activity: 'In voice · Lounge');
   b.person(elif, 'Elif Demir', activity: 'In voice · Lounge');
   b.person(paul, 'Paul Becker', presence: Presence.offline);
   b.person(hannah, 'Hannah Vogel', presence: Presence.doNotDisturb);
+  b.person(quinn, 'Quiet Quinn', presence: Presence.offline);
 
   final meetups = b.category('Meetups');
   final announcements = b.channel(

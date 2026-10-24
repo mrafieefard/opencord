@@ -28,6 +28,7 @@ class ServerData {
     this.addresses = const ServerAddresses(),
     this.commands = const CommandList(),
     this.uploadSettings = UploadSettings.fallback,
+    this.privateMessages = false,
   });
 
   factory ServerData.fromSnapshot(ReadySnapshot snapshot) => ServerData(
@@ -43,6 +44,7 @@ class ServerData {
     addresses: snapshot.addresses,
     commands: snapshot.commands,
     uploadSettings: snapshot.uploadSettings,
+    privateMessages: snapshot.privateMessages,
   );
 
   final User self;
@@ -64,6 +66,7 @@ class ServerData {
   final CommandList commands;
 
   final UploadSettings uploadSettings;
+  final bool privateMessages;
 
   bool get isOwner => info.ownerId == self.id;
 
@@ -139,6 +142,7 @@ class ServerData {
     ServerAddresses? addresses,
     CommandList? commands,
     UploadSettings? uploadSettings,
+    bool? privateMessages,
   }) => ServerData(
     self: self,
     info: info ?? this.info,
@@ -152,6 +156,7 @@ class ServerData {
     addresses: addresses ?? this.addresses,
     commands: commands ?? this.commands,
     uploadSettings: uploadSettings ?? this.uploadSettings,
+    privateMessages: privateMessages ?? this.privateMessages,
   );
 }
 

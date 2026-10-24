@@ -33,6 +33,7 @@ import 'package:opencord/core/rust/identity_store.dart';
 import 'package:opencord/core/rust/lavalink_mapping.dart';
 import 'package:opencord/core/rust/music_mapping.dart';
 import 'package:opencord/core/rust/network_mapping.dart';
+import 'package:opencord/core/rust/private_mapping.dart';
 import 'package:opencord/core/rust/read_positions.dart';
 import 'package:opencord/core/settings/key_value_store.dart';
 import 'package:opencord/src/rust/api/types.dart' as core;
@@ -49,8 +50,15 @@ class RustRepository implements OpencordRepository {
     this._positions,
     this._clock,
     this._saved,
-    this._identityUnavailable,
-  ) {
+    this._identityUnavailable, [
+    this._privateKey,
+  ]) {
+    if (_privateKey == null) {
+      _privateUnavailable = const RepoException(
+        RepoErrorKind.other,
+        "Private messages need the system keyring, which couldn't be used.",
+      );
+    }
     // Listed now: the tray and the server rail read them before start, and
     // they show while offline too.
     _servers = _listServers();
@@ -72,6 +80,7 @@ class RustRepository implements OpencordRepository {
     required IdentityStore identities,
     required KeyValueStore store,
     DateTime Function()? clock,
+    Uint8List? privateKey,
   }) async {
     SavedIdentity? saved;
     RepoException? unavailable;
@@ -87,6 +96,7 @@ class RustRepository implements OpencordRepository {
       clock ?? DateTime.now,
       saved,
       unavailable,
+      privateKey,
     );
   }
 
@@ -100,13 +110,17 @@ class RustRepository implements OpencordRepository {
   final ReadPositions _positions;
   final DateTime Function() _clock;
   final SavedIdentity? _saved;
+  final Uint8List? _privateKey;
   final _events = StreamController<RepoEvent>.broadcast();
   StreamSubscription<core.CoreEvent>? _coreEvents;
   StreamSubscription<core.MediaEvent>? _mediaEvents;
+  StreamSubscription<core.PrivateEvent>? _privateEvents;
 
   LocalIdentity? _identity;
   Uint8List? _secret;
   RepoException? _identityUnavailable;
+  RepoException? _privateUnavailable;
+  var _privateStartedFresh = false;
   var _servers = const <ServerSummary>[];
   var _presence = SelfPresence.online;
 
@@ -165,6 +179,7 @@ class RustRepository implements OpencordRepository {
   void start() {
     _coreEvents = _core.eventStream().listen(_onCoreEvent);
     _mediaEvents = _core.mediaEventStream().listen(_onMediaEvent);
+    _privateEvents = _core.privateEventStream().listen(_onPrivateEvent);
     if (_saved case final saved?) _useSaved(saved);
   }
 
@@ -180,6 +195,7 @@ class RustRepository implements OpencordRepository {
   void dispose() {
     _coreEvents?.cancel();
     _mediaEvents?.cancel();
+    _privateEvents?.cancel();
     _events.close();
   }
 
@@ -233,6 +249,24 @@ class RustRepository implements OpencordRepository {
       publicKeyHex: info.publicKeyHex,
     );
     _emit(const IdentityChanged());
+    if (_privateKey == null) {
+      _privateUnavailable = const RepoException(
+        RepoErrorKind.other,
+        "Private messages need the system keyring, which couldn't be used.",
+      );
+      _emit(const PrivateStateChanged());
+    } else {
+      unawaited(() async {
+        try {
+          final opened = await _core.privateOpen(_privateKey);
+          _privateStartedFresh = opened.startedFresh;
+          _privateUnavailable = null;
+        } on core.CoreError catch (error) {
+          _privateUnavailable = errorFrom(error);
+        }
+        _emit(const PrivateStateChanged());
+      }());
+    }
   }
 
   Uint8List get _currentSecret =>
@@ -2516,4 +2550,152 @@ class RustRepository implements OpencordRepository {
 
   @override
   bool mediaSupported() => _now(_core.mediaSupported);
+
+  // Private messages (Milestone E4, Task 17) --------------------------------
+
+  void _onPrivateEvent(core.PrivateEvent event) {
+    switch (event) {
+      case core.PrivateEvent_ContactChanged(:final field0):
+        _emit(PrivateContactChanged(privateContactFrom(field0)));
+      case core.PrivateEvent_ContactRemoved(:final peer):
+        _emit(PrivateContactRemoved(peer));
+      case core.PrivateEvent_MessageAdded(:final field0):
+        _emit(PrivateMessageAdded(privateMessageFrom(field0)));
+      case core.PrivateEvent_MessageChanged(:final field0):
+        _emit(PrivateMessageChanged(privateMessageFrom(field0)));
+      case core.PrivateEvent_MessageDeleted(:final peer, :final messageId):
+        _emit(PrivateMessageDeleted(peer, messageId));
+      case core.PrivateEvent_Typing(:final peer):
+        _emit(PrivateTypingStarted(peer));
+      case core.PrivateEvent_FriendRequestReceived(:final peer, :final spam):
+        _emit(FriendRequestArrived(peer, spam));
+    }
+  }
+
+  @override
+  RepoException? get privateUnavailable => _privateUnavailable;
+
+  @override
+  bool get privateStartedFresh => _privateStartedFresh;
+
+  @override
+  void acknowledgePrivateStartedFresh() {
+    _privateStartedFresh = false;
+  }
+
+  @override
+  Future<List<PrivateContact>> privateContacts() => _call(
+    () async => [
+      for (final contact in await _core.privateContacts())
+        privateContactFrom(contact),
+    ],
+  );
+
+  @override
+  Future<List<PrivateMessage>> privateMessages(
+    String peer, {
+    String? before,
+    int limit = 50,
+  }) => _call(
+    () async => [
+      for (final message in await _core.privateMessages(
+        peer,
+        before: before,
+        limit: limit,
+      ))
+        privateMessageFrom(message),
+    ],
+  );
+
+  @override
+  Future<PrivateMessage> sendPrivateMessage(String peer, String content) =>
+      _call(
+        () async => privateMessageFrom(await _core.privateSend(peer, content)),
+      );
+
+  @override
+  Future<void> editPrivateMessage(
+    String peer,
+    String messageId,
+    String content,
+  ) => _call(() => _core.privateEdit(peer, messageId, content));
+
+  @override
+  Future<void> deletePrivateMessage(String peer, String messageId) =>
+      _call(() => _core.privateDelete(peer, messageId));
+
+  @override
+  Future<void> retryPrivateMessage(String messageId) =>
+      _call(() => _core.privateRetry(messageId));
+
+  @override
+  Future<void> sendFriendRequest(String serverKey, int userId) =>
+      _call(() => _core.friendRequestSend(serverKey, userId));
+
+  @override
+  Future<void> answerFriendRequest(String peer, {required bool accept}) =>
+      _call(() => _core.friendRequestAnswer(peer, accept: accept));
+
+  @override
+  Future<void> cancelFriendRequest(String peer) =>
+      _call(() => _core.friendRequestCancel(peer));
+
+  @override
+  Future<void> removeFriend(String peer) =>
+      _call(() => _core.friendRemove(peer));
+
+  @override
+  Future<void> acceptMessageRequest(String peer) =>
+      _call(() => _core.messageRequestAccept(peer));
+
+  @override
+  Future<void> ignoreMessageRequest(String peer) =>
+      _call(() => _core.messageRequestIgnore(peer));
+
+  @override
+  Future<void> blockUser(String peer) => _call(() => _core.privateBlock(peer));
+
+  @override
+  Future<void> unblockUser(String peer) =>
+      _call(() => _core.privateUnblock(peer));
+
+  @override
+  Future<PrivacySettings> privacySettings() =>
+      _call(() async => privacySettingsFrom(await _core.privacySettings()));
+
+  @override
+  Future<void> savePrivacySettings(PrivacySettings settings) =>
+      _call(() => _core.setPrivacySettings(privacySettingsTo(settings)));
+
+  @override
+  Future<PrivateContact> openConversation(String serverKey, int userId) =>
+      _call(
+        () async => privateContactFrom(
+          await _core.privateOpenConversation(serverKey, userId),
+        ),
+      );
+
+  @override
+  Future<void> moveConversation(String peer, String serverKey) =>
+      _call(() => _core.privateMove(peer, serverKey));
+
+  @override
+  Future<void> moveConversationToo(String peer, String messageId) =>
+      _call(() => _core.privateMoveToo(peer, messageId));
+
+  @override
+  Future<void> sendPrivateTyping(String peer) =>
+      _call(() => _core.privateTyping(peer));
+
+  @override
+  Future<void> markPrivateRead(String peer) =>
+      _call(() => _core.privateMarkRead(peer));
+
+  @override
+  Future<void> setPrivateMuted(String peer, {required bool muted}) =>
+      _call(() => _core.privateSetMuted(peer, muted: muted));
+
+  @override
+  Future<void> hideConversation(String peer) =>
+      _call(() => _core.privateHide(peer));
 }

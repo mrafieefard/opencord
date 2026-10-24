@@ -66,6 +66,19 @@ class FakeCoreApi extends Fake implements CoreApi {
   @override
   Future<core.PrivateOpened> privateOpen(Uint8List key) async => privateOpened;
 
+  var contacts = <core.PrivateContact>[];
+
+  @override
+  Future<List<core.PrivateContact>> privateContacts() async => contacts;
+
+  var privacy = const core.PrivacySettingsData(
+    allowFriendRequests: true,
+    allowMessageRequests: true,
+  );
+
+  @override
+  Future<core.PrivacySettingsData> privacySettings() async => privacy;
+
   @override
   Future<core.AudioDevices> audioDevices() async => devices;
 

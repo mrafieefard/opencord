@@ -1889,10 +1889,8 @@ class FrbCoreApi implements CoreApi {
   Future<core.PrivateContact> privateOpenConversation(
     String serverKey,
     int userId,
-  ) => frb_private.privateOpenConversation(
-    serverKey: serverKey,
-    userId: userId,
-  );
+  ) =>
+      frb_private.privateOpenConversation(serverKey: serverKey, userId: userId);
 
   @override
   Future<List<core.SharedServer>> privateSharedServers(String peer) =>

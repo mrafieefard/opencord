@@ -9,6 +9,7 @@ import 'package:opencord/core/model/music_session.dart';
 import 'package:opencord/core/model/network.dart';
 import 'package:opencord/core/model/permissions.dart';
 import 'package:opencord/core/model/presence.dart';
+import 'package:opencord/core/model/private.dart';
 import 'package:opencord/core/model/server.dart';
 import 'package:opencord/core/model/snapshot.dart';
 import 'package:opencord/core/model/sound.dart';
@@ -573,4 +574,53 @@ final class PlaybackFailed extends RepoEvent {
 
   final PlaybackItem item;
   final String message;
+}
+
+/// Private messaging events (Milestone E4, Task 17).
+final class PrivateContactChanged extends RepoEvent {
+  const PrivateContactChanged(this.contact) : super('');
+
+  final PrivateContact contact;
+}
+
+final class PrivateContactRemoved extends RepoEvent {
+  const PrivateContactRemoved(this.peer) : super('');
+
+  final String peer;
+}
+
+final class PrivateMessageAdded extends RepoEvent {
+  const PrivateMessageAdded(this.message) : super('');
+
+  final PrivateMessage message;
+}
+
+final class PrivateMessageChanged extends RepoEvent {
+  const PrivateMessageChanged(this.message) : super('');
+
+  final PrivateMessage message;
+}
+
+final class PrivateMessageDeleted extends RepoEvent {
+  const PrivateMessageDeleted(this.peer, this.messageId) : super('');
+
+  final String peer;
+  final String messageId;
+}
+
+final class PrivateTypingStarted extends RepoEvent {
+  const PrivateTypingStarted(this.peer) : super('');
+
+  final String peer;
+}
+
+final class FriendRequestArrived extends RepoEvent {
+  const FriendRequestArrived(this.peer, this.spam) : super('');
+
+  final String peer;
+  final bool spam;
+}
+
+final class PrivateStateChanged extends RepoEvent {
+  const PrivateStateChanged() : super('');
 }

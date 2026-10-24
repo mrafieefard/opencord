@@ -5,6 +5,7 @@ import 'package:clock/clock.dart';
 import 'package:flutter/foundation.dart';
 
 import 'package:opencord/core/mock/mock_music.dart';
+import 'package:opencord/core/mock/mock_private.dart';
 import 'package:opencord/core/mock/mock_world.dart';
 import 'package:opencord/core/model/attachment.dart';
 import 'package:opencord/core/model/stream.dart';
@@ -57,6 +58,11 @@ class MockRepository implements OpencordRepository {
        _identity = withIdentity ? _seededIdentity : null {
     _identityUnavailable = identityUnavailable;
     _world = buildMockWorld(_clock());
+    _privateWorld = MockPrivateWorld(
+      now: _clock(),
+      emit: _emit,
+      simulateLife: simulateLife,
+    );
   }
 
   static final _seededIdentity = LocalIdentity(
@@ -72,6 +78,9 @@ class MockRepository implements OpencordRepository {
   final bool simulateLife;
 
   late MockWorld _world;
+  late final MockPrivateWorld _privateWorld;
+  RepoException? _privateUnavailable;
+  var _privateStartedFresh = false;
   final _events = StreamController<RepoEvent>.broadcast();
   final _timers = <Timer>{};
   final _retryTimers = <String, Timer>{};
@@ -4845,6 +4854,136 @@ class MockRepository implements OpencordRepository {
     }
     _media = null;
   }
+
+  // Private messages (Milestone E4, Task 17) --------------------------------
+
+  @override
+  RepoException? get privateUnavailable => _privateUnavailable;
+
+  @override
+  bool get privateStartedFresh => _privateStartedFresh;
+
+  @override
+  void acknowledgePrivateStartedFresh() {
+    _privateStartedFresh = false;
+  }
+
+  @override
+  Future<List<PrivateContact>> privateContacts() =>
+      _privateWorld.privateContacts();
+
+  @override
+  Future<List<PrivateMessage>> privateMessages(
+    String peer, {
+    String? before,
+    int limit = 50,
+  }) => _privateWorld.privateMessages(peer, before: before, limit: limit);
+
+  @override
+  Future<PrivateMessage> sendPrivateMessage(String peer, String content) =>
+      _privateWorld.sendPrivateMessage(peer, content, now: _clock());
+
+  @override
+  Future<void> editPrivateMessage(
+    String peer,
+    String messageId,
+    String content,
+  ) =>
+      _privateWorld.editPrivateMessage(peer, messageId, content, now: _clock());
+
+  @override
+  Future<void> deletePrivateMessage(String peer, String messageId) =>
+      _privateWorld.deletePrivateMessage(peer, messageId);
+
+  @override
+  Future<void> retryPrivateMessage(String messageId) =>
+      _privateWorld.retryPrivateMessage(messageId);
+
+  @override
+  Future<void> sendFriendRequest(String serverKey, int userId) {
+    final member = _world.servers
+        .where((s) => s.key == serverKey)
+        .firstOrNull
+        ?.members[userId];
+    if (member?.displayName == 'Quiet Quinn' || userId == 2009) {
+      throw const RepoException(
+        RepoErrorKind.friendRequestsClosed,
+        "This user isn't accepting friend requests.",
+      );
+    }
+    return _privateWorld.sendFriendRequest(serverKey, userId, now: _clock());
+  }
+
+  @override
+  Future<void> answerFriendRequest(String peer, {required bool accept}) =>
+      _privateWorld.answerFriendRequest(peer, accept: accept);
+
+  @override
+  Future<void> cancelFriendRequest(String peer) =>
+      _privateWorld.cancelFriendRequest(peer);
+
+  @override
+  Future<void> removeFriend(String peer) => _privateWorld.removeFriend(peer);
+
+  @override
+  Future<void> acceptMessageRequest(String peer) =>
+      _privateWorld.acceptMessageRequest(peer);
+
+  @override
+  Future<void> ignoreMessageRequest(String peer) =>
+      _privateWorld.ignoreMessageRequest(peer);
+
+  @override
+  Future<void> blockUser(String peer) => _privateWorld.blockUser(peer);
+
+  @override
+  Future<void> unblockUser(String peer) => _privateWorld.unblockUser(peer);
+
+  @override
+  Future<PrivacySettings> privacySettings() => _privateWorld.privacySettings();
+
+  @override
+  Future<void> savePrivacySettings(PrivacySettings settings) =>
+      _privateWorld.savePrivacySettings(settings);
+
+  @override
+  Future<PrivateContact> openConversation(String serverKey, int userId) =>
+      _privateWorld.openConversation(serverKey, userId, now: _clock());
+
+  @override
+  Future<void> moveConversation(String peer, String serverKey) =>
+      _privateWorld.moveConversation(
+        peer,
+        serverKey,
+        serverName:
+            _world.servers
+                .where((s) => s.key == serverKey)
+                .firstOrNull
+                ?.info
+                .name ??
+            serverKey,
+        now: _clock(),
+      );
+
+  @override
+  Future<void> moveConversationToo(String peer, String messageId) =>
+      _privateWorld.moveConversationToo(peer, messageId, now: _clock());
+
+  @override
+  Future<void> sendPrivateTyping(String peer) =>
+      _privateWorld.sendPrivateTyping(peer);
+
+  @override
+  Future<void> markPrivateRead(String peer) =>
+      _privateWorld.markPrivateRead(peer);
+
+  @override
+  Future<void> setPrivateMuted(String peer, {required bool muted}) =>
+      _privateWorld.setPrivateMuted(peer, muted: muted);
+
+  @override
+  Future<void> hideConversation(String peer) =>
+      _privateWorld.hideConversation(peer);
 }
 
 /// [domain] with some fields changed.
