@@ -47,6 +47,8 @@ struct Studio {
     member_token: String,
     voice: i64,
     everyone: i64,
+    /// The text channel, for commands.
+    text: i64,
 }
 
 /// A server with no Lavalink node; the owner and a member in its voice
@@ -63,6 +65,7 @@ async fn studio() -> Studio {
         owner_token: media_token(&ready),
         member_token: media_token(&member_ready),
         everyone: ready.server.as_ref().unwrap().everyone_role_id,
+        text: channel_id(&ready, "general"),
         server,
         owner,
         member,
@@ -444,4 +447,123 @@ async fn a_queued_song_that_was_removed_is_skipped_with_a_notice() {
             _ => None,
         })
         .await;
+}
+
+fn command(channel_id: i64, name: &str, options: &[(&str, &str)]) -> Kind {
+    Kind::ExecuteCommand(proto::ExecuteCommand {
+        channel_id,
+        name: name.to_owned(),
+        options: options
+            .iter()
+            .map(|(name, value)| proto::CommandOptionValue {
+                name: (*name).to_owned(),
+                value: (*value).to_owned(),
+            })
+            .collect(),
+        nonce: "n1".to_owned(),
+    })
+}
+
+/// The next message a command posted.
+async fn command_message(client: &mut TestClient) -> String {
+    client
+        .wait_for(|event| match event {
+            proto::event::Kind::MessageCreate(create) => create
+                .message
+                .clone()
+                .filter(|message| message.interaction.is_some())
+                .map(|message| message.content),
+            _ => None,
+        })
+        .await
+}
+
+async fn play_suggestions(client: &mut TestClient, text: i64, value: &str) -> Vec<String> {
+    match client
+        .ok(Kind::AutocompleteCommand(proto::AutocompleteCommand {
+            channel_id: text,
+            name: "play".to_owned(),
+            option: "query".to_owned(),
+            value: value.to_owned(),
+        }))
+        .await
+    {
+        Response::CommandChoices(found) => found
+            .choices
+            .into_iter()
+            .map(|choice| choice.name)
+            .collect(),
+        other => panic!("expected choices, got {other:?}"),
+    }
+}
+
+#[tokio::test]
+async fn play_finds_uploaded_songs_without_lavalink_and_says_they_are_local() {
+    let Studio {
+        server,
+        mut owner,
+        owner_token,
+        voice,
+        text,
+        ..
+    } = studio().await;
+    let song = wav(2.0, 600.0);
+    upload(
+        &server,
+        &mut owner,
+        &owner_token,
+        voice,
+        "Lantern.wav",
+        &song,
+    )
+    .await
+    .unwrap();
+
+    let suggestions = play_suggestions(&mut owner, text, "lant").await;
+    assert_eq!(suggestions, ["Lantern — Owner · 0:02 · Local"]);
+
+    owner
+        .ok(command(text, "play", &[("query", "lantern")]))
+        .await;
+    assert_eq!(
+        command_message(&mut owner).await,
+        "Added *Lantern* — Owner (Local) to the queue in General"
+    );
+    until(&mut owner, voice, "playing the song", |session| {
+        playing(session, "Lantern")
+    })
+    .await;
+}
+
+#[tokio::test]
+async fn play_takes_an_uploaded_song_titled_as_asked_over_lavalink() {
+    let Room {
+        server,
+        mut owner,
+        voice,
+        lavalink,
+        media_token,
+        ..
+    } = room().await;
+    let (_, ready) = owner_again(&server).await;
+    let text = channel_id(&ready, "general");
+    let song = wav(2.0, 700.0);
+    upload(&server, &mut owner, &media_token, voice, "mine.wav", &song)
+        .await
+        .unwrap();
+
+    // Lavalink's first, then the uploaded song, marked.
+    let suggestions = play_suggestions(&mut owner, text, "mine").await;
+    assert_eq!(suggestions.len(), 4);
+    assert_eq!(suggestions[0], "mine 1 — Fake Artist · 3:00");
+    assert_eq!(suggestions[3], "mine — Owner · 0:02 · Local");
+
+    owner.ok(command(text, "play", &[("query", "Mine")])).await;
+    assert_eq!(
+        command_message(&mut owner).await,
+        "Added *mine* — Owner (Local) to the queue in General"
+    );
+    // Words that are no uploaded song's title get Lavalink's first.
+    owner.ok(command(text, "play", &[("query", "min")])).await;
+    fake_plays(&lavalink, voice, "min 1").await;
 }

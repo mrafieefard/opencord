@@ -266,7 +266,7 @@ Opencord includes built-in chat commands (Phase 3 §17) in the message composer.
 
 | Command | Options | Permission | Scope / Notes |
 |---|---|---|---|
-| `/play` | `query:` (track name or URL) | Add music | Search autocomplete suggests up to 5 tracks with artwork |
+| `/play` | `query:` (track name or URL) | Add music | Suggestions show up to 10 tracks with artwork: Lavalink's, then [uploaded songs](#uploaded-songs) marked **Local** (up to 5). Typed words play the first result, except that an uploaded song titled exactly as typed wins. Replies mark uploaded songs **(Local)** |
 | `/pause` | — | Control playback | Pauses playback |
 | `/resume` | — | Control playback | Resumes playback |
 | `/skip` | — | Control playback / Add music | Skips current track, or votes to skip if lacking control permission |

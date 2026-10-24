@@ -11,6 +11,7 @@ Date: 2026-10-24. Status: approved by the owner, then built (D67).
 - "Remove from server" is on one's own songs in search results; queue
   items offer it to administrators only. Recently played has no menu.
 - The settings list is called "Uploaded songs".
+- `/play` finds uploaded songs too (added after, see D67).
 
 ## 1. Intent
 

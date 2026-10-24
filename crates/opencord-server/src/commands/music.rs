@@ -220,13 +220,36 @@ async fn snapshot(ctx: &Ctx<'_>, channel_id: i64) -> Result<proto::MusicSession,
         .await
 }
 
+/// "*Title* — Artist", marked "(Local)" for an uploaded song.
 fn track_line(item: &proto::MusicQueueItem) -> String {
     let track = item.track.clone().unwrap_or_default();
-    if track.artist.is_empty() {
+    let line = if track.artist.is_empty() {
         format!("*{}*", track.title)
     } else {
         format!("*{}* — {}", track.title, track.artist)
+    };
+    if track.local_song_id == 0 {
+        line
+    } else {
+        format!("{line} (Local)")
     }
+}
+
+/// The result `/play` plays from a search: an uploaded song titled exactly
+/// as asked, else the first result, Lavalink's when there are any.
+fn first_pick<'a>(
+    results: &'a [proto::MusicSearchResult],
+    query: &str,
+) -> Option<&'a proto::MusicSearchResult> {
+    let query = query.trim().to_lowercase();
+    results
+        .iter()
+        .find(|result| {
+            result.track.as_ref().is_some_and(|track| {
+                track.local_song_id != 0 && track.title.to_lowercase() == query
+            })
+        })
+        .or_else(|| results.first())
 }
 
 fn playback(channel_id: i64, action: Action) -> proto::MusicPlayback {
@@ -457,7 +480,7 @@ async fn play(
             Response::MusicSearchResults(found) => found,
             _ => proto::MusicSearchResults::default(),
         };
-        match (found.playlist, found.results.first()) {
+        match (found.playlist, first_pick(&found.results, query)) {
             (Some(playlist), _) => (playlist.result_ids.clone(), Some(playlist.name)),
             (None, Some(first)) => (vec![first.result_id.clone()], None),
             (None, None) => return private(format!("Nothing found for “{query}”")),
@@ -530,9 +553,13 @@ async fn queue(ctx: &Ctx<'_>, channel_id: i64, name: &str, page: i64) -> Result<
     private(lines.join("\n"))
 }
 
+/// Suggestions `/play` shows at most.
+const SUGGESTIONS: usize = 10;
+
 /// Suggestions for `/play`'s query (§19.6), searched for the voice
 /// channel the member is in: search results, each a result id to play
-/// exactly that track. Nothing for links.
+/// exactly that track, uploaded songs last and marked Local. Nothing for
+/// links.
 pub async fn autocomplete(
     ctx: &Ctx<'_>,
     value: &str,
@@ -549,10 +576,10 @@ pub async fn autocomplete(
     else {
         return Ok(Vec::new());
     };
-    handlers::may_act(ctx, channel_id, Permissions::MUSIC_ADD)?;
-    let found = crate::music::search::search(
-        ctx.state,
-        ctx.user_id,
+    let caller = handlers::may_act(ctx, channel_id, Permissions::MUSIC_ADD)?;
+    let found = handlers::find(
+        ctx,
+        caller.permissions,
         &proto::MusicSearch {
             channel_id,
             query: value.to_owned(),
@@ -560,10 +587,20 @@ pub async fn autocomplete(
         },
     )
     .await?;
-    Ok(found
-        .results
+    let is_local = |result: &proto::MusicSearchResult| {
+        result
+            .track
+            .as_ref()
+            .is_some_and(|track| track.local_song_id != 0)
+    };
+    let (local, lavalink): (Vec<_>, Vec<_>) = found.results.into_iter().partition(is_local);
+    // Uploaded songs keep up to half the places, after Lavalink's.
+    let local_shown = local.len().min(SUGGESTIONS / 2);
+    let lavalink_shown = lavalink.len().min(SUGGESTIONS - local_shown);
+    Ok(lavalink
         .into_iter()
-        .take(10)
+        .take(lavalink_shown)
+        .chain(local.into_iter().take(SUGGESTIONS - lavalink_shown))
         .map(|result| {
             let track = result.track.unwrap_or_default();
             let length = if track.is_stream {
@@ -572,10 +609,17 @@ pub async fn autocomplete(
                 let seconds = track.duration_ms / 1000;
                 format!("{}:{:02}", seconds / 60, seconds % 60)
             };
+            let local = if track.local_song_id == 0 {
+                ""
+            } else {
+                " · Local"
+            };
             let mut name = format!("{} — {} · {length}", track.title, track.artist);
-            if name.chars().count() > 100 {
-                name = name.chars().take(99).collect::<String>() + "…";
+            let room = 100 - local.chars().count();
+            if name.chars().count() > room {
+                name = name.chars().take(room - 1).collect::<String>() + "…";
             }
+            name.push_str(local);
             proto::CommandChoice {
                 name,
                 value: result.result_id,

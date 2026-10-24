@@ -148,8 +148,6 @@ pub async fn fetch_session(
     Ok(session(snapshot))
 }
 
-/// Lavalink's results, then uploaded songs (design 2026-10-24); uploaded
-/// songs alone when there is no Lavalink node. Links only go to Lavalink.
 pub async fn search(ctx: &Ctx<'_>, request: proto::MusicSearch) -> Result<Response, ApiError> {
     let caller = act(
         ctx,
@@ -157,6 +155,18 @@ pub async fn search(ctx: &Ctx<'_>, request: proto::MusicSearch) -> Result<Respon
         Permissions::MUSIC_ADD,
         MusicLimit::Search,
     )?;
+    let results = find(ctx, caller.permissions, &request).await?;
+    Ok(Response::MusicSearchResults(results))
+}
+
+/// Lavalink's results, then uploaded songs (design 2026-10-24); uploaded
+/// songs alone when there is no Lavalink node. Links only go to Lavalink.
+/// For a member holding `permissions` in the channel, already checked.
+pub(crate) async fn find(
+    ctx: &Ctx<'_>,
+    permissions: Permissions,
+    request: &proto::MusicSearch,
+) -> Result<proto::MusicSearchResults, ApiError> {
     let query = request.query.trim();
     if query.is_empty() || query.chars().count() > search::QUERY_MAX {
         return Err(ApiError::invalid_argument(
@@ -167,12 +177,12 @@ pub async fn search(ctx: &Ctx<'_>, request: proto::MusicSearch) -> Result<Respon
     let lavalink = if ctx.state.lavalink.nodes().is_empty() {
         None
     } else {
-        Some(search::search(ctx.state, ctx.user_id, &request).await)
+        Some(search::search(ctx.state, ctx.user_id, request).await)
     };
     let local = if is_link {
         Vec::new()
     } else {
-        local::search(ctx.state, ctx.user_id, caller.permissions, query).await?
+        local::search(ctx.state, ctx.user_id, permissions, query).await?
     };
     let mut results = match lavalink {
         Some(Ok(results)) => results,
@@ -189,7 +199,7 @@ pub async fn search(ctx: &Ctx<'_>, request: proto::MusicSearch) -> Result<Respon
     if results.playlist.is_none() {
         results.results.extend(local_results(ctx, local));
     }
-    Ok(Response::MusicSearchResults(results))
+    Ok(results)
 }
 
 /// Uploaded songs as search results, kept for the searcher like Lavalink's.
