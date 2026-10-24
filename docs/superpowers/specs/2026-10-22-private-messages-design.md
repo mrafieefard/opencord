@@ -240,9 +240,11 @@ requests · Blocked**. Each tab is a list with a count in its section label
   message can be copied. There are no replies, reactions, pins, mentions
   menu or attachments. A message that failed to send shows the channel
   chat's failed state with **Retry** and **Delete**.
-- **Dividers:** a patterned band (diagonal hatching in theme colors) with a
-  pill in the middle holding the server's icon and name. One sits at the top
-  of every conversation (where it started) and one at each move (§8).
+- **Dividers:** a wavy line on each side of the server's icon and name,
+  like Claude Code's compaction separator (the owner's choice on
+  2026-10-24, replacing diagonal hatching). The name opens that server when
+  this device has it. One sits at the top of every conversation (where it
+  started) and one at each move (§8).
 - **Move cards:** when the other person moved the chat, a card says
   "*Name* moved this chat to *Server*", with **Move too** when this device
   can use that server (§8).
@@ -1030,7 +1032,7 @@ security pass. The rest go to Gemini.
 - Exact widget composition, as long as it reuses the chat rows and bubbles
   and follows the existing design system (monochrome, `OcText`, `OcIcons`,
   the app's widgets).
-- The hatching pattern's spacing and angle.
+- The wave's amplitude and wavelength.
 - Internal module boundaries in the core beyond §12, and the database
   column names.
 - How the Dart side caches lists, as long as it reloads after subscribing.

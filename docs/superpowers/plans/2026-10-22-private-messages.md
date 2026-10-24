@@ -1853,7 +1853,7 @@ The view, top to bottom:
   - newest at the bottom; `loadOlder` when scrolled near the top; a load failure with a retry, like the channel list's;
   - **message actions:** Edit and Delete on one's own text (Delete confirmed as in channels), Copy text on all;
   - **a failed message:** Retry (`retryPrivateMessage`) and Delete (`deletePrivateMessage`, local).
-- **Divider** (`relay_divider.dart`): a 28 px band hatched with `CustomPainter` (45° lines every 6 px in `colors.border`), with a pill in the middle: the server's icon (`ServerAvatar`, 16 px) and its name in `OcText.small`.
+- **Divider** (`relay_divider.dart`): a wavy line (`CustomPainter`, a sine wave in `colors.textMuted`) on each side of the server's icon (`ServerAvatar`, 16 px) and its name in `OcText.small`; the name opens the server when this device has it. (Changed from a hatched band on 2026-10-24 at the owner's request.)
 - **Move card** (`move_card.dart`): "*Name* moved this chat to *Server*".
   - **Move too** appears only when the card's `serverKey` is saved and connected on this device, and the peer is a member there (from the app's state); it calls `moveConversationToo`.
   - Otherwise the card reads "*Name* moved this chat to *Server*, a server this device isn't on."

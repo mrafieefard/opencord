@@ -16,6 +16,8 @@ import 'package:opencord/ui/theme/oc_colors.dart';
 import 'package:opencord/ui/theme/oc_icons.dart';
 import 'package:opencord/ui/theme/oc_theme.dart';
 import 'package:opencord/ui/widgets/oc_dialog.dart';
+import 'package:opencord/ui/widgets/hoverable.dart';
+import 'package:opencord/features/shell/navigation.dart';
 
 import '../../support/app.dart';
 
@@ -42,6 +44,60 @@ Future<void> _rightClick(WidgetTester tester, Finder finder) async {
 }
 
 void main() {
+  testWidgets('a_dividers_server_name_opens_that_server', (tester) async {
+    final app = await MockApp.pump(tester);
+    final kaiKey = app.repository.privateWorld.contacts.values
+        .firstWhere((c) => c.name == 'Kai Nakamura')
+        .peer;
+    app.container.read(navigationProvider.notifier).openConversation(kaiKey);
+
+    await _pumpChat(tester, app, kaiKey);
+    await tester.tap(
+      find.descendant(
+        of: find.byType(RelayDivider),
+        matching: find.text('Opencord Dev'),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final selection = app.container.read(navigationProvider);
+    expect(selection.home, isFalse);
+    expect(selection.server, 'opencord.example:7710');
+
+    await app.dispose(tester);
+  });
+
+  testWidgets('a_server_this_device_lacks_is_named_but_not_a_link', (
+    tester,
+  ) async {
+    final app = await MockApp.pump(tester);
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: app.container,
+        child: MaterialApp(
+          theme: buildTheme(OcColors.dark),
+          home: const Scaffold(
+            body: RelayDivider(
+              serverName: 'Elsewhere',
+              serverKey: 'elsewhere.example:7710',
+            ),
+          ),
+        ),
+      ),
+    );
+
+    expect(find.text('Elsewhere'), findsOneWidget);
+    expect(
+      find.descendant(
+        of: find.byType(RelayDivider),
+        matching: find.byType(Hoverable),
+      ),
+      findsNothing,
+    );
+
+    await app.dispose(tester);
+  });
+
   testWidgets('messages_show_in_order_under_the_first_divider', (tester) async {
     final app = await MockApp.pump(tester);
     final kaiKey = app.repository.privateWorld.contacts.values
