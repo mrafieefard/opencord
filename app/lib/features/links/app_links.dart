@@ -50,12 +50,45 @@ final class ChannelAppLink extends AppLink {
   int get hashCode => Object.hash(server, channel, message);
 }
 
+/// Links to the private conversation with [peer].
+final class PrivateAppLink extends AppLink {
+  const PrivateAppLink(this.peer);
+
+  final String peer;
+
+  @override
+  bool operator ==(Object other) =>
+      other is PrivateAppLink && other.peer == peer;
+
+  @override
+  int get hashCode => peer.hashCode;
+}
+
+/// Links to the Friends page.
+final class FriendsAppLink extends AppLink {
+  const FriendsAppLink();
+}
+
+/// Formats an `opencord://private/<peer>` link.
+String privateLink(String peer) => 'opencord://private/$peer';
+
+/// Formats an `opencord://friends` link.
+String friendsLink() => 'opencord://friends';
+
 /// The link in [text], or null when it is not one the app opens.
 AppLink? parseAppLink(String text) {
   final trimmed = text.trim();
   final uri = Uri.tryParse(trimmed);
   if (uri == null || !uri.isScheme('opencord') || uri.host.isEmpty) {
     return null;
+  }
+  if (uri.host == 'friends' && uri.pathSegments.isEmpty) {
+    return const FriendsAppLink();
+  }
+  if (uri.host == 'private' &&
+      uri.pathSegments.length == 1 &&
+      RegExp(r'^[0-9a-fA-F]{64}$').hasMatch(uri.pathSegments.first)) {
+    return PrivateAppLink(uri.pathSegments.first.toLowerCase());
   }
   final server = uri.hasPort ? '${uri.host}:${uri.port}' : uri.host;
   switch (uri.pathSegments) {
@@ -85,6 +118,10 @@ Future<void> openAppLink(
   final servers = ref.read(serverListProvider);
   final navigation = ref.read(navigationProvider.notifier);
   switch (link) {
+    case PrivateAppLink(:final peer):
+      navigation.openConversation(peer);
+    case FriendsAppLink():
+      navigation.openFriends();
     case InviteAppLink(link: final invite):
       final key = parseAppLinkServer(invite);
       final known = servers.where((server) => server.key == key).firstOrNull;

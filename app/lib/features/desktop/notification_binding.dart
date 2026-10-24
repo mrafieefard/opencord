@@ -12,6 +12,7 @@ import 'package:opencord/features/chat/message_actions.dart';
 import 'package:opencord/features/desktop/notification_policy.dart';
 import 'package:opencord/features/desktop/notifications.dart';
 import 'package:opencord/features/links/app_links.dart';
+import 'package:opencord/features/shell/navigation.dart';
 import 'package:opencord/features/window/window_providers.dart';
 
 /// How much of a message a notification shows.
@@ -78,9 +79,93 @@ final notificationBindingProvider = Provider<void>((ref) {
     );
   }
 
-  final messages = ref.watch(repositoryProvider).events.listen((event) {
-    if (event case MessageCreated(:final serverKey, :final message)) {
-      onMessage(serverKey, message);
+  void onPrivateMessage(PrivateMessage message) {
+    if (message.outgoing || message.kind != PrivateMessageKind.text) return;
+    final contact = ref.read(privateContactsProvider).byPeer[message.peer];
+    if (contact == null ||
+        contact.conversation != ConversationStatus.accepted ||
+        contact.muted ||
+        contact.blocked) {
+      return;
+    }
+    final settings = ref.read(appSettingsProvider);
+    final focused = ref.read(windowStatusProvider).focused;
+    final presence = ref.read(selfPresenceProvider);
+    if (!urgent &&
+        wantsPrivateAttention(
+          settings: settings,
+          windowFocused: focused,
+          presence: presence,
+        )) {
+      urgent = true;
+      unawaited(window.setUrgent(true));
+    }
+    final homeShown = ref.read(homeShownProvider);
+    final currentPeer = ref.read(currentPeerProvider);
+    final chatOpen = homeShown && currentPeer == message.peer;
+    if (notifyPrivate(
+          settings: settings,
+          windowFocused: focused,
+          chatOpen: chatOpen,
+          presence: presence,
+        ) ==
+        NotifyAs.none) {
+      return;
+    }
+    final name = ref.read(contactNameProvider(message.peer));
+    final text = message.content;
+    final body = text.length > _previewLength
+        ? '${text.substring(0, _previewLength)}…'
+        : text;
+    unawaited(
+      service.show(
+        DesktopNotification(
+          title: name,
+          body: body,
+          link: privateLink(message.peer),
+          sound: settings.messageSound,
+        ),
+      ),
+    );
+  }
+
+  void onFriendRequest(String peer, bool spam) {
+    if (spam) return;
+    final settings = ref.read(appSettingsProvider);
+    final focused = ref.read(windowStatusProvider).focused;
+    final presence = ref.read(selfPresenceProvider);
+    if (notifyPrivate(
+          settings: settings,
+          windowFocused: focused,
+          chatOpen: false,
+          presence: presence,
+        ) ==
+        NotifyAs.none) {
+      return;
+    }
+    final name = ref.read(contactNameProvider(peer));
+    unawaited(
+      service.show(
+        DesktopNotification(
+          title: name,
+          body: '$name sent you a friend request',
+          link: friendsLink(),
+          sound: settings.messageSound,
+        ),
+      ),
+    );
+  }
+
+  final events = ref.watch(repositoryProvider).events.listen((event) {
+    switch (event) {
+      case MessageCreated(:final serverKey, :final message):
+        onMessage(serverKey, message);
+      case PrivateMessageAdded(:final message):
+        onPrivateMessage(message);
+      case FriendRequestArrived(:final peer, :final spam):
+        onFriendRequest(peer, spam);
+      default:
+        break;
     }
   });
   ref.listen(windowStatusProvider.select((status) => status.focused), (
@@ -97,7 +182,8 @@ final notificationBindingProvider = Provider<void>((ref) {
     ref.read(appLinkInboxProvider.notifier).add(link);
   });
   ref.onDispose(() {
-    messages.cancel();
+    events.cancel();
     clicks.cancel();
   });
 });
+

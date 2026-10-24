@@ -8,6 +8,14 @@ import 'package:opencord/features/shell/navigation.dart';
 final windowTitleProvider = Provider<String>((ref) {
   final unread = ref.watch(unreadTotalProvider);
   final prefix = unread > 0 ? '($unread) ' : '';
+  if (ref.watch(homeShownProvider)) {
+    final peer = ref.watch(currentPeerProvider);
+    if (peer != null) {
+      final name = ref.watch(contactNameProvider(peer));
+      return '$prefix$name — Opencord';
+    }
+    return '${prefix}Friends — Opencord';
+  }
   final server = ref.watch(currentServerProvider);
   if (server == null) return '${prefix}Opencord';
   final data = ref.watch(serverProvider(server).select((state) => state.data));
