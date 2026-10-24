@@ -95,6 +95,7 @@ class MockRepository implements OpencordRepository {
     _privateStartedFresh = value;
     _emit(const PrivateStateChanged());
   }
+
   final _events = StreamController<RepoEvent>.broadcast();
   final _timers = <Timer>{};
   final _retryTimers = <String, Timer>{};

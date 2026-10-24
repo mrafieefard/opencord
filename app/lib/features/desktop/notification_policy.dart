@@ -78,4 +78,3 @@ bool wantsPrivateAttention({
     settings.flashTaskbar &&
     !windowFocused &&
     presence != SelfPresence.doNotDisturb;
-

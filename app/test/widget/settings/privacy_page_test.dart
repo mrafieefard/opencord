@@ -136,10 +136,7 @@ void main() {
     await _pumpFor(tester, const Duration(milliseconds: 300));
 
     // Error is shown as toast
-    expect(
-      find.text('Privacy settings failed to save'),
-      findsOneWidget,
-    );
+    expect(find.text('Privacy settings failed to save'), findsOneWidget);
 
     await app.dispose(tester);
   });

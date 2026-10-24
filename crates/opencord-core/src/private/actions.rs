@@ -54,11 +54,7 @@ pub async fn friend_request_send(
         .await?;
     let created = match response {
         Response::FriendRequestCreated(created) => created,
-        other => {
-            return Err(CoreError::Storage {
-                message: format!("unexpected response to SendFriendRequest: {other:?}"),
-            });
-        }
+        other => return Err(crate::client::unexpected(&other)),
     };
     let server_id = service
         .members()

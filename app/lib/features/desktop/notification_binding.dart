@@ -186,4 +186,3 @@ final notificationBindingProvider = Provider<void>((ref) {
     clicks.cancel();
   });
 });
-

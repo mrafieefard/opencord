@@ -2527,9 +2527,13 @@ fn drop_pending(pending: crate::video::screen::Pending) {
     std::thread::spawn(move || drop(pending));
 }
 
+/// Names only the response's kind: its fields can hold keys, ciphertext
+/// and names, which never go into an error or a log.
 pub(crate) fn unexpected(response: &Response) -> CoreError {
+    let debug = format!("{response:?}");
+    let kind = debug.split(['(', ' ', '{']).next().unwrap_or_default();
     CoreError::Connection {
-        message: format!("the server sent an unexpected response: {response:?}"),
+        message: format!("the server sent an unexpected response: {kind}"),
     }
 }
 
@@ -2610,6 +2614,36 @@ fn cue_samples(cue: VoiceCue) -> Result<Arc<[f32]>, opencord_media::soundboard::
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn an_unexpected_response_names_only_its_kind() {
+        let response = Response::PendingEvents(proto::PendingEvents {
+            events: vec![proto::PendingEvent {
+                id: 1,
+                created_at_ms: 2,
+                kind: Some(proto::pending_event::Kind::PrivateMessage(
+                    proto::PrivateMessage {
+                        sender: Some(proto::User {
+                            id: 3,
+                            public_key: vec![7; 32],
+                            display_name: "Zebulon Quartz".to_owned(),
+                            avatar_hash: String::new(),
+                        }),
+                        sender_device_id: vec![8; 16],
+                        olm_type: 1,
+                        body: vec![9; 64],
+                        sent_at_ms: 4,
+                    },
+                )),
+            }],
+            more: false,
+        });
+
+        assert_eq!(
+            unexpected(&response).to_string(),
+            "could not connect: the server sent an unexpected response: PendingEvents"
+        );
+    }
 
     #[test]
     fn targets_are_invite_links_or_addresses() {

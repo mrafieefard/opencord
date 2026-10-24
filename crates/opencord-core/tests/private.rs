@@ -383,7 +383,16 @@ async fn owner_and_member_at(
     server: &TestServer,
     address: &str,
 ) -> (TestClient, ReadySnapshot, TestClient, ReadySnapshot) {
-    let mut owner = TestClient::new("Owner");
+    owner_and_member_named(server, address, ("Owner", "Member")).await
+}
+
+/// As `owner_and_member_at`, with these display names.
+async fn owner_and_member_named(
+    server: &TestServer,
+    address: &str,
+    (owner_name, member_name): (&str, &str),
+) -> (TestClient, ReadySnapshot, TestClient, ReadySnapshot) {
+    let mut owner = TestClient::new(owner_name);
     owner
         .client
         .trust_fingerprint(address, &server.fingerprint())
@@ -399,7 +408,7 @@ async fn owner_and_member_at(
         .create_invite(address, None, None, None)
         .await
         .unwrap();
-    let mut member = TestClient::new("Member");
+    let mut member = TestClient::new(member_name);
     member.client.add_server(&invite.link, None).await.unwrap();
     let member_ready = member.ready().await;
     (owner, owner_ready, member, member_ready)
@@ -2837,4 +2846,106 @@ async fn reading_clears_the_unread_count() {
         .find(|c| c.peer == b_hex)
         .unwrap();
     assert_eq!(a_contact2.unread, 0);
+}
+
+/// The file's bytes, or none when SQLite hasn't made it.
+fn raw_bytes(path: &std::path::Path) -> Vec<u8> {
+    match std::fs::read(path) {
+        Ok(bytes) => bytes,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Vec::new(),
+        Err(error) => panic!("reading {}: {error}", path.display()),
+    }
+}
+
+fn contains(haystack: &[u8], needle: &str) -> bool {
+    haystack
+        .windows(needle.len())
+        .any(|window| window == needle.as_bytes())
+}
+
+/// Neither the client's database nor its WAL holds any of `secrets`, while
+/// one of them holds `clear`, a value kept unsealed.
+fn assert_sealed_on_disk(client: &TestClient, clear: &str, secrets: &[&str]) {
+    let database_path = client
+        .dir
+        .path()
+        .join("private")
+        .join(format!("{}.db", hex::encode(client.identity.public_key())));
+    let mut wal_path = database_path.clone().into_os_string();
+    wal_path.push("-wal");
+    let database = raw_bytes(&database_path);
+    let wal = raw_bytes(std::path::Path::new(&wal_path));
+    // So the scan reads the rows themselves.
+    assert!(
+        contains(&database, clear) || contains(&wal, clear),
+        "{clear:?} isn't on disk"
+    );
+    for secret in secrets {
+        assert!(
+            !contains(&database, secret),
+            "{secret:?} is in the database"
+        );
+        assert!(!contains(&wal, secret), "{secret:?} is in the WAL");
+    }
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn the_database_file_holds_no_plaintext() {
+    const SENTENCE: &str = "the heron leaves at seven past midnight";
+    const NAME: &str = "Zebulon Quartz";
+    let server = TestServer::start().await;
+    let (mut a, a_ready, mut b, b_ready) =
+        owner_and_member_named(&server, &server.address(), (NAME, "Member")).await;
+    a.open_private(1).await;
+    b.open_private(2).await;
+    server.counts_until(a_ready.self_user.id, registered).await;
+    server.counts_until(b_ready.self_user.id, registered).await;
+    a.set_relay(&b, &a_ready.server.server_id_hex).await;
+    let (a_hex, b_hex) = (
+        hex::encode(a.identity.public_key()),
+        hex::encode(b.identity.public_key()),
+    );
+
+    // A friend request names B's contact for A.
+    let server_key = a.client.servers()[0].key.clone();
+    a.client
+        .friend_request_send(&server_key, b_ready.self_user.id)
+        .await
+        .unwrap();
+    b.private_event(|event| match event {
+        PrivateEvent::ContactChanged(contact)
+            if contact.peer == a_hex && contact.friend == FriendStatus::Incoming =>
+        {
+            Some(())
+        }
+        _ => None,
+    })
+    .await;
+    b.client.friend_request_answer(&a_hex, true).await.unwrap();
+    a.client
+        .private_send(&b_hex, SENTENCE.to_owned())
+        .await
+        .unwrap();
+    let received = b
+        .message_added(|message| message.peer == a_hex && message.kind == PrivateMessageKind::Text)
+        .await;
+    assert_eq!(received.content, SENTENCE);
+    let contacts = b.client.private_contacts().await.unwrap();
+    assert!(
+        contacts
+            .iter()
+            .any(|contact| contact.peer == a_hex && contact.name.as_deref() == Some(NAME)),
+        "{contacts:?}"
+    );
+
+    // The relay's server id is kept in the clear. While the databases are
+    // open, the newest pages are in the WAL…
+    let relay = &a_ready.server.server_id_hex;
+    assert_sealed_on_disk(&a, relay, &[SENTENCE]);
+    assert_sealed_on_disk(&b, relay, &[SENTENCE, NAME]);
+    // …and once closed, SQLite has moved them into the database.
+    a.client.shutdown().await;
+    b.client.shutdown().await;
+    assert_sealed_on_disk(&a, relay, &[SENTENCE]);
+    assert_sealed_on_disk(&b, relay, &[SENTENCE, NAME]);
 }

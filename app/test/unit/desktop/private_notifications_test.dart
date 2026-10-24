@@ -97,7 +97,11 @@ void main() {
         await pumpEventQueue();
 
         // 1. Incoming text message in accepted conversation notifies
-        mockRepo.emit(PrivateMessageAdded(_message(peer: _peerAlice, content: 'Hey Alice here')));
+        mockRepo.emit(
+          PrivateMessageAdded(
+            _message(peer: _peerAlice, content: 'Hey Alice here'),
+          ),
+        );
         await pumpEventQueue();
         expect(notifications.shown, hasLength(1));
         final shown = notifications.shown.last;
@@ -108,7 +112,11 @@ void main() {
 
         // 2. Incoming text message in request conversation does NOT notify
         notifications.shown.clear();
-        mockRepo.emit(PrivateMessageAdded(_message(peer: _peerBob, content: 'Hey Bob request')));
+        mockRepo.emit(
+          PrivateMessageAdded(
+            _message(peer: _peerBob, content: 'Hey Bob request'),
+          ),
+        );
         await pumpEventQueue();
         expect(notifications.shown, isEmpty);
 
@@ -116,7 +124,9 @@ void main() {
         final mutedAlice = alice.copyWith(muted: true);
         mockRepo.emit(PrivateContactChanged(mutedAlice));
         await pumpEventQueue();
-        mockRepo.emit(PrivateMessageAdded(_message(peer: _peerAlice, content: 'Muted msg')));
+        mockRepo.emit(
+          PrivateMessageAdded(_message(peer: _peerAlice, content: 'Muted msg')),
+        );
         await pumpEventQueue();
         expect(notifications.shown, isEmpty);
 
@@ -124,19 +134,29 @@ void main() {
         final blockedAlice = alice.copyWith(muted: false, blocked: true);
         mockRepo.emit(PrivateContactChanged(blockedAlice));
         await pumpEventQueue();
-        mockRepo.emit(PrivateMessageAdded(_message(peer: _peerAlice, content: 'Blocked msg')));
+        mockRepo.emit(
+          PrivateMessageAdded(
+            _message(peer: _peerAlice, content: 'Blocked msg'),
+          ),
+        );
         await pumpEventQueue();
         expect(notifications.shown, isEmpty);
 
         // 5. Outgoing message does NOT notify
         mockRepo.emit(PrivateContactChanged(alice));
         await pumpEventQueue();
-        mockRepo.emit(PrivateMessageAdded(_message(peer: _peerAlice, outgoing: true)));
+        mockRepo.emit(
+          PrivateMessageAdded(_message(peer: _peerAlice, outgoing: true)),
+        );
         await pumpEventQueue();
         expect(notifications.shown, isEmpty);
 
         // 6. Non-text message does NOT notify
-        mockRepo.emit(PrivateMessageAdded(_message(peer: _peerAlice, kind: PrivateMessageKind.divider)));
+        mockRepo.emit(
+          PrivateMessageAdded(
+            _message(peer: _peerAlice, kind: PrivateMessageKind.divider),
+          ),
+        );
         await pumpEventQueue();
         expect(notifications.shown, isEmpty);
       },
@@ -200,17 +220,25 @@ void main() {
       window.statusEvents.add(const WindowStatus(focused: true));
       await pumpEventQueue();
 
-      mockRepo.emit(PrivateMessageAdded(_message(peer: _peerAlice, content: 'While chat is open')));
+      mockRepo.emit(
+        PrivateMessageAdded(
+          _message(peer: _peerAlice, content: 'While chat is open'),
+        ),
+      );
       await pumpEventQueue();
       expect(notifications.shown, isEmpty);
 
       // End-to-end: DND silences notification even when window unfocused
       container.read(navigationProvider.notifier).openFriends();
       window.statusEvents.add(const WindowStatus(focused: false));
-      container.read(selfPresenceProvider.notifier).choose(SelfPresence.doNotDisturb);
+      container
+          .read(selfPresenceProvider.notifier)
+          .choose(SelfPresence.doNotDisturb);
       await pumpEventQueue();
 
-      mockRepo.emit(PrivateMessageAdded(_message(peer: _peerAlice, content: 'While DND')));
+      mockRepo.emit(
+        PrivateMessageAdded(_message(peer: _peerAlice, content: 'While DND')),
+      );
       await pumpEventQueue();
       expect(notifications.shown, isEmpty);
     });
@@ -242,7 +270,10 @@ void main() {
 
       // 1. Home shown, friends view, initial unreads
       container.read(navigationProvider.notifier).openFriends();
-      expect(container.read(windowTitleProvider), '${prefix}Friends — Opencord');
+      expect(
+        container.read(windowTitleProvider),
+        '${prefix}Friends — Opencord',
+      );
 
       // 2. Open conversation with Alice
       final alice = _contact(peer: _peerAlice, name: 'Alice');
@@ -257,10 +288,16 @@ void main() {
       await pumpEventQueue();
 
       final newTotal = baseUnread + 3;
-      expect(container.read(windowTitleProvider), '($newTotal) Alice — Opencord');
+      expect(
+        container.read(windowTitleProvider),
+        '($newTotal) Alice — Opencord',
+      );
 
       container.read(navigationProvider.notifier).openFriends();
-      expect(container.read(windowTitleProvider), '($newTotal) Friends — Opencord');
+      expect(
+        container.read(windowTitleProvider),
+        '($newTotal) Friends — Opencord',
+      );
     });
   });
 }

@@ -12,11 +12,9 @@ use super::types::{
 /// Opens private messages for the identity using the master key from the
 /// keychain. Not 32 bytes returns `CoreError::InvalidInput`.
 pub async fn private_open(key: Vec<u8>) -> Result<PrivateOpened, CoreError> {
-    let key: [u8; 32] = key
-        .try_into()
-        .map_err(|_| CoreError::InvalidInput {
-            message: "private message key must be 32 bytes".to_owned(),
-        })?;
+    let key: [u8; 32] = key.try_into().map_err(|_| CoreError::InvalidInput {
+        message: "private message key must be 32 bytes".to_owned(),
+    })?;
     on_runtime(move |client| async move { client.private_open(key).await }).await
 }
 
@@ -59,10 +57,8 @@ pub async fn private_edit(
     message_id: String,
     content: String,
 ) -> Result<(), CoreError> {
-    on_runtime(
-        move |client| async move { client.private_edit(&peer, &message_id, content).await },
-    )
-    .await
+    on_runtime(move |client| async move { client.private_edit(&peer, &message_id, content).await })
+        .await
 }
 
 pub async fn private_delete(peer: String, message_id: String) -> Result<(), CoreError> {
@@ -118,11 +114,9 @@ pub async fn private_open_conversation(
     server_key: String,
     user_id: i64,
 ) -> Result<PrivateContact, CoreError> {
-    on_runtime(move |client| async move {
-        client
-            .private_open_conversation(&server_key, user_id)
-            .await
-    })
+    on_runtime(
+        move |client| async move { client.private_open_conversation(&server_key, user_id).await },
+    )
     .await
 }
 

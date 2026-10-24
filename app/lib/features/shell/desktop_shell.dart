@@ -298,7 +298,8 @@ class _DesktopShellState extends ConsumerState<DesktopShell> {
   Widget build(BuildContext context) {
     final colors = context.oc;
     final homeShown = ref.watch(homeShownProvider);
-    final panelOpen = !homeShown &&
+    final panelOpen =
+        !homeShown &&
         (_layout.membersInline
             ? ref.watch(memberPanelProvider) &&
                   ref.watch(
@@ -361,9 +362,7 @@ class _DesktopShellState extends ConsumerState<DesktopShell> {
                               width: layout.sidebarWidth,
                               child: homeShown
                                   ? const HomeSidebar(leadingControls: true)
-                                  : const ChannelSidebar(
-                                      leadingControls: true,
-                                    ),
+                                  : const ChannelSidebar(leadingControls: true),
                             ),
                             border,
                           ],

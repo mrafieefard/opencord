@@ -21,10 +21,7 @@ void main() {
         parseAppLink('opencord://private/$peerUpper'),
         PrivateAppLink(peerLower),
       );
-      expect(
-        parseAppLink(' opencord://friends '),
-        const FriendsAppLink(),
-      );
+      expect(parseAppLink(' opencord://friends '), const FriendsAppLink());
     });
 
     test('parseAppLink rejects invalid private and friends links', () {
@@ -56,7 +53,9 @@ void main() {
         ProviderScope(
           overrides: [
             keyValueStoreProvider.overrideWithValue(MemoryKeyValueStore()),
-            repositoryProvider.overrideWithValue(MockRepository(simulateLife: false)),
+            repositoryProvider.overrideWithValue(
+              MockRepository(simulateLife: false),
+            ),
           ],
           child: Consumer(
             builder: (context, ref, _) {
@@ -69,7 +68,11 @@ void main() {
       );
 
       // 1. Open conversation
-      await openAppLink(capturedContext, capturedRef, PrivateAppLink(peerLower));
+      await openAppLink(
+        capturedContext,
+        capturedRef,
+        PrivateAppLink(peerLower),
+      );
       expect(capturedRef.read(homeShownProvider), isTrue);
       expect(capturedRef.read(currentPeerProvider), peerLower);
 

@@ -397,10 +397,7 @@ class _ProfileActions extends ConsumerWidget {
 }
 
 class _MoreMenuButton extends ConsumerWidget {
-  const _MoreMenuButton({
-    required this.member,
-    required this.serverName,
-  });
+  const _MoreMenuButton({required this.member, required this.serverName});
 
   final Member member;
   final String serverName;
