@@ -4931,6 +4931,9 @@ class MockRepository implements OpencordRepository {
   set answerFriendRequestFailure(RepoException? err) =>
       _privateWorld.answerFriendRequestFailure = err;
 
+  set savePrivacySettingsFailure(RepoException? err) =>
+      _privateWorld.savePrivacySettingsFailure = err;
+
   @override
   Future<void> answerFriendRequest(String peer, {required bool accept}) =>
       _privateWorld.answerFriendRequest(peer, accept: accept);

@@ -24,6 +24,7 @@ class MockPrivateWorld {
     allowMessageRequests: true,
   );
   RepoException? answerFriendRequestFailure;
+  RepoException? savePrivacySettingsFailure;
   var _idSequence = 1000;
 
   String _nextId() => (++_idSequence).toRadixString(16).padLeft(16, '0');
@@ -500,6 +501,10 @@ class MockPrivateWorld {
   Future<PrivacySettings> privacySettings() async => settings;
 
   Future<void> savePrivacySettings(PrivacySettings s) async {
+    if (savePrivacySettingsFailure case final err?) {
+      savePrivacySettingsFailure = null;
+      throw err;
+    }
     settings = s;
   }
 

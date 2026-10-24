@@ -4,6 +4,7 @@ import 'package:opencord/features/settings/settings_dialog.dart';
 import 'package:opencord/features/settings/user/app_pages.dart';
 import 'package:opencord/features/settings/user/keybinds_page.dart';
 import 'package:opencord/features/settings/user/appearance_page.dart';
+import 'package:opencord/features/settings/user/privacy_page.dart';
 import 'package:opencord/features/settings/user/profile_pages.dart';
 import 'package:opencord/features/settings/user/settings_draft.dart';
 import 'package:opencord/features/settings/user/sounds_page.dart';
@@ -31,6 +32,13 @@ List<SettingsPage> userSettingsPages(TargetPlatform platform) {
       icon: OcIcons.key,
       group: 'You',
       builder: (_) => const IdentityPage(),
+    ),
+    SettingsPage(
+      id: 'privacy',
+      label: 'Privacy',
+      icon: OcIcons.lock,
+      group: 'You',
+      builder: (_) => const PrivacyPage(),
     ),
     SettingsPage(
       id: 'appearance',
