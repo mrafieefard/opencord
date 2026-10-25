@@ -1232,3 +1232,34 @@ The desktop UI plan's §17.5 never arrived, so where Phase 2 §12 says only what
 - **Decision.** The bridge gets the rule apps' voice already follows: a Lavalink that came through a tunnel or a reverse proxy is told the server's public address, when known. `reached_through_proxy` (`network/proxy.rs`) now decides it for both: plain HTTP on the main port (D69), a trusted peer that forwards for someone, or a name a proxy answers for. The music route calls `MusicBridge::serve_proxied` for those.
 - **Trade-off.** As with voice, a Lavalink on the server's own network that connects through a proxy now needs UDP 7712 reachable on the public address, which a router without hairpin NAT may not allow. Connecting it directly instead (the Docker network alias in docs/music.md) keeps its audio local.
 - **Checks.** `lavalink_through_a_proxy_is_told_the_public_address` (server: plain HTTP on the main port gets the public address, TLS from the same machine still gets loopback; it failed with `127.0.0.1` before the change) and the bridge's `lavalink_through_a_proxy_sends_audio_to_the_public_address`.
+
+## D71: A launcher installs and updates the desktop app (2026-10-25)
+
+- **Why.** The owner asked for an updater like Discord's: the user picks a track in settings, and before the app starts it fetches the newest GitHub release of that track. The owner also asked for a real installer instead of running an extracted executable, which tells Opencord the track it was downloaded from. They left the design to the implementer.
+- **Decision.** A separate Rust launcher (`crates/opencord-launcher`, docs/updater.md) is what users start. It shows an "Opencord" splash, updates, then starts the app. Versions sit side by side in a per-user folder (`app-<version>/`), unpacked whole and renamed, so a failed or interrupted update never breaks the installed app; the newest two are kept. It follows Discord's Squirrel setup and the update rules docs/releasing.md already set out, reading the `release.json` CI already publishes.
+- **Why not elsewhere.**
+  - **In the Flutter app:** it would have to replace itself while running, which Windows forbids, and every update would need a restart helper anyway.
+  - **Inno Setup, MSIX, .deb or AppImage:** each is a different updater per system, and a package manager owns its files, so a self-updating app fights it.
+  - **One launcher in Rust:** the same code and the same splash on all three systems, which is what the owner asked for.
+- **Installers.**
+  - **Windows and Linux:** the launcher binary is itself the installer. Run from outside the install folder, it installs itself for the current user (shortcuts, links, an uninstall entry) and carries on as the launcher.
+  - **macOS:** gets a disk image with the launcher as `Opencord.app`.
+  - **The track:** built into each release's launcher from its branch (`OPENCORD_TRACK`). Installing sets it in `update.json`; on macOS, a disk image from another track sets its own on first start.
+- **Calls made without the owner.**
+  - **Track switches (the owner's call, added the next morning):** choosing a track asks to restart, and the launcher then installs that track's newest build even when it's older. Plain updates never go backwards. So the private-message store now opens a database a newer build migrated (`set_ignore_missing`), where it used to move it aside and lose the history (`a_database_a_newer_build_migrated_still_opens`).
+  - **Links skip the check** when a version is installed.
+  - **Offline:** after 10 s, the installed version starts.
+  - **Track setting:** lives in Settings → About.
+  - **Signing:** `release.json` is signed with Ed25519 once the owner adds the key (until then, HTTPS only).
+  - **Self-update:** the launcher updates itself on Windows and Linux, not on macOS.
+- **macOS sandbox.** The app gained two temporary-exception entitlements so it can write the track and a LaunchAgent. Restart goes through `open`, so the launcher doesn't inherit the sandbox.
+- **Checks.**
+  - **Launcher:** 42 tests: tracks, `release.json` checks, picking releases, signatures, unpacking, the update itself with bad hashes, long downloads, missing apps and offline, the layout, self-replacement, the splash drawing and arguments. It type-checks and lints for Windows and macOS from Linux.
+  - **App:** `installation_test.dart` (6) and two About page tests.
+  - **By hand on Linux,** against the real GitHub releases under Xvfb:
+    - The installer installed itself, set canary, downloaded and checked `v0.0.1-canary.2` (52 MB), and started it; the splash drew as designed.
+    - A second launch was up to date in 0.2 s.
+    - Stable with no stable release yet started the installed canary.
+    - A link started the app at once.
+    - Uninstalling removed the folder and the desktop file.
+  - **Owed by hand:** the Windows installer and uninstaller, taskbar pinning, and the macOS disk image, sandbox exceptions and LaunchAgent. None of these could run here.
