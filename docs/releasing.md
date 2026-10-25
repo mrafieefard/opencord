@@ -12,7 +12,7 @@ Every push to `beta`, `canary` or `main` is a release. CI tests and builds the s
 
 A change goes through the channels in order:
 
-1. **Work happens on other branches.** Feature branches, `phase…` branches and the like run no CI/CD.
+1. **Work happens on other branches** and reaches these through pull requests (CLAUDE.md). A pull request into `beta`, `canary` or `main` runs the whole workflow on the merge it would make: the tests and builds on all three systems, the integration tests, and the Docker image, built but not pushed. Its installers are uploaded as artifacts to try. It releases nothing. Run `.github/check.sh` before opening or updating one: it runs the Linux checks here.
 2. **`beta`.** Merge finished work into `beta`, and every push makes the next beta, for testing.
 3. **`canary`.** When a beta is good, merge `beta` into `canary`. It's the same code, numbered as a canary of the same version.
 4. **`main`.** When the canary holds up, merge `canary` into `main`. That push releases the version.

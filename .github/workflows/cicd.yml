@@ -8,10 +8,14 @@ name: CI/CD
 #   canary -> v0.0.2-canary.N  pre-release, image :canary
 #   main   -> v0.0.2           release,     image :latest
 #
-# Nothing else runs it: work happens on other branches and reaches these by
-# merging.
+# Work happens on other branches and reaches these through pull requests
+# (CLAUDE.md). A pull request runs the same tests and builds on the merge
+# it would make, and uploads the installers to try, but releases nothing:
+# no version, no image pushed, no GitHub release.
 on:
   push:
+    branches: [beta, canary, main]
+  pull_request:
     branches: [beta, canary, main]
   workflow_dispatch:
 
@@ -46,15 +50,15 @@ env:
 jobs:
   version:
     name: Version
-    if: contains(fromJSON('["beta", "canary", "main"]'), github.ref_name)
+    if: github.event_name == 'pull_request' || contains(fromJSON('["beta", "canary", "main"]'), github.ref_name)
     runs-on: ubuntu-latest
     outputs:
-      release: ${{ steps.next.outputs.release }}
+      release: ${{ steps.next.outputs.release || steps.pr.outputs.release }}
       existing: ${{ steps.next.outputs.existing }}
       version: ${{ steps.next.outputs.version }}
       core: ${{ steps.next.outputs.core }}
       tag: ${{ steps.next.outputs.tag }}
-      channel: ${{ steps.next.outputs.channel }}
+      channel: ${{ steps.next.outputs.channel || steps.pr.outputs.channel }}
       prerelease: ${{ steps.next.outputs.prerelease }}
       docker_tags: ${{ steps.next.outputs.docker_tags }}
       image: ${{ steps.image.outputs.image }}
@@ -63,7 +67,24 @@ jobs:
         with:
           fetch-depth: 0
 
+      # A pull request releases nothing; its installers take the track of
+      # the branch it goes into.
+      - name: Pull request
+        if: github.event_name == 'pull_request'
+        id: pr
+        run: |
+          case "$GITHUB_BASE_REF" in
+            main) channel=stable ;;
+            *) channel="$GITHUB_BASE_REF" ;;
+          esac
+          {
+            echo "release=false"
+            echo "channel=$channel"
+          } >> "$GITHUB_OUTPUT"
+          echo "A pull request into $GITHUB_BASE_REF: checked, not released." >> "$GITHUB_STEP_SUMMARY"
+
       - name: Next version
+        if: github.event_name != 'pull_request'
         id: next
         run: |
           python3 .github/release/version.py next --branch "$GITHUB_REF_NAME" --github-output
@@ -252,7 +273,9 @@ jobs:
 
       - uses: docker/setup-buildx-action@v4
 
+      # A pull request's image is built, never pushed.
       - uses: docker/login-action@v4
+        if: github.event_name != 'pull_request'
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -272,17 +295,22 @@ jobs:
             org.opencontainers.image.licenses=AGPL-3.0-or-later
             org.opencontainers.image.version=${{ needs.version.outputs.version }}
             org.opencontainers.image.revision=${{ github.sha }}
-          outputs: type=image,name=${{ needs.version.outputs.image }},push-by-digest=true,name-canonical=true,push=true
+          outputs: type=image,name=${{ needs.version.outputs.image }},push-by-digest=true,name-canonical=true,push=${{ github.event_name != 'pull_request' }}
           cache-from: type=gha,scope=docker-${{ matrix.arch }}
-          cache-to: type=gha,scope=docker-${{ matrix.arch }},mode=max
+          # The image is pushed before the cache is saved; a cache that
+          # can't be saved (GitHub's store answers 404 when runs overlap)
+          # only makes the next build slower.
+          cache-to: type=gha,scope=docker-${{ matrix.arch }},mode=max,ignore-error=true
 
       - name: Keep the digest
+        if: github.event_name != 'pull_request'
         run: |
           mkdir -p "$RUNNER_TEMP/digests"
           digest='${{ steps.build.outputs.digest }}'
           touch "$RUNNER_TEMP/digests/${digest#sha256:}"
 
       - uses: actions/upload-artifact@v7
+        if: github.event_name != 'pull_request'
         with:
           name: digest-${{ matrix.arch }}
           path: ${{ runner.temp }}/digests/*
