@@ -26,6 +26,7 @@ import 'package:opencord/core/settings/key_value_store.dart';
 import 'package:opencord/core/settings/local_prefs.dart';
 import 'package:opencord/features/desktop/linux_notifications.dart';
 import 'package:opencord/features/desktop/linux_tray.dart';
+import 'package:opencord/features/desktop/installation.dart';
 import 'package:opencord/features/desktop/login_item.dart';
 import 'package:opencord/features/desktop/notification_binding.dart';
 import 'package:opencord/features/desktop/notifications.dart';
@@ -107,8 +108,17 @@ Future<ProviderContainer> startApp({
           privateKey: privateKey,
         );
   if (!mock) await _startVideo();
+  final installation = desktop
+      ? Installation.find(
+          Platform.resolvedExecutable,
+          environment,
+          macOS: Platform.isMacOS,
+        )
+      : null;
+  final launcher = installation?.launcher;
   final container = ProviderContainer(
     overrides: [
+      installationProvider.overrideWithValue(installation),
       keyValueStoreProvider.overrideWithValue(store),
       coreVersionProvider.overrideWithValue(coreVersion()),
       repositoryProvider.overrideWithValue(repository),
@@ -122,9 +132,10 @@ Future<ProviderContainer> startApp({
       // Profiles are for testing and leave the login item alone.
       loginItemProvider.overrideWithValue(switch (defaultTargetPlatform) {
         _ when profile.isNotEmpty || !desktop => const NoLoginItem(),
+        // The launcher, when there is one, so a start at login updates too.
         TargetPlatform.linux => XdgAutostart(
           configHome: xdgConfigHome(environment),
-          executable: Platform.resolvedExecutable,
+          executable: launcher ?? Platform.resolvedExecutable,
         ),
         TargetPlatform.windows ||
         TargetPlatform.macOS => RunnerLoginItem(window),

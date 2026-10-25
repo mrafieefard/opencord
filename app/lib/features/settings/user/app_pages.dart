@@ -8,6 +8,7 @@ import 'package:opencord/core/model/voice.dart';
 import 'package:opencord/core/providers/providers.dart';
 import 'package:opencord/core/repository/repository.dart';
 import 'package:opencord/core/settings/local_prefs.dart';
+import 'package:opencord/features/desktop/installation.dart';
 import 'package:opencord/features/settings/user/keybind_recorder.dart';
 import 'package:opencord/features/voice/camera_menu.dart';
 import 'package:opencord/features/voice/input_level_meter.dart';
@@ -615,6 +616,8 @@ class AboutPage extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = context.oc;
+    final installation = ref.watch(installationProvider);
+    final version = installation?.version ?? appVersion;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -625,9 +628,13 @@ class AboutPage extends ConsumerWidget {
           style: OcText.body.copyWith(color: colors.textSecondary),
         ),
         const SizedBox(height: OcSpace.s20),
+        if (_desktop(Theme.of(context).platform)) ...[
+          const _UpdatesSection(),
+          const SizedBox(height: OcSpace.s24),
+        ],
         SettingsSection(
           children: [
-            SettingsRow(title: 'App version', subtitle: appVersion, mono: true),
+            SettingsRow(title: 'App version', subtitle: version, mono: true),
             SettingsRow(
               title: 'Core version',
               subtitle: ref.watch(coreVersionProvider),
@@ -643,11 +650,92 @@ class AboutPage extends ConsumerWidget {
               onTap: () => showLicensePage(
                 context: context,
                 applicationName: 'Opencord',
-                applicationVersion: appVersion,
+                applicationVersion: version,
               ),
             ),
           ],
         ),
+      ],
+    );
+  }
+}
+
+bool _desktop(TargetPlatform platform) =>
+    platform == TargetPlatform.linux ||
+    platform == TargetPlatform.windows ||
+    platform == TargetPlatform.macOS;
+
+/// The update track (docs/updater.md): the launcher checks GitHub for the
+/// newest build of it each time Opencord starts.
+class _UpdatesSection extends ConsumerWidget {
+  const _UpdatesSection();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final installation = ref.watch(installationProvider);
+    if (installation == null) {
+      return const SettingsSection(
+        title: 'Updates',
+        children: [
+          SettingsRow(
+            title: "This copy doesn't update itself",
+            subtitle:
+                'It was not installed with the Opencord installer. Install '
+                'Opencord from its releases page to get updates.',
+          ),
+        ],
+      );
+    }
+    final track = ref.watch(shownTrackProvider);
+    final saved = ref.watch(releaseTrackProvider);
+    return SettingsSection(
+      title: 'Updates',
+      footer:
+          'Opencord checks for updates each time it starts. Switching to a '
+          'steadier track never installs an older build: you stay on yours '
+          'until that track passes it.',
+      children: [
+        Padding(
+          padding: const EdgeInsets.all(OcSpace.s12),
+          child: SettingsChoiceCards<ReleaseTrack>(
+            value: track ?? ReleaseTrack.stable,
+            onChanged: track == null
+                ? null
+                : ref.read(clientSettingsDraftProvider.notifier).setTrack,
+            options: const [
+              ChoiceCardOption(
+                value: ReleaseTrack.stable,
+                label: 'Stable',
+                description: 'Releases that held up on canary',
+              ),
+              ChoiceCardOption(
+                value: ReleaseTrack.canary,
+                label: 'Canary',
+                description: 'Past beta, on its way to the next release',
+              ),
+              ChoiceCardOption(
+                value: ReleaseTrack.beta,
+                label: 'Beta',
+                description:
+                    'The newest work, for testing. Expect rough edges.',
+              ),
+            ],
+          ),
+        ),
+        if (installation.launcher != null)
+          SettingsRow(
+            title: 'Check for updates now',
+            subtitle: saved != null && saved != track
+                ? 'Save first, then restart to switch tracks'
+                : 'Restarts Opencord',
+            trailing: OcButton(
+              label: 'Restart',
+              dense: true,
+              onPressed: saved != null && saved != track
+                  ? null
+                  : installation.restart,
+            ),
+          ),
       ],
     );
   }

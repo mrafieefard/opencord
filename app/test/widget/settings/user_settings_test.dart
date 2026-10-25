@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -8,6 +10,7 @@ import 'package:opencord/core/providers/providers.dart';
 import 'package:opencord/core/repository/repository.dart';
 import 'package:opencord/core/settings/app_settings.dart';
 import 'package:opencord/core/settings/local_prefs.dart';
+import 'package:opencord/features/desktop/installation.dart';
 import 'package:opencord/features/settings/settings_dialog.dart';
 import 'package:opencord/features/voice/input_level_meter.dart';
 import 'package:opencord/features/window/window_startup.dart';
@@ -305,6 +308,52 @@ void main() {
     await app.dispose(tester);
   });
 
+  testWidgets('a copy not installed by the launcher says it does not update', (
+    tester,
+  ) async {
+    final app = await MockApp.pump(tester, platform: TargetPlatform.linux);
+    await _openSettings(tester);
+    await _page(tester, 'About');
+
+    expect(_inPage(find.text("This copy doesn't update itself")), findsOne);
+    expect(_inPage(find.text('Beta')), findsNothing);
+    await app.dispose(tester);
+  });
+
+  testWidgets('the update track is chosen and saved to update.json', (
+    tester,
+  ) async {
+    final installation = _FakeInstallation(ReleaseTrack.canary);
+    final app = await MockApp.pump(
+      tester,
+      platform: TargetPlatform.linux,
+      overrides: [installationProvider.overrideWithValue(installation)],
+    );
+    // The track is read once, as the app starts.
+    app.read(releaseTrackProvider);
+    await tester.pump();
+    await _openSettings(tester);
+    await _page(tester, 'About');
+
+    expect(_inPage(find.text('0.0.2-canary.1')), findsOneWidget);
+    expect(app.read(releaseTrackProvider), ReleaseTrack.canary);
+    final beta = _inPage(find.text('Beta'));
+    await tester.ensureVisible(beta);
+    await tester.tap(beta);
+    await tester.pump();
+    // Restarting to switch waits for the save.
+    expect(
+      _inPage(find.text('Save first, then restart to switch tracks')),
+      findsOne,
+    );
+    await _saveChanges(tester);
+
+    expect(installation.written, [ReleaseTrack.beta]);
+    expect(app.read(releaseTrackProvider), ReleaseTrack.beta);
+    expect(_inPage(find.text('Restarts Opencord')), findsOne);
+    await app.dispose(tester);
+  });
+
   testWidgets('noise suppression can be switched off and on again', (
     tester,
   ) async {
@@ -402,4 +451,27 @@ void main() {
     expect(app.read(selfPresenceProvider), SelfPresence.idle);
     await app.dispose(tester);
   });
+}
+
+class _FakeInstallation extends Installation {
+  _FakeInstallation(this.track)
+    : super(
+        root: Directory('/nowhere'),
+        version: '0.0.2-canary.1',
+        launcher: '/nowhere/opencord',
+      );
+
+  ReleaseTrack track;
+  final written = <ReleaseTrack>[];
+
+  @override
+  Future<ReleaseTrack> readTrack({
+    ReleaseTrack fallback = ReleaseTrack.stable,
+  }) async => track;
+
+  @override
+  Future<void> writeTrack(ReleaseTrack track) async {
+    written.add(track);
+    this.track = track;
+  }
 }

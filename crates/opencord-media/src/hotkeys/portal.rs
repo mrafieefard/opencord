@@ -3,7 +3,7 @@
 //! desktop decides, and may ask the user (KDE and GNOME show a dialog;
 //! Hyprland binds them in its own configuration).
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -56,7 +56,15 @@ fn ensure_desktop_entry(app_id: &str) -> bool {
     if cfg!(test) || Path::new("/.flatpak-info").exists() {
         return false;
     }
-    let entry = std::env::current_exe().and_then(|exe| desktop_entry::ensure(app_id, &exe));
+    // Started by the launcher (docs/updater.md), the desktop file launches
+    // it, not this version's executable, which the next update removes.
+    let launcher = std::env::var_os("OPENCORD_LAUNCHER")
+        .filter(|path| !path.is_empty())
+        .map(PathBuf::from);
+    let entry = launcher
+        .map(Ok)
+        .unwrap_or_else(std::env::current_exe)
+        .and_then(|exe| desktop_entry::ensure(app_id, &exe));
     match entry {
         Ok(entry) => {
             tracing::debug!(?entry, "desktop file");

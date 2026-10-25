@@ -6,6 +6,8 @@
 #include <initializer_list>
 #include <utility>
 
+#include "utils.h"
+
 namespace single_instance {
 
 namespace {
@@ -64,10 +66,8 @@ std::wstring LinkArgument() {
 }
 
 void RegisterLinkScheme() {
-  wchar_t path[MAX_PATH];
-  const DWORD length = ::GetModuleFileNameW(nullptr, path, MAX_PATH);
-  if (length == 0 || length == MAX_PATH) return;
-  const std::wstring executable(path, length);
+  const std::wstring executable = LaunchTarget();
+  if (executable.empty()) return;
   for (const wchar_t* scheme : kSchemes) {
     const std::wstring key = std::wstring(L"Software\\Classes\\") + scheme;
     if (!SetKeyStrings(key.c_str(), {{nullptr, L"URL:Opencord"},
