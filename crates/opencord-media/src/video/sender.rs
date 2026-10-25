@@ -593,6 +593,13 @@ mod tests {
     /// Everything sent until the encoder has been quiet for 500 ms: a
     /// slow (loaded or debug) encoder can still be working through earlier
     /// pictures when the last one goes in.
+    /// The frames of pictures captured at `since` or later.
+    fn captured_since(sent: Vec<VideoFrame>, since: Instant) -> Vec<VideoFrame> {
+        sent.into_iter()
+            .filter(|frame| frame.captured >= since)
+            .collect()
+    }
+
     fn drain(received: &mpsc::Receiver<VideoFrame>) -> Vec<VideoFrame> {
         let quiet = Duration::from_millis(500);
         let mut sent = Vec::new();
@@ -877,6 +884,8 @@ mod tests {
         feed_sized(&frames, 0, 5, (1280, 720));
         drain(&received);
 
+        // As in the reshape test: only what was captured after the cut.
+        let cut = Instant::now();
         sender.encode(
             &["l".to_owned(), "h".to_owned()],
             &[300_000, 250_000],
@@ -884,7 +893,7 @@ mod tests {
             0.25,
         );
         feed_sized(&frames, 5, 30, (1280, 720));
-        let sent = drain(&received);
+        let sent = captured_since(drain(&received), cut);
 
         let main = sizes(&sent, 1);
         assert!(
@@ -911,10 +920,15 @@ mod tests {
             fps: 15,
         };
 
+        // A picture from before may still be encoding when the drain above
+        // gives up waiting (a busy machine); only what was captured after
+        // the reshape has to go out as the new track.
+        let reshaped = Instant::now();
         sender.reshape("screen-2".to_owned(), screen_layers(1280, 720, p480), p480);
         feed_sized(&frames, 5, 30, (1280, 720));
-        let sent = drain(&received);
+        let sent = captured_since(drain(&received), reshaped);
 
+        assert!(!sent.is_empty());
         assert!(sent.iter().all(|frame| frame.track_id == "screen-2"));
         let first = &sent[0];
         assert_eq!(
