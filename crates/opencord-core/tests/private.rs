@@ -2532,14 +2532,22 @@ async fn moving_a_chat_takes_effect_for_the_mover_and_offers_the_other() {
         .collect();
     assert_eq!(b_dividers.len(), 2);
 
-    // B's next message travels through Y (Y's pending count for A rises)
+    // B's next message travels through Y: with X stopped, it is the only
+    // way left. (Y's pending count for A can't show it: A is online on Y
+    // and may take the copy before anyone looks.)
+    let TestServer { handle, _dir } = server_x;
+    handle.shutdown().await;
     b.client
         .private_send(&a_hex, "now through y".to_owned())
         .await
         .unwrap();
-    server_y
-        .counts_until(a_y_ready.self_user.id, |c| c.pending >= 1)
-        .await;
+    a.private_event(|e| match e {
+        PrivateEvent::MessageAdded(m) if m.peer == b_hex && m.content == "now through y" => {
+            Some(())
+        }
+        _ => None,
+    })
+    .await;
 }
 
 #[tokio::test(flavor = "multi_thread")]
