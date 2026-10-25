@@ -127,7 +127,12 @@ async fn connect_checked(path: &Path, sealer: &Sealer) -> Result<SqlitePool, Pri
 }
 
 async fn migrate_and_check(pool: &SqlitePool, sealer: &Sealer) -> Result<(), PrivateError> {
-    sqlx::migrate!("./migrations")
+    // A newer build may have migrated further: switching to an older
+    // track installs an older build (docs/updater.md), which must still
+    // open the database rather than set it aside. Migrations only add.
+    let mut migrator = sqlx::migrate!("./migrations");
+    migrator.set_ignore_missing(true);
+    migrator
         .run(pool)
         .await
         .map_err(|error| PrivateError::Storage(error.to_string()))?;
@@ -219,6 +224,39 @@ mod tests {
             Some("friends")
         );
         assert!(unreadable_files(dir.path()).is_empty());
+        opened.store.close().await;
+    }
+
+    #[tokio::test]
+    async fn a_database_a_newer_build_migrated_still_opens() {
+        let dir = tempfile::tempdir().unwrap();
+        let opened = PrivateStore::open(dir.path(), &ALICE, &[1; 32], 1_000)
+            .await
+            .unwrap();
+        opened
+            .store
+            .set_setting("privacy", "friends")
+            .await
+            .unwrap();
+        // What a later build's migration leaves behind.
+        sqlx::query(
+            "INSERT INTO _sqlx_migrations (version, description, success, checksum, execution_time) \
+             VALUES (9999, 'from a newer build', TRUE, X'00', 0)",
+        )
+        .execute(&opened.store.pool)
+        .await
+        .unwrap();
+        opened.store.close().await;
+
+        let opened = PrivateStore::open(dir.path(), &ALICE, &[1; 32], 2_000)
+            .await
+            .unwrap();
+
+        assert!(!opened.started_fresh);
+        assert_eq!(
+            opened.store.setting("privacy").await.unwrap().as_deref(),
+            Some("friends")
+        );
         opened.store.close().await;
     }
 

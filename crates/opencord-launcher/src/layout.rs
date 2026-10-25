@@ -116,18 +116,33 @@ impl Layout {
         versions
     }
 
-    pub fn current(&self) -> Option<Version> {
-        self.versions().into_iter().next()
+    /// Whether `version` is installed whole.
+    pub fn is_whole(&self, version: &Version) -> bool {
+        app_executable(&self.version_dir(version)).is_file()
     }
 
-    /// Removes every version but the newest two, and anything half
-    /// unpacked or half downloaded. A folder still in use (Windows) stays
-    /// until the next time.
+    /// The version that starts: the one the launcher installed last, which
+    /// is older than another after a switch to a steadier track; otherwise
+    /// the newest.
+    pub fn current(&self) -> Option<Version> {
+        match self.read_installed().version {
+            Some(version) if self.is_whole(&version) => Some(version),
+            _ => self.versions().into_iter().next(),
+        }
+    }
+
+    /// Removes every version but the current one and the newest other, and
+    /// anything half unpacked or half downloaded. A folder still in use
+    /// (Windows) stays until the next time.
     pub fn prune(&self) {
-        let keep: Vec<PathBuf> = self
+        let current = self.current();
+        let other = self
             .versions()
+            .into_iter()
+            .find(|version| Some(version) != current.as_ref());
+        let keep: Vec<PathBuf> = current
             .iter()
-            .take(2)
+            .chain(other.iter())
             .map(|version| self.version_dir(version))
             .collect();
         let Ok(entries) = fs::read_dir(&self.root) else {
@@ -152,12 +167,42 @@ impl Layout {
 
     /// Writes `update.json` whole, keeping keys this launcher doesn't know.
     pub fn write_settings(&self, settings: &Settings) -> io::Result<()> {
-        fs::create_dir_all(&self.root)?;
-        let path = self.settings_file();
-        let partial = path.with_extension("json.partial");
-        fs::write(&partial, serde_json::to_vec_pretty(settings)?)?;
-        fs::rename(&partial, &path)
+        self.write_json(&self.settings_file(), settings)
     }
+
+    pub fn installed_file(&self) -> PathBuf {
+        self.root.join("installed.json")
+    }
+
+    pub fn read_installed(&self) -> Installed {
+        fs::read(self.installed_file())
+            .ok()
+            .and_then(|bytes| serde_json::from_slice(&bytes).ok())
+            .unwrap_or_default()
+    }
+
+    pub fn write_installed(&self, installed: &Installed) -> io::Result<()> {
+        self.write_json(&self.installed_file(), installed)
+    }
+
+    /// Writes `value` to `path` whole: the app may read it meanwhile.
+    fn write_json(&self, path: &Path, value: &impl Serialize) -> io::Result<()> {
+        fs::create_dir_all(&self.root)?;
+        let partial = path.with_extension("json.partial");
+        fs::write(&partial, serde_json::to_vec_pretty(value)?)?;
+        fs::rename(&partial, path)
+    }
+}
+
+/// `installed.json`, which only the launcher writes: the version that
+/// starts, and the track it was installed for. A track in `update.json`
+/// other than this one is a switch the launcher hasn't made yet.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+pub struct Installed {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub version: Option<Version>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub track: Option<String>,
 }
 
 /// `update.json`. The app's settings change `track`; installers set both.
@@ -263,6 +308,43 @@ mod tests {
         );
         assert!(!layout.downloads().exists());
         assert!(layout.settings_file().exists());
+    }
+
+    #[test]
+    fn after_a_switch_the_older_version_starts_and_the_newer_stays_once() {
+        let root = tempfile::tempdir().unwrap();
+        let layout = Layout::new(root.path());
+        for version in ["0.0.1", "0.0.2-beta.1", "0.0.2-beta.2"] {
+            install(&layout, version);
+        }
+        let stable = Version::parse("0.0.1").unwrap();
+        layout
+            .write_installed(&Installed {
+                version: Some(stable.clone()),
+                track: Some("stable".into()),
+            })
+            .unwrap();
+
+        assert_eq!(layout.current(), Some(stable.clone()));
+        layout.prune();
+
+        let names: Vec<String> = layout.versions().iter().map(Version::to_string).collect();
+        assert_eq!(names, ["0.0.2-beta.2", "0.0.1"]);
+        assert_eq!(layout.current(), Some(stable));
+    }
+
+    #[test]
+    fn a_missing_current_version_falls_back_to_the_newest() {
+        let root = tempfile::tempdir().unwrap();
+        let layout = Layout::new(root.path());
+        install(&layout, "0.0.2");
+        layout
+            .write_installed(&Installed {
+                version: Some(Version::parse("0.0.1").unwrap()),
+                track: None,
+            })
+            .unwrap();
+        assert_eq!(layout.current().unwrap().to_string(), "0.0.2");
     }
 
     #[test]

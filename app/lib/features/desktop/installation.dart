@@ -10,6 +10,18 @@ enum ReleaseTrack {
   canary,
   beta;
 
+  String get label => switch (this) {
+    stable => 'Stable',
+    canary => 'Canary',
+    beta => 'Beta',
+  };
+
+  String get description => switch (this) {
+    stable => 'Releases that held up on canary',
+    canary => 'Past beta, on its way to the next release',
+    beta => 'The newest work, for testing. Expect rough edges.',
+  };
+
   static ReleaseTrack? parse(Object? name) => switch (name) {
     'stable' => stable,
     'canary' => canary,

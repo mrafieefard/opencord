@@ -1246,10 +1246,10 @@ The desktop UI plan's §17.5 never arrived, so where Phase 2 §12 says only what
   - **macOS:** gets a disk image with the launcher as `Opencord.app`.
   - **The track:** built into each release's launcher from its branch (`OPENCORD_TRACK`). Installing sets it in `update.json`; on macOS, a disk image from another track sets its own on first start.
 - **Calls made without the owner.**
-  - **Tracks never go backwards:** moving from beta to stable waits for stable to pass the installed build.
+  - **Track switches (the owner's call, added the next morning):** choosing a track asks to restart, and the launcher then installs that track's newest build even when it's older. Plain updates never go backwards. So the private-message store now opens a database a newer build migrated (`set_ignore_missing`), where it used to move it aside and lose the history (`a_database_a_newer_build_migrated_still_opens`).
   - **Links skip the check** when a version is installed.
   - **Offline:** after 10 s, the installed version starts.
-  - **Track setting:** lives in Settings → About and waits for the save bar like other client settings.
+  - **Track setting:** lives in Settings → About.
   - **Signing:** `release.json` is signed with Ed25519 once the owner adds the key (until then, HTTPS only).
   - **Self-update:** the launcher updates itself on Windows and Linux, not on macOS.
 - **macOS sandbox.** The app gained two temporary-exception entitlements so it can write the track and a LaunchAgent. Restart goes through `open`, so the launcher doesn't inherit the sandbox.

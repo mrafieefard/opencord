@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -686,14 +688,12 @@ class _UpdatesSection extends ConsumerWidget {
         ],
       );
     }
-    final track = ref.watch(shownTrackProvider);
-    final saved = ref.watch(releaseTrackProvider);
+    final track = ref.watch(releaseTrackProvider);
     return SettingsSection(
       title: 'Updates',
       footer:
-          'Opencord checks for updates each time it starts. Switching to a '
-          'steadier track never installs an older build: you stay on yours '
-          'until that track passes it.',
+          'Opencord checks for updates each time it starts. Switching tracks '
+          "restarts it on that track's newest build.",
       children: [
         Padding(
           padding: const EdgeInsets.all(OcSpace.s12),
@@ -701,42 +701,60 @@ class _UpdatesSection extends ConsumerWidget {
             value: track ?? ReleaseTrack.stable,
             onChanged: track == null
                 ? null
-                : ref.read(clientSettingsDraftProvider.notifier).setTrack,
-            options: const [
-              ChoiceCardOption(
-                value: ReleaseTrack.stable,
-                label: 'Stable',
-                description: 'Releases that held up on canary',
-              ),
-              ChoiceCardOption(
-                value: ReleaseTrack.canary,
-                label: 'Canary',
-                description: 'Past beta, on its way to the next release',
-              ),
-              ChoiceCardOption(
-                value: ReleaseTrack.beta,
-                label: 'Beta',
-                description:
-                    'The newest work, for testing. Expect rough edges.',
-              ),
+                : (chosen) => _switchTrack(context, ref, installation, chosen),
+            options: [
+              for (final option in ReleaseTrack.values)
+                ChoiceCardOption(
+                  value: option,
+                  label: option.label,
+                  description: option.description,
+                ),
             ],
           ),
         ),
         if (installation.launcher != null)
           SettingsRow(
             title: 'Check for updates now',
-            subtitle: saved != null && saved != track
-                ? 'Save first, then restart to switch tracks'
-                : 'Restarts Opencord',
+            subtitle: 'Restarts Opencord',
             trailing: OcButton(
               label: 'Restart',
               dense: true,
-              onPressed: saved != null && saved != track
-                  ? null
-                  : installation.restart,
+              onPressed: installation.restart,
             ),
           ),
       ],
     );
   }
+}
+
+/// Asks before switching to [chosen], then restarts on it: the launcher
+/// installs that track's newest build as the app starts again.
+Future<void> _switchTrack(
+  BuildContext context,
+  WidgetRef ref,
+  Installation installation,
+  ReleaseTrack chosen,
+) async {
+  if (chosen == ref.read(releaseTrackProvider)) return;
+  final restarts = installation.launcher != null;
+  final confirmed = await confirmAction(
+    context,
+    title: 'Switch to ${chosen.label}?',
+    message: restarts
+        ? 'Opencord restarts and opens on the newest ${chosen.label} build. '
+              'It may be older than the one you have now.'
+        : 'Opencord opens on the newest ${chosen.label} build the next time '
+              'it starts. It may be older than the one you have now.',
+    action: restarts ? 'Restart' : 'Switch',
+  );
+  if (!confirmed) return;
+  try {
+    await ref.read(releaseTrackProvider.notifier).set(chosen);
+  } on FileSystemException catch (error) {
+    if (context.mounted) {
+      showOcToast(context, "Couldn't switch tracks: ${error.message}");
+    }
+    return;
+  }
+  if (restarts) await installation.restart();
 }

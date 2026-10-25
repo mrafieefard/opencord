@@ -11,7 +11,7 @@ use semver::Version;
 use sha2::{Digest, Sha256};
 
 use crate::archive;
-use crate::layout::{self, Layout};
+use crate::layout::{self, Installed, Layout};
 use crate::release::{Asset, Manifest, ManifestError};
 use crate::track::Track;
 
@@ -72,10 +72,14 @@ pub enum Status {
     },
 }
 
-/// Brings the install up to the newest build `track` takes. Returns the
-/// version it installed, or `None` when the installed one is newest. A
-/// track never goes backwards: a beta user who moves to stable keeps
-/// their beta until a stable release passes it.
+/// Brings the install to the newest build `track` takes. Returns the
+/// version it switched to, or `None` when the installed one stays.
+///
+/// Updates never go backwards: an older build than the installed one
+/// stays where it is. But when the user has picked another track since
+/// the installed build was installed (the app restarts for it), that
+/// track's newest build replaces it, even an older one: a canary user
+/// who picks stable gets stable.
 pub fn update(
     layout: &Layout,
     source: &dyn Source,
@@ -84,13 +88,44 @@ pub fn update(
     report: &dyn Fn(Status),
 ) -> Result<Option<Version>, Error> {
     report(Status::Checking);
+    let current = layout.current();
+    let switching = current.is_some()
+        && layout
+            .read_installed()
+            .track
+            .is_some_and(|installed_for| installed_for != track.name());
     let manifest = source.latest(track)?;
-    if layout
-        .current()
-        .is_some_and(|current| current >= manifest.version)
-    {
+    let wanted = manifest.version.clone();
+    let stays = current
+        .as_ref()
+        .is_some_and(|current| *current == wanted || (!switching && *current > wanted));
+    if stays {
+        layout.write_installed(&Installed {
+            version: current,
+            track: Some(track.name().to_owned()),
+        })?;
         return Ok(None);
     }
+    // Switching back to a track whose build is still kept needs no
+    // download.
+    if !layout.is_whole(&wanted) {
+        install(layout, source, &manifest, platform, report)?;
+    }
+    layout.write_installed(&Installed {
+        version: Some(wanted.clone()),
+        track: Some(track.name().to_owned()),
+    })?;
+    Ok(Some(wanted))
+}
+
+/// Downloads and unpacks `manifest`'s build beside the others.
+fn install(
+    layout: &Layout,
+    source: &dyn Source,
+    manifest: &Manifest,
+    platform: &str,
+    report: &dyn Fn(Status),
+) -> Result<(), Error> {
     let asset = manifest.asset(platform).map_err(Error::Manifest)?;
     fs::create_dir_all(layout.downloads())?;
     let download = layout.downloads().join(&asset.file);
@@ -112,7 +147,7 @@ pub fn update(
     let _ = fs::remove_dir_all(layout.version_dir(version));
     fs::rename(&partial, layout.version_dir(version))?;
     let _ = fs::remove_file(&download);
-    Ok(Some(version.clone()))
+    Ok(())
 }
 
 /// Downloads `asset` to `path`, refusing it unless its size and SHA-256
@@ -265,8 +300,16 @@ mod tests {
     }
 
     fn run(layout: &Layout, source: &Fake) -> (Result<Option<Version>, Error>, Vec<Status>) {
+        run_on(layout, source, Track::Beta)
+    }
+
+    fn run_on(
+        layout: &Layout,
+        source: &Fake,
+        track: Track,
+    ) -> (Result<Option<Version>, Error>, Vec<Status>) {
         let statuses = RefCell::new(Vec::new());
-        let result = update(layout, source, Track::Beta, PLATFORM, &|status| {
+        let result = update(layout, source, track, PLATFORM, &|status| {
             statuses.borrow_mut().push(status)
         });
         (result, statuses.into_inner())
@@ -315,6 +358,59 @@ mod tests {
             assert_eq!(*source.downloads.borrow(), 0);
         }
         assert_eq!(layout.current().unwrap().to_string(), "0.0.2");
+    }
+
+    #[cfg(not(any(windows, target_os = "macos")))]
+    #[test]
+    fn switching_tracks_installs_that_tracks_build_even_an_older_one() {
+        let root = tempfile::tempdir().unwrap();
+        let layout = Layout::new(root.path());
+        let canary = fake("0.0.2-canary.1", app_archive(b"canary"), None);
+        run_on(&layout, &canary, Track::Canary).0.unwrap();
+
+        // The user picks stable: its build is older, and replaces canary.
+        let stable = fake("0.0.1", app_archive(b"stable"), None);
+        let (result, _) = run_on(&layout, &stable, Track::Stable);
+        assert_eq!(result.unwrap().unwrap().to_string(), "0.0.1");
+        assert_eq!(layout.current().unwrap().to_string(), "0.0.1");
+        let exe = layout::app_executable(&layout.version_dir(&layout.current().unwrap()));
+        assert_eq!(fs::read(exe).unwrap(), b"stable");
+
+        // Starting again on stable keeps it: no switch, nothing newer.
+        let (result, _) = run_on(&layout, &stable, Track::Stable);
+        assert!(result.unwrap().is_none());
+        assert_eq!(*stable.downloads.borrow(), 1);
+
+        // Back to canary: the kept canary build returns without a download.
+        let (result, _) = run_on(&layout, &canary, Track::Canary);
+        assert_eq!(result.unwrap().unwrap().to_string(), "0.0.2-canary.1");
+        assert_eq!(*canary.downloads.borrow(), 1);
+        assert_eq!(layout.current().unwrap().to_string(), "0.0.2-canary.1");
+    }
+
+    #[cfg(not(any(windows, target_os = "macos")))]
+    #[test]
+    fn a_switch_that_cant_be_made_yet_waits_for_the_next_start() {
+        let root = tempfile::tempdir().unwrap();
+        let layout = Layout::new(root.path());
+        run_on(
+            &layout,
+            &fake("0.0.2-canary.1", app_archive(b"canary"), None),
+            Track::Canary,
+        )
+        .0
+        .unwrap();
+        let mut offline = fake("0.0.1", Vec::new(), None);
+        offline.manifest = Err(());
+
+        assert!(run_on(&layout, &offline, Track::Stable).0.is_err());
+
+        // Still canary's, still owed the switch.
+        assert_eq!(layout.current().unwrap().to_string(), "0.0.2-canary.1");
+        assert_eq!(layout.read_installed().track.as_deref(), Some("canary"));
+        let stable = fake("0.0.1", app_archive(b"stable"), None);
+        let (result, _) = run_on(&layout, &stable, Track::Stable);
+        assert_eq!(result.unwrap().unwrap().to_string(), "0.0.1");
     }
 
     #[test]

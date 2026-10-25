@@ -320,7 +320,7 @@ void main() {
     await app.dispose(tester);
   });
 
-  testWidgets('the update track is chosen and saved to update.json', (
+  testWidgets('switching tracks asks, saves the track and restarts', (
     tester,
   ) async {
     final installation = _FakeInstallation(ReleaseTrack.canary);
@@ -334,23 +334,32 @@ void main() {
     await tester.pump();
     await _openSettings(tester);
     await _page(tester, 'About');
-
     expect(_inPage(find.text('0.0.2-canary.1')), findsOneWidget);
-    expect(app.read(releaseTrackProvider), ReleaseTrack.canary);
-    final beta = _inPage(find.text('Beta'));
-    await tester.ensureVisible(beta);
-    await tester.tap(beta);
-    await tester.pump();
-    // Restarting to switch waits for the save.
-    expect(
-      _inPage(find.text('Save first, then restart to switch tracks')),
-      findsOne,
-    );
-    await _saveChanges(tester);
 
-    expect(installation.written, [ReleaseTrack.beta]);
-    expect(app.read(releaseTrackProvider), ReleaseTrack.beta);
-    expect(_inPage(find.text('Restarts Opencord')), findsOne);
+    // Cancelled: nothing changes.
+    final stable = _inPage(find.text('Stable'));
+    await tester.ensureVisible(stable);
+    await tester.tap(stable);
+    await _pumpFor(tester, const Duration(milliseconds: 300));
+    expect(find.text('Switch to Stable?'), findsOneWidget);
+    expect(
+      find.textContaining('It may be older than the one you have now'),
+      findsOneWidget,
+    );
+    await tester.tap(find.widgetWithText(OcButton, 'Cancel'));
+    await _pumpFor(tester, const Duration(milliseconds: 300));
+    expect(installation.written, isEmpty);
+    expect(installation.restarted, isFalse);
+    expect(app.read(releaseTrackProvider), ReleaseTrack.canary);
+
+    // Confirmed: the track is saved, then the app restarts on it.
+    await tester.tap(stable);
+    await _pumpFor(tester, const Duration(milliseconds: 300));
+    await tester.tap(find.widgetWithText(OcButton, 'Restart').last);
+    await _pumpFor(tester, const Duration(milliseconds: 300));
+    expect(installation.written, [ReleaseTrack.stable]);
+    expect(installation.restarted, isTrue);
+    expect(app.read(releaseTrackProvider), ReleaseTrack.stable);
     await app.dispose(tester);
   });
 
@@ -474,4 +483,9 @@ class _FakeInstallation extends Installation {
     written.add(track);
     this.track = track;
   }
+
+  var restarted = false;
+
+  @override
+  Future<void> restart() async => restarted = true;
 }

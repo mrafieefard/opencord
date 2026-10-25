@@ -10,7 +10,6 @@ import 'package:opencord/core/providers/music_session_state.dart';
 import 'package:opencord/core/providers/voice_cues.dart';
 import 'package:opencord/core/settings/app_settings.dart';
 import 'package:opencord/core/settings/local_prefs.dart';
-import 'package:opencord/features/desktop/installation.dart';
 import 'package:opencord/features/settings/settings_dialog.dart';
 import 'package:opencord/features/window/window_startup.dart';
 
@@ -25,7 +24,6 @@ class ClientSettingsDraft {
     this.soundboard,
     this.cuesOff,
     this.keybinds,
-    this.track,
   });
 
   final AppSettings? app;
@@ -35,9 +33,6 @@ class ClientSettingsDraft {
   final Set<CueGroup>? cuesOff;
   final Keybinds? keybinds;
 
-  /// The update track, which lives in the launcher's `update.json`.
-  final ReleaseTrack? track;
-
   ClientSettingsDraft copyWith({
     AppSettings? app,
     AudioSettings? audio,
@@ -45,7 +40,6 @@ class ClientSettingsDraft {
     SoundboardPrefs? soundboard,
     Set<CueGroup>? cuesOff,
     Keybinds? keybinds,
-    ReleaseTrack? track,
   }) => ClientSettingsDraft(
     app: app ?? this.app,
     audio: audio ?? this.audio,
@@ -53,7 +47,6 @@ class ClientSettingsDraft {
     soundboard: soundboard ?? this.soundboard,
     cuesOff: cuesOff ?? this.cuesOff,
     keybinds: keybinds ?? this.keybinds,
-    track: track ?? this.track,
   );
 }
 
@@ -87,8 +80,6 @@ class ClientSettingsDraftNotifier extends Notifier<ClientSettingsDraft> {
     );
   }
 
-  void setTrack(ReleaseTrack track) => state = state.copyWith(track: track);
-
   Keybinds get _keybinds => state.keybinds ?? ref.read(keybindsProvider);
 
   /// A new keybind row for [action]; its id.
@@ -119,8 +110,7 @@ class ClientSettingsDraftNotifier extends Notifier<ClientSettingsDraft> {
         (draft.cuesOff != null &&
             !setEquals(draft.cuesOff, ref.read(cuePrefsProvider))) ||
         (draft.keybinds != null &&
-            draft.keybinds != ref.read(keybindsProvider)) ||
-        (draft.track != null && draft.track != ref.read(releaseTrackProvider));
+            draft.keybinds != ref.read(keybindsProvider));
   }
 
   /// Saves every draft, then drops them.
@@ -151,9 +141,6 @@ class ClientSettingsDraftNotifier extends Notifier<ClientSettingsDraft> {
     }
     if (draft.keybinds case final keybinds?) {
       ref.read(keybindsProvider.notifier).replace(keybinds);
-    }
-    if (draft.track case final track?) {
-      await ref.read(releaseTrackProvider.notifier).set(track);
     }
     state = const ClientSettingsDraft();
   }
@@ -203,12 +190,6 @@ final shownKeybindsProvider = Provider.autoDispose<Keybinds>(
   (ref) =>
       ref.watch(clientSettingsDraftProvider).keybinds ??
       ref.watch(keybindsProvider),
-);
-
-final shownTrackProvider = Provider.autoDispose<ReleaseTrack?>(
-  (ref) =>
-      ref.watch(clientSettingsDraftProvider).track ??
-      ref.watch(releaseTrackProvider),
 );
 
 /// Hands the client settings' drafts to the dialog's save bar, for as long

@@ -30,6 +30,7 @@ One folder per user, with no administrator needed:
 The folder holds:
 - **`app-<version>/`:** one folder per installed version, as its archive unpacks.
 - **`update.json`:** the track.
+- **`installed.json`:** the version that starts, and the track it's for.
 - **`downloads/`**
 - **`launcher.log`:** the last run's log. Read this first when an update goes wrong.
 
@@ -54,7 +55,13 @@ Each time the launcher starts, it:
    - `OPENCORD_LAUNCHER`: the launcher's path.
    - `OPENCORD_VERSION`: the installed version.
 
-**A track never goes backwards.** Switching from beta to stable keeps the beta build until a stable release passes it, so nobody is moved to an older build. SemVer orders `0.0.2-beta.3 < 0.0.2-canary.1 < 0.0.2`, so "newer" means the same thing on every track.
+**Updates never go backwards; switches can.** SemVer orders `0.0.2-beta.3 < 0.0.2-canary.1 < 0.0.2`, so "newer" means the same thing on every track.
+- **On the same track,** an older build than the installed one is never installed.
+- **On a switch,** the user picked another track in the app, so that track's newest build replaces the installed one, even when it's older. For example, a canary user who picks stable gets stable.
+
+`installed.json`, which only the launcher writes, records the version that starts and the track it was installed for. A track in `update.json` that differs from it is a switch the launcher hasn't made yet. A switch that fails, offline or before the track has any release, is tried again on the next start.
+
+A build kept from before a switch comes back without a download: the folder of the version that starts and the newest other one are kept. The private-message database lets an older build open it after a newer one migrated it (`set_ignore_missing`, in `crates/opencord-core/src/private/store.rs`). Without that, the older build would move the database aside and start fresh.
 
 **Signing.**
 - **How it works.** CI signs `release.json` with an Ed25519 key when the repository has the `UPDATE_SIGNING_KEY` secret. The signature is published as `release.json.sig`.
@@ -75,7 +82,7 @@ The track is built into each release's launcher, from its branch: CI sets `OPENC
 - **Windows and Linux.** Running the installer sets the track in `update.json`, even over an existing install, since the user chose that installer.
 - **macOS.** Installing is dragging the app over, so the launcher notes which track's disk image set the track (`installer_track`). A launcher from another track's disk image sets its own track on its first start. The macOS launcher doesn't update itself: a newer disk image replaces it.
 
-**In the app**, Settings → About → Updates shows Stable, Canary and Beta. Saving writes `update.json`. "Restart" quits and has the launcher start the app again with whatever update is waiting (`--after-pid` waits for the old app to end first). A copy run from an archive or from source isn't installed: the section says it doesn't update itself.
+**In the app**, Settings → About → Updates shows Stable, Canary and Beta. Choosing one asks "Switch to Stable?", warning that the build may be older than the current one. Confirming writes `update.json` and restarts on that track's newest build. "Restart" alone quits and has the launcher start the app again with whatever update is waiting (`--after-pid` waits for the old app to end first). A copy run from an archive or from source isn't installed: the section says it doesn't update itself.
 
 ## Installing
 
