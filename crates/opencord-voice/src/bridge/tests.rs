@@ -48,8 +48,17 @@ async fn harness() -> Harness {
     ) -> Response {
         upgrade.on_upgrade(move |socket| async move { bridge.serve(socket, peer).await })
     }
+    /// As the main port's route does for a tunnel or a reverse proxy.
+    async fn upgrade_proxied(
+        State(bridge): State<MusicBridge>,
+        ConnectInfo(peer): ConnectInfo<SocketAddr>,
+        upgrade: WebSocketUpgrade,
+    ) -> Response {
+        upgrade.on_upgrade(move |socket| async move { bridge.serve_proxied(socket, peer).await })
+    }
     let app = Router::new()
         .route("/", get(upgrade))
+        .route("/proxied", get(upgrade_proxied))
         .with_state(bridge.clone())
         .into_make_service_with_connect_info::<SocketAddr>();
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
@@ -572,4 +581,26 @@ fn private_and_shared_addresses_count_as_local() {
     for public in ["203.0.113.9", "8.8.8.8", "2001:db8::1", "100.128.0.1"] {
         assert!(!is_local(public.parse().unwrap()), "{public}");
     }
+}
+
+/// Through a tunnel or a reverse proxy the bridge only sees the proxy, on
+/// this machine or its Docker network, which says nothing about where
+/// Lavalink is: audio goes to the server's public address, as a tunnel's
+/// would.
+#[tokio::test]
+async fn lavalink_through_a_proxy_sends_audio_to_the_public_address() {
+    let harness = harness().await;
+    harness
+        .bridge
+        .set_public_ip(Some("203.0.113.10".parse().unwrap()));
+    harness.bridge.expect(player("proxied-token"));
+    let url = harness.url.replacen("/?v=8", "/proxied?v=8", 1);
+
+    let (mut socket, _) = tokio_tungstenite::connect_async(url).await.unwrap();
+    receive(&mut socket).await;
+    send(&mut socket, identify("proxied-token")).await;
+    let ready = receive(&mut socket).await;
+
+    assert_eq!(ready["op"], 2, "{ready}");
+    assert_eq!(ready["d"]["ip"], "203.0.113.10");
 }

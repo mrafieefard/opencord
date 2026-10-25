@@ -37,7 +37,7 @@ Lavalink also offers end-to-end encryption (Discord's DAVE); the bridge turns it
 | 7710 (the main port) | TCP | Lavalink's connection to the bridge, with everything else | Lavalink nodes |
 | 7712 | UDP | Music audio from Lavalink | Lavalink nodes |
 
-A Lavalink on the same machine or the same Docker network reaches both without forwarding anything. The bridge tells each Lavalink where to send audio: its loopback address for a node on the same machine, this machine's address on the local network for a node there, and the server's public address for the rest.
+A Lavalink on the same machine or the same Docker network reaches both without forwarding anything. The bridge tells each Lavalink where to send audio: its loopback address for a node on the same machine, this machine's address on the local network for a node there, and the server's public address for the rest. A Lavalink that connects through a tunnel or a reverse proxy (Traefik, Dokploy, Caddy, a Cloudflare tunnel) always gets the public address, since the bridge sees only the proxy: UDP 7712 must then be open on that address, and published from the Opencord container in Docker.
 
 ## Settings
 

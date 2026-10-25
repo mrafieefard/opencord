@@ -8,6 +8,7 @@ use axum::extract::{ConnectInfo, FromRequestParts};
 use axum::http::request::Parts;
 use axum::http::{HeaderMap, StatusCode};
 
+use super::main_port::Via;
 use crate::domains::check::is_cloudflare;
 use crate::state::AppState;
 
@@ -41,6 +42,25 @@ impl FromRequestParts<Arc<AppState>> for ClientAddr {
             &parts.headers,
         )))
     }
+}
+
+/// Whether a request came through a tunnel or a reverse proxy, so its peer
+/// may be only the proxy: plain HTTP on the main port, a trusted peer that
+/// forwards for someone, or a name a proxy answers for. A trusted peer
+/// alone is not enough: loopback is trusted by default, and an app on the
+/// server's own machine connects from there.
+pub fn reached_through_proxy(
+    state: &AppState,
+    peer: SocketAddr,
+    via: Option<Via>,
+    headers: &HeaderMap,
+) -> bool {
+    let host = headers
+        .get(axum::http::header::HOST)
+        .and_then(|host| host.to_str().ok());
+    via == Some(Via::Proxy)
+        || (headers.contains_key(FORWARDED_FOR) && state.network.settings().trusts(peer.ip()))
+        || host.is_some_and(|host| state.domains.behind_proxy(host))
 }
 
 /// The client behind `peer`: the last address in `X-Forwarded-For` that
