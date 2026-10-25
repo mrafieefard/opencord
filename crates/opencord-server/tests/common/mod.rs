@@ -8,6 +8,7 @@ pub mod music;
 pub mod pebble;
 
 use std::collections::VecDeque;
+use std::net::{Ipv4Addr, Ipv6Addr, SocketAddr};
 use std::sync::Arc;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
@@ -488,9 +489,22 @@ pub async fn websocket(
         .map(|(ws, _)| ws)
 }
 
+/// Where a test reaches the server: its address, or loopback when it
+/// listens on every address, as Windows won't connect to `0.0.0.0`.
+pub fn connect_addr(server: &TestServer) -> SocketAddr {
+    let mut addr = server.handle.local_addr;
+    if addr.ip().is_unspecified() {
+        addr.set_ip(match addr {
+            SocketAddr::V4(_) => Ipv4Addr::LOCALHOST.into(),
+            SocketAddr::V6(_) => Ipv6Addr::LOCALHOST.into(),
+        });
+    }
+    addr
+}
+
 pub async fn tls_connect(server: &TestServer) -> TlsStream<TcpStream> {
     let config = opencord_server::tls::client_config(Some(server.handle.fingerprint)).unwrap();
-    let tcp = TcpStream::connect(server.handle.local_addr).await.unwrap();
+    let tcp = TcpStream::connect(connect_addr(server)).await.unwrap();
     TlsConnector::from(Arc::new(config))
         .connect(ServerName::try_from("localhost").unwrap(), tcp)
         .await

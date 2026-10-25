@@ -251,7 +251,9 @@ pub fn trusting(root: CertificateDer<'static>) -> rustls::ClientConfig {
 /// The certificate the server serves for `host`, checked against `root`.
 pub async fn served(server: &TestServer, host: &str, root: CertificateDer<'static>) -> Vec<u8> {
     let config = trusting(root);
-    let tcp = TcpStream::connect(server.handle.local_addr).await.unwrap();
+    let tcp = TcpStream::connect(super::connect_addr(server))
+        .await
+        .unwrap();
     let tls = TlsConnector::from(Arc::new(config))
         .connect(ServerName::try_from(host.to_owned()).unwrap(), tcp)
         .await

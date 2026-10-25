@@ -193,8 +193,13 @@ jobs:
       - name: Clippy
         run: cargo clippy --locked $SERVER_CRATES --all-targets -- -D warnings
 
+      # macOS allows 256 open files by default; the tests' servers each
+      # keep a database pool, and SQLite says "unable to open database
+      # file" when they run out.
       - name: Test
-        run: cargo test --locked --no-fail-fast $SERVER_CRATES
+        run: |
+          ulimit -n 10240
+          cargo test --locked --no-fail-fast $SERVER_CRATES
 
       # Universal, like the app: Apple silicon and Intel in one binary.
       - name: Build
@@ -555,8 +560,13 @@ jobs:
       - name: Clippy
         run: cargo clippy --locked $CLIENT_CRATES --all-targets -- -D warnings
 
+      # macOS allows 256 open files by default; the tests' servers each
+      # keep a database pool, and SQLite says "unable to open database
+      # file" when they run out.
       - name: Test
-        run: cargo test --locked --no-fail-fast $CLIENT_CRATES
+        run: |
+          ulimit -n 10240
+          cargo test --locked --no-fail-fast $CLIENT_CRATES
 
       - uses: subosito/flutter-action@v2
         with:
