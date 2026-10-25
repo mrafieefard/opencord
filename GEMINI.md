@@ -5,10 +5,27 @@
 You are implementing `docs/superpowers/plans/2026-10-22-private-messages.md`: private messages, friends and offline delivery. The design it builds on is `docs/superpowers/specs/2026-10-22-private-messages-design.md`. The media uploads plan before it is finished.
 
 - The plan's **Working Rules** and this file apply to everything you do in this repository. Read "How to write code here" before each milestone: it grows after every review.
-- Each milestone's code is reviewed and fixed after you finish it, and its decisions entry gets a **Review** bullet. Read the latest one before starting, and build on the fixed code, not on what you remember writing.
+- Each milestone ends in a pull request (see "Every change is a pull request"). Its code is reviewed and fixed there, and its decisions entry gets a **Review** bullet. Read the latest one before starting, and build on the fixed code, not on what you remember writing.
 - The plan gives behavior, interfaces, names and tests, not finished code. Only the proto, the SQL and a few types are given exactly: copy those as they are. You write the rest, and the rules below are what the review checks it against.
 - Tasks marked **Owner: Claude** aren't yours. Hand each one to Claude and wait, as the plan's "Task owners" section says. You still run their checks and keep the ledger.
 - The user releases one milestone at a time. Stop at the end of each milestone and report.
+
+## Every change is a pull request
+
+Nothing is committed or pushed straight to `beta`, `canary` or `main`: each push to them is a release (docs/releasing.md). This holds for every plan from now on.
+
+- **Work on the plan's branch.** If the plan names none, ask the user which branch to use before the first commit.
+- **Before pushing,** run `.github/check.sh` (with the environment, as below). Everything passes. A failure that has nothing to do with your change is still reported, never skipped or hidden.
+- **At the end of each milestone,** push the branch and open a pull request into the branch the plan names:
+
+  ```bash
+  git push -u origin <branch>
+  gh pr create --base <target> --title "<milestone>" --body-file <report>
+  ```
+
+  The body is your milestone report: what was built, the deviations, how it was tested, and what couldn't be tested here (Windows, macOS, hardware).
+- **Read the pull request's checks.** CI runs the full workflow on it: Linux, Windows, macOS, the integration tests and the Docker image. Watch it with `gh pr checks <number> --watch`. Read each failure with `gh run view <run> --log-failed`, fix it on the same branch, run `.github/check.sh` again, then push. The three-attempts rule in "When you're stuck" applies to these failures too.
+- **Never merge.** The review happens on the pull request, and the user merges.
 
 ## Every build command loads the environment
 
@@ -231,5 +248,5 @@ If the same step fails **three times in a row**, stop retrying and ask Claude. "
   - the plan and the design disagree;
   - a step can't be done as written;
   - a tool is missing;
-  - anything about scope, product choices, branches, pushing, or deleting work.
+  - anything about scope, product choices, merging, pushing anywhere but your own branch, or deleting work.
 - **Claude only advises.** In this mode it has no edit or shell tools. You make every change, and the change is yours.
