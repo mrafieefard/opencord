@@ -154,12 +154,6 @@ class MockServer {
         port: 80,
         state: PortState.notPermitted,
       ),
-      PortStatus(
-        purpose: PortPurpose.localProxy,
-        protocol: PortProtocol.tcp,
-        port: 7719,
-        state: PortState.off,
-      ),
     ],
     acme: AcmeAccount(termsUrl: 'https://letsencrypt.org/repository/'),
     tunnel: TunnelStatus(cloudflaredVersion: '2026.10.0'),

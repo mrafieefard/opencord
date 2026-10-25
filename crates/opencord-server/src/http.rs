@@ -15,7 +15,7 @@ use serde::Serialize;
 
 use crate::domains::http_check::VERIFY_PATH;
 use crate::domains::web;
-use crate::network::proxy::ThroughLocalListener;
+use crate::network::main_port::Via;
 use crate::state::AppState;
 use crate::{gateway, media, music, voice};
 
@@ -69,7 +69,7 @@ struct Info {
 async fn voice_gateway(
     State(state): State<Arc<AppState>>,
     ConnectInfo(peer): ConnectInfo<SocketAddr>,
-    local: Option<axum::Extension<ThroughLocalListener>>,
+    via: Option<axum::Extension<Via>>,
     headers: HeaderMap,
     upgrade: WebSocketUpgrade,
 ) -> Response {
@@ -80,7 +80,7 @@ async fn voice_gateway(
     // A trusted peer alone is not enough: loopback is trusted by default,
     // and an app on the server's own machine connects from there.
     let forwarded = headers.contains_key("x-forwarded-for");
-    let proxied = local.is_some()
+    let proxied = via.is_some_and(|axum::Extension(via)| via == Via::Proxy)
         || (forwarded && state.network.settings().trusts(peer.ip()))
         || host.is_some_and(|host| state.domains.behind_proxy(host));
     if !proxied {

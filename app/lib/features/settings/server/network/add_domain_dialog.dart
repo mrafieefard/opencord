@@ -203,7 +203,8 @@ class _AddDomainDialogState extends ConsumerState<AddDomainDialog> {
     final colors = context.oc;
     final network = _network;
     final address = network?.publicAddress ?? const PublicAddress();
-    final local = network?.settings.localListenerPort ?? 7719;
+    // Proxies forward plain HTTP to the main port (D69).
+    final local = network?.listeningPort ?? 7710;
     final records = <(String, String)>[
       if (address.ipv4.isNotEmpty) ('A', address.ipv4),
       if (address.ipv6.isNotEmpty) ('AAAA', address.ipv6),

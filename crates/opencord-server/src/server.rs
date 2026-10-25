@@ -20,6 +20,7 @@ use crate::domains::{self, Domains};
 use crate::gateway::session::CloseCode;
 use crate::guild::Guild;
 use crate::handshakes::WatchedAcceptor;
+use crate::network::main_port::MainAcceptor;
 use crate::network::settings::NetworkSettings;
 use crate::network::{Listening, Network};
 use crate::secrets::Secrets;
@@ -141,7 +142,16 @@ pub async fn start(config: Config) -> anyhow::Result<ServerHandle> {
     let handle = Handle::new();
     let app = http::router(Arc::clone(&state)).into_make_service_with_connect_info::<SocketAddr>();
     let bound = listener.local_addr()?;
-    let acceptor = WatchedAcceptor::new(RustlsAcceptor::new(rustls), state.lavalink.refusals());
+    let acceptor = MainAcceptor::new(
+        WatchedAcceptor::new(RustlsAcceptor::new(rustls), state.lavalink.refusals()),
+        Arc::clone(&state),
+    );
+    if config.network.local_listener_bind.is_some() {
+        tracing::warn!(
+            "local_listener_bind is no longer used: tunnels and reverse proxies send plain \
+             HTTP to the main port; plain_http_from names who else may (docs/domains.md)"
+        );
+    }
     let serve = tokio::spawn(
         axum_server::from_tcp(listener)?
             .acceptor(acceptor)
@@ -166,7 +176,6 @@ pub async fn start(config: Config) -> anyhow::Result<ServerHandle> {
     );
     Network::start(&state);
     domains::start(&state);
-    domains::sync_local_listener(&state).await;
     certs::start(&state);
     crate::tunnel::restore(&state).await;
 
@@ -208,7 +217,6 @@ impl ServerHandle {
             bridge.shutdown();
         }
         self.state.shutdown.cancel();
-        self.state.network.close_local_listener().await;
         self.handle.graceful_shutdown(Some(SHUTDOWN_GRACE));
         let _ = self.serve.await;
         self.reaper.abort();
@@ -254,30 +262,6 @@ impl ServerHandle {
     /// of renewal.
     pub async fn renew_certificates_now(&self) {
         crate::certs::renew_all_now(&self.state).await;
-    }
-
-    /// Starts or stops the local listener for tunnels and proxies; returns
-    /// its port, which the system picks, so tests may run at once.
-    pub async fn set_local_listener_on_any_port(&self, on: bool) -> std::io::Result<Option<u16>> {
-        let mut settings = self.state.network.settings();
-        settings.local_listener_port = 0;
-        self.state.network.restore(settings);
-        self.set_local_listener(on).await
-    }
-
-    /// The local listener's port, while it runs.
-    pub fn local_listener_port(&self) -> Option<u16> {
-        self.state.network.local_listener_port()
-    }
-
-    /// Starts or stops the local listener for tunnels and proxies; returns
-    /// its port. Intended for tests until tunnel domains turn it on.
-    pub async fn set_local_listener(&self, on: bool) -> std::io::Result<Option<u16>> {
-        self.state
-            .network
-            .set_local_listener(&self.state, on)
-            .await?;
-        Ok(self.state.network.local_listener_port())
     }
 
     /// Like [`Self::drop_connections`], for one user only.

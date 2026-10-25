@@ -20,7 +20,7 @@ This guide grows with Phase 3. What is here so far:
 - [Opening ports on a home router](#opening-ports-on-a-home-router)
 - [Ports below 1024](#ports-below-1024)
 - [The main port](#the-main-port)
-- [Tunnels and reverse proxies: the local listener](#tunnels-and-reverse-proxies-the-local-listener)
+- [Tunnels and reverse proxies: plain HTTP on the main port](#tunnels-and-reverse-proxies-plain-http-on-the-main-port)
 - [Advanced settings](#advanced-settings)
 - [Troubleshooting](#troubleshooting)
 
@@ -48,11 +48,11 @@ AAAA  chat.example.com  →  2001:db8::10
 
 The AAAA record appears only when the server has IPv6. If the domain's DNS is at Cloudflare, set the records to **DNS only** (grey cloud): Cloudflare's proxy forwards only web traffic on a few ports, and no UDP for voice. To keep a domain behind Cloudflare, use a [Cloudflare Tunnel](#cloudflare-tunnel).
 
-Behind a reverse proxy, the next step shows how to point the proxy at Opencord's local listener. For Caddy:
+Behind a reverse proxy, the next step shows how to point the proxy at Opencord's main port, in plain HTTP. For Caddy:
 
 ```text
 chat.example.com {
-    reverse_proxy 127.0.0.1:7719
+    reverse_proxy 127.0.0.1:7710
 }
 ```
 
@@ -155,7 +155,7 @@ The token connects the provider under [DNS providers](#dns-providers) too, where
 
 ## Cloudflare Tunnel
 
-A tunnel reaches the server when its ports cannot be opened (no port forwarding, carrier-grade NAT). cloudflared, Cloudflare's connector, opens an outgoing connection to Cloudflare and forwards the tunnel's name to Opencord's [local listener](#reverse-proxies). Cloudflare provides the certificate, so apps trust the name without a fingerprint, and WebSockets pass through: chat, voice signalling, web invites and a Lavalink node's connection to the audio bridge all work.
+A tunnel reaches the server when its ports cannot be opened (no port forwarding, carrier-grade NAT). cloudflared, Cloudflare's connector, opens an outgoing connection to Cloudflare and forwards the tunnel's name to Opencord's main port in [plain HTTP](#tunnels-and-reverse-proxies-plain-http-on-the-main-port). Cloudflare provides the certificate, so apps trust the name without a fingerprint, and WebSockets pass through: chat, voice signalling, web invites and a Lavalink node's connection to the audio bridge all work.
 
 **Tunnels carry no UDP.** Voice and video (UDP 7711) and music from Lavalink (UDP 7712) still need to reach the server directly. Apps that connect through a tunnel or a reverse proxy are sent to the server's public address for voice and video (the one under **Public address**, detected or set by hand), so it must be known and UDP 7711 open there. Without any reachable UDP, text works fully; music works when Lavalink runs on the same machine or network, since its UDP stays local; voice needs a UDP path (a relay is planned for later).
 
@@ -164,14 +164,14 @@ Under **Domains**, choose **Use a tunnel**:
 | Choice | Needs | What you get |
 |---|---|---|
 | Quick tunnel | Nothing | A random `*.trycloudflare.com` address. For testing only: the address changes every time the tunnel starts, Cloudflare allows at most 200 requests at once, and there is no uptime guarantee. |
-| My Cloudflare tunnel | A free Cloudflare account and a domain on Cloudflare | Your own name. In Cloudflare's dashboard (Zero Trust, then Networks, then Tunnels) create a tunnel, add a public hostname whose service is `http://localhost:7719`, and paste the tunnel's token (the long value in its install command) and that hostname into Opencord. |
+| My Cloudflare tunnel | A free Cloudflare account and a domain on Cloudflare | Your own name. In Cloudflare's dashboard (Zero Trust, then Networks, then Tunnels) create a tunnel, add a public hostname whose service is `http://localhost:7710`, and paste the tunnel's token (the long value in its install command) and that hostname into Opencord. |
 | I run cloudflared | cloudflared running elsewhere, such as a Docker sidecar | Add the hostname as a tunnel domain; Opencord checks it through the tunnel. |
 
 Opencord runs cloudflared itself for the first two: it starts it again when it stops (after a pause that grows to a minute), shows its state and restarts on the page, and keeps its last 200 lines of output (**Output**), with the token hidden. The tunnel starts again with the server. **Stop** ends it; a quick tunnel's address goes with it, a named tunnel's domain stays.
 
 **cloudflared.** Opencord uses `cloudflared` under `[tunnel]` in `opencord.toml` when it is set, else one it downloaded, else the one on the server's `PATH`. Without one, the page offers **Download**: Opencord fetches Cloudflare's latest release for the machine from GitHub and keeps it only when its SHA-256 matches the checksum Cloudflare lists in the release notes, and GitHub's own digest of the file. It is saved as `bin/cloudflared` in the data directory.
 
-**As a Docker sidecar.** The sidecar shares the Opencord container's network, so the tunnel's `http://localhost:7719` reaches the local listener as it would on one machine. Add this service to `deploy/docker-compose.yml`, with the tunnel token in `.env` as `TUNNEL_TOKEN`, then add the hostname with "I run cloudflared":
+**As a Docker sidecar.** The sidecar shares the Opencord container's network, so the tunnel's `http://localhost:7710` reaches the main port from loopback, as it would on one machine. Add this service to `deploy/docker-compose.yml`, with the tunnel token in `.env` as `TUNNEL_TOKEN`, then add the hostname with "I run cloudflared":
 
 ```yaml
   cloudflared:
@@ -193,7 +193,7 @@ Caddy, Nginx, Traefik, ngrok, Tailscale Funnel and the like handle TLS and forwa
 
 ```
 chat.example.com {
-    reverse_proxy 127.0.0.1:7719
+    reverse_proxy 127.0.0.1:7710
 }
 ```
 
@@ -208,7 +208,7 @@ server {
     ssl_certificate_key /etc/letsencrypt/live/chat.example.com/privkey.pem;
 
     location / {
-        proxy_pass http://127.0.0.1:7719;
+        proxy_pass http://127.0.0.1:7710;
         proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection "upgrade";
@@ -223,18 +223,17 @@ server {
 
 Files go up in pieces of 8 MiB, so a proxy must let request bodies of at least 9 MB through: the `client_max_body_size 50m` above does, and Caddy and Traefik have no limit by default. Pieces are that size because Cloudflare refuses requests over 100 MB, on tunnels and proxied records alike, and an 8 MiB piece is quick to send again after a dropped connection.
 
-A proxy on another machine cannot reach the local listener: point it at the main port (`https://<server>:7710`) instead, and add its address to **Trusted proxies** under Advanced. Like tunnels, proxies carry no UDP: 7711 and 7712 must reach the server directly.
+A proxy on another machine: add its address to **Trusted proxies** under Advanced, then point it at the main port, in HTTPS (`https://<server>:7710`) or, on a network you trust, plain HTTP. Like tunnels, proxies carry no UDP: 7711 and 7712 must reach the server directly.
 
 ### In Docker: Traefik, Dokploy, Coolify
 
-A proxy in another container reaches Opencord over their shared Docker network, not over loopback. The Opencord image sets `OPENCORD_LOCAL_LISTENER_BIND=0.0.0.0`, so the local listener answers there:
+A proxy in another container reaches Opencord over their shared Docker network, not over loopback. The Opencord image sets `OPENCORD_PLAIN_HTTP_FROM` to the private ranges (`10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`, `fc00::/7`), so the main port takes plain HTTP from there:
 
-- Point the proxy at the Opencord service on port 7719, in plain HTTP. In Dokploy, that is the domain's container port.
-- Don't publish 7719 with `ports:`: the proxy reaches it without that, and it serves without TLS.
+- Point the proxy at the Opencord service on port 7710, in plain HTTP. In Dokploy, that is the domain's container port.
 - Add the Docker network's range to **Trusted proxies** under Advanced, for example `10.0.0.0/8` or `172.16.0.0/12` (`docker network inspect <network>` shows it). Without it, every person seems to come from the proxy, and rate limits and bans treat them as one.
 - Publish 7711/udp, and 7712/udp for Lavalink on other machines, straight from the Opencord container.
 
-With the host's network (`network_mode: host`), the listener would answer on the machine's own addresses: set `OPENCORD_LOCAL_LISTENER_BIND=127.0.0.1` there. Images from before this setting listen on the container's loopback only, which a proxy in another container cannot reach: it answers with Bad Gateway.
+With the host's network (`network_mode: host`), people on your local network would come from those ranges too: set `OPENCORD_PLAIN_HTTP_FROM=` (empty) there, and a proxy on the same machine still reaches the main port from loopback. Proxies set up for an earlier version point at port 7719, which is gone: point them at 7710.
 
 ## Public address
 
@@ -257,11 +256,10 @@ When the address changes, the owner gets a notice, and (from the domains milesto
 
 | Port | Protocol | Used for | Must be reachable from |
 |---|---|---|---|
-| 7710 (the main port) | TCP | Chat, voice signalling, files, invite pages, and Lavalink's connection to the music bridge | Everyone, Lavalink nodes |
+| 7710 (the main port) | TCP | Chat, voice signalling, files, invite pages, Lavalink's connection to the music bridge, and plain HTTP from tunnels and reverse proxies | Everyone, Lavalink nodes |
 | 7711 | UDP | Voice and video | Everyone |
 | 7712 | UDP | Music audio from Lavalink | Lavalink nodes on other machines |
 | 80 | TCP | Let's Encrypt's check, only while a certificate is requested or renewed | The internet |
-| 7719 | TCP, this machine only (or its Docker network) | The local listener for tunnels and reverse proxies | Programs on the same machine, or proxies in other containers |
 
 The page shows each port's state:
 
@@ -305,11 +303,17 @@ sudo setcap cap_net_bind_service=+ep /usr/local/bin/opencord-server
 
 The main port can be changed in the app; it takes effect when the server restarts. Use 443 so addresses and invite links need no port number. If the new port cannot be had at the next start (another program has it, or it is below 1024 without the capability), the server falls back to the port in `opencord.toml`, `bind` under `[server]`, and logs why, so the owner can always get back in.
 
-## Tunnels and reverse proxies: the local listener
+## Tunnels and reverse proxies: plain HTTP on the main port
 
-Tunnels (Cloudflare Tunnel, ngrok) and reverse proxies (Caddy, Nginx, Traefik) take care of TLS and forward plain HTTP to Opencord's local listener: `http://127.0.0.1:7719`. It serves the same things as the main port without TLS, and only programs on the same machine can reach it. It runs while a tunnel or reverse-proxy domain exists, or a tunnel runs.
+Tunnels (Cloudflare Tunnel, ngrok) and reverse proxies (Caddy, Nginx, Traefik) take care of TLS and forward plain HTTP to the main port: `http://127.0.0.1:7710`. The main port tells the two apart by the first byte of each connection, which for TLS is always a handshake. It takes plain HTTP only from:
 
-It listens on `127.0.0.1`. `local_listener_bind` under `[network]` in `opencord.toml` (`OPENCORD_LOCAL_LISTENER_BIND`) changes that address, and takes effect at the next start. The Docker image sets it to `0.0.0.0` so a proxy in another container can reach it ([In Docker](#in-docker-traefik-dokploy-coolify)). Its port is set in the app.
+- this machine (`127.0.0.1`, `::1`),
+- the **trusted proxies** under Advanced,
+- the addresses and ranges in `plain_http_from` under `[network]` in `opencord.toml` (`OPENCORD_PLAIN_HTTP_FROM`, comma-separated). It is empty by default; the Docker image sets it to the private ranges ([In Docker](#in-docker-traefik-dokploy-coolify)).
+
+Plain HTTP from anywhere else gets `400 Bad Request` with "This port speaks HTTPS". Taking plain HTTP from an address only means its connections are not encrypted on the last hop; its `X-Forwarded-For` is believed only from trusted proxies.
+
+Versions before this one served tunnels and proxies on a separate local listener, port 7719. That port is gone: tunnels Opencord runs follow by themselves, but a proxy or a Cloudflare tunnel you set up yourself must now point at 7710. `local_listener_bind` in an older `opencord.toml` is ignored, with a warning in the log.
 
 Behind a proxy, every connection seems to come from the proxy. Opencord believes the client address in `X-Forwarded-For` only from **trusted proxies**: `127.0.0.1` and `::1` by default, which covers a proxy on the same machine. Add a proxy on another machine under Advanced.
 
@@ -319,8 +323,7 @@ Behind a proxy, every connection seems to come from the proxy. Opencord believes
 |---|---|---|
 | DNS resolvers for checks | 1.1.1.1, 8.8.8.8, 9.9.9.9 | Domain checks find each domain's name servers through these. Change them when your network blocks the defaults. |
 | Let's Encrypt test environment | Off | Certificates from Let's Encrypt's staging environment, for trying the setup without reaching its limits. They are not trusted by browsers or apps. |
-| Local listener port | 7719 | Where tunnels and proxies forward to. |
-| Trusted proxies | 127.0.0.1, ::1 | Addresses or ranges (`10.0.0.0/8`) whose `X-Forwarded-For` is believed. |
+| Trusted proxies | 127.0.0.1, ::1 | Addresses or ranges (`10.0.0.0/8`) whose `X-Forwarded-For` is believed, and which may send the main port plain HTTP. |
 
 ## Troubleshooting
 
@@ -333,7 +336,7 @@ Behind a proxy, every connection seems to come from the proxy. Opencord believes
 | **Proxied by Cloudflare** | Cloudflare's proxy (orange cloud) is turned on, blocking UDP voice and music traffic | Set the DNS record to **DNS only** (grey cloud) in Cloudflare's DNS dashboard |
 | **Partly correct** | Some records match the server, but extra or stale records exist (e.g. an old AAAA record) | Remove the outdated or conflicting DNS records |
 | **Check failed** | Name servers did not answer, or the server's public IP could not be detected | Verify your network connection and DNS resolvers; set your public address manually under Public address if auto-detection fails |
-| **Wrong verify token** | A reverse proxy or tunnel answered, but didn't return the server's verification token | Ensure the proxy forwards traffic to the local listener port (`http://127.0.0.1:7719`) and preserves `/.well-known/opencord/verify` |
+| **Wrong verify token** | A reverse proxy or tunnel answered, but didn't return the server's verification token | Ensure the proxy forwards traffic to the main port (`http://127.0.0.1:7710`) and preserves `/.well-known/opencord/verify` |
 | **Hairpin NAT failure** | Behind a home router without NAT loopback, proxy checks from inside the network fail | Test reaching the address from a mobile or external network; if it works, click **Confirm it works** in the domain's menu |
 
 ### Certificates

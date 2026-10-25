@@ -13,6 +13,7 @@ use crate::error::ApiError;
 const PREFIX: &str = "network.";
 const MAIN_PORT: &str = "main_port";
 const UPNP: &str = "upnp";
+/// The port of the listener the main port replaced (D69): cleared on save.
 const LOCAL_LISTENER_PORT: &str = "local_listener_port";
 const TRUSTED_PROXIES: &str = "trusted_proxies";
 const DNS_RESOLVERS: &str = "dns_resolvers";
@@ -24,7 +25,6 @@ const DETECTED_V4: &str = "detected_ipv4";
 const DETECTED_V6: &str = "detected_ipv6";
 const DETECTED_AT: &str = "detected_at_ms";
 
-pub const DEFAULT_LOCAL_LISTENER_PORT: u16 = 7719;
 /// Public resolvers that answer from anywhere (plan §6.2).
 pub const DEFAULT_RESOLVERS: [&str; 3] = ["1.1.1.1", "8.8.8.8", "9.9.9.9"];
 /// More would only slow a check down.
@@ -94,7 +94,6 @@ pub struct NetworkSettings {
     /// The main port from the next start.
     pub main_port: Option<u16>,
     pub upnp: bool,
-    pub local_listener_port: u16,
     pub trusted_proxies: Vec<IpRange>,
     pub dns_resolvers: Vec<SocketAddr>,
     pub acme_staging: bool,
@@ -112,7 +111,6 @@ impl Default for NetworkSettings {
         Self {
             main_port: None,
             upnp: false,
-            local_listener_port: DEFAULT_LOCAL_LISTENER_PORT,
             // The local listener's peers: tunnels and proxies on this machine.
             trusted_proxies: ["127.0.0.1", "::1"]
                 .into_iter()
@@ -156,10 +154,6 @@ impl NetworkSettings {
                 .map(|value| value.parse().map_err(|_| corrupt(MAIN_PORT)))
                 .transpose()?,
             upnp: flag(UPNP, defaults.upnp)?,
-            local_listener_port: get(LOCAL_LISTENER_PORT)
-                .map_or(Ok(defaults.local_listener_port), |value| {
-                    value.parse().map_err(|_| corrupt(LOCAL_LISTENER_PORT))
-                })?,
             trusted_proxies: match list(TRUSTED_PROXIES) {
                 None => defaults.trusted_proxies,
                 Some(items) => items
@@ -193,10 +187,7 @@ impl NetworkSettings {
         let entries = [
             (MAIN_PORT, self.main_port.map(|port| port.to_string())),
             (UPNP, Some(self.upnp.to_string())),
-            (
-                LOCAL_LISTENER_PORT,
-                Some(self.local_listener_port.to_string()),
-            ),
+            (LOCAL_LISTENER_PORT, None),
             (
                 TRUSTED_PROXIES,
                 Some(joined(
@@ -241,14 +232,8 @@ impl NetworkSettings {
         if let Some(upnp) = request.upnp_enabled {
             next.upnp = upnp;
         }
-        if let Some(port) = request.local_listener_port {
-            next.local_listener_port = u16::try_from(port)
-                .ok()
-                .filter(|port| *port != 0)
-                .ok_or_else(|| {
-                    ApiError::invalid_argument("the local listener port is 1 to 65535")
-                })?;
-        }
+        // `local_listener_port` is ignored: tunnels and proxies use the main
+        // port (D69).
         if let Some(list) = &request.trusted_proxies {
             next.trusted_proxies = parse_list(&list.values, IpRange::parse, "a trusted proxy")?;
         }
@@ -271,7 +256,6 @@ impl NetworkSettings {
         proto::NetworkSettings {
             main_port: self.main_port.map_or(0, u32::from),
             upnp_enabled: self.upnp,
-            local_listener_port: u32::from(self.local_listener_port),
             trusted_proxies: self
                 .trusted_proxies
                 .iter()
@@ -286,6 +270,7 @@ impl NetworkSettings {
                 })
                 .collect(),
             acme_staging: self.acme_staging,
+            ..Default::default()
         }
     }
 
@@ -389,7 +374,6 @@ mod tests {
             settings.apply(&request)
         };
         assert!(request(|r| r.main_port = Some(70_000)).is_err());
-        assert!(request(|r| r.local_listener_port = Some(0)).is_err());
         assert!(
             request(|r| r.trusted_proxies = Some(proto::StringList {
                 values: vec!["not an address".into()]

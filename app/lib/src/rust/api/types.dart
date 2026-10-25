@@ -2986,7 +2986,6 @@ class NetworkSettings {
   /// The main port from the next start; 0 keeps the configured one.
   final int mainPort;
   final bool upnpEnabled;
-  final int localListenerPort;
   final List<String> trustedProxies;
   final List<String> dnsResolvers;
   final bool acmeStaging;
@@ -2994,7 +2993,6 @@ class NetworkSettings {
   const NetworkSettings({
     required this.mainPort,
     required this.upnpEnabled,
-    required this.localListenerPort,
     required this.trustedProxies,
     required this.dnsResolvers,
     required this.acmeStaging,
@@ -3004,7 +3002,6 @@ class NetworkSettings {
   int get hashCode =>
       mainPort.hashCode ^
       upnpEnabled.hashCode ^
-      localListenerPort.hashCode ^
       trustedProxies.hashCode ^
       dnsResolvers.hashCode ^
       acmeStaging.hashCode;
@@ -3016,7 +3013,6 @@ class NetworkSettings {
           runtimeType == other.runtimeType &&
           mainPort == other.mainPort &&
           upnpEnabled == other.upnpEnabled &&
-          localListenerPort == other.localListenerPort &&
           trustedProxies == other.trustedProxies &&
           dnsResolvers == other.dnsResolvers &&
           acmeStaging == other.acmeStaging;
@@ -3027,7 +3023,6 @@ class NetworkSettings {
 class NetworkSettingsChanges {
   final int? mainPort;
   final bool? upnpEnabled;
-  final int? localListenerPort;
   final List<String>? trustedProxies;
   final List<String>? dnsResolvers;
   final bool? acmeStaging;
@@ -3035,7 +3030,6 @@ class NetworkSettingsChanges {
   const NetworkSettingsChanges({
     this.mainPort,
     this.upnpEnabled,
-    this.localListenerPort,
     this.trustedProxies,
     this.dnsResolvers,
     this.acmeStaging,
@@ -3048,7 +3042,6 @@ class NetworkSettingsChanges {
   int get hashCode =>
       mainPort.hashCode ^
       upnpEnabled.hashCode ^
-      localListenerPort.hashCode ^
       trustedProxies.hashCode ^
       dnsResolvers.hashCode ^
       acmeStaging.hashCode;
@@ -3060,7 +3053,6 @@ class NetworkSettingsChanges {
           runtimeType == other.runtimeType &&
           mainPort == other.mainPort &&
           upnpEnabled == other.upnpEnabled &&
-          localListenerPort == other.localListenerPort &&
           trustedProxies == other.trustedProxies &&
           dnsResolvers == other.dnsResolvers &&
           acmeStaging == other.acmeStaging;

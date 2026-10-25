@@ -1,6 +1,5 @@
 //! Tunnels and reverse proxies (Phase 3 plan §9.2–9.3): who a request
-//! really came from, and the plain listener on this machine they forward
-//! to.
+//! really came from. They forward to the main port (`main_port`, D69).
 
 use std::net::{IpAddr, SocketAddr};
 use std::sync::Arc;
@@ -8,7 +7,6 @@ use std::sync::Arc;
 use axum::extract::{ConnectInfo, FromRequestParts};
 use axum::http::request::Parts;
 use axum::http::{HeaderMap, StatusCode};
-use tokio_util::sync::CancellationToken;
 
 use crate::domains::check::is_cloudflare;
 use crate::state::AppState;
@@ -67,64 +65,6 @@ pub fn client_address(
         .rev()
         .find(|ip| !trusts(*ip))
         .map_or(peer, |ip| SocketAddr::new(ip.to_canonical(), 0))
-}
-
-/// Marks requests that came through the local listener: from a tunnel or a
-/// reverse proxy.
-#[derive(Debug, Clone, Copy)]
-pub struct ThroughLocalListener;
-
-/// The plain listener on this machine that tunnels and reverse proxies
-/// forward to: the same routes as the main port, without TLS. It listens on
-/// loopback unless `local_listener_bind` says otherwise, as in a container.
-#[derive(Debug)]
-pub struct LocalListener {
-    pub port: u16,
-    stop: CancellationToken,
-    serving: Option<tokio::task::JoinHandle<()>>,
-}
-
-impl LocalListener {
-    pub async fn start(state: Arc<AppState>, port: u16) -> std::io::Result<Self> {
-        let address = state.config.network.local_listener_bind;
-        let listener = tokio::net::TcpListener::bind((address, port)).await?;
-        let port = listener.local_addr()?.port();
-        let stop = CancellationToken::new();
-        let app = crate::http::router(Arc::clone(&state))
-            .layer(axum::Extension(ThroughLocalListener))
-            .into_make_service_with_connect_info::<SocketAddr>();
-        let stopped = stop.clone();
-        let serving = tokio::spawn(async move {
-            let serve = axum::serve(listener, app)
-                .with_graceful_shutdown(async move { stopped.cancelled().await });
-            if let Err(error) = serve.await {
-                tracing::warn!(%error, "the local listener stopped");
-            }
-        });
-        Ok(Self {
-            port,
-            stop,
-            serving: Some(serving),
-        })
-    }
-
-    pub fn stop(&self) {
-        self.stop.cancel();
-    }
-
-    /// Stops it and waits, a moment at most, until its port is free.
-    pub async fn close(mut self) {
-        self.stop.cancel();
-        if let Some(serving) = self.serving.take() {
-            let _ = tokio::time::timeout(std::time::Duration::from_secs(2), serving).await;
-        }
-    }
-}
-
-impl Drop for LocalListener {
-    fn drop(&mut self) {
-        self.stop.cancel();
-    }
 }
 
 #[cfg(test)]

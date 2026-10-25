@@ -3982,6 +3982,7 @@ dependencies = [
  "tokio-tungstenite 0.30.0",
  "tokio-util",
  "toml 1.1.6+spec-1.1.0",
+ "tower-layer",
  "tracing",
  "tracing-subscriber",
  "webpki-roots",

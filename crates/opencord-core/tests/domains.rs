@@ -68,14 +68,9 @@ async fn start(dns: Option<&FakeDns>) -> TestServer {
 }
 
 /// A TLS proxy on `localhost` with an authority's certificate, forwarding
-/// to the server's plain local listener: a reverse proxy, or a tunnel.
+/// plain HTTP to the server's main port: a reverse proxy, or a tunnel.
 async fn proxy(server: &TestServer) -> u16 {
-    let local = server
-        .handle
-        .set_local_listener_on_any_port(true)
-        .await
-        .unwrap()
-        .unwrap();
+    let local = server.handle.local_addr.port();
     let issued = ca().issue(&["localhost"]);
     let chain = vec![CertificateDer::from_pem_slice(issued.cert_pem.as_bytes()).unwrap()];
     let key = PrivateKeyDer::from_pem_slice(issued.key_pem.as_bytes()).unwrap();
@@ -414,11 +409,6 @@ async fn voice_through_a_proxy_is_checked_by_its_authority_too() {
 #[ignore = "runs a real Cloudflare quick tunnel: needs cloudflared and the internet"]
 async fn a_quick_tunnel_is_a_domain_people_join_through() {
     let server = start(None).await;
-    server
-        .handle
-        .set_local_listener_on_any_port(false)
-        .await
-        .unwrap();
     let owner = TestClient::new("Owner");
     let direct = format!("127.0.0.1:{}", server.handle.local_addr.port());
     let key = owner.add(&direct, server.handle.claim_token.clone()).await;

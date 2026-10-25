@@ -717,7 +717,6 @@ pub struct NetworkSettings {
     /// The main port from the next start; 0 keeps the configured one.
     pub main_port: u32,
     pub upnp_enabled: bool,
-    pub local_listener_port: u32,
     pub trusted_proxies: Vec<String>,
     pub dns_resolvers: Vec<String>,
     pub acme_staging: bool,
@@ -729,7 +728,6 @@ pub struct NetworkSettings {
 pub struct NetworkSettingsChanges {
     pub main_port: Option<u32>,
     pub upnp_enabled: Option<bool>,
-    pub local_listener_port: Option<u32>,
     pub trusted_proxies: Option<Vec<String>>,
     pub dns_resolvers: Option<Vec<String>>,
     pub acme_staging: Option<bool>,

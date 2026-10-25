@@ -60,12 +60,6 @@ async fn server_running(body: &str) -> (TestServer, tempfile::TempDir) {
         config.tunnel.cloudflared = Some(path);
     })
     .await;
-    // Any free port, so tests can run at once.
-    server
-        .handle
-        .set_local_listener_on_any_port(false)
-        .await
-        .unwrap();
     (server, bin)
 }
 
@@ -140,10 +134,8 @@ async fn a_quick_tunnel_gets_its_address_as_a_domain_and_takes_it_away() {
         .expect("the address is a domain");
     assert_eq!(domain.kind, proto::DomainKind::Tunnel as i32);
     assert_eq!(tunnel.domain_id, domain.id);
-    let local = server
-        .handle
-        .local_listener_port()
-        .expect("the local listener runs");
+    // cloudflared sends plain HTTP to the main port.
+    let local = server.handle.local_addr.port();
     let args = std::fs::read_to_string(cloudflared_home(&server).join("args")).unwrap();
     assert_eq!(
         args.trim(),
@@ -239,13 +231,6 @@ async fn a_named_tunnel_runs_with_its_token_hidden_and_starts_again_when_it_stop
 async fn a_tunnel_starts_again_with_the_server() {
     let (server, bin) = server_running(NAMED).await;
     let (mut owner, _) = owner(&server).await;
-    // Saved, so the restarted server's listener does not take 7719.
-    owner
-        .ok(Kind::UpdateNetworkSettings(proto::UpdateNetworkSettings {
-            local_listener_port: Some(u32::from(common::pebble::free_port())),
-            ..Default::default()
-        }))
-        .await;
     owner
         .ok(Kind::StartTunnel(proto::StartTunnel {
             kind: proto::TunnelKind::Named as i32,
@@ -291,11 +276,6 @@ async fn only_the_owner_runs_tunnels_and_none_runs_without_cloudflared() {
         config.tunnel.cloudflared = Some(broken);
     })
     .await;
-    server
-        .handle
-        .set_local_listener_on_any_port(false)
-        .await
-        .unwrap();
     let missing = TestServer::start_with(|config| {
         config.tunnel.cloudflared = Some(PathBuf::from("/nonexistent/cloudflared"));
     })

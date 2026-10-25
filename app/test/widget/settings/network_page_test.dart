@@ -118,7 +118,6 @@ void main() {
       'Voice and video · UDP 7711',
       'Music · UDP 7712',
       'Certificates · TCP 80',
-      'Local listener · TCP 7719',
     ]) {
       expect(_inSettings(find.text(label)), findsOneWidget, reason: label);
     }
@@ -703,7 +702,8 @@ void freeDomainAndTunnelTests() {
     await tester.pump();
     final start = find.widgetWithText(OcButton, 'Start tunnel');
     expect(tester.widget<OcButton>(start).onPressed, isNull);
-    expect(find.textContaining('http://localhost:7719'), findsOneWidget);
+    // The tunnel forwards to the main port (D69).
+    expect(find.textContaining('http://localhost:7710'), findsOneWidget);
     await tester.enterText(_fieldsOf<TunnelDialog>().at(0), 'short');
     await tester.enterText(_fieldsOf<TunnelDialog>().at(1), 'chat.example.com');
     await tester.pump();
@@ -746,7 +746,7 @@ void freeDomainAndTunnelTests() {
     await tester.tap(find.widgetWithText(OcButton, 'Next'));
     await _pumpFor(tester, const Duration(milliseconds: 600));
 
-    expect(find.textContaining('reverse_proxy 127.0.0.1:7719'), findsOneWidget);
+    expect(find.textContaining('reverse_proxy 127.0.0.1:7710'), findsOneWidget);
     await tester.tap(find.text('Nginx'));
     await tester.pump();
     expect(

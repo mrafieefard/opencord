@@ -123,7 +123,7 @@ Each `Request` gets exactly one `Response`, which is either an `error` or the pa
 | `WatchNetwork { watch }` | `network_info` | The owner; see [Domains and network](#domains-and-network) |
 | `SetPublicAddress { auto_detect, override_ipv4, override_ipv6 }` | `network_info` | The owner |
 | `DetectPublicAddress {}` | `network_info` | The owner |
-| `UpdateNetworkSettings { main_port?, upnp_enabled?, local_listener_port?, trusted_proxies?, dns_resolvers?, acme_staging? }` | `network_info` | The owner |
+| `UpdateNetworkSettings { main_port?, upnp_enabled?, trusted_proxies?, dns_resolvers?, acme_staging? }` (`local_listener_port` is ignored since D69) | `network_info` | The owner |
 | `AddDomain { hostname, kind, public_port? }` | `network_info` | The owner; at most 20 domains |
 | `UpdateDomain { domain_id, active?, primary?, public_port?, confirm }` | `network_info` | The owner |
 | `DeleteDomain { domain_id }` | `network_info` | The owner |

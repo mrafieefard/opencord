@@ -864,13 +864,8 @@ async fn voice_reached_through_a_tunnel_or_proxy_sends_media_to_the_public_addre
             override_ipv6: String::new(),
         }))
         .await;
-    let local = room
-        .server
-        .handle
-        .set_local_listener_on_any_port(true)
-        .await
-        .unwrap()
-        .unwrap();
+    // A tunnel or proxy sends plain HTTP to the main port.
+    let local = room.server.handle.local_addr.port();
     let session_id = voice_state(room.member.ok(join_voice(room.voice)).await).session_id;
     let update = server_update(&mut room.member).await;
     let tcp = tokio::net::TcpStream::connect(("127.0.0.1", local))

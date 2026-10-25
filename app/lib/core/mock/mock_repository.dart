@@ -3358,8 +3358,6 @@ class MockRepository implements OpencordRepository {
     final next = NetworkSettings(
       mainPort: changes.mainPort ?? settings.mainPort,
       upnpEnabled: changes.upnpEnabled ?? settings.upnpEnabled,
-      localListenerPort:
-          changes.localListenerPort ?? settings.localListenerPort,
       trustedProxies: changes.trustedProxies ?? settings.trustedProxies,
       dnsResolvers: changes.dnsResolvers ?? settings.dnsResolvers,
       acmeStaging: changes.acmeStaging ?? settings.acmeStaging,

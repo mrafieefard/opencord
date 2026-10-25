@@ -11526,14 +11526,12 @@ impl SseDecode for crate::api::types::NetworkSettings {
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut var_mainPort = <u32>::sse_decode(deserializer);
         let mut var_upnpEnabled = <bool>::sse_decode(deserializer);
-        let mut var_localListenerPort = <u32>::sse_decode(deserializer);
         let mut var_trustedProxies = <Vec<String>>::sse_decode(deserializer);
         let mut var_dnsResolvers = <Vec<String>>::sse_decode(deserializer);
         let mut var_acmeStaging = <bool>::sse_decode(deserializer);
         return crate::api::types::NetworkSettings {
             main_port: var_mainPort,
             upnp_enabled: var_upnpEnabled,
-            local_listener_port: var_localListenerPort,
             trusted_proxies: var_trustedProxies,
             dns_resolvers: var_dnsResolvers,
             acme_staging: var_acmeStaging,
@@ -11546,14 +11544,12 @@ impl SseDecode for crate::api::types::NetworkSettingsChanges {
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut var_mainPort = <Option<u32>>::sse_decode(deserializer);
         let mut var_upnpEnabled = <Option<bool>>::sse_decode(deserializer);
-        let mut var_localListenerPort = <Option<u32>>::sse_decode(deserializer);
         let mut var_trustedProxies = <Option<Vec<String>>>::sse_decode(deserializer);
         let mut var_dnsResolvers = <Option<Vec<String>>>::sse_decode(deserializer);
         let mut var_acmeStaging = <Option<bool>>::sse_decode(deserializer);
         return crate::api::types::NetworkSettingsChanges {
             main_port: var_mainPort,
             upnp_enabled: var_upnpEnabled,
-            local_listener_port: var_localListenerPort,
             trusted_proxies: var_trustedProxies,
             dns_resolvers: var_dnsResolvers,
             acme_staging: var_acmeStaging,
@@ -16311,7 +16307,6 @@ impl flutter_rust_bridge::IntoDart for crate::api::types::NetworkSettings {
         [
             self.main_port.into_into_dart().into_dart(),
             self.upnp_enabled.into_into_dart().into_dart(),
-            self.local_listener_port.into_into_dart().into_dart(),
             self.trusted_proxies.into_into_dart().into_dart(),
             self.dns_resolvers.into_into_dart().into_dart(),
             self.acme_staging.into_into_dart().into_dart(),
@@ -16336,7 +16331,6 @@ impl flutter_rust_bridge::IntoDart for crate::api::types::NetworkSettingsChanges
         [
             self.main_port.into_into_dart().into_dart(),
             self.upnp_enabled.into_into_dart().into_dart(),
-            self.local_listener_port.into_into_dart().into_dart(),
             self.trusted_proxies.into_into_dart().into_dart(),
             self.dns_resolvers.into_into_dart().into_dart(),
             self.acme_staging.into_into_dart().into_dart(),
@@ -20455,7 +20449,6 @@ impl SseEncode for crate::api::types::NetworkSettings {
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <u32>::sse_encode(self.main_port, serializer);
         <bool>::sse_encode(self.upnp_enabled, serializer);
-        <u32>::sse_encode(self.local_listener_port, serializer);
         <Vec<String>>::sse_encode(self.trusted_proxies, serializer);
         <Vec<String>>::sse_encode(self.dns_resolvers, serializer);
         <bool>::sse_encode(self.acme_staging, serializer);
@@ -20467,7 +20460,6 @@ impl SseEncode for crate::api::types::NetworkSettingsChanges {
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <Option<u32>>::sse_encode(self.main_port, serializer);
         <Option<bool>>::sse_encode(self.upnp_enabled, serializer);
-        <Option<u32>>::sse_encode(self.local_listener_port, serializer);
         <Option<Vec<String>>>::sse_encode(self.trusted_proxies, serializer);
         <Option<Vec<String>>>::sse_encode(self.dns_resolvers, serializer);
         <Option<bool>>::sse_encode(self.acme_staging, serializer);

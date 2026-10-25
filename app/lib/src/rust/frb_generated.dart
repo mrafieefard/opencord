@@ -10845,15 +10845,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   NetworkSettings dco_decode_network_settings(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 6)
-      throw Exception('unexpected arr length: expect 6 but see ${arr.length}');
+    if (arr.length != 5)
+      throw Exception('unexpected arr length: expect 5 but see ${arr.length}');
     return NetworkSettings(
       mainPort: dco_decode_u_32(arr[0]),
       upnpEnabled: dco_decode_bool(arr[1]),
-      localListenerPort: dco_decode_u_32(arr[2]),
-      trustedProxies: dco_decode_list_String(arr[3]),
-      dnsResolvers: dco_decode_list_String(arr[4]),
-      acmeStaging: dco_decode_bool(arr[5]),
+      trustedProxies: dco_decode_list_String(arr[2]),
+      dnsResolvers: dco_decode_list_String(arr[3]),
+      acmeStaging: dco_decode_bool(arr[4]),
     );
   }
 
@@ -10861,15 +10860,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   NetworkSettingsChanges dco_decode_network_settings_changes(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 6)
-      throw Exception('unexpected arr length: expect 6 but see ${arr.length}');
+    if (arr.length != 5)
+      throw Exception('unexpected arr length: expect 5 but see ${arr.length}');
     return NetworkSettingsChanges(
       mainPort: dco_decode_opt_box_autoadd_u_32(arr[0]),
       upnpEnabled: dco_decode_opt_box_autoadd_bool(arr[1]),
-      localListenerPort: dco_decode_opt_box_autoadd_u_32(arr[2]),
-      trustedProxies: dco_decode_opt_list_String(arr[3]),
-      dnsResolvers: dco_decode_opt_list_String(arr[4]),
-      acmeStaging: dco_decode_opt_box_autoadd_bool(arr[5]),
+      trustedProxies: dco_decode_opt_list_String(arr[2]),
+      dnsResolvers: dco_decode_opt_list_String(arr[3]),
+      acmeStaging: dco_decode_opt_box_autoadd_bool(arr[4]),
     );
   }
 
@@ -15045,14 +15043,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     // Codec=Sse (Serialization based), see doc to use other codecs
     var var_mainPort = sse_decode_u_32(deserializer);
     var var_upnpEnabled = sse_decode_bool(deserializer);
-    var var_localListenerPort = sse_decode_u_32(deserializer);
     var var_trustedProxies = sse_decode_list_String(deserializer);
     var var_dnsResolvers = sse_decode_list_String(deserializer);
     var var_acmeStaging = sse_decode_bool(deserializer);
     return NetworkSettings(
       mainPort: var_mainPort,
       upnpEnabled: var_upnpEnabled,
-      localListenerPort: var_localListenerPort,
       trustedProxies: var_trustedProxies,
       dnsResolvers: var_dnsResolvers,
       acmeStaging: var_acmeStaging,
@@ -15066,14 +15062,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     // Codec=Sse (Serialization based), see doc to use other codecs
     var var_mainPort = sse_decode_opt_box_autoadd_u_32(deserializer);
     var var_upnpEnabled = sse_decode_opt_box_autoadd_bool(deserializer);
-    var var_localListenerPort = sse_decode_opt_box_autoadd_u_32(deserializer);
     var var_trustedProxies = sse_decode_opt_list_String(deserializer);
     var var_dnsResolvers = sse_decode_opt_list_String(deserializer);
     var var_acmeStaging = sse_decode_opt_box_autoadd_bool(deserializer);
     return NetworkSettingsChanges(
       mainPort: var_mainPort,
       upnpEnabled: var_upnpEnabled,
-      localListenerPort: var_localListenerPort,
       trustedProxies: var_trustedProxies,
       dnsResolvers: var_dnsResolvers,
       acmeStaging: var_acmeStaging,
@@ -19217,7 +19211,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_u_32(self.mainPort, serializer);
     sse_encode_bool(self.upnpEnabled, serializer);
-    sse_encode_u_32(self.localListenerPort, serializer);
     sse_encode_list_String(self.trustedProxies, serializer);
     sse_encode_list_String(self.dnsResolvers, serializer);
     sse_encode_bool(self.acmeStaging, serializer);
@@ -19231,7 +19224,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_opt_box_autoadd_u_32(self.mainPort, serializer);
     sse_encode_opt_box_autoadd_bool(self.upnpEnabled, serializer);
-    sse_encode_opt_box_autoadd_u_32(self.localListenerPort, serializer);
     sse_encode_opt_list_String(self.trustedProxies, serializer);
     sse_encode_opt_list_String(self.dnsResolvers, serializer);
     sse_encode_opt_box_autoadd_bool(self.acmeStaging, serializer);
