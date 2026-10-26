@@ -160,8 +160,11 @@ impl ApplicationHandler<Message> for Splash {
             Ok(surface) => self.surface = Some(surface),
             Err(error) => crate::log::line(format!("no splash surface: {error}")),
         }
-        window.request_redraw();
         self.window = Some(window);
+        // Drawn now, not on a requested redraw: Windows sends none to a
+        // hidden window (no WM_PAINT), so it would never be shown. Once
+        // shown, it is painted again as usual.
+        self.redraw();
     }
 
     fn user_event(&mut self, event_loop: &ActiveEventLoop, message: Message) {
