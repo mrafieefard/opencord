@@ -1292,3 +1292,28 @@ Windows.Graphics.Capture draws a yellow border around whatever is being captured
 - **Windows 11** (and Server 2022): the session is told `IsBorderRequired = false`. First the app asks `GraphicsCaptureAccess::RequestAccessAsync(Borderless)` once per run. The wait is capped at 2 s, so a share never hangs on it. Microsoft documents the request as prompting a packaged app; an unpackaged app like Opencord is expected to be answered without one. Either way, the share goes ahead.
 - **Windows 10** has neither the request nor the switch, so the border stays there for captures through the API. Removing it there would mean capturing screens another way (DXGI duplication), which is left open.
 - **Owed by hand:** a screen and a window shared on Windows 11 show no border, and Windows doesn't prompt.
+
+## D75: The phone apps' foundations (2026-10-26)
+
+The owner asked for Android and iOS apps in React Native, with native components, on the Rust client core with only slight changes, laid out like WhatsApp and Telegram. Design: `docs/superpowers/specs/2026-10-26-mobile-client-design.md`; plan: `docs/superpowers/plans/2026-10-26-mobile-client.md`. This is its milestone R0, Tasks 1–5, by Claude.
+
+- **A facade crate.** `crates/opencord-mobile` wraps `opencord_core::client::Client`, the client the Flutter API wraps, with UniFFI 0.31.2 for uniffi-bindgen-react-native 0.31.0-6. `opencord-core` itself is unchanged.
+  - Ids cross as decimal strings (an `i64` would be a `bigint`), times and sizes as `f64`, permissions as `ChannelAccess` flags (`ADMINISTRATOR` sets them all).
+  - Errors are `MobileError`, one variant per `CoreError` variant; a server's `ErrorCode` crosses as its snake-case name.
+  - Event and error conversions have no catch-all arm, so a new core event fails to compile until it is mapped or listed as dropped.
+- **Events are pulled.** A callback from a Rust thread would block it until JavaScript returns, so the app loops on `nextEvents(generation, 256)`. `eventsAttach` starts a new generation and wakes any call waiting under an older one with `[]`, so a JavaScript reload takes the stream over instead of waiting behind a call from a context that is gone. The wake-up is registered before the generation is read, so none is lost.
+- **Attachments as files.** `attachment_file` caches each one at `<cache>/attachments/<16 hex of the server key's SHA-256>/<id>.<o|t>`, fetched into a unique `.part` file and renamed into place. The files are plain; the phone's app sandbox and disk encryption guard them.
+- **The build.**
+  - `mobile/` is Expo SDK 58 (React Native 0.88, React 19.3, Expo Router, Gesture Handler 3.3, Reanimated 4.7) on Yarn 1 workspaces.
+  - `@opencord/core-native` is the turbo-module ubrn generates. The bindings and its glue are committed; the glue names the ABIs, so `scripts/build-core.sh` always makes it from `ubrn.config.yaml`'s targets (`arm64-v8a`, `x86_64`).
+  - **Android 8.0 (API 26) and up:** cpal's AAudio back end needs API 26, and linking at 24 fails on `-laaudio`.
+  - **A shared library on Android:** the Rust static library couldn't carry `libandroid` and AAudio to the turbo-module's CMake link, so ubrn's `useSharedLibrary` builds the facade's `cdylib`, which links them itself.
+  - **Autolinking** only sees packages the app lists, so the app depends on `@opencord/core-native`.
+  - CI gains Phone (Android), a release APK, with the bindings, types, lint, tests and licences checked, and Phone (iOS), a simulator build. Neither releases anything yet.
+- **The app's core layer.** `CoreApi` mirrors the facade; `NativeCore` is the bindings as they are; `FakeCore` is a fixed world (Night Owls connected, Rust Club reconnecting, Weekend Raid refused) that answers as the core does. Jest maps `@opencord/core-native` to the generated bindings without their native installer, so their classes and enums work in tests. Boot opens the core, then loads the identity from the keychain (`opencord.identity`) and the name from the core's settings.
+- **The store** (Zustand) applies events purely. A Ready seeds unread counts as the desktop's `_recentActivity` does: the 50 newest messages of each readable channel, 4 fetches at once, 10 s each. The server's other events wait until it ends, then apply in order; a newer Ready discards the older result. A message the seeding already had isn't counted again. Read positions (`mobile.read.<server>`) only move forward and are written at most every 2 s.
+- **Calls made on the way.** Display names are 1–32 characters, as the core checks them (the design first said 2–32). Expo's own dependency tree brings a few permissive licences outside the plan's list (BlueOak, Unlicense, Python-2.0, CC-BY data, MPL-2.0 lightningcss); `scripts/licenses.js` allows those packages by name.
+- **Tests.**
+  - The facade: ids, conversions, errors, the event pump (batches, dropped kinds, takeover, stale generations, media and server events) and the cache. Against a real server: Ready and messages with string ids, the trust step, and send, fetch, edit, delete, cached files and music through the exported calls.
+  - The app: 78 Jest tests over the event loop, boot, error sentences, FakeCore, the reducer, unread seeding, the selectors, preview text, the name catch-up and the prefs.
+  - By hand: the app starts on the `Pixel_7` emulator and shows the core's version from Rust.
