@@ -420,12 +420,18 @@ impl Client {
         if let Some(previous) = previous {
             stop(previous).await;
         }
+        // The map is held while the task starts, as when connecting the
+        // saved servers: the task begins with `Ready`, which registers this
+        // device for private messages through the map, and must find the
+        // connection there.
+        let mut connections = self.lock_connections();
         let connection = connection::spawn(
             &self.inner.runtime,
             self.context(key.clone(), address, credentials),
             Some(Established::identified(opened, ready)),
         );
-        self.lock_connections().insert(key, connection);
+        connections.insert(key, connection);
+        drop(connections);
         Ok(AddServerOutcome::Added(server_view(&saved, pin)))
     }
 
