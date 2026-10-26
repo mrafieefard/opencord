@@ -1,0 +1,44 @@
+import type { ReactNode } from 'react';
+import { StyleSheet, TextInput, View } from 'react-native';
+
+import { Icon } from './Icon';
+import { IconButton } from './IconButton';
+import { MAX_FONT_SCALE, typography } from './theme/typography';
+import { radius, space } from './theme/space';
+import { useTheme } from './theme/useTheme';
+
+export interface SearchFieldProps {
+  value: string;
+  onChangeText: (text: string) => void;
+  placeholder: string;
+  onSubmit?: () => void;
+  right?: ReactNode;
+}
+
+export function SearchField({ value, onChangeText, placeholder, onSubmit, right }: SearchFieldProps) {
+  const { colors } = useTheme();
+  return (
+    <View style={[styles.field, { backgroundColor: colors.hover }]}>
+      <Icon name="search" size={16} color="textMuted" />
+      <TextInput
+        value={value}
+        onChangeText={onChangeText}
+        placeholder={placeholder}
+        placeholderTextColor={colors.textMuted}
+        onSubmitEditing={onSubmit}
+        returnKeyType="search"
+        autoCorrect={false}
+        maxFontSizeMultiplier={MAX_FONT_SCALE}
+        accessibilityLabel={placeholder}
+        style={[typography.body, styles.input, { color: colors.text }]}
+      />
+      {value !== '' && <IconButton icon="close" label="Clear" onPress={() => onChangeText('')} size={36} />}
+      {right}
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  field: { flexDirection: 'row', alignItems: 'center', gap: space.sm, paddingLeft: space.md, borderRadius: radius.icon, minHeight: 44 },
+  input: { flex: 1, paddingVertical: space.sm },
+});

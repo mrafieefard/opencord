@@ -17,3 +17,9 @@ jest.mock('expo-secure-store', () => {
     __items: items,
   };
 });
+
+
+// Gesture Handler's own Jest setup, and safe areas without a native view.
+require('react-native-gesture-handler/jestSetup');
+jest.mock('react-native-safe-area-context', () => require('react-native-safe-area-context/jest/mock').default);
+jest.mock('react-native-keyboard-controller', () => require('react-native-keyboard-controller/jest'));

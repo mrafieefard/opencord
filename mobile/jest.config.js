@@ -5,6 +5,10 @@ module.exports = {
   testPathIgnorePatterns: ['/node_modules/', '/android/', '/ios/', '/packages/'],
   moduleNameMapper: {
     '^@/(.*)$': '<rootDir>/src/$1',
+    // Reanimated and Worklets need a native runtime: a small mock of what
+    // the app uses stands in (src/test/reanimated.tsx).
+    '^react-native-reanimated$': '<rootDir>/src/test/reanimated.tsx',
+    '^react-native-worklets$': '<rootDir>/src/test/worklets.ts',
     // The generated bindings without the native installer: their enums and
     // constructors work, and calls reach native code only when made (tests
     // use FakeCore instead).

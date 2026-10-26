@@ -30,6 +30,11 @@ module.exports = defineConfig([
     rules: { 'no-console': 'off' },
   },
   {
+    // Jest setup loads mocks with require, as Jest documents.
+    files: ['src/test/**'],
+    rules: { '@typescript-eslint/no-require-imports': 'off' },
+  },
+  {
     files: ['**/*.ts', '**/*.tsx'],
     rules: {
       '@typescript-eslint/no-explicit-any': 'error',
