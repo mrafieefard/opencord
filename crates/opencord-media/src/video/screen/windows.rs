@@ -27,20 +27,22 @@
 //! then falls back to GDI, which every Windows has, so screens can always
 //! be shared.
 
-use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{self, SyncSender};
+use std::sync::{Arc, OnceLock};
 use std::thread::JoinHandle;
 use std::time::{Duration, Instant};
 
 use windows::Foundation::TimeSpan;
 use windows::Foundation::TypedEventHandler;
 use windows::Graphics::Capture::{
-    Direct3D11CaptureFrame, Direct3D11CaptureFramePool, GraphicsCaptureItem, GraphicsCaptureSession,
+    Direct3D11CaptureFrame, Direct3D11CaptureFramePool, GraphicsCaptureAccess,
+    GraphicsCaptureAccessKind, GraphicsCaptureItem, GraphicsCaptureSession,
 };
 use windows::Graphics::DirectX::Direct3D11::IDirect3DDevice;
 use windows::Graphics::DirectX::DirectXPixelFormat;
 use windows::Graphics::SizeInt32;
+use windows::Security::Authorization::AppCapabilityAccess::AppCapabilityAccessStatus;
 use windows::Win32::Foundation::{HMODULE, HWND, RECT};
 use windows::Win32::Graphics::Direct3D::{D3D_DRIVER_TYPE_HARDWARE, D3D_DRIVER_TYPE_WARP};
 use windows::Win32::Graphics::Direct3D11::{
@@ -83,6 +85,45 @@ const GONE_CHECK: Duration = Duration::from_millis(250);
 /// window may rightly send none while it is minimised, so this is only for
 /// screens.
 const FIRST_FRAME: Duration = Duration::from_secs(3);
+
+/// How long to wait for Windows to answer whether the border may go.
+const BORDERLESS_ANSWER: Duration = Duration::from_secs(2);
+
+/// Whether Windows lets captures go without the yellow border, asked once
+/// per run. It has to be asked before the border can be turned off; an app
+/// that is not packaged is answered at once, without a prompt. Windows 10
+/// has no such request, and the answer is no. The wait is bounded, so a
+/// share never hangs on it.
+fn borderless_allowed() -> bool {
+    static ALLOWED: OnceLock<bool> = OnceLock::new();
+    *ALLOWED.get_or_init(|| {
+        let Ok(request) =
+            GraphicsCaptureAccess::RequestAccessAsync(GraphicsCaptureAccessKind::Borderless)
+        else {
+            return false;
+        };
+        // `join` cannot be given a timeout, so it waits on a thread of its
+        // own, which is left to finish by itself if Windows never answers.
+        let (answer, answered) = mpsc::channel();
+        let asked = std::thread::Builder::new()
+            .name("opencord-capture-border".to_owned())
+            .spawn(move || {
+                let _ = answer.send(request.join());
+            });
+        if asked.is_err() {
+            return false;
+        }
+        let allowed = match answered.recv_timeout(BORDERLESS_ANSWER) {
+            Ok(status) => status == Ok(AppCapabilityAccessStatus::Allowed),
+            Err(_) => {
+                tracing::warn!("no answer about the capture border; keeping it");
+                false
+            }
+        };
+        tracing::info!(allowed, "asked to share without the capture border");
+        allowed
+    })
+}
 
 fn failed(error: windows::core::Error) -> ScreenError {
     ScreenError::Failed(format!("{error} ({:#010x})", error.code().0))
@@ -489,6 +530,11 @@ impl Session {
         let session = pool.CreateCaptureSession(&item).map_err(failed)?;
         // The cursor belongs in a screen share (§9).
         let _ = session.SetIsCursorCaptureEnabled(true);
+        // No yellow border around what is shared, where Windows lets it go
+        // (Windows 11); Windows 10 always draws it.
+        if borderless_allowed() {
+            let _ = session.SetIsBorderRequired(false);
+        }
         // Windows 11 can hold the rate down itself, which saves the copy a
         // frame we would only drop costs. Where it cannot, `read` paces.
         let paced = session
@@ -782,6 +828,18 @@ mod tests {
                 source.id
             );
         }
+    }
+
+    #[test]
+    fn asking_to_lose_the_border_answers_in_time() {
+        let asking = Instant::now();
+        let allowed = borderless_allowed();
+        eprintln!("borderless capture allowed: {allowed}");
+        assert!(
+            asking.elapsed() < BORDERLESS_ANSWER + Duration::from_secs(1),
+            "a share never waits long on the border"
+        );
+        assert_eq!(borderless_allowed(), allowed, "asked once per run");
     }
 
     #[test]

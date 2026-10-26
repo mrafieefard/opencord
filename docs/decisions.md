@@ -1284,3 +1284,11 @@ Some Windows 10 machines could not share their screen at all. Opencord captured 
   - `support()` is now true on every Windows.
 - **Not done.** DXGI duplication, which costs less than GDI for screens, is left until a measurement shows GDI is too slow where it is used.
 - **Checks.** Unit tests cover a screen copied at its own size in packed rows, a missing window having no size, and a screen shared end to end through `start` with the capture API turned off. They run on CI's Windows runner. Sharing on a Windows 10 install without the capture API is owed by hand.
+
+## D74: No yellow border around a Windows share where Windows allows it (2026-10-26)
+
+Windows.Graphics.Capture draws a yellow border around whatever is being captured, and the owner asked for it to go.
+
+- **Windows 11** (and Server 2022): the session is told `IsBorderRequired = false`. First the app asks `GraphicsCaptureAccess::RequestAccessAsync(Borderless)` once per run. The wait is capped at 2 s, so a share never hangs on it. Microsoft documents the request as prompting a packaged app; an unpackaged app like Opencord is expected to be answered without one. Either way, the share goes ahead.
+- **Windows 10** has neither the request nor the switch, so the border stays there for captures through the API. Removing it there would mean capturing screens another way (DXGI duplication), which is left open.
+- **Owed by hand:** a screen and a window shared on Windows 11 show no border, and Windows doesn't prompt.
