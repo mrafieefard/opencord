@@ -1272,3 +1272,15 @@ Users reported that sharing a screen with its sound on Windows closed the app at
 - **Fix.** The blob is `ManuallyDrop`. A unit test opens a client twice, then uses the heap; it runs on CI's Windows runner, which has process loopback.
 - **Floor.** Sound sharing is offered from Windows 10 2004 (build 19041), not 20348. Microsoft documents 20348, but process loopback works from 19041, where OBS and GStreamer turn it on. Below it the switch reads "Sharing sound needs Windows 10 version 2004 or newer". Since the app needs 21H2, every supported Windows can now share sound.
 - **Owed by hand:** sharing a screen's sound on Windows 10 22H2 and on Windows 11 with VoiceMeeter (`share_audio_windows.rs`).
+
+## D73: Screen sharing falls back to GDI on Windows (2026-10-26)
+
+Some Windows 10 machines could not share their screen at all. Opencord captured only through Windows.Graphics.Capture, which needs 1903 and which some installs refuse even when it is there: N editions, stripped-down builds, and machines whose session opens but sends no frame.
+
+- **What LiveKit does.** LiveKit's Flutter SDK uses libwebrtc's capturers, which use the capture API only where it is reliable (screens from Windows 10 20H1, windows from Windows 11). Elsewhere they use GDI, or DXGI duplication for screens, which works on every Windows.
+- **Now.** The capture API is still tried first. When it isn't there, refuses to open, or a screen's session sends no frame within 3 s, the share carries on with GDI (`windows_gdi_capture.rs`).
+  - **A screen** is copied from the desktop with `BitBlt` (`SRCCOPY | CAPTUREBLT`, as WebRTC does), with the cursor drawn on.
+  - **A window** draws itself with `PrintWindow(PW_RENDERFULLCONTENT)`, falling back to `BitBlt` from its DC. Nothing is sent while it is minimised; the sender keeps the last picture going.
+  - `support()` is now true on every Windows.
+- **Not done.** DXGI duplication, which costs less than GDI for screens, is left until a measurement shows GDI is too slow where it is used.
+- **Checks.** Unit tests cover a screen copied at its own size in packed rows, a missing window having no size, and a screen shared end to end through `start` with the capture API turned off. They run on CI's Windows runner. Sharing on a Windows 10 install without the capture API is owed by hand.
