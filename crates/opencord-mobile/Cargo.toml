@@ -1,0 +1,28 @@
+[package]
+name = "opencord-mobile"
+description = "Opencord client core for the phone apps, through UniFFI and uniffi-bindgen-react-native."
+version.workspace = true
+edition.workspace = true
+repository.workspace = true
+license = "MPL-2.0"
+publish = false
+
+[lib]
+name = "opencord_mobile"
+# `staticlib` is what ubrn links into the React Native turbo-module.
+crate-type = ["lib", "staticlib"]
+
+[dependencies]
+hex.workspace = true
+opencord-common.workspace = true
+opencord-core.workspace = true
+sha2.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+uniffi.workspace = true
+
+[dev-dependencies]
+image.workspace = true
+opencord-server.workspace = true
+tempfile.workspace = true

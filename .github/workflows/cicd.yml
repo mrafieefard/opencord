@@ -38,7 +38,7 @@ env:
   # are tested with the server's; opencord-voice with the app's, as its tests
   # call in through the app's media crate and need its native libraries.
   SERVER_CRATES: -p opencord-server -p opencord-common -p opencord-proto
-  CLIENT_CRATES: -p opencord_core -p opencord-media -p opencord-voicebot -p opencord-voice -p opencord-launcher
+  CLIENT_CRATES: -p opencord_core -p opencord-media -p opencord-voicebot -p opencord-voice -p opencord-launcher -p opencord-mobile
   FLUTTER_VERSION: 3.44.0
   # Native libraries the app's crates build against on Linux: cpal's PipeWire
   # and ALSA backends (libspa-sys runs bindgen, hence libclang) and the D-Bus
