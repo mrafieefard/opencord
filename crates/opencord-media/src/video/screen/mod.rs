@@ -40,6 +40,8 @@ mod backend;
 mod backend;
 #[cfg(target_os = "windows")]
 mod windows_gdi;
+#[cfg(target_os = "windows")]
+mod windows_gdi_capture;
 
 #[cfg(not(any(target_os = "linux", target_os = "macos", target_os = "windows")))]
 #[path = "unsupported.rs"]

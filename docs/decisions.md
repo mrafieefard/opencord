@@ -1264,6 +1264,18 @@ The desktop UI plan's §17.5 never arrived, so where Phase 2 §12 says only what
     - Uninstalling removed the folder and the desktop file.
   - **Owed by hand:** the Windows installer and uninstaller, taskbar pinning, and the macOS disk image, sandbox exceptions and LaunchAgent. None of these could run here.
 
+## D73: Screen sharing falls back to GDI on Windows (2026-10-26)
+
+Some Windows 10 machines could not share their screen at all. Opencord captured only through Windows.Graphics.Capture, which needs 1903 and which some installs refuse even when it is there: N editions, stripped-down builds, and machines whose session opens but sends no frame.
+
+- **What LiveKit does.** LiveKit's Flutter SDK uses libwebrtc's capturers, which use the capture API only where it is reliable (screens from Windows 10 20H1, windows from Windows 11). Elsewhere they use GDI, or DXGI duplication for screens, which works on every Windows.
+- **Now.** The capture API is still tried first. When it isn't there, refuses to open, or a screen's session sends no frame within 3 s, the share carries on with GDI (`windows_gdi_capture.rs`).
+  - **A screen** is copied from the desktop with `BitBlt` (`SRCCOPY | CAPTUREBLT`, as WebRTC does), with the cursor drawn on.
+  - **A window** draws itself with `PrintWindow(PW_RENDERFULLCONTENT)`, falling back to `BitBlt` from its DC. Nothing is sent while it is minimised; the sender keeps the last picture going.
+  - `support()` is now true on every Windows.
+- **Not done.** DXGI duplication, which costs less than GDI for screens, is left until a measurement shows GDI is too slow where it is used.
+- **Checks.** Unit tests cover a screen copied at its own size in packed rows, a missing window having no size, and a screen shared end to end through `start` with the capture API turned off. They run on CI's Windows runner. Sharing on a Windows 10 install without the capture API is owed by hand.
+
 ## D74: No yellow border around a Windows share where Windows allows it (2026-10-26)
 
 Windows.Graphics.Capture draws a yellow border around whatever is being captured, and the owner asked for it to go.
