@@ -1263,3 +1263,11 @@ The desktop UI plan's §17.5 never arrived, so where Phase 2 §12 says only what
     - A link started the app at once.
     - Uninstalling removed the folder and the desktop file.
   - **Owed by hand:** the Windows installer and uninstaller, taskbar pinning, and the macOS disk image, sandbox exceptions and LaunchAgent. None of these could run here.
+
+## D74: No yellow border around a Windows share where Windows allows it (2026-10-26)
+
+Windows.Graphics.Capture draws a yellow border around whatever is being captured, and the owner asked for it to go.
+
+- **Windows 11** (and Server 2022): the session is told `IsBorderRequired = false`. First the app asks `GraphicsCaptureAccess::RequestAccessAsync(Borderless)` once per run. The wait is capped at 2 s, so a share never hangs on it. Microsoft documents the request as prompting a packaged app; an unpackaged app like Opencord is expected to be answered without one. Either way, the share goes ahead.
+- **Windows 10** has neither the request nor the switch, so the border stays there for captures through the API. Removing it there would mean capturing screens another way (DXGI duplication), which is left open.
+- **Owed by hand:** a screen and a window shared on Windows 11 show no border, and Windows doesn't prompt.
