@@ -2,8 +2,9 @@
 
 ## Current work
 
-You are implementing `docs/superpowers/plans/2026-10-22-private-messages.md`: private messages, friends and offline delivery. The design it builds on is `docs/superpowers/specs/2026-10-22-private-messages-design.md`. The media uploads plan before it is finished.
+You are implementing `docs/superpowers/plans/2026-10-26-mobile-client.md`: the phone apps, in React Native on the Rust core. The design it builds on is `docs/superpowers/specs/2026-10-26-mobile-client-design.md`. Milestone R0 (the facade, the app's build, its core layer and its store) is Claude's and comes first; the screens from R1 on are mostly yours. The private messages plan before it is finished.
 
+- **UI work follows Software Mansion's React Native skills** (`~/.claude/plugins/marketplaces/swmansion/skills/react-native-best-practices`), as the plan's "Skills for UI work" says.
 - The plan's **Working Rules** and this file apply to everything you do in this repository. Read "How to write code here" before each milestone: it grows after every review.
 - Each milestone ends in a pull request (see "Every change is a pull request"). Its code is reviewed and fixed there, and its decisions entry gets a **Review** bullet. Read the latest one before starting, and build on the fixed code, not on what you remember writing.
 - The plan gives behavior, interfaces, names and tests, not finished code. Only the proto, the SQL and a few types are given exactly: copy those as they are. You write the rest, and the rules below are what the review checks it against.
@@ -43,6 +44,8 @@ Without it, builds keep incremental caches and debug info, and the nearly full d
 export PATH="$HOME/.cargo/bin:$HOME/.local/share/flutter/bin:$PATH"
 export CARGO_INCREMENTAL=0 CARGO_PROFILE_DEV_DEBUG=0 CARGO_PROFILE_RELEASE_DEBUG=0
 ```
+
+**The phone apps** (`mobile/`) have their own: start every `yarn`, `npx`, `ubrn`, `adb`, `emulator` and Gradle command for them with `source mobile/scripts/env.sh &&`. It loads the line above too, and sets the Android SDK, React Native's NDK and Java (docs/mobile.md).
 
 Check `df -h /` before the full checks. With less than 10 GB free, delete `target/debug/incremental` and the test binaries in `target/debug/deps` older than 45 minutes. Never run `cargo clean` without asking.
 

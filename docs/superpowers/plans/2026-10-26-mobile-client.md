@@ -35,7 +35,7 @@ Video and screen sharing are the second plan.
 ## Global Constraints
 
 - **Platforms:**
-  - **Android:** `arm64-v8a` and `x86_64`, at the minimum SDK Expo SDK 58 sets. Built and tested on the dev machine's `Pixel_7` emulator (API 33, x86_64).
+  - **Android:** 8.0 (API 26, AAudio's minimum, which cpal needs) and newer, `arm64-v8a` and `x86_64`. Built and tested on the dev machine's `Pixel_7` emulator (API 33, x86_64).
   - **iOS:** at the deployment target Expo SDK 58 sets. Built in CI; run on the Mac in Task 22.
   - **Local builds** target `x86_64` only.
 - **Branch:**
@@ -74,7 +74,7 @@ Video and screen sharing are the second plan.
   | A closed channel keeps | its newest 100 messages |
   | Read positions | written at most once per 2 s per server |
   | Message text | 1–4,000 characters; counter from 3,900 |
-  | Display name | 2–32 characters (the core's rule) |
+  | Display name | 1–32 characters after trimming (the core's rule) |
   | Music search | 1–200 characters |
   | Volume | 0–200 % in 5 % steps |
   | Music defaults | volume 0.5, muted false, duck false |
@@ -434,7 +434,7 @@ These are the inputs most likely to break for real people while no ordinary test
       manifestPath: crates/opencord-mobile/Cargo.toml
     android:
       targets: [arm64-v8a, x86_64]
-      apiLevel: 24
+      apiLevel: 26
     ios:
       targets: [aarch64-apple-ios, aarch64-apple-ios-sim]
     bindings:
@@ -442,7 +442,7 @@ These are the inputs most likely to break for real people while no ordinary test
       ts: src/generated
     ```
 
-    Set `apiLevel` to the minimum SDK Expo SDK 58 gives the app, if it isn't 24.
+    API 26 is AAudio's minimum: linking against API 24 fails on `-laaudio`. `expo-build-properties` sets the app's `minSdkVersion` to the same.
   - Point the package's `react-native` and `source` fields at `src/index.tsx`, so Metro reads the source with no build step.
 - [ ] **Step 3: The scripts.**
   - **`scripts/env.sh`:**
@@ -519,9 +519,8 @@ These are the inputs most likely to break for real people while no ordinary test
 - Consumes: `@opencord/core-native` (Task 3), the facade (Tasks 1–2).
 - Produces:
   - **`interface CoreApi`:** one method per facade function, with the same camelCase names, arguments and result types (re-exported from the generated bindings); async facade calls return `Promise`s.
-  - **`class NativeCore implements CoreApi`:** delegates to the bindings and turns each thrown `MobileError` into a `CoreFailure`.
-  - **`class CoreFailure extends Error`:** `{ kind: MobileErrorKind, code?: string, retryAfterMs?: number, reason?: FailureKind, detail?: string }`.
-  - **`describeError(error: unknown): string`:** the sentences below.
+  - **`NativeCore: CoreApi`:** the generated bindings, as they are. Their errors are the generated `MobileError`, which `FakeCore` throws too, so code checks errors one way: `MobileError.instanceOf(error)`, then `error.tag`.
+  - **`describeError(error: unknown): string`:** the sentences below; `errorKind(error)` for logs.
   - **`report(promise: Promise<unknown>, context: string): void`.**
   - **`getCore(): CoreApi` / `setCore(core: CoreApi): void`.** The core used is `new FakeCore({ scenario: process.env.EXPO_PUBLIC_FAKE_SCENARIO ?? 'default' })` when `process.env.EXPO_PUBLIC_FAKE_CORE === '1'`, else `NativeCore`.
   - **`paths.dataDir()` / `paths.cacheDir()`:** plain paths from `expo-file-system`'s `Paths.document` and `Paths.cache`, without `file://`.
@@ -530,7 +529,7 @@ These are the inputs most likely to break for real people while no ordinary test
   - **`startEventLoop(core: CoreApi, onBatch: (events: MobileEvent[]) => void): { stop(): void }`.**
   - **`class FakeCore implements CoreApi`:**
     - constructor `{ now?: () => number, scenario?: 'default' | 'empty' }`;
-    - test hooks: `emit(event)`, `failNext(method, failure: CoreFailure)`, and `calls` (a log of `{ method, args }`).
+    - test hooks: `emit(...events)`, `failNext(method, error)`, and `calls` (a log of `{ method, args }`).
 
 - [ ] **Step 1: Write the failing tests.**
   - **`eventLoop.test.ts`:**
@@ -798,7 +797,7 @@ These are the inputs most likely to break for real people while no ordinary test
 - [ ] **Step 1: Write the failing tests** (render the root layout with `FakeCore` and a memory SecureStore):
   - `a first start shows Welcome`;
   - `creating an identity saves it and opens Servers`: the secret is in SecureStore under `opencord.identity`, `mobile.displayName` is set, and `identityLoad` was called;
-  - `a one-letter name is refused with the core's sentence`;
+  - `an empty name is refused with the core's sentence`: "display name must not be empty";
   - `importing a backup decodes it and asks for a name`;
   - `a wrong backup file says so`: "That isn't an Opencord backup.";
   - `a saved identity skips onboarding`;

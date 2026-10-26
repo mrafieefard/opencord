@@ -676,6 +676,138 @@ jobs:
 
   # Tags the image only once everything passed, so :beta, :canary and
   # :latest never point at a build whose tests failed.
+  # The phone apps (mobile/, docs/mobile.md): React Native on the Rust core
+  # through crates/opencord-mobile. Built on every run; released by Task 21.
+  mobile-android:
+    name: Phone (Android)
+    needs: version
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: ./.github/actions/stamp-version
+        with:
+          version: ${{ needs.version.outputs.version }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: mobile/.nvmrc
+          cache: yarn
+          cache-dependency-path: mobile/yarn.lock
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android,x86_64-linux-android
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: mobile-android
+
+      # React Native 0.88's NDK, and cargo-ndk for ubrn.
+      - name: Install the NDK and cargo-ndk
+        run: |
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "ndk;27.1.12297006" > /dev/null
+          cargo install cargo-ndk --locked --version 4.1.2
+
+      - name: Install
+        working-directory: mobile
+        run: yarn install --frozen-lockfile
+
+      - name: Type check, lint, tests and licences
+        working-directory: mobile
+        run: |
+          yarn -s typecheck
+          yarn -s lint
+          yarn -s test --ci
+          yarn -s licenses:check
+
+      # Builds the release library for both ABIs and regenerates the bindings
+      # from it: committed bindings that differ are out of date.
+      - name: Build the core
+        working-directory: mobile
+        run: |
+          scripts/build-core.sh android --release
+          if [[ -n $(git status --porcelain -- packages/core-native) ]]; then
+            echo "::error::The bindings are out of date: run yarn core:bindings and commit them."
+            git status --porcelain -- packages/core-native
+            exit 1
+          fi
+
+      - name: Build the APK
+        working-directory: mobile
+        env:
+          OPENCORD_VERSION: ${{ needs.version.outputs.version || '0.0.1' }}
+        run: |
+          npx expo prebuild -p android --no-install
+          (cd android && ./gradlew assembleRelease --no-daemon)
+          mkdir -p "$RUNNER_TEMP/dist"
+          cp android/app/build/outputs/apk/release/app-release.apk "$RUNNER_TEMP/dist/opencord-android.apk"
+
+      - uses: actions/upload-artifact@v7
+        with:
+          path: ${{ runner.temp }}/dist/opencord-android.apk
+          archive: false
+          if-no-files-found: error
+          retention-days: 30
+
+  mobile-ios:
+    name: Phone (iOS)
+    needs: version
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: ./.github/actions/stamp-version
+        with:
+          version: ${{ needs.version.outputs.version }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: mobile/.nvmrc
+          cache: yarn
+          cache-dependency-path: mobile/yarn.lock
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-ios,aarch64-apple-ios-sim
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: mobile-ios
+
+      - name: Install
+        working-directory: mobile
+        run: yarn install --frozen-lockfile
+
+      - name: Build the core
+        working-directory: mobile
+        run: scripts/build-core.sh ios --release
+
+      # A simulator build: nothing is signed (Task 22 runs it on a phone).
+      - name: Build the app
+        working-directory: mobile
+        env:
+          OPENCORD_VERSION: ${{ needs.version.outputs.version || '0.0.1' }}
+        run: |
+          npx expo prebuild -p ios --no-install
+          (cd ios && pod install)
+          xcodebuild -workspace ios/Opencord.xcworkspace -scheme Opencord -sdk iphonesimulator \
+            -configuration Release -derivedDataPath build CODE_SIGNING_ALLOWED=NO build
+          mkdir -p "$RUNNER_TEMP/dist"
+          (cd build/Build/Products/Release-iphonesimulator && zip -qr "$RUNNER_TEMP/dist/opencord-ios-simulator.zip" Opencord.app)
+
+      - uses: actions/upload-artifact@v7
+        with:
+          path: ${{ runner.temp }}/dist/opencord-ios-simulator.zip
+          archive: false
+          if-no-files-found: error
+          retention-days: 30
+
   docker-publish:
     name: Docker
     needs: [version, docker, server-linux, server-windows, server-macos, client-linux, client-windows, client-macos]

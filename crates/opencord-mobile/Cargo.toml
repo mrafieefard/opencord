@@ -9,8 +9,9 @@ publish = false
 
 [lib]
 name = "opencord_mobile"
-# `staticlib` is what ubrn links into the React Native turbo-module.
-crate-type = ["lib", "staticlib"]
+# ubrn builds the `cdylib` for Android (it links the system libraries cpal
+# needs, which a static library can't carry) and the `staticlib` for iOS.
+crate-type = ["lib", "staticlib", "cdylib"]
 
 [dependencies]
 hex.workspace = true

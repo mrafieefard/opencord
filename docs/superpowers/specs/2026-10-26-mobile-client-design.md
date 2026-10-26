@@ -81,7 +81,7 @@ In the owner's words (2026-10-26):
   - reached through UniFFI and uniffi-bindgen-react-native (`ubrn`), version **0.31.0-6** (UniFFI 0.31);
   - changes to `opencord-core` stay additive and small; the mobile surface lives in a new crate.
 - **Platforms:**
-  - **Android:** 64-bit only (`arm64-v8a`, `x86_64`), at the minimum SDK Expo SDK 58 sets. Google Play requires 64-bit, and 32-bit phones are rare.
+  - **Android:** 8.0 (API 26) and newer, 64-bit only (`arm64-v8a`, `x86_64`). API 26 is AAudio's, which cpal needs for sound (Expo's own minimum is 24). Google Play requires 64-bit, and 32-bit phones are rare.
   - **iOS:** at the deployment target Expo SDK 58 sets.
 - **Package manager:** Yarn 1 (classic) workspaces, the Yarn on the dev machine. Node 26 has no corepack, so Yarn 4 would need a separate install.
 - **Licences:**
@@ -441,7 +441,7 @@ The visual tokens they use are in §9. Every screen works in light and dark, at 
   - a footnote: "Your identity is a key that stays on this phone."
 - **Create:**
   - "What should people call you?" (title);
-  - a text field (`2–32` characters, the core's display-name rule);
+  - a text field (1–32 characters after trimming, no control characters: the core's display-name rule);
   - **Continue** generates the identity, saves the secret and the name, and loads them.
 - **Import:**
   1. The document picker opens.
