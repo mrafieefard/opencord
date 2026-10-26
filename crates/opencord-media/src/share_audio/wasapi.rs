@@ -768,6 +768,30 @@ mod tests {
         }
     }
 
+    /// Opening a client hands Windows its parameters in a `PROPVARIANT`
+    /// blob that points at them on the stack. The process has to live
+    /// through it, whether this machine's audio lets the client open or
+    /// not: twice, and then the heap is used, since a bad free may only
+    /// show on a later allocation.
+    #[test]
+    fn opening_a_client_leaves_the_process_alive() {
+        if !support().supported {
+            eprintln!("this Windows has no process loopback; nothing to check here");
+            return;
+        }
+        let _com = Com::new().expect("COM");
+        // SAFETY: a read of our own process id.
+        let us = unsafe { GetCurrentProcessId() };
+        for _ in 0..2 {
+            match Client::open(us, false) {
+                Ok(_) => eprintln!("a loopback client opened"),
+                Err(error) => eprintln!("no loopback client here: {error}"),
+            }
+        }
+        let used: Vec<Vec<u8>> = (0..1_000).map(|size| vec![1; size]).collect();
+        assert_eq!(used.iter().map(Vec::len).sum::<usize>(), 499_500);
+    }
+
     /// `apps_with_audio` talks to the ordinary session API, which works on
     /// every Windows — so this runs here even though capture does not.
     #[test]
