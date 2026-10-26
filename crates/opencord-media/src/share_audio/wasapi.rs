@@ -11,10 +11,9 @@
 //!
 //! Process loopback is a *virtual* audio device, activated by
 //! `ActivateAudioInterfaceAsync` rather than opened from the device
-//! enumerator, and it arrived in Windows build **20348**. Below that
-//! `support()` says so and nothing here runs — which is this PC, so the live
-//! half of W7 is written and unit-tested but has never been watched work
-//! (windows.md §7).
+//! enumerator. Microsoft documents it from build 20348, but it works from
+//! Windows 10 2004 (build **19041**), which is where OBS and GStreamer turn
+//! it on too. Below that `support()` says so and nothing here runs.
 //!
 //! A process loopback client cannot be retargeted, so `share` tears the
 //! client down and starts another one.
@@ -59,11 +58,11 @@ use super::{AppInfo, CaptureError, Captured, ShareAudioSupport, Source};
 /// holds a session but is not an app anybody means.
 const NEVER: [&str; 2] = ["opencord", "audiodg"];
 
-/// The build process loopback arrived in (Windows Server 2022 / Windows 11).
-const NEEDS_BUILD: u32 = 20348;
+/// The first build process loopback works on: Windows 10 2004.
+const NEEDS_BUILD: u32 = 19041;
 
 /// What the app shows beside the disabled switch below that.
-const TOO_OLD: &str = "Sharing sound needs Windows 11";
+const TOO_OLD: &str = "Sharing sound needs Windows 10 version 2004 or newer";
 
 /// Everything here is 48 kHz stereo, like the rest of the engine.
 const RATE: u32 = 48_000;
@@ -336,8 +335,12 @@ impl Client {
                 },
             };
             // The parameters go in as a blob, which is how this API takes
-            // anything beyond a device id.
-            let blob = PROPVARIANT {
+            // anything beyond a device id. Never dropped: the `windows`
+            // crate's `PROPVARIANT` clears itself on drop, which frees the
+            // blob's data with `CoTaskMemFree`, and that data is `params`
+            // on this stack. Freeing it corrupted the heap and killed the
+            // app the moment a share's sound started.
+            let blob = std::mem::ManuallyDrop::new(PROPVARIANT {
                 Anonymous: PROPVARIANT_0 {
                     Anonymous: std::mem::ManuallyDrop::new(PROPVARIANT_0_0 {
                         vt: VT_BLOB,
@@ -353,14 +356,14 @@ impl Client {
                             },
                     }),
                 },
-            };
+            });
 
             let done = CreateEventW(None, false, false, None).map_err(failed)?;
             let handler: IActivateAudioInterfaceCompletionHandler = Ready(done).into();
             let operation = ActivateAudioInterfaceAsync(
                 VIRTUAL_AUDIO_DEVICE_PROCESS_LOOPBACK,
                 &IAudioClient::IID,
-                Some(&blob),
+                Some(&*blob),
                 &handler,
             );
             let operation = match operation {
@@ -677,7 +680,7 @@ mod tests {
         );
         match support.supported {
             true => assert!(support.reason.is_none()),
-            // The disabled switch shows this, so it has to name Windows 11
+            // The disabled switch shows this, so it has to name the version
             // rather than say "not supported" (windows.md §3, decision C).
             false => assert_eq!(support.reason.as_deref(), Some(TOO_OLD)),
         }
@@ -762,17 +765,17 @@ mod tests {
         match Capture::start(Source::Everything, frames) {
             Ok(_) => panic!("capture started on a build without process loopback"),
             Err(error) => assert!(
-                format!("{error}").contains("Windows 11"),
+                format!("{error}").contains("version 2004"),
                 "the reason reaches the caller: {error}"
             ),
         }
     }
 
     /// Opening a client hands Windows its parameters in a `PROPVARIANT`
-    /// blob that points at them on the stack. The process has to live
-    /// through it, whether this machine's audio lets the client open or
-    /// not: twice, and then the heap is used, since a bad free may only
-    /// show on a later allocation.
+    /// blob that points at them on the stack, which once got freed and
+    /// killed the app. The process has to live through it, whether this
+    /// machine's audio lets the client open or not: twice, and then the
+    /// heap is used, since a bad free may only show on a later allocation.
     #[test]
     fn opening_a_client_leaves_the_process_alive() {
         if !support().supported {
