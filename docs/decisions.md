@@ -1264,6 +1264,15 @@ The desktop UI plan's §17.5 never arrived, so where Phase 2 §12 says only what
     - Uninstalling removed the folder and the desktop file.
   - **Owed by hand:** the Windows installer and uninstaller, taskbar pinning, and the macOS disk image, sandbox exceptions and LaunchAgent. None of these could run here.
 
+## D72: Sharing a screen's sound on Windows no longer crashes the app (2026-10-26)
+
+Users reported that sharing a screen with its sound on Windows closed the app at once; the reports came from people with VoiceMeeter installed.
+
+- **Cause.** Process loopback is activated with its parameters in a `PROPVARIANT` blob pointing at a struct on the stack. In the `windows` crate (0.62) `PROPVARIANT` implements `Drop` as `PropVariantClear`, which frees a blob's data with `CoTaskMemFree`. Every activation therefore freed a stack address when `Client::open` returned, corrupting the heap and ending the process. It happened on any machine that could share sound; VoiceMeeter was not the cause. It went unseen because the live path had never run (D35: the Windows PC was build 19045, below the old floor).
+- **Fix.** The blob is `ManuallyDrop`. A unit test opens a client twice, then uses the heap; it runs on CI's Windows runner, which has process loopback.
+- **Floor.** Sound sharing is offered from Windows 10 2004 (build 19041), not 20348. Microsoft documents 20348, but process loopback works from 19041, where OBS and GStreamer turn it on. Below it the switch reads "Sharing sound needs Windows 10 version 2004 or newer". Since the app needs 21H2, every supported Windows can now share sound.
+- **Owed by hand:** sharing a screen's sound on Windows 10 22H2 and on Windows 11 with VoiceMeeter (`share_audio_windows.rs`).
+
 ## D73: Screen sharing falls back to GDI on Windows (2026-10-26)
 
 Some Windows 10 machines could not share their screen at all. Opencord captured only through Windows.Graphics.Capture, which needs 1903 and which some installs refuse even when it is there: N editions, stripped-down builds, and machines whose session opens but sends no frame.
