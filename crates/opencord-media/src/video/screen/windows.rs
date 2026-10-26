@@ -1,5 +1,7 @@
 //! Windows' screens and windows (docs/plans/windows.md W6):
-//! Windows.Graphics.Capture, with Opencord's own picker in front of it.
+//! Windows.Graphics.Capture, with Opencord's own picker in front of it, and
+//! GDI where the capture API is missing or does not work
+//! (`windows_gdi_capture.rs`).
 //!
 //! The contract is in `mod.rs`. `start` shares `request.source_id`, one of
 //! `sources()`'s ids; frames go to `frames` as packed [`RawFrame`]s (BGRx)
@@ -18,6 +20,12 @@
 //! staging texture and mapped, because the engine wants rows in memory;
 //! converting and scaling on the GPU instead is W6 step 7's, and only if
 //! the measurement says so.
+//!
+//! The capture API needs Windows 10 1903, and some Windows 10 installs that
+//! have it still refuse it: N editions, stripped-down builds, and machines
+//! whose session opens but never sends a frame. As WebRTC does, the share
+//! then falls back to GDI, which every Windows has, so screens can always
+//! be shared.
 
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -49,6 +57,7 @@ use windows::Win32::System::WinRT::Graphics::Capture::IGraphicsCaptureItemIntero
 use windows::core::Interface;
 
 use super::windows_gdi as gdi;
+use super::windows_gdi_capture::{Grabber, Target};
 use super::{
     Picked, ScreenError, ScreenSource, ScreenSupport, SourceKind, StartRequest, WindowSound,
 };
@@ -69,21 +78,30 @@ const POLL: Duration = Duration::from_millis(8);
 /// How often to look at whether the shared source is still there.
 const GONE_CHECK: Duration = Duration::from_millis(250);
 
+/// How long a screen's capture session has to send its first frame before
+/// the share falls back to GDI. A working session sends one at once; a
+/// window may rightly send none while it is minimised, so this is only for
+/// screens.
+const FIRST_FRAME: Duration = Duration::from_secs(3);
+
 fn failed(error: windows::core::Error) -> ScreenError {
     ScreenError::Failed(format!("{error} ({:#010x})", error.code().0))
 }
 
 pub(super) fn support() -> ScreenSupport {
-    // Windows.Graphics.Capture arrived in Windows 10 1903. Asking it is
-    // better than reading a build number: a machine can have the API and
-    // still refuse it, as Windows N without the media pack does.
-    let supported = GraphicsCaptureSession::IsSupported().unwrap_or(false);
+    // Where the capture API is missing, GDI shares instead.
     ScreenSupport {
-        supported,
-        reason: (!supported)
-            .then(|| "Screen sharing needs Windows 10 version 1903 or newer".to_owned()),
+        supported: true,
+        reason: None,
         own_picker: true,
     }
+}
+
+/// Whether to try Windows.Graphics.Capture. It arrived in Windows 10 1903;
+/// asking it is better than reading a build number, since a machine can
+/// have the API and still refuse it.
+fn capture_api_works() -> bool {
+    GraphicsCaptureSession::IsSupported().unwrap_or(false)
 }
 
 pub(super) async fn sources() -> Result<Vec<ScreenSource>, ScreenError> {
@@ -121,6 +139,7 @@ fn size_of_rect(rect: RECT) -> (i32, i32) {
 }
 
 /// What a source id names. Only ever used on the capture thread.
+#[derive(Clone, Copy)]
 enum Chosen {
     Screen(HMONITOR),
     Window(HWND),
@@ -190,6 +209,15 @@ pub(super) async fn start(
     request: StartRequest,
     frames: SyncSender<RawFrame>,
 ) -> Result<(Capture, Picked), ScreenError> {
+    start_with(request, frames, capture_api_works()).await
+}
+
+/// `start`, saying whether to try the capture API before GDI.
+async fn start_with(
+    request: StartRequest,
+    frames: SyncSender<RawFrame>,
+    capture_api: bool,
+) -> Result<(Capture, Picked), ScreenError> {
     let what = chosen(request.source_id.as_deref())?;
     let picked = Picked {
         kind: match what {
@@ -212,7 +240,7 @@ pub(super) async fn start(
         .name("opencord-screen".to_owned())
         .spawn({
             let (stop, finished) = (Arc::clone(&stop), Arc::clone(&finished));
-            move || run(what, fps, &frames, &stop, &finished, &started)
+            move || run(what, fps, capture_api, &frames, &stop, &finished, &started)
         })
         .map_err(|error| ScreenError::Failed(error.to_string()))?;
 
@@ -312,22 +340,107 @@ fn item_for(what: &Chosen) -> Result<GraphicsCaptureItem, ScreenError> {
 fn run(
     what: Chosen,
     fps: u32,
+    capture_api: bool,
     frames: &SyncSender<RawFrame>,
     stop: &AtomicBool,
     finished: &AtomicBool,
     started: &mpsc::Sender<Result<(u32, u32), ScreenError>>,
 ) {
-    let session = match Session::open(what, fps) {
-        Ok(session) => session,
-        Err(error) => {
-            let _ = started.send(Err(error));
+    let session = capture_api
+        .then(|| {
+            Session::open(what, fps)
+                .inspect_err(|error| tracing::warn!(%error, "the capture API refused; using GDI"))
+                .ok()
+        })
+        .flatten();
+    let mut told = false;
+    if let Some(session) = session {
+        if started.send(Ok(session.size)).is_err() {
             return;
         }
-    };
-    if started.send(Ok(session.size)).is_err() {
-        return;
+        told = true;
+        match session.read(frames, stop, finished) {
+            Ended::Done => return,
+            Ended::Silent => tracing::warn!("the capture API sent no frame; using GDI"),
+        }
     }
-    session.read(frames, stop, finished);
+    read_with_gdi(
+        what,
+        fps,
+        frames,
+        stop,
+        finished,
+        (!told).then_some(started),
+    );
+}
+
+/// Why a capture session's loop ended.
+enum Ended {
+    /// Stopped, or the source went away.
+    Done,
+    /// A screen's session sent nothing: GDI takes over.
+    Silent,
+}
+
+/// Captures with GDI until stopped or the source goes away. `started` is
+/// told the size unless the capture API already did.
+fn read_with_gdi(
+    what: Chosen,
+    fps: u32,
+    frames: &SyncSender<RawFrame>,
+    stop: &AtomicBool,
+    finished: &AtomicBool,
+    started: Option<&mpsc::Sender<Result<(u32, u32), ScreenError>>>,
+) {
+    let mut grabber = Grabber::new(match what {
+        Chosen::Screen(monitor) => Target::Screen(monitor),
+        Chosen::Window(window) => Target::Window(window),
+    });
+    if let Some(started) = started {
+        let Some(size) = grabber.size() else {
+            let _ = started.send(Err(ScreenError::Failed(
+                "the source has no size to share".to_owned(),
+            )));
+            return;
+        };
+        tracing::info!(?size, fps, "sharing a screen with GDI");
+        if started.send(Ok(size)).is_err() {
+            return;
+        }
+    }
+    let gap = Duration::from_secs_f64(1.0 / f64::from(fps));
+    let mut next = Instant::now();
+    let mut looked = Instant::now();
+    while !stop.load(Ordering::Relaxed) {
+        if looked.elapsed() >= GONE_CHECK {
+            looked = Instant::now();
+            if gone(&what) {
+                tracing::info!("the shared source went away");
+                finished.store(true, Ordering::Relaxed);
+                return;
+            }
+        }
+        // Nothing while minimised: the sender keeps the last picture going
+        // (§9.4).
+        if let Some(raw) = grabber.grab() {
+            // Dropped while the encoder is behind.
+            let _ = frames.try_send(raw);
+        }
+        next = pace(next, gap);
+    }
+}
+
+/// Sleeps until the next frame is due, and says when the one after is.
+fn pace(next: Instant, gap: Duration) -> Instant {
+    let next = next + gap;
+    let now = Instant::now();
+    if next > now {
+        std::thread::sleep(next - now);
+        next
+    } else {
+        // Behind: let the lost time go rather than catching up in a burst.
+        now
+    }
 }
 
 /// Everything one share needs, torn down together.
@@ -402,7 +515,14 @@ impl Session {
         })
     }
 
-    fn read(&self, frames: &SyncSender<RawFrame>, stop: &AtomicBool, finished: &AtomicBool) {
+    fn read(
+        &self,
+        frames: &SyncSender<RawFrame>,
+        stop: &AtomicBool,
+        finished: &AtomicBool,
+    ) -> Ended {
+        let opened = Instant::now();
+        let mut any = false;
         let mut staging: Option<(ID3D11Texture2D, (u32, u32))> = None;
         let mut pool_size = SizeInt32 {
             Width: self.size.0 as i32,
@@ -420,16 +540,16 @@ impl Session {
             // directly, which is what actually ends the share.
             if looked.elapsed() >= GONE_CHECK {
                 looked = Instant::now();
-                if self.source_gone() {
+                if gone(&self.what) {
                     tracing::info!("the shared source went away");
                     finished.store(true, Ordering::Relaxed);
-                    return;
+                    return Ended::Done;
                 }
             }
             if self.gone.load(Ordering::Relaxed) {
                 tracing::info!("the shared window was closed");
                 finished.store(true, Ordering::Relaxed);
-                return;
+                return Ended::Done;
             }
             // No frame yet is an error here, not an empty option: a
             // minimised window produces nothing at all, and the sender
@@ -437,9 +557,14 @@ impl Session {
             // nothing to do but wait. The source actually going away is
             // the `Closed` event above, not this.
             let Ok(frame) = self.pool.TryGetNextFrame() else {
+                if !any && matches!(self.what, Chosen::Screen(_)) && opened.elapsed() >= FIRST_FRAME
+                {
+                    return Ended::Silent;
+                }
                 std::thread::sleep(POLL);
                 continue;
             };
+            any = true;
 
             // The content can be resized under us, and the pool has to
             // follow or every frame after it comes out the old size.
@@ -468,30 +593,21 @@ impl Session {
             }
 
             if !self.paced {
-                next += gap;
-                let now = Instant::now();
-                if next > now {
-                    std::thread::sleep(next - now);
-                } else {
-                    // Behind: let the lost time go rather than catching up
-                    // in a burst.
-                    next = now;
-                }
+                next = pace(next, gap);
             }
         }
+        Ended::Done
     }
 }
 
-impl Session {
-    /// Whether what is being shared has gone: the window closed, or the
-    /// monitor was unplugged.
-    fn source_gone(&self) -> bool {
-        match &self.what {
-            Chosen::Window(window) => !gdi::still_a_window(*window),
-            Chosen::Screen(monitor) => !gdi::monitors()
-                .iter()
-                .any(|screen| screen.handle == *monitor),
-        }
+/// Whether what is being shared has gone: the window closed, or the monitor
+/// was unplugged.
+fn gone(what: &Chosen) -> bool {
+    match what {
+        Chosen::Window(window) => !gdi::still_a_window(*window),
+        Chosen::Screen(monitor) => !gdi::monitors()
+            .iter()
+            .any(|screen| screen.handle == *monitor),
     }
 }
 
@@ -583,15 +699,44 @@ mod tests {
     #[test]
     fn windows_can_share_its_screens() {
         let support = support();
-        // Every Windows this plan supports has the capture API; saying so
-        // out loud catches a machine where it is missing.
-        assert!(
-            support.supported,
-            "screen sharing is unavailable: {:?}",
-            support.reason
-        );
+        assert!(support.supported, "GDI shares where the capture API cannot");
         assert!(support.own_picker, "Opencord picks the source on Windows");
         assert!(support.reason.is_none());
+    }
+
+    /// The fallback end to end: the first screen shared as a Windows
+    /// without the capture API would share it.
+    #[tokio::test]
+    async fn a_screen_is_shared_with_gdi_when_the_capture_api_is_not_there() {
+        let screen = gdi::monitors().into_iter().next().expect("a monitor");
+        let (frames, arriving) = mpsc::sync_channel(4);
+        let request = StartRequest {
+            fps: 30,
+            max_pixels: 1920 * 1080,
+            restore_token: None,
+            source_id: Some(format!("{SCREEN_PREFIX}{}", screen.device)),
+        };
+        let (capture, picked) = start_with(request, frames, false)
+            .await
+            .expect("GDI starts");
+        assert_eq!(picked.kind, SourceKind::Screen);
+        let (width, height) = size_of_rect(screen.rect);
+        assert_eq!(capture.size(), (width as u32, height as u32));
+
+        let frame = arriving
+            .recv_timeout(Duration::from_secs(5))
+            .expect("a frame within five seconds");
+        assert_eq!(frame.format, RawFormat::Bgrx);
+        assert_eq!((frame.width, frame.height), capture.size());
+        assert_eq!(
+            frame.data.len(),
+            frame.width as usize * frame.height as usize * 4
+        );
+        assert!(
+            arriving.recv_timeout(Duration::from_secs(2)).is_ok(),
+            "and they keep coming"
+        );
+        assert!(!capture.finished());
     }
 
     #[tokio::test]
