@@ -21,12 +21,18 @@ use crate::update::Status;
 const WIDTH: f64 = 300.0;
 const HEIGHT: f64 = 180.0;
 
+/// The top byte of every pixel. softbuffer asks for 0 and the buffer is
+/// XRGB, whose top byte compositors should ignore, but some read it as
+/// alpha: KWin on Wayland drew the splash fully transparent, a black box.
+/// Opaque means the same everywhere.
+const OPAQUE: u32 = 0xFF00_0000;
+
 // The app's dark theme (app/lib/ui/theme/oc_colors.dart).
-const BACKGROUND: u32 = 0x0E0E10;
-const TEXT: u32 = 0xEDEDEF;
-const TEXT_SECONDARY: u32 = 0xA1A1A8;
-const TRACK: u32 = 0x27272C;
-const BORDER: u32 = 0x222226;
+const BACKGROUND: u32 = OPAQUE | 0x0E0E10;
+const TEXT: u32 = OPAQUE | 0xEDEDEF;
+const TEXT_SECONDARY: u32 = OPAQUE | 0xA1A1A8;
+const TRACK: u32 = OPAQUE | 0x27272C;
+const BORDER: u32 = OPAQUE | 0x222226;
 
 const TITLE_FONT: &[u8] = include_bytes!("../../../app/assets/fonts/Inter-SemiBold.ttf");
 const BODY_FONT: &[u8] = include_bytes!("../../../app/assets/fonts/Inter-Regular.ttf");
@@ -160,8 +166,11 @@ impl ApplicationHandler<Message> for Splash {
             Ok(surface) => self.surface = Some(surface),
             Err(error) => crate::log::line(format!("no splash surface: {error}")),
         }
-        window.request_redraw();
         self.window = Some(window);
+        // Drawn now, not on a requested redraw: Windows sends none to a
+        // hidden window (no WM_PAINT), so it would never be shown. Once
+        // shown, it is painted again as usual.
+        self.redraw();
     }
 
     fn user_event(&mut self, event_loop: &ActiveEventLoop, message: Message) {
@@ -367,7 +376,7 @@ fn blend(under: u32, over: u32, alpha: f32) -> u32 {
         let b = ((over >> shift) & 0xFF) as f32;
         ((a + (b - a) * alpha).round() as u32) << shift
     };
-    channel(16) | channel(8) | channel(0)
+    OPAQUE | channel(16) | channel(8) | channel(0)
 }
 
 #[cfg(test)]
@@ -415,6 +424,24 @@ mod tests {
     }
 
     #[test]
+    fn every_pixel_is_opaque() {
+        let fonts = Fonts::new();
+        let (width, height) = (300, 180);
+        let mut buffer = vec![0; width * height];
+
+        draw(
+            &mut buffer,
+            width,
+            height,
+            1.0,
+            &Status::Downloading(1, 3),
+            &fonts,
+        );
+
+        assert!(buffer.iter().all(|pixel| pixel & OPAQUE == OPAQUE));
+    }
+
+    #[test]
     fn a_tiny_window_draws_without_panicking() {
         let fonts = Fonts::new();
         let mut buffer = vec![0; 3];
@@ -423,8 +450,8 @@ mod tests {
 
     #[test]
     fn blending_goes_from_under_to_over() {
-        assert_eq!(blend(0x000000, 0xFFFFFF, 0.0), 0x000000);
-        assert_eq!(blend(0x000000, 0xFFFFFF, 1.0), 0xFFFFFF);
-        assert_eq!(blend(0x000000, 0x0000FF, 0.5), 0x000080);
+        assert_eq!(blend(OPAQUE, OPAQUE | 0xFFFFFF, 0.0), OPAQUE);
+        assert_eq!(blend(OPAQUE, OPAQUE | 0xFFFFFF, 1.0), OPAQUE | 0xFFFFFF);
+        assert_eq!(blend(OPAQUE, OPAQUE | 0x0000FF, 0.5), OPAQUE | 0x000080);
     }
 }
