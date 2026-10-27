@@ -108,6 +108,14 @@ Every rule here was broken at least once and caught in review.
   - restart Metro with `-c` after editing if the screen didn't change: a stale bundle looks like a fix that didn't work.
 
   If you can't run the emulator, the task isn't done. Say so in the first line of your report.
+
+  Running the phone app, each line starting with `source mobile/scripts/env.sh &&`:
+  - `adb devices` shows `emulator-5554` when the `Pixel_7` emulator is up; else `cd mobile && yarn emulator`. The app is installed; after a change to `app.config.ts` or a native package, reinstall with `cd mobile && yarn android:fake`.
+  - Metro on the fake world: `cd mobile && EXPO_PUBLIC_FAKE_CORE=1 npx expo start --dev-client -c`, run in the background, then `adb reverse tcp:8081 tcp:8081`. Add `EXPO_PUBLIC_FAKE_SCENARIO=empty` for no identity and no servers.
+  - Open a screen: `adb shell am start -W -a android.intent.action.VIEW -d 'opencord-app:///servers' dev.opencord.mobile`. A blank screen right after Metro starts means the app didn't reach it: run `adb reverse` again and open it a second time.
+  - Screenshots: `mobile/scripts/screens.sh <task> <name>=<route> …` writes both themes to `.superpowers/sdd/mobile/screens/<task>/`. Open each PNG and look at it.
+  - Gestures: `adb shell input tap X Y`, `adb shell input swipe X1 Y1 X2 Y2 300` (a swipe), `adb shell input swipe X Y X Y 1200` (a long press). Screenshots are 1080 × 2400.
+  - Stop Metro when you're done, by its pid (`ss -ltnp | grep 8081`).
 - **A surface differs from what it sits on.** A card is `surface` on `chat`, never on a background of the same colour. A row with swipe actions behind it has an opaque background.
 - **What the system needs is part of the feature.** URL schemes, permissions and intent filters go in `app.config.ts` in the task that needs them, checked from outside the app.
 - **Events carry the real state.** An update sent for play, pause or a setting change carries the last known position and values, never a placeholder `0` or empty value.
