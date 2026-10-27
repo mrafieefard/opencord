@@ -31,6 +31,22 @@ pub struct FakeDns {
     state: Arc<Mutex<State>>,
 }
 
+/// Tries for a port free on both UDP and TCP: the one the system gives
+/// for UDP can be taken for TCP by a test running alongside, or reserved
+/// for TCP (Windows answers that with "access forbidden").
+const BIND_TRIES: usize = 50;
+
+async fn bind_pair() -> (UdpSocket, TcpListener, SocketAddr) {
+    for _ in 0..BIND_TRIES {
+        let udp = UdpSocket::bind((Ipv4Addr::LOCALHOST, 0)).await.unwrap();
+        let address = udp.local_addr().unwrap();
+        if let Ok(tcp) = TcpListener::bind(address).await {
+            return (udp, tcp, address);
+        }
+    }
+    panic!("no port free on both UDP and TCP after {BIND_TRIES} tries");
+}
+
 fn name(text: &str) -> Name {
     let mut name = Name::from_ascii(text).unwrap();
     name.set_fqdn(true);
@@ -39,9 +55,7 @@ fn name(text: &str) -> Name {
 
 impl FakeDns {
     pub async fn start() -> Self {
-        let udp = UdpSocket::bind((Ipv4Addr::LOCALHOST, 0)).await.unwrap();
-        let address = udp.local_addr().unwrap();
-        let tcp = TcpListener::bind(address).await.unwrap();
+        let (udp, tcp, address) = bind_pair().await;
         let fake = Self {
             address,
             state: Arc::default(),
