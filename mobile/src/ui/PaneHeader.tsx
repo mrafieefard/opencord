@@ -1,6 +1,7 @@
 // The header a pane draws itself, so it moves with the pane (design §7.2):
 // 52 pt under the safe area, the title centered on iOS and at the left on
 // Android, a hairline under it.
+import type { ReactNode } from 'react';
 import { Platform, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -23,13 +24,14 @@ export interface PaneHeaderProps {
   titleIcon?: IconName;
   left?: HeaderAction;
   right?: HeaderAction[];
+  rightElement?: ReactNode;
   /** The tablet's split view draws no top inset for the content pane. */
   insetTop?: boolean;
 }
 
 const centered = Platform.OS === 'ios';
 
-export function PaneHeader({ title, subtitle, titleIcon, left, right = [], insetTop = true }: PaneHeaderProps) {
+export function PaneHeader({ title, subtitle, titleIcon, left, right = [], rightElement, insetTop = true }: PaneHeaderProps) {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
   return (
@@ -57,7 +59,7 @@ export function PaneHeader({ title, subtitle, titleIcon, left, right = [], inset
           )}
         </View>
         <View style={[styles.side, styles.sideEnd, centered && styles.sideFixed]}>
-          {right.map((action) => (
+          {rightElement ?? right.map((action) => (
             <IconButton key={action.label} icon={action.icon} label={action.label} onPress={action.onPress} />
           ))}
         </View>

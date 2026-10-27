@@ -8,9 +8,10 @@ export interface IconProps {
   name: IconName;
   size?: number;
   color?: ColorToken;
+  testID?: string;
 }
 
-export function Icon({ name, size = 20, color = 'text' }: IconProps) {
+export function Icon({ name, size = 20, color = 'text', testID }: IconProps) {
   const { colors } = useTheme();
-  return <SymbolView name={icons[name]} size={size} tintColor={colors[color]} resizeMode="scaleAspectFit" />;
+  return <SymbolView testID={testID} name={icons[name]} size={size} tintColor={colors[color]} resizeMode="scaleAspectFit" />;
 }

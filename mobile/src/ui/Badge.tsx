@@ -12,12 +12,12 @@ export function badgeText(count: number, mention = false): string | null {
   return mention ? `@${number}` : number;
 }
 
-export function Badge({ count, mention = false }: { count: number; mention?: boolean }) {
+export function Badge({ count, mention = false, testID }: { count: number; mention?: boolean; testID?: string }) {
   const { colors } = useTheme();
   const text = badgeText(count, mention);
   if (text === null) return null;
   return (
-    <Animated.View entering={ZoomIn.duration(motion.badge)} style={[styles.badge, { backgroundColor: colors.accent }]}>
+    <Animated.View testID={testID} entering={ZoomIn.duration(motion.badge)} style={[styles.badge, { backgroundColor: colors.accent }]}>
       <Text variant="caption" color="onAccent" tabular style={styles.text}>
         {text}
       </Text>

@@ -198,6 +198,7 @@ export function useServerHeader(serverKey: string) {
             iconHash: server.snapshot?.iconHash,
             connection: server.connection,
             connected: server.connection.tag === ConnectionRecord_Tags.Connected,
+            address: `${server.entry.host}:${server.entry.port}`,
           }
         : null,
     [server],
