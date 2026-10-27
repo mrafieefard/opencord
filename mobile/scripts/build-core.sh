@@ -54,6 +54,10 @@ android)
     fi
     ;;
 ios)
+    # The app's minimum (Expo's template). Without it the cc crates build
+    # for the SDK's iOS and rustc links for iOS 10: ___chkstk_darwin from
+    # opus is then undefined.
+    export IPHONEOS_DEPLOYMENT_TARGET=${IPHONEOS_DEPLOYMENT_TARGET:-16.4}
     npx ubrn build ios --config ubrn.config.yaml --and-generate "${release[@]}"
     ;;
 bindings)

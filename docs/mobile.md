@@ -89,3 +89,7 @@ Run one on this machine with `cargo run -p opencord-server`. The emulator reache
 ### Android's minimum is 8.0
 
 The app needs Android 8.0 (API 26), AAudio's first version, which cpal needs for sound: linking against API 24 fails on `-laaudio`. `expo-build-properties` sets the app's `minSdkVersion` to 26.
+
+### iOS's minimum is 16.4
+
+That is Expo SDK 58's template. `scripts/build-core.sh ios` builds the core for it (`IPHONEOS_DEPLOYMENT_TARGET`). Without that, the C in the core's crates (Opus, ring, SQLite) is compiled for the SDK's own iOS version while Rust links for iOS 10, and the link fails on `___chkstk_darwin`.
