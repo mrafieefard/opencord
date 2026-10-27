@@ -71,7 +71,7 @@ Every rule here was broken at least once and caught in review.
   - A thread that can fail (opening a device, encoding) stores its error where the caller's next call returns it, and says so at once through the event stream.
   - `Err(_) => None` on a thread is the same swallowed error as anywhere else.
 - **Know how a library reports failure.** Iterators that just end, an `Option`, a default value: where an error and "nothing more" look the same, call the lower-level function that tells them apart. A download that fails halfway is a failure, not the end of the file.
-- **Production code never bends for tests.** No `try`/`catch` "for tests where X isn't set up": fix the test's setup instead. When a test needs to stand in for something (a call, a device), put a small trait in front of it, as `TapEngine` does, and give the test a fake.
+- **Production code never bends for tests.** No `try`/`catch` "for tests where X isn't set up", and no prop or branch only a test uses: fix the test's setup instead, or drive the real path (a header's search through the options the screen sets). When a test needs to stand in for something (a call, a device), put a small trait in front of it, as `TapEngine` does, and give the test a fake.
 
 ### Shared state and races
 
@@ -101,7 +101,15 @@ Every rule here was broken at least once and caught in review.
 
 ### What the user sees
 
-- **Every failure is shown.** If a model has an `error` or `failed` field, some widget renders it.
+- **Every failure is shown, where the user is looking.** If a model has an `error` or `failed` field, some widget renders it. A step that replaces a form (a confirmation, a trust step) shows its own errors.
+- **Use it on the device before calling it done.** Tests check text and calls, not what is drawn or how it feels. For every screen a task touches:
+  - take its screenshots in dark and light and look at each one;
+  - try every gesture on it (tap, long press, both swipes, pull) and every way in from outside the app (`adb shell am start -d '<link>'`);
+  - restart Metro with `-c` after editing if the screen didn't change: a stale bundle looks like a fix that didn't work.
+
+  If you can't run the emulator, the task isn't done. Say so in the first line of your report.
+- **A surface differs from what it sits on.** A card is `surface` on `chat`, never on a background of the same colour. A row with swipe actions behind it has an opaque background.
+- **What the system needs is part of the feature.** URL schemes, permissions and intent filters go in `app.config.ts` in the task that needs them, checked from outside the app.
 - **Events carry the real state.** An update sent for play, pause or a setting change carries the last known position and values, never a placeholder `0` or empty value.
 - **A retry starts clean and sends the same thing.**
   - It resets what belongs to one attempt: progress, errors.
@@ -150,6 +158,8 @@ Every rule here was broken at least once and caught in review.
   - `core/` never imports `features/`: shared state goes in `core/providers`.
   - The repository's methods mirror the core's: no parameters the core ignores.
 - **The two hues are for their one use each:** `voice` for the voice waveform, `recording` for the recording dot and the cancel state. Everything else is monochrome, even a selected chip.
+- **A style passed to a text variant replaces its fields.** To change a variant's size, pass `fontSize` and `lineHeight`; another variant's style brings its font too.
+- **Numbers come from the plan's table.** A step, limit or duration the plan's Numbers table gives is used as given, never a guess.
 - **Check both themes.** Theme colours (`colors.text`, `colors.scrim`) flip with the theme. Anything drawn on a photo or a video uses the fixed dark set, `OcColors.dark`, as the image grid's overlay does.
 - **Finishing a feature removes what stood in for it.** Grep for its "coming later" markers, placeholder toasts and `later:` flags, and remove them in the same task.
 - **A value kept on both sides changes on both sides.** A permission set, a default, a limit or a list that exists in Rust and in Dart is updated in both, in the same task.
@@ -203,6 +213,7 @@ Every milestone ends with a decisions entry in `docs/decisions.md`.
   Private helpers you needed to build what the plan describes are not deviations.
 
   Name each one in the ledger and in the report, with the failure that made you add it. If `git diff` shows one, "Deviations: none" is wrong.
+- **A required step you skipped leads the report** (screenshots, a check, a by-hand step), with why. The ledger alone doesn't count.
 - **Every problem names its test and pastes its error line.** A claim without them is left out.
 - **Re-run a flaky test alone,** one test per command, and paste the result:
 
