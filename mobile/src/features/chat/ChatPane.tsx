@@ -4,25 +4,33 @@ import { StyleSheet, View } from 'react-native';
 import { useChannelInfo } from '@/state/selectors';
 import { PaneHeader, useTheme } from '@/ui';
 
+import { MessageList } from './MessageList';
+
 export interface ChatPaneProps {
   serverKey: string;
   channelId: string;
   /** The sidebar button; on a tablet the list is always beside the pane, so there is none. */
   onOpenSidebar?: () => void;
+  onSelectChannel?: (channelId: string) => void;
 }
 
-export function ChatPane({ serverKey, channelId, onOpenSidebar }: ChatPaneProps) {
+export function ChatPane({ serverKey, channelId, onOpenSidebar, onSelectChannel }: ChatPaneProps) {
   const { colors } = useTheme();
   const info = useChannelInfo(serverKey, channelId);
+
   return (
     <View style={[styles.pane, { backgroundColor: colors.chat }]}>
       <PaneHeader
         title={info?.channel.name ?? ''}
         titleIcon="textChannel"
         subtitle={info?.channel.topic}
-        left={onOpenSidebar && { icon: 'sidebar', label: 'Show channels', onPress: onOpenSidebar }}
+        left={onOpenSidebar ? { icon: 'sidebar', label: 'Show channels', onPress: onOpenSidebar } : undefined}
       />
-      {/* later: Task 13 puts the messages and the composer here. */}
+      <MessageList
+        serverKey={serverKey}
+        channelId={channelId}
+        onSelectChannel={onSelectChannel}
+      />
     </View>
   );
 }

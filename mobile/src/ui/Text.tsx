@@ -5,7 +5,7 @@ import { MAX_FONT_SCALE, typography, type TextVariant } from './theme/typography
 import type { ColorToken } from './theme/tokens';
 import { useTheme } from './theme/useTheme';
 
-export interface TextProps extends Pick<NativeTextProps, 'numberOfLines' | 'selectable' | 'ellipsizeMode' | 'onTextLayout' | 'accessibilityRole' | 'testID'> {
+export interface TextProps extends Pick<NativeTextProps, 'numberOfLines' | 'selectable' | 'ellipsizeMode' | 'onTextLayout' | 'accessibilityRole' | 'testID' | 'onPress'> {
   variant: TextVariant;
   color?: ColorToken;
   /** Times and counts that change in place. */
