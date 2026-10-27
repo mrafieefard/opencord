@@ -4,6 +4,8 @@
   "private": true,
   "description": "Opencord's client core for React Native: crates/opencord-mobile through uniffi-bindgen-react-native.",
   "license": "MPL-2.0",
+  "author": "Opencord",
+  "homepage": "https://github.com/mrafieefard/opencord",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/mrafieefard/opencord.git",

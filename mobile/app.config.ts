@@ -67,6 +67,9 @@ const config: ExpoConfig = {
       {
         // cpal's AAudio back end needs Android 8.0.
         android: { minSdkVersion: 26 },
+        // @react-native-menu/menu 2.0.0 imports "RCTBridge.h" as a local
+        // header, which the precompiled React core doesn't provide.
+        ios: { buildReactNativeFromSource: true },
       },
     ],
   ],
