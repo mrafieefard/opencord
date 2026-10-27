@@ -18,6 +18,7 @@ export default function YouLayout() {
       }}
     >
       <Stack.Screen name="index" options={{ title: 'You' }} />
+      <Stack.Screen name="name" options={{ title: 'Display name', headerLargeTitle: false }} />
     </Stack>
   );
 }
