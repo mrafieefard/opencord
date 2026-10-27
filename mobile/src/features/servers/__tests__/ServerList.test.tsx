@@ -6,6 +6,7 @@ import { ConnectionRecord, MobileEvent, VoiceLinkState } from '@opencord/core-na
 import { CHANNELS, NIGHT_OWLS, RUST_CLUB, snapshot } from '@/core/fake/world';
 import { freshStore, settle } from '@/test/store';
 import { onEvents, useAppStore } from '@/state/store';
+import { deviceLocale, formatTime } from '../formatTime';
 import { ServerListScreen } from '../ServerListScreen';
 
 function renderScreen(ui: React.ReactElement) {
@@ -65,6 +66,9 @@ describe('ServerList', () => {
     expect(screen.getByText('Night Owls')).toBeTruthy();
     expect(screen.getByText(/#general · Kai: evening all/)).toBeTruthy();
     expect(screen.getByText('1')).toBeTruthy();
+    const time = formatTime(now, Date.now(), deviceLocale());
+    expect(screen.getByText(time)).toBeTruthy();
+    expect(screen.getByLabelText(`Night Owls, #general · Kai: evening all, 1 unread, ${time}`)).toBeTruthy();
   });
 
   it('a row shows the voice glyph while the user is in voice there', async () => {
@@ -86,7 +90,13 @@ describe('ServerList', () => {
 
   it('search filters by name', async () => {
     await setupServers();
-    await renderScreen(<ServerListScreen query="rust" />);
+    await renderScreen(<ServerListScreen />);
+    const search = mockNavOptions.headerSearchBarOptions as {
+      onChangeText: (event: { nativeEvent: { text: string } }) => void;
+    };
+    await act(async () => {
+      search.onChangeText({ nativeEvent: { text: 'rust' } });
+    });
     expect(screen.getByText('Rust Club')).toBeTruthy();
     expect(screen.queryByText('Night Owls')).toBeNull();
   });

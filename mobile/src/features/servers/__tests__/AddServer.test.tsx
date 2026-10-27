@@ -1,6 +1,9 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
+import { MobileError } from '@opencord/core-native';
+
+import { describeError } from '@/core';
 import { freshStore, settle } from '@/test/store';
 import { useAppStore } from '@/state/store';
 import { AddServerForm } from '../AddServerForm';
@@ -146,6 +149,23 @@ describe('AddServer', () => {
 
     expect(screen.getByRole('alert')).toBeTruthy();
     expect(screen.getByText(/not an invite link or address/)).toBeTruthy();
+    expect(mockBack).not.toHaveBeenCalled();
+  });
+
+  it('an error while trusting shows in the trust step', async () => {
+    const core = freshStore();
+    await renderScreen(<AddServerForm />);
+    await fireEvent.changeText(screen.getByLabelText('Invite link or address'), '127.0.0.1:7710');
+    await fireEvent.press(screen.getByLabelText('Add'));
+    await settle();
+
+    core.failNext('serverAdd', new MobileError.NotConnected());
+    await fireEvent.press(screen.getByLabelText('Trust and add'));
+    await settle();
+
+    expect(screen.getByText('Trust this server?')).toBeTruthy();
+    expect(screen.getByRole('alert')).toBeTruthy();
+    expect(screen.getByText(describeError(new MobileError.NotConnected()))).toBeTruthy();
     expect(mockBack).not.toHaveBeenCalled();
   });
 

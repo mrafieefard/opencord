@@ -4,7 +4,7 @@ import * as Clipboard from 'expo-clipboard';
 import { useRouter } from 'expo-router';
 import { AddServerResult } from '@opencord/core-native';
 
-import { describeError } from '@/core';
+import { describeError, report } from '@/core';
 import { addServer, trustServer } from '@/state/actions/servers';
 
 export interface UseAddServerOptions {
@@ -21,16 +21,15 @@ export function useAddServer(options?: UseAddServerOptions) {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  const paste = useCallback(async () => {
-    try {
-      const text = await Clipboard.getStringAsync();
-      if (text) {
+  const paste = useCallback(() => {
+    report(
+      Clipboard.getStringAsync().then((text) => {
+        if (!text) return;
         setLinkOrAddress(text.trim());
         setError(null);
-      }
-    } catch {
-      // clipboard read failed
-    }
+      }),
+      'paste',
+    );
   }, []);
 
   const handleAdded = useCallback(() => {
@@ -43,10 +42,7 @@ export function useAddServer(options?: UseAddServerOptions) {
 
   const submit = useCallback(async () => {
     const target = linkOrAddress.trim();
-    if (!target) {
-      setError('Enter an invite link or address.');
-      return;
-    }
+    if (!target) return;
     setBusy(true);
     setError(null);
     try {
@@ -77,6 +73,9 @@ export function useAddServer(options?: UseAddServerOptions) {
       const result = await addServer(linkOrAddress.trim(), token);
       if (AddServerResult.Added.instanceOf(result)) {
         handleAdded();
+      } else {
+        // Asked again: the certificate changed between the two attempts.
+        setTrustPending({ address: result.inner.address, fingerprint: result.inner.fingerprint });
       }
     } catch (failure: unknown) {
       setError(describeError(failure));
@@ -87,6 +86,7 @@ export function useAddServer(options?: UseAddServerOptions) {
 
   const cancelTrust = useCallback(() => {
     setTrustPending(null);
+    setError(null);
   }, []);
 
   return {

@@ -7,27 +7,46 @@
 // Long press: Menu (Mark as read, Retry now, Copy address, Leave server)
 
 import * as Clipboard from 'expo-clipboard';
-import { useRef, useState } from 'react';
-import { Alert, Pressable, StyleSheet, View } from 'react-native';
+import { memo, useRef } from 'react';
+import { Alert, StyleSheet, View } from 'react-native';
+import { Touchable } from 'react-native-gesture-handler';
 import ReanimatedSwipeable, { type SwipeableMethods } from 'react-native-gesture-handler/ReanimatedSwipeable';
 import { ConnectionRecord_Tags } from '@opencord/core-native';
 
+import { report } from '@/core';
 import { leaveServer, markServerRead, retryServer } from '@/state/actions/servers';
 import type { ServerRow as ServerRowType } from '@/state/types';
-import { Badge, Icon, type IconName, Menu, type MenuAction, Row, ServerIcon, Text, space, useTheme } from '@/ui';
+import { Badge, Icon, Menu, type MenuAction, type MenuHandle, Row, ServerIcon, Text, space, useTheme } from '@/ui';
 import { connectionText } from './connectionText';
 import { formatTime } from './formatTime';
 import { useImageFile } from './useImageFile';
 
-export function ServerRow({
-  row,
-  onPress,
-}: {
+export const ROW_HEIGHT = 72;
+const ICON_SIZE = 52;
+/** Where the hairline between rows starts: after the icon (design §9.3). */
+export const ROW_INSET = space.lg + ICON_SIZE + space.md;
+
+/** The row whose actions are showing: opening another closes it, as in Mail. */
+let openRow: SwipeableMethods | null = null;
+
+export interface ServerRowProps {
   row: ServerRowType;
-  onPress: () => void;
-}) {
+  /** The list's clock, so times move on with it. */
+  nowMs: number;
+  locale: string;
+  onOpen: (serverKey: string) => void;
+}
+
+/** What a screen reader says for the row: name, second line, counts, voice, time. */
+export function rowLabel(row: ServerRowType, second: string, time: string | null): string {
+  const counts = row.mentions > 0 ? `${row.mentions} mentions` : row.unread > 0 ? `${row.unread} unread` : null;
+  return [row.name, second, counts, row.inVoice ? 'in voice' : null, time].filter(Boolean).join(', ');
+}
+
+export const ServerRow = memo(function ServerRow({ row, nowMs, locale, onOpen }: ServerRowProps) {
   const { colors } = useTheme();
   const swipeableRef = useRef<SwipeableMethods>(null);
+  const menuRef = useRef<MenuHandle>(null);
   const iconFile = useImageFile(row.key, row.iconHash);
   const conn = connectionText(row.connection);
   const connected = row.connection.tag === ConnectionRecord_Tags.Connected;
@@ -38,16 +57,16 @@ export function ServerRow({
       {
         text: 'Leave',
         style: 'destructive',
-        onPress: () => leaveServer(row.key),
+        onPress: () => report(leaveServer(row.key), 'leave server'),
       },
     ]);
   };
 
   const menuActions: MenuAction[] = [
     { id: 'read', title: 'Mark as read', icon: 'check' },
-    ...(connected ? [] : [{ id: 'retry', title: 'Retry now', icon: 'retry' as IconName }]),
-    { id: 'copy-address', title: 'Copy address', icon: 'copy' as IconName },
-    { id: 'leave', title: 'Leave server', icon: 'leave' as IconName, destructive: true },
+    ...(connected ? [] : [{ id: 'retry', title: 'Retry now', icon: 'retry' } satisfies MenuAction]),
+    { id: 'copy-address', title: 'Copy address', icon: 'copy' },
+    { id: 'leave', title: 'Leave server', icon: 'leave', destructive: true },
   ];
 
   const handleAction = (id: string) => {
@@ -56,10 +75,10 @@ export function ServerRow({
         markServerRead(row.key);
         break;
       case 'retry':
-        void retryServer(row.key);
+        report(retryServer(row.key), 'retry server');
         break;
       case 'copy-address':
-        void Clipboard.setStringAsync(row.address);
+        report(Clipboard.setStringAsync(row.address), 'copy address');
         break;
       case 'leave':
         confirmLeave();
@@ -68,7 +87,7 @@ export function ServerRow({
   };
 
   const renderLeftActions = () => (
-    <Pressable
+    <Touchable
       testID={`read-server-${row.key}`}
       style={[styles.action, { backgroundColor: colors.accent }]}
       onPress={() => {
@@ -76,83 +95,83 @@ export function ServerRow({
         markServerRead(row.key);
       }}
     >
-      <Icon name="check" color="onAccent" size={24} />
-      <Text variant="caption" color="onAccent" style={styles.actionText}>
-        Read
-      </Text>
-    </Pressable>
+      <View accessible accessibilityRole="button" accessibilityLabel="Read" style={styles.actionContent}>
+        <Icon name="check" color="onAccent" size={24} />
+        <Text variant="caption" color="onAccent" style={styles.actionText}>
+          Read
+        </Text>
+      </View>
+    </Touchable>
   );
 
   const renderRightActions = () => (
-    <Pressable
+    <Touchable
       testID={`leave-server-${row.key}`}
       style={[styles.action, { backgroundColor: colors.recording }]}
       onPress={() => {
+        swipeableRef.current?.close();
         confirmLeave();
       }}
     >
-      <Icon name="leave" color="text" size={24} />
-      <Text variant="caption" color="text" style={styles.actionText}>
-        Leave
-      </Text>
-    </Pressable>
+      <View accessible accessibilityRole="button" accessibilityLabel="Leave" style={styles.actionContent}>
+        <Icon name="leave" color="onAccent" size={24} />
+        <Text variant="caption" color="onAccent" style={styles.actionText}>
+          Leave
+        </Text>
+      </View>
+    </Touchable>
   );
 
-  const [now] = useState(() => Date.now());
-  const locale = Intl.DateTimeFormat().resolvedOptions().locale || 'en-US';
-  const timeText = row.lastAtMs ? formatTime(row.lastAtMs, now, locale) : null;
+  const timeText = row.lastAtMs ? formatTime(row.lastAtMs, nowMs, locale) : null;
+  const second = conn?.text ?? (row.preview ? previewLine(row.preview) : 'No messages yet');
 
   return (
     <ReanimatedSwipeable
       ref={swipeableRef}
       overshootFriction={8}
+      onSwipeableWillOpen={() => {
+        if (openRow !== swipeableRef.current) openRow?.close();
+        openRow = swipeableRef.current;
+      }}
+      onSwipeableClose={() => {
+        if (openRow === swipeableRef.current) openRow = null;
+      }}
       renderLeftActions={renderLeftActions}
       renderRightActions={renderRightActions}
     >
       <Menu
+        ref={menuRef}
         testID={`server-menu-${row.key}`}
         trigger="longPress"
         actions={menuActions}
         onAction={handleAction}
       >
         <Row
-          height={72}
-          accessibilityLabel={row.name}
-          onPress={onPress}
-          style={styles.rowContainer}
+          height={ROW_HEIGHT}
+          accessibilityLabel={rowLabel(row, second, timeText)}
+          onPress={() => onOpen(row.key)}
+          onLongPress={() => menuRef.current?.open()}
+          // Opaque, so the swipe actions stay hidden until the row moves.
+          style={[styles.rowContainer, { backgroundColor: colors.sidebar }]}
         >
           <View style={styles.content}>
-            <ServerIcon name={row.name} file={iconFile} size={52} />
+            <ServerIcon name={row.name} file={iconFile} size={ICON_SIZE} />
             <View style={styles.details}>
               <View style={styles.topLine}>
                 <Text variant="headline" numberOfLines={1} style={styles.name}>
                   {row.name}
                 </Text>
                 {timeText ? (
-                  <Text variant="footnote" color="textMuted">
+                  <Text variant="footnote" color="textMuted" tabular>
                     {timeText}
                   </Text>
                 ) : null}
               </View>
               <View style={styles.bottomLine}>
                 <View style={styles.previewContainer}>
-                  {conn ? (
-                    <Text
-                      variant="callout"
-                      color={conn.error ? 'recording' : 'textMuted'}
-                      numberOfLines={1}
-                    >
-                      {conn.text}
-                    </Text>
-                  ) : row.preview ? (
-                    <Text variant="callout" color="textMuted" numberOfLines={1}>
-                      #{row.preview.channelName} · {row.preview.authorName}: {row.preview.text}
-                    </Text>
-                  ) : (
-                    <Text variant="callout" color="textMuted" numberOfLines={1}>
-                      No messages yet
-                    </Text>
-                  )}
+                  <Text variant="callout" color={conn?.error ? 'recording' : 'textMuted'} numberOfLines={1}>
+                    {second}
+                  </Text>
                 </View>
                 <View style={styles.rightAccessories}>
                   {row.inVoice ? (
@@ -173,6 +192,10 @@ export function ServerRow({
       </Menu>
     </ReanimatedSwipeable>
   );
+});
+
+function previewLine(preview: NonNullable<ServerRowType['preview']>): string {
+  return `#${preview.channelName} · ${preview.authorName}: ${preview.text}`;
 }
 
 const styles = StyleSheet.create({
@@ -218,7 +241,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   action: {
-    width: 72,
+    width: ROW_HEIGHT,
+  },
+  actionContent: {
+    flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
   },

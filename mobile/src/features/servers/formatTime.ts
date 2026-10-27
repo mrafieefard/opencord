@@ -11,7 +11,8 @@ export function formatTime(atMs: number, nowMs: number, locale: string): string 
 
   const diffDays = Math.round((nowMidnight.getTime() - atMidnight.getTime()) / (24 * 60 * 60 * 1000));
 
-  if (diffDays === 0) {
+  // A server clock a little ahead of the phone's still reads as today.
+  if (diffDays <= 0) {
     return new Intl.DateTimeFormat(locale, { timeStyle: 'short' }).format(atDate);
   }
 
@@ -27,4 +28,9 @@ export function formatTime(atMs: number, nowMs: number, locale: string): string 
     return new Intl.DateTimeFormat(locale, { day: 'numeric', month: 'short', year: 'numeric' }).format(atDate);
   }
   return new Intl.DateTimeFormat(locale, { day: 'numeric', month: 'short' }).format(atDate);
+}
+
+/** The device's locale, as Intl sees it. */
+export function deviceLocale(): string {
+  return Intl.DateTimeFormat().resolvedOptions().locale;
 }

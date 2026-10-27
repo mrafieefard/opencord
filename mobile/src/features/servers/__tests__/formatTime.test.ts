@@ -4,11 +4,11 @@ function norm(s: string): string {
   return s.replace(/\s+/g, ' ').trim();
 }
 
+// Monday 26 October 2026, 21:30 local time.
+const nowMs = new Date(2026, 9, 26, 21, 30).getTime();
+
 describe('formatTime', () => {
   it('times read as today, yesterday, a weekday, or a date', () => {
-    // With now fixed at 2026-10-26 21:30 local time (Monday)
-    const now = new Date(2026, 9, 26, 21, 30);
-    const nowMs = now.getTime();
 
     // 21:04 today
     const todayMs = new Date(2026, 9, 26, 21, 4).getTime();
@@ -30,5 +30,10 @@ describe('formatTime', () => {
     expect(norm(formatTime(yesterdayMs, nowMs, 'en-US'))).toBe('Yesterday');
     expect(norm(formatTime(thursdayMs, nowMs, 'en-US'))).toBe('Thu');
     expect(norm(formatTime(oct3Ms, nowMs, 'en-US'))).toBe('Oct 3');
+  });
+
+  it('a time a little ahead of the clock reads as today, and another year says the year', () => {
+    expect(norm(formatTime(nowMs + 60_000, nowMs, 'en-GB'))).toBe('21:31');
+    expect(norm(formatTime(new Date(2025, 11, 30, 12, 0).getTime(), nowMs, 'en-GB'))).toBe('30 Dec 2025');
   });
 });

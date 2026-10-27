@@ -21,7 +21,9 @@ const config: ExpoConfig = {
   version: process.env.OPENCORD_VERSION ?? '0.0.1',
   orientation: 'default',
   icon: './assets/icon.png',
-  scheme: 'opencord-app',
+  // The app's own links first, then the invite links +native-intent.tsx
+  // turns into the Add server sheet.
+  scheme: ['opencord-app', 'opencord', 'opencords'],
   userInterfaceStyle: 'automatic',
   backgroundColor: '#0E0E10',
   ios: {

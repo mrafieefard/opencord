@@ -1,7 +1,12 @@
 // A native menu (UIMenu on iOS, PopupMenu on Android) on a press or a long
 // press (design §10).
-import { MenuView } from '@react-native-menu/menu';
-import type { ReactNode } from 'react';
+//
+// Inside a Gesture Handler row the row takes the touch, so Android's menu
+// never sees the long press: the row's onLongPress calls `open()`. iOS
+// opens the menu from its own long-press interaction, so `open()` does
+// nothing there.
+import { MenuView, type MenuComponentRef } from '@react-native-menu/menu';
+import { useImperativeHandle, useRef, type ReactNode, type Ref } from 'react';
 import { Platform } from 'react-native';
 
 import { icons, type IconName } from './icons';
@@ -20,13 +25,25 @@ export interface MenuProps {
   onAction: (id: string) => void;
   trigger?: 'press' | 'longPress';
   testID?: string;
+  ref?: Ref<MenuHandle>;
   children: ReactNode;
 }
 
-export function Menu({ actions, onAction, trigger = 'press', testID, children }: MenuProps) {
+export interface MenuHandle {
+  open(): void;
+}
+
+export function Menu({ actions, onAction, trigger = 'press', testID, ref, children }: MenuProps) {
   const { colors, scheme } = useTheme();
+  const menu = useRef<MenuComponentRef>(null);
+  useImperativeHandle(ref, () => ({
+    open: () => {
+      if (Platform.OS === 'android') menu.current?.show();
+    },
+  }));
   return (
     <MenuView
+      ref={menu}
       testID={testID}
       shouldOpenOnLongPress={trigger === 'longPress'}
       themeVariant={scheme}

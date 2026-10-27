@@ -2,8 +2,6 @@
 import { useState } from 'react';
 import { StyleSheet, TextInput, View } from 'react-native';
 import { useRouter } from 'expo-router';
-import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { describeError } from '@/core';
 import { setDisplayName } from '@/state/actions/profile';
@@ -11,11 +9,13 @@ import { useSelf } from '@/state/selectors';
 import { Button, Text, radius, space, typography, useTheme } from '@/ui';
 import { MAX_FONT_SCALE } from '@/ui/theme/typography';
 
+/** The core's limit, after trimming. */
+const MAX_NAME = 32;
+
 export function NameScreen() {
   const router = useRouter();
   const self = useSelf();
   const { colors } = useTheme();
-  const insets = useSafeAreaInsets();
   const [name, setName] = useState(self?.displayName ?? '');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -39,18 +39,16 @@ export function NameScreen() {
   }
 
   return (
-    <KeyboardAvoidingView behavior="padding" style={[styles.screen, { backgroundColor: colors.chat }]}>
-      <View style={[styles.body, { paddingTop: insets.top + space.lg }]}>
-        <Text variant="callout" color="textSecondary">
-          This is what people on servers see. You can change it at any time.
-        </Text>
+    // Save sits under the field, as on Create, so the keyboard never covers it.
+    <View style={[styles.screen, { backgroundColor: colors.chat }]}>
+      <View style={styles.body}>
         <TextInput
           value={name}
           onChangeText={setName}
           placeholder="Display name"
           placeholderTextColor={colors.textMuted}
           autoFocus
-          maxLength={64}
+          maxLength={MAX_NAME}
           returnKeyType="done"
           onSubmitEditing={() => void save()}
           maxFontSizeMultiplier={MAX_FONT_SCALE}
@@ -62,8 +60,6 @@ export function NameScreen() {
             {error}
           </Text>
         )}
-      </View>
-      <View style={[styles.footer, { paddingBottom: insets.bottom + space.lg }]}>
         <Button
           title="Save"
           variant="primary"
@@ -72,17 +68,16 @@ export function NameScreen() {
           onPress={() => void save()}
         />
       </View>
-    </KeyboardAvoidingView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   screen: { flex: 1 },
-  body: { flex: 1, paddingHorizontal: space.lg, gap: space.md },
+  body: { padding: space.lg, gap: space.md },
   input: {
     borderRadius: radius.icon,
     paddingHorizontal: space.lg,
     paddingVertical: space.md,
   },
-  footer: { paddingHorizontal: space.lg },
 });

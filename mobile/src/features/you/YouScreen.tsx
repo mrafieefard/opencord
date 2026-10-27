@@ -9,7 +9,7 @@ import { useRouter } from 'expo-router';
 import * as Sharing from 'expo-sharing';
 import { Touchable } from 'react-native-gesture-handler';
 
-import { getCore } from '@/core';
+import { getCore, report } from '@/core';
 import { loadIdentity } from '@/core/identity';
 import { setTheme } from '@/state/actions/prefs';
 import { toast } from '@/state/actions/ui';
@@ -43,10 +43,8 @@ export function YouScreen() {
   const handleBackup = useCallback(async () => {
     const core = getCore();
     const identity = await loadIdentity(core);
-    if (!identity) {
-      toast('No identity loaded', 'error');
-      return;
-    }
+    // The tabs show only once an identity is saved.
+    if (!identity) throw new Error('no saved identity');
     const backupText = core.identityBackupEncode(identity.secret);
     const file = new File(Paths.cache, 'opencord-identity.txt');
     await file.write(backupText);
@@ -61,16 +59,12 @@ export function YouScreen() {
   }, []);
 
   const appVersion = Constants.expoConfig?.version ?? '0.0.1';
-  let coreVersion = 'unknown';
-  try {
-    coreVersion = getCore().coreVersion();
-  } catch {
-    // core not initialized or in tests
-  }
+  const coreVersion = getCore().coreVersion();
 
   return (
     <ScrollView
-      style={[styles.screen, { backgroundColor: colors.sidebar }]}
+      contentInsetAdjustmentBehavior="automatic"
+      style={[styles.screen, { backgroundColor: colors.chat }]}
       contentContainerStyle={styles.content}
     >
       {/* Header */}
@@ -79,7 +73,7 @@ export function YouScreen() {
         <View style={styles.headerText}>
           <Text variant="title2">{self?.displayName ?? ''}</Text>
           <Touchable
-            onPress={() => void copyFingerprint()}
+            onPress={() => report(copyFingerprint(), 'copy fingerprint')}
             style={styles.fingerprintButton}
           >
             <View
@@ -88,7 +82,7 @@ export function YouScreen() {
               accessibilityLabel="Copy fingerprint"
               style={styles.fingerprintContent}
             >
-              <Text variant="mono" color="textSecondary" style={typography.footnote}>
+              <Text variant="mono" color="textSecondary" style={styles.fingerprint}>
                 {self?.fingerprint ?? ''}
               </Text>
               <Icon name="copy" size={14} color="textSecondary" />
@@ -131,7 +125,7 @@ export function YouScreen() {
         <View style={[styles.card, { backgroundColor: colors.surface }]}>
           <Row
             accessibilityLabel="Back up your identity"
-            onPress={() => void handleBackup()}
+            onPress={() => report(handleBackup(), 'back up identity')}
             style={styles.rowItem}
           >
             <View style={styles.rowContent}>
@@ -214,6 +208,10 @@ const styles = StyleSheet.create({
   fingerprintButton: {
     paddingVertical: space.xs,
     paddingHorizontal: space.sm,
+  },
+  fingerprint: {
+    fontSize: typography.footnote.fontSize,
+    lineHeight: typography.footnote.lineHeight,
   },
   fingerprintContent: {
     flexDirection: 'row',

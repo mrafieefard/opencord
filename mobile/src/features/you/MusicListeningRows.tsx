@@ -6,6 +6,9 @@ import { setMusicListening } from '@/state/actions/prefs';
 import { usePrefs } from '@/state/selectors';
 import { Slider, Switch, Text, space } from '@/ui';
 
+/** 0–200 % in 5 % steps (plan: Numbers). */
+const VOLUME_STEP = 0.05;
+
 export function MusicListeningRows() {
   const { music } = usePrefs();
   const percentage = `${Math.round(music.volume * 100)} %`;
@@ -23,7 +26,7 @@ export function MusicListeningRows() {
           value={music.volume}
           min={0}
           max={2}
-          step={0.01}
+          step={VOLUME_STEP}
           onChange={(volume) => setMusicListening({ volume })}
           accessibilityLabel="Music volume"
         />

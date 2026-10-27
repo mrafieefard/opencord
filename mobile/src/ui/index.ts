@@ -7,7 +7,7 @@ export { EmptyState } from './EmptyState';
 export { Icon } from './Icon';
 export { IconButton } from './IconButton';
 export type { IconName } from './icons';
-export { Menu, type MenuAction } from './Menu';
+export { Menu, type MenuAction, type MenuHandle } from './Menu';
 export { PaneHeader, type HeaderAction } from './PaneHeader';
 export { ProgressBar } from './ProgressBar';
 export { Row } from './Row';

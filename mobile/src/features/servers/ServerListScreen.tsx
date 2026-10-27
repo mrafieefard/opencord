@@ -17,21 +17,23 @@ import {
 import { retryDisconnected } from '@/state/actions/servers';
 import { useServerRows } from '@/state/selectors';
 import type { ServerRow as ServerRowType } from '@/state/types';
-import { EmptyState, useTheme } from '@/ui';
-import { ServerRow } from './ServerRow';
+import { Divider, EmptyState, useTheme } from '@/ui';
 
-export interface ServerListScreenProps {
-  query?: string;
-}
+import { deviceLocale } from './formatTime';
+import { ROW_INSET, ServerRow } from './ServerRow';
+import { useMinuteClock } from './useMinuteClock';
 
-export function ServerListScreen({ query: queryProp }: ServerListScreenProps) {
-  const [search, setSearch] = useState('');
+const openServer = (serverKey: string) => router.push(`/server/${serverKey}`);
+const Separator = () => <Divider inset={ROW_INSET} />;
+
+export function ServerListScreen() {
+  const [query, setQuery] = useState('');
   const [refreshing, setRefreshing] = useState(false);
   const { colors } = useTheme();
   const navigation = useNavigation();
-
-  const query = queryProp ?? search;
   const rows = useServerRows(query);
+  const nowMs = useMinuteClock();
+  const locale = deviceLocale();
 
   useLayoutEffect(() => {
     navigation.setOptions({
@@ -39,10 +41,10 @@ export function ServerListScreen({ query: queryProp }: ServerListScreenProps) {
         placeholder: 'Search',
         hideWhenScrolling: false,
         onChangeText: (event: NativeSyntheticEvent<{ text: string }>) => {
-          setSearch(event.nativeEvent.text);
+          setQuery(event.nativeEvent.text);
         },
         onCancelButtonPress: () => {
-          setSearch('');
+          setQuery('');
         },
       },
     });
@@ -58,15 +60,8 @@ export function ServerListScreen({ query: queryProp }: ServerListScreenProps) {
   }, []);
 
   const renderItem = useCallback(
-    ({ item }: { item: ServerRowType }) => (
-      <ServerRow
-        row={item}
-        onPress={() => {
-          router.push(`/server/${item.key}`);
-        }}
-      />
-    ),
-    [],
+    ({ item }: { item: ServerRowType }) => <ServerRow row={item} nowMs={nowMs} locale={locale} onOpen={openServer} />,
+    [nowMs, locale],
   );
 
   if (rows.length === 0 && !query) {
@@ -91,6 +86,9 @@ export function ServerListScreen({ query: queryProp }: ServerListScreenProps) {
         data={rows}
         keyExtractor={(item) => item.key}
         renderItem={renderItem}
+        ItemSeparatorComponent={Separator}
+        contentInsetAdjustmentBehavior="automatic"
+        keyboardDismissMode="on-drag"
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -99,12 +97,7 @@ export function ServerListScreen({ query: queryProp }: ServerListScreenProps) {
           />
         }
         ListEmptyComponent={
-          query ? (
-            <EmptyState
-              title="No servers found"
-              body={`No server matching "${query}"`}
-            />
-          ) : null
+          query ? <EmptyState title="No servers found" /> : null
         }
       />
     </View>

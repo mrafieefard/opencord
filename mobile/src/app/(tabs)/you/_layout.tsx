@@ -9,12 +9,13 @@ export default function YouLayout() {
       screenOptions={{
         headerLargeTitle: true,
         headerShadowVisible: false,
-        headerStyle: { backgroundColor: colors.sidebar },
-        headerLargeStyle: { backgroundColor: colors.sidebar },
+        headerStyle: { backgroundColor: colors.chat },
+        headerLargeStyle: { backgroundColor: colors.chat },
         headerTintColor: colors.text,
         headerTitleStyle: { fontFamily: fonts.semiBold, color: colors.text },
         headerLargeTitleStyle: { fontFamily: fonts.bold, color: colors.text },
-        contentStyle: { backgroundColor: colors.sidebar },
+        // An inset grouped list: surface cards on the chat background.
+        contentStyle: { backgroundColor: colors.chat },
       }}
     >
       <Stack.Screen name="index" options={{ title: 'You' }} />

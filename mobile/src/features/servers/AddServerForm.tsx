@@ -44,7 +44,8 @@ export function AddServerForm({ initialLink, onSuccess }: AddServerFormProps) {
           address={trustPending.address}
           fingerprint={trustPending.fingerprint}
           busy={busy}
-          onTrust={confirmTrust}
+          error={error}
+          onTrust={() => void confirmTrust()}
           onCancel={cancelTrust}
         />
       </View>
@@ -55,9 +56,6 @@ export function AddServerForm({ initialLink, onSuccess }: AddServerFormProps) {
     <KeyboardAvoidingView behavior="padding" style={[styles.sheet, { backgroundColor: colors.chat }]}>
       <View style={styles.content}>
         <Text variant="title2">Add a server</Text>
-        <Text variant="callout" color="textSecondary">
-          Enter an invite link or a server address.
-        </Text>
 
         <View style={styles.inputGroup}>
           <View style={[styles.inputRow, { backgroundColor: colors.surface }]}>
@@ -76,7 +74,7 @@ export function AddServerForm({ initialLink, onSuccess }: AddServerFormProps) {
               style={[typography.body, styles.input, { color: colors.text }]}
             />
             <Touchable
-              onPress={() => void paste()}
+              onPress={paste}
               style={[styles.pasteButton, { backgroundColor: colors.elevated }]}
             >
               <View accessible accessibilityRole="button" accessibilityLabel="Paste from clipboard">
@@ -136,7 +134,13 @@ export function AddServerForm({ initialLink, onSuccess }: AddServerFormProps) {
         )}
 
         <View style={styles.footer}>
-          <Button title="Add" variant="primary" loading={busy} onPress={() => void submit()} />
+          <Button
+            title="Add"
+            variant="primary"
+            loading={busy}
+            disabled={linkOrAddress.trim() === ''}
+            onPress={() => void submit()}
+          />
         </View>
       </View>
     </KeyboardAvoidingView>

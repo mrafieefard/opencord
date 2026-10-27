@@ -1,7 +1,7 @@
 // Caches avatarFile paths as file:// URIs (spec §8.2, plan Task 8).
 import { useEffect, useState } from 'react';
 
-import { getCore } from '@/core';
+import { errorKind, getCore } from '@/core';
 import { fileUri } from '@/core/paths';
 
 const MAX_CACHE_ENTRIES = 200;
@@ -14,7 +14,8 @@ function cacheKey(serverKey: string, hash: string): string {
 export function useImageFile(serverKey: string, hash?: string | null): string | null {
   const key = hash ? cacheKey(serverKey, hash) : null;
   const cached = key ? pathCache.get(key) ?? null : null;
-  const [file, setFile] = useState<string | null>(cached);
+  // Tagged with its key, so a new hash never shows the old picture.
+  const [loaded, setLoaded] = useState<{ key: string; uri: string } | null>(null);
 
   useEffect(() => {
     if (!key || !hash) return;
@@ -31,11 +32,10 @@ export function useImageFile(serverKey: string, hash?: string | null): string | 
           if (oldestKey !== undefined) pathCache.delete(oldestKey);
         }
         pathCache.set(key, uri);
-        setFile(uri);
+        setLoaded({ key, uri });
       })
-      .catch(() => {
-        if (!active) return;
-        setFile(null);
+      .catch((error: unknown) => {
+        console.warn(`picture ${hash} failed: ${errorKind(error)}`);
       });
 
     return () => {
@@ -43,5 +43,5 @@ export function useImageFile(serverKey: string, hash?: string | null): string | 
     };
   }, [serverKey, hash, key]);
 
-  return hash ? (cached ?? file) : null;
+  return cached ?? (loaded !== null && loaded.key === key ? loaded.uri : null);
 }
