@@ -356,7 +356,7 @@ The name lives on this phone: SecureStore holds the secret, and the setting `mob
 | Route (`mobile/src/app/`) | What | Presentation |
 |---|---|---|
 | `_layout.tsx` | Providers, fonts, theme, the boot gate | Root native stack |
-| `(onboarding)/index.tsx`, `create.tsx`, `import.tsx` | Welcome, create an identity, import a backup | Stack, no header |
+| `welcome/index.tsx`, `create.tsx`, `import.tsx` | Welcome, create an identity, import a backup (`index.tsx` at the root redirects here or to Servers) | Stack, no header |
 | `(tabs)/_layout.tsx` | `NativeTabs` with **Servers** and **You** | Native tab bar |
 | `(tabs)/servers/index.tsx` | The server list | Native header, large title, search bar |
 | `(tabs)/you/index.tsx`, `(tabs)/you/name.tsx` | The You tab, and changing the name | Native header, large title |
@@ -822,7 +822,7 @@ Expo's and React Native's own native pieces are used wherever they exist:
 | Sheets | Native stack `formSheet` presentation with detents |
 | Menus (long press and buttons) | `@react-native-menu/menu` (`UIMenu`, `PopupMenu`) |
 | Sliders and switches | `@expo/ui`: `swift-ui` `Slider` and `Toggle` on iOS, `jetpack-compose` `Slider` and `Switch` on Android, each in a `Host` |
-| Segmented controls | `@react-native-segmented-control/segmented-control` |
+| Segmented controls | `@expo/ui`: `swift-ui` `Picker` (segmented) on iOS, `jetpack-compose` `SingleChoiceSegmentedButtonRow` on Android |
 | Confirmations | `Alert.alert` (system dialogs) |
 | Lists | `@shopify/flash-list` v2 (chat: `maintainVisibleContentPosition` with `startRenderingFromBottom`, no `inverted`) |
 | Text input, keyboard | `TextInput`; `react-native-keyboard-controller` |

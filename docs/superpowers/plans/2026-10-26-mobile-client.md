@@ -712,6 +712,13 @@ These are the inputs most likely to break for real people while no ordinary test
 
 **Owner:** Gemini. **Score:** 3. **Review focus:** tokens equal to the desktop's; no literal colors; native controls really native on both systems.
 
+**Done by Claude, e8bc9b7.** Read the code before building on it. Where it differs from the steps below:
+- **`Segmented`** uses `@expo/ui`: SwiftUI `Picker` with `pickerStyle('segmented')` on iOS, and Compose `SingleChoiceSegmentedButtonRow` on Android. `@react-native-segmented-control/segmented-control` is not a dependency.
+- **The Android `Slider`** draws Compose's stops only up to 10. A finer step slides freely and is rounded in JavaScript.
+- **The tests** are `tokens.test.ts`, `noColorLiterals.test.ts` and `components.test.tsx`.
+- **Jest:** Reanimated and Worklets are mocked by `src/test/reanimated.tsx` and `src/test/worklets.ts` (`jest.config.js`), since the libraries' own mocks need a DOM. Gesture Handler's `jestSetup`, the safe-area mock and the keyboard-controller mock are in `src/test/setup.ts`.
+- **Screenshots:** the gallery at phone width only. No tablet shots yet; Task 11 takes the first.
+
 **Skills:** `references/animations/SKILL.md` and `animations.md` (CSS transitions, `:active` press feedback), and `references/gestures/tap-handling.md`.
 
 **Files:**
@@ -775,6 +782,14 @@ These are the inputs most likely to break for real people while no ordinary test
 
 **Owner:** Gemini. **Score:** 3. **Review focus:** a first start, a saved identity and a broken backup all land on the right screen; the secret only ever goes to SecureStore.
 
+**Done by Claude, 1347aee.** Read the code before building on it. Where it differs from the steps below:
+- **Onboarding routes:** they live under `/welcome` (`app/welcome/{_layout,index,create,import}.tsx`), not in an `(onboarding)` group. `app/index.tsx` stays and redirects to `/servers` or `/welcome`.
+- **Guards:** `_layout.tsx` guards the routes with `Stack.Protected`. `welcome` is reachable only without an identity, `(tabs)` only with one. Register every new full-screen route or sheet inside the `ready` guard.
+- **Boot:** `features/boot/BootGate.tsx` exports `boot()` and the gate. `core/lifecycle.ts` exports `startApp()`.
+- **Opening the picker:** Welcome's **Import a backup** opens the file picker itself, then goes to `/welcome/import`. `/welcome/import?failed=1` shows "That isn't an Opencord backup.".
+- **Fake mode with no identity:** start Metro with `EXPO_PUBLIC_FAKE_CORE=1 EXPO_PUBLIC_FAKE_SCENARIO=empty npx expo start --dev-client -c`. The `-c` matters: `EXPO_PUBLIC_` values are compiled in.
+- **Screenshots:** `.superpowers/sdd/mobile/screens/7/`.
+
 **Skills:** `references/gestures/SKILL.md` (where `GestureHandlerRootView` goes).
 
 **Files:**
@@ -833,8 +848,10 @@ These are the inputs most likely to break for real people while no ordinary test
   - `formatTime.test.ts`, `times read as today, yesterday, a weekday, or a date`: with `now` fixed at 2026-10-26 21:30 local time, in `en-GB` and in `en-US`:
     - 21:04 today;
     - yesterday;
-    - Monday this week;
-    - 3 October.
+    - Thursday 22 October as "Thu" (26 October 2026 is itself a Monday);
+    - 3 October ("3 Oct" in `en-GB`, "Oct 3" in `en-US`).
+
+    `en-US` times have a narrow no-break space before "PM": compare with whitespace normalised.
   - `connectionText.test.ts`, one case per state:
     - "Connecting…";
     - "Reconnecting…";
@@ -849,6 +866,12 @@ These are the inputs most likely to break for real people while no ordinary test
     - `with no servers it offers Add a server`;
     - `tapping a row opens the server`: `router.push('/server/fake-night-owls')`.
 - [ ] **Step 2: Run them; they fail.**
+
+  What else this task needs, found while starting it:
+  - **Typed routes:** `router.push('/server/…')` and `router.push('/add-server')` don't type-check until those routes exist. Create `app/server/[serverKey]/index.tsx` (an `EmptyState` with the server's name, `// later: Task 11`) and `app/add-server.tsx` (`// later: Task 9`). Register both in `_layout.tsx` inside the `ready` guard, `add-server` as Task 9's sheet. Start Metro once so `.expo/types` is regenerated.
+  - **FlashList in Jest:** add `require('@shopify/flash-list/jestSetup')` to `src/test/setup.ts`.
+  - **Copy address:** `ServerRow` (in `state/types.ts`) has no address yet. Add `address: string` (`host:port` from the entry) and fill it in `selectors.ts`.
+  - **Pictures:** `avatarFile` returns a plain path. `expo-image` needs a `file://` URI, so add `fileUri(path)` to `core/paths.ts`.
 - [ ] **Step 3: Implement**, per spec §8.2:
   - the large title and the native search bar (`headerSearchBarOptions`);
   - the **+** header button opens `/add-server`;
