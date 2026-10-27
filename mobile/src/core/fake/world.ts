@@ -182,6 +182,46 @@ export function history(channelId: string, count: number, now: number, firstId: 
         },
       ];
     }
+    if (index === count - 3) {
+      message.content = 'Check out these photos and the project spec:';
+      message.attachments = [
+        {
+          id: String(firstId + index + 50_000),
+          filename: 'sunset.jpg',
+          contentType: 'image/jpeg',
+          sizeBytes: 812_000,
+          kind: AttachmentKind.Image,
+          width: 1600,
+          height: 1200,
+          hasThumbnail: true,
+          thumbnailWidth: 400,
+          thumbnailHeight: 300,
+          animated: false,
+        },
+        {
+          id: String(firstId + index + 50_001),
+          filename: 'aurora.png',
+          contentType: 'image/png',
+          sizeBytes: 1_240_000,
+          kind: AttachmentKind.Image,
+          width: 1200,
+          height: 800,
+          hasThumbnail: true,
+          thumbnailWidth: 400,
+          thumbnailHeight: 266,
+          animated: false,
+        },
+        {
+          id: String(firstId + index + 50_002),
+          filename: 'client-spec.pdf',
+          contentType: 'application/pdf',
+          sizeBytes: 2_450_000,
+          kind: AttachmentKind.File,
+          hasThumbnail: false,
+          animated: false,
+        },
+      ];
+    }
     return message;
   });
 }

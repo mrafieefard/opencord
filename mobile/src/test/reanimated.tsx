@@ -24,6 +24,18 @@ export function createAnimatedComponent<P extends object>(component: ComponentTy
   return component;
 }
 
+export function runOnJS<T extends (...args: unknown[]) => unknown>(fn: T): T {
+  return fn;
+}
+
+export function useEvent(callback: unknown, _eventNames?: string[], _rebuild?: boolean) {
+  return callback;
+}
+
+export function useComposedEventHandler(_handlers: unknown[]) {
+  return null;
+}
+
 const Animated = {
   View,
   Text,
@@ -31,6 +43,9 @@ const Animated = {
   FlatList,
   createAnimatedComponent,
   isSharedValue,
+  runOnJS,
+  useEvent,
+  useComposedEventHandler,
 };
 export default Animated;
 

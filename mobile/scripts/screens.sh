@@ -33,8 +33,7 @@ for theme in dark light; do
     for pair in "${pairs[@]}"; do
         name=${pair%%=*}
         route=${pair#*=}
-        adb shell am start -W -a android.intent.action.VIEW \
-            -d "'opencord-app://${route}'" dev.opencord.mobile > /dev/null
+        adb shell "am start -W -a android.intent.action.VIEW -d 'opencord-app://${route}' dev.opencord.mobile" > /dev/null
         sleep 2
         adb exec-out screencap -p > "$out/$name-$theme-$size.png"
         echo "$out/$name-$theme-$size.png"

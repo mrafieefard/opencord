@@ -8,6 +8,7 @@ import { Avatar, Icon, Text, space, useTheme } from '@/ui';
 
 import type { MessageBubbleItem } from './items';
 import { MarkdownText } from './MarkdownText';
+import { AttachmentView } from './attachments/AttachmentView';
 
 export interface MessageBubbleProps {
   item: MessageBubbleItem;
@@ -96,11 +97,25 @@ export const MessageBubble = memo(function MessageBubble({
           </Text>
         )}
 
-        <MarkdownText
-          content={message.content}
-          serverKey={serverKey}
-          onSelectChannel={onSelectChannel}
-        />
+        {message.content.length > 0 && (
+          <MarkdownText
+            content={message.content}
+            serverKey={serverKey}
+            onSelectChannel={onSelectChannel}
+          />
+        )}
+
+        {message.attachments && message.attachments.length > 0 && (
+          <View style={[styles.attachments, message.content.length > 0 && styles.attachmentsMargin]}>
+            {message.attachments.map((attachment) => (
+              <AttachmentView
+                key={attachment.id}
+                serverKey={serverKey}
+                attachment={attachment}
+              />
+            ))}
+          </View>
+        )}
 
         <View style={styles.metaRow}>
           {isSending && (
@@ -163,6 +178,12 @@ const styles = StyleSheet.create({
   authorName: {
     fontWeight: '600',
     marginBottom: 2,
+  },
+  attachments: {
+    gap: space.xs,
+  },
+  attachmentsMargin: {
+    marginTop: space.xs,
   },
   metaRow: {
     flexDirection: 'row',

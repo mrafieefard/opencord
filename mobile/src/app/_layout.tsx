@@ -29,6 +29,10 @@ function Routes() {
             options={{ presentation: 'formSheet', sheetAllowedDetents: [0.6], sheetGrabberVisible: true }}
           />
           <Stack.Screen name="server/[serverKey]/index" />
+          <Stack.Screen
+            name="viewer"
+            options={{ presentation: 'transparentModal', headerShown: false, animation: 'fade' }}
+          />
         </Stack.Protected>
         <Stack.Screen name="dev/gallery" />
       </Stack>
