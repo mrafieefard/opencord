@@ -93,3 +93,5 @@ The app needs Android 8.0 (API 26), AAudio's first version, which cpal needs for
 ### iOS's minimum is 16.4
 
 That is Expo SDK 58's template. `scripts/build-core.sh ios` builds the core for it (`IPHONEOS_DEPLOYMENT_TARGET`). Without that, the C in the core's crates (Opus, ring, SQLite) is compiled for the SDK's own iOS version while Rust links for iOS 10, and the link fails on `___chkstk_darwin`.
+
+React Native is built from source on iOS (`buildReactNativeFromSource` in `app.config.ts`), which makes the first build slower. `@react-native-menu/menu` 2.0.0 imports `"RCTBridge.h"` as a local header, and the precompiled React core doesn't provide it.
