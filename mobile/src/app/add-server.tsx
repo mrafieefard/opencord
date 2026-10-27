@@ -1,6 +1,5 @@
-import { EmptyState } from '@/ui';
+import { AddServerForm } from '@/features/servers/AddServerForm';
 
-// later: Task 9 puts the add server sheet here.
 export default function AddServerScreen() {
-  return <EmptyState title="Add a server" />;
+  return <AddServerForm />;
 }

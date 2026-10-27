@@ -19,6 +19,19 @@ jest.mock('expo-secure-store', () => {
 });
 
 
+// expo-clipboard in memory.
+let mockClipboardContent = '';
+jest.mock('expo-clipboard', () => ({
+  getStringAsync: jest.fn(async () => mockClipboardContent),
+  setStringAsync: jest.fn(async (text: string) => {
+    mockClipboardContent = text;
+    return true;
+  }),
+  __setContent: (text: string) => {
+    mockClipboardContent = text;
+  },
+}));
+
 // Gesture Handler's own Jest setup, FlashList setup, and safe areas without a native view.
 require('react-native-gesture-handler/jestSetup');
 require('@shopify/flash-list/jestSetup');
