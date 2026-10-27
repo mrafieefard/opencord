@@ -1,6 +1,6 @@
-import { Stack } from 'expo-router';
+import { Stack, router } from 'expo-router';
 
-import { fonts, useTheme } from '@/ui';
+import { IconButton, fonts, useTheme } from '@/ui';
 
 export default function ServersLayout() {
   const { colors } = useTheme();
@@ -17,7 +17,19 @@ export default function ServersLayout() {
         contentStyle: { backgroundColor: colors.sidebar },
       }}
     >
-      <Stack.Screen name="index" options={{ title: 'Servers' }} />
+      <Stack.Screen
+        name="index"
+        options={{
+          title: 'Servers',
+          headerRight: () => (
+            <IconButton
+              icon="add"
+              label="Add a server"
+              onPress={() => router.push('/add-server')}
+            />
+          ),
+        }}
+      />
     </Stack>
   );
 }

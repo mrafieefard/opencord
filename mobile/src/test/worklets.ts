@@ -10,3 +10,7 @@ export function scheduleOnUI<A extends unknown[]>(fn: (...args: A) => void, ...a
 export function runOnUISync<A extends unknown[], R>(fn: (...args: A) => R, ...args: A): R {
   return fn(...args);
 }
+
+export function isWorkletRuntime(): boolean {
+  return false;
+}

@@ -24,6 +24,11 @@ function Routes() {
         </Stack.Protected>
         <Stack.Protected guard={ready}>
           <Stack.Screen name="(tabs)" />
+          <Stack.Screen
+            name="add-server"
+            options={{ presentation: 'formSheet', sheetAllowedDetents: [0.6], sheetGrabberVisible: true }}
+          />
+          <Stack.Screen name="server/[serverKey]/index" />
         </Stack.Protected>
         <Stack.Screen name="dev/gallery" />
       </Stack>

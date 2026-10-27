@@ -19,13 +19,15 @@ export interface MenuProps {
   actions: MenuAction[];
   onAction: (id: string) => void;
   trigger?: 'press' | 'longPress';
+  testID?: string;
   children: ReactNode;
 }
 
-export function Menu({ actions, onAction, trigger = 'press', children }: MenuProps) {
+export function Menu({ actions, onAction, trigger = 'press', testID, children }: MenuProps) {
   const { colors, scheme } = useTheme();
   return (
     <MenuView
+      testID={testID}
       shouldOpenOnLongPress={trigger === 'longPress'}
       themeVariant={scheme}
       onPressAction={({ nativeEvent }) => onAction(nativeEvent.event)}

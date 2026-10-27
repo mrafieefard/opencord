@@ -36,4 +36,5 @@ export type { CoreApi } from './api';
 export { bootCore, type BootResult, type SelfInfo } from './boot';
 export { describeError, errorKind, failureSentence } from './errors';
 export { startEventLoop, type EventLoop } from './eventLoop';
+export { cacheDir, dataDir, fileUri } from './paths';
 export { report, setErrorShower } from './report';

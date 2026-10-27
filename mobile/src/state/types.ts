@@ -148,6 +148,7 @@ export interface AppState {
 export interface ServerRow {
   key: string;
   name: string;
+  address: string;
   iconHash?: string;
   connection: ConnectionRecord;
   preview: { channelName: string; authorName: string; text: string; own: boolean } | null;

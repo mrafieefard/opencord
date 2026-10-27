@@ -13,3 +13,8 @@ export function dataDir(): string {
 export function cacheDir(): string {
   return `${plain(Paths.cache.uri)}/opencord`;
 }
+
+export function fileUri(path: string): string {
+  if (path.startsWith('file://')) return path;
+  return `file://${path.startsWith('/') ? '' : '/'}${path}`;
+}

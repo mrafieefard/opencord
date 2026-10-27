@@ -15,6 +15,6 @@ module.exports = {
     '^@opencord/core-native$': '<rootDir>/packages/core-native/src/generated/opencord_mobile.ts',
   },
   transformIgnorePatterns: [
-    'node_modules/(?!((jest-)?react-native|@react-native(-community)?|expo(nent)?|@expo(nent)?/.*|@expo-google-fonts/.*|react-navigation|@react-navigation/.*|@sentry/react-native|native-base|react-native-svg|@ubjs/.*|uniffi-bindgen-react-native))',
+    'node_modules/(?!((jest-)?react-native|@react-native(-community)?|expo(nent)?|@expo(nent)?/.*|@expo-google-fonts/.*|react-navigation|@react-navigation/.*|@sentry/react-native|native-base|react-native-svg|@ubjs/.*|uniffi-bindgen-react-native|@shopify/.*))',
   ],
 };

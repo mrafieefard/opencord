@@ -30,16 +30,57 @@ const Animated = {
   ScrollView,
   FlatList,
   createAnimatedComponent,
+  isSharedValue,
 };
 export default Animated;
 
-export function useSharedValue<T>(value: T): { value: T; get: () => T; set: (next: T) => void } {
-  const shared = { value, get: () => shared.value, set: (next: T) => void (shared.value = next) };
+export function isSharedValue(value: unknown): boolean {
+  return typeof value === 'object' && value !== null && 'value' in value;
+}
+
+export function useAnimatedRef<T = unknown>() {
+  return { current: null as T | null };
+}
+
+export function measure(_ref: unknown) {
+  return { x: 0, y: 0, width: 0, height: 0, pageX: 0, pageY: 0 };
+}
+
+export function useSharedValue<T>(value: T): {
+  value: T;
+  get: () => T;
+  set: (next: T) => void;
+  addListener: (id: number, listener: (value: T) => void) => void;
+  removeListener: (id: number) => void;
+  modify: (modifier: (value: T) => T) => void;
+} {
+  const listeners = new Map<number, (value: T) => void>();
+  const shared = {
+    value,
+    get: () => shared.value,
+    set: (next: T) => {
+      shared.value = next;
+      for (const listener of listeners.values()) listener(next);
+    },
+    addListener: (id: number, listener: (value: T) => void) => {
+      listeners.set(id, listener);
+    },
+    removeListener: (id: number) => {
+      listeners.delete(id);
+    },
+    modify: (modifier: (value: T) => T) => {
+      shared.set(modifier(shared.value));
+    },
+  };
   return shared;
 }
 
-export function useAnimatedStyle<T>(make: () => T): T {
-  return make();
+export function useAnimatedStyle<T extends object>(make: () => T): T {
+  const style = make();
+  if (style && typeof style === 'object' && 'pointerEvents' in style && (style as { pointerEvents?: string }).pointerEvents === 'none') {
+    return { ...style, pointerEvents: 'auto' };
+  }
+  return style;
 }
 
 export function useDerivedValue<T>(make: () => T): { value: T } {

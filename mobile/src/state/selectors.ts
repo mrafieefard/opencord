@@ -63,6 +63,7 @@ function serverRow(server: ServerState, myVoice: MyVoice | null): ServerRow {
   return {
     key: server.key,
     name: snapshot?.name ?? server.entry.name,
+    address: `${server.entry.host}:${server.entry.port}`,
     iconHash: snapshot?.iconHash,
     connection: server.connection,
     preview: last
