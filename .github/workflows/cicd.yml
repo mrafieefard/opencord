@@ -796,8 +796,11 @@ jobs:
         run: |
           npx expo prebuild -p ios --no-install
           (cd ios && pod install)
+          # arm64 only: the core is built for Apple Silicon simulators
+          # (ubrn.config.yaml), and an xcframework slice must cover every
+          # architecture a build asks for.
           xcodebuild -workspace ios/Opencord.xcworkspace -scheme Opencord -sdk iphonesimulator \
-            -configuration Release -derivedDataPath build CODE_SIGNING_ALLOWED=NO build
+            -configuration Release -derivedDataPath build ARCHS=arm64 CODE_SIGNING_ALLOWED=NO build
           mkdir -p "$RUNNER_TEMP/dist"
           (cd build/Build/Products/Release-iphonesimulator && zip -qr "$RUNNER_TEMP/dist/opencord-ios-simulator.zip" Opencord.app)
 
