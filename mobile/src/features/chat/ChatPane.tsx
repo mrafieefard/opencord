@@ -5,6 +5,7 @@ import { useChannelInfo } from '@/state/selectors';
 import { PaneHeader, useTheme } from '@/ui';
 
 import { MessageList } from './MessageList';
+import { Composer } from './Composer';
 
 export interface ChatPaneProps {
   serverKey: string;
@@ -31,6 +32,7 @@ export function ChatPane({ serverKey, channelId, onOpenSidebar, onSelectChannel 
         channelId={channelId}
         onSelectChannel={onSelectChannel}
       />
+      <Composer serverKey={serverKey} channelId={channelId} />
     </View>
   );
 }

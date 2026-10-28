@@ -62,6 +62,14 @@ export interface PendingSend {
   state: 'sending' | 'failed';
   error?: string;
   createdAtMs: number;
+  progress?: { sentBytes: number; totalBytes: number };
+}
+
+export interface EditingMessage {
+  serverKey: string;
+  channelId: string;
+  messageId: string;
+  text: string;
 }
 
 export interface ChannelMessages {
@@ -142,6 +150,7 @@ export interface AppState {
   uploads: Record<string, MusicUploadState>;
   prefs: Prefs;
   toasts: Toast[];
+  editingMessage: EditingMessage | null;
 }
 
 /** A row of the server list (design §8.2). */

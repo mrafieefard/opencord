@@ -3,12 +3,14 @@ import { StyleSheet, View } from 'react-native';
 
 import { deviceLocale } from '@/features/servers/formatTime';
 import { useImageFile } from '@/features/servers/useImageFile';
+import { discardSend, retrySend } from '@/state/actions/chat';
 import { useMember } from '@/state/selectors';
-import { Avatar, Icon, Text, space, useTheme } from '@/ui';
+import { Avatar, Icon, Menu, Text, space, useTheme, type MenuAction } from '@/ui';
 
 import type { MessageBubbleItem } from './items';
 import { MarkdownText } from './MarkdownText';
 import { AttachmentView } from './attachments/AttachmentView';
+import { MessageMenu } from './MessageMenu';
 
 export interface MessageBubbleProps {
   item: MessageBubbleItem;
@@ -64,6 +66,88 @@ export const MessageBubble = memo(function MessageBubble({
     }
   }, [own, position]);
 
+  const handleRetry = () => {
+    if (pending) {
+      if (onRetryPending) {
+        onRetryPending(pending.nonce);
+      } else {
+        retrySend(pending.nonce);
+      }
+    }
+  };
+
+  const handleFailedAction = (id: string) => {
+    if (!pending) return;
+    if (id === 'retry') {
+      handleRetry();
+    } else if (id === 'delete') {
+      discardSend(pending.nonce);
+    }
+  };
+
+  const failedActions: MenuAction[] = [
+    { id: 'retry', title: 'Retry', icon: 'retry' },
+    { id: 'delete', title: 'Delete', icon: 'delete', destructive: true },
+  ];
+
+  const bubbleContent = (
+    <View
+      style={[
+        styles.bubble,
+        bubbleRadius,
+        { backgroundColor: own ? colors.bubbleOut : colors.bubbleIn },
+        isFailed && { borderColor: colors.recording, borderWidth: 1 },
+      ]}
+    >
+      {showAuthor && (
+        <Text variant="subhead" color="accent" style={styles.authorName}>
+          {authorName}
+        </Text>
+      )}
+
+      {message.content.length > 0 && (
+        <MarkdownText
+          content={message.content}
+          serverKey={serverKey}
+          onSelectChannel={onSelectChannel}
+        />
+      )}
+
+      {message.attachments && message.attachments.length > 0 && (
+        <View style={[styles.attachments, message.content.length > 0 && styles.attachmentsMargin]}>
+          {message.attachments.map((attachment) => (
+            <AttachmentView
+              key={attachment.id}
+              serverKey={serverKey}
+              attachment={attachment}
+            />
+          ))}
+        </View>
+      )}
+
+      <View style={styles.metaRow}>
+        {isSending && (
+          <View style={styles.pendingGlyph}>
+            <Icon name="clock" size={12} color="textMuted" />
+          </View>
+        )}
+        {isFailed ? (
+          <Text
+            variant="footnote"
+            color="recording"
+            onPress={handleRetry}
+          >
+            Not sent. Tap to retry
+          </Text>
+        ) : (
+          <Text variant="footnote" color="textMuted" tabular style={styles.timeText}>
+            {timeText}
+          </Text>
+        )}
+      </View>
+    </View>
+  );
+
   return (
     <View
       style={[
@@ -83,61 +167,17 @@ export const MessageBubble = memo(function MessageBubble({
         </View>
       )}
 
-      <View
-        style={[
-          styles.bubble,
-          bubbleRadius,
-          { backgroundColor: own ? colors.bubbleOut : colors.bubbleIn },
-          isFailed && { borderColor: colors.recording, borderWidth: 1 },
-        ]}
-      >
-        {showAuthor && (
-          <Text variant="subhead" color="accent" style={styles.authorName}>
-            {authorName}
-          </Text>
-        )}
-
-        {message.content.length > 0 && (
-          <MarkdownText
-            content={message.content}
-            serverKey={serverKey}
-            onSelectChannel={onSelectChannel}
-          />
-        )}
-
-        {message.attachments && message.attachments.length > 0 && (
-          <View style={[styles.attachments, message.content.length > 0 && styles.attachmentsMargin]}>
-            {message.attachments.map((attachment) => (
-              <AttachmentView
-                key={attachment.id}
-                serverKey={serverKey}
-                attachment={attachment}
-              />
-            ))}
-          </View>
-        )}
-
-        <View style={styles.metaRow}>
-          {isSending && (
-            <View style={styles.pendingGlyph}>
-              <Icon name="clock" size={12} color="textMuted" />
-            </View>
-          )}
-          {isFailed ? (
-            <Text
-              variant="footnote"
-              color="recording"
-              onPress={() => pending && onRetryPending?.(pending.nonce)}
-            >
-              Not sent. Tap to retry
-            </Text>
-          ) : (
-            <Text variant="footnote" color="textMuted" tabular style={styles.timeText}>
-              {timeText}
-            </Text>
-          )}
-        </View>
-      </View>
+      {isFailed ? (
+        <Menu actions={failedActions} onAction={handleFailedAction} trigger="longPress">
+          {bubbleContent}
+        </Menu>
+      ) : isSending ? (
+        bubbleContent
+      ) : (
+        <MessageMenu serverKey={serverKey} channelId={message.channelId} message={message} trigger="longPress">
+          {bubbleContent}
+        </MessageMenu>
+      )}
     </View>
   );
 });

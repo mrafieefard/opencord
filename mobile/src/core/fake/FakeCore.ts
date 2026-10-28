@@ -363,6 +363,7 @@ export class FakeCore implements CoreApi {
     const text = content.trim();
     if (text.length === 0) invalid('message must not be empty');
     if ([...text].length > MESSAGE_MAX_CHARS) invalid(`message must be at most ${MESSAGE_MAX_CHARS} characters`);
+    if (text === 'fail') throw new MobileError.Server({ code: 'internal', message: 'failed to send', retryAfterMs: undefined });
     return this.post(serverKey, channelId, text, nonce, []);
   }
 

@@ -295,12 +295,29 @@ function applyEvent(state: AppState, event: MobileEvent, nowMs: number): AppStat
         },
       };
     }
-    case MobileEvent_Tags.SendProgress:
+    case MobileEvent_Tags.SendProgress: {
+      const { nonce, sentBytes, totalBytes } = event.inner;
+      let changed = false;
+      const nextMessages = { ...state.messages };
+      for (const [k, channelMsgs] of Object.entries(nextMessages)) {
+        if (channelMsgs.pending.some((p) => p.nonce === nonce)) {
+          changed = true;
+          nextMessages[k] = {
+            ...channelMsgs,
+            pending: channelMsgs.pending.map((p) =>
+              p.nonce === nonce ? { ...p, progress: { sentBytes, totalBytes } } : p,
+            ),
+          };
+          break;
+        }
+      }
+      return changed ? { ...state, messages: nextMessages } : state;
+    }
     case MobileEvent_Tags.AudioProblem:
     case MobileEvent_Tags.SpeakingWhileMuted:
     case MobileEvent_Tags.MusicNotice:
     case MobileEvent_Tags.Notice:
-      // Shown, not kept: store.ts turns these into toasts and progress.
+      // Shown, not kept: store.ts turns these into toasts.
       return state;
   }
 }

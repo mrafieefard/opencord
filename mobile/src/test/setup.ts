@@ -38,6 +38,17 @@ jest.mock('expo-sharing', () => ({
   shareAsync: jest.fn(async () => {}),
 }));
 
+// expo-image-picker in memory.
+jest.mock('expo-image-picker', () => ({
+  MediaTypeOptions: { Images: 'Images', All: 'All', Videos: 'Videos' },
+  launchImageLibraryAsync: jest.fn(async () => ({ canceled: true, assets: [] })),
+}));
+
+// expo-document-picker in memory.
+jest.mock('expo-document-picker', () => ({
+  getDocumentAsync: jest.fn(async () => ({ canceled: true, assets: [] })),
+}));
+
 // expo-file-system in memory.
 const mockFileSystemFiles = new Map<string, string>();
 jest.mock('expo-file-system', () => ({

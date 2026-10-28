@@ -30,6 +30,7 @@ export function initialState(): AppState {
     uploads: {},
     prefs: { theme: 'system', music: { ...DEFAULT_MUSIC } },
     toasts: [],
+    editingMessage: null,
   };
 }
 
