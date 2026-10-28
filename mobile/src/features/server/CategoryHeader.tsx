@@ -10,7 +10,7 @@ export interface CategoryHeaderProps {
 export const CategoryHeader = memo(function CategoryHeader({ name }: CategoryHeaderProps) {
   return (
     <View style={styles.header}>
-      <Text variant="caption" color="textMuted" style={styles.title}>
+      <Text variant="caption" color="textMuted">
         {name.toUpperCase()}
       </Text>
     </View>
@@ -22,9 +22,5 @@ const styles = StyleSheet.create({
     paddingHorizontal: space.lg,
     paddingTop: space.md,
     paddingBottom: space.xs,
-  },
-  title: {
-    letterSpacing: 0.5,
-    fontWeight: '600',
   },
 });

@@ -3,6 +3,7 @@ import { StyleSheet, View } from 'react-native';
 import { ChannelRecord } from '@opencord/core-native';
 
 import { Badge, Icon, Row, Text, space, useTheme } from '@/ui';
+import { fonts } from '@/ui/theme/typography';
 
 export interface ChannelRowProps {
   channel: ChannelRecord;
@@ -81,9 +82,9 @@ const styles = StyleSheet.create({
   },
   name: {
     flex: 1,
-    fontWeight: '500',
+    fontFamily: fonts.medium,
   },
   unreadName: {
-    fontWeight: '600',
+    fontFamily: fonts.semiBold,
   },
 });

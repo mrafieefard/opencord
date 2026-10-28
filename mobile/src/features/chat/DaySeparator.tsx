@@ -2,7 +2,7 @@ import { memo } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { deviceLocale } from '@/features/servers/formatTime';
-import { Text, space, useTheme } from '@/ui';
+import { Text, space, useTheme, radius } from '@/ui';
 
 export function formatDay(date: Date, nowMs = Date.now(), locale = deviceLocale()): string {
   const atMidnight = new Date(date.getFullYear(), date.getMonth(), date.getDate());
@@ -32,7 +32,7 @@ export const DaySeparator = memo(function DaySeparator({ date }: DaySeparatorPro
   return (
     <View style={styles.container} testID="day-separator">
       <View style={[styles.pill, { backgroundColor: colors.surface }]}>
-        <Text variant="caption" color="textSecondary" style={styles.text}>
+        <Text variant="footnote" color="textSecondary">
           {label}
         </Text>
       </View>
@@ -47,10 +47,7 @@ const styles = StyleSheet.create({
   },
   pill: {
     paddingHorizontal: space.md,
-    paddingVertical: space.xs,
-    borderRadius: 12,
-  },
-  text: {
-    fontWeight: '600',
+    paddingVertical: 3,
+    borderRadius: radius.icon,
   },
 });

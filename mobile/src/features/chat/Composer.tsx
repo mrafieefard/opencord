@@ -1,14 +1,14 @@
-import { useCallback, useState } from 'react';
-import {
-  Pressable,
-  StyleSheet,
-  TextInput,
-  View,
-} from 'react-native';
+// The composer (spec §8.5): a rounded field that grows to six lines, the +
+// menu, and the send button once there is something to send. ChatPane keeps
+// it on the keyboard.
+import { useCallback, useEffect, useRef, useState, type ComponentRef } from 'react';
+import { StyleSheet, TextInput, View } from 'react-native';
 import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from 'expo-image-picker';
-import { KeyboardStickyView } from 'react-native-keyboard-controller';
+import { Touchable } from 'react-native-gesture-handler';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+
+import { report } from '@/core';
 
 import {
   cancelEditingMessage,
@@ -19,7 +19,8 @@ import {
 import { useChannelInfo } from '@/state/selectors';
 import { useAppStore } from '@/state/store';
 import type { PickedFile } from '@/state/types';
-import { Icon, Menu, Text, space, useTheme, type MenuAction } from '@/ui';
+import { Icon, Menu, Text, space, typography, useTheme, type MenuAction } from '@/ui';
+import { MAX_FONT_SCALE } from '@/ui/theme/typography';
 
 import { AttachmentChips } from './AttachmentChips';
 import { EditingBar } from './EditingBar';
@@ -32,6 +33,11 @@ export interface ComposerProps {
 
 const MAX_CHARS = 4000;
 const COUNTER_THRESHOLD = 3900;
+/** The field, the + and send buttons: Telegram's 40 pt. */
+const CONTROL = 40;
+const MAX_LINES = 6;
+const FIELD_PAD_V = (CONTROL - (typography.body.lineHeight ?? 22)) / 2;
+const FIELD_MAX = (typography.body.lineHeight ?? 22) * MAX_LINES + FIELD_PAD_V * 2;
 
 export function Composer({ serverKey, channelId }: ComposerProps) {
   const { colors } = useTheme();
@@ -44,6 +50,7 @@ export function Composer({ serverKey, channelId }: ComposerProps) {
   const [prevEditingId, setPrevEditingId] = useState<string | null>(() => (isEditing ? editing.messageId : null));
   const [files, setFiles] = useState<PickedFile[]>([]);
   const notifyTyping = useTypingNotifier(serverKey, channelId);
+  const input = useRef<ComponentRef<typeof TextInput>>(null);
 
   const currentEditingId = isEditing ? editing.messageId : null;
   if (currentEditingId !== prevEditingId) {
@@ -52,6 +59,11 @@ export function Composer({ serverKey, channelId }: ComposerProps) {
       setText(editing.text);
     }
   }
+
+  // Starting an edit brings the keyboard up on the text.
+  useEffect(() => {
+    if (currentEditingId !== null) input.current?.focus();
+  }, [currentEditingId]);
 
   const handleCancelEditing = useCallback(() => {
     cancelEditingMessage();
@@ -144,8 +156,8 @@ export function Composer({ serverKey, channelId }: ComposerProps) {
 
   if (!canSend) {
     return (
-      <View style={[styles.disabledBar, { backgroundColor: colors.chat }]}>
-        <Text variant="subhead" color="textSecondary" style={styles.disabledText}>
+      <View style={[styles.bar, { backgroundColor: colors.sidebar, borderTopColor: colors.border, paddingBottom: insets.bottom + space.md }]}>
+        <Text variant="callout" color="textSecondary" style={styles.cannotSend}>
           {"You can't send messages here."}
         </Text>
       </View>
@@ -153,145 +165,124 @@ export function Composer({ serverKey, channelId }: ComposerProps) {
   }
 
   const channelName = info?.channel.name ?? '';
+  const hasSomething = isEditing || text.trim().length > 0 || files.length > 0;
 
   return (
-    <KeyboardStickyView offset={{ closed: 0 }}>
-      <View
-        style={[
-          styles.root,
-          { backgroundColor: colors.chat, paddingBottom: Math.max(space.xs, insets.bottom) },
-        ]}
-      >
-        {isEditing && <EditingBar onCancel={handleCancelEditing} />}
+    <View style={[styles.bar, { backgroundColor: colors.sidebar, borderTopColor: colors.border, paddingBottom: insets.bottom + space.sm }]}>
+      {isEditing && <EditingBar onCancel={handleCancelEditing} />}
+      {files.length > 0 && <AttachmentChips files={files} onRemove={handleRemoveFile} />}
 
-        {files.length > 0 && (
-          <AttachmentChips files={files} onRemove={handleRemoveFile} />
+      <View style={styles.row}>
+        {canAttach && !isEditing && (
+          <Menu actions={attachActions} onAction={(id) => report(handleAttachAction(id), 'attach files')} testID="composer-attach">
+            <View style={styles.control} accessible accessibilityRole="button" accessibilityLabel="Attach">
+              <Icon name="add" size={24} color="textSecondary" />
+            </View>
+          </Menu>
         )}
 
-        <View style={styles.inputRow}>
-          {canAttach && !isEditing && (
-            <Menu
-              actions={attachActions}
-              onAction={handleAttachAction}
-              testID="composer-attach"
+        <View style={[styles.field, { backgroundColor: colors.hover }]}>
+          <TextInput
+            ref={input}
+            style={[typography.body, styles.input, { color: colors.text }]}
+            placeholder={`Message #${channelName}`}
+            placeholderTextColor={colors.textMuted}
+            value={text}
+            onChangeText={handleChangeText}
+            multiline
+            maxFontSizeMultiplier={MAX_FONT_SCALE}
+            textAlignVertical="center"
+            cursorColor={colors.text}
+            selectionColor={colors.selected}
+            accessibilityLabel={`Message #${channelName}`}
+            testID="composer-input"
+          />
+          {showCounter && (
+            <Text
+              variant="footnote"
+              color={isOverLimit ? 'recording' : 'textMuted'}
+              tabular
+              style={styles.counter}
+              testID="composer-counter"
             >
-              <View style={[styles.attachBtn, { backgroundColor: colors.surface }]}>
-                <Icon name="add" size={20} color="text" />
-              </View>
-            </Menu>
+              {String(remainingChars)}
+            </Text>
           )}
-
-          <View style={[styles.inputContainer, { backgroundColor: colors.surface }]}>
-            <TextInput
-              style={[
-                styles.input,
-                { color: colors.text },
-              ]}
-              placeholder={`Message #${channelName}`}
-              placeholderTextColor={colors.textMuted}
-              value={text}
-              onChangeText={handleChangeText}
-              multiline
-              maxLength={undefined}
-              testID="composer-input"
-            />
-
-            {showCounter && (
-              <Text
-                variant="footnote"
-                style={[
-                  styles.counter,
-                  { color: isOverLimit ? colors.recording : colors.textMuted },
-                ]}
-                testID="composer-counter"
-              >
-                {String(remainingChars)}
-              </Text>
-            )}
-          </View>
-
-          <Pressable
-            onPress={handleSubmit}
-            disabled={!canSubmit}
-            accessibilityLabel={isEditing ? 'Save edit' : 'Send message'}
-            accessibilityRole="button"
-            accessibilityState={{ disabled: !canSubmit }}
-            testID="composer-send"
-            style={[
-              styles.sendBtn,
-              {
-                backgroundColor: canSubmit ? colors.accent : colors.surface,
-                opacity: canSubmit ? 1 : 0.5,
-              },
-            ]}
-          >
-            <Icon
-              name={isEditing ? 'check' : 'send'}
-              size={18}
-              color={canSubmit ? 'onAccent' : 'textMuted'}
-            />
-          </Pressable>
         </View>
+
+        {hasSomething && (
+          <Touchable
+            onPress={() => report(handleSubmit(), 'send')}
+            disabled={!canSubmit}
+            hitSlop={2}
+            style={[styles.control, styles.send, { backgroundColor: colors.accent, opacity: canSubmit ? 1 : 0.4 }]}
+          >
+            <View
+              style={styles.center}
+              accessible
+              accessibilityRole="button"
+              accessibilityLabel={isEditing ? 'Save edit' : 'Send'}
+              accessibilityState={{ disabled: !canSubmit }}
+              testID="composer-send"
+            >
+              <Icon name={isEditing ? 'check' : 'send'} size={20} color="onAccent" />
+            </View>
+          </Touchable>
+        )}
       </View>
-    </KeyboardStickyView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  root: {
-    paddingHorizontal: space.sm,
-    paddingTop: space.xs,
-    paddingBottom: space.xs,
+  bar: {
+    borderTopWidth: StyleSheet.hairlineWidth,
+    paddingTop: space.sm,
   },
-  inputRow: {
+  row: {
     flexDirection: 'row',
     alignItems: 'flex-end',
     gap: space.xs,
+    paddingHorizontal: space.sm,
   },
-  attachBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+  control: {
+    width: CONTROL,
+    height: CONTROL,
+    borderRadius: CONTROL / 2,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 2,
   },
-  inputContainer: {
+  send: {
+    overflow: 'hidden',
+  },
+  center: {
+    flex: 1,
+    alignSelf: 'stretch',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  field: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'flex-end',
-    borderRadius: 20,
-    paddingHorizontal: space.sm,
-    paddingVertical: 6,
-    minHeight: 38,
-    maxHeight: 120,
+    minHeight: CONTROL,
+    borderRadius: CONTROL / 2,
+    paddingHorizontal: space.md + 2,
   },
   input: {
     flex: 1,
-    paddingTop: 0,
-    paddingBottom: 0,
-    fontSize: 16,
-    lineHeight: 20,
+    maxHeight: FIELD_MAX,
+    paddingTop: FIELD_PAD_V,
+    paddingBottom: FIELD_PAD_V,
+    paddingHorizontal: 0,
+    margin: 0,
   },
   counter: {
-    marginLeft: space.xs,
-    alignSelf: 'center',
-    fontWeight: '600',
+    marginLeft: space.sm,
+    paddingBottom: FIELD_PAD_V + 2,
   },
-  sendBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 2,
-  },
-  disabledBar: {
-    paddingVertical: space.md,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  disabledText: {
-    fontStyle: 'italic',
+  cannotSend: {
+    textAlign: 'center',
+    paddingVertical: space.sm,
   },
 });

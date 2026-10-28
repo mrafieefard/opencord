@@ -20,7 +20,7 @@ export const TypingLine = memo(function TypingLine({ names }: TypingLineProps) {
 
   return (
     <View style={styles.container} testID="typing-line">
-      <Text variant="caption" color="textSecondary" numberOfLines={1}>
+      <Text variant="footnote" color="textMuted" numberOfLines={1}>
         {text}
       </Text>
     </View>

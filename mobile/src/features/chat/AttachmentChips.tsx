@@ -1,4 +1,5 @@
-import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
+import { ScrollView, Touchable } from 'react-native-gesture-handler';
 
 import type { PickedFile } from '@/state/types';
 import { Icon, Text, space, useTheme } from '@/ui';
@@ -28,7 +29,7 @@ export function AttachmentChips({ files, onRemove, progress }: AttachmentChipsPr
       {files.map((file, index) => (
         <View
           key={`${file.path}-${index}`}
-          style={[styles.chip, { backgroundColor: colors.surface }]}
+          style={[styles.chip, { backgroundColor: colors.hover }]}
           testID="attachment-chip"
         >
           <Icon name="file" size={14} color="textSecondary" />
@@ -41,15 +42,11 @@ export function AttachmentChips({ files, onRemove, progress }: AttachmentChipsPr
             </Text>
           )}
           {onRemove && (
-            <Pressable
-              onPress={() => onRemove(index)}
-              hitSlop={8}
-              accessibilityLabel={`Remove ${file.filename}`}
-              accessibilityRole="button"
-              style={styles.removeBtn}
-            >
-              <Icon name="close" size={12} color="textMuted" />
-            </Pressable>
+            <Touchable onPress={() => onRemove(index)} hitSlop={12} style={styles.removeBtn}>
+              <View accessible accessibilityRole="button" accessibilityLabel={`Remove ${file.filename}`}>
+                <Icon name="close" size={14} color="textSecondary" />
+              </View>
+            </Touchable>
           )}
         </View>
       ))}
@@ -60,19 +57,18 @@ export function AttachmentChips({ files, onRemove, progress }: AttachmentChipsPr
 const styles = StyleSheet.create({
   container: {
     flexDirection: 'row',
-    gap: space.xs,
-    paddingHorizontal: space.sm,
-    paddingTop: space.xs,
-    paddingBottom: space.xs,
+    gap: space.sm,
+    paddingHorizontal: space.md,
+    paddingBottom: space.sm,
   },
   chip: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: space.xs,
+    gap: 6,
+    height: 32,
     borderRadius: 16,
-    paddingHorizontal: space.sm,
-    paddingVertical: 4,
-    maxWidth: 200,
+    paddingHorizontal: space.md,
+    maxWidth: 220,
   },
   filename: {
     maxWidth: 130,

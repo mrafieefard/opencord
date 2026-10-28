@@ -1,6 +1,20 @@
 import { FlashList, type FlashListRef, type ListRenderItem } from '@shopify/flash-list';
-import { memo, useCallback, useMemo, useRef, useState } from 'react';
-import { StyleSheet, View, type NativeScrollEvent, type NativeSyntheticEvent } from 'react-native';
+import { forwardRef, memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  StyleSheet,
+  View,
+  useWindowDimensions,
+  type LayoutChangeEvent,
+  type NativeScrollEvent,
+  type NativeSyntheticEvent,
+  type ScrollViewProps,
+} from 'react-native';
+import {
+  KeyboardChatScrollView,
+  type KeyboardChatScrollViewProps,
+  type KeyboardChatScrollViewRef,
+} from 'react-native-keyboard-controller';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { markReadIfAtBottom } from '@/state/actions/chat';
 import { useChannelActivity, useServer, useTypingNames } from '@/state/selectors';
@@ -16,6 +30,31 @@ import { NewMessagesDivider } from './NewMessagesDivider';
 import { TypingLine } from './TypingLine';
 import { useChannelLoader } from './useChannelLoader';
 
+/** A bubble is at most this share of the pane (spec §8.5)… */
+const BUBBLE_SHARE = 0.78;
+/** …and no wider than this on a tablet, where 78 % makes lines too long to read. */
+const BUBBLE_MAX = 480;
+
+/**
+ * The list's scroll view: the keyboard lifts the messages with the
+ * composer (keyboard-controller's chat view), by the keyboard's height less
+ * the bottom inset the composer already stands on.
+ */
+const ChatScrollView = forwardRef<KeyboardChatScrollViewRef, ScrollViewProps & KeyboardChatScrollViewProps>(
+  function ChatScrollView(props, ref) {
+    const insets = useSafeAreaInsets();
+    return (
+      <KeyboardChatScrollView
+        ref={ref}
+        automaticallyAdjustContentInsets={false}
+        contentInsetAdjustmentBehavior="never"
+        offset={insets.bottom}
+        {...props}
+      />
+    );
+  },
+);
+
 export interface MessageListProps {
   serverKey: string;
   channelId: string;
@@ -30,6 +69,27 @@ export const MessageList = memo(function MessageList({
   const { colors } = useTheme();
   const listRef = useRef<FlashListRef<ChatItem>>(null);
   const [isScrolledUp, setIsScrolledUp] = useState(false);
+  // The window until the pane is measured (a phone's pane is the window).
+  const window = useWindowDimensions();
+  const [paneWidth, setPaneWidth] = useState(window.width);
+  const onLayout = useCallback((event: LayoutChangeEvent) => {
+    setPaneWidth(Math.round(event.nativeEvent.layout.width));
+  }, []);
+  const maxBubbleWidth = Math.min(BUBBLE_MAX, Math.round(paneWidth * BUBBLE_SHARE));
+
+  // A channel opens on its newest message. Messages arrive after the list
+  // mounts and settle their heights (pictures, wrapping) afterwards, so the
+  // list keeps to its end as its content grows until the user first drags.
+  const pinnedToEnd = useRef(true);
+  useEffect(() => {
+    pinnedToEnd.current = true;
+  }, [serverKey, channelId]);
+  const onContentSizeChange = useCallback(() => {
+    if (pinnedToEnd.current) listRef.current?.scrollToEnd({ animated: false });
+  }, []);
+  const onScrollBeginDrag = useCallback(() => {
+    pinnedToEnd.current = false;
+  }, []);
 
   const { loadOlder } = useChannelLoader(serverKey, channelId);
 
@@ -95,23 +155,28 @@ export const MessageList = memo(function MessageList({
             <MessageBubble
               item={item}
               serverKey={serverKey}
+              maxWidth={maxBubbleWidth}
               onSelectChannel={onSelectChannel}
             />
           );
       }
     },
-    [serverKey, onSelectChannel],
+    [serverKey, onSelectChannel, maxBubbleWidth],
   );
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.chat }]}>
+    <View style={[styles.container, { backgroundColor: colors.chat }]} onLayout={onLayout}>
       <FlashList
         ref={listRef}
+        renderScrollComponent={ChatScrollView}
+        extraData={maxBubbleWidth}
         data={items}
         renderItem={renderItem}
         getItemType={(item) => item.type}
         keyExtractor={(item) => item.id}
         onScroll={handleScroll}
+        onContentSizeChange={onContentSizeChange}
+        onScrollBeginDrag={onScrollBeginDrag}
         onStartReached={loadOlder}
         onStartReachedThreshold={0.5}
         maintainVisibleContentPosition={{

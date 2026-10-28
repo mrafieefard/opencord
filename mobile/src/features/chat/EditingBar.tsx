@@ -1,31 +1,20 @@
-import { Pressable, StyleSheet, View } from 'react-native';
+// Above the field while a message is being edited (spec §8.5).
+import { StyleSheet, View } from 'react-native';
 
-import { Icon, Text, space, useTheme } from '@/ui';
+import { Icon, IconButton, Text, space } from '@/ui';
 
 export interface EditingBarProps {
   onCancel: () => void;
 }
 
 export function EditingBar({ onCancel }: EditingBarProps) {
-  const { colors } = useTheme();
-
   return (
-    <View style={[styles.container, { backgroundColor: colors.surface }]}>
-      <View style={styles.left}>
-        <Icon name="edit" size={16} color="accent" />
-        <Text variant="subhead" color="text" style={styles.label}>
-          Editing message
-        </Text>
-      </View>
-      <Pressable
-        onPress={onCancel}
-        hitSlop={8}
-        accessibilityLabel="Cancel editing"
-        accessibilityRole="button"
-        style={styles.cancelBtn}
-      >
-        <Icon name="close" size={16} color="textSecondary" />
-      </Pressable>
+    <View style={styles.container}>
+      <Icon name="edit" size={18} color="textSecondary" />
+      <Text variant="subhead" style={styles.label}>
+        Editing message
+      </Text>
+      <IconButton icon="close" label="Cancel editing" size={36} onPress={onCancel} />
     </View>
   );
 }
@@ -34,21 +23,12 @@ const styles = StyleSheet.create({
   container: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: space.sm,
-    paddingVertical: space.xs,
-    borderTopLeftRadius: 12,
-    borderTopRightRadius: 12,
-  },
-  left: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: space.xs,
+    gap: space.sm,
+    paddingLeft: space.lg,
+    paddingRight: space.xs,
+    paddingBottom: space.xs,
   },
   label: {
-    fontWeight: '600',
-  },
-  cancelBtn: {
-    padding: space.xs,
+    flex: 1,
   },
 });

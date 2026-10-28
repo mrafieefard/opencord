@@ -47,7 +47,7 @@ describe('Attachments', () => {
     };
 
     const { getByTestId, queryByTestId } = await render(
-      <ImageAttachment serverKey={serverKey} attachment={attachment} />,
+      <ImageAttachment maxWidth={300} serverKey={serverKey} attachment={attachment} />,
     );
 
     // fitSize(800, 600) -> 260 × 195
@@ -79,7 +79,7 @@ describe('Attachments', () => {
     };
 
     const { getByText } = await render(
-      <FileAttachment serverKey={serverKey} attachment={attachment} />,
+      <FileAttachment maxWidth={300} serverKey={serverKey} attachment={attachment} />,
     );
 
     expect(getByText('document.pdf')).toBeTruthy();
@@ -108,7 +108,7 @@ describe('Attachments', () => {
     };
 
     const { getByTestId } = await render(
-      <FileAttachment serverKey={serverKey} attachment={attachment} />,
+      <FileAttachment maxWidth={300} serverKey={serverKey} attachment={attachment} />,
     );
 
     const card = getByTestId('file-attachment-file-1');

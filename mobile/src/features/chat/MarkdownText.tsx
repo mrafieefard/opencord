@@ -26,6 +26,23 @@ export interface MarkdownTextProps {
   onSelectChannel?: (channelId: string) => void;
   style?: StyleProp<TextStyle>;
   selectable?: boolean;
+  /**
+   * Room kept at the end of the last line for the bubble's time, which the
+   * bubble draws over it (the desktop's "trailing" trick). When the text
+   * ends in a quote or code, the room gets a line of its own.
+   */
+  trailing?: string;
+  /** The bubble's colour: the room is drawn in it, since Android ignores `transparent` on nested text. */
+  trailingColor?: string;
+}
+
+/** Text the width of the bubble's time, at its size, in the bubble's colour. */
+function TrailingSpace({ text, color }: { text: string; color?: string }) {
+  return (
+    <NativeText style={[styles.trailing, { color }]} accessible={false} importantForAccessibility="no">
+      {`\u2003${text}`}
+    </NativeText>
+  );
 }
 
 function UserMentionSpan({ serverKey, userId }: { serverKey: string; userId: string }) {
@@ -82,7 +99,8 @@ function renderInlines(
       if (inline.bold && inline.italic) {
         fontFamily = fonts.semiBoldItalic;
       } else if (inline.bold) {
-        fontFamily = fonts.bold;
+        // The desktop's bold is weight 600.
+        fontFamily = fonts.semiBold;
       } else if (inline.italic) {
         fontFamily = fonts.italic;
       }
@@ -156,21 +174,26 @@ export const MarkdownText = memo(function MarkdownText({
   onSelectChannel,
   style,
   selectable = true,
+  trailing,
+  trailingColor,
 }: MarkdownTextProps) {
   const { colors } = useTheme();
   const blocks = useMemo(() => parseMarkdown(content), [content]);
+  const last = blocks.length - 1;
+  const endsInParagraph = blocks[last] instanceof MdParagraph;
 
   return (
-    <View style={styles.container}>
+    <View>
       {blocks.map((block: MdBlock, index: number) => {
         if (block instanceof MdParagraph) {
           return (
             <NativeText
               key={index}
               selectable={selectable}
-              style={[typography.body, { color: colors.text }, styles.paragraph, style]}
+              style={[typography.body, { color: colors.text }, index > 0 && styles.paragraph, style]}
             >
               {renderInlines(block.inlines, serverKey, onSelectChannel, colors)}
+              {trailing !== undefined && index === last && <TrailingSpace text={trailing} color={trailingColor} />}
             </NativeText>
           );
         }
@@ -179,7 +202,7 @@ export const MarkdownText = memo(function MarkdownText({
           return (
             <View
               key={index}
-              style={[styles.quoteContainer, { borderLeftColor: colors.border }]}
+              style={[styles.quoteContainer, { borderLeftColor: colors.textMuted }]}
             >
               <NativeText
                 selectable={selectable}
@@ -195,7 +218,7 @@ export const MarkdownText = memo(function MarkdownText({
           return (
             <View
               key={index}
-              style={[styles.codeBlock, { backgroundColor: colors.surface }]}
+              style={[styles.codeBlock, { backgroundColor: colors.mentionBg }]}
             >
               <NativeText
                 selectable={selectable}
@@ -209,16 +232,21 @@ export const MarkdownText = memo(function MarkdownText({
 
         return null;
       })}
+      {trailing !== undefined && !endsInParagraph && (
+        <NativeText style={typography.body}>
+          <TrailingSpace text={trailing} color={trailingColor} />
+        </NativeText>
+      )}
     </View>
   );
 });
 
 const styles = StyleSheet.create({
-  container: {
-    width: '100%',
-  },
   paragraph: {
-    marginVertical: 1,
+    marginTop: space.xs,
+  },
+  trailing: {
+    ...typography.footnote,
   },
   quoteContainer: {
     borderLeftWidth: 3,

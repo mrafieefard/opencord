@@ -3,6 +3,7 @@ import { StyleSheet, View } from 'react-native';
 import { ChannelRecord } from '@opencord/core-native';
 
 import { Icon, Row, Text, space, useTheme } from '@/ui';
+import { fonts } from '@/ui/theme/typography';
 
 export interface VoiceChannelRowProps {
   channel: ChannelRecord;
@@ -72,6 +73,6 @@ const styles = StyleSheet.create({
   },
   name: {
     flex: 1,
-    fontWeight: '500',
+    fontFamily: fonts.medium,
   },
 });

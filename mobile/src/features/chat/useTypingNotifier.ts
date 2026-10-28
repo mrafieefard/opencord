@@ -10,7 +10,8 @@ export function useTypingNotifier(serverKey: string, channelId: string): () => v
     const now = Date.now();
     if (now - lastNotified.current >= 8000) {
       lastNotified.current = now;
-      notifyTyping(serverKey, channelId).catch(() => {});
+      // Best effort: notifyTyping logs a failure itself.
+      void notifyTyping(serverKey, channelId);
     }
   }, [serverKey, channelId]);
 }

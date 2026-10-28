@@ -1,8 +1,10 @@
 import { memo, useCallback, useRef, useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, StyleSheet, View } from 'react-native';
+import { Touchable } from 'react-native-gesture-handler';
 import * as Sharing from 'expo-sharing';
 import { AttachmentKind, AttachmentVariant, type AttachmentRecord } from '@opencord/core-native';
 
+import { report } from '@/core';
 import { Icon, type IconName, Text, space, useTheme } from '@/ui';
 
 import { fetchAttachmentFile } from './useAttachmentFile';
@@ -10,7 +12,13 @@ import { fetchAttachmentFile } from './useAttachmentFile';
 export interface FileAttachmentProps {
   serverKey: string;
   attachment: AttachmentRecord;
+  /** The room the bubble has for it. */
+  maxWidth: number;
 }
+
+/** Cards are as wide as images can be (spec §8.5), or the bubble's room. */
+const CARD_MAX = 260;
+const ICON_CIRCLE = 40;
 
 export function formatDurationMs(ms: number): string {
   const totalSeconds = Math.max(0, Math.floor(ms / 1000));
@@ -66,89 +74,78 @@ export function attachmentIcon(kind: AttachmentKind): IconName {
   }
 }
 
-export const FileAttachment = memo(function FileAttachment({
-  serverKey,
-  attachment,
-}: FileAttachmentProps) {
+export const FileAttachment = memo(function FileAttachment({ serverKey, attachment, maxWidth }: FileAttachmentProps) {
   const { colors } = useTheme();
   const [downloading, setDownloading] = useState(false);
   const inProgress = useRef(false);
 
-  const handlePress = useCallback(async () => {
+  // One download at a time per card; the share sheet opens on the file.
+  const open = useCallback(() => {
     if (inProgress.current) return;
     inProgress.current = true;
     setDownloading(true);
-    try {
-      const uri = await fetchAttachmentFile(serverKey, attachment.id, AttachmentVariant.Original);
-      await Sharing.shareAsync(uri);
-    } catch (err: unknown) {
-      console.warn(`download file ${attachment.id} failed:`, err);
-    } finally {
-      inProgress.current = false;
-      setDownloading(false);
-    }
+    const done = fetchAttachmentFile(serverKey, attachment.id, AttachmentVariant.Original)
+      .then((uri) => Sharing.shareAsync(uri))
+      .finally(() => {
+        inProgress.current = false;
+        setDownloading(false);
+      });
+    report(done, 'open file');
   }, [serverKey, attachment.id]);
 
-  const iconName = attachmentIcon(attachment.kind);
   const sizeText = formatFileSize(attachment.sizeBytes);
   const kindText = formatAttachmentKind(attachment.kind, attachment.durationMs);
 
   return (
-    <Pressable
+    <Touchable
       testID={`file-attachment-${attachment.id}`}
-      onPress={handlePress}
-      accessibilityRole="button"
-      accessibilityLabel={`${attachment.filename}, ${sizeText}, ${kindText}`}
-      style={[
-        styles.card,
-        {
-          backgroundColor: colors.surface,
-          borderColor: colors.border,
-        },
-      ]}
+      onPress={open}
+      style={[styles.card, { width: Math.min(CARD_MAX, maxWidth) }]}
     >
-      <View style={styles.iconSlot}>
-        {downloading ? (
-          <ActivityIndicator size="small" color={colors.accent} />
-        ) : (
-          <Icon name={iconName} size={22} color="textMuted" />
-        )}
+      <View
+        accessible
+        accessibilityRole="button"
+        accessibilityLabel={`${attachment.filename}, ${sizeText}, ${kindText}`}
+        style={styles.content}
+      >
+        <View style={[styles.iconCircle, { backgroundColor: colors.mentionBg }]}>
+          {downloading ? (
+            <ActivityIndicator size="small" color={colors.text} />
+          ) : (
+            <Icon name={attachmentIcon(attachment.kind)} size={20} color="text" />
+          )}
+        </View>
+        <View style={styles.info}>
+          <Text variant="subhead" numberOfLines={1} ellipsizeMode="middle">
+            {attachment.filename}
+          </Text>
+          <Text variant="footnote" color="textMuted" numberOfLines={1} tabular>
+            {sizeText} · {kindText}
+          </Text>
+        </View>
       </View>
-      <View style={styles.info}>
-        <Text variant="subhead" numberOfLines={1} ellipsizeMode="middle" style={styles.filename}>
-          {attachment.filename}
-        </Text>
-        <Text variant="footnote" color="textMuted" numberOfLines={1}>
-          {sizeText} · {kindText}
-        </Text>
-      </View>
-    </Pressable>
+    </Touchable>
   );
 });
 
 const styles = StyleSheet.create({
   card: {
+    paddingVertical: space.xs,
+  },
+  content: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: space.sm,
-    paddingVertical: space.sm,
-    borderRadius: 12,
-    borderWidth: StyleSheet.hairlineWidth,
-    maxWidth: 260,
-    minWidth: 180,
+    gap: space.md,
   },
-  iconSlot: {
-    width: 28,
+  iconCircle: {
+    width: ICON_CIRCLE,
+    height: ICON_CIRCLE,
+    borderRadius: ICON_CIRCLE / 2,
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: space.xs,
   },
   info: {
     flex: 1,
-    justifyContent: 'center',
-  },
-  filename: {
-    fontWeight: '600',
-    marginBottom: 2,
+    gap: 2,
   },
 });

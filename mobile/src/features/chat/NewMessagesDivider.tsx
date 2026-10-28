@@ -8,13 +8,11 @@ export const NewMessagesDivider = memo(function NewMessagesDivider() {
 
   return (
     <View style={styles.container} testID="new-messages-divider">
-      <View style={[styles.line, { backgroundColor: colors.recording }]} />
-      <View style={[styles.pill, { backgroundColor: colors.recording }]}>
-        <Text variant="caption" color="onAccent" style={styles.text}>
-          NEW
-        </Text>
-      </View>
-      <View style={[styles.line, { backgroundColor: colors.recording }]} />
+      <View style={[styles.line, { backgroundColor: colors.border }]} />
+      <Text variant="footnote" color="textSecondary" style={styles.label}>
+        New messages
+      </Text>
+      <View style={[styles.line, { backgroundColor: colors.border }]} />
     </View>
   );
 });
@@ -28,17 +26,9 @@ const styles = StyleSheet.create({
   },
   line: {
     flex: 1,
-    height: 1,
+    height: StyleSheet.hairlineWidth,
   },
-  pill: {
-    paddingHorizontal: space.sm,
-    paddingVertical: 2,
-    borderRadius: 8,
-    marginHorizontal: space.xs,
-  },
-  text: {
-    fontWeight: '700',
-    fontSize: 10,
-    letterSpacing: 0.5,
+  label: {
+    marginHorizontal: space.sm,
   },
 });

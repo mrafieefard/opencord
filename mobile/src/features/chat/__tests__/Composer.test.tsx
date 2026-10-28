@@ -1,3 +1,4 @@
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { ConnectionRecord, type ChannelAccess, type MessageRecord } from '@opencord/core-native';
 import { fireEvent, render } from '@testing-library/react-native';
 import { Alert, Text } from 'react-native';
@@ -60,6 +61,21 @@ describe('Composer and message actions', () => {
 
     expect(getByText("You can't send messages here.")).toBeTruthy();
     expect(queryByPlaceholderText('Message #general')).toBeNull();
+  });
+
+  it('the send button shows only once there is something to send', async () => {
+    const { getByPlaceholderText, queryByTestId } = await render(
+      <Composer serverKey={NIGHT_OWLS} channelId={CHANNELS.general} />,
+    );
+    expect(queryByTestId('composer-send')).toBeNull();
+
+    const input = getByPlaceholderText('Message #general');
+    await fireEvent.changeText(input, 'hi');
+    expect(queryByTestId('composer-send')).toBeTruthy();
+
+    // Spaces alone aren't something to send.
+    await fireEvent.changeText(input, '   ');
+    expect(queryByTestId('composer-send')).toBeNull();
   });
 
   it('the counter appears from 3,900 characters and sending stops above 4,000', async () => {
@@ -233,8 +249,11 @@ describe('Composer and message actions', () => {
       ],
     });
 
+    // The chips are Gesture Handler views, as in the app.
     const { getByTestId, findByText, getByPlaceholderText } = await render(
-      <Composer serverKey={NIGHT_OWLS} channelId={CHANNELS.general} />,
+      <GestureHandlerRootView>
+        <Composer serverKey={NIGHT_OWLS} channelId={CHANNELS.general} />
+      </GestureHandlerRootView>,
     );
 
     // Press attach button and pick photo

@@ -9,6 +9,7 @@ import * as Sharing from 'expo-sharing';
 import { AttachmentVariant } from '@opencord/core-native';
 
 import { IconButton, space } from '@/ui';
+import { report } from '@/core';
 import { onMedia, tokens } from '@/ui/theme/tokens';
 import { ThemeContext } from '@/ui/theme/ThemeProvider';
 import { useAttachmentFile } from '@/features/chat/attachments/useAttachmentFile';
@@ -51,13 +52,9 @@ export const ImageViewer = memo(function ImageViewer({
 
   const filePath = original.path ?? thumbnail.path;
 
-  const handleShare = useCallback(async () => {
+  const handleShare = useCallback(() => {
     if (!filePath) return;
-    try {
-      await Sharing.shareAsync(filePath);
-    } catch (err: unknown) {
-      console.warn('share image failed:', err);
-    }
+    report(Sharing.shareAsync(filePath), 'share image');
   }, [filePath]);
 
   const controlsAnimatedStyle = useAnimatedStyle(() => ({

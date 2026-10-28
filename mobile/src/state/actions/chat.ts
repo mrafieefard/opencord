@@ -6,6 +6,8 @@ import { EMPTY_MESSAGES, mergeMessages } from '@/state/events';
 import { readPositions, useAppStore } from '@/state/store';
 import { channelKey, type PendingSend, type PickedFile } from '@/state/types';
 
+import { toast } from './ui';
+
 const PAGE_SIZE = 50;
 const MAX_KEPT_AFTER_CLOSE = 100;
 
@@ -47,6 +49,8 @@ export async function openChannel(serverKey: string, channelId: string): Promise
     fetched = await getCore().messagesFetch(serverKey, channelId, undefined, PAGE_SIZE);
   } catch (error: unknown) {
     console.warn(`failed to fetch messages for ${channelId}: ${errorKind(error)}`);
+    // Otherwise the chat just stays empty.
+    toast(describeError(error), 'error');
     return;
   }
 
@@ -125,6 +129,7 @@ export async function loadOlder(serverKey: string, channelId: string): Promise<v
     fetched = await getCore().messagesFetch(serverKey, channelId, before, PAGE_SIZE);
   } catch (error: unknown) {
     console.warn(`failed to load older messages for ${channelId}: ${errorKind(error)}`);
+    toast(describeError(error), 'error');
     useAppStore.setState((state) => {
       const cur = state.messages[key];
       if (!cur) return state;

@@ -1,5 +1,7 @@
 // A text channel's pane (spec §8.5): its header, then the messages.
 import { StyleSheet, View } from 'react-native';
+import { KeyboardStickyView } from 'react-native-keyboard-controller';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useChannelInfo } from '@/state/selectors';
 import { PaneHeader, useTheme } from '@/ui';
@@ -18,6 +20,7 @@ export interface ChatPaneProps {
 export function ChatPane({ serverKey, channelId, onOpenSidebar, onSelectChannel }: ChatPaneProps) {
   const { colors } = useTheme();
   const info = useChannelInfo(serverKey, channelId);
+  const insets = useSafeAreaInsets();
 
   return (
     <View style={[styles.pane, { backgroundColor: colors.chat }]}>
@@ -32,7 +35,12 @@ export function ChatPane({ serverKey, channelId, onOpenSidebar, onSelectChannel 
         channelId={channelId}
         onSelectChannel={onSelectChannel}
       />
-      <Composer serverKey={serverKey} channelId={channelId} />
+      {/* The composer rides the keyboard. It already stands on the bottom
+          inset, so it rises by the keyboard's height less that inset; the
+          list lifts by the same amount (MessageList's ChatScrollView). */}
+      <KeyboardStickyView offset={{ closed: 0, opened: insets.bottom }}>
+        <Composer serverKey={serverKey} channelId={channelId} />
+      </KeyboardStickyView>
     </View>
   );
 }

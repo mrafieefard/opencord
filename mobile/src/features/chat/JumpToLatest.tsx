@@ -17,7 +17,7 @@ export const JumpToLatest = memo(function JumpToLatest({ count = 0, onPress }: J
       <Touchable
         onPress={onPress}
         underlayColor={colors.selected}
-        style={[styles.button, { backgroundColor: colors.surface, shadowColor: colors.scrim }]}
+        style={[styles.button, { backgroundColor: colors.elevated, borderColor: colors.border }]}
         testID="jump-to-latest"
       >
         <View style={styles.center} accessible accessibilityRole="button" accessibilityLabel="Jump to latest">
@@ -44,10 +44,8 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 22,
-    elevation: 4,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 4,
+    // No shadows (design §9.3): a hairline sets it off the messages.
+    borderWidth: StyleSheet.hairlineWidth,
     justifyContent: 'center',
     alignItems: 'center',
   },
