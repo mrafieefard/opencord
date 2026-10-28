@@ -1356,33 +1356,43 @@ Milestone R1 of `docs/superpowers/plans/2026-10-26-mobile-client.md` gives the p
 
 ## D77: Channels and chat on the phone (2026-10-28)
 
-Milestone R2 of `docs/superpowers/plans/2026-10-26-mobile-client.md` implements the server screen, channels, chat history, markdown rendering, media attachments, the full-screen image viewer, the composer, and message actions. Commits: `1db7d28` (server screen and panes), written by Claude; `2c32bb9` (channel list with voice and music), `b2d8823` (messages and markdown), `28b9014` (attachments and image viewer), and `bf6cfe8` (composer, sending, and message actions), written by Gemini.
+Milestone R2 of `docs/superpowers/plans/2026-10-26-mobile-client.md` gives the phone app the inside of a server: the panes, the channel list, the chat, attachments and the image viewer, the composer and message actions. Commits: `1db7d28` (the server screen and its panes), written by Claude; `2c32bb9` (the channel list), `b2d8823` (messages and markdown), `28b9014` (attachments and the viewer) and `bf6cfe8` (the composer and message actions), written by Gemini; the review's fixes in `6a3b3e9`.
 
-- **The server screen and panes** (`mobile/src/features/server/`).
-  - `ServerScreen` routes between `PhonePanes` and `TabletPanes` based on window width (split at 768 dp).
-  - On phones, channels start full width. Selecting a channel shifts smoothly to the content pane. Swiping from the left half or pressing the header's hamburger button opens the channel list as a 300 dp sidebar drawer over a dimmed scrim (`withAlpha(colors.scrim, 0.4)`). Tapping the scrim or navigating closes the drawer.
-  - Android back follows §7.2: closes the sidebar first, then navigates from content back to channels, then returns to the servers tab.
-  - On tablets, channels (300 dp) and content sit side by side in split view, and no sidebar drawer or hamburger is rendered.
-- **The channel list** (`ChannelList.tsx`).
-  - Channels grouped by category in uppercase (`TEXT`, `VOICE`), with unread dots and count badges. The selected channel is highlighted with `colors.surface`.
-  - Voice channels display member count and user limit (`VoiceChannelRow`). Connected members show avatars, speaking rings in `voice` hue, and mute glyphs (`VoiceMemberRow`).
-  - Active tracks render as `NowPlayingRow` under the voice channel with track title, artist, and music icon.
-  - The channel header menu offers "Mark all as read", "Copy address", and "Leave server".
-- **Messages and markdown** (`mobile/src/features/chat/`).
-  - `MessageList` renders messages in a `FlashList` grouped into 5-minute clusters (`GROUP_WINDOW_MS = 300000`). Author name appears on the first message of a group, and avatar beside the last message. Own messages align to the right in `bubbleOut`, others to the left in `bubbleIn`. Formatted timestamps appear at bottom-right.
-  - Day separators and a red new messages divider mark timeline boundaries. `TypingLine` displays typing users. `JumpToLatest` floats above the composer when scrolled up.
-  - `MarkdownText` parses bold (`**`), italic (`*`), strikethrough (`~~`), inline code (`` ` ``), fenced code blocks with language and JetBrains Mono (`tokens.fonts.mono`), blockquotes (`>`) with left accent indicator, user mentions (`<@id>`), and channel links (`<#id>`).
-- **Attachments and image viewer** (`mobile/src/features/chat/attachments/`, `mobile/src/features/viewer/`).
-  - Image attachments pre-calculated with aspect fit (max 260 × 320 dp) via `fitSize` preventing layout jumps, with thumbnail placeholder fading in when loaded.
-  - File attachments render filename, human-readable file size (B, KB, MB, GB), and kind descriptor; tapping opens the native share sheet via `expo-sharing`.
-  - Tapping an image navigates to full-screen modal `/viewer` with black backdrop, centered image, fading header/footer controls, double-tap 2.5× zoom, pinch zoom, pan zoom, and swipe-down dismiss.
-- **Composer, sending, and message actions** (`Composer.tsx`, `AttachmentChips.tsx`, `EditingBar.tsx`, `MessageMenu.tsx`).
-  - Multiline `TextInput` inside `KeyboardStickyView` padded cleanly above Android navigation bars via `useSafeAreaInsets`.
-  - Attachment `+` menu opens native popup for Photo library and Files via `expo-image-picker` and `expo-document-picker`. Picked files render as chips with remove `×` buttons.
-  - Character counter appears from 3,900 characters up to 4,000 maximum. Typing notifications are throttled to at most every 8 seconds via `useTypingNotifier`.
-  - Long press on messages opens native `MenuView` with "Copy text", "Edit", and "Delete" (confirming with "Delete message? This cannot be undone.").
-  - Editing displays `EditingBar` with "Editing message" banner, checkmark submit button, and cancel button.
-  - Failed sends show red border on message bubble and "Not sent. Tap to retry", with tap-to-retry and long-press retry/discard menu.
-- **Tests.**
-  - 195 Jest tests across 32 suites covering server panes, channel list, message items, markdown parsing, message list, attachments, fitSize, image viewer, composer, sending actions, and typing notifier.
-  - Visual verification on `Pixel_7` emulator across dark and light themes for all 6 composer states, channel lists, message lists, and attachment viewers.
+- **The server screen** (`features/server/`). `ServerScreen` picks `PhonePanes` below 768 pt and `TabletPanes` from there.
+  - **On a phone:** the channel list starts at the full width. Choosing a channel slides the list out and the chat in. After that the list is a sidebar `min(86 % of the width, 360 pt)` wide, opened by a swipe from the left half or the header's sidebar button, over the content under `scrim` at 40 %. A custom pan gesture drives it rather than `ReanimatedDrawerLayout`, which can't start open at the full width and widen again.
+  - **Back** closes the sidebar, then returns from a channel to the list, then leaves the server.
+  - **On a tablet:** the list is a fixed 320 pt sidebar beside the content.
+- **The channel list.**
+  - Categories are uppercase captions. Unread channels have a 4 × 8 pt pill and a semibold name, mentions a count badge, and the open channel the `selected` background.
+  - Voice channels show their count (with "/limit"), their people (22 pt avatars with the speaking ring, mute and deafen glyphs) and what plays (`NowPlayingRow`).
+  - The header's menu has Mark all as read, Copy address and Leave server.
+- **The chat** (`features/chat/`).
+  - **Bubbles:** a `FlashList` of bubbles, grouped by author within five minutes. Others' are on the left in `bubbleIn`, with the avatar beside the group's last bubble and the name on its first; the user's own are on the right in `bubbleOut`. Corners are 18 pt, 6 pt on the author's side where a bubble joins its group.
+  - **Width:** a bubble is at most 78 % of the pane, which the list measures, and at most 480 pt on a tablet.
+  - **The time** sits at the end of the last line: the text keeps room for it in the bubble's colour, and the time is drawn over that room. It takes a line of its own only when the last line is full, after code, or under attachments. Pending sends show a clock, and failed ones a red outline with "Not sent. Tap to retry".
+  - **Day pills, the divider and the jump button:** day pills read "Today", "Yesterday" or the date, and a hairline divider reads "New messages". The jump-to-latest button appears when the list is scrolled up more than a screen, with the count of new messages.
+  - **Markdown:** `MarkdownText` renders the desktop's subset (`markdown.ts`, a port of `markdown.dart`): paragraphs, quotes, fenced code in JetBrains Mono on `mentionBg`, bold (semibold, as on desktop), italic, strike, inline code, links, `<@user>` mentions and `<#channel>` links. Bubble text isn't selectable: a long press opens the message's menu, whose Copy text copies.
+  - **Keyboard:** the list scrolls in keyboard-controller's `KeyboardChatScrollView` and the composer rides a `KeyboardStickyView`. Both move by the keyboard's height less the bottom inset, so the newest message stays above the composer. The list opens on its newest message and keeps to its end until the user drags.
+- **Attachments and the viewer.**
+  - **Pictures:** pictures fit within 260 × 320 pt and the bubble's room, sized before they load on a `surface` placeholder.
+  - **Other files:** a row with the kind's icon in a circle, the name, the size and the kind; a tap downloads the file and opens the share sheet.
+  - **The viewer** (`/viewer`) is black, with pinch and double-tap zoom, pan, swipe down to close, and share and close buttons that fade with a tap.
+- **The composer.**
+  - **The bar:** a `sidebar` bar with a hairline, the + menu (Photo library, Files) and a 40 pt `hover` field in Inter that grows to six lines. The send button appears only when there is text or a file; above 4,000 characters it is off, and from 3,900 a counter shows what's left.
+  - **Files and typing:** picked files are chips with remove buttons. Typing is sent at most every 8 s.
+  - **Message actions:** a long press opens Copy text, Edit and Delete ("Delete message?" "This cannot be undone."). Editing shows the "Editing message" bar, and its keyboard comes up on the text.
+  - **Tests and the fake core:** `FakeCore` refuses a message whose text is exactly "fail", so the failed state can be seen on a device.
+- **Review** (`6a3b3e9`). The screens, measured on the Pixel 7, showed:
+  - **Wrapping:** bubbles broke mid-word and cropped pictures, because the markdown block was 100 % wide inside a bubble sized by its content.
+  - **The time:** it took a line of its own under every message.
+  - **The keyboard:** it covered the newest messages, and the composer had no bar, touched the navigation bar and used the system font.
+  - **Long press:** pressing on text started a selection instead of opening the menu.
+  - **Small parts:** day pills and the typing line were in capitals, the divider was a red "NEW", the jump button had a shadow, code blocks were nearly invisible, and the voice member's ring was drawn twice and square.
+  - **Code:** `fontWeight` was set on Inter, React Native's `Pressable` was used in Gesture Handler panes, errors were dropped (attach, send, share), and a failed load left the chat silently empty.
+- **Tests.** 198 Jest tests in 33 suites. Among them:
+  - the panes, the channel list and the chat's items;
+  - the markdown port against the desktop's cases;
+  - the message list, attachments and `fitSize`, and the viewer;
+  - the composer, including the send button showing only with something to send;
+  - sending, retrying and editing;
+  - the bubble corners and the time's room at the end of the text.
