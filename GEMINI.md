@@ -105,7 +105,9 @@ Every rule here was broken at least once and caught in review.
 - **Use it on the device before calling it done.** Tests check text and calls, not what is drawn or how it feels. For every screen a task touches:
   - take its screenshots in dark and light and look at each one;
   - try every gesture on it (tap, long press, both swipes, pull) and every way in from outside the app (`adb shell am start -d '<link>'`);
-  - restart Metro with `-c` after editing if the screen didn't change: a stale bundle looks like a fix that didn't work.
+  - restart Metro with `-c` after editing if the screen didn't change: a stale bundle looks like a fix that didn't work;
+  - crop the screenshot at full size (`magick shot.png -crop 1080x700+0+1500 crop.png`) and measure: paddings, sizes and gaps against the plan's numbers (1 pt = 2.625 px on the Pixel 7), text that wraps early or breaks inside a word, things that overlap or touch the screen's edges;
+  - with a text field: open the keyboard and type several lines. What the user was reading stays above the field.
 
   If you can't run the emulator, the task isn't done. Say so in the first line of your report.
 
@@ -166,6 +168,10 @@ Every rule here was broken at least once and caught in review.
   - `core/` never imports `features/`: shared state goes in `core/providers`.
   - The repository's methods mirror the core's: no parameters the core ignores.
 - **The two hues are for their one use each:** `voice` for the voice waveform, `recording` for the recording dot and the cancel state. Everything else is monochrome, even a selected chip.
+- **No percentage size inside a parent sized by its content.** A `width: '100%'` or `maxWidth: '78%'` inside a view that shrinks to its content has nothing to resolve against, and text then wraps mid-word. Measure the container (`onLayout`) and pass numbers.
+- **Weights come from the font's family** (`fonts.semiBold`), never `fontWeight` on Inter: Android then picks a wrong file. The type scale's variants already carry theirs. `caption` is uppercase: never for sentences.
+- **Selectable text takes the long press.** Where a long press opens a menu, the text in it isn't selectable; the menu offers Copy.
+- **Chat screens use keyboard-controller's chat pieces:** the list's scroll view is `KeyboardChatScrollView` and the composer sits in a `KeyboardStickyView`, both offset by the bottom inset (see `features/chat`).
 - **A style passed to a text variant replaces its fields.** To change a variant's size, pass `fontSize` and `lineHeight`; another variant's style brings its font too.
 - **Numbers come from the plan's table.** A step, limit or duration the plan's Numbers table gives is used as given, never a guess.
 - **Check both themes.** Theme colours (`colors.text`, `colors.scrim`) flip with the theme. Anything drawn on a photo or a video uses the fixed dark set, `OcColors.dark`, as the image grid's overlay does.
