@@ -1353,3 +1353,36 @@ Milestone R1 of `docs/superpowers/plans/2026-10-26-mobile-client.md` gives the p
   - volume moved in 1 % steps;
   - the name field took 64 characters.
 - **Tests.** 132 Jest tests in 20 suites: tokens and color literals, components, boot and onboarding, `formatTime`, `connectionText`, the server list, invite links, adding a server and the trust step, and the You tab.
+
+## D77: Channels and chat on the phone (2026-10-28)
+
+Milestone R2 of `docs/superpowers/plans/2026-10-26-mobile-client.md` implements the server screen, channels, chat history, markdown rendering, media attachments, the full-screen image viewer, the composer, and message actions. Commits: `1db7d28` (server screen and panes), written by Claude; `2c32bb9` (channel list with voice and music), `b2d8823` (messages and markdown), `28b9014` (attachments and image viewer), and `bf6cfe8` (composer, sending, and message actions), written by Gemini.
+
+- **The server screen and panes** (`mobile/src/features/server/`).
+  - `ServerScreen` routes between `PhonePanes` and `TabletPanes` based on window width (split at 768 dp).
+  - On phones, channels start full width. Selecting a channel shifts smoothly to the content pane. Swiping from the left half or pressing the header's hamburger button opens the channel list as a 300 dp sidebar drawer over a dimmed scrim (`withAlpha(colors.scrim, 0.4)`). Tapping the scrim or navigating closes the drawer.
+  - Android back follows §7.2: closes the sidebar first, then navigates from content back to channels, then returns to the servers tab.
+  - On tablets, channels (300 dp) and content sit side by side in split view, and no sidebar drawer or hamburger is rendered.
+- **The channel list** (`ChannelList.tsx`).
+  - Channels grouped by category in uppercase (`TEXT`, `VOICE`), with unread dots and count badges. The selected channel is highlighted with `colors.surface`.
+  - Voice channels display member count and user limit (`VoiceChannelRow`). Connected members show avatars, speaking rings in `voice` hue, and mute glyphs (`VoiceMemberRow`).
+  - Active tracks render as `NowPlayingRow` under the voice channel with track title, artist, and music icon.
+  - The channel header menu offers "Mark all as read", "Copy address", and "Leave server".
+- **Messages and markdown** (`mobile/src/features/chat/`).
+  - `MessageList` renders messages in a `FlashList` grouped into 5-minute clusters (`GROUP_WINDOW_MS = 300000`). Author name appears on the first message of a group, and avatar beside the last message. Own messages align to the right in `bubbleOut`, others to the left in `bubbleIn`. Formatted timestamps appear at bottom-right.
+  - Day separators and a red new messages divider mark timeline boundaries. `TypingLine` displays typing users. `JumpToLatest` floats above the composer when scrolled up.
+  - `MarkdownText` parses bold (`**`), italic (`*`), strikethrough (`~~`), inline code (`` ` ``), fenced code blocks with language and JetBrains Mono (`tokens.fonts.mono`), blockquotes (`>`) with left accent indicator, user mentions (`<@id>`), and channel links (`<#id>`).
+- **Attachments and image viewer** (`mobile/src/features/chat/attachments/`, `mobile/src/features/viewer/`).
+  - Image attachments pre-calculated with aspect fit (max 260 × 320 dp) via `fitSize` preventing layout jumps, with thumbnail placeholder fading in when loaded.
+  - File attachments render filename, human-readable file size (B, KB, MB, GB), and kind descriptor; tapping opens the native share sheet via `expo-sharing`.
+  - Tapping an image navigates to full-screen modal `/viewer` with black backdrop, centered image, fading header/footer controls, double-tap 2.5× zoom, pinch zoom, pan zoom, and swipe-down dismiss.
+- **Composer, sending, and message actions** (`Composer.tsx`, `AttachmentChips.tsx`, `EditingBar.tsx`, `MessageMenu.tsx`).
+  - Multiline `TextInput` inside `KeyboardStickyView` padded cleanly above Android navigation bars via `useSafeAreaInsets`.
+  - Attachment `+` menu opens native popup for Photo library and Files via `expo-image-picker` and `expo-document-picker`. Picked files render as chips with remove `×` buttons.
+  - Character counter appears from 3,900 characters up to 4,000 maximum. Typing notifications are throttled to at most every 8 seconds via `useTypingNotifier`.
+  - Long press on messages opens native `MenuView` with "Copy text", "Edit", and "Delete" (confirming with "Delete message? This cannot be undone.").
+  - Editing displays `EditingBar` with "Editing message" banner, checkmark submit button, and cancel button.
+  - Failed sends show red border on message bubble and "Not sent. Tap to retry", with tap-to-retry and long-press retry/discard menu.
+- **Tests.**
+  - 195 Jest tests across 32 suites covering server panes, channel list, message items, markdown parsing, message list, attachments, fitSize, image viewer, composer, sending actions, and typing notifier.
+  - Visual verification on `Pixel_7` emulator across dark and light themes for all 6 composer states, channel lists, message lists, and attachment viewers.
