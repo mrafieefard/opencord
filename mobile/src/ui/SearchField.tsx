@@ -13,15 +13,18 @@ export interface SearchFieldProps {
   placeholder: string;
   onSubmit?: () => void;
   right?: ReactNode;
+  autoFocus?: boolean;
+  /** On a sheet (`elevated`), where `hover` would sink below it. */
+  onSheet?: boolean;
 }
 
-export function SearchField({ value, onChangeText, placeholder, onSubmit, right }: SearchFieldProps) {
+export function SearchField({ value, onChangeText, placeholder, onSubmit, right, autoFocus = false, onSheet = false }: SearchFieldProps) {
   const { colors } = useTheme();
   const inputRef = useRef<ComponentRef<typeof TextInput>>(null);
   return (
     <Pressable
       onPress={() => inputRef.current?.focus()}
-      style={[styles.field, { backgroundColor: colors.hover }]}
+      style={[styles.field, { backgroundColor: onSheet ? colors.selected : colors.hover }]}
     >
       <Icon name="search" size={16} color="textMuted" />
       <TextInput
@@ -32,6 +35,7 @@ export function SearchField({ value, onChangeText, placeholder, onSubmit, right 
         placeholderTextColor={colors.textMuted}
         onSubmitEditing={onSubmit}
         returnKeyType="search"
+        autoFocus={autoFocus}
         autoCorrect={false}
         maxFontSizeMultiplier={MAX_FONT_SCALE}
         accessibilityLabel={placeholder}

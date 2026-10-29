@@ -1,19 +1,30 @@
-// The Up next queue section (spec §8.7): list of queued tracks, swipe to remove,
-// reordering, and queue clearing with confirmation.
+// Up next (spec §8.7): how many songs and how long, Clear (asks first) with
+// Manage queue, then the songs.
+import type { MusicQueueItemRecord } from '@opencord/core-native';
 import { useCallback, useMemo } from 'react';
-import { StyleSheet, View } from 'react-native';
-import { Touchable } from 'react-native-gesture-handler';
+import { View } from 'react-native';
 
 import { report } from '@/core';
 import { clearQueue, moveItem, removeItems } from '@/state/actions/music';
 import { useChannelInfo, useMusicSession, useServer } from '@/state/selectors';
-import { EmptyState, Text, confirm, space } from '@/ui';
+import { confirm } from '@/ui';
 
 import { QueueRow } from './QueueRow';
+import { SectionHeader, SectionNote } from './SectionHeader';
 
 export interface UpNextProps {
   serverKey: string;
   channelId: string;
+}
+
+/** "5 songs · 23 min", or "1 song · 1 h 5 min"; live streams add no time. */
+export function queueSummary(queue: MusicQueueItemRecord[]): string {
+  const songs = `${queue.length} ${queue.length === 1 ? 'song' : 'songs'}`;
+  const totalMs = queue.reduce((sum, item) => sum + (item.track.isStream ? 0 : item.track.durationMs), 0);
+  const minutes = Math.round(totalMs / 60_000);
+  if (minutes === 0) return songs;
+  const time = minutes >= 60 ? `${Math.floor(minutes / 60)} h ${minutes % 60} min` : `${minutes} min`;
+  return `${songs} · ${time}`;
 }
 
 export function UpNext({ serverKey, channelId }: UpNextProps) {
@@ -22,135 +33,52 @@ export function UpNext({ serverKey, channelId }: UpNextProps) {
   const server = useServer(serverKey);
 
   const selfUserId = server?.snapshot?.selfUser.id ?? server?.entry.userId;
-  const access = info?.access;
-  const canManageQueue = access?.musicManageQueue ?? false;
-  const canAdd = access?.musicAdd ?? false;
-
+  const canManageQueue = info?.access.musicManageQueue ?? false;
+  const canAdd = info?.access.musicAdd ?? false;
   const queue = useMemo(() => session?.queue ?? [], [session?.queue]);
 
-  const handleClear = useCallback(() => {
+  const clear = useCallback(() => {
     confirm({
-      title: 'Clear queue?',
-      message: 'This will remove all songs from the queue.',
+      title: 'Clear the queue?',
+      message: `This removes ${queue.length === 1 ? 'the song' : `all ${queue.length} songs`} waiting to play.`,
       confirmTitle: 'Clear',
       destructive: true,
-      onConfirm: () => {
-        report(clearQueue(serverKey, channelId), 'clear queue');
-      },
+      onConfirm: () => report(clearQueue(serverKey, channelId), 'clear queue'),
     });
-  }, [serverKey, channelId]);
+  }, [serverKey, channelId, queue.length]);
 
-  const handlePlayNext = useCallback(
-    (itemId: string) => {
-      const firstId = queue[0]?.itemId;
-      if (firstId === itemId) return;
-      report(moveItem(serverKey, channelId, itemId, firstId), 'play next');
-    },
-    [serverKey, channelId, queue],
-  );
-
-  const handleMoveUp = useCallback(
-    (index: number) => {
-      if (index <= 0) return;
-      const itemId = queue[index]?.itemId;
-      const beforeId = queue[index - 1]?.itemId;
-      if (!itemId || !beforeId) return;
-      report(moveItem(serverKey, channelId, itemId, beforeId), 'move up');
-    },
-    [serverKey, channelId, queue],
-  );
-
-  const handleMoveDown = useCallback(
-    (index: number) => {
-      if (index >= queue.length - 1) return;
-      const itemId = queue[index]?.itemId;
-      const beforeId = queue[index + 2]?.itemId;
-      if (!itemId) return;
-      report(moveItem(serverKey, channelId, itemId, beforeId), 'move down');
-    },
-    [serverKey, channelId, queue],
-  );
-
-  const handleRemove = useCallback(
-    (itemId: string) => {
-      report(removeItems(serverKey, channelId, [itemId]), 'remove item');
-    },
+  const move = useCallback(
+    (itemId: string, beforeId: string | undefined, what: string) =>
+      report(moveItem(serverKey, channelId, itemId, beforeId), what),
     [serverKey, channelId],
   );
 
-  if (queue.length === 0) {
-    return (
-      <View style={styles.emptyContainer}>
-        <EmptyState
-          title="Nothing queued"
-          body="Search for a song or upload one."
-        />
-      </View>
-    );
-  }
-
   return (
-    <View style={styles.container}>
-      <View style={styles.header}>
-        <Text variant="headline">Up next</Text>
-        {canManageQueue ? (
-          <Touchable
-            onPress={handleClear}
-            accessible
-            accessibilityRole="button"
-            accessibilityLabel="Clear queue"
-            hitSlop={space.xs}
-          >
-            <Text variant="callout" color="recording">
-              Clear
-            </Text>
-          </Touchable>
-        ) : null}
-      </View>
-
-      <View style={styles.list}>
-        {queue.map((item, index) => {
-          const isOwn = item.requesterId === selfUserId;
-          const canRemove = (isOwn && canAdd) || canManageQueue;
-          return (
-            <QueueRow
-              key={item.itemId}
-              serverKey={serverKey}
-              channelId={channelId}
-              item={item}
-              index={index}
-              totalItems={queue.length}
-              canRemove={canRemove}
-              canManageQueue={canManageQueue}
-              onPlayNext={() => handlePlayNext(item.itemId)}
-              onMoveUp={() => handleMoveUp(index)}
-              onMoveDown={() => handleMoveDown(index)}
-              onRemove={() => handleRemove(item.itemId)}
-            />
-          );
-        })}
-      </View>
+    <View>
+      <SectionHeader
+        title="Up next"
+        detail={queue.length > 0 ? queueSummary(queue) : undefined}
+        action={canManageQueue && queue.length > 0 ? { title: 'Clear', label: 'Clear queue', onPress: clear } : undefined}
+      />
+      {queue.length === 0 ? (
+        <SectionNote title="Nothing queued" body="Search for a song or upload one." />
+      ) : (
+        queue.map((item, index) => (
+          <QueueRow
+            key={item.itemId}
+            serverKey={serverKey}
+            item={item}
+            isFirst={index === 0}
+            isLast={index === queue.length - 1}
+            canRemove={canManageQueue || (canAdd && item.requesterId === selfUserId)}
+            canManageQueue={canManageQueue}
+            onPlayNext={() => move(item.itemId, queue[0]?.itemId, 'play next')}
+            onMoveUp={() => move(item.itemId, queue[index - 1]?.itemId, 'move up')}
+            onMoveDown={() => move(item.itemId, queue[index + 2]?.itemId, 'move down')}
+            onRemove={() => report(removeItems(serverKey, channelId, [item.itemId]), 'remove item')}
+          />
+        ))
+      )}
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    width: '100%',
-  },
-  emptyContainer: {
-    paddingVertical: space.xl,
-    alignItems: 'center',
-    width: '100%',
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: space.md,
-    paddingVertical: space.sm,
-  },
-  list: {
-    width: '100%',
-  },
-});

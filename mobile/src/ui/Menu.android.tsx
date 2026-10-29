@@ -30,7 +30,7 @@ import { useTheme } from './theme/useTheme';
 
 export { useMenuOpener, type MenuAction, type MenuHandle, type MenuProps } from './Menu.types';
 
-export const MENU_WIDTH = 232;
+export const MENU_WIDTH = 280;
 export const MENU_ROW = 48;
 const MENU_PAD = 6;
 /** The scrim's share of the theme's `scrim`: lighter than a sheet's. */

@@ -267,4 +267,14 @@ describe('VoicePane', () => {
     );
     expect(tablet.getByTestId('connected-bar-pressable')).toBeTruthy();
   });
+
+  it('fetches the music settings, and shows Music when the server has it on', async () => {
+    initServer();
+
+    const view = await renderWithGesture(<VoicePane serverKey={NIGHT_OWLS} channelId={CHANNELS.lounge} />);
+    await settle();
+
+    expect(useAppStore.getState().servers[NIGHT_OWLS]?.musicSettings?.enabled).toBe(true);
+    expect(view.getByLabelText('Music')).toBeTruthy();
+  });
 });

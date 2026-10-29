@@ -13,7 +13,6 @@ import {
 
 import { CHANNELS, NIGHT_OWLS, SELF_ID, snapshot } from '@/core/fake/world';
 import * as musicActions from '@/state/actions/music';
-import * as uiActions from '@/state/actions/ui';
 import { useAppStore } from '@/state/store';
 import { channelKey } from '@/state/types';
 import { freshStore, settle } from '@/test/store';
@@ -146,11 +145,20 @@ describe('History', () => {
     await settle();
   });
 
-  test('empty history shows empty state', async () => {
+  test('an empty history shows nothing at all', async () => {
     initHistoryServer({ history: [] });
     const view = await renderScreen(<History serverKey={NIGHT_OWLS} channelId={CHANNELS.lounge} />);
-    expect(view.getByText('No history')).toBeTruthy();
-    expect(view.getByText('Played tracks will show up here.')).toBeTruthy();
+    expect(view.queryByText('Recently played')).toBeNull();
+  });
+
+  test('five songs show until Show all', async () => {
+    initHistoryServer({ history: Array.from({ length: 7 }, (_, n) => makeHistoryItem(`h-${n}`, `Past Song ${n}`)) });
+    const view = await renderScreen(<History serverKey={NIGHT_OWLS} channelId={CHANNELS.lounge} />);
+    expect(view.getByText('Past Song 4')).toBeTruthy();
+    expect(view.queryByText('Past Song 5')).toBeNull();
+
+    await fireEvent.press(view.getByLabelText('Show all recently played songs'));
+    expect(view.getByText('Past Song 6')).toBeTruthy();
   });
 
   test('history adds the track again', async () => {
@@ -161,12 +169,11 @@ describe('History', () => {
     });
 
     const enqueueSpy = jest.spyOn(musicActions, 'enqueue').mockResolvedValue(undefined);
-    const toastSpy = jest.spyOn(uiActions, 'toast');
 
     const view = await renderScreen(<History serverKey={NIGHT_OWLS} channelId={CHANNELS.lounge} />);
     expect(view.getByText('Past Song 1')).toBeTruthy();
 
-    const addAgainBtn = view.getByText('Add again');
+    const addAgainBtn = view.getByLabelText('Add Past Song 1 again');
     expect(addAgainBtn).toBeTruthy();
 
     await fireEvent.press(addAgainBtn);
@@ -178,6 +185,7 @@ describe('History', () => {
       undefined,
       MusicPlacement.End,
     );
-    expect(toastSpy).toHaveBeenCalledWith('Added to the queue');
+    await settle();
+    expect(view.getByLabelText('Past Song 1 is queued')).toBeTruthy();
   });
 });

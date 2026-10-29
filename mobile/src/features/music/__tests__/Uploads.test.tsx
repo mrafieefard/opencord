@@ -17,13 +17,24 @@ import { NIGHT_OWLS, snapshot } from '@/core/fake/world';
 import { onEvents, useAppStore } from '@/state/store';
 import { freshStore } from '@/test/store';
 
-import { UploadSection } from '../UploadSection';
+import { AddBar } from '../AddBar';
+import { Uploads } from '../Uploads';
+
+/** The player's upload button and the rows above Up next. */
+function UploadArea({ serverKey, channelId }: { serverKey: string; channelId: string }) {
+  return (
+    <>
+      <AddBar serverKey={serverKey} channelId={channelId} onSearch={() => {}} />
+      <Uploads serverKey={serverKey} channelId={channelId} />
+    </>
+  );
+}
 
 async function renderSection(ui: React.ReactElement) {
   return await render(<GestureHandlerRootView style={{ flex: 1 }}>{ui}</GestureHandlerRootView>);
 }
 
-describe('UploadSection', () => {
+describe('Uploads', () => {
   const channelId = '20'; // Lounge
 
   beforeEach(() => {
@@ -101,13 +112,32 @@ describe('UploadSection', () => {
     });
   }
 
-  it('without permission the section says what is missing', async () => {
+  it('without permission the upload button says what is missing', async () => {
     // User has musicAdd and attach, but is not in the voice channel
     setupServer(false, true, true, false);
+    const pickSpy = jest.spyOn(DocumentPicker, 'getDocumentAsync');
 
-    const view = await renderSection(<UploadSection serverKey={NIGHT_OWLS} channelId={channelId} />);
-    expect(view.getByText('Join Lounge to upload songs.')).toBeTruthy();
-    expect(view.queryByText('Choose audio files')).toBeNull();
+    const view = await renderSection(<UploadArea serverKey={NIGHT_OWLS} channelId={channelId} />);
+    await act(async () => {
+      fireEvent.press(view.getByLabelText('Upload audio files'));
+    });
+
+    expect(useAppStore.getState().toasts.some((t) => t.text === 'Join Lounge to upload songs.')).toBe(true);
+    expect(pickSpy).not.toHaveBeenCalled();
+  });
+
+  it('with Manage music the upload button works outside the channel', async () => {
+    setupServer(false, false, false, true);
+    const pickSpy = jest
+      .spyOn(DocumentPicker, 'getDocumentAsync')
+      .mockResolvedValue({ canceled: true, assets: null } as unknown as DocumentPicker.DocumentPickerResult);
+
+    const view = await renderSection(<UploadArea serverKey={NIGHT_OWLS} channelId={channelId} />);
+    await act(async () => {
+      fireEvent.press(view.getByLabelText('Upload audio files'));
+    });
+
+    expect(pickSpy).toHaveBeenCalled();
   });
 
   it('picking files starts one upload per file with its own id', async () => {
@@ -132,8 +162,8 @@ describe('UploadSection', () => {
       ],
     } as unknown as DocumentPicker.DocumentPickerResult);
 
-    const view = await renderSection(<UploadSection serverKey={NIGHT_OWLS} channelId={channelId} />);
-    const chooseButton = view.getByText('Choose audio files');
+    const view = await renderSection(<UploadArea serverKey={NIGHT_OWLS} channelId={channelId} />);
+    const chooseButton = view.getByLabelText('Upload audio files');
     await act(async () => {
       fireEvent.press(chooseButton);
     });
@@ -178,7 +208,7 @@ describe('UploadSection', () => {
       },
     });
 
-    const view = await renderSection(<UploadSection serverKey={NIGHT_OWLS} channelId={channelId} />);
+    const view = await renderSection(<UploadArea serverKey={NIGHT_OWLS} channelId={channelId} />);
     expect(view.getByText('mysong.mp3')).toBeTruthy();
     expect(view.getByText('Checking…')).toBeTruthy();
 
@@ -249,7 +279,7 @@ describe('UploadSection', () => {
       },
     });
 
-    const view = await renderSection(<UploadSection serverKey={NIGHT_OWLS} channelId={channelId} />);
+    const view = await renderSection(<UploadArea serverKey={NIGHT_OWLS} channelId={channelId} />);
     const cancelBtn = await view.findByLabelText('Cancel upload mysong.mp3');
     fireEvent.press(cancelBtn);
 
@@ -274,7 +304,7 @@ describe('UploadSection', () => {
       },
     });
 
-    const view = await renderSection(<UploadSection serverKey={NIGHT_OWLS} channelId={channelId} />);
+    const view = await renderSection(<UploadArea serverKey={NIGHT_OWLS} channelId={channelId} />);
     expect(await view.findByText('Failed: Corrupted audio stream')).toBeTruthy();
 
     const retryBtn = await view.findByLabelText('Retry corrupted.mp3');
@@ -311,7 +341,7 @@ describe('UploadSection', () => {
       },
     });
 
-    const view = await renderSection(<UploadSection serverKey={NIGHT_OWLS} channelId={channelId} />);
+    const view = await renderSection(<UploadArea serverKey={NIGHT_OWLS} channelId={channelId} />);
     expect(await view.findByText('Queued')).toBeTruthy();
 
     await act(async () => {
@@ -344,7 +374,7 @@ describe('UploadSection', () => {
       },
     });
 
-    const view = await renderSection(<UploadSection serverKey={NIGHT_OWLS} channelId={channelId} />);
+    const view = await renderSection(<UploadArea serverKey={NIGHT_OWLS} channelId={channelId} />);
     const dismissBtn = await view.findByLabelText('Dismiss bad.mp3');
     fireEvent.press(dismissBtn);
 

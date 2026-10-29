@@ -244,7 +244,7 @@ describe('UpNext', () => {
     await fireEvent.press(clearBtn);
     expect(confirmSpy).toHaveBeenCalledWith(
       expect.objectContaining({
-        title: expect.stringMatching(/Clear queue/i),
+        title: 'Clear the queue?',
         destructive: true,
       }),
     );

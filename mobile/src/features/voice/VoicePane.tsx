@@ -7,6 +7,7 @@ import { type LayoutChangeEvent, ScrollView, StyleSheet, View, useWindowDimensio
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { report } from '@/core';
+import { useMusicSettingsLoader } from '@/features/music/useMusicSettingsLoader';
 import { joinVoice, leaveVoice, setDeafened, setMuted } from '@/state/actions/voice';
 import { useChannelInfo, useMusicSettings, useMyVoice, useVoiceMembers } from '@/state/selectors';
 import { Button, EmptyState, PaneHeader, space, useTheme } from '@/ui';
@@ -44,6 +45,7 @@ export function VoicePane({ serverKey, channelId, onOpenSidebar, onOpenChannel }
   const [width, setWidth] = useState(windowWidth);
 
   const info = useChannelInfo(serverKey, channelId);
+  useMusicSettingsLoader(serverKey);
   const musicSettings = useMusicSettings(serverKey);
   const myVoice = useMyVoice();
   const members = useVoiceMembers(serverKey, channelId);

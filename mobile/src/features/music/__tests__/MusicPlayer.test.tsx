@@ -148,6 +148,7 @@ describe('MusicPlayer', () => {
 
   afterEach(() => {
     cleanup();
+    jest.restoreAllMocks();
   });
 
   it('it subscribes when opened and unsubscribes when closed', async () => {
@@ -271,7 +272,7 @@ describe('MusicPlayer', () => {
   });
 
   it('seeking is offered only on a seekable track with control', async () => {
-    initMusicServer({ accessOverrides: { musicControl: true } });
+    initMusicServer({ accessOverrides: { musicControl: true }, session: makeSession({ state: MusicPlayState.Paused }) });
     const playbackSpy = jest.spyOn(musicActions, 'playback').mockResolvedValue();
 
     const view = await renderScreen(
@@ -279,16 +280,15 @@ describe('MusicPlayer', () => {
     );
 
     const slider = view.getByLabelText('Progress');
-    expect(slider).toBeTruthy();
-
-    fireEvent(slider, 'onChange', 60_000);
+    await fireEvent(slider, 'accessibilityAction', { nativeEvent: { actionName: 'increment' } });
     await settle();
 
+    // 0:45 on by a screen reader's step of 10 s.
     expect(playbackSpy).toHaveBeenCalledWith(
       NIGHT_OWLS,
       CHANNELS.lounge,
       MusicAction.Seek,
-      60_000,
+      55_000,
       'item-1',
     );
     view.unmount();
@@ -304,9 +304,9 @@ describe('MusicPlayer', () => {
     );
 
     const volumeSlider = view.getByLabelText('Music volume');
-    await fireEvent(volumeSlider, 'onChange', 1.2);
+    await fireEvent(volumeSlider, 'accessibilityAction', { nativeEvent: { actionName: 'increment' } });
 
-    expect(setListeningSpy).toHaveBeenCalledWith(expect.objectContaining({ volume: 1.2 }));
+    expect(setListeningSpy).toHaveBeenCalledWith({ volume: 0.55 });
     view.unmount();
     await settle();
   });
@@ -319,10 +319,78 @@ describe('MusicPlayer', () => {
       <MusicPlayer serverKey={NIGHT_OWLS} channelId={CHANNELS.lounge} />,
     );
 
-    expect(view.getByText('Listen by joining Lounge')).toBeTruthy();
-    const joinBtn = view.getByText('Join');
+    const joinBtn = view.getByLabelText('Join Lounge to listen');
     await fireEvent.press(joinBtn);
     expect(joinSpy).toHaveBeenCalledWith(NIGHT_OWLS, CHANNELS.lounge);
+    view.unmount();
+    await settle();
+  });
+
+  it('a track that cannot be seeked says why', async () => {
+    const session = makeSession({ state: MusicPlayState.Paused });
+    initMusicServer({ session: { ...session, nowPlaying: session.nowPlaying && { ...session.nowPlaying, track: { ...session.nowPlaying.track, isSeekable: false } } } });
+    const playbackSpy = jest.spyOn(musicActions, 'playback').mockResolvedValue();
+
+    const view = await renderScreen(<MusicPlayer serverKey={NIGHT_OWLS} channelId={CHANNELS.lounge} />);
+    await fireEvent(view.getByLabelText('Progress'), 'accessibilityAction', { nativeEvent: { actionName: 'increment' } });
+
+    expect(playbackSpy).not.toHaveBeenCalled();
+    view.unmount();
+    await settle();
+  });
+
+  it('with nothing playing it says so, without the transport', async () => {
+    initMusicServer({ session: null });
+
+    const view = await renderScreen(<MusicPlayer serverKey={NIGHT_OWLS} channelId={CHANNELS.lounge} />);
+
+    expect(view.getByText('Nothing playing')).toBeTruthy();
+    // Said once, not again under an empty Up next.
+    expect(view.getAllByText('Search for a song or upload one.')).toHaveLength(1);
+    expect(view.queryByLabelText('Play')).toBeNull();
+    expect(view.queryByLabelText('Music volume')).toBeNull();
+    view.unmount();
+    await settle();
+  });
+
+  it('search takes the page and Cancel brings the player back', async () => {
+    initMusicServer();
+
+    const view = await renderScreen(<MusicPlayer serverKey={NIGHT_OWLS} channelId={CHANNELS.lounge} />);
+    // A phone's sheet.
+    await fireEvent(view.getByTestId('music-player'), 'layout', { nativeEvent: { layout: { x: 0, y: 0, width: 412, height: 880 } } });
+    await fireEvent.press(view.getByRole('search'));
+
+    expect(view.getByPlaceholderText('Search songs or paste a link')).toBeTruthy();
+    expect(view.queryByText('Up next')).toBeNull();
+    // What plays, as a row above the results.
+    expect(view.getByLabelText(/^Now playing: Sunflower/)).toBeTruthy();
+
+    await fireEvent.press(view.getByLabelText('Cancel'));
+    expect(view.getByText('Up next')).toBeTruthy();
+    view.unmount();
+    await settle();
+  });
+
+  it('the ⋯ menu turns ducking on', async () => {
+    initMusicServer();
+    const setListeningSpy = jest.spyOn(prefsActions, 'setMusicListening').mockImplementation(() => {});
+
+    const view = await renderScreen(<MusicPlayer serverKey={NIGHT_OWLS} channelId={CHANNELS.lounge} />);
+    await fireEvent(view.getByTestId('now-playing-menu'), 'action', 'duck');
+
+    expect(setListeningSpy).toHaveBeenCalledWith({ duck: true });
+    view.unmount();
+    await settle();
+  });
+
+  it('without Add to music queue there is nothing to add music with', async () => {
+    initMusicServer({ accessOverrides: { musicAdd: false } });
+
+    const view = await renderScreen(<MusicPlayer serverKey={NIGHT_OWLS} channelId={CHANNELS.lounge} />);
+
+    expect(view.queryByRole('search')).toBeNull();
+    expect(view.queryByLabelText('Upload audio files')).toBeNull();
     view.unmount();
     await settle();
   });

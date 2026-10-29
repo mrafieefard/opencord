@@ -12,6 +12,15 @@ import { getCore } from '@/core';
 import { channelKey, type PickedFile } from '../types';
 import { useAppStore } from '../store';
 
+/** Fetches a server's music settings into the store; MusicSettingsChanged keeps them current after. */
+export async function loadMusicSettings(serverKey: string): Promise<void> {
+  const settings = await getCore().musicSettings(serverKey);
+  useAppStore.setState((state) => {
+    const server = state.servers[serverKey];
+    return server ? { servers: { ...state.servers, [serverKey]: { ...server, musicSettings: settings } } } : state;
+  });
+}
+
 /** Subscribes to live music updates for a voice channel. */
 export async function subscribeMusic(serverKey: string, channelId: string): Promise<void> {
   const session = await getCore().musicSubscribe(serverKey, channelId);

@@ -10,7 +10,6 @@ import {
 
 import { CHANNELS, NIGHT_OWLS, SELF_ID, snapshot } from '@/core/fake/world';
 import * as musicActions from '@/state/actions/music';
-import * as uiActions from '@/state/actions/ui';
 import { useAppStore } from '@/state/store';
 import { freshStore, settle } from '@/test/store';
 
@@ -126,6 +125,8 @@ const sampleResults: MusicSearchResultRecord[] = [
 ];
 
 describe('MusicSearch', () => {
+  const onCancel = jest.fn();
+
   beforeEach(() => {
     freshStore();
     jest.clearAllMocks();
@@ -140,7 +141,7 @@ describe('MusicSearch', () => {
     initSearchServer();
     const searchSpy = jest.spyOn(musicActions, 'search').mockResolvedValue(sampleResults);
 
-    const view = await renderScreen(<MusicSearch serverKey={NIGHT_OWLS} channelId={CHANNELS.lounge} />);
+    const view = await renderScreen(<MusicSearch serverKey={NIGHT_OWLS} channelId={CHANNELS.lounge} onCancel={onCancel} />);
     const input = view.getByPlaceholderText('Search songs or paste a link');
     expect(input).toBeTruthy();
 
@@ -162,7 +163,7 @@ describe('MusicSearch', () => {
     initSearchServer();
     jest.spyOn(musicActions, 'search').mockResolvedValue(sampleResults);
 
-    const view = await renderScreen(<MusicSearch serverKey={NIGHT_OWLS} channelId={CHANNELS.lounge} />);
+    const view = await renderScreen(<MusicSearch serverKey={NIGHT_OWLS} channelId={CHANNELS.lounge} onCancel={onCancel} />);
     const input = view.getByPlaceholderText('Search songs or paste a link');
     await fireEvent.changeText(input, 'test');
     await settle();
@@ -181,9 +182,8 @@ describe('MusicSearch', () => {
     initSearchServer({ accessOverrides: { musicAdd: true } });
     jest.spyOn(musicActions, 'search').mockResolvedValue(sampleResults);
     const enqueueSpy = jest.spyOn(musicActions, 'enqueue').mockResolvedValue(undefined);
-    const toastSpy = jest.spyOn(uiActions, 'toast');
 
-    const view = await renderScreen(<MusicSearch serverKey={NIGHT_OWLS} channelId={CHANNELS.lounge} />);
+    const view = await renderScreen(<MusicSearch serverKey={NIGHT_OWLS} channelId={CHANNELS.lounge} onCancel={onCancel} />);
     const input = view.getByPlaceholderText('Search songs or paste a link');
     await fireEvent.changeText(input, 'test');
     await settle();
@@ -202,7 +202,8 @@ describe('MusicSearch', () => {
       undefined,
       MusicPlacement.End,
     );
-    expect(toastSpy).toHaveBeenCalledWith('Added to the queue');
+    // The row's button turns into a tick once the server has the song.
+    expect(view.getByLabelText('Local Jam is queued')).toBeTruthy();
 
     view.unmount();
     await settle();
@@ -213,7 +214,7 @@ describe('MusicSearch', () => {
     jest.spyOn(musicActions, 'search').mockResolvedValue(sampleResults);
     const enqueueSpy = jest.spyOn(musicActions, 'enqueue').mockResolvedValue(undefined);
 
-    const view = await renderScreen(<MusicSearch serverKey={NIGHT_OWLS} channelId={CHANNELS.lounge} />);
+    const view = await renderScreen(<MusicSearch serverKey={NIGHT_OWLS} channelId={CHANNELS.lounge} onCancel={onCancel} />);
     const input = view.getByPlaceholderText('Search songs or paste a link');
     await fireEvent.changeText(input, 'test');
     await settle();
@@ -253,15 +254,61 @@ describe('MusicSearch', () => {
     initSearchServer();
     jest.spyOn(musicActions, 'search').mockRejectedValue(new Error('a search is 1 to 200 characters'));
 
-    const view = await renderScreen(<MusicSearch serverKey={NIGHT_OWLS} channelId={CHANNELS.lounge} />);
+    const view = await renderScreen(<MusicSearch serverKey={NIGHT_OWLS} channelId={CHANNELS.lounge} onCancel={onCancel} />);
     const input = view.getByPlaceholderText('Search songs or paste a link');
-    await fireEvent.changeText(input, '   ');
+    await fireEvent.changeText(input, 'x'.repeat(201));
     await settle();
     await fireEvent(input, 'submitEditing');
     await settle();
 
     expect(view.getByText('a search is 1 to 200 characters')).toBeTruthy();
 
+    view.unmount();
+    await settle();
+  });
+
+  test('a blank search asks nothing of the server', async () => {
+    initSearchServer();
+    const searchSpy = jest.spyOn(musicActions, 'search').mockResolvedValue([]);
+
+    const view = await renderScreen(<MusicSearch serverKey={NIGHT_OWLS} channelId={CHANNELS.lounge} onCancel={onCancel} />);
+    const input = view.getByPlaceholderText('Search songs or paste a link');
+    await fireEvent.changeText(input, '   ');
+    await fireEvent(input, 'submitEditing');
+    await settle();
+
+    expect(searchSpy).not.toHaveBeenCalled();
+    expect(view.getByText('Search YouTube')).toBeTruthy();
+    view.unmount();
+    await settle();
+  });
+
+  test('another source searches the same words there', async () => {
+    initSearchServer();
+    const searchSpy = jest.spyOn(musicActions, 'search').mockResolvedValue([]);
+
+    const view = await renderScreen(<MusicSearch serverKey={NIGHT_OWLS} channelId={CHANNELS.lounge} onCancel={onCancel} />);
+    const input = view.getByPlaceholderText('Search songs or paste a link');
+    await fireEvent.changeText(input, 'night owl');
+    await fireEvent(input, 'submitEditing');
+    await settle();
+    expect(view.getByText('No results for “night owl”')).toBeTruthy();
+
+    await fireEvent.press(view.getByLabelText('SoundCloud'));
+    await settle();
+
+    expect(searchSpy).toHaveBeenLastCalledWith(NIGHT_OWLS, CHANNELS.lounge, 'night owl', 'soundcloud');
+    view.unmount();
+    await settle();
+  });
+
+  test('Cancel leaves search', async () => {
+    initSearchServer();
+
+    const view = await renderScreen(<MusicSearch serverKey={NIGHT_OWLS} channelId={CHANNELS.lounge} onCancel={onCancel} />);
+    await fireEvent.press(view.getByLabelText('Cancel'));
+
+    expect(onCancel).toHaveBeenCalled();
     view.unmount();
     await settle();
   });

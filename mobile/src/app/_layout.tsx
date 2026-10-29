@@ -52,7 +52,7 @@ function Routes() {
             name="server/[serverKey]/music/[channelId]"
             options={{
               presentation: 'formSheet',
-              sheetAllowedDetents: [0.6, 1],
+              sheetAllowedDetents: [1],
               sheetGrabberVisible: true,
               sheetCornerRadius: radius.sheet,
               contentStyle: { backgroundColor: colors.elevated },

@@ -10,6 +10,8 @@ export interface ControlAccess {
   reason?: string;
   isVoteSkip?: boolean;
   voteSkipLabel?: string;
+  /** "1/3": the votes so far, of those needed. */
+  voteCount?: string;
 }
 
 export interface MusicAccessResult {
@@ -53,6 +55,7 @@ export function musicAccess(
       allowed: !hasVoted,
       isVoteSkip: true,
       voteSkipLabel: `Vote to skip (${votes}/${needed})`,
+      voteCount: `${votes}/${needed}`,
       reason: hasVoted ? 'You already voted to skip' : undefined,
     };
   } else {

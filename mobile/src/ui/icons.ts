@@ -12,6 +12,7 @@ export const icons = {
   voiceChannel: { ios: 'speaker.wave.2', android: 'volume_up' },
   sidebar: { ios: 'sidebar.left', android: 'menu' },
   back: { ios: 'chevron.left', android: 'arrow_back' },
+  dismiss: { ios: 'chevron.down', android: 'keyboard_arrow_down' },
   more: { ios: 'ellipsis', android: 'more_horiz' },
   search: { ios: 'magnifyingglass', android: 'search' },
   send: { ios: 'arrow.up', android: 'arrow_upward' },

@@ -1,59 +1,40 @@
-// The music player sheet (spec §8.7): artwork, track info, progress slider,
-// transport controls, volume & ducking, and segmented sections.
-import {
-  MusicAction,
-  MusicPlayState,
-  MusicRepeat,
-} from '@opencord/core-native';
+// The music player (spec §8.7), a full-height sheet. On a phone, one
+// scrolling page: what plays, the transport and the volume, then adding
+// music, the uploads, Up next and Recently played. Search takes the page
+// over, with what plays shrunk to a row above it. Two columns when the
+// sheet is wide: the player on the left, the lists on the right.
+import { MusicAction, MusicPlayState, MusicRepeat } from '@opencord/core-native';
+import * as Clipboard from 'expo-clipboard';
 import { router } from 'expo-router';
-import { useCallback, useState, useSyncExternalStore } from 'react';
-import {
-  type LayoutChangeEvent,
-  ScrollView,
-  StyleSheet,
-  View,
-  useWindowDimensions,
-} from 'react-native';
-import { Touchable } from 'react-native-gesture-handler';
+import { useCallback, useState } from 'react';
+import { type LayoutChangeEvent, ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { report } from '@/core';
-import {
-  playback,
-  setMode,
-  voteSkip,
-} from '@/state/actions/music';
+import { playback, setMode, voteSkip } from '@/state/actions/music';
 import { setMusicListening } from '@/state/actions/prefs';
+import { toast } from '@/state/actions/ui';
 import { joinVoice } from '@/state/actions/voice';
-import {
-  useChannelInfo,
-  useMusicSession,
-  useMusicSettings,
-  useMyVoice,
-  usePrefs,
-  useServer,
-} from '@/state/selectors';
-import {
-  Button,
-  Icon,
-  Segmented,
-  SheetHeader,
-  Slider,
-  Switch,
-  Text,
-  space,
-  useTheme,
-} from '@/ui';
+import { useChannelInfo, useMusicSession, useMusicSettings, useMyVoice, usePrefs, useServer } from '@/state/selectors';
+import { type MenuAction, SheetGrabber, Text, space, useTheme } from '@/ui';
 
+import { AddBar } from './AddBar';
+import { Artwork } from './Artwork';
 import { History } from './History';
+import { MiniPlayer } from './MiniPlayer';
+import { musicAccess } from './musicAccess';
 import { MusicSearch } from './MusicSearch';
 import { NowPlaying } from './NowPlaying';
 import { PlayerControls } from './PlayerControls';
-import { UpNext } from './UpNext';
-import { UploadSection } from './UploadSection';
-import { musicAccess } from './musicAccess';
+import { PlayerTopBar } from './PlayerTopBar';
 import { positionAt } from './position';
+import { GUTTER } from './TrackRow';
+import { UpNext } from './UpNext';
+import { Uploads } from './Uploads';
 import { useMusicSessionSubscription } from './useMusicSessionSubscription';
+import { useMusicSettingsLoader } from './useMusicSettingsLoader';
+import { useNow } from './useNow';
+import { VolumeRow } from './VolumeRow';
 
 export interface MusicPlayerProps {
   serverKey: string;
@@ -61,332 +42,181 @@ export interface MusicPlayerProps {
   onClose?: () => void;
 }
 
-const SECTION_TABS = ['Up next', 'Search', 'Upload', 'History'];
-const VOLUME_STEP = 0.05;
+/** Wider than this, the sheet has two columns. */
+const TWO_COLUMNS = 720;
+const PLAYER_COLUMN_MAX = 440;
+const PLAYER_COLUMN_MIN = 320;
+const ARTWORK_MAX = 360;
+/** Everything in the player column but the artwork: the bars above it, the title, position, transport and volume. */
+const PLAYER_CHROME = 460;
+const EMPTY_ARTWORK = 160;
 
-let cachedNow = 0;
-const timeListeners = new Set<() => void>();
-let timeTimer: ReturnType<typeof setInterval> | null = null;
-
-function subscribeTime(listener: () => void) {
-  timeListeners.add(listener);
-  if (!timeTimer) {
-    cachedNow = Date.now();
-    timeTimer = setInterval(() => {
-      cachedNow = Date.now();
-      timeListeners.forEach((l) => l());
-    }, 500);
-    timeTimer.unref?.();
-  }
-  return () => {
-    timeListeners.delete(listener);
-    if (timeListeners.size === 0 && timeTimer) {
-      clearInterval(timeTimer);
-      timeTimer = null;
-    }
-  };
-}
-
-function getTimeSnapshot() {
-  return cachedNow;
-}
+const NEXT_REPEAT: Record<MusicRepeat, MusicRepeat> = {
+  [MusicRepeat.Off]: MusicRepeat.Queue,
+  [MusicRepeat.Queue]: MusicRepeat.Track,
+  [MusicRepeat.Track]: MusicRepeat.Off,
+};
 
 export function MusicPlayer({ serverKey, channelId, onClose }: MusicPlayerProps) {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
+  const window = useWindowDimensions();
+  const [size, setSize] = useState({ width: window.width, height: window.height });
+  const [searching, setSearching] = useState(false);
+
   const server = useServer(serverKey);
   const info = useChannelInfo(serverKey, channelId);
   const myVoice = useMyVoice();
   const session = useMusicSession(serverKey, channelId);
   const settings = useMusicSettings(serverKey);
   const { music } = usePrefs();
-
-  // Subscribe to updates while sheet is open
   useMusicSessionSubscription(serverKey, channelId);
+  useMusicSettingsLoader(serverKey);
 
-  const [containerWidth, setContainerWidth] = useState(360);
-  const [selectedSection, setSelectedSection] = useState(0);
-
+  const inChannel = myVoice?.serverKey === serverKey && myVoice.channelId === channelId;
+  const playing = session?.state === MusicPlayState.Playing;
+  const now = useNow(playing);
+  const positionMs = session ? positionAt(session, now || (session.anchorMs ?? 0)) : 0;
   const selfUserId = server?.snapshot?.selfUser.id ?? server?.entry.userId;
-  const inChannel =
-    myVoice?.serverKey === serverKey && myVoice.channelId === channelId;
-
-  const isPlaying = session?.state === MusicPlayState.Playing;
-  const nowMs = useSyncExternalStore(
-    isPlaying ? subscribeTime : () => () => {},
-    isPlaying ? getTimeSnapshot : () => 0,
-    () => 0,
-  );
-  const currentPositionMs = session ? positionAt(session, nowMs || session.anchorMs) : 0;
-
-  const access = musicAccess(
-    info?.access,
-    session,
-    settings,
-    inChannel,
-    selfUserId,
-  );
-
-  const nowPlaying = session?.nowPlaying;
-  const currentItemId = nowPlaying?.itemId;
-  const currentSessionState = session?.state;
-  const currentRepeat = session?.repeat;
-  const currentShuffle = session?.shuffle;
-  const channelName = info?.channel.name ?? 'channel';
+  const access = musicAccess(info?.access, session, settings, inChannel, selfUserId);
+  const canAddMusic = !!info?.access.musicAdd || !!info?.access.musicManage;
+  const item = session?.nowPlaying;
+  const itemId = item?.itemId;
+  const repeat = session?.repeat ?? MusicRepeat.Off;
+  const shuffle = session?.shuffle ?? false;
+  const channelName = info?.channel.name ?? 'this channel';
   const close = onClose ?? (() => router.back());
 
-  const onLayout = useCallback((e: LayoutChangeEvent) => {
-    const width = e.nativeEvent.layout.width;
-    if (width > 0) setContainerWidth(width);
-  }, []);
-
-  const handleJoinVoice = useCallback(() => {
-    report(joinVoice(serverKey, channelId), 'join voice');
-  }, [serverKey, channelId]);
-
-  const handleTogglePlayPause = useCallback(() => {
-    if (!session) return;
-    const action =
-      currentSessionState === MusicPlayState.Playing
-        ? MusicAction.Pause
-        : MusicAction.Resume;
-    report(
-      playback(serverKey, channelId, action, undefined, currentItemId),
-      'toggle playback',
-    );
-  }, [serverKey, channelId, session, currentSessionState, currentItemId]);
-
-  const handlePrevious = useCallback(() => {
-    report(
-      playback(
-        serverKey,
-        channelId,
-        MusicAction.Previous,
-        undefined,
-        currentItemId,
-      ),
-      'previous track',
-    );
-  }, [serverKey, channelId, currentItemId]);
-
-  const handleNext = useCallback(() => {
-    report(
-      playback(
-        serverKey,
-        channelId,
-        MusicAction.Next,
-        undefined,
-        currentItemId,
-      ),
-      'next track',
-    );
-  }, [serverKey, channelId, currentItemId]);
-
-  const handleVoteSkip = useCallback(() => {
-    if (!currentItemId) return;
-    report(
-      voteSkip(serverKey, channelId, currentItemId),
-      'vote to skip',
-    );
-  }, [serverKey, channelId, currentItemId]);
-
-  const handleCycleRepeat = useCallback(() => {
-    if (!session) return;
-    let nextRepeat = MusicRepeat.Off;
-    if (currentRepeat === MusicRepeat.Off) nextRepeat = MusicRepeat.Queue;
-    else if (currentRepeat === MusicRepeat.Queue) nextRepeat = MusicRepeat.Track;
-    else if (currentRepeat === MusicRepeat.Track) nextRepeat = MusicRepeat.Off;
-
-    report(
-      setMode(serverKey, channelId, nextRepeat, currentShuffle ?? false),
-      'set repeat mode',
-    );
-  }, [serverKey, channelId, session, currentRepeat, currentShuffle]);
-
-  const handleToggleShuffle = useCallback(() => {
-    if (!session) return;
-    report(
-      setMode(serverKey, channelId, currentRepeat ?? MusicRepeat.Off, !currentShuffle),
-      'toggle shuffle',
-    );
-  }, [serverKey, channelId, session, currentRepeat, currentShuffle]);
-
-  const handleSeek = useCallback(
-    (targetMs: number) => {
-      report(
-        playback(
-          serverKey,
-          channelId,
-          MusicAction.Seek,
-          targetMs,
-          currentItemId,
-        ),
-        'seek',
-      );
-    },
-    [serverKey, channelId, currentItemId],
+  const control = useCallback(
+    (action: MusicAction, what: string, positionMs?: number) =>
+      report(playback(serverKey, channelId, action, positionMs, itemId), what),
+    [serverKey, channelId, itemId],
   );
+  const playPause = () => control(playing ? MusicAction.Pause : MusicAction.Resume, 'toggle playback');
 
-  const percentage = `${Math.round(music.volume * 100)} %`;
-  const { width: windowWidth } = useWindowDimensions();
-  const isTablet = windowWidth >= 768;
-  const leftColWidth = isTablet ? Math.min(380, Math.floor(windowWidth * 0.45)) : containerWidth;
+  const menu: MenuAction[] = [
+    ...(item?.track.uri ? [{ id: 'copy-link', title: 'Copy link', icon: 'copy' as const }] : []),
+    // The You tab's "Lower music while people talk", short enough for a menu; ticked when on.
+    { id: 'duck', title: 'Lower while people talk', icon: music.duck ? ('check' as const) : ('volume' as const) },
+  ];
+  const onMenu = (id: string) => {
+    if (id === 'duck') setMusicListening({ duck: !music.duck });
+    else if (id === 'copy-link' && item) {
+      report(
+        Clipboard.setStringAsync(item.track.uri).then(() => toast('Copied link')),
+        'copy link',
+      );
+    }
+  };
 
-  const playerControlsBlock = (
-    <>
-      {/* Banner when not connected to this voice channel */}
-      {!inChannel ? (
-        <View
-          style={[
-            styles.joinBanner,
-            { backgroundColor: colors.surface, borderColor: colors.border },
-          ]}
-        >
-          <View style={styles.joinTextCol}>
-            <Text variant="subhead">
-              Listen by joining {channelName}
-            </Text>
-          </View>
-          <Button
-            title="Join"
-            variant="voice"
-            onPress={handleJoinVoice}
-          />
-        </View>
-      ) : null}
+  // Two columns: the player fits the height without scrolling, as wide as its artwork.
+  const twoColumns = size.width >= TWO_COLUMNS;
+  const columnMax = Math.min(PLAYER_COLUMN_MAX, Math.round(size.width * 0.45));
+  const artworkSize = twoColumns
+    ? Math.max(PLAYER_COLUMN_MIN - GUTTER * 2, Math.min(ARTWORK_MAX, columnMax - GUTTER * 2, size.height - PLAYER_CHROME))
+    : Math.min(ARTWORK_MAX, size.width - GUTTER * 2);
+  const playerWidth = twoColumns ? artworkSize + GUTTER * 2 : size.width;
+  const bottom = { paddingBottom: insets.bottom + space.xxl };
 
-      {/* Artwork, Track metadata and seek slider */}
+  const player = item ? (
+    <View style={styles.player}>
       <NowPlaying
+        key={item.itemId}
         serverKey={serverKey}
-        nowPlaying={nowPlaying}
-        positionMs={currentPositionMs}
-        seekAccess={access.seek}
-        containerWidth={isTablet ? leftColWidth : containerWidth}
-        onSeek={handleSeek}
+        item={item}
+        playing={playing}
+        positionMs={positionMs}
+        seek={access.seek}
+        artworkSize={artworkSize}
+        menu={menu}
+        onMenu={onMenu}
+        onSeek={(at) => control(MusicAction.Seek, 'seek', at)}
       />
-
-      {/* 5-button transport controls */}
       <PlayerControls
         playState={session?.state ?? MusicPlayState.Idle}
-        repeat={session?.repeat ?? MusicRepeat.Off}
-        shuffle={session?.shuffle ?? false}
+        repeat={repeat}
+        shuffle={shuffle}
         playPauseAccess={access.playPause}
         prevAccess={access.previous}
         nextAccess={access.next}
         shuffleAccess={access.shuffle}
         repeatAccess={access.repeat}
-        onTogglePlayPause={handleTogglePlayPause}
-        onPrevious={handlePrevious}
-        onNext={handleNext}
-        onVoteSkip={handleVoteSkip}
-        onCycleRepeat={handleCycleRepeat}
-        onToggleShuffle={handleToggleShuffle}
+        onTogglePlayPause={playPause}
+        onPrevious={() => control(MusicAction.Previous, 'previous track')}
+        onNext={() => control(MusicAction.Next, 'next track')}
+        onVoteSkip={() => itemId && report(voteSkip(serverKey, channelId, itemId), 'vote to skip')}
+        onCycleRepeat={() => report(setMode(serverKey, channelId, NEXT_REPEAT[repeat], shuffle), 'set repeat mode')}
+        onToggleShuffle={() => report(setMode(serverKey, channelId, repeat, !shuffle), 'toggle shuffle')}
       />
-
-      {/* Volume & Listening rows (spec §8.7) */}
-      <View style={styles.volumeSection}>
-        <View style={styles.volumeSliderRow}>
-          <Touchable
-            onPress={() => setMusicListening({ muted: !music.muted })}
-            accessible
-            accessibilityRole="button"
-            accessibilityLabel={music.muted ? 'Unmute music' : 'Mute music'}
-            style={styles.muteButton}
-          >
-            <Icon
-              name={music.muted ? 'volumeOff' : 'volume'}
-              size={22}
-              color={music.muted ? 'textMuted' : 'text'}
-            />
-          </Touchable>
-          <View style={styles.sliderWrapper}>
-            <Slider
-              value={music.volume}
-              min={0}
-              max={2}
-              step={VOLUME_STEP}
-              onChange={(volume) => setMusicListening({ volume })}
-              accessibilityLabel="Music volume"
-            />
-          </View>
-          <Text variant="callout" color="textSecondary" style={styles.volumePercentage}>
-            {percentage}
-          </Text>
-        </View>
-
-        <View style={styles.duckRow}>
-          <Text variant="body">Lower music while people talk</Text>
-          <Switch
-            value={music.duck}
-            onChange={(duck) => setMusicListening({ duck })}
-            accessibilityLabel="Lower music while people talk"
-          />
-        </View>
-      </View>
-    </>
+      <VolumeRow />
+    </View>
+  ) : (
+    <View style={[styles.player, styles.empty]}>
+      <Artwork serverKey={serverKey} title={channelName} size={EMPTY_ARTWORK} radius={EMPTY_ARTWORK / 8} />
+      <Text variant="headline" style={styles.emptyTitle}>
+        Nothing playing
+      </Text>
+      <Text variant="callout" color="textSecondary" style={styles.centered}>
+        {canAddMusic ? 'Search for a song or upload one.' : 'Songs added here play to everyone in the channel.'}
+      </Text>
+    </View>
   );
 
-  const queueSectionBlock = (
+  const lists = searching ? (
+    <MusicSearch serverKey={serverKey} channelId={channelId} onCancel={() => setSearching(false)} />
+  ) : (
     <>
-      {/* Section Segmented picker */}
-      <View style={styles.segmentedContainer}>
-        <Segmented
-          values={SECTION_TABS}
-          index={selectedSection}
-          onChange={setSelectedSection}
-        />
-      </View>
-
-      {/* Section content */}
-      <View style={styles.sectionBody}>
-        {selectedSection === 0 ? (
-          <UpNext serverKey={serverKey} channelId={channelId} />
-        ) : selectedSection === 1 ? (
-          <MusicSearch serverKey={serverKey} channelId={channelId} />
-        ) : selectedSection === 2 ? (
-          <UploadSection serverKey={serverKey} channelId={channelId} />
-        ) : (
-          <History serverKey={serverKey} channelId={channelId} />
-        )}
-      </View>
+      {canAddMusic && <AddBar serverKey={serverKey} channelId={channelId} onSearch={() => setSearching(true)} />}
+      <Uploads serverKey={serverKey} channelId={channelId} />
+      {/* With nothing playing or queued, the player's own note says it all. */}
+      {(item || (session?.queue.length ?? 0) > 0) && <UpNext serverKey={serverKey} channelId={channelId} />}
+      <History serverKey={serverKey} channelId={channelId} />
     </>
   );
+
+  const onLayout = (event: LayoutChangeEvent) => {
+    const { width, height } = event.nativeEvent.layout;
+    if (width > 0 && height > 0) setSize({ width, height });
+  };
 
   return (
-    <View style={[styles.root, { backgroundColor: colors.elevated }]}>
-      <SheetHeader title="Music" onClose={close} />
-      {isTablet ? (
-        <View style={styles.tabletRow}>
-          <ScrollView
-            style={[styles.tabletLeft, { width: leftColWidth, borderRightColor: colors.border }]}
-            contentContainerStyle={[
-              styles.tabletLeftContent,
-              { paddingBottom: insets.bottom + space.lg },
-            ]}
-            keyboardShouldPersistTaps="handled"
-          >
-            {playerControlsBlock}
+    <View testID="music-player" style={[styles.root, { backgroundColor: colors.elevated }]} onLayout={onLayout}>
+      <SheetGrabber />
+      <PlayerTopBar
+        channelName={channelName}
+        onJoin={inChannel ? undefined : () => report(joinVoice(serverKey, channelId), 'join voice')}
+        onClose={close}
+      />
+      {twoColumns ? (
+        <View style={styles.columns}>
+          <ScrollView style={{ width: playerWidth, flexGrow: 0 }} contentContainerStyle={bottom}>
+            {player}
           </ScrollView>
-          <ScrollView
-            style={styles.tabletRight}
-            contentContainerStyle={{ paddingBottom: insets.bottom + space.lg }}
-            keyboardShouldPersistTaps="handled"
-          >
-            {queueSectionBlock}
+          <ScrollView style={styles.fill} contentContainerStyle={bottom} keyboardShouldPersistTaps="handled">
+            {searching && <View style={styles.searchTop} />}
+            {lists}
           </ScrollView>
         </View>
+      ) : searching ? (
+        <>
+          {item && (
+            <MiniPlayer
+              serverKey={serverKey}
+              item={item}
+              playing={playing}
+              canPlayPause={access.playPause.allowed}
+              onPlayPause={playPause}
+              onOpen={() => setSearching(false)}
+            />
+          )}
+          <ScrollView style={styles.fill} contentContainerStyle={[styles.searchTop, bottom]} keyboardShouldPersistTaps="handled">
+            {lists}
+          </ScrollView>
+        </>
       ) : (
-        <ScrollView
-          style={styles.scroll}
-          contentContainerStyle={[
-            styles.content,
-            { paddingBottom: insets.bottom + space.lg },
-          ]}
-          keyboardShouldPersistTaps="handled"
-          onLayout={onLayout}
-        >
-          {playerControlsBlock}
-          {queueSectionBlock}
+        <ScrollView style={styles.fill} contentContainerStyle={bottom} keyboardShouldPersistTaps="handled">
+          {player}
+          {lists}
         </ScrollView>
       )}
     </View>
@@ -394,85 +224,12 @@ export function MusicPlayer({ serverKey, channelId, onClose }: MusicPlayerProps)
 }
 
 const styles = StyleSheet.create({
-  root: {
-    flex: 1,
-  },
-  scroll: {
-    flex: 1,
-  },
-  content: {
-    alignItems: 'center',
-    paddingHorizontal: space.md,
-  },
-  joinBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    width: '100%',
-    paddingHorizontal: space.md,
-    paddingVertical: space.sm,
-    borderRadius: space.sm,
-    borderWidth: StyleSheet.hairlineWidth,
-    marginBottom: space.sm,
-  },
-  joinTextCol: {
-    flex: 1,
-    marginRight: space.sm,
-  },
-  volumeSection: {
-    width: '100%',
-    paddingHorizontal: space.lg,
-    paddingVertical: space.xs,
-    gap: space.xs,
-  },
-  volumeSliderRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    width: '100%',
-    gap: space.sm,
-  },
-  muteButton: {
-    width: 36,
-    height: 36,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  sliderWrapper: {
-    flex: 1,
-  },
-  volumePercentage: {
-    minWidth: 48,
-    textAlign: 'right',
-  },
-  duckRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    width: '100%',
-    minHeight: 44,
-  },
-  segmentedContainer: {
-    width: '100%',
-    paddingHorizontal: space.md,
-    paddingVertical: space.md,
-  },
-  sectionBody: {
-    width: '100%',
-    paddingVertical: space.md,
-  },
-  tabletRow: {
-    flex: 1,
-    flexDirection: 'row',
-  },
-  tabletLeft: {
-    borderRightWidth: StyleSheet.hairlineWidth,
-  },
-  tabletLeftContent: {
-    paddingHorizontal: space.md,
-    alignItems: 'center',
-  },
-  tabletRight: {
-    flex: 1,
-    paddingHorizontal: space.md,
-  },
+  root: { flex: 1 },
+  fill: { flex: 1 },
+  columns: { flex: 1, flexDirection: 'row' },
+  player: { paddingHorizontal: GUTTER },
+  empty: { alignItems: 'center', paddingTop: space.xxl, gap: space.xs },
+  emptyTitle: { marginTop: space.lg },
+  centered: { textAlign: 'center' },
+  searchTop: { paddingTop: space.md },
 });
