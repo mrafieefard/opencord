@@ -2,20 +2,20 @@
 // the boot state: onboarding before an identity, the rest after.
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { LogBox } from 'react-native';
+import { useWindowDimensions } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { KeyboardProvider } from 'react-native-keyboard-controller';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { BootGate } from '@/features/boot/BootGate';
+import { DETENTS, TWO_COLUMNS } from '@/features/music/sheet';
 import { useBoot } from '@/state/selectors';
 import { DialogHost, ThemeProvider, ToastHost, radius, useTheme } from '@/ui';
-
-LogBox.ignoreAllLogs(true);
 
 function Routes() {
   const boot = useBoot();
   const { colors, scheme } = useTheme();
+  const { width } = useWindowDimensions();
   const ready = boot.state === 'ready';
   return (
     <>
@@ -52,7 +52,9 @@ function Routes() {
             name="server/[serverKey]/music/[channelId]"
             options={{
               presentation: 'formSheet',
-              sheetAllowedDetents: [1],
+              sheetAllowedDetents: DETENTS,
+              // Half on a phone; full when the player takes two columns.
+              sheetInitialDetentIndex: width >= TWO_COLUMNS ? 'last' : 0,
               sheetGrabberVisible: true,
               sheetCornerRadius: radius.sheet,
               contentStyle: { backgroundColor: colors.elevated },

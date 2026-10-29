@@ -23,6 +23,8 @@ export interface NowPlayingProps {
   positionMs: number;
   seek: ControlAccess;
   artworkSize: number;
+  /** Beside the titles, small (a phone's half-height sheet), rather than above them. */
+  inline?: boolean;
   menu: MenuAction[];
   onMenu: (id: string) => void;
   onSeek: (positionMs: number) => void;
@@ -35,7 +37,7 @@ const HOLD_MS = 2000;
 const HOLD_NEAR_MS = 1500;
 const SEEK_STEP_MS = 1000;
 
-export function NowPlaying({ serverKey, item, playing, positionMs, seek, artworkSize, menu, onMenu, onSeek }: NowPlayingProps) {
+export function NowPlaying({ serverKey, item, playing, positionMs, seek, artworkSize, inline = false, menu, onMenu, onSeek }: NowPlayingProps) {
   const { colors, scheme } = useTheme();
   const reduceMotion = useReducedMotion();
   const { track } = item;
@@ -63,44 +65,60 @@ export function NowPlaying({ serverKey, item, playing, positionMs, seek, artwork
   };
   const source = track.sourceDisplayName || sourceLabel(track.source);
 
+  const corner = inline ? radius.image : radius.tile;
+  const artwork = (
+    <Animated.View
+      style={[
+        {
+          borderRadius: corner,
+          backgroundColor: colors.elevated,
+          transform: [{ scale: playing ? 1 : PAUSED_SCALE }],
+          transitionProperty: 'transform',
+          transitionDuration: reduceMotion ? 0 : SETTLE_MS,
+          transitionTimingFunction: 'ease-out',
+        },
+        scheme === 'light' && (playing ? styles.liftedHigh : styles.liftedLow),
+      ]}
+    >
+      <Artwork serverKey={serverKey} artworkId={track.artworkId} title={track.title} size={artworkSize} radius={corner} />
+    </Animated.View>
+  );
+  const titles = (
+    <View style={styles.titles}>
+      <Text variant={inline ? 'headline' : 'title2'} numberOfLines={1} accessibilityRole="header">
+        {track.title}
+      </Text>
+      <Text variant={inline ? 'callout' : 'body'} color="textSecondary" numberOfLines={1}>
+        {track.artist}
+      </Text>
+      <Text variant="footnote" color="textMuted" numberOfLines={1}>
+        {`Added by ${requester}${source ? ` · ${source}` : ''}`}
+      </Text>
+    </View>
+  );
+  const more = menu.length > 0 && (
+    <Menu ref={menuRef} testID="now-playing-menu" trigger="press" actions={menu} onAction={onMenu}>
+      <IconButton icon="more" label="More" size={36} onPress={() => menuRef.current?.open()} />
+    </Menu>
+  );
+
   return (
     <View>
-      <View style={styles.center}>
-        <Animated.View
-          style={[
-            {
-              borderRadius: radius.tile,
-              backgroundColor: colors.elevated,
-              transform: [{ scale: playing ? 1 : PAUSED_SCALE }],
-              transitionProperty: 'transform',
-              transitionDuration: reduceMotion ? 0 : SETTLE_MS,
-              transitionTimingFunction: 'ease-out',
-            },
-            scheme === 'light' && (playing ? styles.liftedHigh : styles.liftedLow),
-          ]}
-        >
-          <Artwork serverKey={serverKey} artworkId={track.artworkId} title={track.title} size={artworkSize} radius={radius.tile} />
-        </Animated.View>
-      </View>
-
-      <View style={styles.titleRow}>
-        <View style={styles.titles}>
-          <Text variant="title2" numberOfLines={1} accessibilityRole="header">
-            {track.title}
-          </Text>
-          <Text variant="body" color="textSecondary" numberOfLines={1}>
-            {track.artist}
-          </Text>
-          <Text variant="footnote" color="textMuted" numberOfLines={1}>
-            {`Added by ${requester}${source ? ` · ${source}` : ''}`}
-          </Text>
+      {inline ? (
+        <View style={[styles.titleRow, styles.inline]}>
+          {artwork}
+          {titles}
+          {more}
         </View>
-        {menu.length > 0 && (
-          <Menu ref={menuRef} testID="now-playing-menu" trigger="press" actions={menu} onAction={onMenu}>
-            <IconButton icon="more" label="More" size={36} onPress={() => menuRef.current?.open()} />
-          </Menu>
-        )}
-      </View>
+      ) : (
+        <>
+          <View style={styles.center}>{artwork}</View>
+          <View style={styles.titleRow}>
+            {titles}
+            {more}
+          </View>
+        </>
+      )}
 
       <View style={styles.progress}>
         <Scrubber
@@ -135,6 +153,7 @@ const styles = StyleSheet.create({
   liftedHigh: { shadowColor: onMedia.rail, shadowOpacity: 0.22, shadowRadius: 24, shadowOffset: { width: 0, height: 14 }, elevation: 16 },
   liftedLow: { shadowColor: onMedia.rail, shadowOpacity: 0.12, shadowRadius: 12, shadowOffset: { width: 0, height: 6 }, elevation: 6 },
   titleRow: { flexDirection: 'row', alignItems: 'center', gap: space.md },
+  inline: { paddingTop: space.sm, gap: space.lg },
   titles: { flex: 1, gap: 2 },
   progress: { marginTop: space.lg },
   times: { flexDirection: 'row', justifyContent: 'space-between', marginTop: -space.xs },

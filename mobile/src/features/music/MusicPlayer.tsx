@@ -1,8 +1,10 @@
-// The music player (spec §8.7), a full-height sheet. On a phone, one
-// scrolling page: what plays, the transport and the volume, then adding
-// music, the uploads, Up next and Recently played. Search takes the page
-// over, with what plays shrunk to a row above it. Two columns when the
-// sheet is wide: the player on the left, the lists on the right.
+// The music player (spec §8.7). On a phone the sheet opens at half height
+// on the player (artwork beside the title, the transport, the volume) with
+// the search bar peeking; pulled up, the same page goes on to the uploads,
+// Up next and Recently played. The lists scroll with the sheet (nested
+// scrolling), so scrolling back up lowers it to half, never shut. Search
+// takes the page over, with what plays shrunk to a row above it. Two
+// columns when the sheet is wide, opened at full height.
 import { MusicAction, MusicPlayState, MusicRepeat } from '@opencord/core-native';
 import * as Clipboard from 'expo-clipboard';
 import { router } from 'expo-router';
@@ -28,6 +30,7 @@ import { NowPlaying } from './NowPlaying';
 import { PlayerControls } from './PlayerControls';
 import { PlayerTopBar } from './PlayerTopBar';
 import { positionAt } from './position';
+import { TWO_COLUMNS } from './sheet';
 import { GUTTER } from './TrackRow';
 import { UpNext } from './UpNext';
 import { Uploads } from './Uploads';
@@ -42,14 +45,14 @@ export interface MusicPlayerProps {
   onClose?: () => void;
 }
 
-/** Wider than this, the sheet has two columns. */
-const TWO_COLUMNS = 720;
 const PLAYER_COLUMN_MAX = 440;
 const PLAYER_COLUMN_MIN = 320;
 const ARTWORK_MAX = 360;
 /** Everything in the player column but the artwork: the bars above it, the title, position, transport and volume. */
 const PLAYER_CHROME = 460;
 const EMPTY_ARTWORK = 160;
+/** A phone's artwork, beside the title, so the half-height sheet holds the whole player. */
+const INLINE_ARTWORK = 76;
 
 const NEXT_REPEAT: Record<MusicRepeat, MusicRepeat> = {
   [MusicRepeat.Off]: MusicRepeat.Queue,
@@ -114,7 +117,7 @@ export function MusicPlayer({ serverKey, channelId, onClose }: MusicPlayerProps)
   const columnMax = Math.min(PLAYER_COLUMN_MAX, Math.round(size.width * 0.45));
   const artworkSize = twoColumns
     ? Math.max(PLAYER_COLUMN_MIN - GUTTER * 2, Math.min(ARTWORK_MAX, columnMax - GUTTER * 2, size.height - PLAYER_CHROME))
-    : Math.min(ARTWORK_MAX, size.width - GUTTER * 2);
+    : INLINE_ARTWORK;
   const playerWidth = twoColumns ? artworkSize + GUTTER * 2 : size.width;
   const bottom = { paddingBottom: insets.bottom + space.xxl };
 
@@ -128,6 +131,7 @@ export function MusicPlayer({ serverKey, channelId, onClose }: MusicPlayerProps)
         positionMs={positionMs}
         seek={access.seek}
         artworkSize={artworkSize}
+        inline={!twoColumns}
         menu={menu}
         onMenu={onMenu}
         onSeek={(at) => control(MusicAction.Seek, 'seek', at)}
@@ -192,7 +196,7 @@ export function MusicPlayer({ serverKey, channelId, onClose }: MusicPlayerProps)
           <ScrollView style={{ width: playerWidth, flexGrow: 0 }} contentContainerStyle={bottom}>
             {player}
           </ScrollView>
-          <ScrollView style={styles.fill} contentContainerStyle={bottom} keyboardShouldPersistTaps="handled">
+          <ScrollView style={styles.fill} contentContainerStyle={bottom} keyboardShouldPersistTaps="handled" nestedScrollEnabled>
             {searching && <View style={styles.searchTop} />}
             {lists}
           </ScrollView>
@@ -209,12 +213,12 @@ export function MusicPlayer({ serverKey, channelId, onClose }: MusicPlayerProps)
               onOpen={() => setSearching(false)}
             />
           )}
-          <ScrollView style={styles.fill} contentContainerStyle={[styles.searchTop, bottom]} keyboardShouldPersistTaps="handled">
+          <ScrollView style={styles.fill} contentContainerStyle={[styles.searchTop, bottom]} keyboardShouldPersistTaps="handled" nestedScrollEnabled>
             {lists}
           </ScrollView>
         </>
       ) : (
-        <ScrollView style={styles.fill} contentContainerStyle={bottom} keyboardShouldPersistTaps="handled">
+        <ScrollView style={styles.fill} contentContainerStyle={bottom} keyboardShouldPersistTaps="handled" nestedScrollEnabled>
           {player}
           {lists}
         </ScrollView>
