@@ -80,6 +80,9 @@ export const tokens: Record<Scheme, ColorTokens> = { dark, light };
 /** Anything drawn on a photo or video: the dark set, whatever the theme. */
 export const onMedia = dark;
 
+/** Text and glyphs on the hues (`voice`, `recording`): white in both themes. */
+export const onHue = light.onAccent;
+
 /** `color` at `alpha` (0–1), for the few see-through layers. */
 export function withAlpha(color: string, alpha: number): string {
   const hex = color.slice(0, 7);

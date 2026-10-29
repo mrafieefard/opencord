@@ -148,6 +148,8 @@ export interface AppState {
   /** Keyed `serverKey/channelId`. */
   music: Record<string, MusicSessionRecord>;
   uploads: Record<string, MusicUploadState>;
+  /** Keyed `serverKey/userId`: how someone sounds here, as handed to the core (which keeps it in memory too). */
+  userAudio: Record<string, UserAudio>;
   prefs: Prefs;
   toasts: Toast[];
   editingMessage: EditingMessage | null;
@@ -165,6 +167,13 @@ export interface ServerRow {
   unread: number;
   mentions: number;
   inVoice: boolean;
+}
+
+/** How loud someone is on this device (spec §8.6, their sheet). */
+export interface UserAudio {
+  /** 0–2, 1 being as sent. */
+  volume: number;
+  mutedForMe: boolean;
 }
 
 export interface VoiceMember {

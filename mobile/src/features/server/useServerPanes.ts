@@ -17,7 +17,7 @@ export interface ServerPanes {
   mode: PaneMode;
   open: OpenChannel | null;
   sidebarOpen: boolean;
-  select(channel: ChannelRecord): void;
+  select(channel: Pick<ChannelRecord, 'id'>): void;
   back(): boolean;
   openSidebar(): void;
   closeSidebar(): void;
@@ -62,7 +62,7 @@ export function useServerPanes(serverKey: string, initialChannelId?: string): Se
   const now = useCallback(() => settled(latest.current, snapshot), [snapshot]);
 
   const select = useCallback(
-    (picked: ChannelRecord) => update({ mode: 'content', openId: picked.id, sidebarOpen: false }),
+    (picked: Pick<ChannelRecord, 'id'>) => update({ mode: 'content', openId: picked.id, sidebarOpen: false }),
     [update],
   );
 

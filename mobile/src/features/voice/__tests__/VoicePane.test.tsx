@@ -10,7 +10,7 @@ import * as voiceActions from '@/state/actions/voice';
 import { useAppStore } from '@/state/store';
 import { freshStore, settle } from '@/test/store';
 
-import { VoicePane } from '../VoicePane';
+import { tileLayout, VoicePane } from '../VoicePane';
 import { LinkBanner } from '../LinkBanner';
 import { ParticipantSheet } from '../ParticipantSheet';
 
@@ -222,5 +222,49 @@ describe('VoicePane', () => {
     expect(screen.getByText('This is you.')).toBeTruthy();
     expect(screen.queryByText('Mute for me')).toBeNull();
     expect(screen.queryByText('Volume')).toBeNull();
+  });
+
+  it('the person sheet opens on what was set before', async () => {
+    jest.restoreAllMocks();
+    initServer();
+    voiceActions.setUserVolume(NIGHT_OWLS, '1001', 0.5);
+    voiceActions.setUserLocalMute(NIGHT_OWLS, '1001', true);
+
+    const screen = await renderWithGesture(<ParticipantSheet serverKey={NIGHT_OWLS} userId="1001" />);
+
+    expect(screen.getByText('50 %')).toBeTruthy();
+    expect(screen.getByRole('switch').props.accessibilityState).toMatchObject({ checked: true });
+    // Someone else keeps the defaults.
+    await screen.rerender(
+      <GestureHandlerRootView style={{ flex: 1 }}>
+        <ParticipantSheet serverKey={NIGHT_OWLS} userId="1002" />
+      </GestureHandlerRootView>,
+    );
+    expect(screen.queryByText('50 %')).toBeNull();
+    expect(screen.getByRole('switch').props.accessibilityState).toMatchObject({ checked: false });
+  });
+
+  it('tiles are two columns on a phone and more on a tablet', () => {
+    expect(tileLayout(412).columns).toBe(2);
+    expect(tileLayout(320).columns).toBe(2);
+    const tablet = tileLayout(960);
+    expect(tablet.columns).toBeGreaterThan(2);
+    expect(tablet.size).toBeLessThanOrEqual(200);
+  });
+
+  it('without a connected bar of its own, the pane shows none while in voice elsewhere', async () => {
+    initServer();
+    useAppStore.setState({
+      myVoice: { serverKey: NIGHT_OWLS, channelId: CHANNELS.quiet, link: new VoiceLinkState.Connected(), muted: false, deafened: false },
+    });
+
+    const tablet = await renderWithGesture(<VoicePane serverKey={NIGHT_OWLS} channelId={CHANNELS.lounge} />);
+    expect(tablet.queryByTestId('connected-bar-pressable')).toBeNull();
+    await tablet.rerender(
+      <GestureHandlerRootView style={{ flex: 1 }}>
+        <VoicePane serverKey={NIGHT_OWLS} channelId={CHANNELS.lounge} onOpenChannel={() => {}} />
+      </GestureHandlerRootView>,
+    );
+    expect(tablet.getByTestId('connected-bar-pressable')).toBeTruthy();
   });
 });

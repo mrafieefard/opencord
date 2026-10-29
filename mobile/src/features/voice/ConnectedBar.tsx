@@ -1,24 +1,32 @@
 // The connected voice bar (spec §8.6): a 56 pt bar showing current voice
 // connection (channel, server or currently playing music) with mute and
-// leave buttons. A tap on the bar opens that voice channel.
+// leave buttons. A tap on the bar opens that voice channel: in place on
+// its own server's screen, else on top as that server's screen.
 import { router } from 'expo-router';
 import { useCallback } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { Touchable } from 'react-native-gesture-handler';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { report } from '@/core';
 import { leaveVoice, setMuted } from '@/state/actions/voice';
 import { useMyVoice, useNowPlaying, useServer } from '@/state/selectors';
 import { Icon, IconButton, space, Text, useTheme } from '@/ui';
 
 export interface ConnectedBarProps {
+  /** The server whose screen this is; none on Servers. */
   serverKey?: string;
+  /** The channel open beside it: the bar hides when that is the voice channel. */
   channelId?: string;
-  onPress?: () => void;
+  /** Opens a channel of `serverKey`'s screen in place. */
+  onOpenChannel?: (channelId: string) => void;
+  /** At the very bottom of the screen, the bar stands on the bottom inset. */
+  bottomInset?: boolean;
 }
 
 const BAR_HEIGHT = 56;
 
-export function ConnectedBar({ serverKey, channelId, onPress }: ConnectedBarProps) {
+export function ConnectedBar({ serverKey, channelId, onOpenChannel, bottomInset = false }: ConnectedBarProps) {
   const myVoice = useMyVoice();
 
   // Hidden when not connected, or when already viewing that channel
@@ -32,7 +40,8 @@ export function ConnectedBar({ serverKey, channelId, onPress }: ConnectedBarProp
       serverKey={myVoice.serverKey}
       channelId={myVoice.channelId}
       muted={myVoice.muted}
-      onPress={onPress}
+      onOpenHere={myVoice.serverKey === serverKey ? onOpenChannel : undefined}
+      bottomInset={bottomInset}
     />
   );
 }
@@ -41,11 +50,13 @@ interface ConnectedBarContentProps {
   serverKey: string;
   channelId: string;
   muted: boolean;
-  onPress?: () => void;
+  onOpenHere?: (channelId: string) => void;
+  bottomInset: boolean;
 }
 
-function ConnectedBarContent({ serverKey, channelId, muted, onPress }: ConnectedBarContentProps) {
+function ConnectedBarContent({ serverKey, channelId, muted, onOpenHere, bottomInset }: ConnectedBarContentProps) {
   const { colors } = useTheme();
+  const insets = useSafeAreaInsets();
   const server = useServer(serverKey);
   const nowPlaying = useNowPlaying(serverKey, channelId);
 
@@ -59,15 +70,15 @@ function ConnectedBarContent({ serverKey, channelId, muted, onPress }: Connected
     : serverName;
 
   const handleOpen = useCallback(() => {
-    if (onPress) {
-      onPress();
+    if (onOpenHere) {
+      onOpenHere(channelId);
       return;
     }
     router.push({
       pathname: '/server/[serverKey]',
       params: { serverKey, channel: channelId },
     });
-  }, [serverKey, channelId, onPress]);
+  }, [serverKey, channelId, onOpenHere]);
 
   return (
     <View
@@ -76,6 +87,8 @@ function ConnectedBarContent({ serverKey, channelId, muted, onPress }: Connected
         {
           backgroundColor: colors.surface,
           borderTopColor: colors.border,
+          height: BAR_HEIGHT + (bottomInset ? insets.bottom : 0),
+          paddingBottom: bottomInset ? insets.bottom : 0,
         },
       ]}
     >
@@ -110,7 +123,7 @@ function ConnectedBarContent({ serverKey, channelId, muted, onPress }: Connected
         <IconButton
           icon="leave"
           label="Leave voice"
-          onPress={leaveVoice}
+          onPress={() => report(leaveVoice(), 'leave voice')}
           testID="connected-bar-leave"
         />
       </View>
@@ -120,7 +133,6 @@ function ConnectedBarContent({ serverKey, channelId, muted, onPress }: Connected
 
 const styles = StyleSheet.create({
   bar: {
-    height: BAR_HEIGHT,
     flexDirection: 'row',
     alignItems: 'center',
     borderTopWidth: StyleSheet.hairlineWidth,

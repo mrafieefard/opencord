@@ -3,9 +3,10 @@ import { StyleSheet } from 'react-native';
 
 import { Avatar, initials, nameHash } from '../Avatar';
 import { Badge, badgeText } from '../Badge';
+import { Button } from '../Button';
 import { PaneHeader } from '../PaneHeader';
 import { Text } from '../Text';
-import { tokens } from '../theme/tokens';
+import { onHue, tokens } from '../theme/tokens';
 import { typography, type TextVariant } from '../theme/typography';
 
 describe('Text', () => {
@@ -74,5 +75,20 @@ describe('PaneHeader', () => {
     await fireEvent.press(screen.getByLabelText('More'));
     expect(back).toHaveBeenCalledTimes(1);
     expect(more).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('Button', () => {
+  it('on the hues the words are white, in the dark theme too', async () => {
+    await render(<Button title="Join voice" variant="voice" onPress={() => {}} />);
+    expect(onHue).toBe('#FFFFFF');
+    expect(StyleSheet.flatten(screen.getByText('Join voice').props.style).color).toBe(onHue);
+    await render(<Button title="Leave" variant="danger" onPress={() => {}} />);
+    expect(StyleSheet.flatten(screen.getByText('Leave').props.style).color).toBe(onHue);
+  });
+
+  it('disabled, the words are muted whatever the variant', async () => {
+    await render(<Button title="This channel is full" variant="voice" disabled onPress={() => {}} />);
+    expect(StyleSheet.flatten(screen.getByText('This channel is full').props.style).color).toBe(tokens.dark.textMuted);
   });
 });

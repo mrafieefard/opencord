@@ -3,13 +3,14 @@
 // volume. The service follows the store: it stops whenever this device's
 // voice ends, however it ended, and its notification follows the channel.
 import { VoiceService, type VoiceNotification } from '@opencord/voice-service';
+import * as Haptics from 'expo-haptics';
 
 import { getCore } from '@/core';
 import { enterVoiceAudio, leaveVoiceAudio } from '@/features/voice/audioSession';
 import { askForNotifications, ensureMicrophone, explainMicrophone } from '@/features/voice/micPermission';
 
-import { useAppStore } from '../store';
-import type { AppState, MyVoice } from '../types';
+import { DEFAULT_USER_AUDIO, useAppStore } from '../store';
+import { channelKey, type AppState, type MyVoice, type UserAudio } from '../types';
 
 /** The notification the service shows, or null while it isn't running. */
 let shown: string | null = null;
@@ -55,10 +56,13 @@ export async function joinVoice(serverKey: string, channelId: string): Promise<b
     else stopService();
     throw error;
   }
+  // Spec §9.3: a medium tap for joining or leaving voice.
+  void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
   return true;
 }
 
 export async function leaveVoice(): Promise<void> {
+  void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
   try {
     await getCore().voiceLeave();
   } finally {
@@ -75,12 +79,21 @@ export function setDeafened(deafened: boolean): void {
   getCore().voiceSetDeaf(deafened);
 }
 
+function setUserAudio(serverKey: string, userId: string, change: Partial<UserAudio>): void {
+  const key = channelKey(serverKey, userId);
+  useAppStore.setState((state) => ({
+    userAudio: { ...state.userAudio, [key]: { ...(state.userAudio[key] ?? DEFAULT_USER_AUDIO), ...change } },
+  }));
+}
+
 /** 0–2, 1 being as sent. */
 export function setUserVolume(serverKey: string, userId: string, volume: number): void {
+  setUserAudio(serverKey, userId, { volume });
   getCore().voiceSetUserVolume(serverKey, userId, volume);
 }
 
 export function setUserLocalMute(serverKey: string, userId: string, muted: boolean): void {
+  setUserAudio(serverKey, userId, { mutedForMe: muted });
   getCore().voiceSetUserLocalMute(serverKey, userId, muted);
 }
 

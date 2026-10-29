@@ -1,6 +1,7 @@
 // The top of a sheet's content: a title, a line under it, and a close
 // button. Android's sheets have no grabber of their own, so one is drawn
 // there; iOS shows its native one (`sheetGrabberVisible`).
+import type { ReactNode } from 'react';
 import { Platform, StyleSheet, View } from 'react-native';
 
 import { IconButton } from './IconButton';
@@ -11,6 +12,8 @@ import { useTheme } from './theme/useTheme';
 export interface SheetHeaderProps {
   title: string;
   subtitle?: string;
+  /** Drawn before the title, such as a person's avatar. */
+  leading?: ReactNode;
   onClose: () => void;
 }
 
@@ -23,11 +26,12 @@ export function SheetGrabber() {
   return <View style={[styles.grabber, { backgroundColor: colors.textMuted }]} />;
 }
 
-export function SheetHeader({ title, subtitle, onClose }: SheetHeaderProps) {
+export function SheetHeader({ title, subtitle, leading, onClose }: SheetHeaderProps) {
   return (
     <View>
       <SheetGrabber />
       <View style={styles.titleRow}>
+        {leading}
         <Text variant="title2" accessibilityRole="header" style={styles.title}>
           {title}
         </Text>

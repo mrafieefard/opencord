@@ -6,7 +6,7 @@ import { Icon } from './Icon';
 import type { IconName } from './icons';
 import { Text } from './Text';
 import { radius, space } from './theme/space';
-import type { ColorToken } from './theme/tokens';
+import { onHue, type ColorToken } from './theme/tokens';
 import { useTheme } from './theme/useTheme';
 
 export interface ButtonProps {
@@ -21,13 +21,14 @@ export interface ButtonProps {
 
 export function Button({ title, onPress, variant, loading = false, disabled = false, icon }: ButtonProps) {
   const { colors } = useTheme();
-  const look: { background: string; text: ColorToken; border?: string } =
+  // On the hues (voice, danger) the text is white in both themes.
+  const look: { background: string; text: ColorToken; tint?: string; border?: string } =
     variant === 'primary'
       ? { background: colors.accent, text: 'onAccent' }
       : variant === 'voice'
-        ? { background: colors.voice, text: 'onAccent' }
+        ? { background: colors.voice, text: 'onAccent', tint: onHue }
         : variant === 'danger'
-          ? { background: colors.recording, text: 'onAccent' }
+          ? { background: colors.recording, text: 'onAccent', tint: onHue }
           : variant === 'plain'
             ? { background: 'transparent', text: 'text' }
             : { background: colors.surface, text: 'text', border: colors.border };
@@ -35,10 +36,11 @@ export function Button({ title, onPress, variant, loading = false, disabled = fa
   // Disabled is flat and quiet in every variant, not a faded color.
   const shown =
     disabled && variant !== 'plain'
-      ? { background: colors.selected, text: 'textMuted' as const, border: undefined }
+      ? { background: colors.selected, text: 'textMuted' as const, tint: undefined, border: undefined }
       : disabled
-        ? { ...look, text: 'textMuted' as const }
+        ? { ...look, text: 'textMuted' as const, tint: undefined }
         : look;
+  const foreground = shown.tint ?? colors[shown.text];
   return (
     <Touchable
       onPress={onPress}
@@ -53,11 +55,11 @@ export function Button({ title, onPress, variant, loading = false, disabled = fa
     >
       <View accessible accessibilityRole="button" accessibilityLabel={title} accessibilityState={{ disabled: off, busy: loading }} style={styles.content}>
         {loading ? (
-          <ActivityIndicator color={colors[shown.text]} />
+          <ActivityIndicator color={foreground} />
         ) : (
           <>
-            {icon && <Icon name={icon} size={18} color={shown.text} />}
-            <Text variant="headline" color={shown.text}>
+            {icon && <Icon name={icon} size={18} tint={foreground} />}
+            <Text variant="headline" style={{ color: foreground }}>
               {title}
             </Text>
           </>

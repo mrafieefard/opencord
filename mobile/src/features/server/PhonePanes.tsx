@@ -19,8 +19,8 @@ import { GestureDetector, Touchable, usePanGesture } from 'react-native-gesture-
 import Animated, { useAnimatedStyle, useSharedValue, withSpring, type WithSpringConfig } from 'react-native-reanimated';
 import { scheduleOnRN } from 'react-native-worklets';
 
-import { useTheme, withAlpha } from '@/ui';
 import { ConnectedBar } from '@/features/voice/ConnectedBar';
+import { useTheme, withAlpha } from '@/ui';
 
 import { ChannelList } from './ChannelList';
 import { ChannelListHeader } from './ChannelListHeader';
@@ -50,6 +50,7 @@ export interface PhonePanesProps {
 export function PhonePanes({ serverKey, panes, width }: PhonePanesProps) {
   const { colors } = useTheme();
   const { mode, open, sidebarOpen, select, back, openSidebar, closeSidebar } = panes;
+  const openChannel = useCallback((channelId: string) => select({ id: channelId }), [select]);
   const full = mode === 'channels';
   const listOut = full || sidebarOpen;
   const narrow = sidebarWidth(width);
@@ -155,7 +156,7 @@ export function PhonePanes({ serverKey, panes, width }: PhonePanesProps) {
             <ChannelListHeader serverKey={serverKey} backLabel="All channels" onBack={backToChannels} />
           )}
           <ChannelList serverKey={serverKey} variant={full ? 'full' : 'sidebar'} selectedId={open?.id} onSelect={select} />
-          <ConnectedBar />
+          <ConnectedBar serverKey={serverKey} channelId={full ? undefined : open?.id} onOpenChannel={openChannel} bottomInset />
         </Animated.View>
         <Animated.View style={[styles.content, contentStyle]}>
           <View
@@ -163,7 +164,7 @@ export function PhonePanes({ serverKey, panes, width }: PhonePanesProps) {
             importantForAccessibility={listOut ? 'no-hide-descendants' : 'auto'}
             accessibilityElementsHidden={listOut}
           >
-            <ContentPane serverKey={serverKey} open={open} onOpenSidebar={openSidebar} />
+            <ContentPane serverKey={serverKey} open={open} onOpenSidebar={openSidebar} onOpenChannel={openChannel} />
           </View>
           <Animated.View
             pointerEvents={covered ? 'auto' : 'none'}

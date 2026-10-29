@@ -2,6 +2,7 @@ import { ConnectionRecord, MobileEvent } from '@opencord/core-native';
 import { VoiceService } from '@opencord/voice-service';
 import { PermissionStatus, type PermissionResponse } from 'expo';
 import * as Audio from 'expo-audio';
+import * as Haptics from 'expo-haptics';
 import { Alert, AppState, Linking, type AppStateStatus } from 'react-native';
 
 import type { FakeCore } from '@/core/fake/FakeCore';
@@ -17,6 +18,11 @@ jest.mock('expo-audio', () => ({
   requestRecordingPermissionsAsync: jest.fn(),
   requestNotificationPermissionsAsync: jest.fn(),
   setAudioModeAsync: jest.fn(async () => {}),
+}));
+
+jest.mock('expo-haptics', () => ({
+  impactAsync: jest.fn(async () => {}),
+  ImpactFeedbackStyle: { Medium: 'medium' },
 }));
 
 const audio = jest.mocked(Audio);
@@ -74,6 +80,7 @@ describe('voice', () => {
     expect(core.calls.some((call) => call.method === 'voiceJoin')).toBe(false);
     expect(service.start).not.toHaveBeenCalled();
     expect(audio.setAudioModeAsync).not.toHaveBeenCalled();
+    expect(Haptics.impactAsync).not.toHaveBeenCalled();
 
     // Spec §8.6's sentence, with Open Settings.
     expect(alert).toHaveBeenCalledWith(
@@ -100,6 +107,8 @@ describe('voice', () => {
     });
     expect(service.start).toHaveBeenLastCalledWith({ title: 'In voice: Lounge · Night Owls', text: '' });
     expect(useAppStore.getState().myVoice).toMatchObject({ serverKey: NIGHT_OWLS, channelId: CHANNELS.lounge });
+    // Spec §9.3: a medium tap.
+    expect(Haptics.impactAsync).toHaveBeenCalledWith(Haptics.ImpactFeedbackStyle.Medium);
   });
 
   it('leaving stops the service', async () => {
@@ -110,6 +119,7 @@ describe('voice', () => {
     await pump(core);
 
     expect(core.calls.some((call) => call.method === 'voiceLeave')).toBe(true);
+    expect(Haptics.impactAsync).toHaveBeenCalledTimes(2);
     expect(service.stop).toHaveBeenCalled();
     expect(useAppStore.getState().myVoice).toBeNull();
     // The session lets other apps play again.

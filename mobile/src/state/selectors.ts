@@ -15,7 +15,7 @@ import { useMemo } from 'react';
 
 import { EMPTY_MESSAGES } from './events';
 import { previewText } from './preview';
-import { useAppStore } from './store';
+import { DEFAULT_USER_AUDIO, useAppStore } from './store';
 import {
   channelKey,
   compareIds,
@@ -28,6 +28,7 @@ import {
   type MyVoice,
   type ServerRow,
   type ServerState,
+  type UserAudio,
   type VoiceMember,
 } from './types';
 
@@ -256,6 +257,10 @@ export const useNowPlaying = (serverKey: string, channelId: string): MusicNowPla
 
 export const useMusicSession = (serverKey: string, channelId: string): MusicSessionRecord | null =>
   useAppStore((state) => state.music[channelKey(serverKey, channelId)] ?? null);
+
+/** How someone sounds on this device; the core's defaults until changed. */
+export const useUserAudio = (serverKey: string, userId: string): UserAudio =>
+  useAppStore((state) => state.userAudio[channelKey(serverKey, userId)] ?? DEFAULT_USER_AUDIO);
 
 export const useMusicSettings = (serverKey: string): MusicSettingsRecord | null =>
   useAppStore((state) => state.servers[serverKey]?.musicSettings ?? null);

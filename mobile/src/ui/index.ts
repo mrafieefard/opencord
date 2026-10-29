@@ -23,6 +23,6 @@ export { Text } from './Text';
 export { ToastHost } from './ToastHost';
 export { motion, radius, space, TOUCH } from './theme/space';
 export { ThemeProvider } from './theme/ThemeProvider';
-export { onMedia, tokens, withAlpha, type ColorToken, type ColorTokens } from './theme/tokens';
+export { onHue, onMedia, tokens, withAlpha, type ColorToken, type ColorTokens } from './theme/tokens';
 export { fonts, typography, type TextVariant } from './theme/typography';
 export { useTheme } from './theme/useTheme';

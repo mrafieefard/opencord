@@ -1,10 +1,11 @@
 // The voice call's controls (spec §8.6): four 56 pt round buttons
 // (Mute, Deafen, Music, Leave). Toggles flip between surface/text (off)
-// and accent/onAccent (on); Leave is recording.
+// and accent/onAccent (on), and their glyph shows the state; Leave is
+// recording with a white glyph.
 import { StyleSheet, View } from 'react-native';
 import { Touchable } from 'react-native-gesture-handler';
 
-import { Icon, space, useTheme } from '@/ui';
+import { Icon, onHue, space, useTheme } from '@/ui';
 
 export interface ControlBarProps {
   muted: boolean;
@@ -66,7 +67,7 @@ export function ControlBar({
           ]}
         >
           <Icon
-            name="deafen"
+            name={deafened ? 'deafen' : 'listen'}
             size={24}
             color={deafened ? 'onAccent' : 'text'}
           />
@@ -95,7 +96,7 @@ export function ControlBar({
         testID="control-leave"
       >
         <View style={[styles.button, { backgroundColor: colors.recording }]}>
-          <Icon name="leave" size={24} color="onAccent" />
+          <Icon name="leave" size={24} tint={onHue} />
         </View>
       </Touchable>
     </View>

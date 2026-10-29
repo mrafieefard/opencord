@@ -3,37 +3,13 @@
 // Not connected: tiles, Join voice button (or disabled reason).
 import { router } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
-import {
-  type LayoutChangeEvent,
-  ScrollView,
-  StyleSheet,
-  View,
-  useWindowDimensions,
-} from 'react-native';
-import { Touchable } from 'react-native-gesture-handler';
+import { type LayoutChangeEvent, ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { report } from '@/core';
-import {
-  joinVoice,
-  leaveVoice,
-  setDeafened,
-  setMuted,
-} from '@/state/actions/voice';
-import {
-  useChannelInfo,
-  useMusicSettings,
-  useMyVoice,
-  useVoiceMembers,
-} from '@/state/selectors';
-import {
-  EmptyState,
-  PaneHeader,
-  Text,
-  radius,
-  space,
-  useTheme,
-} from '@/ui';
+import { joinVoice, leaveVoice, setDeafened, setMuted } from '@/state/actions/voice';
+import { useChannelInfo, useMusicSettings, useMyVoice, useVoiceMembers } from '@/state/selectors';
+import { Button, EmptyState, PaneHeader, space, useTheme } from '@/ui';
 
 import { ConnectedBar } from './ConnectedBar';
 import { ControlBar } from './ControlBar';
@@ -45,80 +21,59 @@ export interface VoicePaneProps {
   channelId: string;
   /** The sidebar button; on a tablet the list is always beside the pane, so there is none. */
   onOpenSidebar?: () => void;
+  /** Given, the connected bar sits at the bottom while in voice elsewhere, and opens channels with it. */
+  onOpenChannel?: (channelId: string) => void;
 }
 
-const TABLET_MIN_WIDTH = 768;
-const JOIN_BUTTON_HEIGHT = 52;
+/** Tiles are at most this wide, so a wider pane has more columns: two on a phone, more on a tablet. */
+const TILE_MAX = 200;
+const MIN_COLUMNS = 2;
+const GAP = space.md;
+const PADDING = space.md;
 
-export function VoicePane({ serverKey, channelId, onOpenSidebar }: VoicePaneProps) {
+export function tileLayout(width: number): { columns: number; size: number } {
+  const inner = width - PADDING * 2;
+  const columns = Math.max(MIN_COLUMNS, Math.ceil((inner + GAP) / (TILE_MAX + GAP)));
+  return { columns, size: Math.floor((inner - GAP * (columns - 1)) / columns) };
+}
+
+export function VoicePane({ serverKey, channelId, onOpenSidebar, onOpenChannel }: VoicePaneProps) {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
   const { width: windowWidth } = useWindowDimensions();
-  const isTablet = windowWidth >= TABLET_MIN_WIDTH;
-  const columns = isTablet ? 3 : 2;
+  const [width, setWidth] = useState(windowWidth);
 
   const info = useChannelInfo(serverKey, channelId);
   const musicSettings = useMusicSettings(serverKey);
   const myVoice = useMyVoice();
   const members = useVoiceMembers(serverKey, channelId);
 
-  const [containerWidth, setContainerWidth] = useState(windowWidth);
+  const here = myVoice?.serverKey === serverKey && myVoice.channelId === channelId ? myVoice : null;
+  const showMusic = !!(musicSettings?.supported && musicSettings.enabled);
 
-  const isConnectedHere = myVoice?.serverKey === serverKey && myVoice?.channelId === channelId;
-
-  // Music button in header if music is supported and enabled
-  const showMusicAction = !!(musicSettings?.supported && musicSettings?.enabled);
-
-  // Sort members: self first, then others
-  const sortedMembers = useMemo(() => {
-    return [...members].sort((a, b) => {
-      if (a.isSelf) return -1;
-      if (b.isSelf) return 1;
-      return a.name.localeCompare(b.name);
-    });
-  }, [members]);
-
-  const handleOpenMember = useCallback(
-    (userId: string) => {
-      router.push(`/server/${serverKey}/member/${userId}`);
-    },
-    [serverKey],
+  // The user's own tile first.
+  const sorted = useMemo(
+    () => [...members].sort((a, b) => Number(b.isSelf) - Number(a.isSelf) || a.name.localeCompare(b.name)),
+    [members],
   );
 
-  const handleJoin = useCallback(() => {
-    report(joinVoice(serverKey, channelId), 'join voice');
-  }, [serverKey, channelId]);
-
-  const handleRejoin = useCallback(() => {
-    report(joinVoice(serverKey, channelId), 'rejoin voice');
-  }, [serverKey, channelId]);
-
-  const handleOpenMusic = useCallback(() => {
-    router.push(`/server/${serverKey}/music/${channelId}`);
-  }, [serverKey, channelId]);
-
-  const onLayout = useCallback((e: LayoutChangeEvent) => {
-    const width = e.nativeEvent.layout.width;
-    if (width > 0) setContainerWidth(width);
+  const join = useCallback(() => report(joinVoice(serverKey, channelId), 'join voice'), [serverKey, channelId]);
+  const leave = useCallback(() => report(leaveVoice(), 'leave voice'), []);
+  const openMusic = useCallback(() => router.push(`/server/${serverKey}/music/${channelId}`), [serverKey, channelId]);
+  const openMember = useCallback((userId: string) => router.push(`/server/${serverKey}/member/${userId}`), [serverKey]);
+  const onLayout = useCallback((event: LayoutChangeEvent) => {
+    const next = event.nativeEvent.layout.width;
+    if (next > 0) setWidth(next);
   }, []);
 
-  const gap = space.md;
-  const padding = space.md;
-  const tileWidth = Math.max(
-    Math.floor((containerWidth - padding * 2 - gap * (columns - 1)) / columns),
-    80,
-  );
-
-  // Access checks when not connected
+  const tile = tileLayout(width);
   const userLimit = info?.channel.userLimit ?? 0;
-  const canConnect = info?.access?.connect !== false;
-  const isFull = userLimit > 0 && members.length >= userLimit;
-  const joinDisabled = !canConnect || isFull;
-  const disabledReason = !canConnect
-    ? "You can't join this channel"
-    : isFull
-    ? 'This channel is full'
-    : null;
+  const reason =
+    info?.access.connect === false
+      ? "You can't join this channel"
+      : userLimit > 0 && members.length >= userLimit
+        ? 'This channel is full'
+        : null;
 
   return (
     <View style={[styles.pane, { backgroundColor: colors.chat }]}>
@@ -126,94 +81,48 @@ export function VoicePane({ serverKey, channelId, onOpenSidebar }: VoicePaneProp
         title={info?.channel.name ?? ''}
         titleIcon="voiceChannel"
         left={onOpenSidebar ? { icon: 'sidebar', label: 'Show channels', onPress: onOpenSidebar } : undefined}
-        right={
-          showMusicAction
-            ? [{ icon: 'music', label: 'Music', onPress: handleOpenMusic }]
-            : undefined
-        }
+        right={showMusic ? [{ icon: 'music', label: 'Music', onPress: openMusic }] : undefined}
       />
-
-      {isConnectedHere && <LinkBanner link={myVoice.link} onRejoin={handleRejoin} />}
-
-      <ScrollView
-        style={styles.scroll}
-        contentContainerStyle={[styles.grid, { padding }]}
-        onLayout={onLayout}
-      >
-        {sortedMembers.length === 0 ? (
+      {here && <LinkBanner link={here.link} onRejoin={join} />}
+      <ScrollView style={styles.fill} contentContainerStyle={styles.grid} onLayout={onLayout}>
+        {sorted.length === 0 ? (
           <EmptyState title="No one's here yet" />
         ) : (
-          <View style={[styles.tilesRow, { gap }]}>
-            {sortedMembers.map((member) => (
+          <View style={styles.tiles}>
+            {sorted.map((member) => (
               <ParticipantTile
                 key={member.userId}
                 serverKey={serverKey}
                 member={member}
-                size={tileWidth}
-                onPress={() => handleOpenMember(member.userId)}
+                size={tile.size}
+                onPress={() => openMember(member.userId)}
               />
             ))}
           </View>
         )}
       </ScrollView>
-
-      {/* Bottom area */}
-      {isConnectedHere ? (
+      {here ? (
         <View style={{ paddingBottom: insets.bottom }}>
           <ControlBar
-            muted={myVoice.muted}
-            deafened={myVoice.deafened}
-            onToggleMute={() => setMuted(!myVoice.muted)}
-            onToggleDeafen={() => setDeafened(!myVoice.deafened)}
-            onOpenMusic={handleOpenMusic}
-            onLeave={leaveVoice}
+            muted={here.muted}
+            deafened={here.deafened}
+            onToggleMute={() => setMuted(!here.muted)}
+            onToggleDeafen={() => setDeafened(!here.deafened)}
+            onOpenMusic={openMusic}
+            onLeave={leave}
           />
         </View>
       ) : (
-        <View
-          style={[
-            styles.bottomSection,
-            { paddingBottom: insets.bottom + space.md },
-          ]}
-        >
-          {joinDisabled ? (
-            <View
-              style={[
-                styles.disabledButton,
-                { backgroundColor: colors.surface },
-              ]}
-              accessible
-              accessibilityRole="button"
-              accessibilityLabel={disabledReason ?? 'Disabled'}
-              accessibilityState={{ disabled: true }}
-            >
-              <Text variant="headline" color="textSecondary">
-                {disabledReason}
-              </Text>
-            </View>
+        <>
+          <View style={styles.join}>
+            <Button title={reason ?? 'Join voice'} variant="voice" disabled={reason !== null} onPress={join} />
+          </View>
+          {onOpenChannel && myVoice ? (
+            <ConnectedBar serverKey={serverKey} channelId={channelId} onOpenChannel={onOpenChannel} bottomInset />
           ) : (
-            <Touchable
-              onPress={handleJoin}
-              accessible
-              accessibilityRole="button"
-              accessibilityLabel="Join voice"
-            >
-              <View
-                style={[
-                  styles.joinButton,
-                  { backgroundColor: colors.voice },
-                ]}
-              >
-                <Text variant="headline" color="onAccent">
-                  Join voice
-                </Text>
-              </View>
-            </Touchable>
+            <View style={{ height: insets.bottom }} />
           )}
-
-          {/* Connected elsewhere bar */}
-          <ConnectedBar serverKey={serverKey} channelId={channelId} />
-        </View>
+        </>
       )}
     </View>
   );
@@ -221,26 +130,8 @@ export function VoicePane({ serverKey, channelId, onOpenSidebar }: VoicePaneProp
 
 const styles = StyleSheet.create({
   pane: { flex: 1 },
-  scroll: { flex: 1 },
-  grid: { flexGrow: 1 },
-  tilesRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-  },
-  bottomSection: {
-    paddingHorizontal: space.md,
-    gap: space.sm,
-  },
-  joinButton: {
-    height: JOIN_BUTTON_HEIGHT,
-    borderRadius: radius.icon,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  disabledButton: {
-    height: JOIN_BUTTON_HEIGHT,
-    borderRadius: radius.icon,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
+  fill: { flex: 1 },
+  grid: { flexGrow: 1, padding: PADDING },
+  tiles: { flexDirection: 'row', flexWrap: 'wrap', gap: GAP },
+  join: { padding: space.md },
 });

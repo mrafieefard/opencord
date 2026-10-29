@@ -1,10 +1,11 @@
 // The server screen from 768 pt wide (spec §7.2): no drawer. The channel
 // list is a fixed 320 pt sidebar and the open channel fills the rest.
 import { router } from 'expo-router';
+import { useCallback } from 'react';
 import { StyleSheet, View } from 'react-native';
 
-import { useTheme } from '@/ui';
 import { ConnectedBar } from '@/features/voice/ConnectedBar';
+import { useTheme } from '@/ui';
 
 import { ChannelList } from './ChannelList';
 import { ChannelListHeader } from './ChannelListHeader';
@@ -22,12 +23,14 @@ export interface TabletPanesProps {
 
 export function TabletPanes({ serverKey, panes }: TabletPanesProps) {
   const { colors } = useTheme();
+  const { select } = panes;
+  const openChannel = useCallback((channelId: string) => select({ id: channelId }), [select]);
   return (
     <View style={styles.row}>
       <View style={[styles.sidebar, { borderRightColor: colors.border }]}>
         <ChannelListHeader serverKey={serverKey} backLabel="Servers" onBack={leave} />
         <ChannelList serverKey={serverKey} variant="sidebar" selectedId={panes.open?.id} onSelect={panes.select} />
-        <ConnectedBar />
+        <ConnectedBar serverKey={serverKey} channelId={panes.open?.id} onOpenChannel={openChannel} bottomInset />
       </View>
       <View style={styles.content}>
         <ContentPane serverKey={serverKey} open={panes.open} />

@@ -14,6 +14,7 @@ import { ReadPositions } from './readPositions';
 import type { AppState } from './types';
 
 export const DEFAULT_MUSIC = { volume: 0.5, muted: false, duck: false } as const;
+export const DEFAULT_USER_AUDIO = { volume: 1, mutedForMe: false } as const;
 
 export function initialState(): AppState {
   return {
@@ -28,6 +29,7 @@ export function initialState(): AppState {
     speaking: {},
     music: {},
     uploads: {},
+    userAudio: {},
     prefs: { theme: 'system', music: { ...DEFAULT_MUSIC } },
     toasts: [],
     editingMessage: null,

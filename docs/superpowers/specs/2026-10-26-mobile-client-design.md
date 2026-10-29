@@ -569,7 +569,7 @@ Used both full screen (`channels`) and as the sidebar. Pane header: back, the se
 
 **Not connected:**
 - tiles of who is in the channel (or "No one's here yet");
-- at the bottom, a **Join voice** button: full width, 52 pt tall, `voice` background, white text;
+- at the bottom, a **Join voice** button: full width, 52 pt tall, `voice` background, white text (`onHue`, the light set's `onAccent`, in both themes);
 - it is disabled with a reason when the user lacks `connect` ("You can't join this channel") or the channel is full ("This channel is full").
 
 **Connected:**
@@ -579,8 +579,8 @@ Used both full screen (`channels`) and as the sidebar. Pane header: back, the se
   - a 3 pt `voice` ring while speaking;
   - the user's own tile first.
 - **Control bar:** four 56 pt round buttons: **Mute**, **Deafen**, **Music** and **Leave**.
-  - Toggles are `surface` with `text` when off, and `accent` with `onAccent` when on.
-  - Leave is `recording`.
+  - Toggles are `surface` with `text` when off, and `accent` with `onAccent` when on. Their glyph shows the state: `mic` or `micOff`, `listen` or `deafen`.
+  - Leave is `recording` with a white glyph.
 - **A link banner** at the top while the link isn't connected:
   - "Connecting…" (`AwaitingEndpoint`, `Authenticating`, `RtcConnecting`);
   - "Reconnecting…";
@@ -789,6 +789,7 @@ Text follows the system's size setting, up to **1.6×**. Numbers that change in 
 | `mic` | `mic.fill` | `mic` |
 | `micOff` | `mic.slash.fill` | `mic_off` |
 | `deafen` | `speaker.slash.fill` | `headset_off` |
+| `listen` | `speaker.wave.2.fill` | `headset` |
 | `leave` | `phone.down.fill` | `call_end` |
 | `leaveServer` | `rectangle.portrait.and.arrow.right` | `logout` |
 | `music` | `music.note` | `music_note` |
