@@ -183,8 +183,11 @@ export function MusicPlayer({ serverKey, channelId, onClose }: MusicPlayerProps)
     if (width > 0 && height > 0) setSize({ width, height });
   };
 
+  // Kept as its own view: flattened, its children land in the sheet's own
+  // container, and react-native-screens then places the first ScrollView
+  // there at the top of the sheet, over the top bar (iOS 26).
   return (
-    <View testID="music-player" style={[styles.root, { backgroundColor: colors.elevated }]} onLayout={onLayout}>
+    <View testID="music-player" collapsable={false} style={[styles.root, { backgroundColor: colors.elevated }]} onLayout={onLayout}>
       <SheetGrabber />
       <PlayerTopBar
         channelName={channelName}
