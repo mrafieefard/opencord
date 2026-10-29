@@ -57,7 +57,9 @@ const config: ExpoConfig = {
     ['expo-font', { fonts }],
     'expo-secure-store',
     ['expo-audio', { microphonePermission: microphone }],
-    ['expo-image-picker', { photosPermission: photos, cameraPermission: false, microphonePermission: false }],
+    // `false` here would block RECORD_AUDIO for the whole app and drop iOS's
+    // microphone sentence, so voice gets the same sentence instead.
+    ['expo-image-picker', { photosPermission: photos, cameraPermission: false, microphonePermission: microphone }],
     [
       'expo-splash-screen',
       { backgroundColor: '#F3F3F5', dark: { backgroundColor: '#0E0E10' } },
