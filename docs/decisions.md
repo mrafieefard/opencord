@@ -1396,3 +1396,33 @@ Milestone R2 of `docs/superpowers/plans/2026-10-26-mobile-client.md` gives the p
   - the composer, including the send button showing only with something to send;
   - sending, retrying and editing;
   - the bubble corners and the time's room at the end of the text.
+
+## D78: Sheets, menus and questions drawn in the app's style (2026-10-29)
+
+The owner tried the phone app on its first real server and found the overlays the worst of it: the Add server sheet opened with half of it blank, and in dark mode the menus and questions came up in Android's own colours. Each was measured on the Pixel 7 in both themes, against the real server, and redrawn.
+
+- **The Add server sheet** (`features/servers/AddServerForm.tsx`).
+  - **Size:** it was fixed at 60 % of the screen, with the form at its top. It now fits its content (`sheetAllowedDetents: 'fitToContents'`), so each step is as tall as what it shows and the sheet rides above the keyboard.
+  - **Colour:** it was `chat`, the colour of the screen behind it, so nothing marked where it started. It is now `elevated` (design §9.1: sheets and toasts), with 20 pt corners.
+  - **`SheetHeader`:** the title, a line under it and a close button, plus a grabber on Android, which has none of its own (iOS shows its native one).
+  - **Fields:** 52 pt wells in `chat`, outlined in `border`, `textMuted` while they have focus and `recording` with an error. Paste is a pill in the field while it's empty, and a clear button replaces it once there's text. The error shows under the field with a warning glyph, and editing the address clears it.
+  - **"I own this server":** a disclosure row in a lightly tinted panel. The claim token field opens inside it.
+- **The trust step** (`TrustStep.tsx`): a lock badge, "Trust this server?" with the address under it, and the SHA-256 fingerprint as four lines of four groups in JetBrains Mono, to read out and compare. Cancel is a plain text button under Trust and add.
+- **Menus on Android** (`ui/Menu.android.tsx`). `@react-native-menu/menu`'s PopupMenu can't take the app's colours, font or icons: it was a square grey box in the system font, without icons, with a pure red Delete. Android now draws the app's own menu, a deliberate change to the spec's "native menu" there. iOS keeps `UIMenu`, which already looks as iOS should (`Menu.ios.tsx`).
+  - **The card:** 232 pt wide, `elevated`, 14 pt corners, 48 pt rows with a 20 pt icon and Inter text, destructive rows in `recording`, over `scrim` at half strength. It grows in from the corner nearest what was pressed in 160 ms.
+  - **Placement** (`menuPlacement.ts`): below what was pressed, or above it when there's no room, on its side. The user's own bubble's menu lines up with its right edge and others' with their left; a full-width row's starts at the rows' 16 pt inset. It stays 8 pt inside the screen and the system bars.
+  - **Opening:** a long press (with the long-press haptic) or a tap opens it. A picture or file card in a bubble passes its long press on through `useMenuOpener`, and Gesture Handler rows and buttons call the ref's `open()`, since they take the touch first.
+- **Questions** (`ui/confirm*.ts`, `ui/DialogHost.android.tsx`). `Alert.alert` on Android is the old dialog: a square grey box with teal capital buttons. `confirm()` asks instead: on iOS it is still `Alert.alert`, and on Android `DialogHost` draws a card in `elevated` with 20 pt corners in the middle of the scrim: the title, the message, and Cancel beside the confirming button (`danger` when destructive). Back and a tap outside cancel. Leaving a server and deleting a message ask through it.
+- **Smaller fixes.**
+  - **Disabled buttons:** a disabled `Button` is `selected` with `textMuted` text, instead of its own colour at 45 %, which made a disabled primary a muddy grey.
+  - **`plain` buttons:** the new `plain` variant is text alone.
+  - **The tab bar:** its selected pill was Material's blue-grey (#374955). It is now `selected`, and the ripple `hover`.
+  - **Leave server's icon:** it was the voice hang-up handset; it is now `leaveServer` (`logout`, `rectangle.portrait.and.arrow.right`).
+- **Not changed.**
+  - **The navigation bar:** Android draws a contrast scrim behind the three-button navigation bar (#1A1D21 under a `#1F1F23` sheet). Expo 58's config doesn't expose `enforceNavigationBarContrast`; turning it off needs a config plugin and a rebuild.
+  - **A trusted certificate that changed:** after a server's certificate changes, the app says so and refuses, with no way to trust the new one from the sheet. Trust is kept per address.
+- **Tests.** 205 Jest tests in 35 suites, among them:
+  - the menu's placement (a header button, own and others' bubbles, a full-width row, a bubble taller than the screen's room);
+  - the Android dialog (Cancel doesn't act, confirming acts once and closes);
+  - the fingerprint's four lines;
+  - editing the address clearing its error.

@@ -119,6 +119,10 @@ Every rule here was broken at least once and caught in review.
   - Gestures: `adb shell input tap X Y`, `adb shell input swipe X1 Y1 X2 Y2 300` (a swipe), `adb shell input swipe X Y X Y 1200` (a long press). Screenshots are 1080 × 2400.
   - Stop Metro when you're done, by its pid (`ss -ltnp | grep 8081`).
 - **A surface differs from what it sits on.** A card is `surface` on `chat`, never on a background of the same colour. A row with swipe actions behind it has an opaque background.
+- **Overlays in the phone app are the app's own (D78).**
+  - **Sheets:** a sheet fits its content (`sheetAllowedDetents: 'fitToContents'`) unless the plan names detents. It is `elevated` with `radius.sheet` corners and starts with `SheetHeader`. Look for blank space under the last control in its screenshot.
+  - **Menus and questions:** use `Menu` and `confirm()` from `@/ui`, never `Alert.alert` or a library's popup. Android's own PopupMenu and AlertDialog ignore the theme.
+  - **Colours:** a colour a system component picks for itself (Material's tinted indicator, ripple, accent) is a bug. Find its prop and give it a token.
 - **What the system needs is part of the feature.** URL schemes, permissions and intent filters go in `app.config.ts` in the task that needs them, checked from outside the app.
 - **Events carry the real state.** An update sent for play, pause or a setting change carries the last known position and values, never a placeholder `0` or empty value.
 - **A retry starts clean and sends the same thing.**
