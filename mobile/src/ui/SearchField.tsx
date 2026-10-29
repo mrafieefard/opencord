@@ -1,5 +1,5 @@
-import type { ReactNode } from 'react';
-import { StyleSheet, TextInput, View } from 'react-native';
+import { useRef, type ComponentRef, type ReactNode } from 'react';
+import { Pressable, StyleSheet, TextInput } from 'react-native';
 
 import { Icon } from './Icon';
 import { IconButton } from './IconButton';
@@ -17,10 +17,15 @@ export interface SearchFieldProps {
 
 export function SearchField({ value, onChangeText, placeholder, onSubmit, right }: SearchFieldProps) {
   const { colors } = useTheme();
+  const inputRef = useRef<ComponentRef<typeof TextInput>>(null);
   return (
-    <View style={[styles.field, { backgroundColor: colors.hover }]}>
+    <Pressable
+      onPress={() => inputRef.current?.focus()}
+      style={[styles.field, { backgroundColor: colors.hover }]}
+    >
       <Icon name="search" size={16} color="textMuted" />
       <TextInput
+        ref={inputRef}
         value={value}
         onChangeText={onChangeText}
         placeholder={placeholder}
@@ -34,7 +39,7 @@ export function SearchField({ value, onChangeText, placeholder, onSubmit, right 
       />
       {value !== '' && <IconButton icon="close" label="Clear" onPress={() => onChangeText('')} size={36} />}
       {right}
-    </View>
+    </Pressable>
   );
 }
 

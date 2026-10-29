@@ -11,3 +11,10 @@ export function positionAt(session: MusicSessionRecord, nowMs: number): number {
   const length = session.nowPlaying?.track.durationMs ?? 0;
   return length > 0 && at > length ? length : at;
 }
+
+export function formatDuration(ms: number): string {
+  const totalSeconds = Math.max(0, Math.floor(ms / 1000));
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+}

@@ -45,6 +45,8 @@ export const icons = {
   volumeOff: { ios: 'speaker.slash.fill', android: 'volume_off' },
   share: { ios: 'square.and.arrow.up', android: 'share' },
   jumpDown: { ios: 'chevron.down', android: 'keyboard_arrow_down' },
+  arrowUp: { ios: 'arrow.up', android: 'arrow_upward' },
+  arrowDown: { ios: 'arrow.down', android: 'arrow_downward' },
 } satisfies Record<string, Pair>;
 
 export type IconName = keyof typeof icons;

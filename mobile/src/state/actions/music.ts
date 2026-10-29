@@ -3,8 +3,7 @@ import {
   type MusicAction,
   type MusicPlacement,
   type MusicRepeat,
-  type MusicSearchResultsRecord,
-  type MusicSessionRecord,
+  type MusicSearchResultRecord,
 } from '@opencord/core-native';
 
 import { getCore } from '@/core';
@@ -79,7 +78,6 @@ export async function voteSkip(
   }));
 }
 
-// Stubs for Task 19 & 20
 export async function enqueue(
   serverKey: string,
   channelId: string,
@@ -87,7 +85,7 @@ export async function enqueue(
   historyItemIds: string[],
   beforeItemId: string | undefined,
   placement: MusicPlacement,
-): Promise<MusicSessionRecord> {
+): Promise<void> {
   const session = await getCore().musicEnqueue(
     serverKey,
     channelId,
@@ -100,7 +98,6 @@ export async function enqueue(
   useAppStore.setState((state) => ({
     music: { ...state.music, [key]: session },
   }));
-  return session;
 }
 
 export async function moveItem(
@@ -108,38 +105,35 @@ export async function moveItem(
   channelId: string,
   itemId: string,
   beforeItemId: string | undefined,
-): Promise<MusicSessionRecord> {
+): Promise<void> {
   const session = await getCore().musicQueueMove(serverKey, channelId, itemId, beforeItemId);
   const key = channelKey(serverKey, channelId);
   useAppStore.setState((state) => ({
     music: { ...state.music, [key]: session },
   }));
-  return session;
 }
 
 export async function removeItems(
   serverKey: string,
   channelId: string,
   itemIds: string[],
-): Promise<MusicSessionRecord> {
+): Promise<void> {
   const session = await getCore().musicQueueRemove(serverKey, channelId, itemIds);
   const key = channelKey(serverKey, channelId);
   useAppStore.setState((state) => ({
     music: { ...state.music, [key]: session },
   }));
-  return session;
 }
 
 export async function clearQueue(
   serverKey: string,
   channelId: string,
-): Promise<MusicSessionRecord> {
+): Promise<void> {
   const session = await getCore().musicQueueClear(serverKey, channelId);
   const key = channelKey(serverKey, channelId);
   useAppStore.setState((state) => ({
     music: { ...state.music, [key]: session },
   }));
-  return session;
 }
 
 export async function search(
@@ -147,6 +141,7 @@ export async function search(
   channelId: string,
   query: string,
   source: string,
-): Promise<MusicSearchResultsRecord> {
-  return await getCore().musicSearch(serverKey, channelId, query, source);
+): Promise<MusicSearchResultRecord[]> {
+  const res = await getCore().musicSearch(serverKey, channelId, query, source);
+  return res.results;
 }

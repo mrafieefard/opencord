@@ -46,8 +46,11 @@ import {
   useTheme,
 } from '@/ui';
 
+import { History } from './History';
+import { MusicSearch } from './MusicSearch';
 import { NowPlaying } from './NowPlaying';
 import { PlayerControls } from './PlayerControls';
+import { UpNext } from './UpNext';
 import { musicAccess } from './musicAccess';
 import { positionAt } from './position';
 import { useMusicSessionSubscription } from './useMusicSessionSubscription';
@@ -337,17 +340,9 @@ export function MusicPlayer({ serverKey, channelId, onClose }: MusicPlayerProps)
       {/* Section content */}
       <View style={styles.sectionBody}>
         {selectedSection === 0 ? (
-          // later: Task 19
-          <EmptyState
-            title="Nothing queued"
-            body="Search for a song or upload one."
-          />
+          <UpNext serverKey={serverKey} channelId={channelId} />
         ) : selectedSection === 1 ? (
-          // later: Task 19
-          <EmptyState
-            title="Search songs"
-            body="Search for songs or paste a link."
-          />
+          <MusicSearch serverKey={serverKey} channelId={channelId} />
         ) : selectedSection === 2 ? (
           // later: Task 20
           <EmptyState
@@ -355,11 +350,7 @@ export function MusicPlayer({ serverKey, channelId, onClose }: MusicPlayerProps)
             body="Choose audio files from your phone."
           />
         ) : (
-          // later: Task 19
-          <EmptyState
-            title="No history"
-            body="Played tracks will show up here."
-          />
+          <History serverKey={serverKey} channelId={channelId} />
         )}
       </View>
     </>
@@ -376,12 +367,17 @@ export function MusicPlayer({ serverKey, channelId, onClose }: MusicPlayerProps)
               styles.tabletLeftContent,
               { paddingBottom: insets.bottom + space.lg },
             ]}
+            keyboardShouldPersistTaps="handled"
           >
             {playerControlsBlock}
           </ScrollView>
-          <View style={styles.tabletRight}>
+          <ScrollView
+            style={styles.tabletRight}
+            contentContainerStyle={{ paddingBottom: insets.bottom + space.lg }}
+            keyboardShouldPersistTaps="handled"
+          >
             {queueSectionBlock}
-          </View>
+          </ScrollView>
         </View>
       ) : (
         <ScrollView
@@ -390,6 +386,7 @@ export function MusicPlayer({ serverKey, channelId, onClose }: MusicPlayerProps)
             styles.content,
             { paddingBottom: insets.bottom + space.lg },
           ]}
+          keyboardShouldPersistTaps="handled"
           onLayout={onLayout}
         >
           {playerControlsBlock}

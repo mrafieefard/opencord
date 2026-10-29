@@ -9,6 +9,7 @@ import { useMember } from '@/state/selectors';
 import { Icon, Slider, Text, radius, space, useTheme } from '@/ui';
 
 import type { ControlAccess } from './musicAccess';
+import { formatDuration } from './position';
 
 export interface NowPlayingProps {
   serverKey: string;
@@ -17,13 +18,6 @@ export interface NowPlayingProps {
   seekAccess: ControlAccess;
   containerWidth: number;
   onSeek: (positionMs: number) => void;
-}
-
-function formatDuration(ms: number): string {
-  const totalSeconds = Math.max(0, Math.floor(ms / 1000));
-  const minutes = Math.floor(totalSeconds / 60);
-  const seconds = (totalSeconds % 60).toString().padStart(2, '0');
-  return `${minutes}:${seconds}`;
 }
 
 export function NowPlaying({
