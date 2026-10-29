@@ -3,12 +3,11 @@
 // self. The values come from the store, so the sheet opens on what is set.
 import { router } from 'expo-router';
 import { StyleSheet, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useImageFile } from '@/features/servers/useImageFile';
 import { setUserLocalMute, setUserVolume } from '@/state/actions/voice';
 import { useMember, useServer, useUserAudio } from '@/state/selectors';
-import { Avatar, SheetHeader, Slider, Switch, Text, space, useTheme } from '@/ui';
+import { Avatar, SheetHeader, Slider, Switch, Text, space, useSheetBottomInset, useTheme } from '@/ui';
 
 export interface ParticipantSheetProps {
   serverKey: string;
@@ -25,7 +24,7 @@ function percent(fraction: number): string {
 
 export function ParticipantSheet({ serverKey, userId, onClose }: ParticipantSheetProps) {
   const { colors } = useTheme();
-  const insets = useSafeAreaInsets();
+  const bottomInset = useSheetBottomInset();
   const server = useServer(serverKey);
   const member = useMember(serverKey, userId);
   const audio = useUserAudio(serverKey, userId);
@@ -37,7 +36,7 @@ export function ParticipantSheet({ serverKey, userId, onClose }: ParticipantShee
   const close = onClose ?? (() => router.back());
 
   return (
-    <View style={[styles.sheet, { backgroundColor: colors.elevated, paddingBottom: insets.bottom + space.lg }]}>
+    <View style={[styles.sheet, { backgroundColor: colors.elevated, paddingBottom: bottomInset + space.lg }]}>
       <SheetHeader
         title={name}
         leading={<Avatar name={name} file={avatarFile} size={AVATAR_SIZE} />}

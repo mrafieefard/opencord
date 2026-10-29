@@ -4,10 +4,9 @@
 import { useState } from 'react';
 import { StyleSheet, TextInput, View, type TextInputProps } from 'react-native';
 import { Touchable } from 'react-native-gesture-handler';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 
-import { Button, Icon, SheetHeader, Text, radius, space, typography, useTheme, withAlpha } from '@/ui';
+import { Button, Icon, SheetHeader, Text, radius, space, typography, useSheetBottomInset, useTheme, withAlpha } from '@/ui';
 import { MAX_FONT_SCALE } from '@/ui/theme/typography';
 
 import { TrustStep } from './TrustStep';
@@ -24,7 +23,7 @@ const PANEL_TINT = 0.5;
 
 export function AddServerForm({ initialLink, onSuccess }: AddServerFormProps) {
   const { colors } = useTheme();
-  const insets = useSafeAreaInsets();
+  const bottomInset = useSheetBottomInset();
   const params = useLocalSearchParams<{ link?: string }>();
   const linkParam = initialLink ?? params.link;
 
@@ -47,7 +46,7 @@ export function AddServerForm({ initialLink, onSuccess }: AddServerFormProps) {
   const close = () => {
     if (router.canGoBack()) router.back();
   };
-  const sheet = [styles.sheet, { backgroundColor: colors.elevated, paddingBottom: insets.bottom + space.lg }];
+  const sheet = [styles.sheet, { backgroundColor: colors.elevated, paddingBottom: bottomInset + space.lg }];
 
   if (trustPending !== null) {
     return (

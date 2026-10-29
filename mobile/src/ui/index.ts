@@ -18,6 +18,7 @@ export { SearchField } from './SearchField';
 export { Scrubber, type ScrubberProps } from './Scrubber';
 export { Segmented } from './Segmented';
 export { SheetGrabber, SheetHeader } from './SheetHeader';
+export { useSheetBottomInset } from './sheetInset';
 export { ServerIcon } from './ServerIcon';
 export { Slider } from './Slider';
 export { Switch } from './Switch';
