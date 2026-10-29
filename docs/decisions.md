@@ -1461,3 +1461,35 @@ Milestone R3 of `docs/superpowers/plans/2026-10-26-mobile-client.md` (spec §8.6
   - the tile layout, and the sheet opening on what was set;
   - where the bar shows and what a tap opens;
   - `Button`'s white words on the hues.
+
+## D80: Music on the phone (2026-10-29)
+
+Milestone R4 of `docs/superpowers/plans/2026-10-26-mobile-client.md` (spec §8.7). Tasks 18, 19, and 20 by Gemini. Commits `eff95ab` (the music player), `65a763f` (the queue, search and history), `0ba1f9b` (uploading songs from the phone).
+
+- **The music player sheet** (`app/server/[serverKey]/music/[channelId].tsx`, `features/music/MusicPlayer.tsx`).
+  - **Sheet presentation:** a `formSheet` on `elevated` with detents `[0.6, 1.0]` and grabber, opening from the voice pane's Music header button and the connected bar's Music button. Starts with `SheetHeader` ("Music").
+  - **Layout:** on a phone, a single vertical scroll view containing the player controls block followed by the queue/tabs section. On a tablet, a two-column split with player controls fixed on the left (at most 420 pt wide) and queue sections on the right.
+  - **Now playing:** 220 pt artwork (`surface` with 14 pt radius; music note placeholder when missing), track title (`headline`), artist · source (`subhead`), and added by (`footnote`).
+  - **Seek bar:** `Slider` tinted with `voice` in both platforms. Dragging updates a local preview position and time labels; releasing calls `musicSeek`. Disabled when the user lacks seek permissions.
+  - **Transport controls:** 5-button control bar with 56 pt play/pause circle button and 40 pt icon buttons for shuffle, previous, next, and repeat. Button states and disables follow channel access permissions. When a user lacks control permission, next button votes to skip (`musicVoteSkip`).
+  - **Listening controls:** music volume slider (0–200%, marked at 0%, 100%, 200%) and mute toggle button, applying to the core via `musicSetListening`. "Lower music while people talk" switch applies ducking. Settings persist in client prefs store (`DEFAULT_MUSIC`).
+  - **Outside voice banner:** when viewing music for a voice channel the user is not currently in, a banner offers "Listen by joining <channel>" with a `voice` Join button.
+- **Queue, search and history** (`UpNext.tsx`, `MusicSearch.tsx`, `History.tsx`).
+  - **Tabs:** `Segmented` row with `['Up next', 'Search', 'Upload', 'History']`.
+  - **Queue:** 56 pt rows with 40 pt artwork, track title, artist/duration. Swipe left to remove via `ReanimatedSwipeable` showing a red `recording` action. Long press opens the app's `Menu` with Play now, Play next, and Remove. Clear queue button asks confirmation via `confirm()`.
+  - **Search:** `SearchField` with source filter menu button (All sources, YouTube, SoundCloud, Local). Search runs only on submit (`onSubmitEditing`). Tapping a result plays or adds it to the queue; uploaded songs display a "Local" pill.
+  - **History:** lists up to 50 previously played tracks with "Add again" buttons that re-queue the song.
+- **Uploading songs from the phone** (`UploadSection.tsx`, `UploadRow.tsx`, `pickAudio.ts`).
+  - **Picker surface:** 56 pt dashed `surface` button "Choose audio files" with upload icon; subtitle in `footnote` explaining supported formats (MP3, FLAC, M4A, AAC, OGG, WAV) and local server persistence.
+  - **Audio picker:** `expo-document-picker` supporting multiple selection of audio MIME types.
+  - **Permissions:** requires `musicManage` or both `musicAdd` and `attach` while connected to the voice channel. When not allowed, displays the exact missing requirement ("Join <channel> to upload songs.", "You need Add to music queue to upload songs.", "You need Attach files to upload songs.").
+  - **Upload lifecycle:** each file gets an upload ID, enters `Preparing` ("Checking…"), steps through `Uploading` ("Uploading · <percent> % of <size>" with `voice`-tinted progress bar), `Processing` ("The server is checking it…"), and `Done` ("Queued").
+  - **Cache and completion:** `Done` rows fade out over 300 ms after 2.7 s (total 3 s) and remove the cached file via `expo-file-system` `File.delete()`. In-flight rows have a cancel button (`musicCancelSong`), and `Failed` rows show the server reason in `recording` red with a Retry button and Dismiss button.
+- **Tests.** 266 Jest tests in 46 suites. Among them:
+  - seek bar bounds and time formatting;
+  - transport control permissions and vote-skip fallback;
+  - volume and ducking preferences applied to store and core;
+  - queue swipe-to-remove and context menu;
+  - search query submissions, source filters, and Local badges;
+  - history re-queuing;
+  - upload permission requirements, phase transitions, and automatic 3 s dismissal with cache cleanup.
