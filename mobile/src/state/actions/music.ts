@@ -1,13 +1,15 @@
 // Music actions: player control, playback, playlist queue, search and uploads.
 import {
+  UploadPhaseRecord,
   type MusicAction,
   type MusicPlacement,
   type MusicRepeat,
   type MusicSearchResultRecord,
 } from '@opencord/core-native';
+import { File } from 'expo-file-system';
 
 import { getCore } from '@/core';
-import { channelKey } from '../types';
+import { channelKey, type PickedFile } from '../types';
 import { useAppStore } from '../store';
 
 /** Subscribes to live music updates for a voice channel. */
@@ -145,3 +147,88 @@ export async function search(
   const res = await getCore().musicSearch(serverKey, channelId, query, source);
   return res.results;
 }
+
+function deleteCopy(path: string): void {
+  if (!path) return;
+  try {
+    const file = new File(path);
+    file.delete();
+  } catch {
+    // Harmless if missing or already deleted
+  }
+}
+
+let nextUploadId = 1;
+
+export async function uploadSongs(
+  serverKey: string,
+  channelId: string,
+  files: PickedFile[],
+): Promise<void> {
+  const core = getCore();
+  for (const file of files) {
+    const uploadId = `u-${Date.now()}-${nextUploadId++}`;
+    useAppStore.setState((state) => ({
+      uploads: {
+        ...state.uploads,
+        [uploadId]: {
+          uploadId,
+          serverKey,
+          channelId,
+          filename: file.filename,
+          sentBytes: 0,
+          totalBytes: file.size,
+          phase: new UploadPhaseRecord.Preparing(),
+          path: file.path,
+        },
+      },
+    }));
+
+    // Every file uploads at once
+    core
+      .musicUploadSong(serverKey, channelId, uploadId, file.path, false)
+      .catch(() => {
+        // Handled via core events
+      });
+  }
+}
+
+export function cancelUpload(uploadId: string): void {
+  const upload = useAppStore.getState().uploads[uploadId];
+  if (!upload) return;
+  getCore().musicCancelSong(upload.serverKey, uploadId);
+  deleteCopy(upload.path);
+}
+
+export async function retryUpload(uploadId: string): Promise<void> {
+  const upload = useAppStore.getState().uploads[uploadId];
+  if (!upload) return;
+  useAppStore.setState((state) => ({
+    uploads: {
+      ...state.uploads,
+      [uploadId]: {
+        ...upload,
+        sentBytes: 0,
+        phase: new UploadPhaseRecord.Preparing(),
+      },
+    },
+  }));
+  getCore()
+    .musicUploadSong(upload.serverKey, upload.channelId, uploadId, upload.path, false)
+    .catch(() => {
+      // Handled via core events
+    });
+}
+
+export function dismissUpload(uploadId: string): void {
+  const upload = useAppStore.getState().uploads[uploadId];
+  if (upload) {
+    deleteCopy(upload.path);
+  }
+  useAppStore.setState((state) => {
+    const next = { ...state.uploads };
+    delete next[uploadId];
+    return { uploads: next };
+  });
+}
+

@@ -35,7 +35,6 @@ import {
 } from '@/state/selectors';
 import {
   Button,
-  EmptyState,
   Icon,
   Segmented,
   SheetHeader,
@@ -51,6 +50,7 @@ import { MusicSearch } from './MusicSearch';
 import { NowPlaying } from './NowPlaying';
 import { PlayerControls } from './PlayerControls';
 import { UpNext } from './UpNext';
+import { UploadSection } from './UploadSection';
 import { musicAccess } from './musicAccess';
 import { positionAt } from './position';
 import { useMusicSessionSubscription } from './useMusicSessionSubscription';
@@ -344,11 +344,7 @@ export function MusicPlayer({ serverKey, channelId, onClose }: MusicPlayerProps)
         ) : selectedSection === 1 ? (
           <MusicSearch serverKey={serverKey} channelId={channelId} />
         ) : selectedSection === 2 ? (
-          // later: Task 20
-          <EmptyState
-            title="Upload songs"
-            body="Choose audio files from your phone."
-          />
+          <UploadSection serverKey={serverKey} channelId={channelId} />
         ) : (
           <History serverKey={serverKey} channelId={channelId} />
         )}

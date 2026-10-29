@@ -125,8 +125,10 @@ export class FakeCore implements CoreApi {
   private nextId = 900_000;
   private name = 'Ava';
   private loaded = false;
+  private readonly live: boolean;
 
   constructor(options: FakeOptions = {}) {
+    this.live = options.live ?? false;
     this.now = options.now ?? Date.now;
     this.scenario = options.scenario ?? 'default';
     this.files = options.files;
@@ -336,6 +338,37 @@ export class FakeCore implements CoreApi {
       new MobileEvent.Connection({ serverKey, state: new ConnectionRecord.Connected() }),
       new MobileEvent.Ready({ snapshot: { ...snapshot(serverKey), selfUser: { ...user(SELF_ID), displayName: this.name } } }),
     );
+    if (this.live && serverKey === NIGHT_OWLS && this.scenario === 'default') {
+      this.emit(
+        new MobileEvent.MusicUpload({
+          serverKey,
+          channelId: CHANNELS.lounge,
+          uploadId: 'fake-u1',
+          filename: 'ambient_sunset.flac',
+          sentBytes: 12_500_000,
+          totalBytes: 25_000_000,
+          phase: new UploadPhaseRecord.Uploading(),
+        }),
+        new MobileEvent.MusicUpload({
+          serverKey,
+          channelId: CHANNELS.lounge,
+          uploadId: 'fake-u2',
+          filename: 'theme_music.wav',
+          sentBytes: 15_000_000,
+          totalBytes: 15_000_000,
+          phase: new UploadPhaseRecord.Processing(),
+        }),
+        new MobileEvent.MusicUpload({
+          serverKey,
+          channelId: CHANNELS.lounge,
+          uploadId: 'fake-u3',
+          filename: 'damaged_sample.mp3',
+          sentBytes: 4_200_000,
+          totalBytes: 4_200_000,
+          phase: new UploadPhaseRecord.Failed({ message: 'Corrupted audio stream' }),
+        }),
+      );
+    }
   }
 
   private requireServer(serverKey: string): void {
