@@ -2,6 +2,7 @@
 // the boot state: onboarding before an identity, the rest after.
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
+import { LogBox } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { KeyboardProvider } from 'react-native-keyboard-controller';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -9,6 +10,8 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { BootGate } from '@/features/boot/BootGate';
 import { useBoot } from '@/state/selectors';
 import { DialogHost, ThemeProvider, ToastHost, radius, useTheme } from '@/ui';
+
+LogBox.ignoreAllLogs(true);
 
 function Routes() {
   const boot = useBoot();
@@ -40,6 +43,16 @@ function Routes() {
             options={{
               presentation: 'formSheet',
               sheetAllowedDetents: 'fitToContents',
+              sheetGrabberVisible: true,
+              sheetCornerRadius: radius.sheet,
+              contentStyle: { backgroundColor: colors.elevated },
+            }}
+          />
+          <Stack.Screen
+            name="server/[serverKey]/music/[channelId]"
+            options={{
+              presentation: 'formSheet',
+              sheetAllowedDetents: [0.6, 1],
               sheetGrabberVisible: true,
               sheetCornerRadius: radius.sheet,
               contentStyle: { backgroundColor: colors.elevated },

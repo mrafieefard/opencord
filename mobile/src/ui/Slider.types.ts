@@ -3,6 +3,8 @@ export interface SliderProps {
   min: number;
   max: number;
   step?: number;
+  /** Accent color variant: 'text' (default) or 'voice'. */
+  accent?: 'text' | 'voice';
   /** While dragging. */
   onChange: (value: number) => void;
   /** When the finger lifts. */

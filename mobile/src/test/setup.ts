@@ -105,14 +105,17 @@ jest.mock('@expo/ui/swift-ui', () => {
         onPress: () => onIsOnChange?.(!isOn),
         onChange: (val: boolean) => onIsOnChange?.(val),
       }),
-    Slider: ({ value, onValueChange, modifiers }: { value: number; onValueChange?: (v: number) => void; modifiers?: { _label?: string }[] }) => {
+    Slider: ({ value, onValueChange, onEditingChanged, modifiers }: { value: number; onValueChange?: (v: number) => void; onEditingChanged?: (editing: boolean) => void; modifiers?: { _label?: string }[] }) => {
       const labelMod = modifiers?.find((m) => m && m._label);
       const label = labelMod?._label;
       return React.createElement(View, {
         accessibilityRole: 'adjustable',
         accessibilityLabel: label,
         value,
-        onChange: (v: number) => onValueChange?.(v),
+        onChange: (v: number) => {
+          onValueChange?.(v);
+          onEditingChanged?.(false);
+        },
       });
     },
     Picker: ({ selection, onSelectionChange, children }: { selection: number; onSelectionChange?: (i: number) => void; children: React.ReactNode }) => {

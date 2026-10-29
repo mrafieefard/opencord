@@ -8,8 +8,19 @@ import { useTheme } from './theme/useTheme';
 
 export type { SliderProps } from './Slider.types';
 
-export function Slider({ value, min, max, step, onChange, onCommit, disabled = false, accessibilityLabel }: SliderProps) {
+export function Slider({
+  value,
+  min,
+  max,
+  step,
+  accent = 'text',
+  onChange,
+  onCommit,
+  disabled = false,
+  accessibilityLabel,
+}: SliderProps) {
   const { colors, scheme } = useTheme();
+  const trackColor = accent === 'voice' ? colors.voice : colors.text;
   const last = useRef(value);
   return (
     <Host matchContents={{ vertical: true }} colorScheme={scheme} style={{ flex: 1 }}>
@@ -18,7 +29,7 @@ export function Slider({ value, min, max, step, onChange, onCommit, disabled = f
         min={min}
         max={max}
         step={step}
-        modifiers={[tint(colors.text), disabledModifier(disabled), label(accessibilityLabel)]}
+        modifiers={[tint(trackColor), disabledModifier(disabled), label(accessibilityLabel)]}
         onValueChange={(next) => {
           last.current = next;
           onChange(next);

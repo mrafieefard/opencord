@@ -10,8 +10,19 @@ export type { SliderProps } from './Slider.types';
 
 const MAX_DRAWN_STOPS = 10;
 
-export function Slider({ value, min, max, step, onChange, onCommit, disabled = false, accessibilityLabel }: SliderProps) {
+export function Slider({
+  value,
+  min,
+  max,
+  step,
+  accent = 'text',
+  onChange,
+  onCommit,
+  disabled = false,
+  accessibilityLabel,
+}: SliderProps) {
   const { colors, scheme } = useTheme();
+  const trackColor = accent === 'voice' ? colors.voice : colors.text;
   const last = useRef(value);
   // Compose counts the stops between the ends, not the step, and draws a
   // dot for each: a fine step (volume's 1 %) slides freely and rounds here.
@@ -28,8 +39,8 @@ export function Slider({ value, min, max, step, onChange, onCommit, disabled = f
         enabled={!disabled}
         modifiers={[semantics({ contentDescription: accessibilityLabel })]}
         colors={{
-          thumbColor: colors.text,
-          activeTrackColor: colors.text,
+          thumbColor: trackColor,
+          activeTrackColor: trackColor,
           inactiveTrackColor: colors.selected,
           activeTickColor: colors.onAccent,
           inactiveTickColor: colors.textMuted,
