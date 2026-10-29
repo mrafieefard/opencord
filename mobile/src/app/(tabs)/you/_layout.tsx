@@ -1,14 +1,15 @@
 import { Stack } from 'expo-router';
 
-import { fonts, useTheme } from '@/ui';
+import { fonts, nativeHeaderScheme, useTheme } from '@/ui';
 
 export default function YouLayout() {
-  const { colors } = useTheme();
+  const { colors, scheme } = useTheme();
   return (
     <Stack
       screenOptions={{
         headerLargeTitle: true,
         headerShadowVisible: false,
+        ...nativeHeaderScheme(scheme),
         headerStyle: { backgroundColor: colors.chat },
         headerLargeStyle: { backgroundColor: colors.chat },
         headerTintColor: colors.text,

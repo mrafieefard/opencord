@@ -1,14 +1,15 @@
 import { Stack, router } from 'expo-router';
 
-import { IconButton, fonts, useTheme } from '@/ui';
+import { IconButton, fonts, nativeHeaderScheme, useTheme } from '@/ui';
 
 export default function ServersLayout() {
-  const { colors } = useTheme();
+  const { colors, scheme } = useTheme();
   return (
     <Stack
       screenOptions={{
         headerLargeTitle: true,
         headerShadowVisible: false,
+        ...nativeHeaderScheme(scheme),
         headerStyle: { backgroundColor: colors.sidebar },
         headerLargeStyle: { backgroundColor: colors.sidebar },
         headerTintColor: colors.text,
