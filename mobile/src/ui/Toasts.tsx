@@ -12,17 +12,12 @@ import { Text } from './Text';
 import { radius, space } from './theme/space';
 import { useTheme } from './theme/useTheme';
 
-export interface ToastsProps {
-  /** Where the toasts stand, from the bottom of what holds them. */
-  bottom?: number;
-}
-
-export function Toasts({ bottom }: ToastsProps) {
+export function Toasts() {
   const toasts = useToasts();
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
   return (
-    <View pointerEvents="none" style={[styles.host, { bottom: bottom ?? insets.bottom + 72 }]}>
+    <View pointerEvents="none" style={[styles.host, { bottom: insets.bottom + 72 }]}>
       {toasts.map((toast) => (
         <Animated.View
           key={toast.id}
