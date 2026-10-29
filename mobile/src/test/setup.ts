@@ -106,14 +106,23 @@ jest.mock('@expo/ui/swift-ui', () => {
     Host: ({ children, style }: { children: React.ReactNode; style?: unknown }) => React.createElement(View, { style }, children),
     ContextMenu,
     RNHostView: ({ children }: { children: React.ReactNode }) => children,
-    Button: ({ label, role, onPress, modifiers }: { label?: string; role?: string; onPress?: () => void; modifiers?: { _disabled?: boolean }[] }) =>
-      React.createElement(Pressable, {
-        accessibilityRole: 'menuitem',
-        accessibilityLabel: label,
-        accessibilityHint: role === 'destructive' ? 'destructive' : undefined,
-        disabled: modifiers?.some((m) => m && m._disabled) ?? false,
-        onPress,
-      }),
+    // A menu's item passes its label; Button.ios.tsx's buttons draw their
+    // content and name it with accessibilityLabel.
+    Button: ({ label, role, onPress, modifiers, children }: { label?: string; role?: string; onPress?: () => void; modifiers?: { _disabled?: boolean; _label?: string }[]; children?: React.ReactNode }) =>
+      React.createElement(
+        Pressable,
+        {
+          accessibilityRole: label !== undefined ? 'menuitem' : 'button',
+          accessibilityLabel: label ?? modifiers?.find((m) => m && m._label)?._label,
+          accessibilityHint: role === 'destructive' ? 'destructive' : undefined,
+          disabled: modifiers?.some((m) => m && m._disabled) ?? false,
+          onPress,
+        },
+        children,
+      ),
+    HStack: ({ children }: { children?: React.ReactNode }) => React.createElement(View, null, children),
+    Image: () => null,
+    ProgressView: () => React.createElement(View, { accessibilityRole: 'progressbar' }),
     Text: ({ children, ...props }: { children?: React.ReactNode; [key: string]: unknown }) => React.createElement(Text, props, children),
     Toggle: ({ isOn, onIsOnChange, label }: { isOn: boolean; onIsOnChange?: (v: boolean) => void; label: string }) =>
       React.createElement(Pressable, {
@@ -163,6 +172,12 @@ jest.mock('@expo/ui/swift-ui', () => {
 });
 
 jest.mock('@expo/ui/swift-ui/modifiers', () => ({
+  buttonStyle: (style: string) => ({ _buttonStyle: style }),
+  buttonBorderShape: () => ({}),
+  controlSize: () => ({}),
+  font: () => ({}),
+  foregroundStyle: () => ({}),
+  frame: () => ({}),
   pickerStyle: () => ({ _style: 'segmented' }),
   tag: (idx: number) => ({ _tag: idx }),
   accessibilityLabel: (lbl: string) => ({ _label: lbl }),

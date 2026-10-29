@@ -6,7 +6,7 @@ import { Modal, StyleSheet, View, useWindowDimensions } from 'react-native';
 import { GestureHandlerRootView, Touchable } from 'react-native-gesture-handler';
 import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 
-import { Button } from './Button';
+import { Button } from './Button.android';
 import { closeConfirm, useOpenConfirm, type ConfirmOptions } from './confirm.android';
 import { Text } from './Text';
 import { radius, space } from './theme/space';

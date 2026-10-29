@@ -3,21 +3,13 @@ import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import { Touchable } from 'react-native-gesture-handler';
 
 import { Icon } from './Icon';
-import type { IconName } from './icons';
+import type { ButtonProps } from './Button.types';
 import { Text } from './Text';
 import { radius, space } from './theme/space';
 import { onHue, type ColorToken } from './theme/tokens';
 import { useTheme } from './theme/useTheme';
 
-export interface ButtonProps {
-  title: string;
-  onPress: () => void;
-  /** `plain` is text alone, for the quieter of two actions on a sheet. */
-  variant: 'primary' | 'secondary' | 'plain' | 'voice' | 'danger';
-  loading?: boolean;
-  disabled?: boolean;
-  icon?: IconName;
-}
+export type { ButtonProps } from './Button.types';
 
 export function Button({ title, onPress, variant, loading = false, disabled = false, icon }: ButtonProps) {
   const { colors } = useTheme();

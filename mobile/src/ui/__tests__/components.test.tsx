@@ -3,7 +3,7 @@ import { StyleSheet } from 'react-native';
 
 import { Avatar, initials, nameHash } from '../Avatar';
 import { Badge, badgeText } from '../Badge';
-import { Button } from '../Button';
+import { Button } from '../Button.android';
 import { PaneHeader } from '../PaneHeader';
 import { Text } from '../Text';
 import { onHue, tokens } from '../theme/tokens';
