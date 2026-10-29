@@ -18,12 +18,13 @@ export interface IconButtonProps {
   tone?: IconButtonTone;
   active?: boolean;
   disabled?: boolean;
+  testID?: string;
 }
 
 /** The smallest touch target (design rule 10): smaller buttons reach it with hit slop. */
 const MIN_TOUCH = 44;
 
-export function IconButton({ icon, label, onPress, size = 44, tone = 'plain', active = false, disabled = false }: IconButtonProps) {
+export function IconButton({ icon, label, onPress, size = 44, tone = 'plain', active = false, disabled = false, testID }: IconButtonProps) {
   const { colors } = useTheme();
   let background = 'transparent';
   let foreground: ColorToken = 'text';
@@ -44,6 +45,7 @@ export function IconButton({ icon, label, onPress, size = 44, tone = 'plain', ac
     <Touchable
       onPress={onPress}
       disabled={disabled}
+      testID={testID}
       hitSlop={size < MIN_TOUCH ? (MIN_TOUCH - size) / 2 : undefined}
       underlayColor={colors.selected}
       activeUnderlayOpacity={tone === 'plain' ? 1 : 0.3}

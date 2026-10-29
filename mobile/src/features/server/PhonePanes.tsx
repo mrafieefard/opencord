@@ -20,6 +20,7 @@ import Animated, { useAnimatedStyle, useSharedValue, withSpring, type WithSpring
 import { scheduleOnRN } from 'react-native-worklets';
 
 import { useTheme, withAlpha } from '@/ui';
+import { ConnectedBar } from '@/features/voice/ConnectedBar';
 
 import { ChannelList } from './ChannelList';
 import { ChannelListHeader } from './ChannelListHeader';
@@ -154,6 +155,7 @@ export function PhonePanes({ serverKey, panes, width }: PhonePanesProps) {
             <ChannelListHeader serverKey={serverKey} backLabel="All channels" onBack={backToChannels} />
           )}
           <ChannelList serverKey={serverKey} variant={full ? 'full' : 'sidebar'} selectedId={open?.id} onSelect={select} />
+          <ConnectedBar />
         </Animated.View>
         <Animated.View style={[styles.content, contentStyle]}>
           <View

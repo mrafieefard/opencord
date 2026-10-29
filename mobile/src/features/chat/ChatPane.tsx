@@ -4,6 +4,7 @@ import { KeyboardStickyView } from 'react-native-keyboard-controller';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useChannelInfo } from '@/state/selectors';
+import { ConnectedBar } from '@/features/voice/ConnectedBar';
 import { PaneHeader, useTheme } from '@/ui';
 
 import { MessageList } from './MessageList';
@@ -35,6 +36,7 @@ export function ChatPane({ serverKey, channelId, onOpenSidebar, onSelectChannel 
         channelId={channelId}
         onSelectChannel={onSelectChannel}
       />
+      <ConnectedBar serverKey={serverKey} channelId={channelId} />
       {/* The composer rides the keyboard. It already stands on the bottom
           inset, so it rises by the keyboard's height less that inset; the
           list lifts by the same amount (MessageList's ChatScrollView). */}

@@ -36,6 +36,16 @@ function Routes() {
           />
           <Stack.Screen name="server/[serverKey]/index" />
           <Stack.Screen
+            name="server/[serverKey]/member/[userId]"
+            options={{
+              presentation: 'formSheet',
+              sheetAllowedDetents: 'fitToContents',
+              sheetGrabberVisible: true,
+              sheetCornerRadius: radius.sheet,
+              contentStyle: { backgroundColor: colors.elevated },
+            }}
+          />
+          <Stack.Screen
             name="viewer"
             options={{ presentation: 'transparentModal', headerShown: false, animation: 'fade' }}
           />

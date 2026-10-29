@@ -18,6 +18,7 @@ import { retryDisconnected } from '@/state/actions/servers';
 import { useServerRows } from '@/state/selectors';
 import type { ServerRow as ServerRowType } from '@/state/types';
 import { Divider, EmptyState, useTheme } from '@/ui';
+import { ConnectedBar } from '@/features/voice/ConnectedBar';
 
 import { deviceLocale } from './formatTime';
 import { ROW_INSET, ServerRow } from './ServerRow';
@@ -75,6 +76,7 @@ export function ServerListScreen() {
             onPress: () => router.push('/add-server'),
           }}
         />
+        <ConnectedBar />
       </View>
     );
   }
@@ -100,6 +102,7 @@ export function ServerListScreen() {
           query ? <EmptyState title="No servers found" /> : null
         }
       />
+      <ConnectedBar />
     </View>
   );
 }

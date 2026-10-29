@@ -82,15 +82,23 @@ jest.mock('expo-constants', () => ({
   expoConfig: { version: '0.0.1' },
 }));
 
+// expo-audio mock.
+jest.mock('expo-audio', () => ({
+  getRecordingPermissionsAsync: jest.fn(async () => ({ granted: true, canAskAgain: true, status: 'granted' })),
+  requestRecordingPermissionsAsync: jest.fn(async () => ({ granted: true, canAskAgain: true, status: 'granted' })),
+  requestNotificationPermissionsAsync: jest.fn(async () => ({ granted: true, canAskAgain: true, status: 'granted' })),
+  setAudioModeAsync: jest.fn(async () => {}),
+}));
+
 // @expo/ui swift-ui mocks for Jest.
 jest.mock('@expo/ui/swift-ui', () => {
   const React = require('react');
-  const { View, Text, TouchableOpacity } = require('react-native');
+  const { View, Text, Pressable } = require('react-native');
   return {
     Host: ({ children, style }: { children: React.ReactNode; style?: unknown }) => React.createElement(View, { style }, children),
     Text: ({ children, ...props }: { children?: React.ReactNode; [key: string]: unknown }) => React.createElement(Text, props, children),
     Toggle: ({ isOn, onIsOnChange, label }: { isOn: boolean; onIsOnChange?: (v: boolean) => void; label: string }) =>
-      React.createElement(TouchableOpacity, {
+      React.createElement(Pressable, {
         accessibilityRole: 'switch',
         accessibilityLabel: label,
         accessibilityState: { checked: isOn },
@@ -117,7 +125,7 @@ jest.mock('@expo/ui/swift-ui', () => {
           const tagMod = c?.props?.modifiers?.find((m) => m && m._tag !== undefined);
           const pos = tagMod?._tag ?? idx;
           return React.createElement(
-            TouchableOpacity,
+            Pressable,
             {
               key: val ?? pos,
               accessibilityRole: 'radio',
@@ -140,6 +148,43 @@ jest.mock('@expo/ui/swift-ui/modifiers', () => ({
   disabled: (d: boolean) => ({ _disabled: d }),
   tint: (t: string) => ({ _tint: t }),
   labelsHidden: () => ({ _labelsHidden: true }),
+}));
+
+// @expo/ui jetpack-compose mocks for Jest.
+jest.mock('@expo/ui/jetpack-compose', () => {
+  const React = require('react');
+  const { View, Text, TouchableOpacity } = require('react-native');
+  return {
+    Host: ({ children, style }: { children: React.ReactNode; style?: unknown }) => React.createElement(View, { style }, children),
+    Text: ({ children, ...props }: { children?: React.ReactNode; [key: string]: unknown }) => React.createElement(Text, props, children),
+    Switch: ({ value, onCheckedChange, modifiers }: { value: boolean; onCheckedChange?: (v: boolean) => void; modifiers?: { _label?: string }[] }) => {
+      const labelMod = modifiers?.find((m) => m && m._label);
+      return React.createElement(TouchableOpacity, {
+        accessibilityRole: 'switch',
+        accessibilityLabel: labelMod?._label,
+        accessibilityState: { checked: value },
+        onPress: () => onCheckedChange?.(!value),
+      });
+    },
+    Slider: ({ value, onValueChange, onValueChangeFinished, modifiers }: { value: number; onValueChange?: (v: number) => void; onValueChangeFinished?: () => void; modifiers?: { _label?: string }[] }) => {
+      const labelMod = modifiers?.find((m) => m && m._label);
+      return React.createElement(View, {
+        accessibilityRole: 'adjustable',
+        accessibilityLabel: labelMod?._label,
+        value,
+        onChange: (v: number) => {
+          onValueChange?.(v);
+          onValueChangeFinished?.();
+        },
+      });
+    },
+    SegmentedButton: ({ children, ...props }: { children?: React.ReactNode; [key: string]: unknown }) => React.createElement(View, props, children),
+    SingleChoiceSegmentedButtonRow: ({ children, ...props }: { children?: React.ReactNode; [key: string]: unknown }) => React.createElement(View, props, children),
+  };
+});
+
+jest.mock('@expo/ui/jetpack-compose/modifiers', () => ({
+  semantics: ({ contentDescription }: { contentDescription?: string }) => ({ _label: contentDescription }),
 }));
 
 // Gesture Handler's own Jest setup, FlashList setup, and safe areas without a native view.
