@@ -90,6 +90,7 @@ export function ServerListScreen() {
         renderItem={renderItem}
         ItemSeparatorComponent={Separator}
         contentInsetAdjustmentBehavior="automatic"
+        maintainVisibleContentPosition={{ disabled: true }}
         keyboardDismissMode="on-drag"
         refreshControl={
           <RefreshControl
