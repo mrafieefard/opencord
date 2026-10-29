@@ -119,6 +119,7 @@ Every rule here was broken at least once and caught in review.
   - Screenshots: `mobile/scripts/screens.sh <task> <name>=<route> …` writes both themes to `.superpowers/sdd/mobile/screens/<task>/`. Open each PNG and look at it.
   - Gestures: `adb shell input tap X Y`, `adb shell input swipe X1 Y1 X2 Y2 300` (a swipe), `adb shell input swipe X Y X Y 1200` (a long press). Screenshots are 1080 × 2400.
   - Stop Metro when you're done, by its pid (`ss -ltnp | grep 8081`).
+  - If the app reloads by itself, shows "isn't responding" at every launch, or logs "runtime not ready", look for a key stuck on the emulator: `adb shell dumpsys input | grep -m3 keyCode`. Repeated `R` presses reload a dev build; `adb emu kill`, then `yarn emulator`, clears it.
 - **A surface differs from what it sits on.** A card is `surface` on `chat`, never on a background of the same colour. A row with swipe actions behind it has an opaque background.
 - **Overlays in the phone app are the app's own (D78).**
   - **Sheets:** a sheet fits its content (`sheetAllowedDetents: 'fitToContents'`) unless the plan names detents. It is `elevated` with `radius.sheet` corners and starts with `SheetHeader`. Look for blank space under the last control in its screenshot.
@@ -133,6 +134,7 @@ Every rule here was broken at least once and caught in review.
   - **On a sheet,** fills are `selected` (`hover` sinks below `elevated` in the dark theme) and nothing floats in `elevated` over it; toasts are inverse for that reason.
   - **Media and level controls use `Scrubber`** from `@/ui`, not `Slider`: Material's slider draws stop dots and a gap.
   - **Glyphs:** play, pause, the mic and the other `.fill` symbols are solid on Android too (`Icon` uses the filled face). A hollow one in a screenshot means the icon's iOS name lost its `.fill`.
+  - **A sheet with detents and a list:** give the list's `ScrollView` `nestedScrollEnabled` (Android), so pulling up raises the sheet before the list scrolls and scrolling back up lowers it instead of closing it. Check both on the emulator with hard flings (`adb shell input swipe 540 700 540 2100 150`).
   - **Less, better:** a tab that holds one button is a button; a setting set once (ducking) goes in a ⋯ menu; a list with nothing in it says so once or hides.
 - **A sheet opens on what is set.** A value a sheet edits (a volume, a switch) comes from the store, and its action writes the store as well as the core. A `useState(default)` in the sheet forgets it when the sheet closes.
 - **One copy of a bar per screen.** Before adding a bar or a banner to a pane, check what the screen around it already draws, on a phone and a tablet. On the server's own screen, open its channels in place (`panes.select`); `router.push` there stacks a second copy of the screen.

@@ -600,24 +600,21 @@ Used both full screen (`channels`) and as the sidebar. Pane header: back, the se
 
 ### 8.7 The music player (sheet)
 
-A full-height sheet, closer to Apple Music's player than to the desktop's panel: one page that scrolls, with nothing on it that a tap can't explain. On a phone:
+A sheet closer to Apple Music's player than to the desktop's panel: one page that scrolls, with nothing on it that a tap can't explain. On a phone it opens at half height on the player, the search bar peeking below it; pulled up, the same page goes on to the lists:
 
 ```
 ┌────────────────────────────────┐
 │              ───               │  grabber (Android draws it)
 │  ⌄      PLAYING IN      (Join) │  close · channel · Join in `voice` while not listening
 │            Lounge              │
-│  ┌──────────────────────────┐  │
-│  │         artwork          │  │  min(360, width − 40), corner 16; settles to 86 % while paused
-│  └──────────────────────────┘  │
-│  Midnight City            (⋯)  │  title2; ⋯: Copy link, Lower while people talk
-│  M83                           │  body, textSecondary
-│  Added by Kai · YouTube        │  footnote, textMuted
+│  ┌──────┐ Midnight City   (⋯)  │  artwork 76 pt, corner 12, settles to 86 % while paused; headline
+│  │ art  │ M83                  │  callout, textSecondary; ⋯: Copy link, Lower while people talk
+│  └──────┘ Added by Kai · YouTube │  footnote, textMuted
 │  ━━━━━━━━━━──────────────────  │  scrubber: 4 pt, 8 pt under the finger
 │  1:12                   -2:41  │
 │   ⤮     ⏮     (  ▶  )    ⏭   ↻ │  play 72 pt accent circle; toggles lit with a dot
 │  🔈 ━━━━━━━──────────── 120 %  │  volume 0–200 %, settles on 100 % with a tick
-│ [🔍 Search songs or paste a link] (⇪) │  opens search · uploads audio files
+│ [🔍 Search songs or paste a link] (⇪) │  opens search · uploads audio files   ← half height ends about here
 │  Uploading                     │  only while files go up
 │  Up next          6 songs · 26 min   Clear │
 │  [art·avatar] Night Owl   3:30 │  64 pt rows
@@ -626,9 +623,10 @@ A full-height sheet, closer to Apple Music's player than to the desktop's panel:
 ```
 
 - **The sheet:**
-  - `formSheet` at full height (`sheetAllowedDetents: [1]`), its own top bar in place of `SheetHeader`: a chevron that closes it, "Playing in" over the channel's name, and **Join** (a 32 pt `voice` pill) while the user isn't in that channel's voice.
+  - `formSheet` with detents **0.55 and 1** (`features/music/sheet.ts`). It opens at 0.55 on a phone, which holds the whole player; pulling the page up raises it to full height first and then scrolls the lists. The lists scroll with the sheet (`nestedScrollEnabled` on Android; iOS does it itself), so scrolling back to the top and on lowers the sheet to half, never shut: only a drag down from half closes it. Search raises it to full height with the keyboard. When the player takes two columns it opens at full height.
+  - Its own top bar in place of `SheetHeader`: a chevron that closes it, "Playing in" over the channel's name, and **Join** (a 32 pt `voice` pill) while the user isn't in that channel's voice.
   - It subscribes (`musicSubscribe`) when it opens and unsubscribes when it closes, and fetches the server's music settings (`musicSettings`) while it shows, as the voice pane does for its Music button; `MusicSettingsChanged` keeps them current.
-  - Wider than 720 pt (a tablet, a phone on its side), two columns: the player on the left, as wide as its artwork, which shrinks so the column fits the height; the lists on the right.
+  - Wider than 720 pt (a tablet, a phone on its side), two columns: the player on the left with its artwork above the title, as wide as the artwork, which shrinks so the column fits the height (at most 360 pt, corner 16); the lists on the right.
 - **What plays:**
   - **Artwork:** the core's file at a size the server makes (128 for lists, 512 for the player); without one, or when it fails to load, a note on an `avatarShades` shade picked by the title, so rows line up either way. In the light theme the artwork casts a shadow.
   - **Position:** it moves every **500 ms** while playing, by the desktop's `positionAt`, and glides between ticks. Dragging or tapping the bar seeks, with `music_control` on a seekable track; otherwise a tap says why. After a seek the bar stays where the finger left it until the session catches up (at most 2 s). Live streams show "Live".

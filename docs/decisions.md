@@ -1467,11 +1467,13 @@ Milestone R3 of `docs/superpowers/plans/2026-10-26-mobile-client.md` (spec §8.6
 Milestone R4 of `docs/superpowers/plans/2026-10-26-mobile-client.md` (spec §8.7). Tasks 18, 19 and 20 by Gemini: `eff95ab` (the player), `65a763f` (the queue, search and history), `0ba1f9b` (uploading songs). Redesigned by Claude after the owner asked for a premium player rather than a copy of the desktop's ("remove unnecessary components … inspire by Apple design and Material").
 
 - **The sheet** (`app/server/[serverKey]/music/[channelId].tsx`, `features/music/MusicPlayer.tsx`):
-  - a full-height `formSheet` (`sheetAllowedDetents: [1]`) with its own top bar (`PlayerTopBar`): a chevron that closes it, "Playing in" over the channel, and **Join** as a `voice` pill while the user isn't in that channel's voice;
+  - a `formSheet` with detents 0.55 and 1 (`features/music/sheet.ts`), opening at half height on a phone and full when it has two columns (the owner: "open in half, then pull it up to change the queue or search … not close when he wants to scroll down"). The lists scroll with the sheet (`nestedScrollEnabled`), so scrolling back up lowers it to half and only a drag from half closes it; checked on the emulator with two hard flings back up. Search raises it with the keyboard;
+  - its own top bar (`PlayerTopBar`): a chevron that closes it, "Playing in" over the channel, and **Join** as a `voice` pill while the user isn't in that channel's voice;
   - **one page on a phone:** what plays, the transport, the volume, then adding music (`AddBar`), the uploads, Up next and Recently played. Search takes the page over with what plays shrunk to a row (`MiniPlayer`) above it;
   - **two columns wider than 720 pt** (measured on the sheet, not the window: an iPad's form sheet is narrower than its screen). The player column is as wide as its artwork, which shrinks to fit the height.
 - **What plays** (`NowPlaying.tsx`):
-  - artwork up to 360 pt with 16 pt corners, settling to 86 % while paused (a CSS transition; none with reduced motion), lifted by a shadow in the light theme;
+  - on a phone the artwork (76 pt) sits beside the title so the half-height sheet holds the whole player; in two columns it is above it, up to 360 pt with 16 pt corners;
+  - the artwork settling to 86 % while paused (a CSS transition; none with reduced motion), lifted by a shadow in the light theme;
   - title, artist, and "Added by Kai · YouTube", left-aligned, with ⋯ beside them: Copy link, Lower while people talk (ticked when on);
   - **the position** is the app's own `Scrubber` (`ui/Scrubber.tsx`), not the platform slider: a 4 pt bar that thickens to 8 pt under the finger, drag or tap anywhere, glides between the 500 ms ticks, and steps 10 s for a screen reader. After a seek the bar holds where the finger left it until the session catches up (2 s at most).
 - **Transport** (`PlayerControls.tsx`): a 72 pt play circle; previous and next at 30 pt; shuffle and repeat at 22 pt with a dot under them when on. Repeat reads "Repeat" with its setting as the value. Without Control music, next votes to skip with the count ("1/3") on its corner. Each press gives a haptic and shrinks a little (`activeScale`).
@@ -1490,6 +1492,7 @@ Milestone R4 of `docs/superpowers/plans/2026-10-26-mobile-client.md` (spec §8.7
   - **Android's media glyphs were hollow:** expo-symbols draws Material Symbols' outlined face. `Icon` now uses the filled face where the SF Symbol is `.fill`, which also fills the mic and leave glyphs of the voice controls.
   - **Toasts were invisible on sheets:** `elevated` on `elevated`. They are inverse now (`accent`, `onAccent`), with a `warning` for errors.
   - **Android's menu** truncated titles at 232 pt; it is 280 pt, Material's widest.
+  - `eff95ab` added `LogBox.ignoreAllLogs(true)`, hiding every development warning (it hid the boot warning over its screenshots); removed.
   - A cancelled upload row had no way to go away; "Added to the queue" toasts were replaced by the row's tick.
 - **Not done:** the player hasn't been seen on iOS, and real artwork only on the code path (the fake world has none); the scrubber's feel is checked on the emulator, not a phone.
 
