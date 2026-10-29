@@ -94,8 +94,26 @@ jest.mock('expo-audio', () => ({
 jest.mock('@expo/ui/swift-ui', () => {
   const React = require('react');
   const { View, Text, Pressable } = require('react-native');
+  // A context menu shows its items beside its trigger, as menu items.
+  const ContextMenu = ({ children }: { children: React.ReactNode }) => React.createElement(View, null, children);
+  ContextMenu.Items = function Items({ children }: { children: React.ReactNode }) {
+    return React.createElement(View, null, children);
+  };
+  ContextMenu.Trigger = function Trigger({ children }: { children: React.ReactNode }) {
+    return React.createElement(React.Fragment, null, children);
+  };
   return {
     Host: ({ children, style }: { children: React.ReactNode; style?: unknown }) => React.createElement(View, { style }, children),
+    ContextMenu,
+    RNHostView: ({ children }: { children: React.ReactNode }) => children,
+    Button: ({ label, role, onPress, modifiers }: { label?: string; role?: string; onPress?: () => void; modifiers?: { _disabled?: boolean }[] }) =>
+      React.createElement(Pressable, {
+        accessibilityRole: 'menuitem',
+        accessibilityLabel: label,
+        accessibilityHint: role === 'destructive' ? 'destructive' : undefined,
+        disabled: modifiers?.some((m) => m && m._disabled) ?? false,
+        onPress,
+      }),
     Text: ({ children, ...props }: { children?: React.ReactNode; [key: string]: unknown }) => React.createElement(Text, props, children),
     Toggle: ({ isOn, onIsOnChange, label }: { isOn: boolean; onIsOnChange?: (v: boolean) => void; label: string }) =>
       React.createElement(Pressable, {
@@ -148,7 +166,7 @@ jest.mock('@expo/ui/swift-ui/modifiers', () => ({
   pickerStyle: () => ({ _style: 'segmented' }),
   tag: (idx: number) => ({ _tag: idx }),
   accessibilityLabel: (lbl: string) => ({ _label: lbl }),
-  disabled: (d: boolean) => ({ _disabled: d }),
+  disabled: (d: boolean = true) => ({ _disabled: d }),
   tint: (t: string) => ({ _tint: t }),
   labelsHidden: () => ({ _labelsHidden: true }),
 }));

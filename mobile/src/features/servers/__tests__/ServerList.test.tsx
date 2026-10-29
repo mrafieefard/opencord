@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen } from '@testing-library/react-native';
+import { act, fireEvent, render, screen, within } from '@testing-library/react-native';
 import { Alert } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { ConnectionRecord, MobileEvent, VoiceLinkState } from '@opencord/core-native';
@@ -137,11 +137,17 @@ describe('ServerList', () => {
     await settle();
 
     await renderScreen(<ServerListScreen />);
-    const nightOwlsMenu = screen.getByTestId(`server-menu-${NIGHT_OWLS}`);
-    expect(nightOwlsMenu.props.actions.some((a: { id: string }) => a.id === 'retry')).toBe(false);
-
-    const rustClubMenu = screen.getByTestId(`server-menu-${RUST_CLUB}`);
-    expect(rustClubMenu.props.actions.some((a: { id: string }) => a.id === 'retry')).toBe(true);
+    // The menu's items, once its row has been laid out.
+    const menuItems = async (serverKey: string) => {
+      await fireEvent(screen.getByTestId(`server-menu-${serverKey}`), 'layout', {
+        nativeEvent: { layout: { x: 0, y: 0, width: 390, height: 72 } },
+      });
+      return within(screen.getByTestId(`server-menu-${serverKey}`))
+        .getAllByRole('menuitem')
+        .map((item) => item.props.accessibilityLabel);
+    };
+    expect(await menuItems(NIGHT_OWLS)).not.toContain('Retry now');
+    expect(await menuItems(RUST_CLUB)).toContain('Retry now');
   });
 
   it("pull to refresh retries the servers that aren't connected", async () => {

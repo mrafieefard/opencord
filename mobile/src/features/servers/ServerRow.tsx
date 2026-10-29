@@ -142,6 +142,7 @@ export const ServerRow = memo(function ServerRow({ row, nowMs, locale, onOpen }:
         ref={menuRef}
         testID={`server-menu-${row.key}`}
         trigger="longPress"
+        background="sidebar"
         actions={menuActions}
         onAction={handleAction}
       >

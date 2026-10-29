@@ -68,7 +68,7 @@ export function MessageMenu({
   };
 
   return (
-    <Menu actions={actions} onAction={handleAction} trigger={trigger} testID="message-menu">
+    <Menu actions={actions} onAction={handleAction} trigger={trigger} fit="content" testID="message-menu">
       {children}
     </Menu>
   );

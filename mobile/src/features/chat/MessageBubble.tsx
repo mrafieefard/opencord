@@ -169,7 +169,7 @@ export const MessageBubble = memo(function MessageBubble({ item, serverKey, maxW
         </View>
       )}
       {failed ? (
-        <Menu actions={FAILED_ACTIONS} onAction={onFailedAction} trigger="longPress">
+        <Menu actions={FAILED_ACTIONS} onAction={onFailedAction} trigger="longPress" fit="content">
           {bubble}
         </Menu>
       ) : sending ? (
