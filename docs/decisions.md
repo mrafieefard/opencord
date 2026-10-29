@@ -1426,3 +1426,31 @@ The owner tried the phone app on its first real server and found the overlays th
   - the Android dialog (Cancel doesn't act, confirming acts once and closes);
   - the fingerprint's four lines;
   - editing the address clearing its error.
+
+## D79: Voice on the phone (2026-10-29)
+
+Milestone R3 of `docs/superpowers/plans/2026-10-26-mobile-client.md` implements voice calls on the mobile client (spec §8.6). Commits: `d7dca91` and `bdf5ea3` (voice service, permissions, audio session, backgrounding and core Android fixes), written by Claude; `530bec7` (the voice pane, participant sheet, control bar, link banner and connected bar), written by Gemini.
+
+- **Background voice and audio management** (`@opencord/voice-service`, `state/actions/voice.ts`).
+  - **The native foreground service:** implemented in `@opencord/voice-service` as an Android foreground service with a `phone-call` notification ("In voice: Channel · Server") that opens the app. The service is declared in the native module's own `AndroidManifest.xml` (merged by Gradle), avoiding fragile Expo config plugins.
+  - **Permissions:** microphone permission is requested via `expo-audio`; `ensureMicrophone` requests permission whenever not granted, bypassing stale `canAskAgain` flags. If permanently refused, an inline dialog directs the user to app settings. `expo-image-picker`'s configuration was corrected to prevent `microphonePermission: false` from disabling the `RECORD_AUDIO` permission app-wide.
+  - **Audio session and focus:** audio mode is configured in media mode, managing audio focus across background transitions and route changes.
+  - **Core stability on Android:** resolved two Android crashes in `crates/opencord-mobile`: resolved symbol clash between `aws-lc`'s weak `sdallocx` and React Native via `-Bsymbolic-functions` and `android_alloc.rs`, and initialized `cpal`'s `ndk_context` via `android_context.rs` before initializing audio streams.
+- **The voice pane** (`features/voice/VoicePane.tsx`).
+  - **Participant grid:** tiles (`ParticipantTile.tsx`) sized dynamically to 2 columns on phone (or 3 on tablet/wide layouts) showing member avatars, speaking ring in voice hue (`#10B981`), names, and local/server mute indicators.
+  - **Controls:** a floating round control bar (`ControlBar.tsx`) with 56 pt buttons for Mute (toggling between mic and mic-off), Deafen (toggling headphones), Music, and Leave.
+  - **Channel access & limits:** channels at capacity show "This channel is full" with disabled join button; lacking connect permissions displays "You do not have permission to connect".
+  - **Link banner:** `LinkBanner.tsx` displays link states when connecting, reconnecting, or disconnected, offering a direct "Rejoin" action when connection drops.
+- **The connected bar** (`features/voice/ConnectedBar.tsx`).
+  - A 56 pt floating surface bar showing a voice glyph, the channel name, and the server name (or currently playing music track and artist with music note glyph), along with quick Mute and Leave buttons.
+  - Placed under the channel list in `PhonePanes` and `TabletPanes`, between messages and the composer in `ChatPane`, and above the tab bar on `ServerListScreen`.
+  - Tapping the connected bar navigates directly to the active voice channel.
+- **The participant sheet** (`features/voice/ParticipantSheet.tsx`, `/server/[serverKey]/member/[userId]`).
+  - Registered as a `formSheet` with `sheetAllowedDetents: 'fitToContents'`, `contentStyle: { backgroundColor: colors.elevated }`.
+  - Displays `SheetHeader`, avatar, member name, a volume slider (0–200 %) and a "Mute for me" switch. For the local user, displays "This is you." without volume or mute toggles.
+- **Tests.** 225 Jest tests in 39 suites, including:
+  - voice state transitions, background service lifecycle, and permission handling;
+  - voice pane access checks, limit enforcement, and speaking rings;
+  - link banner states and reconnect callbacks;
+  - connected bar presence and action triggers;
+  - participant sheet volume adjustments and local mute controls.
