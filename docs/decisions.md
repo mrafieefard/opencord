@@ -1464,32 +1464,32 @@ Milestone R3 of `docs/superpowers/plans/2026-10-26-mobile-client.md` (spec §8.6
 
 ## D80: Music on the phone (2026-10-29)
 
-Milestone R4 of `docs/superpowers/plans/2026-10-26-mobile-client.md` (spec §8.7). Tasks 18, 19, and 20 by Gemini. Commits `eff95ab` (the music player), `65a763f` (the queue, search and history), `0ba1f9b` (uploading songs from the phone).
+Milestone R4 of `docs/superpowers/plans/2026-10-26-mobile-client.md` (spec §8.7). Tasks 18, 19 and 20 by Gemini: `eff95ab` (the player), `65a763f` (the queue, search and history), `0ba1f9b` (uploading songs). Redesigned by Claude after the owner asked for a premium player rather than a copy of the desktop's ("remove unnecessary components … inspire by Apple design and Material").
 
-- **The music player sheet** (`app/server/[serverKey]/music/[channelId].tsx`, `features/music/MusicPlayer.tsx`).
-  - **Sheet presentation:** a `formSheet` on `elevated` with detents `[0.6, 1.0]` and grabber, opening from the voice pane's Music header button and the connected bar's Music button. Starts with `SheetHeader` ("Music").
-  - **Layout:** on a phone, a single vertical scroll view containing the player controls block followed by the queue/tabs section. On a tablet, a two-column split with player controls fixed on the left (at most 420 pt wide) and queue sections on the right.
-  - **Now playing:** 220 pt artwork (`surface` with 14 pt radius; music note placeholder when missing), track title (`headline`), artist · source (`subhead`), and added by (`footnote`).
-  - **Seek bar:** `Slider` tinted with `voice` in both platforms. Dragging updates a local preview position and time labels; releasing calls `musicSeek`. Disabled when the user lacks seek permissions.
-  - **Transport controls:** 5-button control bar with 56 pt play/pause circle button and 40 pt icon buttons for shuffle, previous, next, and repeat. Button states and disables follow channel access permissions. When a user lacks control permission, next button votes to skip (`musicVoteSkip`).
-  - **Listening controls:** music volume slider (0–200%, marked at 0%, 100%, 200%) and mute toggle button, applying to the core via `musicSetListening`. "Lower music while people talk" switch applies ducking. Settings persist in client prefs store (`DEFAULT_MUSIC`).
-  - **Outside voice banner:** when viewing music for a voice channel the user is not currently in, a banner offers "Listen by joining <channel>" with a `voice` Join button.
-- **Queue, search and history** (`UpNext.tsx`, `MusicSearch.tsx`, `History.tsx`).
-  - **Tabs:** `Segmented` row with `['Up next', 'Search', 'Upload', 'History']`.
-  - **Queue:** 56 pt rows with 40 pt artwork, track title, artist/duration. Swipe left to remove via `ReanimatedSwipeable` showing a red `recording` action. Long press opens the app's `Menu` with Play now, Play next, and Remove. Clear queue button asks confirmation via `confirm()`.
-  - **Search:** `SearchField` with source filter menu button (All sources, YouTube, SoundCloud, Local). Search runs only on submit (`onSubmitEditing`). Tapping a result plays or adds it to the queue; uploaded songs display a "Local" pill.
-  - **History:** lists up to 50 previously played tracks with "Add again" buttons that re-queue the song.
-- **Uploading songs from the phone** (`UploadSection.tsx`, `UploadRow.tsx`, `pickAudio.ts`).
-  - **Picker surface:** 56 pt dashed `surface` button "Choose audio files" with upload icon; subtitle in `footnote` explaining supported formats (MP3, FLAC, M4A, AAC, OGG, WAV) and local server persistence.
-  - **Audio picker:** `expo-document-picker` supporting multiple selection of audio MIME types.
-  - **Permissions:** requires `musicManage` or both `musicAdd` and `attach` while connected to the voice channel. When not allowed, displays the exact missing requirement ("Join <channel> to upload songs.", "You need Add to music queue to upload songs.", "You need Attach files to upload songs.").
-  - **Upload lifecycle:** each file gets an upload ID, enters `Preparing` ("Checking…"), steps through `Uploading` ("Uploading · <percent> % of <size>" with `voice`-tinted progress bar), `Processing` ("The server is checking it…"), and `Done` ("Queued").
-  - **Cache and completion:** `Done` rows fade out over 300 ms after 2.7 s (total 3 s) and remove the cached file via `expo-file-system` `File.delete()`. In-flight rows have a cancel button (`musicCancelSong`), and `Failed` rows show the server reason in `recording` red with a Retry button and Dismiss button.
-- **Tests.** 266 Jest tests in 46 suites. Among them:
-  - seek bar bounds and time formatting;
-  - transport control permissions and vote-skip fallback;
-  - volume and ducking preferences applied to store and core;
-  - queue swipe-to-remove and context menu;
-  - search query submissions, source filters, and Local badges;
-  - history re-queuing;
-  - upload permission requirements, phase transitions, and automatic 3 s dismissal with cache cleanup.
+- **The sheet** (`app/server/[serverKey]/music/[channelId].tsx`, `features/music/MusicPlayer.tsx`):
+  - a full-height `formSheet` (`sheetAllowedDetents: [1]`) with its own top bar (`PlayerTopBar`): a chevron that closes it, "Playing in" over the channel, and **Join** as a `voice` pill while the user isn't in that channel's voice;
+  - **one page on a phone:** what plays, the transport, the volume, then adding music (`AddBar`), the uploads, Up next and Recently played. Search takes the page over with what plays shrunk to a row (`MiniPlayer`) above it;
+  - **two columns wider than 720 pt** (measured on the sheet, not the window: an iPad's form sheet is narrower than its screen). The player column is as wide as its artwork, which shrinks to fit the height.
+- **What plays** (`NowPlaying.tsx`):
+  - artwork up to 360 pt with 16 pt corners, settling to 86 % while paused (a CSS transition; none with reduced motion), lifted by a shadow in the light theme;
+  - title, artist, and "Added by Kai · YouTube", left-aligned, with ⋯ beside them: Copy link, Lower while people talk (ticked when on);
+  - **the position** is the app's own `Scrubber` (`ui/Scrubber.tsx`), not the platform slider: a 4 pt bar that thickens to 8 pt under the finger, drag or tap anywhere, glides between the 500 ms ticks, and steps 10 s for a screen reader. After a seek the bar holds where the finger left it until the session catches up (2 s at most).
+- **Transport** (`PlayerControls.tsx`): a 72 pt play circle; previous and next at 30 pt; shuffle and repeat at 22 pt with a dot under them when on. Repeat reads "Repeat" with its setting as the value. Without Control music, next votes to skip with the count ("1/3") on its corner. Each press gives a haptic and shrinks a little (`activeScale`).
+- **Volume** (`VolumeRow.tsx`): the speaker mutes; a `Scrubber` sets 0–200 % in 1 % steps, settling on 100 % with a tick; dragging unmutes.
+- **Lists** share `TrackRow` (64 pt; 48 pt artwork with the requester's avatar on its corner; the length, or the row's own button):
+  - **Up next** (`UpNext.tsx`): "6 songs · 26 min", text **Clear** (asks "Clear the queue?"), swipe to remove, long-press menu (Play next, Move up, Move down, Copy link, Remove). Hidden while nothing plays and nothing is queued, where the player says it already.
+  - **Search** (`MusicSearch.tsx`): the field opens with the keyboard up and Cancel; source chips (`SourceChips.tsx`); a hint before, a spinner during, "No results for “…”" or the server's reason after; a blank search asks nothing of the server. A tap adds at the end and the row's **+** becomes a tick once queued.
+  - **Recently played** (`History.tsx`): five songs, Show all for up to 50, **+** to add again; hidden while empty.
+- **Uploads** (`Uploads.tsx`, `UploadRow.tsx`): an upload button beside the search bar (`useUploadPicker`), dimmed with a toast saying what's missing when the user may not upload; rows under "Uploading" above Up next. A cancelled row can be dismissed.
+- **Artwork** (`Artwork.tsx`): one cached `useArtwork`, at 128 or 512 px, as a `file://` URI; a note on an `avatarShades` shade without one or when loading fails.
+- **Tests:** 282 Jest tests in 47 suites, among them the scrubber's tap, drag, detent, disabled tap and screen-reader steps; the player's empty state, search mode and Cancel, ⋯ ducking, nothing to add without Add to music queue; source chips re-searching; Show all; the upload button's missing-permission toast and Manage music outside the channel; the voice pane fetching the music settings.
+- **Review** (Claude, on `710dfb4`). The code and the screenshots showed:
+  - **Artwork never loaded on a real server:** the core makes only 128 and 512 px (`artwork::SIZES`), and the app asked for 40 and the drawn width, which it refuses; and the path it returns was used without `file://`. The fake world's artwork is a path to nothing, so the screenshots showed blank boxes and nobody noticed.
+  - **The music settings were never fetched:** only `MusicSettingsChanged` set them, so the voice pane's Music button would not show on a real server until an admin changed a setting. The screenshots opened the player by deep link.
+  - **The Material slider** drew stop dots and a gap for the position and volume; the four-way `Segmented` crowded the width; Upload and History were tabs holding a button and a list; a 220 pt blank square with no artwork; "Music" pressed against the sheet's edge (`SheetHeader` with no padding); rows without artwork out of line with those with it; subtitles bigger than titles; an "M" circle on every row.
+  - **Android's media glyphs were hollow:** expo-symbols draws Material Symbols' outlined face. `Icon` now uses the filled face where the SF Symbol is `.fill`, which also fills the mic and leave glyphs of the voice controls.
+  - **Toasts were invisible on sheets:** `elevated` on `elevated`. They are inverse now (`accent`, `onAccent`), with a `warning` for errors.
+  - **Android's menu** truncated titles at 232 pt; it is 280 pt, Material's widest.
+  - A cancelled upload row had no way to go away; "Added to the queue" toasts were replaced by the row's tick.
+- **Not done:** the player hasn't been seen on iOS, and real artwork only on the code path (the fake world has none); the scrubber's feel is checked on the emulator, not a phone.
+

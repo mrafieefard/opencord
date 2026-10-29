@@ -343,7 +343,7 @@ Rules:
 - **`prefs`:**
   - `theme` (`system` | `light` | `dark`), in setting `mobile.theme`;
   - `music: { volume, muted, duck }`, in setting `mobile.musicListening` as JSON. The defaults are the core's own: **0.5, false, false**. They are applied with `musicSetListening` at start and on every change.
-- **Toasts:** a short queue of `{ id, text, tone: 'neutral' | 'error' }`, each shown for **3 s**.
+- **Toasts:** a short queue of `{ id, text, tone: 'neutral' | 'error' }`, each shown for **3 s**. They are inverse, `accent` with `onAccent` text as Material's snackbars, so they stand out on any surface; an error leads with a `warning` in `recording`.
 
 ### 6.5 The display name
 
@@ -600,69 +600,68 @@ Used both full screen (`channels`) and as the sidebar. Pane header: back, the se
 
 ### 8.7 The music player (sheet)
 
+A full-height sheet, closer to Apple Music's player than to the desktop's panel: one page that scrolls, with nothing on it that a tap can't explain. On a phone:
+
 ```
 ┌────────────────────────────────┐
-│              ───               │  grabber
-│        ┌──────────────┐        │
-│        │   artwork    │        │  min(280, width − 64), corner 16
-│        └──────────────┘        │
-│   Song title that may wrap     │  title2
-│   Artist                       │  callout, textSecondary
-│   Added by Kai · YouTube       │  footnote, textMuted
-│   ──────────●───────────────   │  native slider
-│   1:12                  -2:41  │
-│   ⤮      ⏮     ( ▶ )     ⏭   ↻ │  play/pause 64 pt accent circle
-│   🔈 ───────●─────── 120 %     │  volume 0–200 %, step 5
-│   Lower music while people talk ◯ │
-│ [ Up next | Search | Upload | History ]
-│   …section…                     │
+│              ───               │  grabber (Android draws it)
+│  ⌄      PLAYING IN      (Join) │  close · channel · Join in `voice` while not listening
+│            Lounge              │
+│  ┌──────────────────────────┐  │
+│  │         artwork          │  │  min(360, width − 40), corner 16; settles to 86 % while paused
+│  └──────────────────────────┘  │
+│  Midnight City            (⋯)  │  title2; ⋯: Copy link, Lower while people talk
+│  M83                           │  body, textSecondary
+│  Added by Kai · YouTube        │  footnote, textMuted
+│  ━━━━━━━━━━──────────────────  │  scrubber: 4 pt, 8 pt under the finger
+│  1:12                   -2:41  │
+│   ⤮     ⏮     (  ▶  )    ⏭   ↻ │  play 72 pt accent circle; toggles lit with a dot
+│  🔈 ━━━━━━━──────────── 120 %  │  volume 0–200 %, settles on 100 % with a tick
+│ [🔍 Search songs or paste a link] (⇪) │  opens search · uploads audio files
+│  Uploading                     │  only while files go up
+│  Up next          6 songs · 26 min   Clear │
+│  [art·avatar] Night Owl   3:30 │  64 pt rows
+│  Recently played      Show all │  five, then all (50); hidden while empty
 └────────────────────────────────┘
 ```
 
-- **The player:**
-  - it subscribes (`musicSubscribe`) when it opens and unsubscribes when it closes;
-  - the position moves on every **500 ms** while playing, by the desktop's `positionAt`: the session's position, plus (now − anchor) while playing and after the anchor, capped at the track's length;
-  - seeking needs a seekable track and `music_control`.
+- **The sheet:**
+  - `formSheet` at full height (`sheetAllowedDetents: [1]`), its own top bar in place of `SheetHeader`: a chevron that closes it, "Playing in" over the channel's name, and **Join** (a 32 pt `voice` pill) while the user isn't in that channel's voice.
+  - It subscribes (`musicSubscribe`) when it opens and unsubscribes when it closes, and fetches the server's music settings (`musicSettings`) while it shows, as the voice pane does for its Music button; `MusicSettingsChanged` keeps them current.
+  - Wider than 720 pt (a tablet, a phone on its side), two columns: the player on the left, as wide as its artwork, which shrinks so the column fits the height; the lists on the right.
+- **What plays:**
+  - **Artwork:** the core's file at a size the server makes (128 for lists, 512 for the player); without one, or when it fails to load, a note on an `avatarShades` shade picked by the title, so rows line up either way. In the light theme the artwork casts a shadow.
+  - **Position:** it moves every **500 ms** while playing, by the desktop's `positionAt`, and glides between ticks. Dragging or tapping the bar seeks, with `music_control` on a seekable track; otherwise a tap says why. After a seek the bar stays where the finger left it until the session catches up (at most 2 s). Live streams show "Live".
+  - **Nothing playing:** a smaller placeholder, "Nothing playing" and "Search for a song or upload one."; no transport, no volume, and no Up next while nothing is queued.
 - **Controls:**
-  - **Previous, play or pause, next:** need `music_control`. Without it, next becomes **Vote to skip (2/3)** when vote skip is on.
-  - **Shuffle and repeat** (repeat cycles off → queue → track; track shows "1"): also need `music_control`.
+  - **Previous, play or pause, next:** need `music_control`. Without it, next votes to skip when vote skip is on, with the count ("1/3") on its corner.
+  - **Shuffle and repeat:** also need `music_control`. Repeat cycles off → queue → track (its glyph shows "1"); a lit toggle has a dot under it.
   - A control the user may not use stays visible, dimmed, and says why when tapped ("You need Control music for this.").
-- **Volume:**
-  - the speaker button toggles mute;
-  - the slider sets the volume, showing a percentage;
-  - the switch "Lower music while people talk";
-  - the same settings appear in the You tab.
-- **Not in this channel's voice:**
-  - "Listen by joining Lounge" with **Join**;
-  - the controls still show and work for those allowed. Music plays to the channel whether or not this user listens.
+  - Each press gives a selection haptic, play or pause a medium one; buttons shrink a little under the finger.
+- **Volume:** the speaker mutes; the bar sets 0–200 % and dragging it unmutes; the percentage beside it. "Lower while people talk" is in the ⋯ menu (ticked when on) and in the You tab.
+- **Adding music:** what looks like a search field, and an upload button beside it, both on `selected`. Neither shows without `music_add` or `music_manage`.
+- **Search** takes the page: on a phone, what plays shrinks to a 60 pt row above it (a tap goes back). The field opens with the keyboard up and **Cancel** beside it; chips under it pick the source from `available_sources` (hidden with one). It searches when submitted, not while typing, and says what it's doing: "Search YouTube" before, a spinner during, "No results for “…”" or the server's reason after. Choosing another source searches the same words there.
+  - A tap on a result adds it at the end, with a light haptic; its **+** turns into a tick once the server has it (a screen reader hears "Added to the queue").
+  - A long press offers Play next and Play now (with `music_manage_queue`).
+- **Rows** (Up next, results, Recently played): 64 pt, 48 pt artwork with who added it as a 20 pt avatar on its corner, the title (Inter Medium) over the artist, and the length at the end; a row with its own button puts the length after the artist. Uploaded songs carry a filled **Local** pill.
 - **Up next:**
-  - **Rows:** 56 pt, with 40 pt artwork, the title, "artist · 3:41" and the requester's avatar.
-  - **Swipe to remove:** the user's own items with `music_add`, any item with `music_manage_queue`.
-  - **Long-press menu:** Play next, Move up, Move down, Remove, Copy link.
-  - **Clear:** in the section's header, with `music_manage_queue`; it asks first.
-  - **Empty:** "Nothing queued. Search for a song or upload one."
-- **Search:**
-  - a search field ("Search songs or paste a link") with a native source menu from `available_sources`;
-  - it searches when submitted, not while typing;
-  - result rows look like the queue's, with a **Local** pill on uploaded songs;
-  - a tap adds the song at the end (a light haptic and "Added to the queue");
-  - a long press offers Play next and Play now (with `music_manage_queue`);
-  - needs `music_add`.
-- **Upload** (the owner's "section for upload custom audio"):
-  - **Choose audio files:** a large button with a dashed `border` outline (56 pt tall, 14 pt corners), opening the system document picker for audio, several files at once.
-  - **The help line:** "MP3, FLAC, M4A, AAC, OGG or WAV. Songs you upload stay on this server: find them in Search, marked Local."
-  - **Each file** gets a row: the filename, a status line and a thin progress bar. The status reads:
+  - the header says how much: "6 songs · 26 min";
+  - **swipe to remove:** the user's own items with `music_add`, any item with `music_manage_queue`;
+  - **long-press menu:** Play next, Move up, Move down, Copy link, Remove;
+  - **Clear** (text, with `music_manage_queue`) asks "Clear the queue?" first;
+  - **empty:** "Nothing queued" and "Search for a song or upload one."
+- **Recently played:** five songs, **Show all** for up to 50; each adds again from its **+**, which turns into a tick. Hidden while empty.
+- **Uploading songs** (the owner's "section for upload custom audio"):
+  - **The upload button** opens the system document picker for audio, several files at once. **Who can upload:** `music_add` and `attach` while connected to this channel's voice, or `music_manage`. Otherwise the button is dimmed and a tap says what's missing ("Join Lounge to upload songs.").
+  - **Each file** is a row under "Uploading", above Up next: an arrow, a tick or a warning where the artwork would be; the filename; a status line; a thin bar while it uploads. The status reads:
     - "Checking…" (`Preparing`);
     - "Uploading · 42 % of 8.4 MB";
     - "The server is checking it…" (`Processing`);
     - "Queued" (`Done`), after which the row fades out within **3 s**;
     - "Failed: <the server's reason>" in `recording`;
     - "Cancelled".
-  - **Row buttons:** a cancel button while active; retry and dismiss after a failure.
-  - Files go to the end of the queue. Every file uploads at once, as on desktop.
-  - The picker copies each file into the cache. The copy is deleted once the song is queued, cancelled or dismissed.
-  - **Who can upload:** `music_add` and `attach`, while connected to this channel's voice, or with `music_manage`. Otherwise the section says what's missing ("Join Lounge to upload songs.").
-- **History:** the last 50 tracks, each with an **Add again** button.
+  - **Row buttons:** cancel while active; retry and dismiss after a failure; dismiss once cancelled.
+  - Files go to the end of the queue. Every file uploads at once, as on desktop. The picker copies each file into the cache; the copy is deleted once the song is queued, cancelled or dismissed.
 - **Notices** (`MusicNotice`) show as toasts.
 
 ### 8.8 You (tab)
@@ -692,14 +691,14 @@ The desktop's `OcColors` (`app/lib/ui/theme/oc_colors.dart`), value for value, i
 | `sidebar` | `#121214` | `#FFFFFF` | Servers list, channel list, headers, composer bar |
 | `chat` | `#0E0E10` | `#F3F3F5` | Chat background, boot screen |
 | `surface` | `#18181B` | `#FFFFFF` | Tiles, cards, file cards, placeholders |
-| `elevated` | `#1F1F23` | `#FFFFFF` | Sheets, toasts |
-| `hover` | `#1C1C20` | `#F2F2F4` | Input fills |
+| `elevated` | `#1F1F23` | `#FFFFFF` | Sheets, menus |
+| `hover` | `#1C1C20` | `#F2F2F4` | Input fills (on a sheet, `selected`) |
 | `selected` | `#27272C` | `#E7E7EA` | Pressed and selected rows |
 | `border` | `#222226` | `#E3E3E7` | Hairlines, outlines |
 | `text` | `#EDEDEF` | `#111114` | Primary text and icons |
 | `textSecondary` | `#A1A1A8` | `#55555C` | Secondary text, inactive icons |
 | `textMuted` | `#6E6E76` | `#8A8A92` | Times, hints, previews, section labels |
-| `accent` | `#EDEDEF` | `#111114` | Badges, the send button, toggled controls |
+| `accent` | `#EDEDEF` | `#111114` | Badges, the send button, toggled controls, toasts |
 | `onAccent` | `#0E0E10` | `#FFFFFF` | Foreground on `accent` |
 | `bubbleIn` | `#1A1A1E` | `#FFFFFF` | Others' bubbles |
 | `bubbleOut` | `#2A2A30` | `#E4E4E8` | Own bubbles |
@@ -762,7 +761,7 @@ Text follows the system's size setting, up to **1.6×**. Numbers that change in 
 
 ### 9.4 Icons
 
-`expo-symbols`: SF Symbols on iOS and Material Symbols on Android. Only the names in this table are used, through one `Icon` component that maps a name to both.
+`expo-symbols`: SF Symbols on iOS and Material Symbols on Android. Only the names in this table are used, through one `Icon` component that maps a name to both. Where the SF Symbol is a `.fill` one, Android draws the Material Symbol from its filled face (`@expo-google-fonts/material-symbols`' 400 Filled), so play, pause and the mic are solid on both; expo-symbols' own default is the outlined face.
 
 | Name | iOS (SF) | Android (Material) |
 |---|---|---|
@@ -773,6 +772,7 @@ Text follows the system's size setting, up to **1.6×**. Numbers that change in 
 | `voiceChannel` | `speaker.wave.2` | `volume_up` |
 | `sidebar` | `sidebar.left` | `menu` |
 | `back` | `chevron.left` | `arrow_back` |
+| `dismiss` | `chevron.down` | `keyboard_arrow_down` |
 | `more` | `ellipsis` | `more_horiz` |
 | `search` | `magnifyingglass` | `search` |
 | `send` | `arrow.up` | `arrow_upward` |

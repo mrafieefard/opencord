@@ -127,6 +127,13 @@ Every rule here was broken at least once and caught in review.
 - **Colours and glyphs in the phone app (D79 review).**
   - **On a hue:** words and glyphs on `voice` or `recording` are `onHue` (white) in both themes, never `onAccent`, which is near-black in the dark theme. `Button`'s `voice` and `danger` variants do this; use them rather than building a button.
   - **Toggles:** a toggle's glyph shows its state: `mic`/`micOff`, `listen`/`deafen`. A glyph that always shows "off" reads as off.
+- **In the phone app, after the D80 review.**
+  - **Reach a screen the way a person does.** Open it from its button, not only by deep link: a deep link hid that the voice pane's Music button never showed, because nothing fetched the music settings. Data a screen needs is fetched while the screen shows; an event that changes it later is not a source.
+  - **Feed the core what it accepts.** Look up what a call takes before choosing values: `musicArtwork` makes only 128 and 512 px (`artwork::SIZES`). A path from the core becomes a URI with `fileUri()`. The fake world may not prove either: blank artwork in a screenshot is a bug to chase, not the fake's look.
+  - **On a sheet,** fills are `selected` (`hover` sinks below `elevated` in the dark theme) and nothing floats in `elevated` over it; toasts are inverse for that reason.
+  - **Media and level controls use `Scrubber`** from `@/ui`, not `Slider`: Material's slider draws stop dots and a gap.
+  - **Glyphs:** play, pause, the mic and the other `.fill` symbols are solid on Android too (`Icon` uses the filled face). A hollow one in a screenshot means the icon's iOS name lost its `.fill`.
+  - **Less, better:** a tab that holds one button is a button; a setting set once (ducking) goes in a ⋯ menu; a list with nothing in it says so once or hides.
 - **A sheet opens on what is set.** A value a sheet edits (a volume, a switch) comes from the store, and its action writes the store as well as the core. A `useState(default)` in the sheet forgets it when the sheet closes.
 - **One copy of a bar per screen.** Before adding a bar or a banner to a pane, check what the screen around it already draws, on a phone and a tablet. On the server's own screen, open its channels in place (`panes.select`); `router.push` there stacks a second copy of the screen.
 - **The screen's bottom edge belongs to the system.** Whatever sits at the very bottom stands on `insets.bottom`; look at the screenshot's navigation buttons.
