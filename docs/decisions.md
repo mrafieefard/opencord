@@ -1429,28 +1429,35 @@ The owner tried the phone app on its first real server and found the overlays th
 
 ## D79: Voice on the phone (2026-10-29)
 
-Milestone R3 of `docs/superpowers/plans/2026-10-26-mobile-client.md` implements voice calls on the mobile client (spec §8.6). Commits: `d7dca91` and `bdf5ea3` (voice service, permissions, audio session, backgrounding and core Android fixes), written by Claude; `530bec7` (the voice pane, participant sheet, control bar, link banner and connected bar), written by Gemini.
+Milestone R3 of `docs/superpowers/plans/2026-10-26-mobile-client.md` (spec §8.6, §11). Commits:
+- `d7dca91` and `bdf5ea3`: the foreground service, permissions, the audio session and two Android core fixes, by Claude;
+- `530bec7`: the voice pane, a person's sheet and the connected bar, by Gemini;
+- the review below.
 
-- **Background voice and audio management** (`@opencord/voice-service`, `state/actions/voice.ts`).
-  - **The native foreground service:** implemented in `@opencord/voice-service` as an Android foreground service with a `phone-call` notification ("In voice: Channel · Server") that opens the app. The service is declared in the native module's own `AndroidManifest.xml` (merged by Gradle), avoiding fragile Expo config plugins.
-  - **Permissions:** microphone permission is requested via `expo-audio`; `ensureMicrophone` requests permission whenever not granted, bypassing stale `canAskAgain` flags. If permanently refused, an inline dialog directs the user to app settings. `expo-image-picker`'s configuration was corrected to prevent `microphonePermission: false` from disabling the `RECORD_AUDIO` permission app-wide.
-  - **Audio session and focus:** audio mode is configured in media mode, managing audio focus across background transitions and route changes.
-  - **Core stability on Android:** resolved two Android crashes in `crates/opencord-mobile`: resolved symbol clash between `aws-lc`'s weak `sdallocx` and React Native via `-Bsymbolic-functions` and `android_alloc.rs`, and initialized `cpal`'s `ndk_context` via `android_context.rs` before initializing audio streams.
+- **Voice that keeps going** (`modules/voice-service`, `state/actions/voice.ts`).
+  - **The service:** an Android foreground service of type `microphone|mediaPlayback`, declared in the module's own `AndroidManifest.xml`. Its notification reads "In voice: Lounge · Night Owls" and opens the app. It starts before the core joins, while the app is in the foreground, as Android 14 requires. It stops whenever this device's voice ends, however it ended. iOS's module does nothing: background audio there is the audio session's.
+  - **Permissions:** the first Join asks for the microphone through `expo-audio`, and asks again whenever it isn't granted, since Expo's `canAskAgain` stays stale after a revoke. Refused, it says "Opencord needs the microphone for voice. You can allow it in Settings." with Open Settings. `expo-image-picker`'s `microphonePermission: false` had removed `RECORD_AUDIO` from the whole app; it now names the microphone.
+  - **The audio session and focus:** media mode, not `MODE_IN_COMMUNICATION`, since cpal's streams are media streams. The service holds audio focus, after LiveKit's Android client.
+  - **Android core fixes** (`crates/opencord-mobile`): aws-lc's weak `sdallocx` bound to React Native's data symbol of that name and crashed on join (`android_alloc.rs` and `-Bsymbolic-functions`). cpal needs `ndk_context`, handed over by the module (`android_context.rs`).
 - **The voice pane** (`features/voice/VoicePane.tsx`).
-  - **Participant grid:** tiles (`ParticipantTile.tsx`) sized dynamically to 2 columns on phone (or 3 on tablet/wide layouts) showing member avatars, speaking ring in voice hue (`#10B981`), names, and local/server mute indicators.
-  - **Controls:** a floating round control bar (`ControlBar.tsx`) with 56 pt buttons for Mute (toggling between mic and mic-off), Deafen (toggling headphones), Music, and Leave.
-  - **Channel access & limits:** channels at capacity show "This channel is full" with disabled join button; lacking connect permissions displays "You do not have permission to connect".
-  - **Link banner:** `LinkBanner.tsx` displays link states when connecting, reconnecting, or disconnected, offering a direct "Rejoin" action when connection drops.
-- **The connected bar** (`features/voice/ConnectedBar.tsx`).
-  - A 56 pt floating surface bar showing a voice glyph, the channel name, and the server name (or currently playing music track and artist with music note glyph), along with quick Mute and Leave buttons.
-  - Placed under the channel list in `PhonePanes` and `TabletPanes`, between messages and the composer in `ChatPane`, and above the tab bar on `ServerListScreen`.
-  - Tapping the connected bar navigates directly to the active voice channel.
-- **The participant sheet** (`features/voice/ParticipantSheet.tsx`, `/server/[serverKey]/member/[userId]`).
-  - Registered as a `formSheet` with `sheetAllowedDetents: 'fitToContents'`, `contentStyle: { backgroundColor: colors.elevated }`.
-  - Displays `SheetHeader`, avatar, member name, a volume slider (0–200 %) and a "Mute for me" switch. For the local user, displays "This is you." without volume or mute toggles.
-- **Tests.** 225 Jest tests in 39 suites, including:
-  - voice state transitions, background service lifecycle, and permission handling;
-  - voice pane access checks, limit enforcement, and speaking rings;
-  - link banner states and reconnect callbacks;
-  - connected bar presence and action triggers;
-  - participant sheet volume adjustments and local mute controls.
+  - **Tiles:** `surface` squares at most 200 pt wide, so two columns on a phone and more on a tablet. Each has a 64 pt avatar whose `voice` ring fades in while speaking, the name, and a mute or deafen glyph. The user's own tile is first.
+  - **Not connected:** Join voice, a `voice` button with white words in both themes. It is off with "You can't join this channel" without `connect`, or "This channel is full".
+  - **Connected:** the link banner ("Connecting…", "Reconnecting…", "Can't reach the voice server. Your network may block it.", "Disconnected from voice." with Rejoin). The control bar's four 56 pt buttons are Mute, Deafen, Music and Leave; a toggle's glyph shows its state, and Leave is `recording` with a white glyph. Joining and leaving give a medium haptic.
+- **A person's sheet** (`/server/[serverKey]/member/[userId]`, `ParticipantSheet.tsx`): a `formSheet` that fits its content. The header is the avatar and the name, then Volume (0–200 %, marked at 0, 100 and 200 %) and Mute for me. The values are kept in the store (`userAudio`, by `serverKey/userId`) as they are handed to the core, so the sheet opens on what was set; like the core, they last until the app closes. The user's own sheet says "This is you."
+- **The connected bar** (`ConnectedBar.tsx`): 56 pt, the `voice` speaker, the channel and the server, or "♪ Song — Artist" while music plays, with mute and leave.
+  - **Where:** above the tab bar on Servers. On a phone's server screen, under the channel list and at the bottom of the open pane (above the composer in a chat). On a tablet, under the sidebar only. It hides beside the voice channel itself, and at the screen's bottom edge it stands on the inset.
+  - **A tap** opens the channel in place on its own server's screen, and otherwise pushes that server's screen.
+- **Review** (Claude, on the commit after `158d7c9`). The screenshots and the code showed:
+  - **Colors:** Join voice and the Leave glyph used `onAccent`, which is near-black in the dark theme. `onHue` (the light set's `onAccent`, white) is now the foreground on `voice` and `recording`, in `Button` too.
+  - **Deafen** always showed the headset-off glyph, so it looked deafened while it wasn't. The new `listen` icon is for off.
+  - **The sheet** started at 100 % and unmuted every time it opened while the core kept the earlier choice, and the name appeared twice.
+  - **The bar:** on a tablet chat there were two, one in the sidebar and one in the pane. A tap on the server's own screen pushed a second copy of that screen. Under the channel list it sat behind Android's navigation buttons.
+  - **Tablet tiles** were three columns of about 300 pt squares.
+  - **Code:** Leave's promise was dropped unreported, there were no haptics, and Join was hand-built instead of the shared `Button`.
+- **Not done:** a person's volume isn't kept across launches (the desktop keeps it in its settings). In dev builds, expo-router warns about `REMOVE_ROUTES` for `welcome` when the boot guard flips; that is older than R3.
+- **Tests.** 233 Jest tests in 39 suites. Among them:
+  - the service's lifecycle, the permission flows and the haptics;
+  - the pane's access checks and speaking rings, and the link banner's states;
+  - the tile layout, and the sheet opening on what was set;
+  - where the bar shows and what a tap opens;
+  - `Button`'s white words on the hues.

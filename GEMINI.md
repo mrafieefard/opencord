@@ -67,6 +67,7 @@ Every rule here was broken at least once and caught in review.
 - **In Dart, catch what you expect:** `on RepoException catch (error)`, never a bare `catch` or `catch (_) {}`.
   - An error the user can cause reaches them, as a toast or an inline error.
   - An `unawaited` future catches its own errors; nothing else will.
+- **In the phone app, a promise started from a tap goes through `report(promise, 'what')`** (`@/core`), which shows its failure as a toast. `onPress={leaveVoice}` drops it.
 - **A worker thread's error reaches its caller.**
   - A thread that can fail (opening a device, encoding) stores its error where the caller's next call returns it, and says so at once through the event stream.
   - `Err(_) => None` on a thread is the same swallowed error as anywhere else.
@@ -123,6 +124,13 @@ Every rule here was broken at least once and caught in review.
   - **Sheets:** a sheet fits its content (`sheetAllowedDetents: 'fitToContents'`) unless the plan names detents. It is `elevated` with `radius.sheet` corners and starts with `SheetHeader`. Look for blank space under the last control in its screenshot.
   - **Menus and questions:** use `Menu` and `confirm()` from `@/ui`, never `Alert.alert` or a library's popup. Android's own PopupMenu and AlertDialog ignore the theme.
   - **Colours:** a colour a system component picks for itself (Material's tinted indicator, ripple, accent) is a bug. Find its prop and give it a token.
+- **Colours and glyphs in the phone app (D79 review).**
+  - **On a hue:** words and glyphs on `voice` or `recording` are `onHue` (white) in both themes, never `onAccent`, which is near-black in the dark theme. `Button`'s `voice` and `danger` variants do this; use them rather than building a button.
+  - **Toggles:** a toggle's glyph shows its state: `mic`/`micOff`, `listen`/`deafen`. A glyph that always shows "off" reads as off.
+- **A sheet opens on what is set.** A value a sheet edits (a volume, a switch) comes from the store, and its action writes the store as well as the core. A `useState(default)` in the sheet forgets it when the sheet closes.
+- **One copy of a bar per screen.** Before adding a bar or a banner to a pane, check what the screen around it already draws, on a phone and a tablet. On the server's own screen, open its channels in place (`panes.select`); `router.push` there stacks a second copy of the screen.
+- **The screen's bottom edge belongs to the system.** Whatever sits at the very bottom stands on `insets.bottom`; look at the screenshot's navigation buttons.
+- **A screenshot with a red dev banner over it isn't done:** dismiss the banner (its ✕) or fix what it says, then take it again.
 - **What the system needs is part of the feature.** URL schemes, permissions and intent filters go in `app.config.ts` in the task that needs them, checked from outside the app.
 - **Events carry the real state.** An update sent for play, pause or a setting change carries the last known position and values, never a placeholder `0` or empty value.
 - **A retry starts clean and sends the same thing.**
