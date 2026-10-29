@@ -65,9 +65,13 @@ describe('AddServer', () => {
     expect(screen.getByText('Trust this server?')).toBeTruthy();
     expect(screen.getByText(/Its certificate isn't from a public authority/)).toBeTruthy();
 
-    // Fingerprint in groups of four
-    const expectedFingerprint = 'ab12 cd34 ef56 ab12 cd34 ef56 ab12 cd34 ef56 ab12 cd34 ef56 ab12 cd34 ef56 ab12';
-    expect(screen.getByText(expectedFingerprint)).toBeTruthy();
+    // Fingerprint in groups of four, four to a line
+    expect(screen.getAllByText(/^[0-9a-f]{4}( [0-9a-f]{4}){3}$/).map((line) => line.props.children)).toEqual([
+      'ab12 cd34 ef56 ab12',
+      'cd34 ef56 ab12 cd34',
+      'ef56 ab12 cd34 ef56',
+      'ab12 cd34 ef56 ab12',
+    ]);
 
     await fireEvent.press(screen.getByLabelText('Trust and add'));
     await settle();
@@ -150,6 +154,10 @@ describe('AddServer', () => {
     expect(screen.getByRole('alert')).toBeTruthy();
     expect(screen.getByText(/not an invite link or address/)).toBeTruthy();
     expect(mockBack).not.toHaveBeenCalled();
+
+    // Editing the address clears the stale error.
+    await fireEvent.changeText(input, '127.0.0.1:7710');
+    expect(screen.queryByRole('alert')).toBeNull();
   });
 
   it('an error while trusting shows in the trust step', async () => {

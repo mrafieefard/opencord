@@ -421,7 +421,7 @@ Back, on either system, moves one step out:
 - with no channel open, the content says "Choose a channel";
 - back always leaves the server screen.
 
-The panes draw their own headers (`PaneHeader`), so a header moves with its pane during the shift. Inside the panes, everything native stays native: lists, text input, menus and sheets.
+The panes draw their own headers (`PaneHeader`), so a header moves with its pane during the shift. Inside the panes, everything native stays native: lists, text input, menus and sheets. On Android, menus and questions are the app's own, since PopupMenu and AlertDialog ignore its theme (D78).
 
 ## 8. Screens
 
@@ -790,6 +790,7 @@ Text follows the system's size setting, up to **1.6×**. Numbers that change in 
 | `micOff` | `mic.slash.fill` | `mic_off` |
 | `deafen` | `speaker.slash.fill` | `headset_off` |
 | `leave` | `phone.down.fill` | `call_end` |
+| `leaveServer` | `rectangle.portrait.and.arrow.right` | `logout` |
 | `music` | `music.note` | `music_note` |
 | `play` | `play.fill` | `play_arrow` |
 | `pause` | `pause.fill` | `pause` |
@@ -820,7 +821,8 @@ Expo's and React Native's own native pieces are used wherever they exist:
 | Screens, headers, large titles, search bar, swipe back | `expo-router` `Stack` (react-native-screens native stack) |
 | Tabs | `expo-router/native-tabs` (`NativeTabs`: UITabBarController, BottomNavigationView) |
 | Sheets | Native stack `formSheet` presentation with detents |
-| Menus (long press and buttons) | `@react-native-menu/menu` (`UIMenu`, `PopupMenu`) |
+| Menus (long press and buttons) | `@react-native-menu/menu` (`UIMenu`) on iOS; the app's own on Android (D78) |
+| Questions before something final | `Alert.alert` on iOS; the app's own dialog on Android (D78) |
 | Sliders and switches | `@expo/ui`: `swift-ui` `Slider` and `Toggle` on iOS, `jetpack-compose` `Slider` and `Switch` on Android, each in a `Host` |
 | Segmented controls | `@expo/ui`: `swift-ui` `Picker` (segmented) on iOS, `jetpack-compose` `SingleChoiceSegmentedButtonRow` on Android |
 | Confirmations | `Alert.alert` (system dialogs) |

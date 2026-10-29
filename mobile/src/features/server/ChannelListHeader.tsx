@@ -1,6 +1,6 @@
 // The channel list's pane header (spec §8.4): back, the server's name, and
 // the connection state under it while not connected.
-import { Alert } from 'react-native';
+import { useRef } from 'react';
 import * as Clipboard from 'expo-clipboard';
 
 import { describeError } from '@/core';
@@ -8,7 +8,7 @@ import { connectionText } from '@/features/servers/connectionText';
 import { leaveServer, markServerRead } from '@/state/actions/servers';
 import { toast } from '@/state/actions/ui';
 import { useServerHeader } from '@/state/selectors';
-import { IconButton, Menu, PaneHeader, type MenuAction } from '@/ui';
+import { IconButton, Menu, PaneHeader, confirm, type MenuAction, type MenuHandle } from '@/ui';
 
 export interface ChannelListHeaderProps {
   serverKey: string;
@@ -20,26 +20,26 @@ export interface ChannelListHeaderProps {
 export function ChannelListHeader({ serverKey, backLabel, onBack }: ChannelListHeaderProps) {
   const header = useServerHeader(serverKey);
   const state = header ? connectionText(header.connection) : null;
+  const menu = useRef<MenuHandle>(null);
 
   const confirmLeave = () => {
-    Alert.alert(`Leave ${header?.name ?? 'server'}?`, 'You can come back with an invite.', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Leave',
-        style: 'destructive',
-        onPress: () => {
-          leaveServer(serverKey).catch((error: unknown) => {
-            toast(describeError(error), 'error');
-          });
-        },
+    confirm({
+      title: `Leave ${header?.name ?? 'server'}?`,
+      message: 'You can come back with an invite.',
+      confirmTitle: 'Leave',
+      destructive: true,
+      onConfirm: () => {
+        leaveServer(serverKey).catch((error: unknown) => {
+          toast(describeError(error), 'error');
+        });
       },
-    ]);
+    });
   };
 
   const menuActions: MenuAction[] = [
     { id: 'mark-read', title: 'Mark all as read', icon: 'check' },
     { id: 'copy-address', title: 'Copy address', icon: 'copy' },
-    { id: 'leave', title: 'Leave server', icon: 'leave', destructive: true },
+    { id: 'leave', title: 'Leave server', icon: 'leaveServer', destructive: true },
   ];
 
   const handleAction = (id: string) => {
@@ -66,8 +66,8 @@ export function ChannelListHeader({ serverKey, backLabel, onBack }: ChannelListH
       subtitle={state?.text}
       left={{ icon: 'back', label: backLabel, onPress: onBack }}
       rightElement={
-        <Menu actions={menuActions} onAction={handleAction} trigger="press" testID="channel-list-menu">
-          <IconButton icon="more" label="Server options" onPress={() => {}} />
+        <Menu ref={menu} actions={menuActions} onAction={handleAction} trigger="press" testID="channel-list-menu">
+          <IconButton icon="more" label="Server options" onPress={() => menu.current?.open()} />
         </Menu>
       }
     />

@@ -8,7 +8,7 @@
 
 import * as Clipboard from 'expo-clipboard';
 import { memo, useRef } from 'react';
-import { Alert, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import { Touchable } from 'react-native-gesture-handler';
 import ReanimatedSwipeable, { type SwipeableMethods } from 'react-native-gesture-handler/ReanimatedSwipeable';
 import { ConnectionRecord_Tags } from '@opencord/core-native';
@@ -16,7 +16,7 @@ import { ConnectionRecord_Tags } from '@opencord/core-native';
 import { report } from '@/core';
 import { leaveServer, markServerRead, retryServer } from '@/state/actions/servers';
 import type { ServerRow as ServerRowType } from '@/state/types';
-import { Badge, Icon, Menu, type MenuAction, type MenuHandle, Row, ServerIcon, Text, space, useTheme } from '@/ui';
+import { Badge, Icon, Menu, type MenuAction, type MenuHandle, Row, ServerIcon, Text, confirm, space, useTheme } from '@/ui';
 import { connectionText } from './connectionText';
 import { formatTime } from './formatTime';
 import { useImageFile } from './useImageFile';
@@ -52,21 +52,20 @@ export const ServerRow = memo(function ServerRow({ row, nowMs, locale, onOpen }:
   const connected = row.connection.tag === ConnectionRecord_Tags.Connected;
 
   const confirmLeave = () => {
-    Alert.alert(`Leave ${row.name}?`, 'You can come back with an invite.', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Leave',
-        style: 'destructive',
-        onPress: () => report(leaveServer(row.key), 'leave server'),
-      },
-    ]);
+    confirm({
+      title: `Leave ${row.name}?`,
+      message: 'You can come back with an invite.',
+      confirmTitle: 'Leave',
+      destructive: true,
+      onConfirm: () => report(leaveServer(row.key), 'leave server'),
+    });
   };
 
   const menuActions: MenuAction[] = [
     { id: 'read', title: 'Mark as read', icon: 'check' },
     ...(connected ? [] : [{ id: 'retry', title: 'Retry now', icon: 'retry' } satisfies MenuAction]),
     { id: 'copy-address', title: 'Copy address', icon: 'copy' },
-    { id: 'leave', title: 'Leave server', icon: 'leave', destructive: true },
+    { id: 'leave', title: 'Leave server', icon: 'leaveServer', destructive: true },
   ];
 
   const handleAction = (id: string) => {

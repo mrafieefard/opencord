@@ -5,7 +5,7 @@ import { Image } from 'expo-image';
 import { router } from 'expo-router';
 import { AttachmentVariant, type AttachmentRecord } from '@opencord/core-native';
 
-import { motion, radius, useTheme } from '@/ui';
+import { motion, radius, useMenuOpener, useTheme } from '@/ui';
 
 import { fitSize } from './fitSize';
 import { useAttachmentFile } from './useAttachmentFile';
@@ -26,6 +26,7 @@ export const ImageAttachment = memo(function ImageAttachment({
   maxWidth,
 }: ImageAttachmentProps) {
   const { colors } = useTheme();
+  const openMenu = useMenuOpener();
   const dims = fitSize(
     attachment.width ?? attachment.thumbnailWidth ?? 0,
     attachment.height ?? attachment.thumbnailHeight ?? 0,
@@ -59,7 +60,7 @@ export const ImageAttachment = memo(function ImageAttachment({
   }
 
   return (
-    <Touchable testID={`attachment-pressable-${attachment.id}`} onPress={handlePress} style={styles.pressable}>
+    <Touchable testID={`attachment-pressable-${attachment.id}`} onPress={handlePress} onLongPress={openMenu} style={styles.pressable}>
       <Image
         testID={`attachment-image-${attachment.id}`}
         source={{ uri: path }}

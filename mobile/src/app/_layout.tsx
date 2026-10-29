@@ -8,7 +8,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { BootGate } from '@/features/boot/BootGate';
 import { useBoot } from '@/state/selectors';
-import { ThemeProvider, ToastHost, useTheme } from '@/ui';
+import { DialogHost, ThemeProvider, ToastHost, radius, useTheme } from '@/ui';
 
 function Routes() {
   const boot = useBoot();
@@ -26,7 +26,13 @@ function Routes() {
           <Stack.Screen name="(tabs)" />
           <Stack.Screen
             name="add-server"
-            options={{ presentation: 'formSheet', sheetAllowedDetents: [0.6], sheetGrabberVisible: true }}
+            options={{
+              presentation: 'formSheet',
+              sheetAllowedDetents: 'fitToContents',
+              sheetGrabberVisible: true,
+              sheetCornerRadius: radius.sheet,
+              contentStyle: { backgroundColor: colors.elevated },
+            }}
           />
           <Stack.Screen name="server/[serverKey]/index" />
           <Stack.Screen
@@ -37,6 +43,7 @@ function Routes() {
         <Stack.Screen name="dev/gallery" />
       </Stack>
       <ToastHost />
+      <DialogHost />
     </>
   );
 }

@@ -12,7 +12,8 @@ import { useTheme } from './theme/useTheme';
 export interface ButtonProps {
   title: string;
   onPress: () => void;
-  variant: 'primary' | 'secondary' | 'voice' | 'danger';
+  /** `plain` is text alone, for the quieter of two actions on a sheet. */
+  variant: 'primary' | 'secondary' | 'plain' | 'voice' | 'danger';
   loading?: boolean;
   disabled?: boolean;
   icon?: IconName;
@@ -27,8 +28,17 @@ export function Button({ title, onPress, variant, loading = false, disabled = fa
         ? { background: colors.voice, text: 'onAccent' }
         : variant === 'danger'
           ? { background: colors.recording, text: 'onAccent' }
-          : { background: colors.surface, text: 'text', border: colors.border };
+          : variant === 'plain'
+            ? { background: 'transparent', text: 'text' }
+            : { background: colors.surface, text: 'text', border: colors.border };
   const off = disabled || loading;
+  // Disabled is flat and quiet in every variant, not a faded color.
+  const shown =
+    disabled && variant !== 'plain'
+      ? { background: colors.selected, text: 'textMuted' as const, border: undefined }
+      : disabled
+        ? { ...look, text: 'textMuted' as const }
+        : look;
   return (
     <Touchable
       onPress={onPress}
@@ -37,17 +47,17 @@ export function Button({ title, onPress, variant, loading = false, disabled = fa
       activeUnderlayOpacity={0.12}
       style={[
         styles.button,
-        { backgroundColor: look.background, opacity: disabled ? 0.45 : 1 },
-        look.border !== undefined && { borderWidth: StyleSheet.hairlineWidth, borderColor: look.border },
+        { backgroundColor: shown.background },
+        shown.border !== undefined && { borderWidth: StyleSheet.hairlineWidth, borderColor: shown.border },
       ]}
     >
       <View accessible accessibilityRole="button" accessibilityLabel={title} accessibilityState={{ disabled: off, busy: loading }} style={styles.content}>
         {loading ? (
-          <ActivityIndicator color={colors[look.text]} />
+          <ActivityIndicator color={colors[shown.text]} />
         ) : (
           <>
-            {icon && <Icon name={icon} size={18} color={look.text} />}
-            <Text variant="headline" color={look.text}>
+            {icon && <Icon name={icon} size={18} color={shown.text} />}
+            <Text variant="headline" color={shown.text}>
               {title}
             </Text>
           </>

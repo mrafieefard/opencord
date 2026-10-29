@@ -89,9 +89,15 @@ export function useAddServer(options?: UseAddServerOptions) {
     setError(null);
   }, []);
 
+  // A new address makes the last error stale.
+  const editLinkOrAddress = useCallback((text: string) => {
+    setLinkOrAddress(text);
+    setError(null);
+  }, []);
+
   return {
     linkOrAddress,
-    setLinkOrAddress,
+    setLinkOrAddress: editLinkOrAddress,
     claimToken,
     setClaimToken,
     showClaimToken,

@@ -5,7 +5,7 @@ import * as Sharing from 'expo-sharing';
 import { AttachmentKind, AttachmentVariant, type AttachmentRecord } from '@opencord/core-native';
 
 import { report } from '@/core';
-import { Icon, type IconName, Text, space, useTheme } from '@/ui';
+import { Icon, type IconName, Text, space, useMenuOpener, useTheme } from '@/ui';
 
 import { fetchAttachmentFile } from './useAttachmentFile';
 
@@ -76,6 +76,7 @@ export function attachmentIcon(kind: AttachmentKind): IconName {
 
 export const FileAttachment = memo(function FileAttachment({ serverKey, attachment, maxWidth }: FileAttachmentProps) {
   const { colors } = useTheme();
+  const openMenu = useMenuOpener();
   const [downloading, setDownloading] = useState(false);
   const inProgress = useRef(false);
 
@@ -100,6 +101,7 @@ export const FileAttachment = memo(function FileAttachment({ serverKey, attachme
     <Touchable
       testID={`file-attachment-${attachment.id}`}
       onPress={open}
+      onLongPress={openMenu}
       style={[styles.card, { width: Math.min(CARD_MAX, maxWidth) }]}
     >
       <View

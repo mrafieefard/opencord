@@ -29,6 +29,7 @@ export const icons = {
   micOff: { ios: 'mic.slash.fill', android: 'mic_off' },
   deafen: { ios: 'speaker.slash.fill', android: 'headset_off' },
   leave: { ios: 'phone.down.fill', android: 'call_end' },
+  leaveServer: { ios: 'rectangle.portrait.and.arrow.right', android: 'logout' },
   music: { ios: 'music.note', android: 'music_note' },
   play: { ios: 'play.fill', android: 'play_arrow' },
   pause: { ios: 'pause.fill', android: 'pause' },

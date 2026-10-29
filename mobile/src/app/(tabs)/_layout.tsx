@@ -11,6 +11,9 @@ export default function TabsLayout() {
       tintColor={colors.text}
       iconColor={{ default: colors.textMuted, selected: colors.text }}
       backgroundColor={colors.rail}
+      // Material's default indicator and ripple are tinted; the app is monochrome.
+      indicatorColor={colors.selected}
+      rippleColor={colors.hover}
       labelStyle={{ default: { color: colors.textMuted }, selected: { color: colors.text } }}
     >
       <NativeTabs.Trigger name="servers">

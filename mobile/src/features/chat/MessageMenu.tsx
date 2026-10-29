@@ -1,4 +1,3 @@
-import { Alert } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import type { ReactNode } from 'react';
 
@@ -7,7 +6,7 @@ import { deleteMessage, startEditingMessage } from '@/state/actions/chat';
 import { toast } from '@/state/actions/ui';
 import { useChannelInfo } from '@/state/selectors';
 import { useAppStore } from '@/state/store';
-import { Menu, type MenuAction } from '@/ui';
+import { Menu, confirm, type MenuAction } from '@/ui';
 import type { MessageRecord } from '@opencord/core-native';
 
 export interface MessageMenuProps {
@@ -53,18 +52,17 @@ export function MessageMenu({
         startEditingMessage(serverKey, channelId, message.id, message.content);
         break;
       case 'delete':
-        Alert.alert('Delete message?', 'This cannot be undone.', [
-          { text: 'Cancel', style: 'cancel' },
-          {
-            text: 'Delete',
-            style: 'destructive',
-            onPress: () => {
-              deleteMessage(serverKey, message.id).catch((err: unknown) => {
-                toast(describeError(err), 'error');
-              });
-            },
+        confirm({
+          title: 'Delete message?',
+          message: 'This cannot be undone.',
+          confirmTitle: 'Delete',
+          destructive: true,
+          onConfirm: () => {
+            deleteMessage(serverKey, message.id).catch((err: unknown) => {
+              toast(describeError(err), 'error');
+            });
           },
-        ]);
+        });
         break;
     }
   };

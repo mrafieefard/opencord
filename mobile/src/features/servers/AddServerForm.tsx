@@ -1,11 +1,13 @@
-// The Add server form (spec §8.3): invite link or address, optional claim token,
-// and the in-sheet trust step.
-import { StyleSheet, TextInput, View } from 'react-native';
+// The Add server sheet (spec §8.3): invite link or address, the claim token
+// for an owner, and the trust step in the same sheet. The sheet fits its
+// content, so each step is as tall as what it shows.
+import { useState } from 'react';
+import { StyleSheet, TextInput, View, type TextInputProps } from 'react-native';
 import { Touchable } from 'react-native-gesture-handler';
-import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
-import { useLocalSearchParams } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { router, useLocalSearchParams } from 'expo-router';
 
-import { Button, Icon, Text, radius, space, typography, useTheme } from '@/ui';
+import { Button, Icon, SheetHeader, Text, radius, space, typography, useTheme, withAlpha } from '@/ui';
 import { MAX_FONT_SCALE } from '@/ui/theme/typography';
 
 import { TrustStep } from './TrustStep';
@@ -16,8 +18,13 @@ export interface AddServerFormProps {
   onSuccess?: () => void;
 }
 
+export const FIELD_HEIGHT = 52;
+/** The owner panel: a lighter well than the fields. */
+const PANEL_TINT = 0.5;
+
 export function AddServerForm({ initialLink, onSuccess }: AddServerFormProps) {
   const { colors } = useTheme();
+  const insets = useSafeAreaInsets();
   const params = useLocalSearchParams<{ link?: string }>();
   const linkParam = initialLink ?? params.link;
 
@@ -37,9 +44,14 @@ export function AddServerForm({ initialLink, onSuccess }: AddServerFormProps) {
     cancelTrust,
   } = useAddServer({ initialLink: linkParam, onSuccess });
 
+  const close = () => {
+    if (router.canGoBack()) router.back();
+  };
+  const sheet = [styles.sheet, { backgroundColor: colors.elevated, paddingBottom: insets.bottom + space.lg }];
+
   if (trustPending !== null) {
     return (
-      <View style={[styles.sheet, { backgroundColor: colors.chat }]}>
+      <View style={sheet}>
         <TrustStep
           address={trustPending.address}
           fingerprint={trustPending.fingerprint}
@@ -52,145 +64,221 @@ export function AddServerForm({ initialLink, onSuccess }: AddServerFormProps) {
     );
   }
 
+  const empty = linkOrAddress.trim() === '';
   return (
-    <KeyboardAvoidingView behavior="padding" style={[styles.sheet, { backgroundColor: colors.chat }]}>
-      <View style={styles.content}>
-        <Text variant="title2">Add a server</Text>
+    <View style={sheet}>
+      <SheetHeader
+        title="Add a server"
+        subtitle="Paste an invite link, or type the server's address."
+        onClose={close}
+      />
 
-        <View style={styles.inputGroup}>
-          <View style={[styles.inputRow, { backgroundColor: colors.surface }]}>
-            <TextInput
-              value={linkOrAddress}
-              onChangeText={setLinkOrAddress}
-              placeholder="Invite link or address"
-              placeholderTextColor={colors.textMuted}
-              autoCapitalize="none"
-              autoCorrect={false}
-              keyboardType="url"
-              returnKeyType="done"
-              onSubmitEditing={() => void submit()}
-              maxFontSizeMultiplier={MAX_FONT_SCALE}
-              accessibilityLabel="Invite link or address"
-              style={[typography.body, styles.input, { color: colors.text }]}
-            />
-            <Touchable
-              onPress={paste}
-              style={[styles.pasteButton, { backgroundColor: colors.elevated }]}
-            >
-              <View accessible accessibilityRole="button" accessibilityLabel="Paste from clipboard">
-                <Text variant="footnote" color="textSecondary">
-                  Paste
-                </Text>
-              </View>
-            </Touchable>
-          </View>
-
+      <View style={styles.body}>
+        <View style={styles.group}>
+          <Field
+            value={linkOrAddress}
+            onChangeText={setLinkOrAddress}
+            placeholder="opencord://… or host:port"
+            accessibilityLabel="Invite link or address"
+            keyboardType="url"
+            autoFocus={linkParam === undefined}
+            invalid={error !== null}
+            onSubmitEditing={() => void submit()}
+            trailing={
+              empty ? (
+                <Pill label="Paste" accessibilityLabel="Paste from clipboard" onPress={paste} />
+              ) : (
+                <ClearButton onPress={() => setLinkOrAddress('')} />
+              )
+            }
+          />
           {error !== null && (
-            <Text variant="footnote" color="recording" accessibilityRole="alert" style={styles.errorText}>
-              {error}
-            </Text>
+            <View style={styles.error}>
+              <Icon name="warning" size={14} color="recording" />
+              <Text variant="footnote" color="recording" accessibilityRole="alert" style={styles.errorText}>
+                {error}
+              </Text>
+            </View>
           )}
         </View>
 
-        <Touchable
-          onPress={() => setShowClaimToken((prev) => !prev)}
-          style={styles.toggleRow}
-        >
-          <View
-            accessible
-            accessibilityRole="button"
-            accessibilityLabel="I own this server"
-            style={styles.toggleContent}
+        <View style={[styles.owner, { backgroundColor: withAlpha(colors.chat, PANEL_TINT) }]}>
+          <Touchable
+            onPress={() => setShowClaimToken((prev) => !prev)}
+            underlayColor={colors.selected}
+            activeUnderlayOpacity={1}
           >
-            <Text variant="subhead" color="textSecondary">
-              I own this server
-            </Text>
-            <View style={showClaimToken ? undefined : styles.collapsedIcon}>
-              <Icon
-                name={showClaimToken ? 'jumpDown' : 'back'}
-                size={14}
-                color="textSecondary"
+            <View
+              accessible
+              accessibilityRole="button"
+              accessibilityLabel="I own this server"
+              accessibilityState={{ expanded: showClaimToken }}
+              style={styles.ownerRow}
+            >
+              <Icon name="lock" size={18} color="textSecondary" />
+              <View style={styles.ownerText}>
+                <Text variant="callout">I own this server</Text>
+                <Text variant="footnote" color="textMuted">
+                  Enter the token from its first start.
+                </Text>
+              </View>
+              <View style={showClaimToken ? styles.chevronOpen : undefined}>
+                <Icon name="jumpDown" size={20} color="textMuted" />
+              </View>
+            </View>
+          </Touchable>
+          {showClaimToken && (
+            <View style={styles.tokenField}>
+              <Field
+                value={claimToken}
+                onChangeText={setClaimToken}
+                placeholder="Claim token"
+                accessibilityLabel="Claim token"
+                autoFocus
+                onSubmitEditing={() => void submit()}
               />
             </View>
-          </View>
-        </Touchable>
-
-        {showClaimToken && (
-          <View style={[styles.inputRow, { backgroundColor: colors.surface }]}>
-            <TextInput
-              value={claimToken}
-              onChangeText={setClaimToken}
-              placeholder="Claim token"
-              placeholderTextColor={colors.textMuted}
-              autoCapitalize="none"
-              autoCorrect={false}
-              returnKeyType="done"
-              onSubmitEditing={() => void submit()}
-              maxFontSizeMultiplier={MAX_FONT_SCALE}
-              accessibilityLabel="Claim token"
-              style={[typography.body, styles.input, { color: colors.text }]}
-            />
-          </View>
-        )}
-
-        <View style={styles.footer}>
-          <Button
-            title="Add"
-            variant="primary"
-            loading={busy}
-            disabled={linkOrAddress.trim() === ''}
-            onPress={() => void submit()}
-          />
+          )}
         </View>
+
+        <Button title="Add" variant="primary" loading={busy} disabled={empty} onPress={() => void submit()} />
       </View>
-    </KeyboardAvoidingView>
+    </View>
+  );
+}
+
+interface FieldProps extends Pick<TextInputProps, 'value' | 'onChangeText' | 'placeholder' | 'keyboardType' | 'autoFocus' | 'onSubmitEditing'> {
+  accessibilityLabel: string;
+  invalid?: boolean;
+  trailing?: React.ReactNode;
+}
+
+/** A 52 pt field: a well in the sheet, outlined while it has focus. */
+function Field({ invalid = false, trailing, ...input }: FieldProps) {
+  const { colors } = useTheme();
+  const [focused, setFocused] = useState(false);
+  const outline = invalid ? colors.recording : focused ? colors.textMuted : colors.border;
+  return (
+    <View
+      style={[styles.field, { backgroundColor: colors.chat, borderColor: outline }]}
+    >
+      <TextInput
+        {...input}
+        placeholderTextColor={colors.textMuted}
+        autoCapitalize="none"
+        autoCorrect={false}
+        returnKeyType="done"
+        cursorColor={colors.text}
+        selectionColor={colors.textMuted}
+        maxFontSizeMultiplier={MAX_FONT_SCALE}
+        onFocus={() => setFocused(true)}
+        onBlur={() => setFocused(false)}
+        style={[typography.body, styles.input, { color: colors.text }]}
+      />
+      {trailing}
+    </View>
+  );
+}
+
+function Pill({ label, accessibilityLabel, onPress }: { label: string; accessibilityLabel: string; onPress: () => void }) {
+  const { colors } = useTheme();
+  return (
+    <Touchable onPress={onPress} underlayColor={colors.text} activeUnderlayOpacity={0.12} style={[styles.pill, { backgroundColor: colors.selected }]}>
+      <View accessible accessibilityRole="button" accessibilityLabel={accessibilityLabel} style={styles.pillContent}>
+        <Text variant="subhead">{label}</Text>
+      </View>
+    </Touchable>
+  );
+}
+
+function ClearButton({ onPress }: { onPress: () => void }) {
+  const { colors } = useTheme();
+  return (
+    <Touchable onPress={onPress} hitSlop={8} style={[styles.clear, { backgroundColor: colors.selected }]}>
+      <View accessible accessibilityRole="button" accessibilityLabel="Clear" style={styles.clearContent}>
+        <Icon name="close" size={14} color="textSecondary" />
+      </View>
+    </Touchable>
   );
 }
 
 const styles = StyleSheet.create({
   sheet: {
-    flex: 1,
-    paddingTop: space.lg,
-  },
-  content: {
-    flex: 1,
     paddingHorizontal: space.lg,
-    gap: space.md,
   },
-  inputGroup: {
-    gap: space.xs,
+  body: {
+    paddingTop: space.xl,
+    gap: space.lg,
   },
-  inputRow: {
+  group: {
+    gap: space.sm,
+  },
+  field: {
+    height: FIELD_HEIGHT,
     flexDirection: 'row',
     alignItems: 'center',
     borderRadius: radius.icon,
-    paddingHorizontal: space.md,
-    paddingVertical: space.xs,
+    borderWidth: 1,
+    paddingLeft: space.lg,
+    paddingRight: space.sm,
+    gap: space.sm,
   },
   input: {
     flex: 1,
-    paddingVertical: space.sm,
+    height: '100%',
+    paddingVertical: 0,
   },
-  pasteButton: {
-    paddingHorizontal: space.sm,
-    paddingVertical: space.xs,
-    borderRadius: radius.pill,
+  pill: {
+    height: 32,
+    borderRadius: radius.row,
+    overflow: 'hidden',
   },
-  errorText: {
+  pillContent: {
+    flex: 1,
+    justifyContent: 'center',
+    paddingHorizontal: space.md,
+  },
+  clear: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    marginRight: space.xs,
+    overflow: 'hidden',
+  },
+  clearContent: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  error: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: space.xs + 2,
     paddingHorizontal: space.xs,
   },
-  toggleRow: {
-    paddingVertical: space.xs,
+  errorText: {
+    flex: 1,
   },
-  toggleContent: {
+  owner: {
+    borderRadius: radius.icon,
+    overflow: 'hidden',
+  },
+  ownerRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    gap: space.md,
+    paddingHorizontal: space.lg,
+    paddingVertical: space.md,
   },
-  collapsedIcon: {
+  ownerText: {
+    flex: 1,
+    gap: 2,
+  },
+  chevronOpen: {
     transform: [{ rotate: '180deg' }],
   },
-  footer: {
-    marginTop: space.sm,
+  tokenField: {
+    paddingHorizontal: space.md,
+    paddingBottom: space.md,
   },
 });
