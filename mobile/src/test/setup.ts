@@ -170,3 +170,8 @@ jest.mock('expo-router', () => ({
   })),
   useFocusEffect: jest.fn((cb: () => void) => cb()),
 }));
+
+// The voice call's foreground service is native: its calls are recorded.
+jest.mock('@opencord/voice-service', () => ({
+  VoiceService: { start: jest.fn(), stop: jest.fn() },
+}));

@@ -847,6 +847,8 @@ Rows, bubbles, avatars, badges, tiles and player buttons are React Native views 
   - **iOS:** `NSMicrophoneUsageDescription` ("Opencord uses the microphone in voice channels."), `NSPhotoLibraryUsageDescription` ("Opencord lets you send photos from your library."), and `UIBackgroundModes: [audio]`.
   - **Android:** `INTERNET`, `RECORD_AUDIO`, `FOREGROUND_SERVICE`, `FOREGROUND_SERVICE_MICROPHONE`, `FOREGROUND_SERVICE_MEDIA_PLAYBACK`, `POST_NOTIFICATIONS`, `WAKE_LOCK`. The release manifest gets `INTERNET` too: the Flutter scaffold has it only in debug.
 - **The audio session:** before joining voice, `setAudioModeAsync({ allowsRecording: true, playsInSilentMode: true, shouldPlayInBackground: true, interruptionMode: 'doNotMix' })`. The core then opens the microphone and speaker through cpal (AAudio on Android, CoreAudio on iOS).
+  - **Android:** `expo-audio` takes audio focus only for its own players, so the voice service holds it (`AUDIOFOCUS_GAIN`) for the call's length, as LiveKit's Android client does. It stays in media mode: cpal's streams are media streams, so call mode (`MODE_IN_COMMUNICATION`) would move the volume keys off them (D79).
+  - **Android:** cpal reaches AudioManager through `ndk_context`, which a React Native app doesn't set up; the voice-service module hands the core the Java VM and the Context as the app starts (D79).
 - **The background:**
   - **iOS:** the `audio` background mode keeps a call alive while the screen is off.
   - **Android:** a foreground service runs while connected to voice. It is a small local Expo module, `@opencord/voice-service` in Kotlin, of types `microphone|mediaPlayback`. Its ongoing notification ("In voice: Lounge · Night Owls") opens the app.

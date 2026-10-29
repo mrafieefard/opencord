@@ -4548,6 +4548,8 @@ version = "0.0.1"
 dependencies = [
  "hex",
  "image",
+ "jni-sys 0.3.1",
+ "ndk-context",
  "opencord-common",
  "opencord-server",
  "opencord_core",

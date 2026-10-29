@@ -8,6 +8,10 @@
 
 uniffi::setup_scaffolding!();
 
+#[cfg(target_os = "android")]
+mod android_alloc;
+#[cfg(target_os = "android")]
+mod android_context;
 pub mod api;
 mod convert;
 mod error;

@@ -77,6 +77,18 @@ Never edit these by hand: regenerate them, and commit them with the change that 
 
 Run one on this machine with `cargo run -p opencord-server`. The emulator reaches it at `10.0.2.2:7710`. Its certificate is self-signed, so adding it goes through the trust step.
 
+### Voice on the emulator
+
+- **The other side:** a voicebot in the same channel plays a tone and, when it stops, reports what it heard from each user: `cargo run -p opencord-voicebot -- --server "<invite>" --tone 440 --seconds 60`. The phone shows it speaking while its tone arrives.
+- **The microphone:** the emulator (`yarn emulator` starts it with `-allow-host-audio`) records this machine's default input. To give it a voice, play speech into a null sink and move the emulator's capture there:
+  - `pactl load-module module-null-sink sink_name=oc_null`;
+  - `espeak-ng -w speech.wav "…"` and `paplay --device=oc_null speech.wav`;
+  - `pactl move-source-output <qemu's index from pactl list short source-outputs> oc_null.monitor`;
+  - afterwards, move it back and `pactl unload-module` the sink.
+
+  The core's noise suppression removes a steady tone, so it has to be speech. The emulator's microphone arrives very quiet (about −61 dBFS at its peak), so loudness is checked on a real phone.
+- **The core's logs** don't reach logcat. A panic on one of its threads is silent: look at what the system logs around it, such as AAudio opening and closing streams (`adb logcat | grep AAudio`).
+
 ### Without a server
 
 `yarn android:fake` (or `EXPO_PUBLIC_FAKE_CORE=1` when starting Metro) runs the app on `FakeCore`'s fixed world, which uses its own identity:

@@ -26,6 +26,7 @@
   "dependencies": {
     "@expo/ui": "~58.0.23",
     "@opencord/core-native": "0.0.1",
+    "@opencord/voice-service": "0.0.1",
     "@react-native-menu/menu": "2.0.0",
     "@shopify/flash-list": "2.3.2",
     "expo": "~58.0.19",

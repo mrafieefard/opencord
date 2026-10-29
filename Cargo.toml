@@ -45,6 +45,8 @@ image = { version = "0.25.10", default-features = false, features = ["jpeg", "pn
 igd-next = { version = "0.18.0", default-features = false, features = ["aio_tokio"] }
 irondash_run_loop = "0.5.0"
 irondash_texture = "0.5.0"
+jni-sys = "0.3.1"
+ndk-context = "0.1.1"
 nnnoiseless = { version = "0.5.2", default-features = false }
 openh264 = { version = "0.9.8", default-features = false, features = ["libloading"] }
 openh264-sys2 = { version = "0.9.8", default-features = false, features = ["libloading"] }
