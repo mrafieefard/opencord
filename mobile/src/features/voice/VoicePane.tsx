@@ -1,6 +1,7 @@
 // A voice channel's pane (spec §8.6): its header, then who is in it.
 // Connected: tiles, link banner, control bar.
 // Not connected: tiles, Join voice button (or disabled reason).
+import { AudioRouteButton, hasAudioRouteButton } from '@opencord/voice-service';
 import { router } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
 import { type LayoutChangeEvent, ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native';
@@ -10,7 +11,7 @@ import { report } from '@/core';
 import { useMusicSettingsLoader } from '@/features/music/useMusicSettingsLoader';
 import { joinVoice, leaveVoice, setDeafened, setMuted } from '@/state/actions/voice';
 import { useChannelInfo, useMusicSettings, useMyVoice, useVoiceMembers } from '@/state/selectors';
-import { Button, EmptyState, PaneHeader, space, useTheme } from '@/ui';
+import { Button, EmptyState, IconButton, PaneHeader, space, useTheme } from '@/ui';
 
 import { ConnectedBar } from './ConnectedBar';
 import { ControlBar } from './ControlBar';
@@ -84,7 +85,15 @@ export function VoicePane({ serverKey, channelId, onOpenSidebar, onOpenChannel }
         title={info?.channel.name ?? ''}
         titleIcon="voiceChannel"
         left={onOpenSidebar ? { icon: 'sidebar', label: 'Show channels', onPress: onOpenSidebar } : undefined}
-        right={showMusic ? [{ icon: 'music', label: 'Music', onPress: openMusic }] : undefined}
+        rightElement={
+          // In the call, the sound output (iOS: speaker, iPhone, AirPods…) beside Music.
+          (here && hasAudioRouteButton) || showMusic ? (
+            <>
+              {here && hasAudioRouteButton && <AudioRouteButton testID="control-output" tint={colors.text} style={styles.route} />}
+              {showMusic && <IconButton icon="music" label="Music" onPress={openMusic} />}
+            </>
+          ) : undefined
+        }
       />
       {here && <LinkBanner link={here.link} onRejoin={join} />}
       <ScrollView style={styles.fill} contentContainerStyle={styles.grid} onLayout={onLayout}>
@@ -138,4 +147,5 @@ const styles = StyleSheet.create({
   grid: { flexGrow: 1, padding: PADDING },
   tiles: { flexDirection: 'row', flexWrap: 'wrap', gap: GAP },
   join: { padding: space.md },
+  route: { width: 44, height: 44 },
 });

@@ -1,9 +1,8 @@
 // The voice call's controls (spec §8.6): 56 pt round buttons (Mute,
-// Deafen, on iOS the sound output, Soundboard, Leave). Music has its own
-// button in the header. Toggles flip between surface/text (off)
+// Deafen, Soundboard, Leave). Music and, on iOS, the sound output have
+// their buttons in the header. Toggles flip between surface/text (off)
 // and accent/onAccent (on), and their glyph shows the state; Leave is
 // recording with a white glyph.
-import { AudioRouteButton, hasAudioRouteButton } from '@opencord/voice-service';
 import { StyleSheet, View } from 'react-native';
 import { Touchable } from 'react-native-gesture-handler';
 
@@ -76,13 +75,6 @@ export function ControlBar({
         </View>
       </Touchable>
 
-      {/* Output: speaker, iPhone, AirPods… (iOS) */}
-      {hasAudioRouteButton && (
-        <View style={[styles.button, { backgroundColor: colors.surface }]}>
-          <AudioRouteButton testID="control-output" tint={colors.text} style={styles.route} />
-        </View>
-      )}
-
       {/* Soundboard */}
       <Touchable
         onPress={onOpenSoundboard}
@@ -125,9 +117,5 @@ const styles = StyleSheet.create({
     borderRadius: BUTTON_SIZE / 2,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  route: {
-    width: BUTTON_SIZE,
-    height: BUTTON_SIZE,
   },
 });

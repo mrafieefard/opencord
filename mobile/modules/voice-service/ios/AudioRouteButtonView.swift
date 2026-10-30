@@ -10,6 +10,9 @@ class AudioRouteButtonView: ExpoView {
   private let picker = AVRoutePickerView()
   private let glyph = UIImageView()
   private var routeName = ""
+  private var symbol = ""
+  /** The glyph's size, from the button's: as the app's own icons in a button that size. */
+  private var pointSize: CGFloat = 0
 
   var tint: UIColor = .label {
     didSet { glyph.tintColor = tint }
@@ -47,6 +50,11 @@ class AudioRouteButtonView: ExpoView {
     super.layoutSubviews()
     picker.frame = bounds
     glyph.frame = bounds
+    let size = (min(bounds.width, bounds.height) * 0.39).rounded()
+    if size > 0 && size != pointSize {
+      pointSize = size
+      drawGlyph()
+    }
   }
 
   // VoiceOver's double tap opens the menu as a tap would.
@@ -63,12 +71,17 @@ class AudioRouteButtonView: ExpoView {
   private func showRoute() {
     let output = AVAudioSession.sharedInstance().currentRoute.outputs.first
     routeName = output?.portName ?? ""
-    let symbol = Self.symbol(for: output)
+    symbol = Self.symbol(for: output)
+    accessibilityValue = routeName
+    drawGlyph()
+  }
+
+  private func drawGlyph() {
+    guard pointSize > 0, !symbol.isEmpty else { return }
     glyph.image = UIImage(
       systemName: symbol,
-      withConfiguration: UIImage.SymbolConfiguration(pointSize: 22, weight: .regular)
+      withConfiguration: UIImage.SymbolConfiguration(pointSize: pointSize, weight: .regular)
     )
-    accessibilityValue = routeName
   }
 
   private static func symbol(for output: AVAudioSessionPortDescription?) -> String {
