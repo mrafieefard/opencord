@@ -5,6 +5,7 @@ import type { ChannelRecord, MusicNowPlayingRecord } from '@opencord/core-native
 import { useCallback, useMemo } from 'react';
 import { StyleSheet, View } from 'react-native';
 
+import { useVoicePillRoom } from '@/features/voice/callPosition';
 import { useChannelSections } from '@/state/selectors';
 import type { ChannelItem, VoiceMember } from '@/state/types';
 import { useTheme } from '@/ui';
@@ -31,6 +32,7 @@ type ListItem =
 
 export function ChannelList({ serverKey, variant, selectedId, onSelect }: ChannelListProps) {
   const { colors } = useTheme();
+  const pillRoom = useVoicePillRoom();
   const sections = useChannelSections(serverKey);
   const highlighted = variant === 'sidebar' ? selectedId : undefined;
 
@@ -118,6 +120,7 @@ export function ChannelList({ serverKey, variant, selectedId, onSelect }: Channe
         renderItem={renderItem}
         getItemType={(item) => item.type}
         keyExtractor={(item) => item.id}
+        contentContainerStyle={{ paddingBottom: pillRoom }}
       />
     </View>
   );

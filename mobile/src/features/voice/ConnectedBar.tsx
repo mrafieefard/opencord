@@ -92,14 +92,14 @@ export interface ConnectedVoiceRowProps {
   serverKey: string;
   channelId: string;
   muted: boolean;
-  /** A picture of the bar (inside the call's glass): it isn't where the call grows from. */
-  picture?: boolean;
-  /** Only the channel and the mic, for a narrow place (iOS's inline tab accessory). */
+  /** In the call's own glass, which knows where it is: the row doesn't measure itself. */
+  inGlass?: boolean;
+  /** Only the channel and the mic, for a narrow place. */
   compact?: boolean;
 }
 
-/** What the connected bar shows, without the bar: also iOS's tab bar accessory. */
-export function ConnectedVoiceRow({ serverKey, channelId, muted, compact = false, picture = false }: ConnectedVoiceRowProps) {
+/** What the connected bar shows, without the bar: also iOS's floating pill (CallSheet). */
+export function ConnectedVoiceRow({ serverKey, channelId, muted, compact = false, inGlass = false }: ConnectedVoiceRowProps) {
   const server = useServer(serverKey);
   const nowPlaying = useNowPlaying(serverKey, channelId);
 
@@ -118,11 +118,11 @@ export function ConnectedVoiceRow({ serverKey, channelId, muted, compact = false
   const top = useCallTop();
   const { height: screen } = useWindowDimensions();
   const measureBar = useCallback(() => {
-    if (picture) return;
+    if (inGlass) return;
     rowRef.current?.measureInWindow((x, y, width, height) => {
       if (width > 0) callOrigin.set(barFrame({ x, y, width, height }));
     });
-  }, [picture]);
+  }, [inGlass]);
   const handleOpen = useCallback(() => openCall(serverKey, channelId), [serverKey, channelId]);
 
   // Pulled up, the glass grows under the finger; far or fast enough it

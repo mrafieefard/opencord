@@ -67,7 +67,7 @@ export function ChatPane({ serverKey, channelId, onOpenSidebar, onSelectChannel,
               lifts by the same (MessageList's ChatScrollView). */}
           <KeyboardStickyView offset={{ closed: 0, opened: lift }} style={styles.dock} pointerEvents="box-none">
             <Animated.View onLayout={onDockLayout} pointerEvents={covered ? 'none' : 'box-none'} style={awayStyle}>
-              {onOpenChannel && <ChatVoicePill />}
+              {onOpenChannel && <ChatVoicePill covered={covered} />}
               <Composer serverKey={serverKey} channelId={channelId} />
             </Animated.View>
           </KeyboardStickyView>

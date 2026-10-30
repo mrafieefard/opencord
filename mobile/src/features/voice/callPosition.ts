@@ -8,9 +8,16 @@ import { useWindowDimensions } from 'react-native';
 import { makeMutable, withSpring, type WithSpringConfig } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { chrome } from '@/features/servers/chrome';
 import { useAppStore } from '@/state/store';
 
 export const callProgress = makeMutable(0);
+
+/**
+ * How far a chat's field has grown over its messages (iOS): the floating
+ * voice pill resting above the composer rises with it (ChatVoicePill.ios).
+ */
+export const slotRise = makeMutable(0);
 
 /** A frame on the screen, in points. */
 export interface CallFrame {
@@ -41,6 +48,19 @@ export function barFrame(row: CallFrame): CallFrame {
     width: row.width + BAR_PAD_LEFT + BAR_PAD_RIGHT,
     height: row.height,
   };
+}
+
+/** The floating voice pill (iOS) stands this far above the tab bar. */
+export const PILL_GAP = 8;
+
+/**
+ * What a tab's list leaves free at its end for the floating voice pill
+ * (iOS), while in voice, so its last rows can scroll out from under it as
+ * from under the tab bar.
+ */
+export function useVoicePillRoom(): number {
+  const inVoice = useAppStore((state) => state.myVoice !== null);
+  return chrome.floatingVoice && inVoice ? BAR_HEIGHT + PILL_GAP : 0;
 }
 
 export const CALL_SPRING: WithSpringConfig = { damping: 28, stiffness: 280, mass: 0.9 };

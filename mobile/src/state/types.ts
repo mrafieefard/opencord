@@ -177,10 +177,10 @@ export interface AppState {
   voicePlayback: VoicePlayback | null;
   /** A text channel fills a phone's screen: the tab bar steps aside for typing. */
   chatInFront: boolean;
-  /** The call's glass is out of its bar: the bars it grew from show nothing. */
-  callUp: boolean;
-  /** The call is wholly open: iOS's bar above the tab bar can go (no gesture in it then). */
-  callFull: boolean;
+  /** The tab bar's room at the foot of a tab's screen (its bottom inset there); 0 unknown. */
+  tabInset: number;
+  /** Where a chat keeps room for the floating voice pill (iOS), if one does now. */
+  voiceSlot: { y: number; height: number } | null;
   /** The call the call sheet shows (features/voice/callPosition.ts), open or not. */
   call: { serverKey: string; channelId: string } | null;
   /** The voice page of a channel fills a phone's screen. */

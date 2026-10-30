@@ -68,4 +68,31 @@ describe('the call sheet', () => {
     expect(useAppStore.getState().myVoice).toBeNull();
     expect(callProgress.get()).toBe(0);
   });
+
+  // Jest runs as iOS, where the pill above the tab bar is the call's own glass.
+  it('rests as the voice pill above the tab bar or in a chat, and not while a chat has no room for it', async () => {
+    await inLounge();
+    useAppStore.setState({ tabInset: 83 });
+    await render(
+      <GestureHandlerRootView>
+        <CallSheet />
+      </GestureHandlerRootView>,
+    );
+    // At rest the row is the pill's: it can be tapped, muted, left.
+    expect(screen.getByTestId('connected-bar-pressable')).toBeTruthy();
+    expect(screen.getByTestId('connected-bar-mute')).toBeTruthy();
+    expect(screen.queryByTestId('control-leave')).toBeNull();
+
+    // A chat in front hides the tab bar: with no room kept, the pill goes.
+    await act(async () => {
+      useAppStore.setState({ chatInFront: true });
+    });
+    expect(screen.queryByTestId('connected-bar-pressable')).toBeNull();
+
+    // The room the chat keeps above its composer takes it.
+    await act(async () => {
+      useAppStore.setState({ voiceSlot: { y: 700, height: 56 } });
+    });
+    expect(screen.getByTestId('connected-bar-pressable')).toBeTruthy();
+  });
 });

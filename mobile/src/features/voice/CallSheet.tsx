@@ -1,29 +1,48 @@
 // The call sheet (callPosition.ts): the voice bar's own glass grown into the
-// call, as Apple Maps' card grows. Its frame blends from the bar's (where it
-// was last touched) to the full screen with one shared position: a bar
-// pulled up stretches under the finger, and here, dragging the grabber or
-// the header down shrinks it back the same way; letting go springs it open
-// or back into the bar. The bar's row fades out as the call fades in. The
-// dimmed screen above, the chevron, Android's back, or leaving the call put
-// it away. The music player and the soundboard open over it as sheets.
-import { useEffect, useMemo, useState } from 'react';
+// call, as Apple Maps' card grows. Its frame blends from the bar's to the
+// full screen with one shared position: a bar pulled up stretches under the
+// finger, and here, dragging the grabber or the header down shrinks it back
+// the same way; letting go springs it open or back into the bar. The bar's
+// row fades out as the call fades in. The dimmed screen above, the chevron,
+// Android's back, or leaving the call put it away. The music player and the
+// soundboard open over it as sheets.
+//
+// On iOS (chrome.floatingVoice) the bar is this glass itself: at rest it is
+// the voice pill, floating above the tab bar or in the room a chat keeps for
+// it above the composer, and moving between them. So what grows is the pill
+// the finger is on, not a copy laid over it. On Android it grows out of the
+// app's own bars (ConnectedBar), and shows only while it is out of them.
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { BackHandler, Pressable, StyleSheet, View, useWindowDimensions } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
-import Animated, { interpolate, useAnimatedReaction, useAnimatedStyle, withSpring } from 'react-native-reanimated';
+import { useKeyboardState } from 'react-native-keyboard-controller';
+import Animated, {
+  interpolate,
+  useAnimatedReaction,
+  useAnimatedStyle,
+  useSharedValue,
+  withSpring,
+  withTiming,
+} from 'react-native-reanimated';
 import { scheduleOnRN } from 'react-native-worklets';
 
-import { setCallFull, setCallUp } from '@/state/actions/ui';
+import { chrome } from '@/features/servers/chrome';
 import { useMyVoice } from '@/state/selectors';
+import { useAppStore } from '@/state/store';
 import { GlassSurface, space, useTheme } from '@/ui';
 
 import {
+  BAR_HEIGHT,
   CALL_FLICK,
   CALL_SETTLE,
   CALL_SPRING,
+  type CallFrame,
+  PILL_GAP,
   callOrigin,
   callProgress,
   callTravel,
   closeCall,
+  slotRise,
   useCallTop,
   useFallbackOrigin,
 } from './callPosition';
@@ -34,6 +53,68 @@ import { VoicePane } from './VoicePane';
 const OPEN_CORNER = 38;
 const SCRIM = 0.35;
 const GRABBER = { width: 36, height: 5 };
+
+/** The floating pill above the tab bar: inset as the bar's own sides, a little above it. */
+const TAB_SIDE = 20;
+/** In a chat, the room the composer's dock keeps for it (ChatVoicePill.ios). */
+const CHAT_SIDE = space.sm;
+/** Moving between its places, and showing or hiding. */
+const MOVE_SPRING = { damping: 30, stiffness: 320 };
+const FADE_MS = 160;
+
+const NO_FRAME: CallFrame = { x: 0, y: 0, width: 0, height: BAR_HEIGHT };
+
+/** A frame `at` of the way from one to another. */
+function between(from: CallFrame, to: CallFrame, at: number): CallFrame {
+  'worklet';
+  return {
+    x: from.x + (to.x - from.x) * at,
+    y: from.y + (to.y - from.y) * at,
+    width: from.width + (to.width - from.width) * at,
+    height: from.height + (to.height - from.height) * at,
+  };
+}
+
+/**
+ * Where the floating pill rests (iOS), if anywhere now: in a chat's room
+ * for it, else above the tab bar while that shows. Not while typing, nor
+ * over the call's own page.
+ */
+function useRest(screenWidth: number, screenHeight: number): CallFrame | null {
+  const call = useMyVoice();
+  const slot = useAppStore((state) => state.voiceSlot);
+  const chatInFront = useAppStore((state) => state.chatInFront);
+  const tabInset = useAppStore((state) => state.tabInset);
+  const onItsPage = useAppStore(
+    (state) =>
+      state.voicePageInFront !== null &&
+      state.voicePageInFront.serverKey === call?.serverKey &&
+      state.voicePageInFront.channelId === call.channelId,
+  );
+  const typing = useKeyboardState((state) => state.isVisible);
+  const place =
+    !chrome.floatingVoice || !call || onItsPage || typing
+      ? 'none'
+      : slot
+        ? 'chat'
+        : chatInFront || tabInset === 0
+          ? 'none'
+          : 'tabs';
+  const slotY = slot?.y ?? 0;
+  const slotHeight = slot?.height ?? 0;
+  return useMemo(() => {
+    if (place === 'chat') return { x: CHAT_SIDE, y: slotY, width: screenWidth - CHAT_SIDE * 2, height: slotHeight };
+    if (place === 'tabs') {
+      return {
+        x: TAB_SIDE,
+        y: screenHeight - tabInset - PILL_GAP - BAR_HEIGHT,
+        width: screenWidth - TAB_SIDE * 2,
+        height: BAR_HEIGHT,
+      };
+    }
+    return null;
+  }, [place, slotY, slotHeight, screenWidth, screenHeight, tabInset]);
+}
 
 /** A downward drag on the call's top: it shrinks back towards the bar with the finger. */
 function dragDown(top: number, screen: number) {
@@ -60,23 +141,55 @@ export function CallSheet() {
   // as long as it lasts, so the glass is there the moment a bar is pulled.
   const call = useMyVoice();
   const inIt = call !== null;
-  // Takes touches only while it is out of the bar, however little.
+  // Out of the bar, however little: the call takes the touches, not the pill.
   const [up, setUp] = useState(false);
   useAnimatedReaction(
     () => callProgress.get() > 0.001,
     (now, before) => {
-      if (now !== before) {
-        scheduleOnRN(setUp, now);
-        scheduleOnRN(setCallUp, now);
-      }
+      if (now !== before) scheduleOnRN(setUp, now);
     },
   );
-  useAnimatedReaction(
-    () => callProgress.get() > 0.999,
-    (now, before) => {
-      if (now !== before) scheduleOnRN(setCallFull, now);
-    },
-  );
+
+  // The floating pill (iOS): where it rests, moving there as its place
+  // moves, and fading in or out where it is as it comes or goes.
+  const rest = useRest(screenWidth, screenHeight);
+  const moveFrom = useSharedValue<CallFrame>(rest ?? NO_FRAME);
+  const moveTo = useSharedValue<CallFrame>(rest ?? NO_FRAME);
+  const move = useSharedValue(1);
+  const shown = useSharedValue(rest ? 1 : 0);
+  const wasShown = useRef(rest !== null);
+  // Reanimated can lose the last frames of a layout animation that no
+  // React render follows, leaving the pill short of its place: once the
+  // move settles, a render commits where it is.
+  const [, setSettled] = useState(0);
+  const settle = useCallback(() => setSettled((count) => count + 1), []);
+  useEffect(() => {
+    if (!rest) {
+      wasShown.current = false;
+      shown.set(withTiming(0, { duration: FADE_MS }));
+      return;
+    }
+    // A drag measures its travel from here.
+    callOrigin.set(rest);
+    if (wasShown.current) {
+      // From wherever it is now, mid-move or not.
+      moveFrom.set(between(moveFrom.get(), moveTo.get(), move.get()));
+      moveTo.set(rest);
+      move.set(0);
+      move.set(
+        withSpring(1, MOVE_SPRING, (done) => {
+          if (done) scheduleOnRN(settle);
+        }),
+      );
+    } else {
+      moveFrom.set(rest);
+      moveTo.set(rest);
+      move.set(1);
+    }
+    wasShown.current = true;
+    shown.set(withTiming(1, { duration: FADE_MS }));
+  }, [rest, moveFrom, moveTo, move, shown, settle]);
+  const resting = rest !== null;
 
   // Leaving the call puts it away.
   useEffect(() => {
@@ -96,13 +209,24 @@ export function CallSheet() {
   const headerDrag = useMemo(() => dragDown(top, screenHeight), [top, screenHeight]);
   const openHeight = screenHeight - top;
 
+  // Where the glass grows from: the floating pill's place (risen with a
+  // chat's field), or the bar last touched.
+  const start = (): CallFrame => {
+    'worklet';
+    if (chrome.floatingVoice) {
+      const at = between(moveFrom.get(), moveTo.get(), move.get());
+      return { ...at, y: at.y - slotRise.get() };
+    }
+    const touched = callOrigin.get();
+    return touched.width > 0 ? touched : fallback;
+  };
+
   // The glass: from the bar's frame to the open call's, corners and all.
   const glassStyle = useAnimatedStyle(() => {
     const at = callProgress.get();
-    const touched = callOrigin.get();
-    const from = touched.width > 0 ? touched : fallback;
+    const from = start();
     return {
-      opacity: at > 0.001 ? 1 : 0,
+      opacity: Math.max(shown.get(), at > 0.001 ? 1 : 0),
       top: from.y + (top - from.y) * at,
       left: from.x * (1 - at),
       width: from.width + (screenWidth - from.width) * at,
@@ -114,8 +238,7 @@ export function CallSheet() {
   const scrimStyle = useAnimatedStyle(() => ({ opacity: callProgress.get() * SCRIM }));
   // The bar's row, as it was, fading as the glass leaves it behind.
   const rowStyle = useAnimatedStyle(() => {
-    const touched = callOrigin.get();
-    const from = touched.width > 0 ? touched : fallback;
+    const from = start();
     return {
       width: from.width,
       height: from.height,
@@ -126,30 +249,39 @@ export function CallSheet() {
 
   if (!call) return null;
   return (
-    <View style={StyleSheet.absoluteFill} pointerEvents={up ? 'box-none' : 'none'}>
-      <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: colors.scrim }, scrimStyle]}>
+    <View style={StyleSheet.absoluteFill} pointerEvents={up || resting ? 'box-none' : 'none'}>
+      <Animated.View
+        style={[StyleSheet.absoluteFill, { backgroundColor: colors.scrim }, scrimStyle]}
+        pointerEvents={up ? 'auto' : 'none'}
+      >
         <Pressable style={StyleSheet.absoluteFill} onPress={closeCall} accessibilityLabel="Close the call" />
       </Animated.View>
       <Animated.View
         style={[styles.glass, glassStyle]}
         accessibilityViewIsModal={up}
         // Out of sight, out of VoiceOver's reach too.
-        accessibilityElementsHidden={!up}
-        importantForAccessibility={up ? 'auto' : 'no-hide-descendants'}
+        accessibilityElementsHidden={!up && !resting}
+        importantForAccessibility={up || resting ? 'auto' : 'no-hide-descendants'}
         testID="call-sheet"
       >
         <GlassSurface style={StyleSheet.absoluteFill} />
         <Animated.View
           style={[styles.row, rowStyle]}
-          pointerEvents="none"
-          // Only a picture of the bar the glass grew from.
-          accessibilityElementsHidden
-          importantForAccessibility="no-hide-descendants"
+          // At rest, the pill's own row: tapped, pulled, muted. On Android
+          // only a picture of the bar the glass grew from.
+          pointerEvents={!up && resting ? 'box-none' : 'none'}
+          accessibilityElementsHidden={up || !resting}
+          importantForAccessibility={!up && resting ? 'auto' : 'no-hide-descendants'}
         >
-          {inIt && <ConnectedVoiceRow serverKey={call.serverKey} channelId={call.channelId} muted={call.muted} picture />}
+          {inIt && <ConnectedVoiceRow serverKey={call.serverKey} channelId={call.channelId} muted={call.muted} inGlass />}
         </Animated.View>
         {/* The call, laid out at its open size so it doesn't reflow as the glass grows. */}
-        <Animated.View style={[styles.call, { width: screenWidth, height: openHeight }, callStyle]}>
+        <Animated.View
+          style={[styles.call, { width: screenWidth, height: openHeight }, callStyle]}
+          pointerEvents={up ? 'box-none' : 'none'}
+          accessibilityElementsHidden={!up}
+          importantForAccessibility={up ? 'auto' : 'no-hide-descendants'}
+        >
           <GestureDetector gesture={grabberDrag}>
             <View collapsable={false} style={styles.handle}>
               <View style={[styles.grabber, { backgroundColor: colors.textMuted }]} />

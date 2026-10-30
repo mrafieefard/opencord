@@ -11,6 +11,7 @@ import { Touchable } from 'react-native-gesture-handler';
 
 import { getCore, report } from '@/core';
 import { loadIdentity } from '@/core/identity';
+import { useVoicePillRoom } from '@/features/voice/callPosition';
 import { setTheme } from '@/state/actions/prefs';
 import { toast } from '@/state/actions/ui';
 import { usePrefs, useSelf } from '@/state/selectors';
@@ -30,6 +31,7 @@ export function YouScreen() {
   const self = useSelf();
   const { theme } = usePrefs();
   const { colors } = useTheme();
+  const pillRoom = useVoicePillRoom();
 
   const themeIndex = THEME_OPTIONS.findIndex((opt) => opt.value === theme);
 
@@ -65,7 +67,7 @@ export function YouScreen() {
     <ScrollView
       contentInsetAdjustmentBehavior="automatic"
       style={[styles.screen, { backgroundColor: colors.chat }]}
-      contentContainerStyle={styles.content}
+      contentContainerStyle={[styles.content, { paddingBottom: space.lg + pillRoom }]}
     >
       {/* Header */}
       <View style={styles.header}>

@@ -2,11 +2,12 @@
 // shows the system's swipe actions (Read leading, Leave trailing, a full
 // swipe acting), a long press the system's context menu, and a pull the
 // system's refresh. Each row's look is the app's (ServerRowContent), hosted.
-import { Button, ContextMenu, Host, List, RNHostView, SwipeActions } from '@expo/ui/swift-ui';
+import { Button, ContextMenu, Group, Host, List, RNHostView, SwipeActions } from '@expo/ui/swift-ui';
 import { listRowBackground, listRowInsets, listRowSeparator, listStyle, onTapGesture, refreshable, scrollContentBackground, tint } from '@expo/ui/swift-ui/modifiers';
 import { memo, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
+import { useVoicePillRoom } from '@/features/voice/callPosition';
 import type { ServerRow as ServerRowType } from '@/state/types';
 import { Divider, EmptyState, space, useTheme } from '@/ui';
 import { icons } from '@/ui/icons';
@@ -87,6 +88,7 @@ const NativeServerRow = memo(function NativeServerRow({ row, nowMs, locale, onOp
 export function ServerList({ rows, nowMs, locale, onOpen, onRefresh, emptyTitle }: ServerListProps) {
   const { colors, scheme } = useTheme();
   const [width, setWidth] = useState<number>();
+  const pillRoom = useVoicePillRoom();
   // The List fills the host, so its size is the content's.
   const measure = (event: { nativeEvent: { width: number } }) => {
     const measured = Math.round(event.nativeEvent.width);
@@ -113,6 +115,20 @@ export function ServerList({ rows, nowMs, locale, onOpen, onRefresh, emptyTitle 
             width={width}
           />
         ))}
+        {/* Room to scroll the last row out from under the floating voice pill. */}
+        {width !== undefined && pillRoom > 0 && (
+          <Group
+            modifiers={[
+              listRowInsets({ top: 0, leading: 0, bottom: 0, trailing: 0 }),
+              listRowBackground(colors.sidebar),
+              listRowSeparator('hidden'),
+            ]}
+          >
+            <RNHostView matchContents={{ vertical: true }}>
+              <View style={{ width, height: pillRoom }} accessible={false} />
+            </RNHostView>
+          </Group>
+        )}
       </List>
     </Host>
   );

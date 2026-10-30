@@ -124,6 +124,7 @@ jest.mock('@expo/ui/swift-ui', () => {
     SwipeActions,
     ContextMenu,
     RNHostView: ({ children }: { children: React.ReactNode }) => children,
+    Group: ({ children }: { children: React.ReactNode }) => React.createElement(View, null, children),
     // Named by its label, or by accessibilityLabel when it draws its own content.
     Button: function Button({ label, role, onPress, modifiers, children }: { label?: string; role?: string; onPress?: () => void; modifiers?: { _disabled?: boolean; _label?: string }[]; children?: React.ReactNode }) {
       const inMenu = React.useContext(InMenu);

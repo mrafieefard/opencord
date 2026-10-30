@@ -41,12 +41,14 @@ export function setVoicePageInFront(page: { serverKey: string; channelId: string
   useAppStore.setState({ voicePageInFront: page });
 }
 
-/** The call's glass has left its bar (or come back into it). */
-export function setCallUp(callUp: boolean): void {
-  if (useAppStore.getState().callUp !== callUp) useAppStore.setState({ callUp });
+/** The tab bar's room at the foot of a tab's screen. */
+export function setTabInset(tabInset: number): void {
+  if (useAppStore.getState().tabInset !== tabInset) useAppStore.setState({ tabInset });
 }
 
-/** The call is wholly open (or no longer). */
-export function setCallFull(callFull: boolean): void {
-  if (useAppStore.getState().callFull !== callFull) useAppStore.setState({ callFull });
+/** Where a chat keeps room for the floating voice pill, or none. */
+export function setVoiceSlot(slot: { y: number; height: number } | null): void {
+  const held = useAppStore.getState().voiceSlot;
+  if (held?.y === slot?.y && held?.height === slot?.height) return;
+  useAppStore.setState({ voiceSlot: slot });
 }

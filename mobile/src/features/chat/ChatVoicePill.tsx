@@ -15,7 +15,12 @@ import { useChatDock } from './dock';
 
 const HEIGHT = 56;
 
-export function ChatVoicePill() {
+export interface ChatVoicePillProps {
+  /** The sidebar is over the chat (the whole dock steps aside then). */
+  covered?: boolean;
+}
+
+export function ChatVoicePill(_props: ChatVoicePillProps) {
   const myVoice = useMyVoice();
   const keyboardUp = useKeyboardState((state) => state.isVisible);
   const { fieldGrowth } = useChatDock();
