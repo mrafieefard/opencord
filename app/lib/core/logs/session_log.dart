@@ -59,13 +59,20 @@ String exportName(String logPath) {
   return 'opencord-log-${match[1]}-${match[2]}${match[3]}.txt';
 }
 
-/// Starts the session log in [dir] with [facts] at the top, and sends
-/// [appLog] lines and uncaught errors to it from now on. Without it (no
-/// writable folder), the app carries on and logs only to the debugger.
-SessionLog startSessionLog(String dir, List<LogFact> facts) {
+/// Starts the session log in the folder [dir] gives, with [facts] at the
+/// top, and sends [appLog] lines and uncaught errors to it from now on.
+/// Nothing here can stop the app starting: without a log (no writable
+/// folder, a broken `update.json`), it carries on and logs only to the
+/// debugger.
+Future<SessionLog> startSessionLog({
+  required Future<String> Function() dir,
+  required Future<List<LogFact>> Function() facts,
+}) async {
+  final String folder;
   final SessionLogFiles files;
   try {
-    files = sessionLogStart(dir: dir, facts: facts);
+    folder = await dir();
+    files = sessionLogStart(dir: folder, facts: await facts());
   } on Object catch (error) {
     appLog('no session log', name: 'log', error: error, level: LogLevel.warn);
     return const SessionLog();
@@ -99,7 +106,7 @@ SessionLog startSessionLog(String dir, List<LogFact> facts) {
   return SessionLog(
     current: files.current,
     previousCrashed: files.previousCrashed,
-    dir: dir,
+    dir: folder,
   );
 }
 

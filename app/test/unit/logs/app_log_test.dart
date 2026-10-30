@@ -58,4 +58,15 @@ void main() {
     );
     expect(exportName('/x/odd.log'), 'opencord-log.txt');
   });
+
+  test('a failure gathering the facts never stops the app', () async {
+    final log = await startSessionLog(
+      dir: () async => '/x/logs',
+      facts: () async => throw const FormatException('update.json is broken'),
+    );
+    expect(log.current, isNull);
+    final (level, area, message) = lines.single;
+    expect((level, area), (LogLevel.warn, 'log'));
+    expect(message, contains('update.json is broken'));
+  });
 }

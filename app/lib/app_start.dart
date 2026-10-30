@@ -246,25 +246,31 @@ Future<SessionLog> _startSessionLog(
   Installation? installation, {
   required String profile,
   required bool mock,
-}) async {
-  final base = await getApplicationSupportDirectory();
-  final launcherLog = installation == null
-      ? null
-      : launcherLogTail(
-          '${installation.root.path}${Platform.pathSeparator}launcher.log',
-        );
-  final facts = [
-    LogFact(key: 'app version', value: installation?.version ?? appVersion),
-    if (installation != null)
-      LogFact(key: 'track', value: (await installation.readTrack()).name),
-    LogFact(
-      key: 'started by',
-      value: installation?.launcher != null ? 'the launcher' : 'itself',
-    ),
-    LogFact(key: 'profile', value: profile.isEmpty ? 'default' : 'a test one'),
-    if (mock) const LogFact(key: 'core', value: 'the mock'),
-    ...displayFacts(),
-    if (launcherLog != null) LogFact(key: 'launcher log', value: launcherLog),
-  ];
-  return startSessionLog('${base.path}${Platform.pathSeparator}logs', facts);
-}
+}) => startSessionLog(
+  dir: () async =>
+      '${(await getApplicationSupportDirectory()).path}'
+      '${Platform.pathSeparator}logs',
+  facts: () async {
+    final launcherLog = installation == null
+        ? null
+        : launcherLogTail(
+            '${installation.root.path}${Platform.pathSeparator}launcher.log',
+          );
+    return [
+      LogFact(key: 'app version', value: installation?.version ?? appVersion),
+      if (installation != null)
+        LogFact(key: 'track', value: (await installation.readTrack()).name),
+      LogFact(
+        key: 'started by',
+        value: installation?.launcher != null ? 'the launcher' : 'itself',
+      ),
+      LogFact(
+        key: 'profile',
+        value: profile.isEmpty ? 'default' : 'a test one',
+      ),
+      if (mock) const LogFact(key: 'core', value: 'the mock'),
+      ...displayFacts(),
+      if (launcherLog != null) LogFact(key: 'launcher log', value: launcherLog),
+    ];
+  },
+);
