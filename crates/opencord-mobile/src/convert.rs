@@ -139,6 +139,8 @@ pub(crate) fn access(channel_id: i64, bits: i64) -> ChannelAccess {
         music_control: has(Permissions::MUSIC_CONTROL),
         music_manage_queue: has(Permissions::MUSIC_MANAGE_QUEUE),
         music_manage: has(Permissions::MUSIC_MANAGE),
+        use_soundboard: has(Permissions::USE_SOUNDBOARD),
+        use_external_sounds: has(Permissions::USE_EXTERNAL_SOUNDS),
     }
 }
 
@@ -162,6 +164,68 @@ pub(crate) fn snapshot(server_key: String, ready: core::ReadySnapshot) -> Server
         members: ready.members.into_iter().map(member).collect(),
         voice_states: ready.voice_states.into_iter().map(voice_state).collect(),
         voice_enabled: ready.voice_enabled,
+        soundboard: soundboard_settings(&ready.voice_settings),
+        soundboard_sounds: ready
+            .soundboard_sounds
+            .into_iter()
+            .map(soundboard_sound)
+            .collect(),
+    }
+}
+
+pub(crate) fn soundboard_settings(settings: &core::VoiceSettings) -> SoundboardSettingsRecord {
+    SoundboardSettingsRecord {
+        enabled: settings.soundboard_enabled,
+        allow_default_sounds: settings.allow_default_sounds,
+        allow_external_sounds: settings.allow_external_sounds,
+        cooldown_ms: settings.sound_cooldown_s.saturating_mul(1000),
+    }
+}
+
+pub(crate) fn soundboard_sound(sound: core::SoundboardSound) -> SoundboardSoundRecord {
+    SoundboardSoundRecord {
+        id: id(sound.id),
+        name: sound.name,
+        emoji: sound.emoji,
+        volume: sound.volume,
+        sha256: sound.sha256,
+        size_bytes: sound.size_bytes,
+        duration_ms: sound.duration_ms,
+        uploader_id: opt_id(sound.uploader_id),
+        created_at_ms: number(sound.created_at_ms),
+    }
+}
+
+/// Back to the core's, for playing another server's sound here.
+pub(crate) fn core_soundboard_sound(
+    sound: SoundboardSoundRecord,
+) -> Result<core::SoundboardSound, crate::MobileError> {
+    Ok(core::SoundboardSound {
+        id: crate::parse_id(&sound.id)?,
+        name: sound.name,
+        emoji: sound.emoji,
+        volume: sound.volume,
+        sha256: sound.sha256,
+        size_bytes: sound.size_bytes,
+        duration_ms: sound.duration_ms,
+        uploader_id: sound
+            .uploader_id
+            .as_deref()
+            .map(crate::parse_id)
+            .transpose()?,
+        created_at_ms: sound.created_at_ms as i64,
+    })
+}
+
+pub(crate) fn sound_effect(effect: core::SoundEffect) -> SoundEffectRecord {
+    SoundEffectRecord {
+        channel_id: id(effect.channel_id),
+        user_id: id(effect.user_id),
+        sound_ref: effect.sound_ref,
+        name: effect.name,
+        emoji: effect.emoji,
+        started_at_ms: number(effect.started_at_ms),
+        duration_ms: effect.duration_ms,
     }
 }
 
@@ -447,6 +511,58 @@ mod tests {
                 && admin.music_control
                 && admin.music_manage_queue
                 && admin.music_manage
+                && admin.use_soundboard
+                && admin.use_external_sounds
+        );
+
+        let sounds = access(1, bits(Permissions::USE_SOUNDBOARD));
+        assert!(sounds.use_soundboard && !sounds.use_external_sounds);
+    }
+
+    #[test]
+    fn a_sound_crosses_and_comes_back_whole() {
+        let sound = core::SoundboardSound {
+            id: 9_007_199_254_740_993,
+            name: "Airhorn".to_owned(),
+            emoji: Some("📯".to_owned()),
+            volume: 80,
+            sha256: "ab".repeat(32),
+            size_bytes: 12_345,
+            duration_ms: 1_500,
+            uploader_id: Some(42),
+            created_at_ms: 1_761_500_000_123,
+        };
+        let record = soundboard_sound(sound.clone());
+        assert_eq!(record.id, "9007199254740993");
+        assert_eq!(record.uploader_id.as_deref(), Some("42"));
+        assert_eq!(core_soundboard_sound(record).unwrap(), sound);
+    }
+
+    #[test]
+    fn the_cooldown_crosses_in_milliseconds() {
+        let settings = core::VoiceSettings {
+            screen_share_max_resolution: core::ScreenShareResolution::P1080,
+            screen_share_max_fps: 30,
+            max_stream_viewers: 10,
+            camera_allowed: true,
+            max_camera_participants: 10,
+            max_voice_bitrate: 64_000,
+            afk_channel_id: None,
+            afk_timeout_s: 300,
+            soundboard_enabled: true,
+            allow_default_sounds: false,
+            allow_external_sounds: true,
+            sound_cooldown_s: 3,
+            max_sounds: 48,
+        };
+        assert_eq!(
+            soundboard_settings(&settings),
+            SoundboardSettingsRecord {
+                enabled: true,
+                allow_default_sounds: false,
+                allow_external_sounds: true,
+                cooldown_ms: 3_000,
+            }
         );
     }
 

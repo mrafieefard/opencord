@@ -123,10 +123,12 @@ pub struct ChannelAccess {
     pub music_control: bool,
     pub music_manage_queue: bool,
     pub music_manage: bool,
+    pub use_soundboard: bool,
+    pub use_external_sounds: bool,
 }
 
 /// Everything a `Ready` says about a server; it replaces what came before.
-#[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
+#[derive(Debug, Clone, PartialEq, uniffi::Record)]
 pub struct ServerSnapshot {
     pub server_key: String,
     pub self_user: UserRecord,
@@ -139,6 +141,66 @@ pub struct ServerSnapshot {
     pub members: Vec<MemberRecord>,
     pub voice_states: Vec<VoiceStateRecord>,
     pub voice_enabled: bool,
+    pub soundboard: SoundboardSettingsRecord,
+    pub soundboard_sounds: Vec<SoundboardSoundRecord>,
+}
+
+/// The server's soundboard settings (Phase 2 plan §11.2), from its voice
+/// settings.
+#[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
+pub struct SoundboardSettingsRecord {
+    pub enabled: bool,
+    pub allow_default_sounds: bool,
+    pub allow_external_sounds: bool,
+    pub cooldown_ms: u32,
+}
+
+/// One of a server's soundboard sounds, played as `server:<sha256>` there
+/// and as `external:<sha256>` on another server.
+#[derive(Debug, Clone, PartialEq, uniffi::Record)]
+pub struct SoundboardSoundRecord {
+    pub id: String,
+    pub name: String,
+    pub emoji: Option<String>,
+    /// 0–100 %.
+    pub volume: u32,
+    /// Lowercase hex.
+    pub sha256: String,
+    pub size_bytes: u32,
+    pub duration_ms: u32,
+    pub uploader_id: Option<String>,
+    pub created_at_ms: f64,
+}
+
+/// A sound every client has, played as `default:<id>`.
+#[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
+pub struct DefaultSoundRecord {
+    pub id: String,
+    pub name: String,
+    pub emoji: String,
+    pub duration_ms: u32,
+}
+
+/// Someone in a voice channel played a sound: their ring shows for its
+/// length.
+#[derive(Debug, Clone, PartialEq, uniffi::Record)]
+pub struct SoundEffectRecord {
+    pub channel_id: String,
+    pub user_id: String,
+    /// `server:<sha256>`, `external:<sha256>` or `default:<id>`.
+    pub sound_ref: String,
+    pub name: String,
+    pub emoji: Option<String>,
+    pub started_at_ms: f64,
+    pub duration_ms: u32,
+}
+
+/// Another server's sound, played here as an external one: it is uploaded
+/// here first if needed.
+#[derive(Debug, Clone, PartialEq, uniffi::Record)]
+pub struct ExternalSoundRecord {
+    pub server_key: String,
+    pub sound: SoundboardSoundRecord,
 }
 
 #[derive(Debug, Clone, PartialEq, uniffi::Record)]

@@ -107,6 +107,10 @@ interface NativeModuleInterface {
     ubrn_uniffi_opencord_mobile_fn_func_servers_list(uniffi_out_err: UniffiRustCallStatus): Uint8Array;
     ubrn_uniffi_opencord_mobile_fn_func_settings_get(key: Uint8Array, uniffi_out_err: UniffiRustCallStatus): Uint8Array;
     ubrn_uniffi_opencord_mobile_fn_func_settings_set(key: Uint8Array, value: Uint8Array, uniffi_out_err: UniffiRustCallStatus): void;
+    ubrn_uniffi_opencord_mobile_fn_func_soundboard_default_sounds(uniffi_out_err: UniffiRustCallStatus): Uint8Array;
+    ubrn_uniffi_opencord_mobile_fn_func_soundboard_play(serverKey: Uint8Array, channelId: Uint8Array, soundRef: Uint8Array, external: Uint8Array): bigint;
+    ubrn_uniffi_opencord_mobile_fn_func_soundboard_preview(serverKey: Uint8Array, soundRef: Uint8Array): bigint;
+    ubrn_uniffi_opencord_mobile_fn_func_soundboard_set_listening(volume: number, muted: number, uniffi_out_err: UniffiRustCallStatus): void;
     ubrn_uniffi_opencord_mobile_fn_func_typing_start(serverKey: Uint8Array, channelId: Uint8Array): bigint;
     ubrn_uniffi_opencord_mobile_fn_func_voice_join(serverKey: Uint8Array, channelId: Uint8Array): bigint;
     ubrn_uniffi_opencord_mobile_fn_func_voice_leave(): bigint;
@@ -155,6 +159,10 @@ interface NativeModuleInterface {
     ubrn_uniffi_opencord_mobile_checksum_func_servers_list(): number;
     ubrn_uniffi_opencord_mobile_checksum_func_settings_get(): number;
     ubrn_uniffi_opencord_mobile_checksum_func_settings_set(): number;
+    ubrn_uniffi_opencord_mobile_checksum_func_soundboard_default_sounds(): number;
+    ubrn_uniffi_opencord_mobile_checksum_func_soundboard_play(): number;
+    ubrn_uniffi_opencord_mobile_checksum_func_soundboard_preview(): number;
+    ubrn_uniffi_opencord_mobile_checksum_func_soundboard_set_listening(): number;
     ubrn_uniffi_opencord_mobile_checksum_func_typing_start(): number;
     ubrn_uniffi_opencord_mobile_checksum_func_voice_join(): number;
     ubrn_uniffi_opencord_mobile_checksum_func_voice_leave(): number;

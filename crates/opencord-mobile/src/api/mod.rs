@@ -7,4 +7,5 @@ pub mod identity;
 pub mod music;
 pub mod servers;
 pub mod setup;
+pub mod soundboard;
 pub mod voice;

@@ -1264,6 +1264,99 @@ export function settingsSet(key: string, value: string | undefined): void /*thro
     );
     }
 
+/**
+ * The sounds every client has, played as `default:<id>`.
+ */
+export function soundboardDefaultSounds(): Array<DefaultSoundRecord> {
+    const __rb: Uint8Array = uniffiCaller.rustCall(
+            /*caller:*/ (callStatus) => {
+                return nativeModule().ubrn_uniffi_opencord_mobile_fn_func_soundboard_default_sounds(
+                callStatus);
+            },
+            /*liftString:*/ FfiConverterString.lift.bind(FfiConverterString),
+    );
+    try {
+        return FfiConverterSequenceTypeDefaultSoundRecord.lift(__rb);
+    } finally {
+        nativeModule().rustbuffer_free(__rb);
+    }
+    }
+
+/**
+ * Plays a sound in the voice channel this device is in, for everyone
+ * there. `sound_ref` is `server:<sha256>`, `external:<sha256>` or
+ * `default:<id>`; an `external` sound names the server it comes from.
+ */
+export async function soundboardPlay(serverKey: string, channelId: string, soundRef: string, external: ExternalSoundRecord | undefined, asyncOpts_?: { signal: AbortSignal }): Promise<void> /*throws*/ {
+    const __stack = uniffiIsDebug ? new Error().stack : undefined;
+    try {
+        return await uniffiRustCallAsync(
+            /*rustCaller:*/ uniffiCaller,
+            /*rustFutureFunc:*/ () => {
+                return nativeModule().ubrn_uniffi_opencord_mobile_fn_func_soundboard_play(FfiConverterString.lower(serverKey, nativeModule().rustbuffer_alloc),FfiConverterString.lower(channelId, nativeModule().rustbuffer_alloc),FfiConverterString.lower(soundRef, nativeModule().rustbuffer_alloc),FfiConverterOptionalTypeExternalSoundRecord.lower(external, nativeModule().rustbuffer_alloc)
+                );
+            },
+            /*pollFunc:*/ nativeModule().ubrn_ffi_opencord_mobile_rust_future_poll_void,
+            /*cancelFunc:*/ nativeModule().ubrn_ffi_opencord_mobile_rust_future_cancel_void,
+            /*completeFunc:*/ nativeModule().ubrn_ffi_opencord_mobile_rust_future_complete_void,
+            /*freeFunc:*/ nativeModule().ubrn_ffi_opencord_mobile_rust_future_free_void,
+            /*liftFunc:*/ (_v) => {},
+            /*liftString:*/ FfiConverterString.lift.bind(FfiConverterString),
+            /*asyncOpts:*/ asyncOpts_,
+            /*errorHandler:*/ FfiConverterTypeMobileError.lift.bind(FfiConverterTypeMobileError)
+        );
+    } catch (__error: any) {
+        if (uniffiIsDebug && __error instanceof Error) {
+            __error.stack = __stack;
+        }
+        throw __error;
+    }
+    }
+
+/**
+ * Plays a sound on this device only; nobody else hears it. Another
+ * server's sound previews from that server, by its `server:` ref.
+ */
+export async function soundboardPreview(serverKey: string, soundRef: string, asyncOpts_?: { signal: AbortSignal }): Promise<void> /*throws*/ {
+    const __stack = uniffiIsDebug ? new Error().stack : undefined;
+    try {
+        return await uniffiRustCallAsync(
+            /*rustCaller:*/ uniffiCaller,
+            /*rustFutureFunc:*/ () => {
+                return nativeModule().ubrn_uniffi_opencord_mobile_fn_func_soundboard_preview(FfiConverterString.lower(serverKey, nativeModule().rustbuffer_alloc),FfiConverterString.lower(soundRef, nativeModule().rustbuffer_alloc)
+                );
+            },
+            /*pollFunc:*/ nativeModule().ubrn_ffi_opencord_mobile_rust_future_poll_void,
+            /*cancelFunc:*/ nativeModule().ubrn_ffi_opencord_mobile_rust_future_cancel_void,
+            /*completeFunc:*/ nativeModule().ubrn_ffi_opencord_mobile_rust_future_complete_void,
+            /*freeFunc:*/ nativeModule().ubrn_ffi_opencord_mobile_rust_future_free_void,
+            /*liftFunc:*/ (_v) => {},
+            /*liftString:*/ FfiConverterString.lift.bind(FfiConverterString),
+            /*asyncOpts:*/ asyncOpts_,
+            /*errorHandler:*/ FfiConverterTypeMobileError.lift.bind(FfiConverterTypeMobileError)
+        );
+    } catch (__error: any) {
+        if (uniffiIsDebug && __error instanceof Error) {
+            __error.stack = __stack;
+        }
+        throw __error;
+    }
+    }
+
+/**
+ * The soundboard's volume (0–1) and "Mute all soundboards".
+ */
+export function soundboardSetListening(volume: number, muted: boolean): void /*throws*/ {uniffiCaller.rustCallWithError(
+            /*liftError:*/ FfiConverterTypeMobileError.lift.bind(FfiConverterTypeMobileError),
+            /*caller:*/ (callStatus) => { nativeModule().ubrn_uniffi_opencord_mobile_fn_func_soundboard_set_listening(
+        FfiConverterFloat32.lower(volume, nativeModule().rustbuffer_alloc),
+        FfiConverterBool.lower(muted, nativeModule().rustbuffer_alloc),
+                callStatus);
+            },
+            /*liftString:*/ FfiConverterString.lift.bind(FfiConverterString),
+    );
+    }
+
 export async function typingStart(serverKey: string, channelId: string, asyncOpts_?: { signal: AbortSignal }): Promise<void> /*throws*/ {
     const __stack = uniffiIsDebug ? new Error().stack : undefined;
     try {
@@ -1606,7 +1699,9 @@ export type ChannelAccess = {
     musicAdd: boolean,
     musicControl: boolean,
     musicManageQueue: boolean,
-    musicManage: boolean
+    musicManage: boolean,
+    useSoundboard: boolean,
+    useExternalSounds: boolean
 }
 
 /**
@@ -1641,7 +1736,9 @@ const FfiConverterTypeChannelAccess = (() => {
                 musicAdd: FfiConverterBool.readFromCursor(c), 
                 musicControl: FfiConverterBool.readFromCursor(c), 
                 musicManageQueue: FfiConverterBool.readFromCursor(c), 
-                musicManage: FfiConverterBool.readFromCursor(c)
+                musicManage: FfiConverterBool.readFromCursor(c), 
+                useSoundboard: FfiConverterBool.readFromCursor(c), 
+                useExternalSounds: FfiConverterBool.readFromCursor(c)
             };
         }
         writeIntoCursor(value: TypeName, c: Cursor): void {
@@ -1657,6 +1754,8 @@ const FfiConverterTypeChannelAccess = (() => {
             FfiConverterBool.writeIntoCursor(value.musicControl, c);
             FfiConverterBool.writeIntoCursor(value.musicManageQueue, c);
             FfiConverterBool.writeIntoCursor(value.musicManage, c);
+            FfiConverterBool.writeIntoCursor(value.useSoundboard, c);
+            FfiConverterBool.writeIntoCursor(value.useExternalSounds, c);
         }
         allocationSize(value: TypeName): number {
             return FfiConverterString.allocationSize(value.channelId) +
@@ -1670,7 +1769,9 @@ const FfiConverterTypeChannelAccess = (() => {
              FfiConverterBool.allocationSize(value.musicAdd) +
              FfiConverterBool.allocationSize(value.musicControl) +
              FfiConverterBool.allocationSize(value.musicManageQueue) +
-             FfiConverterBool.allocationSize(value.musicManage);
+             FfiConverterBool.allocationSize(value.musicManage) +
+             FfiConverterBool.allocationSize(value.useSoundboard) +
+             FfiConverterBool.allocationSize(value.useExternalSounds);
             
         }
     };
@@ -1778,6 +1879,188 @@ const FfiConverterTypeChannelRecord = (() => {
              FfiConverterInt32.allocationSize(value.position) +
              FfiConverterUInt32.allocationSize(value.userLimit) +
              FfiConverterBool.allocationSize(value.textInVoice);
+            
+        }
+    };
+    return new FFIConverter();
+})();
+
+/**
+ * A sound every client has, played as `default:<id>`.
+ */
+export type DefaultSoundRecord = {
+    id: string,
+    name: string,
+    emoji: string,
+    durationMs: number
+}
+
+/**
+ * Generated factory for {@link DefaultSoundRecord} record objects.
+ */
+export const DefaultSoundRecord = (() => {
+    const defaults = () => ({
+    });
+    const create = (() => {
+        return uniffiCreateRecord<DefaultSoundRecord, ReturnType<typeof defaults>>(defaults);
+    })();
+    return Object.freeze({
+        create,
+        new: create,
+        defaults: () => Object.freeze(defaults()) as Partial<DefaultSoundRecord>,
+    });
+})();
+
+const FfiConverterTypeDefaultSoundRecord = (() => {
+    type TypeName = DefaultSoundRecord;
+    class FFIConverter extends AbstractFfiConverterByteArray<TypeName> {
+        readFromCursor(c: Cursor): TypeName {
+            return {
+                id: FfiConverterString.readFromCursor(c), 
+                name: FfiConverterString.readFromCursor(c), 
+                emoji: FfiConverterString.readFromCursor(c), 
+                durationMs: FfiConverterUInt32.readFromCursor(c)
+            };
+        }
+        writeIntoCursor(value: TypeName, c: Cursor): void {
+            FfiConverterString.writeIntoCursor(value.id, c);
+            FfiConverterString.writeIntoCursor(value.name, c);
+            FfiConverterString.writeIntoCursor(value.emoji, c);
+            FfiConverterUInt32.writeIntoCursor(value.durationMs, c);
+        }
+        allocationSize(value: TypeName): number {
+            return FfiConverterString.allocationSize(value.id) +
+             FfiConverterString.allocationSize(value.name) +
+             FfiConverterString.allocationSize(value.emoji) +
+             FfiConverterUInt32.allocationSize(value.durationMs);
+            
+        }
+    };
+    return new FFIConverter();
+})();
+
+/**
+ * One of a server's soundboard sounds, played as `server:<sha256>` there
+ * and as `external:<sha256>` on another server.
+ */
+export type SoundboardSoundRecord = {
+    id: string,
+    name: string,
+    emoji?: string,
+    /**
+     * 0–100 %.
+     */
+    volume: number,
+    /**
+     * Lowercase hex.
+     */
+    sha256: string,
+    sizeBytes: number,
+    durationMs: number,
+    uploaderId?: string,
+    createdAtMs: number
+}
+
+/**
+ * Generated factory for {@link SoundboardSoundRecord} record objects.
+ */
+export const SoundboardSoundRecord = (() => {
+    const defaults = () => ({
+    });
+    const create = (() => {
+        return uniffiCreateRecord<SoundboardSoundRecord, ReturnType<typeof defaults>>(defaults);
+    })();
+    return Object.freeze({
+        create,
+        new: create,
+        defaults: () => Object.freeze(defaults()) as Partial<SoundboardSoundRecord>,
+    });
+})();
+
+const FfiConverterTypeSoundboardSoundRecord = (() => {
+    type TypeName = SoundboardSoundRecord;
+    class FFIConverter extends AbstractFfiConverterByteArray<TypeName> {
+        readFromCursor(c: Cursor): TypeName {
+            return {
+                id: FfiConverterString.readFromCursor(c), 
+                name: FfiConverterString.readFromCursor(c), 
+                emoji: FfiConverterOptionalString.readFromCursor(c), 
+                volume: FfiConverterUInt32.readFromCursor(c), 
+                sha256: FfiConverterString.readFromCursor(c), 
+                sizeBytes: FfiConverterUInt32.readFromCursor(c), 
+                durationMs: FfiConverterUInt32.readFromCursor(c), 
+                uploaderId: FfiConverterOptionalString.readFromCursor(c), 
+                createdAtMs: FfiConverterFloat64.readFromCursor(c)
+            };
+        }
+        writeIntoCursor(value: TypeName, c: Cursor): void {
+            FfiConverterString.writeIntoCursor(value.id, c);
+            FfiConverterString.writeIntoCursor(value.name, c);
+            FfiConverterOptionalString.writeIntoCursor(value.emoji, c);
+            FfiConverterUInt32.writeIntoCursor(value.volume, c);
+            FfiConverterString.writeIntoCursor(value.sha256, c);
+            FfiConverterUInt32.writeIntoCursor(value.sizeBytes, c);
+            FfiConverterUInt32.writeIntoCursor(value.durationMs, c);
+            FfiConverterOptionalString.writeIntoCursor(value.uploaderId, c);
+            FfiConverterFloat64.writeIntoCursor(value.createdAtMs, c);
+        }
+        allocationSize(value: TypeName): number {
+            return FfiConverterString.allocationSize(value.id) +
+             FfiConverterString.allocationSize(value.name) +
+             FfiConverterOptionalString.allocationSize(value.emoji) +
+             FfiConverterUInt32.allocationSize(value.volume) +
+             FfiConverterString.allocationSize(value.sha256) +
+             FfiConverterUInt32.allocationSize(value.sizeBytes) +
+             FfiConverterUInt32.allocationSize(value.durationMs) +
+             FfiConverterOptionalString.allocationSize(value.uploaderId) +
+             FfiConverterFloat64.allocationSize(value.createdAtMs);
+            
+        }
+    };
+    return new FFIConverter();
+})();
+
+/**
+ * Another server's sound, played here as an external one: it is uploaded
+ * here first if needed.
+ */
+export type ExternalSoundRecord = {
+    serverKey: string,
+    sound: SoundboardSoundRecord
+}
+
+/**
+ * Generated factory for {@link ExternalSoundRecord} record objects.
+ */
+export const ExternalSoundRecord = (() => {
+    const defaults = () => ({
+    });
+    const create = (() => {
+        return uniffiCreateRecord<ExternalSoundRecord, ReturnType<typeof defaults>>(defaults);
+    })();
+    return Object.freeze({
+        create,
+        new: create,
+        defaults: () => Object.freeze(defaults()) as Partial<ExternalSoundRecord>,
+    });
+})();
+
+const FfiConverterTypeExternalSoundRecord = (() => {
+    type TypeName = ExternalSoundRecord;
+    class FFIConverter extends AbstractFfiConverterByteArray<TypeName> {
+        readFromCursor(c: Cursor): TypeName {
+            return {
+                serverKey: FfiConverterString.readFromCursor(c), 
+                sound: FfiConverterTypeSoundboardSoundRecord.readFromCursor(c)
+            };
+        }
+        writeIntoCursor(value: TypeName, c: Cursor): void {
+            FfiConverterString.writeIntoCursor(value.serverKey, c);
+            FfiConverterTypeSoundboardSoundRecord.writeIntoCursor(value.sound, c);
+        }
+        allocationSize(value: TypeName): number {
+            return FfiConverterString.allocationSize(value.serverKey) +
+             FfiConverterTypeSoundboardSoundRecord.allocationSize(value.sound);
             
         }
     };
@@ -2811,6 +3094,61 @@ const FfiConverterTypeVoiceStateRecord = (() => {
 })();
 
 /**
+ * The server's soundboard settings (Phase 2 plan §11.2), from its voice
+ * settings.
+ */
+export type SoundboardSettingsRecord = {
+    enabled: boolean,
+    allowDefaultSounds: boolean,
+    allowExternalSounds: boolean,
+    cooldownMs: number
+}
+
+/**
+ * Generated factory for {@link SoundboardSettingsRecord} record objects.
+ */
+export const SoundboardSettingsRecord = (() => {
+    const defaults = () => ({
+    });
+    const create = (() => {
+        return uniffiCreateRecord<SoundboardSettingsRecord, ReturnType<typeof defaults>>(defaults);
+    })();
+    return Object.freeze({
+        create,
+        new: create,
+        defaults: () => Object.freeze(defaults()) as Partial<SoundboardSettingsRecord>,
+    });
+})();
+
+const FfiConverterTypeSoundboardSettingsRecord = (() => {
+    type TypeName = SoundboardSettingsRecord;
+    class FFIConverter extends AbstractFfiConverterByteArray<TypeName> {
+        readFromCursor(c: Cursor): TypeName {
+            return {
+                enabled: FfiConverterBool.readFromCursor(c), 
+                allowDefaultSounds: FfiConverterBool.readFromCursor(c), 
+                allowExternalSounds: FfiConverterBool.readFromCursor(c), 
+                cooldownMs: FfiConverterUInt32.readFromCursor(c)
+            };
+        }
+        writeIntoCursor(value: TypeName, c: Cursor): void {
+            FfiConverterBool.writeIntoCursor(value.enabled, c);
+            FfiConverterBool.writeIntoCursor(value.allowDefaultSounds, c);
+            FfiConverterBool.writeIntoCursor(value.allowExternalSounds, c);
+            FfiConverterUInt32.writeIntoCursor(value.cooldownMs, c);
+        }
+        allocationSize(value: TypeName): number {
+            return FfiConverterBool.allocationSize(value.enabled) +
+             FfiConverterBool.allocationSize(value.allowDefaultSounds) +
+             FfiConverterBool.allocationSize(value.allowExternalSounds) +
+             FfiConverterUInt32.allocationSize(value.cooldownMs);
+            
+        }
+    };
+    return new FFIConverter();
+})();
+
+/**
  * Everything a `Ready` says about a server; it replaces what came before.
  */
 export type ServerSnapshot = {
@@ -2824,7 +3162,9 @@ export type ServerSnapshot = {
     access: Array<ChannelAccess>,
     members: Array<MemberRecord>,
     voiceStates: Array<VoiceStateRecord>,
-    voiceEnabled: boolean
+    voiceEnabled: boolean,
+    soundboard: SoundboardSettingsRecord,
+    soundboardSounds: Array<SoundboardSoundRecord>
 }
 
 /**
@@ -2858,7 +3198,9 @@ const FfiConverterTypeServerSnapshot = (() => {
                 access: FfiConverterSequenceTypeChannelAccess.readFromCursor(c), 
                 members: FfiConverterSequenceTypeMemberRecord.readFromCursor(c), 
                 voiceStates: FfiConverterSequenceTypeVoiceStateRecord.readFromCursor(c), 
-                voiceEnabled: FfiConverterBool.readFromCursor(c)
+                voiceEnabled: FfiConverterBool.readFromCursor(c), 
+                soundboard: FfiConverterTypeSoundboardSettingsRecord.readFromCursor(c), 
+                soundboardSounds: FfiConverterSequenceTypeSoundboardSoundRecord.readFromCursor(c)
             };
         }
         writeIntoCursor(value: TypeName, c: Cursor): void {
@@ -2873,6 +3215,8 @@ const FfiConverterTypeServerSnapshot = (() => {
             FfiConverterSequenceTypeMemberRecord.writeIntoCursor(value.members, c);
             FfiConverterSequenceTypeVoiceStateRecord.writeIntoCursor(value.voiceStates, c);
             FfiConverterBool.writeIntoCursor(value.voiceEnabled, c);
+            FfiConverterTypeSoundboardSettingsRecord.writeIntoCursor(value.soundboard, c);
+            FfiConverterSequenceTypeSoundboardSoundRecord.writeIntoCursor(value.soundboardSounds, c);
         }
         allocationSize(value: TypeName): number {
             return FfiConverterString.allocationSize(value.serverKey) +
@@ -2885,7 +3229,79 @@ const FfiConverterTypeServerSnapshot = (() => {
              FfiConverterSequenceTypeChannelAccess.allocationSize(value.access) +
              FfiConverterSequenceTypeMemberRecord.allocationSize(value.members) +
              FfiConverterSequenceTypeVoiceStateRecord.allocationSize(value.voiceStates) +
-             FfiConverterBool.allocationSize(value.voiceEnabled);
+             FfiConverterBool.allocationSize(value.voiceEnabled) +
+             FfiConverterTypeSoundboardSettingsRecord.allocationSize(value.soundboard) +
+             FfiConverterSequenceTypeSoundboardSoundRecord.allocationSize(value.soundboardSounds);
+            
+        }
+    };
+    return new FFIConverter();
+})();
+
+/**
+ * Someone in a voice channel played a sound: their ring shows for its
+ * length.
+ */
+export type SoundEffectRecord = {
+    channelId: string,
+    userId: string,
+    /**
+     * `server:<sha256>`, `external:<sha256>` or `default:<id>`.
+     */
+    soundRef: string,
+    name: string,
+    emoji?: string,
+    startedAtMs: number,
+    durationMs: number
+}
+
+/**
+ * Generated factory for {@link SoundEffectRecord} record objects.
+ */
+export const SoundEffectRecord = (() => {
+    const defaults = () => ({
+    });
+    const create = (() => {
+        return uniffiCreateRecord<SoundEffectRecord, ReturnType<typeof defaults>>(defaults);
+    })();
+    return Object.freeze({
+        create,
+        new: create,
+        defaults: () => Object.freeze(defaults()) as Partial<SoundEffectRecord>,
+    });
+})();
+
+const FfiConverterTypeSoundEffectRecord = (() => {
+    type TypeName = SoundEffectRecord;
+    class FFIConverter extends AbstractFfiConverterByteArray<TypeName> {
+        readFromCursor(c: Cursor): TypeName {
+            return {
+                channelId: FfiConverterString.readFromCursor(c), 
+                userId: FfiConverterString.readFromCursor(c), 
+                soundRef: FfiConverterString.readFromCursor(c), 
+                name: FfiConverterString.readFromCursor(c), 
+                emoji: FfiConverterOptionalString.readFromCursor(c), 
+                startedAtMs: FfiConverterFloat64.readFromCursor(c), 
+                durationMs: FfiConverterUInt32.readFromCursor(c)
+            };
+        }
+        writeIntoCursor(value: TypeName, c: Cursor): void {
+            FfiConverterString.writeIntoCursor(value.channelId, c);
+            FfiConverterString.writeIntoCursor(value.userId, c);
+            FfiConverterString.writeIntoCursor(value.soundRef, c);
+            FfiConverterString.writeIntoCursor(value.name, c);
+            FfiConverterOptionalString.writeIntoCursor(value.emoji, c);
+            FfiConverterFloat64.writeIntoCursor(value.startedAtMs, c);
+            FfiConverterUInt32.writeIntoCursor(value.durationMs, c);
+        }
+        allocationSize(value: TypeName): number {
+            return FfiConverterString.allocationSize(value.channelId) +
+             FfiConverterString.allocationSize(value.userId) +
+             FfiConverterString.allocationSize(value.soundRef) +
+             FfiConverterString.allocationSize(value.name) +
+             FfiConverterOptionalString.allocationSize(value.emoji) +
+             FfiConverterFloat64.allocationSize(value.startedAtMs) +
+             FfiConverterUInt32.allocationSize(value.durationMs);
             
         }
     };
@@ -4651,6 +5067,10 @@ export enum MobileEvent_Tags {
     MusicNowPlaying = "MusicNowPlaying",
     MusicNotice = "MusicNotice",
     MusicSettingsChanged = "MusicSettingsChanged",
+    SoundboardSettingsChanged = "SoundboardSettingsChanged",
+    SoundboardSoundUpserted = "SoundboardSoundUpserted",
+    SoundboardSoundDeleted = "SoundboardSoundDeleted",
+    SoundPlayed = "SoundPlayed",
     MusicUpload = "MusicUpload",
     SendProgress = "SendProgress",
     Notice = "Notice"
@@ -5317,6 +5737,134 @@ inner: {serverKey: string; settings: MusicSettingsRecord }): MusicSettingsChange
 
     }
 
+    type SoundboardSettingsChanged__interface = {
+        tag: MobileEvent_Tags.SoundboardSettingsChanged;
+        inner: 
+Readonly<{serverKey: string; settings: SoundboardSettingsRecord}>
+    };
+    class SoundboardSettingsChanged_ extends UniffiEnum implements SoundboardSettingsChanged__interface {
+        /**
+         * @private
+         * This field is private and should not be used, use `tag` instead.
+         */
+        readonly [uniffiTypeNameSymbol] = "MobileEvent";
+        readonly tag = MobileEvent_Tags.SoundboardSettingsChanged;
+        readonly inner: 
+Readonly<{serverKey: string; settings: SoundboardSettingsRecord}>;
+        constructor(
+inner: {serverKey: string; settings: SoundboardSettingsRecord }) {
+            super("MobileEvent", "SoundboardSettingsChanged");
+
+            this.inner = Object.freeze(inner);
+        }
+        static new(
+inner: {serverKey: string; settings: SoundboardSettingsRecord }): SoundboardSettingsChanged_ {
+            return new SoundboardSettingsChanged_(inner);
+        }
+
+        static instanceOf(obj: any): obj is SoundboardSettingsChanged_ {
+            return obj.tag === MobileEvent_Tags.SoundboardSettingsChanged;
+        }
+
+    }
+
+    type SoundboardSoundUpserted__interface = {
+        tag: MobileEvent_Tags.SoundboardSoundUpserted;
+        inner: 
+Readonly<{serverKey: string; sound: SoundboardSoundRecord}>
+    };
+    class SoundboardSoundUpserted_ extends UniffiEnum implements SoundboardSoundUpserted__interface {
+        /**
+         * @private
+         * This field is private and should not be used, use `tag` instead.
+         */
+        readonly [uniffiTypeNameSymbol] = "MobileEvent";
+        readonly tag = MobileEvent_Tags.SoundboardSoundUpserted;
+        readonly inner: 
+Readonly<{serverKey: string; sound: SoundboardSoundRecord}>;
+        constructor(
+inner: {serverKey: string; sound: SoundboardSoundRecord }) {
+            super("MobileEvent", "SoundboardSoundUpserted");
+
+            this.inner = Object.freeze(inner);
+        }
+        static new(
+inner: {serverKey: string; sound: SoundboardSoundRecord }): SoundboardSoundUpserted_ {
+            return new SoundboardSoundUpserted_(inner);
+        }
+
+        static instanceOf(obj: any): obj is SoundboardSoundUpserted_ {
+            return obj.tag === MobileEvent_Tags.SoundboardSoundUpserted;
+        }
+
+    }
+
+    type SoundboardSoundDeleted__interface = {
+        tag: MobileEvent_Tags.SoundboardSoundDeleted;
+        inner: 
+Readonly<{serverKey: string; soundId: string}>
+    };
+    class SoundboardSoundDeleted_ extends UniffiEnum implements SoundboardSoundDeleted__interface {
+        /**
+         * @private
+         * This field is private and should not be used, use `tag` instead.
+         */
+        readonly [uniffiTypeNameSymbol] = "MobileEvent";
+        readonly tag = MobileEvent_Tags.SoundboardSoundDeleted;
+        readonly inner: 
+Readonly<{serverKey: string; soundId: string}>;
+        constructor(
+inner: {serverKey: string; soundId: string }) {
+            super("MobileEvent", "SoundboardSoundDeleted");
+
+            this.inner = Object.freeze(inner);
+        }
+        static new(
+inner: {serverKey: string; soundId: string }): SoundboardSoundDeleted_ {
+            return new SoundboardSoundDeleted_(inner);
+        }
+
+        static instanceOf(obj: any): obj is SoundboardSoundDeleted_ {
+            return obj.tag === MobileEvent_Tags.SoundboardSoundDeleted;
+        }
+
+    }
+
+    type SoundPlayed__interface = {
+        tag: MobileEvent_Tags.SoundPlayed;
+        inner: 
+Readonly<{serverKey: string; effect: SoundEffectRecord}>
+    };
+    /**
+     * Someone played a sound in a voice channel; this device plays it
+     * itself when it is in that channel.
+     */
+    class SoundPlayed_ extends UniffiEnum implements SoundPlayed__interface {
+        /**
+         * @private
+         * This field is private and should not be used, use `tag` instead.
+         */
+        readonly [uniffiTypeNameSymbol] = "MobileEvent";
+        readonly tag = MobileEvent_Tags.SoundPlayed;
+        readonly inner: 
+Readonly<{serverKey: string; effect: SoundEffectRecord}>;
+        constructor(
+inner: {serverKey: string; effect: SoundEffectRecord }) {
+            super("MobileEvent", "SoundPlayed");
+
+            this.inner = Object.freeze(inner);
+        }
+        static new(
+inner: {serverKey: string; effect: SoundEffectRecord }): SoundPlayed_ {
+            return new SoundPlayed_(inner);
+        }
+
+        static instanceOf(obj: any): obj is SoundPlayed_ {
+            return obj.tag === MobileEvent_Tags.SoundPlayed;
+        }
+
+    }
+
     type MusicUpload__interface = {
         tag: MobileEvent_Tags.MusicUpload;
         inner: 
@@ -5440,6 +5988,10 @@ inner: {serverKey: string; key: string; title: string; body: string }): Notice_ 
   MusicNowPlaying: MusicNowPlaying_, 
   MusicNotice: MusicNotice_, 
   MusicSettingsChanged: MusicSettingsChanged_, 
+  SoundboardSettingsChanged: SoundboardSettingsChanged_, 
+  SoundboardSoundUpserted: SoundboardSoundUpserted_, 
+  SoundboardSoundDeleted: SoundboardSoundDeleted_, 
+  SoundPlayed: SoundPlayed_, 
   MusicUpload: MusicUpload_, 
   SendProgress: SendProgress_, 
   Notice: Notice_
@@ -5447,7 +5999,7 @@ inner: {serverKey: string; key: string; title: string; body: string }): Notice_ 
 
 })();
 export type MobileEvent = InstanceType<
-    typeof MobileEvent['Connection' | 'Ready' | 'MessageCreated' | 'MessageUpdated' | 'MessageDeleted' | 'ChannelUpserted' | 'ChannelDeleted' | 'AccessChanged' | 'MemberUpserted' | 'MemberLeft' | 'Typing' | 'ServerInfoChanged' | 'VoiceStateChanged' | 'VoiceLink' | 'Speaking' | 'AudioProblem' | 'SpeakingWhileMuted' | 'MusicSession' | 'MusicNowPlaying' | 'MusicNotice' | 'MusicSettingsChanged' | 'MusicUpload' | 'SendProgress' | 'Notice']
+    typeof MobileEvent['Connection' | 'Ready' | 'MessageCreated' | 'MessageUpdated' | 'MessageDeleted' | 'ChannelUpserted' | 'ChannelDeleted' | 'AccessChanged' | 'MemberUpserted' | 'MemberLeft' | 'Typing' | 'ServerInfoChanged' | 'VoiceStateChanged' | 'VoiceLink' | 'Speaking' | 'AudioProblem' | 'SpeakingWhileMuted' | 'MusicSession' | 'MusicNowPlaying' | 'MusicNotice' | 'MusicSettingsChanged' | 'SoundboardSettingsChanged' | 'SoundboardSoundUpserted' | 'SoundboardSoundDeleted' | 'SoundPlayed' | 'MusicUpload' | 'SendProgress' | 'Notice']
 >;
 
 // FfiConverter for enum MobileEvent
@@ -5477,9 +6029,13 @@ const FfiConverterTypeMobileEvent = (() => {
                 case 19: return new MobileEvent.MusicNowPlaying({serverKey: FfiConverterString.readFromCursor(c), nowPlaying: FfiConverterTypeMusicNowPlayingRecord.readFromCursor(c) });
                 case 20: return new MobileEvent.MusicNotice({serverKey: FfiConverterString.readFromCursor(c), channelId: FfiConverterString.readFromCursor(c), text: FfiConverterString.readFromCursor(c) });
                 case 21: return new MobileEvent.MusicSettingsChanged({serverKey: FfiConverterString.readFromCursor(c), settings: FfiConverterTypeMusicSettingsRecord.readFromCursor(c) });
-                case 22: return new MobileEvent.MusicUpload({serverKey: FfiConverterString.readFromCursor(c), channelId: FfiConverterString.readFromCursor(c), uploadId: FfiConverterString.readFromCursor(c), filename: FfiConverterString.readFromCursor(c), sentBytes: FfiConverterFloat64.readFromCursor(c), totalBytes: FfiConverterFloat64.readFromCursor(c), phase: FfiConverterTypeUploadPhaseRecord.readFromCursor(c) });
-                case 23: return new MobileEvent.SendProgress({serverKey: FfiConverterString.readFromCursor(c), nonce: FfiConverterString.readFromCursor(c), index: FfiConverterUInt32.readFromCursor(c), sentBytes: FfiConverterFloat64.readFromCursor(c), totalBytes: FfiConverterFloat64.readFromCursor(c), phase: FfiConverterTypeUploadPhaseRecord.readFromCursor(c) });
-                case 24: return new MobileEvent.Notice({serverKey: FfiConverterString.readFromCursor(c), key: FfiConverterString.readFromCursor(c), title: FfiConverterString.readFromCursor(c), body: FfiConverterString.readFromCursor(c) });
+                case 22: return new MobileEvent.SoundboardSettingsChanged({serverKey: FfiConverterString.readFromCursor(c), settings: FfiConverterTypeSoundboardSettingsRecord.readFromCursor(c) });
+                case 23: return new MobileEvent.SoundboardSoundUpserted({serverKey: FfiConverterString.readFromCursor(c), sound: FfiConverterTypeSoundboardSoundRecord.readFromCursor(c) });
+                case 24: return new MobileEvent.SoundboardSoundDeleted({serverKey: FfiConverterString.readFromCursor(c), soundId: FfiConverterString.readFromCursor(c) });
+                case 25: return new MobileEvent.SoundPlayed({serverKey: FfiConverterString.readFromCursor(c), effect: FfiConverterTypeSoundEffectRecord.readFromCursor(c) });
+                case 26: return new MobileEvent.MusicUpload({serverKey: FfiConverterString.readFromCursor(c), channelId: FfiConverterString.readFromCursor(c), uploadId: FfiConverterString.readFromCursor(c), filename: FfiConverterString.readFromCursor(c), sentBytes: FfiConverterFloat64.readFromCursor(c), totalBytes: FfiConverterFloat64.readFromCursor(c), phase: FfiConverterTypeUploadPhaseRecord.readFromCursor(c) });
+                case 27: return new MobileEvent.SendProgress({serverKey: FfiConverterString.readFromCursor(c), nonce: FfiConverterString.readFromCursor(c), index: FfiConverterUInt32.readFromCursor(c), sentBytes: FfiConverterFloat64.readFromCursor(c), totalBytes: FfiConverterFloat64.readFromCursor(c), phase: FfiConverterTypeUploadPhaseRecord.readFromCursor(c) });
+                case 28: return new MobileEvent.Notice({serverKey: FfiConverterString.readFromCursor(c), key: FfiConverterString.readFromCursor(c), title: FfiConverterString.readFromCursor(c), body: FfiConverterString.readFromCursor(c) });
                 default: throw new UniffiInternalError.UnexpectedEnumCase();
             }
         }
@@ -5635,8 +6191,36 @@ const FfiConverterTypeMobileEvent = (() => {
                     FfiConverterTypeMusicSettingsRecord.writeIntoCursor(inner.settings, c);
                     return;
                 }
-                case MobileEvent_Tags.MusicUpload: {
+                case MobileEvent_Tags.SoundboardSettingsChanged: {
                     c.writeI32(22);
+                    const inner = value.inner;
+                    FfiConverterString.writeIntoCursor(inner.serverKey, c);
+                    FfiConverterTypeSoundboardSettingsRecord.writeIntoCursor(inner.settings, c);
+                    return;
+                }
+                case MobileEvent_Tags.SoundboardSoundUpserted: {
+                    c.writeI32(23);
+                    const inner = value.inner;
+                    FfiConverterString.writeIntoCursor(inner.serverKey, c);
+                    FfiConverterTypeSoundboardSoundRecord.writeIntoCursor(inner.sound, c);
+                    return;
+                }
+                case MobileEvent_Tags.SoundboardSoundDeleted: {
+                    c.writeI32(24);
+                    const inner = value.inner;
+                    FfiConverterString.writeIntoCursor(inner.serverKey, c);
+                    FfiConverterString.writeIntoCursor(inner.soundId, c);
+                    return;
+                }
+                case MobileEvent_Tags.SoundPlayed: {
+                    c.writeI32(25);
+                    const inner = value.inner;
+                    FfiConverterString.writeIntoCursor(inner.serverKey, c);
+                    FfiConverterTypeSoundEffectRecord.writeIntoCursor(inner.effect, c);
+                    return;
+                }
+                case MobileEvent_Tags.MusicUpload: {
+                    c.writeI32(26);
                     const inner = value.inner;
                     FfiConverterString.writeIntoCursor(inner.serverKey, c);
                     FfiConverterString.writeIntoCursor(inner.channelId, c);
@@ -5648,7 +6232,7 @@ const FfiConverterTypeMobileEvent = (() => {
                     return;
                 }
                 case MobileEvent_Tags.SendProgress: {
-                    c.writeI32(23);
+                    c.writeI32(27);
                     const inner = value.inner;
                     FfiConverterString.writeIntoCursor(inner.serverKey, c);
                     FfiConverterString.writeIntoCursor(inner.nonce, c);
@@ -5659,7 +6243,7 @@ const FfiConverterTypeMobileEvent = (() => {
                     return;
                 }
                 case MobileEvent_Tags.Notice: {
-                    c.writeI32(24);
+                    c.writeI32(28);
                     const inner = value.inner;
                     FfiConverterString.writeIntoCursor(inner.serverKey, c);
                     FfiConverterString.writeIntoCursor(inner.key, c);
@@ -5823,6 +6407,34 @@ const FfiConverterTypeMobileEvent = (() => {
                     size += FfiConverterTypeMusicSettingsRecord.allocationSize(inner.settings);
                     return size;
                 }
+                case MobileEvent_Tags.SoundboardSettingsChanged: {
+                    const inner = value.inner;
+                    let size = 4;
+                    size += FfiConverterString.allocationSize(inner.serverKey);
+                    size += FfiConverterTypeSoundboardSettingsRecord.allocationSize(inner.settings);
+                    return size;
+                }
+                case MobileEvent_Tags.SoundboardSoundUpserted: {
+                    const inner = value.inner;
+                    let size = 4;
+                    size += FfiConverterString.allocationSize(inner.serverKey);
+                    size += FfiConverterTypeSoundboardSoundRecord.allocationSize(inner.sound);
+                    return size;
+                }
+                case MobileEvent_Tags.SoundboardSoundDeleted: {
+                    const inner = value.inner;
+                    let size = 4;
+                    size += FfiConverterString.allocationSize(inner.serverKey);
+                    size += FfiConverterString.allocationSize(inner.soundId);
+                    return size;
+                }
+                case MobileEvent_Tags.SoundPlayed: {
+                    const inner = value.inner;
+                    let size = 4;
+                    size += FfiConverterString.allocationSize(inner.serverKey);
+                    size += FfiConverterTypeSoundEffectRecord.allocationSize(inner.effect);
+                    return size;
+                }
                 case MobileEvent_Tags.MusicUpload: {
                     const inner = value.inner;
                     let size = 4;
@@ -5978,6 +6590,9 @@ const FfiConverterSequenceTypeMemberRecord = new FfiConverterArray(FfiConverterT
 // FfiConverter for Array<VoiceStateRecord>
 const FfiConverterSequenceTypeVoiceStateRecord = new FfiConverterArray(FfiConverterTypeVoiceStateRecord);
 
+// FfiConverter for Array<SoundboardSoundRecord>
+const FfiConverterSequenceTypeSoundboardSoundRecord = new FfiConverterArray(FfiConverterTypeSoundboardSoundRecord);
+
 // FfiConverter for Array<SpeakingChangeRecord>
 const FfiConverterSequenceTypeSpeakingChangeRecord = new FfiConverterArray(FfiConverterTypeSpeakingChangeRecord);
 
@@ -5998,6 +6613,12 @@ const FfiConverterSequenceTypeMobileEvent = new FfiConverterArray(FfiConverterTy
 
 // FfiConverter for Array<ServerEntry>
 const FfiConverterSequenceTypeServerEntry = new FfiConverterArray(FfiConverterTypeServerEntry);
+
+// FfiConverter for Array<DefaultSoundRecord>
+const FfiConverterSequenceTypeDefaultSoundRecord = new FfiConverterArray(FfiConverterTypeDefaultSoundRecord);
+
+// FfiConverter for ExternalSoundRecord | undefined
+const FfiConverterOptionalTypeExternalSoundRecord = new FfiConverterOptional(FfiConverterTypeExternalSoundRecord);
 
 
 /**
@@ -6138,6 +6759,18 @@ function uniffiEnsureInitialized() {
     if (nativeModule().ubrn_uniffi_opencord_mobile_checksum_func_settings_set() !== 54285) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_opencord_mobile_checksum_func_settings_set");
     }
+    if (nativeModule().ubrn_uniffi_opencord_mobile_checksum_func_soundboard_default_sounds() !== 38140) {
+        throw new UniffiInternalError.ApiChecksumMismatch("uniffi_opencord_mobile_checksum_func_soundboard_default_sounds");
+    }
+    if (nativeModule().ubrn_uniffi_opencord_mobile_checksum_func_soundboard_play() !== 51961) {
+        throw new UniffiInternalError.ApiChecksumMismatch("uniffi_opencord_mobile_checksum_func_soundboard_play");
+    }
+    if (nativeModule().ubrn_uniffi_opencord_mobile_checksum_func_soundboard_preview() !== 11762) {
+        throw new UniffiInternalError.ApiChecksumMismatch("uniffi_opencord_mobile_checksum_func_soundboard_preview");
+    }
+    if (nativeModule().ubrn_uniffi_opencord_mobile_checksum_func_soundboard_set_listening() !== 38894) {
+        throw new UniffiInternalError.ApiChecksumMismatch("uniffi_opencord_mobile_checksum_func_soundboard_set_listening");
+    }
     if (nativeModule().ubrn_uniffi_opencord_mobile_checksum_func_typing_start() !== 34177) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_opencord_mobile_checksum_func_typing_start");
     }
@@ -6173,6 +6806,8 @@ export default Object.freeze({
     FfiConverterTypeChannelKind,
     FfiConverterTypeChannelRecord,
     FfiConverterTypeConnectionRecord,
+    FfiConverterTypeDefaultSoundRecord,
+    FfiConverterTypeExternalSoundRecord,
     FfiConverterTypeFailureKind,
     FfiConverterTypeIdentityInfo,
     FfiConverterTypeMemberRecord,
@@ -6195,6 +6830,9 @@ export default Object.freeze({
     FfiConverterTypeOutgoingFileRecord,
     FfiConverterTypeServerEntry,
     FfiConverterTypeServerSnapshot,
+    FfiConverterTypeSoundEffectRecord,
+    FfiConverterTypeSoundboardSettingsRecord,
+    FfiConverterTypeSoundboardSoundRecord,
     FfiConverterTypeSpeakingChangeRecord,
     FfiConverterTypeUploadPhaseRecord,
     FfiConverterTypeUserRecord,

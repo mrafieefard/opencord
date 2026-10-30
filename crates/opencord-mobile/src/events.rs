@@ -114,6 +114,24 @@ pub enum MobileEvent {
         server_key: String,
         settings: MusicSettingsRecord,
     },
+    SoundboardSettingsChanged {
+        server_key: String,
+        settings: SoundboardSettingsRecord,
+    },
+    SoundboardSoundUpserted {
+        server_key: String,
+        sound: SoundboardSoundRecord,
+    },
+    SoundboardSoundDeleted {
+        server_key: String,
+        sound_id: String,
+    },
+    /// Someone played a sound in a voice channel; this device plays it
+    /// itself when it is in that channel.
+    SoundPlayed {
+        server_key: String,
+        effect: SoundEffectRecord,
+    },
     MusicUpload {
         server_key: String,
         channel_id: String,
@@ -386,19 +404,33 @@ pub(crate) fn core_event(event: CoreEvent) -> Option<MobileEvent> {
             title: notice.title,
             body: notice.body,
         },
+        CoreEventPayload::VoiceSettingsUpdate(settings) => MobileEvent::SoundboardSettingsChanged {
+            server_key,
+            settings: convert::soundboard_settings(&settings),
+        },
+        CoreEventPayload::SoundboardSoundCreate(sound)
+        | CoreEventPayload::SoundboardSoundUpdate(sound) => MobileEvent::SoundboardSoundUpserted {
+            server_key,
+            sound: convert::soundboard_sound(sound),
+        },
+        CoreEventPayload::SoundboardSoundDelete { sound_id } => {
+            MobileEvent::SoundboardSoundDeleted {
+                server_key,
+                sound_id: id(sound_id),
+            }
+        }
+        CoreEventPayload::VoiceChannelEffect(effect) => MobileEvent::SoundPlayed {
+            server_key,
+            effect: convert::sound_effect(effect),
+        },
         CoreEventPayload::RoleCreate(_)
         | CoreEventPayload::RoleUpdate(_)
         | CoreEventPayload::RoleDelete { .. }
         | CoreEventPayload::PresenceUpdate(_)
-        | CoreEventPayload::VoiceSettingsUpdate(_)
         | CoreEventPayload::StreamCreate(_)
         | CoreEventPayload::StreamUpdate(_)
         | CoreEventPayload::StreamDelete { .. }
         | CoreEventPayload::StreamViewersUpdate { .. }
-        | CoreEventPayload::SoundboardSoundCreate(_)
-        | CoreEventPayload::SoundboardSoundUpdate(_)
-        | CoreEventPayload::SoundboardSoundDelete { .. }
-        | CoreEventPayload::VoiceChannelEffect(_)
         | CoreEventPayload::ServerAddressesUpdate(_)
         | CoreEventPayload::NetworkStatus(_)
         | CoreEventPayload::LavalinkNodeStatus { .. }

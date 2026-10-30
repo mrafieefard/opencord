@@ -199,6 +199,16 @@ uniffi_opencord_mobile_fn_func_settings_get(RustBuffer key,
                                             RustCallStatus *uniffi_out_err);
 void uniffi_opencord_mobile_fn_func_settings_set(
     RustBuffer key, RustBuffer value, RustCallStatus *uniffi_out_err);
+RustBuffer uniffi_opencord_mobile_fn_func_soundboard_default_sounds(
+    RustCallStatus *uniffi_out_err);
+/*handle*/ uint64_t uniffi_opencord_mobile_fn_func_soundboard_play(
+    RustBuffer server_key, RustBuffer channel_id, RustBuffer sound_ref,
+    RustBuffer external);
+/*handle*/ uint64_t
+uniffi_opencord_mobile_fn_func_soundboard_preview(RustBuffer server_key,
+                                                  RustBuffer sound_ref);
+void uniffi_opencord_mobile_fn_func_soundboard_set_listening(
+    float volume, int8_t muted, RustCallStatus *uniffi_out_err);
 /*handle*/ uint64_t
 uniffi_opencord_mobile_fn_func_voice_join(RustBuffer server_key,
                                           RustBuffer channel_id);
@@ -372,6 +382,10 @@ uint16_t uniffi_opencord_mobile_checksum_func_events_attach();
 uint16_t uniffi_opencord_mobile_checksum_func_next_events();
 uint16_t uniffi_opencord_mobile_checksum_func_settings_get();
 uint16_t uniffi_opencord_mobile_checksum_func_settings_set();
+uint16_t uniffi_opencord_mobile_checksum_func_soundboard_default_sounds();
+uint16_t uniffi_opencord_mobile_checksum_func_soundboard_play();
+uint16_t uniffi_opencord_mobile_checksum_func_soundboard_preview();
+uint16_t uniffi_opencord_mobile_checksum_func_soundboard_set_listening();
 uint16_t uniffi_opencord_mobile_checksum_func_voice_join();
 uint16_t uniffi_opencord_mobile_checksum_func_voice_leave();
 uint16_t uniffi_opencord_mobile_checksum_func_voice_set_deaf();
@@ -2240,6 +2254,54 @@ NativeOpencordMobile::NativeOpencordMobile(
             return this->cpp_uniffi_opencord_mobile_fn_func_settings_set(
                 rt, thisVal, args, count);
           });
+  props["ubrn_uniffi_opencord_mobile_fn_func_soundboard_default_sounds"] =
+      jsi::Function::createFromHostFunction(
+          rt,
+          jsi::PropNameID::forAscii(
+              rt,
+              "ubrn_uniffi_opencord_mobile_fn_func_soundboard_default_sounds"),
+          0,
+          [this](jsi::Runtime &rt, const jsi::Value &thisVal,
+                 const jsi::Value *args, size_t count) -> jsi::Value {
+            return this
+                ->cpp_uniffi_opencord_mobile_fn_func_soundboard_default_sounds(
+                    rt, thisVal, args, count);
+          });
+  props["ubrn_uniffi_opencord_mobile_fn_func_soundboard_play"] =
+      jsi::Function::createFromHostFunction(
+          rt,
+          jsi::PropNameID::forAscii(
+              rt, "ubrn_uniffi_opencord_mobile_fn_func_soundboard_play"),
+          4,
+          [this](jsi::Runtime &rt, const jsi::Value &thisVal,
+                 const jsi::Value *args, size_t count) -> jsi::Value {
+            return this->cpp_uniffi_opencord_mobile_fn_func_soundboard_play(
+                rt, thisVal, args, count);
+          });
+  props["ubrn_uniffi_opencord_mobile_fn_func_soundboard_preview"] =
+      jsi::Function::createFromHostFunction(
+          rt,
+          jsi::PropNameID::forAscii(
+              rt, "ubrn_uniffi_opencord_mobile_fn_func_soundboard_preview"),
+          2,
+          [this](jsi::Runtime &rt, const jsi::Value &thisVal,
+                 const jsi::Value *args, size_t count) -> jsi::Value {
+            return this->cpp_uniffi_opencord_mobile_fn_func_soundboard_preview(
+                rt, thisVal, args, count);
+          });
+  props["ubrn_uniffi_opencord_mobile_fn_func_soundboard_set_listening"] =
+      jsi::Function::createFromHostFunction(
+          rt,
+          jsi::PropNameID::forAscii(
+              rt,
+              "ubrn_uniffi_opencord_mobile_fn_func_soundboard_set_listening"),
+          2,
+          [this](jsi::Runtime &rt, const jsi::Value &thisVal,
+                 const jsi::Value *args, size_t count) -> jsi::Value {
+            return this
+                ->cpp_uniffi_opencord_mobile_fn_func_soundboard_set_listening(
+                    rt, thisVal, args, count);
+          });
   props["ubrn_uniffi_opencord_mobile_fn_func_voice_join"] =
       jsi::Function::createFromHostFunction(
           rt,
@@ -3319,6 +3381,55 @@ NativeOpencordMobile::NativeOpencordMobile(
             return this->cpp_uniffi_opencord_mobile_checksum_func_settings_set(
                 rt, thisVal, args, count);
           });
+  props["ubrn_uniffi_opencord_mobile_checksum_func_soundboard_default_sounds"] =
+      jsi::Function::createFromHostFunction(
+          rt,
+          jsi::PropNameID::forAscii(rt, "ubrn_uniffi_opencord_mobile_checksum_"
+                                        "func_soundboard_default_sounds"),
+          0,
+          [this](jsi::Runtime &rt, const jsi::Value &thisVal,
+                 const jsi::Value *args, size_t count) -> jsi::Value {
+            return this
+                ->cpp_uniffi_opencord_mobile_checksum_func_soundboard_default_sounds(
+                    rt, thisVal, args, count);
+          });
+  props["ubrn_uniffi_opencord_mobile_checksum_func_soundboard_play"] =
+      jsi::Function::createFromHostFunction(
+          rt,
+          jsi::PropNameID::forAscii(
+              rt, "ubrn_uniffi_opencord_mobile_checksum_func_soundboard_play"),
+          0,
+          [this](jsi::Runtime &rt, const jsi::Value &thisVal,
+                 const jsi::Value *args, size_t count) -> jsi::Value {
+            return this
+                ->cpp_uniffi_opencord_mobile_checksum_func_soundboard_play(
+                    rt, thisVal, args, count);
+          });
+  props["ubrn_uniffi_opencord_mobile_checksum_func_soundboard_preview"] =
+      jsi::Function::createFromHostFunction(
+          rt,
+          jsi::PropNameID::forAscii(
+              rt,
+              "ubrn_uniffi_opencord_mobile_checksum_func_soundboard_preview"),
+          0,
+          [this](jsi::Runtime &rt, const jsi::Value &thisVal,
+                 const jsi::Value *args, size_t count) -> jsi::Value {
+            return this
+                ->cpp_uniffi_opencord_mobile_checksum_func_soundboard_preview(
+                    rt, thisVal, args, count);
+          });
+  props["ubrn_uniffi_opencord_mobile_checksum_func_soundboard_set_listening"] =
+      jsi::Function::createFromHostFunction(
+          rt,
+          jsi::PropNameID::forAscii(rt, "ubrn_uniffi_opencord_mobile_checksum_"
+                                        "func_soundboard_set_listening"),
+          0,
+          [this](jsi::Runtime &rt, const jsi::Value &thisVal,
+                 const jsi::Value *args, size_t count) -> jsi::Value {
+            return this
+                ->cpp_uniffi_opencord_mobile_checksum_func_soundboard_set_listening(
+                    rt, thisVal, args, count);
+          });
   props["ubrn_uniffi_opencord_mobile_checksum_func_voice_join"] =
       jsi::Function::createFromHostFunction(
           rt,
@@ -4182,6 +4293,64 @@ NativeOpencordMobile::cpp_uniffi_opencord_mobile_fn_func_settings_set(
       uniffi::opencord_mobile::Bridging<RustBuffer>::fromJs(rt, callInvoker,
                                                             args[1]),
       &status);
+  uniffi::opencord_mobile::Bridging<RustCallStatus>::copyIntoJs(
+      rt, callInvoker, status, args[count - 1]);
+
+  return jsi::Value::undefined();
+}
+jsi::Value NativeOpencordMobile::
+    cpp_uniffi_opencord_mobile_fn_func_soundboard_default_sounds(
+        jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+        size_t count) {
+  RustCallStatus status =
+      uniffi::opencord_mobile::Bridging<RustCallStatus>::rustSuccess(rt);
+  auto value =
+      uniffi_opencord_mobile_fn_func_soundboard_default_sounds(&status);
+  uniffi::opencord_mobile::Bridging<RustCallStatus>::copyIntoJs(
+      rt, callInvoker, status, args[count - 1]);
+
+  return uniffi::opencord_mobile::Bridging<RustBuffer>::toJs(rt, callInvoker,
+                                                             value);
+}
+jsi::Value
+NativeOpencordMobile::cpp_uniffi_opencord_mobile_fn_func_soundboard_play(
+    jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+    size_t count) {
+  auto value = uniffi_opencord_mobile_fn_func_soundboard_play(
+      uniffi::opencord_mobile::Bridging<RustBuffer>::fromJs(rt, callInvoker,
+                                                            args[0]),
+      uniffi::opencord_mobile::Bridging<RustBuffer>::fromJs(rt, callInvoker,
+                                                            args[1]),
+      uniffi::opencord_mobile::Bridging<RustBuffer>::fromJs(rt, callInvoker,
+                                                            args[2]),
+      uniffi::opencord_mobile::Bridging<RustBuffer>::fromJs(rt, callInvoker,
+                                                            args[3]));
+
+  return uniffi_jsi::Bridging</*handle*/ uint64_t>::toJs(rt, callInvoker,
+                                                         value);
+}
+jsi::Value
+NativeOpencordMobile::cpp_uniffi_opencord_mobile_fn_func_soundboard_preview(
+    jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+    size_t count) {
+  auto value = uniffi_opencord_mobile_fn_func_soundboard_preview(
+      uniffi::opencord_mobile::Bridging<RustBuffer>::fromJs(rt, callInvoker,
+                                                            args[0]),
+      uniffi::opencord_mobile::Bridging<RustBuffer>::fromJs(rt, callInvoker,
+                                                            args[1]));
+
+  return uniffi_jsi::Bridging</*handle*/ uint64_t>::toJs(rt, callInvoker,
+                                                         value);
+}
+jsi::Value NativeOpencordMobile::
+    cpp_uniffi_opencord_mobile_fn_func_soundboard_set_listening(
+        jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+        size_t count) {
+  RustCallStatus status =
+      uniffi::opencord_mobile::Bridging<RustCallStatus>::rustSuccess(rt);
+  uniffi_opencord_mobile_fn_func_soundboard_set_listening(
+      uniffi_jsi::Bridging<float>::fromJs(rt, callInvoker, args[0]),
+      uniffi_jsi::Bridging<int8_t>::fromJs(rt, callInvoker, args[1]), &status);
   uniffi::opencord_mobile::Bridging<RustCallStatus>::copyIntoJs(
       rt, callInvoker, status, args[count - 1]);
 
@@ -5161,6 +5330,38 @@ NativeOpencordMobile::cpp_uniffi_opencord_mobile_checksum_func_settings_set(
     jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
     size_t count) {
   auto value = uniffi_opencord_mobile_checksum_func_settings_set();
+
+  return uniffi_jsi::Bridging<uint16_t>::toJs(rt, callInvoker, value);
+}
+jsi::Value NativeOpencordMobile::
+    cpp_uniffi_opencord_mobile_checksum_func_soundboard_default_sounds(
+        jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+        size_t count) {
+  auto value = uniffi_opencord_mobile_checksum_func_soundboard_default_sounds();
+
+  return uniffi_jsi::Bridging<uint16_t>::toJs(rt, callInvoker, value);
+}
+jsi::Value
+NativeOpencordMobile::cpp_uniffi_opencord_mobile_checksum_func_soundboard_play(
+    jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+    size_t count) {
+  auto value = uniffi_opencord_mobile_checksum_func_soundboard_play();
+
+  return uniffi_jsi::Bridging<uint16_t>::toJs(rt, callInvoker, value);
+}
+jsi::Value NativeOpencordMobile::
+    cpp_uniffi_opencord_mobile_checksum_func_soundboard_preview(
+        jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+        size_t count) {
+  auto value = uniffi_opencord_mobile_checksum_func_soundboard_preview();
+
+  return uniffi_jsi::Bridging<uint16_t>::toJs(rt, callInvoker, value);
+}
+jsi::Value NativeOpencordMobile::
+    cpp_uniffi_opencord_mobile_checksum_func_soundboard_set_listening(
+        jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+        size_t count) {
+  auto value = uniffi_opencord_mobile_checksum_func_soundboard_set_listening();
 
   return uniffi_jsi::Bridging<uint16_t>::toJs(rt, callInvoker, value);
 }

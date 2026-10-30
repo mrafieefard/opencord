@@ -154,6 +154,18 @@ protected:
   jsi::Value cpp_uniffi_opencord_mobile_fn_func_settings_set(
       jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
       size_t count);
+  jsi::Value cpp_uniffi_opencord_mobile_fn_func_soundboard_default_sounds(
+      jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+      size_t count);
+  jsi::Value cpp_uniffi_opencord_mobile_fn_func_soundboard_play(
+      jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+      size_t count);
+  jsi::Value cpp_uniffi_opencord_mobile_fn_func_soundboard_preview(
+      jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+      size_t count);
+  jsi::Value cpp_uniffi_opencord_mobile_fn_func_soundboard_set_listening(
+      jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+      size_t count);
   jsi::Value cpp_uniffi_opencord_mobile_fn_func_voice_join(
       jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
       size_t count);
@@ -437,6 +449,18 @@ protected:
       jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
       size_t count);
   jsi::Value cpp_uniffi_opencord_mobile_checksum_func_settings_set(
+      jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+      size_t count);
+  jsi::Value cpp_uniffi_opencord_mobile_checksum_func_soundboard_default_sounds(
+      jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+      size_t count);
+  jsi::Value cpp_uniffi_opencord_mobile_checksum_func_soundboard_play(
+      jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+      size_t count);
+  jsi::Value cpp_uniffi_opencord_mobile_checksum_func_soundboard_preview(
+      jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+      size_t count);
+  jsi::Value cpp_uniffi_opencord_mobile_checksum_func_soundboard_set_listening(
       jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
       size_t count);
   jsi::Value cpp_uniffi_opencord_mobile_checksum_func_voice_join(
