@@ -6,6 +6,7 @@ export { confirm, type ConfirmOptions } from './confirm';
 export { DialogHost } from './DialogHost';
 export { Divider } from './Divider';
 export { EmptyState } from './EmptyState';
+export { GlassSurface } from './GlassSurface';
 export { Icon } from './Icon';
 export { IconButton } from './IconButton';
 export type { IconName } from './icons';

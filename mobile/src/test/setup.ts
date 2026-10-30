@@ -289,3 +289,13 @@ jest.mock('@opencord/voice-service', () => {
     hasAudioRouteButton: true,
   };
 });
+
+// Liquid Glass is native: a plain view stands in.
+jest.mock('expo-glass-effect', () => {
+  const React = require('react');
+  const { View } = require('react-native');
+  return {
+    GlassView: ({ children, style, testID }: { children?: React.ReactNode; style?: unknown; testID?: string }) =>
+      React.createElement(View, { style, testID }, children),
+  };
+});

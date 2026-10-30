@@ -15,7 +15,6 @@ import {
   type KeyboardChatScrollViewProps,
   type KeyboardChatScrollViewRef,
 } from 'react-native-keyboard-controller';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { markReadIfAtBottom } from '@/state/actions/chat';
 import { useChannelActivity, useServer, useTypingNames } from '@/state/selectors';
@@ -24,6 +23,7 @@ import { channelKey, compareIds } from '@/state/types';
 import { useTheme } from '@/ui';
 
 import { DaySeparator } from './DaySeparator';
+import { useChatDock, useDockLift } from './dock';
 import { buildChatItems, type ChatItem } from './items';
 import { JumpToLatest } from './JumpToLatest';
 import { MessageBubble } from './MessageBubble';
@@ -37,19 +37,21 @@ const BUBBLE_SHARE = 0.78;
 const BUBBLE_MAX = 480;
 
 /**
- * The list's scroll view: the keyboard lifts the messages with the
- * composer (keyboard-controller's chat view), by the keyboard's height less
- * the bottom inset the composer already stands on.
+ * The list's scroll view: the keyboard lifts the messages with the dock
+ * (keyboard-controller's chat view) by the same amount, and the dock's
+ * height is left free under the last message, since the dock floats over it.
  */
 const ChatScrollView = forwardRef<KeyboardChatScrollViewRef, ScrollViewProps & KeyboardChatScrollViewProps>(
   function ChatScrollView(props, ref) {
-    const insets = useSafeAreaInsets();
+    const lift = useDockLift();
+    const { padding } = useChatDock();
     return (
       <KeyboardChatScrollView
         ref={ref}
         automaticallyAdjustContentInsets={false}
         contentInsetAdjustmentBehavior="never"
-        offset={insets.bottom}
+        offset={lift}
+        extraContentPadding={padding}
         // Scrolling down drags the keyboard closed with the finger, as in
         // WhatsApp and Telegram (Android has no interactive mode: a drag closes it).
         keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
@@ -71,6 +73,7 @@ export const MessageList = memo(function MessageList({
   onSelectChannel,
 }: MessageListProps) {
   const { colors } = useTheme();
+  const dock = useChatDock();
   const listRef = useRef<FlashListRef<ChatItem>>(null);
   const [isScrolledUp, setIsScrolledUp] = useState(false);
   // The window until the pane is measured (a phone's pane is the window).
@@ -191,10 +194,13 @@ export const MessageList = memo(function MessageList({
       />
 
       {showJump && (
-        <JumpToLatest count={unreadCount} onPress={handleJumpToLatest} />
+        <JumpToLatest count={unreadCount} onPress={handleJumpToLatest} bottom={dock.height} />
       )}
 
-      <TypingLine names={typingNames} />
+      {/* Just above the dock, over the messages. */}
+      <View style={[styles.typing, { bottom: dock.height }]} pointerEvents="none">
+        <TypingLine names={typingNames} />
+      </View>
     </View>
   );
 });
@@ -205,5 +211,10 @@ const styles = StyleSheet.create({
   },
   contentContainer: {
     paddingVertical: 8,
+  },
+  typing: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
   },
 });

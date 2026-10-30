@@ -1,12 +1,12 @@
-// The composer (spec §8.5): a rounded field that grows to six lines, the +
-// menu, and the send button once there is something to send. ChatPane keeps
-// it on the keyboard.
+// The composer (spec §8.5), floating over the messages as Telegram's: a
+// round attach button, a pill field that grows to six lines, and the send
+// button once there is something to send, each its own glass (iOS) or
+// raised surface (Android). ChatPane keeps it on the keyboard.
 import { useCallback, useEffect, useRef, useState, type ComponentRef } from 'react';
 import { StyleSheet, TextInput, View } from 'react-native';
 import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from 'expo-image-picker';
 import { Touchable } from 'react-native-gesture-handler';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { report } from '@/core';
 import { filePath } from '@/core/paths';
@@ -20,10 +20,11 @@ import {
 import { useChannelInfo } from '@/state/selectors';
 import { useAppStore } from '@/state/store';
 import type { PickedFile } from '@/state/types';
-import { Icon, Menu, Text, space, typography, useTheme, type MenuAction } from '@/ui';
+import { GlassSurface, Icon, Menu, Text, space, typography, useTheme, type MenuAction } from '@/ui';
 import { MAX_FONT_SCALE } from '@/ui/theme/typography';
 
 import { AttachmentChips } from './AttachmentChips';
+import { useDockBottom } from './dock';
 import { EditingBar } from './EditingBar';
 import { useTypingNotifier } from './useTypingNotifier';
 
@@ -34,15 +35,15 @@ export interface ComposerProps {
 
 const MAX_CHARS = 4000;
 const COUNTER_THRESHOLD = 3900;
-/** The field, the + and send buttons: Telegram's 40 pt. */
-const CONTROL = 40;
+/** The field and the round buttons: Telegram's floating 44 pt. */
+const CONTROL = 44;
 const MAX_LINES = 6;
 const FIELD_PAD_V = (CONTROL - (typography.body.lineHeight ?? 22)) / 2;
 const FIELD_MAX = (typography.body.lineHeight ?? 22) * MAX_LINES + FIELD_PAD_V * 2;
 
 export function Composer({ serverKey, channelId }: ComposerProps) {
   const { colors } = useTheme();
-  const insets = useSafeAreaInsets();
+  const bottom = useDockBottom();
   const info = useChannelInfo(serverKey, channelId);
   const editing = useAppStore((state) => state.editingMessage);
   const isEditing = editing && editing.serverKey === serverKey && editing.channelId === channelId;
@@ -157,10 +158,12 @@ export function Composer({ serverKey, channelId }: ComposerProps) {
 
   if (!canSend) {
     return (
-      <View style={[styles.bar, { backgroundColor: colors.sidebar, borderTopColor: colors.border, paddingBottom: insets.bottom + space.md }]}>
-        <Text variant="callout" color="textSecondary" style={styles.cannotSend}>
-          {"You can't send messages here."}
-        </Text>
+      <View style={[styles.dock, { paddingBottom: bottom }]} pointerEvents="box-none">
+        <GlassSurface style={styles.notice}>
+          <Text variant="callout" color="textSecondary" style={styles.cannotSend}>
+            {"You can't send messages here."}
+          </Text>
+        </GlassSurface>
       </View>
     );
   }
@@ -169,20 +172,26 @@ export function Composer({ serverKey, channelId }: ComposerProps) {
   const hasSomething = isEditing || text.trim().length > 0 || files.length > 0;
 
   return (
-    <View style={[styles.bar, { backgroundColor: colors.sidebar, borderTopColor: colors.border, paddingBottom: insets.bottom + space.sm }]}>
-      {isEditing && <EditingBar onCancel={handleCancelEditing} />}
-      {files.length > 0 && <AttachmentChips files={files} onRemove={handleRemoveFile} />}
+    <View style={[styles.dock, { paddingBottom: bottom }]} pointerEvents="box-none">
+      {(isEditing || files.length > 0) && (
+        <GlassSurface style={styles.card}>
+          {isEditing && <EditingBar onCancel={handleCancelEditing} />}
+          {files.length > 0 && <AttachmentChips files={files} onRemove={handleRemoveFile} />}
+        </GlassSurface>
+      )}
 
       <View style={styles.row}>
         {canAttach && !isEditing && (
-          <Menu actions={attachActions} onAction={(id) => report(handleAttachAction(id), 'attach files')} testID="composer-attach">
-            <View style={styles.control} accessible accessibilityRole="button" accessibilityLabel="Attach">
-              <Icon name="add" size={24} color="textSecondary" />
-            </View>
-          </Menu>
+          <GlassSurface interactive style={styles.round}>
+            <Menu actions={attachActions} onAction={(id) => report(handleAttachAction(id), 'attach files')} testID="composer-attach">
+              <View style={styles.control} accessible accessibilityRole="button" accessibilityLabel="Attach">
+                <Icon name="attach" size={22} color="text" />
+              </View>
+            </Menu>
+          </GlassSurface>
         )}
 
-        <View style={[styles.field, { backgroundColor: colors.hover }]}>
+        <GlassSurface style={styles.field}>
           <TextInput
             ref={input}
             style={[typography.body, styles.input, { color: colors.text }]}
@@ -209,7 +218,7 @@ export function Composer({ serverKey, channelId }: ComposerProps) {
               {String(remainingChars)}
             </Text>
           )}
-        </View>
+        </GlassSurface>
 
         {hasSomething && (
           <Touchable
@@ -236,15 +245,24 @@ export function Composer({ serverKey, channelId }: ComposerProps) {
 }
 
 const styles = StyleSheet.create({
-  bar: {
-    borderTopWidth: StyleSheet.hairlineWidth,
-    paddingTop: space.sm,
+  dock: {
+    paddingHorizontal: space.sm,
+    gap: space.sm,
+  },
+  card: {
+    borderRadius: CONTROL / 2,
+    paddingVertical: space.xs,
+    overflow: 'hidden',
   },
   row: {
     flexDirection: 'row',
     alignItems: 'flex-end',
-    gap: space.xs,
-    paddingHorizontal: space.sm,
+    gap: space.sm,
+  },
+  round: {
+    width: CONTROL,
+    height: CONTROL,
+    borderRadius: CONTROL / 2,
   },
   control: {
     width: CONTROL,
@@ -281,6 +299,11 @@ const styles = StyleSheet.create({
   counter: {
     marginLeft: space.sm,
     paddingBottom: FIELD_PAD_V + 2,
+  },
+  notice: {
+    borderRadius: CONTROL / 2,
+    minHeight: CONTROL,
+    justifyContent: 'center',
   },
   cannotSend: {
     textAlign: 'center',

@@ -3957,7 +3957,7 @@ expo-font@~58.0.10:
   resolved "https://registry.yarnpkg.com/expo-font/-/expo-font-58.0.10.tgz#23b0fda6c0226343072a0bd4b0ece6441c830a4c"
   integrity sha512-13orvRCiXg3EuirjMznWTKwFzhKHvtHRkUdgbvolbkyA1+EAbYDpp7LJMnvDnbTFU/m8Kb5awvOiaGzPYQ/ojg==
 
-expo-glass-effect@^58.0.5:
+expo-glass-effect@^58.0.5, expo-glass-effect@~58.0.5:
   version "58.0.5"
   resolved "https://registry.yarnpkg.com/expo-glass-effect/-/expo-glass-effect-58.0.5.tgz#dfc73c5c2b580dfb2656194184cced9d7b044228"
   integrity sha512-PkL1X/r0cTs6NG47Xp3TxRvtqSeRmPYhPOHp3GDmZB2oOxpjXge6qLi/bSSv0asFWqf+MLOlXZ+hq2Imuh0Z1g==

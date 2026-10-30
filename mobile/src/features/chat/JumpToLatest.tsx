@@ -7,13 +7,15 @@ import { Badge, Icon, space, useTheme } from '@/ui';
 export interface JumpToLatestProps {
   count?: number;
   onPress: () => void;
+  /** What floats over the list's bottom (the chat's dock): it sits above that. */
+  bottom?: number;
 }
 
-export const JumpToLatest = memo(function JumpToLatest({ count = 0, onPress }: JumpToLatestProps) {
+export const JumpToLatest = memo(function JumpToLatest({ count = 0, onPress, bottom = 0 }: JumpToLatestProps) {
   const { colors } = useTheme();
 
   return (
-    <View style={styles.anchor} pointerEvents="box-none">
+    <View style={[styles.anchor, { bottom: bottom + space.lg }]} pointerEvents="box-none">
       <Touchable
         onPress={onPress}
         underlayColor={colors.selected}
@@ -37,7 +39,6 @@ const styles = StyleSheet.create({
   anchor: {
     position: 'absolute',
     right: space.lg,
-    bottom: space.lg,
     zIndex: 10,
   },
   button: {
