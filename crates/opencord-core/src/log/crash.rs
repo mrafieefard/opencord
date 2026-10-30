@@ -124,6 +124,23 @@ pub(crate) fn format_native(buf: &mut [u8; 256], elapsed: Duration, native: Nati
     length + 1
 }
 
+/// The line a signal that ends the app (logging out, `kill`) writes: the
+/// session ended, it didn't crash.
+#[cfg_attr(windows, allow(dead_code))]
+pub(crate) fn format_ended(buf: &mut [u8; 256], elapsed: Duration, signal: i32) -> usize {
+    let mut out = Stack { buf, length: 0 };
+    let _ = write!(
+        out,
+        "+{}.{:03}s INFO  log  {} (signal {signal})",
+        elapsed.as_secs(),
+        elapsed.subsec_millis(),
+        super::writer::ENDED
+    );
+    let length = out.length.min(255);
+    buf[length] = b'\n';
+    length + 1
+}
+
 fn signal_name(signal: i32) -> &'static str {
     #[cfg(unix)]
     {
@@ -148,18 +165,23 @@ mod native {
     use std::os::fd::AsRawFd;
     use std::sync::OnceLock;
 
-    use super::{CRASH, Native, format_native};
+    use super::{CRASH, Native, format_ended, format_native};
 
-    const SIGNALS: [libc::c_int; 5] = [
+    /// Crashes, then the signals that end the app without one.
+    const SIGNALS: [libc::c_int; 8] = [
         libc::SIGSEGV,
         libc::SIGBUS,
         libc::SIGILL,
         libc::SIGFPE,
         libc::SIGABRT,
+        libc::SIGTERM,
+        libc::SIGINT,
+        libc::SIGHUP,
     ];
+    const ENDING: [libc::c_int; 3] = [libc::SIGTERM, libc::SIGINT, libc::SIGHUP];
 
-    /// What each signal did before, to hand the crash back to.
-    static PREVIOUS: OnceLock<[libc::sigaction; 5]> = OnceLock::new();
+    /// What each signal did before, to hand it back to.
+    static PREVIOUS: OnceLock<[libc::sigaction; 8]> = OnceLock::new();
 
     pub(super) fn install() {
         // SAFETY: sigaction with a null new action only reads the current
@@ -186,21 +208,49 @@ mod native {
         }
     }
 
-    extern "C" fn on_signal(signal: libc::c_int, _: *mut libc::siginfo_t, _: *mut libc::c_void) {
+    extern "C" fn on_signal(signal: libc::c_int, info: *mut libc::siginfo_t, _: *mut libc::c_void) {
         if let Some((file, started)) = CRASH.get() {
             let mut buf = [0u8; 256];
-            let length = format_native(&mut buf, started.elapsed(), Native::Signal(signal));
+            let length = if ENDING.contains(&signal) {
+                format_ended(&mut buf, started.elapsed(), signal)
+            } else {
+                format_native(&mut buf, started.elapsed(), Native::Signal(signal))
+            };
             // SAFETY: `buf` holds `length` bytes; write is async-signal-safe.
             unsafe { libc::write(file.as_raw_fd(), buf.as_ptr().cast(), length) };
         }
-        // Back to what handled it before: returning re-runs the faulting
-        // instruction (or abort raises again) under that handler.
-        if let (Some(previous), Some(index)) = (
+        // Sent rather than faulted: Linux numbers those 0 and below, macOS
+        // from 0x10001 (SI_USER); faults are small positive codes on both.
+        // SAFETY: the kernel passes a valid siginfo with SA_SIGINFO.
+        let sent =
+            unsafe { info.as_ref() }.is_none_or(|info| info.si_code <= 0 || info.si_code > 0x10000);
+        let (Some(previous), Some(index)) = (
             PREVIOUS.get(),
             SIGNALS.iter().position(|&known| known == signal),
-        ) {
-            // SAFETY: restores an action sigaction itself returned.
-            unsafe { libc::sigaction(signal, &previous[index], std::ptr::null_mut()) };
+        ) else {
+            return;
+        };
+        // SAFETY: sigaction and raise are async-signal-safe, and each
+        // action set is one sigaction returned or the default.
+        unsafe {
+            if ENDING.contains(&signal) {
+                // Whoever handled it before (a graceful shutdown) gets it.
+                libc::sigaction(signal, &previous[index], std::ptr::null_mut());
+                libc::raise(signal);
+            } else if sent {
+                // `kill -SEGV`, `abort`: nothing faulted, so returning would
+                // let the process carry on, and the old handler (Rust's
+                // stack-overflow one) handles only faults. The default ends
+                // it.
+                let mut default: libc::sigaction = std::mem::zeroed();
+                default.sa_sigaction = libc::SIG_DFL;
+                libc::sigaction(signal, &default, std::ptr::null_mut());
+                libc::raise(signal);
+            } else {
+                // A real fault comes again as the instruction re-runs, under
+                // the old handler.
+                libc::sigaction(signal, &previous[index], std::ptr::null_mut());
+            }
         }
     }
 }
@@ -389,5 +439,63 @@ mod tests {
             text.contains("FATAL native crash  signal=11 (SIGSEGV)"),
             "{text}"
         );
+    }
+
+    /// A crash signal sent from outside (`kill -SEGV`) faults nothing, so
+    /// returning from the handler would let the process carry on.
+    #[cfg(unix)]
+    #[test]
+    fn a_sent_crash_signal_still_ends_the_process() {
+        use std::os::unix::process::ExitStatusExt;
+
+        if let Ok(dir) = std::env::var("OPENCORD_SENT_SIGNAL_DIR") {
+            super::super::start(std::path::Path::new(&dir), &[]).unwrap();
+            // SAFETY: signals this process, as `kill` would.
+            unsafe { libc::kill(libc::getpid(), libc::SIGSEGV) };
+            std::thread::sleep(std::time::Duration::from_millis(200));
+            std::process::exit(0);
+        }
+        let dir = tempfile::tempdir().unwrap();
+        let status = std::process::Command::new(std::env::current_exe().unwrap())
+            .args([
+                "--exact",
+                "log::crash::tests::a_sent_crash_signal_still_ends_the_process",
+            ])
+            .env("OPENCORD_SENT_SIGNAL_DIR", dir.path())
+            .status()
+            .unwrap();
+        assert_eq!(status.signal(), Some(libc::SIGSEGV), "{status:?}");
+    }
+
+    /// Logging out or `kill` ends the app with SIGTERM: not a crash.
+    #[cfg(unix)]
+    #[test]
+    fn sigterm_ends_the_session_cleanly() {
+        use std::os::unix::process::ExitStatusExt;
+
+        if let Ok(dir) = std::env::var("OPENCORD_SIGTERM_DIR") {
+            super::super::start(std::path::Path::new(&dir), &[]).unwrap();
+            // SAFETY: signals this process, as logging out would.
+            unsafe { libc::kill(libc::getpid(), libc::SIGTERM) };
+            std::thread::sleep(std::time::Duration::from_millis(500));
+            std::process::exit(0);
+        }
+        let dir = tempfile::tempdir().unwrap();
+        let status = std::process::Command::new(std::env::current_exe().unwrap())
+            .args([
+                "--exact",
+                "log::crash::tests::sigterm_ends_the_session_cleanly",
+            ])
+            .env("OPENCORD_SIGTERM_DIR", dir.path())
+            .status()
+            .unwrap();
+        assert_eq!(status.signal(), Some(libc::SIGTERM), "{status:?}");
+        let file = std::fs::read_dir(dir.path())
+            .unwrap()
+            .next()
+            .unwrap()
+            .unwrap();
+        let text = std::fs::read_to_string(file.path()).unwrap();
+        assert!(text.contains("session ended (signal 15)"), "{text}");
     }
 }
