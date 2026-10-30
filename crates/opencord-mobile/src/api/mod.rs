@@ -9,3 +9,4 @@ pub mod servers;
 pub mod setup;
 pub mod soundboard;
 pub mod voice;
+pub mod voice_messages;

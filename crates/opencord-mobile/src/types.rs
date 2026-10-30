@@ -125,6 +125,7 @@ pub struct ChannelAccess {
     pub music_manage: bool,
     pub use_soundboard: bool,
     pub use_external_sounds: bool,
+    pub send_voice_messages: bool,
 }
 
 /// Everything a `Ready` says about a server; it replaces what came before.
@@ -143,6 +144,8 @@ pub struct ServerSnapshot {
     pub voice_enabled: bool,
     pub soundboard: SoundboardSettingsRecord,
     pub soundboard_sounds: Vec<SoundboardSoundRecord>,
+    /// The longest voice message this server takes.
+    pub voice_message_max_seconds: u32,
 }
 
 /// The server's soundboard settings (Phase 2 plan §11.2), from its voice
@@ -237,6 +240,9 @@ pub struct AttachmentRecord {
     pub width: Option<u32>,
     pub height: Option<u32>,
     pub duration_ms: Option<u32>,
+    /// A voice message's levels, 0–255 each (128 of them); empty otherwise.
+    /// As numbers, not bytes, for JavaScript's arrays.
+    pub waveform: Vec<u16>,
     pub has_thumbnail: bool,
     pub thumbnail_width: Option<u32>,
     pub thumbnail_height: Option<u32>,
@@ -431,4 +437,25 @@ pub struct MusicPlaylistRecord {
 pub struct MusicSearchResultsRecord {
     pub results: Vec<MusicSearchResultRecord>,
     pub playlist: Option<MusicPlaylistRecord>,
+}
+
+/// A voice message recorded on this device, ready to send or hear first.
+#[derive(Debug, Clone, PartialEq, uniffi::Record)]
+pub struct VoiceDraftRecord {
+    pub draft_id: f64,
+    pub duration_ms: u32,
+    /// 0–255 each, as an attachment's.
+    pub waveform: Vec<u16>,
+}
+
+/// What a voice player plays: a voice message on a server, or a draft here.
+#[derive(Debug, Clone, PartialEq, uniffi::Enum)]
+pub enum PlaybackItemRecord {
+    Attachment {
+        server_key: String,
+        attachment_id: String,
+    },
+    Draft {
+        draft_id: f64,
+    },
 }

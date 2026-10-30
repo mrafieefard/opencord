@@ -141,6 +141,7 @@ pub(crate) fn access(channel_id: i64, bits: i64) -> ChannelAccess {
         music_manage: has(Permissions::MUSIC_MANAGE),
         use_soundboard: has(Permissions::USE_SOUNDBOARD),
         use_external_sounds: has(Permissions::USE_EXTERNAL_SOUNDS),
+        send_voice_messages: has(Permissions::SEND_VOICE_MESSAGES),
     }
 }
 
@@ -170,7 +171,60 @@ pub(crate) fn snapshot(server_key: String, ready: core::ReadySnapshot) -> Server
             .into_iter()
             .map(soundboard_sound)
             .collect(),
+        voice_message_max_seconds: ready.upload_settings.voice_message_max_seconds,
     }
+}
+
+pub(crate) fn voice_draft(draft: core::VoiceDraft) -> VoiceDraftRecord {
+    VoiceDraftRecord {
+        draft_id: unsigned(draft.draft_id),
+        duration_ms: draft.duration_ms,
+        waveform: draft.waveform.into_iter().map(u16::from).collect(),
+    }
+}
+
+pub(crate) fn playback_item(item: core::PlaybackItem) -> PlaybackItemRecord {
+    match item {
+        core::PlaybackItem::Attachment {
+            server_key,
+            attachment_id,
+        } => PlaybackItemRecord::Attachment {
+            server_key,
+            attachment_id: id(attachment_id),
+        },
+        core::PlaybackItem::Draft { draft_id } => PlaybackItemRecord::Draft {
+            draft_id: unsigned(draft_id),
+        },
+    }
+}
+
+/// A draft's id back from JavaScript: a whole number, not negative.
+pub(crate) fn draft_id(value: f64) -> Result<u64, crate::MobileError> {
+    if value.is_finite() && value >= 0.0 && value.fract() == 0.0 && value <= 9_007_199_254_740_991.0
+    {
+        Ok(value as u64)
+    } else {
+        Err(crate::MobileError::InvalidInput {
+            message: format!("not a voice draft: {value}"),
+        })
+    }
+}
+
+pub(crate) fn core_playback_item(
+    item: PlaybackItemRecord,
+) -> Result<core::PlaybackItem, crate::MobileError> {
+    Ok(match item {
+        PlaybackItemRecord::Attachment {
+            server_key,
+            attachment_id,
+        } => core::PlaybackItem::Attachment {
+            server_key,
+            attachment_id: crate::parse_id(&attachment_id)?,
+        },
+        PlaybackItemRecord::Draft { draft_id: value } => core::PlaybackItem::Draft {
+            draft_id: draft_id(value)?,
+        },
+    })
 }
 
 pub(crate) fn soundboard_settings(settings: &core::VoiceSettings) -> SoundboardSettingsRecord {
@@ -259,6 +313,7 @@ fn attachment(attachment: core::Attachment) -> AttachmentRecord {
         width: attachment.width,
         height: attachment.height,
         duration_ms: attachment.duration_ms,
+        waveform: attachment.waveform.into_iter().map(u16::from).collect(),
         has_thumbnail: attachment.has_thumbnail,
         thumbnail_width: attachment.thumbnail_width,
         thumbnail_height: attachment.thumbnail_height,
@@ -536,6 +591,31 @@ mod tests {
         assert_eq!(record.id, "9007199254740993");
         assert_eq!(record.uploader_id.as_deref(), Some("42"));
         assert_eq!(core_soundboard_sound(record).unwrap(), sound);
+    }
+
+    #[test]
+    fn a_playback_item_crosses_and_comes_back() {
+        let attachment = core::PlaybackItem::Attachment {
+            server_key: "s".to_owned(),
+            attachment_id: 9_007_199_254_740_993,
+        };
+        assert_eq!(
+            core_playback_item(playback_item(attachment.clone())).unwrap(),
+            attachment
+        );
+        let draft = core::PlaybackItem::Draft { draft_id: 7 };
+        assert_eq!(
+            core_playback_item(playback_item(draft.clone())).unwrap(),
+            draft
+        );
+    }
+
+    #[test]
+    fn a_draft_id_is_a_whole_number() {
+        assert_eq!(draft_id(3.0).unwrap(), 3);
+        for bad in [-1.0, 1.5, f64::NAN, f64::INFINITY] {
+            assert!(draft_id(bad).is_err(), "{bad} was taken");
+        }
     }
 
     #[test]

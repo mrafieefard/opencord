@@ -112,12 +112,23 @@ interface NativeModuleInterface {
     ubrn_uniffi_opencord_mobile_fn_func_soundboard_preview(serverKey: Uint8Array, soundRef: Uint8Array): bigint;
     ubrn_uniffi_opencord_mobile_fn_func_soundboard_set_listening(volume: number, muted: number, uniffi_out_err: UniffiRustCallStatus): void;
     ubrn_uniffi_opencord_mobile_fn_func_typing_start(serverKey: Uint8Array, channelId: Uint8Array): bigint;
+    ubrn_uniffi_opencord_mobile_fn_func_voice_draft_discard(draftId: number, uniffi_out_err: UniffiRustCallStatus): void;
     ubrn_uniffi_opencord_mobile_fn_func_voice_join(serverKey: Uint8Array, channelId: Uint8Array): bigint;
     ubrn_uniffi_opencord_mobile_fn_func_voice_leave(): bigint;
+    ubrn_uniffi_opencord_mobile_fn_func_voice_message_send(serverKey: Uint8Array, channelId: Uint8Array, nonce: Uint8Array, draftId: number): bigint;
+    ubrn_uniffi_opencord_mobile_fn_func_voice_pause(uniffi_out_err: UniffiRustCallStatus): void;
+    ubrn_uniffi_opencord_mobile_fn_func_voice_play(item: Uint8Array, positionMs: number, speed: number): bigint;
+    ubrn_uniffi_opencord_mobile_fn_func_voice_record_cancel(uniffi_out_err: UniffiRustCallStatus): void;
+    ubrn_uniffi_opencord_mobile_fn_func_voice_record_start(maxSeconds: number, uniffi_out_err: UniffiRustCallStatus): void;
+    ubrn_uniffi_opencord_mobile_fn_func_voice_record_stop(uniffi_out_err: UniffiRustCallStatus): Uint8Array;
+    ubrn_uniffi_opencord_mobile_fn_func_voice_resume(uniffi_out_err: UniffiRustCallStatus): void;
+    ubrn_uniffi_opencord_mobile_fn_func_voice_seek(positionMs: number, uniffi_out_err: UniffiRustCallStatus): void;
     ubrn_uniffi_opencord_mobile_fn_func_voice_set_deaf(deafened: number, uniffi_out_err: UniffiRustCallStatus): void;
     ubrn_uniffi_opencord_mobile_fn_func_voice_set_mute(muted: number, uniffi_out_err: UniffiRustCallStatus): void;
+    ubrn_uniffi_opencord_mobile_fn_func_voice_set_speed(speed: number, uniffi_out_err: UniffiRustCallStatus): void;
     ubrn_uniffi_opencord_mobile_fn_func_voice_set_user_local_mute(serverKey: Uint8Array, userId: Uint8Array, muted: number, uniffi_out_err: UniffiRustCallStatus): void;
     ubrn_uniffi_opencord_mobile_fn_func_voice_set_user_volume(serverKey: Uint8Array, userId: Uint8Array, volume: number, uniffi_out_err: UniffiRustCallStatus): void;
+    ubrn_uniffi_opencord_mobile_fn_func_voice_stop(uniffi_out_err: UniffiRustCallStatus): void;
     ubrn_ffi_opencord_mobile_uniffi_contract_version(): number;
     ubrn_uniffi_opencord_mobile_checksum_func_attachment_file(): number;
     ubrn_uniffi_opencord_mobile_checksum_func_avatar_file(): number;
@@ -164,12 +175,23 @@ interface NativeModuleInterface {
     ubrn_uniffi_opencord_mobile_checksum_func_soundboard_preview(): number;
     ubrn_uniffi_opencord_mobile_checksum_func_soundboard_set_listening(): number;
     ubrn_uniffi_opencord_mobile_checksum_func_typing_start(): number;
+    ubrn_uniffi_opencord_mobile_checksum_func_voice_draft_discard(): number;
     ubrn_uniffi_opencord_mobile_checksum_func_voice_join(): number;
     ubrn_uniffi_opencord_mobile_checksum_func_voice_leave(): number;
+    ubrn_uniffi_opencord_mobile_checksum_func_voice_message_send(): number;
+    ubrn_uniffi_opencord_mobile_checksum_func_voice_pause(): number;
+    ubrn_uniffi_opencord_mobile_checksum_func_voice_play(): number;
+    ubrn_uniffi_opencord_mobile_checksum_func_voice_record_cancel(): number;
+    ubrn_uniffi_opencord_mobile_checksum_func_voice_record_start(): number;
+    ubrn_uniffi_opencord_mobile_checksum_func_voice_record_stop(): number;
+    ubrn_uniffi_opencord_mobile_checksum_func_voice_resume(): number;
+    ubrn_uniffi_opencord_mobile_checksum_func_voice_seek(): number;
     ubrn_uniffi_opencord_mobile_checksum_func_voice_set_deaf(): number;
     ubrn_uniffi_opencord_mobile_checksum_func_voice_set_mute(): number;
+    ubrn_uniffi_opencord_mobile_checksum_func_voice_set_speed(): number;
     ubrn_uniffi_opencord_mobile_checksum_func_voice_set_user_local_mute(): number;
     ubrn_uniffi_opencord_mobile_checksum_func_voice_set_user_volume(): number;
+    ubrn_uniffi_opencord_mobile_checksum_func_voice_stop(): number;
     // Codegen call sites use these via `nativeModule().rustbuffer_alloc(...)`
     // and `nativeModule().rustbuffer_free(...)`. The JSI host object exposes
     // them as properties; see `props["rustbuffer_alloc"]` / `props["rustbuffer_free"]`

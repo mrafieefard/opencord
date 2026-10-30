@@ -1383,6 +1383,16 @@ export async function typingStart(serverKey: string, channelId: string, asyncOpt
     }
     }
 
+export function voiceDraftDiscard(draftId: number): void /*throws*/ {uniffiCaller.rustCallWithError(
+            /*liftError:*/ FfiConverterTypeMobileError.lift.bind(FfiConverterTypeMobileError),
+            /*caller:*/ (callStatus) => { nativeModule().ubrn_uniffi_opencord_mobile_fn_func_voice_draft_discard(
+        FfiConverterFloat64.lower(draftId, nativeModule().rustbuffer_alloc),
+                callStatus);
+            },
+            /*liftString:*/ FfiConverterString.lift.bind(FfiConverterString),
+    );
+    }
+
 /**
  * Joins a voice channel; this device is in one at most, so any other is
  * left first. The app asks for the microphone before calling this.
@@ -1454,6 +1464,152 @@ export async function voiceLeave(asyncOpts_?: { signal: AbortSignal }): Promise<
     }
 
 /**
+ * Uploads a draft and sends it as a voice message: one attachment, no text.
+ */
+export async function voiceMessageSend(serverKey: string, channelId: string, nonce: string, draftId: number, asyncOpts_?: { signal: AbortSignal }): Promise<MessageRecord> /*throws*/ {
+    const __stack = uniffiIsDebug ? new Error().stack : undefined;
+    try {
+        return await uniffiRustCallAsync(
+            /*rustCaller:*/ uniffiCaller,
+            /*rustFutureFunc:*/ () => {
+                return nativeModule().ubrn_uniffi_opencord_mobile_fn_func_voice_message_send(FfiConverterString.lower(serverKey, nativeModule().rustbuffer_alloc),FfiConverterString.lower(channelId, nativeModule().rustbuffer_alloc),FfiConverterString.lower(nonce, nativeModule().rustbuffer_alloc),FfiConverterFloat64.lower(draftId, nativeModule().rustbuffer_alloc)
+                );
+            },
+            /*pollFunc:*/ nativeModule().ubrn_ffi_opencord_mobile_rust_future_poll_rust_buffer,
+            /*cancelFunc:*/ nativeModule().ubrn_ffi_opencord_mobile_rust_future_cancel_rust_buffer,
+            /*completeFunc:*/ nativeModule().ubrn_ffi_opencord_mobile_rust_future_complete_rust_buffer,
+            /*freeFunc:*/ nativeModule().ubrn_ffi_opencord_mobile_rust_future_free_rust_buffer,
+            // Async returns always go through the JS-side converter: the
+            // FFI symbol returns the future handle (u64), and the user-level
+            // RustBuffer comes back via the shared `rust_future_complete_*`
+            // export. The bytes the runtime hands back must be deserialized
+            // here using the per-callable return-type converter.
+            // Borrowed view over foreign memory: the call site owns the free,
+            // as on the sync paths. Unconditional — a no-op where buffers are
+            // already JS-owned.
+            /*liftFunc:*/ (__rb) => {
+                try {
+                    return FfiConverterTypeMessageRecord.lift(__rb);
+                } finally {
+                    nativeModule().rustbuffer_free(__rb);
+                }
+            },
+            /*liftString:*/ FfiConverterString.lift.bind(FfiConverterString),
+            /*asyncOpts:*/ asyncOpts_,
+            /*errorHandler:*/ FfiConverterTypeMobileError.lift.bind(FfiConverterTypeMobileError)
+        );
+    } catch (__error: any) {
+        if (uniffiIsDebug && __error instanceof Error) {
+            __error.stack = __stack;
+        }
+        throw __error;
+    }
+    }
+
+export function voicePause(): void /*throws*/ {uniffiCaller.rustCallWithError(
+            /*liftError:*/ FfiConverterTypeMobileError.lift.bind(FfiConverterTypeMobileError),
+            /*caller:*/ (callStatus) => { nativeModule().ubrn_uniffi_opencord_mobile_fn_func_voice_pause(
+                callStatus);
+            },
+            /*liftString:*/ FfiConverterString.lift.bind(FfiConverterString),
+    );
+    }
+
+/**
+ * Plays a voice message or a draft from `position_ms` at `speed` (1, 1.5
+ * or 2); `Playback` events follow. Whatever played before stops.
+ */
+export async function voicePlay(item: PlaybackItemRecord, positionMs: number, speed: number, asyncOpts_?: { signal: AbortSignal }): Promise<void> /*throws*/ {
+    const __stack = uniffiIsDebug ? new Error().stack : undefined;
+    try {
+        return await uniffiRustCallAsync(
+            /*rustCaller:*/ uniffiCaller,
+            /*rustFutureFunc:*/ () => {
+                return nativeModule().ubrn_uniffi_opencord_mobile_fn_func_voice_play(FfiConverterTypePlaybackItemRecord.lower(item, nativeModule().rustbuffer_alloc),FfiConverterUInt32.lower(positionMs, nativeModule().rustbuffer_alloc),FfiConverterFloat32.lower(speed, nativeModule().rustbuffer_alloc)
+                );
+            },
+            /*pollFunc:*/ nativeModule().ubrn_ffi_opencord_mobile_rust_future_poll_void,
+            /*cancelFunc:*/ nativeModule().ubrn_ffi_opencord_mobile_rust_future_cancel_void,
+            /*completeFunc:*/ nativeModule().ubrn_ffi_opencord_mobile_rust_future_complete_void,
+            /*freeFunc:*/ nativeModule().ubrn_ffi_opencord_mobile_rust_future_free_void,
+            /*liftFunc:*/ (_v) => {},
+            /*liftString:*/ FfiConverterString.lift.bind(FfiConverterString),
+            /*asyncOpts:*/ asyncOpts_,
+            /*errorHandler:*/ FfiConverterTypeMobileError.lift.bind(FfiConverterTypeMobileError)
+        );
+    } catch (__error: any) {
+        if (uniffiIsDebug && __error instanceof Error) {
+            __error.stack = __stack;
+        }
+        throw __error;
+    }
+    }
+
+/**
+ * Stops recording and keeps nothing.
+ */
+export function voiceRecordCancel(): void /*throws*/ {uniffiCaller.rustCallWithError(
+            /*liftError:*/ FfiConverterTypeMobileError.lift.bind(FfiConverterTypeMobileError),
+            /*caller:*/ (callStatus) => { nativeModule().ubrn_uniffi_opencord_mobile_fn_func_voice_record_cancel(
+                callStatus);
+            },
+            /*liftString:*/ FfiConverterString.lift.bind(FfiConverterString),
+    );
+    }
+
+/**
+ * Starts recording; it stops by itself after `max_seconds` with a
+ * `VoiceRecordStopped` event. `VoiceRecordLevel` events follow meanwhile.
+ */
+export function voiceRecordStart(maxSeconds: number): void /*throws*/ {uniffiCaller.rustCallWithError(
+            /*liftError:*/ FfiConverterTypeMobileError.lift.bind(FfiConverterTypeMobileError),
+            /*caller:*/ (callStatus) => { nativeModule().ubrn_uniffi_opencord_mobile_fn_func_voice_record_start(
+        FfiConverterUInt32.lower(maxSeconds, nativeModule().rustbuffer_alloc),
+                callStatus);
+            },
+            /*liftString:*/ FfiConverterString.lift.bind(FfiConverterString),
+    );
+    }
+
+/**
+ * Stops recording and keeps what was recorded as a draft.
+ */
+export function voiceRecordStop(): VoiceDraftRecord /*throws*/ {
+    const __rb: Uint8Array = uniffiCaller.rustCallWithError(
+            /*liftError:*/ FfiConverterTypeMobileError.lift.bind(FfiConverterTypeMobileError),
+            /*caller:*/ (callStatus) => {
+                return nativeModule().ubrn_uniffi_opencord_mobile_fn_func_voice_record_stop(
+                callStatus);
+            },
+            /*liftString:*/ FfiConverterString.lift.bind(FfiConverterString),
+    );
+    try {
+        return FfiConverterTypeVoiceDraftRecord.lift(__rb);
+    } finally {
+        nativeModule().rustbuffer_free(__rb);
+    }
+    }
+
+export function voiceResume(): void /*throws*/ {uniffiCaller.rustCallWithError(
+            /*liftError:*/ FfiConverterTypeMobileError.lift.bind(FfiConverterTypeMobileError),
+            /*caller:*/ (callStatus) => { nativeModule().ubrn_uniffi_opencord_mobile_fn_func_voice_resume(
+                callStatus);
+            },
+            /*liftString:*/ FfiConverterString.lift.bind(FfiConverterString),
+    );
+    }
+
+export function voiceSeek(positionMs: number): void /*throws*/ {uniffiCaller.rustCallWithError(
+            /*liftError:*/ FfiConverterTypeMobileError.lift.bind(FfiConverterTypeMobileError),
+            /*caller:*/ (callStatus) => { nativeModule().ubrn_uniffi_opencord_mobile_fn_func_voice_seek(
+        FfiConverterUInt32.lower(positionMs, nativeModule().rustbuffer_alloc),
+                callStatus);
+            },
+            /*liftString:*/ FfiConverterString.lift.bind(FfiConverterString),
+    );
+    }
+
+/**
  * Holds outside voice too, for the next join.
  */
 export function voiceSetDeaf(deafened: boolean): void /*throws*/ {uniffiCaller.rustCallWithError(
@@ -1473,6 +1629,16 @@ export function voiceSetMute(muted: boolean): void /*throws*/ {uniffiCaller.rust
             /*liftError:*/ FfiConverterTypeMobileError.lift.bind(FfiConverterTypeMobileError),
             /*caller:*/ (callStatus) => { nativeModule().ubrn_uniffi_opencord_mobile_fn_func_voice_set_mute(
         FfiConverterBool.lower(muted, nativeModule().rustbuffer_alloc),
+                callStatus);
+            },
+            /*liftString:*/ FfiConverterString.lift.bind(FfiConverterString),
+    );
+    }
+
+export function voiceSetSpeed(speed: number): void /*throws*/ {uniffiCaller.rustCallWithError(
+            /*liftError:*/ FfiConverterTypeMobileError.lift.bind(FfiConverterTypeMobileError),
+            /*caller:*/ (callStatus) => { nativeModule().ubrn_uniffi_opencord_mobile_fn_func_voice_set_speed(
+        FfiConverterFloat32.lower(speed, nativeModule().rustbuffer_alloc),
                 callStatus);
             },
             /*liftString:*/ FfiConverterString.lift.bind(FfiConverterString),
@@ -1503,6 +1669,15 @@ export function voiceSetUserVolume(serverKey: string, userId: string, volume: nu
         FfiConverterString.lower(serverKey, nativeModule().rustbuffer_alloc),
         FfiConverterString.lower(userId, nativeModule().rustbuffer_alloc),
         FfiConverterFloat32.lower(volume, nativeModule().rustbuffer_alloc),
+                callStatus);
+            },
+            /*liftString:*/ FfiConverterString.lift.bind(FfiConverterString),
+    );
+    }
+
+export function voiceStop(): void /*throws*/ {uniffiCaller.rustCallWithError(
+            /*liftError:*/ FfiConverterTypeMobileError.lift.bind(FfiConverterTypeMobileError),
+            /*caller:*/ (callStatus) => { nativeModule().ubrn_uniffi_opencord_mobile_fn_func_voice_stop(
                 callStatus);
             },
             /*liftString:*/ FfiConverterString.lift.bind(FfiConverterString),
@@ -1607,6 +1782,11 @@ export type AttachmentRecord = {
     width?: number,
     height?: number,
     durationMs?: number,
+    /**
+     * A voice message's levels, 0–255 each (128 of them); empty otherwise.
+     * As numbers, not bytes, for JavaScript's arrays.
+     */
+    waveform: Array<number>,
     hasThumbnail: boolean,
     thumbnailWidth?: number,
     thumbnailHeight?: number,
@@ -1645,6 +1825,7 @@ const FfiConverterTypeAttachmentRecord = (() => {
                 width: FfiConverterOptionalUInt32.readFromCursor(c), 
                 height: FfiConverterOptionalUInt32.readFromCursor(c), 
                 durationMs: FfiConverterOptionalUInt32.readFromCursor(c), 
+                waveform: FfiConverterSequenceUInt16.readFromCursor(c), 
                 hasThumbnail: FfiConverterBool.readFromCursor(c), 
                 thumbnailWidth: FfiConverterOptionalUInt32.readFromCursor(c), 
                 thumbnailHeight: FfiConverterOptionalUInt32.readFromCursor(c), 
@@ -1660,6 +1841,7 @@ const FfiConverterTypeAttachmentRecord = (() => {
             FfiConverterOptionalUInt32.writeIntoCursor(value.width, c);
             FfiConverterOptionalUInt32.writeIntoCursor(value.height, c);
             FfiConverterOptionalUInt32.writeIntoCursor(value.durationMs, c);
+            FfiConverterSequenceUInt16.writeIntoCursor(value.waveform, c);
             FfiConverterBool.writeIntoCursor(value.hasThumbnail, c);
             FfiConverterOptionalUInt32.writeIntoCursor(value.thumbnailWidth, c);
             FfiConverterOptionalUInt32.writeIntoCursor(value.thumbnailHeight, c);
@@ -1674,6 +1856,7 @@ const FfiConverterTypeAttachmentRecord = (() => {
              FfiConverterOptionalUInt32.allocationSize(value.width) +
              FfiConverterOptionalUInt32.allocationSize(value.height) +
              FfiConverterOptionalUInt32.allocationSize(value.durationMs) +
+             FfiConverterSequenceUInt16.allocationSize(value.waveform) +
              FfiConverterBool.allocationSize(value.hasThumbnail) +
              FfiConverterOptionalUInt32.allocationSize(value.thumbnailWidth) +
              FfiConverterOptionalUInt32.allocationSize(value.thumbnailHeight) +
@@ -1701,7 +1884,8 @@ export type ChannelAccess = {
     musicManageQueue: boolean,
     musicManage: boolean,
     useSoundboard: boolean,
-    useExternalSounds: boolean
+    useExternalSounds: boolean,
+    sendVoiceMessages: boolean
 }
 
 /**
@@ -1738,7 +1922,8 @@ const FfiConverterTypeChannelAccess = (() => {
                 musicManageQueue: FfiConverterBool.readFromCursor(c), 
                 musicManage: FfiConverterBool.readFromCursor(c), 
                 useSoundboard: FfiConverterBool.readFromCursor(c), 
-                useExternalSounds: FfiConverterBool.readFromCursor(c)
+                useExternalSounds: FfiConverterBool.readFromCursor(c), 
+                sendVoiceMessages: FfiConverterBool.readFromCursor(c)
             };
         }
         writeIntoCursor(value: TypeName, c: Cursor): void {
@@ -1756,6 +1941,7 @@ const FfiConverterTypeChannelAccess = (() => {
             FfiConverterBool.writeIntoCursor(value.musicManage, c);
             FfiConverterBool.writeIntoCursor(value.useSoundboard, c);
             FfiConverterBool.writeIntoCursor(value.useExternalSounds, c);
+            FfiConverterBool.writeIntoCursor(value.sendVoiceMessages, c);
         }
         allocationSize(value: TypeName): number {
             return FfiConverterString.allocationSize(value.channelId) +
@@ -1771,7 +1957,8 @@ const FfiConverterTypeChannelAccess = (() => {
              FfiConverterBool.allocationSize(value.musicManageQueue) +
              FfiConverterBool.allocationSize(value.musicManage) +
              FfiConverterBool.allocationSize(value.useSoundboard) +
-             FfiConverterBool.allocationSize(value.useExternalSounds);
+             FfiConverterBool.allocationSize(value.useExternalSounds) +
+             FfiConverterBool.allocationSize(value.sendVoiceMessages);
             
         }
     };
@@ -3164,7 +3351,11 @@ export type ServerSnapshot = {
     voiceStates: Array<VoiceStateRecord>,
     voiceEnabled: boolean,
     soundboard: SoundboardSettingsRecord,
-    soundboardSounds: Array<SoundboardSoundRecord>
+    soundboardSounds: Array<SoundboardSoundRecord>,
+    /**
+     * The longest voice message this server takes.
+     */
+    voiceMessageMaxSeconds: number
 }
 
 /**
@@ -3200,7 +3391,8 @@ const FfiConverterTypeServerSnapshot = (() => {
                 voiceStates: FfiConverterSequenceTypeVoiceStateRecord.readFromCursor(c), 
                 voiceEnabled: FfiConverterBool.readFromCursor(c), 
                 soundboard: FfiConverterTypeSoundboardSettingsRecord.readFromCursor(c), 
-                soundboardSounds: FfiConverterSequenceTypeSoundboardSoundRecord.readFromCursor(c)
+                soundboardSounds: FfiConverterSequenceTypeSoundboardSoundRecord.readFromCursor(c), 
+                voiceMessageMaxSeconds: FfiConverterUInt32.readFromCursor(c)
             };
         }
         writeIntoCursor(value: TypeName, c: Cursor): void {
@@ -3217,6 +3409,7 @@ const FfiConverterTypeServerSnapshot = (() => {
             FfiConverterBool.writeIntoCursor(value.voiceEnabled, c);
             FfiConverterTypeSoundboardSettingsRecord.writeIntoCursor(value.soundboard, c);
             FfiConverterSequenceTypeSoundboardSoundRecord.writeIntoCursor(value.soundboardSounds, c);
+            FfiConverterUInt32.writeIntoCursor(value.voiceMessageMaxSeconds, c);
         }
         allocationSize(value: TypeName): number {
             return FfiConverterString.allocationSize(value.serverKey) +
@@ -3231,7 +3424,8 @@ const FfiConverterTypeServerSnapshot = (() => {
              FfiConverterSequenceTypeVoiceStateRecord.allocationSize(value.voiceStates) +
              FfiConverterBool.allocationSize(value.voiceEnabled) +
              FfiConverterTypeSoundboardSettingsRecord.allocationSize(value.soundboard) +
-             FfiConverterSequenceTypeSoundboardSoundRecord.allocationSize(value.soundboardSounds);
+             FfiConverterSequenceTypeSoundboardSoundRecord.allocationSize(value.soundboardSounds) +
+             FfiConverterUInt32.allocationSize(value.voiceMessageMaxSeconds);
             
         }
     };
@@ -3345,6 +3539,59 @@ const FfiConverterTypeSpeakingChangeRecord = (() => {
         allocationSize(value: TypeName): number {
             return FfiConverterString.allocationSize(value.userId) +
              FfiConverterBool.allocationSize(value.speaking);
+            
+        }
+    };
+    return new FFIConverter();
+})();
+
+/**
+ * A voice message recorded on this device, ready to send or hear first.
+ */
+export type VoiceDraftRecord = {
+    draftId: number,
+    durationMs: number,
+    /**
+     * 0–255 each, as an attachment's.
+     */
+    waveform: Array<number>
+}
+
+/**
+ * Generated factory for {@link VoiceDraftRecord} record objects.
+ */
+export const VoiceDraftRecord = (() => {
+    const defaults = () => ({
+    });
+    const create = (() => {
+        return uniffiCreateRecord<VoiceDraftRecord, ReturnType<typeof defaults>>(defaults);
+    })();
+    return Object.freeze({
+        create,
+        new: create,
+        defaults: () => Object.freeze(defaults()) as Partial<VoiceDraftRecord>,
+    });
+})();
+
+const FfiConverterTypeVoiceDraftRecord = (() => {
+    type TypeName = VoiceDraftRecord;
+    class FFIConverter extends AbstractFfiConverterByteArray<TypeName> {
+        readFromCursor(c: Cursor): TypeName {
+            return {
+                draftId: FfiConverterFloat64.readFromCursor(c), 
+                durationMs: FfiConverterUInt32.readFromCursor(c), 
+                waveform: FfiConverterSequenceUInt16.readFromCursor(c)
+            };
+        }
+        writeIntoCursor(value: TypeName, c: Cursor): void {
+            FfiConverterFloat64.writeIntoCursor(value.draftId, c);
+            FfiConverterUInt32.writeIntoCursor(value.durationMs, c);
+            FfiConverterSequenceUInt16.writeIntoCursor(value.waveform, c);
+        }
+        allocationSize(value: TypeName): number {
+            return FfiConverterFloat64.allocationSize(value.draftId) +
+             FfiConverterUInt32.allocationSize(value.durationMs) +
+             FfiConverterSequenceUInt16.allocationSize(value.waveform);
             
         }
     };
@@ -4741,6 +4988,150 @@ const FfiConverterTypeVoiceLinkState = (() => {
 })();
 
 
+// Enum: PlaybackItemRecord
+export enum PlaybackItemRecord_Tags {
+    Attachment = "Attachment",
+    Draft = "Draft"
+}
+/**
+ * What a voice player plays: a voice message on a server, or a draft here.
+ */
+export const PlaybackItemRecord = (() => {
+
+    type Attachment__interface = {
+        tag: PlaybackItemRecord_Tags.Attachment;
+        inner: 
+Readonly<{serverKey: string; attachmentId: string}>
+    };
+    class Attachment_ extends UniffiEnum implements Attachment__interface {
+        /**
+         * @private
+         * This field is private and should not be used, use `tag` instead.
+         */
+        readonly [uniffiTypeNameSymbol] = "PlaybackItemRecord";
+        readonly tag = PlaybackItemRecord_Tags.Attachment;
+        readonly inner: 
+Readonly<{serverKey: string; attachmentId: string}>;
+        constructor(
+inner: {serverKey: string; attachmentId: string }) {
+            super("PlaybackItemRecord", "Attachment");
+
+            this.inner = Object.freeze(inner);
+        }
+        static new(
+inner: {serverKey: string; attachmentId: string }): Attachment_ {
+            return new Attachment_(inner);
+        }
+
+        static instanceOf(obj: any): obj is Attachment_ {
+            return obj.tag === PlaybackItemRecord_Tags.Attachment;
+        }
+
+    }
+
+    type Draft__interface = {
+        tag: PlaybackItemRecord_Tags.Draft;
+        inner: 
+Readonly<{draftId: number}>
+    };
+    class Draft_ extends UniffiEnum implements Draft__interface {
+        /**
+         * @private
+         * This field is private and should not be used, use `tag` instead.
+         */
+        readonly [uniffiTypeNameSymbol] = "PlaybackItemRecord";
+        readonly tag = PlaybackItemRecord_Tags.Draft;
+        readonly inner: 
+Readonly<{draftId: number}>;
+        constructor(
+inner: {draftId: number }) {
+            super("PlaybackItemRecord", "Draft");
+
+            this.inner = Object.freeze(inner);
+        }
+        static new(
+inner: {draftId: number }): Draft_ {
+            return new Draft_(inner);
+        }
+
+        static instanceOf(obj: any): obj is Draft_ {
+            return obj.tag === PlaybackItemRecord_Tags.Draft;
+        }
+
+    }
+
+    function instanceOf(obj: any): obj is PlaybackItemRecord {
+        return obj[uniffiTypeNameSymbol] === "PlaybackItemRecord";
+    }
+
+    return Object.freeze({
+        instanceOf,
+  Attachment: Attachment_, 
+  Draft: Draft_
+    });
+
+})();
+/**
+ * What a voice player plays: a voice message on a server, or a draft here.
+ */
+export type PlaybackItemRecord = InstanceType<
+    typeof PlaybackItemRecord['Attachment' | 'Draft']
+>;
+
+// FfiConverter for enum PlaybackItemRecord
+const FfiConverterTypePlaybackItemRecord = (() => {
+    type TypeName = PlaybackItemRecord;
+    class FFIConverter extends AbstractFfiConverterByteArray<TypeName> {
+        readFromCursor(c: Cursor): TypeName {
+            switch (c.readI32()) {
+                case 1: return new PlaybackItemRecord.Attachment({serverKey: FfiConverterString.readFromCursor(c), attachmentId: FfiConverterString.readFromCursor(c) });
+                case 2: return new PlaybackItemRecord.Draft({draftId: FfiConverterFloat64.readFromCursor(c) });
+                default: throw new UniffiInternalError.UnexpectedEnumCase();
+            }
+        }
+        writeIntoCursor(value: TypeName, c: Cursor): void {
+            switch (value.tag) {
+                case PlaybackItemRecord_Tags.Attachment: {
+                    c.writeI32(1);
+                    const inner = value.inner;
+                    FfiConverterString.writeIntoCursor(inner.serverKey, c);
+                    FfiConverterString.writeIntoCursor(inner.attachmentId, c);
+                    return;
+                }
+                case PlaybackItemRecord_Tags.Draft: {
+                    c.writeI32(2);
+                    const inner = value.inner;
+                    FfiConverterFloat64.writeIntoCursor(inner.draftId, c);
+                    return;
+                }
+                default:
+                    // Throwing from here means that PlaybackItemRecord_Tags hasn't matched an ordinal.
+                    throw new UniffiInternalError.UnexpectedEnumCase();
+            }
+        }
+        allocationSize(value: TypeName): number {
+            switch (value.tag) {
+                case PlaybackItemRecord_Tags.Attachment: {
+                    const inner = value.inner;
+                    let size = 4;
+                    size += FfiConverterString.allocationSize(inner.serverKey);
+                    size += FfiConverterString.allocationSize(inner.attachmentId);
+                    return size;
+                }
+                case PlaybackItemRecord_Tags.Draft: {
+                    const inner = value.inner;
+                    let size = 4;
+                    size += FfiConverterFloat64.allocationSize(inner.draftId);
+                    return size;
+                }
+                default: throw new UniffiInternalError.UnexpectedEnumCase();
+            }
+        }
+    }
+    return new FFIConverter();
+})();
+
+
 // Enum: UploadPhaseRecord
 export enum UploadPhaseRecord_Tags {
     Preparing = "Preparing",
@@ -5070,6 +5461,12 @@ export enum MobileEvent_Tags {
     SoundboardSettingsChanged = "SoundboardSettingsChanged",
     SoundboardSoundUpserted = "SoundboardSoundUpserted",
     SoundboardSoundDeleted = "SoundboardSoundDeleted",
+    VoiceMessageLimitChanged = "VoiceMessageLimitChanged",
+    VoiceRecordLevel = "VoiceRecordLevel",
+    VoiceRecordStopped = "VoiceRecordStopped",
+    Playback = "Playback",
+    PlaybackEnded = "PlaybackEnded",
+    PlaybackFailed = "PlaybackFailed",
     SoundPlayed = "SoundPlayed",
     MusicUpload = "MusicUpload",
     SendProgress = "SendProgress",
@@ -5830,6 +6227,200 @@ inner: {serverKey: string; soundId: string }): SoundboardSoundDeleted_ {
 
     }
 
+    type VoiceMessageLimitChanged__interface = {
+        tag: MobileEvent_Tags.VoiceMessageLimitChanged;
+        inner: 
+Readonly<{serverKey: string; maxSeconds: number}>
+    };
+    class VoiceMessageLimitChanged_ extends UniffiEnum implements VoiceMessageLimitChanged__interface {
+        /**
+         * @private
+         * This field is private and should not be used, use `tag` instead.
+         */
+        readonly [uniffiTypeNameSymbol] = "MobileEvent";
+        readonly tag = MobileEvent_Tags.VoiceMessageLimitChanged;
+        readonly inner: 
+Readonly<{serverKey: string; maxSeconds: number}>;
+        constructor(
+inner: {serverKey: string; maxSeconds: number }) {
+            super("MobileEvent", "VoiceMessageLimitChanged");
+
+            this.inner = Object.freeze(inner);
+        }
+        static new(
+inner: {serverKey: string; maxSeconds: number }): VoiceMessageLimitChanged_ {
+            return new VoiceMessageLimitChanged_(inner);
+        }
+
+        static instanceOf(obj: any): obj is VoiceMessageLimitChanged_ {
+            return obj.tag === MobileEvent_Tags.VoiceMessageLimitChanged;
+        }
+
+    }
+
+    type VoiceRecordLevel__interface = {
+        tag: MobileEvent_Tags.VoiceRecordLevel;
+        inner: 
+Readonly<{level: number}>
+    };
+    /**
+     * The microphone's level while recording a voice message, 0–1,
+     * about every 33 ms.
+     */
+    class VoiceRecordLevel_ extends UniffiEnum implements VoiceRecordLevel__interface {
+        /**
+         * @private
+         * This field is private and should not be used, use `tag` instead.
+         */
+        readonly [uniffiTypeNameSymbol] = "MobileEvent";
+        readonly tag = MobileEvent_Tags.VoiceRecordLevel;
+        readonly inner: 
+Readonly<{level: number}>;
+        constructor(
+inner: {level: number }) {
+            super("MobileEvent", "VoiceRecordLevel");
+
+            this.inner = Object.freeze(inner);
+        }
+        static new(
+inner: {level: number }): VoiceRecordLevel_ {
+            return new VoiceRecordLevel_(inner);
+        }
+
+        static instanceOf(obj: any): obj is VoiceRecordLevel_ {
+            return obj.tag === MobileEvent_Tags.VoiceRecordLevel;
+        }
+
+    }
+
+    type VoiceRecordStopped__interface = {
+        tag: MobileEvent_Tags.VoiceRecordStopped;
+        inner: 
+Readonly<{maxLength: boolean}>
+    };
+    /**
+     * Recording stopped by itself: at the server's maximum length, or the
+     * microphone went away.
+     */
+    class VoiceRecordStopped_ extends UniffiEnum implements VoiceRecordStopped__interface {
+        /**
+         * @private
+         * This field is private and should not be used, use `tag` instead.
+         */
+        readonly [uniffiTypeNameSymbol] = "MobileEvent";
+        readonly tag = MobileEvent_Tags.VoiceRecordStopped;
+        readonly inner: 
+Readonly<{maxLength: boolean}>;
+        constructor(
+inner: {maxLength: boolean }) {
+            super("MobileEvent", "VoiceRecordStopped");
+
+            this.inner = Object.freeze(inner);
+        }
+        static new(
+inner: {maxLength: boolean }): VoiceRecordStopped_ {
+            return new VoiceRecordStopped_(inner);
+        }
+
+        static instanceOf(obj: any): obj is VoiceRecordStopped_ {
+            return obj.tag === MobileEvent_Tags.VoiceRecordStopped;
+        }
+
+    }
+
+    type Playback__interface = {
+        tag: MobileEvent_Tags.Playback;
+        inner: 
+Readonly<{item: PlaybackItemRecord; positionMs: number; durationMs: number; playing: boolean; buffering: boolean}>
+    };
+    class Playback_ extends UniffiEnum implements Playback__interface {
+        /**
+         * @private
+         * This field is private and should not be used, use `tag` instead.
+         */
+        readonly [uniffiTypeNameSymbol] = "MobileEvent";
+        readonly tag = MobileEvent_Tags.Playback;
+        readonly inner: 
+Readonly<{item: PlaybackItemRecord; positionMs: number; durationMs: number; playing: boolean; buffering: boolean}>;
+        constructor(
+inner: {item: PlaybackItemRecord; positionMs: number; durationMs: number; playing: boolean; buffering: boolean }) {
+            super("MobileEvent", "Playback");
+
+            this.inner = Object.freeze(inner);
+        }
+        static new(
+inner: {item: PlaybackItemRecord; positionMs: number; durationMs: number; playing: boolean; buffering: boolean }): Playback_ {
+            return new Playback_(inner);
+        }
+
+        static instanceOf(obj: any): obj is Playback_ {
+            return obj.tag === MobileEvent_Tags.Playback;
+        }
+
+    }
+
+    type PlaybackEnded__interface = {
+        tag: MobileEvent_Tags.PlaybackEnded;
+        inner: 
+Readonly<{item: PlaybackItemRecord}>
+    };
+    class PlaybackEnded_ extends UniffiEnum implements PlaybackEnded__interface {
+        /**
+         * @private
+         * This field is private and should not be used, use `tag` instead.
+         */
+        readonly [uniffiTypeNameSymbol] = "MobileEvent";
+        readonly tag = MobileEvent_Tags.PlaybackEnded;
+        readonly inner: 
+Readonly<{item: PlaybackItemRecord}>;
+        constructor(
+inner: {item: PlaybackItemRecord }) {
+            super("MobileEvent", "PlaybackEnded");
+
+            this.inner = Object.freeze(inner);
+        }
+        static new(
+inner: {item: PlaybackItemRecord }): PlaybackEnded_ {
+            return new PlaybackEnded_(inner);
+        }
+
+        static instanceOf(obj: any): obj is PlaybackEnded_ {
+            return obj.tag === MobileEvent_Tags.PlaybackEnded;
+        }
+
+    }
+
+    type PlaybackFailed__interface = {
+        tag: MobileEvent_Tags.PlaybackFailed;
+        inner: 
+Readonly<{item: PlaybackItemRecord; message: string}>
+    };
+    class PlaybackFailed_ extends UniffiEnum implements PlaybackFailed__interface {
+        /**
+         * @private
+         * This field is private and should not be used, use `tag` instead.
+         */
+        readonly [uniffiTypeNameSymbol] = "MobileEvent";
+        readonly tag = MobileEvent_Tags.PlaybackFailed;
+        readonly inner: 
+Readonly<{item: PlaybackItemRecord; message: string}>;
+        constructor(
+inner: {item: PlaybackItemRecord; message: string }) {
+            super("MobileEvent", "PlaybackFailed");
+
+            this.inner = Object.freeze(inner);
+        }
+        static new(
+inner: {item: PlaybackItemRecord; message: string }): PlaybackFailed_ {
+            return new PlaybackFailed_(inner);
+        }
+
+        static instanceOf(obj: any): obj is PlaybackFailed_ {
+            return obj.tag === MobileEvent_Tags.PlaybackFailed;
+        }
+
+    }
+
     type SoundPlayed__interface = {
         tag: MobileEvent_Tags.SoundPlayed;
         inner: 
@@ -5991,6 +6582,12 @@ inner: {serverKey: string; key: string; title: string; body: string }): Notice_ 
   SoundboardSettingsChanged: SoundboardSettingsChanged_, 
   SoundboardSoundUpserted: SoundboardSoundUpserted_, 
   SoundboardSoundDeleted: SoundboardSoundDeleted_, 
+  VoiceMessageLimitChanged: VoiceMessageLimitChanged_, 
+  VoiceRecordLevel: VoiceRecordLevel_, 
+  VoiceRecordStopped: VoiceRecordStopped_, 
+  Playback: Playback_, 
+  PlaybackEnded: PlaybackEnded_, 
+  PlaybackFailed: PlaybackFailed_, 
   SoundPlayed: SoundPlayed_, 
   MusicUpload: MusicUpload_, 
   SendProgress: SendProgress_, 
@@ -5999,7 +6596,7 @@ inner: {serverKey: string; key: string; title: string; body: string }): Notice_ 
 
 })();
 export type MobileEvent = InstanceType<
-    typeof MobileEvent['Connection' | 'Ready' | 'MessageCreated' | 'MessageUpdated' | 'MessageDeleted' | 'ChannelUpserted' | 'ChannelDeleted' | 'AccessChanged' | 'MemberUpserted' | 'MemberLeft' | 'Typing' | 'ServerInfoChanged' | 'VoiceStateChanged' | 'VoiceLink' | 'Speaking' | 'AudioProblem' | 'SpeakingWhileMuted' | 'MusicSession' | 'MusicNowPlaying' | 'MusicNotice' | 'MusicSettingsChanged' | 'SoundboardSettingsChanged' | 'SoundboardSoundUpserted' | 'SoundboardSoundDeleted' | 'SoundPlayed' | 'MusicUpload' | 'SendProgress' | 'Notice']
+    typeof MobileEvent['Connection' | 'Ready' | 'MessageCreated' | 'MessageUpdated' | 'MessageDeleted' | 'ChannelUpserted' | 'ChannelDeleted' | 'AccessChanged' | 'MemberUpserted' | 'MemberLeft' | 'Typing' | 'ServerInfoChanged' | 'VoiceStateChanged' | 'VoiceLink' | 'Speaking' | 'AudioProblem' | 'SpeakingWhileMuted' | 'MusicSession' | 'MusicNowPlaying' | 'MusicNotice' | 'MusicSettingsChanged' | 'SoundboardSettingsChanged' | 'SoundboardSoundUpserted' | 'SoundboardSoundDeleted' | 'VoiceMessageLimitChanged' | 'VoiceRecordLevel' | 'VoiceRecordStopped' | 'Playback' | 'PlaybackEnded' | 'PlaybackFailed' | 'SoundPlayed' | 'MusicUpload' | 'SendProgress' | 'Notice']
 >;
 
 // FfiConverter for enum MobileEvent
@@ -6032,10 +6629,16 @@ const FfiConverterTypeMobileEvent = (() => {
                 case 22: return new MobileEvent.SoundboardSettingsChanged({serverKey: FfiConverterString.readFromCursor(c), settings: FfiConverterTypeSoundboardSettingsRecord.readFromCursor(c) });
                 case 23: return new MobileEvent.SoundboardSoundUpserted({serverKey: FfiConverterString.readFromCursor(c), sound: FfiConverterTypeSoundboardSoundRecord.readFromCursor(c) });
                 case 24: return new MobileEvent.SoundboardSoundDeleted({serverKey: FfiConverterString.readFromCursor(c), soundId: FfiConverterString.readFromCursor(c) });
-                case 25: return new MobileEvent.SoundPlayed({serverKey: FfiConverterString.readFromCursor(c), effect: FfiConverterTypeSoundEffectRecord.readFromCursor(c) });
-                case 26: return new MobileEvent.MusicUpload({serverKey: FfiConverterString.readFromCursor(c), channelId: FfiConverterString.readFromCursor(c), uploadId: FfiConverterString.readFromCursor(c), filename: FfiConverterString.readFromCursor(c), sentBytes: FfiConverterFloat64.readFromCursor(c), totalBytes: FfiConverterFloat64.readFromCursor(c), phase: FfiConverterTypeUploadPhaseRecord.readFromCursor(c) });
-                case 27: return new MobileEvent.SendProgress({serverKey: FfiConverterString.readFromCursor(c), nonce: FfiConverterString.readFromCursor(c), index: FfiConverterUInt32.readFromCursor(c), sentBytes: FfiConverterFloat64.readFromCursor(c), totalBytes: FfiConverterFloat64.readFromCursor(c), phase: FfiConverterTypeUploadPhaseRecord.readFromCursor(c) });
-                case 28: return new MobileEvent.Notice({serverKey: FfiConverterString.readFromCursor(c), key: FfiConverterString.readFromCursor(c), title: FfiConverterString.readFromCursor(c), body: FfiConverterString.readFromCursor(c) });
+                case 25: return new MobileEvent.VoiceMessageLimitChanged({serverKey: FfiConverterString.readFromCursor(c), maxSeconds: FfiConverterUInt32.readFromCursor(c) });
+                case 26: return new MobileEvent.VoiceRecordLevel({level: FfiConverterFloat32.readFromCursor(c) });
+                case 27: return new MobileEvent.VoiceRecordStopped({maxLength: FfiConverterBool.readFromCursor(c) });
+                case 28: return new MobileEvent.Playback({item: FfiConverterTypePlaybackItemRecord.readFromCursor(c), positionMs: FfiConverterUInt32.readFromCursor(c), durationMs: FfiConverterUInt32.readFromCursor(c), playing: FfiConverterBool.readFromCursor(c), buffering: FfiConverterBool.readFromCursor(c) });
+                case 29: return new MobileEvent.PlaybackEnded({item: FfiConverterTypePlaybackItemRecord.readFromCursor(c) });
+                case 30: return new MobileEvent.PlaybackFailed({item: FfiConverterTypePlaybackItemRecord.readFromCursor(c), message: FfiConverterString.readFromCursor(c) });
+                case 31: return new MobileEvent.SoundPlayed({serverKey: FfiConverterString.readFromCursor(c), effect: FfiConverterTypeSoundEffectRecord.readFromCursor(c) });
+                case 32: return new MobileEvent.MusicUpload({serverKey: FfiConverterString.readFromCursor(c), channelId: FfiConverterString.readFromCursor(c), uploadId: FfiConverterString.readFromCursor(c), filename: FfiConverterString.readFromCursor(c), sentBytes: FfiConverterFloat64.readFromCursor(c), totalBytes: FfiConverterFloat64.readFromCursor(c), phase: FfiConverterTypeUploadPhaseRecord.readFromCursor(c) });
+                case 33: return new MobileEvent.SendProgress({serverKey: FfiConverterString.readFromCursor(c), nonce: FfiConverterString.readFromCursor(c), index: FfiConverterUInt32.readFromCursor(c), sentBytes: FfiConverterFloat64.readFromCursor(c), totalBytes: FfiConverterFloat64.readFromCursor(c), phase: FfiConverterTypeUploadPhaseRecord.readFromCursor(c) });
+                case 34: return new MobileEvent.Notice({serverKey: FfiConverterString.readFromCursor(c), key: FfiConverterString.readFromCursor(c), title: FfiConverterString.readFromCursor(c), body: FfiConverterString.readFromCursor(c) });
                 default: throw new UniffiInternalError.UnexpectedEnumCase();
             }
         }
@@ -6212,15 +6815,57 @@ const FfiConverterTypeMobileEvent = (() => {
                     FfiConverterString.writeIntoCursor(inner.soundId, c);
                     return;
                 }
-                case MobileEvent_Tags.SoundPlayed: {
+                case MobileEvent_Tags.VoiceMessageLimitChanged: {
                     c.writeI32(25);
+                    const inner = value.inner;
+                    FfiConverterString.writeIntoCursor(inner.serverKey, c);
+                    FfiConverterUInt32.writeIntoCursor(inner.maxSeconds, c);
+                    return;
+                }
+                case MobileEvent_Tags.VoiceRecordLevel: {
+                    c.writeI32(26);
+                    const inner = value.inner;
+                    FfiConverterFloat32.writeIntoCursor(inner.level, c);
+                    return;
+                }
+                case MobileEvent_Tags.VoiceRecordStopped: {
+                    c.writeI32(27);
+                    const inner = value.inner;
+                    FfiConverterBool.writeIntoCursor(inner.maxLength, c);
+                    return;
+                }
+                case MobileEvent_Tags.Playback: {
+                    c.writeI32(28);
+                    const inner = value.inner;
+                    FfiConverterTypePlaybackItemRecord.writeIntoCursor(inner.item, c);
+                    FfiConverterUInt32.writeIntoCursor(inner.positionMs, c);
+                    FfiConverterUInt32.writeIntoCursor(inner.durationMs, c);
+                    FfiConverterBool.writeIntoCursor(inner.playing, c);
+                    FfiConverterBool.writeIntoCursor(inner.buffering, c);
+                    return;
+                }
+                case MobileEvent_Tags.PlaybackEnded: {
+                    c.writeI32(29);
+                    const inner = value.inner;
+                    FfiConverterTypePlaybackItemRecord.writeIntoCursor(inner.item, c);
+                    return;
+                }
+                case MobileEvent_Tags.PlaybackFailed: {
+                    c.writeI32(30);
+                    const inner = value.inner;
+                    FfiConverterTypePlaybackItemRecord.writeIntoCursor(inner.item, c);
+                    FfiConverterString.writeIntoCursor(inner.message, c);
+                    return;
+                }
+                case MobileEvent_Tags.SoundPlayed: {
+                    c.writeI32(31);
                     const inner = value.inner;
                     FfiConverterString.writeIntoCursor(inner.serverKey, c);
                     FfiConverterTypeSoundEffectRecord.writeIntoCursor(inner.effect, c);
                     return;
                 }
                 case MobileEvent_Tags.MusicUpload: {
-                    c.writeI32(26);
+                    c.writeI32(32);
                     const inner = value.inner;
                     FfiConverterString.writeIntoCursor(inner.serverKey, c);
                     FfiConverterString.writeIntoCursor(inner.channelId, c);
@@ -6232,7 +6877,7 @@ const FfiConverterTypeMobileEvent = (() => {
                     return;
                 }
                 case MobileEvent_Tags.SendProgress: {
-                    c.writeI32(27);
+                    c.writeI32(33);
                     const inner = value.inner;
                     FfiConverterString.writeIntoCursor(inner.serverKey, c);
                     FfiConverterString.writeIntoCursor(inner.nonce, c);
@@ -6243,7 +6888,7 @@ const FfiConverterTypeMobileEvent = (() => {
                     return;
                 }
                 case MobileEvent_Tags.Notice: {
-                    c.writeI32(28);
+                    c.writeI32(34);
                     const inner = value.inner;
                     FfiConverterString.writeIntoCursor(inner.serverKey, c);
                     FfiConverterString.writeIntoCursor(inner.key, c);
@@ -6428,6 +7073,48 @@ const FfiConverterTypeMobileEvent = (() => {
                     size += FfiConverterString.allocationSize(inner.soundId);
                     return size;
                 }
+                case MobileEvent_Tags.VoiceMessageLimitChanged: {
+                    const inner = value.inner;
+                    let size = 4;
+                    size += FfiConverterString.allocationSize(inner.serverKey);
+                    size += FfiConverterUInt32.allocationSize(inner.maxSeconds);
+                    return size;
+                }
+                case MobileEvent_Tags.VoiceRecordLevel: {
+                    const inner = value.inner;
+                    let size = 4;
+                    size += FfiConverterFloat32.allocationSize(inner.level);
+                    return size;
+                }
+                case MobileEvent_Tags.VoiceRecordStopped: {
+                    const inner = value.inner;
+                    let size = 4;
+                    size += FfiConverterBool.allocationSize(inner.maxLength);
+                    return size;
+                }
+                case MobileEvent_Tags.Playback: {
+                    const inner = value.inner;
+                    let size = 4;
+                    size += FfiConverterTypePlaybackItemRecord.allocationSize(inner.item);
+                    size += FfiConverterUInt32.allocationSize(inner.positionMs);
+                    size += FfiConverterUInt32.allocationSize(inner.durationMs);
+                    size += FfiConverterBool.allocationSize(inner.playing);
+                    size += FfiConverterBool.allocationSize(inner.buffering);
+                    return size;
+                }
+                case MobileEvent_Tags.PlaybackEnded: {
+                    const inner = value.inner;
+                    let size = 4;
+                    size += FfiConverterTypePlaybackItemRecord.allocationSize(inner.item);
+                    return size;
+                }
+                case MobileEvent_Tags.PlaybackFailed: {
+                    const inner = value.inner;
+                    let size = 4;
+                    size += FfiConverterTypePlaybackItemRecord.allocationSize(inner.item);
+                    size += FfiConverterString.allocationSize(inner.message);
+                    return size;
+                }
                 case MobileEvent_Tags.SoundPlayed: {
                     const inner = value.inner;
                     let size = 4;
@@ -6553,6 +7240,9 @@ const FfiConverterTypeMusicPlacement = (() => {
 
 // FfiConverter for number | undefined
 const FfiConverterOptionalUInt32 = new FfiConverterOptional(FfiConverterUInt32);
+
+// FfiConverter for Array<number>
+const FfiConverterSequenceUInt16 = new FfiConverterArray(FfiConverterUInt16);
 
 // FfiConverter for string | undefined
 const FfiConverterOptionalString = new FfiConverterOptional(FfiConverterString);
@@ -6774,11 +7464,38 @@ function uniffiEnsureInitialized() {
     if (nativeModule().ubrn_uniffi_opencord_mobile_checksum_func_typing_start() !== 34177) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_opencord_mobile_checksum_func_typing_start");
     }
+    if (nativeModule().ubrn_uniffi_opencord_mobile_checksum_func_voice_draft_discard() !== 6789) {
+        throw new UniffiInternalError.ApiChecksumMismatch("uniffi_opencord_mobile_checksum_func_voice_draft_discard");
+    }
     if (nativeModule().ubrn_uniffi_opencord_mobile_checksum_func_voice_join() !== 15301) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_opencord_mobile_checksum_func_voice_join");
     }
     if (nativeModule().ubrn_uniffi_opencord_mobile_checksum_func_voice_leave() !== 35055) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_opencord_mobile_checksum_func_voice_leave");
+    }
+    if (nativeModule().ubrn_uniffi_opencord_mobile_checksum_func_voice_message_send() !== 64007) {
+        throw new UniffiInternalError.ApiChecksumMismatch("uniffi_opencord_mobile_checksum_func_voice_message_send");
+    }
+    if (nativeModule().ubrn_uniffi_opencord_mobile_checksum_func_voice_pause() !== 54359) {
+        throw new UniffiInternalError.ApiChecksumMismatch("uniffi_opencord_mobile_checksum_func_voice_pause");
+    }
+    if (nativeModule().ubrn_uniffi_opencord_mobile_checksum_func_voice_play() !== 56906) {
+        throw new UniffiInternalError.ApiChecksumMismatch("uniffi_opencord_mobile_checksum_func_voice_play");
+    }
+    if (nativeModule().ubrn_uniffi_opencord_mobile_checksum_func_voice_record_cancel() !== 37686) {
+        throw new UniffiInternalError.ApiChecksumMismatch("uniffi_opencord_mobile_checksum_func_voice_record_cancel");
+    }
+    if (nativeModule().ubrn_uniffi_opencord_mobile_checksum_func_voice_record_start() !== 19747) {
+        throw new UniffiInternalError.ApiChecksumMismatch("uniffi_opencord_mobile_checksum_func_voice_record_start");
+    }
+    if (nativeModule().ubrn_uniffi_opencord_mobile_checksum_func_voice_record_stop() !== 46819) {
+        throw new UniffiInternalError.ApiChecksumMismatch("uniffi_opencord_mobile_checksum_func_voice_record_stop");
+    }
+    if (nativeModule().ubrn_uniffi_opencord_mobile_checksum_func_voice_resume() !== 10072) {
+        throw new UniffiInternalError.ApiChecksumMismatch("uniffi_opencord_mobile_checksum_func_voice_resume");
+    }
+    if (nativeModule().ubrn_uniffi_opencord_mobile_checksum_func_voice_seek() !== 3249) {
+        throw new UniffiInternalError.ApiChecksumMismatch("uniffi_opencord_mobile_checksum_func_voice_seek");
     }
     if (nativeModule().ubrn_uniffi_opencord_mobile_checksum_func_voice_set_deaf() !== 48751) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_opencord_mobile_checksum_func_voice_set_deaf");
@@ -6786,11 +7503,17 @@ function uniffiEnsureInitialized() {
     if (nativeModule().ubrn_uniffi_opencord_mobile_checksum_func_voice_set_mute() !== 50021) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_opencord_mobile_checksum_func_voice_set_mute");
     }
+    if (nativeModule().ubrn_uniffi_opencord_mobile_checksum_func_voice_set_speed() !== 7449) {
+        throw new UniffiInternalError.ApiChecksumMismatch("uniffi_opencord_mobile_checksum_func_voice_set_speed");
+    }
     if (nativeModule().ubrn_uniffi_opencord_mobile_checksum_func_voice_set_user_local_mute() !== 27396) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_opencord_mobile_checksum_func_voice_set_user_local_mute");
     }
     if (nativeModule().ubrn_uniffi_opencord_mobile_checksum_func_voice_set_user_volume() !== 43464) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_opencord_mobile_checksum_func_voice_set_user_volume");
+    }
+    if (nativeModule().ubrn_uniffi_opencord_mobile_checksum_func_voice_stop() !== 44760) {
+        throw new UniffiInternalError.ApiChecksumMismatch("uniffi_opencord_mobile_checksum_func_voice_stop");
     }
 
     }
@@ -6828,6 +7551,7 @@ export default Object.freeze({
     FfiConverterTypeMusicTrackRecord,
     FfiConverterTypeNewIdentity,
     FfiConverterTypeOutgoingFileRecord,
+    FfiConverterTypePlaybackItemRecord,
     FfiConverterTypeServerEntry,
     FfiConverterTypeServerSnapshot,
     FfiConverterTypeSoundEffectRecord,
@@ -6836,6 +7560,7 @@ export default Object.freeze({
     FfiConverterTypeSpeakingChangeRecord,
     FfiConverterTypeUploadPhaseRecord,
     FfiConverterTypeUserRecord,
+    FfiConverterTypeVoiceDraftRecord,
     FfiConverterTypeVoiceLinkState,
     FfiConverterTypeVoiceStateRecord,
   }

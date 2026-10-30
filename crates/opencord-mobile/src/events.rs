@@ -8,7 +8,7 @@
 
 use std::sync::atomic::{AtomicU64, Ordering};
 
-use opencord_core::api::types::{CoreEvent, CoreEventPayload, MediaEvent};
+use opencord_core::api::types::{self as core, CoreEvent, CoreEventPayload, MediaEvent};
 use tokio::sync::mpsc::UnboundedReceiver;
 use tokio::sync::{Mutex, Notify};
 
@@ -125,6 +125,34 @@ pub enum MobileEvent {
     SoundboardSoundDeleted {
         server_key: String,
         sound_id: String,
+    },
+    VoiceMessageLimitChanged {
+        server_key: String,
+        max_seconds: u32,
+    },
+    /// The microphone's level while recording a voice message, 0–1,
+    /// about every 33 ms.
+    VoiceRecordLevel {
+        level: f32,
+    },
+    /// Recording stopped by itself: at the server's maximum length, or the
+    /// microphone went away.
+    VoiceRecordStopped {
+        max_length: bool,
+    },
+    Playback {
+        item: PlaybackItemRecord,
+        position_ms: u32,
+        duration_ms: u32,
+        playing: bool,
+        buffering: bool,
+    },
+    PlaybackEnded {
+        item: PlaybackItemRecord,
+    },
+    PlaybackFailed {
+        item: PlaybackItemRecord,
+        message: String,
     },
     /// Someone played a sound in a voice channel; this device plays it
     /// itself when it is in that channel.
@@ -423,6 +451,10 @@ pub(crate) fn core_event(event: CoreEvent) -> Option<MobileEvent> {
             server_key,
             effect: convert::sound_effect(effect),
         },
+        CoreEventPayload::UploadSettingsUpdate(settings) => MobileEvent::VoiceMessageLimitChanged {
+            server_key,
+            max_seconds: settings.voice_message_max_seconds,
+        },
         CoreEventPayload::RoleCreate(_)
         | CoreEventPayload::RoleUpdate(_)
         | CoreEventPayload::RoleDelete { .. }
@@ -439,7 +471,6 @@ pub(crate) fn core_event(event: CoreEvent) -> Option<MobileEvent> {
         | CoreEventPayload::LavalinkTestProgress(_)
         | CoreEventPayload::CommandsUpdate(_)
         | CoreEventPayload::EphemeralMessage(_)
-        | CoreEventPayload::UploadSettingsUpdate(_)
         | CoreEventPayload::PrivateSettingsUpdate(_)
         | CoreEventPayload::StorageUpdate(_)
         | CoreEventPayload::StagedUploadProgress { .. }
@@ -479,6 +510,30 @@ pub(crate) fn media_event(event: MediaEvent) -> Option<MobileEvent> {
             changes: changes.into_iter().map(convert::speaking).collect(),
         },
         MediaEvent::SpeakingWhileMuted => MobileEvent::SpeakingWhileMuted,
+        MediaEvent::VoiceRecordLevel { level } => MobileEvent::VoiceRecordLevel { level },
+        MediaEvent::VoiceRecordStopped { reason } => MobileEvent::VoiceRecordStopped {
+            max_length: reason == core::VoiceStopReason::MaxLength,
+        },
+        MediaEvent::PlaybackUpdate {
+            item,
+            position_ms,
+            duration_ms,
+            playing,
+            buffering,
+        } => MobileEvent::Playback {
+            item: convert::playback_item(item),
+            position_ms,
+            duration_ms,
+            playing,
+            buffering,
+        },
+        MediaEvent::PlaybackEnded { item } => MobileEvent::PlaybackEnded {
+            item: convert::playback_item(item),
+        },
+        MediaEvent::PlaybackFailed { item, message } => MobileEvent::PlaybackFailed {
+            item: convert::playback_item(item),
+            message,
+        },
         MediaEvent::DevicesChanged(_)
         | MediaEvent::InputLevel { .. }
         | MediaEvent::NoiseSuppressionFellBack
@@ -487,12 +542,7 @@ pub(crate) fn media_event(event: MediaEvent) -> Option<MobileEvent> {
         | MediaEvent::VideoTrackRemoved { .. }
         | MediaEvent::CameraStopped { .. }
         | MediaEvent::ScreenShareStopped { .. }
-        | MediaEvent::ConnectionStats { .. }
-        | MediaEvent::VoiceRecordLevel { .. }
-        | MediaEvent::VoiceRecordStopped { .. }
-        | MediaEvent::PlaybackUpdate { .. }
-        | MediaEvent::PlaybackEnded { .. }
-        | MediaEvent::PlaybackFailed { .. } => return None,
+        | MediaEvent::ConnectionStats { .. } => return None,
     })
 }
 
