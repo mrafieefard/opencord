@@ -74,6 +74,7 @@ describe('Uploads', () => {
       musicManage,
       useSoundboard: true,
       useExternalSounds: true,
+      sendVoiceMessages: true,
     };
     useAppStore.setState({
       servers: {

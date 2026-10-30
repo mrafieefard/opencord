@@ -101,6 +101,24 @@ export interface MusicUploadState {
   path: string;
 }
 
+/** What a voice player is doing: a voice message or a draft, by playbackKey. */
+export interface VoicePlayback {
+  key: string;
+  positionMs: number;
+  durationMs: number;
+  playing: boolean;
+  buffering: boolean;
+}
+
+/** A voice message being recorded on this device. */
+export interface VoiceRecording {
+  /** The microphone's levels so far, 0–1, about every 33 ms. */
+  levels: number[];
+  startedAtMs: number;
+  /** It stopped by itself: at the server's maximum, or the microphone went away. */
+  stopped: 'maxLength' | 'deviceLost' | null;
+}
+
 export type Theme = 'system' | 'light' | 'dark';
 
 export interface MusicListening {
@@ -156,6 +174,10 @@ export interface AppState {
   soundRings: Record<string, Record<string, number>>;
   /** When this device last played a sound, per server: the cooldown runs from it. */
   lastSound: Record<string, number>;
+  voicePlayback: VoicePlayback | null;
+  /** Voice messages play at 1, 1.5 or 2 times. */
+  voiceSpeed: number;
+  voiceRecording: VoiceRecording | null;
   prefs: Prefs;
   toasts: Toast[];
   editingMessage: EditingMessage | null;

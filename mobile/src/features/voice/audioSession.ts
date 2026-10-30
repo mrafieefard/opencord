@@ -23,3 +23,17 @@ export async function leaveVoiceAudio(): Promise<void> {
     interruptionMode: 'mixWithOthers',
   });
 }
+
+/**
+ * Before recording or playing a voice message outside a call: record and
+ * play even with the ringer off, lowering other apps meanwhile. In a call
+ * the call's session already does both.
+ */
+export async function enterVoiceNoteAudio(): Promise<void> {
+  await setAudioModeAsync({
+    allowsRecording: true,
+    playsInSilentMode: true,
+    shouldPlayInBackground: false,
+    interruptionMode: 'duckOthers',
+  });
+}

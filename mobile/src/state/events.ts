@@ -3,6 +3,7 @@
 import {
   ConnectionRecord,
   MobileEvent,
+  PlaybackItemRecord,
   MobileEvent_Tags,
   UploadPhaseRecord_Tags,
   type ChannelAccess,
@@ -21,6 +22,15 @@ import {
 } from './types';
 
 export const TYPING_MS = 10_000;
+/** The live waveform keeps the last 20 s of levels (one every 33 ms). */
+const RECORD_LEVELS = 600;
+
+/** A voice player's item as one string: a voice message, or a draft here. */
+export function playbackKey(item: PlaybackItemRecord): string {
+  return PlaybackItemRecord.Attachment.instanceOf(item)
+    ? `attachment/${item.inner.serverKey}/${item.inner.attachmentId}`
+    : `draft/${item.inner.draftId}`;
+}
 export const EMPTY_MESSAGES: ChannelMessages = Object.freeze({
   items: [],
   hasOlder: true,
@@ -292,6 +302,35 @@ function applyEvent(state: AppState, event: MobileEvent, nowMs: number): AppStat
         const sounds = current.snapshot.soundboardSounds.filter((sound) => sound.id !== event.inner.soundId);
         return { ...current, snapshot: { ...current.snapshot, soundboardSounds: sounds } };
       });
+    case MobileEvent_Tags.VoiceMessageLimitChanged:
+      return withServer(state, event.inner.serverKey, (current) =>
+        current.snapshot
+          ? { ...current, snapshot: { ...current.snapshot, voiceMessageMaxSeconds: event.inner.maxSeconds } }
+          : current,
+      );
+    case MobileEvent_Tags.VoiceRecordLevel: {
+      const recording = state.voiceRecording;
+      if (!recording) return state;
+      const levels = [...recording.levels, event.inner.level];
+      return { ...state, voiceRecording: { ...recording, levels: levels.length > RECORD_LEVELS ? levels.slice(-RECORD_LEVELS) : levels } };
+    }
+    case MobileEvent_Tags.VoiceRecordStopped:
+      return state.voiceRecording
+        ? { ...state, voiceRecording: { ...state.voiceRecording, stopped: event.inner.maxLength ? 'maxLength' : 'deviceLost' } }
+        : state;
+    case MobileEvent_Tags.Playback: {
+      const { item, positionMs, durationMs, playing, buffering } = event.inner;
+      return { ...state, voicePlayback: { key: playbackKey(item), positionMs, durationMs, playing, buffering } };
+    }
+    case MobileEvent_Tags.PlaybackEnded: {
+      const key = playbackKey(event.inner.item);
+      const held = state.voicePlayback;
+      if (held && held.key !== key) return state;
+      // Back to the start, as a voice bubble rests.
+      return { ...state, voicePlayback: { key, positionMs: 0, durationMs: held?.durationMs ?? 0, playing: false, buffering: false } };
+    }
+    case MobileEvent_Tags.PlaybackFailed:
+      return state.voicePlayback?.key === playbackKey(event.inner.item) ? { ...state, voicePlayback: null } : state;
     case MobileEvent_Tags.SoundPlayed: {
       // Timed here: the server's clock may not be this device's.
       const { effect } = event.inner;

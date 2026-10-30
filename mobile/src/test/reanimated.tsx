@@ -105,6 +105,7 @@ export function useDerivedValue<T>(make: () => T): { value: T } {
 export const withTiming = <T,>(value: T) => value;
 export const withSpring = <T,>(value: T) => value;
 export const withDelay = <T,>(_ms: number, value: T) => value;
+export const withRepeat = <T,>(value: T) => value;
 export const useReducedMotion = () => false;
 export const cancelAnimation = () => {};
 export const interpolate = (value: number, input: number[], output: number[]) => {

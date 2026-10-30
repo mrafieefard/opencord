@@ -56,7 +56,9 @@ describe('Composer and message actions', () => {
     await initNightOwls({ send: false });
 
     const { getByText, queryByPlaceholderText } = await render(
-      <Composer serverKey={NIGHT_OWLS} channelId={CHANNELS.general} />,
+      <GestureHandlerRootView>
+        <Composer serverKey={NIGHT_OWLS} channelId={CHANNELS.general} />
+      </GestureHandlerRootView>,
     );
 
     expect(getByText("You can't send messages here.")).toBeTruthy();
@@ -65,7 +67,9 @@ describe('Composer and message actions', () => {
 
   it('the send button shows only once there is something to send', async () => {
     const { getByPlaceholderText, queryByTestId } = await render(
-      <Composer serverKey={NIGHT_OWLS} channelId={CHANNELS.general} />,
+      <GestureHandlerRootView>
+        <Composer serverKey={NIGHT_OWLS} channelId={CHANNELS.general} />
+      </GestureHandlerRootView>,
     );
     expect(queryByTestId('composer-send')).toBeNull();
 
@@ -80,7 +84,9 @@ describe('Composer and message actions', () => {
 
   it('the counter appears from 3,900 characters and sending stops above 4,000', async () => {
     const { getByPlaceholderText, queryByTestId, getByTestId } = await render(
-      <Composer serverKey={NIGHT_OWLS} channelId={CHANNELS.general} />,
+      <GestureHandlerRootView>
+        <Composer serverKey={NIGHT_OWLS} channelId={CHANNELS.general} />
+      </GestureHandlerRootView>,
     );
 
     const input = getByPlaceholderText('Message #general');
@@ -115,7 +121,9 @@ describe('Composer and message actions', () => {
     startEditingMessage(NIGHT_OWLS, CHANNELS.general, 'msg-edit-1', 'Original content');
 
     const { getByText, getByDisplayValue, getByTestId } = await render(
-      <Composer serverKey={NIGHT_OWLS} channelId={CHANNELS.general} />,
+      <GestureHandlerRootView>
+        <Composer serverKey={NIGHT_OWLS} channelId={CHANNELS.general} />
+      </GestureHandlerRootView>,
     );
 
     expect(getByText('Editing message')).toBeTruthy();

@@ -13,9 +13,11 @@ import {
   MusicAction,
   MusicPlacement,
   MusicPlayState,
+  PlaybackItemRecord,
   UploadPhaseRecord,
   VoiceLinkState,
   type DefaultSoundRecord,
+  type VoiceDraftRecord,
   type ExternalSoundRecord,
   type IdentityInfo,
   type MessageRecord,
@@ -431,6 +433,7 @@ export class FakeCore implements CoreApi {
         hasThumbnail: image,
         thumbnailWidth: image ? 400 : undefined,
         thumbnailHeight: image ? 300 : undefined,
+        waveform: [],
         animated: false,
       };
     });
@@ -850,6 +853,117 @@ export class FakeCore implements CoreApi {
     this.enter('soundboardPreview', [serverKey, soundRef]);
   }
 
+  // Voice messages --------------------------------------------------------
+
+  private recordingSince: number | null = null;
+  private levelTimer: ReturnType<typeof setInterval> | null = null;
+  private drafts = new Map<number, VoiceDraftRecord>();
+  private nextDraft = 1;
+  private playing: { item: PlaybackItemRecord; positionMs: number; durationMs: number } | null = null;
+
+  voiceRecordStart(maxSeconds: number): void {
+    this.enter('voiceRecordStart', [maxSeconds]);
+    if (this.recordingSince !== null) throw new MobileError.InvalidInput({ message: 'already recording' });
+    this.recordingSince = this.now();
+    // A voice that rises and falls, as a live recording sends.
+    if (this.live) {
+      let step = 0;
+      this.levelTimer = setInterval(() => {
+        step += 1;
+        this.emit(new MobileEvent.VoiceRecordLevel({ level: 0.15 + 0.6 * Math.abs(Math.sin(step / 5)) * Math.random() }));
+      }, 33);
+    }
+  }
+
+  /** A recording made in a test (whose clock stands still) lasts 2 s. */
+  voiceRecordStop(): VoiceDraftRecord {
+    this.enter('voiceRecordStop', []);
+    if (this.recordingSince === null) throw new MobileError.InvalidInput({ message: 'not recording' });
+    const durationMs = this.live ? this.now() - this.recordingSince : 2_000;
+    this.endRecording();
+    const draft: VoiceDraftRecord = { draftId: this.nextDraft++, durationMs, waveform: fakeWaveform(durationMs) };
+    this.drafts.set(draft.draftId, draft);
+    return draft;
+  }
+
+  voiceRecordCancel(): void {
+    this.enter('voiceRecordCancel', []);
+    this.endRecording();
+  }
+
+  private endRecording(): void {
+    this.recordingSince = null;
+    if (this.levelTimer) clearInterval(this.levelTimer);
+    this.levelTimer = null;
+  }
+
+  voiceDraftDiscard(draftId: number): void {
+    this.enter('voiceDraftDiscard', [draftId]);
+    this.drafts.delete(draftId);
+  }
+
+  async voiceMessageSend(serverKey: string, channelId: string, nonce: string, draftId: number): Promise<MessageRecord> {
+    this.enter('voiceMessageSend', [serverKey, channelId, nonce, draftId]);
+    const draft = this.drafts.get(draftId);
+    if (!draft) throw new MobileError.InvalidInput({ message: `voice draft ${draftId} not found` });
+    this.drafts.delete(draftId);
+    return this.post(serverKey, channelId, '', nonce, [
+      {
+        id: String(this.id()),
+        filename: 'voice-message.ogg',
+        contentType: 'audio/ogg',
+        sizeBytes: Math.round(draft.durationMs * 4),
+        kind: AttachmentKind.VoiceMessage,
+        width: undefined,
+        height: undefined,
+        durationMs: draft.durationMs,
+        waveform: draft.waveform,
+        hasThumbnail: false,
+        thumbnailWidth: undefined,
+        thumbnailHeight: undefined,
+        animated: false,
+      },
+    ]);
+  }
+
+  async voicePlay(item: PlaybackItemRecord, positionMs: number, speed: number): Promise<void> {
+    this.enter('voicePlay', [item, positionMs, speed]);
+    const durationMs = PlaybackItemRecord.Draft.instanceOf(item) ? (this.drafts.get(item.inner.draftId)?.durationMs ?? 0) : 4_000;
+    this.playing = { item, positionMs, durationMs };
+    this.emitPlayback(true);
+  }
+
+  voicePause(): void {
+    this.enter('voicePause', []);
+    this.emitPlayback(false);
+  }
+
+  voiceResume(): void {
+    this.enter('voiceResume', []);
+    this.emitPlayback(true);
+  }
+
+  voiceSeek(positionMs: number): void {
+    this.enter('voiceSeek', [positionMs]);
+    if (this.playing) this.playing.positionMs = positionMs;
+    this.emitPlayback(true);
+  }
+
+  voiceSetSpeed(speed: number): void {
+    this.enter('voiceSetSpeed', [speed]);
+  }
+
+  voiceStop(): void {
+    this.enter('voiceStop', []);
+    this.playing = null;
+  }
+
+  private emitPlayback(playing: boolean): void {
+    if (!this.playing) return;
+    const { item, positionMs, durationMs } = this.playing;
+    this.emit(new MobileEvent.Playback({ item, positionMs, durationMs, playing, buffering: false }));
+  }
+
   private enter(method: keyof CoreApi, args: unknown[]): void {
     this.calls.push({ method, args });
     if (this.failures.has(method)) {
@@ -858,4 +972,9 @@ export class FakeCore implements CoreApi {
       throw error;
     }
   }
+}
+
+/** A voice's levels, 0–255, 128 of them: louder in the middle. */
+function fakeWaveform(durationMs: number): number[] {
+  return Array.from({ length: 128 }, (_, index) => Math.round(60 + 180 * Math.abs(Math.sin((index + durationMs / 100) / 6)) * (index % 7 === 0 ? 0.4 : 1)));
 }

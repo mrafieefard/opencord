@@ -33,6 +33,9 @@ export function initialState(): AppState {
     userAudio: {},
     soundRings: {},
     lastSound: {},
+    voicePlayback: null,
+    voiceSpeed: 1,
+    voiceRecording: null,
     prefs: { theme: 'system', music: { ...DEFAULT_MUSIC }, soundFavorites: [] },
     toasts: [],
     editingMessage: null,
@@ -63,6 +66,11 @@ function serverOf(event: MobileEvent): string | null {
       return event.inner.snapshot.serverKey;
     case MobileEvent_Tags.AudioProblem:
     case MobileEvent_Tags.SpeakingWhileMuted:
+    case MobileEvent_Tags.VoiceRecordLevel:
+    case MobileEvent_Tags.VoiceRecordStopped:
+    case MobileEvent_Tags.Playback:
+    case MobileEvent_Tags.PlaybackEnded:
+    case MobileEvent_Tags.PlaybackFailed:
       return null;
     default:
       return event.inner.serverKey;
@@ -122,6 +130,7 @@ export function onEvents(events: MobileEvent[]): void {
   flush();
   for (const event of events) {
     if (MobileEvent.MusicNotice.instanceOf(event)) toaster(event.inner.text);
+    if (MobileEvent.PlaybackFailed.instanceOf(event)) toaster("Couldn't play that voice message.");
   }
 }
 

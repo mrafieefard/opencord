@@ -87,6 +87,7 @@ export function fullAccess(channelId: string): ChannelAccess {
     musicManage: false,
     useSoundboard: true,
     useExternalSounds: true,
+    sendVoiceMessages: true,
   };
 }
 
@@ -167,6 +168,7 @@ export function snapshot(serverKey: string): ServerSnapshot {
     voiceEnabled: true,
     soundboard: { enabled: true, allowDefaultSounds: true, allowExternalSounds: true, cooldownMs: 3_000 },
     soundboardSounds: soundboardSounds(serverKey),
+    voiceMessageMaxSeconds: 300,
   };
 }
 
@@ -220,6 +222,24 @@ export function history(channelId: string, count: number, now: number, firstId: 
           thumbnailWidth: 400,
           thumbnailHeight: 300,
           animated: false,
+          waveform: [],
+        },
+      ];
+    }
+    if (index === count - 6) {
+      message.authorId = '1002';
+      message.content = '';
+      message.attachments = [
+        {
+          id: String(firstId + index + 50_000),
+          filename: 'voice-message.ogg',
+          contentType: 'audio/ogg',
+          sizeBytes: 52_000,
+          kind: AttachmentKind.VoiceMessage,
+          durationMs: 13_000,
+          hasThumbnail: false,
+          animated: false,
+          waveform: Array.from({ length: 128 }, (_, at) => Math.round(40 + 200 * Math.abs(Math.sin(at / 5)) * (at % 9 === 0 ? 0.3 : 1))),
         },
       ];
     }
@@ -238,6 +258,7 @@ export function history(channelId: string, count: number, now: number, firstId: 
           thumbnailWidth: 400,
           thumbnailHeight: 300,
           animated: false,
+          waveform: [],
         },
         {
           id: String(firstId + index + 50_001),
@@ -251,6 +272,7 @@ export function history(channelId: string, count: number, now: number, firstId: 
           thumbnailWidth: 400,
           thumbnailHeight: 266,
           animated: false,
+          waveform: [],
         },
         {
           id: String(firstId + index + 50_002),
@@ -260,6 +282,7 @@ export function history(channelId: string, count: number, now: number, firstId: 
           kind: AttachmentKind.File,
           hasThumbnail: false,
           animated: false,
+          waveform: [],
         },
       ];
     }

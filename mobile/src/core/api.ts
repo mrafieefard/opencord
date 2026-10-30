@@ -17,6 +17,8 @@ import type {
   MusicSettingsRecord,
   NewIdentity,
   OutgoingFileRecord,
+  PlaybackItemRecord,
+  VoiceDraftRecord,
   ServerEntry,
   UserRecord,
   VoiceStateRecord,
@@ -105,4 +107,16 @@ export interface CoreApi {
   soundboardDefaultSounds(): DefaultSoundRecord[];
   soundboardPlay(serverKey: string, channelId: string, soundRef: string, external: ExternalSoundRecord | undefined): Promise<void>;
   soundboardPreview(serverKey: string, soundRef: string): Promise<void>;
+
+  voiceRecordStart(maxSeconds: number): void;
+  voiceRecordStop(): VoiceDraftRecord;
+  voiceRecordCancel(): void;
+  voiceDraftDiscard(draftId: number): void;
+  voiceMessageSend(serverKey: string, channelId: string, nonce: string, draftId: number): Promise<MessageRecord>;
+  voicePlay(item: PlaybackItemRecord, positionMs: number, speed: number): Promise<void>;
+  voicePause(): void;
+  voiceResume(): void;
+  voiceSeek(positionMs: number): void;
+  voiceSetSpeed(speed: number): void;
+  voiceStop(): void;
 }

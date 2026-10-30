@@ -3,6 +3,7 @@ import { AttachmentKind, type AttachmentRecord } from '@opencord/core-native';
 
 import { ImageAttachment } from './ImageAttachment';
 import { FileAttachment } from './FileAttachment';
+import { VoiceMessageAttachment } from './VoiceMessageAttachment';
 
 export interface AttachmentViewProps {
   serverKey: string;
@@ -18,6 +19,9 @@ export const AttachmentView = memo(function AttachmentView({
 }: AttachmentViewProps) {
   if (attachment.kind === AttachmentKind.Image) {
     return <ImageAttachment serverKey={serverKey} attachment={attachment} maxWidth={maxWidth} />;
+  }
+  if (attachment.kind === AttachmentKind.VoiceMessage) {
+    return <VoiceMessageAttachment serverKey={serverKey} attachment={attachment} maxWidth={maxWidth} />;
   }
   return <FileAttachment serverKey={serverKey} attachment={attachment} maxWidth={maxWidth} />;
 });

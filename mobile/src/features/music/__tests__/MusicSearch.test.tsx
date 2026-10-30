@@ -42,6 +42,7 @@ function initSearchServer({
     musicManage: false,
     useSoundboard: true,
     useExternalSounds: true,
+    sendVoiceMessages: true,
     ...accessOverrides,
   };
 

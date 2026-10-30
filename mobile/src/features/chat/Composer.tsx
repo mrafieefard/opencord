@@ -1,12 +1,13 @@
 // The composer (spec §8.5), floating over the messages as Telegram's: a
 // round attach button, a pill field that grows to six lines, and the send
-// button once there is something to send, each its own glass (iOS) or
-// raised surface (Android). ChatPane keeps it on the keyboard.
+// button once there is something to send, else the mic for a voice
+// message (held to record; useVoiceRecorder). Each is its own glass (iOS)
+// or raised surface (Android). ChatPane keeps it on the keyboard.
 import { useCallback, useEffect, useRef, useState, type ComponentRef } from 'react';
 import { StyleSheet, TextInput, View } from 'react-native';
 import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from 'expo-image-picker';
-import { Touchable } from 'react-native-gesture-handler';
+import { GestureDetector, Touchable } from 'react-native-gesture-handler';
 
 import { report } from '@/core';
 import { filePath } from '@/core/paths';
@@ -22,6 +23,9 @@ import { useAppStore } from '@/state/store';
 import type { PickedFile } from '@/state/types';
 import { GlassSurface, Icon, Menu, Text, space, typography, useTheme, type MenuAction } from '@/ui';
 import { MAX_FONT_SCALE } from '@/ui/theme/typography';
+
+import { RecorderPill } from '@/features/voiceMessages/RecorderPill';
+import { useVoiceRecorder } from '@/features/voiceMessages/useVoiceRecorder';
 
 import { AttachmentChips } from './AttachmentChips';
 import { useDockBottom } from './dock';
@@ -84,6 +88,8 @@ export function Composer({ serverKey, channelId }: ComposerProps) {
 
   const canSend = info ? info.access.send : true;
   const canAttach = info ? info.access.attach : true;
+  const canVoice = info ? info.access.sendVoiceMessages : true;
+  const recorder = useVoiceRecorder(serverKey, channelId);
 
   const attachActions: MenuAction[] = [
     { id: 'photo', title: 'Photo library', icon: 'photo' },
@@ -181,66 +187,139 @@ export function Composer({ serverKey, channelId }: ComposerProps) {
       )}
 
       <View style={styles.row}>
-        {canAttach && !isEditing && (
-          <GlassSurface interactive style={styles.round}>
-            <Menu actions={attachActions} onAction={(id) => report(handleAttachAction(id), 'attach files')} testID="composer-attach">
-              <View style={styles.control} accessible accessibilityRole="button" accessibilityLabel="Attach">
-                <Icon name="attach" size={22} color="text" />
-              </View>
-            </Menu>
-          </GlassSurface>
+        {/* Left of the mic: the attach button and the field, or while
+            recording the recorder. The mic stays the same view throughout,
+            so the hold that started recording isn't cut off. */}
+        {recorder.mode === 'idle' ? (
+          <>
+            {canAttach && !isEditing && (
+              <GlassSurface interactive style={styles.round}>
+                <Menu actions={attachActions} onAction={(id) => report(handleAttachAction(id), 'attach files')} testID="composer-attach">
+                  <View style={styles.control} accessible accessibilityRole="button" accessibilityLabel="Attach">
+                    <Icon name="attach" size={22} color="text" />
+                  </View>
+                </Menu>
+              </GlassSurface>
+            )}
+
+            <GlassSurface style={styles.field}>
+              <TextInput
+                ref={input}
+                style={[typography.body, styles.input, { color: colors.text }]}
+                placeholder={`Message #${channelName}`}
+                placeholderTextColor={colors.textMuted}
+                value={text}
+                onChangeText={handleChangeText}
+                multiline
+                maxFontSizeMultiplier={MAX_FONT_SCALE}
+                textAlignVertical="center"
+                cursorColor={colors.text}
+                selectionColor={colors.selected}
+                accessibilityLabel={`Message #${channelName}`}
+                testID="composer-input"
+              />
+              {showCounter && (
+                <Text
+                  variant="footnote"
+                  color={isOverLimit ? 'recording' : 'textMuted'}
+                  tabular
+                  style={styles.counter}
+                  testID="composer-counter"
+                >
+                  {String(remainingChars)}
+                </Text>
+              )}
+            </GlassSurface>
+          </>
+        ) : (
+          <>
+            {recorder.mode !== 'holding' && (
+              <GlassSurface interactive style={styles.round}>
+                <Touchable onPress={recorder.remove} style={styles.control}>
+                  <View style={styles.center} accessible accessibilityRole="button" accessibilityLabel="Delete voice message">
+                    <Icon name="delete" size={20} color="recording" />
+                  </View>
+                </Touchable>
+              </GlassSurface>
+            )}
+            <RecorderPill
+              mode={recorder.mode}
+              cancelArmed={recorder.cancelArmed}
+              draft={recorder.draft}
+              onStop={recorder.stop}
+              height={CONTROL}
+            />
+          </>
         )}
 
-        <GlassSurface style={styles.field}>
-          <TextInput
-            ref={input}
-            style={[typography.body, styles.input, { color: colors.text }]}
-            placeholder={`Message #${channelName}`}
-            placeholderTextColor={colors.textMuted}
-            value={text}
-            onChangeText={handleChangeText}
-            multiline
-            maxFontSizeMultiplier={MAX_FONT_SCALE}
-            textAlignVertical="center"
-            cursorColor={colors.text}
-            selectionColor={colors.selected}
-            accessibilityLabel={`Message #${channelName}`}
-            testID="composer-input"
-          />
-          {showCounter && (
-            <Text
-              variant="footnote"
-              color={isOverLimit ? 'recording' : 'textMuted'}
-              tabular
-              style={styles.counter}
-              testID="composer-counter"
-            >
-              {String(remainingChars)}
-            </Text>
-          )}
-        </GlassSurface>
-
-        {hasSomething && (
-          <Touchable
-            onPress={() => report(handleSubmit(), 'send')}
+        {recorder.mode === 'locked' || recorder.mode === 'draft' ? (
+          <SendButton label="Send voice message" onPress={recorder.send} testID="composer-send-voice" />
+        ) : hasSomething && recorder.mode === 'idle' ? (
+          <SendButton
+            label={isEditing ? 'Save edit' : 'Send'}
+            icon={isEditing ? 'check' : 'send'}
             disabled={!canSubmit}
-            hitSlop={2}
-            style={[styles.control, styles.send, { backgroundColor: colors.accent, opacity: canSubmit ? 1 : 0.4 }]}
-          >
-            <View
-              style={styles.center}
-              accessible
-              accessibilityRole="button"
-              accessibilityLabel={isEditing ? 'Save edit' : 'Send'}
-              accessibilityState={{ disabled: !canSubmit }}
-              testID="composer-send"
-            >
-              <Icon name={isEditing ? 'check' : 'send'} size={20} color="onAccent" />
-            </View>
-          </Touchable>
-        )}
+            onPress={() => report(handleSubmit(), 'send')}
+            testID="composer-send"
+          />
+        ) : canVoice && !isEditing ? (
+          <View>
+            {recorder.mode === 'holding' && (
+              <GlassSurface style={styles.lock} testID="voice-lock-hint">
+                <Icon name="lock" size={14} color="textSecondary" />
+                <Icon name="arrowUp" size={12} color="textSecondary" />
+              </GlassSurface>
+            )}
+            <GestureDetector gesture={recorder.gesture}>
+              <View collapsable={false}>
+                {recorder.mode === 'holding' ? (
+                  <View style={[styles.control, { backgroundColor: recorder.cancelArmed ? colors.recording : colors.voice }]}>
+                    <Icon name="mic" size={22} color="onAccent" />
+                  </View>
+                ) : (
+                  <GlassSurface interactive style={styles.round}>
+                    <View
+                      style={styles.control}
+                      accessible
+                      accessibilityRole="button"
+                      accessibilityLabel="Record a voice message"
+                      accessibilityHint="Hold to record, let go to send"
+                      testID="composer-mic"
+                    >
+                      <Icon name="mic" size={22} color="text" />
+                    </View>
+                  </GlassSurface>
+                )}
+              </View>
+            </GestureDetector>
+          </View>
+        ) : null}
       </View>
     </View>
+  );
+}
+
+interface SendButtonProps {
+  label: string;
+  icon?: 'send' | 'check';
+  disabled?: boolean;
+  onPress: () => void;
+  testID: string;
+}
+
+function SendButton({ label, icon = 'send', disabled = false, onPress, testID }: SendButtonProps) {
+  const { colors } = useTheme();
+  return (
+    <Touchable
+      onPress={onPress}
+      disabled={disabled}
+      hitSlop={2}
+      style={[styles.control, styles.send, { backgroundColor: colors.accent, opacity: disabled ? 0.4 : 1 }]}
+    >
+      <View style={styles.center} accessible accessibilityRole="button" accessibilityLabel={label} accessibilityState={{ disabled }} testID={testID}>
+        <Icon name={icon} size={20} color="onAccent" />
+      </View>
+    </Touchable>
   );
 }
 
@@ -299,6 +378,17 @@ const styles = StyleSheet.create({
   counter: {
     marginLeft: space.sm,
     paddingBottom: FIELD_PAD_V + 2,
+  },
+  lock: {
+    position: 'absolute',
+    bottom: CONTROL + space.sm,
+    left: (CONTROL - 32) / 2,
+    width: 32,
+    height: 60,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: space.xs,
   },
   notice: {
     borderRadius: CONTROL / 2,

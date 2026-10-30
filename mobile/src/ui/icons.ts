@@ -39,6 +39,7 @@ export const icons = {
   starFill: { ios: 'star.fill', android: 'star' },
   play: { ios: 'play.fill', android: 'play_arrow' },
   pause: { ios: 'pause.fill', android: 'pause' },
+  stop: { ios: 'stop.fill', android: 'stop' },
   next: { ios: 'forward.fill', android: 'skip_next' },
   previous: { ios: 'backward.fill', android: 'skip_previous' },
   shuffle: { ios: 'shuffle', android: 'shuffle' },

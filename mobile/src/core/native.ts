@@ -65,4 +65,16 @@ export const NativeCore: CoreApi = {
   soundboardDefaultSounds: () => native.soundboardDefaultSounds(),
   soundboardPlay: (key, channel, soundRef, external) => native.soundboardPlay(key, channel, soundRef, external),
   soundboardPreview: (key, soundRef) => native.soundboardPreview(key, soundRef),
+
+  voiceRecordStart: (maxSeconds) => native.voiceRecordStart(maxSeconds),
+  voiceRecordStop: () => native.voiceRecordStop(),
+  voiceRecordCancel: () => native.voiceRecordCancel(),
+  voiceDraftDiscard: (draftId) => native.voiceDraftDiscard(draftId),
+  voiceMessageSend: (key, channel, nonce, draftId) => native.voiceMessageSend(key, channel, nonce, draftId),
+  voicePlay: (item, positionMs, speed) => native.voicePlay(item, positionMs, speed),
+  voicePause: () => native.voicePause(),
+  voiceResume: () => native.voiceResume(),
+  voiceSeek: (positionMs) => native.voiceSeek(positionMs),
+  voiceSetSpeed: (speed) => native.voiceSetSpeed(speed),
+  voiceStop: () => native.voiceStop(),
 };

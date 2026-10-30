@@ -44,6 +44,7 @@ describe('Attachments', () => {
       height: 600,
       hasThumbnail: true,
       animated: false,
+      waveform: [],
     };
 
     const { getByTestId, queryByTestId } = await render(
@@ -76,6 +77,7 @@ describe('Attachments', () => {
       kind: AttachmentKind.File,
       hasThumbnail: false,
       animated: false,
+      waveform: [],
     };
 
     const { getByText } = await render(
@@ -105,6 +107,7 @@ describe('Attachments', () => {
       kind: AttachmentKind.File,
       hasThumbnail: false,
       animated: false,
+      waveform: [],
     };
 
     const { getByTestId } = await render(

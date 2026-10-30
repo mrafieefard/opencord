@@ -85,6 +85,7 @@ function initHistoryServer({
     musicManage: false,
     useSoundboard: true,
     useExternalSounds: true,
+    sendVoiceMessages: true,
     ...accessOverrides,
   };
 

@@ -85,6 +85,7 @@ function initUpNextServer({
     musicManage: false,
     useSoundboard: true,
     useExternalSounds: true,
+    sendVoiceMessages: true,
     ...accessOverrides,
   };
 
