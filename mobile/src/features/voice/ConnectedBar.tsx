@@ -103,7 +103,7 @@ export function ConnectedVoiceRow({ serverKey, channelId, muted, onOpenHere, com
       return;
     }
     router.push({
-      pathname: '/server/[serverKey]',
+      pathname: '/servers/[serverKey]',
       params: { serverKey, channel: channelId },
     });
   }, [serverKey, channelId, onOpenHere]);

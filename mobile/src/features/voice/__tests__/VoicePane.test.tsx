@@ -254,7 +254,9 @@ describe('VoicePane', () => {
     expect(tablet.size).toBeLessThanOrEqual(200);
   });
 
-  it('without a connected bar of its own, the pane shows none while in voice elsewhere', async () => {
+  // Jest runs as iOS, where the call shows above the tab bar instead (chrome.ts):
+  // the pane draws no bar of its own either way.
+  it('on iOS the pane shows no connected bar while in voice elsewhere', async () => {
     initServer();
     useAppStore.setState({
       myVoice: { serverKey: NIGHT_OWLS, channelId: CHANNELS.quiet, link: new VoiceLinkState.Connected(), muted: false, deafened: false },
@@ -267,7 +269,7 @@ describe('VoicePane', () => {
         <VoicePane serverKey={NIGHT_OWLS} channelId={CHANNELS.lounge} onOpenChannel={() => {}} />
       </GestureHandlerRootView>,
     );
-    expect(tablet.getByTestId('connected-bar-pressable')).toBeTruthy();
+    expect(tablet.queryByTestId('connected-bar-pressable')).toBeNull();
   });
 
   it('fetches the music settings, and shows Music when the server has it on', async () => {

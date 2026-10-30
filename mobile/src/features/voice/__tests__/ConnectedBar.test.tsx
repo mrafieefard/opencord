@@ -102,7 +102,7 @@ describe('ConnectedBar', () => {
     const barTap = getByTestId('connected-bar-pressable');
     await fireEvent.press(barTap);
     expect(router.push).toHaveBeenCalledWith({
-      pathname: '/server/[serverKey]',
+      pathname: '/servers/[serverKey]',
       params: { serverKey: NIGHT_OWLS, channel: CHANNELS.lounge },
     });
   });
@@ -128,7 +128,7 @@ describe('ConnectedBar', () => {
 
     expect(openChannel).not.toHaveBeenCalled();
     expect(router.push).toHaveBeenCalledWith({
-      pathname: '/server/[serverKey]',
+      pathname: '/servers/[serverKey]',
       params: { serverKey: NIGHT_OWLS, channel: CHANNELS.lounge },
     });
   });
@@ -188,6 +188,6 @@ describe('ConnectedBar', () => {
     expect(getByTestId('connected-bar-mute')).toBeTruthy();
     expect(queryByTestId('connected-bar-leave')).toBeNull();
     await fireEvent.press(getByTestId('connected-bar-pressable'));
-    expect(router.push).toHaveBeenCalledWith({ pathname: '/server/[serverKey]', params: { serverKey: NIGHT_OWLS, channel: CHANNELS.lounge } });
+    expect(router.push).toHaveBeenCalledWith({ pathname: '/servers/[serverKey]', params: { serverKey: NIGHT_OWLS, channel: CHANNELS.lounge } });
   });
 });

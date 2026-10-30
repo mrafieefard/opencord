@@ -4,6 +4,7 @@ import { router } from 'expo-router';
 import { useCallback } from 'react';
 import { StyleSheet, View } from 'react-native';
 
+import { chrome } from '@/features/servers/chrome';
 import { ConnectedBar } from '@/features/voice/ConnectedBar';
 import { useTheme } from '@/ui';
 
@@ -30,7 +31,9 @@ export function TabletPanes({ serverKey, panes }: TabletPanesProps) {
       <View style={[styles.sidebar, { borderRightColor: colors.border }]}>
         <ChannelListHeader serverKey={serverKey} backLabel="Servers" onBack={leave} />
         <ChannelList serverKey={serverKey} variant="sidebar" selectedId={panes.open?.id} onSelect={panes.select} />
-        <ConnectedBar serverKey={serverKey} channelId={panes.open?.id} onOpenChannel={openChannel} bottomInset />
+        {chrome.serversVoiceBar && (
+          <ConnectedBar serverKey={serverKey} channelId={panes.open?.id} onOpenChannel={openChannel} bottomInset />
+        )}
       </View>
       <View style={styles.content}>
         <ContentPane serverKey={serverKey} open={panes.open} />

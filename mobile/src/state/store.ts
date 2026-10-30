@@ -34,6 +34,8 @@ export function initialState(): AppState {
     soundRings: {},
     lastSound: {},
     voicePlayback: null,
+    chatInFront: false,
+    voicePageInFront: null,
     voiceSpeed: 1,
     voiceRecording: null,
     prefs: { theme: 'system', music: { ...DEFAULT_MUSIC }, soundFavorites: [] },

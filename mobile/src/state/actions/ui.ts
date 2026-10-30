@@ -28,3 +28,15 @@ export function clearOpenChannel(): void {
 export function setAppActive(active: boolean): void {
   useAppStore.setState({ appActive: active });
 }
+
+/** Whether a text channel fills the screen, which hides the tab bar. */
+export function setChatInFront(chatInFront: boolean): void {
+  if (useAppStore.getState().chatInFront !== chatInFront) useAppStore.setState({ chatInFront });
+}
+
+/** Which voice channel's page fills the screen, if one does. */
+export function setVoicePageInFront(page: { serverKey: string; channelId: string } | null): void {
+  const held = useAppStore.getState().voicePageInFront;
+  if (held?.serverKey === page?.serverKey && held?.channelId === page?.channelId) return;
+  useAppStore.setState({ voicePageInFront: page });
+}

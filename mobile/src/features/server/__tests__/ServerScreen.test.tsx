@@ -4,7 +4,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { ConnectionRecord, MobileEvent } from '@opencord/core-native';
 
 import { CHANNELS, NIGHT_OWLS, RUST_CLUB, snapshot } from '@/core/fake/world';
-import { onEvents } from '@/state/store';
+import { onEvents, useAppStore } from '@/state/store';
 import { freshStore, settle } from '@/test/store';
 
 import { ServerScreen } from '../ServerScreen';
@@ -81,6 +81,18 @@ describe('ServerScreen', () => {
 
     await fireEvent.press(screen.getByLabelText('Servers'));
     expect(mockBack).toHaveBeenCalledTimes(1);
+  });
+
+  it('the tab bar steps aside only while a text channel fills the screen', async () => {
+    windowWidth(412);
+    await renderServer();
+    expect(useAppStore.getState().chatInFront).toBe(false);
+
+    await fireEvent.press(screen.getByRole('button', { name: 'general' }));
+    expect(useAppStore.getState().chatInFront).toBe(true);
+
+    await fireEvent.press(screen.getByLabelText('Show channels'));
+    expect(useAppStore.getState().chatInFront).toBe(false);
   });
 
   it('at tablet width the list and the content sit side by side', async () => {

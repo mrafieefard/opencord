@@ -6,14 +6,28 @@ import { NativeTabs } from 'expo-router/native-tabs';
 import { chrome } from '@/features/servers/chrome';
 import { VoiceAccessory } from '@/features/voice/VoiceAccessory';
 import { useMyVoice } from '@/state/selectors';
+import { useAppStore } from '@/state/store';
 import { useTheme } from '@/ui';
 import { icons } from '@/ui/icons';
 
 export default function TabsLayout() {
   const { colors } = useTheme();
-  const inVoice = useMyVoice() !== null;
+  const myVoice = useMyVoice();
+  // Not over the call's own page, which shows it whole.
+  const onItsPage = useAppStore(
+    (state) =>
+      state.voicePageInFront !== null &&
+      state.voicePageInFront.serverKey === myVoice?.serverKey &&
+      state.voicePageInFront.channelId === myVoice.channelId,
+  );
+  // Under every screen, a server's too, but a text channel in front.
+  const chatInFront = useAppStore((state) => state.chatInFront);
+  // Hiding the bar keeps its accessory on iOS: it goes too, and the chat
+  // shows the call above its composer instead.
+  const inVoice = myVoice !== null && !onItsPage && !chatInFront;
   return (
     <NativeTabs
+      hidden={chatInFront}
       tintColor={colors.text}
       iconColor={{ default: colors.textMuted, selected: colors.text }}
       backgroundColor={colors.rail}

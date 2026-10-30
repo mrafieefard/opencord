@@ -19,7 +19,9 @@ import { GestureDetector, Touchable, usePanGesture } from 'react-native-gesture-
 import Animated, { useAnimatedStyle, useSharedValue, withSpring, type WithSpringConfig } from 'react-native-reanimated';
 import { scheduleOnRN } from 'react-native-worklets';
 
+import { chrome } from '@/features/servers/chrome';
 import { ConnectedBar } from '@/features/voice/ConnectedBar';
+import { setChatInFront, setVoicePageInFront } from '@/state/actions/ui';
 import { useTheme, withAlpha } from '@/ui';
 
 import { ChannelList } from './ChannelList';
@@ -54,6 +56,25 @@ export function PhonePanes({ serverKey, panes, width }: PhonePanesProps) {
   const full = mode === 'channels';
   const listOut = full || sidebarOpen;
   const narrow = sidebarWidth(width);
+
+  // The tab bar shows everywhere in a server but a text channel in front,
+  // where the keyboard and the composer need the room.
+  const chatInFront = open?.kind === 'text' && !listOut;
+  useEffect(() => {
+    setChatInFront(chatInFront);
+  }, [chatInFront]);
+  // A voice channel's own page needs no voice bar above the tab bar.
+  const voicePage = open?.kind === 'voice' && !listOut ? open.id : null;
+  useEffect(() => {
+    setVoicePageInFront(voicePage === null ? null : { serverKey, channelId: voicePage });
+  }, [serverKey, voicePage]);
+  useEffect(
+    () => () => {
+      setChatInFront(false);
+      setVoicePageInFront(null);
+    },
+    [],
+  );
 
   const progress = useSharedValue(listOut ? 1 : 0);
   const reach = useSharedValue(full ? width : narrow);
@@ -156,7 +177,10 @@ export function PhonePanes({ serverKey, panes, width }: PhonePanesProps) {
             <ChannelListHeader serverKey={serverKey} backLabel="All channels" onBack={backToChannels} />
           )}
           <ChannelList serverKey={serverKey} variant={full ? 'full' : 'sidebar'} selectedId={open?.id} onSelect={select} />
-          <ConnectedBar serverKey={serverKey} channelId={full ? undefined : open?.id} onOpenChannel={openChannel} bottomInset />
+          {/* iOS shows the call above the tab bar instead (chrome.ts). */}
+          {chrome.serversVoiceBar && (
+            <ConnectedBar serverKey={serverKey} channelId={full ? undefined : open?.id} onOpenChannel={openChannel} bottomInset />
+          )}
         </Animated.View>
         <Animated.View style={[styles.content, contentStyle]}>
           <View

@@ -60,7 +60,7 @@ describe('ServerList on iOS', () => {
     await render(<ServerListScreen searchable={false} voiceBar={false} />);
 
     fireEvent.press(row(NIGHT_OWLS));
-    expect(mockPush).toHaveBeenCalledWith('/server/fake-night-owls');
+    expect(mockPush).toHaveBeenCalledWith('/servers/fake-night-owls');
   });
 
   it('the trailing swipe action asks before leaving', async () => {

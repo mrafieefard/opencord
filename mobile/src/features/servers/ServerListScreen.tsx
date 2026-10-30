@@ -17,7 +17,7 @@ import { deviceLocale } from './formatTime';
 import { ServerList } from './ServerList';
 import { useMinuteClock } from './useMinuteClock';
 
-const openServer = (serverKey: string) => router.push(`/server/${serverKey}`);
+const openServer = (serverKey: string) => router.push(`/servers/${serverKey}`);
 
 export interface ServerListScreenProps {
   /** A search field in the header filters the list. */

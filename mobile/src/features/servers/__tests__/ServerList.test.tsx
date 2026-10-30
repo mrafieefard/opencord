@@ -195,6 +195,6 @@ describe('ServerList', () => {
     await renderScreen(<ServerListScreen searchable voiceBar />);
 
     fireEvent.press(screen.getByText('Night Owls'));
-    expect(mockPush).toHaveBeenCalledWith('/server/fake-night-owls');
+    expect(mockPush).toHaveBeenCalledWith('/servers/fake-night-owls');
   });
 });

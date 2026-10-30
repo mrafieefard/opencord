@@ -175,6 +175,10 @@ export interface AppState {
   /** When this device last played a sound, per server: the cooldown runs from it. */
   lastSound: Record<string, number>;
   voicePlayback: VoicePlayback | null;
+  /** A text channel fills a phone's screen: the tab bar steps aside for typing. */
+  chatInFront: boolean;
+  /** The voice page of a channel fills a phone's screen. */
+  voicePageInFront: { serverKey: string; channelId: string } | null;
   /** Voice messages play at 1, 1.5 or 2 times. */
   voiceSpeed: number;
   voiceRecording: VoiceRecording | null;

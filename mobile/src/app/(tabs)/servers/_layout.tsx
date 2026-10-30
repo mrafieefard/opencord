@@ -20,6 +20,8 @@ export default function ServersLayout() {
           ),
         }}
       />
+      {/* Inside a server, under the tab bar: it draws its own headers. */}
+      <Stack.Screen name="[serverKey]" options={{ headerShown: false }} />
     </Stack>
   );
 }

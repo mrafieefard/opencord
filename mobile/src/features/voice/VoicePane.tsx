@@ -13,6 +13,8 @@ import { joinVoice, leaveVoice, setDeafened, setMuted } from '@/state/actions/vo
 import { useChannelInfo, useMusicSettings, useMyVoice, useVoiceMembers } from '@/state/selectors';
 import { Button, EmptyState, IconButton, PaneHeader, space, useTheme } from '@/ui';
 
+import { chrome } from '@/features/servers/chrome';
+
 import { ConnectedBar } from './ConnectedBar';
 import { ControlBar } from './ControlBar';
 import { LinkBanner } from './LinkBanner';
@@ -130,7 +132,8 @@ export function VoicePane({ serverKey, channelId, onOpenSidebar, onOpenChannel }
           <View style={styles.join}>
             <Button title={reason ?? 'Join voice'} variant="voice" disabled={reason !== null} onPress={join} />
           </View>
-          {onOpenChannel && myVoice ? (
+          {/* iOS shows the call above the tab bar instead (chrome.ts). */}
+          {onOpenChannel && myVoice && chrome.serversVoiceBar ? (
             <ConnectedBar serverKey={serverKey} channelId={channelId} onOpenChannel={onOpenChannel} bottomInset />
           ) : (
             <View style={{ height: insets.bottom }} />

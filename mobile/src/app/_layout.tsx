@@ -44,9 +44,18 @@ function Routes() {
               contentStyle: { backgroundColor: sheetLook.background(colors) },
             }}
           />
-          <Stack.Screen name="server/[serverKey]/index" />
           <Stack.Screen
             name="server/[serverKey]/member/[userId]"
+            options={{
+              presentation: 'formSheet',
+              sheetAllowedDetents: 'fitToContents',
+              sheetGrabberVisible: true,
+              sheetCornerRadius: radius.sheet,
+              contentStyle: { backgroundColor: sheetLook.background(colors) },
+            }}
+          />
+          <Stack.Screen
+            name="server/[serverKey]/voice/[channelId]"
             options={{
               presentation: 'formSheet',
               sheetAllowedDetents: 'fitToContents',
