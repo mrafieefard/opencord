@@ -71,12 +71,27 @@ export async function leaveVoice(): Promise<void> {
   }
 }
 
+/** Whether the microphone was muted before deafening, given back after. */
+let mutedBeforeDeafen = false;
+
+/** Unmuting while deafened undeafens too, as on the desktop and in Discord. */
 export function setMuted(muted: boolean): void {
-  getCore().voiceSetMute(muted);
+  const core = getCore();
+  if (!muted && useAppStore.getState().myVoice?.deafened) core.voiceSetDeaf(false);
+  core.voiceSetMute(muted);
 }
 
+/** Deafening mutes too; undeafening gives back the mute from before. */
 export function setDeafened(deafened: boolean): void {
-  getCore().voiceSetDeaf(deafened);
+  const core = getCore();
+  if (deafened) {
+    mutedBeforeDeafen = useAppStore.getState().myVoice?.muted ?? false;
+    core.voiceSetMute(true);
+    core.voiceSetDeaf(true);
+  } else {
+    core.voiceSetDeaf(false);
+    core.voiceSetMute(mutedBeforeDeafen);
+  }
 }
 
 function setUserAudio(serverKey: string, userId: string, change: Partial<UserAudio>): void {

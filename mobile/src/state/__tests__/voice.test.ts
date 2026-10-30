@@ -180,9 +180,40 @@ describe('voice', () => {
 
     expect(core.calls.filter((call) => call.method === 'voiceSetMute' || call.method === 'voiceSetDeaf')).toEqual([
       { method: 'voiceSetMute', args: [true] },
+      { method: 'voiceSetMute', args: [true] },
       { method: 'voiceSetDeaf', args: [true] },
     ]);
     expect(useAppStore.getState().myVoice).toMatchObject({ muted: true, deafened: true });
+  });
+
+  // As on the desktop and in Discord.
+  it('deafening mutes too, and undeafening gives back the mute from before', async () => {
+    await joinVoice(NIGHT_OWLS, CHANNELS.lounge);
+    setDeafened(true);
+    await pump(core);
+    expect(useAppStore.getState().myVoice).toMatchObject({ muted: true, deafened: true });
+
+    setDeafened(false);
+    await pump(core);
+    expect(useAppStore.getState().myVoice).toMatchObject({ muted: false, deafened: false });
+
+    setMuted(true);
+    await pump(core);
+    setDeafened(true);
+    await pump(core);
+    setDeafened(false);
+    await pump(core);
+    expect(useAppStore.getState().myVoice).toMatchObject({ muted: true, deafened: false });
+  });
+
+  it('unmuting while deafened undeafens', async () => {
+    await joinVoice(NIGHT_OWLS, CHANNELS.lounge);
+    setDeafened(true);
+    await pump(core);
+
+    setMuted(false);
+    await pump(core);
+    expect(useAppStore.getState().myVoice).toMatchObject({ muted: false, deafened: false });
   });
 });
 
