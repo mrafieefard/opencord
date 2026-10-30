@@ -14,7 +14,7 @@ mod writer;
 
 use std::io::{self, BufWriter};
 use std::path::Path;
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::mpsc::{self, Receiver, RecvTimeoutError, SyncSender};
 use std::sync::{Mutex, OnceLock, PoisonError};
 use std::time::{Duration, Instant};
@@ -58,6 +58,13 @@ struct State {
 
 static STATE: OnceLock<State> = OnceLock::new();
 static DROPPED: AtomicU64 = AtomicU64::new(0);
+static ENDED_ONCE: AtomicBool = AtomicBool::new(false);
+
+unsafe extern "C" {
+    /// The C runtime's exit hooks, run by `exit` (and, for this library
+    /// on Windows, when it's unloaded at the process's end).
+    fn atexit(callback: extern "C" fn()) -> std::ffi::c_int;
+}
 
 /// Starts this launch's session in `dir` with `header`'s lines at the
 /// top. A second call returns the first session and does nothing else.
@@ -84,6 +91,8 @@ pub fn start(dir: &Path, header: &[(String, String)]) -> io::Result<Session> {
         started,
     });
     crash::install(crash_file, started);
+    // SAFETY: registers a plain function that lives as long as the process.
+    unsafe { atexit(at_exit) };
     let filter = EnvFilter::new(LEVELS);
     if tracing_subscriber::registry()
         .with(SessionLayer.with_filter(filter))
@@ -106,26 +115,52 @@ pub fn write_app(level: Level, area: &str, message: &str) {
 
 /// Waits (up to 2 s) until everything sent so far is on disk.
 pub fn flush() {
-    let Some(state) = STATE.get() else {
-        return;
-    };
-    let (done, wait) = mpsc::channel();
-    if state.sender.send(Message::Flush(done)).is_ok() {
-        let _ = wait.recv_timeout(Duration::from_secs(2));
-    }
+    flush_within(Duration::from_secs(2));
 }
 
-/// Marks the session as having ended cleanly, and flushes.
+/// Whether the writer had written everything sent so far within `wait`.
+fn flush_within(wait: Duration) -> bool {
+    let Some(state) = STATE.get() else {
+        return false;
+    };
+    let (done, flushed) = mpsc::channel();
+    state.sender.send(Message::Flush(done)).is_ok() && flushed.recv_timeout(wait).is_ok()
+}
+
+/// Marks the session as having ended cleanly, and flushes. Only the first
+/// call writes.
 pub fn end() {
     let Some(state) = STATE.get() else {
         return;
     };
+    if ENDED_ONCE.swap(true, Ordering::SeqCst) {
+        return;
+    }
     let _ = state.sender.send(Message::Raw(format!(
         "{}{}",
         now_prefix(),
         format::body(Level::INFO, "log", ENDED, "")
     )));
     flush();
+}
+
+/// At the process's end: through the writer while it still runs, or, when
+/// its thread is already gone (a Windows library unloading), straight to
+/// the file.
+extern "C" fn at_exit() {
+    if ENDED_ONCE.load(Ordering::SeqCst) {
+        return;
+    }
+    if flush_within(Duration::from_millis(300)) {
+        end();
+    } else if !ENDED_ONCE.swap(true, Ordering::SeqCst) {
+        let line = format!(
+            "{}{}\n",
+            now_prefix(),
+            format::body(Level::INFO, "log", ENDED, "")
+        );
+        crash::write_direct(line.as_bytes());
+    }
 }
 
 /// This session, once started.
@@ -278,5 +313,31 @@ pub(crate) mod tests {
         assert!(!text.contains("example.org"), "{text}");
         assert!(!text.contains("203.0.113.9"), "{text}");
         assert!(text.contains("added public-ip-"), "{text}");
+    }
+
+    /// Runs itself again as a child that starts a session and exits
+    /// normally, then checks the child's session ended cleanly.
+    #[test]
+    fn a_normal_exit_ends_the_session() {
+        if let Ok(dir) = std::env::var("OPENCORD_EXIT_TEST_DIR") {
+            start(Path::new(&dir), &[]).unwrap();
+            write_app(Level::INFO, "test", "about to exit");
+            std::process::exit(0);
+        }
+        let dir = tempfile::tempdir().unwrap();
+        let status = std::process::Command::new(std::env::current_exe().unwrap())
+            .args(["--exact", "log::tests::a_normal_exit_ends_the_session"])
+            .env("OPENCORD_EXIT_TEST_DIR", dir.path())
+            .status()
+            .unwrap();
+        assert!(status.success());
+        let file = std::fs::read_dir(dir.path())
+            .unwrap()
+            .next()
+            .unwrap()
+            .unwrap();
+        let text = std::fs::read_to_string(file.path()).unwrap();
+        assert!(text.contains("about to exit"), "{text}");
+        assert!(text.trim_end().ends_with("session ended"), "{text}");
     }
 }

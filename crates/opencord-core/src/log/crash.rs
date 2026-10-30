@@ -11,6 +11,7 @@
 use std::backtrace::Backtrace;
 use std::fmt::Write as _;
 use std::fs::File;
+use std::io::Write as _;
 use std::sync::OnceLock;
 use std::time::{Duration, Instant};
 
@@ -54,6 +55,13 @@ pub(super) fn install(file: File, started: Instant) {
         previous(info);
     }));
     native::install();
+}
+
+/// Writes `bytes` to the session's file without the writer.
+pub(super) fn write_direct(bytes: &[u8]) {
+    if let Some((file, _)) = CRASH.get() {
+        let _ = (&*file).write_all(bytes);
+    }
 }
 
 pub(crate) enum Native<'a> {

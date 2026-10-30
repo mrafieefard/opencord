@@ -825,6 +825,9 @@ impl Task {
         let name = ready.server.as_ref().map(|server| server.name.clone());
         let user_id = ready.self_user.as_ref().map(|user| user.id);
         self.self_id = user_id;
+        if let Some(id) = user_id {
+            crate::log::alias::set_self(id);
+        }
         self.update_saved_server(name, user_id);
         let server_id = self
             .lock_store()
