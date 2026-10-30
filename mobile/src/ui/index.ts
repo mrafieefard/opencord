@@ -10,7 +10,7 @@ export { Icon } from './Icon';
 export { IconButton } from './IconButton';
 export type { IconName } from './icons';
 export { Menu, useMenuOpener, type MenuAction, type MenuHandle } from './Menu';
-export { nativeHeaderScheme } from './nativeHeader';
+export { nativeHeaderLook } from './nativeHeader';
 export { PaneHeader, type HeaderAction } from './PaneHeader';
 export { ProgressBar } from './ProgressBar';
 export { Row } from './Row';

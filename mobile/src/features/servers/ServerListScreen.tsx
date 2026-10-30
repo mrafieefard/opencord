@@ -89,29 +89,36 @@ export function ServerListScreen({ searchable, voiceBar }: ServerListScreenProps
     );
   }
 
+  const list = (
+    <FlashList
+      testID="server-list"
+      data={rows}
+      keyExtractor={(item) => item.key}
+      renderItem={renderItem}
+      ItemSeparatorComponent={Separator}
+      contentInsetAdjustmentBehavior="automatic"
+      maintainVisibleContentPosition={{ disabled: true }}
+      keyboardDismissMode="on-drag"
+      refreshControl={
+        <RefreshControl
+          refreshing={refreshing}
+          onRefresh={onRefresh}
+          tintColor={colors.accent}
+        />
+      }
+      ListEmptyComponent={
+        query ? <EmptyState title="No servers found" /> : null
+      }
+    />
+  );
+  // The list is the screen's first view when nothing goes under it: iOS links
+  // the large title to the first scroll view it finds that way, so it then
+  // follows a pull down and shrinks into the bar as the list scrolls.
+  if (!voiceBar) return list;
   return (
     <View style={[styles.container, { backgroundColor: colors.sidebar }]}>
-      <FlashList
-        testID="server-list"
-        data={rows}
-        keyExtractor={(item) => item.key}
-        renderItem={renderItem}
-        ItemSeparatorComponent={Separator}
-        contentInsetAdjustmentBehavior="automatic"
-        maintainVisibleContentPosition={{ disabled: true }}
-        keyboardDismissMode="on-drag"
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={onRefresh}
-            tintColor={colors.accent}
-          />
-        }
-        ListEmptyComponent={
-          query ? <EmptyState title="No servers found" /> : null
-        }
-      />
-      {voiceBar && <ConnectedBar />}
+      {list}
+      <ConnectedBar />
     </View>
   );
 }

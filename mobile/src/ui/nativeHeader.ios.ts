@@ -1,9 +1,16 @@
-// UIKit draws a native header's own parts (the search field, its glass) in
-// the style the header is given. The stack takes that from React
-// Navigation's theme, which the app doesn't set, so without this a dark
-// header gets a light search field: grey text on near-black.
+// A native header on iOS 26 is glass over the screen: it takes no colour
+// of its own (a large title's bar given a background colour hides the
+// title), only the app's scheme, which its own parts (the search field,
+// the glass) follow. The stack takes that scheme from React Navigation's
+// theme otherwise.
 import type { Scheme } from './theme/tokens';
 
-export function nativeHeaderScheme(scheme: Scheme): { headerUserInterfaceStyle?: Scheme } {
+export interface NativeHeaderLook {
+  headerUserInterfaceStyle?: Scheme;
+  headerStyle?: { backgroundColor: string };
+  headerLargeStyle?: { backgroundColor: string };
+}
+
+export function nativeHeaderLook(scheme: Scheme, _background: string): NativeHeaderLook {
   return { headerUserInterfaceStyle: scheme };
 }

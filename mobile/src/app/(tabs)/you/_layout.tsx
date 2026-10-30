@@ -1,6 +1,6 @@
 import { Stack } from 'expo-router';
 
-import { fonts, nativeHeaderScheme, useTheme } from '@/ui';
+import { fonts, nativeHeaderLook, useTheme } from '@/ui';
 
 export default function YouLayout() {
   const { colors, scheme } = useTheme();
@@ -9,9 +9,7 @@ export default function YouLayout() {
       screenOptions={{
         headerLargeTitle: true,
         headerShadowVisible: false,
-        ...nativeHeaderScheme(scheme),
-        headerStyle: { backgroundColor: colors.chat },
-        headerLargeStyle: { backgroundColor: colors.chat },
+        ...nativeHeaderLook(scheme, colors.chat),
         headerTintColor: colors.text,
         headerTitleStyle: { fontFamily: fonts.semiBold, color: colors.text },
         headerLargeTitleStyle: { fontFamily: fonts.bold, color: colors.text },
