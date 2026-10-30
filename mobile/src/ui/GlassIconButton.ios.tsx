@@ -12,10 +12,17 @@ export interface GlassIconButtonProps {
   onPress: () => void;
 }
 
+/**
+ * Its size, held from the first layout: SwiftUI measures it a moment later,
+ * and a row laid out before then gives it no room (a sheet's title pushes
+ * it off the edge).
+ */
+const SIZE = 44;
+
 export function GlassIconButton({ icon, label, onPress }: GlassIconButtonProps) {
   const { colors, scheme } = useTheme();
   return (
-    <Host matchContents colorScheme={scheme} ignoreSafeArea="all">
+    <Host matchContents colorScheme={scheme} ignoreSafeArea="all" style={{ minWidth: SIZE, minHeight: SIZE }}>
       <SwiftButton
         label={label}
         systemImage={icons[icon].ios}

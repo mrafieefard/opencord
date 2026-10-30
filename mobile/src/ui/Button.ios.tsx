@@ -29,6 +29,13 @@ import { useTheme } from './theme/useTheme';
 
 export type { ButtonProps } from './Button.types';
 
+/**
+ * A large glass button's height, held from the first layout: SwiftUI
+ * measures it a moment later, and a sheet fitted to its content before
+ * then would cut it off.
+ */
+const HEIGHT = 54;
+
 export function Button({ title, onPress, variant, loading = false, disabled = false, icon }: ButtonProps) {
   const { colors, scheme } = useTheme();
   const look =
@@ -44,7 +51,7 @@ export function Button({ title, onPress, variant, loading = false, disabled = fa
   // Loading keeps its colour and ignores presses; disabled is the system's grey.
   const label = disabled ? colors.textMuted : look.text;
   return (
-    <Host matchContents={{ vertical: true }} colorScheme={scheme} ignoreSafeArea="all" style={{ alignSelf: 'stretch' }}>
+    <Host matchContents={{ vertical: true }} colorScheme={scheme} ignoreSafeArea="all" style={{ alignSelf: 'stretch', minHeight: HEIGHT }}>
       <SwiftButton
         onPress={loading || disabled ? () => {} : onPress}
         modifiers={[
