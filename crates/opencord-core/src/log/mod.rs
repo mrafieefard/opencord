@@ -124,7 +124,8 @@ fn flush_within(wait: Duration) -> bool {
         return false;
     };
     let (done, flushed) = mpsc::channel();
-    state.sender.send(Message::Flush(done)).is_ok() && flushed.recv_timeout(wait).is_ok()
+    // Never blocks: at exit the writer may be gone with the queue full.
+    state.sender.try_send(Message::Flush(done)).is_ok() && flushed.recv_timeout(wait).is_ok()
 }
 
 /// Marks the session as having ended cleanly, and flushes. Only the first
@@ -136,7 +137,7 @@ pub fn end() {
     if ENDED_ONCE.swap(true, Ordering::SeqCst) {
         return;
     }
-    let _ = state.sender.send(Message::Raw(format!(
+    let _ = state.sender.try_send(Message::Raw(format!(
         "{}{}",
         now_prefix(),
         format::body(Level::INFO, "log", ENDED, "")

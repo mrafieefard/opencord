@@ -12,6 +12,8 @@ use tracing::Level;
 const KEPT: usize = 10;
 /// The last line of a session that ended cleanly.
 pub(crate) const ENDED: &str = "session ended";
+/// How much of a session's end is read for its last line.
+const TAIL: u64 = 16 * 1024;
 /// How long an identical line keeps being folded into the one before.
 const FOLD: Duration = Duration::from_secs(1);
 
@@ -92,15 +94,17 @@ fn create_new(dir: &Path, stamp: &str) -> io::Result<(File, PathBuf)> {
     unreachable!("the loop returns")
 }
 
+/// Whether the session's end was written near the end of its file. A
+/// few lines may follow it while the app shuts down.
 fn ended_cleanly(path: &Path) -> bool {
     let Ok(mut file) = File::open(path) else {
         return true;
     };
     let length = file.metadata().map(|meta| meta.len()).unwrap_or(0);
-    let _ = file.seek(SeekFrom::Start(length.saturating_sub(256)));
+    let _ = file.seek(SeekFrom::Start(length.saturating_sub(TAIL)));
     let mut tail = Vec::new();
     let _ = file.read_to_end(&mut tail);
-    String::from_utf8_lossy(&tail).trim_end().ends_with(ENDED)
+    String::from_utf8_lossy(&tail).contains(ENDED)
 }
 
 /// `2026-10-30T14-32-05` as `2026-10-30 14:32:05`.
@@ -281,6 +285,18 @@ mod tests {
         fs::remove_file(&next.current).unwrap();
         let (_, last) = open_session(dir.path(), &header(), "2026-10-30T16-00-00").unwrap();
         assert_eq!(last.previous_crashed, None);
+    }
+
+    #[test]
+    fn lines_after_the_end_still_count_as_clean() {
+        let dir = tempfile::tempdir().unwrap();
+        fs::write(
+            dir.path().join("opencord-2026-10-30T10-00-00.log"),
+            "x INFO  log  session ended\nx WARN  core::connection  closing\n",
+        )
+        .unwrap();
+        let (_, session) = open_session(dir.path(), &header(), "2026-10-30T14-32-05").unwrap();
+        assert_eq!(session.previous_crashed, None);
     }
 
     #[test]
