@@ -1,5 +1,5 @@
-import type { ReactNode } from 'react';
-import type { StyleProp, ViewStyle } from 'react-native';
+import type { ComponentRef, ReactNode, Ref } from 'react';
+import type { StyleProp, View, ViewStyle } from 'react-native';
 
 export interface GlassSurfaceProps {
   /** Its shape comes from here: a borderRadius makes a pill or a circle. */
@@ -8,4 +8,6 @@ export interface GlassSurfaceProps {
   interactive?: boolean;
   testID?: string;
   children?: ReactNode;
+  /** The surface's own view: Reanimated animates its corners through it. */
+  ref?: Ref<ComponentRef<typeof View>>;
 }

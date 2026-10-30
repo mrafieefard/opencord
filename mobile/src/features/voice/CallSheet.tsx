@@ -13,7 +13,7 @@
 // the finger is on, not a copy laid over it. On Android it grows out of the
 // app's own bars (ConnectedBar), and shows only while it is out of them.
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { BackHandler, Pressable, StyleSheet, View, useWindowDimensions } from 'react-native';
+import { BackHandler, Platform, Pressable, StyleSheet, View, useWindowDimensions } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { useKeyboardState } from 'react-native-keyboard-controller';
 import Animated, {
@@ -52,6 +52,16 @@ import { VoicePane } from './VoicePane';
 /** The open call's corners, as round as the screen's own. */
 const OPEN_CORNER = 38;
 const SCRIM = 0.35;
+/**
+ * Growing, the glass fills in as Apple Maps' card does, solid once open.
+ * Android's surface is solid already.
+ */
+const FILLS = Platform.OS === 'ios';
+const FILL_FROM = 0.1;
+const FILL_TO = 0.7;
+
+/** The glass with its corners animated on the glass itself: clipped by a parent, its rim would be cut off. */
+const AnimatedGlass = Animated.createAnimatedComponent(GlassSurface);
 const GRABBER = { width: 36, height: 5 };
 
 /** The floating pill above the tab bar: inset as the bar's own sides, a little above it. */
@@ -221,8 +231,8 @@ export function CallSheet() {
     return touched.width > 0 ? touched : fallback;
   };
 
-  // The glass: from the bar's frame to the open call's, corners and all.
-  const glassStyle = useAnimatedStyle(() => {
+  // The glass's frame: from the bar's to the open call's.
+  const frameStyle = useAnimatedStyle(() => {
     const at = callProgress.get();
     const from = start();
     return {
@@ -231,10 +241,17 @@ export function CallSheet() {
       left: from.x * (1 - at),
       width: from.width + (screenWidth - from.width) * at,
       height: from.height + (openHeight - from.height) * at,
-      // From the bar's capsule to the screen's corners.
-      borderRadius: from.height / 2 + (OPEN_CORNER - from.height / 2) * at,
     };
   });
+  // Its corners: from the bar's capsule to the screen's own, on the glass
+  // and on what it holds alike.
+  const cornerStyle = useAnimatedStyle(() => {
+    const from = start();
+    return { borderRadius: from.height / 2 + (OPEN_CORNER - from.height / 2) * callProgress.get() };
+  });
+  const fillStyle = useAnimatedStyle(() => ({
+    opacity: interpolate(callProgress.get(), [FILL_FROM, FILL_TO], [0, 1], 'clamp'),
+  }));
   const scrimStyle = useAnimatedStyle(() => ({ opacity: callProgress.get() * SCRIM }));
   // The bar's row, as it was, fading as the glass leaves it behind.
   const rowStyle = useAnimatedStyle(() => {
@@ -257,37 +274,45 @@ export function CallSheet() {
         <Pressable style={StyleSheet.absoluteFill} onPress={closeCall} accessibilityLabel="Close the call" />
       </Animated.View>
       <Animated.View
-        style={[styles.glass, glassStyle]}
+        style={[styles.frame, frameStyle]}
         accessibilityViewIsModal={up}
         // Out of sight, out of VoiceOver's reach too.
         accessibilityElementsHidden={!up && !resting}
         importantForAccessibility={up || resting ? 'auto' : 'no-hide-descendants'}
         testID="call-sheet"
       >
-        <GlassSurface style={StyleSheet.absoluteFill} />
-        <Animated.View
-          style={[styles.row, rowStyle]}
-          // At rest, the pill's own row: tapped, pulled, muted. On Android
-          // only a picture of the bar the glass grew from.
-          pointerEvents={!up && resting ? 'box-none' : 'none'}
-          accessibilityElementsHidden={up || !resting}
-          importantForAccessibility={!up && resting ? 'auto' : 'no-hide-descendants'}
-        >
-          {inIt && <ConnectedVoiceRow serverKey={call.serverKey} channelId={call.channelId} muted={call.muted} inGlass />}
-        </Animated.View>
-        {/* The call, laid out at its open size so it doesn't reflow as the glass grows. */}
-        <Animated.View
-          style={[styles.call, { width: screenWidth, height: openHeight }, callStyle]}
-          pointerEvents={up ? 'box-none' : 'none'}
-          accessibilityElementsHidden={!up}
-          importantForAccessibility={up ? 'auto' : 'no-hide-descendants'}
-        >
-          <GestureDetector gesture={grabberDrag}>
-            <View collapsable={false} style={styles.handle}>
-              <View style={[styles.grabber, { backgroundColor: colors.textMuted }]} />
-            </View>
-          </GestureDetector>
-          {inIt && <VoicePane serverKey={call.serverKey} channelId={call.channelId} asCall headerGesture={headerDrag} />}
+        <AnimatedGlass style={[StyleSheet.absoluteFill, cornerStyle]} />
+        <Animated.View style={[StyleSheet.absoluteFill, styles.clip, cornerStyle]} pointerEvents="box-none">
+          {FILLS && (
+            <Animated.View
+              style={[StyleSheet.absoluteFill, { backgroundColor: colors.chat }, fillStyle]}
+              pointerEvents="none"
+            />
+          )}
+          <Animated.View
+            style={[styles.row, rowStyle]}
+            // At rest, the pill's own row: tapped, pulled, muted. On Android
+            // only a picture of the bar the glass grew from.
+            pointerEvents={!up && resting ? 'box-none' : 'none'}
+            accessibilityElementsHidden={up || !resting}
+            importantForAccessibility={!up && resting ? 'auto' : 'no-hide-descendants'}
+          >
+            {inIt && <ConnectedVoiceRow serverKey={call.serverKey} channelId={call.channelId} muted={call.muted} inGlass />}
+          </Animated.View>
+          {/* The call, laid out at its open size so it doesn't reflow as the glass grows. */}
+          <Animated.View
+            style={[styles.call, { width: screenWidth, height: openHeight }, callStyle]}
+            pointerEvents={up ? 'box-none' : 'none'}
+            accessibilityElementsHidden={!up}
+            importantForAccessibility={up ? 'auto' : 'no-hide-descendants'}
+          >
+            <GestureDetector gesture={grabberDrag}>
+              <View collapsable={false} style={styles.handle}>
+                <View style={[styles.grabber, { backgroundColor: colors.textMuted }]} />
+              </View>
+            </GestureDetector>
+            {inIt && <VoicePane serverKey={call.serverKey} channelId={call.channelId} asCall headerGesture={headerDrag} />}
+          </Animated.View>
         </Animated.View>
       </Animated.View>
     </View>
@@ -295,7 +320,8 @@ export function CallSheet() {
 }
 
 const styles = StyleSheet.create({
-  glass: { position: 'absolute', overflow: 'hidden' },
+  frame: { position: 'absolute' },
+  clip: { overflow: 'hidden' },
   row: {
     position: 'absolute',
     top: 0,
