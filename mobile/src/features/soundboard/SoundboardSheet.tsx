@@ -35,6 +35,8 @@ import type { PickerSound } from './picker';
 const COLUMNS = 3;
 const GAP = space.sm;
 const TILE_HEIGHT = 76;
+/** The sheet's side margin, as the member sheet's. */
+const GUTTER = space.lg;
 
 export interface SoundboardSheetProps {
   onClose?: () => void;
@@ -46,7 +48,7 @@ export function SoundboardSheet({ onClose }: SoundboardSheetProps) {
   const [query, setQuery] = useState('');
   const window = useWindowDimensions();
   // The window's width until the grid is laid out: a sheet is as wide on a phone.
-  const [width, setWidth] = useState(() => window.width - space.lg * 2);
+  const [width, setWidth] = useState(() => window.width - GUTTER * 2);
   const picker = useSoundboardPicker(query);
   const favorites = useAppStore((state) => state.prefs.soundFavorites);
   const close = onClose ?? (() => router.back());
@@ -76,7 +78,7 @@ export function SoundboardSheet({ onClose }: SoundboardSheetProps) {
           )}
           <ScrollView
             style={styles.fill}
-            contentContainerStyle={[styles.content, { paddingBottom: bottomInset + space.lg }]}
+            contentContainerStyle={{ paddingBottom: bottomInset + space.lg }}
             keyboardDismissMode="on-drag"
             keyboardShouldPersistTaps="handled"
           >
@@ -186,11 +188,10 @@ function CooldownBar({ serverKey, cooldownMs }: { serverKey: string; cooldownMs:
 }
 
 const styles = StyleSheet.create({
-  sheet: { flex: 1 },
+  sheet: { flex: 1, paddingHorizontal: GUTTER },
   fill: { flex: 1 },
-  search: { paddingHorizontal: space.lg, paddingTop: space.sm },
-  blocked: { paddingHorizontal: space.lg, paddingTop: space.sm },
-  content: { paddingHorizontal: space.lg },
+  search: { paddingTop: space.sm },
+  blocked: { paddingTop: space.sm },
   section: { marginTop: space.lg },
   sectionTitle: { marginBottom: space.sm, marginLeft: space.xs },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: GAP },
@@ -206,7 +207,7 @@ const styles = StyleSheet.create({
   emoji: { fontSize: 24, lineHeight: 30 },
   name: { maxWidth: '100%' },
   star: { position: 'absolute', top: space.xs + 2, right: space.xs + 2 },
-  cooldown: { height: 2, marginHorizontal: space.lg, overflow: 'hidden' },
+  cooldown: { height: 2, overflow: 'hidden' },
   // Scaled from its left edge: a full-width bar, shrunk.
   cooldownFill: { height: 2, width: '100%', transformOrigin: 'left' },
 });
