@@ -2,6 +2,7 @@
 // app's own surfaces (sheetLook.ios.ts follows Apple's glass sheets).
 import type { ViewStyle } from 'react-native';
 
+import { radius } from './theme/space';
 import { withAlpha, type ColorTokens } from './theme/tokens';
 
 export interface FieldState {
@@ -10,6 +11,8 @@ export interface FieldState {
 }
 
 export const sheetLook = {
+  /** The sheet's corners. */
+  cornerRadius: radius.sheet as number | undefined,
   /** What the sheet itself is drawn in. */
   background: (colors: ColorTokens): string => colors.elevated,
   /** A field or a well (a fingerprint): sunk into the sheet. */

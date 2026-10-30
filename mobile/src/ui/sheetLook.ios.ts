@@ -16,6 +16,12 @@ export interface FieldState {
 const fill = (colors: ColorTokens, alpha: number) => withAlpha(colors.text, alpha);
 
 export const sheetLook = {
+  /**
+   * The system's: iOS 26 floats a sheet inset from the screen's edges with
+   * corners that follow the screen's own curve, as Maps and Find My. A
+   * radius of our own would replace that with a flat 20.
+   */
+  cornerRadius: undefined as number | undefined,
   background: (_colors: ColorTokens): string => 'transparent',
   well: (colors: ColorTokens): string => fill(colors, 0.07),
   wellBorder: (_colors: ColorTokens): string => 'transparent',

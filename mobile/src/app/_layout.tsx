@@ -10,7 +10,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { BootGate } from '@/features/boot/BootGate';
 import { DETENTS, TWO_COLUMNS } from '@/features/music/sheet';
 import { useBoot } from '@/state/selectors';
-import { DialogHost, ThemeProvider, ToastHost, radius, sheetLook, useTheme } from '@/ui';
+import { DialogHost, ThemeProvider, ToastHost, sheetLook, useTheme } from '@/ui';
 
 function Routes() {
   const boot = useBoot();
@@ -40,7 +40,7 @@ function Routes() {
               presentation: 'formSheet',
               sheetAllowedDetents: 'fitToContents',
               sheetGrabberVisible: true,
-              sheetCornerRadius: radius.sheet,
+              sheetCornerRadius: sheetLook.cornerRadius,
               contentStyle: { backgroundColor: sheetLook.background(colors) },
             }}
           />
@@ -50,7 +50,7 @@ function Routes() {
               presentation: 'formSheet',
               sheetAllowedDetents: 'fitToContents',
               sheetGrabberVisible: true,
-              sheetCornerRadius: radius.sheet,
+              sheetCornerRadius: sheetLook.cornerRadius,
               contentStyle: { backgroundColor: sheetLook.background(colors) },
             }}
           />
@@ -60,7 +60,7 @@ function Routes() {
               presentation: 'formSheet',
               sheetAllowedDetents: 'fitToContents',
               sheetGrabberVisible: true,
-              sheetCornerRadius: radius.sheet,
+              sheetCornerRadius: sheetLook.cornerRadius,
               contentStyle: { backgroundColor: sheetLook.background(colors) },
             }}
           />
@@ -72,7 +72,7 @@ function Routes() {
               // Half on a phone; full when the player takes two columns.
               sheetInitialDetentIndex: width >= TWO_COLUMNS ? 'last' : 0,
               sheetGrabberVisible: true,
-              sheetCornerRadius: radius.sheet,
+              sheetCornerRadius: sheetLook.cornerRadius,
               // The player stays solid, as Apple Music's: its rows are.
               contentStyle: { backgroundColor: colors.elevated },
             }}
@@ -84,7 +84,7 @@ function Routes() {
               sheetAllowedDetents: DETENTS,
               sheetInitialDetentIndex: 0,
               sheetGrabberVisible: true,
-              sheetCornerRadius: radius.sheet,
+              sheetCornerRadius: sheetLook.cornerRadius,
               contentStyle: { backgroundColor: sheetLook.background(colors) },
             }}
           />
