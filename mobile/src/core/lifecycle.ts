@@ -9,11 +9,13 @@ import { catchUpName } from '@/state/actions/profile';
 import { loadServers, retryDisconnected } from '@/state/actions/servers';
 import { setAppActive, toast } from '@/state/actions/ui';
 import { watchVoiceService } from '@/state/actions/voice';
+import { watchVoiceNoteAudio } from '@/state/actions/voiceMessages';
 import { onEvents, setReadyHook, setToaster } from '@/state/store';
 
 let loop: EventLoop | null = null;
 let appStateSubscription: { remove(): void } | null = null;
 let unwatchVoice: (() => void) | null = null;
+let unwatchVoiceNotes: (() => void) | null = null;
 
 export function startApp(): void {
   setToaster((text) => toast(text));
@@ -25,6 +27,8 @@ export function startApp(): void {
   loop = startEventLoop(getCore(), onEvents);
   unwatchVoice?.();
   unwatchVoice = watchVoiceService();
+  unwatchVoiceNotes?.();
+  unwatchVoiceNotes = watchVoiceNoteAudio();
   appStateSubscription?.remove();
   appStateSubscription = AppState.addEventListener('change', (state: AppStateStatus) => {
     setAppActive(state === 'active');

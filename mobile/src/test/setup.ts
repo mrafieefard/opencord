@@ -88,6 +88,7 @@ jest.mock('expo-audio', () => ({
   requestRecordingPermissionsAsync: jest.fn(async () => ({ granted: true, canAskAgain: true, status: 'granted' })),
   requestNotificationPermissionsAsync: jest.fn(async () => ({ granted: true, canAskAgain: true, status: 'granted' })),
   setAudioModeAsync: jest.fn(async () => {}),
+  setIsAudioActiveAsync: jest.fn(async () => {}),
 }));
 
 // @expo/ui swift-ui mocks for Jest.

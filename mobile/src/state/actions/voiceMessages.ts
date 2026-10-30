@@ -146,3 +146,16 @@ function stopVoiceIf(item: PlaybackItemRecord): void {
   const playing = useAppStore.getState().voicePlayback;
   if (playing?.key === playbackKey(item)) stopVoice();
 }
+
+/**
+ * Gives the audio session back once a voice message stops playing (ended,
+ * paused or failed) and nothing is recording, outside a call: other apps
+ * come back to full volume. Returns the unsubscribe.
+ */
+export function watchVoiceNoteAudio(): () => void {
+  return useAppStore.subscribe((state, previous) => {
+    const wasPlaying = previous.voicePlayback?.playing ?? false;
+    const playing = state.voicePlayback?.playing ?? false;
+    if (wasPlaying && !playing && state.voiceRecording === null && state.myVoice === null) void leaveVoiceAudio();
+  });
+}

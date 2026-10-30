@@ -18,6 +18,7 @@ jest.mock('expo-audio', () => ({
   requestRecordingPermissionsAsync: jest.fn(),
   requestNotificationPermissionsAsync: jest.fn(),
   setAudioModeAsync: jest.fn(async () => {}),
+  setIsAudioActiveAsync: jest.fn(async () => {}),
 }));
 
 jest.mock('expo-haptics', () => ({

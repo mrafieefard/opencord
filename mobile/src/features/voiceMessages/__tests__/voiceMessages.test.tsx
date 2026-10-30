@@ -1,6 +1,6 @@
 import { act, fireEvent, render, screen } from '@testing-library/react-native';
 import { AttachmentKind, ConnectionRecord, MobileEvent, PlaybackItemRecord, type AttachmentRecord } from '@opencord/core-native';
-import { setAudioModeAsync } from 'expo-audio';
+import { setAudioModeAsync, setIsAudioActiveAsync } from 'expo-audio';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 import type { FakeCore } from '@/core/fake/FakeCore';
@@ -63,10 +63,15 @@ describe('voice messages', () => {
 
   it("records up to the server's maximum, with live levels, and sends one attachment", async () => {
     const core = await ready();
+    const recordStart = jest.spyOn(core, 'voiceRecordStart');
     expect(await startRecording(NIGHT_OWLS)).toBe(true);
     expect(core.calls.find((call) => call.method === 'voiceRecordStart')?.args).toEqual([120]);
-    // Outside a call it takes the audio session for itself.
+    // Outside a call it takes the audio session for itself, and turns it on
+    // before the core opens the microphone: an inactive session has none.
     expect(setAudioModeAsync).toHaveBeenLastCalledWith(expect.objectContaining({ allowsRecording: true, interruptionMode: 'duckOthers' }));
+    expect(setIsAudioActiveAsync).toHaveBeenLastCalledWith(true);
+    const activated = jest.mocked(setIsAudioActiveAsync).mock.invocationCallOrder.at(-1) ?? Infinity;
+    expect(activated).toBeLessThan(recordStart.mock.invocationCallOrder[0] ?? -1);
 
     onEvents([new MobileEvent.VoiceRecordLevel({ level: 0.4 }), new MobileEvent.VoiceRecordLevel({ level: 0.7 })]);
     expect(useAppStore.getState().voiceRecording?.levels).toEqual([0.4, 0.7]);
@@ -91,6 +96,8 @@ describe('voice messages', () => {
     await startRecording(NIGHT_OWLS);
     await cancelRecording();
     expect(core.calls.some((call) => call.method === 'voiceRecordCancel')).toBe(true);
+    // The session goes off again: other apps play at full volume.
+    expect(setIsAudioActiveAsync).toHaveBeenLastCalledWith(false);
     expect(useAppStore.getState().voiceRecording).toBeNull();
   });
 
