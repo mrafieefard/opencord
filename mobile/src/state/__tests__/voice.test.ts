@@ -103,7 +103,8 @@ describe('voice', () => {
       allowsRecording: true,
       playsInSilentMode: true,
       shouldPlayInBackground: true,
-      interruptionMode: 'doNotMix',
+      // Jest runs as iOS, where a call mixes with other apps' sound.
+      interruptionMode: 'mixWithOthers',
     });
     expect(service.start).toHaveBeenLastCalledWith({ title: 'In voice: Lounge · Night Owls', text: '' });
     expect(useAppStore.getState().myVoice).toMatchObject({ serverKey: NIGHT_OWLS, channelId: CHANNELS.lounge });

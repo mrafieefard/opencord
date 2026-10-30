@@ -3,13 +3,15 @@
 // system what the app is doing with sound.
 import { setAudioModeAsync } from 'expo-audio';
 
-/** Before joining: record, play when the ringer is off, keep going in the background, pause other apps. */
+import { VOICE_INTERRUPTION_MODE } from './voiceMixing';
+
+/** Before joining: record, play when the ringer is off, keep going in the background; other apps pause on Android, mix on iOS. */
 export async function enterVoiceAudio(): Promise<void> {
   await setAudioModeAsync({
     allowsRecording: true,
     playsInSilentMode: true,
     shouldPlayInBackground: true,
-    interruptionMode: 'doNotMix',
+    interruptionMode: VOICE_INTERRUPTION_MODE,
   });
 }
 
