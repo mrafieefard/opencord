@@ -151,6 +151,15 @@ pub fn support() -> ScreenSupport {
     backend::support()
 }
 
+/// Whether Windows.Graphics.Capture is there and works; `None` on other
+/// systems.
+pub fn capture_api() -> Option<bool> {
+    #[cfg(target_os = "windows")]
+    return Some(backend::capture_api_works());
+    #[cfg(not(target_os = "windows"))]
+    None
+}
+
 /// The sources Opencord's own picker offers; empty where the system picks.
 pub async fn sources() -> Result<Vec<ScreenSource>, ScreenError> {
     backend::sources().await

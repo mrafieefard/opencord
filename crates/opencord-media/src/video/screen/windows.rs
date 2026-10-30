@@ -141,7 +141,7 @@ pub(super) fn support() -> ScreenSupport {
 /// Whether to try Windows.Graphics.Capture. It arrived in Windows 10 1903;
 /// asking it is better than reading a build number, since a machine can
 /// have the API and still refuse it.
-fn capture_api_works() -> bool {
+pub(super) fn capture_api_works() -> bool {
     GraphicsCaptureSession::IsSupported().unwrap_or(false)
 }
 
