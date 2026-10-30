@@ -117,6 +117,8 @@ pub(crate) async fn open(
     address: &ServerAddress,
     pinned: Option<Fingerprint>,
 ) -> Result<Opened, HandshakeError> {
+    // Registered first, so the filter replaces it in any line from here.
+    crate::log::alias::server(&address.host);
     let trust = TlsTrust::new(pinned);
     let tcp = timeout(
         CONNECT_TIMEOUT,
@@ -741,7 +743,7 @@ impl Task {
                         continue;
                     }
                     if !own_address {
-                        tracing::debug!(%address, "connected through another of the server's addresses");
+                        tracing::debug!(address = %crate::log::alias::host(&address.host), "connected through another of the server's addresses");
                     }
                     self.remember_server_id(&id);
                     self.context

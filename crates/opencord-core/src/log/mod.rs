@@ -6,7 +6,9 @@
 //! over a bounded channel, so no audio or video thread waits on the disk;
 //! when the channel is full a line is dropped and counted instead.
 
+pub mod alias;
 mod format;
+mod scrub;
 mod writer;
 
 use std::io::{self, BufWriter};
@@ -65,7 +67,11 @@ pub fn start(dir: &Path, header: &[(String, String)]) -> io::Result<Session> {
         return Ok(state.session.clone());
     }
     let started = Instant::now();
-    let (file, session) = writer::open_session(dir, header, &format::local_now().stamp())?;
+    let header: Vec<(String, String)> = header
+        .iter()
+        .map(|(key, value)| (key.clone(), alias::scrub(value, home())))
+        .collect();
+    let (file, session) = writer::open_session(dir, &header, &format::local_now().stamp())?;
     let (sender, receiver) = mpsc::sync_channel(QUEUE);
     std::thread::Builder::new()
         .name("opencord-log".into())
@@ -128,7 +134,7 @@ fn send(level: Level, target: &str, message: &str, fields: &str) {
     let Some(state) = STATE.get() else {
         return;
     };
-    let body = format::body(level, target, message, fields);
+    let body = alias::scrub(&format::body(level, target, message, fields), home());
     let line = Message::Line {
         level,
         prefix: now_prefix(),
@@ -137,6 +143,17 @@ fn send(level: Level, target: &str, message: &str, fields: &str) {
     if state.sender.try_send(line).is_err() {
         DROPPED.fetch_add(1, Ordering::Relaxed);
     }
+}
+
+/// The user's home folder, which reads `~` in the log.
+fn home() -> Option<&'static str> {
+    static HOME: OnceLock<Option<String>> = OnceLock::new();
+    HOME.get_or_init(|| {
+        std::env::var(if cfg!(windows) { "USERPROFILE" } else { "HOME" })
+            .ok()
+            .filter(|home| home.len() > 1)
+    })
+    .as_deref()
 }
 
 /// The time part of a line written now.
@@ -246,5 +263,17 @@ mod tests {
         );
         assert!(text.contains("WARN  app::share  picked a source"), "{text}");
         assert!(!text.contains("chatter"), "{text}");
+    }
+
+    #[test]
+    fn lines_are_scrubbed_before_the_disk() {
+        let session = test_session();
+        tracing::warn!(target: "reqwest::connect", "error for url (https://secret-host.example.org/x?token=1)");
+        write_app(Level::INFO, "servers", "added 203.0.113.9:7700");
+        flush();
+        let text = std::fs::read_to_string(&session.current).unwrap();
+        assert!(!text.contains("example.org"), "{text}");
+        assert!(!text.contains("203.0.113.9"), "{text}");
+        assert!(text.contains("added public-ip-"), "{text}");
     }
 }

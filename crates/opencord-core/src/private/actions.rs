@@ -462,7 +462,7 @@ pub async fn private_block(service: &PrivateService, peer: &str) -> Result<(), C
             && server.private_messages
             && let Err(e) = sync_privacy_to_server(service, &open, &server.server_key).await
         {
-            tracing::warn!(%e, server_key = %server.server_key, "could not update privacy on block");
+            tracing::warn!(%e, server_key = %crate::log::alias::server(&server.server_key), "could not update privacy on block");
         }
     }
     Ok(())
@@ -496,7 +496,7 @@ pub async fn private_unblock(service: &PrivateService, peer: &str) -> Result<(),
             && server.private_messages
             && let Err(e) = sync_privacy_to_server(service, &open, &server.server_key).await
         {
-            tracing::warn!(%e, server_key = %server.server_key, "could not update privacy on unblock");
+            tracing::warn!(%e, server_key = %crate::log::alias::server(&server.server_key), "could not update privacy on unblock");
         }
     }
     Ok(())
@@ -543,7 +543,7 @@ pub async fn set_privacy_settings(
     let servers = service.members().private_servers();
     for key in servers {
         if let Err(e) = sync_privacy_to_server(service, &open, &key).await {
-            tracing::warn!(%e, server_key = %key, "could not update privacy on settings change");
+            tracing::warn!(%e, server_key = %crate::log::alias::server(&key), "could not update privacy on settings change");
         }
     }
     Ok(())
