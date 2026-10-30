@@ -276,6 +276,31 @@ function applyEvent(state: AppState, event: MobileEvent, nowMs: number): AppStat
       }));
     case MobileEvent_Tags.MusicSettingsChanged:
       return withServer(state, event.inner.serverKey, (current) => ({ ...current, musicSettings: event.inner.settings }));
+    case MobileEvent_Tags.SoundboardSettingsChanged:
+      return withServer(state, event.inner.serverKey, (current) =>
+        current.snapshot ? { ...current, snapshot: { ...current.snapshot, soundboard: event.inner.settings } } : current,
+      );
+    case MobileEvent_Tags.SoundboardSoundUpserted:
+      return withServer(state, event.inner.serverKey, (current) => {
+        if (!current.snapshot) return current;
+        const sounds = current.snapshot.soundboardSounds.filter((sound) => sound.id !== event.inner.sound.id);
+        return { ...current, snapshot: { ...current.snapshot, soundboardSounds: [...sounds, event.inner.sound] } };
+      });
+    case MobileEvent_Tags.SoundboardSoundDeleted:
+      return withServer(state, event.inner.serverKey, (current) => {
+        if (!current.snapshot) return current;
+        const sounds = current.snapshot.soundboardSounds.filter((sound) => sound.id !== event.inner.soundId);
+        return { ...current, snapshot: { ...current.snapshot, soundboardSounds: sounds } };
+      });
+    case MobileEvent_Tags.SoundPlayed: {
+      // Timed here: the server's clock may not be this device's.
+      const { effect } = event.inner;
+      const key = channelKey(event.inner.serverKey, effect.channelId);
+      return {
+        ...state,
+        soundRings: { ...state.soundRings, [key]: { ...state.soundRings[key], [effect.userId]: nowMs + effect.durationMs } },
+      };
+    }
     case MobileEvent_Tags.MusicUpload: {
       const held = state.uploads[event.inner.uploadId];
       return {

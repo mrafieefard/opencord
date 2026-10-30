@@ -114,3 +114,4 @@ export const interpolate = (value: number, input: number[], output: number[]) =>
 };
 export const Extrapolation = { CLAMP: 'clamp', EXTEND: 'extend', IDENTITY: 'identity' } as const;
 export const ReduceMotion = { System: 'system', Always: 'always', Never: 'never' } as const;
+export const Easing = { linear: (t: number) => t };

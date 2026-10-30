@@ -89,6 +89,8 @@ function initMusicServer({
     musicControl: true,
     musicManageQueue: true,
     musicManage: false,
+    useSoundboard: true,
+    useExternalSounds: true,
     ...accessOverrides,
   };
 

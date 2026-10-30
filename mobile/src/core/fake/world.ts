@@ -9,6 +9,7 @@ import {
   MusicRepeat,
   type ChannelAccess,
   type ChannelRecord,
+  type DefaultSoundRecord,
   type MemberRecord,
   type MessageRecord,
   type MusicQueueItemRecord,
@@ -17,6 +18,7 @@ import {
   type MusicTrackRecord,
   type ServerEntry,
   type ServerSnapshot,
+  type SoundboardSoundRecord,
   type UserRecord,
   type VoiceStateRecord,
 } from '@opencord/core-native';
@@ -83,8 +85,45 @@ export function fullAccess(channelId: string): ChannelAccess {
     musicControl: true,
     musicManageQueue: true,
     musicManage: false,
+    useSoundboard: true,
+    useExternalSounds: true,
   };
 }
+
+function sound(id: string, name: string, emoji: string | undefined, byte: string, durationMs: number): SoundboardSoundRecord {
+  return {
+    id,
+    name,
+    emoji,
+    volume: 100,
+    sha256: byte.repeat(64),
+    sizeBytes: 24_000,
+    durationMs,
+    uploaderId: '1001',
+    createdAtMs: 1_761_000_000_000,
+  };
+}
+
+/** Night Owls has three sounds, Rust Club one; the others none. */
+export function soundboardSounds(serverKey: string): SoundboardSoundRecord[] {
+  if (serverKey === NIGHT_OWLS) {
+    return [
+      sound('800001', 'Airhorn', '📯', 'a', 1_800),
+      sound('800002', 'Owl hoot', '🦉', 'b', 1_200),
+      sound('800003', 'Rimshot', undefined, 'c', 900),
+    ];
+  }
+  if (serverKey === RUST_CLUB) return [sound('800101', 'Ferris', '🦀', 'd', 1_000)];
+  return [];
+}
+
+/** The defaults every client has (opencord-common's DEFAULT_SOUNDS, in part). */
+export const defaultSounds: DefaultSoundRecord[] = [
+  { id: 'chime', name: 'Chime', emoji: '🔔', durationMs: 1_400 },
+  { id: 'tada', name: 'Ta-da', emoji: '🎉', durationMs: 1_600 },
+  { id: 'air-horn', name: 'Air horn', emoji: '📯', durationMs: 1_750 },
+  { id: 'applause', name: 'Applause', emoji: '👏', durationMs: 3_000 },
+];
 
 function nightOwlsChannels(): ChannelRecord[] {
   return [
@@ -126,6 +165,8 @@ export function snapshot(serverKey: string): ServerSnapshot {
         ? [voiceState('1001', CHANNELS.lounge), voiceState('1002', CHANNELS.lounge, true)]
         : [],
     voiceEnabled: true,
+    soundboard: { enabled: true, allowDefaultSounds: true, allowExternalSounds: true, cooldownMs: 3_000 },
+    soundboardSounds: soundboardSounds(serverKey),
   };
 }
 

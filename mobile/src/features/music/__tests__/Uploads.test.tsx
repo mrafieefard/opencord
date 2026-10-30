@@ -72,6 +72,8 @@ describe('Uploads', () => {
       musicControl: true,
       musicManageQueue: true,
       musicManage,
+      useSoundboard: true,
+      useExternalSounds: true,
     };
     useAppStore.setState({
       servers: {

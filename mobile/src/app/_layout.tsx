@@ -69,6 +69,17 @@ function Routes() {
             }}
           />
           <Stack.Screen
+            name="server/[serverKey]/soundboard/[channelId]"
+            options={{
+              presentation: 'formSheet',
+              sheetAllowedDetents: DETENTS,
+              sheetInitialDetentIndex: 0,
+              sheetGrabberVisible: true,
+              sheetCornerRadius: radius.sheet,
+              contentStyle: { backgroundColor: sheetLook.background(colors) },
+            }}
+          />
+          <Stack.Screen
             name="viewer"
             options={{ presentation: 'transparentModal', headerShown: false, animation: 'fade' }}
           />

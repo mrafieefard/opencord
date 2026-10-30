@@ -15,6 +15,8 @@ import {
   MusicPlayState,
   UploadPhaseRecord,
   VoiceLinkState,
+  type DefaultSoundRecord,
+  type ExternalSoundRecord,
   type IdentityInfo,
   type MessageRecord,
   type MusicQueueItemRecord,
@@ -37,6 +39,7 @@ import {
   SELF_ID,
   WEEKEND_RAID,
   catalogue,
+  defaultSounds,
   entries,
   history,
   item,
@@ -813,6 +816,38 @@ export class FakeCore implements CoreApi {
   private id(): number {
     this.nextId += 1;
     return this.nextId;
+  }
+
+  // Soundboard ------------------------------------------------------------
+
+  private lastSound = new Map<string, number>();
+
+  soundboardDefaultSounds(): DefaultSoundRecord[] {
+    this.enter('soundboardDefaultSounds', []);
+    return defaultSounds;
+  }
+
+  /** Played for everyone: this device's ring shows, as the server's effect would. */
+  async soundboardPlay(serverKey: string, channelId: string, soundRef: string, external: ExternalSoundRecord | undefined): Promise<void> {
+    this.enter('soundboardPlay', [serverKey, channelId, soundRef, external]);
+    if (!this.voice || this.voiceServer !== serverKey || this.voice.channelId !== channelId) throw new MobileError.NotConnected();
+    const now = this.now();
+    const last = this.lastSound.get(serverKey);
+    if (last !== undefined && now - last < 3_000) {
+      throw new MobileError.Server({ code: 'sound_cooldown', message: 'wait for the cooldown', retryAfterMs: 3_000 - (now - last) });
+    }
+    this.lastSound.set(serverKey, now);
+    const name = external?.sound.name ?? defaultSounds.find((sound) => `default:${sound.id}` === soundRef)?.name ?? 'Sound';
+    this.emit(
+      new MobileEvent.SoundPlayed({
+        serverKey,
+        effect: { channelId, userId: SELF_ID, soundRef, name, emoji: undefined, startedAtMs: now, durationMs: 1_500 },
+      }),
+    );
+  }
+
+  async soundboardPreview(serverKey: string, soundRef: string): Promise<void> {
+    this.enter('soundboardPreview', [serverKey, soundRef]);
   }
 
   private enter(method: keyof CoreApi, args: unknown[]): void {

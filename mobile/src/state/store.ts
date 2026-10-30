@@ -31,7 +31,9 @@ export function initialState(): AppState {
     music: {},
     uploads: {},
     userAudio: {},
-    prefs: { theme: 'system', music: { ...DEFAULT_MUSIC } },
+    soundRings: {},
+    lastSound: {},
+    prefs: { theme: 'system', music: { ...DEFAULT_MUSIC }, soundFavorites: [] },
     toasts: [],
     editingMessage: null,
   };

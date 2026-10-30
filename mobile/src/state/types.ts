@@ -112,6 +112,8 @@ export interface MusicListening {
 export interface Prefs {
   theme: Theme;
   music: MusicListening;
+  /** Soundboard favourites, by picker.ts's favoriteKey. */
+  soundFavorites: string[];
 }
 
 export interface Toast {
@@ -150,6 +152,10 @@ export interface AppState {
   uploads: Record<string, MusicUploadState>;
   /** Keyed `serverKey/userId`: how someone sounds here, as handed to the core (which keeps it in memory too). */
   userAudio: Record<string, UserAudio>;
+  /** Keyed `serverKey/channelId`: who played a sound, and when its ring ends (ms, this device's clock). */
+  soundRings: Record<string, Record<string, number>>;
+  /** When this device last played a sound, per server: the cooldown runs from it. */
+  lastSound: Record<string, number>;
   prefs: Prefs;
   toasts: Toast[];
   editingMessage: EditingMessage | null;

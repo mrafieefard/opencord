@@ -11,10 +11,13 @@ import {
   type MusicSettingsRecord,
   type ServerSnapshot,
 } from '@opencord/core-native';
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+
+import { soundboardPicker, type Picker } from '@/features/soundboard/picker';
 
 import { EMPTY_MESSAGES } from './events';
 import { previewText } from './preview';
+import { defaultSounds } from './actions/soundboard';
 import { DEFAULT_USER_AUDIO, useAppStore } from './store';
 import {
   channelKey,
@@ -272,3 +275,28 @@ export function useMusicUploads(serverKey: string, channelId: string): MusicUplo
     [uploads, serverKey, channelId],
   );
 }
+
+/** The soundboard for this device's voice channel, searched; null outside voice. */
+export function useSoundboardPicker(query: string): Picker | null {
+  const myVoice = useAppStore((state) => state.myVoice);
+  const servers = useAppStore((state) => state.servers);
+  const order = useAppStore((state) => state.order);
+  const prefs = useAppStore((state) => state.prefs);
+  return useMemo(() => soundboardPicker({ myVoice, servers, order, prefs }, defaultSounds(), query), [myVoice, servers, order, prefs, query]);
+}
+
+/** Whether someone's soundboard ring shows: until their sound ends. */
+export function useSoundRing(serverKey: string, channelId: string, userId: string): boolean {
+  const endsAt = useAppStore((state) => state.soundRings[channelKey(serverKey, channelId)]?.[userId]);
+  // The end that has passed; a newer sound brings a newer end.
+  const [ended, setEnded] = useState<number>();
+  useEffect(() => {
+    if (endsAt === undefined) return;
+    const timer = setTimeout(() => setEnded(endsAt), Math.max(endsAt - Date.now(), 0));
+    return () => clearTimeout(timer);
+  }, [endsAt]);
+  return endsAt !== undefined && ended !== endsAt;
+}
+
+/** When this device last played a sound on a server, for the cooldown. */
+export const useLastSound = (serverKey: string): number | undefined => useAppStore((state) => state.lastSound[serverKey]);

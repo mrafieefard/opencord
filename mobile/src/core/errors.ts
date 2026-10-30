@@ -30,6 +30,8 @@ function serverSentence(code: string, message: string): string {
       return 'Slow down a little and try again.';
     case 'voice_channel_full':
       return 'This channel is full.';
+    case 'sound_cooldown':
+      return 'Wait a moment to play another sound.';
     case 'file_too_large':
       return 'That file is bigger than this server allows.';
     case 'file_type_blocked':

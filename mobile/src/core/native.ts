@@ -61,4 +61,8 @@ export const NativeCore: CoreApi = {
   musicUploadSong: (key, channel, upload, path, playNow) =>
     native.musicUploadSong(key, channel, upload, path, playNow),
   musicCancelSong: (key, upload) => native.musicCancelSong(key, upload),
+
+  soundboardDefaultSounds: () => native.soundboardDefaultSounds(),
+  soundboardPlay: (key, channel, soundRef, external) => native.soundboardPlay(key, channel, soundRef, external),
+  soundboardPreview: (key, soundRef) => native.soundboardPreview(key, soundRef),
 };

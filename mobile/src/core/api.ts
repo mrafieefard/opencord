@@ -4,6 +4,8 @@
 import type {
   AddServerResult,
   AttachmentVariant,
+  DefaultSoundRecord,
+  ExternalSoundRecord,
   IdentityInfo,
   MessageRecord,
   MobileEvent,
@@ -99,4 +101,8 @@ export interface CoreApi {
   musicArtwork(serverKey: string, artworkId: string, size: number): Promise<string>;
   musicUploadSong(serverKey: string, channelId: string, uploadId: string, path: string, playNow: boolean): Promise<void>;
   musicCancelSong(serverKey: string, uploadId: string): void;
+
+  soundboardDefaultSounds(): DefaultSoundRecord[];
+  soundboardPlay(serverKey: string, channelId: string, soundRef: string, external: ExternalSoundRecord | undefined): Promise<void>;
+  soundboardPreview(serverKey: string, soundRef: string): Promise<void>;
 }

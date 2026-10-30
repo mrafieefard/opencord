@@ -1,5 +1,6 @@
 // The voice call's controls (spec §8.6): 56 pt round buttons (Mute,
-// Deafen, on iOS the sound output, Music, Leave). Toggles flip between surface/text (off)
+// Deafen, on iOS the sound output, Soundboard, Leave). Music has its own
+// button in the header. Toggles flip between surface/text (off)
 // and accent/onAccent (on), and their glyph shows the state; Leave is
 // recording with a white glyph.
 import { AudioRouteButton, hasAudioRouteButton } from '@opencord/voice-service';
@@ -13,7 +14,7 @@ export interface ControlBarProps {
   deafened: boolean;
   onToggleMute: () => void;
   onToggleDeafen: () => void;
-  onOpenMusic?: () => void;
+  onOpenSoundboard?: () => void;
   onLeave: () => void;
 }
 
@@ -24,7 +25,7 @@ export function ControlBar({
   deafened,
   onToggleMute,
   onToggleDeafen,
-  onOpenMusic,
+  onOpenSoundboard,
   onLeave,
 }: ControlBarProps) {
   const { colors } = useTheme();
@@ -82,16 +83,16 @@ export function ControlBar({
         </View>
       )}
 
-      {/* Music */}
+      {/* Soundboard */}
       <Touchable
-        onPress={onOpenMusic}
+        onPress={onOpenSoundboard}
         accessible
         accessibilityRole="button"
-        accessibilityLabel="Music"
-        testID="control-music"
+        accessibilityLabel="Soundboard"
+        testID="control-soundboard"
       >
         <View style={[styles.button, { backgroundColor: colors.surface }]}>
-          <Icon name="music" size={24} color="text" />
+          <Icon name="soundboard" size={24} color="text" />
         </View>
       </Touchable>
 

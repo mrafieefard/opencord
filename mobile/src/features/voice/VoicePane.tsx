@@ -62,6 +62,7 @@ export function VoicePane({ serverKey, channelId, onOpenSidebar, onOpenChannel }
   const join = useCallback(() => report(joinVoice(serverKey, channelId), 'join voice'), [serverKey, channelId]);
   const leave = useCallback(() => report(leaveVoice(), 'leave voice'), []);
   const openMusic = useCallback(() => router.push(`/server/${serverKey}/music/${channelId}`), [serverKey, channelId]);
+  const openSoundboard = useCallback(() => router.push(`/server/${serverKey}/soundboard/${channelId}`), [serverKey, channelId]);
   const openMember = useCallback((userId: string) => router.push(`/server/${serverKey}/member/${userId}`), [serverKey]);
   const onLayout = useCallback((event: LayoutChangeEvent) => {
     const next = event.nativeEvent.layout.width;
@@ -95,6 +96,7 @@ export function VoicePane({ serverKey, channelId, onOpenSidebar, onOpenChannel }
               <ParticipantTile
                 key={member.userId}
                 serverKey={serverKey}
+                channelId={channelId}
                 member={member}
                 size={tile.size}
                 onPress={() => openMember(member.userId)}
@@ -110,7 +112,7 @@ export function VoicePane({ serverKey, channelId, onOpenSidebar, onOpenChannel }
             deafened={here.deafened}
             onToggleMute={() => setMuted(!here.muted)}
             onToggleDeafen={() => setDeafened(!here.deafened)}
-            onOpenMusic={openMusic}
+            onOpenSoundboard={openSoundboard}
             onLeave={leave}
           />
         </View>
