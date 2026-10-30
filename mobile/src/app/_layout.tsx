@@ -1,6 +1,6 @@
 // The root: providers, the boot gate, and the native stack. Routes need
 // the boot state: onboarding before an identity, the rest after.
-import { Stack } from 'expo-router';
+import { DarkTheme, DefaultTheme, Stack, ThemeProvider as NavigationTheme } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useWindowDimensions } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
@@ -17,8 +17,15 @@ function Routes() {
   const { colors, scheme } = useTheme();
   const { width } = useWindowDimensions();
   const ready = boot.state === 'ready';
+  // What shows behind a screen while it moves (the corners of one swiped
+  // back on iOS 26): React Navigation's light grey unless it is given ours.
+  const base = scheme === 'dark' ? DarkTheme : DefaultTheme;
+  const navigationTheme = {
+    ...base,
+    colors: { ...base.colors, background: colors.chat, card: colors.chat, text: colors.text, border: colors.border, primary: colors.text },
+  };
   return (
-    <>
+    <NavigationTheme value={navigationTheme}>
       <StatusBar style={scheme === 'dark' ? 'light' : 'dark'} />
       <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.chat } }}>
         <Stack.Screen name="index" />
@@ -70,7 +77,7 @@ function Routes() {
       </Stack>
       <ToastHost />
       <DialogHost />
-    </>
+    </NavigationTheme>
   );
 }
 
